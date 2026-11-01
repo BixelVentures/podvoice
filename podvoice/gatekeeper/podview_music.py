@@ -449,6 +449,10 @@ def project_playback_output(value: Any, account: str | None) -> dict:
         "physical_result_verified",
     }
     try:
+        if isinstance(value, dict) and value.get("ok") is False:
+            if set(value) == {"ok", "error_kind"} and value["error_kind"] in _ERRORS:
+                return unavailable(value["error_kind"])
+            raise ValueError("invalid owner error")
         if not isinstance(value, dict) or set(value) != metadata_keys | {"output"}:
             raise ValueError("invalid aggregate")
         if value["schema"] != "podconnect.playback.v2":
@@ -553,6 +557,10 @@ def project_playback_controls(
     import math
 
     try:
+        if isinstance(value, dict) and value.get("ok") is False:
+            if set(value) == {"ok", "error_kind"} and value["error_kind"] in _ERRORS:
+                return unavailable(value["error_kind"])
+            raise ValueError("invalid owner error")
         if not isinstance(value, dict) or value.get("schema") != "podconnect.playback.v3":
             raise ValueError("invalid controls aggregate")
         if settlement_identity is None:

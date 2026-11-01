@@ -259,6 +259,52 @@ async def test_real_robot_setup_choice_start_and_unknown_replay(fixture):
     assert len(rig.writes) == 6
 
 
+@pytest.mark.parametrize("repeat", [1, 2])
+async def test_robot_touch_offers_one_or_two_and_rejects_three(fixture, repeat):
+    rig, bridge, token = fixture
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    start = next(row for row in offer["options"] if row["action"] == "start")
+    assert start["argsSchema"]["repeat"] == {"min": 1, "max": 2}
+    area = start["argsSchema"]["areas"][0]["id"]
+    rejected = await bridge.controls.action(
+        action_body(offer, start, {"areaIds": [area], "repeat": 3}), token
+    )
+    assert rejected["error"] == "invalid_arguments" and not rig.writes
+    accepted = await bridge.controls.action(
+        action_body(offer, start, {"areaIds": [area], "repeat": repeat}), token
+    )
+    assert accepted["outcome"] == "accepted"
+    assert rig.writes[-1][1]["params"][0]["repeat"] == repeat
+
+
+async def test_three_repeat_history_is_retained_but_not_directly_reused(fixture):
+    rig, bridge, token = fixture
+    device = rig.router._device_control
+    offered = await device.display_setup(ROBOT, ("podview:seed", "history-source"))
+    cap = device._display_tickets[offered["capability_token"]]
+    record = device._cleaning_journal.begin(
+        {
+            "vacuum_entity_id": ROBOT,
+            "device_identity": cap.identity,
+            "map_entity_id": cap.map_entity,
+            "map_name": cap.map_name,
+            "map_fingerprint": cap.map_fingerprint,
+            "mapping_identity": cap.mapping_identity,
+            "area_ids": ["kitchen"],
+            "segments": [16],
+            "repeat": 3,
+            "verified_settings": [],
+        }
+    )
+    device._cleaning_journal.accepted(record)
+    assert device.cleaning_history()["items"][0]["recipe"]["repeat"] == 3
+    offer = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    assert offer["ok"], offer
+    assert "reuse" not in {row["action"] for row in offer["options"]}
+    assert "historyDraft" not in offer["setup"]
+    assert not rig.writes
+
+
 async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_moves(fixture):
     rig, bridge, token = fixture
     device = rig.router._device_control
@@ -298,7 +344,7 @@ async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_m
     public = json.dumps(offer)
     assert '"area_ids"' not in public and '"verified_settings"' not in public
     dining = next(row["id"] for row in start["argsSchema"]["areas"] if row["label"] == "Spisestue")
-    action = action_body(offer, start, {"areaIds": [dining], "repeat": 3})
+    action = action_body(offer, start, {"areaIds": [dining], "repeat": 2})
     result = await bridge.controls.action(action, token)
     assert result["outcome"] == "accepted", result
     assert rig.writes == [
@@ -309,7 +355,7 @@ async def test_accepted_history_draft_maps_current_ids_and_only_explicit_start_m
             {
                 "entity_id": ROBOT,
                 "command": "app_segment_clean",
-                "params": [{"segments": [17], "repeat": 3}],
+                "params": [{"segments": [17], "repeat": 2}],
             },
         ),
     ]
@@ -1853,3 +1899,119 @@ async def test_robot_draft_renewal_rechecks_source_consumption_after_fresh_await
     renewed = await bridge.controls.setup(setup_body(bridge, draft=draft), token)
     assert renewed["ok"] and renewed["setup"]["draft"] == {"status": "not_restored"}
     assert not rig.writes
+
+
+@pytest.mark.parametrize("action", ["pause", "volume"])
+@pytest.mark.parametrize("state", ["ready", "busy", "stale_binding"])
+async def test_unknown_move_fence_allows_only_fresh_source_bound_controls(
+    offline_direct, action, state, monkeypatch
+):
+    from integration.test_podview_music_control import controls, volume_owner
+    from unit.test_podview_room_move import POLICY, prep
+    from unit.test_podview_room_move import source as move_source
+    from unit.test_podview_speakers import payload as speakers_payload
+
+    from gatekeeper import podview_speakers
+    from gatekeeper.podview_room_move import _SERVICES, RoomMoveFacade
+
+    _, bridge, _, _, _, _, _, music = offline_direct
+    if action == "volume":
+        music.value = controls()
+        volume_owner(music)
+    else:
+        music.value["actions"] = ["pause"]
+    bridge.controls.policy["music"][0]["actions"] = [action, "move_existing_session", "play_track"]
+    bridge.controls.policy["music"].append(
+        {
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "r1",
+            "nativeHomepodId": "43",
+            "actions": ["move_existing_session"],
+            "maxVolume": 40,
+            "default": False,
+        }
+    )
+    music.tools._discovery = replace(
+        music.tools._discovery,
+        podconnect_services=music.tools._discovery.podconnect_services | _SERVICES,
+    )
+    facade = RoomMoveFacade(music.tools, policy_revision=POLICY)
+    bridge.controls.move = facade
+    speakers = speakers_payload()
+    speakers["targets"][-1]["target_id"] = "device"
+    monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=speakers))
+    destination = podview_speakers.project(
+        speakers, boot=bridge.boot_id, room="kitchen", account="account", default_room=None
+    )["speakers"][1]
+    move_calls = []
+
+    async def move_read(_client, _token, service, data):
+        move_calls.append(service)
+        if service == "get_room_move_controls":
+            value = move_source(data["room_id"], data["homepod_id"])
+            value["target"]["target_id"] = "device"
+            return value
+        if service == "prepare_room_move_playback":
+            return prep(data)
+        if service == "move_room_playback":
+            raise TimeoutError("uncertain")
+        return {}
+
+    monkeypatch.setattr(facade, "_read", move_read)
+    key = ("kitchen", "account")
+    token = bridge.grant_timer_control("kitchen")
+    old_body = setup_body(bridge, "music")
+    old_body["target"]["targetId"] = "device"
+    if action == "volume":
+        old_body["requestedAction"] = "volume"
+    old_task = await bridge.controls.setup(old_body, token)
+    assert old_task["ok"], old_task
+    old_option = next(row for row in old_task["options"] if row["action"] == action)
+    old_action = action_body(old_task, old_option, {"percent": 20} if action == "volume" else {})
+    old_action["requestId"] = "old-before-unknown"
+    move_body = setup_body(bridge, "music")
+    move_body["target"].update(targetId="device", speakerId=destination["speakerId"])
+    move_task = await bridge.controls.setup(move_body, token)
+    assert move_task["ok"], move_task
+    move_action = action_body(move_task, move_task["options"][0])
+    unknown = await bridge.controls.action(move_action, token)
+    assert unknown["outcome"] == "unknown" and unknown["retryAllowed"] is False
+    assert move_calls.count("move_room_playback") == 1
+    assert not (await bridge.controls.action(old_action, token))["ok"]
+    assert not any(
+        call[1].endswith(("control_room_playback", "control_room_volume")) for call in music.calls
+    )
+    snapshot = bridge.snapshot("kitchen", token)
+    assert "music" in snapshot["capabilities"]["controlSetup"]
+    assert snapshot["capabilities"]["musicSelection"] is False
+    body = setup_body(bridge, "music")
+    body["target"]["targetId"] = "device"
+    if state == "busy":
+        music.value["status"] = "busy"
+    if state == "stale_binding":
+        body["target"]["expectedBindingId"] = "f" * 64
+    if action == "volume":
+        body["requestedAction"] = "volume"
+    offer = await bridge.controls.setup(body, token)
+    if state != "ready":
+        assert not offer["ok"]
+        assert not any(
+            call[1].endswith(("control_room_playback", "control_room_volume"))
+            for call in music.calls
+        )
+    else:
+        assert offer["ok"], offer
+        option = next(row for row in offer["options"] if row["action"] == action)
+        request = action_body(offer, option, {"percent": 20} if action == "volume" else {})
+        request["requestId"] = "new-explicit-control"
+        result = await bridge.controls.action(request, token)
+        assert result["outcome"] == "accepted", result
+        assert result["physicalResultVerified"] is False
+        service = "control_room_volume" if action == "volume" else "control_room_playback"
+        assert len([call for call in music.calls if call[1].endswith(service)]) == 1
+        assert await bridge.controls.action(request, token) == result
+        assert len([call for call in music.calls if call[1].endswith(service)]) == 1
+    assert key in bridge._music_move_fence
+    await bridge.controls.action(move_action, token)
+    assert move_calls.count("move_room_playback") == 1

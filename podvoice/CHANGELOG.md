@@ -1,3 +1,9 @@
+## 2.0.112
+
+- Improve music controls, queue metadata retention and recovery across refresh and output changes.
+- Keep robot and Tesla controls aligned with the approved shared view and current service capabilities.
+- Home Assistant component remains at 0.1.9. Publication, installation and physical validation are separate.
+
 ## 2.0.111
 
 - Correct robot dock command capability detection and use Home Assistant report timestamps for bound robot observations.

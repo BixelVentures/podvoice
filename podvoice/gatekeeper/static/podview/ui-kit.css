@@ -2337,3 +2337,6 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] pv-vacuu
    Only this resource is changed; Timer and player retain their existing rules. */
 pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identity=tesla]{background:var(--pv-tint);color:var(--pv-tint-ink);backdrop-filter:none}
 pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identity=tesla] .resource-label :is(strong,small,.resource-value){color:var(--pv-tint-ink)}
+
+/* Speaker selection reuses the radio choice's surface and inset outline. */
+.pv-kit-dialog #room-options>button.pv-kit-listrow[aria-pressed=true]{background:var(--pv-surface)!important;border-color:var(--pv-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-ink)}

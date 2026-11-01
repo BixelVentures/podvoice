@@ -459,7 +459,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "80e0ea7fd4308cc2a7d537ae25ce1a949ec5ad53b4724ec61ea0c6d93fc13ead"
+      "sha256": "edce774c77d3a586b942ea0fa54f7e639c05ee7a37465371e558c4843e940a9e"
     },
     {
       "path": "ingress-kiosk.js",
@@ -503,7 +503,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "039deeece3efa6264f79fd3d85c937c61019f1b51fa660f1fde94d3ade4a08a8"
+      "sha256": "5d662aa5611d58eaf73f39a02d8b998483b369040799be40f3035a452a0d985a"
     },
     {
       "path": "live-home-view.js",
@@ -511,7 +511,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "92b973131379b1e1d5fb17d6fede8b86d2a4563e7ff17bf479539283626186eb"
+      "sha256": "fa4ddd7614e7643b74712879f219a59c87e79f7692abfd9159ccbb4c7d957073"
     },
     {
       "path": "live-music-selection-view.js",
@@ -527,7 +527,7 @@
     },
     {
       "path": "live-queue-view.js",
-      "sha256": "9160e693e134d28e8d891deddd2a4a9c4a0f95ab8cab5e90ad9ae7e51855fc7d"
+      "sha256": "24c1156485218953e6ea532166df7d75152e48c936a2252fe49eee3d6a15c234"
     },
     {
       "path": "local-robot-view.js",
@@ -595,19 +595,19 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "1a057b4a1a2b4ab5f0f3cf8353705730dd0a74c0c6eb89dae99ebb26d65bb7a4"
+      "sha256": "a4682100dca7638642dfc86a23e9c665a5667c37f22e60904d2faea0ec36ddec"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "885b580bd53e9a7c752a8baeeba4ddaeef96c9bc119e4e2bca42acc8801e0ff6"
+      "sha256": "3237094a65d613532d0c94e5e56c316f1edd7a44cc41c516bbd8648851369474"
     },
     {
       "path": "podview.css",
-      "sha256": "cbc2479f50971c5eaa2d49c7bbb73efdf2b6fee0d574c82ef340d7a5ca62639d"
+      "sha256": "784b65034d7c62319f2b24f9cd91cb8b89a3052fb1e59052fd90eb12baf122fa"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "2a87a5aeae15ddb096c395d9a3cc0ac607a8d4d5a32d4660759c0d6d88e76b07"
+      "sha256": "e62b8c9960a5ee8eda69e5e2892b9f8a50db3530dd291f2458d20dd131b86ba5"
     },
     {
       "path": "podvoice-view.js",
@@ -639,7 +639,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "374c01cb9a77189b178027b0c1f9f5a97d0b60f390509ab0f02a5587719a1c94"
+      "sha256": "d26f413e18a17e096a0c7730b431c02403edfcb09927e2aeb928be2b8eaa2cf8"
     },
     {
       "path": "robot-observation.js",
@@ -675,7 +675,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "68b2db8b9b90c4b7eef5c8c5484423dbefa95b26150ca071d8c70b74964fa482"
+      "sha256": "26ea4429b54875eddbaa1eb2af3a7e4c1885b3c9c3226070bea7c0bb8bce559c"
     },
     {
       "path": "spotify-artwork.js",
@@ -711,7 +711,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "43a06ef3d8899317413516544d32faf08836a9ce300f05766e509983125865a0"
+      "sha256": "0330102e972e26f63b771c31e4383829893edc6ac0e4cb8c267eb7a80497f2c4"
     },
     {
       "path": "ui/components.js",
@@ -795,7 +795,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "19a454144ca437681b106752bce103602833b52550d560a8fae2c547c4f5229f"
+      "sha256": "1bcc7b6ea0ddc85f9574c42baa935808d5419a5ce0e055c8e2aa920f069f4a22"
     },
     {
       "path": "vehicle-model.js",
@@ -807,7 +807,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "ea1c14476276dbf36720de64d28313f6a2eb1f76091bf36e8e2b3e336c809c5f"
+      "sha256": "fd5537eeba882e1c9f98b7ce7e057014fc4561d60d2d7f3d847a794967b766dc"
     },
     {
       "path": "visual-content.js",

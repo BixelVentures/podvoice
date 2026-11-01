@@ -195,6 +195,8 @@ pv-widget-host .player>:is(#player-detail,#track,#output),
 pv-widget-host .player .cover,
 pv-widget-host #music-detail .detail-cover,
 pv-widget-host #music-detail #queue>.queue-track{opacity:1;filter:none}
+/* The robot Hero aligns its children to the start; stretch the shared progress track to its content width. */
+pv-robot-control-panel pv-vacuum-widget.pv-kit-hero>.player-progress{align-self:stretch}
 .player-progress>small:not([hidden]){position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:var(--pv-type-meta);line-height:var(--pv-leading-meta);color:var(--pv-screen-muted);white-space:nowrap;pointer-events:none}
 pv-widget-host .player-progress:not([hidden])+.transport{margin-top:var(--pv-screen-space-3)}
 dialog#music-detail .player-progress{margin-top:var(--pv-screen-space-5);font-size:var(--pv-type-meta);line-height:var(--pv-leading-meta)}

@@ -1,3 +1,86 @@
+## 1/11 — kausal musiklåsning og samlet kandidat112
+
+Observeret brugerflow: Kitchen → Svend → betjening låst; Spotify → iPhone →
+Kitchen genopretter ikke PodView. Musik havde faktisk lyd før låsning. Autoplay
+fortsatte korrekt; tom/flimrende kø er derfor ikke bevis for playbackfejl.
+
+Påvist kodeårsag: generic music exception kunne mærkes som UNKNOWN MOVE;
+frontend og server beholdt derefter en MOVE-fence, som gjorde selv et nyt frisk
+setup utilgængeligt. Kandidaten bevarer gammel UNKNOWN receipt/spent task og
+åbner kun nye eksplicitte handlinger gennem eksisterende aktuelle bindinger,
+policy, autoritativt ready-offer og sidste native-preflight. MOVE kræver nyt
+poll/offer/destination; ny Pause/volume bruger den faktiske aktuelle route.
+START/kø og gamle task må ikke genafsendes. 79 fokuserede backendregressioner
+PASS, herunder samme-owner UNKNOWN → ny eksplicit Pause/volume, busy/drift og
+immutabel gammel MOVE. Backend-snapshot er kørt gennem rigtig JS-decoder;
+samlet kilde-review af seneste Pause/volume-delta pågår. UI-ejer kører fælles
+fokuseret suite og monteret lokal visning. Ingen release/install af112 endnu.
+
+Aktuel browserobservation: servicens v3-response havde frisk faktisk Kitchen-
+binding, observerede pause/resume/next/previous/volume, mens111 UI viste disabled
+Fortsæt. Gemte data: /private/tmp/pv112-browser-enabled-service-disabled-ui-20261101.txt.
+Mac HA-overblik → Tilbage genoprettede siden automatisk uden manuel Gendan;
+første billede viste dog fejlagtig offline-tekst under read. Persisted-pageshow-
+hypotesen om manglende attach er afkræftet: faktisk schedule genmonterer screen.
+Ingen spekulativ lifecyclepatch. iPad-app-resume er endnu ikke frisk verificeret.
+
+Samlet pakke: kømetadata/retention uden placeholderflimmer; stabil højttalervælger;
+robot kombineret/støvsug/vask, højst2repeat, kompakt vedligehold med dagsdismiss,
+faktisk clean_percent-progress; Tesla godkendte primære Access/Climate og ladeeffekt
+kun ved observeret ladning. Robot Extreme30 kræver fortsat modelunderstøttet
+konkret API-bevis; ingen opdigtet kommando. Fysisk lyd/robot/bil er ikke udført.
+
+
+Kødelta endelig kilde-review: Native roterer occurrence-ID ved hver observation.
+Derfor genbruges KUN sangmetadata title/artist/artwork per præcis Spotify-URI
+i samme displayScope; hver række beholder NY id/order og aktuelt actionoffer.
+Dublerede URIer bevares, modstridende metadata gættes ikke, ukendte nye rækker
+skjules. Voice/svar-revision sletter ikke visningsdata men tilbagekalder gammel
+handlingstilladelse. Root verificerede 27/27 aktuelle JS-køregressioner PASS.
+Uafhængig ha_admission_review: GO på snæver samlet kømetadata/retention-kilde,
+live-queue-view SHA24c1156485218953e6ea532166df7d75152e48c936a2252fe49eee3d6a15c234.
+Ikke bygget/udgivet/installeret. Fysisk lyd eller Green-accept ikke påstået.
+
+## 1/11 — åbn HA og betjen stabilt; godkendt robot/Tesla/kø
+
+Kødelta 1/11: PodConnects aktuelle main9b1ebd5f indeholder fallbacknavnet
+"Nummer i køen", når metadata ikke findes; det er dokumenteret kildeårsag til
+at en ikke-tom titel ikke kan bruges som readiness. Isoleret Control-kandidat
+/private/tmp/pc-queue-metadata-known-20261101 tilføjer metadata_known bool uden
+at ændre occurrence-id, rækkefølge eller køautoritet. 149 fokuserede HA-prøver
+PASS med inerte afhængigheder. PodVoice-kandidaten accepterer feltet strengt og
+projicerer metadataKnown; 45/45 købrokerprøver PASS (to lokale HTTP-prøver krævede
+lokal portadgang). PodView bevarer samme scopes kendte metadata ved refresh/fejl,
+skjuler nye ukendte rækker og adskiller visning fra handlingstilladelse. Root
+kørte 24/24 fokuserede kø/lifecycle-JS-prøver PASS; UI-ejer har yderligere berørt
+suite-evidens. Fokuseret uafhængigt fællesreview pågår. Ingen udgivelse eller
+installation af dette delta endnu. Kompatibel PodVoice skal leveres FØR ny
+Control: installeret111 afviser nye felter i den lukkede Control-rækkeform.
+
+Kritisk vej: HA-login → første snapshot/SSE → musikstatus → Pause skal virke
+uden manuel gendan/forbind. Faktisk Mac09:34 viser forbindelsen afbrudt,
+Opdaterer og disabledPause trods senest vist nummer; ingen manuel recovery trykket.
+Agentha_lights_admission læste startup: første401/403 stopper autorecovery,
+SSE/DTO/6sek-forældelse invaliderer kontroller; præcis førstefejl skal nu aflæses.
+Ingen authsvækkelse eller automatisk gengentagelse af en ukendt kommando.
+
+Parallelle afgrænsede brugerkrav: Robotmåikke blinke/deaktiverevedbaggrundsrefresh;
+modeorden kombineret/støvsug/vask; kun1/2repeat; Extreme30 skal kobles til faktisk
+modelunderstøttet transport (intet opdigtet selectalias). Tesla HA-dashboard vs
+PodView datalæsning afstemmes; ingen ekstra accordions med inversehandlinger,
+bevar godkendte2kort primære statusbaserede kontroller. Kø bevarer seneste
+korrelerede metadatarækker underrefresh/transientfejl; nye rækkerførst nårdata
+findes; faktiskowner/session/queueændring/confirmedempty rydder forkertgammelkø.
+PodViewchat ejer fælles UI; robotbackendagent caps; Teslaagent snapshotdata;
+root læser faktisk førstefejl og ejer integration. Kandidatkopi af111 arbejdsbytes:
+/private/tmp/pv112-ha-ui-corrections-20261101, uden delt gitmetadata.
+Releasebase skal senere bindes til faktiskremote111merge6c5c7b130e72681392762a6ab83973bb9e071d29.
+Årsag førkode; kun nødvendige ejergrænser, ingen konkurrerende kø/stateejer.
+Kausale regressioner følger refresh→success/error/owner-skift, pendingauthority,
+expiry/unknownno-replay; realHAreads uden lyd/robot/bilhandling; reviewførlevering.
+Rollbackinstalleret111, ingen migrering planlagt. Ingen ny release før kendte
+softwareårsager i denne afgrænsede pakke er rettet og samlet kontrolleret.
+
 ### Bekræftet nabofejl — robotrapportens tidspunkt
 
 Actual normal /view/api/home networkresponse21:27UTC: dock_error water_empty
@@ -7334,5 +7417,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "73b2c72da54fb488987883202bde6ef2fe997851308e85f8bbf5ca75ab4f1ee3",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 88
+}
+-->
+
+<!-- podvoice112-admission
+{
+  "base_tip": "6c5c7b130e72681392762a6ab83973bb9e071d29",
+  "config_fingerprint": "9cd74ec51968b883dfa02d8e8abd5c4bd614100a7747910f55b3a66159e85c3d",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "6ca71c8ae918aeaeab62507dfbccda1d98f4157e1be43a2af64efec25c76d746",
+  "kind": "podvoice112_shared_controls_recovery",
+  "manifest_fingerprint": "c0f011024bc50c6a5bf364bd8837aa13a87eca5237e3d29e33a916c067a63fe8",
+  "merge_base": "6c5c7b130e72681392762a6ab83973bb9e071d29",
+  "policy_fingerprint": "99cd774aaf82ad28c7147011e6184b9ab045ecc8c013cd1e897c8cdf10405737",
+  "rationale": "PodVoice 2.0.112 combines reviewed music controls and queue recovery with approved robot and vehicle views. Focused backend, UI and local visual checks passed; exact artifact review is pending. CI, publication, installation, live services and physical acceptance remain separate.",
+  "regression_fingerprint": "c101b8c5546f3bbbaee4c86303bb4f9823f66de2bf96c4933ea5c6eb642e8b84",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "e3c58361cf87cb2a05de3abc04e17ab063e8a4efd7f9235f5a67f22a5d07f666",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 89
 }
 -->

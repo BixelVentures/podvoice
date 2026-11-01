@@ -39,6 +39,7 @@ _LABELS = {
     "volume": "Lydstyrke",
     "move_existing_session": "Flyt afspilning",
 }
+_ROBOT_TOUCH_REPEAT_MAX = 2
 
 
 def policy(value: str) -> dict:
@@ -231,6 +232,7 @@ class TouchControls:
         self.busy: set[str] = set()
         self.setups: dict[str, str] = {}
         self.mutations: dict[str, object] = {}
+        self.move_unknown: dict[tuple[str, str], tuple[str, int, str]] = {}
 
     def domains(self, room: str, token: str) -> list[str]:
         if not self.bridge._grant_current(room, token):
@@ -259,7 +261,10 @@ class TouchControls:
                 for row in self.policy["music"]
             )
             and self.music.tools is self.bridge.tools
-            and not any(key[0] == room for key in self.bridge._music_move_fence)
+            and (
+                not any(key[0] == room for key in self.bridge._music_move_fence)
+                or bool(self.fenced_music_accounts(room, token))
+            )
         ):
             result.append("music")
         owner = getattr(self.bridge.tools, "_device_control", None)
@@ -278,6 +283,58 @@ class TouchControls:
             except (AttributeError, TypeError, ValueError):
                 pass
         return result
+
+    def fenced_music_accounts(self, room: str, token: str) -> list[str]:
+        """Expose fresh source-bound controls for accounts with a spent unknown MOVE."""
+        if (
+            self.policy.get("roomId") != room
+            or not self.bridge._grant_current(room, token)
+            or self.music.tools is not self.bridge.tools
+        ):
+            return []
+        return sorted(
+            account
+            for fenced_room, account in self.bridge._music_move_fence
+            if fenced_room == room
+            and (room, account) in self.move_unknown
+            and any(
+                row.get("accountId") == account
+                and all(row.get(key) for key in ("targetId", "nativeRoomId", "nativeHomepodId"))
+                and (
+                    (
+                        bool(set(row.get("actions", [])) & {"pause", "resume", "next", "previous"})
+                        and self.music.room_available
+                    )
+                    or (
+                        "volume" in row.get("actions", [])
+                        and getattr(self.music, "volume_available", False)
+                    )
+                )
+                for row in self.policy["music"]
+            )
+        )
+
+    def move_recovery_accounts(self, room: str, token: str) -> list[str]:
+        """Expose only eligibility to request a new explicit MOVE setup, never an offer."""
+        if (
+            self.policy.get("roomId") != room
+            or not self.bridge._grant_current(room, token)
+            or self.music.tools is not self.bridge.tools
+            or not self.move.available
+        ):
+            return []
+        return sorted(
+            account
+            for fenced_room, account in self.bridge._music_move_fence
+            if fenced_room == room
+            and (room, account) in self.move_unknown
+            and any(
+                row.get("accountId") == account
+                and "move_existing_session" in row.get("actions", [])
+                and all(row.get(key) for key in ("targetId", "nativeRoomId", "nativeHomepodId"))
+                for row in self.policy["music"]
+            )
+        )
 
     def selection_allowed(self, room: str, token: str, action: str | None = None) -> bool:
         return bool(
@@ -345,7 +402,9 @@ class TouchControls:
 
     def _current(self, task: dict, token: str, *, _receipt_only: bool = False) -> bool:
         domain_current = task["domain"] in self.domains(task["room"], token)
-        if task["domain"] == "music" and "move_destination" in task:
+        if task["domain"] == "music" and (
+            "move_destination" in task or task.get("move_recovery") is True
+        ):
             domain_current = bool(
                 self.move.available
                 and self.music.tools is self.bridge.tools
@@ -357,6 +416,19 @@ class TouchControls:
                         and self.setups.get(task["room"]) == task["id"]
                     )
                 )
+            )
+        if (
+            task["domain"] == "music"
+            and "move_destination" not in task
+            and task.get("move_recovery") is not True
+            and any(key[0] == task["room"] for key in self.bridge._music_move_fence)
+        ):
+            key = (task["room"], task["target"].get("accountId"))
+            domain_current = bool(
+                domain_current
+                and key in self.bridge._music_move_fence
+                and task.get("music_fence_witness") is not None
+                and task["music_fence_witness"] == self.move_unknown.get(key)
             )
         return bool(
             secrets.compare_digest(task["token"], token)
@@ -508,6 +580,22 @@ class TouchControls:
             destination["homepodId"],
             current,
         )
+
+    def _new_move_after_unknown(self, key, offer):
+        previous = self.move_unknown.get(key)
+        if previous is None:
+            return False
+        try:
+            wire = offer.wire
+            epoch, sequence, offer_id = previous
+            return bool(
+                wire["owner_epoch"] == epoch
+                and wire["poll_sequence"] > sequence
+                and wire["move_offer"]["offer_id"] != offer_id
+                and offer.deadline > time.monotonic()
+            )
+        except (AttributeError, KeyError, TypeError, ValueError):
+            return False
 
     def _move_source_scope(self, task: dict) -> tuple | None:
         scope = task.get("actual_binding")
@@ -765,7 +853,29 @@ class TouchControls:
             return failure("invalid_setup")
         if "draft" in body and (domain != "vacuum" or "recipeId" in body):
             return failure("invalid_setup")
-        if domain not in self.domains(room, token):
+        account_id = target.get("accountId")
+        recovery_key = (room, account_id if isinstance(account_id, str) else "")
+        recovery_move = bool(
+            domain == "music"
+            and "speakerId" in target
+            and isinstance(target.get("accountId"), str)
+            and recovery_key in self.bridge._music_move_fence
+            and recovery_key in self.move_unknown
+            and self.policy.get("roomId") == room
+            and self.bridge._grant_current(room, token)
+            and self.music.tools is self.bridge.tools
+            and self.move.available
+        )
+        if domain == "music" and any(key[0] == room for key in self.bridge._music_move_fence):
+            if (
+                not isinstance(target.get("accountId"), str)
+                or recovery_key not in self.bridge._music_move_fence
+                or recovery_key not in self.move_unknown
+            ):
+                return failure("scope_not_paired")
+            if "speakerId" in target and not recovery_move:
+                return failure("scope_not_paired")
+        if domain not in self.domains(room, token) and not recovery_move:
             return failure("scope_not_paired")
         setup_mutation = self.mutations.get(room)
         if room in self.busy or room in self.setups:
@@ -860,8 +970,11 @@ class TouchControls:
             "consumed": False,
             "target": target,
             "rule": rule,
+            "move_recovery": recovery_move,
         }
         if domain == "music":
+            if not moving and recovery_key in self.bridge._music_move_fence:
+                task["music_fence_witness"] = self.move_unknown.get(recovery_key)
             task.update(actual_binding=resolved["binding"], actual_current=resolved["current"])
             task["deadline"] = min(
                 task["deadline"],
@@ -945,6 +1058,13 @@ class TouchControls:
                         task["move_alias_binding"] = owners[0]
                         task["move_rule_identity"] = self._move_rule_identity(rule)
                         task["move_destination"] = destination
+                        if recovery_move:
+                            offer = await self._fresh_move_offer(task, current)
+                            if (
+                                not self._new_move_after_unknown(recovery_key, offer)
+                                or not current()
+                            ):
+                                return failure("setup_unavailable")
                         task["options"][oid] = {
                             "action": "move_existing_session",
                             "schema": {"kind": "none"},
@@ -1247,7 +1367,9 @@ class TouchControls:
                             if "recipeId" in body:
                                 setup["recipeSummary"] = self._recipe_summary(task)
                                 if "start" in rule["actions"]:
-                                    setup["historyDraft"] = self._robot_history_draft(task)
+                                    draft = self._robot_history_draft(task)
+                                    if draft is not None:
+                                        setup["historyDraft"] = draft
             if not current():
                 return failure("stale_setup")
             task["expires_at"] = time.time() + max(0, task["deadline"] - time.monotonic())
@@ -1351,7 +1473,12 @@ class TouchControls:
             for oid, option in task["options"].items()
             if option["action"] == "start" and option["schema"]["kind"] == "cleaning"
         ]
-        if recipe is None or len(starts) != 1:
+        if (
+            recipe is None
+            or len(starts) != 1
+            or type(recipe["repeat"]) is not int
+            or not 1 <= recipe["repeat"] <= _ROBOT_TOUCH_REPEAT_MAX
+        ):
             return None
         oid, option = starts[0]
         ids = {row["area_id"]: aid for aid, row in option["areas"].items()}
@@ -1407,12 +1534,14 @@ class TouchControls:
             )
 
         if reuse:
-            add(
-                "Brug denne rengøring",
-                "reuse",
-                {"kind": "none"},
-                {"steps": task["offered"]["steps"]},
-            )
+            repeat = task["offered"]["steps"][-1]["arguments"]["repeat"]
+            if type(repeat) is int and 1 <= repeat <= _ROBOT_TOUCH_REPEAT_MAX:
+                add(
+                    "Brug denne rengøring",
+                    "reuse",
+                    {"kind": "none"},
+                    {"steps": task["offered"]["steps"]},
+                )
             if "start" in rule["actions"]:
                 self._robot_start_option(data, add, task=task, reuse=True)
             return rows
@@ -1571,7 +1700,7 @@ class TouchControls:
                 {
                     "kind": "cleaning",
                     "areas": [{"id": key, "label": row["name"]} for key, row in areas.items()],
-                    "repeat": {"min": 1, "max": 3},
+                    "repeat": {"min": 1, "max": _ROBOT_TOUCH_REPEAT_MAX},
                     "settings": public_settings,
                 },
                 {
@@ -1636,7 +1765,7 @@ class TouchControls:
                 or source["draft_identity"] != task.get("draft_identity")
                 or type(draft["optionId"]) is not str
                 or type(draft["repeat"]) is not int
-                or not 1 <= draft["repeat"] <= 3
+                or not 1 <= draft["repeat"] <= _ROBOT_TOUCH_REPEAT_MAX
             ):
                 return not_restored
             old = source["options"][draft["optionId"]]
@@ -1697,7 +1826,7 @@ class TouchControls:
             return not_restored
 
     @staticmethod
-    def _robot_history_draft(task: dict) -> dict:
+    def _robot_history_draft(task: dict) -> dict | None:
         starts = [
             (oid, option)
             for oid, option in task["options"].items()
@@ -1713,10 +1842,10 @@ class TouchControls:
             not 1 <= len(area_ids) <= 32
             or len(set(area_ids)) != len(area_ids)
             or not set(area_ids) <= set(current_ids)
-            or type(saved["repeat"]) is not int
-            or not 1 <= saved["repeat"] <= 3
         ):
             raise ValueError("The accepted recipe cannot be mapped to this task")
+        if type(saved["repeat"]) is not int or not 1 <= saved["repeat"] <= _ROBOT_TOUCH_REPEAT_MAX:
+            return None
         return {
             "source": "accepted_start_history",
             "optionId": oid,
@@ -1838,6 +1967,8 @@ class TouchControls:
 
         moving = option["action"] == "move_existing_session"
         move_dispatched = False
+        move_key = (task["room"], task["target"].get("accountId", ""))
+        prior_fence = moving and task.get("move_recovery") is True
         try:
             if moving:
                 self.bridge._music_move_fence.add((task["room"], task["target"]["accountId"]))
@@ -1845,10 +1976,26 @@ class TouchControls:
                 if task["domain"] == "music":
                     if moving:
                         offer = await self._fresh_move_offer(task, current)
-                        if offer is None or not current():
+                        if (
+                            offer is None
+                            or not current()
+                            or (prior_fence and not self._new_move_after_unknown(move_key, offer))
+                        ):
                             result = {"outcome": "rejected"}
                         else:
                             task["move_offer"] = offer
+                            wire = getattr(offer, "wire", {})
+                            details = wire.get("move_offer", {})
+                            if (
+                                isinstance(wire.get("owner_epoch"), str)
+                                and type(wire.get("poll_sequence")) is int
+                                and isinstance(details.get("offer_id"), str)
+                            ):
+                                self.move_unknown[move_key] = (
+                                    wire["owner_epoch"],
+                                    wire["poll_sequence"],
+                                    details["offer_id"],
+                                )
                             move_dispatched = True
                             result = await self.move.move(
                                 offer, current, receipt_current=receipt_current
@@ -1875,15 +2022,13 @@ class TouchControls:
                             if await confirm_move_destination(
                                 self.bridge, task, result, receipt_current
                             ):
-                                self.bridge._music_move_fence.discard(
-                                    (task["room"], task["target"]["accountId"])
-                                )
+                                self.bridge._music_move_fence.discard(move_key)
+                                self.move_unknown.pop(move_key, None)
                             else:
                                 outcome = "unknown"
-                        elif outcome == "rejected":
-                            self.bridge._music_move_fence.discard(
-                                (task["room"], task["target"]["accountId"])
-                            )
+                        elif outcome == "rejected" and not prior_fence:
+                            self.bridge._music_move_fence.discard(move_key)
+                            self.move_unknown.pop(move_key, None)
                 elif task["domain"] == "vehicle":
 
                     def authorize(proposal):
@@ -2069,7 +2214,9 @@ class TouchControls:
                     self.receipts[key] = fingerprint, receipt, task["deadline"]
         except (Exception, asyncio.CancelledError):
             if moving and not move_dispatched:
-                self.bridge._music_move_fence.discard((task["room"], task["target"]["accountId"]))
+                if not prior_fence:
+                    self.bridge._music_move_fence.discard(move_key)
+                    self.move_unknown.pop(move_key, None)
                 receipt = {**receipt, "outcome": "rejected"}
                 self.receipts[key] = fingerprint, receipt, task["deadline"]
             # A possible physical send remains terminal unknown with its fence.
@@ -2134,7 +2281,7 @@ class TouchControls:
             kind != "cleaning"
             or set(args) not in ({"areaIds", "repeat"}, {"areaIds", "repeat", "settingChoices"})
             or type(args["repeat"]) is not int
-            or not 1 <= args["repeat"] <= 3
+            or not 1 <= args["repeat"] <= _ROBOT_TOUCH_REPEAT_MAX
             or not isinstance(args["areaIds"], list)
             or not 1 <= len(args["areaIds"]) <= 32
             or any(not isinstance(a, str) for a in args["areaIds"])

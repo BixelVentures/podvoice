@@ -122,7 +122,7 @@ async def test_real87_complete_recipe_edits_use_actual_device_prepare_execute_an
 
         rig.write_hook = fail
     command = action_body(
-        offer, option, {"areaIds": [dining], "repeat": 3, "settingChoices": selected}
+        offer, option, {"areaIds": [dining], "repeat": 2, "settingChoices": selected}
     )
     result = await bridge.controls.action(command, token)
     assert await bridge.controls.action(command, token) == result
@@ -141,7 +141,7 @@ async def test_real87_complete_recipe_edits_use_actual_device_prepare_execute_an
                 {
                     "entity_id": ROBOT,
                     "command": "app_segment_clean",
-                    "params": [{"segments": [17], "repeat": 3}],
+                    "params": [{"segments": [17], "repeat": 2}],
                 },
             ),
         ]
