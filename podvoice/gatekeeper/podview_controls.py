@@ -321,10 +321,9 @@ class TouchControls:
             or self.policy.get("roomId") != room
             or not self.bridge._grant_current(room, token)
             or self.music.tools is not self.bridge.tools
-            or not self.move.available
         ):
             return []
-        return sorted(
+        candidates = sorted(
             account
             for fenced_room, account in self.bridge._music_move_fence
             if fenced_room == room
@@ -336,6 +335,9 @@ class TouchControls:
                 for row in self.policy["music"]
             )
         )
+        if not candidates or not self.move.available:
+            return []
+        return candidates
 
     def selection_allowed(self, room: str, token: str, action: str | None = None) -> bool:
         return bool(

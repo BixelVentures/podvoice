@@ -286,13 +286,17 @@ class RoomMoveFacade:
 
     @property
     def available(self):
+        discovery = getattr(self.tools, "_discovery", None)
+        services = getattr(discovery, "podconnect_services", None)
+        client = getattr(self.tools, "_client", None)
         return bool(
             isinstance(self.policy, str)
             and re.fullmatch("[a-f0-9]{64}", self.policy)
-            and _SERVICES <= self.tools._discovery.podconnect_services
-            and self.tools._client is not None
-            and not self.tools._client.is_closed
-            and self.tools._token
+            and isinstance(services, (set, frozenset))
+            and _SERVICES <= services
+            and client is not None
+            and not getattr(client, "is_closed", True)
+            and getattr(self.tools, "_token", None)
         )
 
     def binding(self):

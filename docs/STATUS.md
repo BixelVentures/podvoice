@@ -7428,15 +7428,15 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "f37162cd1f3d75f1f655dac7f25df39eeeab8804d941d3451eb0d3074631141f",
+  "fingerprint": "bb8f6f70c40b2fbda350487a141ebe3407abfa917fd43cb480a12afe486f919a",
   "kind": "podvoice112_shared_controls_recovery",
-  "manifest_fingerprint": "e10528d2e4a2b2d436c167cc91b58ab183bdb492379441bf378d6884e377679b",
+  "manifest_fingerprint": "ae86b4ccb428e15ddb71d2e7d6cd02840cc3362ec369708a36b67c6aec69c312",
   "merge_base": "6c5c7b130e72681392762a6ab83973bb9e071d29",
-  "policy_fingerprint": "e014d798e3558b23fe3566b75e61ebf00976b554d31e6339caf45fd46e023717",
+  "policy_fingerprint": "dbf685a23b99718f6e5df940e824056b79bccf0350b59881151b02350b3d137c",
   "rationale": "PodVoice 2.0.112 combines reviewed music controls and queue recovery with approved robot and vehicle views. Focused backend, UI and local visual checks passed. CI found and the source review confirmed a missing-tools snapshot guard; exact artifact re-review is pending. CI, publication, installation, live services and physical acceptance remain separate.",
-  "regression_fingerprint": "5e869534d7b26cfa66ba107ce504869ea6cff3afa1fe44dea52143ab082534d3",
+  "regression_fingerprint": "98aeedef460b64c2ec49e2b16728b4520a2c2fccfaec34357a77deded73872ec",
   "reviewer": "/root/ha_admission_review",
-  "runtime_fingerprint": "723ad862728366bd8b80b993ee7dacbbb65f2be3de54fa7ca7724a6caf6705a9",
+  "runtime_fingerprint": "a04d945876ed416069977b18b0ea287595b5610fec29c7ebff695b734edd8451",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 89
 }

@@ -48,6 +48,7 @@ PRODUCTION = frozenset(
         "podvoice/gatekeeper/podview_controls.py",
         "podvoice/gatekeeper/podview_music.py",
         "podvoice/gatekeeper/podview_queue.py",
+        "podvoice/gatekeeper/podview_room_move.py",
         "podvoice/gatekeeper/static/podview/asset-manifest.json",
         "podvoice/gatekeeper/static/podview/index.html",
         "podvoice/gatekeeper/static/podview/live-control-view.js",
@@ -68,6 +69,7 @@ REQUIRED_TESTS = frozenset(
     [
         "tests/integration/test_podview_controls.py",
         "tests/integration/test_podview_device_approval.py",
+        "tests/integration/test_podview_lights_admission.py",
         "tests/integration/test_podview_playback_controls.py",
         "tests/integration/test_podview_queue_occurrence.py",
         "tests/integration/test_podview_robot_complete.py",
@@ -88,6 +90,7 @@ REQUIRED_TESTS = frozenset(
         "tests/podview/root-robot-control-panel.test.mjs",
         "tests/podview/root-speaker-output-view.test.mjs",
         "tests/podview/root-vehicle-view.test.mjs",
+        "tests/unit/test_podview_room_move.py",
     ]
 )
 
@@ -98,8 +101,8 @@ IMMUTABLE = previous.IMMUTABLE | {
 
 # Filled only after independent exact-tree review. Admission remains fail-closed.
 REVIEWER = "/root/ha_admission_review"
-MANIFEST_SHA = "e10528d2e4a2b2d436c167cc91b58ab183bdb492379441bf378d6884e377679b"
-PROFILE_AST = "df8936d61613ad9fdae9308804b4b389744123dd5ae1db4b227a9f4fbb0fd2c7"
+MANIFEST_SHA = "ae86b4ccb428e15ddb71d2e7d6cd02840cc3362ec369708a36b67c6aec69c312"
+PROFILE_AST = "50b75ca76f9da9448c82a1031f7bcc125226fbad9d36a7842c9a2a45fb14200a"
 
 
 def record_at(root: Path) -> dict | None:

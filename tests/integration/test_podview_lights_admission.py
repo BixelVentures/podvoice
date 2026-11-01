@@ -46,6 +46,7 @@ def app_for(bridge, *, middleware=trusted_ingress_fixture):
 async def test_ingress_snapshot_and_sse_light_scope_needs_no_named_cookie(tmp_path):
     bridge, tools, profiles, _, _ = rig(tmp_path, control_policy=POLICY)
     tools.podview_lights_actions = lambda: ["light.turn_on"]
+    assert not hasattr(tools, "_discovery")
     async with TestClient(TestServer(app_for(bridge))) as client:
         actor = await (await client.get("/view/api/snapshot")).json()
         paired = await (
@@ -58,6 +59,8 @@ async def test_ingress_snapshot_and_sse_light_scope_needs_no_named_cookie(tmp_pa
         )
         assert actor["capabilities"]["controlSetup"] == ["light"]
         assert paired["capabilities"]["controlSetup"] == ["light"]
+        assert actor["capabilities"]["musicMoveRecovery"] == []
+        assert paired["capabilities"]["musicMoveRecovery"] == []
         # Adding the screen's light scope never switches another domain to its token.
         for field in ("timerActions", "musicActions", "musicSelection", "queueSelection"):
             assert paired["capabilities"][field] == actor["capabilities"][field]
@@ -68,6 +71,7 @@ async def test_ingress_snapshot_and_sse_light_scope_needs_no_named_cookie(tmp_pa
         await stream.content.readline()
         snap = json.loads((await stream.content.readline()).decode().removeprefix("data: "))
         assert snap["capabilities"]["controlSetup"] == ["light"]
+        assert snap["capabilities"]["musicMoveRecovery"] == []
         stream.close()
 
 
