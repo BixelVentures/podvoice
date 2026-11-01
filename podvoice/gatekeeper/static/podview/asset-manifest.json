@@ -459,7 +459,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "a8e1484351f4d24a57b9bc8bb60e87f5d95b5f12af6d54379ecbee2570bfe2cd"
+      "sha256": "351c8eb8f3a4a1683847a04a12f10c6cb95a49dd1608ded908db211b0f1a77ca"
     },
     {
       "path": "ingress-kiosk.js",
@@ -503,7 +503,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "5d662aa5611d58eaf73f39a02d8b998483b369040799be40f3035a452a0d985a"
+      "sha256": "0be5636827cb708f82bb963f57234f828fab015e7b0a1fccae3a79e60805b3c9"
     },
     {
       "path": "live-home-view.js",
@@ -515,7 +515,7 @@
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "2babccefec72c40424dba1432f44fa79e1cfde321e9d43b342263e16f12685ac"
+      "sha256": "0102caf0f8f36d17c4acb67a1538eb6b27935175d551d453ef28c367ca1b6bfb"
     },
     {
       "path": "live-music-view.js",
@@ -599,7 +599,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "463e4d630675c3587cf1647d1ff92a9315d5ba63b52fa04442a8504dc5993156"
+      "sha256": "d0e4fd3490c548081284da912ccfa93929012761f44da5bc4a264610aeeb2b7b"
     },
     {
       "path": "podview.css",

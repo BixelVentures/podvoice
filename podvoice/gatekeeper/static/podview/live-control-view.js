@@ -140,6 +140,7 @@ export class LiveControlView{
   if(this.pending||this.setupPending||this.musicIntentPending)return null;
   if(this.musicFence?.outcome==='accepted')this.musicFence=null;
   if(this.host.liveSelection?.feedback?.settlementReceipt)this.host.liveSelection.feedback={...this.host.liveSelection.feedback,settlementReceipt:null,awaitingObservation:false};
+  const selectionFeedback=this.host.liveSelection?.feedback;if(selectionFeedback?.outcome==='accepted'&&['Anmodningen er modtaget · afventer observeret afspilning.','Anmodningen er modtaget · afventer bekræftelse fra kilden.'].includes(selectionFeedback.message))this.host.liveSelection.feedback={...selectionFeedback,message:'',awaitingObservation:false};
   const token={};this.musicIntentOwner=token;this.musicIntentPending=true;
   this.musicGeneration=(this.musicGeneration||0)+1;this.musicRead=null;this.musicReadPending=false;this.volumeRead=null;this.musicOffer=null;this.volumeOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.volumeAttempt=null;clearTimeout(this.musicExpiryTimer);clearTimeout(this.volumeExpiryTimer);
   this.host.liveMedia?.queueControls?.invalidate(false);this.host.liveMedia?.queueControls?.redraw?.();if(this.host.liveMedia)this.host.liveMedia.queueReadKey=null;if(this.host.liveSelection)this.host.liveSelection.offer=null;

@@ -1,3 +1,7 @@
+## 2.0.115
+
+- Clear outdated accepted music text when a new action or a different current track supersedes it.
+
 ## 2.0.114
 
 - Improve music queue continuity and player controls.
