@@ -90,7 +90,9 @@ def main() -> int:
     parser.add_argument("--base", required=True)
     args = parser.parse_args()
     if not validate(args.base):
-        print("candidate-scope FAIL: 2.0.122 music and recipes review or exact source binding mismatch")
+        print(
+            "candidate-scope FAIL: 2.0.122 music and recipes review or exact source binding mismatch"
+        )
         return 1
     print(f"candidate-scope PASS: exact 2.0.122 music and recipes source reviewed by {REVIEWER}")
     return 0
