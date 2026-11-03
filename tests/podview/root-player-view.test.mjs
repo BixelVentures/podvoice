@@ -489,3 +489,15 @@ test('newer actual different playback or explicit control dismisses only accepte
  selection.feedback={...waiting};const playing={...playback,state:'playing'};selection.observePlayback(playing);f.view.renderPlayer({...livePlayerModel(playing,true,'ready',snapshot),feedback:selection.feedback});assert.equal(selection.feedback.message,'');assert.equal(f.nodes.get('track-name').textContent,'Different song');assert.equal(f.nodes.get('play-icon').src,'assets/icons/pause-fill.svg');assert.equal(selection.feedback.settlementStatus,undefined);
  for(const outcome of ['accepted','unknown']){selection.feedback={...waiting,outcome,message:outcome==='accepted'?waiting.message:'Udfaldet er ukendt · handlingen gentages ikke.'};const control=Object.create(LiveControlView.prototype);control.host={liveSelection:selection};const token=control.beginMusicIntent();assert.ok(token);assert.equal(selection.feedback.outcome,outcome);assert.equal(selection.feedback.message,outcome==='accepted'?'':'Udfaldet er ukendt · handlingen gentages ikke.');}
 });
+
+test('only the chosen queue row exposes busy state to the action spinner',()=>{
+ const f=surface(),other={...item,id:'other',order:2};
+ f.view.renderQueue([{...item,pending:true,selectable:false},other],{status:'pending'});
+ const chosen=f.view.rows.get(item.id);
+ assert.equal(chosen.getAttribute('aria-busy'),'true');
+ assert.match(chosen.getAttribute('aria-label'),/^Starter:/);
+ assert.equal(f.view.rows.get(other.id).getAttribute('aria-busy'),null);
+ f.view.renderQueue([item,other],{status:'ready'});
+ assert.equal(f.view.rows.get(item.id),chosen);
+ assert.equal(chosen.getAttribute('aria-busy'),null);
+});

@@ -46,9 +46,16 @@ THEMES = {
     "indie": "A relaxed independent music listening corner with records and playful colors.",
     "calm": "A still lake and soft trees in gentle daylight, a peaceful unhurried atmosphere.",
 }
-_STYLE = (
+_LEGACY_STYLE = (
     "Create a square editorial photographic illustration for a music mood. "
     "Natural tactile materials, considered composition, subtle film grain. "
+    "No people, text, letters, logos, album sleeves or identifiable artists. "
+    "This is thematic inspiration, not a representation of any recording. "
+)
+
+_STYLE = (
+    "Create a square editorial graphic illustration for a music mood. "
+    "Use a limited palette of flat colors, simple geometric shapes and a strong silhouette. "
     "No people, text, letters, logos, album sleeves or identifiable artists. "
     "This is thematic inspiration, not a representation of any recording. "
 )
@@ -89,7 +96,10 @@ class ThemeArtPolicy:
     def fingerprint(self):
         # Prompt bytes are part of the immutable cache/policy identity. Editing the
         # catalog cannot silently reuse approval or regenerate under a prior budget.
-        body = {"policy": asdict(self), "prompts": THEMES, "style": _STYLE}
+        return self._fingerprint(_STYLE)
+
+    def _fingerprint(self, style: str) -> str:
+        body = {"policy": asdict(self), "prompts": THEMES, "style": style}
         return hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
 
 
@@ -184,7 +194,7 @@ class ThemeArtStore:
             if marker.exists() or marker.is_symlink():
                 if _regular_read(marker, 128) != _MARKER:
                     raise ValueError("invalid thematic-art marker")
-                self._read()
+                self._upgrade_legacy_style()
             else:
                 # Do not adopt existing files as an unspent cache.
                 if any(path.name != "owner.lock" for path in directory.iterdir()):
@@ -195,13 +205,28 @@ class ThemeArtStore:
     def _empty(self):
         return {"purpose": PURPOSE, "policy_sha256": self.policy.fingerprint, "entries": {}}
 
-    def _read(self):
+    def _upgrade_legacy_style(self):
+        value = self._read(allow_legacy_style=True)
+        if value["policy_sha256"] == self.policy.fingerprint:
+            return
+        # Keep the lifetime debit for every prior dispatch, including unknown outcomes.
+        for theme, entry in value["entries"].items():
+            if entry["state"] == "cached":
+                value["entries"][theme] = {"state": "retired"}
+        value["policy_sha256"] = self.policy.fingerprint
+        _atomic_bytes(self.ledger, json.dumps(value).encode())
+
+    def _read(self, *, allow_legacy_style: bool = False):
+        fingerprints = {self.policy.fingerprint}
+        if allow_legacy_style:
+            fingerprints.add(self.policy._fingerprint(_LEGACY_STYLE))
         value = _closed_json(_regular_read(self.ledger, 16_384))
         if (
             not isinstance(value, dict)
             or set(value) != {"purpose", "policy_sha256", "entries"}
             or value["purpose"] != PURPOSE
-            or value["policy_sha256"] != self.policy.fingerprint
+            or not isinstance(value["policy_sha256"], str)
+            or value["policy_sha256"] not in fingerprints
             or not isinstance(value["entries"], dict)
             or len(value["entries"]) > self.policy.max_images
         ):
@@ -209,7 +234,7 @@ class ThemeArtStore:
         for theme, entry in value["entries"].items():
             if theme not in THEMES or not isinstance(entry, dict):
                 raise ValueError("invalid thematic-art entry")
-            if entry == {"state": "attempted"}:
+            if entry in ({"state": "attempted"}, {"state": "retired"}):
                 continue
             if (
                 set(entry) != {"state", "sha256", "bytes", "provenance"}
@@ -238,6 +263,9 @@ class ThemeArtStore:
             yield
         finally:
             os.close(fd)
+
+    def retired(self, theme: str) -> bool:
+        return self._read()["entries"].get(theme) == {"state": "retired"}
 
     def reserve(self, theme: str) -> bool:
         value = self._read()
@@ -319,6 +347,11 @@ class ThemeArtOwner:
     async def _warm(self):
         for theme in THEMES:
             if self._closed:
+                return
+            try:
+                if self.store.retired(theme):
+                    continue
+            except (OSError, ValueError, TypeError):
                 return
             if await self.generate(theme, current=lambda: not self._closed) is None:
                 return  # Any failure, including429, stops the batch; no follow-on spend.

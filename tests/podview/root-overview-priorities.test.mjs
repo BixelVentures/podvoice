@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {overviewPriorities,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-test('overview fixes timer/weather/robot/light/vehicle/music/radio order regardless of state',()=>{
+test('overview fixes timer/weather/robot/light/vehicle/music/radio/recipes order regardless of state',()=>{
  const rows=overviewPriorities({timers:[{status:'running'}],mediaActive:true,devices:[{id:'robot',kind:'vacuum',status:'cleaning'},{id:'light',kind:'light',status:'unavailable'}]});
- assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio']);
+ assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);
  assert.equal(rows.find(row=>row.id==='home-music').priority,'secondary');assert.equal(rows.find(row=>row.id==='light').priority,'unavailable');assert.equal(rows.find(row=>row.id==='home-weather').priority,'useful');
 });
 test('calm overview retains useful access, no hidden device resurrected and no fabricated availability',()=>{
  const data={devices:[{id:'robot',kind:'vacuum',status:'docked'},{id:'light',kind:'light',status:'off'},{id:'hidden',kind:'vacuum',status:'cleaning',hidden:true}],timers:[{status:'done',hidden:true}]};
- const rows=overviewPriorities(data);assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio']);assert.deepEqual(overviewPriorities(data),rows);assert.equal(rows.find(row=>row.id==='home-vehicle').priority,'unavailable');
+ const rows=overviewPriorities(data);assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);assert.deepEqual(overviewPriorities(data),rows);assert.equal(rows.find(row=>row.id==='home-vehicle').priority,'unavailable');
 });
 test('actual host slots stay fixed while state appearance updates and preserve scroll/player state',async()=>{
  const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
@@ -33,13 +33,13 @@ test('ranked overview uses actual retained DOM order, keeps focus/scroll, and do
   remove(){if(this.parentNode)this.parentNode.children.splice(this.parentNode.children.indexOf(this),1);this.parentNode=null;this.isConnected=false;}
  }
  const nodes=new Map(),get=id=>{if(!nodes.has(id))nodes.set(id,new Node(id));return nodes.get(id);},overview=get('now-view'),wrapper=get('wrapper');overview.insertBefore(get('heading'),null);overview.insertBefore(wrapper,null);
- for(const id of ['home-weather','home-music','robot','light','timer-card','home-radio','home-vehicle'])wrapper.insertBefore(get(id),null);
+ for(const id of ['home-weather','home-music','robot','light','timer-card','home-radio','home-vehicle','home-recipes'])wrapper.insertBefore(get(id),null);
  feed.scrollTop=53;doc.activeElement=get('home-music');moves=0;
  const align=new Function('$','overviewPriorities','timersFor','getComputedStyle',`return function ${method}`)(id=>nodes.get(id)||null,overviewPriorities,timersFor,()=>({getPropertyValue:()=>0}));
  const host={state:{focus:'now',devices:[{id:'robot',kind:'vacuum',status:'cleaning'},{id:'light',kind:'light',status:'unavailable'}],timer:{id:'t',status:'running'},extraTimers:[]},dataset:{playback:'active'},style:{getPropertyValue:()=>'',setProperty(){}},deviceRows:new Map([['robot',get('robot')],['light',get('light')]]),ownerDocument:doc,querySelector:()=>feed};
  align.call(host);
  const ranked=()=>overview.children.filter(n=>n.dataset.overviewRank).map(n=>n.id);
- assert.deepEqual(ranked(),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio']);
+ assert.deepEqual(ranked(),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);
  assert.equal(wrapper.children.length,0);assert.equal(doc.activeElement,get('home-music'));assert.equal(feed.scrollTop,53);
  const firstMoves=moves;for(let i=0;i<10;i++)align.call(host);assert.equal(moves,firstMoves);
  // Real timer transitions must change content, never spatial or keyboard order.
@@ -55,7 +55,7 @@ test('ranked overview uses actual retained DOM order, keeps focus/scroll, and do
 
  host.state.devices[0].status='docked';align.call(host);assert.equal(moves,firstMoves);
  host.state.focus='weather';align.call(host);host.state.focus='now';align.call(host);
- assert.deepEqual(ranked(),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio']);assert.equal(feed.scrollTop,53);assert.equal(doc.activeElement,get('home-music'));
+ assert.deepEqual(ranked(),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);assert.equal(feed.scrollTop,53);assert.equal(doc.activeElement,get('home-music'));
  // Exercise the actual resource cleanup against cards already moved out of the adapter.
  const cleanupSource=source.slice(source.indexOf(' for(const [id,node] of this.deviceNodes)'),source.indexOf(' for(const [index,d] of deviceRows.entries())'));
  const cleanup=new Function('deviceRows',cleanupSource),oldRobot=get('robot');

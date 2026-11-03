@@ -1,3 +1,4 @@
+import {discoveryPeriod,shuffleDiscoveryLibrary} from './widget-model.js';
 import {visualHistoryExamples} from './visual-examples.js';
 import {validateVisualContent} from './visual-content.js';
 import {visualFamilies} from './visual-content.js';
@@ -17,7 +18,7 @@ export const deviceOfflinePreviewStates=['robot','light'].flatMap(kind=>['detail
 // Authored local observations only; none grants authority or represents live HA.
 export const robotActivityPreviewStates=['charging','charged','washing','emptying','drying','completed','brushfault'].flatMap(status=>['detail','overview','rest'].map(layer=>`robot-${layer}-${status}`));
 export const timerPreviewStates=['detail','overview','rest'].flatMap(layer=>['empty','running','finished','multiple','stale'].map(state=>`timer-${layer}-${state}`)).concat(['timer-overview-dismissed']);
-export const musicPreviewStates=['mood','feeling','top','recent','paused','refreshing','refresh-error','refresh-empty'].map(state=>`music-${state}`);
+export const musicPreviewStates=['mood','feeling','top','recent','paused','refreshing','refresh-error','refresh-empty','prototype-morning','prototype-afternoon','prototype-evening'].map(state=>`music-${state}`);
 export const radioPreviewStates=['ready','selected','paused','offline','request-pending'].map(state=>`radio-${state}`);
 export const weatherPreviewStates=[...['ready','empty','stale'].map(state=>`weather-${state}`),'weather-wind-known',...['idle','pending','ready','error'].map(state=>`weather-advice-${state}`)];
 export const answerPreviewStatuses=['ready','waiting','partial','empty','error','offline','interrupted'];
@@ -77,7 +78,7 @@ function authoredPreviewScene(name,now=Date.now()){
   return s;
  }
  if(timerPreviewStates.includes(name))return timerPreviewScene(name,now);
- if(musicPreviewStates.includes(name))return musicPreviewScene(name);
+ if(musicPreviewStates.includes(name))return musicPreviewScene(name,now);
  if(radioPreviewStates.includes(name))return radioPreviewScene(name);
  if(name==='weather-wind-known')return {...step(initialScene(),{type:'show',id:'weather'}),weatherPreview:'ready',weatherFixture:{...WEATHER_CHANGE_EXAMPLE,hours:WEATHER_CHANGE_EXAMPLE.hours.map((hour,index)=>({...hour,wind_bearing:[0,45,90,135,180,225,270,315,360,null,null,null][index]}))}};
  if(name.startsWith('weather-advice-')&&weatherPreviewStates.includes(name))return {...step(initialScene(),{type:'show',id:'weather'}),weatherPreview:'ready',weatherFixture:{...WEATHER_CHANGE_EXAMPLE,advicePreview:name.slice('weather-advice-'.length)}};
@@ -177,8 +178,9 @@ function timerPreviewScene(name,now){
  return s;
 }
 
-function musicPreviewScene(name){
+function musicPreviewScene(name,now){
  const variant=name.slice('music-'.length);let s=initialScene();
+ if(variant.startsWith('prototype'))return {...s,music:{...s.music,discoveryPrototype:true,discoveryLibraryOrder:shuffleDiscoveryLibrary(),discoveryPeriod:variant.split('-')[1]||discoveryPeriod(now)}};
  if(['mood','feeling','top','recent'].includes(variant))return step(s,{type:'music',event:{type:'collection',value:variant}});
  if(variant==='paused')return step(s,{type:'music',event:{type:'toggle'}});
  s=step(s,{type:'music',event:{type:'refresh',revision:s.music.revision}});

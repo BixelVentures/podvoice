@@ -424,6 +424,21 @@ async def test_morning_and_evening_are_real_query_themes_not_automatic_card_rota
         assert len(evening["data"]["tracks"]) == 3
 
 
+async def test_mood_fallback_uses_fresh_time_to_choose_spotify_playlists(mood_rig):
+    router = mood_rig.router
+    router.podview_mood_selector.select.return_value = None
+    async with TestClient(TestServer(mood_rig.app)) as client:
+        router.podview_mood_context.return_value = {"hour": 7, "roomKind": "kitchen"}
+        morning = await mood(client)
+        router.podview_mood_context.return_value = {"hour": 20, "roomKind": "kitchen"}
+        evening = await mood(client, True)
+        assert morning["ok"], morning
+        assert evening["ok"], evening
+        assert morning["data"]["tracks"][0]["themeId"] == "morning_acoustic"
+        assert evening["data"]["tracks"][0]["themeId"] == "evening_jazz"
+        assert morning["data"]["tracks"][0]["uri"] != evening["data"]["tracks"][0]["uri"]
+
+
 @pytest.mark.parametrize("mutation", [None, "account", "epoch", "session", "grant"])
 async def test_playlist_batch_enters_all_reads_before_release_and_fences_publication(
     mood_rig, mutation

@@ -32,7 +32,55 @@ export const COLLECTIONS={mood:{title:'Hvad er stemningen?',description:'Lidt ja
 export const MUSIC_OPTIONS=[...PLAYLISTS,...FEELING_PLAYLISTS,...['top','recent'].flatMap(collection=>[...TRACKS].map((t,i)=>({id:`${collection}:${t.id}`,name:t.title,description:t.artist,art:t.art,detail:'',collection,track:i})))];
 export function initialWidgetState(){return {revision:1,filter:'all',collection:'mood',suggestionPage:0,collectionPages:{mood:0},refreshPending:null,refreshStatus:'',refreshSerial:0,collapsed:false,playback:{active:true,track:0,progressMs:LOCAL_POSITION_EXAMPLE.progressMs,room:'Stuen',accountId:'household',kind:'configured_alias',targetId:'living-room',playing:true,volume:MOCK_PLAYBACK_POLICY.startVolumePercent},pending:null,operation:0,message:''};}
 export function musicRefreshFeedback(s){return s.refreshPending?'':s.refreshStatus==='error'?'Kunne ikke opdatere · prøv igen':s.refreshStatus==='empty'?'Ingen nye forslag · viser seneste udvalg':'';}
+const discoveryPlaylists=[
+ ['jazz','Jazz in the Background',7],['slow','Summer Slowdown, No. 16',1],
+ ['lounge','LOUNGE MUSIC 2026',7],['pop','Pop Remix',2],
+ ['house','Deep House 2026',6],['hiphop','Kanye West Mix',0],
+ ['techno','Techno 90s (Top 100)',6],['fest','Fest',3],
+ ['classic','The Jazz 100',7],['kids','Bedste Børnehits',3],
+];
+export function shuffleDiscoveryLibrary(){
+ const order=[5,3,0,6,4,8,2,1,7,9];
+ for(let i=order.length-1;i>0;i--){
+  const j=Math.floor(Math.random()*(i+1));
+  [order[i],order[j]]=[order[j],order[i]];
+ }
+ return order;
+}
+const discoveryGroups={
+ morning:[[1,0,2],[8,0,2]], afternoon:[[3,4,5],[7,6,2]], evening:[[0,2,5],[8,1,4]],
+};
+const vibeDirections=[
+ [0,'Jazz & lounge'],[5,'Hiphop & R&B'],[3,'Pop & dance'],
+ [1,'Afslappet pop'],[4,'Deep house'],[8,'Jazzklassikere'],
+ [2,'Lounge'],[6,'90’er-techno'],[7,'Festmusik'],
+];
+const firstVibePage={morning:0,afternoon:1,evening:2};
+export function discoveryPeriod(now){
+ const hour=Number(new Intl.DateTimeFormat('da-DK',{hour:'numeric',hourCycle:'h23',timeZone:'Europe/Copenhagen'}).format(now));
+ return hour<11?'morning':hour<17?'afternoon':'evening';
+}
+function discoveryOptions(s){
+ const page=s.suggestionPage||0,collection=s.collection,period=s.discoveryPeriod||'morning';
+ if(collection==='feeling'){
+  if(page>=3)return [];
+  const start=((firstVibePage[period]+page)%3)*3;
+  return vibeDirections.slice(start,start+3).map(([index,direction])=>{
+   const [key,name,track]=discoveryPlaylists[index];
+   return {id:`discovery:${key}`,name,track,description:direction,collection};
+  });
+ }
+ const choices=collection==='mood'?discoveryGroups[period][page]:
+  collection==='top'?(s.discoveryLibraryOrder||[5,3,0,6,4,8,2,1,7,9]).slice(0,(page+1)*5):null;
+ if(collection==='recent')return [5,0,1,3,6,7,2,4,8].slice(0,(page+1)*5).map(index=>MUSIC_OPTIONS.find(option=>option.collection==='recent'&&option.track===index));
+ return (choices||[]).map(index=>{
+  const [key,name,track]=discoveryPlaylists[index];
+  const description='Spotify-playliste · eksempel';
+  return {id:`discovery:${key}`,name,track,description,collection,art:`music-editorial-${index%3+1}.svg`};
+ });
+}
 export function resultsFor(s){
+ if(s.discoveryPrototype)return discoveryOptions(s);
  const pool=s.collection==='mood'||!s.collection?PLAYLISTS.filter(p=>s.filter==='all'||p[s.filter]):s.collection==='feeling'?FEELING_PLAYLISTS:(COLLECTION_TRACKS[s.collection]||[]).map(index=>MUSIC_OPTIONS.find(p=>p.collection===s.collection&&p.track===index));
  const start=((s.suggestionPage||0)*3)%Math.max(1,pool.length);
  return Array.from({length:Math.min(3,pool.length)},(_,i)=>pool[(start+i)%pool.length]);
@@ -53,7 +101,7 @@ export function widgetTransition(s,e){
   case 'toggle':if(!s.playback.active)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,playing:!s.playback.playing},message:''};
   case 'skip':{if(!s.playback.active)return s;const order=s.queueOrder||TRACKS.map(t=>t.id),position=order.indexOf(TRACKS[s.playback.track].id),id=order[(position+(e.delta<0?-1:1)+order.length)%order.length];return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,art:undefined,progressMs:0,track:TRACKS.findIndex(t=>t.id===id)},message:''};}
   case 'queue-reorder':{const base=s.queueOrder||TRACKS.map(t=>t.id),current=TRACKS[s.playback.track]?.id,start=base.indexOf(current),ids=[...base.slice(start),...base.slice(0,start)];if(s.pending||e.revision!==s.revision||e.id===current||e.beforeId===current||e.id===e.beforeId||!ids.includes(e.id)||e.beforeId!==null&&!ids.includes(e.beforeId))return s;const order=ids.filter(id=>id!==e.id),at=e.beforeId===null?order.length:order.indexOf(e.beforeId);order.splice(at,0,e.id);if(order.every((id,i)=>id===ids[i]))return s;return {...s,queueOrder:order,revision:s.revision+1};}
-  case 'queue-select':{const index=TRACKS.findIndex(t=>t.id===e.id);if(e.revision!==s.revision||index<0||index===s.playback.track&&s.playback.active)return s;return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,track:index,progressMs:0,art:TRACKS[index].art,playing:true,active:true},message:''};}
+  case 'queue-select':{const index=TRACKS.findIndex(t=>t.id===e.id);if(e.revision!==s.revision||index<0||index===s.playback.track&&s.playback.active)return s;if(s.discoveryPrototype){if(s.pending)return s;const operation=s.operation+1;return {...s,operation,pending:{...s.playback,operation,id:e.id,track:index,art:TRACKS[index].art,playing:true,active:true},message:''};}return {...s,pending:null,operation:s.operation+1,playback:{...s.playback,track:index,progressMs:0,art:TRACKS[index].art,playing:true,active:true},message:''};}
   case 'seek':{if(!s.playback.active||s.pending||e.trackId!==TRACKS[s.playback.track]?.id||e.operation!==s.operation||!Number.isSafeInteger(e.positionMs)||e.positionMs<0||e.positionMs>LOCAL_POSITION_EXAMPLE.durationMs||e.positionMs===s.playback.progressMs)return s;return {...s,playback:{...s.playback,progressMs:e.positionMs}};}
   case 'volume':{const value=Number(e.value);return Number.isFinite(value)?{...s,playback:{...s.playback,volume:Math.max(0,Math.min(100,value))}}:s;}
   default:return s;

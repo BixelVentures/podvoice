@@ -2617,7 +2617,8 @@
         "dist/light-room-view.js",
         "dist/vehicle-preview-command.js",
         "dist/live-radio-view.js",
-        "dist/owner-answers.js"
+        "dist/owner-answers.js",
+        "dist/recipe-view.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -3196,6 +3197,48 @@
         "registrations": {},
         "customTags": [],
         "dom": false
+      }
+    },
+    "dist/recipe-view.js": {
+      "status": "approved-composition",
+      "domOwner": "RecipeView: approved recipe catalog and cooking screens composed from the shared kit",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/ui/kit.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:render": 1,
+          "class:RecipeView": 1,
+          "function:action": 1,
+          "function:categoriesOf": 1,
+          "function:element": 1,
+          "function:jump": 1,
+          "function:kit": 1,
+          "function:meta": 1,
+          "function:render": 1,
+          "function:scrub": 1,
+          "function:section": 1,
+          "function:updateIndex": 1,
+          "function:updateStep": 1,
+          "method:catalog": 1,
+          "method:checklist": 1,
+          "method:constructor": 1,
+          "method:importSource": 1,
+          "method:inbox": 1,
+          "method:page": 1,
+          "method:recipe": 1,
+          "method:refreshPublishedCatalog": 1,
+          "method:showSource": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [
+          "pv-checklist"
+        ],
+        "dom": true
       }
     }
   },

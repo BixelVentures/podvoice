@@ -386,3 +386,29 @@ async def test_expired_deadline_cannot_publish_when_transport_suppresses_cancel(
         assert await value.generate("calm", current=lambda: True) is None
         assert value.store.url("calm") is None
         assert entries(value) == {"calm": {"state": "attempted"}}
+
+
+def test_graphic_style_upgrade_retires_old_covers_without_refunding_attempts(tmp_path):
+    from gatekeeper.podview_theme_art import _LEGACY_STYLE
+
+    value = owner(tmp_path, None, maximum=3)
+    store = value.store
+    assert store.reserve("morning_acoustic")
+    store.publish("morning_acoustic", webp())
+    old_url = store.url("morning_acoustic")
+    assert old_url is not None
+    assert store.reserve("evening_jazz")
+    ledger = json.loads(store.ledger.read_bytes())
+    ledger["policy_sha256"] = store.policy._fingerprint(_LEGACY_STYLE)
+    store.ledger.write_text(json.dumps(ledger))
+
+    updated = ThemeArtStore(store.directory, store.policy)
+    old_digest = old_url.rsplit("/", 1)[1].removesuffix(".webp")
+    assert updated.read("morning_acoustic", old_digest) is None
+    assert updated.url("morning_acoustic") is None
+    assert updated.retired("morning_acoustic")
+    assert not updated.retired("evening_jazz")
+    assert not updated.reserve("morning_acoustic")
+    assert not updated.reserve("evening_jazz")
+    assert updated.reserve("cooking")
+    assert not ThemeArtStore(store.directory, store.policy).reserve("italian")
