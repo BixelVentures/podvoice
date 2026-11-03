@@ -7,19 +7,16 @@ import subprocess
 from pathlib import Path
 
 BASE = "0b38672b237da16ebc3ed3caef916922e070f7e2"
-CANDIDATE = "26fab0dcd80ce5f20f3ab5d8daf55e6cbc40be71"
-CANDIDATE_TREE = "10fc8f62e924fe297f51ad9cb4c750e9ff5a89af"
+CANDIDATE = "32fbb8bca570d220f9bffea2a4520ac91e09a398"
+CANDIDATE_TREE = "4f05f0814ea7e95451e6fb840f6b962f3ee8f420"
 REVIEWER = "/root/independent_287"
-WORKFLOW_SHA256 = "a5538e96bd755a3b2728bf04ac65833cbc97aadf977b36e15df3017b95f0812d"
-QA_FIXTURE = "docs/qa-radio-v2x-20261103/gesture-browser-server.py"
-QA_FIXTURE_SHA256 = "8b7aa12f8ae802b75d2ec1b0f01c9b2163e9d80705cf1cd0172776d2d9bd3c88"
-REGISTRATION = frozenset(
-    {
-        ".github/workflows/ci.yml",
-        QA_FIXTURE,
-        "scripts/candidate_scope_admission119.py",
-    }
-)
+RELEASE_PINS = {
+    "podvoice/config.yaml": "f2bf843e642cf231d9a3e7647df556cddcc88c67153678b3d4e1b94982422944",
+    "podvoice/gatekeeper/__init__.py": "cb49116b111a2bac3f5aa0a7e72e467bcf140a32c7ba175577aaf525b5f9dffb",
+    "pyproject.toml": "321e3f089beba8b79b58412935764ba828a43a792c6d83c3de185a95a09fbddc",
+    "podvoice/CHANGELOG.md": "4776aa1ea019b60ea9793b2bed7b75e025a35fb3fb24e4c7ab1eff7c254f145e",
+}
+REGISTRATION = frozenset(RELEASE_PINS) | {"scripts/candidate_scope_admission119.py"}
 
 
 def git(*args: str) -> str:
@@ -38,11 +35,11 @@ def validate(base: str) -> bool:
         return False
     if git("status", "--porcelain", "--untracked-files=all"):
         return False
-    workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml"
-    if hashlib.sha256(workflow.read_bytes()).hexdigest() != WORKFLOW_SHA256:
-        return False
-    fixture = workflow.parents[2] / QA_FIXTURE
-    if hashlib.sha256(fixture.read_bytes()).hexdigest() != QA_FIXTURE_SHA256:
+    root = Path(__file__).resolve().parents[1]
+    if any(
+        hashlib.sha256((root / path).read_bytes()).hexdigest() != digest
+        for path, digest in RELEASE_PINS.items()
+    ):
         return False
     changed = git("diff", "--no-renames", "--name-only", "-z", CANDIDATE, "HEAD")
     return frozenset(changed.rstrip("\0").split("\0")) == REGISTRATION

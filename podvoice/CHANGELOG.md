@@ -1,3 +1,7 @@
+## 2.0.119
+
+- Add five live DR stations to PodView with speaker selection and Start/Stop. The radio backend is supplied by PodConnect Speakers 0.26.65.
+
 ## 2.0.118
 
 - Preserve robot controls and cleaning choices during equivalent offer renewal.
