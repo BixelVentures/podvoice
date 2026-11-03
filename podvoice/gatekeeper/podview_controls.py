@@ -961,7 +961,8 @@ class TouchControls:
         ):
             return failure("target_not_granted")
         draft_source = self._robot_draft_source(body.get("draft"), room, target, token)
-        renew_source = self.tasks.get(body.get("renewTaskId"))
+        renew_id = body.get("renewTaskId")
+        renew_source = self.tasks.get(renew_id) if isinstance(renew_id, str) else None
         self._retire_receipts()
         self.tasks = {
             k: t
@@ -1753,17 +1754,18 @@ class TouchControls:
                 },
             )
 
-    def _robot_rebind(self, source, fresh, token):
+    def _robot_rebind(self, source: dict | None, fresh: dict, token: str) -> dict:
         """Attest a complete, one-to-one replacement of opaque robot IDs.
 
         Native entity/area/value identities establish correspondence; presentation
         labels never establish authority. Any ambiguity rejects the entire mapping.
         """
         failed = {"status": "not_restored"}
+        if not source:
+            return failed
         try:
             if not (
-                source
-                and source.get("domain") == "vacuum"
+                source.get("domain") == "vacuum"
                 and self.tasks.get(source["id"]) is source
                 and not source["consumed"]
                 and self._current(source, token)
@@ -1800,8 +1802,10 @@ class TouchControls:
                 old_offer, new_offer = source.get(offer), fresh.get(offer)
                 if (old_offer is None) != (new_offer is None):
                     return failed
-                if old_offer is not None and any(
-                    old_offer.get(k) != new_offer.get(k) for k in fields
+                if (
+                    old_offer is not None
+                    and new_offer is not None
+                    and any(old_offer.get(k) != new_offer.get(k) for k in fields)
                 ):
                     return failed
 
