@@ -6,6 +6,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import logging
 import re
 import secrets
 import time
@@ -19,6 +20,8 @@ from .podview_room_move import RoomMoveFacade
 from .podview_vacuum_control import VacuumTransport
 from .podview_vacuum_settings import ROLES as SETTING_LABELS
 from .podview_vacuum_settings import ActiveVacuumSettings
+
+_LOGGER = logging.getLogger(__name__)
 
 _MUSIC = {
     "pause",
@@ -1760,40 +1763,34 @@ class TouchControls:
         Native entity/area/value identities establish correspondence; presentation
         labels never establish authority. Any ambiguity rejects the entire mapping.
         """
-        failed = {"status": "not_restored"}
+        def reject(reason):
+            # Static categories only: never log task IDs, entity IDs, values or tokens.
+            _LOGGER.warning("robot_rebind_denied reason=%s", reason)
+            return {"status": "not_restored"}
+
         if not source:
-            return failed
+            return reject("source_missing")
         try:
-            if not (
-                source.get("domain") == "vacuum"
-                and self.tasks.get(source["id"]) is source
-                and not source["consumed"]
-                and self._current(source, token)
-                and self._current(fresh, token)
-                and source["room"] == fresh["room"]
-                and source["target"] == fresh["target"]
-                and source["binding"] == fresh["binding"]
-                and source.get("renew_rule") == fresh.get("renew_rule")
-                and source.get("setup_mutation") is fresh.get("setup_mutation")
-                and source.get("renew_boot") == fresh.get("renew_boot") == self.bridge.boot_id
-                and source.get("renew_device") is fresh.get("renew_device")
-                and fresh.get("renew_device") is self.bridge.tools._device_control
-                and source.get("renew_authority") is not None
-                and source["renew_authority"] is fresh.get("renew_authority")
-                and fresh["renew_authority"] is self._robot_draft_authority(fresh["room"], token)
-                and source.get("draft_identity") == fresh.get("draft_identity")
-                and (
-                    "offered" not in source
-                    or source.get("draft_identity") is not None
-                    or (
-                        source.get("vacuum_transport_offer") is not None
-                        and not any(
-                            o["schema"]["kind"] == "cleaning" for o in source["options"].values()
-                        )
-                    )
-                )
-            ):
-                return failed
+            checks = (
+                ("source_domain", lambda: source.get("domain") == "vacuum"),
+                ("source_registered", lambda: self.tasks.get(source["id"]) is source),
+                ("source_consumed", lambda: not source["consumed"]),
+                ("source_current", lambda: self._current(source, token)),
+                ("fresh_current", lambda: self._current(fresh, token)),
+                ("room", lambda: source["room"] == fresh["room"]),
+                ("target", lambda: source["target"] == fresh["target"]),
+                ("binding", lambda: source["binding"] == fresh["binding"]),
+                ("rule", lambda: source.get("renew_rule") == fresh.get("renew_rule")),
+                ("mutation", lambda: source.get("setup_mutation") is fresh.get("setup_mutation")),
+                ("boot", lambda: source.get("renew_boot") == fresh.get("renew_boot") == self.bridge.boot_id),
+                ("device", lambda: source.get("renew_device") is fresh.get("renew_device") and fresh.get("renew_device") is self.bridge.tools._device_control),
+                ("authority", lambda: source.get("renew_authority") is not None and source["renew_authority"] is fresh.get("renew_authority") and fresh["renew_authority"] is self._robot_draft_authority(fresh["room"], token)),
+                ("draft_identity", lambda: source.get("draft_identity") == fresh.get("draft_identity")),
+                ("draft_scope", lambda: "offered" not in source or source.get("draft_identity") is not None or (source.get("vacuum_transport_offer") is not None and not any(o["schema"]["kind"] == "cleaning" for o in source["options"].values()))),
+            )
+            for reason, valid in checks:
+                if not valid():
+                    return reject(reason)
             for offer, fields in (
                 ("vacuum_transport_offer", ("identity", "features", "state")),
                 ("dock_offer", ("identity", "state", "switches", "actions")),
@@ -1801,13 +1798,13 @@ class TouchControls:
             ):
                 old_offer, new_offer = source.get(offer), fresh.get(offer)
                 if (old_offer is None) != (new_offer is None):
-                    return failed
+                    return reject("offer_presence_" + offer)
                 if (
                     old_offer is not None
                     and new_offer is not None
                     and any(old_offer.get(k) != new_offer.get(k) for k in fields)
                 ):
-                    return failed
+                    return reject("offer_changed_" + offer)
 
             pairs = {}
             targets = set()
@@ -1894,14 +1891,14 @@ class TouchControls:
                 return value
 
             if translate(source["renew_public_options"]) != fresh["renew_public_options"]:
-                return failed
+                return reject("public_options")
             return {
                 "status": "restored",
                 "sourceTaskId": source["id"],
                 "ids": [{"oldId": old, "newId": new} for old, new in pairs.items()],
             }
         except (KeyError, TypeError, ValueError):
-            return failed
+            return reject("mapping_exception")
 
     def _robot_draft_authority(self, room, token):
         actor = self.bridge._ha_actors.get(token)

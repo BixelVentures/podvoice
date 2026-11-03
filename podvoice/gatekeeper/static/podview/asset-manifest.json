@@ -398,6 +398,18 @@
       "sha256": "391f5d87bb6a71da5f78fc9da707ac4d98f7437c4a34c843b2e832b5711cf630"
     },
     {
+      "path": "assets/music-editorial-1.svg",
+      "sha256": "6e1dbbfb06ec3264ebcb2941fd6742421b64b57cfdf0fe51c985b748d64a0215"
+    },
+    {
+      "path": "assets/music-editorial-2.svg",
+      "sha256": "04a56bdfbcdcf6d29d00880ed7b0aa6eaa339232900292f18b74dbe802b14f46"
+    },
+    {
+      "path": "assets/music-editorial-3.svg",
+      "sha256": "13dab823352c43dc0cde720fbeaad91bc10c4d382283fab55588134c6aecfb5a"
+    },
+    {
       "path": "assets/radio-p1.svg",
       "sha256": "48b9b2ca382676b063ad6d32957655f58995ce3b66bcc3f5125506c12a5440c0"
     },
@@ -463,7 +475,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "12f84860ff0c55f1c5f2a2f0d843c17dface53eeaa78b3a70087e8fa1e43f5ec"
+      "sha256": "55ccfb69bf0afe307d29fe3956f82c6b5004bc2cbf8148a50acf105d678c184f"
     },
     {
       "path": "ingress-kiosk.js",
@@ -479,7 +491,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "0736eb3c04a8c7635cdd9f3c7f66ee7e1264fb0c2bc09cf3f77677b9d348d6bc"
+      "sha256": "b26631a949ebcaef28c05fbec889ea9550f6af3df6c5b8c1426c959b9211c7f3"
     },
     {
       "path": "library.css",
@@ -519,11 +531,11 @@
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "7a7e94f88d83feff913e544c6de4a3e290d62c9e7df56554bf386f5a9461f90c"
+      "sha256": "42ab0caf417e862c836201fb6acd8664d3eb8f590a1cbdc430485ef9af920771"
     },
     {
       "path": "live-music-view.js",
-      "sha256": "14a224f30c7b6a3ccdac3479b956d6a5cb5f9ab26191375ad295c4fdc3ad339a"
+      "sha256": "c704c54f144cfd5c36e67a175848c8b2ed0c08d94676ad9678b8afcd9838bdd4"
     },
     {
       "path": "live-music.css",
@@ -563,7 +575,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "0ae3d5f39fe72d0177318943295488f90225dd9e1b4cc47543dc8bc4aa5b148d"
+      "sha256": "274d8914c9c2d11b44877050d3da96f4ed3e5ea11679c0d7d57cf3e3f6b39bc1"
     },
     {
       "path": "music-selection-model.js",
@@ -607,11 +619,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "404f253e8d2cae4b7b9971113a1dc3c3dea4d84982840edaa845f461f3d1645a"
+      "sha256": "974ea18b1f54dd3f318d1b6e7a10df51e6802fcfe8f15f8969849568c9d453fe"
     },
     {
       "path": "podview.css",
-      "sha256": "deeca271545992bc3c2228ae37f4aad01174758e510eb2b2d0de7578403f3494"
+      "sha256": "9a0ab4f4415a2f0a4913334ff7a931c5d66006ef4119e08b619738eae3d4a5d2"
     },
     {
       "path": "podvoice-transport.js",
@@ -623,7 +635,7 @@
     },
     {
       "path": "preview-scenes.js",
-      "sha256": "8f6d1b6aadea4c7127317e2869511941c67b777802e6dde6eb39471462abebe3"
+      "sha256": "a0aae5e4aeda59cd254ed6b411000ef8127c7ec8ec1940384589ed95a71f3681"
     },
     {
       "path": "radio-model.js",
@@ -711,7 +723,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "e616589cd18bb40e310483d770f244a3bc6c24bbec0c319efc33d3f30c5af566"
+      "sha256": "1d6ec727ca30b945bf8ba21df6fd5c20eac0ff743d4604fbcb287bd36c47644c"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -847,7 +859,7 @@
     },
     {
       "path": "widget-model.js",
-      "sha256": "e925375f4552f31acae4c18ff26538a6f7511dbb09ab5e18471d5ef159382e97"
+      "sha256": "64e0e85398031ee8a9e83330a96b5c4ef4debb01aadf0fda81558bb28bc7ef4f"
     },
     {
       "path": "widget-redesign.css",

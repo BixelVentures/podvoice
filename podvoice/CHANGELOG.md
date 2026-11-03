@@ -1,3 +1,7 @@
+## 2.0.121
+
+- Record the reason when a robot control rebind is denied.
+
 ## 2.0.120
 
 - Adjust robot maintenance spacing and prevent overlap when opening details.
