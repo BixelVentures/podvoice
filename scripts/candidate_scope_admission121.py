@@ -11,13 +11,15 @@ CANDIDATE = "4642233ed597949df30a35697507419f06f20d0f"
 CANDIDATE_TREE = "b509c8986840cfd2ac6b48f21e3b2b4a714a32a9"
 REVIEWER = "/root/ha_admission_review"
 RELEASE_PINS = {
-    ".github/workflows/ci.yml": "1be0a0f4403c720d6ca890061fe76f54e173d6d49833cbfb8a233bc4508bca68",
+    "podvoice/gatekeeper/static/podview/podview.bundle.js": "c3a12bf11f88c95bdb7a65741e4c26b7c6664183e00813d3c14c9fecdffed5a1",
+
+    ".github/workflows/ci.yml": "a6b1a5ab431880399696aa598cfe1501f981f2a6db866452a7699eb251c56b6d",
     "pyproject.toml": "4c0cbefdf148b2fac2b88b544da55271e97faa8e490615eb28d2655b12f1f13c",
     "podvoice/config.yaml": "be35d92ae38a3689ecc1c92600b75f35b230684e1ec2f5e6ab72419b52fefb3a",
     "podvoice/CHANGELOG.md": "31b2f30309a49c0f325c26f93c43063628a6ad2f96ad60b81616cefbd50d4703",
     "podvoice/gatekeeper/__init__.py": "5f3ca2fd350099cc4592c4bc52f258e79d548c89a297878cbef6a290258c7439",
     "podvoice/gatekeeper/static/podview/index.html": "55ccfb69bf0afe307d29fe3956f82c6b5004bc2cbf8148a50acf105d678c184f",
-    "podvoice/gatekeeper/static/podview/asset-manifest.json": "cf3349dbd5460594034a072e06a59b9cc6abed7963c8ca666e7c39903e978d62",
+    "podvoice/gatekeeper/static/podview/asset-manifest.json": "cbd32214917e2b166df7460487f06ed0d7992e9cc479a20b7338ef8cfb1d9d62",
     "podvoice/gatekeeper/podview_controls.py": "c38700194e7f9670def5bcca2977c959de3f320c28ec2e66fc0e71eda29ff9d9",
     "tests/integration/test_podview_controls.py": "decf2340b627e149b59b943578364f956afbf3f43f17061d1f4a85fbc3be5c49",
 }
