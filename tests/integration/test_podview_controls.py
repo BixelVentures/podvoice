@@ -1840,8 +1840,21 @@ async def test_robot_renewal_attests_all_ids_without_effects(fixture):
 
 @pytest.mark.parametrize(
     "change",
-    ["consumed", "pending", "unknown", "expired", "binding", "token", "boot", "device",
-     "capabilities", "choice", "map", "authority", "mutation"],
+    [
+        "consumed",
+        "pending",
+        "unknown",
+        "expired",
+        "binding",
+        "token",
+        "boot",
+        "device",
+        "capabilities",
+        "choice",
+        "map",
+        "authority",
+        "mutation",
+    ],
 )
 async def test_robot_renewal_rejects_changed_authority_or_scope(fixture, change):
     rig, bridge, token = fixture

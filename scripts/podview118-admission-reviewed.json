@@ -14,7 +14,7 @@
     "scripts/dev_cycle.py": "a395fcfc4267c07cb672666512b7bdb5adfb17bd226f1f3aee1cdab90861621f"
   },
   "production": {
-    "podvoice/gatekeeper/podview_controls.py": "36cc48207d896abd3c009dc35aac03bb138e7fd19bf1f7346967d70f272c6322",
+    "podvoice/gatekeeper/podview_controls.py": "1af8fccfb92f44df977049d68989c5d874548ea25008b8d956a4361ffc3527d6",
     "podvoice/gatekeeper/static/podview/asset-manifest.json": "ee72c9df7891cdd769e8b660a0ea774f403b523412baf8d7792aa69ef6d126b2",
     "podvoice/gatekeeper/static/podview/control-model.js": "5ee212272573d23535f01f42d2af9af886c5d287a3e832b4871892b592f518b3",
     "podvoice/gatekeeper/static/podview/index.html": "228b0e6d264d4c79154f52b8fe3a6cb6bf6e584b292adc25397f2ddcd61b82ce",
@@ -32,7 +32,7 @@
     "podvoice/gatekeeper/static/podview/weather-view.js": "778a9564d97ec89c2f412f574f2e095c9aaa5f919e8e132899c3e4e376ed810f"
   },
   "regressions": {
-    "tests/integration/test_podview_controls.py": "9bdf645a7370cc19a29026d8946a8e7a79bfbd120decabfad33862a5f4ed5782",
+    "tests/integration/test_podview_controls.py": "4a7e9ee5d13fd381df7085fc4de10992cfdfe981bbb551a98d55d02879a71ee0",
     "tests/podview/canonical-next-robot-control-panel.test.mjs": "612f7956bee542aaf6547396959ea6457bfcf7ab0efc62ff55c7ac7599745e4f",
     "tests/podview/canonical-packet-robot-control-panel.test.mjs": "e6ff064c112b4adf7bce3455d28690eb177c5645dbd441cf5dc96f845d3e8b3d",
     "tests/podview/root-robot-control-panel.test.mjs": "08ecae9f28d8d8260630357ff7ca4f5467f304f1b086223f2484b7d4d9d325cd",
@@ -113,7 +113,7 @@
     "podvoice/gatekeeper/podview_client_diagnostics.py": "750bc9e89fa75d49e3932ed1ea56d7611339699cb61c57fd56dafe2bcaa81dcf",
     "podvoice/gatekeeper/podview_continuity.py": "f19c103c99c3ac4f33d72642899c7ca003290b5caa4c0d11bd1bdad532ac52ab",
     "podvoice/gatekeeper/podview_controller_admin.py": "a48d568c7be22f0de6ff512adf4ab45c1c05a17c5fae2ec3726d643f73725d04",
-    "podvoice/gatekeeper/podview_controls.py": "36cc48207d896abd3c009dc35aac03bb138e7fd19bf1f7346967d70f272c6322",
+    "podvoice/gatekeeper/podview_controls.py": "1af8fccfb92f44df977049d68989c5d874548ea25008b8d956a4361ffc3527d6",
     "podvoice/gatekeeper/podview_dock_control.py": "a3ce2334a9b68027fc0c0d4afe5a88f605a375c0658fa4f32e16f79f3b412f64",
     "podvoice/gatekeeper/podview_enrichment.py": "2c810fd453fcba942985a26b9b1108e41356ab1f392ebe51553e4b562c870f92",
     "podvoice/gatekeeper/podview_feeling.py": "126f48b4b7fd13b200fb40a1c52da7b016b3127d6c237097cdb8b385c99dbb4f",

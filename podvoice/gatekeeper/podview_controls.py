@@ -860,7 +860,8 @@ class TouchControls:
         if "draft" in body and (domain != "vacuum" or "recipeId" in body):
             return failure("invalid_setup")
         if "renewTaskId" in body and (
-            domain != "vacuum" or "recipeId" in body
+            domain != "vacuum"
+            or "recipeId" in body
             or type(body["renewTaskId"]) is not str
             or not 1 <= len(body["renewTaskId"]) <= 120
         ):
@@ -1761,9 +1762,11 @@ class TouchControls:
         failed = {"status": "not_restored"}
         try:
             if not (
-                source and source.get("domain") == "vacuum"
+                source
+                and source.get("domain") == "vacuum"
                 and self.tasks.get(source["id"]) is source
-                and not source["consumed"] and self._current(source, token)
+                and not source["consumed"]
+                and self._current(source, token)
                 and self._current(fresh, token)
                 and source["room"] == fresh["room"]
                 and source["target"] == fresh["target"]
@@ -1782,7 +1785,9 @@ class TouchControls:
                     or source.get("draft_identity") is not None
                     or (
                         source.get("vacuum_transport_offer") is not None
-                        and not any(o["schema"]["kind"] == "cleaning" for o in source["options"].values())
+                        and not any(
+                            o["schema"]["kind"] == "cleaning" for o in source["options"].values()
+                        )
                     )
                 )
             ):
@@ -1795,14 +1800,21 @@ class TouchControls:
                 old_offer, new_offer = source.get(offer), fresh.get(offer)
                 if (old_offer is None) != (new_offer is None):
                     return failed
-                if old_offer is not None and any(old_offer.get(k) != new_offer.get(k) for k in fields):
+                if old_offer is not None and any(
+                    old_offer.get(k) != new_offer.get(k) for k in fields
+                ):
                     return failed
 
             pairs = {}
             targets = set()
 
             def add(old, new):
-                if old in pairs or new in targets or not isinstance(old, str) or not isinstance(new, str):
+                if (
+                    old in pairs
+                    or new in targets
+                    or not isinstance(old, str)
+                    or not isinstance(new, str)
+                ):
                     raise ValueError("ambiguous identifiers")
                 pairs[old] = new
                 targets.add(new)
@@ -1829,8 +1841,12 @@ class TouchControls:
                 return json.dumps(value, sort_keys=True, ensure_ascii=False)
 
             def setting_key(row):
-                return (row.get("entity"), row.get("role"), row.get("service"),
-                        row.get("synthetic_extreme", False))
+                return (
+                    row.get("entity"),
+                    row.get("role"),
+                    row.get("service"),
+                    row.get("synthetic_extreme", False),
+                )
 
             def option_key(row):
                 action, kind = row["action"], row["schema"]["kind"]
@@ -1843,9 +1859,13 @@ class TouchControls:
                 if action == "set_option":
                     active = row.get("active_setting") or {}
                     extended = row.get("extended") or {}
-                    return (action, kind, row.get("entity") or active.get("entity"),
-                            row.get("service") or active.get("service"),
-                            active.get("role") or extended.get("role"))
+                    return (
+                        action,
+                        kind,
+                        row.get("entity") or active.get("entity"),
+                        row.get("service") or active.get("service"),
+                        active.get("role") or extended.get("role"),
+                    )
                 raise ValueError("unsupported option")
 
             def visit_setting(old, new):
@@ -1871,8 +1891,11 @@ class TouchControls:
 
             if translate(source["renew_public_options"]) != fresh["renew_public_options"]:
                 return failed
-            return {"status": "restored", "sourceTaskId": source["id"],
-                    "ids": [{"oldId": old, "newId": new} for old, new in pairs.items()]}
+            return {
+                "status": "restored",
+                "sourceTaskId": source["id"],
+                "ids": [{"oldId": old, "newId": new} for old, new in pairs.items()],
+            }
         except (KeyError, TypeError, ValueError):
             return failed
 

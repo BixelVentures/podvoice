@@ -7622,15 +7622,15 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
     "ha_tools",
     "physical_output"
   ],
-  "fingerprint": "82f5c4f950d308936902614d47c469b69f4ee506eca14303eb71e2834c4cb5e0",
+  "fingerprint": "d6751400641ac254f2e6088ebee6e65f5ce44a3d6012b77b12c7774b95b94a97",
   "kind": "podvoice118_robot_weather",
-  "manifest_fingerprint": "a55397f703008f078e282b65a92c19f98f99d5de7cfb14eb3ff074895cfa342d",
+  "manifest_fingerprint": "ae935a6c20d79a637e801d7f632a82e97ed1d2253a099e226fb3644ac59068af",
   "merge_base": "652499b349f0c45973e366221ff8667dc5ed944f",
-  "policy_fingerprint": "cbe1a288918a8ef4c37cc2825527bf7eefd6c25035d2d37785e3d70d87d839aa",
+  "policy_fingerprint": "f98a2b1cee2308b619478fa574d2ffb1852786a5a8da5621e0eba053d5e468bb",
   "rationale": "PodVoice 2.0.118 preserves robot controls and drafts during equivalent offer renewal and improves maintenance, weather fallback and speaker selection. Source review and inert browser/backend validation passed. Publication and Green verification are pending.",
-  "regression_fingerprint": "f3804022d738424fed899e9e2163d1044976786fb449e3791307ab697b3cc747",
+  "regression_fingerprint": "6b49e9983ac1efb0549b04b57e10f0ef8df5fd5a5847056d7d6c500ad50a75bb",
   "reviewer": "/root/ha_admission_review",
-  "runtime_fingerprint": "1ea4aebc79dde47fb4ca086cc8f51e865a3a19b765ba2b949de2678b973e147d",
+  "runtime_fingerprint": "a669e3b1b336501b797f31c76e544bc49d25eca8634958ddb955f80a34d0d3e2",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 95
 }
