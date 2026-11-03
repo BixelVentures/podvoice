@@ -333,6 +333,7 @@ class ToolRouter:
     """Local tools + HA-MCP tools behind the ToolBridgeLike surface
     (``declarations()`` / ``dispatch()``) the engines and console already use."""
 
+    podview_radio_native: Any = None
     podview_weather_provider: FastWeatherAdviceProvider | None
 
     def __init__(
@@ -910,6 +911,10 @@ class ToolRouter:
                     "HA contract SHA256: " + contract
                 )
         owner = self._podview_music_owner
+        if owner is not None and getattr(getattr(owner, "radio", None), "native", None) is not None:
+            from .podview_radio import declaration as radio_declaration
+
+            declarations.append(radio_declaration())
         if owner is not None and owner.voice_music_available():
             declarations.extend(
                 [
@@ -1176,6 +1181,23 @@ class ToolRouter:
             }
             self._log_tool(name, result, dispatch_args)
             return result
+        if name == "podview_radio":
+            from .podview_radio import denied as radio_denied
+
+            radio_owner = getattr(self._podview_music_owner, "radio", None)
+            if radio_owner is None or execution_guard is None:
+                return radio_denied("radio_voice_not_admitted")
+            try:
+                Draft202012Validator(declaration["parameters"]).validate(dispatch_args)
+            except Exception:
+                return radio_denied("invalid_radio_request")
+            risk = Risk.LOW_RISK if dispatch_args["operation"] == "execute" else Risk.READ_ONLY
+            rejected = self.execution_policy.authorize(
+                name, dispatch_args, context=execution_context, trusted_risk=risk
+            )
+            if rejected is not None:
+                return rejected
+            return await radio_owner.voice(dispatch_args, execution_context, execution_guard)
         if name in _PODVIEW_MUSIC_TOOLS:
             return await self._dispatch_podview_music(
                 name,

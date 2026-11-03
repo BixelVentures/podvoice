@@ -108,15 +108,17 @@ export class MusicResults{
 // The overview uses the same admitted player model as the right-hand player.
 // No fixture title is promoted into a live or unavailable account.
 export function renderOverviewMediaValues(host){
- const vm=host.playerView?.progressVM||{},doc=host.ownerDocument;
+ const focused=host.playerView?.progressVM||{},doc=host.ownerDocument,vm=host.live?host.playerView?.sourceModel?.('music')||focused:focused,radioVM=host.live?host.playerView?.sourceModel?.('radio')??focused:focused;
  const known=vm.active===true&&typeof vm.title==='string'&&vm.title.trim();
  const radio=vm.sourceKind==='radio';
  const artist=known&&!radio&&typeof vm.artist==='string'?vm.artist.trim().replace(/\s+/g,' '):'';
  const emptyMusic={offline:'Ikke forbundet',error:'Kan ikke hentes','account-selection':'Vælg musikkonto',loading:'Afventer data'}[vm.emptyState]||(host.live&&host.liveTransport?.connected===false?'Ikke forbundet':'Vælg musik');
- const radioExample=vm.exampleOnly===true||typeof vm.previewLabel==='string'&&/ingen lyd/i.test(vm.previewLabel);
+ const radioKnown=radioVM.active===true&&radioVM.sourceKind==='radio'&&typeof radioVM.title==='string'&&!!radioVM.title.trim()&&(!host.live||((host.liveRadio?.hasSource?.()??host.liveRadio?.ownsPlayer?.())===true||host.liveRadio?.knownStopped?.()===true)||radioVM.loading===true&&!!host.liveRadio?.pendingStart?.());
+ const radioAvailable=!host.live||host.liveRadio?.current()===true;
+ const radioExample=radioVM.exampleOnly===true||typeof radioVM.previewLabel==='string'&&/ingen lyd/i.test(radioVM.previewLabel);
  const values={
   'home-music':{title:known&&!radio?`${vm.fresh===false&&!vm.readOnly?'Sidst kendt · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.readOnly?`${vm.playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`:vm.fresh===false?'Sidst kendte afspilning':vm.playing?'Afspiller':'På pause'):''},
-  'home-radio':{title:host.live?'Ikke tilgængelig':known&&radio?`${vm.fresh===false&&!radioExample?'Sidst kendt · ':''}${vm.title}`:'Vælg station',secondary:!host.live&&known&&radio?(radioExample?'Ingen lyd':vm.playing?'Afspiller':'På pause'):'',status:''},
+  'home-radio':{title:radioKnown?`${radioVM.fresh===false&&!radioExample&&radioVM.loading!==true?'Sidst kendt · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
  };
  for(const [id,value]of Object.entries(values)){
   const card=doc.getElementById(id);if(card?.dataset.mediaLayout==='media'){if(card.getAttribute('aria-description')!==null)card.removeAttribute('aria-description');continue;}const node=card?.querySelector('small');if(!node)continue;

@@ -161,7 +161,7 @@
       ],
       "variants": [
         "Stemning",
-        "Hum\u00f8r",
+        "Humør",
         "Topsange",
         "Senest"
       ],
@@ -988,7 +988,7 @@
       "status": "approved-composition",
       "domOwner": "LiveMediaView data adapter; canonical pv-choice-list owns account choices, PlayerView owns player/control/queue",
       "factoryClassArgument": 1,
-      "compositionScope": "Account-selection navigation stays in the existing adapter: canChooseAccount derives access from validated choices and current read permissions; focusAccountChoice focuses the existing pv-choice-list. Neither helper creates markup, a renderer, or a component family.",
+      "compositionScope": "Account-selection navigation stays in the existing adapter: canChooseAccount derives access from validated choices and current read permissions; focusAccountChoice focuses the existing pv-choice-list. Neither helper creates markup, a renderer, or a component family. Radio adds only source-aware presentation through the same registered player, ChoiceList and output Dialog. It grants no playback authority; current Spotify admission and observation rules remain unchanged.",
       "imports": [
         "dist/live-queue-view.js",
         "dist/media-observation.js",
@@ -1014,7 +1014,8 @@
           "method:canChooseAccount": 1,
           "method:focusAccountChoice": 1,
           "arrow:owner": 1,
-          "arrow:readKey": 1
+          "arrow:readKey": 1,
+          "method:observedPlayerModel": 1
         },
         "roots": [],
         "registrations": {},
@@ -1305,7 +1306,7 @@
       "requiredCalls": [
         "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
       ],
-      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Forts\u00e6t, Stemning/Hum\u00f8r, and actual Senest/Topsange fixtures; no invented library or live authority.",
+      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority.",
       "reviewedField87Source": "Same existing card anatomy. Preserve closed generated themeArt for mood as editorial illustration, retain exact source identity, remove duplicate generic Spotify caption; one finite content-only loading cue plus existing replacement fade. No new family or action grant. Actual render review is separate."
     },
     "dist/music-recommendation-model.js": {
@@ -1421,7 +1422,19 @@
           "method:toggleVolumeMute": 1,
           "method:updateCoverTone": 1,
           "method:resume": 1,
-          "method:renderLiveProgress": 1
+          "method:renderLiveProgress": 1,
+          "method:beginSourceFocus": 1,
+          "method:finishSourceFocus": 1,
+          "method:focusSource": 1,
+          "method:radioHistorySuperseded": 1,
+          "method:renderRadioProgress": 1,
+          "method:sourceFocused": 1,
+          "method:sourceModel": 1,
+          "method:sourceScope": 1,
+          "method:bindVolumeInput": 1,
+          "method:beginVolumeGesture": 1,
+          "method:volumeGestureCurrent": 1,
+          "method:commitVolumeInput": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"
@@ -1432,7 +1445,8 @@
       },
       "requiredCalls": [
         "row\\.append\\(\\s*order\\s*,\\s*cover\\s*,\\s*copy\\s*,\\s*play\\s*\\)"
-      ]
+      ],
+      "compositionScope": "The existing canonical player presents music or radio through one retained anatomy. Explicit source focus is display-only; controls, queue and volume still require the respective owner offer. Radio uses live Start/Stop, existing icon-progress and shared error feedback. No extra renderer or component family."
     },
     "dist/podvoice-transport.js": {
       "status": "active-support",
@@ -2602,6 +2616,7 @@
         "dist/light-lamp-view.js",
         "dist/light-room-view.js",
         "dist/vehicle-preview-command.js",
+        "dist/live-radio-view.js",
         "dist/owner-answers.js"
       ],
       "surface": {
@@ -2774,7 +2789,8 @@
           "method:selectionWitness": 1,
           "method:sync": 1,
           "arrow:rank": 1,
-          "method:pendingChoiceLabel": 1
+          "method:pendingChoiceLabel": 1,
+          "method:bindRadioClose": 1
         },
         "roots": [
           "native:button:pv-row pv-btn",
@@ -2785,7 +2801,7 @@
         "customTags": [],
         "dom": true
       },
-      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent. Reviewed selectionWitness only freezes the already validated NEXT account/native-room/homepod identity for later comparison after catalogue expiry; fresh setup and server authority remain mandatory. No additional import edge or markup. UI92 existing Dialog actions slot is a native pv-actions container inside the retained method=dialog form; reuses an existing slot when present. It contains the same explicit type=button passive catalogue refresh. No new family, action, grant or request path."
+      "compositionScope": "Reviewed44 configured destination label joins admitted catalogue to exact room binding with expiry fencing; reuses canonical output header, adds no playback or control authority and no DOM family. Reviewed24 October actualLabel is a nonvisual formatting helper in this same output owner: exact current admitted catalogue account/native-room/homepod identity formats an already admitted actual binding. It constructs no binding, DOM, renderer family, network request or action grant. Current-output badges require fresh provider metadata and actual native binding; DEFAULT and NEXT remain separate configuration and intent. Reviewed selectionWitness only freezes the already validated NEXT account/native-room/homepod identity for later comparison after catalogue expiry; fresh setup and server authority remain mandatory. No additional import edge or markup. UI92 existing Dialog actions slot is a native pv-actions container inside the retained method=dialog form; reuses an existing slot when present. It contains the same explicit type=button passive catalogue refresh. No new family, action, grant or request path. Radio adds only source-aware presentation through the same registered player, ChoiceList and output Dialog. It grants no playback authority; current Spotify admission and observation rules remain unchanged."
     },
     "dist/local-robot-view.js": {
       "status": "approved-composition",
@@ -3143,6 +3159,44 @@
         "customTags": [],
         "dom": false
       }
+    },
+    "dist/live-radio-view.js": {
+      "status": "approved-composition",
+      "compositionScope": "Direct user-approved DR radio integration25Oct: non-DOM radio source/read/task adapter. RadioView owns station choices, PlayerView owns shared playback, SpeakerOutputView owns retained source-aware output rows. No new family, root, CSS or native playback authority. Disabled provider keeps honest unavailable radio and unchanged Spotify.",
+      "imports": [
+        "dist/radio-model.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:current": 2,
+          "arrow:id": 1,
+          "arrow:valid": 1,
+          "class:LiveRadioView": 1,
+          "function:radioObservation": 1,
+          "method:can": 1,
+          "method:choose": 1,
+          "method:cleanup": 1,
+          "method:closeOutputs": 1,
+          "method:constructor": 1,
+          "method:control": 1,
+          "method:current": 1,
+          "method:invalidate": 1,
+          "method:openOutputs": 1,
+          "method:ownsPlayer": 1,
+          "method:render": 1,
+          "method:renderControls": 1,
+          "method:renderPlayer": 1,
+          "method:scope": 1,
+          "method:syncOutputs": 1,
+          "method:target": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
     }
   },
   "sharedContracts": [
@@ -3232,11 +3286,11 @@
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md",
       "scope": "Extend existing canonical identities only; visual direction1 is selected for improvement, previous visual styling is not newly approved.",
       "variants": [
-        "Header Svar \u2192 vejr \u2192 ur, grouped right: header-history/header-left/header-navigation.",
+        "Header Svar → vejr → ur, grouped right: header-history/header-left/header-navigation.",
         "Visual history gallery: retained-answer article, inert history-preview containing pv-answer and history-open same-answer button. Empty history uses existing pv-inline-status.",
         "Robot observations and separately labelled requests reuse pv-activity-timeline; care/settings stay in existing details disclosure.",
         "Ten local QA formats reuse existing answer renderers; preview-scenes imports existing visual-examples. Normal/live history is not seeded.",
-        "Music tabs Stemning \u00b7 Hum\u00f8r \u00b7 Topsange \u00b7 Senest; no Likede promotion."
+        "Music tabs Stemning · Humør · Topsange · Senest; no Likede promotion."
       ]
     },
     {

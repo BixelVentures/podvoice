@@ -191,7 +191,7 @@ test('additional domain coverage is reachable without fabricating unsupported ow
  for(const [id,stage]of [['robot','robot-detail-empty'],['robot','robot-detail-stale'],['robot','robot-detail-long'],['robot','robot-detail-care'],['lights','light-detail-empty'],['lights','light-detail-stale'],['lights','light-detail-long'],['lights','light-detail-room-living'],['lights','light-detail-room-kitchen'],['lights','light-detail-lamp'],['music','music-offline'],['music','music-unknown'],['player','player-queue-empty'],['player','player-queue-error'],['player','player-long-output'],['weather','weather-unconnected'],['weather','weather-offline'],['vehicle','vehicle-unknown'],['vehicle','vehicle-stale'],['timer','timer-detail-paused']])assert(byId(id).states.some(sample=>sample.stage===stage),stage);
  assert(byId('vehicle').limitations.some(text=>text.includes('ingen kommando-pending')));
  assert(byId('weather').limitations.some(text=>text.includes('ingen selvstændig')));
- assert(byId('radio').limitations.some(text=>text.includes('ingen særskilt radiofejl')));
+ assert(byId('radio').limitations.some(text=>text.includes('Stop afslutter streamen')));
  for(const id of ['vehicle','radio','weather'])assert(!byId(id).states.some(sample=>/^(vehicle|radio|weather)-(fault|pending)$/.test(sample.stage)));
 });
 

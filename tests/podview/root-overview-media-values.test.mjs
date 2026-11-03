@@ -18,7 +18,7 @@ test('compact music gives real title and artist separate roles, with visible fre
  f.host.playerView.progressVM={active:false,title:'Old title',artist:'Old artist'};f.render();assert.deepEqual(lines(node),['Vælg musik','']);assert.equal(node.children[1].hidden,true);assert.equal(node.dataset.mediaMetadata,'false');assert.equal(f.cards['home-music'].getAttribute('aria-description'),null);
 });
 test('radio retains station and status without inventing a default or music identity',()=>{
- const f=fixture({active:true,title:'P3',playing:false,fresh:true,sourceKind:'radio'},false);f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','På pause']);assert.deepEqual(lines(f.nodes['home-music']),['Vælg musik','']);f.host.playerView.progressVM={};f.host.live=true;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);
+ const f=fixture({active:true,title:'P3',playing:false,fresh:true,sourceKind:'radio'},false);f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Stoppet']);assert.deepEqual(lines(f.nodes['home-music']),['Vælg musik','']);f.host.playerView.progressVM={};f.host.live=true;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);
 });
 test('absent artist clears the secondary line and full media layout keeps its existing owner',()=>{
  const f=fixture({active:true,title:'Long real title',artist:'Artist',playing:false});f.render();for(const artist of [null,undefined,0,{},'','   ']){f.host.playerView.progressVM.artist=artist;f.render();assert.deepEqual(lines(f.nodes['home-music']),['Long real title','']);assert.equal(f.nodes['home-music'].children[1].hidden,true);}

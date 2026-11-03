@@ -1,0 +1,965 @@
+TAP version 13
+# Subtest: radio range 0 cannot commit on the other source after ownership changes
+ok 1 - radio range 0 cannot commit on the other source after ownership changes
+  ---
+  duration_ms: 1.154334
+  ...
+# Subtest: radio range 1 cannot commit on the other source after ownership changes
+ok 2 - radio range 1 cannot commit on the other source after ownership changes
+  ---
+  duration_ms: 0.28375
+  ...
+# Subtest: music range 0 cannot commit on the other source after ownership changes
+ok 3 - music range 0 cannot commit on the other source after ownership changes
+  ---
+  duration_ms: 0.090834
+  ...
+# Subtest: music range 1 cannot commit on the other source after ownership changes
+ok 4 - music range 1 cannot commit on the other source after ownership changes
+  ---
+  duration_ms: 0.137875
+  ...
+# Subtest: same radio owner commits once and does not write to the independent source
+ok 5 - same radio owner commits once and does not write to the independent source
+  ---
+  duration_ms: 0.07675
+  ...
+# Subtest: same music owner commits once and does not write to the independent source
+ok 6 - same music owner commits once and does not write to the independent source
+  ---
+  duration_ms: 0.066083
+  ...
+# Subtest: radio gesture rejects transport replacement before commit
+ok 7 - radio gesture rejects transport replacement before commit
+  ---
+  duration_ms: 0.106958
+  ...
+# Subtest: radio gesture rejects transport-generation replacement before commit
+ok 8 - radio gesture rejects transport-generation replacement before commit
+  ---
+  duration_ms: 0.104083
+  ...
+# Subtest: radio gesture rejects radio-process replacement before commit
+ok 9 - radio gesture rejects radio-process replacement before commit
+  ---
+  duration_ms: 0.104875
+  ...
+# Subtest: radio gesture rejects target replacement before commit
+ok 10 - radio gesture rejects target replacement before commit
+  ---
+  duration_ms: 0.120458
+  ...
+# Subtest: radio gesture rejects owner-generation replacement before commit
+ok 11 - radio gesture rejects owner-generation replacement before commit
+  ---
+  duration_ms: 0.054542
+  ...
+# Subtest: radio gesture rejects access replacement before commit
+ok 12 - radio gesture rejects access replacement before commit
+  ---
+  duration_ms: 0.045708
+  ...
+# Subtest: a retained captured radio event cannot bypass host routing after a source replacement
+ok 13 - a retained captured radio event cannot bypass host routing after a source replacement
+  ---
+  duration_ms: 0.103458
+  ...
+# Subtest: keyboard gesture keeps its source until keyup and does not adopt a replacement on repeat input
+ok 14 - keyboard gesture keeps its source until keyup and does not adopt a replacement on repeat input
+  ---
+  duration_ms: 0.129792
+  ...
+# Subtest: same radio execution owner survives passive timestamp and content updates during a gesture
+ok 15 - same radio execution owner survives passive timestamp and content updates during a gesture
+  ---
+  duration_ms: 0.896458
+  ...
+# Subtest: same music execution owner survives passive timestamp and content updates during a gesture
+ok 16 - same music execution owner survives passive timestamp and content updates during a gesture
+  ---
+  duration_ms: 0.05825
+  ...
+# Subtest: paired controls enable only issued actions and observed bounded volume in retained geometry
+ok 17 - paired controls enable only issued actions and observed bounded volume in retained geometry
+  ---
+  duration_ms: 3.413083
+  ...
+# Subtest: unpaired, stale or unnamed target can neither fetch setup nor send
+ok 18 - unpaired, stale or unnamed target can neither fetch setup nor send
+  ---
+  duration_ms: 1.078542
+  ...
+# Subtest: each explicit click uses fresh owner-issued task and ID exactly once without modal
+ok 19 - each explicit click uses fresh owner-issued task and ID exactly once without modal
+  ---
+  duration_ms: 2.459125
+  ...
+# Subtest: rapid repeated click while setup or write pending admits one write
+ok 20 - rapid repeated click while setup or write pending admits one write
+  ---
+  duration_ms: 7.018208
+  ...
+# Subtest: late account replacement before fresh setup completes sends nothing
+ok 21 - late account replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.407083
+  ...
+# Subtest: late epoch replacement before fresh setup completes sends nothing
+ok 22 - late epoch replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.3935
+  ...
+# Subtest: late target replacement before fresh setup completes sends nothing
+ok 23 - late target replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.329417
+  ...
+# Subtest: late item replacement before fresh setup completes sends nothing
+ok 24 - late item replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.489792
+  ...
+# Subtest: late boot replacement before fresh setup completes sends nothing
+ok 25 - late boot replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.362834
+  ...
+# Subtest: late room replacement before fresh setup completes sends nothing
+ok 26 - late room replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.332625
+  ...
+# Subtest: late permission replacement before fresh setup completes sends nothing
+ok 27 - late permission replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.361917
+  ...
+# Subtest: late freshness replacement before fresh setup completes sends nothing
+ok 28 - late freshness replacement before fresh setup completes sends nothing
+  ---
+  duration_ms: 0.975583
+  ...
+# Subtest: permission revoke then restore does not revive an in-flight same-context offer
+ok 29 - permission revoke then restore does not revive an in-flight same-context offer
+  ---
+  duration_ms: 0.795333
+  ...
+# Subtest: volume requires known setup value, exact max and explicit integer; next setup can withdraw action
+ok 30 - volume requires known setup value, exact max and explicit integer; next setup can withdraw action
+  ---
+  duration_ms: 1.031083
+  ...
+# Subtest: unknown outcomes retain spent IDs and never retry from a repeated click or refresh
+ok 31 - unknown outcomes retain spent IDs and never retry from a repeated click or refresh
+  ---
+  duration_ms: 0.712458
+  ...
+# Subtest: late accepted receipt after owner replacement remains correlated and changes no new controls
+ok 32 - late accepted receipt after owner replacement remains correlated and changes no new controls
+  ---
+  duration_ms: 1.381125
+  ...
+# Subtest: cleanup cancels source expiry without starting another preparation
+ok 33 - cleanup cancels source expiry without starting another preparation
+  ---
+  duration_ms: 0.550292
+  ...
+# Subtest: setup failure visibly reports an unavailable read and sends nothing
+ok 34 - setup failure visibly reports an unavailable read and sends nothing
+  ---
+  duration_ms: 0.619541
+  ...
+# Subtest: periodic observation preserves only an active pointer gesture and hides ambiguous volume actions
+ok 35 - periodic observation preserves only an active pointer gesture and hides ambiguous volume actions
+  ---
+  duration_ms: 0.58425
+  ...
+# Subtest: account leave then return cannot revive the old pending setup
+ok 36 - account leave then return cannot revive the old pending setup
+  ---
+  duration_ms: 0.74325
+  ...
+# Subtest: shared feedback clearing cannot erase a later timer or other-domain notice
+ok 37 - shared feedback clearing cannot erase a later timer or other-domain notice
+  ---
+  duration_ms: 0.74025
+  ...
+# Subtest: move obtains one exact alias option and sends once without changing player target/binding/metadata
+ok 38 - move obtains one exact alias option and sends once without changing player target/binding/metadata
+  ---
+  duration_ms: 0.922625
+  ...
+# Subtest: rapid move/transport clicks share central setup/write pending and consume once
+ok 39 - rapid move/transport clicks share central setup/write pending and consume once
+  ---
+  duration_ms: 0.837292
+  ...
+# Subtest: held move setup cannot act after revoke
+ok 40 - held move setup cannot act after revoke
+  ---
+  duration_ms: 0.312458
+  ...
+# Subtest: held move setup cannot act after binding
+ok 41 - held move setup cannot act after binding
+  ---
+  duration_ms: 0.191917
+  ...
+# Subtest: held move setup cannot act after account
+ok 42 - held move setup cannot act after account
+  ---
+  duration_ms: 0.157875
+  ...
+# Subtest: held move setup cannot act after transport
+ok 43 - held move setup cannot act after transport
+  ---
+  duration_ms: 0.171875
+  ...
+# Subtest: held move setup cannot act after catalogue
+ok 44 - held move setup cannot act after catalogue
+  ---
+  duration_ms: 0.428833
+  ...
+# Subtest: held move setup cannot act after generation
+ok 45 - held move setup cannot act after generation
+  ---
+  duration_ms: 0.251958
+  ...
+# Subtest: move denies wrongoption task without a write
+ok 46 - move denies wrongoption task without a write
+  ---
+  duration_ms: 0.276959
+  ...
+# Subtest: move denies wrongaction task without a write
+ok 47 - move denies wrongaction task without a write
+  ---
+  duration_ms: 0.1995
+  ...
+# Subtest: move denies extraoption task without a write
+ok 48 - move denies extraoption task without a write
+  ---
+  duration_ms: 0.193625
+  ...
+# Subtest: move denies wrongroom task without a write
+ok 49 - move denies wrongroom task without a write
+  ---
+  duration_ms: 0.249958
+  ...
+# Subtest: move denies wrongboot task without a write
+ok 50 - move denies wrongboot task without a write
+  ---
+  duration_ms: 0.175042
+  ...
+# Subtest: move denies revision task without a write
+ok 51 - move denies revision task without a write
+  ---
+  duration_ms: 0.304458
+  ...
+# Subtest: move denies expired task without a write
+ok 52 - move denies expired task without a write
+  ---
+  duration_ms: 0.216875
+  ...
+# Subtest: move denies spent task without a write
+ok 53 - move denies spent task without a write
+  ---
+  duration_ms: 0.180958
+  ...
+# Subtest: move unknown never retries or repopulates the old offer
+ok 54 - move unknown never retries or repopulates the old offer
+  ---
+  duration_ms: 0.357333
+  ...
+# Subtest: ordinary SSE binding publication during move response cannot republish or replay old controls
+ok 55 - ordinary SSE binding publication during move response cannot republish or replay old controls
+  ---
+  duration_ms: 1.669958
+  ...
+# Subtest: unsupported, unknown, selected or unpaired aliases cannot request a move setup
+ok 56 - unsupported, unknown, selected or unpaired aliases cannot request a move setup
+  ---
+  duration_ms: 0.648084
+  ...
+# Subtest: normal atomic MOVE destination observation restores controls without manual fence or attempt reset
+ok 57 - normal atomic MOVE destination observation restores controls without manual fence or attempt reset
+  ---
+  duration_ms: 1.139709
+  ...
+# Subtest: volume intent awaiting setup cannot follow an atomic same-engine destination replacement
+ok 58 - volume intent awaiting setup cannot follow an atomic same-engine destination replacement
+  ---
+  duration_ms: 0.396166
+  ...
+# Subtest: MOVE closes existing rooms once only after admitted native dispatch starts, before response
+ok 59 - MOVE closes existing rooms once only after admitted native dispatch starts, before response
+  ---
+  duration_ms: 0.530791
+  ...
+# Subtest: invalid or revoked MOVE admission never closes rooms
+ok 60 - invalid or revoked MOVE admission never closes rooms
+  ---
+  duration_ms: 0.446208
+  ...
+# Subtest: rooms close exception cannot block dispatch or turn accepted MOVE into unknown
+ok 61 - rooms close exception cannot block dispatch or turn accepted MOVE into unknown
+  ---
+  duration_ms: 0.651916
+  ...
+# Subtest: MOVE unknown after catalogue expiry retains operation fence across actual catalogue reopen
+ok 62 - MOVE unknown after catalogue expiry retains operation fence across actual catalogue reopen
+  ---
+  duration_ms: 1.632333
+  ...
+# Subtest: MOVE accepted after catalogue expiry retains operation fence across actual catalogue reopen
+ok 63 - MOVE accepted after catalogue expiry retains operation fence across actual catalogue reopen
+  ---
+  duration_ms: 1.016875
+  ...
+# Subtest: music-only invalidation fences held prepare setup even when context returns to the same key
+ok 64 - music-only invalidation fences held prepare setup even when context returns to the same key
+  ---
+  duration_ms: 0.232792
+  ...
+# Subtest: music-only invalidation fences held intent setup even when context returns to the same key
+ok 65 - music-only invalidation fences held intent setup even when context returns to the same key
+  ---
+  duration_ms: 0.302708
+  ...
+# Subtest: music-only invalidation fences held move setup even when context returns to the same key
+ok 66 - music-only invalidation fences held move setup even when context returns to the same key
+  ---
+  duration_ms: 0.21675
+  ...
+# Subtest: music-only invalidation preserves pending vacuum ownership and its eventual real receipt
+ok 67 - music-only invalidation preserves pending vacuum ownership and its eventual real receipt
+  ---
+  duration_ms: 1.336833
+  ...
+# Subtest: music-only invalidation retains an unknown fence after a dispatched music write without revoking a vacuum task
+ok 68 - music-only invalidation retains an unknown fence after a dispatched music write without revoking a vacuum task
+  ---
+  duration_ms: 1.182625
+  ...
+# Subtest: held vacuum setup remains eligible after music-only invalidation
+ok 69 - held vacuum setup remains eligible after music-only invalidation
+  ---
+  duration_ms: 0.620917
+  ...
+# Subtest: held music intent reserves effect ownership against robot open and send
+ok 70 - held music intent reserves effect ownership against robot open and send
+  ---
+  duration_ms: 1.210292
+  ...
+# Subtest: late music setup cannot replace an already occupied effect slot
+ok 71 - late music setup cannot replace an already occupied effect slot
+  ---
+  duration_ms: 0.380083
+  ...
+# Subtest: passive music offer read does not block a robot setup
+ok 72 - passive music offer read does not block a robot setup
+  ---
+  duration_ms: 0.599209
+  ...
+# Subtest: expired music offer renews once from a genuinely newer fresh observation without changing intent identity
+ok 73 - expired music offer renews once from a genuinely newer fresh observation without changing intent identity
+  ---
+  duration_ms: 0.389791
+  ...
+# Subtest: failed passive preparation is not retried on the same poll and a newer read cannot bypass UNKNOWN intent
+ok 74 - failed passive preparation is not retried on the same poll and a newer read cannot bypass UNKNOWN intent
+  ---
+  duration_ms: 0.600625
+  ...
+# Subtest: new-observation preparation is coalesced and late room replacement does not install its offer
+ok 75 - new-observation preparation is coalesced and late room replacement does not install its offer
+  ---
+  duration_ms: 0.1975
+  ...
+# Subtest: explicit MOVE supersedes only passive preparation and discards its late offer
+ok 76 - explicit MOVE supersedes only passive preparation and discards its late offer
+  ---
+  duration_ms: 0.393834
+  ...
+# Subtest: passive preparation cannot unlock MOVE after stale
+ok 77 - passive preparation cannot unlock MOVE after stale
+  ---
+  duration_ms: 0.152125
+  ...
+# Subtest: passive preparation cannot unlock MOVE after expired
+ok 78 - passive preparation cannot unlock MOVE after expired
+  ---
+  duration_ms: 0.114583
+  ...
+# Subtest: passive preparation cannot unlock MOVE after unknown
+ok 79 - passive preparation cannot unlock MOVE after unknown
+  ---
+  duration_ms: 0.200834
+  ...
+# Subtest: passive preparation cannot unlock MOVE after pending
+ok 80 - passive preparation cannot unlock MOVE after pending
+  ---
+  duration_ms: 0.530291
+  ...
+# Subtest: passive preparation cannot unlock MOVE after setup
+ok 81 - passive preparation cannot unlock MOVE after setup
+  ---
+  duration_ms: 0.178958
+  ...
+# Subtest: passive preparation cannot unlock MOVE after intent
+ok 82 - passive preparation cannot unlock MOVE after intent
+  ---
+  duration_ms: 0.162166
+  ...
+# Subtest: late passive offer after MOVE UNKNOWN cannot restore controls or retry the effect
+ok 83 - late passive offer after MOVE UNKNOWN cannot restore controls or retry the effect
+  ---
+  duration_ms: 0.346375
+  ...
+# Subtest: actual non-default v2 source owns control target and echoed ID without mutating the configured destination
+ok 84 - actual non-default v2 source owns control target and echoed ID without mutating the configured destination
+  ---
+  duration_ms: 0.427084
+  ...
+# Subtest: missing or foreign music binding echo undefined never becomes an offered or executable control
+ok 85 - missing or foreign music binding echo undefined never becomes an offered or executable control
+  ---
+  duration_ms: 0.178
+  ...
+# Subtest: missing or foreign music binding echo dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd never becomes an offered or executable control
+ok 86 - missing or foreign music binding echo dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd never becomes an offered or executable control
+  ---
+  duration_ms: 0.137792
+  ...
+# Subtest: missing or foreign music binding echo invalid never becomes an offered or executable control
+ok 87 - missing or foreign music binding echo invalid never becomes an offered or executable control
+  ---
+  duration_ms: 0.130583
+  ...
+# Subtest: an explicit intent rejects a foreign fresh echo after a valid display offer
+ok 88 - an explicit intent rejects a foreign fresh echo after a valid display offer
+  ---
+  duration_ms: 0.307084
+  ...
+# Subtest: current metadata without an actual route or with an expired actual binding cannot fetch controls
+ok 89 - current metadata without an actual route or with an expired actual binding cannot fetch controls
+  ---
+  duration_ms: 0.206375
+  ...
+# Subtest: actual binding replacement while fresh setup is held cannot send even though the default is unchanged
+ok 90 - actual binding replacement while fresh setup is held cannot send even though the default is unchanged
+  ---
+  duration_ms: 0.87375
+  ...
+# Subtest: MOVE source is the current actual binding and expiry refresh alone does not replace that source identity
+ok 91 - MOVE source is the current actual binding and expiry refresh alone does not replace that source identity
+  ---
+  duration_ms: 0.420916
+  ...
+# Subtest: a stale selected-output catalogue hint cannot override the actual MOVE source identity
+ok 92 - a stale selected-output catalogue hint cannot override the actual MOVE source identity
+  ---
+  duration_ms: 0.280666
+  ...
+# Subtest: disabled no-capability controls keep the playing observation label without acquiring an action
+ok 93 - disabled no-capability controls keep the playing observation label without acquiring an action
+  ---
+  duration_ms: 0.185083
+  ...
+# Subtest: disabled account-read-only controls keep the playing observation label without acquiring an action
+ok 94 - disabled account-read-only controls keep the playing observation label without acquiring an action
+  ---
+  duration_ms: 0.102625
+  ...
+# Subtest: disabled no-capability controls keep the paused observation label without acquiring an action
+ok 95 - disabled no-capability controls keep the paused observation label without acquiring an action
+  ---
+  duration_ms: 0.095167
+  ...
+# Subtest: disabled account-read-only controls keep the paused observation label without acquiring an action
+ok 96 - disabled account-read-only controls keep the paused observation label without acquiring an action
+  ---
+  duration_ms: 0.096
+  ...
+# Subtest: absolute 35 percent display keeps action max35 and visibly clamps a higher live input draft without an effect
+ok 97 - absolute 35 percent display keeps action max35 and visibly clamps a higher live input draft without an effect
+  ---
+  duration_ms: 0.548584
+  ...
+# Subtest: observed100 stays truthful while a current max35 offer enables explicit lowering to35
+ok 98 - observed100 stays truthful while a current max35 offer enables explicit lowering to35
+  ---
+  duration_ms: 0.4425
+  ...
+# Subtest: observed100 with a max35 offer permits the existing explicit mute action without inventing measured zero
+ok 99 - observed100 with a max35 offer permits the existing explicit mute action without inventing measured zero
+  ---
+  duration_ms: 0.919417
+  ...
+# Subtest: high measured volume never bypasses stale control admission
+ok 100 - high measured volume never bypasses stale control admission
+  ---
+  duration_ms: 0.236041
+  ...
+# Subtest: high measured volume never bypasses expired control admission
+ok 101 - high measured volume never bypasses expired control admission
+  ---
+  duration_ms: 0.458333
+  ...
+# Subtest: high measured volume never bypasses unknown control admission
+ok 102 - high measured volume never bypasses unknown control admission
+  ---
+  duration_ms: 0.250167
+  ...
+# Subtest: high measured volume never bypasses out-of-policy control admission
+ok 103 - high measured volume never bypasses out-of-policy control admission
+  ---
+  duration_ms: 0.335625
+  ...
+# Subtest: explicit music intent shows immediate preparing feedback and cleans it after failure
+ok 104 - explicit music intent shows immediate preparing feedback and cleans it after failure
+  ---
+  duration_ms: 0.402917
+  ...
+# Subtest: explicit music intent shows immediate preparing feedback and cleans it after owner-change
+ok 105 - explicit music intent shows immediate preparing feedback and cleans it after owner-change
+  ---
+  duration_ms: 0.450375
+  ...
+# Subtest: only an accepted music command schedules one ordinary read without a control matcher: accepted
+ok 106 - only an accepted music command schedules one ordinary read without a control matcher: accepted
+  ---
+  duration_ms: 0.764417
+  ...
+# Subtest: only an accepted music command schedules one ordinary read without a control matcher: rejected
+ok 107 - only an accepted music command schedules one ordinary read without a control matcher: rejected
+  ---
+  duration_ms: 0.672541
+  ...
+# Subtest: only an accepted music command schedules one ordinary read without a control matcher: unknown
+ok 108 - only an accepted music command schedules one ordinary read without a control matcher: unknown
+  ---
+  duration_ms: 0.367125
+  ...
+# Subtest: accepted command after an actual owner change does not trigger the captured passive refresh
+ok 109 - accepted command after an actual owner change does not trigger the captured passive refresh
+  ---
+  duration_ms: 2.925125
+  ...
+# Subtest: preparing feedback terminates honestly when fresh setup returns withdrawn-option
+ok 110 - preparing feedback terminates honestly when fresh setup returns withdrawn-option
+  ---
+  duration_ms: 0.687417
+  ...
+# Subtest: preparing feedback terminates honestly when fresh setup returns unknown-volume
+ok 111 - preparing feedback terminates honestly when fresh setup returns unknown-volume
+  ---
+  duration_ms: 0.382375
+  ...
+# Subtest: preparing feedback terminates honestly when fresh setup returns spent-task
+ok 112 - preparing feedback terminates honestly when fresh setup returns spent-task
+  ---
+  duration_ms: 0.343417
+  ...
+# Subtest: known volume survives offer expiry and held refresh without retaining an executable grant
+ok 113 - known volume survives offer expiry and held refresh without retaining an executable grant
+  ---
+  duration_ms: 0.35725
+  ...
+# Subtest: retained volume clears after actual binding custody replacement
+ok 114 - retained volume clears after actual binding custody replacement
+  ---
+  duration_ms: 0.257042
+  ...
+# Subtest: retained volume clears after actual output custody replacement
+ok 115 - retained volume clears after actual output custody replacement
+  ---
+  duration_ms: 0.19225
+  ...
+# Subtest: retained volume clears after actual account custody replacement
+ok 116 - retained volume clears after actual account custody replacement
+  ---
+  duration_ms: 0.178584
+  ...
+# Subtest: retained volume clears after actual epoch custody replacement
+ok 117 - retained volume clears after actual epoch custody replacement
+  ---
+  duration_ms: 0.185083
+  ...
+# Subtest: retained volume clears after actual boot custody replacement
+ok 118 - retained volume clears after actual boot custody replacement
+  ---
+  duration_ms: 0.177083
+  ...
+# Subtest: retained volume clears after actual room custody replacement
+ok 119 - retained volume clears after actual room custody replacement
+  ---
+  duration_ms: 0.174792
+  ...
+# Subtest: retained volume clears after actual permission custody replacement
+ok 120 - retained volume clears after actual permission custody replacement
+  ---
+  duration_ms: 0.176458
+  ...
+# Subtest: retained volume clears after actual transport custody replacement
+ok 121 - retained volume clears after actual transport custody replacement
+  ---
+  duration_ms: 0.192958
+  ...
+# Subtest: retained volume clears after actual selected custody replacement
+ok 122 - retained volume clears after actual selected custody replacement
+  ---
+  duration_ms: 0.273292
+  ...
+# Subtest: retained volume clears after actual idle custody replacement
+ok 123 - retained volume clears after actual idle custody replacement
+  ---
+  duration_ms: 0.196208
+  ...
+# Subtest: retained volume clears after actual unbound custody replacement
+ok 124 - retained volume clears after actual unbound custody replacement
+  ---
+  duration_ms: 0.277334
+  ...
+# Subtest: retained volume clears after actual disconnect-cleanup custody replacement
+ok 125 - retained volume clears after actual disconnect-cleanup custody replacement
+  ---
+  duration_ms: 0.27825
+  ...
+# Subtest: same output playback changes and temporary disconnect keep only the last known measurement
+ok 126 - same output playback changes and temporary disconnect keep only the last known measurement
+  ---
+  duration_ms: 0.228875
+  ...
+# Subtest: fresh unknown measurement supersedes retained volume rather than fabricating zero
+ok 127 - fresh unknown measurement supersedes retained volume rather than fabricating zero
+  ---
+  duration_ms: 0.24825
+  ...
+# Subtest: accepted v2 control makes one ordinary read without manufacturing playback or selecting a source receipt
+ok 128 - accepted v2 control makes one ordinary read without manufacturing playback or selecting a source receipt
+  ---
+  duration_ms: 2.708667
+  ...
+# Subtest: lowering observed100 remains single-flight through held setup and UNKNOWN without replay or optimistic measurement
+ok 129 - lowering observed100 remains single-flight through held setup and UNKNOWN without replay or optimistic measurement
+  ---
+  duration_ms: 0.6
+  ...
+# Subtest: passive rejected setup explains disabled controls and recovers only from a new poll with valid setup
+ok 130 - passive rejected setup explains disabled controls and recovers only from a new poll with valid setup
+  ---
+  duration_ms: 0.484958
+  ...
+# Subtest: passive invalid setup explains disabled controls and recovers only from a new poll with valid setup
+ok 131 - passive invalid setup explains disabled controls and recovers only from a new poll with valid setup
+  ---
+  duration_ms: 0.232417
+  ...
+# Subtest: late failed passive setup cannot report a failure after room replacement
+ok 132 - late failed passive setup cannot report a failure after room replacement
+  ---
+  duration_ms: 0.157333
+  ...
+# Subtest: late failed passive setup cannot report a failure after music-generation replacement
+ok 133 - late failed passive setup cannot report a failure after music-generation replacement
+  ---
+  duration_ms: 0.129125
+  ...
+# Subtest: passive setup never replaces an UNKNOWN command fence with read failure or recovery
+ok 134 - passive setup never replaces an UNKNOWN command fence with read failure or recovery
+  ---
+  duration_ms: 0.353625
+  ...
+# Subtest: Robot-only inputRevision invalidates Robot custody while pending fixed-player music retains its owner and receipt
+ok 135 - Robot-only inputRevision invalidates Robot custody while pending fixed-player music retains its owner and receipt
+  ---
+  duration_ms: 1.4815
+  ...
+# Subtest: Robot-only taskId invalidates Robot custody while pending fixed-player music retains its owner and receipt
+ok 136 - Robot-only taskId invalidates Robot custody while pending fixed-player music retains its owner and receipt
+  ---
+  duration_ms: 0.876917
+  ...
+# Subtest: Robot-only robot-status invalidates Robot custody while pending fixed-player music retains its owner and receipt
+ok 137 - Robot-only robot-status invalidates Robot custody while pending fixed-player music retains its owner and receipt
+  ---
+  duration_ms: 0.888709
+  ...
+# Subtest: Robot-only vacuum-capability invalidates Robot custody while pending fixed-player music retains its owner and receipt
+ok 138 - Robot-only vacuum-capability invalidates Robot custody while pending fixed-player music retains its owner and receipt
+  ---
+  duration_ms: 0.7245
+  ...
+# Subtest: Robot-only robot-expiry invalidates Robot custody while pending fixed-player music retains its owner and receipt
+ok 139 - Robot-only robot-expiry invalidates Robot custody while pending fixed-player music retains its owner and receipt
+  ---
+  duration_ms: 0.792417
+  ...
+# Subtest: shared boot still invalidates Robot and pending music together
+ok 140 - shared boot still invalidates Robot and pending music together
+  ---
+  duration_ms: 0.926917
+  ...
+# Subtest: shared room still invalidates Robot and pending music together
+ok 141 - shared room still invalidates Robot and pending music together
+  ---
+  duration_ms: 1.115875
+  ...
+# Subtest: shared disconnect still invalidates Robot and pending music together
+ok 142 - shared disconnect still invalidates Robot and pending music together
+  ---
+  duration_ms: 0.602791
+  ...
+# Subtest: Robot-only invalidation retains the in-flight vacuum lock until its real receipt settles
+ok 143 - Robot-only invalidation retains the in-flight vacuum lock until its real receipt settles
+  ---
+  duration_ms: 0.729167
+  ...
+# Subtest: pause immediately projects action feedback and busy button through held setup and dispatch
+ok 144 - pause immediately projects action feedback and busy button through held setup and dispatch
+  ---
+  duration_ms: 0.60975
+  ...
+# Subtest: resume immediately projects action feedback and busy button through held setup and dispatch
+ok 145 - resume immediately projects action feedback and busy button through held setup and dispatch
+  ---
+  duration_ms: 0.363042
+  ...
+# Subtest: next immediately projects action feedback and busy button through held setup and dispatch
+ok 146 - next immediately projects action feedback and busy button through held setup and dispatch
+  ---
+  duration_ms: 0.382042
+  ...
+# Subtest: previous immediately projects action feedback and busy button through held setup and dispatch
+ok 147 - previous immediately projects action feedback and busy button through held setup and dispatch
+  ---
+  duration_ms: 0.461084
+  ...
+# Subtest: volume immediately projects action feedback and busy button through held setup and dispatch
+ok 148 - volume immediately projects action feedback and busy button through held setup and dispatch
+  ---
+  duration_ms: 0.67125
+  ...
+# Subtest: fresh v3 draws readonly actions/base100 with policy35 and performs zero passive setups
+ok 149 - fresh v3 draws readonly actions/base100 with policy35 and performs zero passive setups
+  ---
+  duration_ms: 1.917458
+  ...
+# Subtest: v3 explicit pause alone gets one fresh JIT task and one exact effect
+ok 150 - v3 explicit pause alone gets one fresh JIT task and one exact effect
+  ---
+  duration_ms: 0.782125
+  ...
+# Subtest: v3 explicit next alone gets one fresh JIT task and one exact effect
+ok 151 - v3 explicit next alone gets one fresh JIT task and one exact effect
+  ---
+  duration_ms: 0.482417
+  ...
+# Subtest: v3 explicit previous alone gets one fresh JIT task and one exact effect
+ok 152 - v3 explicit previous alone gets one fresh JIT task and one exact effect
+  ---
+  duration_ms: 0.485292
+  ...
+# Subtest: v3 explicit volume alone gets one fresh JIT task and one exact effect
+ok 153 - v3 explicit volume alone gets one fresh JIT task and one exact effect
+  ---
+  duration_ms: 0.621583
+  ...
+# Subtest: v3 paused source offers resume without inferring an unavailable action
+ok 154 - v3 paused source offers resume without inferring an unavailable action
+  ---
+  duration_ms: 0.54875
+  ...
+# Subtest: v3 gesture clamps a new draft to readonly policy35, never issues an effect or synthesizes an option
+ok 155 - v3 gesture clamps a new draft to readonly policy35, never issues an effect or synthesizes an option
+  ---
+  duration_ms: 0.243833
+  ...
+# Subtest: v3 volume-unavailable preserves valid transport actions and never invents a volume
+ok 156 - v3 volume-unavailable preserves valid transport actions and never invents a volume
+  ---
+  duration_ms: 0.400375
+  ...
+# Subtest: readonly revocation clears hints without falling back to passive executable setup
+ok 157 - readonly revocation clears hints without falling back to passive executable setup
+  ---
+  duration_ms: 0.375625
+  ...
+# Subtest: fresh same-route readonly refresh during an unrelated held read never disables controls or requests setup
+ok 158 - fresh same-route readonly refresh during an unrelated held read never disables controls or requests setup
+  ---
+  duration_ms: 1.181416
+  ...
+# Subtest: v3 UNKNOWN is terminal for the same current context, despite fresh readonly actions
+ok 159 - v3 UNKNOWN is terminal for the same current context, despite fresh readonly actions
+  ---
+  duration_ms: 0.489916
+  ...
+# Subtest: v3 held JIT cannot dispatch after owner
+ok 160 - v3 held JIT cannot dispatch after owner
+  ---
+  duration_ms: 0.389542
+  ...
+# Subtest: v3 held JIT cannot dispatch after binding
+ok 161 - v3 held JIT cannot dispatch after binding
+  ---
+  duration_ms: 0.289833
+  ...
+# Subtest: v3 held JIT cannot dispatch after disconnect
+ok 162 - v3 held JIT cannot dispatch after disconnect
+  ---
+  duration_ms: 0.299375
+  ...
+# Subtest: v3 held JIT cannot dispatch after revocation
+ok 163 - v3 held JIT cannot dispatch after revocation
+  ---
+  duration_ms: 0.393083
+  ...
+# Subtest: accepted v3 feedback awaits its exact receipt despite a later readonly source poll
+ok 164 - accepted v3 feedback awaits its exact receipt despite a later readonly source poll
+  ---
+  duration_ms: 1.002417
+  ...
+# Subtest: fresh v3 remove-action cannot use an old JIT reply to authorize the withdrawn draft
+ok 165 - fresh v3 remove-action cannot use an old JIT reply to authorize the withdrawn draft
+  ---
+  duration_ms: 0.660375
+  ...
+# Subtest: fresh v3 lower-ceiling cannot use an old JIT reply to authorize the withdrawn draft
+ok 166 - fresh v3 lower-ceiling cannot use an old JIT reply to authorize the withdrawn draft
+  ---
+  duration_ms: 0.403542
+  ...
+# Subtest: unknown MOVE permits explicit new choice only after a fresh observed poll and new offer
+ok 167 - unknown MOVE permits explicit new choice only after a fresh observed poll and new offer
+  ---
+  duration_ms: 0.727209
+  ...
+# Subtest: transport exception keeps its own action and cannot create a MOVE fence
+ok 168 - transport exception keeps its own action and cannot create a MOVE fence
+  ---
+  duration_ms: 0.381459
+  ...
+# Subtest: unknown MOVE new explicit choice respects busy
+ok 169 - unknown MOVE new explicit choice respects busy
+  ---
+  duration_ms: 0.382667
+  ...
+# Subtest: unknown MOVE new explicit choice respects unready
+ok 170 - unknown MOVE new explicit choice respects unready
+  ---
+  duration_ms: 0.423958
+  ...
+# Subtest: unknown MOVE new explicit choice respects binding-drift
+ok 171 - unknown MOVE new explicit choice respects binding-drift
+  ---
+  duration_ms: 0.41075
+  ...
+# Subtest: composed recovery snapshot to explicit move uses real transport once and never replays unknown
+ok 172 - composed recovery snapshot to explicit move uses real transport once and never replays unknown
+  ---
+  duration_ms: 9.911125
+  ...
+# Subtest: recovery snapshot permits explicit MOVE only for active account while ordinary controls remain unavailable
+ok 173 - recovery snapshot permits explicit MOVE only for active account while ordinary controls remain unavailable
+  ---
+  duration_ms: 0.406167
+  ...
+# Subtest: released slider preserves the explicit35 draft through held700ms JIT instead of jumping to observed70
+ok 174 - released slider preserves the explicit35 draft through held700ms JIT instead of jumping to observed70
+  ---
+  duration_ms: 0.845166
+  ...
+# Subtest: volume POST unknown restores measured value without replay
+ok 175 - volume POST unknown restores measured value without replay
+  ---
+  duration_ms: 0.447042
+  ...
+# Subtest: volume POST rejected restores measured value without replay
+ok 176 - volume POST rejected restores measured value without replay
+  ---
+  duration_ms: 0.338625
+  ...
+# Subtest: failed volume JIT restores measured value and never dispatches
+ok 177 - failed volume JIT restores measured value and never dispatches
+  ---
+  duration_ms: 0.33775
+  ...
+# Subtest: volume source unknown retires draft without manufacturing requested35 when actual remains70
+ok 178 - volume source unknown retires draft without manufacturing requested35 when actual remains70
+  ---
+  duration_ms: 0.549709
+  ...
+# Subtest: volume source confirmed retires draft without manufacturing requested35 when actual remains70
+ok 179 - volume source confirmed retires draft without manufacturing requested35 when actual remains70
+  ---
+  duration_ms: 0.442166
+  ...
+# Subtest: volume source rejected retires draft without manufacturing requested35 when actual remains70
+ok 180 - volume source rejected retires draft without manufacturing requested35 when actual remains70
+  ---
+  duration_ms: 0.361625
+  ...
+# Subtest: volume source superseded retires draft without manufacturing requested35 when actual remains70
+ok 181 - volume source superseded retires draft without manufacturing requested35 when actual remains70
+  ---
+  duration_ms: 0.342875
+  ...
+# Subtest: actual matching measurement retires draft and updates both sliders from the source
+ok 182 - actual matching measurement retires draft and updates both sliders from the source
+  ---
+  duration_ms: 0.4115
+  ...
+# Subtest: zero draft never changes measured mute or remembered volume before source confirmation
+ok 183 - zero draft never changes measured mute or remembered volume before source confirmation
+  ---
+  duration_ms: 0.359291
+  ...
+# Subtest: volume draft clears on route while a JIT is held
+ok 184 - volume draft clears on route while a JIT is held
+  ---
+  duration_ms: 0.361917
+  ...
+# Subtest: volume draft clears on explicit-invalidate while a JIT is held
+ok 185 - volume draft clears on explicit-invalidate while a JIT is held
+  ---
+  duration_ms: 0.391
+  ...
+# Subtest: new pointer gesture supersedes an old unresolved draft, and keyboard commit owns its new value
+ok 186 - new pointer gesture supersedes an old unresolved draft, and keyboard commit owns its new value
+  ---
+  duration_ms: 0.985875
+  ...
+# Subtest: expired actual binding removes an unresolved volume draft without renewing its deadline or dispatching held JIT
+ok 187 - expired actual binding removes an unresolved volume draft without renewing its deadline or dispatching held JIT
+  ---
+  duration_ms: 0.898916
+  ...
+# Subtest: radio range input never consumes retained Spotify bounds or mutates its volume draft
+ok 188 - radio range input never consumes retained Spotify bounds or mutates its volume draft
+  ---
+  duration_ms: 0.322166
+  ...
+# Subtest: household music copy never promotes ACK to success and keeps UNKNOWN free of retry advice
+ok 189 - household music copy never promotes ACK to success and keeps UNKNOWN free of retry advice
+  ---
+  duration_ms: 0.219916
+  ...
+# Subtest: agreed music feedback: pending controls, no success toast, one failure and honest passive status
+ok 190 - agreed music feedback: pending controls, no success toast, one failure and honest passive status
+  ---
+  duration_ms: 0.406375
+  ...
+# Subtest: an accepted waiting command stays visibly busy without preventing the next explicit intent
+ok 191 - an accepted waiting command stays visibly busy without preventing the next explicit intent
+  ---
+  duration_ms: 0.556959
+  ...
+1..191
+# tests 191
+# suites 0
+# pass 191
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 163.883

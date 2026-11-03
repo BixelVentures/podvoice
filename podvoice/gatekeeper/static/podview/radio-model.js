@@ -21,7 +21,7 @@ export function localRadioPlayerModel(stationId,baseVm={},radio={}){
   target:typeof baseVm?.target==='string'?baseVm.target:'',
   volume:baseVm?.volume??null,
   fixtureArt:`assets/radio-${station.id}.svg`,artwork:null,canOutput:radio.connected===true,canDiscover:radio.connected===true,
-  exampleOnly:true,sourceKind:'radio',previewLabel:radio.playing?'Radio · ingen lyd':'Radio på pause · ingen lyd',
+  exampleOnly:true,sourceKind:'radio',previewLabel:radio.playing?'Radio · ingen lyd':'Radio stoppet · ingen lyd',
  };
 }
 
@@ -46,3 +46,6 @@ export function localRadioTransition(state,event){
  return state;
 }
 export function localRadioControlModel(state){return {sourceKind:'radio',playing:state.radioPlaying===true,previous:false,next:false,toggle:true,blocked:!state.connected||!!state.music.pending,volume:state.music.playback.volume,canVolume:true};}
+
+// Requested playback is presentation only; it never replaces an observation.
+export function pendingRadioPlayerModel(stationId,volume=null,target=''){const station=radioStation(stationId);return station?{active:true,sourceKind:'radio',playing:false,fresh:false,loading:true,title:station.label,artist:'Direkte radio',fixtureArt:`assets/radio-${station.id}.svg`,target:typeof target==='string'?target:'',volume:Number.isInteger(volume)?volume:null,canOutput:false,canDiscover:false,canSeek:false,feedback:{message:`Starter ${station.label}…`,pending:true}}:null;}

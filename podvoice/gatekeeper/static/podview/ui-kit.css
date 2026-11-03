@@ -1722,7 +1722,7 @@ pv-widget-host .view-nav #header-title-action>.topbar-title-copy{display:block;m
 
 /* Radio's ChoiceList presents selectable Tiles, not secondary action buttons. */
 pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button{background:var(--pv-surface)!important;color:var(--pv-ink)!important}
-pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true]{background:var(--pv-surface)!important;border-color:var(--pv-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-ink)}
+pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button[aria-pressed=true]{background:var(--pv-surface)!important;border-color:var(--pv-ink)!important;box-shadow:none}
 
 /* One verbal Card core across S/M/L; Large expands information, not the grammar. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-radio[data-kit-size=l],#timer-card[data-kit-size=l]>#open-timers):not([data-media-layout=media]):not([data-kit-state=unavailable])>.resource-label>.resource-value:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;height:26px!important;max-height:26px!important}
@@ -1875,7 +1875,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .pv-kit-
 :root{--pv-elevation-short:0 1px 3px rgba(27,29,28,.04);--pv-card-edge-mix:14%;--pv-card-edge-neutral:var(--pv-line);--pv-topbar-action-height:48px;--pv-topbar-action-label:600 20px/24px var(--pv-font)}
 .pv-kit{--pv-card-edge:var(--pv-card-edge-neutral)}
 .pv-kit:is([data-kit-identity=weather],[data-kit-identity=robot],[data-kit-identity=light],[data-kit-identity=tesla]){--pv-card-edge:color-mix(in srgb,var(--pv-tint-ink) var(--pv-card-edge-mix),var(--pv-tint))}
-.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile),pv-widget-host #radio-view .radio-station-tiles .pv-list>.pv-kit-button{--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
+.pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow)}
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile):not([aria-pressed=true]):not([aria-current=true]){box-shadow:var(--pv-shadow)}
 pv-widget-host #open-timers,pv-widget-host .timer-panel.pv-hero,.pv-component[data-component=timer-widget].pv-kit-hero{--pv-card-edge:color-mix(in srgb,var(--pv-on-dark) 14%,var(--pv-timer-idle-surface,var(--pv-dark)));--pv-shadow:inset 0 0 0 1px var(--pv-card-edge),var(--pv-elevation-short);--pv-surface-shadow:var(--pv-shadow);box-shadow:var(--pv-shadow)}
 /* The resource wrapper is geometry only: its child is the visible shared Tile. */
@@ -2248,6 +2248,11 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-c
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.pv-kit-card[data-kit-layout=controls]{padding:var(--pv-control-card-inset)}
 /* The ready Hero keeps its primary command beside the Base disclosure;
    the expanded panel spans the same full-width action area. */
+/* Existing message Hero: feedback follows the copy, never the icon slot. */
+pv-widget-host .pv-kit-hero[data-kit-variant=message]:not([hidden]) [data-kit-slot=feedback]{grid-column:2;grid-row:3;align-self:start;justify-self:stretch;min-width:0;width:100%;max-width:none;white-space:normal;overflow-wrap:anywhere}
+/* Pending labels use the registered Button feedback role. */
+.pv-kit.pv-kit-button[data-feedback=label][aria-busy=true]::after{content:none!important;animation:none!important}
+.pv-kit.pv-kit-button[data-feedback=label][aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer)>img{visibility:visible}
 /* Existing queue ListRows: upcoming content uses the same finite advice gradient. */
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,

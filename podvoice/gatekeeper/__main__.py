@@ -438,6 +438,9 @@ async def run(cfg: Config) -> None:
         hub=hub,
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
     )
+    from .podview_radio import NativeRadio
+
+    tools.podview_radio_native = NativeRadio(cfg.podconnect_base_url, cfg.podconnect_token)
     tools.podview_weather_city = cfg.podview_weather_city
     from .podview_weather_advice import MODEL, FastWeatherAdviceProvider
     from .podview_weather_budget import WeatherAllowance as WeatherAdviceAllowance
