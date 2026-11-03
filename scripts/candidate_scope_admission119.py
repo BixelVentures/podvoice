@@ -10,10 +10,10 @@ BASE = "0b38672b237da16ebc3ed3caef916922e070f7e2"
 CANDIDATE = "26fab0dcd80ce5f20f3ab5d8daf55e6cbc40be71"
 CANDIDATE_TREE = "10fc8f62e924fe297f51ad9cb4c750e9ff5a89af"
 REVIEWER = "/root/independent_287"
-WORKFLOW_SHA256 = "2517bea6fd06a9dc1cba1fbf1b63afe0209ce8e651d2f9d6888730e254c9d702"
+WORKFLOW_SHA256 = "a5538e96bd755a3b2728bf04ac65833cbc97aadf977b36e15df3017b95f0812d"
 REGISTRATION = frozenset({
     ".github/workflows/ci.yml",
-    "scripts/candidate_scope_admission_radio_v2x.py",
+    "scripts/candidate_scope_admission119.py",
 })
 
 
