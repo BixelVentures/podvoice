@@ -2964,7 +2964,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 a380cc58e6760a2dd76886dd5bf28a28217c66b544354c3e544594209d22e466 */
+/* Source: ui-kit.css · SHA256 e616589cd18bb40e310483d770f244a3bc6c24bbec0c319efc33d3f30c5af566 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -5323,10 +5323,11 @@ pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identit
 }
 
 /* Robot recovery: urgent faults and neutral maintenance have separate weight. */
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{padding:0;background:transparent;border-radius:0;box-shadow:none}
-.robot-urgent-issue{padding:var(--pv-s3);border-radius:var(--pv-r-l);background:var(--pv-screen-danger-surface)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{padding:0;gap:var(--pv-s4);background:transparent;border-radius:0;box-shadow:none}
+.robot-urgent-issue{padding:var(--pv-s4);border-radius:var(--pv-r-l);background:var(--pv-screen-danger-surface)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-urgent-issue .robot-error-code{margin-top:var(--pv-s1)}
 .pv-kit-disclosure[data-kit-layout=maintenance]{width:100%;border-radius:var(--pv-r-l);background:var(--pv-surface);overflow:hidden}
-.pv-kit-disclosure[data-kit-layout=maintenance]>.pv-kit.pv-kit-listrow{width:100%;min-height:var(--pv-hit);text-align:left;background:transparent;box-shadow:none}
+.pv-kit-disclosure[data-kit-layout=maintenance]>.pv-kit.pv-kit-listrow{width:100%;min-height:var(--pv-hit);padding:var(--pv-s3)!important;text-align:left;background:transparent;box-shadow:none}
 .pv-kit-disclosure[data-kit-layout=maintenance]>div:not([hidden]){display:grid;gap:0;padding:0 var(--pv-s3) var(--pv-s2)}
 .pv-kit-disclosure[data-kit-layout=maintenance-item]{border-top:1px solid var(--pv-line);background:transparent}
 .pv-kit-disclosure[data-kit-layout=maintenance-item]>.pv-kit.pv-kit-listrow{min-height:var(--pv-hit-min);padding:var(--pv-s2) 0!important;background:transparent;border-radius:0!important;box-shadow:none}

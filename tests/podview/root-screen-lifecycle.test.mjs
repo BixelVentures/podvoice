@@ -137,3 +137,10 @@ test('wake still obtains a fresh read for stale, disconnected or replaced snapsh
   x.lifecycle.attach();x.lifecycle.wake();await Promise.resolve();assert.equal(restarts,1,kind);x.lifecycle.cleanup();
  }
 });
+test('disclosure releases geometry immediately while ordinary controls remain guarded',()=>{
+ const x=setup();let holds=0,releases=[];x.host.motion={holdGeometry(){holds++},releaseGeometry(value){releases.push(value)}};x.host.state.focus='device';x.lifecycle.attach();
+ x.events.get('pointerdown')({type:'pointerdown',pointerId:1,target:{closest:()=>null}});assert.equal(holds,1);
+ x.events.get('pointerup')({type:'pointerup',pointerId:1});
+ x.events.get('pointerdown')({type:'pointerdown',pointerId:2,target:{closest:selector=>selector==='.pv-kit-disclosure>button'?{}:null}});assert.deepEqual(releases,[false]);assert.equal(holds,1);
+ x.events.get('pointerup')({type:'pointerup',pointerId:2});x.lifecycle.cleanup();
+});

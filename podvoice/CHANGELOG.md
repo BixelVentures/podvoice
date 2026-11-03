@@ -1,3 +1,9 @@
+## 2.0.120
+
+- Adjust robot maintenance spacing and prevent overlap when opening details.
+- Preserve valid robot controls when reopening the same view.
+- Record fixed diagnostic codes for robot renewal and control rebuilds.
+
 ## 2.0.119
 
 - Add five live DR stations to PodView with speaker selection and Start/Stop. The radio backend is supplied by PodConnect Speakers 0.26.65.
