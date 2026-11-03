@@ -18,7 +18,7 @@ RELEASE_PINS = {
     "podvoice/config.yaml": "ebfd65bd1d459707e9bfe4b6c7823f7aea9b121b86171206a350ccdb8523a849",
     "podvoice/gatekeeper/__init__.py": "c83b62510652886bd537a8e0c97ed32ec0c2585cc061573f9690ab0a9e519f52",
     "podvoice/gatekeeper/__main__.py": "7908a465a0adc288fa38e45f118d6875fe3462478abd99b90f8fd78b1fcb9a4f",
-    "podvoice/gatekeeper/podview.py": "e0fad5c8f10bd9a5cc0527ee74b61c2e4da5c337ec489ffd42b11c98b94ee45a",
+    "podvoice/gatekeeper/podview.py": "bb7d88f10c3e06588e3bd2cc16241de79f09fcf612a78e6474cc1053715771f5",
     "podvoice/gatekeeper/podview_recipes.json": "26d887f6319964d69811575878a429bcad9afa41709b7579c2168b04c39dece6",
     "podvoice/gatekeeper/podview_theme_art.py": "fdecd0adcc536c0878adf05d8c887e03b251bb3686c380588f98efccc1cf81bc",
     "podvoice/gatekeeper/static/podview/asset-manifest.json": "0f939558aa92ef5e8de36b039e91c7a9ab10d751001cf6cedbd51fbe28a8d945",

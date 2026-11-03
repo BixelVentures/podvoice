@@ -3335,7 +3335,8 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 except Exception as error:
                     return error
 
-            mood_day_part = retained.get("day_part") if retained else None
+            retained_day_part = retained.get("day_part") if retained else None
+            mood_day_part = retained_day_part
             if (
                 retained
                 and retained["key"][1:3] == (account, room)
@@ -3402,7 +3403,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                         if (
                             current()
                             and mood_day_part is not None
-                            and (not retained_valid or mood_day_part != retained.get("day_part"))
+                            and (not retained_valid or mood_day_part != retained_day_part)
                         ):
                             anchor = {
                                 "morning": "morning_acoustic",
