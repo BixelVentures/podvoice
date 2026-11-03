@@ -413,7 +413,7 @@ export class LiveControlView{
   const draft=panel.cleaningDirty&&panel.readCleaningDraft?{taskId:task.taskId,revision:task.revision,optionId:panel.cleaningOptionId,...panel.readCleaningDraft()}:null;if(draft&&!draft.settingChoices)draft.settingChoices=[];
   const draftSignature=JSON.stringify(draft),read={task};this.robotRenewalRead=read;
   try{
-   const raw=await transport.controlSetup('vacuum',this.target,undefined,draft?{draft}:{});
+   const raw=await transport.controlSetup('vacuum',this.target,undefined,{renewTaskId:task.taskId,...(draft?{draft}:{})});
    if(this.robotRenewalRead!==read||!current()||!!draft!==Object.hasOwn(raw?.setup??{},'draft'))return;
    const latest=panel.cleaningDirty&&panel.readCleaningDraft?{taskId:task.taskId,revision:task.revision,optionId:panel.cleaningOptionId,...panel.readCleaningDraft()}:null;if(latest&&!latest.settingChoices)latest.settingChoices=[];if(JSON.stringify(latest)!==draftSignature){if(attempt===0&&task.expiresAt*1000-Date.now()>1250){clearTimeout(this.robotRenewalRetry);this.robotRenewalRetry=setTimeout(()=>{if(current())this.renewRobotTask(task,1);},250);}return;}
    const admitted=controlTask(raw,this.host.liveSnapshot,'vacuum');if(this.spent.has(admitted.taskId))return;

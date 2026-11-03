@@ -102,3 +102,18 @@ test('current activity accepts only bounded recorder observation for same robot'
 });
 
 test('public HA vacuum row carries top-level current activity to the view',()=>{const at=now(),activity={status:'observed',source:'home_assistant_recorder',vacuumEntityId:'vacuum.robot',registeredAt:at-30,observedAt:at};const input={schema:'podview.home.v1',roomId:'r',revision:1,observedAt:at,vacuum:{status:'observed',items:[{entityId:'vacuum.robot',name:'Robot',state:'cleaning',source:'home_assistant_state',observedAt:at,currentActivity:activity,telemetry:telemetry([row('in_cleaning',true,null,0,'binary_sensor')])}]}};const home=validateHome(input,'r'),scene=applyHome({devices:[]},home);assert.deepEqual(scene.devices[0].telemetry.currentActivity,activity);input.vacuum.items[0].currentActivity={...activity,source:'guess'};assert.equal(applyHome({devices:[]},validateHome(input,'r')).devices[0].telemetry.currentActivity.status,'unavailable');});
+
+test('related fresh water symptoms share one guidance while retaining raw source evidence',()=>{
+ const items=[row('dock_error','38'),row('clean_box_empty',true,null,0,'binary_sensor'),row('water_shortage',true,null,0,'binary_sensor'),row('dirty_box_full',true,null,0,'binary_sensor')];
+ const device={status:'docked',telemetry:{status:'observed',items}},before=JSON.stringify(device);
+ const x=robotExperience(device);assert.equal(x.issues.length,2);
+ assert.deepEqual(x.issues[0].sources,[{key:'dock_error',raw:'38'},{key:'clean_box_empty',raw:true},{key:'water_shortage',raw:true}]);
+ assert.equal(x.issues[1].key,'dirty_box_full');assert.equal(JSON.stringify(device),before);
+ items[0].stale=true;items[1].stale=true;const alone=robotExperience(device);
+ assert.equal(alone.issues.find(x=>x.key==='water_shortage').title,'Robotten mangler vand');
+});
+test('expired maintenance interval is a named reminder, not a physical wear diagnosis',()=>{
+ const x=robotExperience({status:'docked',telemetry:{status:'observed',items:[row('filter_time_left',0,'h')]}});
+ assert.equal(x.maintenance[0].title,'Filter');assert.match(x.maintenance[0].help,/intervallet er nået/);
+ assert.equal(x.maintenance[0].severity,'reminder');
+});
