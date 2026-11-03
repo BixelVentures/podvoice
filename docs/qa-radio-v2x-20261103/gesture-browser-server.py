@@ -1,7 +1,8 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-root=Path('/private/tmp/pv118-radio-combined-20261103/dist')
-script=r'''
+
+root = Path("/private/tmp/pv118-radio-combined-20261103/dist")
+script = r"""
 <script type="module">
 import {LiveRadioView} from './live-radio-view.js';
 import {SpeakerOutputView} from './speaker-output-view.js';
@@ -18,11 +19,23 @@ h.liveOutputs=new SpeakerOutputView(h);h.liveRadio=new LiveRadioView(h);h.liveCo
 h.liveMedia={account:'account',playback:{state:'playing',config_entry_id:'account',owner_epoch:'spotify-inert',target:{id:'spotify-B'},roomBinding:'native-B'},observedPlayerModel:()=>musicVM,render(){if(!h.liveRadio.renderPlayer())h.playerView.renderPlayer(musicVM);h.liveControls.render();},refresh:async()=>{}};
 await h.liveRadio.refresh({immediate:true});h.render();
 for(const id of ['volume','detail-volume'])document.getElementById(id).addEventListener('input',()=>{if(changed)return;changed=true;radio=!radio;owner.revision++;owner.state={...owner.state,status:radio?'playing':'idle',sourceKind:radio?'radio':'none',stationId:radio?'p3':null,targetId:radio?'r0':null,generation:2,ownerGeneration:2,observedAt:now()};h.liveRadio.value=dto();h.liveRadio.lastConfirmed=radio?{...owner.state,targetName:'Stuen'}:null;h.playerView.focusSource(radio?'radio':'music');h.render();document.body.dataset.qaSource=radio?'radio':'music';});
-</script>'''
+</script>"""
+
+
 class Handler(SimpleHTTPRequestHandler):
- def __init__(self,*args,**kwargs): super().__init__(*args,directory=str(root),**kwargs)
- def do_GET(self):
-  if self.path.startswith('/__radio-gesture.html'):
-   data=(root/'index.html').read_text().replace('</body>',script+'</body>').encode();self.send_response(200);self.send_header('Content-Type','text/html; charset=utf-8');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data);return
-  super().do_GET()
-ThreadingHTTPServer(('127.0.0.1',53918),Handler).serve_forever()
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(root), **kwargs)
+
+    def do_GET(self):
+        if self.path.startswith("/__radio-gesture.html"):
+            data = (root / "index.html").read_text().replace("</body>", script + "</body>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        super().do_GET()
+
+
+ThreadingHTTPServer(("127.0.0.1", 53918), Handler).serve_forever()

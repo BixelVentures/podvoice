@@ -11,10 +11,15 @@ CANDIDATE = "26fab0dcd80ce5f20f3ab5d8daf55e6cbc40be71"
 CANDIDATE_TREE = "10fc8f62e924fe297f51ad9cb4c750e9ff5a89af"
 REVIEWER = "/root/independent_287"
 WORKFLOW_SHA256 = "a5538e96bd755a3b2728bf04ac65833cbc97aadf977b36e15df3017b95f0812d"
-REGISTRATION = frozenset({
-    ".github/workflows/ci.yml",
-    "scripts/candidate_scope_admission119.py",
-})
+QA_FIXTURE = "docs/qa-radio-v2x-20261103/gesture-browser-server.py"
+QA_FIXTURE_SHA256 = "8b7aa12f8ae802b75d2ec1b0f01c9b2163e9d80705cf1cd0172776d2d9bd3c88"
+REGISTRATION = frozenset(
+    {
+        ".github/workflows/ci.yml",
+        QA_FIXTURE,
+        "scripts/candidate_scope_admission119.py",
+    }
+)
 
 
 def git(*args: str) -> str:
@@ -35,6 +40,9 @@ def validate(base: str) -> bool:
         return False
     workflow = Path(__file__).resolve().parents[1] / ".github/workflows/ci.yml"
     if hashlib.sha256(workflow.read_bytes()).hexdigest() != WORKFLOW_SHA256:
+        return False
+    fixture = workflow.parents[2] / QA_FIXTURE
+    if hashlib.sha256(fixture.read_bytes()).hexdigest() != QA_FIXTURE_SHA256:
         return False
     changed = git("diff", "--no-renames", "--name-only", "-z", CANDIDATE, "HEAD")
     return frozenset(changed.rstrip("\0").split("\0")) == REGISTRATION
