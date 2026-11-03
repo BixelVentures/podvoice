@@ -1,3 +1,7 @@
+## 2.0.122
+
+- Deliver the approved Find musik views and recipe catalogue.
+
 ## 2.0.121
 
 - Record the reason when a robot control rebind is denied.

@@ -1,0 +1,409 @@
+[
+  {
+    "title": "Burgerboller",
+    "categories": [
+      "Brød og bagværk"
+    ],
+    "publisher": "Meyers",
+    "portions": "15 stk.",
+    "waiting": "2–3 timer hævning",
+    "baking": "12–15 min. bagetid",
+    "description": "Bløde sesamboller med to æltemetoder og lang hævning.",
+    "source": {
+      "url": "https://meyers.dk/opskrifter/burgerboller",
+      "files": []
+    },
+    "image": "https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=480",
+    "images": [
+      "https://cdn.sanity.io/images/dbvg5cs2/production/1da8cd431aa6e63990f17e00fd6f0fc0360abfba-5142x7063.jpg?w=960",
+      "https://cdn.sanity.io/images/dbvg5cs2/production/69ad45573b44312bbfd603898669066e2536300e-10032x7524.jpg?w=960"
+    ],
+    "groups": [
+      {
+        "title": "Dej",
+        "lines": [
+          "350 ml koldt vand",
+          "15 g gær",
+          "2 æg",
+          "630 g hvedemel",
+          "70 g fuldkorns ølandshvedemel",
+          "55 g sukker",
+          "10 g salt",
+          "90 g blødt smør"
+        ]
+      },
+      {
+        "title": "Pensling og drys",
+        "lines": [
+          "1 æg",
+          "Sesamfrø"
+        ]
+      }
+    ],
+    "phases": {
+      "0": "Æltning",
+      "1": "Hvile og hævning",
+      "4": "Bagning"
+    },
+    "steps": [
+      "Vælg én metode. I hånden: bland dejens ingredienser og ælt et par minutter i skålen. Ælt 6–8 min. på bordet, lad dejen hvile 5 min. i skålen, og ælt 2 min. mere. På maskine: opløs gæren i vandet, rør æggene i, og ælt med melet ved middel hastighed, til dejen er glat og slipper skålen, ca. 6–8 min. Tilsæt alt smørret i små tern, og ælt til dejen igen er glat og slipper skålen.",
+      "Dæk dejen til. Lad den hvile 30–60 min. på køkkenbordet eller natten over på køl. Kold dej skal bruge længere tid på den efterfølgende hævning.",
+      "Del dejen i 15, og tril boller. Fordel dem på tre plader med bagepapir. Læg bagepapir oven på bollerne, og brug en bageplade til at trykke dem ned til ca. 1 cm.",
+      "Fjern det øverste bagepapir. Dæk bollerne til og lad dem hæve ca. 2–3 timer, til de næsten er dobbelt så store.",
+      "Varm ovnen til 220 °C. Pensl med pisket æg og drys med sesam. Bag ca. 12–15 min., til bollerne er brune. Køl dem på en rist."
+    ]
+  },
+  {
+    "title": "Protein bagels med hytteost",
+    "categories": [
+      "Brød og bagværk",
+      "Madpakker"
+    ],
+    "publisher": "Louises Madblog",
+    "portions": "4 bagels",
+    "waiting": "Ingen hævetid",
+    "baking": "25–30 min. bagetid",
+    "description": "Bagels med hytteost og valgfrit fyld. Dejen skal ikke hæve.",
+    "source": {
+      "url": "https://www.louisesmadblog.dk/protein-bagels-med-hytteost/",
+      "files": []
+    },
+    "image": "https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-5.jpg",
+    "images": [
+      "https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-9.jpg",
+      "https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-18.jpg"
+    ],
+    "groups": [
+      {
+        "title": "Bagels",
+        "lines": [
+          "250 g hytteost",
+          "150 g hvedemel",
+          "1½ tsk bagepulver",
+          "½ tsk salt",
+          "1 æg til pensling",
+          "Sesamfrø og chiafrø til drys"
+        ]
+      },
+      {
+        "title": "Valgfrit fyld",
+        "lines": [
+          "75 g flødeost",
+          "75 g salat",
+          "200 g varmrøget laks",
+          "Syltede rødløg"
+        ]
+      }
+    ],
+    "phases": {
+      "0": "Dej og formning",
+      "3": "Bagning og fyld"
+    },
+    "steps": [
+      "Blend hytteosten med en stavblender. Rør mel, bagepulver og salt sammen separat, og bland det i hytteosten.",
+      "Ælt til dejen er ensartet. Del den i fire, form ringe, og læg dem på en plade med bagepapir.",
+      "Pisk ægget, pensl ringene og drys med sesam og chia.",
+      "Bag 25–30 min. ved 180 °C med almindelig ovnvarme.",
+      "Lad bagels køle af. Skær dem over, og tilsæt eventuelt fyld lige før servering."
+    ]
+  },
+  {
+    "title": "Kylling i karry",
+    "categories": [
+      "Aftensmad"
+    ],
+    "publisher": "Emma Olsen",
+    "portions": "4 personer",
+    "totalTime": "45 min. i alt",
+    "createdAt": 1793660400000,
+    "description": "Kylling, æble og gulerod i karrysauce med ris.",
+    "source": {
+      "url": "https://emmaolsen.dk/kylling-i-karry/",
+      "files": []
+    },
+    "image": "https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6777-edited.jpg",
+    "images": [
+      "https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6784-edited.jpg",
+      "https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6787-1024x576.jpg"
+    ],
+    "groups": [
+      {
+        "title": "Kylling og karrysauce",
+        "lines": [
+          "450 g kylling",
+          "4–6 dl hønsebouillon",
+          "20 g smør",
+          "2 løg",
+          "2 fed hvidløg",
+          "200 g gulerod",
+          "1 æble",
+          "2 tsk stødt karry",
+          "2 tsk stødt spidskommen",
+          "1 tsk stødt gurkemeje",
+          "½ tsk stødt koriander",
+          "2 spsk hvedemel",
+          "1½ dl mælk (fx sødmælk)",
+          "½ tsk salt",
+          "Friskkværnet peber"
+        ]
+      },
+      {
+        "title": "Til servering",
+        "lines": [
+          "3 dl ris",
+          "2 forårsløg",
+          "1 æble",
+          "1 håndfuld frisk persille"
+        ]
+      }
+    ],
+    "phases": {
+      "0": "Ris",
+      "1": "Kylling",
+      "2": "Karrysauce",
+      "6": "Servering"
+    },
+    "steps": [
+      "Tilbered risene som angivet på pakken.",
+      "Skær kyllingen i mundrette bidder. Kog den i hønsebouillonen i ca. 5 min., afhængigt af stykkernes størrelse. Løft kyllingen op, og behold bouillonen til saucen.",
+      "Hak løg og hvidløg fint, og skær gulerod og æble i små tern. Steg løgene i smør ved middel varme i ca. 5 min., til de er bløde og klare.",
+      "Kom æble, gulerod, hvidløg og de fire krydderier i gryden. Svits ved middel varme i ca. 2 min. Rør melet i, og varm blandingen i ca. 1 min.",
+      "Rør den gemte bouillon i lidt efter lidt. Hæld mælken i, og lad saucen simre ved lav varme i ca. 15 min. Rør undervejs.",
+      "Justér evt. konsistensen med mere bouillon, og smag til med salt og peber. Kom kyllingen tilbage, og varm retten igennem ved lav varme.",
+      "Servér med ris, æbletern, forårsløg og frisk persille."
+    ]
+  },
+  {
+    "title": "Pizzaboller med hytteost",
+    "categories": [
+      "Madpakker",
+      "Brød og bagværk"
+    ],
+    "publisher": "Frederikke Wærens",
+    "portions": "8–10 stk.",
+    "totalTime": "35 min. i alt",
+    "baking": "Ca. 25 min. bagetid",
+    "createdAt": 1793660400000,
+    "description": "Pizzaboller med skinke, mozzarella og tomatsauce.",
+    "source": {
+      "url": "https://frederikkewaerens.dk/pizzaboller-med-hytteost/",
+      "files": []
+    },
+    "image": "https://frederikkewaerens.dk/wp-content/uploads/2025/02/Frederikke-Waerens-Pizzaboller-med-hytteost-12-1440x688.jpg",
+    "groups": [
+      {
+        "title": "Dej",
+        "lines": [
+          "500 g hytteost",
+          "4 æg",
+          "275 g hvedemel",
+          "1 tsk salt",
+          "1 tsk bagepulver",
+          "2 tsk oregano",
+          "100 g revet mozzarella",
+          "100 g skinkestrimler",
+          "50 g tomatsauce"
+        ]
+      },
+      {
+        "title": "Til toppen",
+        "lines": [
+          "50 g revet mozzarella"
+        ]
+      }
+    ],
+    "steps": [
+      "Forvarm ovnen til 200 °C varmluft.",
+      "Blend æggene med hytteosten. Rør mel, salt, bagepulver og oregano i, så dejen tykner. Vend 100 g mozzarella, skinkestrimler og tomatsauce i.",
+      "Brug to våde skeer til at fordele dejen i 8–10 boller på en plade med bagepapir. Drys de sidste 50 g mozzarella over bollerne.",
+      "Bag i ca. 25 min., og køl bollerne af på en rist."
+    ]
+  },
+  {
+    "title": "Koldhævede hytteostboller",
+    "categories": [
+      "Brød og bagværk"
+    ],
+    "publisher": "Frederikke Wærens",
+    "portions": "15 stk.",
+    "waiting": "Hæver natten over",
+    "baking": "16–18 min. bagetid",
+    "createdAt": 1793660400000,
+    "description": "Koldhævede boller med hytteost, havregryn og solsikkekerner.",
+    "source": {
+      "url": "https://frederikkewaerens.dk/koldhaevede-hytteostboller/",
+      "files": []
+    },
+    "image": "https://frederikkewaerens.dk/wp-content/uploads/2026/10/Frederikke-Waerens-Koldhaevede-hytteostboller-13-1365x688.jpg",
+    "groups": [
+      {
+        "title": "Dej",
+        "lines": [
+          "15 g gær",
+          "7 dl vand",
+          "200 g hytteost 4 %",
+          "100 g havregryn",
+          "50 g solsikkekerner",
+          "2 spsk honning",
+          "2 spsk olivenolie",
+          "800 g hvedemel",
+          "3 tsk salt"
+        ]
+      },
+      {
+        "title": "Til formning og drys",
+        "lines": [
+          "Hvedemel til bordet",
+          "2 spsk sesamfrø",
+          "2 spsk solsikkekerner"
+        ]
+      }
+    ],
+    "phases": {
+      "0": "Dej",
+      "1": "Koldhævning",
+      "2": "Næste dag"
+    },
+    "steps": [
+      "Opløs gæren i vandet. Rør hytteost, havregryn, solsikkekerner, honning og olie i, og lad blandingen hvile i 10 min.",
+      "Rør melet i lidt efter lidt med en ske. Tilsæt salt sammen med det sidste mel. Dæk den klistrede, sammenhængende dej med husholdningsfilm, og sæt den på køl natten over.",
+      "Forvarm ovnen til 250 °C varmluft. Vend den kolde dej ud på et meldrysset bord, drys med sesam og solsikkekerner, og del den i ca. 15 stykker.",
+      "Læg bollerne på en plade med bagepapir, og bag dem i ca. 16–18 min., til de er sprøde og har taget farve. Køl dem af på en rist."
+    ]
+  },
+  {
+    "title": "Scones med hytteost og blåbær",
+    "categories": [
+      "Brød og bagværk"
+    ],
+    "publisher": "Frederikke Wærens",
+    "portions": "9 stk.",
+    "totalTime": "30 min. i alt",
+    "baking": "Ca. 15 min. bagetid",
+    "createdAt": 1793660400000,
+    "description": "Scones med frosne blåbær, citron og perlesukker.",
+    "source": {
+      "url": "https://frederikkewaerens.dk/scones-med-hytteost-og-blaabaer/",
+      "files": []
+    },
+    "image": "https://frederikkewaerens.dk/wp-content/uploads/2026/05/Frederikke-Waerens-Scones-med-hytteost-og-blaabaer-12-1365x688.jpg",
+    "groups": [
+      {
+        "title": "Dej",
+        "lines": [
+          "250 g hytteost",
+          "2 æg",
+          "50 g smør, smeltet og afkølet",
+          "2 spsk honning",
+          "250 g hvedemel",
+          "3 tsk bagepulver",
+          "2 tsk vaniljesukker",
+          "½ tsk salt",
+          "100 g frosne blåbær",
+          "1 spsk kartoffelmel",
+          "Fintrevet skal af ½ citron"
+        ]
+      },
+      {
+        "title": "Til formning og drys",
+        "lines": [
+          "Hvedemel til bord og dej",
+          "1 spsk perlesukker"
+        ]
+      }
+    ],
+    "phases": {
+      "1": "Dej",
+      "3": "Formning",
+      "4": "Bagning"
+    },
+    "steps": [
+      "Forvarm ovnen til 200 °C varmluft.",
+      "Bland hytteosten med æg, smeltet afkølet smør og honning.",
+      "Bland hvedemel, bagepulver, vaniljesukker og salt. Vend blandingen i de våde ingredienser, så du får en tyk, let klistret dej. Vend de frosne blåbær i kartoffelmel, og tilsæt dem sammen med citronskallen.",
+      "Læg dejen på et meldrysset bord, og drys også lidt mel ovenpå. Tryk dejen til en firkant på ca. 2 cm i tykkelsen, og skær den i ca. 9 stykker.",
+      "Fordel stykkerne på en plade med bagepapir, og drys med perlesukker. Bag i ca. 15 min., til de er gyldne, og køl dem af på en rist."
+    ]
+  },
+  {
+    "title": "Chokoladegranola",
+    "categories": [
+      "Morgenmad"
+    ],
+    "publisher": "Martinys",
+    "portions": "1 stort glas",
+    "baking": "20–30 min. bagetid",
+    "createdAt": 1793660400000,
+    "description": "Sprød granola med kakao, kokos og kakaonibs.",
+    "source": {
+      "url": "https://martinys.dk/blogs/recipe/sund-chokolade-granola",
+      "files": []
+    },
+    "image": "https://martinys.dk/cdn/shop/articles/Sund-chokolade-granola-sukkerfri_d88c14d4-3ea4-4c6e-a94c-53c3648696b5.jpg?v=1765195311&width=1500",
+    "groups": [
+      {
+        "title": "Granola",
+        "lines": [
+          "2 spsk kakaopulver",
+          "2 spsk ahornsirup",
+          "2 spsk kokosolie ved stuetemperatur",
+          "1 nip salt",
+          "5 dl grovvalsede havregryn",
+          "1 dl kokosmel",
+          "1 dl kakaonibs"
+        ]
+      }
+    ],
+    "steps": [
+      "Forvarm ovnen til 150 °C, og gør en bageplade klar med bagepapir.",
+      "Rør kakao, ahornsirup og kokosolie til en klistret masse. Vend havregryn, kokosmel, kakaonibs og salt i, så kakaomassen dækker blandingen jævnt.",
+      "Pres blandingen ud i ét lag på pladen. Bag i 20–30 min., til granolaen er sprød og kokossen gylden.",
+      "Køl granolaen helt af, og kom den i en lufttæt beholder."
+    ]
+  },
+  {
+    "title": "Hjemmelavede müslibarer",
+    "categories": [
+      "Madpakker"
+    ],
+    "publisher": "Frederikke Wærens",
+    "portions": "Ca. 15 stk.",
+    "totalTime": "1 time i alt",
+    "createdAt": 1793660400000,
+    "description": "Müslibarer med mandler, dadler og mørk chokolade.",
+    "source": {
+      "url": "https://frederikkewaerens.dk/hjemmelavede-mueslibarer/",
+      "files": []
+    },
+    "image": "https://frederikkewaerens.dk/wp-content/uploads/2023/07/Frederikke-Waerens-Fredagshygge-Hjemmelavede-muslibarer-12-1365x688.jpg",
+    "groups": [
+      {
+        "title": "Müslibarer",
+        "lines": [
+          "150 g havregryn",
+          "150 g mandler",
+          "75 g sesamfrø",
+          "50 g hørfrø",
+          "50 g kokosmel",
+          "150 g dadler",
+          "150 g honning, gerne flydende",
+          "45 g smør",
+          "½ tsk salt",
+          "125 g rosiner eller tranebær"
+        ]
+      },
+      {
+        "title": "Overtræk",
+        "lines": [
+          "150 g mørk chokolade"
+        ]
+      }
+    ],
+    "steps": [
+      "Varm ovnen op til 200 °C varmluft. Fordel havregryn, mandler, sesamfrø, hørfrø og kokosmel på en plade med bagepapir. Rist i ca. 15 min., til blandingen har lidt farve, og hæld den i en skål.",
+      "Blend dadlerne glatte. Varm dadelmassen sammen med honning, smør og salt ved middel varme, til det hele er smeltet sammen. Rør blandingen i de ristede ingredienser, og tilsæt rosinerne.",
+      "Fordel massen i en form på 21 × 21 cm med bagepapir. Bag i ca. 15 min. ved 200 °C varmluft. Køl massen helt af, inden du skærer den i barer.",
+      "Smelt chokoladen, dyp barerne i den, og sæt dem på køl, til overtrækket er fast."
+    ]
+  }
+]

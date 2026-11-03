@@ -316,12 +316,14 @@ class PodViewBridge:
         controller_generation: str = "",
         controller_store: Path | None = None,
         client_diagnostics_store: Path | None = None,
+        recipe_catalog_path: Path | None = None,
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
         self.history = history
         self.boot_id = secrets.token_hex(16)
         from .podview_client_diagnostics import ClientDiagnosticsStore
 
+        self.recipe_catalog_path = recipe_catalog_path
         self.client_diagnostics = (
             ClientDiagnosticsStore(client_diagnostics_store)
             if client_diagnostics_store is not None
@@ -2003,6 +2005,70 @@ def _room(request: web.Request, bridge: PodViewBridge) -> str | None:
     return room if room in bridge.sessions else None
 
 
+async def _recipes(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    scope = _HA_REQUEST.get()
+    if not scope or not scope["active"] or not scope["user"]:
+        return _error("recipes_denied", 403)
+
+    try:
+        recipes = _published_recipes(request.app[BRIDGE].recipe_catalog_path)
+    except (OSError, ValueError, TypeError, KeyError):
+        return _error("recipes_unavailable", 503)
+    return web.json_response({"recipes": recipes}, headers={"Cache-Control": "no-store"})
+
+
+def _published_recipes(path: Path | None) -> list[dict]:
+    # Read the existing catalog owner's format. An absent file uses the bundled
+    # reviewed seed. An invalid provisioned catalog fails closed.
+    if path is not None:
+        try:
+            state = json.loads(path.read_bytes(), object_pairs_hook=_unique_json_object)
+        except FileNotFoundError:
+            pass
+        else:
+            return _project_published_recipes(state["recipes"])
+    return json.loads(Path(__file__).with_name("podview_recipes.json").read_bytes())
+
+
+def _project_published_recipes(published: object) -> list[dict]:
+    if not isinstance(published, dict):
+        raise ValueError("invalid published recipe catalog")
+    fields = {
+        "title",
+        "publisher",
+        "categories",
+        "portions",
+        "waiting",
+        "baking",
+        "totalTime",
+        "description",
+        "image",
+        "images",
+        "groups",
+        "phases",
+        "steps",
+        "ingredients",
+        "createdAt",
+    }
+    recipes = []
+    for recipe in published.values():
+        if not isinstance(recipe, dict):
+            raise ValueError("invalid published recipe")
+        url = recipe["source"]["url"]
+        if not isinstance(url, str) or not url.startswith(("https://", "http://")):
+            raise ValueError("invalid recipe source")
+        recipes.append(
+            {
+                **{key: value for key, value in recipe.items() if key in fields},
+                "source": {"url": url, "files": []},
+            }
+        )
+    return recipes
+
+
 async def _snapshot(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
@@ -3111,6 +3177,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     from .podview_feeling import THEMES as FEELING_THEMES
     from .podview_feeling import assign_playlists, choose
     from .podview_mood import THEMES as MOOD_THEMES
+    from .podview_mood import day_part
 
     if kind not in {"mood", "feeling"}:
         return _error("invalid_playlist_kind", 400)
@@ -3268,6 +3335,8 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 except Exception as error:
                     return error
 
+            retained_day_part = retained.get("day_part") if retained else None
+            mood_day_part = retained_day_part
             if (
                 retained
                 and retained["key"][1:3] == (account, room)
@@ -3287,18 +3356,19 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 # AI enriches theme choice; its quota/provider cannot disable music.
                 # Never retry a model request or infer a model result from this fallback.
                 async def select_mood():
-                    if selector.available:
-                        try:
-                            coarse = await tools.podview_mood_context(current)
-                            if coarse is not None and current():
-                                return await selector.select(coarse, current=current)
-                        except TimeoutError:
-                            diagnostic_log.note("owner_timeout")
-                        except Exception:
-                            diagnostic_log.note("model_parse")
-                    else:
-                        diagnostic_log.note("not_ready")
-                    return None
+                    coarse = None
+                    chosen = None
+                    try:
+                        coarse = await tools.podview_mood_context(current)
+                        if current() and not selector.available:
+                            diagnostic_log.note("not_ready")
+                        elif coarse is not None and current():
+                            chosen = await selector.select(coarse, current=current)
+                    except TimeoutError:
+                        diagnostic_log.note("owner_timeout")
+                    except Exception:
+                        diagnostic_log.note("model_parse")
+                    return chosen, coarse
 
                 # Owned read-only themes can be sampled concurrently with the model.
                 # Exceptions stay attached to each query: unselected queries have no
@@ -3310,7 +3380,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                         theme_id: concurrent.create_task(safe_read_theme(theme["query"]))
                         for theme_id, theme in themes.items()
                     }
-                    ids = await selection
+                    ids, coarse = await selection
+                    if coarse is not None:
+                        mood_day_part = day_part(coarse["hour"])
                     if current() and (
                         not isinstance(ids, list)
                         or len(ids) != 3
@@ -3322,15 +3394,26 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                             if retained and retained["key"][1:3] == (account, room)
                             else []
                         )
-                        ids = (
-                            retained_ids
-                            if (
-                                len(retained_ids) == 3
-                                and all(isinstance(x, str) and x in themes for x in retained_ids)
-                                and len(set(retained_ids)) == 3
-                            )
-                            else ["cooking", "italian", "calm"]
+                        retained_valid = (
+                            len(retained_ids) == 3
+                            and all(isinstance(x, str) and x in themes for x in retained_ids)
+                            and len(set(retained_ids)) == 3
                         )
+                        ids = retained_ids if retained_valid else ["cooking", "italian", "calm"]
+                        if (
+                            current()
+                            and mood_day_part is not None
+                            and (not retained_valid or mood_day_part != retained_day_part)
+                        ):
+                            anchor = {
+                                "morning": "morning_acoustic",
+                                "afternoon": "indie",
+                                "evening": "evening_jazz",
+                                "night": "calm",
+                            }[mood_day_part]
+                            ids = [anchor, *(theme_id for theme_id in ids if theme_id != anchor)][
+                                :3
+                            ]
                     for theme_id, lookup in speculative.items():
                         if not isinstance(ids, list) or theme_id not in ids or not current():
                             lookup.cancel()
@@ -3472,7 +3555,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 setattr(
                     bridge,
                     retained_attribute,
-                    {"key": key, "rows": copy.deepcopy(rows), "queries": chosen_queries},
+                    {
+                        "key": key,
+                        "rows": copy.deepcopy(rows),
+                        "queries": chosen_queries,
+                        "day_part": mood_day_part,
+                    },
                 )
                 diagnostic.outcome = "success"
                 return web.json_response(
@@ -3512,7 +3600,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             setattr(
                 bridge,
                 retained_attribute,
-                {"key": key, "rows": copy.deepcopy(rows), "queries": chosen_queries},
+                {
+                    "key": key,
+                    "rows": copy.deepcopy(rows),
+                    "queries": chosen_queries,
+                    "day_part": mood_day_part,
+                },
             )
             diagnostic.outcome = "success"
             return web.json_response(
@@ -4240,6 +4333,7 @@ def mount(
     controller_generation: str = "",
     controller_store: Path | None = None,
     client_diagnostics_store: Path | None = None,
+    recipe_catalog_path: Path | None = None,
 ) -> PodViewBridge:
     bridge = PodViewBridge(
         sessions,
@@ -4256,6 +4350,7 @@ def mount(
         controller_generation=controller_generation,
         controller_store=controller_store,
         client_diagnostics_store=client_diagnostics_store,
+        recipe_catalog_path=recipe_catalog_path,
     )
     app[BRIDGE] = bridge
     app.middlewares.append(_ha_request_scope)
@@ -4306,6 +4401,7 @@ def mount(
     app.add_routes(
         [
             web.get("/view/api/snapshot", _snapshot),
+            web.get("/view/api/recipes", _recipes),
             web.get("/view/api/client-diagnostics", _client_diagnostics),
             web.post("/view/api/client-diagnostics", _client_diagnostics),
             web.get("/view/api/events", _events),

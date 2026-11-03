@@ -94,24 +94,24 @@ pv-widget-host #vehicle-view .vehicle-detail-values>div{padding:var(--pv-s2);bac
 pv-widget-host #vehicle-view .vehicle-detail-values :is(dt,dd){font:var(--pv-t-body)}
 /* ONE overview content recipe: S/M/L share header and fixed status zone.
    Weather adds its source-bound numeric reading below the same header. */
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut){
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut){
  display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr);
  grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px;
  align-items:start;align-content:stretch;gap:var(--pv-s2);
  padding:var(--pv-s3);min-width:0;height:100%;text-align:left;
 }
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(span:not(.resource-visual),.resource-label){display:contents}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(img:first-child,.resource-visual){
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span:not(.resource-visual),.resource-label){display:contents}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(img:first-child,.resource-visual){
  grid-column:1;grid-row:1;align-self:center;justify-self:start;
  width:var(--pv-icon-m);height:var(--pv-icon-m);padding:0;object-fit:contain;
 }
 pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview>.resource-visual{display:grid!important;place-items:center}
 pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-visual>img{width:var(--pv-icon-m)!important;height:var(--pv-icon-m)!important;max-width:var(--pv-icon-m);max-height:var(--pv-icon-m);padding:0;object-fit:contain}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>strong{
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>strong{
  display:block;grid-column:2;grid-row:1;align-self:center;min-width:0;
  margin:0;padding:0;font:var(--pv-t-label);line-height:26px;
 }
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>small{
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>small{
  display:block;grid-column:1/-1;grid-row:3;align-self:start;min-height:48px;max-height:48px;
  margin:0;padding:0;font:var(--pv-t-body);line-height:24px;overflow:hidden;text-wrap:pretty;
 }
@@ -318,7 +318,7 @@ pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure{width:au
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{width:100%;grid-column:1/-1}
 @media(min-width:760px){
  pv-widget-host[data-view=active] .frame>.responses{height:100%;min-height:0;overflow:hidden}
- pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]){height:100%;max-height:100%;min-height:0;flex:1 1 0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;scroll-padding:var(--pv-s3)}
+ pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail,#recipe-view):not([hidden]){height:100%;max-height:100%;min-height:0;flex:1 1 0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;scroll-padding:var(--pv-s3)}
  pv-widget-host[data-view=active] #device-view>[data-robot-rooms=true]{flex:0 0 auto;min-height:min-content;height:auto;max-height:none;overflow:visible}
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;grid-row:auto}
@@ -836,7 +836,7 @@ pv-widget-host .responses>#history .history-chevron{width:var(--pv-icon-s);heigh
 pv-widget-host .responses>#history .history-open:focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:var(--pv-s1);border-radius:var(--pv-r-s)}
 pv-widget-host .responses>#history>#history-example-note{order:3;width:100%;margin:var(--pv-s2) 0 0;padding:0 var(--pv-s3);font:var(--pv-t-meta);color:var(--pv-ink-3)}
 
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-preview)>:is(img:last-child,.resource-chevron){display:none}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-weather,#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview)>:is(img:last-child,.resource-chevron){display:none}
 
 /* Ro feedback sits above the compact widget row, never over a timer or music. */
 
@@ -860,7 +860,7 @@ pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robo
 #answer-host>pv-answer.answer-widget .pv-visual-lead>.pv-conclusion::before{display:none;content:none}
 pv-widget-host[data-view=active] .player.pv-card>.transport:has(>#previous[hidden]):has(>#next[hidden]){justify-content:center}
 /* Detail scrollports reserve a shared gutter so card shadows survive clipping. */
-pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]){padding-inline:var(--pv-s2);box-sizing:border-box}
+pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail,#recipe-view):not([hidden]){padding-inline:var(--pv-s2);box-sizing:border-box}
 
 
 
@@ -1200,13 +1200,13 @@ pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-
 pv-widget-host #now-view [data-kit-size=s]{--pv-card-size-width:var(--pv-card-s-width);--pv-card-size-height:var(--pv-card-row-height)}
 pv-widget-host #now-view [data-kit-size=m]{--pv-card-size-width:var(--pv-card-m-width);--pv-card-size-height:var(--pv-card-row-height)}
 pv-widget-host #now-view [data-kit-size=l]{--pv-card-size-width:var(--pv-card-l-width);--pv-card-size-height:var(--pv-card-l-height)}
-pv-widget-host[data-view=active] #now-view :is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card,.resource-preview,#timer-card:not([data-activity-kind=timer]))[data-kit-size]{box-sizing:border-box;grid-column:auto!important;grid-row:auto!important;flex:0 0 auto;width:var(--pv-card-size-width)!important;min-width:var(--pv-card-size-width)!important;max-width:var(--pv-card-size-width)!important;height:var(--pv-card-size-height)!important;min-height:var(--pv-card-size-height)!important;max-height:var(--pv-card-size-height)!important;overflow:hidden;align-self:start;justify-self:start}
+pv-widget-host[data-view=active] #now-view :is(#home-weather,#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-card,.resource-preview,#timer-card:not([data-activity-kind=timer]))[data-kit-size]{box-sizing:border-box;grid-column:auto!important;grid-row:auto!important;flex:0 0 auto;width:var(--pv-card-size-width)!important;min-width:var(--pv-card-size-width)!important;max-width:var(--pv-card-size-width)!important;height:var(--pv-card-size-height)!important;min-height:var(--pv-card-size-height)!important;max-height:var(--pv-card-size-height)!important;overflow:hidden;align-self:start;justify-self:start}
 pv-widget-host[data-view=active] #now-view :is(.resource-card,#timer-card:not([data-activity-kind=timer]))[data-kit-size]{padding:0}
-pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio,#home-vehicle,.resource-preview)[data-kit-size],
+pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview)[data-kit-size],
 pv-widget-host[data-view=active] #now-view .resource-card[data-kit-size]>.resource-preview,
 pv-widget-host[data-view=active] #now-view #timer-card:not([data-activity-kind=timer])[data-kit-size]>.timer-shortcut{box-sizing:border-box;width:100%;height:100%;min-height:0;max-height:none;display:grid;grid-template-columns:var(--pv-icon-m) minmax(0,1fr);grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px;gap:var(--pv-s2);padding:var(--pv-s3);align-items:start;align-content:stretch;overflow:hidden}
-pv-widget-host[data-view=active] #now-view :is(.resource-card,#home-music,#home-radio,#home-vehicle,.resource-preview,#timer-card:not([data-activity-kind=timer]))[data-kit-size] :is(.resource-label,span)>strong,
-pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio,#home-vehicle,.resource-preview,.timer-shortcut)[data-kit-size]>span>strong{min-width:0;max-width:100%;max-height:52px;white-space:normal;overflow-wrap:anywhere;overflow:hidden;align-self:center}
+pv-widget-host[data-view=active] #now-view :is(.resource-card,#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,#timer-card:not([data-activity-kind=timer]))[data-kit-size] :is(.resource-label,span)>strong,
+pv-widget-host[data-view=active] #now-view :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)[data-kit-size]>span>strong{min-width:0;max-width:100%;max-height:52px;white-space:normal;overflow-wrap:anywhere;overflow:hidden;align-self:center}
 pv-widget-host[data-view=active] #now-view [data-kit-size=s]>.resource-direct-action{display:none!important;pointer-events:none}
 pv-widget-host[data-view=active] #now-view .resource-card[data-kit-size=s]>.resource-preview{grid-template-rows:var(--pv-icon-m) minmax(0,1fr) 48px}
 pv-widget-host[data-view=active] #now-view :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s]) .resource-label>:is(small,.resource-value){padding-inline-end:0!important;margin-top:0}
@@ -2371,3 +2371,94 @@ pv-widget-host #device-view pv-robot-control-panel .robot-maintenance-dismiss.pv
 .robot-maintenance-snoozed{display:flex;align-items:center;flex-wrap:wrap;gap:var(--pv-s2)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-error-code>summary{width:fit-content;min-height:var(--pv-hit-min);font:var(--pv-t-meta);color:var(--pv-ink-2);cursor:pointer}
 .robot-error-code p{overflow-wrap:anywhere}
+
+/* Opskrifter assembles the existing detail, Card, ListRow and Checklist recipes. */
+pv-widget-host[data-view=active] #recipe-view:not([hidden]){display:flex;flex-direction:column;min-height:0;padding:0 var(--pv-s2) var(--pv-s3)}
+#recipe-view>.response-heading{display:flex;align-items:center;flex-wrap:wrap;gap:var(--pv-s2);margin:0}
+
+#recipe-view>.response-heading>div{flex:1;min-width:12ch}
+#recipe-view>.response-heading :is(h1,p),#recipe-view :is(h2,h3,p){margin:0}
+#recipe-view [data-kit=card]{display:grid;padding:var(--pv-s3);align-content:start;gap:var(--pv-s2)}
+#recipe-view [data-kit=sectionheader]{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:baseline;gap:var(--pv-s1) var(--pv-s2)}
+#recipe-view [data-recipe-layout=catalog]{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:minmax(0,1fr);flex:1;min-height:0;gap:var(--pv-s2)}
+#recipe-view [data-recipe-layout=catalog]>div{padding:var(--pv-s1) var(--pv-s2);min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
+#recipe-view [data-recipe-layout=catalog] section{display:grid;gap:var(--pv-s1);margin-bottom:var(--pv-s2)}
+#recipe-view [data-recipe]{width:100%;min-height:calc(var(--pv-hit) + 2 * var(--pv-s2));justify-content:space-between;box-shadow:var(--pv-shadow)}
+#recipe-view [data-recipe]>span{display:grid;gap:var(--pv-s1)}
+#recipe-view nav:not([hidden]){display:grid;position:relative;align-self:start;grid-template-columns:var(--pv-hit);grid-auto-rows:minmax(24px,auto);touch-action:none}
+#recipe-view nav button{min-height:0;height:100%;padding:0;background:transparent;border:0;box-shadow:none;font:var(--pv-t-meta);line-height:1}
+#recipe-view nav button[hidden]{display:none}
+#recipe-view nav output:not([hidden]){position:absolute;right:100%;padding:var(--pv-s2);pointer-events:none;font:var(--pv-t-title);z-index:1}
+#recipe-view [data-recipe-layout=detail]{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--pv-s2)}
+#recipe-view pv-checklist .pv-list{gap:0}
+#recipe-view pv-checklist button{font:var(--pv-t-body);white-space:normal;overflow-wrap:anywhere;text-align:left}
+#recipe-view .pv-kit-disclosure pre{white-space:pre-wrap;font:var(--pv-t-body);padding:var(--pv-s2)}
+#recipe-view [data-kit=card]>button{justify-self:start}
+pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame{grid-template-columns:minmax(0,1fr)}
+pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame>aside{display:none}
+@media(max-width:760px){#recipe-view [data-recipe-layout=detail]{grid-template-columns:minmax(0,1fr)}}
+
+/* The recipe detail uses the same group and card insets as the device details. */
+pv-widget-host[data-view=active] #recipe-view:not([hidden]){background:transparent;box-shadow:none;padding:0 0 var(--pv-control-card-inset);gap:var(--pv-control-section-gap)}
+#recipe-view>.response-heading{padding:0;min-height:0;gap:var(--pv-control-row-gap)}
+#recipe-view>.response-heading:has(>div>p:empty):not(:has(button)){display:none}
+#recipe-view [data-kit=card]{padding:var(--pv-control-card-inset);gap:var(--pv-control-row-gap)}
+#recipe-view [data-recipe-layout=reading]{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--pv-control-section-gap);align-items:start;align-content:start}
+#recipe-view [data-recipe-layout=summary]{display:grid;gap:var(--pv-s1);align-content:center}
+#recipe-view [data-recipe-layout=summary]>[role=status]{font:var(--pv-t-label)}
+#recipe-view [data-recipe-layout=intro]>[data-recipe-layout=controls]{margin-inline-start:auto}
+#recipe-view [data-recipe-layout=intro].pv-kit-hero{flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:var(--pv-s3);background:var(--pv-surface);box-shadow:var(--pv-shadow)}
+#recipe-view [data-recipe-layout=intro] img{display:block;width:calc(2 * var(--pv-hit));height:calc(1.5 * var(--pv-hit));object-fit:contain;border-radius:var(--pv-screen-radius-art)}
+@media(max-width:760px){#recipe-view [data-recipe-layout=reading]{grid-template-columns:minmax(0,1fr)}}
+#recipe-view [data-recipe]>img{width:var(--pv-hit);height:var(--pv-hit);object-fit:cover;border-radius:var(--pv-screen-radius-art);flex:none}
+#recipe-view [data-recipe]:has(>img){gap:var(--pv-control-row-gap)}
+#recipe-view [data-kit=card]>[data-kit=card]{padding:0;box-shadow:none;border:0;background:transparent}
+#recipe-view [data-kit=card]:has(>[data-kit=card]){gap:var(--pv-control-section-gap)}
+#recipe-view [data-recipe-layout=reading] li>button.pv-kit-button{
+ display:grid;align-content:start;width:100%;min-height:var(--pv-hit);padding:var(--pv-s1) 0;
+ background:transparent;color:var(--pv-ink);box-shadow:none;border-radius:var(--pv-r-s);
+ font:var(--pv-t-body);text-align:left;white-space:normal!important;overflow-wrap:anywhere!important
+}
+#recipe-view [data-recipe-layout=reading] li>button.pv-kit-button:not([hidden]):hover{background:var(--pv-surface-2)}
+#recipe-view [data-recipe-layout=reading] li>button.pv-kit-button[hidden]{display:none}
+
+pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::before,
+pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::after{width:100%}
+
+#recipe-view img[data-recipe-fallback]{background:var(--pv-surface-2);object-fit:contain;padding:var(--pv-s2)}
+#recipe-view [data-recipe]>span{min-width:0;text-align:left}
+#recipe-view [data-recipe]>span>strong{font:var(--pv-t-label)}
+#recipe-view [data-recipe]>span>p{white-space:normal}
+
+/* The catalog scrolls under the shared fade from the topbar divider. */
+@media(min-width:760px){
+ pv-widget-host[data-topbar=true][data-view=active] .frame>.responses:has(>#recipe-view:not([hidden])>[data-recipe-layout=catalog]){padding-block-start:0}
+ #recipe-view [data-recipe-layout=catalog]>div{padding-block-start:calc(var(--pv-topbar-content-gap) + var(--pv-s1))}
+ #recipe-view [data-recipe-layout=catalog]>nav{margin-block-start:var(--pv-topbar-content-gap)}
+}
+
+
+#recipe-view [data-recipe-layout=ingredients] [data-kit=sectionheader][hidden]{display:none}
+
+#recipe-view [data-recipe-layout=source-columns]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-control-section-gap)}
+#recipe-view [data-recipe-layout=source-columns] .pv-kit-listrow{min-height:0;grid-template-columns:minmax(0,1fr) minmax(0,2fr);border-bottom:1px solid var(--pv-line)}
+#recipe-view [data-recipe-layout=source-columns]>section:only-child{grid-column:1/-1;inline-size:min(100%,64ch)}
+#recipe-view [data-recipe-layout=source-columns] .pv-kit-listrow:last-child{border-bottom-color:transparent}
+#recipe-view [data-recipe-layout=source-columns] .pv-kit-listrow>:last-child{text-align:end;overflow-wrap:anywhere}
+@media(max-width:760px){#recipe-view [data-recipe-layout=source-columns]{grid-template-columns:minmax(0,1fr)}}
+
+#recipe-view [data-recipe-layout=gallery-trigger]{display:grid;justify-items:center;gap:var(--pv-s1);padding:0;background:transparent;border-radius:var(--pv-screen-radius-art)!important}
+dialog.pv-kit-dialog[data-recipe-layout=gallery]:modal{
+ width:min(1100px,calc(100vw - 2 * var(--pv-s4)));
+}
+dialog.pv-kit-dialog[data-recipe-layout=gallery]>img{
+ display:block;width:100%;
+ height:max(160px,calc(100dvh - 5 * var(--pv-s4) - var(--pv-hit)));
+ object-fit:contain;
+}
+#recipe-view [data-recipe-layout=gallery]>img[hidden]{display:none}
+dialog.pv-kit-dialog[data-recipe-layout=gallery] [role=status]:not([hidden]){
+ min-inline-size:7ch;
+ text-align:center;
+ font-variant-numeric:tabular-nums;
+}

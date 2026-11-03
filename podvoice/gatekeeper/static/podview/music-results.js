@@ -1,9 +1,13 @@
-import {applyKitComponent,applyKitTemplate} from './ui/kit.js';
-import {resultsFor} from './widget-model.js';
+import {applyKitTextRole,applyKitComponent,applyKitTemplate} from './ui/kit.js';
+import {discoveryPeriod,resultsFor} from './widget-model.js';
 import {MUSIC_THEMES,MUSIC_FEELINGS} from './music-selection-model.js';
 import {spotifyArtwork,generatedMoodArtwork,spotifyItemUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
 
 export const MUSIC_TABS=[['mood','Stemning'],['feeling','Humør'],['top','For dig'],['recent','Senest']];
+export {discoveryPeriod};
+const PROTOTYPE_TABS={mood:'Tid på dagen',feeling:'Vibe',top:'Din musik',recent:'Hør igen'};
+const DISCOVERY_ACTION={mood:'Andre forslag',feeling:'Flere vibes',top:'Flere playlister',recent:'Se tidligere'};
+const DISCOVERY_PERIOD={morning:'Godmorgen',afternoon:'Til eftermiddagen',evening:'Til aftenen'};
 const text=(value,max=1024)=>typeof value==='string'?value.slice(0,max):'';
 const make=(doc,tag,cls)=>{const node=doc.createElement(tag);if(cls)node.className=cls;return node;};
 // The fixture adapter admits only bundled images or its explicitly verified artwork hosts.
@@ -29,13 +33,22 @@ export function localDiscoveryCards(state){
  const music=state.music;
  const initiallyEmpty=music.previewEmptyCollection===music.collection&&music.previewEmptyPage===(music.suggestionPage||0);
  const options=initiallyEmpty?[]:resultsFor(music).map(option=>{
-  const track=['top','recent'].includes(option.collection)?music.previewTracks?.[option.track]:null;
+  const track=(option.collection==='recent'||option.collection==='top'&&!music.discoveryPrototype)?music.previewTracks?.[option.track]:null;
   return track?{...option,name:track.title,description:track.artist,art:track.art,detail:track.detail||'Forfattet lang albumtitel · En lang aften med musik og fortællinger fra hele den nordiske kyst'}:option;
  });
- return localMusicCards(options,music.revision).map(card=>({...card,collection:music.collection}));
+ const cards=localMusicCards(options,music.revision).map(card=>({...card,collection:music.collection}));
+ if(!music.discoveryPrototype)return cards;
+ return cards.map((card,index)=>{
+  const option=options[index];
+  if(music.collection==='recent')return {...card,detail:''};
+  if(music.collection==='top')return {...card,description:'',detail:'',fixtureArt:`assets/${option.art}`,artLabel:'Redaktionel illustration'};
+  const heading=music.collection==='mood'?DISCOVERY_PERIOD[music.discoveryPeriod]:null;
+  const vibe=music.collection==='feeling';
+  return {...card,name:vibe?option.description:card.name,description:vibe?card.name:heading&&index===0?({morning:'Rolig start på dagen',afternoon:'Pop til eftermiddagen',evening:'Jazz til aftenen'}[music.discoveryPeriod]):'',detail:'',fixtureArt:`assets/${vibe?'music-editorial-'+(index+1)+'.svg':option.art}`,artLabel:'Redaktionel illustration'};
+ });
 }
 export function sourceMusicCards(tracks,kind){
- const rows=tracks.slice(0,3),occurrences=new Map();
+ const rows=['account_playlists','recent'].includes(kind)?tracks:tracks.slice(0,3),occurrences=new Map();
  return rows.map(track=>{
   const themed=!!track.themeTitle,artwork=spotifyArtwork(track.artwork,track.uri),staticArt=(kind==='feeling'?MUSIC_FEELINGS:MUSIC_THEMES)[track.themeId]?.[1],themeArt=['mood','feeling'].includes(kind)&&themed&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(track.uri)?(kind==='mood'&&generatedMoodArtwork(track.themeArt,track.themeId))||(staticArt&&[staticArt,staticArt.replace(/\.webp$/,'.png')].includes(track.themeArt)?staticArt:null):null;
   // A valid playlist cover is never replaced merely because another row shares it.
@@ -70,7 +83,28 @@ export class MusicResults{
   };
  }
  create(id){const d=this.doc,row=make(d,'button','result pv-card pv-btn');applyKitComponent(row,'card');row.type='button';row.dataset.optionId=id;row.dataset.artworkRole='editorial';const art=make(d,'img','result-art');art.loading='lazy';art.decoding='async';art.dataset.kitSlot='artwork';const copy=make(d,'div','result-copy'),title=make(d,'h2'),description=make(d,'p'),detail=make(d,'small'),feedback=make(d,'span','result-feedback'),play=make(d,'span','round result-play'),icon=make(d,'img');title.dataset.kitSlot='title';description.dataset.kitSlot='body';play.dataset.kitSlot='actions';feedback.setAttribute('aria-live','polite');play.setAttribute('aria-hidden','true');icon.src='assets/icons/play-fill.svg';icon.alt='';play.append(icon);copy.append(title,description,detail);row.append(art,copy,feedback,play);row.addEventListener('click',()=>{if(row.disabled||row.getAttribute('aria-disabled')==='true')return;const card=row.musicCard;if(!this.host.live&&card.action==='continue'){if(this.host.state.music.playback.playing){this.host.dispatch({type:'show',id:'player'});this.host.focusHeading?.();}else this.doc.getElementById('play-pause')?.click();return;}if(!this.host.live&&this.host.state.music?.refreshPending){if(!this.host.musicRefresh?.cancelForSelection(card.id))return;row.dataset.revision=String(this.host.state.music.revision);}if(!this.host.live&&card.collection&&card.collection!==this.host.state.music.collection){this.host.music({type:'collection',value:card.collection});row.dataset.revision=String(this.host.state.music.revision);}this.choose(card,row);});return row;}
- render({cards=[],collection='mood',heading,status,sourceSummary='',empty='Ingen forslag matcher. Prøv en anden retning.',connected=true,busy=false,canRefresh=true,canChoose=true,canRenew=false,pendingId=null,revision,collapsed=false}={}){
+ render({cards=[],collection='mood',heading,status,sourceSummary='',empty='Ingen forslag matcher. Prøv en anden retning.',connected=true,busy=false,canRefresh=true,canChoose=true,canRenew=false,pendingId=null,revision,collapsed=false,accountLibrary=false,discovery=false}={}){
+  const prototype=!this.host.live&&this.host.state.music?.discoveryPrototype;
+  const discoveryLayout=prototype||discovery;
+  const response=this.list.closest?.('#music-response');
+  if(response){response.toggleAttribute('data-discovery-preview',!!discoveryLayout);if(discoveryLayout||accountLibrary)response.dataset.discoveryCollection=collection;else delete response.dataset.discoveryCollection;}
+  if(discoveryLayout&&response){
+   if(!this.discoveryHeader){
+    this.discoveryHeader=make(this.doc,'header');
+    applyKitComponent(this.discoveryHeader,'sectionheader');
+    this.discoveryHeader.dataset.discoveryHeader='';
+    this.discoveryTitle=make(this.doc,'h2');
+    this.discoveryHeader.append(this.discoveryTitle);
+    response.insertBefore(this.discoveryHeader,this.list.closest('#results'));
+   }
+   const day=collection==='mood';
+   const suggestions=day||collection==='feeling';
+   this.discoveryHeader.hidden=!suggestions;
+   this.discoveryTitle.textContent=day?(DISCOVERY_PERIOD[this.host.state.music?.discoveryPeriod||discoveryPeriod(Date.now())]||'Tid på dagen'):'Vælg en stemning';
+   const actionParent=suggestions?this.discoveryHeader:response;
+   if(this.refresh.parentNode!==actionParent)actionParent.append(this.refresh);
+  }
+  if(!discoveryLayout&&this.discoveryHeader){this.discoveryHeader.hidden=true;if(this.refresh.parentNode===this.discoveryHeader)response.append(this.refresh);}
   const diagnosticOwner=this.host.liveTransport;
   const refreshScope=JSON.stringify([collection,this.host.liveCatalogue?.account??null,this.host.liveSnapshot?.bootId??null,this.host.liveSnapshot?.roomId??null]),refreshCompleted=!busy&&this.refreshCollection===refreshScope;
   if(busy&&canRefresh&&cards.length&&!pendingId){if(this.refreshCollection!==refreshScope)for(const cancel of this.contentTransitions.values())cancel();this.refreshCollection=refreshScope;}else if(!busy||this.refreshCollection!==refreshScope)this.refreshCollection=null;
@@ -82,7 +116,11 @@ export class MusicResults{
   cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){row=this.create(card.id);this.rows.set(card.id,row);}const contentKey=JSON.stringify([card.name,card.description,card.detail,card.fixtureArt,card.artwork,card.uri,card.themeArt]);const changed=row.contentKey!==undefined&&row.contentKey!==contentKey;if(changed&&!refreshCompleted)this.contentTransitions.get(row)?.();const reveal=refreshCompleted&&changed?this.captureContent(row):null;row.contentKey=contentKey;row.musicCard=card;if(row.dataset.contentState!=='ready')row.dataset.contentState='ready';if(card.action==='continue')applyKitComponent(row,'hero');
    if(row.dataset.musicGroup!==(card.group||''))row.dataset.musicGroup=card.group||'';
    const nextRevision=String(card.revision??revision??'');if(row.dataset.revision!==nextRevision)row.dataset.revision=nextRevision;if(row.classList.contains('recommended')!==(index===0))row.classList.toggle('recommended',index===0);
-   const themeArt=collection==='mood'&&card.artworkRole==='editorial'&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)?generatedMoodArtwork(card.themeArt,card.themeId):null,staticDefault=(collection==='feeling'?MUSIC_FEELINGS:MUSIC_THEMES)[card.themeId]?.[1],staticArt=['mood','feeling'].includes(collection)&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)&&staticDefault&&(themeArt||[staticDefault,staticDefault.replace(/\.webp$/,'.png')].includes(card.themeArt))?staticDefault:null,sourceCover=!!spotifyItemUrl(card.uri)||/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri),artworkRole=themeArt||staticArt&&!spotifyArtwork(card.artwork,card.uri)?'editorial':sourceCover||card.artworkRole==='cover'&&fixtureArtwork(card.fixtureArt)?'cover':'editorial';if(row.dataset.artworkRole!==artworkRole)row.dataset.artworkRole=artworkRole;
+   if(discoveryLayout||accountLibrary){
+    const kind=collection==='mood'&&index===0?'hero':collection==='feeling'?'card':'listrow';
+    if((row.dataset.kit||row.getAttribute('data-kit'))!==kind){row.classList.remove('pv-card','pv-hero','pv-row','pv-kit-card','pv-kit-hero','pv-kit-listrow');applyKitComponent(row,kind);}
+   }
+   const themeArt=collection==='mood'&&card.artworkRole==='editorial'&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)?generatedMoodArtwork(card.themeArt,card.themeId):null,staticDefault=(collection==='feeling'?MUSIC_FEELINGS:MUSIC_THEMES)[card.themeId]?.[1],staticArt=['mood','feeling'].includes(collection)&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)&&staticDefault&&(themeArt||[staticDefault,staticDefault.replace(/\.webp$/,'.png')].includes(card.themeArt))?staticDefault:null,sourceCover=!!spotifyItemUrl(card.uri)||/^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri),artworkRole=(themeArt||staticArt)&&!spotifyArtwork(card.artwork,card.uri)?'editorial':sourceCover||card.artworkRole==='cover'&&fixtureArtwork(card.fixtureArt)?'cover':'editorial';if(row.dataset.artworkRole!==artworkRole)row.dataset.artworkRole=artworkRole;
    const allowed=connected&&(canChoose||canRenew)&&card.selectable!==false;if(row.disabled!==!allowed)row.disabled=!allowed;
    if(row.getAttribute('aria-disabled')!==String(!allowed||!!pendingId))row.setAttribute('aria-disabled',String(!allowed||!!pendingId));
    const pending=card.id===pendingId;
@@ -91,7 +129,7 @@ export class MusicResults{
    if(row.dataset.pending!==String(pending))row.dataset.pending=String(pending);if(row.getAttribute('aria-busy')!==String(pending))row.setAttribute('aria-busy',String(pending));
    const actionIcon=row.children[3].children[0],actionSource=card.action==='continue'&&this.host.state.music.playback.playing?'assets/icons/chevron-right.svg':'assets/icons/play-fill.svg';if(actionIcon.getAttribute('src')!==actionSource)actionIcon.src=actionSource;
    const[art,copy,feedback]=row.children;for(const [node,value]of [[copy.children[0],text(card.name,256)],[copy.children[1],text(card.description,512)],[copy.children[2],text(card.detail,256)],[feedback,pending?'Starter afspilning':'']])if(node.textContent!==value)node.textContent=value;
-   const contentIdentity=JSON.stringify([this.host.liveCatalogue?.account??null,this.host.liveSnapshot?.bootId??null,this.host.liveSnapshot?.roomId??null,card.uri||card.id,card.artworkGeneration??null]);const illustrationLabel=`Illustration til ${text(card.name,256)}`,staticBackup=staticArt?{url:staticArt,identity:`theme-static|${staticArt}`,label:illustrationLabel}:null,actualCover=spotifyArtwork(card.artwork,card.uri),coverBackup=actualCover?{url:actualCover.url,identity:`${card.uri}|${actualCover.url}`,label:`Playlisteomslag til ${text(card.sourceName||card.name,256)}`,provider:true,backup:staticBackup}:staticBackup;if(themeArt){renderRetainedArtwork(art,{url:themeArt,identity:`theme|${themeArt}`,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration,label:illustrationLabel,backup:coverBackup});}else if(staticArt){renderRetainedArtwork(art,{...coverBackup,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration});}else if(sourceCover){renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,!!spotifyArtwork(card.artwork,card.uri),diagnosticOwner,card.artworkRetryGeneration);}else if(card.fixtureArt&&fixtureArtwork(card.fixtureArt)){renderRetainedArtwork(art,{url:card.fixtureArt,identity:`fixture|${card.fixtureArt}`,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration,label:text(card.artLabel,512)});}else renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,true,diagnosticOwner,card.artworkRetryGeneration);
+   const contentIdentity=JSON.stringify([this.host.liveCatalogue?.account??null,this.host.liveSnapshot?.bootId??null,this.host.liveSnapshot?.roomId??null,card.uri||card.id,card.artworkGeneration??null]);const illustrationLabel=`Illustration til ${text(card.name,256)}`,staticBackup=staticArt?{url:staticArt,identity:`theme-static|${staticArt}`,label:illustrationLabel}:null,actualCover=spotifyArtwork(card.artwork,card.uri),generated=themeArt?{url:themeArt,identity:`theme|${themeArt}`,label:illustrationLabel,backup:staticBackup}:staticBackup,cover=actualCover?{url:actualCover.url,identity:`${card.uri}|${actualCover.url}`,label:`Playlisteomslag til ${text(card.sourceName||card.name,256)}`,provider:true,backup:generated}:generated;if(themeArt||staticArt){renderRetainedArtwork(art,{...cover,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration});}else if(sourceCover){renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,!!spotifyArtwork(card.artwork,card.uri),diagnosticOwner,card.artworkRetryGeneration);}else if(card.fixtureArt&&fixtureArtwork(card.fixtureArt)){renderRetainedArtwork(art,{url:card.fixtureArt,identity:`fixture|${card.fixtureArt}`,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration,label:text(card.artLabel,512)});}else renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,true,diagnosticOwner,card.artworkRetryGeneration);
    reveal?.();
    if(card.group&&(index===0||cards[index-1].group!==card.group)){let heading=this.groupHeadings.get(card.group);if(!heading){heading=make(this.doc,'h2','music-group-heading');heading.textContent=card.group;this.groupHeadings.set(card.group,heading);}if(this.list.children[position]!==heading)this.list.insertBefore(heading,this.list.children[position]||null);position++;}if(this.list.children[position]!==row)this.list.insertBefore(row,this.list.children[position]||null);position++;
   });
@@ -99,8 +137,8 @@ export class MusicResults{
   if(this.title.textContent!=='Find musik')this.title.textContent='Find musik';if(!busy){const collectionLabel={mood:'Stemning',feeling:'Humør',top:'For dig',recent:'Senest'}[collection]||'',context=collectionLabel,count=[context,status===undefined?`${cards.length} forslag`:text(status)].filter(Boolean).join(' · ');if(this.count.textContent!==count)this.count.textContent=count;}else if(!cards.length&&this.count.textContent)this.count.textContent='';
   const localOutcome=this.host.live?null:this.host.state.music?.refreshStatus,refreshOutcome=localOutcome==='error'||localOutcome==='empty'?localOutcome:/kunne ikke (?:opdatere|opdateres|hentes|hente)/i.test(status||'')?'error':/ingen nye forslag/i.test(status||'')?'empty':null,refreshMessage=refreshOutcome==='error'?(cards.length?'Kunne ikke hente nye forslag. De viste forslag er bevaret.':'Kunne ikke hente forslag. Prøv igen.'):refreshOutcome==='empty'?'Ingen nye forslag i denne opdatering.':'';if(this.empty.dataset.refreshOutcome!==(refreshOutcome||''))this.empty.dataset.refreshOutcome=refreshOutcome||'';const sourceMessage=text(sourceSummary,512),emptyMessage=refreshMessage||sourceMessage||text(empty);if(this.empty.textContent!==emptyMessage)this.empty.textContent=emptyMessage;const emptyHidden=busy||!refreshMessage&&!sourceMessage&&(cards.length>0||(!!text(status)&&text(status)===this.empty.textContent));if(this.empty.hidden!==emptyHidden)this.empty.hidden=emptyHidden;
   const refreshBusy=busy&&connected&&canRefresh&&!pendingId&&!this.host.liveSelection?.pending;if(this.refresh.dataset.refreshState!==(refreshBusy?'pending':'idle'))this.refresh.dataset.refreshState=refreshBusy?'pending':'idle';for(const [node,value]of [[this.list,busy],[this.refresh,refreshBusy]])if(node.getAttribute('aria-busy')!==String(value))node.setAttribute('aria-busy',String(value));const refreshDisabled=!connected||!canRefresh||!!pendingId;if(this.refresh.disabled!==refreshDisabled)this.refresh.disabled=refreshDisabled;const refreshUnavailable=String(refreshDisabled||refreshBusy);if(this.refresh.getAttribute('aria-disabled')!==refreshUnavailable)this.refresh.setAttribute('aria-disabled',refreshUnavailable);
-  const label=this.refresh.querySelector('[data-refresh-label]'),refreshLabel=refreshBusy?'Henter forslag':refreshOutcome?'Prøv igen':!cards.length&&/kunne ikke hentes/.test(status||'')?'Prøv igen':'Andre forslag';if(label&&label.textContent!==refreshLabel)label.textContent=refreshLabel;
-  for(const tab of this.tabs.querySelectorAll('[data-collection]')){if(tab.hidden)tab.hidden=false;if(tab.disabled)tab.disabled=false;if(tab.getAttribute('aria-pressed')!==String(tab.dataset.collection===collection))tab.setAttribute('aria-pressed',String(tab.dataset.collection===collection));}
+  const label=this.refresh.querySelector('[data-refresh-label]'),refreshLabel=discoveryLayout?(refreshBusy?(collection==='recent'?'Henter historik':'Henter forslag'):refreshOutcome==='error'?'Prøv igen':DISCOVERY_ACTION[collection]):refreshBusy?'Henter forslag':refreshOutcome?'Prøv igen':!cards.length&&/kunne ikke hentes/.test(status||'')?'Prøv igen':accountLibrary?'Flere playlister':'Andre forslag';if(label&&label.textContent!==refreshLabel)label.textContent=refreshLabel;
+  for(const tab of this.tabs.querySelectorAll('[data-collection]')){const label=(discoveryLayout?PROTOTYPE_TABS:Object.fromEntries(MUSIC_TABS))[tab.dataset.collection];if(label&&tab.textContent!==label)tab.textContent=label;if(tab.hidden)tab.hidden=false;if(tab.disabled)tab.disabled=false;if(tab.getAttribute('aria-pressed')!==String(tab.dataset.collection===collection))tab.setAttribute('aria-pressed',String(tab.dataset.collection===collection));}
   const tabsHidden=this.host.state.focus!=='music'||collapsed;if(this.tabs.hidden!==tabsHidden)this.tabs.hidden=tabsHidden;
  }
 }

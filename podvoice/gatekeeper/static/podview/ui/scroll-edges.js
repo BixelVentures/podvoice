@@ -1,5 +1,5 @@
 // Fades indicate actual remaining scroll, never a permanent decorative overlay.
-const SELECTORS='.responses, #weather-view, .weather-hours, .answer-scroll, #queue, #music-response .expandable, #device-view, #device-detail, .device-history, #vehicle-view, #radio-view, #timers-view, #music-detail, #music-response, #now-view .now-activities, .live-music-list';
+const SELECTORS='.responses, #recipe-view, #recipe-view [data-recipe-layout=catalog]>div, #weather-view, .weather-hours, .answer-scroll, #queue, #music-response .expandable, #device-view, #device-detail, .device-history, #vehicle-view, #radio-view, #timers-view, #music-detail, #music-response, #now-view .now-activities, .live-music-list';
 export function scrollEdgeState({position,viewport,content,threshold=1}){
  if(!Number.isFinite(position)||!Number.isFinite(viewport)||!Number.isFinite(content)||viewport<=0)return '';
  const maxPosition=Math.max(0,content-viewport),current=Math.min(maxPosition,Math.max(0,position));

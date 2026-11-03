@@ -91,6 +91,7 @@ async def ingress(tmp_path):
         {"kitchen": session},
         tools=music.tools,
         podview_control_policy=json.dumps(configured),
+        podview_recipe_catalog_path=tmp_path / "catalog.json",
         locked=True,
     )
     peer = ["172.30.32.2"]
@@ -733,3 +734,64 @@ async def test_enrollment_marker_never_opens_outside_asset_root(ingress, asset):
     assert response.status == 404
     assert "Set-Cookie" not in response.headers
     assert not ingress.bridge._grants and not ingress.bridge._controller_requests
+
+
+async def test_recipe_catalog_is_shared_across_ha_ingress_reads(ingress):
+    url = "/view/api/recipes"
+    first = await ingress.client.get(url, headers=HEADERS)
+    second = await ingress.client.get(url, headers={"X-Remote-User-Id": "b" * 32})
+    assert first.status == second.status == 200
+    assert first.headers["Cache-Control"] == "no-store"
+    assert await first.read() == await second.read()
+    catalog = await first.json()
+    assert set(catalog) == {"recipes"}
+    assert len(catalog["recipes"]) == 8
+    assert len({recipe["source"]["url"] for recipe in catalog["recipes"]}) == 8
+    assert not ingress.bridge.recipe_catalog_path.exists()
+    assert all(recipe["source"]["files"] == [] for recipe in catalog["recipes"])
+    assert (await ingress.client.post(url, headers=HEADERS, json={})).status == 405
+    assert not ingress.bridge._grants
+
+
+@pytest.mark.parametrize(
+    "peer,headers",
+    [
+        ("172.30.32.2", {}),
+        ("127.0.0.1", {}),
+        ("127.0.0.1", HEADERS),
+        ("172.30.32.2", {**HEADERS, "Sec-Fetch-Site": "cross-site"}),
+    ],
+)
+async def test_recipe_catalog_requires_current_ha_ingress(ingress, peer, headers):
+    ingress.peer[0] = peer
+    response = await ingress.client.get("/view/api/recipes", headers=headers)
+    assert response.status == 403
+    assert "recipes" not in await response.json()
+
+
+async def test_recipe_catalog_uses_provisioned_owner_format_without_exposing_submissions(ingress):
+    url = "/view/api/recipes"
+    response = await ingress.client.get(url, headers=HEADERS)
+    recipes = (await response.json())["recipes"]
+    existing = {**recipes[0], "title": "Udgivet efter seed", "private": "editor-note"}
+    existing["source"] = {**existing["source"], "files": ["private-image"]}
+    owner_state = {
+        "seedVersion": 1,
+        "recipes": {"published": existing},
+        "submissions": {"pending": {"url": "https://example.org/private-submission"}},
+    }
+    path = ingress.bridge.recipe_catalog_path
+    original = json.dumps(owner_state)
+    path.write_text(original)
+    for _ in range(2):
+        response = await ingress.client.get(url, headers=HEADERS)
+        assert response.status == 200
+        expected = {**recipes[0], "title": "Udgivet efter seed"}
+        assert await response.json() == {"recipes": [expected]}
+        assert path.read_text() == original
+
+    path.write_text("broken")
+    response = await ingress.client.get(url, headers=HEADERS)
+    assert response.status == 503
+    assert (await response.json())["error"] == "recipes_unavailable"
+    assert path.read_text() == "broken"

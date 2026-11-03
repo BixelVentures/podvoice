@@ -168,3 +168,21 @@ for(const change of ['owner','binding','voice','transport'])test(`late accepted 
   f.view.model('account',f.host.liveMedia.playback);reply({outcome:'accepted'});await choosing;assert.equal(effects,1);assert.equal(refreshes,0);assert.equal(f.reads.length,1);assert.equal(f.view.offer,null);
  }finally{reply?.({outcome:'unknown'});f.close();}
 });
+
+test('only the chosen queue occurrence stays busy until the command settles',async()=>{
+ const f=fixture();
+ try{
+  const read=f.host.liveTransport.queueOffer;
+  f.host.liveTransport.queueOffer=async()=>{const value=await read();value.items.push({...value.items[0],id:'b'.repeat(24),order:2});return value;};
+  await f.view.load('account',f.host.liveMedia.playback);
+  const model=()=>f.view.model('account',f.host.liveMedia.playback);
+  const chosen=model().items[1];
+  let settle;
+  f.host.liveTransport.queueAction=()=>new Promise(resolve=>{settle=resolve;});
+  const choosing=f.view.choose(chosen);
+  assert.deepEqual(model().items.filter(item=>item.pending).map(item=>item.id),[chosen.id]);
+  settle({outcome:'unknown'});
+  await choosing;
+  assert.equal(model().items.some(item=>item.pending),false);
+ }finally{f.close();}
+});
