@@ -11,6 +11,8 @@ CANDIDATE = "32fbb8bca570d220f9bffea2a4520ac91e09a398"
 CANDIDATE_TREE = "4f05f0814ea7e95451e6fb840f6b962f3ee8f420"
 REVIEWER = "/root/independent_287"
 RELEASE_PINS = {
+    "tests/podview/canonical-next-robot-history-view.test.mjs": "40e223e88c8d4fed5f333f531b4f444937fe107b0561960cc2eb465bb0cd0b05",
+    "tests/podview/root-robot-history-view.test.mjs": "8b461b91c24f20e9696b373ae826bab289c19792cc7f14d709a8aa87e4a4911d",
     "podvoice/config.yaml": "f2bf843e642cf231d9a3e7647df556cddcc88c67153678b3d4e1b94982422944",
     "podvoice/gatekeeper/__init__.py": "cb49116b111a2bac3f5aa0a7e72e467bcf140a32c7ba175577aaf525b5f9dffb",
     "pyproject.toml": "321e3f089beba8b79b58412935764ba828a43a792c6d83c3de185a95a09fbddc",
