@@ -1,0 +1,11 @@
+{
+  "dist/robot-control-panel.js": "b9912e8afb83d233ff6becbf8a010e301fa3b8180600a66b3814ea703c5f34ab",
+  "dist/local-robot-view.js": "03e709a58ceaede539e6650e5a92d8de57fb613b3c4aff2a1fc3a6331d251e8c",
+  "dist/robot-observation.js": "a9a30488585475908581ad5c335cd381e42876b46af8cf07014e125c32f83d99",
+  "dist/home-model.js": "31b6a0c3ef5f75f1bc5271ea4082a18a8e5fb77ce7026afa251cf6a1726d22e8",
+  "dist/weather-fact-display.js": "32c4eb3f913b9ca7331f5ac81a93727b3da2d1c8a6fdc6b29dee6ebf4fb5ae8a",
+  "dist/weather-view.js": "778a9564d97ec89c2f412f574f2e095c9aaa5f919e8e132899c3e4e376ed810f",
+  "dist/vehicle-view.js": "8712a57f69a38828bc69c6a4fd083d5ae82d9093d0383535116533dfe6b4f2ed",
+  "podvoice/gatekeeper/podview_robot.py": "606a84c79a100f2c7fad5e0395381b9e14b1d7c5248527e6989771442533aa56",
+  "podvoice/gatekeeper/podview_weather.py": "89a093864715017b406cbd3ef83a7e087b7084805be1e809ff8732c10b08506a"
+}

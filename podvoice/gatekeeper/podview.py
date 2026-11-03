@@ -327,6 +327,9 @@ class PodViewBridge:
             if client_diagnostics_store is not None
             else None
         )
+        from .podview_radio import RadioService
+
+        self.radio = RadioService(self, getattr(tools, "podview_radio_native", None))
         self._weather_source_cache: tuple | None = None
         provider = getattr(tools, "podview_weather_provider", None)
         if provider is not None:
@@ -4257,6 +4260,7 @@ def mount(
     app[BRIDGE] = bridge
     app.middlewares.append(_ha_request_scope)
     from .podview_queue import queue_http
+    from .podview_radio import radio_http
     from .podview_weather_http import weather_advice
 
     async def retain_client_diagnostics(_app):
@@ -4279,6 +4283,9 @@ def mount(
 
     async def close_receipts(_app):
         await bridge.stop_vehicle_controls()
+        radio_native = getattr(tools, "podview_radio_native", None)
+        if radio_native is not None:
+            await radio_native.aclose()
         weather_owner = getattr(tools, "podview_weather_advice", None)
         if weather_owner is not None:
             await weather_owner.close()
@@ -4309,6 +4316,9 @@ def mount(
             web.post("/view/api/controller/request", _controller_request),
             web.post("/view/api/controller/claim", _controller_claim),
             web.post("/view/api/controller/renew", _controller_renew),
+            web.get("/view/api/radio", radio_http),
+            web.post("/view/api/radio/offer", radio_http),
+            web.post("/view/api/radio/actions", radio_http),
             web.get("/view/api/music", _observed_music),
             web.post("/view/api/music/queue/offer", _observed_queue_offer),
             web.post("/view/api/music/queue/actions", queue_http),

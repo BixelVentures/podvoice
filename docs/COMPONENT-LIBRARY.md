@@ -1,3 +1,13 @@
+# Radio · fælles player og feedback ·3 november2026
+
+Normal afventning vises i den aktiverede kontrol: stationsvalgets præcise Starter-label og den fælles playerknaps eksisterende icon-progress. Stop, højttalervalg og volumen bruger deres eksisterende kontrolfeedback. Station/cover, mål og aria-busy bevares. Ingen løs Starter- eller Radio stoppet-tekst over højttaleren og ingen succes-toast. Fejl og UNKNOWN bruger én eksisterende NotificationQueue-besked med radiosource; ingen dublet i RadioHero eller Player-header. UNKNOWN gentages aldrig automatisk.
+
+ChoiceList bevarer samme to-plus-tre stationsgrid og én valgt kant. Kit-ejerens normale disabled Button-inset må ikke lægges oven i label-feedback, ligesom progressfeedback allerede er undtaget. Fælles ListRow-fallback placeres før hele ChoiceList, aldrig inde i dens grid. Playerens kildefokus er kun præsentation; det skaber ingen actionmyndighed. Stoppet radio beholder stationens historik, men giver ikke historisk volumen ny autoritet. Ny boot/room/ownerProcessId rydder gammel lokal præsentation uden at ophæve UNKNOWN-custody.
+
+[Faktisk117-produkt og bibliotek, klikforløb og rester](qa-radio-v2x-20261103/README.md). Ingen ny komponentfamilie, radiofarve eller lokal spinner.
+
+---
+
 Detaljers indholdskort er hvide (`--pv-surface`) med neutral tekst på tværs af domæner. Card-identitet bevares til den eksisterende materialekant og efterkommeres kildevalgte kontroller; identitet farver ikke hele kontrolkortet. Hero/statusheader og Tile-tilstande beholder deres aftalte domænefarve. Eksisterende eksplicitte overblikskort og Timer-instrument bevarer egne flader også ved hover/pending. Samme regel gælder bibliotek og produkt.
 
 Historikkens eksisterende ListRows bliver i én lodret, ikke-ombrydende kolonne med lodret scroll. Tekstforhåndsvisningen viser højst to linjer; den oprindelige tekst bevares hel i den eksisterende detaljes disclosure. Lange udskrifter må ikke skabe en skjult vandret kolonne.

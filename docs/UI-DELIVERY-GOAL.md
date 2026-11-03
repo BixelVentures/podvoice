@@ -1,3 +1,7 @@
+## 3/11 · samlet118-kandidat med radio, isoleret
+
+Radio er semantisk samlet med v2.X-ejerens nyeste kompakte robotvedligehold og vejrfallback i separat `codex/radio-v2x-118-combined`; ejerens mappe er uændret. Ni beskyttede robot/vejr/Tesla-kilder er bytebevarede. Fælles PlayerView bevarer radioens live Start/Stop, kontrolfeedback og kildeidentitet under lydstyrkegestus. [Samlet kilde, faktisk browser og beviser](qa-radio-v2x-20261103/README.md):4978/4978 UI PASS, gate67,124/124 Go→Python→JS/assets PASS. Kildeskift midt i input gav nul kald til begge inerte kommandoveje i begge retninger; samme ejer/normal baggrundsopdatering bevarer volumenintention. Det lukker ikke faktisk runtime-coexistence, Green eller fysisk lydaccept. v2.X ejer review, publicering og installation; ingen release/install udført her.
+
 # PodView ·24.oktober · samlet musikbetjening under rettelse
 
 **Ny direkte bestilling til natten 24.–25. oktober:** mobilens Spotify→Connect giver faktisk lyd, men PodViews valgte musik giver 8–12 sekunders feedbackforsinkelse og ingen lyd. Denne tråd ejer nu også den samlede frontend-musikbetjening, koordineret med v2.X som backend-/native-/releaseejer med direkte menneskelig beskedtilladelse. [Aktuel natteopgave, kausale fund, sikkerhedsgrænser og beviskrav](qa-ui22/NIGHT-MUSIC-REMOTE-20261024.md). Ingen højttalere afprøves om natten; 82/51 og frosne pakker bevares. Restlisten nedenfor består, indtil konkrete beviser ændrer den.

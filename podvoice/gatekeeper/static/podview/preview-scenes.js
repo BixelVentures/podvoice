@@ -18,7 +18,7 @@ export const deviceOfflinePreviewStates=['robot','light'].flatMap(kind=>['detail
 export const robotActivityPreviewStates=['charging','charged','washing','emptying','drying','completed','brushfault'].flatMap(status=>['detail','overview','rest'].map(layer=>`robot-${layer}-${status}`));
 export const timerPreviewStates=['detail','overview','rest'].flatMap(layer=>['empty','running','finished','multiple','stale'].map(state=>`timer-${layer}-${state}`)).concat(['timer-overview-dismissed']);
 export const musicPreviewStates=['mood','feeling','top','recent','paused','refreshing','refresh-error','refresh-empty'].map(state=>`music-${state}`);
-export const radioPreviewStates=['ready','selected','paused','offline'].map(state=>`radio-${state}`);
+export const radioPreviewStates=['ready','selected','paused','offline','request-pending'].map(state=>`radio-${state}`);
 export const weatherPreviewStates=[...['ready','empty','stale'].map(state=>`weather-${state}`),'weather-wind-known',...['idle','pending','ready','error'].map(state=>`weather-advice-${state}`)];
 export const answerPreviewStatuses=['ready','waiting','partial','empty','error','offline','interrupted'];
 export const answerPreviewStates=FORMATS.flatMap(format=>answerPreviewStatuses.map(state=>`answer-${format}-${state}`)).concat([...visualFamilies.map(format=>`answer-${format}-long`),'answer-sourced-image-image-failure','answer-simple-diagram-image-failure','answer-steps-complete','answer-checklist-complete']);
@@ -188,7 +188,8 @@ function musicPreviewScene(name){
 
 function radioPreviewScene(name){
  let s=step(initialScene(),{type:'show',id:'radio'});
- if(['radio-selected','radio-paused','radio-offline'].includes(name))s=localRadioTransition(s,{type:'radio-select',stationId:'p3'});
+ if(['radio-selected','radio-paused','radio-offline','radio-request-pending'].includes(name))s=localRadioTransition(s,{type:'radio-select',stationId:'p3'});
+ if(name==='radio-request-pending')s={...s,radioPendingStationId:'p4-ostjylland'};
  if(name==='radio-paused')s=localRadioTransition(s,{type:'toggle'});
  return name==='radio-offline'?step(s,{type:'offline'}):s;
 }

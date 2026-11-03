@@ -170,7 +170,7 @@ test('empty local journey selects output then reveals actual receipt playback an
 test('radio transport and queue use source capabilities and music restores the same controls',()=>{
  const f=surface();f.view.renderControls({sourceKind:'radio',playing:true,toggle:true,canVolume:true,volume:35});
  for(const id of ['previous','next','detail-previous','detail-next'])assert.equal(f.nodes.get(id).hidden,true);
- assert.equal(f.nodes.get('play-pause').hidden,false);assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'),'Sæt radio på pause');assert.equal(f.nodes.get('volume').disabled,false);
+ assert.equal(f.nodes.get('play-pause').hidden,false);assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'),'Stop radio');assert.equal(f.nodes.get('volume').disabled,false);
  f.view.renderQueue([],{sourceKind:'radio'});assert.equal(f.nodes.get('queue-title').hidden,true);assert.equal(f.view.queue.hidden,true);
  f.view.renderControls({playing:false,previous:true,next:true,toggle:true,canVolume:true,volume:35});f.view.renderQueue([]);
  assert.equal(f.nodes.get('previous').hidden,false);assert.equal(f.nodes.get('next').hidden,false);assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'),'Fortsæt musikken');assert.equal(f.nodes.get('queue-title').hidden,false);assert.equal(f.view.queue.hidden,false);
