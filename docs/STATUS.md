@@ -1,3 +1,41 @@
+## 3/11 — robotfornyelse med valg bevaret
+
+På robotsporets lokale browser med faktisk backend og inert robot blev rum og Maks bevaret på samme kontrolnode efter fornyelse. Start-handleren brugte det nye tilbuds-ID; ingen robotkommando blev udført. Den første fejlmelding skyldtes manglende normalisering i testharness. Samlet lokal UI-suite dækket efter genprøvning af én label og fire localhost-tests. Aktiv rengøring afventer målrettet prøve; officiel releasekontrol og Green-installation udestår.
+
+## 3/11 — releasehold efter browserprøve
+
+Integrerede robotsporets testede backend og frontend på samlet lokal kandidat. Backend 133/133 på robotsporets kandidat. Samlet build og komponentbibliotek består. UI-suite 4896/4901; den gamle Grundig+-forventning er rettet og genprøvet, fire localhost-tests fik EPERM. Robotsporets efterfølgende browser+backend-prøve viste fortsat sameNode=false trods korrekt mapping. Releasehold består, robotsporet retter genopbygningen. Genbyg og genprøv kun berørt scope efter rettelsen. Git-objekterne b2c7f254 og 5f5b0fc6 er gendannet med verificeret SHA; en ældre manglende forælder a1921558 blokerer stadig traversering.
+
+## 3/11 — samlet kandidat
+
+Godkendt robotlayout integreret selektivt med vedligeholdelse, vejrikon og højttalermarkering. 303 fokuserede tests består på den samlede kilde. Releasehold: robotblinkets backendintegration og browserbevis afventer robotsporet. Radio leveret separat lokalt og ikke optaget i denne kandidat.
+
+## 3/11 — standardhøjttaler markeres ved første åbning
+
+Aktiv kandidat /private/tmp/pv118-release-20261103. Årsag: speaker-output-view.sync markerede kun eksplicit nextDestination eller observeret output, selv om den konfigurerede destination allerede var kendt. Rettet visning: uden aktiv/observeret musik eller manuelt valg markeres præcis admitted account/nativeRoom/HomePod som Valgt, når start er tilgængelig og kataloget aktuelt. Ingen ny nextDestination, MOVE, playback eller adgang; eksisterende output og manuelt valg vinder. To berørte suites 102 PASS, inklusive første åbning uden sideeffekt og forkert/manglende binding. Review fandt kanttilfælde ved forældet afspilning; rettet ved kun at vælge default uden nogen bevaret playback/actualDisplay, kausal regression med udløbet output består. Normaliseret, frisk idle fra samme konto/rum markeres også; udløbet idle fjerner markeringen. 103 højttalertests består. Indgår i samlet 2.0.118, ikke installeret.
+
+## 3/11 — koordinering: robotfornyelse og radio er fortsat åbne
+
+Robot-UI-ejer har kausal lokal repro /private/tmp/pv118-renew-dom-proof/tests/podview/canonical-next-robot-control-panel.test.mjs: nye opaque task/option-IDer ved proaktiv renewal får sameTaskContent til at udskifte formular/rum-input trods ens synligt indhold. Ingen sikker generel genbinding på labels/orden; serverkontrakt og referencer skal afstemmes. Dette er endnu ikke bevis for hele Greens disabled-blink. Seneste godkendte layout inkl. afstand findes i /private/tmp/pv118-robot-layout-20261103; integreres selektivt med nærværende maintenanceændring.
+
+Radioejer har tilbagekaldt de tidligere ekstra standard-HA-scenarieclaims: S6 fjernede scenarie-env, så kun basic Start/Stop var bevist. Coexist/factory/UNKNOWN afventer korrigeret with-contenv og scenariespecifikke receipts. Ingen release-GO eller aktivering herfra.
+
+## 3/11 — vejrrækkens manglende ikon flytter temperaturkolonner
+
+Dokumenteret kodeårsag: artwork sætter img.hidden ved null fra conditionIcon; CSS-grid autoplace flytter laveste temperatur, range og højeste temperatur ét spor til venstre. Screenshotets præcise kildecondition er ikke aflæst; manglende og ikke-understøttede conditions rammer samme fejl. Mindste rettelse: dagrækken bruger eksisterende neutral dash.svg ved manglende ikon, bevarer original conditiontekst og modeldata, altid samme fem celler. Ingen gættet sol/sky. Kausal null→unsupported→sun genopretning beholder samme DOM og korrekte min/max. Weatherchecks136PASS, preview31PASS; uafhængigt review uden findings; bygget lokal browser viser korrekt kolonnejustering. Eksempel /?stage=weather-missing-icon, screenshot /private/tmp/pv118-weather-fallback.png. Ikke installeret. Runtime-delta separat weather-icon-fallback.patch; previewfixture ligger sammen med vedligeholdelseskandidaten.
+
+## 3/11 — aktiv UI-rettelse: kompakte robotbeskeder og vedligeholdelse
+
+Kilde /private/tmp/pv118-maintenance-ui-20261103 er udtræk af aktuelt GitHub-main652499b349f0c45973e366221ff8667dc5ed944f/treeec2730f2ccc3767702b78774d848040a34fbd369 (liveaflæst). Bruger godkendte konkret screenshotaudit: én vandbesked, neutral lukket vedligeholdelsesrække, korte dele med vejledning ved behov, tekniske detaljer sekundært og diskret vedligeholdelses-only dagsdismiss. Ingen ny releasebestilling i denne besked.
+
+Årsag: robotExperience udsender separate rå kildefejl og vandsymptomer; panel bygger alle i samme tinted container med gentaget generisk copy. Bevar rå kildesignaler/autoritet, saml kun præsentation efter eksplicit semantisk gruppe. Nye manglende data må ikke gøres til fysiske fejl; driftstæller er påmindelse, ikke konstateret slitage. Kanonisk kitkomponent bruges i produkt/bibliotek. Åben/luk og dagsdismiss bevares ved polling. Tastaturfokus må ikke fjernes.
+
+Scope: robot præsentationsmodel, fælles issue/maintenance-komponent, robotbinding, eksisterende kitCSS/registry og fokuserede tests. Ingen HA-/robot-/bil-/musikhandlinger eller adgangsændring. Færdig: relevante kausale tests og bygget lokal iPad/desktopvisning kontrolleret med samme komponent; source review; evt. runtimeintegration senere. Radio er genåbnet i særskilt spor, ikke del af denne UI-implementation. Sugeevne fuldbredde er separat godkendt isoleret patch; afstem før adoption, ingen helfilsoverførsel.
+
+Resultat 3/11: implementeret i kanonisk robotpanel og UI-kit. Relateret frisk vandmangel samles kun ved bekræftet tankmelding, alle rå signaler bevares i tekniske detaljer. Standalone vandmangel og særskilte fejl bevares. Neutral vedligeholdelse er lukket som standard; korte delenavne og enkeltvis vejledning ved klik, per-robot dagsdismiss, åben/luk og tastaturfokus bevares på ændret polling. Uafhængigt review fandt fokusgab; rettet med kausal regression. Ingen nye handlingsrettigheder.
+
+Verifikation: observation36PASS, panel333PASS; fuld fælles UI-suite kørt én gang (4880PASS/8FAIL); 8 ugyldiggjorte trin derefter løst: genererede assets og registrerede godkendte anatomier, komponent/preview/artwork71PASS; fire lokale enrollmentserverchecks4PASS med tilladt localhost. Impeccable source detect[]; lokal bygget browservisning og disclosureklik kontrolleret med eksempeldata, screenshot /private/tmp/pv118-maintenance-compact.png. Dette beviser ikke Green/iPad eller fysisk robot. Ingen release/install i dette afgrænsede UI-resultat. Patch maintenance-ui.patch; generated bundles/CSS bygget fra samme kilder.
+
 ## 1/11 — aktiv rettelse: stabile observationer og genopkobling efter116
 
 Kilde: /private/tmp/pv117-state-recovery-20261101, main8dc24b32007666087c603a23cd57ec3ddb5de113. Installeret116/HA0.1.10 er baseline. Samlet 117-kandidat med HA0.1.11 er bygget; uafhængigt artifactreview, officiel CI, publicering og installation afventer. Den eksisterende fulde komponentupload er fallback, når HACS ikke tilbyder main; kontrollér alle filer før Core-genstart.
@@ -7573,5 +7611,27 @@ Candidate base: `c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6`. Final rebuilt `podvi
   "runtime_fingerprint": "ed4e5f1531fb8b3cf33650cc86016a9f593072ae04c9beb5483161b9ff408c8d",
   "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
   "version": 94
+}
+-->
+
+<!-- podvoice118-admission
+{
+  "base_tip": "652499b349f0c45973e366221ff8667dc5ed944f",
+  "config_fingerprint": "60473bd670d32273eddf887b1601502e77576c6d2a4e58ec7c710a15c7473251",
+  "domains": [
+    "ha_tools",
+    "physical_output"
+  ],
+  "fingerprint": "0b39b560360d4f8d7ec3b351663cdf23e794a5fd18ee6040bea5ad66a795914e",
+  "kind": "podvoice118_robot_weather",
+  "manifest_fingerprint": "89bc6e59e5480494725f466c8df4e1ae14d714dfe5f376b58a9babf625c44303",
+  "merge_base": "652499b349f0c45973e366221ff8667dc5ed944f",
+  "policy_fingerprint": "0eee6dfd6c089ec3cfb69fbf40d37d3582d133264e4b1cba4eb818dd7ab40010",
+  "rationale": "PodVoice 2.0.118 preserves robot controls and drafts during equivalent offer renewal and improves maintenance, weather fallback and speaker selection. Source review and inert browser/backend validation passed. Publication and Green verification are pending.",
+  "regression_fingerprint": "6b49e9983ac1efb0549b04b57e10f0ef8df5fd5a5847056d7d6c500ad50a75bb",
+  "reviewer": "/root/ha_admission_review",
+  "runtime_fingerprint": "4f06b986a92b48fe1be0f8917d1edcedc1c3dc98a6a20a8a70dd6509b0630b09",
+  "tooling_fingerprint": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "version": 95
 }
 -->

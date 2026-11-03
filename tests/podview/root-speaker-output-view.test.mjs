@@ -72,7 +72,7 @@ test('whole-row selection announces chosen destination separately from observed 
 });
 
 function configuredSurface(){const f=surface();f.host.liveSnapshot.mediaRoomBindings=[{accountId:'account',bindingId:'a'.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r0',nativeHomepodId:'42'}];return f;}
-function actualPlayback(f,{nativeRoomId='r1',nativeHomepodId='43'}={}){f.host.liveSnapshot.capabilities.musicRead=['targets','playback'];const p={ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'r0',configEntryId:'account',status:'observed',reason:null,binding:{accountId:'account',roomId:'r0',targetId:'actual-engine',nativeRoomId,nativeHomepodId,bindingId:'f'.repeat(64),validUntil:Date.now()/1000+15},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'native-owner',poll_sequence:1,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},playback:{state:'playing',target:{kind:'spotify_device',target_id:'actual-engine',name:'Provider target'},item:{type:'track',uri:'spotify:track:'+'A'.repeat(22),name:'Actual track',artists:['Actual artist'],duration_ms:180000},progress_ms:1000,provider_changed_at_ms:Date.now(),shuffle:false,repeat:'off'},physical_result_verified:false}};f.host.liveMedia.playback=roomPlaybackObservation(p,'account',f.host.liveSnapshot);return playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account');}
+function actualPlayback(f,{nativeRoomId='r1',nativeHomepodId='43',idle=false}={}){f.host.liveSnapshot.capabilities.musicRead=['targets','playback'];const p={ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'r0',configEntryId:'account',status:'observed',reason:null,binding:{accountId:'account',roomId:'r0',targetId:'actual-engine',nativeRoomId,nativeHomepodId,bindingId:'f'.repeat(64),validUntil:Date.now()/1000+15},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'native-owner',poll_sequence:1,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},playback:{state:'playing',target:{kind:'spotify_device',target_id:'actual-engine',name:'Provider target'},item:{type:'track',uri:'spotify:track:'+'A'.repeat(22),name:'Actual track',artists:['Actual artist'],duration_ms:180000},progress_ms:1000,provider_changed_at_ms:Date.now(),shuffle:false,repeat:'off'},physical_result_verified:false}};if(idle){p.status='idle';p.binding=null;p.data.playback={state:'no_active_playback',target:null,item:null};}f.host.liveMedia.playback=roomPlaybackObservation(p,'account',f.host.liveSnapshot);return playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account');}
 test('configured display name survives actual catalogue TTL, pending refresh and transient error without retaining observed destination authority',async()=>{
  const f=configuredSurface(),originalNow=Date.now,originalTimeout=globalThis.setTimeout,callbacks=[],calls=[];let now=originalNow();Date.now=()=>now;globalThis.setTimeout=fn=>{callbacks.push(fn);return callbacks.length;};
  try{
@@ -190,5 +190,29 @@ for(const outcome of ['success','closed','reopened','failure','binding'])test(`t
 
 test('expired move reads fresh catalogue and sends exactly one admitted matching destination',async()=>{
  const f=idleStartSurface(),moves=[];try{f.ids.rooms.open=true;actualPlayback(f,{nativeRoomId:'r0',nativeHomepodId:'42'});f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence=null;f.host.liveControls.moveSpeaker=(row,current)=>{moves.push({id:row.speakerId,current:current()});return Promise.resolve(true);};f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true,startSelectable:true});return p;};await f.view.open();const target=f.ids['room-options'].children[1];f.view.validUntil=Date.now()-1;f.view.sync();let resolve,reads=0;f.host.liveTransport.music=()=>{reads++;return new Promise(r=>resolve=r);};const click=target.listeners.click();assert.equal(moves.length,0);const updated=payload();updated.moveAvailable=true;for(const row of updated.speakers)Object.assign(row,{availability:'available',selectable:true,startSelectable:true});resolve(updated);await click;assert.equal(reads,1);assert.deepEqual(moves,[{id:'b'.repeat(64),current:true}]);
+ }finally{f.view.cleanup();}
+});
+
+ test('idle configured destination is selected at first load without executing or inventing output',async()=>{
+ const f=idleStartSurface();f.host.liveSnapshot.mediaRoomBindings=configuredSurface().host.liveSnapshot.mediaRoomBindings;
+ try{const before=JSON.stringify(f.host.liveSnapshot);await f.view.open();const [standard,other]=f.ids['room-options'].children;assert.equal(standard.getAttribute('aria-pressed'),'true');assert.equal(standard.children[2].textContent,'Valgt');assert.equal(other.getAttribute('aria-pressed'),'false');assert.equal(f.view.selectionDestination(),null);assert.equal(f.view.observedDestination(standard.speakerRow.speakerId),false);assert.equal(f.host.liveMedia.playback,undefined);assert.equal(JSON.stringify(f.host.liveSnapshot),before);assert.deepEqual(f.calls,['read']);other.listeners.click();assert.equal(standard.getAttribute('aria-pressed'),'false');assert.equal(other.getAttribute('aria-pressed'),'true');assert.deepEqual(f.calls,['read']);}finally{f.view.cleanup();}
+ });
+ test('default marking requires the exact admitted destination and never replaces an observed output',async()=>{
+ for(const change of ['missing','mismatch','actual','stale','remembered']){const f=idleStartSurface();f.host.liveSnapshot.mediaRoomBindings=configuredSurface().host.liveSnapshot.mediaRoomBindings;try{if(change==='missing')f.host.liveSnapshot.mediaRoomBindings=[];if(change==='mismatch')f.host.liveSnapshot.mediaRoomBindings[0].nativeHomepodId='999';if(change==='actual'||change==='stale')actualPlayback(f);if(change==='stale')f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;if(change==='remembered')f.view.actualDisplay={name:'Soveværelse'};await f.view.open();assert.equal(f.ids['room-options'].children[0].getAttribute('aria-pressed'),'false');assert.equal(f.view.nextDestination??null,null);assert.deepEqual(f.calls,['read']);}finally{f.view.cleanup();}}
+ });
+
+test('fresh provider idle marks the configured speaker, and expired idle removes the mark',async()=>{
+ const f=idleStartSurface();
+ f.host.liveSnapshot.mediaRoomBindings=configuredSurface().host.liveSnapshot.mediaRoomBindings;
+ try{
+  actualPlayback(f,{idle:true});
+  await f.view.open();
+  const [standard]=f.ids['room-options'].children;
+  assert.equal(standard.getAttribute('aria-pressed'),'true');
+  assert.equal(f.view.selectionDestination(),null);
+  f.host.liveMedia.playback.expiresAt=Date.now()-1;
+  f.view.sync();
+  assert.equal(standard.getAttribute('aria-pressed'),'false');
+  assert.deepEqual(f.calls,['read']);
  }finally{f.view.cleanup();}
 });

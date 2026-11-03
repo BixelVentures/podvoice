@@ -93,10 +93,19 @@ export function robotExperience(device,now=Date.now()/1000){
  const issues=[];
  for(const key of ['vacuum_error','dock_error']){const row=get(key);if(!row||typeof row.value!=='string'||['none','no_error','ok','0'].includes(row.value.toLowerCase()))continue;
   const raw=row.value,normal=raw.toLowerCase(),code=Object.hasOwn(errorNumbers[key],normal)?errorNumbers[key][normal]:normal,known=Object.hasOwn(recovery[key],code)?recovery[key][code]:null;
-  issues.push({key,title:known?.[0]||(key==='dock_error'?'Basen melder en fejl':'Robotten melder en fejl'),help:known?.[1]||'Se den konkrete fejl i Roborock-appen eller modellens vejledning.',raw,severity:'attention'});
+  issues.push({key,code,sources:[{key,raw}],title:known?.[0]||(key==='dock_error'?'Basen melder en fejl':'Robotten melder en fejl'),help:known?.[1]||'Se den konkrete fejl i Roborock-appen eller modellens vejledning.',raw,severity:'attention'});
  }
- for(const [key,copy] of Object.entries(waterRecovery))if(value(key)===true&&!issues.some(issue=>issue.title===copy[0]))issues.push({key,title:copy[0],help:copy[1],raw:true,severity:'attention'});
- const maintenance=rows.filter(row=>careKeys.has(row.key)&&fresh(row)&&row.value<=0).map(row=>({key:row.key,title:`${labels[row.key]} skal vedligeholdes`,help:'Rengør eller udskift efter modellens vejledning. Nulstil først intervallet, når vedligeholdelsen er udført.',value:robotValue(row),severity:'reminder'}));
+ for(const [key,copy] of Object.entries(waterRecovery))if(value(key)===true){
+  const same=issues.find(issue=>issue.title===copy[0]);
+  if(same)same.sources.push({key,raw:true});
+  else issues.push({key,sources:[{key,raw:true}],title:copy[0],help:copy[1],raw:true,severity:'attention'});
+ }
+ // Related water symptoms share guidance only when a fresh clean-tank fault is
+ // also reported. Keep each source signal for diagnosis; do not infer a tank
+ // fault from the robot's generic water-shortage signal alone.
+ const tank=issues.find(issue=>issue.key==='clean_box_empty'||issue.key==='dock_error'&&issue.code==='water_empty'),shortage=issues.find(issue=>issue.key==='water_shortage');
+ if(tank&&shortage){tank.sources.push(...shortage.sources);issues.splice(issues.indexOf(shortage),1);}
+ const maintenance=rows.filter(row=>careKeys.has(row.key)&&fresh(row)&&row.value<=0).map(row=>({key:row.key,name:labels[row.key],title:labels[row.key],help:`Robotten melder, at vedligeholdelsesintervallet er nået. Se modellens vejledning for ${labels[row.key].toLocaleLowerCase('da-DK')}. Nulstil kun intervallet efter udført vedligeholdelse.`,value:robotValue(row),severity:'reminder'}));
  const jobActive=typeof value('in_cleaning')==='boolean'?value('in_cleaning'):null,charging=typeof value('battery_charging')==='boolean'?value('battery_charging'):null,battery=typeof value('battery')==='number'?value('battery'):null;
  // dnd_switch is the enabled schedule, not proof that DND is active right now.
  const dnd={enabled:typeof value('dnd_switch')==='boolean'?value('dnd_switch'):null,start:value('dnd_start_time')??null,end:value('dnd_end_time')??null};

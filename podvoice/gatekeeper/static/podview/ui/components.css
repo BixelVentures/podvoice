@@ -855,3 +855,18 @@ pv-widget-host #device-view:has([data-robot-rooms=true]) #device-timeline.pv-com
 /* Disabled Button retains a quiet, readable surface and a shared boundary on
    both neutral and tinted backgrounds; availability remains semantic. */
 .pv-kit.pv-kit-button[data-kit=button]:is(:disabled,[aria-disabled=true]):not([aria-busy=true]):not([data-feedback=progress]){--pv-button-disabled-bg:var(--pv-surface);--pv-button-disabled-ink:var(--pv-ink-3);box-shadow:inset 0 0 0 1px var(--pv-line)!important}
+/* Primary unavailable actions remain visually distinct from active and busy states. */
+.pv-kit.pv-kit-button[data-kit=button][data-kit-variant=primary]:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){--pv-button-disabled-bg:#716d68;--pv-button-disabled-ink:#fffefa}
+.pv-kit.pv-kit-button[data-kit=button][data-kit-variant=primary]:is(:disabled,[aria-disabled=true]):not([aria-busy=true])>img.pv-kit-icon{filter:brightness(0) invert(1)!important;opacity:1}
+
+/* Vacuum-only suction spans the existing two-column work area. */
+@container robot-controls (min-width:480px){
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>:is([data-setting-concept=suction][data-robot-mode=vacuum],[data-setting-concept=suction]:has([data-robot-mode=vacuum])){grid-column:1/-1!important;max-inline-size:none}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options [data-setting-concept=suction][data-robot-mode=vacuum]{max-inline-size:none}
+}
+
+/* Mop-only water spans the same existing work area; route and repeat occupy the next row. */
+@container robot-controls (min-width:480px){
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>:is([data-setting-concept=water][data-robot-mode=mop],[data-setting-concept=water]:has([data-robot-mode=mop])){grid-column:1/-1!important;max-inline-size:none}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options [data-setting-concept=water][data-robot-mode=mop]{max-inline-size:none}
+}

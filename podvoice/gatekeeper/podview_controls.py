@@ -837,6 +837,7 @@ class TouchControls:
             "recipeId",
             "requestedAction",
             "draft",
+            "renewTaskId",
         } or not {
             "bootId",
             "roomId",
@@ -857,6 +858,13 @@ class TouchControls:
         ):
             return failure("invalid_setup")
         if "draft" in body and (domain != "vacuum" or "recipeId" in body):
+            return failure("invalid_setup")
+        if "renewTaskId" in body and (
+            domain != "vacuum"
+            or "recipeId" in body
+            or type(body["renewTaskId"]) is not str
+            or not 1 <= len(body["renewTaskId"]) <= 120
+        ):
             return failure("invalid_setup")
         account_id = target.get("accountId")
         recovery_key = (room, account_id if isinstance(account_id, str) else "")
@@ -953,6 +961,8 @@ class TouchControls:
         ):
             return failure("target_not_granted")
         draft_source = self._robot_draft_source(body.get("draft"), room, target, token)
+        renew_id = body.get("renewTaskId")
+        renew_source = self.tasks.get(renew_id) if isinstance(renew_id, str) else None
         self._retire_receipts()
         self.tasks = {
             k: t
@@ -1215,6 +1225,10 @@ class TouchControls:
                     }
                 else:
                     device = self.bridge.tools._device_control
+                    task["renew_device"] = device
+                    task["renew_boot"] = self.bridge.boot_id
+                    task["renew_authority"] = self._robot_draft_authority(room, token)
+                    task["renew_rule"] = copy.deepcopy(rule)
                     task["owner"] = ("podview:" + self.bridge.boot_id, task_id)
                     active = None
                     if (
@@ -1381,6 +1395,9 @@ class TouchControls:
             self.tasks[task_id] = task
             task["setup_in_progress"] = False
             if domain == "vacuum" and "recipeId" not in body:
+                task["renew_public_options"] = copy.deepcopy(public_options)
+                if "renewTaskId" in body:
+                    setup["rebind"] = self._robot_rebind(renew_source, task, token)
                 if "draft" in body:
                     setup["draft"] = self._robot_remap_draft(
                         draft_source, body["draft"], task, token
@@ -1736,6 +1753,155 @@ class TouchControls:
                     ),
                 },
             )
+
+    def _robot_rebind(self, source: dict | None, fresh: dict, token: str) -> dict:
+        """Attest a complete, one-to-one replacement of opaque robot IDs.
+
+        Native entity/area/value identities establish correspondence; presentation
+        labels never establish authority. Any ambiguity rejects the entire mapping.
+        """
+        failed = {"status": "not_restored"}
+        if not source:
+            return failed
+        try:
+            if not (
+                source.get("domain") == "vacuum"
+                and self.tasks.get(source["id"]) is source
+                and not source["consumed"]
+                and self._current(source, token)
+                and self._current(fresh, token)
+                and source["room"] == fresh["room"]
+                and source["target"] == fresh["target"]
+                and source["binding"] == fresh["binding"]
+                and source.get("renew_rule") == fresh.get("renew_rule")
+                and source.get("setup_mutation") is fresh.get("setup_mutation")
+                and source.get("renew_boot") == fresh.get("renew_boot") == self.bridge.boot_id
+                and source.get("renew_device") is fresh.get("renew_device")
+                and fresh.get("renew_device") is self.bridge.tools._device_control
+                and source.get("renew_authority") is not None
+                and source["renew_authority"] is fresh.get("renew_authority")
+                and fresh["renew_authority"] is self._robot_draft_authority(fresh["room"], token)
+                and source.get("draft_identity") == fresh.get("draft_identity")
+                and (
+                    "offered" not in source
+                    or source.get("draft_identity") is not None
+                    or (
+                        source.get("vacuum_transport_offer") is not None
+                        and not any(
+                            o["schema"]["kind"] == "cleaning" for o in source["options"].values()
+                        )
+                    )
+                )
+            ):
+                return failed
+            for offer, fields in (
+                ("vacuum_transport_offer", ("identity", "features", "state")),
+                ("dock_offer", ("identity", "state", "switches", "actions")),
+                ("settings_offer", ("identity", "config_entry", "state", "rows")),
+            ):
+                old_offer, new_offer = source.get(offer), fresh.get(offer)
+                if (old_offer is None) != (new_offer is None):
+                    return failed
+                if (
+                    old_offer is not None
+                    and new_offer is not None
+                    and any(old_offer.get(k) != new_offer.get(k) for k in fields)
+                ):
+                    return failed
+
+            pairs = {}
+            targets = set()
+
+            def add(old, new):
+                if (
+                    old in pairs
+                    or new in targets
+                    or not isinstance(old, str)
+                    or not isinstance(new, str)
+                ):
+                    raise ValueError("ambiguous identifiers")
+                pairs[old] = new
+                targets.add(new)
+
+            def keyed(rows, key):
+                result = {}
+                for identifier, value in rows.items():
+                    identity = key(value)
+                    if identity in result:
+                        raise ValueError("ambiguous native identity")
+                    result[identity] = (identifier, value)
+                return result
+
+            def match(old, new, key, visit=lambda a, b: None):
+                left, right = keyed(old, key), keyed(new, key)
+                if left.keys() != right.keys():
+                    raise ValueError("changed scope")
+                for identity, (old_id, old_value) in left.items():
+                    new_id, new_value = right[identity]
+                    add(old_id, new_id)
+                    visit(old_value, new_value)
+
+            def choice_key(value):
+                return json.dumps(value, sort_keys=True, ensure_ascii=False)
+
+            def setting_key(row):
+                return (
+                    row.get("entity"),
+                    row.get("role"),
+                    row.get("service"),
+                    row.get("synthetic_extreme", False),
+                )
+
+            def option_key(row):
+                action, kind = row["action"], row["schema"]["kind"]
+                if action in {"pause", "resume", "stop", "return"} and row.get("native"):
+                    return (action, kind)
+                if action == "dock":
+                    return (action, kind, row["schema"]["operation"])
+                if action == "start" and kind == "cleaning":
+                    return (action, kind)
+                if action == "set_option":
+                    active = row.get("active_setting") or {}
+                    extended = row.get("extended") or {}
+                    return (
+                        action,
+                        kind,
+                        row.get("entity") or active.get("entity"),
+                        row.get("service") or active.get("service"),
+                        active.get("role") or extended.get("role"),
+                    )
+                raise ValueError("unsupported option")
+
+            def visit_setting(old, new):
+                match(old.get("choices", {}), new.get("choices", {}), choice_key)
+
+            def visit_option(old, new):
+                if old["schema"]["kind"] == "cleaning":
+                    match(old["areas"], new["areas"], lambda row: row["area_id"])
+                    match(old["settings"], new["settings"], setting_key, visit_setting)
+                else:
+                    visit_setting(old, new)
+
+            match(source["options"], fresh["options"], option_key, visit_option)
+
+            def translate(value, key=None):
+                if isinstance(value, dict):
+                    return {k: translate(v, k) for k, v in value.items()}
+                if isinstance(value, list):
+                    return [translate(v) for v in value]
+                if key in {"id", "current"} and isinstance(value, str):
+                    return pairs[value]
+                return value
+
+            if translate(source["renew_public_options"]) != fresh["renew_public_options"]:
+                return failed
+            return {
+                "status": "restored",
+                "sourceTaskId": source["id"],
+                "ids": [{"oldId": old, "newId": new} for old, new in pairs.items()],
+            }
+        except (KeyError, TypeError, ValueError):
+            return failed
 
     def _robot_draft_authority(self, room, token):
         actor = self.bridge._ha_actors.get(token)

@@ -1,5 +1,5 @@
 import {applyKitComponent,applyKitDialog} from './ui/kit.js';
-import {mediaRoomBinding,playbackBinding,roomObservationCurrent} from './media-observation.js';
+import {mediaRoomBinding,playbackBinding,playbackObservationCurrent,roomObservationCurrent} from './media-observation.js';
 // Current native catalogue in the existing output sheet; no action authority.
 const fields=(value,keys)=>value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).sort().join('|')===[...keys].sort().join('|');
 const text=value=>typeof value==='string'&&value.length>0&&value.length<=1024;
@@ -59,13 +59,18 @@ export class SpeakerOutputView{
   const context=this.context();if(this.labelScope&&(!context||context.key!==this.labelScope.key||context.transport!==this.labelScope.transport))this.clearLabel(true);if(this.scope&&(!context||context.key!==this.scope.key||context.transport!==this.scope.transport))this.invalidate(undefined,true);
   const controls=this.host.liveControls,music=controls?.musicContext(true),fenced=controls?.moveUnknownApplies?.(music)||(controls?.musicUnknownBlocks?controls.musicUnknownBlocks(music):music&&controls.musicFence?.key===music.key&&controls.musicFence.outcome==='unknown')?'unknown':music&&controls.musicFence?.key===music.key&&controls.musicFence.outcome==='accepted'?'accepted':null,busy=controls?.pending||controls?.setupPending||controls?.musicIntentPending||this.host.liveSelection?.pending;
   const playback=this.host.liveMedia?.playback,binding=context&&roomObservationCurrent(playback,this.host.liveSnapshot)&&playbackBinding(playback,this.host.liveSnapshot,context.accountId),catalogueCurrent=!!context&&this.scope?.key===context.key&&this.scope.transport===context.transport&&this.validUntil>Date.now();
+  const configured=context&&mediaRoomBinding(this.host.liveSnapshot,context.accountId);
+  const confirmedIdle=playback?.observationStatus==='idle'&&playback.state==='no_active_playback'
+   &&playback.config_entry_id===context?.accountId&&playbackObservationCurrent(playback,this.host.liveSnapshot);
+  const defaultDestination=catalogueCurrent&&!music&&(!playback||confirmedIdle)
+   &&!this.actualDisplay&&!this.nextDestination&&![...this.rows.children].some(b=>b.observedOutput===true);
   for(const b of this.rows.children){
    const row=b.speakerRow,actualOutput=!!(catalogueCurrent&&binding&&row?.accountId===binding.accountId&&row.nativeRoomId===binding.nativeRoomId&&row.homepodId===binding.nativeHomepodId);
    // Only a previously verified row may retain a last-known output caption.
    if(catalogueCurrent&&binding)b.observedOutput=actualOutput;
    const knownOutput=actualOutput||b.observedOutput===true,canStart=!music&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&row?.startSelectable===true,canMove=!!music&&this.moveAvailable===true&&row?.selectable===true&&!['unknown','accepted'].includes(fenced),disabled=!!busy||row?.availability!=='available'||!row.homepodId||(!canStart&&!canMove)||(canMove&&actualOutput);
    if(b.disabled!==disabled)b.disabled=disabled;
-   const nextSelected=this.nextDestination?.speakerId===row?.speakerId,pressed=this.nextDestination?nextSelected:knownOutput;if(b.getAttribute('aria-pressed')!==String(pressed))b.setAttribute('aria-pressed',String(pressed));const accessibleName=[row?.name,nextSelected?'Valgt':'',actualOutput?'Aktuelt output':knownOutput?'Sidst kendte output':''].filter(Boolean).join(' · ');if(b.getAttribute('aria-label')!==accessibleName)b.setAttribute('aria-label',accessibleName);
+   const defaultSelected=!!(defaultDestination&&configured&&canStart&&row.accountId===configured.accountId&&row.nativeRoomId===configured.nativeRoomId&&row.homepodId===configured.nativeHomepodId),nextSelected=this.nextDestination?.speakerId===row?.speakerId||defaultSelected,pressed=this.nextDestination?nextSelected:knownOutput||defaultSelected;if(b.getAttribute('aria-pressed')!==String(pressed))b.setAttribute('aria-pressed',String(pressed));const accessibleName=[row?.name,nextSelected?'Valgt':'',actualOutput?'Aktuelt output':knownOutput?'Sidst kendte output':''].filter(Boolean).join(' · ');if(b.getAttribute('aria-label')!==accessibleName)b.setAttribute('aria-label',accessibleName);
    const outputLabel=actualOutput?'Aktuelt output':'Sidst kendte output',status=b.children[2],label=nextSelected?'Valgt':knownOutput?outputLabel:row?.default?'Standardrum':'';
    if(status&&status.textContent!==label)status.textContent=label;
    const detail=b.children[1]?.children[1],reason=row?.availability==='unknown'?'Status ukendt':row?.availability!=='available'?'Ikke tilgængelig':busy?'Musikhandlingen behandles':actualOutput&&music?'Bruges til den aktuelle afspilning':!row.homepodId?'Afspilningsmål er ikke bekræftet':fenced==='unknown'&&music?'Sidste musikhandling har ukendt udfald':fenced==='accepted'&&music?'Afventer bekræftelse af afspilningen':!canStart&&!canMove?'Kan ikke vælges til afspilning':music?'Kan vælges til den aktuelle afspilning':'';if(detail&&detail.textContent!==reason)detail.textContent=reason;

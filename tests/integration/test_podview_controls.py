@@ -1811,6 +1811,84 @@ async def test_unsent_robot_draft_renewal_remaps_expired_metadata_without_effect
         assert len([path for path, _ in rig.writes if path == "services/vacuum/send_command"]) == 1
 
 
+async def test_robot_renewal_attests_all_ids_without_effects(fixture):
+    rig, bridge, token = fixture
+    for row in rig.areas[:2]:
+        row["name"] = "Samme navn"
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    renewed = await bridge.controls.setup(setup_body(bridge, renewTaskId=first["taskId"]), token)
+    assert renewed["ok"], renewed
+    rebind = renewed["setup"]["rebind"]
+    assert rebind["status"] == "restored", rebind
+    assert rebind["sourceTaskId"] == first["taskId"]
+    pairs = {row["oldId"]: row["newId"] for row in rebind["ids"]}
+    assert len(pairs) == len(rebind["ids"]) == len(set(pairs.values()))
+
+    def ids(value):
+        if isinstance(value, dict):
+            return {v for k, v in value.items() if k == "id"} | set().union(
+                *(ids(v) for v in value.values())
+            )
+        if isinstance(value, list):
+            return set().union(*(ids(v) for v in value))
+        return set()
+
+    assert set(pairs) == ids(first["options"])
+    assert set(pairs.values()) == ids(renewed["options"])
+    assert not rig.writes
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "consumed",
+        "pending",
+        "unknown",
+        "expired",
+        "binding",
+        "token",
+        "boot",
+        "device",
+        "capabilities",
+        "choice",
+        "map",
+        "authority",
+        "mutation",
+    ],
+)
+async def test_robot_renewal_rejects_changed_authority_or_scope(fixture, change):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    source = bridge.controls.tasks[first["taskId"]]
+    if change in {"consumed", "pending", "unknown"}:
+        source["consumed"] = True
+    elif change == "expired":
+        source["deadline"] = time.monotonic() - 1
+    elif change == "binding":
+        source["binding"] = ("other",)
+    elif change == "token":
+        source["token"] = "other-token"
+    elif change == "boot":
+        source["renew_boot"] = "other-boot"
+    elif change == "device":
+        source["renew_device"] = object()
+    elif change == "capabilities":
+        source["renew_rule"] = {"actions": []}
+    elif change == "choice":
+        rig.states[ROBOT]["attributes"]["fan_speed_list"] = ["balanced"]
+    elif change == "map":
+        rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]["kitchen"] = ["0_17"]
+        rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]["dining"] = ["0_16"]
+    elif change == "authority":
+        source["renew_authority"] = object()
+    else:
+        source["setup_mutation"] = object()
+    renewed = await bridge.controls.setup(setup_body(bridge, renewTaskId=first["taskId"]), token)
+    assert renewed["ok"], renewed
+    assert renewed["setup"]["rebind"] == {"status": "not_restored"}
+    assert not rig.writes
+
+
 @pytest.mark.parametrize(
     "change",
     [

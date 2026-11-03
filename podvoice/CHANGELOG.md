@@ -1,3 +1,9 @@
+## 2.0.118
+
+- Preserve robot controls and cleaning choices during equivalent offer renewal.
+- Improve robot maintenance presentation and weather fallback.
+- Mark the configured speaker when playback is idle.
+
 ## 2.0.117
 
 - Retain last observed vehicle and robot facts with their individual observation times across temporary gaps and restarts.

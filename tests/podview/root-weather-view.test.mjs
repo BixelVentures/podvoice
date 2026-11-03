@@ -411,3 +411,15 @@ test('explicit local advice previews use the canonical summary slot and never cl
  }
  assert.equal(JSON.stringify(WEATHER_CHANGE_EXAMPLE),before);assert.equal('summaryState' in localWeatherModel(WEATHER_CHANGE_EXAMPLE),false);assert.equal('summaryState' in localWeatherModel({...WEATHER_CHANGE_EXAMPLE,advicePreview:'arbitrary'}),false);
 });
+
+test('missing daily condition keeps a neutral icon cell and range alignment, then recovers in place',()=>{
+ const {node}=fixture(),model=localWeatherModel();
+ model.days[0]={...model.days[0],condition:'',icon:null};
+ const n=renderWeather(node,model),day=n.days.children[1],icon=day.children[1],range=day.children[3];
+ assert.equal(icon.hidden,false);assert.equal(icon.src,'assets/icons/dash.svg');assert.equal(icon.getAttribute('alt'),'Vejrtype ikke oplyst');
+ assert.equal(day.children.length,5);assert.equal(day.children[2].textContent,model.days[0].low);
+ assert.equal(day.children[4].textContent,model.days[0].high);assert.equal(range.hidden,false);
+ model.days[0]={...model.days[0],condition:'Tåge',icon:null};renderWeather(node,model);assert.equal(icon.getAttribute('alt'),'Tåge');
+ model.days[0]={...model.days[0],condition:'Solrigt',icon:'sun'};renderWeather(node,model);
+ assert.equal(n.days.children[1],day);assert.equal(day.children[1],icon);assert.equal(icon.src,'assets/icons/sun.svg');assert.equal(icon.hidden,false);
+});

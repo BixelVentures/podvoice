@@ -2343,18 +2343,25 @@ pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identit
 
 /* Keep route and repeat in the same lower row across cleaning types. */
 @container robot-controls (min-width:480px){
- pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:minmax(192px,auto) auto}
+ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto auto}
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>:is([data-setting-concept=suction],[data-setting-concept=water]){grid-row:1;grid-column:1!important;max-inline-size:none}
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options:has(>[data-setting-concept=suction]:not([hidden]))>[data-setting-concept=water]:not([hidden]){grid-column:2!important}
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>[data-setting-concept=mop_mode]{grid-row:2;grid-column:1!important;max-inline-size:none}
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>[data-setting-concept=repeat]{grid-row:2;grid-column:2!important;max-inline-size:none}
 }
 
-/* Reusable compact maintenance disclosure and its observed, read-only items. */
-.pv-kit-disclosure[data-kit-layout=maintenance]{width:100%;border-radius:var(--pv-r-l);background:var(--pv-tint);overflow:hidden}
-.pv-kit-disclosure[data-kit-layout=maintenance]>button{width:100%;min-height:var(--pv-hit);text-align:left}
-.pv-kit-disclosure[data-kit-layout=maintenance]>div:not([hidden]){display:grid;gap:0;padding:0 var(--pv-s3) var(--pv-s3)}
-.pv-kit-listrow[data-kit-variant=read-only][data-kit-layout=maintenance-item]{display:grid;grid-template-columns:minmax(0,1fr);min-height:0;padding:var(--pv-s2) 0;border:0;border-top:1px solid var(--pv-line);background:transparent;box-shadow:none}
-.pv-kit-listrow[data-kit-layout=maintenance-item]>[data-kit-slot=copy]{min-width:0}
-.pv-kit-listrow[data-kit-layout=maintenance-item] :is(h3,p){margin:0}
-.pv-kit-listrow[data-kit-layout=maintenance-item] p{margin-top:var(--pv-s1)}
+/* Robot recovery: urgent faults and neutral maintenance have separate weight. */
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{padding:0;background:transparent;border-radius:0;box-shadow:none}
+.robot-urgent-issue{padding:var(--pv-s3);border-radius:var(--pv-r-l);background:var(--pv-screen-danger-surface)}
+.pv-kit-disclosure[data-kit-layout=maintenance]{width:100%;border-radius:var(--pv-r-l);background:var(--pv-surface);overflow:hidden}
+.pv-kit-disclosure[data-kit-layout=maintenance]>.pv-kit.pv-kit-listrow{width:100%;min-height:var(--pv-hit);text-align:left;background:transparent;box-shadow:none}
+.pv-kit-disclosure[data-kit-layout=maintenance]>div:not([hidden]){display:grid;gap:0;padding:0 var(--pv-s3) var(--pv-s2)}
+.pv-kit-disclosure[data-kit-layout=maintenance-item]{border-top:1px solid var(--pv-line);background:transparent}
+.pv-kit-disclosure[data-kit-layout=maintenance-item]>.pv-kit.pv-kit-listrow{min-height:var(--pv-hit-min);padding:var(--pv-s2) 0!important;background:transparent;border-radius:0!important;box-shadow:none}
+.pv-kit-disclosure[data-kit-layout=maintenance-item]>button [data-kit-slot=title]{font:var(--pv-t-body)}
+.pv-kit-disclosure[data-kit-layout=maintenance-item]>div:not([hidden]){padding:0 0 var(--pv-s2)}
+.pv-kit-disclosure[data-kit-layout=maintenance-item] p{margin:0}
+pv-widget-host #device-view pv-robot-control-panel .robot-maintenance-dismiss.pv-kit-button[data-kit=button]{justify-self:start;width:auto;min-height:var(--pv-hit-min);padding:var(--pv-s1) 0;background:transparent;color:var(--pv-ink-2);font:var(--pv-t-meta);box-shadow:none;text-align:left}
+.robot-maintenance-snoozed{display:flex;align-items:center;flex-wrap:wrap;gap:var(--pv-s2)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-error-code>summary{width:fit-content;min-height:var(--pv-hit-min);font:var(--pv-t-meta);color:var(--pv-ink-2);cursor:pointer}
+.robot-error-code p{overflow-wrap:anywhere}
