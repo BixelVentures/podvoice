@@ -21,6 +21,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .controller_admin import ControllerAdmin
 from .display_devices import DisplayDevices
+from .recipe_upload import register_recipe_upload
 from .robot_observation_snapshot import RobotObservationSnapshot
 from .robot_snapshot import make_robot_snapshot_handler, make_robot_water_snapshot_handler
 from .robot_snapshot import service_schema as robot_snapshot_schema
@@ -126,6 +127,8 @@ _ADMIN_KEY = "podvoice_controller_admin"
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Import explicit endpoint configuration into a genuine HA config entry."""
+    if hass.http is not None:
+        register_recipe_upload(hass)
     if DOMAIN not in config:
         return True
     hass.async_create_task(

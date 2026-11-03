@@ -71,6 +71,7 @@ class Config:
     ha_mcp_url: str = ""
     ha_mcp_token: str = ""
     system_prompt: str = ""  # who the assistant is + capabilities (empty -> built-in default)
+    recipe_upload_token: str = ""
     openai_api_key: str = ""
     openai_model: str = "gpt-realtime-2.1"
     openai_voice: str = "marin"
@@ -120,6 +121,7 @@ class Config:
 # Keys that must never appear in logs (see logging redaction).
 SECRET_KEYS: frozenset[str] = frozenset(
     {
+        "recipe_upload_token",
         "openai_api_key",
         "podconnect_token",
         "podconnect_radio_token",
@@ -231,6 +233,7 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
         ha_mcp_url=str(opts.get("ha_mcp_url", "") or ""),
         ha_mcp_token=str(opts.get("ha_mcp_token", "") or ""),
         system_prompt=opts.get("system_prompt", ""),
+        recipe_upload_token=opts.get("recipe_upload_token", "") or "",
         openai_api_key=opts.get("openai_api_key", ""),
         openai_model=opts.get("openai_model", "gpt-realtime-2.1"),
         openai_voice=opts.get("openai_voice", "") or "marin",
@@ -326,6 +329,7 @@ def load_config(path: pathlib.Path = OPTIONS_PATH) -> Config:
     settings_path = _resolve(None).absolute()  # same frozen address for this exact read and run
     merged = dict(load_settings(settings_path))
     # The add-on options provide only the secrets that stay in HA Configuration.
+    merged["recipe_upload_token"] = opts.get("recipe_upload_token", "")
     merged["openai_api_key"] = opts.get("openai_api_key", "")
     merged["supervisor_token"] = opts.get("supervisor_token", "")
     # These owner-authority fields come ONLY from Supervisor options, never panel settings.

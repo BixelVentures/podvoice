@@ -777,6 +777,7 @@ async def run(cfg: Config) -> None:
         podview_client_diagnostics_store=settings_path.parent
         / "podview-client-diagnostics"
         / "records.json",
+        podview_recipe_upload_token=cfg.recipe_upload_token,
         podview_recipe_catalog_path=settings_path.parent / "podview-recipes" / "catalog.json",
         podview_pairing_room=private_row["room"]
         if private_enabled and private_row is not None

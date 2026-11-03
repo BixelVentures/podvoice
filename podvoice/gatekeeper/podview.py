@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import hashlib
+import hmac
 import ipaddress
 import json
 import logging
@@ -38,6 +39,7 @@ from . import (
 from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection
+from .recipe_submissions import RecipeRejectedError, RecipeSubmissions
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
@@ -316,6 +318,7 @@ class PodViewBridge:
         controller_generation: str = "",
         controller_store: Path | None = None,
         client_diagnostics_store: Path | None = None,
+        recipe_upload_token: str = "",
         recipe_catalog_path: Path | None = None,
     ) -> None:
         self.sessions, self.tools, self.assets = sessions, tools, assets
@@ -323,7 +326,11 @@ class PodViewBridge:
         self.boot_id = secrets.token_hex(16)
         from .podview_client_diagnostics import ClientDiagnosticsStore
 
+        self.recipe_upload_token = recipe_upload_token
         self.recipe_catalog_path = recipe_catalog_path
+        self.recipe_submissions = (
+            RecipeSubmissions(recipe_catalog_path) if recipe_catalog_path else None
+        )
         self.client_diagnostics = (
             ClientDiagnosticsStore(client_diagnostics_store)
             if client_diagnostics_store is not None
@@ -2003,6 +2010,78 @@ def _room(request: web.Request, bridge: PodViewBridge) -> str | None:
     if room is None and len(bridge.sessions) == 1:
         room = next(iter(bridge.sessions))
     return room if room in bridge.sessions else None
+
+
+async def _recipe_submissions(request: web.Request) -> web.Response:
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    scope = _HA_REQUEST.get()
+    if not scope or not scope["active"] or not scope["user"]:
+        return _error("recipes_denied", 403)
+    if request.method == "PATCH" and (
+        request.headers.get("X-PodView-Request") != "1"
+        or request.content_type != "application/json"
+    ):
+        return _error("request_header_required", 403)
+
+    return await _recipe_operation(request, request.path.rsplit("/", 1)[-1])
+
+
+async def _phone_recipes(request: web.Request) -> web.Response:
+    token = request.app[BRIDGE].recipe_upload_token
+    auth = request.headers.getall("Authorization", [])
+    if (
+        request.remote not in {"127.0.0.1", "::1"}
+        or len(token) < 32
+        or len(auth) != 1
+        or not hmac.compare_digest(auth[0].encode(), f"Bearer {token}".encode())
+    ):
+        return _error("recipes_denied", 403)
+    if request.method == "POST" and request.content_type != "application/json":
+        return _error("invalid_recipe_submission", 400)
+    endpoint = "recipe-status" if request.method == "GET" else "recipe-submissions"
+    return await _recipe_operation(request, endpoint)
+
+
+async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response:
+    store = request.app[BRIDGE].recipe_submissions
+    if store is None:
+        return _error("recipes_unavailable", 503)
+    status = 200
+    try:
+        if endpoint == "recipe-status":
+            result = await asyncio.to_thread(store.receipt, request.query.get("id"))
+        elif request.method == "GET":
+            result = {"submissions": await asyncio.to_thread(store.list_submissions)}
+        else:
+            raw = bytearray()
+            async with asyncio.timeout(5):
+                async for chunk in request.content.iter_chunked(8192):
+                    raw.extend(chunk)
+                    if len(raw) > 65536:
+                        return _error("recipe_payload_too_large", 413)
+            body = json.loads(raw, object_pairs_hook=_unique_json_object)
+            if not isinstance(body, dict):
+                return _error("invalid_recipe_submission", 400)
+            if endpoint == "recipe-publication":
+                result = await asyncio.to_thread(store.publish, body)
+            elif request.method == "PATCH":
+                result = await asyncio.to_thread(store.reject, body.get("url"), body.get("reason"))
+            else:
+                result = await asyncio.to_thread(store.submit, body.get("url"))
+                status = 202 if result["status"] == "received" else 200
+    except RecipeRejectedError:
+        return _error("recipe_rejected", 409)
+    except KeyError:
+        return _error("recipe_submission_not_found", 404)
+    except (ValueError, TypeError):
+        return _error("invalid_recipe_submission", 400)
+    except TimeoutError:
+        return _error("recipe_request_timeout", 408)
+    except OSError:
+        return _error("recipes_unavailable", 503)
+    return web.json_response(result, status=status, headers={"Cache-Control": "no-store"})
 
 
 async def _recipes(request: web.Request) -> web.Response:
@@ -4333,6 +4412,7 @@ def mount(
     controller_generation: str = "",
     controller_store: Path | None = None,
     client_diagnostics_store: Path | None = None,
+    recipe_upload_token: str = "",
     recipe_catalog_path: Path | None = None,
 ) -> PodViewBridge:
     bridge = PodViewBridge(
@@ -4350,6 +4430,7 @@ def mount(
         controller_generation=controller_generation,
         controller_store=controller_store,
         client_diagnostics_store=client_diagnostics_store,
+        recipe_upload_token=recipe_upload_token,
         recipe_catalog_path=recipe_catalog_path,
     )
     app[BRIDGE] = bridge
@@ -4401,7 +4482,14 @@ def mount(
     app.add_routes(
         [
             web.get("/view/api/snapshot", _snapshot),
+            web.post("/internal/recipes/submissions", _phone_recipes),
+            web.get("/internal/recipes/status", _phone_recipes, allow_head=False),
             web.get("/view/api/recipes", _recipes),
+            web.get("/view/api/recipe-submissions", _recipe_submissions),
+            web.post("/view/api/recipe-submissions", _recipe_submissions),
+            web.patch("/view/api/recipe-submissions", _recipe_submissions),
+            web.get("/view/api/recipe-status", _recipe_submissions),
+            web.post("/view/api/recipe-publication", _recipe_submissions),
             web.get("/view/api/client-diagnostics", _client_diagnostics),
             web.post("/view/api/client-diagnostics", _client_diagnostics),
             web.get("/view/api/events", _events),
