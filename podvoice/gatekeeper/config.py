@@ -47,6 +47,7 @@ class Config:
     voicepe_noise_psk: str
     rooms: tuple[RoomMap, ...]
     supervisor_token: str = ""
+    podconnect_radio_token: str = ""
     podview_controller_enabled: bool = False
     podview_controller_days: int = 30
     podview_controller_pairing_seconds: int = 600
@@ -121,6 +122,7 @@ SECRET_KEYS: frozenset[str] = frozenset(
     {
         "openai_api_key",
         "podconnect_token",
+        "podconnect_radio_token",
         "voicepe_noise_psk",
         "supervisor_token",
         "ha_mcp_token",
@@ -168,6 +170,7 @@ def from_options(opts: dict, *, settings_path: pathlib.Path | None = None) -> Co
     return Config(
         podconnect_base_url=opts.get("podconnect_base_url", ""),
         podconnect_token=opts.get("podconnect_token", ""),
+        podconnect_radio_token=opts.get("podconnect_radio_token", "") or "",
         voicepe_noise_psk=opts.get("voicepe_noise_psk", ""),
         rooms=rooms,
         supervisor_token=opts.get("supervisor_token", ""),

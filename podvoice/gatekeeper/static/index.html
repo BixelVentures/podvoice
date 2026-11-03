@@ -479,6 +479,9 @@
           <label for="s_podconnect_token">PodConnect token</label>
           <input id="s_podconnect_token" type="password" autocomplete="off" placeholder="(tom, hvis PodConnect ikke bruger token)">
           <span></span><span id="s_podconnect_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
+          <label for="s_podconnect_radio_token">PodConnect radiotoken</label>
+          <input id="s_podconnect_radio_token" type="password" autocomplete="off" placeholder="(valgfrit særskilt token til radio)">
+          <span></span><span id="s_podconnect_radio_token_hint" class="sub" style="display:none;font-size:.76rem">Gemt — skriv for at erstatte.</span>
           <label for="s_ha_mcp_url">HA MCP URL</label>
           <input id="s_ha_mcp_url" type="text" autocomplete="off" placeholder="(tom = via Supervisor: /core/api/mcp)">
           <label for="s_ha_mcp_token">HA MCP token</label>
@@ -2072,7 +2075,7 @@ setInterval(function () {
   var FIELDS = ["openai_backend_tpm", "openai_voice", "voicepe_noise_psk",
     "wake_word", "idle_timeout_s", "max_session_min", "mic_channel", "mic_gain",
     "duck_level", "system_prompt", "panel_lan_open",
-    "podconnect_base_url", "podconnect_token", "ha_mcp_url", "ha_mcp_token",
+    "podconnect_base_url", "podconnect_token", "podconnect_radio_token", "ha_mcp_url", "ha_mcp_token",
     "extended_device_control", "device_control_entities"];
   var NUM = { openai_backend_tpm: 1, duck_level: 1, idle_timeout_s: 1, max_session_min: 1, mic_channel: 1, mic_gain: 1 };
   var settingsDirty = false;
@@ -2199,7 +2202,7 @@ setInterval(function () {
   // GET /api/settings returns "********" for saved secrets; round-tripping that mask
   // keeps the stored secret. Show a hint so the stars don't look like a glitch.
   function updateSecretHints(s) {
-    ["voicepe_noise_psk", "podconnect_token", "ha_mcp_token"].forEach(function (id) {
+    ["voicepe_noise_psk", "podconnect_token", "podconnect_radio_token", "ha_mcp_token"].forEach(function (id) {
       var h = document.getElementById("s_" + id + "_hint");
       if (h) h.style.display = (s && s[id] === "********") ? "" : "none";
     });

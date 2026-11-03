@@ -232,6 +232,7 @@ DEFAULTS: dict = {
     # re-opens direct LAN access to :8098 (unauthenticated — you're on your own)
     "podconnect_base_url": "http://homeassistant.local:8099",
     "podconnect_token": "",
+    "podconnect_radio_token": "",
     "voicepe_noise_psk": "",
     # HA MCP server (home control). Empty url = the Supervisor proxy default
     # (http://supervisor/core/api/mcp with the add-on's own token). Which entities
@@ -406,7 +407,9 @@ def load_settings(path: pathlib.Path | None = None, *, require_existing: bool = 
 
 # Secret-valued settings: masked on read (panel GET), and a masked value coming BACK
 # on save is ignored so a round-tripped form can't overwrite the real secret.
-SECRET_SETTINGS = frozenset({"podconnect_token", "voicepe_noise_psk", "ha_mcp_token"})
+SECRET_SETTINGS = frozenset(
+    {"podconnect_token", "podconnect_radio_token", "voicepe_noise_psk", "ha_mcp_token"}
+)
 SECRET_MASK = "********"
 
 

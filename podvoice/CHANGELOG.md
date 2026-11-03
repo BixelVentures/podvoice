@@ -1,3 +1,7 @@
+## 2.0.123
+
+- Support a dedicated PodConnect transport credential for radio.
+
 ## 2.0.122
 
 - Deliver the approved Find musik views and recipe catalogue.

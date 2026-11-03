@@ -26,15 +26,16 @@ def test_numeric_strings_are_coerced(tmp_path):
     assert s["duck_level"] == 15 and s["vad_threshold"] == 0.02
 
 
-def test_secret_mask_roundtrip_keeps_stored_value(tmp_path):
+@pytest.mark.parametrize("key", ["podconnect_token", "podconnect_radio_token"])
+def test_secret_mask_roundtrip_keeps_stored_value(tmp_path, key):
     p = tmp_path / "s.json"
-    save_settings({"podconnect_token": "real-secret"}, p)
+    save_settings({key: "real-secret"}, p)
     m = masked(load_settings(p))
-    assert m["podconnect_token"] == SECRET_MASK  # never leaves the box in cleartext
-    save_settings({"podconnect_token": SECRET_MASK}, p)  # panel round-trips the mask
-    assert load_settings(p)["podconnect_token"] == "real-secret"  # not clobbered
-    save_settings({"podconnect_token": "new-secret"}, p)  # a real edit still works
-    assert load_settings(p)["podconnect_token"] == "new-secret"
+    assert m[key] == SECRET_MASK  # never leaves the box in cleartext
+    save_settings({key: SECRET_MASK}, p)  # panel round-trips the mask
+    assert load_settings(p)[key] == "real-secret"  # not clobbered
+    save_settings({key: "new-secret"}, p)  # a real edit still works
+    assert load_settings(p)[key] == "new-secret"
 
 
 def test_config_survives_garbage_values():
