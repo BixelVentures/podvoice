@@ -2094,14 +2094,21 @@ async def test_unknown_move_fence_allows_only_fresh_source_bound_controls(
     await bridge.controls.action(move_action, token)
     assert move_calls.count("move_room_playback") == 1
 
+
 async def test_robot_rebind_diagnostic_is_constant_and_contains_no_identifiers(fixture, caplog):
     rig, bridge, token = fixture
     first = await bridge.controls.setup(setup_body(bridge), token)
     bridge.controls.tasks[first["taskId"]]["renew_rule"] = {"actions": []}
     with caplog.at_level("WARNING", logger="gatekeeper.podview_controls"):
-        renewed = await bridge.controls.setup(setup_body(bridge, renewTaskId=first["taskId"]), token)
+        renewed = await bridge.controls.setup(
+            setup_body(bridge, renewTaskId=first["taskId"]), token
+        )
     assert renewed["setup"]["rebind"] == {"status": "not_restored"}
-    messages = [record.getMessage() for record in caplog.records if "robot_rebind_denied" in record.getMessage()]
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if "robot_rebind_denied" in record.getMessage()
+    ]
     assert messages == ["robot_rebind_denied reason=rule"]
     assert token not in messages[0] and first["taskId"] not in messages[0]
     assert not rig.writes

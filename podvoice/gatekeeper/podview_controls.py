@@ -1763,6 +1763,7 @@ class TouchControls:
         Native entity/area/value identities establish correspondence; presentation
         labels never establish authority. Any ambiguity rejects the entire mapping.
         """
+
         def reject(reason):
             # Static categories only: never log task IDs, entity IDs, values or tokens.
             _LOGGER.warning("robot_rebind_denied reason=%s", reason)
@@ -1782,11 +1783,46 @@ class TouchControls:
                 ("binding", lambda: source["binding"] == fresh["binding"]),
                 ("rule", lambda: source.get("renew_rule") == fresh.get("renew_rule")),
                 ("mutation", lambda: source.get("setup_mutation") is fresh.get("setup_mutation")),
-                ("boot", lambda: source.get("renew_boot") == fresh.get("renew_boot") == self.bridge.boot_id),
-                ("device", lambda: source.get("renew_device") is fresh.get("renew_device") and fresh.get("renew_device") is self.bridge.tools._device_control),
-                ("authority", lambda: source.get("renew_authority") is not None and source["renew_authority"] is fresh.get("renew_authority") and fresh["renew_authority"] is self._robot_draft_authority(fresh["room"], token)),
-                ("draft_identity", lambda: source.get("draft_identity") == fresh.get("draft_identity")),
-                ("draft_scope", lambda: "offered" not in source or source.get("draft_identity") is not None or (source.get("vacuum_transport_offer") is not None and not any(o["schema"]["kind"] == "cleaning" for o in source["options"].values()))),
+                (
+                    "boot",
+                    lambda: (
+                        source.get("renew_boot") == fresh.get("renew_boot") == self.bridge.boot_id
+                    ),
+                ),
+                (
+                    "device",
+                    lambda: (
+                        source.get("renew_device") is fresh.get("renew_device")
+                        and fresh.get("renew_device") is self.bridge.tools._device_control
+                    ),
+                ),
+                (
+                    "authority",
+                    lambda: (
+                        source.get("renew_authority") is not None
+                        and source["renew_authority"] is fresh.get("renew_authority")
+                        and fresh["renew_authority"]
+                        is self._robot_draft_authority(fresh["room"], token)
+                    ),
+                ),
+                (
+                    "draft_identity",
+                    lambda: source.get("draft_identity") == fresh.get("draft_identity"),
+                ),
+                (
+                    "draft_scope",
+                    lambda: (
+                        "offered" not in source
+                        or source.get("draft_identity") is not None
+                        or (
+                            source.get("vacuum_transport_offer") is not None
+                            and not any(
+                                o["schema"]["kind"] == "cleaning"
+                                for o in source["options"].values()
+                            )
+                        )
+                    ),
+                ),
             )
             for reason, valid in checks:
                 if not valid():
