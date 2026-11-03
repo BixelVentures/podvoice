@@ -29,10 +29,10 @@ _HEX = re.compile(r"[a-f0-9]{64}")
 _REF = re.compile(r"[a-f0-9]{16}")
 _BUILD = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
 _STAGES = frozenset(
-    "request observer sse freshness connection control_setup volume_setup control_action music_read playback_confirmation queue_read queue_action browser lifecycle control_state volume_state artwork".split()
+    "request observer sse freshness connection control_setup volume_setup control_action music_read playback_confirmation queue_read queue_action browser lifecycle control_state volume_state artwork robot_renewal".split()
 )
 _CODES = frozenset(
-    "start ok accepted unknown rejected http_denied http_transient http_error invalid_json timeout cancelled network failure invalid_dto stale_binding superseded empty unavailable matched unconfirmed expiry error cleanup disconnected connecting connected unhandled_rejection read_inflight intent_pending spent unknown_fence capability_missing unknown_value resource_error decode_error other busy scope_not_paired target_not_granted stale_setup setup_capacity setup_unavailable invalid_setup invalid_target".split()
+    "start ok accepted unknown rejected http_denied http_transient http_error invalid_json timeout cancelled network failure invalid_dto stale_binding superseded empty unavailable matched unconfirmed expiry error cleanup disconnected connecting connected unhandled_rejection read_inflight intent_pending spent unknown_fence capability_missing unknown_value resource_error decode_error other busy scope_not_paired target_not_granted stale_setup setup_capacity setup_unavailable invalid_setup invalid_target robot_rebind_same robot_rebind_context robot_rebind_denied robot_rebind_absent robot_rebind_invalid robot_rebind_draft robot_rebind_dialog robot_rebind_restored robot_authority_changed robot_offer_invalid robot_open_reset".split()
 )
 _ENDPOINTS = frozenset(
     "snapshot events home answers actions pair controller/renew controller/request controller/claim music source weather-advice control/setup control/actions music/queue/offer music/queue/actions music/selection/setup music/selection/actions other".split()

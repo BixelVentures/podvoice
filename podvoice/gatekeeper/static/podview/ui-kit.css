@@ -2356,10 +2356,11 @@ pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identit
 }
 
 /* Robot recovery: urgent faults and neutral maintenance have separate weight. */
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{padding:0;background:transparent;border-radius:0;box-shadow:none}
-.robot-urgent-issue{padding:var(--pv-s3);border-radius:var(--pv-r-l);background:var(--pv-screen-danger-surface)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{padding:0;gap:var(--pv-s4);background:transparent;border-radius:0;box-shadow:none}
+.robot-urgent-issue{padding:var(--pv-s4);border-radius:var(--pv-r-l);background:var(--pv-screen-danger-surface)}
+pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-urgent-issue .robot-error-code{margin-top:var(--pv-s1)}
 .pv-kit-disclosure[data-kit-layout=maintenance]{width:100%;border-radius:var(--pv-r-l);background:var(--pv-surface);overflow:hidden}
-.pv-kit-disclosure[data-kit-layout=maintenance]>.pv-kit.pv-kit-listrow{width:100%;min-height:var(--pv-hit);text-align:left;background:transparent;box-shadow:none}
+.pv-kit-disclosure[data-kit-layout=maintenance]>.pv-kit.pv-kit-listrow{width:100%;min-height:var(--pv-hit);padding:var(--pv-s3)!important;text-align:left;background:transparent;box-shadow:none}
 .pv-kit-disclosure[data-kit-layout=maintenance]>div:not([hidden]){display:grid;gap:0;padding:0 var(--pv-s3) var(--pv-s2)}
 .pv-kit-disclosure[data-kit-layout=maintenance-item]{border-top:1px solid var(--pv-line);background:transparent}
 .pv-kit-disclosure[data-kit-layout=maintenance-item]>.pv-kit.pv-kit-listrow{min-height:var(--pv-hit-min);padding:var(--pv-s2) 0!important;background:transparent;border-radius:0!important;box-shadow:none}
