@@ -228,7 +228,12 @@ async def test_ai_unavailable_does_not_disable_music_or_retry_model(catalogue, f
         selector.select.return_value = ["foreign", "foreign", "foreign"]
     result = await read(c.rig, kind="mood")
     assert result["ok"] is True
-    assert [row["themeId"] for row in result["data"]["tracks"]] == ["cooking", "italian", "calm"]
+    expected = (
+        ["cooking", "italian", "calm"]
+        if failure in {"clock_none", "clock_exception"}
+        else ["evening_jazz", "cooking", "italian"]
+    )
+    assert [row["themeId"] for row in result["data"]["tracks"]] == expected
     assert len(c.calls) == 6
     assert selector.select.await_count == int(
         failure not in {"budget", "clock_none", "clock_exception"}

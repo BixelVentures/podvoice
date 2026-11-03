@@ -3335,6 +3335,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 except Exception as error:
                     return error
 
+            mood_day_part = retained.get("day_part") if retained else None
             if (
                 retained
                 and retained["key"][1:3] == (account, room)
@@ -3358,7 +3359,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     chosen = None
                     try:
                         coarse = await tools.podview_mood_context(current)
-                        if coarse is not None and current() and selector.available:
+                        if current() and not selector.available:
+                            diagnostic_log.note("not_ready")
+                        elif coarse is not None and current():
                             chosen = await selector.select(coarse, current=current)
                     except TimeoutError:
                         diagnostic_log.note("owner_timeout")
@@ -3377,6 +3380,8 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                         for theme_id, theme in themes.items()
                     }
                     ids, coarse = await selection
+                    if coarse is not None:
+                        mood_day_part = day_part(coarse["hour"])
                     if current() and (
                         not isinstance(ids, list)
                         or len(ids) != 3
@@ -3388,22 +3393,23 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                             if retained and retained["key"][1:3] == (account, room)
                             else []
                         )
-                        ids = (
-                            retained_ids
-                            if (
-                                len(retained_ids) == 3
-                                and all(isinstance(x, str) and x in themes for x in retained_ids)
-                                and len(set(retained_ids)) == 3
-                            )
-                            else ["cooking", "italian", "calm"]
+                        retained_valid = (
+                            len(retained_ids) == 3
+                            and all(isinstance(x, str) and x in themes for x in retained_ids)
+                            and len(set(retained_ids)) == 3
                         )
-                        if current() and coarse is not None and isinstance(ids, list):
+                        ids = retained_ids if retained_valid else ["cooking", "italian", "calm"]
+                        if (
+                            current()
+                            and mood_day_part is not None
+                            and (not retained_valid or mood_day_part != retained.get("day_part"))
+                        ):
                             anchor = {
                                 "morning": "morning_acoustic",
                                 "afternoon": "indie",
                                 "evening": "evening_jazz",
                                 "night": "calm",
-                            }[day_part(coarse["hour"])]
+                            }[mood_day_part]
                             ids = [anchor, *(theme_id for theme_id in ids if theme_id != anchor)][
                                 :3
                             ]
@@ -3548,7 +3554,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 setattr(
                     bridge,
                     retained_attribute,
-                    {"key": key, "rows": copy.deepcopy(rows), "queries": chosen_queries},
+                    {
+                        "key": key,
+                        "rows": copy.deepcopy(rows),
+                        "queries": chosen_queries,
+                        "day_part": mood_day_part,
+                    },
                 )
                 diagnostic.outcome = "success"
                 return web.json_response(
@@ -3588,7 +3599,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             setattr(
                 bridge,
                 retained_attribute,
-                {"key": key, "rows": copy.deepcopy(rows), "queries": chosen_queries},
+                {
+                    "key": key,
+                    "rows": copy.deepcopy(rows),
+                    "queries": chosen_queries,
+                    "day_part": mood_day_part,
+                },
             )
             diagnostic.outcome = "success"
             return web.json_response(

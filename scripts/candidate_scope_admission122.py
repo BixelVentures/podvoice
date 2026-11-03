@@ -11,13 +11,14 @@ CANDIDATE = "e923374d078c8ca5acd4eef705b91a7d0c899ff9"
 CANDIDATE_TREE = "4f762ca0f736dea0a4bcf6e620337cb01b64bbe7"
 REVIEWER = "/root/music_release_check"
 RELEASE_PINS = {
+    "tests/integration/test_podview_playlist_resilience.py": "b316dc87df56a6ec8e61eae8564c7d125e9f14f1927f96739135baaa6b38e319",
     ".github/workflows/ci.yml": "e05af28a827fe78c202e455eeef1116da5fb2fd5ab05f488cac5e8ab95222abd",
     "docs/component-library-registry.json": "337e5d4f08bcf7a7a201c81942ffb6cf7d533c3548a4738bf54f811e655fd223",
     "podvoice/CHANGELOG.md": "8c3528848342da0140931524287e95d554417726e00230e63f56a252793292de",
     "podvoice/config.yaml": "ebfd65bd1d459707e9bfe4b6c7823f7aea9b121b86171206a350ccdb8523a849",
     "podvoice/gatekeeper/__init__.py": "c83b62510652886bd537a8e0c97ed32ec0c2585cc061573f9690ab0a9e519f52",
     "podvoice/gatekeeper/__main__.py": "7908a465a0adc288fa38e45f118d6875fe3462478abd99b90f8fd78b1fcb9a4f",
-    "podvoice/gatekeeper/podview.py": "e169de9f4c96097ee110d5f55303a37f710c312f73d71ae30b8f8eef9e7beeaa",
+    "podvoice/gatekeeper/podview.py": "e0fad5c8f10bd9a5cc0527ee74b61c2e4da5c337ec489ffd42b11c98b94ee45a",
     "podvoice/gatekeeper/podview_recipes.json": "26d887f6319964d69811575878a429bcad9afa41709b7579c2168b04c39dece6",
     "podvoice/gatekeeper/podview_theme_art.py": "fdecd0adcc536c0878adf05d8c887e03b251bb3686c380588f98efccc1cf81bc",
     "podvoice/gatekeeper/static/podview/asset-manifest.json": "0f939558aa92ef5e8de36b039e91c7a9ab10d751001cf6cedbd51fbe28a8d945",
@@ -89,9 +90,9 @@ def main() -> int:
     parser.add_argument("--base", required=True)
     args = parser.parse_args()
     if not validate(args.base):
-        print("candidate-scope FAIL: 2.0.121 robot review or exact source binding mismatch")
+        print("candidate-scope FAIL: 2.0.122 music and recipes review or exact source binding mismatch")
         return 1
-    print(f"candidate-scope PASS: exact 2.0.121 robot source reviewed by {REVIEWER}")
+    print(f"candidate-scope PASS: exact 2.0.122 music and recipes source reviewed by {REVIEWER}")
     return 0
 
 
