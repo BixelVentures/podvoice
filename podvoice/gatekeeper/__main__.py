@@ -71,9 +71,16 @@ def _setup_logging(cfg: Config) -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     redactor = _Redactor(
-        [cfg.openai_api_key, cfg.podconnect_token, cfg.voicepe_noise_psk, cfg.supervisor_token]
+        [
+            cfg.openai_api_key,
+            cfg.podconnect_token,
+            cfg.podconnect_radio_token.strip(),
+            cfg.voicepe_noise_psk,
+            cfg.supervisor_token,
+        ]
     )
-    logging.getLogger().addFilter(redactor)
+    for handler in logging.getLogger().handlers:
+        handler.addFilter(redactor)
     # Quiet the per-request access spam (the panel polls /api/status every 3s) so the
     # add-on Log tab shows meaningful events (settings saved, tool calls, errors).
     logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
@@ -440,7 +447,9 @@ async def run(cfg: Config) -> None:
     )
     from .podview_radio import NativeRadio
 
-    tools.podview_radio_native = NativeRadio(cfg.podconnect_base_url, cfg.podconnect_token)
+    tools.podview_radio_native = NativeRadio(
+        cfg.podconnect_base_url, cfg.podconnect_radio_token.strip() or cfg.podconnect_token
+    )
     tools.podview_weather_city = cfg.podview_weather_city
     from .podview_weather_advice import MODEL, FastWeatherAdviceProvider
     from .podview_weather_budget import WeatherAllowance as WeatherAdviceAllowance
