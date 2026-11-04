@@ -19,6 +19,9 @@ const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let 
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server startup');await sleep(100)}
  browser=await chromium.launch(testEnv.browserOptions());
  const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],homeRequests=[];
+ let releaseInitialSetup,initialSetupHeld=false;
+ const initialSetupGate=new Promise(resolve=>{releaseInitialSetup=resolve});
+ await page.route('**/view/api/control/setup',async route=>{const response=await route.fetch();if(!initialSetupHeld){initialSetupHeld=true;await initialSetupGate;}await route.fulfill({response});});
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(new URL(r.url()).pathname==='/view/api/home')homeRequests.push(Date.now())});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
@@ -30,7 +33,17 @@ const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let 
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSnapshot?.homeRevision&&h.liveHomePending===false},undefined,{timeout:15000});
  for(let n=0;(await state()).subscriptions<4;n++){if(n>100)throw Error('HA subscription ACKs missing');await sleep(100)}
  await sleep(300);
- const baseButton=panel.getByRole('button',{name:'Base',exact:true});await baseButton.focus();const beforeGeometry=await baseButton.boundingBox();
+ assert(initialSetupHeld,'the first actual setup response is held');
+ const baseButton=panel.getByRole('button',{name:'Base',exact:true});await baseButton.tap();await baseButton.focus();
+ assert(await baseButton.evaluate(b=>b.ownerDocument.activeElement===b),'Base is focused before setup completion');
+ assert.equal(await baseButton.getAttribute('aria-expanded'),'true','touch opens Base while setup is held');
+ console.log('heldSetupBefore',await panel.evaluate(p=>({task:p.value?.task?.taskId,focused:document.activeElement===p.baseDisclosure?.trigger,expanded:p.baseDisclosure?.trigger.getAttribute('aria-expanded')})));
+ releaseInitialSetup();await page.waitForFunction(()=>!!document.querySelector('pv-robot-control-panel')?.value?.task,undefined,{timeout:10000});
+ console.log('heldSetupAfter',await panel.evaluate(p=>({task:p.value?.task?.taskId,focused:document.activeElement===p.baseDisclosure?.trigger,expanded:p.baseDisclosure?.trigger.getAttribute('aria-expanded')})));
+ assert(await baseButton.evaluate(b=>b.ownerDocument.activeElement===b),'focus survives first setup completion');
+ assert.equal(await baseButton.getAttribute('aria-expanded'),'true','touch-open Base survives first setup completion');
+ await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-base-first-setup-retained.png')});
+ await baseButton.tap();await baseButton.focus();const beforeGeometry=await baseButton.boundingBox();
  await baseButton.evaluate(b=>{b.dataset.testContinuity='retained'});
  const before=await page.locator('pv-widget-host').evaluate(h=>h.liveSnapshot.homeRevision);
  const readsBefore=homeRequests.length;
@@ -95,7 +108,7 @@ const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let 
  for(let n=0;n<60;n++){journal=await readOwnerJournal(page);if(journal.records?.some(record=>record.row.stage==='home_read'&&record.row.code==='ok'&&record.row.readHash))break;await sleep(250);}
  const read=journal.records.map(record=>record.row).find(row=>row.stage==='home_read'&&row.code==='ok'&&row.readHash);assert(read,'actual HA event read is persisted');assert.equal(read.source,'home_assistant');assert.equal(read.trust,'state_observation');assert(journal.records.some(record=>record.row.stage==='request'&&record.row.endpoint==='home'&&record.row.code==='ok'&&record.row.readHash===read.readHash),'owner and actual HTTP read share local diagnostic correlation');await fs.writeFile(path.join(testEnv.artifactDir(),'podview-home-read-journal.json'),JSON.stringify(journal,null,2));
  assert.deepEqual(errors,[]);assert.deepEqual((await state()).writes,[]);
- console.log(JSON.stringify({outcome:'PASS',persistedHomeReadJournal:true,actualPackagedPodView:true,actualHAWebSocketProtocol:true,inertHAEntities:true,haShellProtocolFixture:true,adminRoundTrip:true,stableParentRouteReload:true,externalUpdateLatencyMs:latency,unrelatedEventIgnored:true,focusRetained:true,domRetained,controlGeometryRetained:true,burstFollowup:true,reconnect:true,serviceWrites:0,pageErrors:errors}));
+ console.log(JSON.stringify({outcome:'PASS',persistedHomeReadJournal:true,actualPackagedPodView:true,actualHAWebSocketProtocol:true,inertHAEntities:true,haShellProtocolFixture:true,adminRoundTrip:true,stableParentRouteReload:true,externalUpdateLatencyMs:latency,unrelatedEventIgnored:true,focusRetained:true,firstSetupTouchDisclosureRetained:true,domRetained,controlGeometryRetained:true,burstFollowup:true,reconnect:true,serviceWrites:0,pageErrors:errors}));
  }catch(error){const page=browser?.contexts()[0]?.pages()[0];if(page){await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-home-events-failure.png')});console.log('failureState',JSON.stringify({server:await state(),ui:await page.locator('body').innerText(),debug:await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,active:document.activeElement?.outerHTML?.slice(0,400),status:h.liveStatus,pending:h.liveHomePending,clicks:window.homeTestClicks,revision:h.liveSnapshot?.homeRevision}))}))}throw error;
  }finally{if(browser)await browser.close();if(server&&server.exitCode===null){const done=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await done;}}
 })().catch(e=>{console.error(e);process.exitCode=1});

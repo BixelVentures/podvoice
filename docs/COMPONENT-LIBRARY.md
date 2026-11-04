@@ -2,6 +2,8 @@
 
 Toast bliver i én eksisterende fixed portal uden flowplads. Dens normale anker er nederst i den aktive venstre indholdskolonne; Ro bruger sin eksisterende placering over widgetrækken. Ved kollision beskyttes reelle kommando-/felthitboxes samt navigationskortets tekst og artwork. Samme portal flyttes kun vertikalt til nærmeste frie plads inden for kolonnen. Ingen midlertidig feedbackrække indsættes/fjernes i grid ved berøring, og ingen generisk toast skriver i en anden komponents statusrolle. Connection Retry bevarer sin eksisterende handling. Pointerdown→touchstart og dismissal må ikke flytte den berørte kontrol; en uløst faktisk kollision er fortsat et åbent fund.
 
+Robotens eksisterende Base-disclosure bevarer åben tilstand og faktisk fokus gennem første setup og passiv fornyelse inden for samme boot, rum, robot og transportidentitet/-generation. Dette er præsentationskontinuitet; task-, draft- og handlingsmyndighed valideres fortsat særskilt. Grænseskift, disconnected/stale og flyttet fokus må ikke arve eller stjæle fokus. LiveControlView må ikke kortvarigt blanket-deaktivere panel-ejede kontroller før RobotControlPanels egne synkrone task-/direct-actionguards. Bibliotek og produkt deler de samme ejere og uændrede visuelle tokens.
+
 Registerets tilføjede lokale `free`/`visible`-prædikater tilhører WidgetHosts eksisterende geometri-ejer. LiveControlViews tre journalmetoder er begrænset telemetri ved eksisterende kommando-/observationsforløb og konstruerer ingen DOM. Ingen nye komponentfamilier, tags, containere eller renderere er tilføjet; eksisterende anatomi og ejerskab består.
 
 # Radio · fælles player og feedback ·3 november2026
