@@ -2,7 +2,7 @@
 
 - Renew robot controls earlier and preserve eligible room selections on reopening.
 - Record bounded server stage and rejection reasons when robot control renewal cannot be restored.
-- Import supported recipe links automatically and retain upload status/history.
+- Import supported recipe links automatically and retain upload status/history (HA companion 0.1.15).
 - Keep Find musik loading rows aligned with their loaded layout and admit verified Spotify playlist cover hosts.
 - Keep the first connection render safe before radio observations arrive.
 
