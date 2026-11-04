@@ -8,8 +8,8 @@ from pathlib import Path
 
 BASE = "37680d1831ce26fd1c41a82a19a35482435b2ece"
 BASE_TREE = "9198748c8a2e1d4bb675473ad38eb4cb460ff719"
-CANDIDATE = "b0008c6e37ccb60f45a2b4f8cc8c6712d668ec9b"
-CANDIDATE_TREE = "bd4907172d55293645368433f767bf2fe4f517cf"
+CANDIDATE = "b11f3ef3fe672c48afb1ccc7e58615a572ca69b5"
+CANDIDATE_TREE = "49b63c132c310f643401acb6883e7a3448c47b3f"
 REVIEWER = "/root/backend_review, /root/ha_admission_review and /root"
 RELEASE_PINS = {
     "custom_components/podvoice/manifest.json": "444efd499153a715c3f88cac803e289fdfee486876c151d1e9fff89b0f993ace",
