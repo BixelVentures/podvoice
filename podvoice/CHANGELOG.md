@@ -1,3 +1,7 @@
+## 2.0.124
+
+- Accept private recipe links and return review decisions to the iPhone shortcut.
+
 ## 2.0.123
 
 - Support a dedicated PodConnect transport credential for radio.

@@ -2,7 +2,7 @@
 # Production behavior follows docs/INVARIANTER.md; tunable defaults live in
 # gatekeeper/settings.py and operational constants in gatekeeper/constants.py.
 name: PodVoice
-version: "2.0.123"
+version: "2.0.124"
 slug: podvoice
 description: GPT-Live full-duplex voice assistant for custom-firmware Voice PE
 arch:
@@ -25,6 +25,7 @@ panel_title: PodVoice
 # URL/token, Voice-PE PSK, rooms and tuning) is edited in the panel's
 # Settings page and stored in the add-on's /data (see settings.py).
 options:
+  recipe_upload_token: ""
   openai_api_key: ""
   podview_visual_policy: ""
   podview_visual_grant: ""
@@ -44,6 +45,7 @@ options:
   podview_pairing_room: ""
   podview_pairing_sha256: ""
 schema:
+  recipe_upload_token: "password?"
   openai_api_key: "password?"
   podview_visual_policy: "str?"
   podview_visual_grant: "str?"

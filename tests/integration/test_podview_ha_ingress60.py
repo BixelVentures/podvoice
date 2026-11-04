@@ -795,3 +795,48 @@ async def test_recipe_catalog_uses_provisioned_owner_format_without_exposing_sub
     assert response.status == 503
     assert (await response.json())["error"] == "recipes_unavailable"
     assert path.read_text() == "broken"
+
+
+async def test_recipe_rejection_through_ha_ingress(ingress):
+    endpoint = "/view/api/recipe-submissions"
+    body = {"url": "https://example.org/recipe"}
+    response = await ingress.client.post(endpoint, headers=HEADERS, json=body)
+    assert response.status == 202
+    receipt = await response.json()
+    rejected = {**body, "reason": "not_recipe"}
+    response = await ingress.client.patch(
+        endpoint, headers={"X-Remote-User-Id": HEADERS["X-Remote-User-Id"]}, json=rejected
+    )
+    assert response.status == 403
+    response = await ingress.client.patch(endpoint, headers=HEADERS, json=rejected)
+    assert response.status == 200
+    rejection = await response.json()
+    assert rejection["status"] == "rejected"
+    response = await ingress.client.get(
+        "/view/api/recipe-status", headers=HEADERS, params={"id": receipt["id"]}
+    )
+    assert await response.json() == rejection
+    response = await ingress.client.post(endpoint, headers=HEADERS, json=body)
+    assert response.status == 200
+    assert await response.json() == rejection
+    response = await ingress.client.get("/view/api/recipes", headers=HEADERS)
+    assert len((await response.json())["recipes"]) == 8
+
+
+async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingress):
+    ingress.bridge.recipe_upload_token = "x" * 32
+    headers = {"Authorization": "Bearer " + "x" * 32}
+    path = "/internal/recipes/submissions"
+    body = {"url": "https://example.org/shared"}
+    assert (await ingress.client.post(path, headers=headers, json=body)).status == 403
+    ingress.peer[0] = "127.0.0.1"
+    assert (await ingress.client.post(path, json=body)).status == 403
+    assert (await ingress.client.patch(path, headers=headers, json=body)).status == 405
+    submitted = await ingress.client.post(path, headers=headers, json=body)
+    assert submitted.status == 202
+    receipt = await submitted.json()
+    status = await ingress.client.get(
+        "/internal/recipes/status", headers=headers, params={"id": receipt["id"]}
+    )
+    assert await status.json() == receipt
+    assert (await ingress.client.get("/view/api/recipe-submissions", headers=headers)).status == 403
