@@ -446,9 +446,42 @@ class VehicleSnapshot:
                 "timestamps": {},
                 "observedAt": None,
             }
+        # The separately configured HA cabin sensor may report after the Fleet
+        # climate block. Its timestamp updates that field only, never climate state.
+        cabin = None
+        eid = entities.get("temperatureC")
+        if eid:
+            state_machine = getattr(self.hass, "states", None)
+            state = state_machine.get(eid) if state_machine is not None else None
+            try:
+                stamp = state.last_reported.timestamp()
+                unit = state.attributes.get("unit_of_measurement")
+                value = float(state.state) if isinstance(state.state, str) else math.nan
+                if unit == "°F":
+                    value = (value - 32) * 5 / 9
+                if (
+                    state.entity_id == eid
+                    and unit in {"°C", "°F"}
+                    and _number(value, -50, 70)
+                    and _number(stamp, 1, time.time())
+                    and time.time() - stamp <= TTL
+                ):
+                    cabin = {"value": value, "observedAt": stamp}
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                pass
         # Serialize HA Store reads/writes; identity remains bound across each await.
         async with self._history_lock:
             current_fields = _flatten_vehicle(data, stamps, defrost_stamp, climate_stamp)
+            if cabin and cabin["observedAt"] > current_fields.get("climate.temperatureC", {}).get(
+                "observedAt", 0
+            ):
+                current_fields["climate.temperatureC"] = cabin
+                _put_field(data, "climate.temperatureC", cabin["value"])
+                stamps["climate_state"] = min(
+                    stamps.get("climate_state", cabin["observedAt"]), cabin["observedAt"]
+                )
+                if not result["sourceIdentity"].endswith("_and_ha_state"):
+                    result["sourceIdentity"] += "_and_ha_state"
             current_data, current_stamps = copy.deepcopy(data), dict(stamps)
             scope_key = hashlib.sha256(
                 json.dumps(

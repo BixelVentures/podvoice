@@ -552,3 +552,79 @@ async def test_failed_load_after_owner_replacement_cannot_return_observation(rig
     release.set()
     result = await pending
     assert result["status"] == "unavailable" and result["data"] is None
+
+
+@pytest.mark.parametrize(
+    "sensor_state,sensor_unit,sensor_age,sensor_id,expected",
+    [
+        ("8.9", "°C", 3, "sensor.inside", 8.9),
+        ("48.02", "°F", 3, "sensor.inside", 8.9),
+        ("unknown", "°C", 3, "sensor.inside", 8.1),
+        (True, "°C", 3, "sensor.inside", 8.1),
+        ("8.9", "K", 3, "sensor.inside", 8.1),
+        ("8.9", "°C", 4000, "sensor.inside", 8.1),
+        ("8.9", "°C", 3, "sensor.other", 8.1),
+    ],
+)
+async def test_newer_scoped_ha_cabin_sensor_updates_old_fleet_temperature_without_climate_authority(
+    rig, monkeypatch, sensor_state, sensor_unit, sensor_age, sensor_id, expected
+):
+    from datetime import datetime
+
+    stored = {}
+
+    class Store:
+        async def async_load(self):
+            return copy.deepcopy(stored.get("data"))
+
+        async def async_save(self, data):
+            stored["data"] = copy.deepcopy(data)
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: Store())
+    for role, eid in (("temperatureC", "sensor.inside"), ("climate", "climate.car")):
+        rig.entities[role] = eid
+        rig.rows[eid] = NS(
+            id=role,
+            platform="tesla_fleet",
+            config_entry_id="fleet",
+            device_id="car",
+            disabled_by=None,
+            translation_key=snapshot.ROLES[role][1],
+        )
+    rig.frame["climate_state"] = {
+        "timestamp": (rig.now - 3600) * 1000,
+        "inside_temp": 8.1,
+        "is_climate_on": False,
+    }
+    sensor = NS(
+        entity_id=sensor_id,
+        state=sensor_state,
+        attributes={"unit_of_measurement": sensor_unit},
+        last_reported=datetime.fromtimestamp(rig.now - sensor_age, UTC),
+    )
+    unknown_climate = NS(
+        entity_id="climate.car",
+        state="unknown",
+        attributes={"current_temperature": None},
+        last_reported=datetime.fromtimestamp(rig.now - 2, UTC),
+    )
+    rig.hass.states = NS(
+        get=lambda eid: {"sensor.inside": sensor, "climate.car": unknown_climate}.get(eid)
+    )
+    result = await rig.owner.async_read(rig.call)
+    assert result["data"]["climate"]["temperatureC"] == pytest.approx(expected)
+    assert result["fieldObservedAt"]["climate.temperatureC"] == rig.now - (
+        sensor_age if expected == 8.9 else 3600
+    )
+    assert result["fieldObservedAt"]["climate.status"] == rig.now - 3600
+    assert result["observedAt"] == rig.now - 3600
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+    projected = await addon.read_snapshot(
+        scope, service_read=lambda _: rig.owner.async_read(rig.call), current=lambda: True
+    )
+    assert projected["data"]["climate"]["temperatureC"] == pytest.approx(expected)
+    assert projected["fieldObservedAt"]["climate.temperatureC"] == rig.now - (
+        sensor_age if expected == 8.9 else 3600
+    )

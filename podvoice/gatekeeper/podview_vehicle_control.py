@@ -186,6 +186,27 @@ class VehicleControl:
         state = row.get("state")
         if state in (None, "unavailable"):
             raise ValueError("vehicle state unavailable")
+        # Climate owns its dependent controls. Recheck at prepare AND the
+        # adapter's last-send preflight; a stale UI offer cannot turn it on.
+        if action in {
+            "temperature",
+            "defrostOn",
+            "defrostOff",
+            "driverSeatHeat",
+            "passengerSeatHeat",
+        }:
+            climate_id = dict(scope.entities).get("climate")
+            if climate_id is None:
+                raise ValueError("climate dependency unavailable")
+            climate = row if eid == climate_id else await self.state_read(climate_id)
+            _bounded(climate)
+            if (
+                not self._current(expected, current)
+                or not isinstance(climate, dict)
+                or climate.get("entity_id") != climate_id
+                or climate.get("state") != "heat_cool"
+            ):
+                raise ValueError("climate must be on")
         capability: tuple = ()
         if role == "lock" and state not in {"locked", "unlocked"}:
             raise ValueError("vehicle state unknown")

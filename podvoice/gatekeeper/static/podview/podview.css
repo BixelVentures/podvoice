@@ -2964,7 +2964,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 3e5ea476a8b592abb22780f868d010daac89bd4d72c858154366279d38babdb7 */
+/* Source: ui-kit.css · SHA256 81b2be32235aaec77bfacc210f7a3f10a6962b646aa4a82fca279b2855546aef */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -3416,6 +3416,9 @@ input,textarea{caret-color:var(--pv-ink)}
 .pv-kit-listrow{display:flex;align-items:center;min-height:var(--pv-hit);gap:var(--pv-s2);padding:var(--pv-s2);background:var(--pv-surface-2);color:var(--pv-ink);font:var(--pv-t-body);text-align:left;border:0}
 /* Selected ListRow is the whole retained row; inset border preserves geometry. */
 .pv-kit-listrow[aria-pressed=true],#room-options>.pv-kit-listrow[aria-pressed=true],#music-detail #queue .queue-track[aria-current=true]{background:var(--pv-line);color:var(--pv-ink);box-shadow:none}
+.pv-kit-listrow[data-kit-variant=resume][aria-current=true]{background:var(--pv-dark);color:var(--pv-on-dark)}
+.pv-kit-listrow[data-kit-variant=resume][aria-current=true] :is(strong,small){color:inherit}
+#recipe-view .pv-kit-listrow[data-kit-variant=resume][aria-current=true]>img{width:var(--pv-card-art-m);height:var(--pv-card-art-m)}
 .pv-kit-sectionheader{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);color:var(--pv-ink)}
 .pv-kit-topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);color:var(--pv-ink)}
 .pv-kit-topbar :is(h1,h2){font:var(--pv-t-title);color:inherit;margin:0}
@@ -3827,7 +3830,7 @@ pv-widget-host #device-view [data-robot-rooms=true] pv-robot-control-panel .robo
 #answer-host>pv-answer.answer-widget .pv-visual-lead>.pv-conclusion::before{display:none;content:none}
 pv-widget-host[data-view=active] .player.pv-card>.transport:has(>#previous[hidden]):has(>#next[hidden]){justify-content:center}
 /* Detail scrollports reserve a shared gutter so card shadows survive clipping. */
-pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail,#recipe-view):not([hidden]){padding-inline:var(--pv-s2);box-sizing:border-box}
+pv-widget-host[data-view=active] .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail):not([hidden]){padding-inline:var(--pv-s2);box-sizing:border-box}
 
 
 
@@ -3932,7 +3935,7 @@ pv-widget-host[data-topbar=true] #music-response>.response-heading{display:none}
 pv-widget-host #music-response .music-result-summary{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;padding:0;margin:0}
 pv-widget-host #music-response>.music-refresh-message{order:9;flex:none;grid-column:1;grid-row:3;align-self:center;min-width:0;max-width:none;max-height:var(--pv-hit);overflow-y:auto;margin:0;padding:0;font:var(--pv-t-meta);line-height:20px;text-align:left;overflow-wrap:anywhere;color:var(--pv-ink-2)}
 pv-widget-host #music-response>.music-refresh-message[data-refresh-outcome=error]{color:var(--pv-danger)}
-pv-widget-host #music-response>.music-refresh-footer{order:10;grid-column:2;grid-row:3;align-self:center;justify-self:end;flex:none;height:var(--pv-hit);min-height:var(--pv-hit);max-height:var(--pv-hit);margin:0;padding:0 var(--pv-s3);font:var(--pv-t-body);border-radius:var(--pv-r-pill);background:var(--pv-surface-2);width:208px;min-width:208px;justify-content:center;box-sizing:border-box}
+pv-widget-host #music-response :is(.music-refresh-footer){order:10;grid-column:2;grid-row:3;align-self:center;justify-self:end;flex:none;height:var(--pv-hit);min-height:var(--pv-hit);max-height:var(--pv-hit);margin:0;padding:0 var(--pv-s3);font:var(--pv-t-body);border-radius:var(--pv-r-pill);background:var(--pv-surface-2);width:208px;min-width:208px;justify-content:center;box-sizing:border-box}
 pv-widget-host #music-response .result-inner,pv-widget-host #music-response #result-list{height:auto}
 /* The existing status and retry button share reserved footer tracks. Revealing
    a refresh error cannot append a row or displace the retained result cards. */
@@ -4561,23 +4564,24 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not(
 #answer-host>pv-answer.answer-widget :is(.sources,.answer-source-menu)>summary:focus:not(:focus-visible){outline:none!important}
 #answer-host>pv-answer.answer-widget :is(.sources,.answer-source-menu)[open]{border-top:0!important}
 
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-recipes,#home-radio)[data-overview-size=s]{min-height:var(--pv-card-row-height);background:var(--pv-surface-2)}
 /* Card.status S/M contract. Fixed role anchors are shared by all domains and
    ready/stale/pending/error/unavailable states. Width changes; role y does not. */
 :root{--pv-card-primary-y:72px;--pv-card-secondary-y:106px}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media]):not([hidden]){position:relative;display:block!important;--pv-card-status-y:var(--pv-card-primary-y)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):not([data-media-layout=media])>:is(.resource-label,span)>.resource-value:not([hidden]){display:block!important;position:absolute!important;inset:var(--pv-card-primary-y) var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;grid-area:auto!important;align-self:start!important;box-sizing:border-box!important;min-width:0!important;width:auto!important;min-height:0!important;height:26px!important;max-height:26px!important;margin:0!important;padding:0!important;font:var(--pv-t-label)!important;line-height:26px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(.resource-label,span)>small:not([hidden]){position:absolute!important;inset:var(--pv-card-status-y) var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;grid-area:auto!important;width:auto!important;max-width:calc(100% - var(--pv-s3) - var(--pv-card-copy-right,var(--pv-s3)))!important;justify-self:stretch!important;box-sizing:border-box!important;min-height:0!important;height:var(--pv-card-status-leading,24px)!important;max-height:var(--pv-card-status-leading,24px)!important;margin:0!important;padding:0!important;font:var(--pv-card-status-font,var(--pv-t-body))!important;line-height:var(--pv-card-status-leading,24px)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important;color:var(--pv-card-secondary-ink,var(--pv-ink-2))!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):has(>span>.resource-value:not([hidden]))>:is(.resource-label,span)>small:not([hidden]){top:var(--pv-card-secondary-y)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes,#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media]):not([hidden]){position:relative;display:block!important;--pv-card-status-y:var(--pv-card-primary-y)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes):not([data-media-layout=media])>:is(.resource-label,span)>.resource-value:not([hidden]){display:block!important;position:absolute!important;inset:var(--pv-card-primary-y) var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;grid-area:auto!important;align-self:start!important;box-sizing:border-box!important;min-width:0!important;width:auto!important;min-height:0!important;height:26px!important;max-height:26px!important;margin:0!important;padding:0!important;font:var(--pv-t-label)!important;line-height:26px!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes,#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(.resource-label,span)>small:not([hidden]){position:absolute!important;inset:var(--pv-card-status-y) var(--pv-card-copy-right,var(--pv-s3)) auto var(--pv-s3)!important;grid-area:auto!important;width:auto!important;max-width:calc(100% - var(--pv-s3) - var(--pv-card-copy-right,var(--pv-s3)))!important;justify-self:stretch!important;box-sizing:border-box!important;min-height:0!important;height:var(--pv-card-status-leading,24px)!important;max-height:var(--pv-card-status-leading,24px)!important;margin:0!important;padding:0!important;font:var(--pv-card-status-font,var(--pv-t-body))!important;line-height:var(--pv-card-status-leading,24px)!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis;transform:none!important;color:var(--pv-card-secondary-ink,var(--pv-ink-2))!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes):has(>span>.resource-value:not([hidden]))>:is(.resource-label,span)>small:not([hidden]){top:var(--pv-card-secondary-y)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio)[data-media-layout=compact]:not([data-kit-size=l])>span>small:not([hidden]),pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card:not([data-kit-size=l])>#open-timers>span>small:not([hidden]){font:var(--pv-t-label)!important;line-height:26px!important;height:26px!important;max-height:26px!important}
 
 /* Header and copy are anchored to the same Card box; no inherited grid-area
    may redefine an absolutely positioned role's containing block. */
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(img:first-child,.resource-visual){position:absolute;left:var(--pv-s3);top:var(--pv-s3)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(.resource-label,span)>strong{position:absolute;left:calc(var(--pv-s3) + var(--pv-icon-m) + var(--pv-s2));right:var(--pv-s3);top:27px;margin:0!important;padding:0!important;line-height:26px}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l])):has(>span>.resource-value:not([hidden])){--pv-card-status-y:var(--pv-card-secondary-y)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes,#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(img:first-child,.resource-visual){position:absolute;left:var(--pv-s3);top:var(--pv-s3)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes,#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media])>:is(.resource-label,span)>strong{position:absolute;left:calc(var(--pv-s3) + var(--pv-icon-m) + var(--pv-s2));right:var(--pv-s3);top:27px;margin:0!important;padding:0!important;line-height:26px}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes):has(>span>.resource-value:not([hidden])){--pv-card-status-y:var(--pv-card-secondary-y)}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card:not([data-kit-size=l])>#open-timers>span>small{color:var(--pv-on-dark)!important}
 
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media]):has(>span>.resource-value:not([hidden])){--pv-card-status-y:var(--pv-card-secondary-y)}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card:not([data-kit-size=l])>.resource-preview:not([data-kit-size=l]),.resource-preview[data-kit-size=s],.resource-preview[data-kit-size=m],#home-vehicle:not([data-kit-size=l]),#home-recipes,#home-radio[data-media-layout=compact]:not([data-kit-size=l]),#home-music[data-media-layout=compact]:not([data-kit-size=l]),#timer-card:not([data-kit-size=l])>#open-timers):not([data-media-layout=media]):has(>span>.resource-value:not([hidden])){--pv-card-status-y:var(--pv-card-secondary-y)}
 pv-widget-host #timer-card>#open-timers{--pv-card-secondary-ink:var(--pv-on-dark)}
 
 /* Discovery Card: an invariant square art frame, fixed copy and action slots.
@@ -4598,7 +4602,7 @@ pv-widget-host[data-topbar=true] .view-nav #show-photo[data-navigation=rest] img
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=m]>.resource-preview,.resource-preview[data-kit-size=m],#home-vehicle[data-kit-size=m])>.resource-facts:not([hidden]){position:absolute;left:52%;right:var(--pv-s3);top:var(--pv-card-primary-y);max-height:80px;overflow:hidden;margin:0!important;padding:0!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=s]>.resource-preview,.resource-preview[data-kit-size=s])>.resource-facts{display:none!important}
 /* Entry copy uses the same semibold role on Radio and idle Timer. */
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-radio[data-media-layout=compact],#timer-card>#open-timers)>span>small:not([hidden]){font:var(--pv-card-status-font,var(--pv-t-label))!important;line-height:var(--pv-card-status-leading,26px)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-recipes,#home-radio[data-media-layout=compact],#timer-card>#open-timers)>span>small:not([hidden]){font:var(--pv-card-status-font,var(--pv-t-label))!important;line-height:var(--pv-card-status-leading,26px)!important}
 
 /* The same compact reading roles retain a separate secondary slot for entry
    guidance. A larger width cannot place guidance on top of its primary text. */
@@ -4624,7 +4628,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(img:first-child,.resource-visual){position:absolute;inset:var(--pv-s3) auto auto var(--pv-s3);grid-area:auto}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>strong{position:absolute;inset:27px var(--pv-s3) auto 72px;grid-area:auto;margin:0;padding:0;line-height:26px}
 #music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy small:not(:empty){display:block;margin-top:var(--pv-s1);font:var(--pv-t-meta);line-height:20px;color:var(--pv-ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-pv-widget-host #now-view :is(#home-radio[data-media-layout=compact],#timer-card>#open-timers){--pv-card-status-font:var(--pv-t-label);--pv-card-status-leading:26px}
+pv-widget-host #now-view :is(#home-recipes,#home-radio[data-media-layout=compact],#timer-card>#open-timers){--pv-card-status-font:var(--pv-t-label);--pv-card-status-leading:26px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-label>small:not([hidden]){color:var(--pv-ink-2)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])>.resource-facts{color:var(--pv-ink-2)}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l])[data-kit-state=unavailable]>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>:is(.resource-value,small):not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;max-height:48px!important;height:auto!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
@@ -5365,6 +5369,9 @@ pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame{grid-tem
 pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame>aside{display:none}
 @media(max-width:760px){#recipe-view [data-recipe-layout=detail]{grid-template-columns:minmax(0,1fr)}}
 
+#recipe-view>.response-heading h1[tabindex="-1"]:focus{outline:none}
+#recipe-view [data-recipe-layout=controls]:not([hidden]){display:flex;justify-content:flex-start;flex-wrap:wrap;gap:var(--pv-s2)}
+
 /* The recipe detail uses the same group and card insets as the device details. */
 pv-widget-host[data-view=active] #recipe-view:not([hidden]){background:transparent;box-shadow:none;padding:0 0 var(--pv-control-card-inset);gap:var(--pv-control-section-gap)}
 #recipe-view>.response-heading{padding:0;min-height:0;gap:var(--pv-control-row-gap)}
@@ -5381,6 +5388,22 @@ pv-widget-host[data-view=active] #recipe-view:not([hidden]){background:transpare
 #recipe-view [data-recipe]:has(>img){gap:var(--pv-control-row-gap)}
 #recipe-view [data-kit=card]>[data-kit=card]{padding:0;box-shadow:none;border:0;background:transparent}
 #recipe-view [data-kit=card]:has(>[data-kit=card]){gap:var(--pv-control-section-gap)}
+pv-widget-host[data-topbar=true][data-view=active]:has(#recipe-view:not([hidden])) .view-nav{position:sticky;top:0}
+#recipe-view [data-recipe-layout=reading]>[data-recipe-layout=source]{grid-column:1/-1}
+#recipe-view [data-recipe-layout=source]>div:not([hidden]){padding-inline:var(--pv-s2)}
+#recipe-view [data-recipe-layout=reading] ol{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-control-row-gap);margin:0;padding:0;list-style:none}
+#recipe-view [data-recipe-layout=reading] li{
+ display:grid;grid-template-columns:var(--pv-icon-s) minmax(0,1fr);
+ column-gap:var(--pv-s1);padding:var(--pv-s1);overflow-wrap:anywhere;
+}
+#recipe-view [data-recipe-layout=reading] li>[data-recipe-step-number]{grid-column:1;grid-row:1;text-align:center;position:relative;align-self:start}
+#recipe-view [data-recipe-layout=reading] li>:is(h3,p,button){grid-column:2}
+#recipe-view [data-recipe-layout=reading] li:not(:has(>h3)):has(>button:not([hidden]))>[data-recipe-step-number]{margin-block-start:var(--pv-s1)}
+#recipe-view [data-recipe-layout=reading] li>h3{margin-block-end:var(--pv-s1)}
+#recipe-view [data-recipe-layout=reading] li[aria-current=step]{background:var(--pv-surface-2);border-radius:var(--pv-r-s);box-shadow:inset 0 0 0 1px var(--pv-ink-2)}
+#recipe-view [data-recipe-layout=reading] li[data-completed=true]>:is(p,button){text-decoration:line-through;text-decoration-thickness:.08em}
+#recipe-view [data-recipe-layout=reading] li[data-completed=true]>[data-recipe-step-number]::after{content:"✓" / "";position:absolute;inset-block-start:100%;inset-inline:0}
+
 #recipe-view [data-recipe-layout=reading] li>button.pv-kit-button{
  display:grid;align-content:start;width:100%;min-height:var(--pv-hit);padding:var(--pv-s1) 0;
  background:transparent;color:var(--pv-ink);box-shadow:none;border-radius:var(--pv-r-s);
@@ -5405,6 +5428,24 @@ pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::after{w
 }
 
 
+.pv-kit-disclosure[data-kit-layout=card-header]>.pv-kit.pv-kit-listrow{
+ width:calc(100% + 2 * var(--pv-control-card-inset));
+ margin:calc(-1 * var(--pv-control-card-inset)) calc(-1 * var(--pv-control-card-inset)) 0;
+ padding:var(--pv-control-card-inset) var(--pv-control-card-inset) 0!important;
+ min-height:calc(var(--pv-hit) + var(--pv-control-card-inset));
+ background:transparent;
+ border-radius:var(--pv-r-l) var(--pv-r-l) 0 0!important;
+}
+.pv-kit-disclosure[data-kit-layout=card-header]>.pv-kit.pv-kit-listrow[aria-expanded=false]{
+ margin-block-end:calc(-1 * var(--pv-control-card-inset));
+ padding-block-end:var(--pv-control-card-inset)!important;
+ min-height:calc(var(--pv-hit) + 2 * var(--pv-control-card-inset));
+ border-radius:var(--pv-r-l)!important;
+}
+.pv-kit-disclosure[data-kit-layout=card-header]>.pv-kit-listrow>[data-kit-slot=copy]{align-self:start}
+.pv-kit-disclosure[data-kit-layout=card-header]>div:not([hidden]){padding-block-start:0!important}
+#recipe-view [data-recipe-layout=ingredients]>div:not([hidden]){display:grid;gap:var(--pv-control-section-gap);padding:0}
+#recipe-view [data-recipe-layout=ingredients]>div>[data-kit=card]{padding:0;background:transparent;border:0;box-shadow:none}
 #recipe-view [data-recipe-layout=ingredients] [data-kit=sectionheader][hidden]{display:none}
 
 #recipe-view [data-recipe-layout=source-columns]{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--pv-control-section-gap)}
@@ -5429,3 +5470,188 @@ dialog.pv-kit-dialog[data-recipe-layout=gallery] [role=status]:not([hidden]){
  text-align:center;
  font-variant-numeric:tabular-nums;
 }
+
+/* Keep the discovery preview's footer in reach on short landscape displays. */
+@media (min-width: 1000px) and (max-height: 760px) {
+ #music-response[data-discovery-preview] #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"]) {
+  grid-template-rows: auto minmax(80px,auto) var(--pv-hit);
+ }
+ #music-response[data-discovery-preview] #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy {
+  min-height: 0;
+ }
+}
+
+/* Discovery preview uses the same result buttons in featured and compact rows. */
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list {
+ grid-template-columns:minmax(0,1fr);
+}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"]) {
+ grid-template-columns:56px minmax(0,1fr) var(--pv-hit);
+ grid-template-rows:auto;
+ align-items:center;
+ min-height:var(--pv-hit);
+ height:auto;
+ padding:var(--pv-s1) var(--pv-s2);
+}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-art {grid-area:1 / 1;width:56px;height:56px;object-fit:cover;align-self:center}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy {grid-area:1 / 2;min-height:0;min-width:0}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result[data-kit=listrow][data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy>:is(h2,p) {
+ display:block;
+ white-space:nowrap;
+ overflow:hidden;
+ text-overflow:ellipsis;
+}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-play {grid-area:1 / 3;align-self:center;margin:0}
+
+@media (min-width:1000px) {
+ #music-response:is([data-discovery-collection=mood],[data-discovery-collection=feeling])>#results {
+  container-type:inline-size;
+  --music-discovery-copy-height:112px;
+ }
+ pv-widget-host[data-view=active] #music-response[data-discovery-collection=mood] #result-list:has(>.result[data-artwork-role]) {
+  /* Match Vibe's square artwork track, copy track, action and row gaps. */
+  height:calc((100cqi - 2 * var(--pv-s2)) / 3 + var(--music-discovery-copy-height) + var(--pv-hit) + 2 * var(--pv-s2));
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  grid-template-rows:repeat(2,minmax(min-content,1fr));
+ }
+ #music-response[data-discovery-collection=mood] #result-list>.result:first-child {grid-row:span 2}
+ #music-response[data-discovery-collection=mood] #result-list>.result:first-child>.result-art {max-width:244px;justify-self:center}
+ #music-response[data-discovery-collection=mood] #result-list>.result[data-artwork-role]:not(:first-child) {
+  grid-template-columns:72px minmax(0,1fr) var(--pv-hit);
+  grid-template-rows:auto;
+  align-items:center;
+  min-height:0;
+ }
+ #music-response[data-discovery-collection=mood] #result-list>.result:not(:first-child)>.result-art {grid-column:1;grid-row:1}
+ #music-response[data-discovery-collection=mood] #result-list>.result:not(:first-child)>.result-copy {grid-column:2;grid-row:1;min-height:0}
+ #music-response[data-discovery-collection=mood] #result-list>.result:not(:first-child)>.result-play {grid-column:3;grid-row:1;margin:0}
+}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list {
+ grid-auto-rows:auto;
+ gap:var(--pv-s1);
+}
+
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"]) {
+ height:calc(var(--pv-hit) + 2 * var(--pv-s1)) !important;
+ min-height:0 !important;
+ max-height:none;
+ grid-template-rows:minmax(0,1fr);
+}
+
+pv-widget-host[data-view=active][data-topbar=true] .responses>#music-response:is([data-discovery-collection=mood],[data-discovery-collection=feeling]):not([hidden]) {
+ grid-template-rows:auto auto auto auto;
+}
+
+#music-response:is([data-discovery-collection=mood],[data-discovery-collection=feeling])>[data-discovery-header] {
+ grid-column:1/-1;
+ grid-row:2;
+ display:flex;
+ align-items:center;
+ justify-content:space-between;
+ gap:var(--pv-s2);
+}
+
+#music-response[data-discovery-collection=mood]>#results {grid-row:3}
+
+pv-widget-host #music-response>[data-discovery-header] .music-refresh-footer {flex:none;width:auto;min-width:0;border-color:transparent;background:transparent;color:var(--pv-ink)}
+
+#music-response[data-discovery-collection=mood] #result-list>.result:first-child>.result-art {max-width:208px}
+
+pv-widget-host[data-topbar=true] #music-response:is([data-discovery-collection=mood],[data-discovery-collection=feeling])>#results {grid-row:3}
+
+#music-response:is([data-discovery-collection=mood],[data-discovery-collection=feeling])>[data-discovery-header]>h2 {margin:0;font:var(--pv-t-title)}
+
+@media (min-width:1000px) {
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero[data-artwork-role]:first-child {
+  grid-column:1;
+  grid-row:1 / span 2;
+  grid-template-columns:minmax(0,1fr) var(--pv-hit);
+  grid-template-rows:auto auto;
+  align-content:center;
+  align-items:center;
+  min-height:0;
+  height:auto;
+  background:var(--pv-surface);
+ }
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero:first-child>.result-art {grid-column:1/-1;grid-row:1;justify-self:start}
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero:first-child>.result-copy {grid-column:1;grid-row:2;min-height:0}
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero:first-child>.result-play {grid-column:2;grid-row:2;align-self:center;margin:0}
+}
+
+@media (min-width:1000px) {
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row {
+  align-self:stretch;
+  align-content:center;
+  height:auto;
+  min-height:calc(var(--pv-hit) + 2 * var(--pv-s3));
+ }
+}
+
+pv-widget-host[data-view=active][data-topbar=true] .responses>#music-response[data-discovery-preview]:not([hidden]) {align-content:start}
+
+/* Pagination follows the full list in the same scrolling detail surface. */
+pv-widget-host[data-view=active][data-topbar=true] .responses>#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]):not([hidden]) {
+ grid-template-rows:auto min-content auto;
+ padding-block-end:var(--pv-control-section-gap);
+}
+
+pv-widget-host[data-topbar=true] #music-response:is([data-discovery-collection=top],[data-discovery-collection=recent])>.music-refresh-footer {
+ grid-row:3;
+ grid-column:1/-1;
+ justify-self:center;
+}
+
+pv-widget-host #music-response[data-discovery-preview]>.music-refresh-message {grid-column:1/-1;grid-row:4}
+
+@media (min-width:1000px) and (max-height:760px) {
+ #music-response:is([data-discovery-collection=mood],[data-discovery-collection=feeling])>#results {
+  --music-discovery-copy-height:80px;
+ }
+}
+
+/* The morning alternatives use compact artwork even when the source is editorial. */
+@media (min-width:1000px) {
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child) {
+  grid-template-rows:minmax(0,1fr);
+  min-height:0;
+  align-items:center;
+ }
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child)>.result-art {
+  width:88px;
+  height:88px;
+  justify-self:center;
+ }
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero[data-artwork-role]:first-child {
+  align-content:center;
+  grid-template-rows:auto auto;
+ }
+}
+
+@media (min-width:1000px) {
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child) {
+  grid-template-columns:88px minmax(0,1fr) var(--pv-hit);
+ }
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child)>.result-art {grid-area:1 / 1}
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child)>.result-copy {grid-area:1 / 2}
+ #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child)>.result-play {grid-area:1 / 3;align-self:center}
+}
+
+#recipe-view [data-recipe-layout=review]{display:grid;gap:var(--pv-s2)}
+
+#recipe-view form{display:grid;gap:var(--pv-s2)}
+
+#recipe-view form label{display:grid;gap:var(--pv-s1);font:var(--pv-t-body)}
+
+#recipe-view :is(form input,form textarea,input[type=search]){font:inherit;color:inherit;padding:var(--pv-s2);border:1px solid var(--pv-line);border-radius:var(--pv-r-s);background:var(--pv-surface-2)}
+
+#recipe-view form>button{justify-self:start}
+
+/* Recipe quiet actions retain the approved recipe label role. Other domains
+   keep their current shared quiet/link action typography. */
+#recipe-view .pv-kit.pv-kit-button[data-kit-variant=quiet]{font:var(--pv-t-label)}
