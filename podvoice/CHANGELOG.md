@@ -1,3 +1,7 @@
+## 2.0.125
+
+- Preserve robot control settings across renewal when a time setting is present.
+
 ## 2.0.124
 
 - Accept private recipe links and return review decisions to the iPhone shortcut.

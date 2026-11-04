@@ -2112,3 +2112,34 @@ async def test_robot_rebind_diagnostic_is_constant_and_contains_no_identifiers(f
     assert messages == ["robot_rebind_denied reason=rule"]
     assert token not in messages[0] and first["taskId"] not in messages[0]
     assert not rig.writes
+
+
+async def test_robot_rebind_preserves_raw_time_setting_current(fixture):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    second = await bridge.controls.setup(setup_body(bridge), token)
+    old, fresh = (bridge.controls.tasks[offer["taskId"]] for offer in (first, second))
+    for task, identifier in ((old, "old-time-id"), (fresh, "new-time-id")):
+        schema = {"kind": "time", "current": "22:00:00"}
+        task["options"][identifier] = {
+            "action": "set_option",
+            "schema": schema,
+            "entity": "time.test",
+            "extended": {"role": "dnd_start_time"},
+            "choices": {},
+        }
+        task["renew_public_options"].append(
+            {
+                "id": identifier,
+                "label": "Forstyr ikke fra",
+                "action": "set_option",
+                "argsSchema": schema,
+                "settingKey": "dnd_start_time",
+            }
+        )
+    result = bridge.controls._robot_rebind(old, fresh, token)
+    assert result["status"] == "restored"
+    fresh["options"]["new-time-id"]["schema"]["current"] = "23:00:00"
+    changed = bridge.controls._robot_rebind(old, fresh, token)
+    assert changed["status"] == "not_restored"
+    assert not rig.writes
