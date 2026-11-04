@@ -32,9 +32,14 @@ class ImportRejected(ValueError):
 
 def public_url(url: str) -> str:
     parts = urlsplit(url)
-    if (parts.scheme not in {"http", "https"} or not parts.hostname
-        or parts.username is not None or parts.password is not None
-        or parts.port not in {None, 80, 443} or len(url) > 2048):
+    if (
+        parts.scheme not in {"http", "https"}
+        or not parts.hostname
+        or parts.username is not None
+        or parts.password is not None
+        or parts.port not in {None, 80, 443}
+        or len(url) > 2048
+    ):
         raise ImportRejected("unsafe_url")
     host = parts.hostname.lower()
     if host == "localhost" or host.endswith((".localhost", ".local", ".internal")):
@@ -53,11 +58,25 @@ class PublicResolver(AbstractResolver):
 
     async def resolve(self, host, port=0, family=socket.AF_INET):
         answers = await asyncio.get_running_loop().getaddrinfo(
-            host, port, type=socket.SOCK_STREAM, family=family)
-        if not answers or any(not ipaddress.ip_address(answer[4][0]).is_global or ipaddress.ip_address(answer[4][0]).is_multicast for answer in answers):
+            host, port, type=socket.SOCK_STREAM, family=family
+        )
+        if not answers or any(
+            not ipaddress.ip_address(answer[4][0]).is_global
+            or ipaddress.ip_address(answer[4][0]).is_multicast
+            for answer in answers
+        ):
             raise ImportRejected("unsafe_url")
-        return [dict(hostname=host, host=answer[4][0], port=port, family=answer[0],
-                     proto=answer[2], flags=socket.AI_NUMERICHOST) for answer in answers]
+        return [
+            dict(
+                hostname=host,
+                host=answer[4][0],
+                port=port,
+                family=answer[0],
+                proto=answer[2],
+                flags=socket.AI_NUMERICHOST,
+            )
+            for answer in answers
+        ]
 
     async def close(self):
         pass
@@ -65,13 +84,27 @@ class PublicResolver(AbstractResolver):
 
 async def fetch_html(url: str) -> tuple[str, str]:
     connector = TCPConnector(resolver=PublicResolver(), use_dns_cache=False, limit=2)
-    async with ClientSession(connector=connector, cookie_jar=DummyCookieJar(), trust_env=False,
-                             auto_decompress=False, max_field_size=65536, max_line_size=65536, timeout=ClientTimeout(total=FETCH_SECONDS)) as session:
+    async with ClientSession(
+        connector=connector,
+        cookie_jar=DummyCookieJar(),
+        trust_env=False,
+        auto_decompress=False,
+        max_field_size=65536,
+        max_line_size=65536,
+        timeout=ClientTimeout(total=FETCH_SECONDS),
+    ) as session:
         async with asyncio.timeout(FETCH_SECONDS):
             for _ in range(5):
                 public_url(url)
-                async with session.get(url, allow_redirects=False, headers={
-                    "User-Agent": "PodView recipe importer", "Accept": "text/html", "Accept-Encoding": "identity"}) as response:
+                async with session.get(
+                    url,
+                    allow_redirects=False,
+                    headers={
+                        "User-Agent": "PodView recipe importer",
+                        "Accept": "text/html",
+                        "Accept-Encoding": "identity",
+                    },
+                ) as response:
                     if response.status in {301, 302, 303, 307, 308}:
                         location = response.headers.get("Location")
                         if not location:
@@ -82,7 +115,10 @@ async def fetch_html(url: str) -> tuple[str, str]:
                         raise OSError("source unavailable")
                     if response.content_type not in {"text/html", "application/xhtml+xml"}:
                         raise ImportRejected("not_recipe")
-                    if response.headers.get("Content-Encoding", "identity").lower() not in {"", "identity"}:
+                    if response.headers.get("Content-Encoding", "identity").lower() not in {
+                        "",
+                        "identity",
+                    }:
                         raise ImportRejected("unreadable")
                     data = bytearray()
                     async for chunk in response.content.iter_chunked(16384):
@@ -139,11 +175,16 @@ def text(value) -> str:
 
 def typed(node, kind):
     kinds = node.get("@type", []) if isinstance(node, dict) else []
-    return kind in ([kinds] if isinstance(kinds, str) else kinds) if isinstance(kinds, (str, list)) else False
+    return (
+        kind in ([kinds] if isinstance(kinds, str) else kinds)
+        if isinstance(kinds, (str, list))
+        else False
+    )
 
 
 def duration(value):
     import re
+
     if not isinstance(value, str):
         return ""
     match = re.fullmatch(r"P(?:(\d+)D)?T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", value or "")
@@ -195,8 +236,12 @@ def extract_recipe(html: str, source_url: str) -> dict:
     if len(title) > 256:
         raise ImportRejected("unreadable")
     ingredients = recipe.get("recipeIngredient")
-    if (not title or not isinstance(ingredients, list) or not ingredients
-        or any(not text(line) for line in ingredients)):
+    if (
+        not title
+        or not isinstance(ingredients, list)
+        or not ingredients
+        or any(not text(line) for line in ingredients)
+    ):
         raise ImportRejected("incomplete")
     steps = []
     headings = []
@@ -241,17 +286,29 @@ def extract_recipe(html: str, source_url: str) -> dict:
                 photos.append(image)
     categories = recipe.get("recipeCategory", [])
     categories = categories if isinstance(categories, list) else [categories]
-    categories = list(dict.fromkeys(part.strip() for value in categories
-                                   for part in text(value).split(",") if part.strip())) or ["Øvrige"]
+    categories = list(
+        dict.fromkeys(
+            part.strip() for value in categories for part in text(value).split(",") if part.strip()
+        )
+    ) or ["Øvrige"]
     portions = recipe.get("recipeYield", "")
     if isinstance(portions, list):
         portions = next((text(value) for value in portions if text(value)), "")
-    return {"title": title, "publisher": publisher, "description": text(recipe.get("description")),
-            "portions": text(str(portions)) if portions else "", "categories": categories,
-            "groups": [{"title": "Ingredienser", "lines": [text(line) for line in ingredients]}],
-            "steps": steps, "phases": headings, "image": next(iter(photos), ""), "images": photos,
-            "cookingTime": duration(recipe.get("cookTime")), "totalTime": duration(recipe.get("totalTime")),
-            "source": {"url": source_url, "files": []}}
+    return {
+        "title": title,
+        "publisher": publisher,
+        "description": text(recipe.get("description")),
+        "portions": text(str(portions)) if portions else "",
+        "categories": categories,
+        "groups": [{"title": "Ingredienser", "lines": [text(line) for line in ingredients]}],
+        "steps": steps,
+        "phases": headings,
+        "image": next(iter(photos), ""),
+        "images": photos,
+        "cookingTime": duration(recipe.get("cookTime")),
+        "totalTime": duration(recipe.get("totalTime")),
+        "source": {"url": source_url, "files": []},
+    }
 
 
 async def import_link(store, url):
@@ -272,7 +329,9 @@ async def import_link(store, url):
         await asyncio.to_thread(store.publish, recipe)
         return await asyncio.to_thread(store.phone_receipt, receipt["id"])
     except asyncio.CancelledError:
-        await asyncio.shield(asyncio.to_thread(store.import_failed, receipt["id"], "unavailable", False))
+        await asyncio.shield(
+            asyncio.to_thread(store.import_failed, receipt["id"], "unavailable", False)
+        )
         raise
     except ImportRejected as exc:
         return await asyncio.to_thread(store.import_failed, receipt["id"], str(exc), True)

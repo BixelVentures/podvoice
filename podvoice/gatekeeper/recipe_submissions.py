@@ -73,10 +73,15 @@ def _receipt(submission: dict) -> dict:
             "status": "rejected",
             "message": _REJECTION_MESSAGES[rejection["reason"]],
         }
-    if (submission.get("status") == "importing"
-            and _now_ms() - submission.get("updatedAt", 0) >= 30000):
-        return {"id": submission["id"], "status": "failed",
-                "message": "Importen blev afbrudt. Del linket igen"}
+    if (
+        submission.get("status") == "importing"
+        and _now_ms() - submission.get("updatedAt", 0) >= 30000
+    ):
+        return {
+            "id": submission["id"],
+            "status": "failed",
+            "message": "Importen blev afbrudt. Del linket igen",
+        }
     return {
         "id": submission["id"],
         "status": submission.get("status", "received"),
@@ -139,11 +144,18 @@ class RecipeSubmissions:
         with self._lock:
             state = self._read()
             if recipe_id in state["recipes"]:
-                state["submissions"].setdefault(recipe_id, {
-                    "id": recipe_id, "url": url, "receivedAt": _now_ms(),
-                    "updatedAt": _now_ms(), "status": "saved", "message": "Gemt",
-                    "title": state["recipes"][recipe_id]["title"],
-                })
+                state["submissions"].setdefault(
+                    recipe_id,
+                    {
+                        "id": recipe_id,
+                        "url": url,
+                        "receivedAt": _now_ms(),
+                        "updatedAt": _now_ms(),
+                        "status": "saved",
+                        "message": "Gemt",
+                        "title": state["recipes"][recipe_id]["title"],
+                    },
+                )
                 self._write(state)
                 return _saved(recipe_id)
             if recipe_id not in state["submissions"]:
@@ -175,7 +187,11 @@ class RecipeSubmissions:
 
     def list_submissions(self) -> list[dict]:
         with self._lock:
-            return [item for item in self._read()["submissions"].values() if item.get("status") != "saved"]
+            return [
+                item
+                for item in self._read()["submissions"].values()
+                if item.get("status") != "saved"
+            ]
 
     def pending_urls(self) -> list[str]:
         """Recover durable links after upgrade/restart; terminal failures require an explicit retry."""
@@ -183,8 +199,11 @@ class RecipeSubmissions:
             state = self._read()
             pending = []
             for item in state["submissions"].values():
-                if (item["id"] not in state["recipes"] and not item.get("rejection")
-                        and item.get("status", "received") in {"received", "importing"}):
+                if (
+                    item["id"] not in state["recipes"]
+                    and not item.get("rejection")
+                    and item.get("status", "received") in {"received", "importing"}
+                ):
                     item["updatedAt"] = 0
                     item["status"] = "received"
                     pending.append(item["url"])
@@ -196,10 +215,13 @@ class RecipeSubmissions:
         with self._lock:
             state = self._read()
             item = state["submissions"][recipe_id]
-            if item.get("rejection") or (item.get("status") == "importing"
-                    and _now_ms() - item.get("updatedAt", 0) < 30000):
+            if item.get("rejection") or (
+                item.get("status") == "importing" and _now_ms() - item.get("updatedAt", 0) < 30000
+            ):
                 return False
-            item.update(status="importing", message="Modtaget: importerer opskriften", updatedAt=_now_ms())
+            item.update(
+                status="importing", message="Modtaget: importerer opskriften", updatedAt=_now_ms()
+            )
             self._write(state)
             return True
 
@@ -209,8 +231,11 @@ class RecipeSubmissions:
             item = state["submissions"][recipe_id]
             if recipe_id in state["recipes"]:
                 return _saved(recipe_id)
-            item.update(status="rejected" if rejected else "failed",
-                        message=_REJECTION_MESSAGES[reason], updatedAt=_now_ms())
+            item.update(
+                status="rejected" if rejected else "failed",
+                message=_REJECTION_MESSAGES[reason],
+                updatedAt=_now_ms(),
+            )
             if rejected:
                 item["rejection"] = {"reason": reason, "at": _now_ms()}
             self._write(state)
@@ -224,12 +249,19 @@ class RecipeSubmissions:
                 receipt = _receipt(item)
                 if item["id"] in state["recipes"]:
                     receipt = _saved(item["id"])
-                elif (item.get("status") == "importing"
-                      and _now_ms() - item.get("updatedAt", 0) >= 30000):
-                    receipt = {"id": item["id"], "status": "failed",
-                               "message": "Importen blev afbrudt. Del linket igen"}
+                elif (
+                    item.get("status") == "importing"
+                    and _now_ms() - item.get("updatedAt", 0) >= 30000
+                ):
+                    receipt = {
+                        "id": item["id"],
+                        "status": "failed",
+                        "message": "Importen blev afbrudt. Del linket igen",
+                    }
                 items.append({**item, **receipt})
-            return sorted(items, key=lambda item: item.get("updatedAt", item["receivedAt"]), reverse=True)[:100]
+            return sorted(
+                items, key=lambda item: item.get("updatedAt", item["receivedAt"]), reverse=True
+            )[:100]
 
     def reject(self, url: object, reason: object) -> dict:
         recipe_id = _recipe_id(_source_url(url))
@@ -280,7 +312,9 @@ class RecipeSubmissions:
             }
             item = state["submissions"].get(recipe_id)
             if item:
-                item.update(status="saved", message="Gemt", title=recipe["title"], updatedAt=_now_ms())
+                item.update(
+                    status="saved", message="Gemt", title=recipe["title"], updatedAt=_now_ms()
+                )
                 state["recipes"][recipe_id]["source"]["uploadedAt"] = item["receivedAt"]
             self._write(state)
         return _saved(recipe_id)

@@ -2016,7 +2016,11 @@ def _room(request: web.Request, bridge: PodViewBridge) -> str | None:
 async def _recipe_submissions(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
-        return web.json_response({"message": "Adgang afvist"}, status=denied.status, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {"message": "Adgang afvist"},
+            status=denied.status,
+            headers={"Cache-Control": "no-store"},
+        )
     scope = _HA_REQUEST.get()
     if not scope or not scope["active"] or not scope["user"]:
         return _error("recipes_denied", 403)
@@ -2038,9 +2042,17 @@ async def _phone_recipes(request: web.Request) -> web.Response:
         or len(auth) != 1
         or not hmac.compare_digest(auth[0].encode(), f"Bearer {token}".encode())
     ):
-        return web.json_response({"error": "recipes_denied", "message": "Adgang afvist"}, status=403, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {"error": "recipes_denied", "message": "Adgang afvist"},
+            status=403,
+            headers={"Cache-Control": "no-store"},
+        )
     if request.method == "POST" and request.content_type != "application/json":
-        return web.json_response({"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"}, status=400, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"},
+            status=400,
+            headers={"Cache-Control": "no-store"},
+        )
     endpoint = "recipe-status" if request.method == "GET" else "recipe-submissions"
     return await _recipe_operation(request, endpoint)
 
@@ -2048,7 +2060,14 @@ async def _phone_recipes(request: web.Request) -> web.Response:
 async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response:
     store = request.app[BRIDGE].recipe_submissions
     if store is None:
-        return web.json_response({"error": "recipes_unavailable", "message": "Opskriftslageret er ikke tilgængeligt. Prøv igen"}, status=503, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {
+                "error": "recipes_unavailable",
+                "message": "Opskriftslageret er ikke tilgængeligt. Prøv igen",
+            },
+            status=503,
+            headers={"Cache-Control": "no-store"},
+        )
     status = 200
     try:
         if endpoint == "recipe-upload-history":
@@ -2063,10 +2082,18 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
                 async for chunk in request.content.iter_chunked(8192):
                     raw.extend(chunk)
                     if len(raw) > 65536:
-                        return web.json_response({"error": "recipe_payload_too_large", "message": "Linket er for langt"}, status=413, headers={"Cache-Control": "no-store"})
+                        return web.json_response(
+                            {"error": "recipe_payload_too_large", "message": "Linket er for langt"},
+                            status=413,
+                            headers={"Cache-Control": "no-store"},
+                        )
             body = json.loads(raw, object_pairs_hook=_unique_json_object)
             if not isinstance(body, dict):
-                return web.json_response({"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"}, status=400, headers={"Cache-Control": "no-store"})
+                return web.json_response(
+                    {"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"},
+                    status=400,
+                    headers={"Cache-Control": "no-store"},
+                )
             if endpoint == "recipe-publication":
                 result = await asyncio.to_thread(store.publish, body)
             elif request.method == "PATCH":
@@ -2075,15 +2102,41 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
                 result = await import_link(store, body.get("url"))
                 status = 202 if result["status"] in {"received", "importing"} else 200
     except RecipeRejectedError:
-        return web.json_response({"error": "recipe_rejected", "message": "Opskriften kræver gennemgang og er ikke gemt"}, status=409, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {"error": "recipe_rejected", "message": "Opskriften kræver gennemgang og er ikke gemt"},
+            status=409,
+            headers={"Cache-Control": "no-store"},
+        )
     except KeyError:
-        return web.json_response({"error": "recipe_submission_not_found", "message": "Kvitteringen blev ikke fundet"}, status=404, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {"error": "recipe_submission_not_found", "message": "Kvitteringen blev ikke fundet"},
+            status=404,
+            headers={"Cache-Control": "no-store"},
+        )
     except (ValueError, TypeError, RecursionError):
-        return web.json_response({"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"}, status=400, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"},
+            status=400,
+            headers={"Cache-Control": "no-store"},
+        )
     except TimeoutError:
-        return web.json_response({"error": "recipe_request_timeout", "message": "Indsendelsen tog for lang tid. Kontrollér uploadhistorikken"}, status=408, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {
+                "error": "recipe_request_timeout",
+                "message": "Indsendelsen tog for lang tid. Kontrollér uploadhistorikken",
+            },
+            status=408,
+            headers={"Cache-Control": "no-store"},
+        )
     except OSError:
-        return web.json_response({"error": "recipes_unavailable", "message": "Opskriftslageret er ikke tilgængeligt. Prøv igen"}, status=503, headers={"Cache-Control": "no-store"})
+        return web.json_response(
+            {
+                "error": "recipes_unavailable",
+                "message": "Opskriftslageret er ikke tilgængeligt. Prøv igen",
+            },
+            status=503,
+            headers={"Cache-Control": "no-store"},
+        )
     return web.json_response(result, status=status, headers={"Cache-Control": "no-store"})
 
 
@@ -2146,7 +2199,15 @@ def _project_published_recipes(published: object) -> list[dict]:
         recipes.append(
             {
                 **{key: value for key, value in recipe.items() if key in fields},
-                "source": {"url": url, "files": [], **({"uploadedAt": recipe["source"]["uploadedAt"]} if isinstance(recipe["source"].get("uploadedAt"), (int, float)) else {})},
+                "source": {
+                    "url": url,
+                    "files": [],
+                    **(
+                        {"uploadedAt": recipe["source"]["uploadedAt"]}
+                        if isinstance(recipe["source"].get("uploadedAt"), (int, float))
+                        else {}
+                    ),
+                },
             }
         )
     return recipes

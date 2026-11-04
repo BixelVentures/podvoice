@@ -2158,7 +2158,9 @@ async def test_robot_rebind_deadline_reason_survives_retirement_without_identifi
 
 
 @pytest.mark.parametrize("stage", ["transport", "dock", "settings", "display"])
-async def test_robot_setup_failure_logs_safe_stage_and_category(fixture, monkeypatch, caplog, stage):
+async def test_robot_setup_failure_logs_safe_stage_and_category(
+    fixture, monkeypatch, caplog, stage
+):
     from gatekeeper import podview_controls as controls
 
     rig, bridge, token = fixture
@@ -2177,7 +2179,11 @@ async def test_robot_setup_failure_logs_safe_stage_and_category(fixture, monkeyp
         async def setup(self, *args):
             if stage == "transport":
                 return await failed()
-            return {"state": "cleaning", "actions": {"pause": True}, "deadline": time.monotonic() + 30}
+            return {
+                "state": "cleaning",
+                "actions": {"pause": True},
+                "deadline": time.monotonic() + 30,
+            }
 
     class Dock:
         def __init__(self, *args):
