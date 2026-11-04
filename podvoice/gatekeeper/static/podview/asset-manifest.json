@@ -619,7 +619,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "b80d1c9a00666fda5f65a666aaef214ed1ebc3de7281e215332a7533452fc562"
+      "sha256": "0cf1e9bbf74f4fa6d8708d07a02670864fadcdad91149343ccbddb17b82a454b"
     },
     {
       "path": "podview.css",
@@ -699,7 +699,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "2fc42ba53f13869ebfe6ad5cfb8db3bdc34f4d38f06ce8edace29d6b03bb048c"
+      "sha256": "c3132c534ef0c5f284386047f2d5a7ecf64c1dd1b6763784db3a82121ed0838c"
     },
     {
       "path": "spotify-artwork.js",
