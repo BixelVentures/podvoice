@@ -1,3 +1,8 @@
+## 2.0.128
+
+- Renew robot controls earlier and preserve eligible room selections on reopening.
+- Record bounded reasons when robot control renewal cannot be restored.
+
 ## 2.0.127
 
 - Preserve independently observed Tesla state and timestamps across partial Home Assistant updates (HA component 0.1.14).
