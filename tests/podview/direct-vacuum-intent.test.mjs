@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {robotTransportOffer} from '../../dist/home-model.js';
-import {PodVoiceTransport} from '../../dist/podvoice-transport.js';
+import {robotTransportOffer} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
 
 test('robot transport offer is fresh, entity and state bound; direct intent sends once',async()=>{
  const now=Date.now()/1000,base={status:'observed',source:'home_assistant_state',entityId:'vacuum.house',observedAt:now,actions:['pause','stop','return']};

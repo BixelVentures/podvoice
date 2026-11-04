@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../dist/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
 
 test('direct music intent sends one closed request and retains action diagnostics', async()=>{
  const requestId='01234567-0123-4567-89ab-0123456789ab';

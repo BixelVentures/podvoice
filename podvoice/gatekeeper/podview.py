@@ -1409,9 +1409,8 @@ class PodViewBridge:
             or self.controls.tasks.get(touch_task["id"]) is not touch_task
         ):
             return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
-        # Only the approved later turn may rebind the voice task's turn revision.
-        # The original answer, grant, policy, destination and source remain pinned.
-        touch_task["move_revision"] = self.controls._move_revision(room)
+        # Later-turn approval changes voice context, not device authority.
+        # Keep the original setup's owner revision, grant, policy and destination pinned.
         self._music_move_fence.add((room, task["account"]))
         result = await self.controls.action(
             {

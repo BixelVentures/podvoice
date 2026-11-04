@@ -31,6 +31,7 @@ from gatekeeper.podview import PodViewBridge
         "unknown",
         "second_profile",
         "profile_revoked",
+        "owner",
     ],
 )
 async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
@@ -183,6 +184,8 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
             assert bridge.revoke_controller("kitchen", first_identity)
             assert not bridge._grant_current("kitchen", first_token)
             assert bridge._grant_current("kitchen", second_token)
+    elif change == "owner":
+        monkeypatch.setattr(bridge.controls.music, "binding", lambda: ("replacement-owner",))
     elif change == "alias":
         monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=None))
     elif change == "policy":
@@ -204,7 +207,7 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
         execution_context=approval.context,
         approval_token=approval.token,
     )
-    if change in {"answer", "grant", "alias", "policy", "session", "profile_revoked"}:
+    if change in {"answer", "grant", "alias", "policy", "session", "profile_revoked", "owner"}:
         assert result["ok"] is False
         bridge.controls.move.move.assert_not_awaited()
     elif change == "unknown":
