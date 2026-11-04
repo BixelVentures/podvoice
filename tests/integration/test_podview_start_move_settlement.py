@@ -425,7 +425,7 @@ async def test_move_receipt_uses_new_confirmed_binding_not_old_read_closure(cont
         "move_grant": grant,
         "move_policy": controls.policy,
         "move_binding": controls.move.binding(),
-        "move_revision": controls._move_revision("kitchen"),
+        "move_revision": controls._owner_revision("kitchen", "music"),
         "move_source_scope": ("device-one", new["bindingId"]),
         "move_rule_identity": controls._move_rule_identity(destination_rule),
     }

@@ -554,7 +554,7 @@ async def test_inert_touch_move_a_b_a_then_current_controls(monkeypatch):
 
     bridge.controls.music = Music()
     bridge.controls.move = Move()
-    assert bridge.controls._move_revision("kitchen"), bridge.snapshot("kitchen")
+    assert bridge.controls._owner_revision("kitchen", "music"), bridge.snapshot("kitchen")
     try:
         for index, (room, hp, current_binding) in enumerate(
             [("r1", "43", ACTUAL_BINDING), ("r0", "42", "c" * 64)]

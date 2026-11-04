@@ -261,7 +261,7 @@ async def test_only_actual_mcp_actions_and_brightness_support_are_offered():
 @pytest.mark.parametrize(
     "change", ["placement", "controller", "source", "grant", "session", "answer", "token", "boot"]
 )
-async def test_changed_owner_before_action_is_inert(change):
+async def test_light_action_checks_actual_owner_not_conversation(change):
     rig = Rig()
     offer = await rig.setup()
     command = rig.command(offer)
@@ -281,13 +281,18 @@ async def test_changed_owner_before_action_is_inert(change):
         rig.token = "replacement"
     else:
         rig.bridge.boot_id = "another-boot"
-    assert not (await rig.controls.action(command, rig.token))["ok"]
-    assert not rig.writes
+    result = await rig.controls.action(command, rig.token)
+    if change in {"session", "answer"}:
+        assert result["ok"] and result["outcome"] == "accepted"
+        assert len(rig.writes) == 1
+    else:
+        assert not result["ok"]
+        assert not rig.writes
 
 
 @pytest.mark.parametrize("stage", ["setup", "action"])
 @pytest.mark.parametrize("change", ["placement", "revoke", "source", "answer", "boot"])
-async def test_held_read_cannot_cross_owner_change(stage, change):
+async def test_held_light_read_checks_actual_owner_not_answer(stage, change):
     rig = Rig()
     offer = await rig.setup() if stage == "action" else None
     entered, release = asyncio.Event(), asyncio.Event()
@@ -313,8 +318,16 @@ async def test_held_read_cannot_cross_owner_change(stage, change):
         rig.revision += 1
     release.set()
     result = await operation
-    assert not result["ok"]
-    assert not rig.writes
+    if change == "answer":
+        assert result["ok"]
+        if stage == "setup":
+            assert not rig.writes
+            result = await rig.controls.action(rig.command(result), rig.token)
+        assert result["ok"] and result["outcome"] == "accepted"
+        assert len(rig.writes) == 1
+    else:
+        assert not result["ok"]
+        assert not rig.writes
 
 
 @pytest.mark.parametrize("change", ["entityset", "epoch", "unknown", "supports", "action"])
@@ -346,17 +359,20 @@ async def test_slider_closed_integer_arguments(percent):
     assert not rig.writes
 
 
-@pytest.mark.parametrize("mode", ["unknown", "changed_after_send"])
-async def test_ambiguous_effect_is_terminal_unknown_without_retry(mode):
+@pytest.mark.parametrize("mode", ["unknown", "owner_changed_after_send", "answer_after_send"])
+async def test_light_result_tracks_actual_owner_without_retry(mode):
     rig = Rig()
     offer = await rig.setup()
     command = rig.command(offer)
     if mode == "unknown":
         rig.outcome = "unknown"
+    elif mode == "owner_changed_after_send":
+        rig.after_send = lambda: setattr(rig, "source", object())
     else:
         rig.after_send = lambda: setattr(rig, "revision", 3)
     result = await rig.controls.action(command, rig.token)
-    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+    expected = "accepted" if mode == "answer_after_send" else "unknown"
+    assert result["outcome"] == expected and result["retryAllowed"] is False
     await rig.controls.action(command, rig.token)
     await rig.controls.action({**command, "requestId": "second"}, rig.token)
     assert len(rig.writes) == 1

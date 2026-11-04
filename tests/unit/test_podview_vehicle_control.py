@@ -216,7 +216,7 @@ async def test_exact_registry_role_and_device_before_proposal(h, field, value):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("change", ["grant", "revision", "binding", "session", "boot"])
-async def test_confirmation_exact_current_actor_and_task(h, change):
+async def test_confirmation_uses_actual_actor_and_owner_not_conversation(h, change):
     setup = await h.setup()
     if change == "grant":
         h.grant = object()
@@ -228,8 +228,13 @@ async def test_confirmation_exact_current_actor_and_task(h, change):
         h.bridge.sessions["room"] = object()
     else:
         h.bridge.boot_id = "other"
-    assert (await h.run(setup))["error"] == "stale_action"
-    assert not h.calls and h.risk()["revision"] == 0
+    result = await h.run(setup)
+    if change in {"revision", "session"}:
+        assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+        assert len(h.calls) == 1
+    else:
+        assert result["error"] == "stale_action"
+        assert not h.calls and h.risk()["revision"] == 0
 
 
 @pytest.mark.asyncio
