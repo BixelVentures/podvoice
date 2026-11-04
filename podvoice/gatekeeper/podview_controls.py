@@ -45,6 +45,23 @@ _LABELS = {
 _ROBOT_TOUCH_REPEAT_MAX = 2
 
 
+def _robot_setup_error(stage: str, error: Exception) -> None:
+    """Log only a fixed stage and safe exception category, never exception text."""
+    categories = {
+        TimeoutError: "timeout",
+        ConnectionError: "connection",
+        ValueError: "value",
+        TypeError: "type",
+        KeyError: "key",
+        RuntimeError: "runtime",
+    }
+    category = categories.get(type(error), "other")
+    try:
+        _LOGGER.warning("robot_setup_failed stage=%s error=%s", stage, category)
+    except Exception:
+        pass  # Diagnostics must not change control availability.
+
+
 def policy(value: str) -> dict:
     """Supervisor-owned closed configuration; malformed policy grants nothing."""
     try:
@@ -1241,7 +1258,8 @@ class TouchControls:
                         facade = VacuumTransport(device)
                         try:
                             active = await facade.setup(target["entityId"], current)
-                        except Exception:
+                        except Exception as error:
+                            _robot_setup_error("transport", error)
                             if not rule.get("settingsRoles"):
                                 raise
                             # Missing transport capability cannot hide independent settings.
@@ -1301,7 +1319,8 @@ class TouchControls:
                                         "argsSchema": schema,
                                     }
                                 )
-                        except Exception:
+                        except Exception as error:
+                            _robot_setup_error("dock", error)
                             pass  # An unavailable dock must not remove valid Pause/Fortsæt.
                     if (
                         "settings" in rule["actions"]
@@ -1351,7 +1370,8 @@ class TouchControls:
                                         "settingKey": setting["role"],
                                     }
                                 )
-                        except Exception:
+                        except Exception as error:
+                            _robot_setup_error("settings", error)
                             pass  # An unavailable setting must not remove valid transport.
                     if (
                         active is None
@@ -1368,7 +1388,8 @@ class TouchControls:
                                 map_selection="map" in rule["actions"],
                                 settings_roles=tuple(rule.get("settingsRoles", ())),
                             )
-                        except Exception:
+                        except Exception as error:
+                            _robot_setup_error("display", error)
                             if not public_options:
                                 raise
                         else:

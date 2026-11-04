@@ -491,7 +491,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "742a7e8c8a905d1a8ccf54c1b005fc44326aa0543b59f76d14c3756f81b2a283"
+      "sha256": "9169ae8ad4b1da609f92f204dae93e2fb77e5a78873fdd4313d9126b8198d13a"
     },
     {
       "path": "library.css",
@@ -547,7 +547,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "a6463892b9aa4a4e3242aacb4a9be797b16a92e7097ac6a2601bbb18234c4121"
+      "sha256": "f55f8aed0655dba9bc93a1ea4acb77d06325f7d6b18617dea941ab1d0c82a7f5"
     },
     {
       "path": "local-robot-view.js",
@@ -575,7 +575,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "274d8914c9c2d11b44877050d3da96f4ed3e5ea11679c0d7d57cf3e3f6b39bc1"
+      "sha256": "d2d026de5c1f5df1dbe8b90a8d31871b91508d62c64b491aed65bcd6cd4dab24"
     },
     {
       "path": "music-selection-model.js",
@@ -619,11 +619,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "ddc6abc8af64d880cb169c45766cd1d782778363be40d4b564344c42856905fd"
+      "sha256": "0c60de1870dadb31e69a05c8cc00c02072a40f0a5498cb74e1cd5209b00c156f"
     },
     {
       "path": "podview.css",
-      "sha256": "c572bf5349ce24cc249db66ce442e14f9d25524b1dcf29099b635bf18211c558"
+      "sha256": "c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b"
     },
     {
       "path": "podvoice-transport.js",
@@ -647,7 +647,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "781f9edb8eedcac673367626eab4786e20fe230f4e588f2d3aee754fbffdd964"
+      "sha256": "6cb2cff381103375969eb3aab5b2074f6c0f6a1c11c4dbb9dac3e7ba506a908a"
     },
     {
       "path": "references.json",
@@ -703,7 +703,7 @@
     },
     {
       "path": "spotify-artwork.js",
-      "sha256": "6e7ae9bb8408b59fce59021110ccb1e913e75505685628daa7e7fd1ff520c210"
+      "sha256": "6d3cdab28fa7bdf909080b93efa255adef65a9a8020a4556166c0501544fa765"
     },
     {
       "path": "style.css",
@@ -727,7 +727,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "81b2be32235aaec77bfacc210f7a3f10a6962b646aa4a82fca279b2855546aef"
+      "sha256": "4224e4ea9ff6cb7a497fc7a1adca44be6aafe38623f1ba8ddfca05e4e830eb1b"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -739,7 +739,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "ecac3161157c0d7681ba6e4c6a68543d21ff9628c660d368eb5e6268ff86e78e"
+      "sha256": "13e24b11e69e00f0439f06629041bff2541cbd4b097dc328f292216be57f6333"
     },
     {
       "path": "ui/components.js",

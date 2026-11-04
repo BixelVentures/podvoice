@@ -870,3 +870,8 @@ pv-widget-host #device-view:has([data-robot-rooms=true]) #device-timeline.pv-com
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>:is([data-setting-concept=water][data-robot-mode=mop],[data-setting-concept=water]:has([data-robot-mode=mop])){grid-column:1/-1!important;max-inline-size:none}
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options [data-setting-concept=water][data-robot-mode=mop]{max-inline-size:none}
 }
+
+/* First-load placeholders reserve the same compact rows as personal/history results. */
+pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pending]>.result-copy>[data-kit-slot=title],
+pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pending]>.result-copy>[data-kit-slot=body]{block-size:var(--pv-leading-body)}
+pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pending]>.result-copy>[data-kit-slot]::after{display:none}

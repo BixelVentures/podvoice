@@ -41,6 +41,7 @@ export class RecipeView {
    if (Array.isArray(deleted)) this.deleted = new Set(deleted);
   } catch { /* The catalog remains usable without storage. */ }
   this.saved = [];
+  this.uploads = [];
   this.sources = [];
   this.sessions = new Map();
   try {
@@ -75,6 +76,7 @@ export class RecipeView {
  }
 
  async refreshPublishedCatalog() {
+  const before = JSON.stringify(this.saved), status = this.catalogStatus;
   try {
    const response = await fetch(new URL('api/recipes',document.baseURI),{cache:'no-store'});
    if (!response.ok) throw new Error('Kataloget kunne ikke hentes');
@@ -89,6 +91,22 @@ export class RecipeView {
   } catch {
    this.catalogStatus = 'unavailable';
   }
+  return status !== this.catalogStatus || before !== JSON.stringify(this.saved);
+ }
+
+ async refreshUploadHistory() {
+  try {
+   const response = await fetch(new URL('api/recipe-upload-history',document.baseURI),{cache:'no-store'});
+   if (!response.ok) throw new Error('Uploadhistorikken kunne ikke hentes');
+   const {uploads} = await response.json();
+   if (!Array.isArray(uploads)) throw new Error('Ugyldig uploadhistorik');
+   this.uploads = uploads.filter(upload=>upload && typeof upload.id === 'string'
+    && typeof upload.status === 'string' && typeof upload.message === 'string')
+    .sort((a,b)=>(new Date(b.updatedAt || b.receivedAt).getTime() || 0)-(new Date(a.updatedAt || a.receivedAt).getTime() || 0)).slice(0,50);
+   this.uploadHistoryStatus = 'ready';
+  } catch {
+   this.uploadHistoryStatus = 'unavailable';
+  }
  }
 
  catalog(refresh = true) {
@@ -96,6 +114,7 @@ export class RecipeView {
   const layout = element('div');
   layout.dataset.recipeLayout = 'catalog';
   const entries = element('div');
+  this.catalogEntries = entries;
   entries.tabIndex = 0;
   const index = element('nav');
   index.setAttribute('aria-label','Alfabetisk indeks');
@@ -104,6 +123,35 @@ export class RecipeView {
   marker.setAttribute('aria-hidden','true');
   const groups = new Map();
   const buttons = [];
+  const uploads = createKitDisclosure({id:'recipe-upload-history',title:'Uploadhistorik',
+   expanded:this.uploadHistoryExpanded,onToggle:expanded=>{this.uploadHistoryExpanded=expanded;}});
+  const renderUploads = () => {
+   uploads.panel.replaceChildren();
+   const labels = {saved:'Gemt',received:'Modtaget',importing:'Importerer',rejected:'Afvist',failed:'Mislykkedes'};
+   for (const upload of this.uploads) {
+    const row = kit('listrow','',{tag:'div',variant:'read-only'});
+    row.append(applyKitTextRole(element('h3',upload.title || upload.url || 'Opskriftslink'),'field-label'));
+    const timestamp = new Date(upload.updatedAt || upload.receivedAt);
+    if (Number.isFinite(timestamp.getTime())) {
+     const time = applyKitTextRole(element('time',historyDate.format(timestamp)),'meta');
+     time.dateTime = timestamp.toISOString();
+     row.append(time);
+    }
+    const label = labels[upload.status] || 'Ukendt status', message = upload.message.trim();
+    row.append(meta(!message || message.toLocaleLowerCase('da') === label.toLocaleLowerCase('da')
+     ? label : label+' · '+message));
+    uploads.panel.append(row);
+   }
+   if (this.uploadHistoryStatus === 'unavailable') {
+    uploads.setDescription('Kunne ikke opdateres');
+    uploads.panel.append(meta('Uploadhistorikken kunne ikke hentes. De viste oplysninger kan være ældre.'),
+     action('Prøv igen',async()=>{await this.refreshUploadHistory();if(layout.isConnected) renderUploads();}));
+   } else {
+    uploads.setDescription(this.uploads.length ? this.uploads.length+' seneste uploads' : '');
+    if (this.uploadHistoryStatus === 'ready' && !this.uploads.length) uploads.panel.append(meta('Der er ingen uploads endnu.'));
+   }
+  };
+  this.renderUploadHistory = () => {if(layout.isConnected) renderUploads();};
   function jump(letter) {
    const group = groups.get(letter);
    if (group) entries.scrollTop += group.getBoundingClientRect().top - entries.getBoundingClientRect().top;
@@ -202,6 +250,8 @@ export class RecipeView {
     history.panel.append(...rows);
     entries.append(history.node);
    }
+   renderUploads();
+   entries.append(uploads.node);
   };
   index.append(marker);
   layout.append(entries,index);
@@ -226,8 +276,21 @@ export class RecipeView {
   this.catalogResize.observe(entries);
   entries.scrollTop = this.active ? 0 : this.catalogScroll || 0;
   if (refresh) {
-   this.refreshPublishedCatalog().then(()=>{
-    if (layout.isConnected && !this.root.hidden) this.catalog(false);
+   this.refreshUploadHistory().then(()=>{
+    if (!this.root.hidden) this.renderUploadHistory?.();
+   });
+   this.refreshPublishedCatalog().then(changed=>{
+    if (changed && layout.isConnected && !this.root.hidden) {
+     const scroll = entries.scrollTop, focused = document.activeElement;
+     const retainFocus = this.root.contains(focused), focusedId = focused?.id, focusedRecipe = focused?.dataset?.recipe;
+     this.catalog(false);
+     this.catalogEntries.scrollTop = scroll;
+     if (retainFocus) {
+      const restored = focusedId ? [...this.root.querySelectorAll('[id]')].find(node=>node.id === focusedId)
+       : focusedRecipe ? [...this.root.querySelectorAll('[data-recipe]')].find(node=>node.dataset.recipe === focusedRecipe) : null;
+      (restored || this.catalogEntries).focus({preventScroll:true});
+     }
+    }
    });
   }
  }
@@ -264,7 +327,7 @@ export class RecipeView {
  recipe(recipe) {
   const session = this.sessions.get(recipe) || {ingredients:new Set(),steps:new Set()};
   this.sessions.set(recipe,session);
-  const subtitle = [recipe.portions,recipe.totalTime,recipe.baking,recipe.waiting].filter(Boolean).join(' · ');
+  const subtitle = [recipe.portions,recipe.totalTime,recipe.baking,recipe.cookingTime && recipe.cookingTime+' tilberedning',recipe.waiting].filter(Boolean).join(' · ');
   const groups = recipe.groups || [{title:'Råvarer',lines:recipe.ingredients}];
   const ingredients = createKitDisclosure({
    id:'recipe-ingredients',title:'Ingredienser',expanded:session.ingredientsExpanded ?? true,
@@ -427,7 +490,7 @@ export class RecipeView {
   }
   const facts = [];
   const origin = recipe.publisher || (recipe.source?.url ? new URL(recipe.source.url).hostname : '');
-  for (const [label,value] of [['Kilde',origin],['Udbytte',recipe.portions],['Samlet tid',recipe.totalTime],['Hævning',recipe.waiting],['Bagetid',recipe.baking]]) {
+  for (const [label,value] of [['Kilde',origin],['Udbytte',recipe.portions],['Samlet tid',recipe.totalTime],['Hævning',recipe.waiting],['Bagetid',recipe.baking],['Tilberedningstid',recipe.cookingTime]]) {
    if (value) facts.push([label,value]);
   }
   for (const [label,timestamp] of [['Uploadet',recipe.source?.uploadedAt],['Tilføjet',recipe.createdAt]]) {

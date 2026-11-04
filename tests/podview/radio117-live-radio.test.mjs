@@ -3,6 +3,13 @@ import assert from 'node:assert/strict';
 import {radioObservation,LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
 import {stations} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
 const now=Date.now(),snapshot={bootId:'boot',roomId:'room'};
+test('startup connection invalidation before first snapshot keeps host rendering without radio authority',()=>{
+ const calls=[],host={isConnected:true,liveTransport:{connected:false},render:()=>calls.push('host'),liveMedia:{render:()=>calls.push('music')},showFeedback:message=>calls.push(['feedback',message])},radio=new LiveRadioView(host);
+ assert.doesNotThrow(()=>radio.invalidate());
+ assert.equal(radio.current(),false);assert.equal(radio.can('start'),false);assert.equal(radio.value,undefined);
+ assert.deepEqual(calls,[['feedback',''],'host','music']);
+ host.liveSnapshot=snapshot;assert.doesNotThrow(()=>radio.invalidate(true));assert.equal(radio.can('start'),false);
+});
 function value(overrides={}){return {ok:true,schema:'podview.radio.v1',...snapshot,revision:1,enabled:true,blockedReasons:[],stations:stations.map(s=>({id:s.id,name:s.label})),targets:[{id:'stuen',name:'Stuen',availability:'available',selectable:true,default:true}],actions:['start','stop','move'],state:{status:'playing',stationId:'p3',targetId:'stuen',generation:1,sourceKind:'radio',ownerGeneration:1,volumePercent:null,observedAt:now/1000},retrievedAt:now/1000,validUntil:now/1000+30,physicalResultVerified:false,...overrides};}
 function fixture(v=value()){const calls=[],host={isConnected:true,liveSnapshot:snapshot,liveTransport:{connected:true},playerView:{renderPlayer:vm=>calls.push(['player',vm]),renderControls:vm=>calls.push(['controls',vm]),renderQueue:()=>{}}};const radio=new LiveRadioView(host);host.liveRadio=radio;radio.value=v;radio.render=()=>{};return {host,radio,calls};}
 test('radio catalogue admits only scoped fresh native observations in canonical station order',()=>{assert.ok(radioObservation(value(),snapshot,null,now));for(const bad of [value({bootId:'other'}),value({validUntil:now/1000-1}),value({stations:[...value().stations].reverse()}),value({physicalResultVerified:true}),value({actions:['resume_spotify']}),value({state:{...value().state,sourceKind:undefined}})])assert.equal(radioObservation(bad,snapshot,null,now),null);});

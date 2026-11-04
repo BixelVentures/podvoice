@@ -800,9 +800,8 @@ async def test_recipe_catalog_uses_provisioned_owner_format_without_exposing_sub
 async def test_recipe_rejection_through_ha_ingress(ingress):
     endpoint = "/view/api/recipe-submissions"
     body = {"url": "https://example.org/recipe"}
-    response = await ingress.client.post(endpoint, headers=HEADERS, json=body)
-    assert response.status == 202
-    receipt = await response.json()
+    # A legacy queued upload can still be moderated after the automatic importer upgrade.
+    receipt = ingress.bridge.recipe_submissions.submit(body["url"])
     rejected = {**body, "reason": "not_recipe"}
     response = await ingress.client.patch(
         endpoint, headers={"X-Remote-User-Id": HEADERS["X-Remote-User-Id"]}, json=rejected
@@ -823,7 +822,13 @@ async def test_recipe_rejection_through_ha_ingress(ingress):
     assert len((await response.json())["recipes"]) == 8
 
 
-async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingress):
+async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingress, monkeypatch):
+    from gatekeeper import recipe_import
+
+    async def unavailable_source(_url):
+        raise OSError("inert source unavailable")
+
+    monkeypatch.setattr(recipe_import, "fetch_html", unavailable_source)
     ingress.bridge.recipe_upload_token = "x" * 32
     headers = {"Authorization": "Bearer " + "x" * 32}
     path = "/internal/recipes/submissions"
@@ -833,8 +838,9 @@ async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingre
     assert (await ingress.client.post(path, json=body)).status == 403
     assert (await ingress.client.patch(path, headers=headers, json=body)).status == 405
     submitted = await ingress.client.post(path, headers=headers, json=body)
-    assert submitted.status == 202
+    assert submitted.status == 200
     receipt = await submitted.json()
+    assert receipt["status"] == "failed" and receipt["message"]
     status = await ingress.client.get(
         "/internal/recipes/status", headers=headers, params={"id": receipt["id"]}
     )

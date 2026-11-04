@@ -2155,3 +2155,58 @@ async def test_robot_rebind_deadline_reason_survives_retirement_without_identifi
     assert token not in renewed["setup"]["rebindReason"]
     assert first["taskId"] not in renewed["setup"]["rebindReason"]
     assert not rig.writes
+
+
+@pytest.mark.parametrize("stage", ["transport", "dock", "settings", "display"])
+async def test_robot_setup_failure_logs_safe_stage_and_category(fixture, monkeypatch, caplog, stage):
+    from gatekeeper import podview_controls as controls
+
+    rig, bridge, token = fixture
+    rule = bridge.controls.policy["vacuum"][0]
+    rule["actions"] = ["settings", "start", "pause", "dock"]
+    rule["settingsRoles"] = ["volume"]
+    rule["dockControls"] = {"enabled": True}
+
+    async def failed(*args, **kwargs):
+        raise ValueError("PRIVATE-ENTITY PRIVATE-TOKEN")
+
+    class Transport:
+        def __init__(self, *args):
+            pass
+
+        async def setup(self, *args):
+            if stage == "transport":
+                return await failed()
+            return {"state": "cleaning", "actions": {"pause": True}, "deadline": time.monotonic() + 30}
+
+    class Dock:
+        def __init__(self, *args):
+            pass
+
+        async def setup(self, *args):
+            if stage == "dock":
+                return await failed()
+            return {"deadline": time.monotonic() + 30, "actions": {}}
+
+    class Settings:
+        def __init__(self, *args):
+            pass
+
+        async def setup(self, *args):
+            if stage == "settings":
+                return await failed()
+            return {"deadline": time.monotonic() + 30, "rows": []}
+
+    monkeypatch.setattr(controls, "VacuumTransport", Transport)
+    monkeypatch.setattr(controls, "DockTransport", Dock)
+    monkeypatch.setattr(controls, "ActiveVacuumSettings", Settings)
+    if stage == "display":
+        monkeypatch.setattr(bridge.tools._device_control, "display_setup", failed)
+    with caplog.at_level("WARNING", logger="gatekeeper.podview_controls"):
+        result = await bridge.controls.setup(setup_body(bridge), token)
+    if stage != "transport":
+        assert result["ok"], result  # Independently available pause survives.
+    messages = [r.getMessage() for r in caplog.records if "robot_setup_failed" in r.getMessage()]
+    assert messages[0] == f"robot_setup_failed stage={stage} error=value"
+    assert "PRIVATE" not in " ".join(messages)
+    assert not rig.writes

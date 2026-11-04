@@ -1,4 +1,4 @@
-"""Store shared recipe links until an administrator reviews them."""
+"""Durable shared recipe catalog and upload receipts."""
 
 import hashlib
 import json
@@ -13,6 +13,10 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 _REJECTION_MESSAGES = {
     "not_recipe": "Siden blev ikke vurderet som en opskrift",
     "unreadable": "Opskriften kunne ikke læses sikkert",
+    "incomplete": "Opskriften mangler ingredienser eller trin og er ikke gemt",
+    "ambiguous": "Siden indeholder flere opskrifter og skal gennemgås",
+    "unsafe_url": "Linket kan ikke hentes sikkert",
+    "unavailable": "Opskriften kunne ikke hentes. Del linket igen for at prøve igen",
 }
 
 
@@ -69,10 +73,14 @@ def _receipt(submission: dict) -> dict:
             "status": "rejected",
             "message": _REJECTION_MESSAGES[rejection["reason"]],
         }
+    if (submission.get("status") == "importing"
+            and _now_ms() - submission.get("updatedAt", 0) >= 30000):
+        return {"id": submission["id"], "status": "failed",
+                "message": "Importen blev afbrudt. Del linket igen"}
     return {
         "id": submission["id"],
-        "status": "received",
-        "message": "Modtaget til gennemgang",
+        "status": submission.get("status", "received"),
+        "message": submission.get("message", "Modtaget: opskriften afventer import"),
     }
 
 
@@ -131,12 +139,19 @@ class RecipeSubmissions:
         with self._lock:
             state = self._read()
             if recipe_id in state["recipes"]:
+                state["submissions"].setdefault(recipe_id, {
+                    "id": recipe_id, "url": url, "receivedAt": _now_ms(),
+                    "updatedAt": _now_ms(), "status": "saved", "message": "Gemt",
+                    "title": state["recipes"][recipe_id]["title"],
+                })
+                self._write(state)
                 return _saved(recipe_id)
             if recipe_id not in state["submissions"]:
                 state["submissions"][recipe_id] = {
                     "id": recipe_id,
                     "url": url,
                     "receivedAt": _now_ms(),
+                    "updatedAt": _now_ms(),
                 }
                 self._write(state)
             return _receipt(state["submissions"][recipe_id])
@@ -150,9 +165,71 @@ class RecipeSubmissions:
                 return _saved(recipe_id)
             return _receipt(state["submissions"][recipe_id])
 
+    def phone_receipt(self, recipe_id: object) -> dict:
+        receipt = self.receipt(recipe_id)
+        if receipt["status"] == "saved":
+            with self._lock:
+                title = self._read()["recipes"][recipe_id]["title"]
+            receipt = {**receipt, "title": title, "message": f"Gemt: {title}"}
+        return receipt
+
     def list_submissions(self) -> list[dict]:
         with self._lock:
-            return list(self._read()["submissions"].values())
+            return [item for item in self._read()["submissions"].values() if item.get("status") != "saved"]
+
+    def pending_urls(self) -> list[str]:
+        """Recover durable links after upgrade/restart; terminal failures require an explicit retry."""
+        with self._lock:
+            state = self._read()
+            pending = []
+            for item in state["submissions"].values():
+                if (item["id"] not in state["recipes"] and not item.get("rejection")
+                        and item.get("status", "received") in {"received", "importing"}):
+                    item["updatedAt"] = 0
+                    item["status"] = "received"
+                    pending.append(item["url"])
+            if pending:
+                self._write(state)
+            return pending
+
+    def begin_import(self, recipe_id: str) -> bool:
+        with self._lock:
+            state = self._read()
+            item = state["submissions"][recipe_id]
+            if item.get("rejection") or (item.get("status") == "importing"
+                    and _now_ms() - item.get("updatedAt", 0) < 30000):
+                return False
+            item.update(status="importing", message="Modtaget: importerer opskriften", updatedAt=_now_ms())
+            self._write(state)
+            return True
+
+    def import_failed(self, recipe_id: str, reason: str, rejected: bool) -> dict:
+        with self._lock:
+            state = self._read()
+            item = state["submissions"][recipe_id]
+            if recipe_id in state["recipes"]:
+                return _saved(recipe_id)
+            item.update(status="rejected" if rejected else "failed",
+                        message=_REJECTION_MESSAGES[reason], updatedAt=_now_ms())
+            if rejected:
+                item["rejection"] = {"reason": reason, "at": _now_ms()}
+            self._write(state)
+            return _receipt(item)
+
+    def upload_history(self) -> list[dict]:
+        with self._lock:
+            state = self._read()
+            items = []
+            for item in state["submissions"].values():
+                receipt = _receipt(item)
+                if item["id"] in state["recipes"]:
+                    receipt = _saved(item["id"])
+                elif (item.get("status") == "importing"
+                      and _now_ms() - item.get("updatedAt", 0) >= 30000):
+                    receipt = {"id": item["id"], "status": "failed",
+                               "message": "Importen blev afbrudt. Del linket igen"}
+                items.append({**item, **receipt})
+            return sorted(items, key=lambda item: item.get("updatedAt", item["receivedAt"]), reverse=True)[:100]
 
     def reject(self, url: object, reason: object) -> dict:
         recipe_id = _recipe_id(_source_url(url))
@@ -201,6 +278,9 @@ class RecipeSubmissions:
                 "source": {"url": existing.get("source", {}).get("url", url), "files": []},
                 "createdAt": existing.get("createdAt", _now_ms()),
             }
-            state["submissions"].pop(recipe_id, None)
+            item = state["submissions"].get(recipe_id)
+            if item:
+                item.update(status="saved", message="Gemt", title=recipe["title"], updatedAt=_now_ms())
+                state["recipes"][recipe_id]["source"]["uploadedAt"] = item["receivedAt"]
             self._write(state)
         return _saved(recipe_id)
