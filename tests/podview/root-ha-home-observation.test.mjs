@@ -77,3 +77,33 @@ test('vehicle retention requires matching scoped binding and never mixes fields 
  assert.equal(applyHome(fresh,{...unavailable,bootId:'other'},['vehicle']).vehicle,null);assert.equal(applyHome(fresh,unavailable,[]).vehicle,null);
  const partial=validateHome({...base,vehicle:{...base.vehicle,observedAt:124,data:{locked:false}}},'room','boot');const updated=applyHome(fresh,partial,['vehicle']);assert.equal(updated.vehicle.batteryPercent,null,'fields are never mixed');assert.equal(updated.vehicle.locked,false);assert.equal(updated.vehicle.observedAt,124);
 });
+
+
+test('light observations accept fractional timestamps in the current millisecond only',async()=>{
+ const {scopedLightsObservation,lightAreasObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
+ const observedAt=(lightNow+0.246)/1000;
+ const lights={...scopedLights(),observedAt,validUntil:observedAt+15};
+ const areas={...areaCatalogue(),observedAt,validUntil:observedAt+15};
+ assert.ok(scopedLightsObservation(lights,{now:lightNow}));
+ assert.ok(lightAreasObservation(areas,lightNow));
+ assert.equal(scopedLightsObservation(lights,{now:lightNow-1}),null);
+ assert.equal(lightAreasObservation(areas,lightNow-1),null);
+ assert.equal(scopedLightsObservation(lights,{now:lightNow+15001}),null);
+ assert.equal(lightAreasObservation(areas,lightNow+15001),null);
+});
+
+test('live light action keeps its actual owner across voice turns but revokes on real scope changes',async()=>{
+ const {LiveControlView}=await import('../../podvoice/gatekeeper/static/podview/live-control-view.js');
+ const now=Date.now()/1000,observation={...scopedLights(),observedAt:now,validUntil:now+15};
+ const transport={generation:1,connected:true},host={isConnected:true,liveTransport:transport,state:{focus:'light'},liveSnapshot:{bootId:'boot',roomId:'room',voice:{sessionId:'first'},capabilities:{controlSetup:['light']}}};
+ const control=Object.create(LiveControlView.prototype);control.host=host;
+ const context=control.lightActionContext({areaId:'kitchen'},observation,()=>observation);assert.ok(context?.current());
+ Object.assign(host.liveSnapshot,{voice:{sessionId:'second'},sessionId:'second',taskId:'new',inputRevision:2,providerGeneration:4});assert.equal(context.current(),true);
+ host.state.focus='now';assert.equal(context.current(),false);host.state.focus='light';
+ host.liveSnapshot.capabilities.controlSetup=[];assert.equal(context.current(),false);host.liveSnapshot.capabilities.controlSetup=['light'];
+ transport.generation++;assert.equal(context.current(),false);transport.generation--;
+ host.liveSnapshot.roomId='other';assert.equal(context.current(),false);host.liveSnapshot.roomId='room';
+ observation.scope.bindingId='d'.repeat(64);assert.equal(context.current(),false);observation.scope.bindingId=lightBinding;
+ observation.sourceEpoch='e'.repeat(64);assert.equal(context.current(),false);
+ host.isConnected=false;assert.equal(context.current(),false);
+});

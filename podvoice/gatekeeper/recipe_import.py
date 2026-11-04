@@ -19,7 +19,7 @@ from aiohttp import (
 )
 from aiohttp.abc import AbstractResolver
 
-from .recipe_submissions import _source_url
+from .recipe_submissions import _recipe_id, _source_url, recipe_event
 
 MAX_HTML = 2 * 1024 * 1024
 FETCH_SECONDS = 12
@@ -313,27 +313,66 @@ def extract_recipe(html: str, source_url: str) -> dict:
 
 async def import_link(store, url):
     """An accepted upload is durable before fetching; only a durable publication says Gemt."""
-    url = _source_url(url)
-    receipt = await asyncio.to_thread(store.submit, url)
-    if receipt["status"] in {"saved", "rejected"}:
-        return await asyncio.to_thread(store.phone_receipt, receipt["id"])
-    claimed = await asyncio.to_thread(store.begin_import, receipt["id"])
-    if not claimed:
-        return await asyncio.to_thread(store.receipt, receipt["id"])
     try:
-        async with asyncio.timeout(FETCH_SECONDS + 1), _IMPORT_SLOTS:
-            html, final_url = await fetch_html(url)
-            recipe = extract_recipe(html, final_url)
-        # Original shared URL stays the stable identity even after publisher redirects.
-        recipe["source"]["url"] = url
-        await asyncio.to_thread(store.publish, recipe)
-        return await asyncio.to_thread(store.phone_receipt, receipt["id"])
-    except asyncio.CancelledError:
-        await asyncio.shield(
-            asyncio.to_thread(store.import_failed, receipt["id"], "unavailable", False)
-        )
+        url = _source_url(url)
+    except (ValueError, TypeError):
+        recipe_event("submit", "rejected", reason="invalid_url")
         raise
-    except ImportRejected as exc:
-        return await asyncio.to_thread(store.import_failed, receipt["id"], str(exc), True)
-    except (ClientError, OSError, TimeoutError, ValueError, RecursionError):
-        return await asyncio.to_thread(store.import_failed, receipt["id"], "unavailable", False)
+    recipe_id = _recipe_id(url)
+    try:
+        receipt = await asyncio.to_thread(store.submit, url)
+        recipe_event("submit", receipt["status"], recipe_id=recipe_id)
+        if receipt["status"] in {"saved", "rejected"}:
+            recipe_event("duplicate", receipt["status"], recipe_id=recipe_id)
+            return await asyncio.to_thread(store.phone_receipt, receipt["id"])
+        claimed = await asyncio.to_thread(store.begin_import, receipt["id"])
+        if not claimed:
+            pending = await asyncio.to_thread(store.receipt, receipt["id"])
+            recipe_event("duplicate", pending["status"], recipe_id=recipe_id)
+            return pending
+        recipe_event("import", "started", recipe_id=recipe_id)
+        phase = "fetch"
+        try:
+            async with asyncio.timeout(FETCH_SECONDS + 1), _IMPORT_SLOTS:
+                html, final_url = await fetch_html(url)
+                phase = "parse"
+                recipe = extract_recipe(html, final_url)
+            # Original shared URL stays the stable identity even after publisher redirects.
+            recipe["source"]["url"] = url
+            phase = "storage"
+            await asyncio.to_thread(store.publish, recipe)
+            return await asyncio.to_thread(store.phone_receipt, receipt["id"])
+        except asyncio.CancelledError:
+            await asyncio.shield(
+                asyncio.to_thread(store.import_failed, receipt["id"], "unavailable", False)
+            )
+            recipe_event("import", "failed", recipe_id=recipe_id, reason="cancelled")
+            raise
+        except ImportRejected as exc:
+            reason = str(exc)
+            result = await asyncio.to_thread(store.import_failed, receipt["id"], reason, True)
+            safe_reason = (
+                reason
+                if reason in {"not_recipe", "unreadable", "incomplete", "ambiguous", "unsafe_url"}
+                else "unreadable"
+            )
+            recipe_event("import", "rejected", recipe_id=recipe_id, reason=safe_reason)
+            return result
+        except (ClientError, OSError, TimeoutError, ValueError, RecursionError) as exc:
+            result = await asyncio.to_thread(
+                store.import_failed, receipt["id"], "unavailable", False
+            )
+            reason = (
+                "storage"
+                if phase == "storage"
+                else "timeout"
+                if isinstance(exc, TimeoutError)
+                else "network"
+                if phase == "fetch"
+                else "invalid_data"
+            )
+            recipe_event("import", "failed", recipe_id=recipe_id, reason=reason)
+            return result
+    except OSError:
+        recipe_event("storage", "failed", recipe_id=recipe_id, reason="unavailable")
+        raise

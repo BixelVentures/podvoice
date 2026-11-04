@@ -1,0 +1,18 @@
+'use strict';
+// Serial execution keeps each isolated fixture on its own loopback port.
+const {spawnSync}=require('node:child_process');
+const path=require('node:path');
+const {artifactDir}=require('./podview_actual_env.cjs');
+const journeys=['music_actual_e2e.cjs','music_selection_actual_e2e.cjs','radio_actual_e2e.cjs','robot_actual_e2e.cjs','light_actual_e2e.cjs','vehicle_actual_e2e.cjs','timer_actual_e2e.cjs','home_events_actual_e2e.cjs','answers_actual_e2e.cjs','recipe_actual_e2e.cjs'];
+const env={...process.env,MUSIC_EXTENDED:'1',PODVIEW_TEST_ARTIFACT_DIR:artifactDir()};
+function runJourney(journey,extraEnv={}){
+ console.log(`Running actual PodView journey: ${journey}${extraEnv.ROBOT_DRAFT_TEST==='1'?' (server task expiry and mode drafts)':''}`);
+ const result=spawnSync(process.execPath,[path.join(__dirname,journey)],{env:{...env,...extraEnv},stdio:'inherit',timeout:240000});
+ if(result.error)throw result.error;
+ if(result.status!==0)throw new Error(`${journey} failed: ${result.signal||result.status}`);
+}
+for(const journey of journeys){
+ runJourney(journey);
+ if(journey==='robot_actual_e2e.cjs')runJourney(journey,{ROBOT_DRAFT_TEST:'1'});
+}
+console.log(`Actual PodView journey artifacts: ${env.PODVIEW_TEST_ARTIFACT_DIR}`);

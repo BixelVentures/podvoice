@@ -14,7 +14,7 @@ const lightText=(value,max)=>typeof value==='string'&&value.length>0&&value.leng
 const lightAreaId=value=>typeof value==='string'&&/^[A-Za-z0-9_-]{1,128}$/.test(value);
 const lightHash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 const lightRevision=value=>Number.isSafeInteger(value)&&value>=0;
-const lightTime=(v,now)=>Number.isFinite(now)&&finite(v.observedAt)!==null&&finite(v.validUntil)!==null&&v.validUntil===v.observedAt+15&&v.observedAt*1000<=now&&now<v.validUntil*1000;
+const lightTime=(v,now)=>Number.isFinite(now)&&finite(v.observedAt)!==null&&finite(v.validUntil)!==null&&v.validUntil===v.observedAt+15&&Math.floor(v.observedAt*1000)<=now&&now<v.validUntil*1000;
 export function lightAreasObservation(v,now=Date.now()){
  const keys=['status','source','sourceEpoch','observedAt','validUntil','bindingId','placementRevision','ownAreaId','selectedAreaId','items'];
  if(!lightExact(v,keys)||!['observed','unavailable','unbound'].includes(v.status)||v.source!=='home_assistant_area_registry'||!Array.isArray(v.items))return null;

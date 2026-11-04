@@ -2,12 +2,13 @@ import test from 'node:test';import assert from 'node:assert/strict';import fs f
 import {homeConnectionPresentation,liveScene} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
 import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
 import {initialScene,deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts,robotDetailMetadata} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=fs.readFileSync(process.env.WIDGET_OWNER_SOURCE||new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 const suspendCode=source.slice(source.indexOf(' suspendLiveTimer(){'),source.indexOf('\n reconcileLiveTimer('));
 const suspendLiveTimer=new Function(`return ({${suspendCode}}).suspendLiveTimer`)();
 const start=Math.min(source.indexOf(' for(const [id,node] of this.deviceNodes)'),source.indexOf(" const activities=$('device-activities')")),end=source.indexOf(' for(const[id,node]of this.answerNodes)',start);
 const render=new Function('devicePresentation','lightSelection','deviceOverviewFacts','robotDetailMetadata','homeConnectionPresentation','return function(s,$,document,createResourceTile,updateResourceTile,deviceLabel,deviceActions){this.renderOverviewAction=()=>{};const homeConnection=homeConnectionPresentation(this.live?{status:this.liveStatus,blocked:this.liveTransport?.recoveryBlocked===true,browserOffline:this.browserOffline===true}:s.connectionPreview||{});'+source.slice(start,end)+'}')(devicePresentation,lightSelection,deviceOverviewFacts,robotDetailMetadata,homeConnectionPresentation);
-const load=new Function('applyHome','validateHome','return async function(){'+source.split(' async loadLiveHome(){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'')+'}')(applyHome,validateHome);
+const load=new Function('applyHome','validateHome','return async function({followup=false}={}){'+source.split(' async loadLiveHome({followup=false}={}){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'')+'}')(applyHome,validateHome);
+const updateHomeRevision=new Function('return ({'+source.slice(source.indexOf(' updateHomeRevision(snapshot){'),source.indexOf(' async loadLiveHome('))+'}).updateHomeRevision')();
 function element(){return {children:[],dataset:{},parent:null,remove(){if(this.parent)this.parent.children=this.parent.children.filter(x=>x!==this);this.parent=null;},append(n){n.remove();this.children.push(n);n.parent=this;},insertBefore(n,ref){n.remove();const i=this.children.indexOf(ref);this.children.splice(i<0?this.children.length:i,0,n);n.parent=this;},setAttribute(k,v){(this.attrs??=new Map()).set(k,v);},getAttribute(k){return this.attrs?.get(k)??null;}};}
 test('actual device render retains empty row/widget through pending and home-error, then hands off and retains honest empty access after revocation',async()=>{
  const els=new Map(),$=id=>{if(!els.has(id))els.set(id,element());return els.get(id);};const h={live:true,isConnected:true,liveHomeGeneration:0,liveSnapshot:{bootId:'b',roomId:'kitchen',capabilities:{homeRead:['vacuum']}},state:{devices:[{id:'light',kind:'light',status:'unavailable',timeline:[]}],focus:'now'},deviceNodes:new Map(),deviceRows:new Map(),dispatch(){throw Error('unexpected action')},focusHeading(){},liveTransport:{connected:true,home:async()=>{throw Error('synthetic read failure');}}};
@@ -18,7 +19,7 @@ test('actual device render retains empty row/widget through pending and home-err
  h.state.devices=h.state.devices.filter(d=>d.kind!=='vacuum');h.render();assert.ok(h.deviceRows.has('podview-vacuum-empty'));h.liveSnapshot.capabilities.homeRead=[];h.render();assert.equal(h.deviceRows.has('podview-vacuum-empty'),true);assert.equal(h.deviceNodes.has('podview-vacuum-empty'),true);assert.equal(h.deviceRows.get('podview-vacuum-empty').disabled,false,'read revocation keeps only honest empty navigation');assert.equal(h.deviceRows.get('podview-vacuum-empty').dataset.target,'podview-vacuum-empty');assert.deepEqual(h.deviceNodes.get('podview-vacuum-empty').data.actions,[]);assert.equal(h.state.devices.some(device=>device.kind==='vacuum'),false);assert.equal(h.deviceRows.has('vacuum.synthetic'),false);assert.equal(h.deviceRows.get('light'),light);
 });
 
-function homeHost(){const robot={id:'vacuum.private',kind:'vacuum',source:'home_assistant_state',live:true,battery:80},light={id:'light',kind:'light',status:'unavailable'};return {liveHomeGeneration:0,isConnected:true,liveSnapshot:{bootId:'b',roomId:'kitchen',capabilities:{homeRead:['vacuum','weather']}},state:{focus:robot.id,homeScope:'private',homeRevision:4,devices:[light,robot],liveWeather:{temperature:20}},renders:0,render(){this.renders++;},liveTransport:{connected:true},light,robot};}
+function homeHost(){const robot={id:'vacuum.private',kind:'vacuum',source:'home_assistant_state',live:true,battery:80},light={id:'light',kind:'light',status:'unavailable'};return {updateHomeRevision,liveHomeGeneration:0,isConnected:true,liveSnapshot:{bootId:'b',roomId:'kitchen',capabilities:{homeRead:['vacuum','weather']}},state:{focus:robot.id,homeScope:'private',homeRevision:4,devices:[light,robot],liveWeather:{temperature:20}},renders:0,render(){this.renders++;},liveTransport:{connected:true},light,robot};}
 test('actual home read denial clears private weather/robot; transient or malformed read retains stale content',async()=>{
  for(const code of ['read_access_denied','read_transient',undefined]){const h=homeHost();h.liveTransport.home=async()=>{throw Object.assign(new Error('home_unavailable'),{code});};await load.call(h);assert.equal(h.renders,1);assert.equal(h.liveHomePending,false);assert.equal(h.state.devices[0],h.light);if(code==='read_access_denied'){assert.equal(h.state.liveWeather,null);assert.deepEqual(h.state.devices,[h.light]);assert.equal(h.state.focus,'now');assert.equal(h.state.homeScope,null);}else{assert.equal(h.state.liveWeather.temperature,20);assert.equal(h.state.liveWeather.stale,true);assert.equal(h.state.devices[1].battery,80);assert.equal(h.state.devices[1].stale,true);assert.equal(h.state.focus,h.robot.id);}}
 });
@@ -43,4 +44,40 @@ test('overview maps known robot battery including zero, clears unknown values an
  robot.stale=false;robot.battery=0;h.liveTransport.connected=false;draw();assert.equal(mapped.get('vacuum').value,'0 %');assert.equal(mapped.get('vacuum').detail,'Sidst kendt: Ved basen');assert.equal(mapped.get('vacuum').stale,true);assert.equal(mapped.get('vacuum').facts.find(f=>f.id==='battery').value,'0 %');assert.equal(robot.stale,false);assert.equal(h.deviceRows.get(robot.id),row);assert.equal(h.deviceNodes.get(robot.id),node);
  for(const battery of [null,undefined,NaN,Infinity,-1,101,true,'50']){robot.battery=battery;draw();assert.equal(mapped.get('vacuum').value,'');assert.equal(h.deviceRows.get(robot.id),row);}
  robot.battery=42;robot.stale=false;h.liveTransport.connected=true;draw();assert.equal(mapped.get('vacuum').value,'42 %');assert.equal(mapped.get('vacuum').detail,'Ved basen');assert.equal(mapped.get('vacuum').stale,false);assert.equal(mapped.get('vacuum').target,robot.id);assert.equal(mapped.get('vacuum').disabled,false);
+});
+
+test('vehicle receipt coalesces one passive follow-up after a held home read and respects revocation',async()=>{
+ for(const revoke of [false,true]){
+  const h=homeHost(),pending=[];h.liveSnapshot.capabilities={homeRead:['vehicle'],controlSetup:['vehicle']};h.liveTransport.generation=1;h.loadLiveHome=load.bind(h);let active=0,maxActive=0;
+  h.liveTransport.home=()=>{active++;maxActive=Math.max(active,maxActive);return new Promise((resolve,reject)=>pending.push(()=>{active--;reject(Error('read unavailable'));}));};
+  const first=h.loadLiveHome();assert.equal(pending.length,1);await h.loadLiveHome({afterCurrent:true});await h.loadLiveHome({afterCurrent:true});assert.equal(pending.length,1);
+  if(revoke)h.liveSnapshot.capabilities.controlSetup=[];
+  pending[0]();await first;await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(pending.length,revoke?1:2);assert.equal(maxActive,1);
+  if(!revoke){pending[1]();await new Promise(resolve=>setImmediate(resolve));assert.equal(pending.length,2,'failed follow-up never loops');}
+ }
+});
+
+test('a superseded failed vehicle read preserves presentation only until its real follow-up resolves',async()=>{
+ for(const denied of [false,true]){
+  const h=homeHost(),pending=[];h.state.vehicle={kind:'vehicle',source:'tesla_fleet_snapshot',mode:'observed',climate:{status:'heat_cool'}};h.liveSnapshot.capabilities={homeRead:['vehicle','light'],controlSetup:['vehicle']};h.liveTransport.generation=1;h.loadLiveHome=load.bind(h);
+  h.liveTransport.home=()=>new Promise((resolve,reject)=>pending.push(reject));const first=h.loadLiveHome();await h.loadLiveHome({afterCurrent:true});pending[0](Object.assign(Error('read failed'),{code:denied?'read_access_denied':'read_transient'}));await first;await new Promise(resolve=>setImmediate(resolve));
+  if(denied){assert.equal(h.state.vehicle,null);assert.equal(pending.length,1,'denial does not initiate receipt follow-up');}
+  else{assert.equal(h.state.vehicle.stale,undefined);assert.equal(h.renders,0);assert.equal(pending.length,2);pending[1](Error('follow-up failed'));await new Promise(resolve=>setImmediate(resolve));assert.equal(h.state.vehicle.stale,true);assert.equal(h.state.homeReadStatus.vehicle,'error');assert.equal(pending.length,2,'a genuine follow-up failure never loops');}
+ }
+});
+
+
+test('home journal follows the actual superseded read and single recovered follow-up without effect authority',async()=>{
+ const h=homeHost(),pending=[],rows=[],tokens=[],token={};h.liveSnapshot.capabilities={homeRead:['vehicle'],controlSetup:['vehicle']};h.liveTransport.generation=1;h.loadLiveHome=load.bind(h);
+ h.liveTransport.createReadDiagnostic=()=>token;
+ h.liveTransport.recordReadDiagnostic=(stage,row,read)=>{assert.equal(read,token);rows.push({stage,...row});};
+ h.liveTransport.home=options=>{tokens.push(options.readDiagnostic);return new Promise((resolve,reject)=>pending.push({resolve,reject}));};
+ const first=h.loadLiveHome();await h.loadLiveHome({afterCurrent:true});pending[0].reject(Object.assign(Error('old read'),{code:'read_transient'}));await first;
+ assert.equal(pending.length,2);pending[1].resolve({schema:'podview.home.v1',bootId:'b',roomId:'kitchen',revision:1,observedAt:1,vacuum:{status:'observed',items:[]}});await new Promise(resolve=>setImmediate(resolve));
+ assert.deepEqual(rows.map(row=>row.code),['start','superseded','start','recovered']);assert.deepEqual(tokens,[token,token]);assert(rows.every(row=>row.domain==='home'&&row.source==='home_assistant'&&row.trust==='state_observation'));assert.equal(h.liveHomePending,false);
+});
+test('home journal RNG and sink failures leave the real read and publication unchanged',async()=>{
+ const h=homeHost();let reads=0;h.liveTransport.createReadDiagnostic=()=>{throw Error('inert RNG failure');};h.liveTransport.recordDiagnostic=()=>{throw Error('inert sink failure');};h.liveTransport.home=async()=>{reads++;return {schema:'podview.home.v1',bootId:'b',roomId:'kitchen',revision:1,observedAt:1,vacuum:{status:'observed',items:[]}};};
+ await load.call(h);assert.equal(reads,1);assert.equal(h.renders,1);assert.equal(h.liveHomePending,false);assert.equal(h.state.homeReadStatus.vacuum,'ready');
 });

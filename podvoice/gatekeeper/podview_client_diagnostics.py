@@ -27,15 +27,32 @@ MAX_INT = 2**53 - 1
 _UUID = re.compile(r"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}")
 _HEX = re.compile(r"[a-f0-9]{64}")
 _REF = re.compile(r"[a-f0-9]{16}")
+# Numeric diagnostics cover temperature, percentages, levels and timers up to24h.
+_VALUE_LIMIT = 86400
+_RESOURCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}")
 _BUILD = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
+_DOMAIN_ACTIONS = {
+    "music": frozenset("pause resume next previous volume move_existing_session".split()),
+    "vacuum": frozenset("pause resume stop return start settings dock".split()),
+    "light": frozenset("turn_on turn_off brightness scene".split()),
+    "vehicle": frozenset(
+        "lock unlock climateOn climateOff temperature defrostOn defrostOff driverSeatHeat passengerSeatHeat rearTrunkToggle".split()
+    ),
+    "timer": frozenset(("timer.start", "timer.cancel")),
+    "radio": frozenset("start stop move volume".split()),
+    "home": frozenset(),
+}
+_ACTIONS = frozenset().union(*_DOMAIN_ACTIONS.values())
+_SOURCES = frozenset(("home_assistant", "podconnect", "podspeakers", "podradio", "snapshot"))
+_TRUST = frozenset(("state_observation", "owner_settlement"))
 _STAGES = frozenset(
-    "control_intent request observer sse freshness connection control_setup volume_setup control_action music_read playback_confirmation queue_read queue_action browser lifecycle control_state volume_state artwork robot_renewal".split()
+    "control_observation home_read control_intent request observer sse freshness connection control_setup volume_setup control_action music_read playback_confirmation queue_read queue_action browser lifecycle control_state volume_state artwork robot_renewal".split()
 )
 _CODES = frozenset(
-    "start ok accepted unknown rejected confirmed scope_changed unsupported http_denied http_transient http_error invalid_json timeout cancelled network failure invalid_dto stale_binding superseded empty unavailable matched unconfirmed expiry error cleanup disconnected connecting connected unhandled_rejection read_inflight intent_pending spent unknown_fence capability_missing unknown_value resource_error decode_error other busy scope_not_paired target_not_granted stale_setup setup_capacity setup_unavailable invalid_setup invalid_target robot_rebind_same robot_rebind_context robot_rebind_denied robot_rebind_absent robot_rebind_invalid robot_rebind_draft robot_rebind_dialog robot_rebind_restored robot_authority_changed robot_offer_invalid robot_open_reset robot_deny_source_missing robot_deny_source_domain robot_deny_source_registered robot_deny_source_consumed robot_deny_source_token robot_deny_source_deadline robot_deny_source_setup robot_deny_source_domain_access robot_deny_source_binding robot_deny_source_current_other robot_deny_fresh_current robot_deny_room robot_deny_target robot_deny_binding robot_deny_rule robot_deny_mutation robot_deny_boot robot_deny_device robot_deny_authority robot_deny_draft_identity robot_deny_draft_scope robot_deny_offer_presence_vacuum_transport_offer robot_deny_offer_presence_dock_offer robot_deny_offer_presence_settings_offer robot_deny_offer_changed_vacuum_transport_offer robot_deny_offer_changed_dock_offer robot_deny_offer_changed_settings_offer robot_deny_public_options robot_deny_mapping_exception robot_deny_other".split()
+    "observed recovered start ok accepted unknown rejected confirmed scope_changed unsupported http_denied http_transient http_error invalid_json timeout cancelled network failure invalid_dto stale_binding superseded empty unavailable matched unconfirmed expiry error cleanup disconnected connecting connected unhandled_rejection read_inflight intent_pending spent unknown_fence capability_missing unknown_value resource_error decode_error other busy scope_not_paired target_not_granted stale_setup setup_capacity setup_unavailable invalid_setup invalid_target robot_rebind_same robot_rebind_context robot_rebind_denied robot_rebind_absent robot_rebind_invalid robot_rebind_draft robot_rebind_dialog robot_rebind_restored robot_authority_changed robot_offer_invalid robot_open_reset robot_deny_source_missing robot_deny_source_domain robot_deny_source_registered robot_deny_source_consumed robot_deny_source_token robot_deny_source_deadline robot_deny_source_setup robot_deny_source_domain_access robot_deny_source_binding robot_deny_source_current_other robot_deny_fresh_current robot_deny_room robot_deny_target robot_deny_binding robot_deny_rule robot_deny_mutation robot_deny_boot robot_deny_device robot_deny_authority robot_deny_draft_identity robot_deny_draft_scope robot_deny_offer_presence_vacuum_transport_offer robot_deny_offer_presence_dock_offer robot_deny_offer_presence_settings_offer robot_deny_offer_changed_vacuum_transport_offer robot_deny_offer_changed_dock_offer robot_deny_offer_changed_settings_offer robot_deny_public_options robot_deny_mapping_exception robot_deny_other".split()
 )
 _ENDPOINTS = frozenset(
-    "snapshot events home answers actions pair controller/renew controller/request controller/claim music source weather-advice control/setup control/actions music/queue/offer music/queue/actions music/selection/setup music/selection/actions other".split()
+    "radio radio/offer radio/actions snapshot events home answers actions pair controller/renew controller/request controller/claim music source weather-advice control/setup control/actions music/queue/offer music/queue/actions music/selection/setup music/selection/actions other".split()
 )
 _KINDS = frozenset(
     "targets playback speakers mood feeling top recent search account_playlists queue other".split()
@@ -55,6 +72,11 @@ _OPTIONAL = {
     "readHash",
     "domain",
     "action",
+    "source",
+    "trust",
+    "diagnosticRef",
+    "requestedValue",
+    "observedValue",
 }
 
 
@@ -121,8 +143,10 @@ def _matches(pattern, value):
 
 def _row(value, *, stored=False):
     correlation = "requestRef" if stored else "requestId"
+    resource = "resourceRef" if stored else "resourceId"
     if type(value) is not dict or not _REQUIRED <= set(value) <= _REQUIRED | _OPTIONAL | {
-        correlation
+        correlation,
+        resource,
     }:
         raise ValueError("row fields")
     if value["stage"] not in _STAGES or value["code"] not in _CODES:
@@ -139,25 +163,63 @@ def _row(value, *, stored=False):
     for key, bounds in limits.items():
         if key in value and not _integer(value[key], *bounds):
             raise ValueError("row number")
+    for key in ("requestedValue", "observedValue"):
+        if key in value and not (
+            type(value[key]) is bool
+            or (
+                type(value[key]) in {int, float}
+                and abs(value[key]) <= _VALUE_LIMIT
+                and math.isfinite(value[key])
+            )
+        ):
+            raise ValueError("row diagnostic value")
+    if resource in value and not _matches(_REF if stored else _RESOURCE, value[resource]):
+        raise ValueError("row resource correlation")
     for key in ("current", "pending", "connected"):
         if key in value and type(value[key]) is not bool:
             raise ValueError("row boolean")
     for key, allowed in (
         ("endpoint", _ENDPOINTS),
         ("kind", _KINDS),
-        ("domain", {"music", "vacuum"}),
-        ("action", {"pause", "resume", "next", "previous", "volume", "move_existing_session"}),
+        ("domain", _DOMAIN_ACTIONS),
+        ("action", _ACTIONS),
+        ("source", _SOURCES),
+        ("trust", _TRUST),
     ):
         if key in value and (type(value[key]) is not str or value[key] not in allowed):
             raise ValueError("row enum")
+    if (
+        "domain" in value
+        and "action" in value
+        and value["action"] not in _DOMAIN_ACTIONS[value["domain"]]
+    ):
+        raise ValueError("row domain action")
+    if (
+        value["stage"] == "control_observation"
+        and not {"domain", "source", "trust"} <= value.keys()
+    ):
+        raise ValueError("row observation provenance")
+    if value.get("trust") == "owner_settlement" and value.get("source") in {
+        "home_assistant",
+        "snapshot",
+    }:
+        raise ValueError("state source cannot attest owner settlement")
+    if value.get("trust") == "state_observation" and value["code"] == "confirmed":
+        raise ValueError("state observation is not causal confirmation")
     if "readHash" in value and not _matches(_REF, value["readHash"]):
         raise ValueError("row read hash")
+    if "diagnosticRef" in value and not _matches(_REF if stored else _UUID, value["diagnosticRef"]):
+        raise ValueError("row diagnostic correlation")
     result = dict(value)
     if correlation in value:
         if not _matches(_REF if stored else _UUID, value[correlation]):
             raise ValueError("row correlation")
         if not stored:
             result["requestRef"] = hashlib.sha256(result.pop("requestId").encode()).hexdigest()[:16]
+    if not stored and "resourceId" in result:
+        result["resourceRef"] = hashlib.sha256(result.pop("resourceId").encode()).hexdigest()[:16]
+    if not stored and "diagnosticRef" in result:
+        result["diagnosticRef"] = hashlib.sha256(result["diagnosticRef"].encode()).hexdigest()[:16]
     return result
 
 
@@ -169,6 +231,7 @@ class DiagnosticBatch:
     build: str | None
     digest: str
     rows: tuple[dict, ...]
+    client_id: str | None = None  # Telemetry rate isolation only; never authority.
 
 
 def parse_batch(raw: bytes) -> DiagnosticBatch:
@@ -176,15 +239,18 @@ def parse_batch(raw: bytes) -> DiagnosticBatch:
         raise DiagnosticFailure("diagnostics_too_large", 413)
     try:
         value = _decode(raw)
-        if type(value) is not dict or set(value) != {
+        required = {
             "schema",
             "batchId",
             "roomId",
             "bootId",
             "uiBuild",
             "records",
-        }:
+        }
+        if type(value) is not dict or not required <= value.keys() <= required | {"clientId"}:
             raise ValueError("batch fields")
+        if "clientId" in value and not _matches(_UUID, value["clientId"]):
+            raise ValueError("batch client identity")
         if (
             value["schema"] != "podview.client-diagnostics.v1"
             or not _matches(_UUID, value["batchId"])
@@ -209,6 +275,7 @@ def parse_batch(raw: bytes) -> DiagnosticBatch:
             value["uiBuild"],
             hashlib.sha256(_encoded(value)).hexdigest(),
             rows,
+            value.get("clientId"),
         )
     except (ValueError, TypeError, KeyError, UnicodeError, RecursionError) as exc:
         raise DiagnosticFailure("invalid_client_diagnostics", 400) from exc
@@ -363,9 +430,12 @@ class ClientDiagnosticsStore:
         for item in data["batches"]:
             if (
                 type(item) is not dict
-                or set(item) != {"key", "digest", "principalRef", "receivedAtMs", "count"}
+                or not {"key", "digest", "principalRef", "receivedAtMs", "count"}
+                <= item.keys()
+                <= {"key", "digest", "principalRef", "clientRef", "receivedAtMs", "count"}
                 or any(not _matches(_HEX, item[key]) for key in ("key", "digest"))
                 or not _matches(_REF, item["principalRef"])
+                or ("clientRef" in item and not _matches(_REF, item["clientRef"]))
                 or not _integer(item["receivedAtMs"])
                 or not _integer(item["count"], 1, 16)
                 or item["key"] in keys
@@ -436,6 +506,11 @@ class ClientDiagnosticsStore:
     def _append(self, batch, principal, current):
         self._permit(current)
         principal_ref = hashlib.sha256(principal.encode()).hexdigest()[:16]
+        # Self-declared telemetry IDs partition cadence, never grants. The global
+        # 12/min cap still bounds rotating IDs; old batches keep a legacy bucket.
+        client_ref = (
+            hashlib.sha256(batch.client_id.encode()).hexdigest()[:16] if batch.client_id else None
+        )
         room_ref = hashlib.sha256(batch.room.encode()).hexdigest()[:16]
         boot_ref = hashlib.sha256(batch.boot.encode()).hexdigest()[:16]
         key = hashlib.sha256(
@@ -456,7 +531,9 @@ class ClientDiagnosticsStore:
                 len(data["batches"]) >= 128
                 or len(recent) >= 12
                 or any(
-                    item["principalRef"] == principal_ref and now - item["receivedAtMs"] < 10000
+                    item["principalRef"] == principal_ref
+                    and item.get("clientRef") == client_ref
+                    and now - item["receivedAtMs"] < 10000
                     for item in recent
                 )
             ):
@@ -486,6 +563,7 @@ class ClientDiagnosticsStore:
                     "key": key,
                     "digest": batch.digest,
                     "principalRef": principal_ref,
+                    **({"clientRef": client_ref} if client_ref else {}),
                     "receivedAtMs": now,
                     "count": len(batch.rows),
                 }

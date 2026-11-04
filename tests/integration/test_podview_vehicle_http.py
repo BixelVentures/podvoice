@@ -631,3 +631,153 @@ async def test_http_temperature_unit_changed_after_final_registry_read_has_zero_
             await client.post("/view/api/control/actions", json=body, headers=headers(grant))
         ).json()
         assert result["outcome"] == "rejected" and h.calls == [] and reads == 2
+
+
+def observation_rig(tmp_path, outcome="accepted"):
+    """Existing HTTP/control/native adapter with passive HA observation only."""
+    import time
+
+    app, bridge, h, _timers, _credential, grant = rig(tmp_path)
+    climate = h.policy["entities"]["climate"]
+    h.states[climate]["state"] = "off"
+    h.states[climate]["attributes"]["temperature"] = 20
+    h.response = {"outcome": outcome}
+    gate = {
+        "read": False,
+        "read_entered": asyncio.Event(),
+        "read_release": asyncio.Event(),
+        "effect": False,
+        "effect_entered": asyncio.Event(),
+        "effect_release": asyncio.Event(),
+    }
+    reads = []
+    tools = bridge.tools
+    tools.podview_home_available = lambda: False
+    tools.podview_home_binding = lambda: None
+
+    async def no_vacuum():
+        return {"status": "unavailable", "items": []}
+
+    tools.podview_home_read = no_vacuum
+    tools.podview_weather_available = lambda: False
+    tools.podview_weather_binding = lambda: None
+    tools.podview_vehicle_available = lambda: True
+    tools.podview_vehicle_binding = tools.podview_vehicle_control_binding
+
+    async def observe():
+        value = {
+            "status": "observed",
+            "source": "home_assistant_state",
+            "observedAt": time.time(),
+            "entityIds": [climate],
+            "data": {
+                "climate": {
+                    "status": h.states[climate]["state"],
+                    "targetTemperatureC": h.states[climate]["attributes"]["temperature"],
+                }
+            },
+        }
+        reads.append(value)
+        if gate["read"]:
+            gate["read"] = False
+            gate["read_entered"].set()
+            await gate["read_release"].wait()
+        return value
+
+    tools.podview_vehicle_read = observe
+    original_send = h.adapter.service_call
+
+    async def send(domain, service, entity, data, *, preflight):
+        if gate["effect"]:
+            gate["effect_entered"].set()
+            await gate["effect_release"].wait()
+        result = await original_send(domain, service, entity, data, preflight=preflight)
+        assert entity == climate
+        if service == "turn_on":
+            h.states[climate]["state"] = "heat_cool"
+        elif service == "set_temperature":
+            h.states[climate]["attributes"]["temperature"] = data["temperature"]
+        else:
+            raise AssertionError("Only an explicit climate action is part of this causal check")
+        return result
+
+    h.adapter.service_call = send
+    return app, bridge, h, grant, gate, reads
+
+
+async def climate_command(client, bridge, grant, action="climateOn", args=None):
+    offer = await (
+        await client.post(
+            "/view/api/control/setup", json=setup_body(bridge, action, args), headers=headers(grant)
+        )
+    ).json()
+    assert offer["ok"], offer
+    return {
+        "bootId": bridge.boot_id,
+        "roomId": "kitchen",
+        "taskId": offer["taskId"],
+        "revision": 1,
+        "requestId": "one-climate-intention",
+        "optionId": offer["options"][0]["id"],
+        "args": {},
+    }
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "unknown"])
+@pytest.mark.parametrize(
+    "action,args,field,expected",
+    [
+        ("climateOn", {}, "status", "heat_cool"),
+        ("temperature", {"temperature": 20.5}, "targetTemperatureC", 20.5),
+    ],
+)
+async def test_vehicle_effect_refreshes_existing_ha_observation_without_replay(
+    tmp_path, outcome, action, args, field, expected
+):
+    app, bridge, h, grant, _, reads = observation_rig(tmp_path, outcome)
+    if action == "temperature":
+        h.states[h.policy["entities"]["climate"]]["state"] = "heat_cool"
+    async with TestClient(TestServer(app)) as client:
+        initial = await (await client.get("/view/api/home?room=kitchen")).json()
+        assert initial["vehicle"]["data"]["climate"][field] != expected
+        body = await climate_command(client, bridge, grant, action, args)
+        receipt = await (
+            await client.post("/view/api/control/actions", json=body, headers=headers(grant))
+        ).json()
+        assert receipt["outcome"] == outcome
+        fresh = await (await client.get("/view/api/home?room=kitchen")).json()
+        assert fresh["vehicle"]["data"]["climate"][field] == expected
+        assert len(reads) == 2
+        assert (
+            await (
+                await client.post("/view/api/control/actions", json=body, headers=headers(grant))
+            ).json()
+            == receipt
+        )
+        assert len(h.calls) == 1
+
+
+async def test_vehicle_read_held_during_effect_cannot_publish_or_refill_after_completion(tmp_path):
+    app, bridge, h, grant, gate, _ = observation_rig(tmp_path)
+    async with TestClient(TestServer(app)) as client:
+        body = await climate_command(client, bridge, grant)
+        gate["effect"] = True
+        command = asyncio.create_task(
+            client.post("/view/api/control/actions", json=body, headers=headers(grant))
+        )
+        await asyncio.wait_for(gate["effect_entered"].wait(), 2)
+        gate["read"] = True
+        old = asyncio.create_task(client.get("/view/api/home?room=kitchen"))
+        await asyncio.wait_for(gate["read_entered"].wait(), 2)
+        try:
+            gate["effect_release"].set()
+            assert (await (await asyncio.wait_for(command, 2)).json())["outcome"] == "accepted"
+        finally:
+            gate["read_release"].set()
+        stale = await asyncio.wait_for(old, 2)
+        assert stale.status == 503
+        assert "heat_cool" not in await stale.text()
+        assert "kitchen" not in bridge._home_cache
+        fresh = await (await client.get("/view/api/home?room=kitchen")).json()
+        assert fresh["vehicle"]["data"]["climate"]["status"] == "heat_cool"
+        assert len(h.calls) == 1

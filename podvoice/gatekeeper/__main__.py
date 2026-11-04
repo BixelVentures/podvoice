@@ -40,7 +40,7 @@ from .reply import ReplyBus
 from .settings import DEFAULTS as SETTINGS_DEFAULTS
 from .settings import _resolve, load_settings, local_backend_limit, masked, save_settings
 from .speech import Speech
-from .tools import ToolRouter
+from .tools import ToolRouter, supervisor_home_event_socket
 from .usage import UsageMeter
 from .voicepe import LIVE_FIRMWARE_BUILD, VoicePELink
 from .web import DEFAULT_PORT, create_app, start_web
@@ -444,6 +444,7 @@ async def run(cfg: Config) -> None:
         client=ha_client,
         hub=hub,
         cleaning_journal_path=settings_path.parent / "cleaning-journal.json",
+        home_event_connect=supervisor_home_event_socket,
     )
     from .podview_radio import NativeRadio
 

@@ -18,7 +18,7 @@ import os
 import re
 import secrets
 import time
-from contextvars import ContextVar
+from contextvars import ContextVar, copy_context
 from pathlib import Path
 from urllib.parse import urlencode
 
@@ -394,6 +394,14 @@ class PodViewBridge:
         self._home_cache: dict[str, tuple] = {}
         self._lights_cache: dict[tuple, dict] = {}
         self._home_revision = 0
+        self._home_event_revisions = dict.fromkeys(("vacuum", "weather", "light", "vehicle"), 0)
+        self._home_event_wakes: dict = {}
+        self._home_event_task: asyncio.Task[None] | None = None
+        self._home_events_closed = False
+        self._home_event_owner = None
+        self._home_event_generation = 0
+        self._home_light_interests: dict = {}
+        self._home_weather_interest: tuple[tuple, frozenset[str]] | None = None
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""
         self._pairing_store = pairing_store
@@ -812,6 +820,9 @@ class PodViewBridge:
         if not isinstance(selected, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", selected):
             return deliver(unavailable)
         binding = tools.podview_lights_binding()
+        resource = self.controls.resource_key("light", {"areaId": selected})
+        effect_revision = self.controls.mutations.get(resource)
+        dirty_revision = self._home_event_revisions["light"]
         source_epoch = hashlib.sha256(repr(binding).encode()).hexdigest()
         scope = podview_lights.LightsScope(
             selected,
@@ -826,6 +837,7 @@ class PodViewBridge:
                 and binding == tools.podview_lights_binding()
                 and tools.podview_lights_available()
                 and placement == self.light_placement(room, token)
+                and self.controls.mutations.get(resource) is effect_revision
             )
 
         key = (room, placement["identity"], placement["bindingId"], selected, source_epoch)
@@ -860,6 +872,22 @@ class PodViewBridge:
                 }
                 if selected_area is None:
                     return deliver(unavailable)
+                interest_key = (
+                    room,
+                    placement["identity"],
+                    placement["bindingId"],
+                    selected,
+                    source_epoch,
+                )
+                previous_entities = self._home_light_interests.get(interest_key, (frozenset(), ()))[
+                    0
+                ]
+                self._home_light_interests[interest_key] = (
+                    previous_entities,
+                    frozenset(area["areaId"] for area in areas),
+                )
+                while len(self._home_light_interests) > 128:
+                    del self._home_light_interests[next(iter(self._home_light_interests))]
                 if cache:
                     retained = podview_lights.current_area_lights(
                         self._lights_cache.get(key), scope=scope, source_epoch=source_epoch
@@ -878,6 +906,10 @@ class PodViewBridge:
                 )
                 if result is None:
                     return deliver(unavailable)
+                self._home_light_interests[interest_key] = (
+                    frozenset(item["entityId"] for item in result["items"]),
+                    frozenset(area["areaId"] for area in areas),
+                )
                 # At most own + one browsed area per controller; source timestamps
                 # never renew on cache hit. Retired controllers cannot grow memory.
                 for old in list(self._lights_cache):
@@ -887,7 +919,8 @@ class PodViewBridge:
                         or (old[3] != placement["areaId"] and old != key)
                     ):
                         del self._lights_cache[old]
-                self._lights_cache[key] = copy.deepcopy(result)
+                if self._home_event_revisions["light"] == dirty_revision:
+                    self._lights_cache[key] = copy.deepcopy(result)
                 while len(self._lights_cache) > 128:
                     del self._lights_cache[next(iter(self._lights_cache))]
                 return deliver(result)
@@ -1647,6 +1680,132 @@ class PodViewBridge:
         result["status"] = "observed"
         return result
 
+    def home_read_kinds(self, room, token):
+        kinds = {
+            kind
+            for kind, method in (
+                ("vacuum", "podview_home_available"),
+                ("weather", "podview_weather_available"),
+                ("light", "podview_lights_available"),
+                ("vehicle", "podview_vehicle_available"),
+            )
+            if getattr(self.tools, method, lambda: False)()
+        }
+        if "light" in kinds and self.light_placement(room, token) is None:
+            kinds.remove("light")
+        return kinds
+
+    def home_source_revision(self, room, token, counts=None):
+        kinds = self.home_read_kinds(room, token)
+        bindings = tuple(
+            (kind, getattr(self.tools, method, lambda: None)())
+            for kind, method in (
+                ("vacuum", "podview_home_binding"),
+                ("weather", "podview_weather_binding"),
+                ("light", "podview_lights_binding"),
+                ("vehicle", "podview_vehicle_binding"),
+            )
+            if kind in kinds
+        )
+        grant = self._grant_for_token(room, token)
+        # Identity only: repr(session/grant) would bind reads to voice turn data.
+        scope = hashlib.sha256(
+            repr(
+                (
+                    self.boot_id,
+                    room,
+                    id(self.sessions.get(room)),
+                    hashlib.sha256(token.encode()).digest(),
+                    id(grant),
+                    tuple(sorted(kinds)),
+                    bindings,
+                    self.light_placement(room, token) if "light" in kinds else None,
+                )
+            ).encode()
+        ).hexdigest()
+        revisions = self._home_event_revisions if counts is None else counts
+        return {"scope": scope, "revision": sum(revisions.get(kind, 0) for kind in kinds)}
+
+    def home_event_interests(self):
+        interests: dict[str, set[str]] = {kind: set() for kind in self._home_event_revisions}
+        interests.update({"light:areas": set(), "vacuum:devices": set(), "vehicle:devices": set()})
+        tools = self.tools
+        owner = getattr(tools, "_device_control", None)
+        if owner is not None and getattr(tools, "podview_home_available", lambda: False)():
+            interests["vacuum"].update(owner._entities)
+            for binding in owner._robot_reads:
+                interests["vacuum"].add(binding["vacuumEntityId"])
+                interests["vacuum"].update(row["entityId"] for row in binding["fields"])
+                interests["vacuum:devices"].add(binding["dockDeviceId"])
+        scope = getattr(tools, "_vehicle_scope", None)
+        if scope is not None and getattr(tools, "podview_vehicle_available", lambda: False)():
+            interests["vehicle"].update(entity for _, entity in scope.entities)
+            interests["vehicle:devices"].add(scope.device_id)
+        weather = self._home_weather_interest
+        if (
+            weather is not None
+            and weather[0] == getattr(tools, "podview_weather_binding", lambda: None)()
+        ):
+            interests["weather"].update(weather[1])
+        if getattr(tools, "podview_lights_available", lambda: False)():
+            epoch = hashlib.sha256(repr(tools.podview_lights_binding()).encode()).hexdigest()
+            for key, (entities, areas) in self._home_light_interests.items():
+                if key[-1] == epoch:
+                    interests["light"].update(entities)
+                    interests["light:areas"].update(areas)
+        return interests
+
+    def home_events_changed(self, kinds, resync=False):
+        kinds = set(kinds).intersection(self._home_event_revisions)
+        for kind in kinds:
+            self._home_event_revisions[kind] += 1
+        if not kinds:
+            return
+        # Keep the captured cache for readers already past their read. Dirty
+        # counters prevent reuse; cache existence is not an owner invalidation.
+        # Never bump control/task/grant/owner generations.
+        if "light" in kinds:
+            self._lights_cache.clear()
+        if "weather" in kinds:
+            self._weather_source_cache = None
+        for event, (context, readable) in tuple(self._home_event_wakes.items()):
+            try:
+                if context.run(readable).intersection(kinds):
+                    event.set()
+            except (RuntimeError, ValueError, KeyError):
+                pass  # Closed request/scope cannot gain a notification lane.
+
+    def start_home_events(self):
+        if self._home_events_closed:
+            return
+        tools = self.tools
+        if getattr(tools, "home_event_connect", None) is None:
+            return
+        if self._home_event_task is not None and not self._home_event_task.done():
+            return
+        self._home_event_generation += 1
+        generation = self._home_event_generation
+        self._home_event_owner = tools
+
+        def current():
+            return self.tools is tools and generation == self._home_event_generation
+
+        self._home_event_task = asyncio.create_task(
+            tools.watch_podview_home_events(
+                self.home_event_interests, self.home_events_changed, current
+            )
+        )
+
+    async def stop_home_events(self, *, closing=False):
+        if closing:
+            self._home_events_closed = True
+        self._home_event_generation += 1
+        task, self._home_event_task = self._home_event_task, None
+        if task is not None:
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+        self._home_event_wakes.clear()
+
     def snapshot(self, room: str, token: str = "", *, light_token: str = "") -> dict:
         session = self.sessions[room]
         active = bool(getattr(session, "_active", False))
@@ -1831,6 +1990,11 @@ class PodViewBridge:
             result["robotSuggestions"] = robot_suggestions
         if token in self._ha_actors and self._grant_current(room, token):
             result["admission"] = {"kind": "ha_ingress", "authenticated": True}
+        # Like capabilities, this watermark is scoped to this reader. It must
+        # not enter the shared room-revision digest or reveal another scope.
+        if getattr(self.tools, "home_event_connect", None) is not None:
+            self.start_home_events()
+            result["homeRevision"] = self.home_source_revision(room, token)
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:
@@ -1844,6 +2008,25 @@ class PodViewBridge:
         request_id = body["requestId"]
         if not isinstance(request_id, str) or not 1 <= len(request_id) <= 120:
             return {"ok": False, "error": "invalid_request", "retryAllowed": False}
+
+        def timer_trace(stage, outcome):
+            try:
+                action = body.get("action")
+                if action not in ("timer.start", "timer.cancel"):
+                    action = "other"
+                request_ref = hashlib.sha256(request_id.encode(errors="surrogatepass")).hexdigest()[
+                    :16
+                ]
+                _LOG.info(
+                    "podview_timer stage=%s action=%s outcome=%s request_ref=%s",
+                    stage,
+                    action,
+                    outcome,
+                    request_ref,
+                )
+            except Exception:
+                pass  # Diagnostics must not affect dispatch or its receipt.
+
         fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
         # A renewed action cookie must not reopen an unknown timer command.
         # The durable profile identity is the replay owner across renewals.
@@ -1851,6 +2034,10 @@ class PodViewBridge:
         async with self._action_lock:
             if key in self._receipts:
                 before, receipt = self._receipts[key]
+                timer_trace(
+                    "redelivery",
+                    receipt.get("outcome", "unknown") if before == fingerprint else "rejected",
+                )
                 return (
                     receipt
                     if before == fingerprint
@@ -1887,8 +2074,10 @@ class PodViewBridge:
                 and args["timer_id"] in {r["id"] for r in snap["timers"]["items"]}
             )
             if not valid:
+                timer_trace("validation", "rejected")
                 return {"ok": False, "error": "unsupported_action", "retryAllowed": False}
             if len(self._receipts) >= 1024:
+                timer_trace("validation", "rejected")
                 return {"ok": False, "error": "request_capacity", "retryAllowed": False}
             receipt = {
                 "ok": False,
@@ -1897,6 +2086,7 @@ class PodViewBridge:
                 "retryAllowed": False,
             }
             self._receipts[key] = fingerprint, receipt  # fence before the first await
+            timer_trace("dispatch", "started")
             epoch = snap["timers"]["epoch"]
             timer_binding = owner.bindings.get(room)
 
@@ -1945,8 +2135,12 @@ class PodViewBridge:
                 if accepted and action == "timer.start":
                     receipt["timerId"] = timer_id
                 self._receipts[key] = fingerprint, receipt
+            except asyncio.CancelledError:
+                timer_trace("receipt", "unknown")
+                raise
             except (TimeoutError, Exception) as error:
                 _log_terminal_failure("timer_dispatch", error, request_id=request_id)
+            timer_trace("receipt", receipt["outcome"])
             return receipt
 
 
@@ -2154,10 +2348,23 @@ async def _recipes(request: web.Request) -> web.Response:
     if not scope or not scope["active"] or not scope["user"]:
         return _error("recipes_denied", 403)
 
+    from .recipe_submissions import recipe_catalog_reference, recipe_event
+
+    bridge = request.app[BRIDGE]
     try:
-        recipes = _published_recipes(request.app[BRIDGE].recipe_catalog_path)
+        recipes = _published_recipes(bridge.recipe_catalog_path)
     except (OSError, ValueError, TypeError, KeyError):
+        if getattr(bridge, "_recipe_catalog_log", None) != "unavailable":
+            recipe_event("catalog_read", "failed", reason="unavailable")
+            bridge._recipe_catalog_log = "unavailable"
         return _error("recipes_unavailable", 503)
+    try:
+        catalog = recipe_catalog_reference(recipes)
+    except (ValueError, TypeError, KeyError):
+        catalog = "unavailable"
+    if getattr(bridge, "_recipe_catalog_log", None) != catalog:
+        recipe_event("catalog_read", "observed", catalog=catalog, count=len(recipes))
+        bridge._recipe_catalog_log = catalog
     return web.json_response({"recipes": recipes}, headers={"Cache-Control": "no-store"})
 
 
@@ -2363,6 +2570,13 @@ async def _events(request: web.Request) -> web.StreamResponse:
         # Subscribe before the first projection; each reader owns its wake.
         if sink is not None:
             wake = sink.subscribe(room)
+        if wake is None:
+            wake = asyncio.Event()
+        bridge._home_event_wakes[wake] = (
+            copy_context(),
+            lambda: bridge.home_read_kinds(room, _request_token(request, room)),
+        )
+        bridge.start_home_events()
         await response.prepare(request)
         # Every tick is a fresh full projection; dropped events cannot corrupt a delta.
         # This reads caches and bounded local controller revocation state only;
@@ -2392,8 +2606,10 @@ async def _events(request: web.Request) -> web.StreamResponse:
     except asyncio.CancelledError:
         pass
     finally:
-        if wake is not None and sink is not None:
-            sink.unsubscribe(wake)
+        if wake is not None:
+            bridge._home_event_wakes.pop(wake, None)
+            if sink is not None:
+                sink.unsubscribe(wake)
         bridge._streams -= 1
     return response
 
@@ -4201,12 +4417,12 @@ async def _home(request: web.Request) -> web.Response:
     ):
         return _error("home_unavailable", 503)
 
-    def vacuum_revision_now():
+    def home_effect_revision_now():
         # Cache-ordering fences from the existing resource owner, never state.
         return tuple(
             (resource, revision)
             for resource, revision in sorted(bridge.controls.mutations.items())
-            if resource[0] == "vacuum"
+            if resource[0] in {"vacuum", "vehicle"}
         )
 
     def binding_now():
@@ -4225,19 +4441,46 @@ async def _home(request: web.Request) -> web.Response:
                 getattr(tools, "podview_vehicle_binding", lambda: None)(),
                 getattr(tools, "podview_vehicle_available", lambda: False)(),
             ),
-            vacuum_revision_now(),
+            home_effect_revision_now(),
         )
 
     binding = binding_now()
     read_key = (bridge.boot_id, room, binding)
+    token = _request_token(request, room)
+    event_enabled = getattr(tools, "home_event_connect", None) is not None
+    source_counts = dict(bridge._home_event_revisions) if event_enabled else {}
+    source_scope = bridge.home_source_revision(room, token)["scope"] if event_enabled else None
 
-    def current_cache():
+    def deliver_home(result, counts):
+        if event_enabled:
+            if (
+                bridge.home_source_revision(room, _request_token(request, room))["scope"]
+                != source_scope
+            ):
+                return _error("home_unavailable", 503)
+            result = {**result, "sourceRevision": bridge.home_source_revision(room, token, counts)}
+        return web.json_response(
+            with_transport_actions(result), headers={"Cache-Control": "no-store"}
+        )
+
+    def current_cache(*, dirty_current=True):
         cached = bridge._home_cache.get(room)
         return (
             cached
             if cached
             and cached[1] == binding
             and time.monotonic() - cached[0] < 5
+            and (
+                not dirty_current
+                or not event_enabled
+                or (
+                    len(cached) == 4
+                    and all(
+                        cached[3].get(kind, 0) == bridge._home_event_revisions[kind]
+                        for kind in bridge.home_read_kinds(room, token)
+                    )
+                )
+            )
             and podview_weather.observation_is_current(cached[2].get("weather"))
             and (
                 cached[2].get("vehicle", {}).get("status") != "observed"
@@ -4295,7 +4538,7 @@ async def _home(request: web.Request) -> web.Response:
                 return denied
             if not completed or not same_read():
                 return _error("home_unavailable", 503)
-            cached = current_cache()
+            cached = current_cache(dirty_current=False)
             if cached is None:
                 return _error("home_unavailable", 503)
             joined = True
@@ -4316,13 +4559,13 @@ async def _home(request: web.Request) -> web.Response:
         if denied is not None:
             return denied
         vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
-        if (joined or vehicle_visible) and (not same_read() or current_cache() is None):
+        if (joined or vehicle_visible) and (
+            not same_read() or current_cache(dirty_current=False) is None
+        ):
             return _error("home_unavailable", 503)
-        if binding[-1] != vacuum_revision_now():
+        if binding[-1] != home_effect_revision_now():
             return _error("home_unavailable", 503)
-        return web.json_response(
-            with_transport_actions(result), headers={"Cache-Control": "no-store"}
-        )
+        return deliver_home(result, cached[3] if len(cached) == 4 else source_counts)
     if bridge._home_busy:
         return _error("home_busy", 429)
     bridge._home_busy = True
@@ -4352,6 +4595,10 @@ async def _home(request: web.Request) -> web.Response:
                     method == "podview_weather_read"
                     and getattr(tools, "podview_weather_advice", None) is not None
                     and binding[2] == binding_now()[2]
+                    and (
+                        not event_enabled
+                        or source_counts["weather"] == bridge._home_event_revisions["weather"]
+                    )
                     and podview_weather.observation_is_current(result)
                 ):
                     try:
@@ -4399,6 +4646,18 @@ async def _home(request: web.Request) -> web.Response:
                 and getattr(tools, "podview_vehicle_available", lambda: False)()
             ):
                 vehicle = {"status": "unavailable", "data": None}
+            weather_entity = (
+                weather.get("data", {}).get("observationScope", {}).get("entityId")
+                if isinstance(weather.get("data"), dict)
+                else None
+            )
+            if isinstance(weather_entity, str) and re.fullmatch(
+                r"weather\.[a-z0-9_]{1,120}", weather_entity
+            ):
+                bridge._home_weather_interest = (
+                    tools.podview_weather_binding(),
+                    frozenset((weather_entity,)),
+                )
             passive = getattr(tools, "podview_weather_advice", None)
             if passive is not None:
                 passive.observe(room, weather)
@@ -4411,6 +4670,10 @@ async def _home(request: web.Request) -> web.Response:
                 )
         finally:
             bridge._home_busy = False
+        if binding[-1] != home_effect_revision_now():
+            # A native effect completed while HA was being read. Do not publish
+            # or refill the aggregate cache from its earlier observation.
+            return _error("home_unavailable", 503)
         bridge._home_revision += 1
         from .podview_weather_http import capability
 
@@ -4425,7 +4688,7 @@ async def _home(request: web.Request) -> web.Response:
             "vehicle": vehicle,
             "weatherAdvice": capability(bridge, room, weather),
         }
-        bridge._home_cache[room] = time.monotonic(), binding, result
+        bridge._home_cache[room] = time.monotonic(), binding, result, source_counts
         completion.set_result(True)
         result = {
             **result,
@@ -4441,13 +4704,11 @@ async def _home(request: web.Request) -> web.Response:
         if denied is not None:
             return denied
         vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
-        if vehicle_visible and (not same_read() or current_cache() is None):
+        if vehicle_visible and (not same_read() or current_cache(dirty_current=False) is None):
             return _error("home_unavailable", 503)
-        if binding[-1] != vacuum_revision_now():
+        if binding[-1] != home_effect_revision_now():
             return _error("home_unavailable", 503)
-        return web.json_response(
-            with_transport_actions(result), headers={"Cache-Control": "no-store"}
-        )
+        return deliver_home(result, source_counts)
 
     finally:
         if not completion.done():
@@ -4594,11 +4855,22 @@ def mount(
         if bridge.recipe_submissions is not None:
             recipe_recovery_task = asyncio.create_task(recover_recipe_uploads())
 
+    async def start_home_events(_app):
+        bridge.start_home_events()
+
+    async def close_home_events(_app):
+        await bridge.stop_home_events(closing=True)
+
+    app.on_startup.append(start_home_events)
+    # Close before aiohttp drains SSE requests: their final snapshots cannot
+    # recreate a listener after the original task has been cancelled.
+    app.on_shutdown.append(close_home_events)
     app.on_startup.append(start_recipe_imports)
     app.on_startup.append(start_vehicle_controls)
     app.on_startup.append(retain_client_diagnostics)
 
     async def close_receipts(_app):
+        await bridge.stop_home_events(closing=True)
         if recipe_recovery_task is not None:
             recipe_recovery_task.cancel()
             try:

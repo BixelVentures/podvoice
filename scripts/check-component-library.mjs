@@ -10,10 +10,39 @@ const sorted=value=>[...new Set(value)].sort();
 const relative=(root,file)=>path.relative(root,file).split(path.sep).join('/');
 const count=values=>Object.fromEntries(sorted(values).map(value=>[value,values.filter(x=>x===value).length]));
 // A deliberately small source-surface scanner, not a JavaScript security parser.
-// It masks comments/quoted text before finding declarations. HTML/factory roots
-// are inspected separately. Native leaf elements are intentionally unrestricted.
+// It masks comments, quoted text and expression-position regex literals before
+// finding declarations. This remains a surface scanner: template interpolations
+// are opaque, not parsed JavaScript. HTML/factory roots are inspected separately.
+// Native leaf elements are intentionally unrestricted.
 function mask(source){
- let result='',i=0;while(i<source.length){const c=source[i],next=source[i+1];if(c==='/'&&next==='/'){let end=source.indexOf('\n',i);if(end<0)end=source.length;result+=' '.repeat(end-i);i=end;}else if(c==='/'&&next==='*'){let end=source.indexOf('*/',i+2);if(end<0)throw Error('Unclosed source comment');end+=2;result+=source.slice(i,end).replace(/[^\n]/g,' ');i=end;}else if("'\"`".includes(c)){const quote=c,start=i++;while(i<source.length){if(source[i]==='\\'){i+=2;continue;}if(source[i++]===quote)break;}result+=source.slice(start,i).replace(/[^\n]/g,' ');}else{result+=c;i++;}}return result;
+ let result='',i=0,expression=true,pendingControl=false;const parens=[];
+ const blank=(start,end)=>source.slice(start,end).replace(/[^\n]/g,' ');
+ while(i<source.length){
+  const c=source[i],next=source[i+1];
+  if(/\s/.test(c)){result+=c;i++;continue;}
+  if(c==='/'&&next==='/'){let end=source.indexOf('\n',i);if(end<0)end=source.length;result+=blank(i,end);i=end;continue;}
+  if(c==='/'&&next==='*'){let end=source.indexOf('*/',i+2);if(end<0)throw Error('Unclosed source comment');end+=2;result+=blank(i,end);i=end;continue;}
+  if("'\"`".includes(c)){const quote=c,start=i++;while(i<source.length){if(source[i]==='\\'){i+=2;continue;}if(source[i++]===quote)break;}result+=blank(start,i);expression=false;pendingControl=false;continue;}
+  if(c==='/'&&expression&&source[i-1]!=='<'&&next!=='>'){
+   // A slash ends the literal only outside character classes and escapes.
+   // No same-line terminator means ordinary slash/HTML, not a guessed regex.
+   let end=i+1,inClass=false;for(;end<source.length&&!/[\r\n]/.test(source[end]);end++){
+    if(source[end]==='\\'){end++;continue;}
+    if(source[end]==='[')inClass=true;else if(source[end]===']')inClass=false;
+    else if(source[end]==='/'&&!inClass)break;
+   }
+   if(end<source.length&&source[end]==='/'){end++;while(/[a-z]/i.test(source[end]||'')&&end<source.length)end++;result+=blank(i,end);i=end;expression=false;pendingControl=false;continue;}
+  }
+  if(/[A-Za-z_$]/.test(c)){const start=i++;while(/[\w$]/.test(source[i]||'')&&i<source.length)i++;const word=source.slice(start,i);result+=word;pendingControl=/^(if|while|for|with|switch|catch)$/.test(word);expression=pendingControl||/^(return|throw|case|delete|void|typeof|new|in|of|instanceof|yield|await|else|do)$/.test(word);continue;}
+  if(/[0-9]/.test(c)){const start=i++;while(/[\w.]/.test(source[i]||'')&&i<source.length)i++;result+=source.slice(start,i);expression=false;pendingControl=false;continue;}
+  if(c==='('){parens.push(pendingControl);expression=true;}
+  else if(c===')')expression=parens.pop()===true;
+  else if(c===']'||c==='}')expression=false;
+  else if(c==='.'||((c==='+'||c==='-')&&next===c)){expression=false;if(next===c){result+=c;i++;}}
+  else expression=true; // Operators, separators and division expect an operand.
+  pendingControl=false;result+=c;i++;
+ }
+ return result;
 }
 export function inspectSurface(source,{factoryClassArgument=1}={}){
  const code=mask(source),definitions=[];

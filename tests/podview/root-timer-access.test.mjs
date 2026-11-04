@@ -28,16 +28,16 @@ test('actual adapter distinguishes active observation wait from unknown outcome 
 
 const timerOwnerSource=readFileSync(process.env.TIMER_OWNER_SOURCE||new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 function timerOwner({items=[{id:'exact',status:'finished',physicalStopped:false,physicalDrained:false}],result={ok:true,outcome:'accepted'},held=false,actualScene=false}={}){
- let now=1000,counter=0;const resolvers=[];const scheduled=new Map(),calls=[],messages=[];
+ let now=1000,counter=0;const resolvers=[];const scheduled=new Map(),calls=[],messages=[],journal=[];
  const snapshot=(overrides={})=>({bootId:'boot',roomId:'kitchen',revision:10,voice:{sessionId:'timer-session'},timers:{status:'observed',epoch:'epoch',items},capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel']},...overrides});
- const begin=timerOwnerSource.indexOf(' connectPodVoice(){'),end=timerOwnerSource.indexOf(' renderVoice(){',begin),send=timerOwnerSource.indexOf(' async sendLiveTimer(request){'),sendEnd=timerOwnerSource.indexOf(' async loadLiveHome(){',send),reconcile=timerOwnerSource.indexOf(' suspendLiveTimer(){')>=0?timerOwnerSource.indexOf(' suspendLiveTimer(){'):timerOwnerSource.indexOf(' reconcileLiveTimer(snapshot){'),cleanup=timerOwnerSource.indexOf(' cleanup(){'),cleanupEnd=timerOwnerSource.indexOf(' dispatch(event){',cleanup);
+ const begin=timerOwnerSource.indexOf(' connectPodVoice(){'),end=timerOwnerSource.indexOf(' renderVoice(){',begin),send=timerOwnerSource.indexOf(' async sendLiveTimer(request){'),sendEnd=timerOwnerSource.indexOf(' async loadLiveHome(',send),reconcile=timerOwnerSource.indexOf(' suspendLiveTimer(){')>=0?timerOwnerSource.indexOf(' suspendLiveTimer(){'):timerOwnerSource.indexOf(' reconcileLiveTimer(snapshot){'),cleanup=timerOwnerSource.indexOf(' cleanup(){'),cleanupEnd=timerOwnerSource.indexOf(' dispatch(event){',cleanup);
  assert.ok(begin>=0&&end>begin&&send>=0&&sendEnd>send);
- class Transport{constructor(options){this.options=options;this.connected=true;}start(){return Promise.resolve();}close(){}action(request){calls.push(request);return held?new Promise(done=>{resolvers.push(done);}):Promise.resolve(result);}}
+ class Transport{constructor(options){this.options=options;this.connected=true;}start(){return Promise.resolve();}close(){}recordDiagnostic(stage,row){journal.push({stage,...row});}action(request){calls.push(request);return held?new Promise(done=>{resolvers.push(done);}):Promise.resolve(result);}}
  const lightCleanup=timerOwnerSource.indexOf(' closeLightDetail('),lightCleanupEnd=timerOwnerSource.indexOf(' toggleLightOption(',lightCleanup);assert.ok(lightCleanup>=0&&lightCleanupEnd>lightCleanup);
  const methods=timerOwnerSource.slice(cleanup,cleanupEnd)+timerOwnerSource.slice(lightCleanup,lightCleanupEnd)+timerOwnerSource.slice(begin,end)+(reconcile>=0?timerOwnerSource.slice(reconcile,send):'')+timerOwnerSource.slice(send,sendEnd);
  const Host=new Function('cleanupWeather','$','PodVoiceTransport','liveScene','location','setTimeout','clearTimeout','Date','crypto',`return class {${methods}}`)(cleanupWeather,()=>null,Transport,actualScene?liveScene:(state)=>state,{search:''},(fn,delay)=>{const id=++counter;scheduled.set(id,{fn,at:now+delay});return id;},id=>scheduled.delete(id),{now:()=>now},{randomUUID:()=>`inert-request-${calls.length+1}`});
  const host=new Host();Object.assign(host,{isConnected:true,state:actualScene?{...initialScene(),focus:'timers'}:{devices:[],extraTimers:[],focus:'timers'},liveSnapshot:snapshot(),render(){},renderLive(){},showFeedback:text=>messages.push(text),invalidateLiveMusic(){}});if(actualScene){host.state=liveScene(host.state,host.liveSnapshot);host.live=true;host.dispatch=event=>{host.state=sceneTransition(host.state,event);};}host.connectPodVoice();host.liveStatus='connected';
- return {host,calls,messages,snapshot,settle:(value,index=0)=>resolvers[index](value),observe:value=>host.liveTransport.options.onSnapshot(value),advance:ms=>{now+=ms;for(const [id,timer]of [...scheduled])if(timer.at<=now){scheduled.delete(id);timer.fn();}},scheduled};
+ return {host,calls,messages,journal,snapshot,settle:(value,index=0)=>resolvers[index](value),observe:value=>host.liveTransport.options.onSnapshot(value),advance:ms=>{now+=ms;for(const [id,timer]of [...scheduled])if(timer.at<=now){scheduled.delete(id);timer.fn();}},scheduled};
 }
 const cancelExact={action:'timer.cancel',args:{timer_id:'exact'}},startOne={action:'timer.start',args:{seconds:10,name:'Exact'}};
 const unknownText='Udfald ukendt · handlingen gentages ikke';
@@ -179,4 +179,23 @@ test('fresh scoped removal resolves parked UNKNOWN cancellation after independen
  t.observe(t.snapshot({revision:12,timers:{status:'observed',epoch:'epoch',items:[{id:'exact'},{id:'other'}]}}));assert.equal(t.host.liveTimerFences.length,1,'unrelated newer status does not clear cancellation');
  t.observe(t.snapshot({revision:13,timers:{status:'observed',epoch:'epoch',items:[]}}));assert.equal(t.host.liveTimerAction,null);assert.equal(t.host.liveTimerFences.length,0,'exact disappearance resolves both independent cancellation fences');assert.equal(t.calls.length,2,'no effect is replayed');
  await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,3,'a new explicit Start is permitted after exact cancellation removal');
+});
+
+
+test('timer journal binds requested seconds, actual receipt and snapshot observation to original wire request',async()=>{
+ const t=timerOwner({items:[],result:{ok:true,outcome:'accepted',timerId:'native-new'}});await t.host.sendLiveTimer(startOne);const requestId=t.calls[0].requestId;
+ assert.deepEqual(t.journal.map(row=>[row.stage,row.code]),[['control_intent','start'],['control_action','start'],['control_action','accepted']]);
+ assert(t.journal.every(row=>row.requestId===requestId&&row.domain==='timer'&&row.action==='timer.start'&&row.requestedValue===10));
+ t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'native-new',status:'running',secondsLeft:9}]}}));
+ const observed=t.journal.at(-1);assert.equal(observed.stage,'control_observation');assert.equal(observed.code,'observed');assert.equal(observed.requestId,requestId);assert.equal(observed.resourceId,'native-new');assert.equal(observed.observedValue,9);assert.equal(observed.source,'snapshot');assert.equal(observed.trust,'state_observation');assert(!JSON.stringify(t.journal).includes('Exact'));assert.equal(t.calls.length,1);
+});
+test('finished timer acknowledgement retains actual cancel action and sink failures cannot change cancellation',async()=>{
+ const t=timerOwner();await t.host.sendLiveTimer(cancelExact);t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));const observed=t.journal.find(row=>row.stage==='control_observation');assert.equal(observed.action,'timer.cancel');assert.equal(observed.requestedValue,false);assert.equal(observed.observedValue,false);assert.equal(observed.code,'observed');assert.equal(observed.requestId,t.calls[0].requestId);
+ const failed=timerOwner();failed.host.liveTransport.recordDiagnostic=()=>{throw Error('inert sink failure');};await failed.host.sendLiveTimer(cancelExact);failed.observe(failed.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));assert.equal(failed.calls.length,1);assert.equal(failed.host.liveTimerAction,null);assert.equal(failed.host.liveActionFeedback,'');
+});
+
+test('late same-scope timer receipt survives reconnect only as an action fact, without inventing observation',async()=>{
+ const t=timerOwner({held:true});t.host.liveTransport.generation=1;const pending=t.host.sendLiveTimer(cancelExact);t.host.liveTransport.generation=2;t.host.suspendLiveTimer();t.settle({ok:true,outcome:'accepted'});await pending;
+ const outcome=t.journal.find(row=>row.stage==='control_action'&&row.code==='accepted');assert.equal(outcome.requestId,t.calls[0].requestId);assert.equal(outcome.current,false);assert.equal(t.journal.some(row=>row.stage==='control_observation'&&row.code==='observed'),false);assert.equal(t.calls.length,1);
+ for(const boundary of ['boot','room','admission','grant']){const denied=timerOwner({held:true}),operation=denied.host.sendLiveTimer(cancelExact);if(boundary==='boot')denied.host.liveSnapshot={...denied.host.liveSnapshot,bootId:'other'};if(boundary==='room')denied.host.liveSnapshot={...denied.host.liveSnapshot,roomId:'other'};if(boundary==='admission')denied.host.liveSnapshot={...denied.host.liveSnapshot,admission:{kind:'ha_ingress',authenticated:true}};if(boundary==='grant')denied.host.liveSnapshot.capabilities.timerActions=[];denied.settle({ok:true,outcome:'accepted'});await operation;assert.equal(denied.journal.some(row=>row.stage==='control_action'&&row.code==='accepted'),false);assert.equal(denied.calls.length,1);}
 });

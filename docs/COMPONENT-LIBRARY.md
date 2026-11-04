@@ -1,8 +1,14 @@
+## Touch, toast og journal i eksisterende ejere · 4. november 2026
+
+Toast bliver i én eksisterende fixed portal uden flowplads. Dens normale anker er nederst i den aktive venstre indholdskolonne; Ro bruger sin eksisterende placering over widgetrækken. Ved kollision beskyttes reelle kommando-/felthitboxes samt navigationskortets tekst og artwork. Samme portal flyttes kun vertikalt til nærmeste frie plads inden for kolonnen. Ingen midlertidig feedbackrække indsættes/fjernes i grid ved berøring, og ingen generisk toast skriver i en anden komponents statusrolle. Connection Retry bevarer sin eksisterende handling. Pointerdown→touchstart og dismissal må ikke flytte den berørte kontrol; en uløst faktisk kollision er fortsat et åbent fund.
+
+Registerets tilføjede lokale `free`/`visible`-prædikater tilhører WidgetHosts eksisterende geometri-ejer. LiveControlViews tre journalmetoder er begrænset telemetri ved eksisterende kommando-/observationsforløb og konstruerer ingen DOM. Ingen nye komponentfamilier, tags, containere eller renderere er tilføjet; eksisterende anatomi og ejerskab består.
+
 # Radio · fælles player og feedback ·3 november2026
 
 Normal afventning vises i den aktiverede kontrol: stationsvalgets præcise Starter-label og den fælles playerknaps eksisterende icon-progress. Stop, højttalervalg og volumen bruger deres eksisterende kontrolfeedback. Station/cover, mål og aria-busy bevares. Ingen løs Starter- eller Radio stoppet-tekst over højttaleren og ingen succes-toast. Fejl og UNKNOWN bruger én eksisterende NotificationQueue-besked med radiosource; ingen dublet i RadioHero eller Player-header. UNKNOWN gentages aldrig automatisk.
 
-ChoiceList bevarer samme to-plus-tre stationsgrid og én valgt kant. Kit-ejerens normale disabled Button-inset må ikke lægges oven i label-feedback, ligesom progressfeedback allerede er undtaget. Fælles ListRow-fallback placeres før hele ChoiceList, aldrig inde i dens grid. Playerens kildefokus er kun præsentation; det skaber ingen actionmyndighed. Stoppet radio beholder stationens historik, men giver ikke historisk volumen ny autoritet. Ny boot/room/ownerProcessId rydder gammel lokal præsentation uden at ophæve UNKNOWN-custody.
+ChoiceList bevarer samme to-plus-tre stationsgrid og én valgt kant. Kit-ejerens normale disabled Button-inset må ikke lægges oven i label-feedback, ligesom progressfeedback allerede er undtaget. Transient feedback bliver i den fælles toastportal; ingen ListRow-fallback indsættes i eller før ChoiceList-grid. Playerens kildefokus er kun præsentation; det skaber ingen actionmyndighed. Stoppet radio beholder stationens historik, men giver ikke historisk volumen ny autoritet. Ny boot/room/ownerProcessId rydder gammel lokal præsentation uden at ophæve UNKNOWN-custody.
 
 [Faktisk117-produkt og bibliotek, klikforløb og rester](qa-radio-v2x-20261103/README.md). Ingen ny komponentfamilie, radiofarve eller lokal spinner.
 

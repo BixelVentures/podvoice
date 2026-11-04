@@ -2516,3 +2516,121 @@ async def test_vacuum_effect_retires_inflight_home_and_followup_observes_real_st
     row = fresh["vacuum"]["items"][0]
     assert row["state"] == "paused" and row["transportActions"]["actions"] == ["resume"]
     assert robot.writes == [("services/vacuum/pause", {"entity_id": ROBOT})]
+
+
+async def test_direct_command_server_trace_authorized_receipt_and_redelivery(
+    offline_direct, caplog
+):
+    _, bridge, _, _, _, _, _, music = offline_direct
+    token = bridge.grant_timer_control("kitchen")
+    body = direct_music_body(bridge, request_id="PRIVATE-request")
+    with caplog.at_level("INFO", logger="gatekeeper.podview_controls"):
+        assert (await bridge.controls.command(body, "unauthorized"))["outcome"] == "rejected"
+        assert not caplog.records
+        result = await bridge.controls.command(body, token)
+        assert result["outcome"] == "accepted"
+        assert await bridge.controls.command(body, token) == result
+        assert (await bridge.controls.command({**body, "action": "previous"}, token))[
+            "outcome"
+        ] == "rejected"
+    messages = [r.getMessage() for r in caplog.records]
+    assert len(messages) == 6  # Nested setup/action cannot double-log.
+    ref = hashlib.sha256(body["requestId"].encode()).hexdigest()[:16]
+    assert all(
+        f"request_ref={ref}" in m and "physical_result_verified=false" in m for m in messages
+    )
+    assert "phase=admission" in messages[0] and "outcome=admitted" in messages[0]
+    assert "outcome=accepted delivery=new" in messages[1]
+    assert "outcome=accepted delivery=cached" in messages[3]
+    assert "outcome=rejected delivery=conflict" in messages[5]
+    assert not any(
+        secret in " ".join(messages) for secret in [body["requestId"], token, "account", "device"]
+    )
+    assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == 1
+
+
+async def test_direct_command_server_trace_sink_failure_is_fail_open(offline_direct, monkeypatch):
+    _, bridge, _, _, _, _, _, music = offline_direct
+    token = bridge.grant_timer_control("kitchen")
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("sink unavailable")
+
+    monkeypatch.setattr("gatekeeper.podview_controls._LOGGER.info", broken)
+    result = await bridge.controls.command(direct_music_body(bridge), token)
+    assert result["outcome"] == "accepted"
+    assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == 1
+
+
+@pytest.mark.parametrize("broken_sink", [False, True])
+async def test_task_server_trace_owner_attribution_rejection_and_cached_receipt(
+    fixture, caplog, monkeypatch, broken_sink
+):
+    rig, bridge, token = fixture
+    bridge.controls.policy["vacuum"][0]["actions"] = ["stop"]
+    rig.states[ROBOT]["state"] = "cleaning"
+    rig.states[ROBOT]["attributes"]["supported_features"] = 8
+    offered = await bridge.controls.setup(setup_body(bridge), token)
+    option = next(row for row in offered["options"] if row["action"] == "stop")
+    body = action_body(offered, option)
+    if broken_sink:
+
+        def broken(*args, **kwargs):
+            raise RuntimeError("sink unavailable")
+
+        monkeypatch.setattr("gatekeeper.podview_controls._LOGGER.info", broken)
+    with caplog.at_level("INFO", logger="gatekeeper.podview_controls"):
+        assert not (await bridge.controls.action(body, "unauthorized"))["ok"]
+        assert not caplog.records
+        denied = await bridge.controls.action({**body, "args": {"unexpected": True}}, token)
+        assert not denied["ok"] and not rig.writes
+        accepted = await bridge.controls.action(body, token)
+        assert accepted["outcome"] == "accepted"
+        assert await bridge.controls.action(body, token) == accepted
+        conflict = await bridge.controls.action({**body, "args": {"unexpected": True}}, token)
+        assert conflict["error"] == "request_reused"
+    assert rig.writes == [("services/vacuum/stop", {"entity_id": ROBOT})]
+    messages = [row.getMessage() for row in caplog.records]
+    if broken_sink:
+        assert not messages
+    else:
+        assert len(messages) == 8
+        ref = hashlib.sha256(body["requestId"].encode()).hexdigest()[:16]
+        assert all(
+            f"request_ref={ref}" in m and "domain=vacuum action=stop" in m and "kind=task" in m
+            for m in messages
+        )
+        assert "outcome=rejected delivery=not_dispatched" in messages[1]
+        assert "outcome=accepted delivery=new" in messages[3]
+        assert "outcome=accepted delivery=cached" in messages[5]
+        assert "outcome=rejected delivery=conflict" in messages[7]
+        assert all("physical_result_verified=false" in m for m in messages)
+        assert all(
+            secret not in " ".join(messages)
+            for secret in [token, body["requestId"], ROBOT, offered["taskId"]]
+        )
+
+
+@pytest.mark.parametrize("transport_error", [TimeoutError, asyncio.CancelledError])
+async def test_task_server_trace_unknown_remains_terminal_without_replay(
+    fixture, caplog, monkeypatch, transport_error
+):
+    rig, bridge, token = fixture
+    bridge.controls.policy["vacuum"][0]["actions"] = ["stop"]
+    rig.states[ROBOT]["state"] = "cleaning"
+    rig.states[ROBOT]["attributes"]["supported_features"] = 8
+    offered = await bridge.controls.setup(setup_body(bridge), token)
+    option = next(row for row in offered["options"] if row["action"] == "stop")
+    body = action_body(offered, option)
+    task = bridge.controls.tasks[offered["taskId"]]
+    execute = AsyncMock(side_effect=transport_error)
+    monkeypatch.setattr(task["vacuum_transport"], "execute", execute)
+    with caplog.at_level("INFO", logger="gatekeeper.podview_controls"):
+        unknown = await bridge.controls.action(body, token)
+        assert unknown["outcome"] == "unknown" and unknown["physicalResultVerified"] is False
+        assert await bridge.controls.action(body, token) == unknown
+    assert execute.await_count == 1
+    messages = [record.getMessage() for record in caplog.records]
+    assert len(messages) == 4
+    assert "phase=receipt" in messages[1] and "outcome=unknown delivery=new" in messages[1]
+    assert "phase=receipt" in messages[3] and "outcome=unknown delivery=cached" in messages[3]

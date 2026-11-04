@@ -524,3 +524,312 @@ async def test_robot_rebind_deadline_code_is_persisted_without_private_values(st
     result = await owner.read(batch.room, 0, lambda: True)
     assert result["records"][0]["row"] == row
     assert "control:" not in json.dumps(result["records"])
+
+
+@pytest.mark.parametrize("action", ["stop", "return"])
+async def test_robot_stop_and_return_batch_survives_existing_journal(store, action):
+    owner, _ = store
+    rows = [
+        {
+            "stage": "control_action",
+            "code": code,
+            "domain": "vacuum",
+            "action": action,
+            "requestId": UUID,
+            "seq": index,
+            "ageMs": 0,
+        }
+        for index, code in enumerate(("start", "accepted"), 1)
+    ]
+    batch = parsed(records=rows)
+    assert (await owner.append(batch, "principal", lambda: True))["stored"] is True
+    result = await owner.read(batch.room, 0, lambda: True)
+    saved = [record["row"] for record in result["records"]]
+    assert [row["code"] for row in saved] == ["start", "accepted"]
+    assert all(row["domain"] == "vacuum" and row["action"] == action for row in saved)
+    assert len({row["requestRef"] for row in saved}) == 1
+    assert UUID not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "domain,action",
+    [
+        (domain, action)
+        for domain, actions in module._DOMAIN_ACTIONS.items()
+        for action in sorted(actions)
+    ],
+)
+async def test_closed_domain_actions_round_trip_without_private_payload(store, domain, action):
+    owner, _ = store
+    row = {
+        "stage": "control_intent",
+        "code": "start",
+        "domain": domain,
+        "action": action,
+        "requestId": UUID,
+        "seq": 1,
+        "ageMs": 0,
+    }
+    batch = parsed(records=[row])
+    await owner.append(batch, "principal", lambda: True)
+    result = await owner.read(batch.room, 0, lambda: True)
+    saved = result["records"][0]["row"]
+    assert saved["domain"] == domain and saved["action"] == action
+    assert "requestRef" in saved and "requestId" not in saved
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"domain": "music", "action": "return"},
+        {"domain": "light", "action": "unlock"},
+        {"domain": "home", "action": "stop"},
+        {"source": "PRIVATE_provider"},
+        {"trust": "physical_success"},
+        {"trust": "owner_settlement"},
+        {"code": "confirmed"},
+        {"source": None},
+        {"trust": None},
+    ],
+)
+def test_observation_provenance_and_domain_pair_fail_closed(changes):
+    row = {
+        "stage": "control_observation",
+        "code": "observed",
+        "domain": "vehicle",
+        "action": "temperature",
+        "source": "home_assistant",
+        "trust": "state_observation",
+        "requestId": UUID,
+        "seq": 1,
+        "ageMs": 0,
+    }
+    row.update(changes)
+    for key in ("source", "trust"):
+        if row.get(key) is None:
+            row.pop(key)
+    with pytest.raises(module.DiagnosticFailure):
+        parsed(records=[row])
+
+
+async def test_state_observation_and_home_recovery_are_distinct_from_accepted(store):
+    owner, _ = store
+    rows = [
+        {
+            "stage": "control_action",
+            "code": "accepted",
+            "domain": "vehicle",
+            "action": "temperature",
+            "requestId": UUID,
+            "seq": 1,
+            "ageMs": 0,
+        },
+        {
+            "stage": "control_observation",
+            "code": "observed",
+            "domain": "vehicle",
+            "action": "temperature",
+            "source": "home_assistant",
+            "trust": "state_observation",
+            "requestId": UUID,
+            "seq": 2,
+            "ageMs": 0,
+        },
+        {
+            "stage": "home_read",
+            "code": "superseded",
+            "domain": "home",
+            "endpoint": "home",
+            "current": False,
+            "seq": 3,
+            "ageMs": 0,
+        },
+        {
+            "stage": "home_read",
+            "code": "recovered",
+            "domain": "home",
+            "endpoint": "home",
+            "source": "home_assistant",
+            "trust": "state_observation",
+            "seq": 4,
+            "ageMs": 0,
+        },
+    ]
+    batch = parsed(records=rows)
+    await owner.append(batch, "principal", lambda: True)
+    saved = [record["row"] for record in (await owner.read(batch.room, 0, lambda: True))["records"]]
+    assert [row["code"] for row in saved] == ["accepted", "observed", "superseded", "recovered"]
+    assert saved[0]["requestRef"] == saved[1]["requestRef"]
+    assert saved[1]["trust"] == "state_observation"
+    assert all(row["code"] != "confirmed" for row in saved)
+
+
+async def test_radio_diagnostic_reference_is_metadata_hashed_separately_from_wire_id(store):
+    owner, _ = store
+    rows = [
+        {
+            "stage": stage,
+            "code": code,
+            "domain": "radio",
+            "action": "stop",
+            "diagnosticRef": UUID,
+            "seq": index,
+            "ageMs": 0,
+            **(
+                {"source": "podradio", "trust": "state_observation"}
+                if stage == "control_observation"
+                else {}
+            ),
+        }
+        for index, (stage, code) in enumerate(
+            (
+                ("control_intent", "start"),
+                ("control_action", "accepted"),
+                ("control_observation", "observed"),
+            ),
+            1,
+        )
+    ]
+    batch = parsed(records=rows)
+    await owner.append(batch, "principal", lambda: True)
+    saved = [entry["row"] for entry in (await owner.read(batch.room, 0, lambda: True))["records"]]
+    assert len({row["diagnosticRef"] for row in saved}) == 1
+    assert all(len(row["diagnosticRef"]) == 16 and "requestRef" not in row for row in saved)
+    assert UUID not in json.dumps(saved)
+
+
+@pytest.mark.parametrize("requested,observed", [(20.5, 20), (True, False), (0, 0), (86400, -86400)])
+async def test_bounded_values_and_resource_identity_round_trip_without_clear_target(
+    store, requested, observed
+):
+    owner, _ = store
+    row = {
+        "stage": "control_observation",
+        "code": "observed",
+        "domain": "vehicle",
+        "action": "temperature",
+        "source": "home_assistant",
+        "trust": "state_observation",
+        "requestedValue": requested,
+        "observedValue": observed,
+        "resourceId": "climate.private_car",
+        "requestId": UUID,
+        "seq": 1,
+        "ageMs": 0,
+    }
+    batch = parsed(records=[row])
+    await owner.append(batch, "principal", lambda: True)
+    result = await owner.read(batch.room, 0, lambda: True)
+    saved = result["records"][0]["row"]
+    assert type(saved["requestedValue"]) is type(requested)
+    assert saved["requestedValue"] == requested and saved["observedValue"] == observed
+    assert len(saved["resourceRef"]) == 16 and "resourceId" not in saved
+    assert "climate.private_car" not in json.dumps(result)
+    assert "climate.private_car" not in owner.path.read_text()
+    assert saved["trust"] == "state_observation" and saved["code"] == "observed"
+
+
+@pytest.mark.parametrize(
+    "field,bad",
+    [
+        (key, bad)
+        for key in ("requestedValue", "observedValue")
+        for bad in (None, "20.5", {}, [], 86400.1, -86400.1, 10**400)
+    ],
+)
+def test_diagnostic_values_reject_private_objects_text_and_out_of_bounds(field, bad):
+    with pytest.raises(module.DiagnosticFailure):
+        parsed(
+            records=[
+                {"stage": "control_action", "code": "accepted", "seq": 1, "ageMs": 0, field: bad}
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "x" * 257,
+        "climate. private",
+        "https://private.example",
+        "user:secret@private",
+        "private\n",
+        None,
+        {},
+        True,
+    ],
+)
+def test_resource_id_is_a_closed_bounded_identifier_not_url_or_payload(bad):
+    with pytest.raises(module.DiagnosticFailure):
+        parsed(
+            records=[
+                {
+                    "stage": "control_action",
+                    "code": "accepted",
+                    "seq": 1,
+                    "ageMs": 0,
+                    "resourceId": bad,
+                }
+            ]
+        )
+
+
+async def test_two_clients_under_one_authorized_principal_cannot_starve_each_other(store):
+    owner, _ = store
+    a = parsed(100, clientId="11111111-0123-4567-89ab-0123456789ab")
+    b = parsed(101, clientId="22222222-0123-4567-89ab-0123456789ab")
+    assert (await owner.append(a, "ha:authorized-user", lambda: True))["stored"]
+    assert (await owner.append(b, "ha:authorized-user", lambda: True))["stored"]
+
+
+async def test_client_cadence_survives_restart_and_room_changes_while_global_cap_rejects_id_rotation(
+    store,
+):
+    owner, clock = store
+    a = "11111111-0123-4567-89ab-0123456789ab"
+    b = "22222222-0123-4567-89ab-0123456789ab"
+    await owner.append(parsed(100, clientId=a), "ha:user", lambda: True)
+    restarted = module.ClientDiagnosticsStore(owner.path, clock=lambda: clock[0])
+    await restarted.append(parsed(101, clientId=b), "ha:user", lambda: True)
+    with pytest.raises(module.DiagnosticFailure) as error:
+        await restarted.append(
+            parsed(102, clientId=a, roomId="another-room"), "ha:user", lambda: True
+        )
+    assert error.value.status == 429
+    for index in range(2, 12):
+        await restarted.append(
+            parsed(100 + index, clientId=f"{index + 10:08x}-0123-4567-89ab-0123456789ab"),
+            "ha:user",
+            lambda: True,
+        )
+    with pytest.raises(module.DiagnosticFailure) as error:
+        await restarted.append(
+            parsed(200, clientId="ffffffff-0123-4567-89ab-0123456789ab"), "ha:user", lambda: True
+        )
+    assert error.value.status == 429
+    assert len(json.loads(owner.path.read_text())["batches"]) == 12
+    clock[0] += 10
+    # Per-client10s has elapsed, but the same unchanged global60s cap still wins.
+    with pytest.raises(module.DiagnosticFailure):
+        await restarted.append(parsed(201, clientId=a), "ha:user", lambda: True)
+    clock[0] += 50
+    assert (await restarted.append(parsed(201, clientId=a), "ha:user", lambda: True))["stored"]
+    assert a not in owner.path.read_text() and b not in owner.path.read_text()
+
+
+@pytest.mark.parametrize(
+    "client_id",
+    [
+        None,
+        "PRIVATE",
+        "a" * 257,
+        "https://private.example",
+        True,
+        {},
+        "AAAAAAAA-0123-4567-89ab-0123456789ab",
+    ],
+)
+def test_telemetry_client_identity_is_optional_but_closed_when_present(client_id):
+    with pytest.raises(module.DiagnosticFailure):
+        parsed(clientId=client_id)

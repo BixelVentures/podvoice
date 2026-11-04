@@ -846,3 +846,79 @@ async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingre
     )
     assert await status.json() == receipt
     assert (await ingress.client.get("/view/api/recipe-submissions", headers=headers)).status == 403
+
+
+async def test_timer_journal_records_validated_dispatch_and_cached_receipt_without_private_data(
+    ingress, caplog
+):
+    import hashlib
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
+    command = timer_command(await snapshot(ingress))
+    command["requestId"] = "timer-private-request"
+    command["args"]["name"] = "Private dinner timer"
+    result = await post(ingress, "/view/api/actions", command)
+    assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+    assert await post(ingress, "/view/api/actions", command) == result
+    assert ingress.manager.starts == 1
+    ref = hashlib.sha256(command["requestId"].encode()).hexdigest()[:16]
+    assert f"stage=dispatch action=timer.start outcome=started request_ref={ref}" in caplog.text
+    assert f"stage=receipt action=timer.start outcome=accepted request_ref={ref}" in caplog.text
+    assert f"stage=redelivery action=timer.start outcome=accepted request_ref={ref}" in caplog.text
+    assert "timer-private-request" not in caplog.text
+    assert "Private dinner timer" not in caplog.text
+
+
+async def test_timer_journal_failure_cannot_change_effect_or_receipt(ingress, monkeypatch):
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("logger failed")
+
+    monkeypatch.setattr(module._LOG, "info", fail)
+    command = timer_command(await snapshot(ingress))
+    result = await post(ingress, "/view/api/actions", command)
+    assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
+    assert await post(ingress, "/view/api/actions", command) == result
+    assert ingress.manager.starts == 1
+
+
+async def test_timer_journal_unknown_does_not_claim_or_repeat_effect(ingress, caplog, monkeypatch):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
+
+    async def failed(*_args, **_kwargs):
+        raise TimeoutError("private timer detail")
+
+    monkeypatch.setattr(ingress.timers, "dispatch", failed)
+    command = timer_command(await snapshot(ingress))
+    result = await post(ingress, "/view/api/actions", command)
+    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+    assert await post(ingress, "/view/api/actions", command) == result
+    assert ingress.manager.starts == 0
+    assert "stage=receipt action=timer.start outcome=unknown" in caplog.text
+    assert "stage=redelivery action=timer.start outcome=unknown" in caplog.text
+    assert "private timer detail" not in caplog.text
+
+
+async def test_cancelled_timer_dispatch_logs_unknown_without_replay(ingress, caplog, monkeypatch):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.podview")
+    entered = asyncio.Event()
+
+    async def blocked(*_args, **_kwargs):
+        entered.set()
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(ingress.timers, "dispatch", blocked)
+    token = ingress.bridge.grant_timer_control("kitchen")
+    command = timer_command(ingress.bridge.snapshot("kitchen"))
+    task = asyncio.create_task(ingress.bridge.action(command, token))
+    await asyncio.wait_for(entered.wait(), 2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert "stage=receipt action=timer.start outcome=unknown" in caplog.text
+    assert (await ingress.bridge.action(command, token))["outcome"] == "unknown"
+    assert ingress.manager.starts == 0

@@ -195,3 +195,98 @@ async def test_post_storage_failure_returns_503_without_durable_ack(rig, monkeyp
     result = await response.json()
     assert result["error"] == "diagnostics_unavailable" and "stored" not in result
     assert "PRIVATE" not in json.dumps(result) and not rig.path.exists()
+
+
+async def test_two_authorized_clients_persist_distinct_seq_one_flows_without_grants_or_rate_escape(
+    rig,
+):
+    client_a = "11111111-0123-4567-89ab-0123456789ab"
+    client_b = "22222222-0123-4567-89ab-0123456789ab"
+    request_b = "33333333-0123-4567-89ab-0123456789ab"
+    for index, (client_id, request_id) in enumerate(((client_a, UUID), (client_b, request_b))):
+        rows = [
+            {
+                "stage": stage,
+                "code": code,
+                "domain": "vacuum",
+                "action": "pause",
+                "requestId": request_id,
+                "seq": seq,
+                "ageMs": 0,
+                **(
+                    {"source": "home_assistant", "trust": "state_observation"}
+                    if stage == "control_observation"
+                    else {}
+                ),
+            }
+            for seq, (stage, code) in enumerate(
+                (
+                    ("control_intent", "start"),
+                    ("control_action", "accepted"),
+                    ("control_observation", "observed"),
+                ),
+                1,
+            )
+        ]
+        value = batch(
+            rig.bridge,
+            batchId=f"{100 + index:08x}-0123-4567-89ab-0123456789ab",
+            clientId=client_id,
+            records=rows,
+        )
+        response = await rig.client.post(URL, json=value, headers=HEADERS)
+        assert response.status == 200
+        assert (await response.json())["stored"] is True
+    persisted = await (await rig.client.get(URL, headers=HEADERS)).json()
+    assert len(persisted["records"]) == 6
+    assert [entry["row"]["seq"] for entry in persisted["records"]] == [1, 2, 3, 1, 2, 3]
+    assert [entry["serverSeq"] for entry in persisted["records"]] == [1, 2, 3, 4, 5, 6]
+    assert len({entry["principalRef"] for entry in persisted["records"]}) == 1
+    assert {entry["row"]["requestRef"] for entry in persisted["records"]} == {
+        hashlib.sha256(request.encode()).hexdigest()[:16] for request in (UUID, request_b)
+    }
+    for request_id in (UUID, request_b):
+        request_ref = hashlib.sha256(request_id.encode()).hexdigest()[:16]
+        flow = [
+            entry["row"]
+            for entry in persisted["records"]
+            if entry["row"]["requestRef"] == request_ref
+        ]
+        assert [(row["stage"], row["code"]) for row in flow] == [
+            ("control_intent", "start"),
+            ("control_action", "accepted"),
+            ("control_observation", "observed"),
+        ]
+        assert flow[-1]["trust"] == "state_observation"
+    disk = json.loads(rig.path.read_text())
+    assert len({entry["key"] for entry in disk["batches"]}) == 2
+    assert len({entry["clientRef"] for entry in disk["batches"]}) == 2
+    assert client_a not in rig.path.read_text() and client_b not in rig.path.read_text()
+    rig.bridge.sessions["bedroom"] = owner()[0]
+    value = batch(
+        rig.bridge,
+        batchId="00000102-0123-4567-89ab-0123456789ab",
+        clientId=client_a,
+        roomId="bedroom",
+    )
+    assert (
+        await rig.client.post(
+            "/view/api/client-diagnostics?room=bedroom", json=value, headers=HEADERS
+        )
+    ).status == 429
+    # Caller IDs cannot create authority and rotation cannot widen total admission.
+    assert (await rig.client.post(URL, json=batch(rig.bridge, clientId=client_a))).status == 403
+    for index in range(2, 12):
+        value = batch(
+            rig.bridge,
+            batchId=f"{100 + index:08x}-0123-4567-89ab-0123456789ab",
+            clientId=f"{index + 10:08x}-0123-4567-89ab-0123456789ab",
+        )
+        assert (await rig.client.post(URL, json=value, headers=HEADERS)).status == 200
+    value = batch(
+        rig.bridge,
+        batchId="00000200-0123-4567-89ab-0123456789ab",
+        clientId="ffffffff-0123-4567-89ab-0123456789ab",
+    )
+    assert (await rig.client.post(URL, json=value, headers=HEADERS)).status == 429
+    assert not rig.timers.command.await_count and not rig.bridge._grants

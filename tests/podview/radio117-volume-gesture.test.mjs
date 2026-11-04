@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
+import {PlayerView,renderPlayerControls} from '../../podvoice/gatekeeper/static/podview/player-view.js';
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
 const music=new Function('localRadioTransition',`return ({${source.slice(source.indexOf(' music(event){'),source.indexOf('\n build(){')).trim()}}).music;`)(()=>{throw Error('unexpected local dispatch');});
 function fixture(kind='radio'){
@@ -23,3 +23,14 @@ test('a retained captured radio event cannot bypass host routing after a source 
 test('keyboard gesture keeps its source until keyup and does not adopt a replacement on repeat input',()=>{const f=fixture(),input=f.inputs[0],key=new Event('keydown');Object.defineProperties(key,{key:{value:'ArrowRight'},repeat:{value:false}});input.dispatchEvent(key);input.value='42';input.dispatchEvent(new Event('input'));input.dispatchEvent(new Event('change'));f.setKind('music');input.value='43';input.dispatchEvent(new Event('input'));input.dispatchEvent(new Event('change'));assert.deepEqual(f.effects,[['radio','volume',42]]);input.dispatchEvent(new Event('keyup'));});
 
 for(const kind of ['radio','music'])test(`same ${kind} execution owner survives passive timestamp and content updates during a gesture`,()=>{const f=fixture(kind),input=f.inputs[0];input.dispatchEvent(new Event('pointerdown'));input.value='46';input.dispatchEvent(new Event('input'));f.host.liveRadio.value.retrievedAt=Date.now()/1000;f.host.liveRadio.value.state.observedAt=Date.now()/1000;f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:99,observedAt:new Date().toISOString(),item:{uri:'spotify:track:'+ '2'.repeat(22),name:'Next song',artwork:null}};input.dispatchEvent(new Event('change'));assert.deepEqual(f.effects,[[kind==='music'?'spotify':'radio','volume',46]]);});
+
+function paintFixture(){
+ const f=fixture(),input=f.inputs[0],attrs=new Map();Object.assign(input,{dataset:{},style:{getPropertyValue(){return '';},setProperty(){}},getAttribute:key=>attrs.get(key)??null,setAttribute:(key,value)=>attrs.set(key,String(value))});
+ const output={textContent:'41 %'},nodes=new Map([['volume',input],['volume-value',output]]);f.host.ownerDocument={getElementById:id=>nodes.get(id)||null,querySelector:()=>null};f.host.querySelector=()=>null;
+ return {...f,input,output,paint:()=>renderPlayerControls(f.host,{sourceKind:'radio',volume:41,canVolume:true})};
+}
+test('passive radio paint retains the current native gesture until one explicit commit',()=>{const f=paintFixture();f.input.dispatchEvent(new Event('pointerdown'));f.input.value='31';f.input.dispatchEvent(new Event('input'));f.paint();assert.equal(f.input.value,'31');assert.equal(f.input.getAttribute('aria-valuetext'),'31 %');f.input.dispatchEvent(new Event('change'));assert.deepEqual(f.effects,[['radio','volume',31]]);});
+for(const boundary of ['owner','access'])test(`passive radio paint drops a gesture after ${boundary} changes`,()=>{const f=paintFixture();f.input.dispatchEvent(new Event('pointerdown'));f.input.value='31';f.input.dispatchEvent(new Event('input'));if(boundary==='owner')f.host.liveRadio.value.state.ownerGeneration++;else f.setAllowed(false);f.paint();assert.equal(f.input.value,'41');assert.equal(f.input.getAttribute('aria-valuetext'),'41 %');f.input.dispatchEvent(new Event('change'));assert.deepEqual(f.effects,[]);});
+
+test('unchanged radio pointer release permits later passive volume paint',()=>{const f=paintFixture();f.input.dispatchEvent(new Event('pointerdown'));f.input.dispatchEvent(new Event('pointerup'));f.input.value='41';renderPlayerControls(f.host,{sourceKind:'radio',volume:52,canVolume:true});assert.equal(f.input.value,'52');assert.equal(f.input.getAttribute('aria-valuetext'),'52 %');assert.deepEqual(f.effects,[]);});
+test('radio pointer release retains custody for the subsequent native change',()=>{const f=paintFixture();f.input.dispatchEvent(new Event('pointerdown'));f.input.value='31';f.input.dispatchEvent(new Event('input'));f.paint();f.input.dispatchEvent(new Event('pointerup'));f.input.dispatchEvent(new Event('change'));assert.deepEqual(f.effects,[['radio','volume',31]]);});

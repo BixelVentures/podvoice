@@ -903,3 +903,51 @@ def test_settings_default_off_and_exact_validation(tmp_path):
     adapter = DeviceControl(None, "")
     adapter.configure(True, [ROBOT])
     assert adapter.declarations() == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "change,accepted",
+    [
+        ("other_value", True),
+        ("battery", True),
+        ("target_value", False),
+        ("target_choices", False),
+        ("mode_value", False),
+        ("other_choices", False),
+        ("robot_state", False),
+        ("identity", False),
+    ],
+)
+async def test_active_suction_revalidates_exact_target_mode_and_capabilities(rig, change, accepted):
+    from gatekeeper.podview_vacuum_settings import ActiveVacuumSettings
+
+    rig.states[ROBOT]["state"] = "cleaning"
+    rig.states[ROBOT]["attributes"]["supported_features"] = 32
+    owner = ActiveVacuumSettings(rig.router._device_control)
+    offer = await owner.setup(ROBOT, lambda: True)
+    row = next(row for row in offer["rows"] if row["role"] == "suction")
+    if change == "other_value":
+        rig.states[MOP]["state"] = "extreme"
+    if change == "battery":
+        rig.states[ROBOT]["attributes"]["battery_level"] = 77
+    if change == "target_value":
+        rig.states[ROBOT]["attributes"]["fan_speed"] = "max"
+    if change == "target_choices":
+        rig.states[ROBOT]["attributes"]["fan_speed_list"] = ["balanced"]
+    if change == "mode_value":
+        rig.states[MODE]["state"] = "mop"
+    if change == "other_choices":
+        rig.states[MOP]["attributes"]["options"] = ["medium"]
+    if change == "robot_state":
+        rig.states[ROBOT]["state"] = "paused"
+    if change == "identity":
+        rig.registry[MOP]["unique_id"] = "different"
+    result = await owner.execute(offer, row, "max", lambda: True)
+    assert result == ("accepted" if accepted else "rejected")
+    assert rig.writes == (
+        [("services/vacuum/set_fan_speed", {"entity_id": ROBOT, "fan_speed": "max"})]
+        if accepted
+        else []
+    )
+    assert await owner.execute(offer, row, "max", lambda: True) == "rejected"

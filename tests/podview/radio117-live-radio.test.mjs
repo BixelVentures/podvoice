@@ -97,3 +97,19 @@ test('passive disabled radio UNKNOWN cannot create a command-failure notice whil
  await radio.refresh({immediate:true});radio.render();radio.render();assert.equal(radio.unknown,false);assert.equal(radio.presentsPlayer(),false);assert.equal(queue.current,null);assert.equal(queue.pending.length,0);assert.equal(shown.filter(Boolean).length,0);assert.equal(radio.can('start'),false);
  radio.unknown=true;radio.render();assert.match(queue.current.message,/ikke bekræftet/);assert.equal(radio.can('start'),false);queue.cleanup();clearTimeout(radio.expiry);
 });
+
+test('radio logs one metadata correlation through intent offer receipt and observed values without changing action wire',async()=>{
+ const {radio,host}=fixture(value({actions:['start','stop','move','volume'],state:{...value().state,volumePercent:30}})),records=[],offers=[],writes=[];host.liveTransport.recordDiagnostic=(stage,fields)=>records.push({stage,...fields});
+ host.liveTransport.radioOffer=async body=>{offers.push(body);return {...snapshot,taskId:'task',optionId:'option',expiresAt:Date.now()/1000+5};};host.liveTransport.radioAction=async offer=>{writes.push(offer);return {status:'accepted'};};host.liveTransport.radio=async()=>value({revision:2,state:{...value().state,generation:2,volumePercent:31}});
+ try{await radio.act('volume',{volumePercent:31,targetId:'stuen'});assert.equal(offers.length,1);assert.equal(writes.length,1);assert.equal(offers[0].diagnosticRef,undefined);assert.equal(writes[0].diagnosticRef,undefined);const phases=records.filter(row=>['control_intent','control_setup','control_action','control_observation'].includes(row.stage));assert.ok(phases.every(row=>row.domain==='radio'&&row.action==='volume'&&row.diagnosticRef===phases[0].diagnosticRef&&row.resourceId==='stuen'));assert.match(phases[0].diagnosticRef,/^[a-f0-9-]{36}$/);assert.ok(phases.some(row=>row.stage==='control_action'&&row.code==='accepted'));const observed=phases.find(row=>row.stage==='control_observation'&&row.code==='observed');assert.equal(observed.requestedValue,31);assert.equal(observed.observedValue,31);assert.equal(observed.source,'podradio');assert.equal(observed.trust,'state_observation');assert.equal(phases.some(row=>row.code==='confirmed'||row.requestId),false);}finally{clearTimeout(radio.expiry);}
+});
+
+test('radio logs read failure and recovery separately while retaining the existing read-only lifecycle',async()=>{
+ const {radio,host}=fixture(),records=[];let reads=0;host.liveTransport.recordDiagnostic=(stage,fields)=>records.push({stage,...fields});host.liveTransport.radio=async()=>{reads++;if(reads===1)throw new TypeError('PRIVATE');return value({revision:2});};
+ try{await radio.refresh({immediate:true});assert.equal(radio.current(),false);await radio.refresh({immediate:true});assert.equal(reads,2);assert.equal(radio.current(),true);assert.ok(records.some(row=>row.stage==='request'&&row.code==='network'));assert.ok(records.some(row=>row.stage==='request'&&row.code==='recovered'&&row.source==='podradio'&&row.trust==='state_observation'));assert.doesNotMatch(JSON.stringify(records),/PRIVATE/);}finally{clearTimeout(radio.expiry);}
+});
+
+test('radio logging failures never alter an accepted command or send extra effects',async()=>{
+ const {radio,host}=fixture(value({state:{...value().state,status:'stopped'}}));let writes=0;host.liveTransport.recordDiagnostic=()=>{throw Error('inert sink failed');};host.liveTransport.radioOffer=async()=>({...snapshot,taskId:'task',optionId:'option',expiresAt:Date.now()/1000+5});host.liveTransport.radioAction=async()=>{writes++;return {status:'accepted'};};host.liveTransport.radio=async()=>value({revision:2,state:{...value().state,generation:2}});
+ try{await radio.choose('p3');assert.equal(writes,1);assert.equal(radio.value.state.status,'playing');assert.equal(radio.pending,false);}finally{clearTimeout(radio.expiry);}
+});
