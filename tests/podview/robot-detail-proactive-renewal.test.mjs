@@ -70,3 +70,36 @@ test('spent offer cannot be retained by same-robot reopening',async()=>{
 test('direct same-robot open with unknown outcome does not preserve the old offer',async()=>{const f=fixture();try{await open(f);inline(f);const old=f.view.task;f.view.receipts.set('uncertain',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});const reading=f.view.open('vacuum',target,new Node('button'));assert.notEqual(f.view.task,old);assert.equal(f.view.robotPanel.disabled,true);f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
 
 test('first open without a current offer still waits for a validated setup',async()=>{const f=fixture();try{inline(f);const card=new Node('card');card.dataset={};card.parentNode={parentNode:f.host,after(){}};f.host.deviceNodes=new Map([[target.entityId,card]]);f.host.liveTransport.controlSetup=()=>f.next.promise;const reading=f.view.openRobot(new Node('button'));assert.equal(f.view.task,null);assert.equal(f.view.robotPanel.disabled,true);f.next.resolve(f.offer('first'));await reading;assert.equal(f.view.task.taskId,'first');assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
+
+test('renewal records only allowlisted server rejection reason with no task identifiers',async()=>{
+ for(const reason of ['robot_deny_source_deadline','PRIVATE-TASK']){const f=fixture();try{await open(f);inline(f);const rows=[];f.host.liveTransport.recordDiagnostic=(stage,row)=>rows.push({stage,...row});const read=f.view.renewRobotTask(f.view.task);const next=f.offer('fresh');next.setup.rebind={status:'not_restored'};next.setup.rebindReason=reason;f.next.resolve(next);await read;assert.equal(rows.some(row=>row.code==='robot_deny_source_deadline'),reason==='robot_deny_source_deadline');assert.doesNotMatch(JSON.stringify(rows),/PRIVATE-TASK|old-start|fresh-start/);assert.equal(f.writes(),0);}finally{f.view.cleanup();}}
+});
+
+test('long robot offer starts renewal early enough for an eight-second setup without extending its authority',async()=>{
+ const f=fixture(),realNow=Date.now,realSet=globalThis.setTimeout,realClear=globalThis.clearTimeout;let now=1_000_000,timers=[];
+ try{
+  Date.now=()=>now;await open(f);inline(f);const old=f.view.task;old.expiresAt=(now+120_000)/1000;
+  globalThis.setTimeout=(fn,delay)=>{const timer={fn,delay};timers.push(timer);return timer};globalThis.clearTimeout=()=>{};
+  f.view.scheduleRobotTaskExpiry();const renewal=timers.find(timer=>timer.delay<120_000);assert(renewal.delay<120_000);
+  now+=renewal.delay;renewal.fn();assert.equal(f.reads(),2);assert.equal(f.view.task,old);assert.equal(f.view.robotPanel.disabled,false);
+  now+=8_000;assert(now<old.expiresAt*1000,'old offer is still valid after the bounded read');
+  f.next.resolve(f.offer('fresh'));await Promise.resolve();await Promise.resolve();await Promise.resolve();assert.equal(f.view.task.taskId,'fresh');assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();Date.now=realNow;globalThis.setTimeout=realSet;globalThis.clearTimeout=realClear;}
+});
+
+test('short robot offer keeps the halfway renewal rule',async()=>{
+ const f=fixture(),realSet=globalThis.setTimeout,realClear=globalThis.clearTimeout;let timers=[];
+ try{await open(f);inline(f);f.view.task.expiresAt=Date.now()/1000+15;clearTimeout(f.view.expiryTimer);clearTimeout(f.view.robotEarlyRenewal);globalThis.setTimeout=(fn,delay)=>{const timer={fn,delay};timers.push(timer);return timer};globalThis.clearTimeout=()=>{};f.view.scheduleRobotTaskExpiry();const renewal=timers.at(-1);assert(renewal.delay>7000&&renewal.delay<=7500);assert.equal(f.writes(),0);}finally{f.view.cleanup();globalThis.setTimeout=realSet;globalThis.clearTimeout=realClear;}
+});
+
+test('reopening an expired same-robot offer requests owner-validated draft restoration',async()=>{
+ const f=fixture();try{await open(f);inline(f);const old=f.view.task,panel=f.view.robotPanel;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});old.expiresAt=Date.now()/1000-1;let sent;f.host.liveTransport.controlSetup=(domain,target,recipe,options)=>{sent=options;return f.next.promise};const reading=f.view.openRobot(new Node('button'));assert.deepEqual(sent.draft,{taskId:old.taskId,revision:old.revision,optionId:'old-start',areaIds:['old-area'],repeat:2,settingChoices:[]});const response=f.offer('fresh');response.setup.draft={status:'not_restored'};f.next.resolve(response);await reading;assert.equal(f.view.task.taskId,'fresh');assert.equal(f.view.task.draft.status,'not_restored');assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+});
+
+test('reopening after boot scope change does not submit previous draft',async()=>{
+ const f=fixture();try{await open(f);inline(f);f.view.robotPanel.cleaningDirty=true;f.view.robotPanel.cleaningOptionId='old-start';f.view.robotPanel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});f.host.liveSnapshot.bootId='new-boot';let sent;f.host.liveTransport.controlSetup=(domain,target,recipe,options)=>{sent=options;return f.next.promise};const reading=f.view.openRobot(new Node('button'));assert.deepEqual(sent,{});const response=f.offer('fresh');response.bootId='new-boot';f.next.resolve(response);await reading;assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+});
+
+test('expired same-context reopen accepts only owner-restored draft with fresh choices',async()=>{
+ const f=fixture();try{await open(f);inline(f);const old=f.view.task,panel=f.view.robotPanel;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});old.expiresAt=Date.now()/1000-1;f.host.liveTransport.controlSetup=()=>f.next.promise;const reading=f.view.openRobot(new Node('button'));const response=f.offer('fresh');response.setup.draft={status:'restored',optionId:'fresh-start',areaIds:['fresh-area'],repeat:2,settingChoices:[]};f.next.resolve(response);await reading;assert.deepEqual(f.view.task.draft,response.setup.draft);assert.equal(f.view.robotPanel.value.task.draft.status,'restored');assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+});

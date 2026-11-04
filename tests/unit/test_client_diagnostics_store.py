@@ -514,3 +514,13 @@ def test_read_hash_rejects_unbounded_private_and_nonhex_values(bad):
         )
     assert error.value.status == 400
     assert "PRIVATE_identifier" not in str(error.value)
+
+
+async def test_robot_rebind_deadline_code_is_persisted_without_private_values(store):
+    owner, _ = store
+    row = {"stage": "robot_renewal", "code": "robot_deny_source_deadline", "seq": 1, "ageMs": 0}
+    batch = parsed(records=[row])
+    assert (await owner.append(batch, "principal", lambda: True))["stored"] is True
+    result = await owner.read(batch.room, 0, lambda: True)
+    assert result["records"][0]["row"] == row
+    assert "control:" not in json.dumps(result["records"])

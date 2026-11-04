@@ -1401,6 +1401,8 @@ class TouchControls:
                 task["renew_public_options"] = copy.deepcopy(public_options)
                 if "renewTaskId" in body:
                     setup["rebind"] = self._robot_rebind(renew_source, task, token)
+                    if task.get("rebind_diagnostic"):
+                        setup["rebindReason"] = task["rebind_diagnostic"]
                 if "draft" in body:
                     setup["draft"] = self._robot_remap_draft(
                         draft_source, body["draft"], task, token
@@ -1767,6 +1769,38 @@ class TouchControls:
         def reject(reason):
             # Static categories only: never log task IDs, entity IDs, values or tokens.
             _LOGGER.warning("robot_rebind_denied reason=%s", reason)
+            allowed = {
+                "source_missing",
+                "source_domain",
+                "source_registered",
+                "source_consumed",
+                "source_token",
+                "source_deadline",
+                "source_setup",
+                "source_domain_access",
+                "source_binding",
+                "source_current_other",
+                "fresh_current",
+                "room",
+                "target",
+                "binding",
+                "rule",
+                "mutation",
+                "boot",
+                "device",
+                "authority",
+                "draft_identity",
+                "draft_scope",
+                "offer_presence_vacuum_transport_offer",
+                "offer_presence_dock_offer",
+                "offer_presence_settings_offer",
+                "offer_changed_vacuum_transport_offer",
+                "offer_changed_dock_offer",
+                "offer_changed_settings_offer",
+                "public_options",
+                "mapping_exception",
+            }
+            fresh["rebind_diagnostic"] = "robot_deny_" + (reason if reason in allowed else "other")
             return {"status": "not_restored"}
 
         if not source:
@@ -1826,6 +1860,25 @@ class TouchControls:
             )
             for reason, valid in checks:
                 if not valid():
+                    if (
+                        reason in {"source_current", "source_registered"}
+                        and source.get("domain") == "vacuum"
+                    ):
+                        # Diagnostic only; the original authority guard remains unchanged.
+                        if not secrets.compare_digest(source["token"], token):
+                            reason = "source_token"
+                        elif time.monotonic() >= source["deadline"]:
+                            reason = "source_deadline"
+                        elif reason == "source_registered":
+                            reason = "source_registered"
+                        elif source.get("setup_in_progress") is True:
+                            reason = "source_setup"
+                        elif source["domain"] not in self.domains(source["room"], token):
+                            reason = "source_domain_access"
+                        elif source["binding"] != self._binding(source["room"], source["domain"]):
+                            reason = "source_binding"
+                        else:
+                            reason = "source_current_other"
                     return reject(reason)
             for offer, fields in (
                 ("vacuum_transport_offer", ("identity", "features", "state")),

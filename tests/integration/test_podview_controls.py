@@ -2143,3 +2143,15 @@ async def test_robot_rebind_preserves_raw_time_setting_current(fixture):
     changed = bridge.controls._robot_rebind(old, fresh, token)
     assert changed["status"] == "not_restored"
     assert not rig.writes
+
+
+async def test_robot_rebind_deadline_reason_survives_retirement_without_identifiers(fixture):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    bridge.controls.tasks[first["taskId"]]["deadline"] = time.monotonic() - 1
+    renewed = await bridge.controls.setup(setup_body(bridge, renewTaskId=first["taskId"]), token)
+    assert renewed["setup"]["rebind"] == {"status": "not_restored"}
+    assert renewed["setup"]["rebindReason"] == "robot_deny_source_deadline"
+    assert token not in renewed["setup"]["rebindReason"]
+    assert first["taskId"] not in renewed["setup"]["rebindReason"]
+    assert not rig.writes

@@ -46,3 +46,7 @@ test('existing close flushes the final dirty fault inside the write throttle and
 test('robot renewal diagnostics keep bounded reason only, excluding private offer data',()=>{
  const t=make();for(const code of ['robot_rebind_same','robot_rebind_context','robot_rebind_denied','robot_rebind_absent','robot_rebind_invalid','robot_rebind_draft','robot_rebind_dialog','robot_rebind_restored','robot_authority_changed','robot_offer_invalid','robot_open_reset'])t.recordDiagnostic('robot_renewal',{code,taskId:'PRIVATE-TASK',optionId:'PRIVATE-OPTION',room:'PRIVATE-ROOM',message:'PRIVATE'});const rows=t.diagnostics().records;assert.equal(rows.length,11);assert.equal(rows.at(-1).code,'robot_open_reset');assert.doesNotMatch(JSON.stringify(rows),/PRIVATE/);
 });
+
+test('robot owner deadline reason survives browser diagnostic persistence without private identifiers',async()=>{
+ const store=storage(),t=make({diagnosticStorage:store});t.recordDiagnostic('robot_renewal',{code:'robot_deny_source_deadline',taskId:'PRIVATE-TASK',optionId:'PRIVATE-OPTION'});await microtask();const reloaded=make({diagnosticStorage:store});assert.ok(reloaded.diagnostics().records.some(row=>row.code==='robot_deny_source_deadline'));assert.doesNotMatch(store.value,/PRIVATE/);
+});
