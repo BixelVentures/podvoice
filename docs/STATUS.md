@@ -1,3 +1,123 @@
+
+## Foundation · samlet kandidat og tværgående afstemning · 4. november
+
+Denne PodView-tråd ejer fundament, kanonisk UI og samlet funktionsbevis. De eksisterende aktive tråde `Forbedr Roborock-widget UX og UI` og `v2.X` har bekræftet HOLD af overlappende merge/publicering/installation. Deres PR296 ee2d8459-delta er selektivt afstemt; den nyere recipe local-store/Noneguard og formattering er bevaret. Ingen af deres branches er overskrevet. Navngiven eksisterende integrationslead bevarer den ene release-/Green-installation efter den fælles frysning. Leadens oplyste Green-status: PV127, Control29, companion0.1.14; Control31 downloadet men ingen HA-genstart sendt. Dette er ikke root-verificeret ny Green-/hardwareaccept.
+
+Samme byggede kandidat `b80d1c9a00666fda5f65a666aaef214ed1ebc3de7281e215332a7533452fc562`, CSS `c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b`, 68 matchende kildeinputs:
+- Musik: actual browser → Python owner → inert native service; Pause under sangmetadata-skift, midlertidigt ukendt witness → samme receipt bekræftet før Resume, korrekt overblik/player og vedvarende korreleret log. Én Pause-effekt, ingen browser-JIT-setup. Log `/private/tmp/podview-foundation-music-final.log`.
+- Robot: actual browser → faktisk backend/DeviceControl → inert HA; Pause under ventende musik, detail-Fortsæt, tilbagevendende header-Pause og bevarede rengøringsvalg. Den faktisk fundne gamle home-cache er rettet med effekt/inflight-fence og passiv genlæsning, ingen effect replay. Log `/private/tmp/podview-foundation-robot-final.log`.
+- Opskrift: actual browser → eksisterende HA proxy/addonroute → offentlig kilde → varig teststore → automatisk katalogpost, dublet og faktisk serverproces-restart; 1024×768, bevaret fokus/kategori/scroll. Log `/private/tmp/podview-foundation-recipe-final.log`.
+- Samlet eksisterende UI-suite inkl. komponentgate består uden fail/cancel/skip. Log `/private/tmp/podview-foundation-ui-final-final.log`. Relevant backend-scope består, `/private/tmp/podview-foundation-final-backend-all.log`. Astra har godkendt de konkrete ændrede grænser og sidste late-robot-fence. Faktiske service/hardware og hele inventaret er fortsat særskilt åbent.
+
+Checkout-build bruger samme committede renderer: manglende `dist` skabes kun som disponibel staging fra `gatekeeper/static/podview`; eksisterende arbejdsfiler overskrives ikke. Der er ingen ekstra committet UI-kilde.
+
+Dette lukker ikke hele A/B/D-inventaret, outputskift/volumen/kø som realservice-E2E, faktisk Green/Mac/iPad eller naturlig native song-transition. PodConnect-ekstradelta er isoleret commit c4a25ddf84478681856162c0500b5c52e2c320c1 fra Control31; exact route ved faktisk naturligt sangskift er endnu ikke observeret (aktuelt output iPhone), og der fremprovokeres ingen lyd for denne læseprøve.
+
+## 4/11 — Go: fundament for direkte touch og domæneisolation · under arbejde
+
+Brugerens Go gennemfører PodView-grundplanen. Arbejdskandidat er den isolerede
+`codex/podview-foundation-20261104`, fra verificeret remote PR296
+`eae9066ad558e25ffda0cdda58a61afce8e88910` (2.0.128), med selektivt adopteret
+samlet overlay og opskriftsbackend. Main var `37680d1831ce26fd1c41a82a19a35482435b2ece`.
+Ingen runtime-, service- eller fysisk accept udledes heraf.
+
+Læst kodeårsag: almindelig musikintention kan afhænge af sang/samtaleskift; kontrol-,
+kø- og musikvalg deler rumglobal effektventen; robot-/lyssetup kan blokeres af musik.
+Det præcise gamle brugerklik er ikke kausalt rekonstrueret. Falsificerbar hypotese:
+direkte normal touch med præcist mål, samme serviceejer og ressourceafgrænset venten
+bevarer Pause gennem sangskift og gør robot/lys uafhængige af musikarbejde.
+
+Implementationsbeslutning: eksisterende control/actions modtager lukket direkte
+musikintention; nuværende requestauth, policy, ejer og faktisk native binding
+valideres. Samme receiptlager reserveres før første await med original fingerprint;
+issuedAt begrænser intentionen til120s (+5s fremadskævhed), receipts bevares til
+intentionens frist+90s uafhængigt af kort tilbudsfrist. Original udløbet body afvises;
+UNKNOWN eller ændret timestamp gensendes ikke automatisk. Backendkonflikter deles
+mellem musik-ejer, robotentity og lysområde; fælles policy/adgang/placement/ejer-
+invalidering bevares. Kølæsning er ingen effektlås. Ingen ny bus, renderer eller login.
+
+Kausale checks: direkte Pause efter item-/samtaleskift, dublet under await, forkert mål,
+expiry/pruning, cancellation og sent svar samt samtidig musik/robot/lys. Genbrug
+eksisterende inerte HA/Connect-ejere; bygget PodView-browser→rigtig service→observation
+og UI/log er primært acceptbevis. Mac fysisk adgang er aktuelt blokeret; uafhængigt
+softwarearbejde fortsætter. Astra har accepteret designet med konkrete reservation-/
+expiry-/authkrav; faktisk diff reviewes før integration/release. Rollback er dette
+afgrænsede ændringssæt; ingen firmware/audio/HA-politik ændres og ingen fysiske effekter
+udføres i dette arbejde. Publicering, Green-installation og Mac/iPad/fysisk accept er åbne.
+
+
+Resultat på denne kandidat: direkte musikcommand og ressourceafgrænsning implementeret;
+normal købetjening bevarer samme ejer gennem uvedkommende samtaletur. Originalt input
+reserveres før første await; dublet, cancellation før/efter mulig send, kort taskexpiry,
+gammel intention efter receiptpruning, forkert mål, tilbagekaldt adgang og sidste ledgerslot
+er kausalt prøvet. Fire berørte eksisterende kontrol-/kø-/musikvalgmoduler består samlet
+233 checks med inerte HA/Connect-ejere og lokale HTTP-ruter. Ændret Python består Ruff
+og Python3.12 AST. Ingen bred ny testsuite tilføjet. Astra har verificeret de fire core-
+sourcehashes og givet APPROVED FOR ADOPTION uden resterende sourceblocker.
+
+Corehashes: controls `90600bf727e2a492c25526780c8644befe5ccdbfbfdb2b4bf0beb07ad1312c43`,
+queue `7f09b3ff2f7ded64a0efc25ec000e95b8cee5af176578fbbaa10a8581437b3e4`,
+selection `b817ecfa372c14f4728a1a030bbe08a389e1d5205440ae5809a1eeb5f0dc91eb`,
+bridge `d3706b1f4a4f1679d762748002bce48c20baf2edeb16d4fe53029794728d1161`.
+Faktisk browser→service→observation/UI, native input-/sangskift, ekstern allerede-paused,
+Green-installation, Mac/iPad-brugsklarhed og fysisk accept er fortsat åbne. Headless
+samlet E2E udføres af lead; PodConnect-ejer afklarer den påviste native poll-race uden
+at erstatte eksakte route-/adgangsgrænser med automatisk genforsøg.
+
+
+B-pakke under arbejde: samme lukkede direkte kommando udvides kun til robotens
+pause/resume/stop/return. Transport-only setup springer map/settings/dock over, men
+bevarer eksisterende VacuumTransport registry-, feature-, state-, target- og ejer-
+validering før servicekald. En kortlivet readonly transportActions-række beregnes
+fra supported_features i den allerede læste HA-state; ingen ekstra poll eller ny
+myndighed. Aktuel auth/policy filtreres per HTTP-svar efter sidste await, uafhængigt
+af den delte observationscache. De to øvrige aktive tråde er afstemt af lead; ingen
+merge/publicering/installation udføres fra denne isolerede kandidat før samlet freeze.
+Nyere ee2d8459's safe robotstage-log er bevaret; recipe-recovery Noneguard er optaget
+selektivt, uden at overskrive ændrede kontroldomæner. Browser/servicebevis følger hos
+lead; fysisk robot er ikke prøvet.
+
+
+B-resultat på samme kandidat: direkte Pause/Fortsæt/Stop/Base går gennem præcis
+VacuumTransport-service med frisk registry/state/features-validering. Readonly
+transportActions filtreres per request og kan ikke genbruges som myndighed.
+Et faktisk browserfund viste gammel home-cache efter accepteret Pause; rettet ved
+at retire cachen og avancere eksisterende vacuum-mutationsfence ved accepted/unknown.
+En ældre in-flight home-read kan ikke publicere før-effekt cleaning bagefter. Den
+kausale HTTP-prøve ændrer rigtig inert HA-state til paused og genfinder Resume ved
+næste friske læsning. Astra har godkendt den afgrænsede backend. Sidste relevante
+kontrol/home/kø/musikvalg-integration består samlet på Python3.12; ingen fysisk robot
+eller live Green-accept udledes af dette.
+
+Testkontrakten er rettet, ikke omgået. Den første reelt kørte samlede UI-suite fandt
+forældede protokolkrav og reelle harnesshuller. Browser-JIT pr. klik, opaque task-ID
+som touchidentitet, Pause afbrudt af sang/samtaleskift, permanent UNKNOWN-lås og musik
+som global robotlås er ikke længere gyldige produktorakler. De erstattes af offentlige
+controlIntent-/receiptforløb, aktuelle auth-/target-/volume-/racegrænser og faktisk
+browser→backend→inert service→state/UI/log. Passive expiry-/cleanupkontroller og
+unikke state-/volumeregler bevares. Verificerede dubletter konsolideres i samme suites;
+ingen testpattern-exclude, skip eller komponentrebaseline bruges til at få PASS.
+
+- Native/JIT-/diagnosesporet: 202 aktuelle kontroller består, inklusive to MOVE i træk,
+  køkken→Svend→afspil→pause→køkken→afspil, volume100 mod max35, correlation og no-replay.
+- Fire små renderer-/transportharnessrettelser:30 består uden produktændring.
+- Media-suiternes identiske kopier er konsolideret med unik dækning bevaret;91 relevante
+  kontroller består. Ægte konto/boot/rum/binding/transport/adgangsgrænser er bevaret.
+  Endelig samlet npm-kørsel kræver frosne fælles bytes og er ikke påstået her.
+- Bevarede tests fandt en reel forskel mellem command-outcome UNKNOWN og et accepted
+  commands midlertidigt ukendte native witness. Frontend beholder nu det accepterede
+  requests passive custody til samme30s deadline; næste læsning kan bekræfte samme
+  receipt uden ny kommando. Historisk accepted efter readonly control_not_granted
+  forbliver historik, mens nye handlinger er deaktiveret; accepted er aldrig confirmed.
+
+Det faktiske browserbevis findes i tests/browser/music_actual_e2e.cjs med tilhørende
+music_e2e_server.py og recipe_actual_e2e.cjs/recipe_e2e_server.py. Disse bruger inerte
+HA/nativeejere og midlertidigt lager, og er derfor hverken Green eller fysisk iPad.
+Original samlet UI-log: /private/tmp/podview-foundation-ui-final.log. Rettet fokuseret
+UI-scope: /private/tmp/owned-final-after-sync.log. Backendens sidste relevante samlede
+kørsel: /private/tmp/podview-foundation-final-backend-all.log. Lead binder endelige
+source-/assetpins, browserprøver og de øvrige aktive trådes adoption før publicering.
+
 ## 4/11 — 2.0.127 Tesla field retention · planned build
 
 The installed 2.0.126 approved UI remains the visual reference. The follow-up source changes only Tesla snapshot field retention and its causal regression, plus 2.0.127 / HA 0.1.14 release metadata. Base is d84caab0077b1a677ace55a2ec00873a938e5151, tree 5231347d0d06591dc6bf0c5154a0b31671e30508. Source review GO supplied by lead. Profile 127 remains unbound until the reviewed source upload returns its commit and tree. Official CI, publication and installation remain pending.

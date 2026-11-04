@@ -29,10 +29,10 @@ _HEX = re.compile(r"[a-f0-9]{64}")
 _REF = re.compile(r"[a-f0-9]{16}")
 _BUILD = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
 _STAGES = frozenset(
-    "request observer sse freshness connection control_setup volume_setup control_action music_read playback_confirmation queue_read queue_action browser lifecycle control_state volume_state artwork robot_renewal".split()
+    "control_intent request observer sse freshness connection control_setup volume_setup control_action music_read playback_confirmation queue_read queue_action browser lifecycle control_state volume_state artwork robot_renewal".split()
 )
 _CODES = frozenset(
-    "start ok accepted unknown rejected http_denied http_transient http_error invalid_json timeout cancelled network failure invalid_dto stale_binding superseded empty unavailable matched unconfirmed expiry error cleanup disconnected connecting connected unhandled_rejection read_inflight intent_pending spent unknown_fence capability_missing unknown_value resource_error decode_error other busy scope_not_paired target_not_granted stale_setup setup_capacity setup_unavailable invalid_setup invalid_target robot_rebind_same robot_rebind_context robot_rebind_denied robot_rebind_absent robot_rebind_invalid robot_rebind_draft robot_rebind_dialog robot_rebind_restored robot_authority_changed robot_offer_invalid robot_open_reset robot_deny_source_missing robot_deny_source_domain robot_deny_source_registered robot_deny_source_consumed robot_deny_source_token robot_deny_source_deadline robot_deny_source_setup robot_deny_source_domain_access robot_deny_source_binding robot_deny_source_current_other robot_deny_fresh_current robot_deny_room robot_deny_target robot_deny_binding robot_deny_rule robot_deny_mutation robot_deny_boot robot_deny_device robot_deny_authority robot_deny_draft_identity robot_deny_draft_scope robot_deny_offer_presence_vacuum_transport_offer robot_deny_offer_presence_dock_offer robot_deny_offer_presence_settings_offer robot_deny_offer_changed_vacuum_transport_offer robot_deny_offer_changed_dock_offer robot_deny_offer_changed_settings_offer robot_deny_public_options robot_deny_mapping_exception robot_deny_other".split()
+    "start ok accepted unknown rejected confirmed scope_changed unsupported http_denied http_transient http_error invalid_json timeout cancelled network failure invalid_dto stale_binding superseded empty unavailable matched unconfirmed expiry error cleanup disconnected connecting connected unhandled_rejection read_inflight intent_pending spent unknown_fence capability_missing unknown_value resource_error decode_error other busy scope_not_paired target_not_granted stale_setup setup_capacity setup_unavailable invalid_setup invalid_target robot_rebind_same robot_rebind_context robot_rebind_denied robot_rebind_absent robot_rebind_invalid robot_rebind_draft robot_rebind_dialog robot_rebind_restored robot_authority_changed robot_offer_invalid robot_open_reset robot_deny_source_missing robot_deny_source_domain robot_deny_source_registered robot_deny_source_consumed robot_deny_source_token robot_deny_source_deadline robot_deny_source_setup robot_deny_source_domain_access robot_deny_source_binding robot_deny_source_current_other robot_deny_fresh_current robot_deny_room robot_deny_target robot_deny_binding robot_deny_rule robot_deny_mutation robot_deny_boot robot_deny_device robot_deny_authority robot_deny_draft_identity robot_deny_draft_scope robot_deny_offer_presence_vacuum_transport_offer robot_deny_offer_presence_dock_offer robot_deny_offer_presence_settings_offer robot_deny_offer_changed_vacuum_transport_offer robot_deny_offer_changed_dock_offer robot_deny_offer_changed_settings_offer robot_deny_public_options robot_deny_mapping_exception robot_deny_other".split()
 )
 _ENDPOINTS = frozenset(
     "snapshot events home answers actions pair controller/renew controller/request controller/claim music source weather-advice control/setup control/actions music/queue/offer music/queue/actions music/selection/setup music/selection/actions other".split()
@@ -53,6 +53,8 @@ _OPTIONAL = {
     "endpoint",
     "kind",
     "readHash",
+    "domain",
+    "action",
 }
 
 
@@ -140,7 +142,12 @@ def _row(value, *, stored=False):
     for key in ("current", "pending", "connected"):
         if key in value and type(value[key]) is not bool:
             raise ValueError("row boolean")
-    for key, allowed in (("endpoint", _ENDPOINTS), ("kind", _KINDS)):
+    for key, allowed in (
+        ("endpoint", _ENDPOINTS),
+        ("kind", _KINDS),
+        ("domain", {"music", "vacuum"}),
+        ("action", {"pause", "resume", "next", "previous", "volume", "move_existing_session"}),
+    ):
         if key in value and (type(value[key]) is not str or value[key] not in allowed):
             raise ValueError("row enum")
     if "readHash" in value and not _matches(_REF, value["readHash"]):

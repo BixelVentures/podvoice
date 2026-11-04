@@ -16,16 +16,17 @@ class Node extends EventTarget{
 }
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
 const settle=async()=>{for(let i=0;i<4;i++)await new Promise(done=>setImmediate(done));};
-function fixture(){
+function fixture({v3=false}={}){
  const priorDocument=globalThis.document,priorNow=Date.now;let clock=priorNow(),poll=1,state='playing',setupCalls=0,setupPort=null,actionPort=null;
  Date.now=()=>clock;const nodes=new Map(),groups=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,new Node());return nodes.get(id);};
  const doc={createElement:tag=>new Node(tag),getElementById:node,body:new Node(),querySelector:selector=>groups.get(selector)};globalThis.document=doc;
  const host=new Node('host');Object.assign(host,{ownerDocument:doc,live:true,state:{focus:'music',connected:true,devices:[]},liveStatus:'connected',liveSnapshot:{bootId:'boot',roomId:'room',capabilities:{musicRead:['playback','top','targets'],controlSetup:['music'],musicSelection:true},mediaRoomBindings:[{roomId:'room',accountId:'account',targetId:'configured',nativeRoomId:'configured-room',nativeHomepodId:'1',bindingId:'b'.repeat(64)}]},musicResults:{render:vm=>host.catalogueModel=vm},playerView:{renderPlayer:vm=>host.playerModel=vm,renderQueue(){},renderControls(){}},querySelector:selector=>{if(!groups.has(selector))groups.set(selector,new Node());return groups.get(selector);}});
  node('detail-output').append(new Node('span'));node('player-empty').append(new Node('h2'),new Node('p'));host.playerView=new PlayerView(host);
- const playback=()=>({ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'room',configEntryId:'account',status:'observed',reason:null,binding:{roomId:'room',accountId:'account',targetId:'actual',nativeRoomId:'actual-room',nativeHomepodId:'2',bindingId:'a'.repeat(64),validUntil:clock/1000+15},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'epoch',poll_sequence:poll,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date(clock).toISOString(),age_ms:0,max_age_ms:15000},playback:{state,target:{kind:'spotify_device',target_id:'actual',name:'Actual output'},item:{type:'track',uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Observed song',artists:['Observed artist'],duration_ms:60000},progress_ms:1000,provider_changed_at_ms:null,shuffle:false,repeat:'off'}}});
+ const playbackV2=()=>({ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'room',configEntryId:'account',status:'observed',reason:null,binding:{roomId:'room',accountId:'account',targetId:'actual',nativeRoomId:'actual-room',nativeHomepodId:'2',bindingId:'a'.repeat(64),validUntil:clock/1000+15},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'epoch',poll_sequence:poll,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date(clock).toISOString(),age_ms:0,max_age_ms:15000},playback:{state,target:{kind:'spotify_device',target_id:'actual',name:'Actual output'},item:{type:'track',uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Observed song',artists:['Observed artist'],duration_ms:60000},progress_ms:1000,provider_changed_at_ms:null,shuffle:false,repeat:'off'}}});
+ const playback=()=>{const value=playbackV2();if(v3){value.schema='podview.room-playback.v3';value.controls={status:'observed',reason:null,binding_id:value.binding.bindingId,valid_until:value.binding.validUntil,supported_actions:[state==='playing'?'pause':'resume','volume'],volume:{base_percent:35,effective_percent:35}};value.permissions={actions:[state==='playing'?'pause':'resume','volume'],maxVolume:35};}return value;};
  const offer=(volume=35)=>({ok:true,schema:'podview.control.v1',roomId:'room',bootId:'boot',domain:'music',taskId:'control-'+setupCalls,revision:1,expiresAt:clock/1000+3,expectedBindingId:'a'.repeat(64),setup:{volume},options:['pause','resume','volume'].map(action=>({id:`opaque-${setupCalls}-${action}`,action,label:action,argsSchema:action==='volume'?{kind:'percent',min:0,max:35}:{kind:'none'}}))});
  const writes=[],reads=[],catalogueReads=[];
- host.liveTransport={connected:true,music:async kind=>{assert.equal(kind,'playback');reads.push({poll,state});return playback();},controlSetup:async(domain,target)=>{assert.equal(domain,'music');assert.deepEqual(target,{accountId:'account',kind:'spotify_device',targetId:'actual',expectedBindingId:'a'.repeat(64)});setupCalls++;return setupPort?setupPort():offer();},controlAction:async(task,id,args)=>{writes.push({task,id,args});return actionPort?actionPort():{outcome:'accepted'};}};
+ host.liveTransport={connected:true,music:async (kind,account,query,options)=>{assert.equal(kind,'playback');reads.push({poll,state});const value=playback();if(v3&&options?.receiptRequestId)value.settlement={requestId:options.receiptRequestId,request_id:'epoch:1',command_sequence:1,owner_epoch:'epoch',status:'confirmed',effect:{source:'native_bound_state',effect_revision:'7'}};return value;},controlSetup:async(domain,target)=>{assert.equal(domain,'music');assert.deepEqual(target,{accountId:'account',kind:'spotify_device',targetId:'actual',expectedBindingId:'a'.repeat(64)});setupCalls++;return setupPort?setupPort():offer();},controlAction:async(task,id,args)=>{writes.push({task,id,args});return actionPort?actionPort():{outcome:'accepted'};},controlIntent:async body=>{writes.push(body);return actionPort?actionPort():{outcome:'accepted'};}};
  const media=host.liveMedia=new LiveMediaView(host),selection=host.liveSelection=new LiveMusicSelectionView(host),controls=host.liveControls=new LiveControlView(host),catalogue=host.liveCatalogue=new LiveMusicCatalogueView(host,kind=>catalogueReads.push(kind));
  media.account=selection.account='account';catalogue.updateCapabilities(true,host.liveSnapshot.capabilities.musicRead);catalogue.resetAccount('account');
  const collection={ok:true,data:{config_entry_id:'account',tracks:[{uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Observed song',artist:'Observed artist'}]}};
@@ -47,25 +48,22 @@ test('catalogue refresh alone cannot renew an expired offer; a new playback poll
  }finally{f.restore();}
 });
 
-for(const outcome of ['accepted','unknown'])test(`catalogue refresh cannot release a held control or its ${outcome} fence`,async()=>{
- const f=fixture();const setup=deferred(),action=deferred();let intent;try{
-  await f.ready();const before=f.setupCalls();f.holdSetup(()=>setup.promise);f.holdAction(()=>action.promise);
+for(const outcome of ['accepted','unknown'])test(`catalogue refresh cannot release a held direct intent or replay its ${outcome} result`,async()=>{
+ const f=fixture({v3:true}),action=deferred();let intent;try{
+  await f.ready();const reads=f.setupCalls();f.holdAction(()=>action.promise);
   intent=f.controls.musicIntent('pause');assert.equal(f.controls.musicIntentPending,true);usable(f);assert.equal(f.host.querySelector('.player .transport').getAttribute('aria-busy'),'true');
-  f.refreshCatalogue();await settle();usable(f);assert.equal(f.controls.musicIntentPending,true);assert.equal(f.setupCalls(),before+1);assert.deepEqual(f.writes,[]);
-  setup.resolve(f.offer());await settle();assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);usable(f);
-  f.refreshCatalogue();await settle();usable(f);assert.equal(f.controls.pending,true);assert.equal(f.writes.length,1);
-  // Observation is a separate source event. The receipt never manufactures it.
-  f.holdSetup(null);action.resolve({outcome});await intent;await settle();
-  if(outcome==='accepted'){
-   usable(f);assert.equal(f.controls.musicFence.outcome,'accepted');const calls=f.setupCalls();f.refreshCatalogue();await settle();usable(f);assert.equal(f.setupCalls(),calls);assert.equal(f.media.playback.state,'playing');
-   f.newPoll('paused');await f.media.refresh({immediate:true});await settle();
-   assert.equal(f.media.playback.state,'paused');assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.writes.length,1);
+  assert.equal(f.writes.length,1);assert.equal(f.writes[0].action,'pause');assert.equal(f.writes[0].target.expectedBindingId,'a'.repeat(64));
+  f.refreshCatalogue();await settle();assert.equal(f.controls.musicIntentPending,true);assert.equal(f.writes.length,1);assert.equal(f.setupCalls(),reads);
+  action.resolve({outcome});await intent;await settle();assert.equal(f.controls.musicFence?.outcome,outcome);assert.equal(f.media.playback.state,'playing','receipt does not manufacture observation');
+  f.refreshCatalogue();await settle();assert.equal(f.writes.length,1,'catalogue update must not replay intent');
+  if(outcome==='unknown'){
+   disabled(f);assert.equal(await f.controls.musicIntent('pause'),false);assert.equal(f.writes.length,1);
+   f.newPoll();await f.media.refresh({immediate:true});await settle();usable(f);assert.equal(f.writes.length,1,'fresh observation unlocks explicit recovery without automatic replay');
   }else{
-   disabled(f);assert.equal(f.controls.musicFence.outcome,'unknown');f.refreshCatalogue();f.newPoll();await f.media.refresh({immediate:true});await settle();disabled(f);assert.equal(f.controls.musicFence.outcome,'unknown');assert.equal(f.writes.length,1);assert.equal(await f.controls.musicIntent('pause'),false);
+   f.newPoll('paused');await f.media.refresh({immediate:true});await settle();assert.equal(f.media.playback.state,'paused');usable(f);assert.equal(f.writes.length,1);
   }
- }finally{setup.resolve(f.offer());action.resolve({outcome:'unknown'});await intent;f.restore();}
+ }finally{action.resolve({outcome:'unknown'});await intent;f.restore();}
 });
-
 
 test('actual100 above policy35 permits lowering; unknown is distinct and catalogue cannot invent a measurement',async()=>{
  const f=fixture();try{

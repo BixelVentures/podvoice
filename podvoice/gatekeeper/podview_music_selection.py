@@ -409,7 +409,9 @@ class MusicSelection:
             ),
         }
 
-    async def execute(self, *, effect_busy: set[str] | None = None, **arguments) -> dict:
+    async def execute(
+        self, *, effect_busy: set[tuple[str, ...]] | None = None, **arguments
+    ) -> dict:
         """Retain this room's effect custody through send, receipt and route proof."""
         task_id = arguments.get("task_id")
         request_id = arguments.get("request_id")
@@ -423,13 +425,18 @@ class MusicSelection:
             return await self._execute(**arguments)
         task = self.tasks.get(task_id) if isinstance(task_id, str) else None
         room: str = task["context"]["roomId"] if task is not None else ""
+        effect_key = ("music",)
         failure = {
             "ok": False,
             "outcome": "rejected",
             "retryAllowed": False,
             "physicalResultVerified": False,
         }
-        if task is None or self.busy(room) or (effect_busy is not None and room in effect_busy):
+        if (
+            task is None
+            or self.busy(room)
+            or (effect_busy is not None and effect_key in effect_busy)
+        ):
             return failure
         send_once = arguments["send_once"]
 
@@ -437,18 +444,18 @@ class MusicSelection:
             # A replacement before send may still revoke the pending read. Once
             # admitted, no setup/source/effect can replace this operation during
             # its physical send or post-send destination proof.
-            if self.busy(room) or (effect_busy is not None and room in effect_busy):
+            if self.busy(room) or (effect_busy is not None and effect_key in effect_busy):
                 return failure
             self.inflight[room] = task
             if effect_busy is not None:
-                effect_busy.add(room)
+                effect_busy.add(effect_key)
             try:
                 return await send_once(controls, uri, max_volume, current)
             finally:
                 if self.inflight.get(room) is task:
                     self.inflight.pop(room, None)
                     if effect_busy is not None:
-                        effect_busy.discard(room)
+                        effect_busy.discard(effect_key)
 
         return await self._execute(**{**arguments, "send_once": guarded_send})
 

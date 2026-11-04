@@ -249,10 +249,25 @@ class TouchControls:
         self.policy = policy(configuration)
         self.tasks: dict[str, dict] = {}
         self.receipts: dict[tuple, tuple] = {}
-        self.busy: set[str] = set()
-        self.setups: dict[str, str] = {}
-        self.mutations: dict[str, object] = {}
+        self.busy: set[tuple[str, ...]] = set()
+        self.setups: dict[tuple[str, ...], str] = {}
+        self.mutations: dict[tuple[str, ...], object] = {}
         self.move_unknown: dict[tuple[str, str], tuple[str, int, str]] = {}
+
+    @staticmethod
+    def resource_key(domain: str, target: dict | None = None) -> tuple[str, ...]:
+        """Conflict scopes of this existing owner, independent of conversation/room.
+
+        Music shares one command/output owner, including cross-account transfers.
+        Lamp and area commands in the same area conflict; distinct robots do not.
+        Policy, grant, placement and owner changes remain separate current() fences.
+        """
+        target = target or {}
+        if domain == "vacuum":
+            return (domain, target["entityId"] if isinstance(target.get("entityId"), str) else "")
+        if domain == "light":
+            return (domain, target["areaId"] if isinstance(target.get("areaId"), str) else "")
+        return (domain,)
 
     def domains(self, room: str, token: str) -> list[str]:
         if not self.bridge._grant_current(room, token):
@@ -390,7 +405,6 @@ class TouchControls:
         tools = self.bridge.tools
         owner = getattr(tools, "_device_control", None)
         return (
-            self.bridge.sessions.get(room),
             tools,
             hashlib.sha256(
                 json.dumps(self.policy, sort_keys=True, allow_nan=False).encode()
@@ -409,19 +423,9 @@ class TouchControls:
             ),
         )
 
-    def _move_revision(self, room: str) -> tuple:
-        try:
-            snapshot = self.bridge.snapshot(room)
-            voice, answer = snapshot.get("voice", {}), snapshot.get("answers", {})
-            return (
-                voice.get("sessionId"),
-                voice.get("turnId"),
-                answer.get("taskId"),
-                answer.get("inputRevision"),
-                answer.get("revision"),
-            )
-        except Exception:
-            return ()
+    def _owner_revision(self, room: str, domain: str) -> tuple:
+        """Only actual control owners/policy; a voice turn is not device authority."""
+        return (self.bridge.boot_id, self._binding(room, domain))
 
     def _current(self, task: dict, token: str, *, _receipt_only: bool = False) -> bool:
         domain_current = task["domain"] in self.domains(task["room"], token)
@@ -436,7 +440,8 @@ class TouchControls:
                     self.tasks.get(task["id"]) is task
                     or (
                         task.get("setup_in_progress") is True
-                        and self.setups.get(task["room"]) == task["id"]
+                        and self.setups.get(self.resource_key(task["domain"], task["target"]))
+                        == task["id"]
                     )
                 )
             )
@@ -459,8 +464,9 @@ class TouchControls:
                 task.get("setup_in_progress") is not True
                 or task["domain"] == "vehicle"
                 or (
-                    self.setups.get(task["room"]) == task["id"]
-                    and self.mutations.get(task["room"]) is task["setup_mutation"]
+                    self.setups.get(self.resource_key(task["domain"], task["target"])) == task["id"]
+                    and self.mutations.get(self.resource_key(task["domain"], task["target"]))
+                    is task["setup_mutation"]
                 )
             )
             and (_receipt_only or time.monotonic() < task["deadline"])
@@ -488,7 +494,7 @@ class TouchControls:
                     )
                     and self.move.binding() == task["move_binding"]
                     and bool(task["move_revision"])
-                    and self._move_revision(task["room"]) == task["move_revision"]
+                    and self._owner_revision(task["room"], "music") == task["move_revision"]
                     and (
                         "move_source_scope" not in task
                         or self._move_source_scope(task) == task["move_source_scope"]
@@ -522,7 +528,7 @@ class TouchControls:
             and any(rule is task["rule"] for rule in self.policy["music"])
             and self._move_rule_identity(task["rule"]) == task["move_rule_identity"]
             and bool(task["move_revision"])
-            and self._move_revision(room) == task["move_revision"]
+            and self._owner_revision(room, "music") == task["move_revision"]
             and actual is not None
             and (actual["targetId"], actual["bindingId"]) == task.get("move_source_scope")
             and actual["bindingId"] == binding_id
@@ -533,7 +539,7 @@ class TouchControls:
             return bool(
                 lights.placement(self.bridge, task["room"], token) == task["light_placement"]
                 and self.bridge.boot_id == task["light_boot"]
-                and self._move_revision(task["room"]) == task["light_revision"]
+                and self._owner_revision(task["room"], "light") == task["light_revision"]
                 and self.bridge._grant_for_token(task["room"], token) is task["light_grant"]
             )
         except (AttributeError, KeyError, TypeError, ValueError):
@@ -684,10 +690,13 @@ class TouchControls:
             and task["vehicle_boot"] == self.bridge.boot_id
             and task["vehicle_grant"] is not None
             and self.bridge._grant_for_token(task["room"], token) is task["vehicle_grant"]
-            and task["vehicle_revision"] == self._move_revision(task["room"])
+            and task["vehicle_revision"] == self._owner_revision(task["room"], "vehicle")
             and (
                 self.tasks.get(task["id"]) is task
-                or (task.get("setup_in_progress") is True and task["room"] in self.busy)
+                or (
+                    task.get("setup_in_progress") is True
+                    and self.resource_key(task["domain"], task["target"]) in self.busy
+                )
             )
         )
 
@@ -707,7 +716,8 @@ class TouchControls:
             return failure("invalid_target")
         if "vehicle" not in self.domains(room, token):
             return failure("scope_not_paired")
-        if room in self.busy or room in self.setups:
+        resource = self.resource_key("vehicle", target)
+        if resource in self.busy or resource in self.setups:
             return failure("busy")
         self._retire_receipts()
         self.tasks = {
@@ -732,13 +742,13 @@ class TouchControls:
             "rule": {},
             "vehicle_boot": self.bridge.boot_id,
             "vehicle_grant": self.bridge._grant_for_token(room, token),
-            "vehicle_revision": self._move_revision(room),
+            "vehicle_revision": self._owner_revision(room, "vehicle"),
         }
 
         def current():
             return self._current(task, token)
 
-        self.busy.add(room)
+        self.busy.add(resource)
         try:
             adapter = self.bridge.tools.podview_vehicle_control()
             if (
@@ -844,7 +854,7 @@ class TouchControls:
         except (ValueError, TypeError, KeyError, AttributeError):
             return failure("setup_unavailable")
         finally:
-            self.busy.discard(room)
+            self.busy.discard(resource)
 
     async def setup(self, body: dict, token: str) -> dict:
         if body.get("domain") == "vehicle":
@@ -873,8 +883,14 @@ class TouchControls:
             or body["bootId"] != self.bridge.boot_id
         ):
             return failure("invalid_setup")
+        requested_actions = {
+            "music": {"pause", "resume", "next", "previous", "volume"},
+            "vacuum": {"pause", "resume", "stop", "return"},
+        }
         if "requestedAction" in body and (
-            body["requestedAction"] != "volume" or domain != "music" or "speakerId" in target
+            not isinstance(body["requestedAction"], str)
+            or body["requestedAction"] not in requested_actions.get(domain, set())
+            or "speakerId" in target
         ):
             return failure("invalid_setup")
         if "draft" in body and (domain != "vacuum" or "recipeId" in body):
@@ -910,8 +926,9 @@ class TouchControls:
                 return failure("scope_not_paired")
         if domain not in self.domains(room, token) and not recovery_move:
             return failure("scope_not_paired")
-        setup_mutation = self.mutations.get(room)
-        if room in self.busy or room in self.setups:
+        resource = self.resource_key(domain, target)
+        setup_mutation = self.mutations.get(resource)
+        if resource in self.busy or resource in self.setups:
             return failure("busy")
         rule: dict
         if domain == "music":
@@ -941,9 +958,9 @@ class TouchControls:
             )
             if resolved is None or resolved["binding"]["targetId"] != target["targetId"]:
                 return failure("target_not_granted")
-            if room in self.busy or room in self.setups:
+            if resource in self.busy or resource in self.setups:
                 return failure("busy")
-            if self.mutations.get(room) is not setup_mutation:
+            if self.mutations.get(resource) is not setup_mutation:
                 return failure("stale_setup")
             source_scope = resolved["binding"]
             if moving:
@@ -1020,7 +1037,7 @@ class TouchControls:
                 target=copy.deepcopy(target),
                 light_boot=self.bridge.boot_id,
                 light_placement=lights.placement(self.bridge, room, token),
-                light_revision=self._move_revision(room),
+                light_revision=self._owner_revision(room, "light"),
                 light_grant=self.bridge._grant_for_token(room, token),
                 owner=("podview:" + self.bridge.boot_id, task_id),
             )
@@ -1029,7 +1046,7 @@ class TouchControls:
                 move_grant=self.bridge._grant_for_token(room, token),
                 move_policy=self.policy,
                 move_binding=self.move.binding(),
-                move_revision=self._move_revision(room),
+                move_revision=self._owner_revision(room, "music"),
                 move_source_scope=(source_scope["targetId"], source_scope["bindingId"]),
             )
 
@@ -1037,7 +1054,7 @@ class TouchControls:
             return self._current(task, token)
 
         setup: dict
-        self.setups[room] = task_id
+        self.setups[resource] = task_id
         try:
             async with asyncio.timeout(20 if domain == "music" else 10):
                 if domain == "music":
@@ -1131,8 +1148,8 @@ class TouchControls:
                             if (
                                 not available
                                 or (
-                                    body.get("requestedAction") == "volume"
-                                    and slot != "volume_offered"
+                                    "requestedAction" in body
+                                    and body["requestedAction"] not in actions
                                 )
                                 or not actions.intersection(rule["actions"])
                                 or read is None
@@ -1251,6 +1268,12 @@ class TouchControls:
                     task["renew_rule"] = copy.deepcopy(rule)
                     task["owner"] = ("podview:" + self.bridge.boot_id, task_id)
                     active = None
+                    transport_only = body.get("requestedAction") in {
+                        "pause",
+                        "resume",
+                        "stop",
+                        "return",
+                    }
                     if (
                         set(rule["actions"]) & {"resume", "pause", "stop", "return"}
                         and "recipeId" not in body
@@ -1297,7 +1320,8 @@ class TouchControls:
                                 }
                             )
                     if (
-                        "dock" in rule["actions"]
+                        not transport_only
+                        and "dock" in rule["actions"]
                         and rule.get("dockControls")
                         and "recipeId" not in body
                     ):
@@ -1323,7 +1347,8 @@ class TouchControls:
                             _robot_setup_error("dock", error)
                             pass  # An unavailable dock must not remove valid Pause/Fortsæt.
                     if (
-                        "settings" in rule["actions"]
+                        not transport_only
+                        and "settings" in rule["actions"]
                         and (active is None or active["state"] in {"cleaning", "paused"})
                         and "recipeId" not in body
                     ):
@@ -1374,11 +1399,16 @@ class TouchControls:
                             _robot_setup_error("settings", error)
                             pass  # An unavailable setting must not remove valid transport.
                     if (
-                        active is None
-                        or active["state"] in {"idle", "docked"}
-                        or rule.get("settingsRoles")
-                    ) and (
-                        set(rule["actions"]) & {"settings", "map", "start"} or "recipeId" in body
+                        not transport_only
+                        and (
+                            active is None
+                            or active["state"] in {"idle", "docked"}
+                            or rule.get("settingsRoles")
+                        )
+                        and (
+                            set(rule["actions"]) & {"settings", "map", "start"}
+                            or "recipeId" in body
+                        )
                     ):
                         try:
                             offered = await device.display_setup(
@@ -1452,8 +1482,8 @@ class TouchControls:
         except Exception:
             return failure("setup_unavailable")
         finally:
-            if self.setups.get(room) == task_id:
-                del self.setups[room]
+            if self.setups.get(resource) == task_id:
+                del self.setups[resource]
 
     def _schedule_robot_suggestion(self, task: dict, token: str) -> None:
         """Optional read work starts only after actual native setup has completed."""
@@ -2170,7 +2200,141 @@ class TouchControls:
             if step["action"] != "podvoice.extreme_water"
         ]
 
-    async def action(self, body: dict, token: str) -> dict:
+    async def command(self, body: dict, token: str) -> dict:
+        """One authenticated normal touch intention through the existing owner.
+
+        The original body, not a generated task/option, is its dedup identity.
+        issuedAt bounds redelivery after receipt retirement; it grants no access.
+        A request never regenerates that timestamp or starts detached auth work.
+        """
+
+        def rejected(error: str) -> dict:
+            request_id = body.get("requestId")
+            return {
+                "ok": False,
+                "requestId": request_id
+                if isinstance(request_id, str) and 1 <= len(request_id) <= 120
+                else None,
+                "outcome": "rejected",
+                "retryAllowed": False,
+                "physicalResultVerified": False,
+                "error": error,
+            }
+
+        required = {
+            "bootId",
+            "roomId",
+            "domain",
+            "action",
+            "target",
+            "args",
+            "requestId",
+            "issuedAt",
+        }
+        actions = {
+            "music": {"pause", "resume", "next", "previous", "volume", "move_existing_session"},
+            "vacuum": {"pause", "resume", "stop", "return"},
+        }
+        if (
+            set(body) != required
+            or body.get("bootId") != self.bridge.boot_id
+            or not isinstance(body.get("domain"), str)
+            or body["domain"] not in actions
+            or not isinstance(body.get("action"), str)
+            or body["action"] not in actions[body["domain"]]
+            or not isinstance(body.get("roomId"), str)
+            or not isinstance(body.get("requestId"), str)
+            or not 1 <= len(body["requestId"]) <= 120
+            or not isinstance(body.get("target"), dict)
+            or not isinstance(body.get("args"), dict)
+            or type(body.get("issuedAt")) is not int
+            or not 0 <= body["issuedAt"] <= 2**53 - 1
+        ):
+            return rejected("invalid_command")
+        room = body["roomId"]
+        if not self.bridge._grant_current(room, token):
+            return rejected("scope_not_paired")
+        try:
+            fingerprint = hashlib.sha256(
+                json.dumps(body, sort_keys=True, allow_nan=False).encode()
+            ).hexdigest()
+        except (TypeError, ValueError):
+            return rejected("invalid_command")
+        key = (room, token, body["requestId"])
+        self._retire_receipts()
+        previous = self.receipts.get(key)
+        if previous is not None:
+            return (
+                copy.deepcopy(previous[1])
+                if previous[0] == fingerprint
+                else rejected("request_reused")
+            )
+        age = time.time() - body["issuedAt"] / 1000
+        if not -5 <= age <= 120:
+            return rejected("stale_intent")
+        if len(self.receipts) >= 1024:
+            return rejected("request_capacity")
+        deadline = time.monotonic() + 120 - age + 90
+        receipt = {
+            "ok": False,
+            "requestId": body["requestId"],
+            "outcome": "unknown",
+            "retryAllowed": False,
+            "physicalResultVerified": False,
+        }
+        # This reservation is made before the first await. A parallel duplicate
+        # gets this same terminal-no-replay identity, never a second setup/send.
+        reservation = (fingerprint, receipt, deadline)
+        self.receipts[key] = reservation
+
+        def reject(error: str) -> dict:
+            result = {**receipt, "outcome": "rejected", "error": error}
+            if self.receipts.get(key) is reservation:
+                self.receipts[key] = (fingerprint, result, deadline)
+            return result
+
+        setup_body = {
+            "bootId": body["bootId"],
+            "roomId": room,
+            "domain": body["domain"],
+            "target": copy.deepcopy(body["target"]),
+        }
+        if body["action"] != "move_existing_session":
+            setup_body["requestedAction"] = body["action"]
+        try:
+            offered = await self.setup(setup_body, token)
+            if offered.get("ok") is not True:
+                return reject(offered.get("error", "setup_unavailable"))
+            task = self.tasks.get(offered["taskId"])
+            options = [row for row in offered["options"] if row["action"] == body["action"]]
+            if task is None or len(options) != 1:
+                return reject("unsupported_action")
+            if self.receipts.get(key) is not reservation or not self._current(task, token):
+                return reject("stale_action")
+            task["receipt_deadline"] = deadline
+            task["command_domain"] = body["domain"]
+            action_body = {
+                key: offered[key] for key in ("bootId", "roomId", "taskId", "revision")
+            } | {
+                "optionId": options[0]["id"],
+                "args": copy.deepcopy(body["args"]),
+                "requestId": body["requestId"],
+            }
+            result = await self.action(action_body, token, _reservation=reservation)
+            if self.receipts.get(key) is reservation:
+                # A rejection before dispatch still settles this exact intention.
+                return reject(result.get("error", "stale_action"))
+            return result
+        except asyncio.CancelledError:
+            # Keep the possible-send/unknown fence. Request-scoped HA auth must
+            # never outlive this request in a detached continuation.
+            raise
+        except Exception:
+            # The reserved result is conservatively unknown; never replay it.
+            current = self.receipts.get(key)
+            return copy.deepcopy(current[1] if current is not None else receipt)
+
+    async def action(self, body: dict, token: str, *, _reservation: tuple | None = None) -> dict:
         if (
             set(body) != {"bootId", "roomId", "taskId", "revision", "requestId", "optionId", "args"}
             or any(
@@ -2183,10 +2347,19 @@ class TouchControls:
         task = self.tasks.get(body["taskId"])
         if task is None or not self._current(task, token) or body["roomId"] != task["room"]:
             return failure("stale_action")
-        fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+        fingerprint = (
+            _reservation[0]
+            if _reservation is not None
+            else hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()
+        )
         self._retire_receipts()
         key = (task["room"], token, body["requestId"])
-        if key in self.receipts:
+        if _reservation is not None and (
+            self.receipts.get(key) is not _reservation
+            or task.get("command_domain") != task["domain"]
+        ):
+            return failure("stale_action")
+        if key in self.receipts and self.receipts[key] is not _reservation:
             previous, receipt = self.receipts[key][:2]
             return copy.deepcopy(receipt) if previous == fingerprint else failure("request_reused")
         if (
@@ -2216,9 +2389,9 @@ class TouchControls:
                 steps = self._steps(task, option, args)
         except (KeyError, ValueError, TypeError):
             return failure("invalid_arguments")
-        if task["room"] in self.busy:
+        if self.resource_key(task["domain"], task["target"]) in self.busy:
             return failure("busy")
-        if len(self.receipts) >= 1024:
+        if len(self.receipts) >= 1024 and key not in self.receipts:
             return failure("request_capacity")
         if task["domain"] == "music":
             from .podview_room_media import expected_actual
@@ -2232,12 +2405,17 @@ class TouchControls:
             )
             if resolved is None:
                 return failure("stale_action")
-            if key in self.receipts:
+            if key in self.receipts and self.receipts[key] is not _reservation:
                 previous, receipt = self.receipts[key][:2]
                 return (
                     copy.deepcopy(receipt) if previous == fingerprint else failure("request_reused")
                 )
-            if task["consumed"] or task["room"] in self.busy or not self._current(task, token):
+            if (
+                task["consumed"]
+                or self.resource_key(task["domain"], task["target"]) in self.busy
+                or not self._current(task, token)
+                or (_reservation is not None and self.receipts.get(key) is not _reservation)
+            ):
                 return failure("stale_action")
             task["actual_binding"] = resolved["binding"]
         receipt = {
@@ -2253,15 +2431,22 @@ class TouchControls:
             ),
         }
         task["consumed"] = True
-        self.receipts[key] = fingerprint, receipt, task["deadline"]
+        receipt_deadline = task.get("receipt_deadline", task["deadline"])
+        self.receipts[key] = fingerprint, receipt, receipt_deadline
         # A setup read may overlap use of a still-valid offer. Once an action is
         # reserved, its pre-action reads must never publish new authority.
-        self.mutations[task["room"]] = object()
-        self.setups.pop(task["room"], None)
-        self.busy.add(task["room"])
+        self.mutations[self.resource_key(task["domain"], task["target"])] = object()
+        self.setups.pop(self.resource_key(task["domain"], task["target"]), None)
+        self.busy.add(self.resource_key(task["domain"], task["target"]))
 
         def current():
-            return self._current(task, token)
+            entry = self.receipts.get(key)
+            return bool(
+                self._current(task, token)
+                and entry is not None
+                and entry[0] == fingerprint
+                and entry[1] is receipt
+            )
 
         def receipt_current():
             return self._receipt_current(task, token)
@@ -2492,7 +2677,7 @@ class TouchControls:
                     self.receipts[key] = (
                         fingerprint,
                         receipt,
-                        task["deadline"],
+                        receipt_deadline,
                         {
                             "task": task,
                             "policy": self.policy,
@@ -2512,22 +2697,27 @@ class TouchControls:
                         },
                     )
                 else:
-                    self.receipts[key] = fingerprint, receipt, task["deadline"]
+                    self.receipts[key] = fingerprint, receipt, receipt_deadline
         except (Exception, asyncio.CancelledError):
             if moving and not move_dispatched:
                 if not prior_fence:
                     self.bridge._music_move_fence.discard(move_key)
                     self.move_unknown.pop(move_key, None)
                 receipt = {**receipt, "outcome": "rejected"}
-                self.receipts[key] = fingerprint, receipt, task["deadline"]
+                self.receipts[key] = fingerprint, receipt, receipt_deadline
             # A possible physical send remains terminal unknown with its fence.
         finally:
             if task["domain"] == "vacuum":
                 receipt["partial"] = (
                     receipt["outcome"] != "accepted" and receipt["completedSteps"] > 0
                 )
-                self.receipts[key] = fingerprint, receipt, task["deadline"]
-            self.busy.discard(task["room"])
+                self.receipts[key] = fingerprint, receipt, receipt_deadline
+                if receipt["outcome"] in {"accepted", "unknown"}:
+                    # A receipt is not observed state. Retire pre-effect cache and
+                    # in-flight reads so the normal follow-up can observe HA anew.
+                    self.mutations[self.resource_key("vacuum", task["target"])] = object()
+                    self.bridge._home_cache.pop(task["room"], None)
+            self.busy.discard(self.resource_key(task["domain"], task["target"]))
         return copy.deepcopy(receipt)
 
     def _steps(self, task: dict, option: dict, args: dict) -> list[dict]:

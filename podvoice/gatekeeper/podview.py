@@ -39,6 +39,7 @@ from . import (
 from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection
+from .podview_vacuum_control import transport_actions
 from .recipe_import import import_link
 from .recipe_submissions import RecipeRejectedError, RecipeSubmissions
 
@@ -1963,7 +1964,13 @@ async def _control(request: web.Request) -> web.Response:
     except (ValueError, json.JSONDecodeError):
         return _error("invalid_control", 400)
     owner = request.app[BRIDGE].controls
-    handler = owner.setup if request.path.endswith("/setup") else owner.action
+    handler = (
+        owner.setup
+        if request.path.endswith("/setup")
+        else owner.command
+        if "action" in body or "issuedAt" in body
+        else owner.action
+    )
     # HA ingress always retains its actor; standalone requests use their own cookie.
     task = owner.tasks.get(body.get("taskId")) if isinstance(body.get("taskId"), str) else None
     vehicle = body.get("domain") == "vehicle" or (task is not None and task["domain"] == "vehicle")
@@ -3832,7 +3839,10 @@ async def _music_selection(request: web.Request) -> web.Response:
         )
 
     if request.path.endswith("/setup"):
-        if bridge.music_selection.busy(room) or room in bridge.controls.busy:
+        if (
+            bridge.music_selection.busy(room)
+            or bridge.controls.resource_key("music") in bridge.controls.busy
+        ):
             return _error("music_busy", 429)
         required = {"bootId", "roomId", "candidateSetId", "target"}
         if set(body) not in (required, required | {"candidateIds"}) or not isinstance(
@@ -4163,6 +4173,15 @@ def _home_vacuum(value: object) -> dict:
                     row["entityId"],
                 ),
                 "actions": [],
+                "transportActions": {
+                    "status": "observed",
+                    "source": "home_assistant_state",
+                    "entityId": row["entityId"],
+                    "observedAt": row["observedAt"],
+                    "actions": transport_actions(row["state"], row.get("supportedFeatures")),
+                }
+                if type(row.get("supportedFeatures")) is int
+                else None,
             }
         )
     return {"status": "observed", "items": result}
@@ -4183,6 +4202,14 @@ async def _home(request: web.Request) -> web.Response:
     ):
         return _error("home_unavailable", 503)
 
+    def vacuum_revision_now():
+        # Cache-ordering fences from the existing resource owner, never state.
+        return tuple(
+            (resource, revision)
+            for resource, revision in sorted(bridge.controls.mutations.items())
+            if resource[0] == "vacuum"
+        )
+
     def binding_now():
         return (
             tools,
@@ -4199,6 +4226,7 @@ async def _home(request: web.Request) -> web.Response:
                 getattr(tools, "podview_vehicle_binding", lambda: None)(),
                 getattr(tools, "podview_vehicle_available", lambda: False)(),
             ),
+            vacuum_revision_now(),
         )
 
     binding = binding_now()
@@ -4231,6 +4259,28 @@ async def _home(request: web.Request) -> web.Response:
             and bridge.tools is tools
             and binding_now() == binding
         )
+
+    def with_transport_actions(result):
+        result = {**result, "vacuum": copy.deepcopy(result.get("vacuum", {}))}
+        token = _request_token(request, room)
+        allowed = bool(same_read() and "vacuum" in bridge.controls.domains(room, token))
+        rules = bridge.controls.policy.get("vacuum", [])
+        now = time.time()
+        for row in result["vacuum"].get("items", []):
+            offer = row.get("transportActions")
+            rule = next((rule for rule in rules if rule["entityId"] == row["entityId"]), None)
+            if (
+                not allowed
+                or rule is None
+                or not isinstance(offer, dict)
+                or not -1 <= now - offer["observedAt"] <= 15
+            ):
+                row["transportActions"] = None
+            else:
+                offer["actions"] = [
+                    action for action in offer["actions"] if action in rule["actions"]
+                ]
+        return result
 
     cached = current_cache()
     joined = False
@@ -4269,7 +4319,11 @@ async def _home(request: web.Request) -> web.Response:
         vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
         if (joined or vehicle_visible) and (not same_read() or current_cache() is None):
             return _error("home_unavailable", 503)
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        if binding[-1] != vacuum_revision_now():
+            return _error("home_unavailable", 503)
+        return web.json_response(
+            with_transport_actions(result), headers={"Cache-Control": "no-store"}
+        )
     if bridge._home_busy:
         return _error("home_busy", 429)
     bridge._home_busy = True
@@ -4390,7 +4444,11 @@ async def _home(request: web.Request) -> web.Response:
         vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
         if vehicle_visible and (not same_read() or current_cache() is None):
             return _error("home_unavailable", 503)
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        if binding[-1] != vacuum_revision_now():
+            return _error("home_unavailable", 503)
+        return web.json_response(
+            with_transport_actions(result), headers={"Cache-Control": "no-store"}
+        )
 
     finally:
         if not completion.done():

@@ -879,7 +879,7 @@
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
           "method:send": 1,
-          "arrow:current": 5,
+          "arrow:current": 6,
           "arrow:unknown": 1,
           "method:renewRobotTask": 1,
           "method:scheduleRobotTaskExpiry": 1,
@@ -906,7 +906,15 @@
           "method:lightTaskCurrent": 1,
           "method:lightActionFeedbackCurrent": 1,
           "method:cancelVehicle": 1,
-          "method:sendVehicle": 1
+          "method:sendVehicle": 1,
+          "arrow:reject": 3,
+          "method:scheduleMusicSettlementDeadline": 1,
+          "method:robotDirectBlocked": 1,
+          "method:robotDirectIntent": 1,
+          "method:robotDirectOffer": 1,
+          "method:robotReceiptUnknown": 1,
+          "method:scheduleRobotObservation": 1,
+          "arrow:read": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -939,6 +947,16 @@
       "reviewedField87Source": "Same controls and native tasks: expired unused offer read-renewal within original freshness; independent volume-only offer through existing setup endpoint, separate volume blocked/measurement custody. No task borrowing, TTL extension or UNKNOWN replay.",
       "reviewedUI26MoveReceipt": {
         "scope": "The second nested receiptCurrent guard belongs to the existing moveSpeaker async path: after one sent MOVE it fences readonly receipt custody across only the exact originally selected destination transition. It creates no DOM, grants, effect retries, store or component family. Runtime setup/send freshness remains separate; final evidence is recorded in the delivery."
+      },
+      "reviewedDirectIntentHelpers": {
+        "date": "2026-11-04",
+        "scope": "DOM-free intent rejection and bounded settlement deadline in the existing control owner; direct commands use existing server owner and canonical controls. Astra source review completed; no new roots or UI family.",
+        "newComponentFamilies": false
+      },
+      "directRobotTransportHelpers": {
+        "date": "2026-11-04",
+        "scope": "Existing owner and robot panel only. Extracted transport buttons preserve canonical button/icon anatomy, placement, existing stop/return confirmation, Base disclosure and cleaning choices. Helpers validate current owner offers and track direct-command receipts; no new component family or CSS. Independent source review and actual browser outcome remain separate delivery evidence.",
+        "newComponentFamilies": false
       }
     },
     "dist/live-home-view.js": {
@@ -1702,7 +1720,9 @@
           "method:buildMapSelector": 1,
           "method:compactRepeat": 1,
           "arrow:paint": 1,
-          "method:updateCurrentRooms": 1
+          "method:updateCurrentRooms": 1,
+          "method:renderTransportOptions": 1,
+          "method:syncDirectTransport": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1765,7 +1785,12 @@
         "dom": true
       },
       "compositionScope": "D06 original presentation debt closed after source/test review: canonical pv-vacuum-widget owns observation; admitted native form/fieldset/legend controls use shared light-DOM pv-component/pv-button recipes and token stylesheet. No shadow root/style, duplicate robot instrument or additional authority. 19 October direct user correction: the existing read-only care disclosure and three semantic group/list identities move from LiveHomeView history to this same admitted robot-control dialog; existing observed facts only, no new controls/family/authority. 21 October direct user Robot-detail correction: status owns the existing Hero; exact offered commands and one form-associated Start Button share its action row. Existing room Tiles and repeat Chips retain draft/option IDs; observed care dt/dd pairs bind the registered read-only ListRow recipe. The local adapter uses the same component with visible Eksempel metadata and example-only state transitions, never HA transport or authority. No new family. 25 October approved Frameo study implemented in this same owner: compact Hero, automatic validated recent-room draft, direct offered frequent settings, inline consequential confirmation using existing ListRow/Button; no new family or dock-command authority. Complete Robot extension25October: same existing Hero/Tile/Chip/ListRow/Button/Toggle compositions. Source-bound dock actions, nested intent-only Start settings, Danish read-only recovery, separate next-run local draft, explicit app guidance; no new family. Specification docs/research/robot-20261025/complete/SOLUTION.md. Bound offers alone own effects.",
-      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes"
+      "decisionSource": "docs/USER-DECISIONS-2026-10-16.md; current human instruction to consolidate all kit into shared existing native recipes",
+      "directRobotTransportHelpers": {
+        "date": "2026-11-04",
+        "scope": "Existing owner and robot panel only. Extracted transport buttons preserve canonical button/icon anatomy, placement, existing stop/return confirmation, Base disclosure and cleaning choices. Helpers validate current owner offers and track direct-command receipts; no new component family or CSS. Independent source review and actual browser outcome remain separate delivery evidence.",
+        "newComponentFamilies": false
+      }
     },
     "dist/robot-observation.js": {
       "status": "active-support",
@@ -3204,7 +3229,7 @@
     },
     "dist/recipe-view.js": {
       "status": "approved-composition",
-      "domOwner": "RecipeView composes the existing Detail, Card, ListRow, SectionHeader, Button and Checklist roles. Local example data only.",
+      "domOwner": "RecipeView composes the existing Detail, Card, ListRow, SectionHeader, Button and Checklist roles with the existing published catalogue owner.",
       "factoryClassArgument": 1,
       "imports": [
         "dist/ui/kit.js"
@@ -3236,7 +3261,13 @@
           "method:importSource": 1,
           "method:showSource": 1,
           "arrow:render": 1,
-          "arrow:renderUploads": 1
+          "arrow:renderUploads": 1,
+          "arrow:active": 1,
+          "arrow:run": 1,
+          "arrow:schedule": 1,
+          "arrow:visibility": 1,
+          "method:dispose": 1,
+          "method:stopCatalogRefresh": 1
         },
         "roots": [],
         "registrations": {},
@@ -3244,6 +3275,11 @@
           "pv-checklist"
         ],
         "dom": true
+      },
+      "reviewedLifecycleHelpers": {
+        "date": "2026-11-04",
+        "scope": "DOM-free refresh scheduling, visibility and disposal helpers in the existing RecipeView; retain category, focus and scroll. No DOM roots, component anatomy or family added. Real browser upload-to-catalogue and server restart checked on the isolated candidate.",
+        "newComponentFamilies": false
       }
     }
   },

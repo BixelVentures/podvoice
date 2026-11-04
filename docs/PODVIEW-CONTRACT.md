@@ -1,3 +1,61 @@
+## Direkte PodView-touch · 4. november 2026 · foundation-kandidat
+
+Implementeret og kilde-reviewet på den isolerede aktuelle v2.x-kandidat; dette er
+ikke påstand om udgivelse, installation eller fysisk accept. Aktuel kilde og bevis
+følger den eksisterende STATUS-/UI-DELIVERY-GOAL-post. Dette afsnit erstatter kun
+ældre krav om browser-JIT/setup og samtalebinding for de normale handlinger nedenfor.
+Avanceret robotstart/indstillingsvalg og samtalebundne svarvalg beholder deres konkrete
+option-/task-kontrakter og samme eksisterende udførelsesejer.
+
+`POST /view/api/control/actions` accepterer den lukkede direkte body:
+`{bootId,roomId,domain,action,target,args,requestId,issuedAt}`.
+
+| Domæne | Tilladte direkte handlinger | Præcist mål og argumenter |
+| --- | --- | --- |
+| `music` | `pause`, `resume`, `next`, `previous`, `volume`, `move_existing_session` | `target:{accountId,kind:"spotify_device",targetId,expectedBindingId}`; MOVE har også eksplicit `speakerId`. `args:{}`; volume bruger kun `{percent}`. |
+| `vacuum` | `pause`, `resume`, `stop`, `return` | `target:{entityId}` og `args:{}`. Resume genvaliderer ejerens paused-state og understøttede mapping; det er ingen tilladelse til ny rengøring. |
+
+`issuedAt` er heltal i epoch-millisekunder og afgrænser intentionen til120s med højst
+5s fremadskævhed. Det er ingen adgang. Samme originale body må ikke få nyt timestamp
+eller automatisk gensendes. Kun en ny eksplicit brugerintention får nyt request-ID.
+
+Serveren autentificerer den faktiske request og genvaliderer aktuel policy, mål,
+kapabilitet og ejer. Musik går fortsat til eksisterende Connect/Speakers-ejer; robot
+bruger eksisterende VacuumTransport med frisk registry/state/features før præcis
+HA-service. Kun serveren henter nødvendig effektmyndighed. Robotens transport-only
+setup afventer ikke map/settings/dock. Ingen ekstra samtale, parring eller global bus.
+
+Det eksisterende receiptlager reserverer `(room,actor,requestId)` før første await
+med fingerprint af den originale body, uden genereret internt task-ID. Dubletter
+returnerer samme receipt; anden body med samme aktive ID afvises. Receipts har egen
+intentionens frist+90s levetid uafhængigt af tilbudsfristen. Efter retirement afvises
+den gamle body som udløbet frem for at skabe en ny effekt. Restart skifter boot-ID.
+Alle kendte prædispatchafvisninger giver en korreleret rejected-receipt. Normal form:
+`{ok,requestId,outcome:"accepted|rejected|unknown",retryAllowed:false,physicalResultVerified:false}`,
+eventuelt med lukket `error`; robot kan også have `completedSteps,partial,startSent`.
+En accepted transportkvittering beviser ingen observeret eller fysisk effekt.
+
+**To forskellige ukendte udfald:** Command-outcome UNKNOWN er terminalt uden replay.
+Et ACCEPTED commands midlertidige settlement-status UNKNOWN kan skyldes manglende
+native witness; samme receipt må fortsat følges passivt til den eksisterende30s frist
+og senere bekræftes. Intet af dette sender en ny kommando eller opfinder servicestate.
+Historisk accepted ophæver ikke en senere readonly adgangsafvisning.
+
+Home-rækken kan indeholde `transportActions:null` eller præcis
+`{status:"observed",source:"home_assistant_state",entityId,observedAt,actions}`.
+Den er en15s kortlivet UI-observation af samme HA-state/features, filtreret mod
+aktuel requestadgang og policy efter sidste await. Den er ingen effect-capability.
+Ingen eller ukendt adgang/kapabilitet giver ingen aktiv handling. Almindelig touch
+kræver stadig serverens friske kontrol, også med en frisk UI-række. Robotens accepted/
+unknown-resultat invaliderer før-effekt home-cache og in-flight observationer; næste
+passive læsning skal vise faktisk HA-state. Ingen optimistic cleaning/paused-state.
+
+Musik deler sin eksisterende effekt-ejer; robotlåse afgrænses efter entity og lys efter
+område. Fælles policy-/grant-/placement-/ejerskift invalideres fortsat. Uvedkommende
+sang- eller samtaleskift fjerner ikke lovlig normal betjening eller en vist kø.
+
+---
+
 # Samlet servicearkitektur ·24. oktober2026 · produktmål under implementering
 
 Denne direkte brugerbeslutning styrer det videre arbejde og supersederer antagelsen om, at PodView kun skal følge sin konfigurerede standardhøjttaler. De historiske wireafsnit nedenfor beskriver tidligere kildekandidater, ikke et afsluttet samlet musikforløb. Ingen ny wireform eller ekstra myndighed er indført alene ved denne dokumentation.

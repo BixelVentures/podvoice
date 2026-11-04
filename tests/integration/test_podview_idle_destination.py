@@ -277,7 +277,10 @@ async def test_room_effect_custody_survives_held_post_start_proof_and_second_con
                 },
             )
             assert again.status == 429
-            assert bridge.music_selection.busy("kitchen") and "kitchen" in bridge.controls.busy
+            assert (
+                bridge.music_selection.busy("kitchen")
+                and bridge.controls.resource_key("music") in bridge.controls.busy
+            )
             blocked = await (
                 await client.post(
                     "/view/api/music/selection/actions",
@@ -292,7 +295,10 @@ async def test_room_effect_custody_survives_held_post_start_proof_and_second_con
             )
             assert read.status == 429
             await client.get("/view/api/music?kind=playback&account=account-alpha", headers=HEADERS)
-            assert bridge.music_selection.busy("kitchen") and "kitchen" in bridge.controls.busy
+            assert (
+                bridge.music_selection.busy("kitchen")
+                and bridge.controls.resource_key("music") in bridge.controls.busy
+            )
             assert bridge.controls.music.execute_track.await_count == 1
             assert bridge.music_selection.tasks[first["taskId"]]["consumed"] is True
         finally:
@@ -353,7 +359,10 @@ async def test_cancellation_during_actual_post_start_proof_keeps_uncertainty_fen
         )
     )
     await asyncio.wait_for(entered.wait(), 1)
-    assert bridge.music_selection.busy("kitchen") and "kitchen" in bridge.controls.busy
+    assert (
+        bridge.music_selection.busy("kitchen")
+        and bridge.controls.resource_key("music") in bridge.controls.busy
+    )
     pending.cancel()
     result = await pending
     assert result["outcome"] == "unknown" and result["retryAllowed"] is False
@@ -496,7 +505,10 @@ async def test_cancellation_during_passive_retry_joins_read_and_keeps_uncertaint
         )
     )
     await asyncio.wait_for(entered.wait(), 1)
-    assert bridge.music_selection.busy("kitchen") and "kitchen" in bridge.controls.busy
+    assert (
+        bridge.music_selection.busy("kitchen")
+        and bridge.controls.resource_key("music") in bridge.controls.busy
+    )
     pending.cancel()
     result = await pending
     assert result["outcome"] == "unknown" and result["retryAllowed"] is False

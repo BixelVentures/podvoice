@@ -471,7 +471,7 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "31b6a0c3ef5f75f1bc5271ea4082a18a8e5fb77ce7026afa251cf6a1726d22e8"
+      "sha256": "52383b56565fe34bfd39a2de19f6dcf2548b0cd7988bd98d30ad640af967a644"
     },
     {
       "path": "index.html",
@@ -491,7 +491,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "9169ae8ad4b1da609f92f204dae93e2fb77e5a78873fdd4313d9126b8198d13a"
+      "sha256": "a17bc5999f4c0abac03a0ebf665c17bfc566fedfc80d35869d36a8403e932aff"
     },
     {
       "path": "library.css",
@@ -519,7 +519,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "fd4921c3a5e0e2f997921649530992fc73a5f1c1e23b86824f7c7b176c2b9691"
+      "sha256": "573c59b88a42c37bf61fc3a606ecb9dd16ad46e9425c431b4c13a8adb81c0725"
     },
     {
       "path": "live-home-view.js",
@@ -527,7 +527,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "3f2de25556477acbb6e07e9d57d15969cd225cfe87715a9f50ccfe4a5763fb13"
+      "sha256": "661b6e02a0a1568534484ac51af85832d5b387230f823e05458b7b212a4656c2"
     },
     {
       "path": "live-music-selection-view.js",
@@ -619,7 +619,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "0c60de1870dadb31e69a05c8cc00c02072a40f0a5498cb74e1cd5209b00c156f"
+      "sha256": "b80d1c9a00666fda5f65a666aaef214ed1ebc3de7281e215332a7533452fc562"
     },
     {
       "path": "podview.css",
@@ -627,7 +627,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "334099949e00fe239cdbc2123ade00b207b3dea8228f01db3ba5c6e93b73db51"
+      "sha256": "7e3e1be8181d5e255a990ecc35061a4123b07f85da2d670d240475931fffb662"
     },
     {
       "path": "podvoice-view.js",
@@ -647,7 +647,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "6cb2cff381103375969eb3aab5b2074f6c0f6a1c11c4dbb9dac3e7ba506a908a"
+      "sha256": "6e14942a2b24d666a9533c5932d247700b4ec9c805d904e7f76acb9a09b5ef52"
     },
     {
       "path": "references.json",
@@ -663,7 +663,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "f01dab4e010181d3ff3b21e74dfa08d70c30840436ddf496f11b0c7872b89a39"
+      "sha256": "1610b66437dea4ac5cb3c769f7e81a354d0eb7a9385db9ac0f7719b6c1efe6ab"
     },
     {
       "path": "robot-observation.js",
@@ -875,7 +875,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "37e0cea0521c75d50e8cffed909d66703aad69f051103cbff209efa65416e996"
+      "sha256": "00e62084580de1e868139184990205aed39314804cc5bfb4b1d69c706f8f1bad"
     },
     {
       "path": "workshop.css",

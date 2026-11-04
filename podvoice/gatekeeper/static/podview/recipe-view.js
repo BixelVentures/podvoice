@@ -55,6 +55,7 @@ export class RecipeView {
  }
 
  page(title, subtitle, back, ...actions) {
+  this.stopCatalogRefresh();
   this.catalogResize?.disconnect();
   this.goBack = back;
   if (this.coverUrl) URL.revokeObjectURL(this.coverUrl);
@@ -72,13 +73,23 @@ export class RecipeView {
   this.root.scrollTop = 0;
   this.root.parentElement.scrollTop = 0;
   this.onCookingChange();
-  this.title.focus({preventScroll:true});
+  if (!this.suppressPageFocus) this.title.focus({preventScroll:true});
  }
 
- async refreshPublishedCatalog() {
+ stopCatalogRefresh() {
+  this.catalogRefresh?.dispose();
+  this.catalogRefresh = null;
+ }
+
+ dispose() {
+  this.stopCatalogRefresh();
+  this.catalogResize?.disconnect();
+ }
+
+ async refreshPublishedCatalog(signal) {
   const before = JSON.stringify(this.saved), status = this.catalogStatus;
   try {
-   const response = await fetch(new URL('api/recipes',document.baseURI),{cache:'no-store'});
+   const response = await fetch(new URL('api/recipes',document.baseURI),{cache:'no-store',signal});
    if (!response.ok) throw new Error('Kataloget kunne ikke hentes');
    const {recipes} = await response.json();
    if (!Array.isArray(recipes)) throw new Error('Ugyldigt katalog');
@@ -89,14 +100,16 @@ export class RecipeView {
    });
    this.catalogStatus = 'ready';
   } catch {
+   if (signal?.aborted) return false;
    this.catalogStatus = 'unavailable';
   }
   return status !== this.catalogStatus || before !== JSON.stringify(this.saved);
  }
 
- async refreshUploadHistory() {
+ async refreshUploadHistory(signal) {
+  const before = JSON.stringify(this.uploads), status = this.uploadHistoryStatus;
   try {
-   const response = await fetch(new URL('api/recipe-upload-history',document.baseURI),{cache:'no-store'});
+   const response = await fetch(new URL('api/recipe-upload-history',document.baseURI),{cache:'no-store',signal});
    if (!response.ok) throw new Error('Uploadhistorikken kunne ikke hentes');
    const {uploads} = await response.json();
    if (!Array.isArray(uploads)) throw new Error('Ugyldig uploadhistorik');
@@ -105,8 +118,10 @@ export class RecipeView {
     .sort((a,b)=>(new Date(b.updatedAt || b.receivedAt).getTime() || 0)-(new Date(a.updatedAt || a.receivedAt).getTime() || 0)).slice(0,50);
    this.uploadHistoryStatus = 'ready';
   } catch {
+   if (signal?.aborted) return false;
    this.uploadHistoryStatus = 'unavailable';
   }
+  return status !== this.uploadHistoryStatus || before !== JSON.stringify(this.uploads);
  }
 
  catalog(refresh = true) {
@@ -246,7 +261,8 @@ export class RecipeView {
      row.append(applyKitTextRole(element('span',title),'body'),time);
      return row;
     });
-    const history = createKitDisclosure({id:'recipe-history',title:'Senest gennemført'});
+    const history = createKitDisclosure({id:'recipe-history',title:'Senest gennemført',
+     expanded:this.recipeHistoryExpanded,onToggle:expanded=>{this.recipeHistoryExpanded=expanded;}});
     history.panel.append(...rows);
     entries.append(history.node);
    }
@@ -275,24 +291,52 @@ export class RecipeView {
   this.catalogResize = new ResizeObserver(updateIndex);
   this.catalogResize.observe(entries);
   entries.scrollTop = this.active ? 0 : this.catalogScroll || 0;
-  if (refresh) {
-   this.refreshUploadHistory().then(()=>{
-    if (!this.root.hidden) this.renderUploadHistory?.();
-   });
-   this.refreshPublishedCatalog().then(changed=>{
-    if (changed && layout.isConnected && !this.root.hidden) {
-     const scroll = entries.scrollTop, focused = document.activeElement;
-     const retainFocus = this.root.contains(focused), focusedId = focused?.id, focusedRecipe = focused?.dataset?.recipe;
-     this.catalog(false);
-     this.catalogEntries.scrollTop = scroll;
-     if (retainFocus) {
-      const restored = focusedId ? [...this.root.querySelectorAll('[id]')].find(node=>node.id === focusedId)
-       : focusedRecipe ? [...this.root.querySelectorAll('[data-recipe]')].find(node=>node.dataset.recipe === focusedRecipe) : null;
-      (restored || this.catalogEntries).focus({preventScroll:true});
-     }
+  // A single bounded refresh loop belongs to this mounted catalog, not the widget host.
+  const abort = new AbortController();
+  let timer, inFlight = false, queued = false, historyPending = false;
+  const active = () => layout.isConnected && !this.root.hidden && !document.hidden;
+  const schedule = () => { clearTimeout(timer); if (active()) timer = setTimeout(run, 10000); };
+  const run = async () => {
+   if (abort.signal.aborted || !active()) return;
+   if (inFlight) { queued = true; return; }
+   clearTimeout(timer);
+   inFlight = true;
+   const [historyChanged, changed] = await Promise.all([
+    this.refreshUploadHistory(abort.signal), this.refreshPublishedCatalog(abort.signal),
+   ]);
+   inFlight = false;
+   if (abort.signal.aborted || !active()) return;
+   if (changed) {
+    const scroll = entries.scrollTop, rootScroll = this.root.scrollTop, parentScroll = this.root.parentElement.scrollTop, focused = document.activeElement;
+    const retainFocus = this.root.contains(focused), focusedId = focused?.id, focusedRecipe = focused?.dataset?.recipe;
+    const focusedChoice = focused?.type === 'radio' ? {name:focused.name,value:focused.value} : null;
+    this.suppressPageFocus = true;
+    try { this.catalog(false); } finally { this.suppressPageFocus = false; }
+    this.catalogEntries.scrollTop = scroll;
+    this.root.scrollTop = rootScroll;
+    this.root.parentElement.scrollTop = parentScroll;
+    if (retainFocus) {
+     const restored = focusedChoice ? [...this.root.querySelectorAll('input[type=radio]')].find(node=>node.name === focusedChoice.name && node.value === focusedChoice.value)
+      : focusedId ? [...this.root.querySelectorAll('[id]')].find(node=>node.id === focusedId)
+      : focusedRecipe ? [...this.root.querySelectorAll('[data-recipe]')].find(node=>node.dataset.recipe === focusedRecipe) : null;
+     (restored || this.catalogEntries).focus({preventScroll:true});
     }
-   });
-  }
+    return;
+   }
+   // Do not replace the disclosure while a user is interacting inside it.
+   historyPending ||= historyChanged;
+   if (historyPending && !uploads.node.contains(document.activeElement)) { renderUploads(); historyPending = false; }
+   if (queued) { queued = false; run(); } else schedule();
+  };
+  const visibility = () => { clearTimeout(timer); if (active()) run(); };
+  const observer = new MutationObserver(visibility);
+  observer.observe(this.root,{attributes:true,attributeFilter:['hidden']});
+  document.addEventListener('visibilitychange',visibility);
+  this.catalogRefresh = {dispose:()=>{
+   clearTimeout(timer); abort.abort(); observer.disconnect();
+   document.removeEventListener('visibilitychange',visibility);
+  }};
+  if (refresh) run(); else schedule();
  }
 
  checklist(title, lines, checked, unit, onChange, headingRole) {

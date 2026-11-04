@@ -12,6 +12,13 @@ export function robotCurrentSetup(value,entityId,now=Date.now()/1000){
  return {status:value.status,source:value.source,vacuumEntityId:value.vacuumEntityId,observedAt:value.observedAt,mapId:value.mapId,mapIndex:value.mapIndex,mapSequence:value.mapSequence,areas:value.areas.map(({id,label})=>({id,label:label.trim()})),repeat:value.repeat};
 }
 const states=new Set(['cleaning','paused','returning','docked','idle','error','unavailable','unknown']);
+// Display-only native offer. The service revalidates all authority on dispatch.
+export function robotTransportOffer(value,entityId,state,now=Date.now()/1000){
+ const states={pause:['cleaning'],resume:['paused'],stop:['cleaning','paused','returning'],return:['cleaning','paused','idle']};
+ if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).sort().join(',')!=='actions,entityId,observedAt,source,status'||value.status!=='observed'||value.source!=='home_assistant_state'||value.entityId!==entityId||!Number.isFinite(value.observedAt)||value.observedAt>now+1||now-value.observedAt>15||!Array.isArray(value.actions)||value.actions.length>4||new Set(value.actions).size!==value.actions.length||value.actions.some(action=>!states[action]?.includes(state)))return null;
+ return {status:value.status,source:value.source,entityId,observedAt:value.observedAt,actions:[...value.actions]};
+}
+
 export function validateHome(value,roomId,bootId){
  if(bootId!==undefined&&value?.bootId!==bootId)throw new Error('home_boot_changed');
  if(value?.bootId!==undefined&&(typeof value.bootId!=='string'||!value.bootId||value.bootId.length>160))throw new Error('invalid_home_boot');
@@ -19,7 +26,7 @@ export function validateHome(value,roomId,bootId){
  const seen=new Set(),items=[];
  if(value.vacuum.status==='observed')for(const row of value.vacuum.items){
   if(!/^vacuum\.[a-z0-9_]+$/.test(row.entityId)||seen.has(row.entityId)||!states.has(row.state)||row.source!=='home_assistant_state'||!Number.isFinite(row.observedAt))throw new Error('invalid_vacuum_observation');
-  seen.add(row.entityId);items.push({entityId:row.entityId,name:text(row.name)||'Robotstøvsuger',state:row.state,battery:Number.isFinite(row.battery)&&row.battery>=0&&row.battery<=100?row.battery:null,observedAt:row.observedAt,source:row.source,history:historyObservation(row.history),currentSetup:['cleaning','paused'].includes(row.state)?robotCurrentSetup(row.currentSetup,row.entityId):null,telemetry:robotObservation(row.telemetry,row.entityId,row.currentActivity),telemetryUnavailable:row.telemetry?.status==='unavailable'});
+  seen.add(row.entityId);items.push({entityId:row.entityId,name:text(row.name)||'Robotstøvsuger',state:row.state,battery:Number.isFinite(row.battery)&&row.battery>=0&&row.battery<=100?row.battery:null,observedAt:row.observedAt,source:row.source,history:historyObservation(row.history),currentSetup:['cleaning','paused'].includes(row.state)?robotCurrentSetup(row.currentSetup,row.entityId):null,transportActions:robotTransportOffer(row.transportActions,row.entityId,row.state),telemetry:robotObservation(row.telemetry,row.entityId,row.currentActivity),telemetryUnavailable:row.telemetry?.status==='unavailable'});
  }
  // Settings/actions are deliberately excluded until their separate owner
  // contract is implemented. Extra remote fields cannot silently enable controls.
@@ -44,7 +51,7 @@ function mergeRobotTelemetry(incoming,prior){
 export function applyHome(scene,home,allowed=["vacuum","weather"]){
  const scope=typeof home.bootId==='string'&&home.bootId&&typeof home.roomId==='string'&&home.roomId?JSON.stringify([home.bootId,home.roomId]):null,sameScope=scope!==null&&scope===scene.homeScope,scopeChanged=(scope!==null||scene.homeScope!=null)&&scope!==scene.homeScope;
  const previous=scene.devices.filter(d=>d.source==='home_assistant_state'&&d.kind==='vacuum');
- const rows=!allowed.includes('vacuum')?[]:home.vacuum.status==='observed'?home.vacuum.items.map(item=>{const prior=sameScope?previous.find(d=>d.id===item.entityId&&d.source===item.source):null,telemetry=item.telemetryUnavailable===true&&item.telemetry?.status==='unavailable'&&prior?.telemetry?.status==='observed'?{...prior.telemetry,currentActivity:{status:'unavailable'},items:prior.telemetry.items.map(row=>({...row,stale:true}))}:mergeRobotTelemetry(item.telemetry,prior?.telemetry);return {id:item.entityId,kind:'vacuum',name:item.name,source:item.source,history:item.history,currentSetup:item.currentSetup,telemetry,observedAt:item.observedAt,battery:item.battery,revision:home.revision,live:true,status:({returning:'docking',idle:'stopped',error:'fault'})[item.state]||item.state,pending:null,hidden:false,timeline:[]};}):scopeChanged?[]:previous.map(d=>({...d,stale:true}));
+ const rows=!allowed.includes('vacuum')?[]:home.vacuum.status==='observed'?home.vacuum.items.map(item=>{const prior=sameScope?previous.find(d=>d.id===item.entityId&&d.source===item.source):null,telemetry=item.telemetryUnavailable===true&&item.telemetry?.status==='unavailable'&&prior?.telemetry?.status==='observed'?{...prior.telemetry,currentActivity:{status:'unavailable'},items:prior.telemetry.items.map(row=>({...row,stale:true}))}:mergeRobotTelemetry(item.telemetry,prior?.telemetry);return {id:item.entityId,kind:'vacuum',name:item.name,source:item.source,history:item.history,currentSetup:item.currentSetup,transportActions:item.transportActions,telemetry,observedAt:item.observedAt,battery:item.battery,revision:home.revision,live:true,status:({returning:'docking',idle:'stopped',error:'fault'})[item.state]||item.state,pending:null,hidden:false,timeline:[]};}):scopeChanged?[]:previous.map(d=>({...d,stale:true}));
  // Stable family slots match the approved overview, regardless of which
  // observation arrives first. Activity or urgency never reorders them.
  const priorWeather=scene.liveWeather,incoming=home.weather,identity=incoming?.observationScope,oldIdentity=priorWeather?.observationScope,priorHourly=priorWeather?hourlyWeather(priorWeather):null;

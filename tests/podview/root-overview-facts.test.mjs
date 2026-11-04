@@ -14,8 +14,8 @@ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widg
 const method=source.slice(source.indexOf(' renderOverviewFacts('),source.indexOf(' renderResourceRail(){')).trim();
 function projection({live=false,vm=localPlayerModel(initialScene()),vehicle=vehicleFixture({charging:true}),timer=null,state=initialScene()}={}){
  const calls=new Map(),nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id});return nodes.get(id);};
- const render=new Function('$','updateResourceFacts','projectVehicle','timerTime','timerStateLabel','liveWeatherModel','localWeatherModel','WEATHER_CHANGE_EXAMPLE',`return function ${method}`)(node,(target,value)=>calls.set(target.id,value),vehicleModel,timerTime,timerStateLabel,liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE);
- const host={live,state,playerView:{progressVM:vm,rows:new Map(),queue:{dataset:{status:'ready'}}},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
+ const render=new Function('$','updateResourceFacts','projectVehicle','timerTime','timerStateLabel','liveWeatherModel','localWeatherModel','WEATHER_CHANGE_EXAMPLE','renderOverviewMediaValues',`return function ${method}`)(node,(target,value)=>calls.set(target.id,value),vehicleModel,timerTime,timerStateLabel,liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE,()=>{});
+ const host={live,state,renderOverviewMediaCards(){},playerView:{progressVM:vm,rows:new Map(),queue:{dataset:{status:'ready'}}},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
  render.call(host,vehicle);return {calls,host,render};
 }
 test('robot sized cards receive admitted area/time/room/battery/history and never derive an ETA',()=>{
