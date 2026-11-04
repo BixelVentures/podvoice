@@ -1,3 +1,9 @@
+## 2.0.126
+
+- Restore the approved recipe and Find musik layouts, illustration assets, disclosures and cooking steps.
+- Apply the agreed climate dependency to Tesla seat heating and defrost at display, prepare and send.
+- Read newer cabin temperature from the configured Home Assistant sensor without waking the vehicle (HA component 0.1.13).
+
 ## 2.0.125
 
 - Preserve robot control settings across renewal when a time setting is present.

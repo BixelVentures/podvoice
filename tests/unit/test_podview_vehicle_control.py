@@ -537,3 +537,54 @@ async def test_trunk_direction_requires_known_unchanged_state_and_supported_acti
     assert close["setup"]["confirmation"]["label"] == "Luk bagagerum"
     assert (await h.run(close, "close-request"))["outcome"] == "accepted"
     assert h.calls[0][1] == "close_cover"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,args",
+    [
+        ("temperature", {"temperature": 22}),
+        ("defrostOn", {}),
+        ("defrostOff", {}),
+        ("driverSeatHeat", {"option": "high"}),
+        ("passengerSeatHeat", {"option": "off"}),
+    ],
+)
+@pytest.mark.parametrize("state", ["off", "unknown", "unavailable"])
+async def test_dependent_controls_require_climate_on_at_prepare(h, action, args, state):
+    h.states[h.policy["entities"]["climate"]]["state"] = state
+    assert await h.adapter.prepare(current=lambda: True, action=action) is None
+    assert h.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,args",
+    [
+        ("temperature", {"temperature": 22}),
+        ("defrostOn", {}),
+        ("defrostOff", {}),
+        ("driverSeatHeat", {"option": "high"}),
+        ("passengerSeatHeat", {"option": "off"}),
+    ],
+)
+async def test_climate_off_after_prepare_prevents_dependent_native_send(h, action, args):
+    setup = await h.setup(action, args)
+    assert setup["ok"] is True
+
+    async def climate_stops():
+        h.states[h.policy["entities"]["climate"]]["state"] = "off"
+
+    h.send_hook = climate_stops
+    await h.run(setup)
+    assert h.calls == []
+    assert h.risk()["pending"] is False
+
+
+@pytest.mark.asyncio
+async def test_climate_power_on_remains_available_when_off(h):
+    h.states[h.policy["entities"]["climate"]]["state"] = "off"
+    setup = await h.setup("climateOn")
+    assert setup["ok"] is True
+    await h.run(setup)
+    assert h.calls == [("climate", "turn_on", "climate.climate", {})]

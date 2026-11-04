@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {sourceMusicCards,localMusicCards,localDiscoveryCards,fixtureArtwork,MUSIC_TABS,MusicResults} from '../../podvoice/gatekeeper/static/podview/music-results.js';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
@@ -290,4 +291,18 @@ test('busy entry keeps retained art and text still while cleanup and reduced mot
 test('renderer revalidates editorial mood route and cannot carry it into another collection or theme owner',()=>{
  const source={uri:'spotify:playlist:0123456789ABCDEFGHIJKL',name:'Actual list',artist:'Cooking',themeId:'cooking',themeTitle:'Cooking',themeArt:'theme-art/cooking/'+'a'.repeat(64)+'.webp',artwork:{kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/real'}},card=sourceMusicCards([source],'mood')[0];
  for(const [collection,changed]of [['mood',{...card,themeArt:'https://foreign.invalid/image'}],['mood',{...card,themeId:'calm'}],['feeling',card]]){const f=retainedResultSurface();f.view.render({cards:[changed],collection});const row=[...f.view.rows.values()][0];assert.equal(row.dataset.artworkRole,'cover');assert.equal(row.children[0].src,source.artwork.url);f.view.cleanup();}
+});
+
+
+test('delivery includes the approved discovery composition for the renderer four-tab surface',()=>{
+ const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const renderer=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/music-results.js',import.meta.url),'utf8');
+ const catalogue=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/live-music-view.js',import.meta.url),'utf8');
+ assert.match(catalogue,/discovery:true/,'live catalogue uses the same discovery composition as approved preview');
+ assert.match(renderer,/mood:'Tid på dagen',feeling:'Vibe',top:'Din musik',recent:'Hør igen'/);
+ for(const selector of ['[data-discovery-header]','[data-discovery-collection=mood]','[data-discovery-collection=feeling]','[data-discovery-collection=top]','[data-discovery-collection=recent]'])assert.ok(css.includes(selector),`missing delivered music layout: ${selector}`);
+ assert.match(css,/#music-response\[data-discovery-collection=mood\][^{]+\.pv-hero[^}]+grid-row:1 \/ span 2/,'featured option spans the two alternative rows');
+ assert.match(css,/grid-template-columns:56px minmax\(0,1fr\) var\(--pv-hit\)/,'personal music and history use compact ListRow anatomy');
+ assert.match(css,/#music-response[^}]+music-refresh-footer[^}]+justify-self:center/,'list expansion stays below its list and centered');
+ assert.ok(css.includes('pv-widget-host #music-response :is(.music-refresh-footer){order:10'),'refresh keeps its64px kit geometry when moved inside the SectionHeader');
 });

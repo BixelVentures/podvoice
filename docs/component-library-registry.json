@@ -2336,7 +2336,8 @@
           "method:sendAction": 1,
           "arrow:offered": 1,
           "method:feedbackScopeFor": 1,
-          "method:finishVehicle": 1
+          "method:finishVehicle": 1,
+          "arrow:liveClimateActive": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",

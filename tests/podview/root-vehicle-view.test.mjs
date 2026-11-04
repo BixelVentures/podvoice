@@ -351,11 +351,18 @@ test('supplemental climate outcomes remain in climate feedback and trunk remains
 test('actual synthetic HTTP read drives offered full controls without guessed state',async()=>{
  const samples=JSON.parse(await readFile(new URL('../fixtures/podview/vehicle-full-control.json',import.meta.url),'utf8'));const data=vehicleObservation(samples.passiveReadExample.response.vehicle);assert.ok(data);assert.equal(data.climate.targetTemperatureC,21.5);assert.equal(data.climate.driverSeatHeat,'high');assert.equal(data.access.rearTrunk,'closed');const {root}=fixture(),view=new VehicleView(root);view.render(data,{vehicleActions:['temperature','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle']});assert.equal(view.temperatureControls.hidden,false);assert.equal(view.temperatureValue.textContent,'21,5 °C');assert.equal(view.climateActions.hidden,false);assert.equal(view.seatControls.node.hidden,false);assert.equal(view.rearTrunkButton.hidden,false);assert.match(view.rearTrunkButton.textContent,/åbn bagagerum/i);view.cleanup();
 });
-test('seat heat remains offered with climate off and discloses climate start before send',async()=>{
- const {root}=fixture();let sends=0;const view=new VehicleView(root,{onVehicleSetup:async()=>({confirmation:{action:'driverSeatHeat',label:'Indstil førersæde',args:{option:'low'},effects:[['driverSeat','low'],['climate','on']],nativeWakePossible:true,requiresConfirmation:true,requiresOverride:false,priorUnresolved:{access:[],climate:[]}},operation:{}}),onVehicleSend:async()=>{sends++;return {status:'accepted'}}});const data=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['climate.car','select.left'],data:{climate:{status:'off',driverSeatHeat:'off'}}});view.render(data,{vehicleActions:['driverSeatHeat']});assert.equal(view.seatControls.node.hidden,false);assert.equal(view.seatControls.trigger.disabled,false);await view.beginVehicle('driverSeatHeat',view.seatGroups.driver.inputs[1],{option:'low'});assert.equal(view.confirmation.open,true);assert.match(view.confirmationNote.textContent,/tænde klimaet/);assert.equal(sends,0);view.cleanup();
-});
-test('off and on climate allow native seat choice only when offered',async()=>{
- for(const status of ['off','heat_cool']){const {root}=fixture(),calls=[];const view=new VehicleView(root,{onVehicleSetup:async(action,args)=>{calls.push([action,args]);return null;}});const data=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['climate.car','select.left'],data:{climate:{status,driverSeatHeat:'off'}}});view.render(data,{vehicleActions:['driverSeatHeat']});const input=view.seatGroups.driver.inputs[1];assert.equal(input.disabled,false);input.checked=true;input.dispatchEvent(new Event('change'));await Promise.resolve();assert.deepEqual(calls,[['driverSeatHeat',{option:'low'}]]);view.cleanup();}
+test('climate owns dependent live controls, including programmatic seat setup',async()=>{
+ const {root}=fixture(),calls=[];const view=new VehicleView(root,{onVehicleSetup:async(action,args)=>{calls.push([action,args]);return null;}});
+ const observed=(status,{stale=false,historicalFields=[]}={})=>vehicleObservation({status:stale?'stale':'observed',source:'home_assistant_state',observedAt:100,entityIds:['climate.car','select.left','select.right','switch.defrost'],historicalFields,data:{climate:{status,driverSeatHeat:'off',passengerSeatHeat:'low',defrost:false}}});
+ const actions=['climateOn','climateOff','driverSeatHeat','passengerSeatHeat','defrostOn','defrostOff'];
+ for(const model of [observed('off'),observed(null),observed('heat_cool',{stale:true}),observed('heat_cool',{historicalFields:['climate.status']})]){
+  view.render(model,{vehicleActions:actions});assert.equal(view.seatControls.node.hidden,false);assert.equal(view.seatControls.trigger.disabled,true);assert.equal(view.defrostButton.disabled,true);
+  for(const group of Object.values(view.seatGroups)){assert.ok(group.inputs.every(input=>input.disabled));}
+  await view.beginVehicle('driverSeatHeat',view.seatGroups.driver.inputs[1],{option:'low'});await view.beginVehicle('passengerSeatHeat',view.seatGroups.passenger.inputs[1],{option:'low'});await view.beginVehicle('defrostOn',view.defrostButton);assert.deepEqual(calls,[]);
+ }
+ view.render(observed('off'),{vehicleActions:actions});assert.equal(view.climateToggle.disabled,false);
+ view.render(observed('heat_cool'),{vehicleActions:actions});assert.equal(view.seatControls.trigger.disabled,false);assert.equal(view.seatGroups.driver.inputs[1].disabled,false);assert.equal(view.defrostButton.disabled,false);
+ const input=view.seatGroups.driver.inputs[1];input.checked=true;input.dispatchEvent(new Event('change'));await Promise.resolve();assert.deepEqual(calls,[['driverSeatHeat',{option:'low'}]]);view.cleanup();
 });
 
 test('stale controls present last-known relevant actions and retain confirmation',async()=>{
@@ -433,7 +440,7 @@ test('temperature requires fresh observed climate on and trunk direction follows
 
 test('one defrost control follows observed HA state and never acts on unknown or stale',async()=>{
  const {root}=fixture(),calls=[];const view=new VehicleView(root,{onVehicleSetup:async(action,args)=>{calls.push([action,args]);return null;}});
- const mk=(value,status='observed')=>vehicleObservation({status,source:'home_assistant_state',observedAt:100,entityIds:['switch.car'],data:{climate:value===null?{}:{defrost:value}}});
+ const mk=(value,status='observed')=>vehicleObservation({status,source:'home_assistant_state',observedAt:100,entityIds:['switch.car'],data:{climate:value===null?{}:{status:'heat_cool',defrost:value}}});
  for(const [value,label,action] of [[false,'Afrim ruder','defrostOn'],[true,'Stop afrimning','defrostOff']]){view.render(mk(value),{vehicleActions:['defrostOn','defrostOff']});assert.equal(view.defrostButton.textContent,label);assert.equal(view.defrostButton.disabled,false);view.defrostButton.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls.pop(),[action,{}]);}
  for(const data of [mk(null),mk(false,'stale')]){view.render(data,{vehicleActions:['defrostOn','defrostOff']});assert.equal(view.defrostButton.disabled,true);view.defrostButton.dispatchEvent(new Event('click'));await Promise.resolve();assert.deepEqual(calls,[]);}view.cleanup();
 });
