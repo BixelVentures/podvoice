@@ -1,3 +1,7 @@
+## 2.0.127
+
+- Preserve independently observed Tesla state and timestamps across partial Home Assistant updates (HA component 0.1.14).
+
 ## 2.0.126
 
 - Restore the approved recipe and Find musik layouts, illustration assets, disclosures and cooking steps.
