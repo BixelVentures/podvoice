@@ -1919,7 +1919,11 @@ class TouchControls:
 
             def translate(value, key=None):
                 if isinstance(value, dict):
-                    return {k: translate(v, k) for k, v in value.items()}
+                    # Time values are native clock strings, not opaque choice IDs.
+                    return {
+                        k: v if k == "current" and value.get("kind") == "time" else translate(v, k)
+                        for k, v in value.items()
+                    }
                 if isinstance(value, list):
                     return [translate(v) for v in value]
                 if key in {"id", "current"} and isinstance(value, str):
