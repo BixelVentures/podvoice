@@ -16,7 +16,7 @@ async function rig(run,{diagnosticStorage=null,diagnosticBuild='actual-build-fix
 test('automatic upload projects closed16-row8KiB envelope and never instruments its own POST',()=>rig(async({t,requests,accept})=>{
  accept();for(let i=0;i<20;i++)t.recordDiagnostic('browser',{code:'error',current:false,message:'PRIVATE',url:'https://secret',args:{volume:100}});
  const before=t.diagnostics().records.length;await t.flushDiagnosticUpload();assert.equal(requests.length,1);
- const {body,text,init}=requests[0];assert.deepEqual(Object.keys(body).sort(),['batchId','bootId','records','roomId','schema','uiBuild']);assert.match(body.batchId,/^[a-f0-9-]{36}$/);assert.equal(body.uiBuild,'actual-build-fixture');assert.ok(body.records.length>0&&body.records.length<=16);assert.ok(Buffer.byteLength(text,'utf8')<=8192);assert.equal(init.credentials,'same-origin');
+ const {body,text,init}=requests[0];assert.deepEqual(Object.keys(body).sort(),['batchId','bootId','clientId','records','roomId','schema','uiBuild']);assert.match(body.batchId,/^[a-f0-9-]{36}$/);assert.equal(body.uiBuild,'actual-build-fixture');assert.ok(body.records.length>0&&body.records.length<=16);assert.ok(Buffer.byteLength(text,'utf8')<=8192);assert.equal(init.credentials,'same-origin');
  assert.ok(body.records.every(row=>Number.isInteger(row.ageMs)&&row.ageMs>=0&&row.ageMs<=604800000&&!('atMs'in row)&&!('restored'in row)));assert.ok(body.records.some(row=>row.current===false));assert.doesNotMatch(text,/PRIVATE|secret|volume/);assert.equal(t.diagnostics().records.length,before);
 }));
 
@@ -75,4 +75,22 @@ test('held ACK JSON body is bounded by the original4second upload deadline',()=>
  const deadline=[...timers.entries()].find(([,job])=>job.at===Date.now()+4000);assert.ok(deadline,'original upload deadline remains armed while ACK JSON is held');jump(4000);timers.delete(deadline[0]);deadline[1].fn();await settle();await flush;
  assert.equal(completed,true);assert.equal(t.diagnosticUploadAcked.size,0);assert.equal(t.connected,true);
  body.resolve(await ack(requests[0].body).json());await settle();assert.equal(t.diagnosticUploadAcked.size,0,'late body cannot mark timed-out upload durable');
+}));
+
+test('raw target identity is upload-only and values retain requested versus observed meaning',()=>rig(async({t,requests,accept})=>{
+ accept();t.recordDiagnostic('control_observation',{domain:'vehicle',action:'temperature',code:'observed',source:'home_assistant',trust:'state_observation',requestedValue:20.5,observedValue:20,resourceId:'climate.private_car'});
+ assert.doesNotMatch(JSON.stringify(t.diagnostics()),/private_car|resourceId/);await t.flushDiagnosticUpload();const row=requests[0].body.records.find(row=>row.stage==='control_observation');assert.equal(row.resourceId,'climate.private_car');assert.equal(row.requestedValue,20.5);assert.equal(row.observedValue,20);assert.ok(Buffer.byteLength(requests[0].text)<=8192);
+}));
+
+test('upload cadence starts after completion so variable ingress latency cannot violate server admission spacing',()=>rig(async({t,requests,accept,respond,jump})=>{
+ accept();let admittedAt;
+ respond(async body=>{if(admittedAt===undefined)jump(25);else assert.ok(Date.now()-admittedAt>=10000,'server admission spacing survives a faster second delivery');admittedAt=Date.now();return ack(body);});
+ t.recordDiagnostic('control_action',{code:'accepted'});await t.flushDiagnosticUpload();assert.equal(requests.length,1);
+ t.recordDiagnostic('control_action',{code:'accepted'});jump(9975);await t.flushDiagnosticUpload();assert.equal(requests.length,1,'ten seconds from request start is too early after a delayed first admission');
+ jump(25);await t.flushDiagnosticUpload();assert.equal(requests.length,2);assert.equal(t.diagnosticUploadBatch,null);
+}));
+
+test('telemetry client identity stays stable across room scopes and never becomes an action grant',()=>rig(async({t,requests,accept,jump})=>{
+ accept();t.recordDiagnostic('control_action',{code:'accepted'});await t.flushDiagnosticUpload();const first=requests[0].body;assert.match(first.clientId,/^[a-f0-9-]{36}$/);assert.equal(first.clientId,first.batchId);
+ jump(1000);t.room='bedroom';accept('bedroom');t.recordDiagnostic('control_action',{code:'accepted'});await t.flushDiagnosticUpload();assert.equal(requests.length,1,'same client changing room retains its cooldown');jump(9000);await t.flushDiagnosticUpload();const second=requests[1].body;assert.equal(second.clientId,first.clientId);assert.notEqual(second.batchId,first.batchId);assert.equal(second.roomId,'bedroom');assert.deepEqual(t.snapshot.capabilities.timerActions,[]);assert.doesNotMatch(JSON.stringify(t.diagnostics()),/clientId/);
 }));

@@ -21,6 +21,7 @@ import re
 import secrets
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypedDict
@@ -329,6 +330,16 @@ if TYPE_CHECKING:
     from .podview_weather_advice import FastWeatherAdviceProvider
 
 
+@asynccontextmanager
+async def supervisor_home_event_socket():
+    """Existing Supervisor HA transport; auth/ACK handling stays in its owner."""
+    async with aiohttp.ClientSession() as session:
+        async with session.ws_connect(
+            "ws://supervisor/core/websocket", max_msg_size=256 * 1024, heartbeat=20
+        ) as socket:
+            yield socket
+
+
 class ToolRouter:
     """Local tools + HA-MCP tools behind the ToolBridgeLike surface
     (``declarations()`` / ``dispatch()``) the engines and console already use."""
@@ -345,8 +356,12 @@ class ToolRouter:
         hub=None,  # StatusHub — the panel's "home control" service dot
         execution_policy: ExecutionPolicy | None = None,
         cleaning_journal_path: Path | None = None,
+        home_event_connect=None,
     ) -> None:
         self.podview_weather_city: str = ""
+        # Explicit transport dependency: plain REST/unit rigs have no hidden WS.
+        # The production bootstrap supplies the Supervisor connector.
+        self.home_event_connect = home_event_connect
         self._mcp = mcp
         self.podview_receipts = VisualReceiptOwner()
         self.podview_locality = LocalityOwner()
@@ -411,6 +426,164 @@ class ToolRouter:
                 "ha_mcp_url/ha_mcp_token in Settings)",
                 getattr(self._mcp, "url", "?"),
             )
+
+    async def watch_podview_home_events(self, interests, changed, current) -> None:
+        """Read-only HA invalidations, never state custody or effect authority.
+
+        Exact ID/registry membership belongs to the existing bridge/read owners.
+        No raw HA payload, browser credential or actor crosses this callback.
+        """
+        connect = self.home_event_connect
+        if connect is None:
+            return
+        event_types = (
+            "state_changed",
+            "entity_registry_updated",
+            "area_registry_updated",
+            "device_registry_updated",
+        )
+        attempt = 0
+        while current():
+            if (
+                not self._token
+                or self._client is None
+                or self._client.is_closed
+                or not any(interests().values())
+            ):
+                await asyncio.sleep(1)
+                continue
+            client, token = self._client, self._token
+
+            def same_owner(client: httpx.AsyncClient = client, token=token):
+                return (
+                    current()
+                    and self._client is client
+                    and self._token == token
+                    and not client.is_closed
+                )
+
+            stage, socket = "connect", None
+            try:
+                async with connect() as socket:
+                    async with asyncio.timeout(8):
+                        stage = "auth_challenge"
+                        if (await socket.receive_json()).get("type") != "auth_required":
+                            raise ValueError("auth_protocol")
+                        stage = "auth_send"
+                        await socket.send_json({"type": "auth", "access_token": token})
+                        stage = "auth_result"
+                        if (await socket.receive_json()).get(
+                            "type"
+                        ) != "auth_ok" or not same_owner():
+                            raise ValueError("auth_denied")
+                        stage = "subscribe_send"
+                        pending = set(range(1, len(event_types) + 1))
+                        for identifier, event_type in enumerate(event_types, 1):
+                            await socket.send_json(
+                                {
+                                    "id": identifier,
+                                    "type": "subscribe_events",
+                                    "event_type": event_type,
+                                }
+                            )
+                        # Events can interleave with subscription results. Handle
+                        # them now, then force one resync after every exact ACK.
+                        stage = "subscribe_ack"
+                        while pending:
+                            message = await socket.receive_json()
+                            if not same_owner():
+                                break
+                            if message.get("type") == "result":
+                                identifier = message.get("id")
+                                if (
+                                    type(identifier) is not int
+                                    or identifier not in pending
+                                    or message.get("success") is not True
+                                ):
+                                    raise ValueError("subscribe_denied")
+                                pending.remove(identifier)
+                            elif message.get("type") == "event":
+                                self._podview_home_event(message, event_types, interests, changed)
+                        if pending or not same_owner():
+                            continue
+                        stage = "resync"
+                        changed(set(interests()), True)
+                        log.info("home_events stage=subscribe outcome=ready")
+                        attempt = 0
+                    while same_owner():
+                        stage = "event_read"
+                        try:
+                            message = await asyncio.wait_for(socket.receive_json(), timeout=5)
+                        except TimeoutError:
+                            continue  # Recheck token/client on a quiet connection.
+                        if same_owner():
+                            self._podview_home_event(message, event_types, interests, changed)
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
+                # Diagnostic identity only: never exception text, IDs, token or payload.
+                code = getattr(socket, "close_code", None)
+                log.warning(
+                    "home_events stage=%s outcome=unavailable error_class=%s close_code=%s",
+                    stage,
+                    type(error).__name__,
+                    code if type(code) is int else None,
+                )
+            if current():
+                await asyncio.sleep((1, 2, 5, 10, 30)[min(attempt, 4)])
+                attempt += 1
+
+    @staticmethod
+    def _podview_home_event(message, event_types, interests, changed):
+        if not isinstance(message, dict) or message.get("type") != "event":
+            raise ValueError("invalid_event")
+        identifier = message.get("id")
+        event = message.get("event")
+        if (
+            type(identifier) is not int
+            or not 1 <= identifier <= len(event_types)
+            or not isinstance(event, dict)
+        ):
+            raise ValueError("invalid_event")
+        event_type = event_types[identifier - 1]
+        data = event.get("data")
+        if event.get("event_type") != event_type or not isinstance(data, dict):
+            raise ValueError("invalid_event")
+        fields = (
+            {"entity_id"}
+            if event_type in {"state_changed", "entity_registry_updated"}
+            else {"area_id"}
+            if event_type == "area_registry_updated"
+            else {"device_id"}
+        )
+        ids = {
+            value
+            for key in fields
+            if isinstance((value := data.get(key)), str) and 0 < len(value) <= 160
+        }
+        changes = data.get("changes")
+        if isinstance(changes, dict):
+            ids.update(
+                value
+                for key in fields
+                if isinstance((value := changes.get(key)), str) and 0 < len(value) <= 160
+            )
+        suffix = (
+            ""
+            if event_type in {"state_changed", "entity_registry_updated"}
+            else ":areas"
+            if event_type == "area_registry_updated"
+            else ":devices"
+        )
+        selected = {
+            kind.removesuffix(suffix) if suffix else kind
+            for kind, allowed in interests().items()
+            if kind.endswith(suffix)
+            and ids.intersection(allowed)
+            and (bool(suffix) or ":" not in kind)
+        }
+        if selected:
+            changed(selected, False)
 
     async def _refresh_podconnect_services(self) -> None:
         """Discover PodConnect Control's real HA services.

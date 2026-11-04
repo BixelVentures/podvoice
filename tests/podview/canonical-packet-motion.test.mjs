@@ -218,16 +218,14 @@ test('overflowing overview wakes without spatial motion, a hint or child choreog
  assert.equal(f.motion.animations.size,1);assert.equal(f.overview.animations.length,1);assert(f.overview.animations[0].frames.every(frame=>Object.keys(frame).length===1));assert.equal(f.feed.scrollTop,0);assert(f.cards.every(card=>card.animations.length===0));f.motion.cancel();
 }));
 
-test('five pointer taps40ms apart cannot activate incoming content; keyboard and expiry remain available',()=>{
- const savedSet=globalThis.setTimeout,savedClear=globalThis.clearTimeout;let expire,delay,cleared=0;
- globalThis.setTimeout=(fn,ms)=>{expire=fn;delay=ms;return 1;};globalThis.clearTimeout=()=>cleared++;
- try{const f=navigationFixture(),listeners=new Map(),node={addEventListener(type,fn,capture){assert.equal(capture,true);listeners.set(type,fn);},removeEventListener(type,fn){if(listeners.get(type)===fn)listeners.delete(type);}};
- f.motion.guardNavigation(node,280);assert.equal(delay,280);let blocked=0,stopped=0;
- for(let time=0;time<200;time+=40)listeners.get('click')({detail:1,preventDefault(){blocked++;},stopImmediatePropagation(){stopped++;}});
- listeners.get('click')({detail:0,preventDefault(){throw Error('keyboard blocked');}});assert.equal(blocked,5);assert.equal(stopped,5);listeners.get('pointerdown')({type:'pointerdown',detail:0,preventDefault(){blocked++;},stopImmediatePropagation(){stopped++;}});assert.equal(blocked,6);assert.equal(stopped,6);
- expire();assert.equal(listeners.size,0);assert.equal(f.motion.releaseNavigationGuard,null);
- f.motion.guardNavigation(node,120);assert.equal(delay,120);f.motion.cancel();assert.equal(listeners.size,0);assert.ok(cleared>=2);
- }finally{globalThis.setTimeout=savedSet;globalThis.clearTimeout=savedClear;}
+test('new pointer and keyboard input work during entrance and next navigation interrupts motion',()=>{
+ for(const reduced of [false,true]){
+  let cancelled=0,clicks=0,downs=0;const pane=new EventTarget();Object.assign(pane,{id:'now-view',hidden:false,getClientRects:()=>[{}],animate:()=>({cancel(){cancelled++;},finished:new Promise(()=>{})})});
+  const feed={scrollTop:0,children:[pane],querySelectorAll:()=>[]},host={dataset:{motion:reduced?'reduced':'system'},isConnected:true,querySelector:selector=>selector==='.responses'?feed:null},motion=new SceneMotion(host);
+  pane.addEventListener('pointerdown',()=>downs++);pane.addEventListener('click',()=>clicks++);motion.enter('photo','now',null);
+  assert.equal(motion.animations.size,1);assert.equal(pane.dispatchEvent(new Event('pointerdown',{cancelable:true})),true);assert.equal(pane.dispatchEvent(new Event('click',{cancelable:true})),true);assert.equal(pane.dispatchEvent(new Event('click',{cancelable:true})),true);assert.equal(downs,1);assert.equal(clicks,2);
+  motion.capture('now','photo');assert.equal(cancelled,1);assert.equal(motion.animations.size,0);
+ }
 });
 
 test('Ro minute update retains digit nodes and animates only changed figures, with no identical-update restart',()=>{

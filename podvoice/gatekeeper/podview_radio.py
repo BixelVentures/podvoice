@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import hashlib
 import json
+import logging
 import math
 import secrets
 import time
@@ -19,6 +21,32 @@ from typing import Any
 
 import httpx
 from aiohttp import web
+
+_LOG = logging.getLogger("podvoice.radio")
+
+
+def _radio_trace(stage, outcome, action, task_id, option_id):
+    """Best-effort diagnostics, never an action grant or observation of effect."""
+    try:
+        if stage not in {"admission", "dispatch", "receipt"}:
+            stage = "other"
+        if outcome not in {"admitted", "started", "accepted", "rejected", "unknown", "cancelled"}:
+            outcome = "other"
+        if action not in ACTIONS:
+            action = "other"
+        task_ref = hashlib.sha256(task_id.encode()).hexdigest()[:16]
+        option_ref = hashlib.sha256(option_id.encode()).hexdigest()[:16]
+        _LOG.info(
+            "podview_radio stage=%s action=%s outcome=%s task_ref=%s option_ref=%s",
+            stage,
+            action,
+            outcome,
+            task_ref,
+            option_ref,
+        )
+    except Exception:
+        pass  # Diagnostics must not affect a radio command or its receipt.
+
 
 STATIONS = (
     ("p3", "P3"),
@@ -785,6 +813,14 @@ class RadioService:
             or not self._current(task["room"], token, task["binding"])
         ):
             return denied("stale_radio_task")
+
+        def trace(stage, outcome):
+            _radio_trace(
+                stage, outcome, task["command"]["action"], body["taskId"], body["optionId"]
+            )
+
+        trace("admission", "admitted")
+        sent = False
         # Retire before awaiting: duplicate or re-entrant execution cannot replay.
         del self.tasks[body["taskId"]]
         self.busy = True
@@ -807,6 +843,7 @@ class RadioService:
                     )
                 )
             ):
+                trace("receipt", "rejected")
                 return denied("stale_radio_task")
             # Recheck applicability immediately before the only effect call.
             self._command(
@@ -838,13 +875,17 @@ class RadioService:
                 }
             )
             try:
+                sent = True
+                trace("dispatch", "started")
                 async with asyncio.timeout(RADIO_ACTION_BUDGET_SECONDS):
                     receipt = await self.native.execute({**command, "action_id": body["taskId"]})
             except asyncio.CancelledError:
                 self.unknown = True
+                trace("receipt", "unknown")
                 raise
             except (TimeoutError, ValueError, TypeError, KeyError, httpx.HTTPError):
                 self.unknown = True
+                trace("receipt", "unknown")
                 return {
                     "ok": True,
                     "schema": "podview.radio-action.v1",
@@ -853,6 +894,7 @@ class RadioService:
                 }
             if not self._current(task["room"], token, task["binding"]):
                 self.unknown = True
+                trace("receipt", "unknown")
                 return {
                     "ok": True,
                     "schema": "podview.radio-action.v1",
@@ -863,13 +905,19 @@ class RadioService:
                 self.unknown = True
             if receipt["status"] != "unknown":
                 self.unknown_proof = None
+            trace("receipt", receipt["status"])
             return {
                 "ok": True,
                 "schema": "podview.radio-action.v1",
                 "status": receipt["status"],
                 "retryAllowed": False,
             }
+        except asyncio.CancelledError:
+            if not sent:
+                trace("receipt", "cancelled")
+            raise
         except (TimeoutError, ValueError, TypeError, KeyError, httpx.HTTPError):
+            trace("receipt", "rejected")
             return denied("radio_not_admitted")
         finally:
             self.busy = False

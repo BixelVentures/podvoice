@@ -43,6 +43,24 @@ _LABELS = {
     "move_existing_session": "Flyt afspilning",
 }
 _ROBOT_TOUCH_REPEAT_MAX = 2
+# Closed diagnostic labels, independent of authority and action-wire schemas.
+_TRACE_ACTIONS = {
+    "music": set(_LABELS),
+    "vacuum": {"pause", "resume", "stop", "return", "start", "set_option", "dock"},
+    "light": set(lights.ACTIONS),
+    "vehicle": {
+        "lock",
+        "unlock",
+        "climateOn",
+        "climateOff",
+        "temperature",
+        "defrostOn",
+        "defrostOff",
+        "driverSeatHeat",
+        "passengerSeatHeat",
+        "rearTrunkToggle",
+    },
+}
 
 
 def _robot_setup_error(stage: str, error: Exception) -> None:
@@ -2254,6 +2272,49 @@ class TouchControls:
         room = body["roomId"]
         if not self.bridge._grant_current(room, token):
             return rejected("scope_not_paired")
+        # Existing authorization precedes attribution. This trace describes the
+        # request/receipt, never an observed physical effect or a new send.
+        trace = {"delivery": "not_dispatched"}
+        result = {"outcome": "unknown"}
+        self._log_command(body, "admission", "admitted", trace["delivery"])
+        try:
+            result = await self._command_authorized(body, token, rejected, trace)
+            return result
+        finally:
+            self._log_command(body, "receipt", result.get("outcome", "rejected"), trace["delivery"])
+
+    @staticmethod
+    def _log_command(
+        body: dict, phase: str, outcome: str, delivery: str, *, kind: str = "direct"
+    ) -> None:
+        """Small server-owned trace survives client reload/drop; sink is fail-open."""
+        try:
+            domain = body.get("domain")
+            if not isinstance(domain, str) or body.get("action") not in _TRACE_ACTIONS.get(
+                domain, set()
+            ):
+                return
+            request_ref = hashlib.sha256(
+                body["requestId"].encode(errors="surrogatepass")
+            ).hexdigest()[:16]
+            _LOGGER.info(
+                "control_command phase=%s domain=%s action=%s request_ref=%s "
+                "outcome=%s delivery=%s physical_result_verified=false kind=%s",
+                phase,
+                body["domain"],
+                body["action"],
+                request_ref,
+                outcome
+                if outcome in {"admitted", "accepted", "rejected", "unknown"}
+                else "unknown",
+                delivery,
+                kind,
+            )
+        except Exception:
+            pass
+
+    async def _command_authorized(self, body: dict, token: str, rejected, trace: dict) -> dict:
+        room = body["roomId"]
         try:
             fingerprint = hashlib.sha256(
                 json.dumps(body, sort_keys=True, allow_nan=False).encode()
@@ -2264,6 +2325,7 @@ class TouchControls:
         self._retire_receipts()
         previous = self.receipts.get(key)
         if previous is not None:
+            trace["delivery"] = "cached" if previous[0] == fingerprint else "conflict"
             return (
                 copy.deepcopy(previous[1])
                 if previous[0] == fingerprint
@@ -2284,6 +2346,7 @@ class TouchControls:
         }
         # This reservation is made before the first await. A parallel duplicate
         # gets this same terminal-no-replay identity, never a second setup/send.
+        trace["delivery"] = "new"
         reservation = (fingerprint, receipt, deadline)
         self.receipts[key] = reservation
 
@@ -2347,6 +2410,41 @@ class TouchControls:
         task = self.tasks.get(body["taskId"])
         if task is None or not self._current(task, token) or body["roomId"] != task["room"]:
             return failure("stale_action")
+        # The current task and its owner option supply diagnostic attribution;
+        # caller labels/targets never do. Direct command's nested dispatch is
+        # already traced by command(), so it must not emit a second pair.
+        option = task["options"].get(body["optionId"])
+        if _reservation is not None or option is None:
+            return await self._action_authorized(body, token, task, _reservation=_reservation)
+        diagnostic = {
+            "requestId": body["requestId"],
+            "domain": task["domain"],
+            "action": option["action"],
+        }
+        trace = {"delivery": "not_dispatched"}
+        result = {"outcome": "unknown"}
+        self._log_command(diagnostic, "admission", "admitted", trace["delivery"], kind="task")
+        try:
+            result = await self._action_authorized(body, token, task, _trace=trace)
+            return result
+        finally:
+            self._log_command(
+                diagnostic,
+                "receipt",
+                result.get("outcome", "rejected"),
+                trace["delivery"],
+                kind="task",
+            )
+
+    async def _action_authorized(
+        self,
+        body: dict,
+        token: str,
+        task: dict,
+        *,
+        _reservation: tuple | None = None,
+        _trace: dict | None = None,
+    ) -> dict:
         fingerprint = (
             _reservation[0]
             if _reservation is not None
@@ -2361,6 +2459,8 @@ class TouchControls:
             return failure("stale_action")
         if key in self.receipts and self.receipts[key] is not _reservation:
             previous, receipt = self.receipts[key][:2]
+            if _trace is not None:
+                _trace["delivery"] = "cached" if previous == fingerprint else "conflict"
             return copy.deepcopy(receipt) if previous == fingerprint else failure("request_reused")
         if (
             body["bootId"] != self.bridge.boot_id
@@ -2407,6 +2507,8 @@ class TouchControls:
                 return failure("stale_action")
             if key in self.receipts and self.receipts[key] is not _reservation:
                 previous, receipt = self.receipts[key][:2]
+                if _trace is not None:
+                    _trace["delivery"] = "cached" if previous == fingerprint else "conflict"
                 return (
                     copy.deepcopy(receipt) if previous == fingerprint else failure("request_reused")
                 )
@@ -2430,6 +2532,8 @@ class TouchControls:
                 else {}
             ),
         }
+        if _trace is not None:
+            _trace["delivery"] = "new"
         task["consumed"] = True
         receipt_deadline = task.get("receipt_deadline", task["deadline"])
         self.receipts[key] = fingerprint, receipt, receipt_deadline
@@ -2712,11 +2816,22 @@ class TouchControls:
                     receipt["outcome"] != "accepted" and receipt["completedSteps"] > 0
                 )
                 self.receipts[key] = fingerprint, receipt, receipt_deadline
-                if receipt["outcome"] in {"accepted", "unknown"}:
-                    # A receipt is not observed state. Retire pre-effect cache and
-                    # in-flight reads so the normal follow-up can observe HA anew.
-                    self.mutations[self.resource_key("vacuum", task["target"])] = object()
-                    self.bridge._home_cache.pop(task["room"], None)
+            if task["domain"] in {"vacuum", "vehicle"} and receipt["outcome"] in {
+                "accepted",
+                "unknown",
+            }:
+                # A receipt is not observed state. Retire this aggregate source's
+                # pre-effect cache/reads; follow-up only reads existing HA data.
+                self.mutations[self.resource_key(task["domain"], task["target"])] = object()
+                self.bridge._home_cache.pop(task["room"], None)
+            elif task["domain"] == "light" and receipt["outcome"] in {"accepted", "unknown"}:
+                # Preflight cached a pre-effect observation. Invalidate the exact
+                # shared HA area across profiles, and fence reads begun before
+                # effect completion. A receipt never becomes observed light state.
+                self.mutations[self.resource_key("light", task["target"])] = object()
+                for cached in list(self.bridge._lights_cache):
+                    if cached[3] == task["target"]["areaId"]:
+                        del self.bridge._lights_cache[cached]
             self.busy.discard(self.resource_key(task["domain"], task["target"]))
         return copy.deepcopy(receipt)
 

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {composeScriptBundle,scriptBundles} from '../../scripts/build-scripts.mjs';
-import {checkComponentLibrary} from '../../scripts/check-component-library.mjs';
+import {checkComponentLibrary,inspectSurface} from '../../scripts/check-component-library.mjs';
 const source=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'../..');
 function fixture(t){const root=fs.mkdtempSync(path.join(os.tmpdir(),'podview-component-lock-'));t.after(()=>fs.rmSync(root,{recursive:true,force:true}));fs.cpSync(path.join(source,'podvoice/gatekeeper/static/podview'),path.join(root,'dist'),{recursive:true});fs.mkdirSync(path.join(root,'docs'));fs.copyFileSync(path.join(source,'docs/component-library-registry.json'),path.join(root,'docs/component-library-registry.json'));return root;}
 function edit(root,file,change){const p=path.join(root,file),before=fs.readFileSync(p,'utf8'),after=change(before);assert.notEqual(after,before,`causal mutation applied: ${file}`);fs.writeFileSync(p,after);}
@@ -56,3 +56,29 @@ test('editing an inlined source icon invalidates the generated delivery bundle',
 
 test('generated JS cannot acquire unreviewed delivery-only behavior',t=>{const root=fixture(t);edit(root,'dist/podview.bundle.js',code=>code+'\nconsole.log("injected")');denied(root,/generated script differs from canonical sources/);});
 test('canonical source edits invalidate stale JS delivery even when source anatomy is unchanged',t=>{const root=fixture(t);edit(root,'dist/music-results.js',code=>code+'\n// fresh source revision\n');denied(root,/generated script differs from canonical sources/);});
+
+// Scanner regressions use source facts rather than rebaselining renderer ownership.
+test('regex apostrophe class cannot hide the following actual class and methods',()=>{
+ const surface=inspectSurface("const possessive=/['’]s$/;\nexport class SpeakerOutputView {\n constructor(host){this.host=host;}\n render(){return this.host;}\n}\nfunction afterRegex(){}\n");
+ assert.equal(surface.definitions['class:SpeakerOutputView'],1);assert.equal(surface.definitions['method:constructor'],1);assert.equal(surface.definitions['method:render'],1);assert.equal(surface.definitions['function:afterRegex'],1);
+});
+test('regex escapes classes and comment-like bytes remain opaque before declarations',()=>{
+ const code=String.raw`const escaped=/a\/b['"/]/gi; const markers=/[/*]class Hidden{}/; /* /' ignored */
+function afterEscapes(){}; const pattern = /function fake() {}/;
+if(ok) /['’]/.test(value);
+class Visible { render(){} }`;
+ const surface=inspectSurface(code);assert.equal(surface.definitions['function:afterEscapes'],1);assert.equal(surface.definitions['class:Visible'],1);assert.equal(surface.definitions['method:render'],1);assert.equal(surface.definitions['class:Hidden'],undefined);assert.equal(surface.definitions['function:fake'],undefined);
+});
+test('regex masking preserves division after values calls brackets objects and postfix operators',()=>{
+ const surface=inspectSurface(`const n=total / count; const q=read() / 2; const r=values[0] / 3; const s=({n:1}) / 4; const t={n:1} / 5; const u=n++ / 2; n/=2;
+function afterDivision(){}; class AfterDivision { render(){} }
+const ratio=n / /['’]/.exec(value).length; function afterMixedSlash(){}`);
+ assert.equal(surface.definitions['function:afterDivision'],1);assert.equal(surface.definitions['class:AfterDivision'],1);assert.equal(surface.definitions['method:render'],1);assert.equal(surface.definitions['function:afterMixedSlash'],1);
+});
+test('actual speaker source regex cannot conceal an added renderer declaration from the gate',t=>{
+ const root=fixture(t);edit(root,'dist/speaker-output-view.js',code=>code+"\nfunction scannerUnapprovedSpeaker(host){host.append(document.createElement('article'));}\n");denied(root,/unregistered renderer declaration function:scannerUnapprovedSpeaker/);
+});
+test('regex masking does not reinterpret closing HTML tags exposed by nested templates',()=>{
+ const actual=fs.readFileSync(path.join(source,'podvoice/gatekeeper/static/podview/timer-view.js'),'utf8'),surface=inspectSurface(actual);
+ assert.equal(surface.definitions['class:TimerView'],1);for(const name of ['card','cleanup','presentationTimer','render','renderNotice','renderOverviewActivities','updatePicker'])assert.equal(surface.definitions[`method:${name}`],1,name);
+});

@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import logging
 import os
 import re
 import tempfile
@@ -9,6 +10,96 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
+
+_LOG = logging.getLogger("podvoice.recipes")
+
+
+def recipe_reference(recipe_id: str) -> str:
+    """Opaque, stable diagnostic correlation; never a command or receipt authority."""
+    return hashlib.sha256(("podview-recipe-journal:" + recipe_id).encode()).hexdigest()[:24]
+
+
+def recipe_catalog_reference(recipes: list[dict]) -> str:
+    """Order-independent fingerprint of the actual catalog's validated source identities."""
+    refs = sorted(
+        recipe_reference(_recipe_id(_source_url(row["source"]["url"]))) for row in recipes
+    )
+    return hashlib.sha256("\n".join(refs).encode()).hexdigest()[:24]
+
+
+def recipe_event(
+    stage: str,
+    outcome: str,
+    *,
+    recipe_id: str | None = None,
+    catalog: str = "none",
+    count: int = 0,
+    reason: str = "none",
+) -> None:
+    # Stored data is untrusted too: close every logged field over known values.
+    stages = {
+        "submit",
+        "duplicate",
+        "import",
+        "storage",
+        "recovery",
+        "catalog_persist",
+        "catalog_read",
+    }
+    outcomes = {
+        "received",
+        "importing",
+        "saved",
+        "rejected",
+        "failed",
+        "queued",
+        "started",
+        "observed",
+    }
+    reasons = {
+        "none",
+        "invalid_url",
+        "cancelled",
+        "not_recipe",
+        "unreadable",
+        "incomplete",
+        "ambiguous",
+        "unsafe_url",
+        "unavailable",
+        "timeout",
+        "network",
+        "storage",
+        "invalid_data",
+    }
+    stage = stage if isinstance(stage, str) and stage in stages else "other"
+    outcome = outcome if isinstance(outcome, str) and outcome in outcomes else "other"
+    reason = reason if isinstance(reason, str) and reason in reasons else "other"
+    catalog = (
+        catalog
+        if isinstance(catalog, str)
+        and (catalog in {"none", "unavailable"} or re.fullmatch(r"[a-f0-9]{24}", catalog))
+        else "unavailable"
+    )
+    recipe_id = (
+        recipe_id
+        if isinstance(recipe_id, str) and re.fullmatch(r"[a-f0-9]{64}", recipe_id)
+        else None
+    )
+    count = count if type(count) is int and 0 <= count <= 1_000_000 else 0
+    try:
+        _LOG.info(
+            "recipe stage=%s outcome=%s ref=%s catalog=%s count=%d reason=%s",
+            stage,
+            outcome,
+            recipe_reference(recipe_id) if recipe_id else "none",
+            catalog,
+            count,
+            reason,
+        )
+    except Exception:
+        # Diagnostic output must never change a durable upload or its receipt.
+        pass
+
 
 _REJECTION_MESSAGES = {
     "not_recipe": "Siden blev ikke vurderet som en opskrift",
@@ -209,6 +300,8 @@ class RecipeSubmissions:
                     pending.append(item["url"])
             if pending:
                 self._write(state)
+                for url in pending:
+                    recipe_event("recovery", "queued", recipe_id=_recipe_id(url))
             return pending
 
     def begin_import(self, recipe_id: str) -> bool:
@@ -317,4 +410,15 @@ class RecipeSubmissions:
                 )
                 state["recipes"][recipe_id]["source"]["uploadedAt"] = item["receivedAt"]
             self._write(state)
+            try:
+                catalog = recipe_catalog_reference(list(state["recipes"].values()))
+            except (TypeError, ValueError, KeyError):
+                catalog = "unavailable"
+            recipe_event(
+                "catalog_persist",
+                "saved",
+                recipe_id=recipe_id,
+                catalog=catalog,
+                count=len(state["recipes"]),
+            )
         return _saved(recipe_id)

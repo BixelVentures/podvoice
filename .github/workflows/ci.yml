@@ -60,7 +60,7 @@ jobs:
         env:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: python3 scripts/ci_scope.py
-      - name: Exact candidate admission (historical31/32, strict34-128)
+      - name: Exact candidate admission (historical31/32, strict34-129)
         if: >-
           steps.scope.outputs.tooling_only != 'true' &&
           steps.scope.outputs.ci_control_only != 'true' &&
@@ -69,7 +69,9 @@ jobs:
           CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
         run: |
           candidate_base="${CI_DIFF_BASE:-729668ffa45067bfb75fd6928ccac9f9beaf5576}"
-          if [ "$candidate_base" = "37680d1831ce26fd1c41a82a19a35482435b2ece" ]; then
+          if [ "$candidate_base" = "0daa2b99b4c0db32b174414462956fee054e7257" ]; then
+            python3 scripts/candidate_scope_admission129.py --base "$candidate_base"
+          elif [ "$candidate_base" = "37680d1831ce26fd1c41a82a19a35482435b2ece" ]; then
             python3 scripts/candidate_scope_admission128.py --base "$candidate_base"
           elif [ "$candidate_base" = "d84caab0077b1a677ace55a2ec00873a938e5151" ]; then
             python3 scripts/candidate_scope_admission127.py --base "$candidate_base"
@@ -437,9 +439,18 @@ jobs:
       - name: Install pinned canonical UI validator dependencies
         if: needs.promotion.outputs.reuse != 'true'
         run: npm ci --ignore-scripts
+      - name: Verify committed PodView assets before any build
+        if: needs.promotion.outputs.reuse != 'true'
+        run: |
+          test ! -e dist
+          node scripts/prepare-podview-checkout.mjs
+          npm run check:components
       - name: Verify packaged PodView transport and owner contracts
         if: needs.promotion.outputs.reuse != 'true'
         run: node --test tests/podview/*.test.mjs
+      - name: Install product and test dependencies for actual journeys
+        if: needs.promotion.outputs.reuse != 'true'
+        run: python -m pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
       - name: Install pinned development browser packages
         if: needs.promotion.outputs.reuse != 'true'
         working-directory: tests/browser
@@ -454,6 +465,12 @@ jobs:
         if: needs.promotion.outputs.reuse != 'true'
         working-directory: tests/browser
         run: node node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify actual PodView journeys against committed assets
+        if: needs.promotion.outputs.reuse != 'true'
+        env:
+          PODVIEW_TEST_PYTHON: python3
+          PODVIEW_TEST_ARTIFACT_DIR: /home/runner/.cache/podvoice-dev/browser-proof/ui-browser/podview-actual
+        run: node tests/browser/podview_actual_journeys.cjs
       - name: Verify shipped UI in bounded serial browser workers
         if: needs.promotion.outputs.reuse != 'true'
         run: python -m scripts.browser_gate --worker-timeout 240

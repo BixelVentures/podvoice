@@ -162,10 +162,22 @@ class ActiveVacuumSettings:
                 if row not in offered["rows"] or value not in row["choices"]:
                     return "rejected"
                 observed = await self._observe(offered["entity"], valid)
-                if any(
-                    observed[k] != offered[k] for k in ("identity", "config_entry", "state", "rows")
-                ):
+                if any(observed[k] != offered[k] for k in ("identity", "config_entry", "state")):
                     return "rejected"
+                # The requested row and cleaning mode remain exact. Other settings'
+                # current values may change independently, but their identities,
+                # services and offered capabilities must still match.
+                before_rows, after_rows = offered["rows"], observed["rows"]
+                if len(before_rows) != len(after_rows):
+                    return "rejected"
+                for before, after in zip(before_rows, after_rows, strict=True):
+                    if before == row or before["role"] == "cleaning_mode":
+                        if before != after:
+                            return "rejected"
+                    elif {k: v for k, v in before.items() if k != "current"} != {
+                        k: v for k, v in after.items() if k != "current"
+                    }:
+                        return "rejected"
                 self._check(offered["entity"], valid)
                 field = "fan_speed" if row["role"] == "suction" else "option"
                 extreme = row.get("synthetic_extreme") is True and value == "extreme"

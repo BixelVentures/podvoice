@@ -1,3 +1,12 @@
+## 2.0.129
+
+- Update Home Assistant observations through the existing live connection while preserving touch navigation, focus and content.
+- Preserve unsent robot room selections and independent cleaning-mode choices through expired offers and reopening.
+- Revalidate active robot settings against their relevant dependencies and observe accepted changes in the open detail.
+- Keep light and vehicle observations current across commands, in-flight reads and unrelated voice activity.
+- Correlate control and recipe outcomes through existing diagnostics without giving telemetry command authority.
+- Keep the existing Home Assistant entry and canonical UI components.
+
 ## 2.0.128
 
 - Renew robot controls earlier and preserve eligible room selections on reopening.

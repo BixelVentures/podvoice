@@ -775,12 +775,19 @@
           "function:parentFrame": 1,
           "function:parentRoute": 1,
           "function:subscribe": 2,
-          "function:unsubscribe": 2
+          "function:unsubscribe": 2,
+          "function:onPageHide": 1,
+          "function:requestIngressAdmin": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
+      },
+      "reviewedAdminNavigation": {
+        "date": "2026-11-04",
+        "scope": "Existing same-origin HA parent navigation only, with current lifecycle ownership, foreign/stale-panel and modified-click guards. The normal authenticated root/view routes remain; no auth wrapper or new route. Actual protocol-shell browser round-trip is separate evidence.",
+        "newComponentFamilies": false
       }
     },
     "dist/live-answer-view.js": {
@@ -879,7 +886,7 @@
           "method:renderReceipt": 1,
           "method:robotDevice": 1,
           "method:send": 1,
-          "arrow:current": 6,
+          "arrow:current": 5,
           "arrow:unknown": 1,
           "method:renewRobotTask": 1,
           "method:scheduleRobotTaskExpiry": 1,
@@ -914,7 +921,10 @@
           "method:robotDirectOffer": 1,
           "method:robotReceiptUnknown": 1,
           "method:scheduleRobotObservation": 1,
-          "arrow:read": 1
+          "arrow:read": 1,
+          "method:journalDevice": 1,
+          "method:observeDeviceJournal": 1,
+          "method:trackDeviceJournal": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1672,7 +1682,7 @@
           "arrow:snapshotMode": 1,
           "arrow:switchMode": 1,
           "arrow:updateRouteWidth": 1,
-          "arrow:update": 2,
+          "arrow:update": 1,
           "arrow:valid": 1,
           "class:RobotControlPanel": 1,
           "function:robotControlGroups": 1,
@@ -2145,8 +2155,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "arrow:block": 1,
-          "arrow:release": 2,
+          "arrow:release": 1,
           "arrow:resourceLayout": 1,
           "arrow:sameLayout": 1,
           "class:SceneMotion": 1,
@@ -2155,7 +2164,6 @@
           "method:constructor": 1,
           "method:enter": 1,
           "method:feedback": 1,
-          "method:guardNavigation": 1,
           "method:holdGeometry": 1,
           "method:reduced": 1,
           "method:releaseGeometry": 1,
@@ -2169,7 +2177,12 @@
         "dom": true
       },
       "domOwner": "SceneMotion.updateClock (retained character spans inside existing photo-clock only)",
-      "compositionScope": "v31 explicit user motion refinement: existing Ro clock receives one retained inline span per displayed character so only changed minute figures crossfade. No new clock surface, wrapper, typography, controls or component family. SceneMotion owns cancellation and reduced-motion120ms opacity; WidgetHost keeps clock value and scheduling authority. V32: guardNavigation temporarily captures only pointer clicks on incoming existing content, with bounded timeout and cancellation cleanup; no DOM or new controls. Reviewed21Oct second release helper restores the existing persistent player paint marker only for its current animation owner; completion, cancellation, unavailable animation and reduced motion release it without changing player layout or content."
+      "compositionScope": "v31 explicit user motion refinement: existing Ro clock receives one retained inline span per displayed character so only changed minute figures crossfade. No new clock surface, wrapper, typography, controls or component family. SceneMotion owns cancellation and reduced-motion120ms opacity; WidgetHost keeps clock value and scheduling authority. V32: guardNavigation temporarily captures only pointer clicks on incoming existing content, with bounded timeout and cancellation cleanup; no DOM or new controls. Reviewed21Oct second release helper restores the existing persistent player paint marker only for its current animation owner; completion, cancellation, unavailable animation and reduced motion release it without changing player layout or content.",
+      "responsiveNavigation": {
+        "date": "2026-11-04",
+        "scope": "Remove blanket withholding of fresh pointer input during pane transitions; keep existing interruptible animations and independently verified cancelled/outside touch intent. No CSS, animation family or command authority added. Actual browser exposed the swallowed immediate card click.",
+        "newComponentFamilies": false
+      }
     },
     "dist/ui/page-lifecycle.js": {
       "status": "active-support",
@@ -2600,6 +2613,7 @@
       "domOwner": "WidgetHost",
       "factoryClassArgument": 1,
       "imports": [
+        "dist/ingress-kiosk.js",
         "dist/radio-model.js",
         "dist/spotify-artwork.js",
         "dist/radio-view.js",
@@ -2662,7 +2676,7 @@
           "arrow:$": 1,
           "arrow:cancel": 1,
           "arrow:commit": 1,
-          "arrow:current": 3,
+          "arrow:current": 4,
           "arrow:fixture": 1,
           "arrow:outside": 1,
           "arrow:paint": 1,
@@ -2733,7 +2747,11 @@
           "method:renderLightStatus": 1,
           "arrow:update": 1,
           "method:feedbackGeometry": 1,
-          "method:scheduleFeedbackGeometry": 1
+          "method:scheduleFeedbackGeometry": 1,
+          "method:updateHomeRevision": 1,
+          "method:cancel": 1,
+          "arrow:free": 1,
+          "arrow:visible": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2780,7 +2798,12 @@
         "date": "2026-10-23",
         "scope": "Direct user 23 October approval: redesign the existing quick-sheet Dialog with canonical Slider, Toggle and read-only ListRow. Brightness and automatic dimming are interactive only in the explicitly labelled local screen-device-ready specimen. Unbound hardware remains disabled and unknown. The four screen-device wrapper signatures compose existing slots, not a new component family. No Ro or motion preference, hardware bridge or household command authority. User visual rejection reopens UI: settings and read-only ListRow variants are separated from the speaker icon-grid. Trailing settings Toggle uses the existing primitive in neutral Tile form; native disclosure contains network/build secondary facts. Dialog uses canonical520px/32px. No new component family. Later direct user override: native modals cover the full viewport and are centered in the full viewport; left-only placement is rejected. Toast positioning remains its separate existing contract."
       },
-      "reviewedScopedLightComposition": "NEXT scoped light integration: seven existing WidgetHost helpers and one additional current callback retain the admitted own-area overview while explicitly browsing actual catalogue IDs in the existing detail. Only canonical Button instances light-control-open and light-control-refresh are added; existing lamp Tile/Dialog/Slider/Toggle recipes stay with the same owner. Transport/read capability, catalogue identity, generation and expiry fence reads; exact fresh native light tasks own effects. No new family, backend authority, optimistic status or automatic effect retry."
+      "reviewedScopedLightComposition": "NEXT scoped light integration: seven existing WidgetHost helpers and one additional current callback retain the admitted own-area overview while explicitly browsing actual catalogue IDs in the existing detail. Only canonical Button instances light-control-open and light-control-refresh are added; existing lamp Tile/Dialog/Slider/Toggle recipes stay with the same owner. Transport/read capability, catalogue identity, generation and expiry fence reads; exact fresh native light tasks own effects. No new family, backend authority, optimistic status or automatic effect retry.",
+      "homePushAndAdminNavigation": {
+        "date": "2026-11-04",
+        "scope": "Existing home-read coalescer only; dirty source revisions schedule passive reads without adding state or command ownership. Administration is a secondary Kit Button alongside the retained recovery link inside the existing screen disclosure, scoped to authenticated same-origin HA ingress. No CSS or component family added. Runtime review and actual browser evidence recorded separately.",
+        "newComponentFamilies": false
+      }
     },
     "dist/speaker-output-view.js": {
       "status": "approved-renderer",

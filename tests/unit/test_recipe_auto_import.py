@@ -407,3 +407,49 @@ def test_source_comma_separated_categories_become_distinct_filters():
     assert value["categories"] == ["Desserter", "Kager"]
     listed = extract_recipe(html({**RECIPE, "recipeCategory": ["Desserter, Kager", "Kager"]}), URL)
     assert listed["categories"] == ["Desserter", "Kager"]
+
+
+@pytest.mark.asyncio
+async def test_recipe_journal_redacts_inputs_and_classifies_network_and_storage(tmp_path, caplog):
+    import logging
+
+    from gatekeeper.recipe_submissions import recipe_event, recipe_reference
+
+    caplog.set_level(logging.INFO, logger="podvoice.recipes")
+    store = RecipeSubmissions(tmp_path / "catalog.json")
+    private_url = "https://example.test/secret-recipe?private=secret-token"
+    with patch("gatekeeper.recipe_import.fetch_html", new=AsyncMock(side_effect=TimeoutError)):
+        result = await import_link(store, private_url)
+    reference = recipe_reference(result["id"])
+    assert result["status"] == "failed"
+    assert f"stage=submit outcome=received ref={reference}" in caplog.text
+    assert f"stage=import outcome=started ref={reference}" in caplog.text
+    assert (
+        f"stage=import outcome=failed ref={reference} catalog=none count=0 reason=timeout"
+        in caplog.text
+    )
+    assert "secret" not in caplog.text and "example.test" not in caplog.text
+    store.path.write_text("corrupt")
+    with pytest.raises(RecipeStorageError):
+        await import_link(store, private_url)
+    assert f"stage=storage outcome=failed ref={reference}" in caplog.text
+    assert store.path.read_text() == "corrupt"
+    # Corrupt stored values must never be interpolated into the journal.
+    recipe_event("submit", {"injected": "secret"}, recipe_id="secret", reason="secret")
+    assert "outcome=other ref=none" in caplog.text and "reason=other" in caplog.text
+    assert "secret" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_recipe_import_and_durable_receipt_survive_failing_log_handler(tmp_path):
+    store = RecipeSubmissions(tmp_path / "catalog.json")
+    with (
+        patch("gatekeeper.recipe_submissions._LOG.info", side_effect=RuntimeError("log failed")),
+        patch("gatekeeper.recipe_import.fetch_html", new=AsyncMock(return_value=(html(), URL))),
+    ):
+        saved = await import_link(store, URL)
+        assert saved["status"] == "saved" and saved["message"] == "Gemt: Boller"
+        assert await import_link(store, URL) == saved
+        reopened = RecipeSubmissions(store.path)
+        assert reopened.phone_receipt(saved["id"]) == saved
+        assert json.loads(store.path.read_text())["recipes"][saved["id"]]["title"] == "Boller"

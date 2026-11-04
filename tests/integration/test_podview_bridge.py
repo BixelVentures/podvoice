@@ -145,18 +145,21 @@ async def test_unknown_outcome_is_fenced_and_never_retried(caplog, request_id):
     assert await bridge.action(body, token) == result
     assert timers.command.await_count == 1
     records = [r.getMessage() for r in caplog.records if r.name == "podvoice.podview"]
-    assert len(records) == 1
+    failure_records = [
+        record for record in records if "stage=timer_dispatch code=dispatch_failed " in record
+    ]
+    assert len(failure_records) == 1
     assert (
         "stage=timer_dispatch code=dispatch_failed error_class=timeout http_status=none"
-        in records[0]
+        in failure_records[0]
     )
     assert (
         "request_ref="
         + hashlib.sha256(body["requestId"].encode(errors="surrogatepass")).hexdigest()[:16]
-        in records[0]
+        in failure_records[0]
     )
     assert "PRIVATE" not in caplog.text and body["requestId"] not in caplog.text
-    assert f"version={__version__}" in records[0]
+    assert f"version={__version__}" in failure_records[0]
     assert all(r.exc_info is None for r in caplog.records if r.name == "podvoice.podview")
 
 
@@ -203,7 +206,13 @@ async def test_timer_dispatch_cancellation_still_propagates_and_fences_replay(ca
     result = await bridge.action(body, token)
     assert result["outcome"] == "unknown" and result["retryAllowed"] is False
     assert timers.command.await_count == 1
-    assert not [r for r in caplog.records if r.name == "podvoice.podview"]
+    records = [r for r in caplog.records if r.name == "podvoice.podview"]
+    assert len(records) == 3
+    assert all(r.levelno == logging.INFO and r.exc_info is None for r in records)
+    assert "stage=dispatch action=timer.start outcome=started" in records[0].getMessage()
+    assert "stage=receipt action=timer.start outcome=unknown" in records[1].getMessage()
+    assert "stage=redelivery action=timer.start outcome=unknown" in records[2].getMessage()
+    assert "dispatch_failed" not in caplog.text and body["requestId"] not in caplog.text
 
 
 @pytest.mark.parametrize("failure", ["timeout", "http", "invalid", "transport", "exception"])

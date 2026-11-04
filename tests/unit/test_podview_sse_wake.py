@@ -83,8 +83,14 @@ async def client_for(sink):
         sessions={"kitchen": object(), "office": object()},
         tools=SimpleNamespace(podview_receipts=sink),
         _streams=0,
+        _home_event_wakes={},
+        _home_events_closed=False,
         boot_id="boot",
     )
+    # The fixture has receipt publications but declares no HA home capabilities.
+    # Exercise the real bridge lifecycle/read-scope interface without a network owner.
+    bridge.home_read_kinds = podview.PodViewBridge.home_read_kinds.__get__(bridge)
+    bridge.start_home_events = podview.PodViewBridge.start_home_events.__get__(bridge)
     bridge.snapshot = lambda room, token, *, light_token="": {
         "revision": sink.snapshot(room)["revision"],
         "answers": sink.snapshot(room),
@@ -121,7 +127,7 @@ async def test_http_publication_wakes_before_held_heartbeat(monkeypatch, typed):
         assert not clock.release.is_set()
     finally:
         await client.close()
-    assert bridge._streams == 0 and not sink._subscribers
+    assert bridge._streams == 0 and not sink._subscribers and not bridge._home_event_wakes
 
 
 async def test_room_isolation_multistream_and_no_replay_notification(monkeypatch):
@@ -215,7 +221,7 @@ async def test_write_fault_cleanup(monkeypatch, caplog, error):
     try:
         response = await client.get("/events?room=kitchen")
         assert await response.read() == b""
-        assert bridge._streams == 0 and not sink._subscribers
+        assert bridge._streams == 0 and not sink._subscribers and not bridge._home_event_wakes
     finally:
         await client.close()
     records = [r.getMessage() for r in caplog.records if r.name == "podvoice.podview"]
@@ -258,7 +264,7 @@ async def test_http_guard_denies_before_subscription(monkeypatch):
     try:
         response = await client.get("/events?room=kitchen")
         assert response.status == 403
-        assert bridge._streams == 0 and not sink._subscribers
+        assert bridge._streams == 0 and not sink._subscribers and not bridge._home_event_wakes
     finally:
         await client.close()
 

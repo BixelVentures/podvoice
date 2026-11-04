@@ -207,3 +207,117 @@ async def test_ingress_light_setup_and_action_keep_ha_actor_instead_of_named_coo
             )
             assert response.status == 200
         assert seen == ["ha:actor", "ha:actor"]
+
+
+def light_effect_rig(tmp_path, outcome="accepted"):
+    """Existing bridge/control owners, finite observations and one inert effect."""
+    import json
+
+    configured = {
+        "roomId": "room",
+        "music": [],
+        "vacuum": [],
+        "light": [{"areaId": "kitchen", "actions": ["turn_on", "turn_off"]}],
+    }
+    bridge, tools, profiles, _source, areas = rig(tmp_path, control_policy=json.dumps(configured))
+    values = {area["areaId"]: "on" for area in areas}
+    original = tools.podview_lights_read.side_effect
+    held = {
+        "next": False,
+        "entered": asyncio.Event(),
+        "release": asyncio.Event(),
+        "effect_entered": asyncio.Event(),
+        "effect_release": asyncio.Event(),
+        "effect": False,
+    }
+    writes = []
+
+    async def observe(scope, current):
+        result = await original(scope, current)
+        result["items"][0]["state"] = values[scope.area_id]
+        if held["next"]:
+            held["next"] = False
+            held["entered"].set()
+            await held["release"].wait()
+        return result
+
+    async def execute(**request):
+        assert request["current"]() and await request["preflight"]()
+        assert request["entity_ids"] == ("light.kitchen",)
+        if held["effect"]:
+            held["effect_entered"].set()
+            await held["effect_release"].wait()
+        values["kitchen"] = "off"
+        writes.append(request["action"])
+        return {"outcome": outcome}
+
+    tools.podview_lights_read.side_effect = observe
+    tools.podview_lights_actions = lambda: {"light.turn_on", "light.turn_off"}
+    tools.podview_lights_execute = execute
+    return bridge, profiles, held, writes
+
+
+async def light_off(bridge, token):
+    offer = await bridge.controls.setup(
+        {
+            "bootId": bridge.boot_id,
+            "roomId": "room",
+            "domain": "light",
+            "target": {"areaId": "kitchen"},
+        },
+        token,
+    )
+    assert offer["ok"], offer
+    command = {key: offer[key] for key in ("bootId", "roomId", "taskId", "revision")}
+    command.update(
+        requestId="one-light-effect",
+        args={},
+        optionId=next(
+            option["id"] for option in offer["options"] if option["action"] == "turn_off"
+        ),
+    )
+    return command
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "unknown"])
+async def test_light_effect_retires_preflight_cache_for_same_area_all_profiles_only(
+    tmp_path, outcome
+):
+    bridge, profiles, _, writes = light_effect_rig(tmp_path, outcome)
+    mac, ipad = profiles[0][1], profiles[1][1]
+    own = await bridge.read_lights("room", ipad, cache=True)
+    prior = await bridge.read_lights("room", ipad, areaId="kitchen", cache=True)
+    assert prior["items"][0]["state"] == "on"
+    command = await light_off(bridge, mac)
+    receipt = await bridge.controls.action(command, mac)
+    assert receipt["outcome"] == outcome
+    fresh = await bridge.read_lights("room", mac, cache=True)
+    peer = await bridge.read_lights("room", ipad, areaId="kitchen", cache=True)
+    assert fresh["items"][0]["state"] == peer["items"][0]["state"] == "off"
+    assert await bridge.read_lights("room", ipad, cache=True) == own
+    assert await bridge.controls.action(command, mac) == receipt
+    assert writes == ["turn_off"]
+
+
+async def test_light_read_held_before_effect_cannot_publish_or_refill_after_effect(tmp_path):
+    bridge, profiles, held, writes = light_effect_rig(tmp_path)
+    token = profiles[0][1]
+    command = await light_off(bridge, token)
+    # Admission already reserved the area, but the inert native send is pending.
+    # The final completion fence must retire reads started in this interval too.
+    held["effect"] = True
+    action = asyncio.create_task(bridge.controls.action(command, token))
+    await asyncio.wait_for(held["effect_entered"].wait(), 2)
+    held["next"] = True
+    old = asyncio.create_task(bridge.read_lights("room", token))
+    await asyncio.wait_for(held["entered"].wait(), 2)
+    try:
+        held["effect_release"].set()
+        assert (await asyncio.wait_for(action, 2))["outcome"] == "accepted"
+    finally:
+        held["release"].set()
+    previous = await asyncio.wait_for(old, 2)
+    assert previous["status"] == "unavailable"
+    current = await bridge.read_lights("room", token, cache=True)
+    assert current["items"][0]["state"] == "off"
+    assert writes == ["turn_off"]

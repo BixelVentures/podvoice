@@ -75,6 +75,7 @@ class Harness:
         )
         self.bridge = SimpleNamespace(
             boot_id="boot",
+            _home_cache={},
             sessions={"room": object()},
             _music_move_fence=set(),
             _grant_current=lambda room, token: room == "room" and token == "paired" and self.live,

@@ -82,6 +82,7 @@ class Rig:
             tools=self.tools,
             sessions={"kitchen": object()},
             boot_id="boot",
+            _lights_cache={},
             _music_move_fence=set(),
             _grant_current=lambda room, token: (
                 room == "kitchen" and token == self.token and self.live

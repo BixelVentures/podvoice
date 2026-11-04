@@ -1,22 +1,38 @@
 const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Object.keys(d).sort().join(',')==='areaIds,optionId,repeat,revision,settingChoices,taskId'&&typeof d.taskId==='string'&&d.taskId.length>0&&d.taskId.length<=120&&d.revision===1&&typeof d.optionId==='string'&&/^[a-f0-9]{24}$/.test(d.optionId)&&Array.isArray(d.areaIds)&&d.areaIds.length<=32&&new Set(d.areaIds).size===d.areaIds.length&&d.areaIds.every(id=>typeof id==='string'&&/^[a-f0-9]{24}$/.test(id))&&Number.isInteger(d.repeat)&&d.repeat>=1&&d.repeat<=3&&Array.isArray(d.settingChoices)&&d.settingChoices.length<=16&&new Set(d.settingChoices.map(row=>row?.settingId)).size===d.settingChoices.length&&d.settingChoices.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Object.keys(row).sort().join(',')==='choiceId,settingId'&&/^[a-f0-9]{24}$/.test(row.settingId)&&/^[a-f0-9]{24}$/.test(row.choiceId));
 import {requestWithin} from './request-deadline.js';
 const controlSetupFailureCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable']);
-const diagnosticStages=new Set(['control_intent','request','observer','sse','freshness','connection','control_setup','volume_setup','control_action','music_read','playback_confirmation','queue_read','queue_action','browser','lifecycle','control_state','volume_state','artwork','robot_renewal']);
-const diagnosticCodes=new Set([...controlSetupFailureCodes,'start','ok','accepted','unknown','rejected','http_denied','http_transient','http_error','invalid_json','timeout','cancelled','network','failure','invalid_dto','stale_binding','superseded','empty','unavailable','matched','unconfirmed','expiry','error','cleanup','disconnected','connecting','connected','unhandled_rejection','read_inflight','intent_pending','spent','unknown_fence','capability_missing','unknown_value','resource_error','decode_error','other','confirmed','scope_changed','unsupported','robot_rebind_same','robot_rebind_context','robot_rebind_denied','robot_rebind_absent','robot_rebind_invalid','robot_rebind_draft','robot_rebind_dialog','robot_rebind_restored','robot_authority_changed','robot_offer_invalid','robot_open_reset','robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
-const diagnosticEndpoints=new Set(['snapshot','events','home','answers','actions','pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup','control/actions','music/queue/offer','music/queue/actions','music/selection/setup','music/selection/actions','other']);
+// Content-free classifications only: these records never grant control authority.
+const diagnosticDomainActions={music:['pause','resume','next','previous','volume','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel'],radio:['start','stop','move','volume'],home:[]};
+const diagnosticActions=new Set(Object.values(diagnosticDomainActions).flat());
+const diagnosticSources=new Set(['home_assistant','podconnect','podspeakers','podradio','snapshot']);
+const diagnosticTrust=new Set(['state_observation','owner_settlement']);
+const diagnosticStages=new Set(['control_observation','home_read','control_intent','request','observer','sse','freshness','connection','control_setup','volume_setup','control_action','music_read','playback_confirmation','queue_read','queue_action','browser','lifecycle','control_state','volume_state','artwork','robot_renewal']);
+const diagnosticCodes=new Set([...controlSetupFailureCodes,'observed','recovered','start','ok','accepted','unknown','rejected','http_denied','http_transient','http_error','invalid_json','timeout','cancelled','network','failure','invalid_dto','stale_binding','superseded','empty','unavailable','matched','unconfirmed','expiry','error','cleanup','disconnected','connecting','connected','unhandled_rejection','read_inflight','intent_pending','spent','unknown_fence','capability_missing','unknown_value','resource_error','decode_error','other','confirmed','scope_changed','unsupported','robot_rebind_same','robot_rebind_context','robot_rebind_denied','robot_rebind_absent','robot_rebind_invalid','robot_rebind_draft','robot_rebind_dialog','robot_rebind_restored','robot_authority_changed','robot_offer_invalid','robot_open_reset','robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
+const diagnosticEndpoints=new Set(['radio','radio/offer','radio/actions','snapshot','events','home','answers','actions','pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup','control/actions','music/queue/offer','music/queue/actions','music/selection/setup','music/selection/actions','other']);
 const diagnosticKinds=new Set(['targets','playback','speakers','mood','feeling','top','recent','search','account_playlists','queue','other']);
 const diagnosticQuiet=new Set(['start','ok','connected','connecting','matched','empty','accepted','cleanup','superseded','cancelled']);
+// Values are boolean or finite numbers within±24h; no text/object payloads.
+const diagnosticValue=value=>typeof value==='boolean'||typeof value==='number'&&Number.isFinite(value)&&Math.abs(value)<=86400;
+const diagnosticResource=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}$/.test(value)?value:null;
 function diagnosticRow(value){
  if(!value||!diagnosticStages.has(value.stage))return null;
  const row={stage:value.stage,code:diagnosticCodes.has(value.code)?value.code:'other'};
  for(const key of ['seq','atMs','generation','localRequestSeq','durationMs','count'])if(Number.isSafeInteger(value[key])&&value[key]>=0&&value[key]<=(key==='durationMs'?120000:key==='count'?64:Number.MAX_SAFE_INTEGER))row[key]=value[key];
+ for(const key of ['requestedValue','observedValue'])if(diagnosticValue(value[key]))row[key]=value[key];
  if(Number.isInteger(value.httpStatus)&&value.httpStatus>=100&&value.httpStatus<=599)row.httpStatus=value.httpStatus;
  for(const key of ['current','pending','connected','restored'])if(typeof value[key]==='boolean')row[key]=value[key];
  if(diagnosticEndpoints.has(value.endpoint))row.endpoint=value.endpoint;
  if(diagnosticKinds.has(value.kind))row.kind=value.kind;
- if(['music','vacuum'].includes(value.domain))row.domain=value.domain;
- if(['pause','resume','next','previous','volume','move_existing_session','stop','return'].includes(value.action))row.action=value.action;
+ if(Object.hasOwn(diagnosticDomainActions,value.domain))row.domain=value.domain;
+ if(diagnosticActions.has(value.action)&&(!row.domain||diagnosticDomainActions[row.domain].includes(value.action)))row.action=value.action;
+ if(diagnosticSources.has(value.source))row.source=value.source;
+ if(diagnosticTrust.has(value.trust))row.trust=value.trust;
+ if(value.action!==undefined&&row.domain&&!diagnosticDomainActions[row.domain].includes(value.action))return null;
+ if(row.stage==='control_observation'&&(!row.domain||!row.source||!row.trust))return null;
+ if(row.trust==='owner_settlement'&&['home_assistant','snapshot'].includes(row.source))return null;
+ if(row.trust==='state_observation'&&row.code==='confirmed')return null;
  if(typeof value.requestId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.requestId))row.requestId=value.requestId.toLowerCase();
+ if(typeof value.diagnosticRef==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(value.diagnosticRef))row.diagnosticRef=value.diagnosticRef.toLowerCase();
  if(typeof value.readHash==='string'&&/^[a-f0-9]{16}$/.test(value.readHash))row.readHash=value.readHash;
  return Object.freeze(row);
 }
@@ -30,7 +46,7 @@ export class PodVoiceTransport {
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
   this.base = new URL(`${prefix}api/`, page.origin);
   this.room = room; this.fetch = fetch; this.EventSource = EventSource;
-  this.diagnosticBuild=diagnosticBuild===undefined?globalThis.document?.querySelector?.('meta[name="podview-build"]')?.content:diagnosticBuild;this.diagnosticScopes=new WeakMap();this.diagnosticUploadAcked=new Set();this.diagnosticUploadAt=-Infinity;this.diagnosticUploadEpoch=0;
+  this.diagnosticBuild=diagnosticBuild===undefined?globalThis.document?.querySelector?.('meta[name="podview-build"]')?.content:diagnosticBuild;this.diagnosticScopes=new WeakMap();this.diagnosticResources=new WeakMap();this.diagnosticUploadAcked=new Set();this.diagnosticUploadAt=-Infinity;this.diagnosticUploadEpoch=0;
   this.diagnosticRows=[];this.diagnosticSequence=0;this.diagnosticDropped=0;this.diagnosticRequestSequence=0;this.diagnosticStorageAvailable=false;this.diagnosticPersistAt=-Infinity;this.diagnosticDirty=false;this.diagnosticPersistPending=false;
   try{this.diagnosticStorage=diagnosticStorage===undefined?globalThis.sessionStorage:diagnosticStorage;const saved=this.diagnosticStorage?.getItem('podview.client-diagnostics.v1');if(typeof saved==='string'&&saved.length<=65536){const value=JSON.parse(saved);if(value?.schema==='podview.client-diagnostics.v1'&&Array.isArray(value.records)&&value.records.length<=128){this.diagnosticRows=value.records.map(diagnosticRow).filter(row=>row&&Number.isSafeInteger(row.seq)&&Number.isSafeInteger(row.atMs)).map((row,index)=>Object.freeze({...row,seq:index+1,restored:true}));this.diagnosticSequence=Math.max(0,...this.diagnosticRows.map(row=>row.seq));}}this.diagnosticStorageAvailable=!!this.diagnosticStorage;}catch{this.diagnosticStorage=null;}
 
@@ -56,6 +72,8 @@ export class PodVoiceTransport {
    const row=diagnosticRow({...fields,stage,seq:++this.diagnosticSequence,atMs:Date.now(),generation:this.generation||0,connected:this.connected===true,restored:false});if(!row)return;
    const critical=row.stage==='control_intent'||row.stage==='control_action'||!diagnosticQuiet.has(row.code);
    if(this.diagnosticRows.length>=128){const quiet=this.diagnosticRows.findIndex(entry=>!['control_intent','control_action','playback_confirmation'].includes(entry.stage)&&diagnosticQuiet.has(entry.code));if(quiet<0&&!critical){this.diagnosticDropped++;return;}this.diagnosticRows.splice(quiet<0?0:quiet,1);this.diagnosticDropped++;}
+   // Raw target IDs are upload-only metadata: never browser history/storage.
+   const resource=diagnosticResource(fields.resourceId);if(resource)this.diagnosticResources.set(row,resource);
    this.diagnosticRows.push(row);if(this.diagnosticScope)this.diagnosticScopes.set(row,this.diagnosticScope);this.scheduleDiagnosticUpload();
    if(critical)this.diagnosticDirty=true;
    if(this.diagnosticDirty&&this.diagnosticStorage&&!this.diagnosticPersistPending&&Date.now()-this.diagnosticPersistAt>=1000){this.diagnosticPersistPending=true;queueMicrotask(()=>{this.diagnosticPersistPending=false;this.flushDiagnostics();});}
@@ -67,7 +85,7 @@ export class PodVoiceTransport {
  syncDiagnosticScope(value){
   if(!value||typeof value.roomId!=='string'||!value.roomId||typeof value.bootId!=='string'||!/^[a-f0-9]{32}$/.test(value.bootId))return;
   const scope=JSON.stringify([value.roomId,value.bootId]);
-  if(scope!==this.diagnosticScope){this.stopDiagnosticUpload();this.diagnosticScope=scope;this.diagnosticUploadBatch=null;this.diagnosticUploadAcked.clear();this.diagnosticUploadAt=-Infinity;this.diagnosticUploadStopped=false;}
+  if(scope!==this.diagnosticScope){this.stopDiagnosticUpload();this.diagnosticScope=scope;this.diagnosticUploadBatch=null;this.diagnosticUploadAcked.clear();this.diagnosticUploadStopped=false;}
   if(this.diagnosticAdmittedGeneration!==this.generation){this.diagnosticAdmittedGeneration=this.generation;this.diagnosticUploadStopped=false;}this.scheduleDiagnosticUpload();
  }
  stopDiagnosticUpload(){clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;this.diagnosticUploadEpoch++;this.diagnosticUploadController?.abort();this.diagnosticUploadController=null;}
@@ -81,13 +99,15 @@ export class PodVoiceTransport {
   if(this.closed||!this.diagnosticScope||this.diagnosticUploadStopped||this.diagnosticUploadController||Date.now()-this.diagnosticUploadAt<10000)return false;
   const scope=this.diagnosticScope,epoch=this.diagnosticUploadEpoch,now=Date.now();
   if(!this.diagnosticUploadBatch){
-   const batchId=this.crypto?.randomUUID?.();if(typeof batchId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(batchId))return false;
+   let batchId;try{batchId=this.crypto?.randomUUID?.();}catch{return false;}if(typeof batchId!=='string'||!/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/.test(batchId))return false;
    const records=[],seqs=[],[roomId,bootId]=JSON.parse(scope),uiBuild=typeof this.diagnosticBuild==='string'&&/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/.test(this.diagnosticBuild)?this.diagnosticBuild:null;
-   const body={schema:'podview.client-diagnostics.v1',batchId,roomId,bootId,uiBuild,records};
+   // First random batch ID also identifies this transport for telemetry rate isolation.
+   const clientId=this.diagnosticClientId??=batchId;
+   const body={schema:'podview.client-diagnostics.v1',batchId,clientId,roomId,bootId,uiBuild,records};
    for(const entry of this.diagnosticRows){
     if(entry.restored||this.diagnosticScopes.get(entry)!==scope||this.diagnosticUploadAcked.has(entry.seq))continue;
     const ageMs=now-entry.atMs;if(!Number.isSafeInteger(ageMs)||ageMs<0||ageMs>604800000)continue;
-    const row={...diagnosticRow(entry),ageMs};delete row.atMs;delete row.restored;
+    const row={...diagnosticRow(entry),ageMs},resource=this.diagnosticResources.get(entry);if(resource)row.resourceId=resource;delete row.atMs;delete row.restored;
     records.push(row);if(new TextEncoder().encode(JSON.stringify(body)).length>8192){records.pop();break;}seqs.push(entry.seq);if(records.length===16)break;
    }
    if(!records.length)return false;
@@ -107,7 +127,7 @@ export class PodVoiceTransport {
    for(const seq of batch.seqs)this.diagnosticUploadAcked.add(seq);
    const live=new Set(this.diagnosticRows.map(row=>row.seq));for(const seq of this.diagnosticUploadAcked)if(!live.has(seq))this.diagnosticUploadAcked.delete(seq);
    this.diagnosticUploadBatch=null;return true;
-  }catch{return false;}finally{if(this.diagnosticUploadController===controller){this.diagnosticUploadController=null;if(!this.closed&&epoch===this.diagnosticUploadEpoch)this.scheduleDiagnosticUpload();}}
+  }catch{return false;}finally{if(this.diagnosticUploadController===controller){this.diagnosticUploadController=null;if(!this.closed&&epoch===this.diagnosticUploadEpoch){/* Server budgets admission time, which precedes completion. */this.diagnosticUploadAt=Date.now();this.scheduleDiagnosticUpload();}}}
  }
  // A public intent hint can request validation only. The HttpOnly cookie,
  // registry/pin and server response remain the sole profile authority.
@@ -149,6 +169,8 @@ export class PodVoiceTransport {
   if (Date.now()-readAt>=6000||this.closed || value?.schema !== 'podview.snapshot.v1' || typeof value.bootId !== 'string' || !Number.isInteger(value.revision) || value.revision < 1 || typeof value.roomId !== 'string' || !value.voice || !value.timers || !value.capabilities) return false;
   if (!['observed','unavailable'].includes(value.timers.status)||!Array.isArray(value.timers.items)||!Array.isArray(value.capabilities.musicRead)||!Array.isArray(value.capabilities.timerActions)) return false;
   if(value.capabilities.homeRead!==undefined&&(!Array.isArray(value.capabilities.homeRead)||value.capabilities.homeRead.some(x=>!['vacuum','weather','light','vehicle'].includes(x))))return false;
+  if(value.homeRevision!==undefined&&(!value.homeRevision||typeof value.homeRevision!=='object'||Array.isArray(value.homeRevision)||Object.keys(value.homeRevision).sort().join(',')!=='revision,scope'||typeof value.homeRevision.scope!=='string'||!/^[a-f0-9]{64}$/.test(value.homeRevision.scope)||!Number.isSafeInteger(value.homeRevision.revision)||value.homeRevision.revision<0))return false;
+  if(this.snapshot?.bootId===value.bootId&&this.snapshot?.roomId===value.roomId&&this.snapshot.homeRevision?.scope===value.homeRevision?.scope&&this.snapshot.homeRevision?.revision>value.homeRevision?.revision)return false;
   if(value.capabilities.controlSetup!==undefined&&(!Array.isArray(value.capabilities.controlSetup)||value.capabilities.controlSetup.some(x=>!['music','vacuum','light','vehicle'].includes(x))))return false;
   if(value.capabilities.vehicleActions!==undefined&&(!Array.isArray(value.capabilities.vehicleActions)||value.capabilities.vehicleActions.some(x=>!['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'].includes(x))||new Set(value.capabilities.vehicleActions).size!==value.capabilities.vehicleActions.length))return false;
   if((value.answerHistoryRevision!==undefined||value.answerHistoryRemovalRevision!==undefined||value.answerHistoryReceiptIds!==undefined)&&(!Number.isSafeInteger(value.answerHistoryRevision)||value.answerHistoryRevision<0||!Number.isSafeInteger(value.answerHistoryRemovalRevision)||value.answerHistoryRemovalRevision<0||value.answerHistoryRemovalRevision>value.answerHistoryRevision||!Array.isArray(value.answerHistoryReceiptIds)||value.answerHistoryReceiptIds.length>20||value.answerHistoryReceiptIds.some(id=>typeof id!=='string'||!/^[a-f0-9]{32}$/.test(id))||new Set(value.answerHistoryReceiptIds).size!==value.answerHistoryReceiptIds.length))return false;
@@ -281,7 +303,9 @@ export class PodVoiceTransport {
   try{const target=new URL(url,this.base),path=target.origin===this.base.origin&&target.pathname.startsWith(this.base.pathname)?target.pathname.slice(this.base.pathname.length):'other';if(diagnosticEndpoints.has(path))endpoint=path;const candidate=target.searchParams.get('kind');if(diagnosticKinds.has(candidate))kind=candidate;
   }catch{/* No URL, arguments or payload is ever included in diagnostics. */}
   const correlated=endpoint==='music'&&kind==='playback'&&read||endpoint==='music/queue/offer'&&options?.method==='POST';
-  const token=correlated?(readDiagnosticToken&&typeof readDiagnosticToken==='object'&&this.readDiagnostics.has(readDiagnosticToken)?readDiagnosticToken:this.createReadDiagnostic()):null;
+  const providedToken=readDiagnosticToken&&typeof readDiagnosticToken==='object'&&this.readDiagnostics.has(readDiagnosticToken)?readDiagnosticToken:null;
+  // Home correlation is local diagnostic metadata, never an on-wire read header.
+  const token=correlated?(providedToken||this.createReadDiagnostic()):endpoint==='home'&&read?providedToken:null;
   const headers=new Headers(options?.headers);if(correlated||headers.has('X-PodView-Read-Id')){headers.delete('X-PodView-Read-Id');const readId=token?this.readDiagnostics.get(token)?.id:null;if(readId)headers.set('X-PodView-Read-Id',readId);const retained=options?.headers&&Object.getPrototypeOf(options.headers)===Object.prototype?Object.fromEntries(Object.entries(options.headers).filter(([key])=>key.toLowerCase()!=='x-podview-read-id')):Object.fromEntries([...headers].filter(([key])=>key!=='x-podview-read-id'));if(readId)retained['X-PodView-Read-Id']=readId;options={...options,headers:retained};}
   this.recordReadDiagnostic('request',{code:'start',endpoint,kind,localRequestSeq,requestId},token);
   try{
@@ -294,10 +318,10 @@ export class PodVoiceTransport {
   finally{this.recordReadDiagnostic('request',{code:code||'failure',endpoint,kind,localRequestSeq,requestId,httpStatus,durationMs:Math.min(120000,Math.max(0,Date.now()-started)),current:generation===this.generation},token);}
  }
 
- async home({lightArea}={}){
+ async home({lightArea,readDiagnostic}={}){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   if(lightArea!==undefined&&(!this.snapshot.capabilities.homeRead.includes('light')||typeof lightArea!=='string'||!lightArea||lightArea.length>128||/[\u0000-\u001f\u007f]/u.test(lightArea)))throw new Error('light_area_unavailable');
-  const response=await this.request(this.endpoint('home',lightArea===undefined?{}:{lightArea}),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
+  const response=await this.request(this.endpoint('home',lightArea===undefined?{}:{lightArea}),{credentials:'same-origin',cache:'no-store'},undefined,undefined,undefined,readDiagnostic);if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
  }
  async weatherAdvice(binding,{signal}={}){
   const snapshot=this.snapshot,generation=this.generation;
@@ -326,12 +350,14 @@ export class PodVoiceTransport {
  async controlAction(task,optionId,args){
   const unknown=requestId=>({ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false});
   const recovery=this.recoveryMoveOffers?.get(task.taskId),option=task.options?.length===1?task.options[0]:null,recoveryAllowed=task.domain==='music'&&recovery&&this.snapshot?.capabilities?.musicMoveRecovery?.includes(recovery.accountId)===true&&recovery.generation===this.generation&&recovery.bootId===task.bootId&&recovery.roomId===task.roomId&&recovery.revision===task.revision&&recovery.expiresAt===task.expiresAt&&recovery.expiresAt*1000>Date.now()&&recovery.bindingId===task.expectedBindingId&&option?.id===optionId&&optionId===recovery.optionId&&option.action==='move_existing_session'&&Object.keys(args??{}).length===0;if(!this.connected||this.snapshot.bootId!==task.bootId||this.snapshot.roomId!==task.roomId||!this.snapshot.capabilities.controlSetup?.includes(task.domain)&&!recoveryAllowed)return {ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};if(recoveryAllowed)this.recoveryMoveOffers.delete(task.taskId);
-  const requestId=crypto.randomUUID(),url=new URL('control/actions',this.base);
+  const requestId=crypto.randomUUID(),url=new URL('control/actions',this.base),diagnostic={domain:task.domain,action:task.options?.find(option=>option.id===optionId)?.action,requestId};
+  this.recordDiagnostic('control_action',{...diagnostic,code:'start'});
+  const finish=result=>{this.recordDiagnostic('control_action',{...diagnostic,code:result.outcome});return result;};
   try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId,args})},undefined,undefined,requestId);const body=await response.json();
-   if(!response.ok||!body||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown(requestId);
+   if(!response.ok||!body||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return finish(unknown(requestId));
    const detail=task.domain==='vacuum'&&typeof body.partial==='boolean'&&Number.isInteger(body.completedSteps)&&body.completedSteps>=0&&body.completedSteps<=64?{partial:body.partial,completedSteps:body.completedSteps}:{};
-   return {ok:body.ok,requestId,outcome:body.outcome,retryAllowed:false,physicalResultVerified:false,...detail};
-  }catch{return unknown(requestId);}
+   return finish({ok:body.ok,requestId,outcome:body.outcome,retryAllowed:false,physicalResultVerified:false,...detail});
+  }catch{return finish(unknown(requestId));}
  }
  async answers(history=false){if(history!==false&&history!==true&&history!=='segments')throw Error('invalid_answers_mode');if(!this.connected||this.snapshot.capabilities.answerRead!==true)throw Error('answers_unavailable');const response=await this.request(this.endpoint('answers',history===true?{history:'1'}:history==='segments'?{history:'segments'}:{}),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('answers_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}
  async source(id){if(!this.connected||this.snapshot.capabilities.answerRead!==true||!/^[a-f0-9]{32}$/.test(id))throw Error('source_unavailable');const url=new URL('sources/'+id,this.base);url.searchParams.set('room',this.room);const response=await this.request(url,{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('source_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-control-view.js';
+const {LiveControlView}=await import(process.env.LIVE_CONTROL_SOURCE?new URL(process.env.LIVE_CONTROL_SOURCE,'file://'):new URL('../../podvoice/gatekeeper/static/podview/live-control-view.js',import.meta.url));
 
 // Minimal DOM port: exercise the shipped view's constructor, render and async
 // handlers. Real browser focus/layout remains a separate QA gate.
@@ -146,7 +146,8 @@ test('kit-bound admitted volume form preserves schema and native submit authorit
 
 function lightFixture(){const f=fixture();f.host.liveSnapshot.capabilities.controlSetup=['light'];const observedAt=Date.now()/1000;let observation={status:'observed',source:'home_assistant_state',sourceEpoch:'epoch',observedAt,validUntil:observedAt+15,scope:{kind:'ha_area',areaId:'kitchen',areaName:'Køkken',bindingId:'b'.repeat(64),placementRevision:1,isOwnArea:true},complete:true,items:[{entityId:'light.ceiling',areaId:'kitchen',name:'Loft',state:'on',brightness:128,supportsBrightness:true}],countUnit:'light_entities'};f.observation=()=>observation;f.mutate=fn=>fn(observation);f.lightOffer=()=>({ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',taskId:'control:'+'a'.repeat(32),revision:1,expiresAt:Date.now()/1000+14,domain:'light',options:[{id:'a'.repeat(24),label:'Sluk',action:'turn_off',argsSchema:{kind:'none'}}],setup:{areaId:'kitchen',entityIds:['light.ceiling'],scope:{...observation.scope}}});f.openLight=()=>f.view.openLight({areaId:'kitchen',entityId:'light.ceiling'},observation,new Node('button'),f.observation);return f;}
 test('light setup reads only; exact scope-bound offered command sends once without optimistic observed change',async()=>{const f=lightFixture();try{const opening=f.openLight();assert.equal(f.calls(),0);f.setup.resolve(f.lightOffer());await opening;assert.ok(f.view.task);const sending=f.view.send('a'.repeat(24),{});assert.equal(f.calls(),1);assert.equal(f.observation().items[0].state,'on');f.action.resolve({ok:true,outcome:'accepted'});await sending;await f.view.send('a'.repeat(24),{});assert.equal(f.calls(),1);assert.equal(f.observation().items[0].state,'on');}finally{f.view.cleanup();}});
-for(const phase of ['setup','dispatch'])for(const change of ['binding','area','members','source','expired','session','transport','capability'])test(`light ${phase} rejects changed ${change}`,async()=>{const f=lightFixture();try{const opening=f.openLight();if(phase==='dispatch'){f.setup.resolve(f.lightOffer());await opening;assert.ok(f.view.task);}if(change==='binding')f.mutate(o=>o.scope.bindingId='c'.repeat(64));if(change==='area')f.mutate(o=>o.scope.areaId='other');if(change==='members')f.mutate(o=>o.items=[]);if(change==='source')f.mutate(o=>o.sourceEpoch='other');if(change==='expired')f.mutate(o=>o.validUntil=Date.now()/1000-1);if(change==='session')f.host.liveSnapshot.sessionId='new';if(change==='transport')f.host.liveTransport={...f.host.liveTransport};if(change==='capability')f.host.liveSnapshot.capabilities.controlSetup=[];if(phase==='setup'){f.setup.resolve(f.lightOffer());await opening;}else await f.view.send('a'.repeat(24),{});assert.equal(f.view.task,null);assert.equal(f.calls(),0);}finally{f.view.cleanup();}});
+for(const phase of ['setup','dispatch'])for(const change of ['binding','area','members','source','expired','transport','capability'])test(`light ${phase} rejects changed ${change}`,async()=>{const f=lightFixture();try{const opening=f.openLight();if(phase==='dispatch'){f.setup.resolve(f.lightOffer());await opening;assert.ok(f.view.task);}if(change==='binding')f.mutate(o=>o.scope.bindingId='c'.repeat(64));if(change==='area')f.mutate(o=>o.scope.areaId='other');if(change==='members')f.mutate(o=>o.items=[]);if(change==='source')f.mutate(o=>o.sourceEpoch='other');if(change==='expired')f.mutate(o=>o.validUntil=Date.now()/1000-1);if(change==='session')f.host.liveSnapshot.sessionId='new';if(change==='transport')f.host.liveTransport={...f.host.liveTransport};if(change==='capability')f.host.liveSnapshot.capabilities.controlSetup=[];if(phase==='setup'){f.setup.resolve(f.lightOffer());await opening;}else await f.view.send('a'.repeat(24),{});assert.equal(f.view.task,null);assert.equal(f.calls(),0);}finally{f.view.cleanup();}});
+for(const phase of ['setup','dispatch'])test(`light ${phase} survives unrelated voice session change`,async()=>{const f=lightFixture();try{const opening=f.openLight();if(phase==='dispatch'){f.setup.resolve(f.lightOffer());await opening;}f.host.liveSnapshot.sessionId='new';f.host.liveSnapshot.voice={sessionId:'new'};if(phase==='setup'){f.setup.resolve(f.lightOffer());await opening;}assert.ok(f.view.task);const sending=f.view.send('a'.repeat(24),{});assert.equal(f.calls(),1);f.action.resolve({ok:true,outcome:'accepted'});await sending;}finally{f.view.cleanup();}});
 test('light response cannot substitute area membership or binding under matching generic room and boot',async()=>{for(const alter of [v=>v.setup.entityIds=['light.other'],v=>v.setup.scope.bindingId='c'.repeat(64)]){const f=lightFixture();try{const opening=f.openLight(),offer=f.lightOffer();alter(offer);f.setup.resolve(offer);await opening;assert.equal(f.view.task,null);assert.equal(f.calls(),0);}finally{f.view.cleanup();}}});
 
 test('light brightness uses admitted percent schema and unknown receipt never triggers automatic replay',async()=>{const f=lightFixture();try{const opening=f.openLight(),offer=f.lightOffer();offer.options=[{id:'c'.repeat(24),label:'Lysstyrke',action:'brightness',argsSchema:{kind:'percent',min:0,max:100}}];f.setup.resolve(offer);await opening;assert.ok(f.view.task);assert.ok(f.view.body.querySelectorAll('input').some(input=>input.getAttribute('aria-label')==='Lysstyrke'));const sending=f.view.send('c'.repeat(24),{percent:45});f.action.resolve({ok:false,outcome:'unknown'});await sending;await f.view.send('c'.repeat(24),{percent:45});assert.equal(f.calls(),1);assert.match(f.view.note.textContent,/ukendt/);assert.equal(f.observation().items[0].brightness,128);}finally{f.view.cleanup();}});
@@ -157,4 +158,51 @@ test('whole-area light dialog keeps actual area title while offering the same cl
 
 test('unchanged robot refresh keeps its existing panel attached',async()=>{
  const f=fixture();try{await open(f);const panel=f.view.robotPanel,body=f.view.body,replace=body.replaceChildren.bind(body);let count=0;body.replaceChildren=(...args)=>{count++;return replace(...args);};f.view.buildOptions();assert.equal(f.view.robotPanel,panel);assert.equal(count,0);assert.equal(body.children[0],panel);f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();assert.equal(panel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);}finally{f.view.cleanup();}
+});
+
+for(const outcome of ['accepted','rejected','unknown'])test(`active robot setting ${outcome} schedules observation only after acceptance`,async()=>{
+ const f=fixture();try{
+  f.host.state.focus=target.entityId;f.host.state.devices[0].status='cleaning';f.host.state.devices[0].revision=3;
+  const reads=[];f.view.scheduleRobotObservation=(...args)=>reads.push(args);
+  const opening=f.view.open('vacuum',target,new Node('button'));const offer=f.offer();offer.options=[{id:'setting',action:'set_option',label:'Sugestyrke',settingKey:'suction',argsSchema:{kind:'choice',current:'a'.repeat(24),choices:[{id:'a'.repeat(24),label:'balanced'},{id:'b'.repeat(24),label:'max'}]}}];f.setup.resolve(offer);await opening;assert.ok(f.view.task);
+  const sending=f.view.send('setting',{choiceId:'b'.repeat(24)});assert.equal(f.calls(),1);assert.equal(reads.length,0);f.action.resolve({ok:outcome==='accepted',outcome,requestId:'setting-receipt'});await sending;
+  assert.equal(reads.length,outcome==='accepted'?1:0);await f.view.send('setting',{choiceId:'b'.repeat(24)});assert.equal(f.calls(),1,'consumed task never replays');
+ }finally{f.view.cleanup();}
+});
+
+test('light journal observes exact fresh HA state using original wire UUID; sink failure cannot lose receipt',async()=>{
+ for(const failSink of [false,true]){const f=lightFixture(),rows=[];try{
+  f.host.liveTransport.recordDiagnostic=(stage,row)=>{if(failSink)throw Error('inert sink failure');rows.push({stage,...row});};
+  f.host.readLightArea=async()=>{f.mutate(o=>{o.items[0].state='off';o.observedAt=Date.now()/1000;o.validUntil=o.observedAt+15;});return true;};
+  const requestId='11111111-1111-4111-8111-111111111111',sending=f.view.actLight({areaId:'kitchen',entityId:'light.ceiling'},f.observation(),'turn_off',{},f.observation);f.setup.resolve(f.lightOffer());await new Promise(resolve=>setImmediate(resolve));assert.equal(f.calls(),1);assert.equal(f.observation().items[0].state,'on');f.action.resolve({ok:true,outcome:'accepted',requestId});const result=await sending;assert.equal(result.outcome,'accepted');assert.equal(f.calls(),1);assert.equal([...f.view.receipts.values()][0].requestId,requestId);
+  if(!failSink){const observed=rows.find(row=>row.stage==='control_observation');assert(observed,JSON.stringify({rows,pending:f.view.deviceJournalPending}));assert.equal(observed.requestId,requestId);assert.equal(observed.resourceId,'light.ceiling');assert.equal(observed.requestedValue,false);assert.equal(observed.observedValue,false);assert.equal(observed.code,'observed');assert.equal(observed.trust,'state_observation');assert.equal(observed.source,'home_assistant');}
+ }finally{f.host.liveTransport.recordDiagnostic=()=>{};f.view.cleanup();}}
+});
+test('vehicle journal reports a requested/observed mismatch without claiming a confirmed effect or changing state',async()=>{
+ const f=fixture(),rows=[],requestId='22222222-2222-4222-8222-222222222222',binding='b'.repeat(64);try{
+  f.host.state.focus='vehicle';f.host.state.vehicleBinding=binding;f.host.state.vehicle={climate:{targetTemperatureC:20}};f.host.liveTransport.recordDiagnostic=(stage,row)=>rows.push({stage,...row});let reads=0;f.host.loadLiveHome=()=>{reads++;};
+  const task={bootId:'boot',roomId:'room',domain:'vehicle',taskId:'control:'+'a'.repeat(32),revision:1,expiresAt:Date.now()/1000+10,options:[{id:'a'.repeat(24),action:'temperature',argsSchema:{kind:'none'}}],confirmation:{requiresOverride:false}};
+  const operation={action:'temperature',task,current:()=>true,requestedValue:20.5,resourceId:binding};f.view.vehicleOperation=operation;const pending=f.view.sendVehicle(operation);assert.equal(f.calls(),1);f.action.resolve({ok:true,outcome:'accepted',requestId});assert.equal((await pending).status,'accepted');assert.equal(reads,1);
+  f.view.observeDeviceJournal({vehicleBinding:binding,observedAt:Date.now()/1000+1,vehicle:{observedAt:Date.now()/1000+1,climate:{targetTemperatureC:20}}});const observed=rows.find(row=>row.stage==='control_observation');assert.equal(observed.requestId,requestId);assert.equal(observed.requestedValue,20.5);assert.equal(observed.observedValue,20);assert.equal(observed.code,'observed');assert.equal(observed.trust,'state_observation');assert.equal(f.host.state.vehicle.climate.targetTemperatureC,20);assert.equal(f.calls(),1);
+ }finally{f.view.cleanup();}
+});
+
+test('robot journal observes only a fresh exact target through existing home adoption, never another robot or accepted alone',()=>{
+ const f=fixture(),rows=[],requestId='a0fbbd54-0700-4b9f-9454-9a137701f901';try{
+  f.host.liveTransport.recordDiagnostic=(stage,row)=>rows.push({stage,...row});
+  const operation={action:'return',target,observedRevision:7};f.view.trackDeviceJournal('vacuum',operation,requestId,undefined,target.entityId,()=>true);
+  const home={revision:8,vacuum:{status:'observed',items:[{entityId:'vacuum.other',state:'returning',observedAt:Date.now()/1000+1}]}};
+  f.view.observeDeviceJournal(home);assert.equal(rows.length,0,'another robot cannot satisfy the original target');
+  home.vacuum.items[0].entityId=target.entityId;home.revision=7;f.view.observeDeviceJournal(home);assert.equal(rows.length,0,'pre-effect read cannot become a new observation');
+  home.revision=8;f.view.observeDeviceJournal(home);assert.equal(rows.length,1);assert.equal(rows[0].requestId,requestId);assert.equal(rows[0].action,'return');assert.equal(rows[0].resourceId,target.entityId);assert.equal(rows[0].code,'observed');assert.equal(rows[0].trust,'state_observation');assert.equal(rows[0].source,'home_assistant');assert.equal(rows[0].observedValue,undefined);assert.equal(f.calls(),0);
+  f.view.observeDeviceJournal(home);assert.equal(rows.length,1,'one state observation consumes metadata without any dispatch');
+ }finally{f.view.cleanup();}
+});
+test('robot settings journal does not turn an unrelated state read into settings confirmation',()=>{
+ const f=fixture(),rows=[];try{
+  f.host.liveTransport.recordDiagnostic=(stage,row)=>rows.push({stage,...row});
+  f.view.trackDeviceJournal('vacuum',{action:'settings',settingKey:'suction',target,observedRevision:1},'settings-id',undefined,target.entityId,()=>true);
+  f.view.observeDeviceJournal({revision:2,vacuum:{status:'observed',items:[{entityId:target.entityId,state:'cleaning',observedAt:Date.now()/1000+1}]}});
+  assert.equal(rows.length,1);assert.equal(rows[0].action,'settings');assert.equal(rows[0].code,'unconfirmed');assert.equal(rows[0].observedValue,undefined);assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
 });

@@ -6,16 +6,7 @@ const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>va
 export class SceneMotion {
  constructor(host){this.host=host;this.animations=new Map();this.playerPaint=new Map();this.scroll=new Map();this.nestedScroll=new Map();this.geometry=new Map();this.clocks=new WeakMap();this.feedbackTokens=new WeakMap();this.feedbackStates=new WeakMap();this.media=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');this.onPreference=()=>{if(this.reduced)this.cancel();};this.listening=false;}
  get reduced(){return this.host.dataset.motion==='reduced'||this.media?.matches===true;}
- cancel(){this.releaseNavigationGuard?.();for(const animation of this.animations.values())animation.cancel();this.animations.clear();for(const [node,saved]of this.playerPaint){if(saved.value===undefined)delete node.dataset.scenePlayerMoving;else node.dataset.scenePlayerMoving=saved.value;}this.playerPaint.clear();if(this.listening){this.media.removeEventListener('change',this.onPreference);this.listening=false;}}
- guardNavigation(node,duration){
-  this.releaseNavigationGuard?.();if(!node?.addEventListener)return;
-  // Pointer starts and clicks in newly revealed content are withheld. Native keyboard
-  // activation, the persistent player and navigation controls remain available.
-  const block=event=>{if(event.type==='pointerdown'||event.detail>0){event.preventDefault();event.stopImmediatePropagation();}};
-  node.addEventListener('pointerdown',block,true);node.addEventListener('click',block,true);const timer=setTimeout(()=>release(),duration);
-  const release=()=>{clearTimeout(timer);node.removeEventListener('pointerdown',block,true);node.removeEventListener('click',block,true);if(this.releaseNavigationGuard===release)this.releaseNavigationGuard=null;};
-  this.releaseNavigationGuard=release;
- }
+ cancel(){for(const animation of this.animations.values())animation.cancel();this.animations.clear();for(const [node,saved]of this.playerPaint){if(saved.value===undefined)delete node.dataset.scenePlayerMoving;else node.dataset.scenePlayerMoving=saved.value;}this.playerPaint.clear();if(this.listening){this.media.removeEventListener('change',this.onPreference);this.listening=false;}}
  animate(node,frames,duration=280,options={}){
   this.animations.get(node)?.cancel();this.animations.delete(node);
   if(this.reduced&&!options.fadeReduced||(!options.visible&&!node?.getClientRects().length)||this.host.isConnected===false||typeof node.animate!=='function'){if(!this.animations.size)this.cancel();return null;}
@@ -98,7 +89,6 @@ export class SceneMotion {
   if(back)for(const [node,top,left]of this.nestedScroll.get(next)||[]){node.scrollTop=top;node.scrollLeft=left;}
   const entering=next==='photo'?this.host.querySelector('#photo-view'):[...feed.children].find(node=>!node.hidden&&node.id!=='resource-rail'&&node.getClientRects().length);
   const crossesRest=previous==='photo'||next==='photo',duration=this.reduced?120:200;
-  this.guardNavigation(entering,duration);
   if(this.reduced){if(entering)this.animate(entering,[{opacity:.65},{opacity:1}],120,{fadeReduced:true});return;}
   // Ro and the active view stay in their own positions while their whole pane
   // gently appears. Detail navigation keeps the same small directional move.

@@ -50,3 +50,53 @@ test('robot renewal diagnostics keep bounded reason only, excluding private offe
 test('robot owner deadline reason survives browser diagnostic persistence without private identifiers',async()=>{
  const store=storage(),t=make({diagnosticStorage:store});t.recordDiagnostic('robot_renewal',{code:'robot_deny_source_deadline',taskId:'PRIVATE-TASK',optionId:'PRIVATE-OPTION'});await microtask();const reloaded=make({diagnosticStorage:store});assert.ok(reloaded.diagnostics().records.some(row=>row.code==='robot_deny_source_deadline'));assert.doesNotMatch(store.value,/PRIVATE/);
 });
+
+test('bounded domain action and observation provenance survive diagnostics without physical claims',()=>{
+ const t=make(),requestId='01234567-89ab-4cde-8fab-0123456789ab';
+ for(const [domain,action]of [['vacuum','stop'],['vacuum','return'],['light','turn_off'],['vehicle','temperature'],['timer','timer.cancel'],['radio','move']]){
+  t.recordDiagnostic('control_intent',{code:'start',domain,action,requestId,payload:'PRIVATE'});
+  t.recordDiagnostic('control_observation',{code:'observed',domain,action,requestId,source:'home_assistant',trust:'state_observation',entityId:'PRIVATE'});
+ }
+ const rows=t.diagnostics().records;assert.equal(rows.length,12);assert.ok(rows.every(row=>row.domain&&row.action&&row.requestId===requestId));assert.ok(rows.filter(row=>row.stage==='control_observation').every(row=>row.source==='home_assistant'&&row.trust==='state_observation'&&row.code!=='confirmed'));assert.doesNotMatch(JSON.stringify(rows),/PRIVATE|payload|entityId/);
+ const before=rows.length;
+ for(const fields of [{domain:'music',action:'return',source:'podconnect',trust:'owner_settlement',code:'observed'},{domain:'vehicle',action:'temperature',source:'home_assistant',trust:'state_observation',code:'confirmed'},{domain:'vehicle',action:'temperature',source:'PRIVATE',trust:'state_observation',code:'observed'},{domain:'vehicle',action:'temperature',source:'home_assistant',trust:'owner_settlement',code:'observed'}])t.recordDiagnostic('control_observation',fields);
+ assert.equal(t.diagnostics().records.length,before);
+ t.recordDiagnostic('home_read',{domain:'home',code:'superseded',endpoint:'home',current:false});t.recordDiagnostic('home_read',{domain:'home',code:'recovered',source:'home_assistant',trust:'state_observation'});
+ assert.deepEqual(t.diagnostics().records.slice(-2).map(row=>row.code),['superseded','recovered']);
+});
+
+test('task actions log their actual wire UUID and outcome without an alternate effect identifier',async()=>{
+ let wire;const t=make({fetch:async(url,init)=>{wire=JSON.parse(init.body);return {ok:true,status:200,json:async()=>({ok:true,requestId:wire.requestId,outcome:'accepted',retryAllowed:false,physicalResultVerified:false})};}});t.closed=false;t.connected=true;t.snapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:['light']}};
+ const result=await t.controlAction({bootId:'boot',roomId:'room',taskId:'inert-task',revision:1,domain:'light',options:[{id:'opaque',action:'turn_off'}]},'opaque',{});
+ assert.equal(result.requestId,wire.requestId);assert.deepEqual(Object.keys(wire).sort(),['args','bootId','optionId','requestId','revision','roomId','taskId']);const rows=t.diagnostics().records.filter(row=>row.stage==='control_action');assert.deepEqual(rows.map(row=>row.code),['start','accepted']);assert.ok(rows.every(row=>row.requestId===wire.requestId&&row.domain==='light'&&row.action==='turn_off'));
+});
+
+test('radio diagnostic reference remains metadata and its action wire is unchanged',async()=>{
+ let wire;const t=make({fetch:async(url,init)=>{wire=JSON.parse(init.body);return {ok:true,status:200,json:async()=>({ok:true,schema:'podview.radio-action.v1',status:'accepted',retryAllowed:false})};}});t.closed=false;t.connected=true;t.snapshot={bootId:'boot',roomId:'room'};const diagnosticRef='01234567-89ab-4cde-8fab-0123456789ab';
+ t.recordDiagnostic('control_intent',{domain:'radio',action:'stop',diagnosticRef,code:'start'});await t.radioAction({bootId:'boot',roomId:'room',taskId:'inert-task',optionId:'opaque'});
+ assert.deepEqual(wire,{bootId:'boot',roomId:'room',taskId:'inert-task',optionId:'opaque'});assert.equal(t.diagnostics().records[0].diagnosticRef,diagnosticRef);assert.equal(t.diagnostics().records[0].requestId,undefined);
+});
+
+test('values remain bounded primitives and target IDs never enter browser diagnostics or session history',async()=>{
+ const store=storage(),t=make({diagnosticStorage:store});t.recordDiagnostic('control_observation',{domain:'vehicle',action:'temperature',code:'observed',source:'home_assistant',trust:'state_observation',requestedValue:20.5,observedValue:20,resourceId:'climate.private_car'});
+ const row=t.diagnostics().records[0];assert.equal(row.requestedValue,20.5);assert.equal(row.observedValue,20);assert.equal(row.resourceId,undefined);assert.equal(row.resourceRef,undefined);await microtask();assert.doesNotMatch(store.value,/private_car|resourceId/);
+ for(const value of [null,'20.5',{},[],NaN,Infinity,-Infinity,86400.1,-86400.1]){t.recordDiagnostic('control_action',{code:'accepted',requestedValue:value,observedValue:value});const saved=t.diagnostics().records.at(-1);assert.equal(saved.requestedValue,undefined);assert.equal(saved.observedValue,undefined);}
+ t.recordDiagnostic('control_action',{code:'accepted',requestedValue:true,observedValue:false});assert.equal(t.diagnostics().records.at(-1).requestedValue,true);assert.equal(t.diagnostics().records.at(-1).observedValue,false);
+});
+
+test('telemetry identity crypto failure cannot break initialization or actual control dispatch',async()=>{
+ let sends=0;const t=make({crypto:{randomUUID(){throw Error('inert telemetry crypto failure');}},fetch:async(url,init)=>{sends++;const body=JSON.parse(init.body);return {ok:true,status:200,json:async()=>({ok:true,requestId:body.requestId,outcome:'accepted',retryAllowed:false,physicalResultVerified:false})};}});t.closed=false;t.connected=true;t.snapshot={bootId:'a'.repeat(32),roomId:'room',capabilities:{controlSetup:['light']}};t.syncDiagnosticScope(t.snapshot);
+ try{t.recordDiagnostic('control_intent',{domain:'light',action:'turn_off',code:'start'});assert.equal(await t.flushDiagnosticUpload(),false);const result=await t.controlAction({bootId:t.snapshot.bootId,roomId:'room',taskId:'inert-task',revision:1,domain:'light',options:[{id:'opaque',action:'turn_off'}]},'opaque',{});assert.equal(result.outcome,'accepted');assert.equal(sends,1);assert.equal(t.diagnosticClientId,undefined);}finally{t.close();}
+});
+
+test('home owner and request diagnostics share an existing token hash without changing fetch wire',async()=>{
+ const calls=[],crypto={randomUUID:()=> '01234567-89ab-4cde-8fab-0123456789ab',subtle:{digest:async()=>new Uint8Array(32).fill(17).buffer}},t=make({crypto,fetch:async(url,init)=>{calls.push({url:String(url),init});return {ok:true,status:200,json:async()=>({ok:true})};}});t.closed=false;t.connected=true;t.snapshot={roomId:'room',capabilities:{homeRead:['light']}};
+ await t.home({lightArea:'kitchen'});const token=t.createReadDiagnostic();t.recordReadDiagnostic('home_read',{domain:'home',code:'start'},token);await t.home({lightArea:'kitchen',readDiagnostic:token});t.recordReadDiagnostic('home_read',{domain:'home',code:'ok'},token);for(let n=0;n<8;n++)await Promise.resolve();
+ assert.equal(calls.length,2);assert.equal(calls[0].url,calls[1].url);assert.deepEqual(new URL(calls[1].url).searchParams.get('lightArea'),'kitchen');for(const {init}of calls){assert.deepEqual(Object.keys(init).filter(key=>key!=='signal').sort(),['cache','credentials']);assert.equal(new Headers(init.headers).has('X-PodView-Read-Id'),false);assert.equal(init.body,undefined);}
+ const rows=t.diagnostics().records.filter(row=>row.readHash);assert.equal(rows.length,4);assert.deepEqual(rows.map(row=>[row.stage,row.code]),[['home_read','start'],['request','start'],['request','ok'],['home_read','ok']]);assert.ok(rows.every(row=>row.readHash==='1111111111111111'));
+});
+
+test('forged home tokens and failed diagnostic sinks never change home request or result',async()=>{
+ const calls=[],t=make({fetch:async(url,init)=>{calls.push({url:String(url),init});return {ok:true,status:200,json:async()=>({ok:true})};}});t.closed=false;t.connected=true;t.snapshot={roomId:'room',capabilities:{homeRead:['vacuum']}};
+ assert.deepEqual(await t.home({readDiagnostic:{forged:true}}),{ok:true});assert.equal(t.diagnostics().records.some(row=>row.readHash),false);const token=t.createReadDiagnostic();t.recordDiagnostic=()=>{throw Error('inert sink failure');};assert.deepEqual(await t.home({readDiagnostic:token}),{ok:true});for(let n=0;n<8;n++)await Promise.resolve();assert.equal(calls.length,2);assert.equal(calls[0].url,calls[1].url);assert.ok(calls.every(({init})=>!new Headers(init.headers).has('X-PodView-Read-Id')&&init.body===undefined));
+});

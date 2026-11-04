@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import logging
 import os
 import time
 from dataclasses import replace
@@ -15,7 +16,7 @@ from integration.test_podview_bridge import owner
 from integration.test_podview_music import payload, timestamp
 from integration.test_podview_music_control import Rig, room_owner
 from multidict import CIMultiDict
-from unit.test_device_control import ROBOT
+from unit.test_device_control import MOP, ROBOT
 from unit.test_device_control import Rig as RobotRig
 from unit.test_podview_room_move import prep as move_preparation
 from unit.test_podview_room_move import receipt as move_receipt
@@ -24,9 +25,12 @@ from unit.test_podview_speakers import payload as speaker_catalogue
 
 from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
-from gatekeeper.podview import _REVIEWED_MOVE_POLICY_REVISION
+from gatekeeper.podview import _REVIEWED_MOVE_POLICY_REVISION, BRIDGE
 from gatekeeper.podview_music import project_owner
 from gatekeeper.web import create_app
+
+logging.getLogger("gatekeeper.podview_controls").setLevel(logging.INFO)
+logging.basicConfig(level=logging.WARNING)
 
 music = Rig()
 room_owner(music)
@@ -49,7 +53,9 @@ receipts = {}
 service_reads = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 if robot is not None:
-    robot.states[ROBOT]["state"] = "cleaning"
+    robot.states[ROBOT]["state"] = (
+        "docked" if os.environ.get("ROBOT_DRAFT_TEST") == "1" else "cleaning"
+    )
     robot.states[ROBOT]["attributes"].update(
         supported_features=32 | 4 | 8 | 16 | 8192, battery_level=78
     )
@@ -315,6 +321,23 @@ app = create_app(
     locked=True,
 )
 
+if os.environ.get("ROBOT_DRAFT_TEST") == "1":
+    # Keep the actual server-issued task and deadline in agreement, but make
+    # this fixture's real offer short enough to exercise natural timer expiry.
+    controls = app[BRIDGE].controls
+    native_control_setup = controls.setup
+
+    async def short_control_setup(body, token):
+        offer = await native_control_setup(body, token)
+        if offer.get("ok") and body.get("domain") == "vacuum":
+            task = controls.tasks[offer["taskId"]]
+            task["deadline"] = min(task["deadline"], time.monotonic() + 8)
+            task["expires_at"] = time.time() + max(0, task["deadline"] - time.monotonic())
+            offer["expiresAt"] = task["expires_at"]
+        return offer
+
+    controls.setup = short_control_setup
+
 
 @web.middleware
 async def test_ingress(request, handler):
@@ -334,17 +357,43 @@ async def lab_state(request):
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])
+        # External native-owner changes do not create a PodView command or receipt.
+        if "externalPlaybackState" in args:
+            if args["externalPlaybackState"] not in {"playing", "paused"}:
+                raise web.HTTPBadRequest()
+            state["state"] = args["externalPlaybackState"]
+        if "externalOutput" in args:
+            outputs = {"native-room": "42", "bedroom": "43"}
+            if args["externalOutput"] not in outputs:
+                raise web.HTTPBadRequest()
+            state["room"] = args["externalOutput"]
+            state["homepod"] = outputs[args["externalOutput"]]
         state["sequence"] += 1
+        if robot is not None:
+            if "robotBattery" in args:
+                robot.states[ROBOT]["attributes"]["battery_level"] = int(args["robotBattery"])
+            if "robotMop" in args:
+                robot.states[MOP]["state"] = args["robotMop"]
+            if "robotState" in args:
+                robot.states[ROBOT]["state"] = args["robotState"]
     value = copy.deepcopy(state)
     value["serviceReads"] = copy.deepcopy(service_reads)
     if robot is not None:
         value["robot"] = {
             "state": robot.states[ROBOT]["state"],
+            "fan": robot.states[ROBOT]["attributes"]["fan_speed"],
+            "mop": robot.states[MOP]["state"],
+            "battery": robot.states[ROBOT]["attributes"]["battery_level"],
             "writes": copy.deepcopy(robot.writes),
         }
     return web.json_response(value)
 
 
+async def lab_identity(request):
+    return web.json_response({"nonce": os.environ.get("PODVIEW_TEST_NONCE")})
+
+
+app.router.add_get("/lab/identity", lab_identity)
 app.router.add_get("/lab/state", lab_state)
 app.router.add_post("/lab/state", lab_state)
 

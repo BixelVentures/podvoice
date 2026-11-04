@@ -1435,3 +1435,89 @@ def test_new_destination_actions_still_require_selectable_destination(action):
         target.update(selectable=False, availability="unavailable")
     with pytest.raises(ValueError):
         validate_native(raw)
+
+
+@pytest.mark.parametrize("outcome", ["accepted", "rejected", "unknown"])
+async def test_radio_journal_has_only_hashed_task_and_actual_receipt(rig, caplog, outcome):
+    import hashlib
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.radio")
+    task = await offer(rig)
+    rig.reject = outcome == "rejected"
+    rig.unknown = outcome == "unknown"
+    result = await (await post(rig, "actions", action_body(task))).json()
+    assert result["status"] == outcome and len(effects(rig)) == 1
+    task_ref = hashlib.sha256(task["taskId"].encode()).hexdigest()[:16]
+    option_ref = hashlib.sha256(task["optionId"].encode()).hexdigest()[:16]
+    assert (
+        f"stage=admission action=start outcome=admitted task_ref={task_ref} option_ref={option_ref}"
+        in caplog.text
+    )
+    assert (
+        f"stage=dispatch action=start outcome=started task_ref={task_ref} option_ref={option_ref}"
+        in caplog.text
+    )
+    assert (
+        f"stage=receipt action=start outcome={outcome} task_ref={task_ref} option_ref={option_ref}"
+        in caplog.text
+    )
+    assert task["taskId"] not in caplog.text and task["optionId"] not in caplog.text
+    assert "speaker-a" not in caplog.text and "existing-private-token" not in caplog.text
+    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert len(effects(rig)) == 1
+
+
+async def test_radio_journal_handler_failure_cannot_change_dispatch(rig, monkeypatch):
+    from gatekeeper import podview_radio
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("logger failed")
+
+    monkeypatch.setattr(podview_radio._LOG, "info", fail)
+    task = await offer(rig)
+    result = await (await post(rig, "actions", action_body(task))).json()
+    assert result["status"] == "accepted" and len(effects(rig)) == 1
+    assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
+    assert len(effects(rig)) == 1
+
+
+async def test_radio_cancelled_dispatched_command_logs_unknown_without_replay(rig, caplog):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.radio")
+    task = await offer(rig)
+    entered = asyncio.Event()
+
+    async def blocked():
+        entered.set()
+        await asyncio.Event().wait()
+
+    rig.post_hook = blocked
+    operation = asyncio.create_task(rig.bridge.radio.action(action_body(task), rig.token))
+    await asyncio.wait_for(entered.wait(), 2)
+    operation.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await operation
+    assert rig.bridge.radio.unknown is True
+    assert "stage=dispatch action=start outcome=started" in caplog.text
+    assert "stage=receipt action=start outcome=unknown" in caplog.text
+    assert not (await rig.bridge.radio.action(action_body(task), rig.token))["ok"]
+    assert len(effects(rig)) == 1
+
+
+async def test_radio_journal_marks_revoked_just_in_time_task_as_rejected(rig, caplog):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.radio")
+    task = await offer(rig)
+
+    async def revoke():
+        rig.bridge._grants.clear()
+
+    rig.hook = revoke
+    result = await (await post(rig, "actions", action_body(task))).json()
+    assert not result["ok"] and effects(rig) == []
+    assert "stage=admission action=start outcome=admitted" in caplog.text
+    assert "stage=receipt action=start outcome=rejected" in caplog.text
+    assert "stage=dispatch action=start" not in caplog.text

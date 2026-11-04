@@ -40,6 +40,19 @@ function messenger(frame) {
   };
 }
 
+const kioskSessions = new WeakMap();
+
+// Request HA's existing parent route before the normal same-origin anchor loads.
+// A standalone, hidden, foreign, or no-longer-owned panel keeps ordinary link behavior.
+export function requestIngressAdmin(win) {
+  const session = win && kioskSessions.get(win), frame = session?.frame;
+  if (!session?.active || !frame || win.parent !== frame.parent || win.document?.visibilityState === "hidden" || !inPanel(frame)) return false;
+  try {
+    if (![frame.panelPath + "/view", frame.panelPath + "/view/"].includes(frame.parent.location.pathname)) return false;
+  } catch (_) { return false; }
+  return messenger(frame)("home-assistant/navigate", {path: frame.panelPath});
+}
+
 export function beginIngressRoot(win, link = win.document?.querySelector(".podview-link")) {
   if (win.__podviewRootIngressLifecycle) return win.__podviewRootIngressLifecycle;
   const frame = parentFrame(win);
@@ -101,6 +114,7 @@ export function beginIngressKiosk(win) {
   if (!frame) return () => {};
   const send = messenger(frame);
   let subscribed = false, leaving = false, routeBound = false;
+  const session = {frame, active: true}; kioskSessions.set(win, session);
   const viewPath = frame.panelPath + "/view";
   function subscribe() {
     if (!subscribed && !leaving && inPanel(frame)) subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
@@ -118,24 +132,28 @@ export function beginIngressKiosk(win) {
     // Legacy direct iframe navigation has no outer /view route to leave.
     if (!routeBound) return;
     leaving = true;
+    session.active = false;
     unsubscribe();
     if (path === frame.panelPath || path === frame.panelPath + "/") {
       win.location.replace(new URL("../", win.location.href).href);
     }
   }
+  function onPageHide() { session.active = false; unsubscribe(); }
   function onPageShow(event) {
-    if (event.persisted) { leaving = false; subscribe(); }
+    if (event.persisted && inPanel(frame)) { session.active = true; leaving = false; subscribe(); }
   }
   win.addEventListener("message", onProperties);
-  win.addEventListener("pagehide", unsubscribe);
+  win.addEventListener("pagehide", onPageHide);
   win.addEventListener("pageshow", onPageShow);
   subscribe();
   return () => {
     leaving = true;
+    session.active = false;
     unsubscribe();
     win.removeEventListener("message", onProperties);
-    win.removeEventListener("pagehide", unsubscribe);
+    win.removeEventListener("pagehide", onPageHide);
     win.removeEventListener("pageshow", onPageShow);
+    session.active = false; if (kioskSessions.get(win) === session) kioskSessions.delete(win);
   };
 }
 

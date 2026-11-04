@@ -4,8 +4,8 @@ import fs from 'node:fs';
 import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
 import {liveWeatherModel,weatherOverviewDetail} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
 const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
-const method=source.split(' async loadLiveHome(){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'');
-const load=new Function('applyHome','validateHome',`return async function(){${method}}`)(applyHome,validateHome);
+const method=source.split(' async loadLiveHome({followup=false}={}){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'');
+const load=new Function('applyHome','validateHome',`return async function({followup=false}={}){${method}}`)(applyHome,validateHome);
 const now=Date.now(),stamp=new Date(now-1000).toISOString();
 const response=(temperature=12,revision=1)=>({schema:'podview.home.v1',bootId:'boot',roomId:'room',revision,observedAt:now/1000,vacuum:{status:'unavailable',items:[]},weather:{status:'observed',data:{source:'Home Assistant / Met.no',location:'Hjem',retrievedAt:stamp,stateUpdatedAt:stamp,observedAt:now/1000,units:{temperature:'°C'},current:{temperature,condition:'cloudy'},forecastType:'hourly',forecast:[{datetime:new Date(now+3600000).toISOString(),temperature:13,condition:'cloudy'}],coverage:{truncated:false}}}});
 function host(){const h={isConnected:true,liveStatus:'connected',liveHomeGeneration:0,liveSnapshot:{bootId:'boot',roomId:'room',capabilities:{homeRead:['weather','vacuum']}},state:{focus:'weather',devices:[],liveWeather:null},liveTransport:{connected:true},renders:0,render(){this.renders++;}};return h;}
