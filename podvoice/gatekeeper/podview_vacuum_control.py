@@ -25,6 +25,17 @@ _STATES = {
 }
 
 
+def transport_actions(state, features) -> list[str]:
+    """Readonly capabilities from this same HA state's actual feature bits."""
+    if type(features) is not int or not 0 <= features <= 2**31:
+        return []
+    return [
+        action
+        for action, (feature, _) in _SERVICES.items()
+        if features & feature and state in _STATES[action]
+    ]
+
+
 class VacuumTransport:
     def __init__(self, owner):
         self.owner = owner
@@ -95,11 +106,7 @@ class VacuumTransport:
             **observed,
             "entity": entity,
             "deadline": time.monotonic() + 15,
-            "actions": [
-                action
-                for action, (feature, _) in _SERVICES.items()
-                if observed["features"] & feature and observed["state"] in _STATES[action]
-            ],
+            "actions": transport_actions(observed["state"], observed["features"]),
         }
 
     async def execute(self, offered, action, current):

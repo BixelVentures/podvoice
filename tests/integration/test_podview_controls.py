@@ -30,11 +30,13 @@ from gatekeeper.web import create_app
 ACTUAL_BINDING_ID = "b" * 64
 
 
-def actual_playback_response(request, *, target="speaker", homepod="42"):
+def actual_playback_response(request, *, target="speaker", homepod="42", item_uri=None):
     """Explicit Control aggregate fixture, independent of PodView policy/defaults."""
     assert json.loads(request.content) == {"config_entry_id": "account", "include_output": True}
     source = playback_payload("playback", "account")
     source["playback"]["target"]["target_id"] = target
+    if item_uri is not None:
+        source["playback"]["item"]["uri"] = item_uri
     projected = project_owner("playback", source, "account")
     assert projected["ok"]
     value = {
@@ -149,7 +151,9 @@ async def offline_direct(tmp_path):
 
     async def routed_music(request):
         if request.url.path.endswith("/get_playback_snapshot"):
-            return actual_playback_response(request, target="device", homepod="42")
+            return actual_playback_response(
+                request, target="device", homepod="42", item_uri=getattr(music, "item_uri", None)
+            )
         return await music.handle(request)
 
     music.client = httpx.AsyncClient(transport=httpx.MockTransport(routed_music))
@@ -497,16 +501,28 @@ async def test_pending_robot_read_keeps_existing_actions_and_invalidates_late_se
     finally:
         release.set()
         late = await pending
-    assert late.get("ok") is False and late.get("error") == "stale_setup", late
+    if action_domain == "vacuum":
+        assert late.get("ok") is False and late.get("error") == "stale_setup", late
+    else:
+        assert late.get("ok") is True, late  # Unrelated music cannot revoke robot setup.
     assert len(rig.writes) == (1 if action_domain == "vacuum" else 0)
     assert music.execute_room.await_count == (1 if action_domain == "music" else 0)
     assert not bridge.controls.busy
 
 
-async def test_setup_output_read_before_task_capture_is_invalidated_by_action(fixture):
+async def test_robot_action_does_not_invalidate_pending_music_output_read(fixture):
     rig, bridge, token = fixture
     bridge.controls.music = SimpleNamespace(
-        room_available=True, room_start_available=False, tools=bridge.tools, binding=lambda: ()
+        room_available=True,
+        room_start_available=False,
+        tools=bridge.tools,
+        binding=lambda: (),
+        setup_room=AsyncMock(
+            return_value={
+                "ok": True,
+                "data": {"actions": ["pause"], "valid_until": time.time() + 15},
+            }
+        ),
     )
     offer = await bridge.controls.setup(setup_body(bridge), token)
     option = next(row for row in offer["options"] if row["argsSchema"]["kind"] == "choice")
@@ -526,7 +542,7 @@ async def test_setup_output_read_before_task_capture_is_invalidated_by_action(fi
     finally:
         release.set()
         late = await pending
-    assert late.get("error") == "stale_setup", late
+    assert late.get("ok") is True, late
     assert len(rig.writes) == 1
 
 
@@ -1553,7 +1569,7 @@ async def test_explicit_volume_read_has_separate_task_and_only_volume(fixture):
     music.setup_room.assert_not_awaited()
 
 
-@pytest.mark.parametrize("selector", [None, "pause", "", [], {"action": "volume"}])
+@pytest.mark.parametrize("selector", [None, "unsupported", "", [], {"action": "volume"}])
 async def test_volume_selector_is_closed(fixture, selector):
     rig, bridge, token = fixture
     body = {**setup_body(bridge, "music"), "requestedAction": selector}
@@ -2143,3 +2159,360 @@ async def test_robot_rebind_preserves_raw_time_setting_current(fixture):
     changed = bridge.controls._robot_rebind(old, fresh, token)
     assert changed["status"] == "not_restored"
     assert not rig.writes
+
+
+async def test_robot_rebind_deadline_reason_survives_retirement_without_identifiers(fixture):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    bridge.controls.tasks[first["taskId"]]["deadline"] = time.monotonic() - 1
+    renewed = await bridge.controls.setup(setup_body(bridge, renewTaskId=first["taskId"]), token)
+    assert renewed["setup"]["rebind"] == {"status": "not_restored"}
+    assert renewed["setup"]["rebindReason"] == "robot_deny_source_deadline"
+    assert token not in renewed["setup"]["rebindReason"]
+    assert first["taskId"] not in renewed["setup"]["rebindReason"]
+    assert not rig.writes
+
+
+@pytest.mark.parametrize("stage", ["transport", "dock", "settings", "display"])
+async def test_robot_setup_failure_logs_safe_stage_and_category(
+    fixture, monkeypatch, caplog, stage
+):
+    from gatekeeper import podview_controls as controls
+
+    rig, bridge, token = fixture
+    rule = bridge.controls.policy["vacuum"][0]
+    rule["actions"] = ["settings", "start", "pause", "dock"]
+    rule["settingsRoles"] = ["volume"]
+    rule["dockControls"] = {"enabled": True}
+
+    async def failed(*args, **kwargs):
+        raise ValueError("PRIVATE-ENTITY PRIVATE-TOKEN")
+
+    class Transport:
+        def __init__(self, *args):
+            pass
+
+        async def setup(self, *args):
+            if stage == "transport":
+                return await failed()
+            return {
+                "state": "cleaning",
+                "actions": {"pause": True},
+                "deadline": time.monotonic() + 30,
+            }
+
+    class Dock:
+        def __init__(self, *args):
+            pass
+
+        async def setup(self, *args):
+            if stage == "dock":
+                return await failed()
+            return {"deadline": time.monotonic() + 30, "actions": {}}
+
+    class Settings:
+        def __init__(self, *args):
+            pass
+
+        async def setup(self, *args):
+            if stage == "settings":
+                return await failed()
+            return {"deadline": time.monotonic() + 30, "rows": []}
+
+    monkeypatch.setattr(controls, "VacuumTransport", Transport)
+    monkeypatch.setattr(controls, "DockTransport", Dock)
+    monkeypatch.setattr(controls, "ActiveVacuumSettings", Settings)
+    if stage == "display":
+        monkeypatch.setattr(bridge.tools._device_control, "display_setup", failed)
+    with caplog.at_level("WARNING", logger="gatekeeper.podview_controls"):
+        result = await bridge.controls.setup(setup_body(bridge), token)
+    if stage != "transport":
+        assert result["ok"], result  # Independently available pause survives.
+    messages = [r.getMessage() for r in caplog.records if "robot_setup_failed" in r.getMessage()]
+    assert messages[0] == f"robot_setup_failed stage={stage} error=value"
+    assert "PRIVATE" not in " ".join(messages)
+    assert not rig.writes
+
+
+def direct_music_body(bridge, *, action="next", request_id="direct-one"):
+    return {
+        "bootId": bridge.boot_id,
+        "roomId": "kitchen",
+        "domain": "music",
+        "action": action,
+        "target": {
+            "accountId": "account",
+            "kind": "spotify_device",
+            "targetId": "device",
+            "expectedBindingId": ACTUAL_BINDING_ID,
+        },
+        "args": {},
+        "requestId": request_id,
+        "issuedAt": int(time.time() * 1000),
+    }
+
+
+async def test_direct_http_command_reuses_original_receipt_after_short_task_expiry(offline_direct):
+    client, bridge, _, _, _, _, _, music = offline_direct
+    token = bridge.grant_timer_control("kitchen")
+    headers = {"X-PodView-Request": "1", "Cookie": f"podview_control={token}"}
+    body = direct_music_body(bridge)
+    result = await (
+        await client.post("/view/api/control/actions", json=body, headers=headers)
+    ).json()
+    assert result["outcome"] == "accepted", result
+    assert result["requestId"] == body["requestId"]
+    for task in bridge.controls.tasks.values():
+        task["deadline"] = 0
+    bridge.controls.tasks.clear()
+    repeated = await (
+        await client.post("/view/api/control/actions", json=body, headers=headers)
+    ).json()
+    assert repeated == result
+    reused = await bridge.controls.command({**body, "action": "previous"}, token)
+    assert reused["error"] == "request_reused"
+    assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == 1
+
+
+@pytest.mark.parametrize("stage", ["read", "send"])
+async def test_direct_reservation_survives_cancel_and_does_not_block_robot(offline_direct, stage):
+    _, bridge, _, _, _, _, robot, music = offline_direct
+    token = bridge.grant_timer_control("kitchen")
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def held_owner_read():
+        service = "get_room_playback_controls" if stage == "read" else "control_room_playback"
+        if music.calls[-1][1].endswith(service):
+            entered.set()
+            await release.wait()
+
+    music.hook = held_owner_read
+    body = direct_music_body(bridge)
+    pending = asyncio.create_task(bridge.controls.command(body, token))
+    await asyncio.wait_for(entered.wait(), 2)
+    try:
+        original = await bridge.controls.command(body, token)
+        assert original["outcome"] == "unknown" and original["retryAllowed"] is False
+        robot_offer = await bridge.controls.setup(setup_body(bridge), token)
+        assert robot_offer["ok"], robot_offer
+        assert not robot.writes
+        pending.cancel()
+        if stage == "read":
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+        else:
+            assert (await pending)["outcome"] == "unknown"
+        assert await bridge.controls.command(body, token) == original
+        assert not bridge.controls.busy and not bridge.controls.setups
+        assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == (
+            0 if stage == "read" else 1
+        )
+    finally:
+        release.set()
+        if not pending.done():
+            pending.cancel()
+            await asyncio.gather(pending, return_exceptions=True)
+
+
+async def test_direct_old_intent_after_receipt_retirement_cannot_dispatch(
+    offline_direct, monkeypatch
+):
+    _, bridge, _, _, _, _, _, music = offline_direct
+    from gatekeeper.podview import _HA_REQUEST
+
+    token = bridge._ha_actor("kitchen", "direct-user")
+    scope = _HA_REQUEST.set({"active": True, "user": "direct-user"})
+    try:
+        body = direct_music_body(bridge)
+        result = await bridge.controls.command(body, token)
+        assert result["outcome"] == "accepted", result
+        key = ("kitchen", token, body["requestId"])
+        entry = bridge.controls.receipts[key]
+        bridge.controls.receipts[key] = (*entry[:2], 0, *entry[3:])
+        now = time.time()
+        monkeypatch.setattr("gatekeeper.podview_controls.time.time", lambda: now + 400)
+        assert (await bridge.controls.command(body, token))["error"] == "stale_intent"
+        assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == 1
+    finally:
+        _HA_REQUEST.reset(scope)
+
+
+async def test_direct_pause_ignores_voice_turn_and_item_change_on_same_output(offline_direct):
+    _, bridge, _, _, _, _, _, music = offline_direct
+    bridge.controls.policy["music"][0]["actions"] = ["pause"]
+    music.value["actions"] = ["pause"]
+    token = bridge.grant_timer_control("kitchen")
+
+    async def changed_turn_while_owner_reads():
+        if music.calls[-1][1].endswith("get_room_playback_controls"):
+            session = bridge.sessions["kitchen"]
+            session._history_session = "new-conversation"
+            session._external_turn_id = lambda: "new-conversation:2"
+            music.item_uri = "spotify:track:changed-during-pause"
+
+    music.hook = changed_turn_while_owner_reads
+    body = direct_music_body(bridge, action="pause")
+    result = await bridge.controls.command(body, token)
+    assert result["outcome"] == "accepted", result
+    effects = [call[3] for call in music.calls if call[1].endswith("control_room_playback")]
+    assert len(effects) == 1 and effects[0]["action"] == "pause"
+    assert effects[0]["room_id"] == "native-room" and effects[0]["homepod_id"] == "42"
+
+
+async def test_direct_target_drift_and_revoked_auth_never_dispatch(offline_direct):
+    _, bridge, _, _, _, _, _, music = offline_direct
+    token = bridge.grant_timer_control("kitchen")
+    body = direct_music_body(bridge)
+    foreign = {**body, "target": {**body["target"], "targetId": "foreign"}}
+    assert (await bridge.controls.command(foreign, token))["outcome"] == "rejected"
+    bridge.revoke("kitchen")
+    denied = await bridge.controls.command(body, token)
+    assert denied["error"] == "scope_not_paired" and denied["outcome"] == "rejected"
+    assert denied["requestId"] == body["requestId"] and denied["retryAllowed"] is False
+    assert not any(call[1].endswith("control_room_playback") for call in music.calls)
+
+
+async def test_direct_reserved_last_receipt_slot_can_dispatch_and_capacity_rejects_next(
+    offline_direct,
+):
+    _, bridge, _, _, _, _, _, music = offline_direct
+    token = bridge.grant_timer_control("kitchen")
+    for index in range(1023):
+        bridge.controls.receipts[("kitchen", token, f"prior-{index}")] = (
+            "prior-fingerprint",
+            {"outcome": "unknown"},
+            time.monotonic() + 210,
+        )
+    body = direct_music_body(bridge)
+    result = await bridge.controls.command(body, token)
+    assert result["outcome"] == "accepted", result
+    denied = await bridge.controls.command(
+        direct_music_body(bridge, request_id="next-intent"), token
+    )
+    assert denied["outcome"] == "rejected" and denied["error"] == "request_capacity"
+    assert denied["requestId"] == "next-intent"
+    assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == 1
+
+
+@pytest.mark.parametrize(
+    "action,state,feature,service",
+    [
+        ("pause", "cleaning", 4, "pause"),
+        ("resume", "paused", 8192, "start"),
+        ("stop", "cleaning", 8, "stop"),
+        ("return", "paused", 16, "return_to_base"),
+    ],
+)
+async def test_direct_vacuum_transport_uses_exact_service_without_map_or_settings(
+    fixture, monkeypatch, action, state, feature, service
+):
+    rig, bridge, token = fixture
+    bridge.controls.policy["vacuum"][0]["actions"] = [
+        "pause",
+        "resume",
+        "stop",
+        "return",
+        "settings",
+        "map",
+        "start",
+    ]
+    bridge.controls.policy["vacuum"][0]["settingsRoles"] = ["cleaning_mode"]
+    rig.states[ROBOT]["state"] = state
+    rig.states[ROBOT]["attributes"]["supported_features"] = feature
+    device = rig.router._device_control
+    setup = AsyncMock(side_effect=AssertionError("transport must not prepare map/settings"))
+    monkeypatch.setattr(device, "display_setup", setup)
+    body = {
+        **direct_music_body(bridge, action=action),
+        "domain": "vacuum",
+        "target": {"entityId": ROBOT},
+    }
+    result = await bridge.controls.command(body, token)
+    assert result["outcome"] == "accepted", result
+    assert result["partial"] is False and result["startSent"] is False
+    assert result["physicalResultVerified"] is False
+    assert await bridge.controls.command(body, token) == result
+    setup.assert_not_awaited()
+    assert rig.writes == [(f"services/vacuum/{service}", {"entity_id": ROBOT})]
+    assert not device._display_tickets and not device._tickets
+
+
+async def test_home_vacuum_transport_actions_are_request_scoped_and_not_cache_authority(
+    offline_direct,
+):
+    client, bridge, _, _, _, _, robot, _ = offline_direct
+    robot.states[ROBOT]["state"] = "cleaning"
+    robot.states[ROBOT]["attributes"]["supported_features"] = 4 | 8 | 16
+    rule = bridge.controls.policy["vacuum"][0]
+    rule["actions"] = ["pause", "stop"]
+    token = bridge.grant_timer_control("kitchen")
+    headers = {"Cookie": f"podview_control={token}"}
+    first = await (await client.get("/view/api/home", headers=headers)).json()
+    row = first["vacuum"]["items"][0]
+    assert row["transportActions"] == {
+        "status": "observed",
+        "source": "home_assistant_state",
+        "entityId": ROBOT,
+        "observedAt": row["observedAt"],
+        "actions": ["pause", "stop"],
+    }
+    unpaired = await (await client.get("/view/api/home")).json()
+    assert unpaired["vacuum"]["items"][0]["transportActions"] is None
+    # The cached raw capability still has Return; each actor sees current policy.
+    cached = bridge._home_cache["kitchen"][2]["vacuum"]["items"][0]
+    assert cached["transportActions"]["actions"] == ["pause", "stop", "return"]
+    rule["actions"] = ["return"]
+    changed = await (await client.get("/view/api/home", headers=headers)).json()
+    assert changed["vacuum"]["items"][0]["transportActions"]["actions"] == ["return"]
+    bridge.revoke("kitchen")
+    denied = await (await client.get("/view/api/home", headers=headers)).json()
+    assert denied["vacuum"]["items"][0]["transportActions"] is None
+    assert not robot.writes
+
+
+async def test_vacuum_effect_retires_inflight_home_and_followup_observes_real_state(
+    offline_direct, monkeypatch
+):
+    client, bridge, _, _, _, _, robot, _ = offline_direct
+    robot.states[ROBOT]["state"] = "cleaning"
+    robot.states[ROBOT]["attributes"]["supported_features"] = 4 | 8192
+    bridge.controls.policy["vacuum"][0]["actions"] = ["pause", "resume"]
+    token = bridge.grant_timer_control("kitchen")
+    entered, release = asyncio.Event(), asyncio.Event()
+    read_lights = bridge.read_lights
+    first = True
+
+    async def held_final_read(*args, **kwargs):
+        nonlocal first
+        result = await read_lights(*args, **kwargs)
+        if first:
+            first = False
+            entered.set()
+            await release.wait()
+        return result
+
+    async def actual_ha_pause():
+        if robot.writes[-1][0] == "services/vacuum/pause":
+            robot.states[ROBOT]["state"] = "paused"
+
+    monkeypatch.setattr(bridge, "read_lights", held_final_read)
+    robot.write_hook = actual_ha_pause
+    headers = {"Cookie": f"podview_control={token}"}
+    old_read = asyncio.create_task(client.get("/view/api/home", headers=headers))
+    await asyncio.wait_for(entered.wait(), 2)
+    try:
+        assert bridge._home_cache["kitchen"][2]["vacuum"]["items"][0]["state"] == "cleaning"
+        command = {
+            **direct_music_body(bridge, action="pause"),
+            "domain": "vacuum",
+            "target": {"entityId": ROBOT},
+        }
+        assert (await bridge.controls.command(command, token))["outcome"] == "accepted"
+        assert "kitchen" not in bridge._home_cache
+    finally:
+        release.set()
+    assert (await old_read).status == 503
+    fresh = await (await client.get("/view/api/home", headers=headers)).json()
+    row = fresh["vacuum"]["items"][0]
+    assert row["state"] == "paused" and row["transportActions"]["actions"] == ["resume"]
+    assert robot.writes == [("services/vacuum/pause", {"entity_id": ROBOT})]

@@ -306,3 +306,13 @@ test('delivery includes the approved discovery composition for the renderer four
  assert.match(css,/#music-response[^}]+music-refresh-footer[^}]+justify-self:center/,'list expansion stays below its list and centered');
  assert.ok(css.includes('pv-widget-host #music-response :is(.music-refresh-footer){order:10'),'refresh keeps its64px kit geometry when moved inside the SectionHeader');
 });
+
+test('discovery loading uses the destination collection layout before data arrives',()=>{
+ const f=retainedResultSurface();
+ for(const [collection,kinds] of [['top',['listrow','listrow','listrow']],['recent',['listrow','listrow','listrow']],['mood',['hero','listrow','listrow']],['feeling',['card','card','card']]]){
+  f.view.render({discovery:true,collection,busy:true,cards:[]});
+  assert.deepEqual(f.nodes.get('result-list').children.map(row=>row.getAttribute('data-kit')),kinds,collection);
+  assert.ok(f.nodes.get('result-list').children.every(row=>row.disabled&&row.dataset.contentState==='pending'));
+ }
+ f.view.cleanup();
+});

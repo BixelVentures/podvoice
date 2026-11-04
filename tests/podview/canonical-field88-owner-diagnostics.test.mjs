@@ -82,7 +82,7 @@ test('control-state diagnostics emit only independent reason transitions or tran
   f.view.spent.clear();f.view.musicOffer.task.expiresAt=Date.now()/1000-1;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='control_state').at(-1).code,'ok','expired display task does not disable a fresh-JIT intent');assert.equal(f.writes.length,0);
   const before=states().length;f.view.renderMusicControls();assert.equal(states().length,before);
   f.host.liveTransport={...f.host.liveTransport};f.view.renderMusicControls();assert.equal(states().length,before+2);
-  f.view.pending=true;f.view.renderMusicControls();assert.deepEqual(states().slice(-2).map(e=>e.code),['intent_pending','intent_pending']);f.view.pending=false;
+  f.view.musicIntentPending=true;f.view.renderMusicControls();assert.deepEqual(states().slice(-2).map(e=>e.code),['intent_pending','intent_pending']);f.view.musicIntentPending=false;
   f.view.volumeOffer.task.volume=null;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'unknown_value');
   f.view.volumeOffer.task.expiresAt=Date.now()/1000-1;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'expiry');
   f.host.liveTransport.connected=false;f.view.renderMusicControls();assert.deepEqual(states().slice(-2).map(e=>e.code),['capability_missing','capability_missing']);

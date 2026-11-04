@@ -39,6 +39,8 @@ from . import (
 from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection
+from .podview_vacuum_control import transport_actions
+from .recipe_import import import_link
 from .recipe_submissions import RecipeRejectedError, RecipeSubmissions
 
 BRIDGE: web.AppKey = web.AppKey("podview")
@@ -1407,9 +1409,8 @@ class PodViewBridge:
             or self.controls.tasks.get(touch_task["id"]) is not touch_task
         ):
             return {"ok": False, "error_kind": "stale_music_selection", "retry_allowed": False}
-        # Only the approved later turn may rebind the voice task's turn revision.
-        # The original answer, grant, policy, destination and source remain pinned.
-        touch_task["move_revision"] = self.controls._move_revision(room)
+        # Later-turn approval changes voice context, not device authority.
+        # Keep the original setup's owner revision, grant, policy and destination pinned.
         self._music_move_fence.add((room, task["account"]))
         result = await self.controls.action(
             {
@@ -1962,7 +1963,13 @@ async def _control(request: web.Request) -> web.Response:
     except (ValueError, json.JSONDecodeError):
         return _error("invalid_control", 400)
     owner = request.app[BRIDGE].controls
-    handler = owner.setup if request.path.endswith("/setup") else owner.action
+    handler = (
+        owner.setup
+        if request.path.endswith("/setup")
+        else owner.command
+        if "action" in body or "issuedAt" in body
+        else owner.action
+    )
     # HA ingress always retains its actor; standalone requests use their own cookie.
     task = owner.tasks.get(body.get("taskId")) if isinstance(body.get("taskId"), str) else None
     vehicle = body.get("domain") == "vehicle" or (task is not None and task["domain"] == "vehicle")
@@ -2015,7 +2022,11 @@ def _room(request: web.Request, bridge: PodViewBridge) -> str | None:
 async def _recipe_submissions(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
-        return denied
+        return web.json_response(
+            {"message": "Adgang afvist"},
+            status=denied.status,
+            headers={"Cache-Control": "no-store"},
+        )
     scope = _HA_REQUEST.get()
     if not scope or not scope["active"] or not scope["user"]:
         return _error("recipes_denied", 403)
@@ -2037,9 +2048,17 @@ async def _phone_recipes(request: web.Request) -> web.Response:
         or len(auth) != 1
         or not hmac.compare_digest(auth[0].encode(), f"Bearer {token}".encode())
     ):
-        return _error("recipes_denied", 403)
+        return web.json_response(
+            {"error": "recipes_denied", "message": "Adgang afvist"},
+            status=403,
+            headers={"Cache-Control": "no-store"},
+        )
     if request.method == "POST" and request.content_type != "application/json":
-        return _error("invalid_recipe_submission", 400)
+        return web.json_response(
+            {"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"},
+            status=400,
+            headers={"Cache-Control": "no-store"},
+        )
     endpoint = "recipe-status" if request.method == "GET" else "recipe-submissions"
     return await _recipe_operation(request, endpoint)
 
@@ -2047,11 +2066,20 @@ async def _phone_recipes(request: web.Request) -> web.Response:
 async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response:
     store = request.app[BRIDGE].recipe_submissions
     if store is None:
-        return _error("recipes_unavailable", 503)
+        return web.json_response(
+            {
+                "error": "recipes_unavailable",
+                "message": "Opskriftslageret er ikke tilgængeligt. Prøv igen",
+            },
+            status=503,
+            headers={"Cache-Control": "no-store"},
+        )
     status = 200
     try:
-        if endpoint == "recipe-status":
-            result = await asyncio.to_thread(store.receipt, request.query.get("id"))
+        if endpoint == "recipe-upload-history":
+            result = {"uploads": await asyncio.to_thread(store.upload_history)}
+        elif endpoint == "recipe-status":
+            result = await asyncio.to_thread(store.phone_receipt, request.query.get("id"))
         elif request.method == "GET":
             result = {"submissions": await asyncio.to_thread(store.list_submissions)}
         else:
@@ -2060,27 +2088,61 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
                 async for chunk in request.content.iter_chunked(8192):
                     raw.extend(chunk)
                     if len(raw) > 65536:
-                        return _error("recipe_payload_too_large", 413)
+                        return web.json_response(
+                            {"error": "recipe_payload_too_large", "message": "Linket er for langt"},
+                            status=413,
+                            headers={"Cache-Control": "no-store"},
+                        )
             body = json.loads(raw, object_pairs_hook=_unique_json_object)
             if not isinstance(body, dict):
-                return _error("invalid_recipe_submission", 400)
+                return web.json_response(
+                    {"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"},
+                    status=400,
+                    headers={"Cache-Control": "no-store"},
+                )
             if endpoint == "recipe-publication":
                 result = await asyncio.to_thread(store.publish, body)
             elif request.method == "PATCH":
                 result = await asyncio.to_thread(store.reject, body.get("url"), body.get("reason"))
             else:
-                result = await asyncio.to_thread(store.submit, body.get("url"))
-                status = 202 if result["status"] == "received" else 200
+                result = await import_link(store, body.get("url"))
+                status = 202 if result["status"] in {"received", "importing"} else 200
     except RecipeRejectedError:
-        return _error("recipe_rejected", 409)
+        return web.json_response(
+            {"error": "recipe_rejected", "message": "Opskriften kræver gennemgang og er ikke gemt"},
+            status=409,
+            headers={"Cache-Control": "no-store"},
+        )
     except KeyError:
-        return _error("recipe_submission_not_found", 404)
-    except (ValueError, TypeError):
-        return _error("invalid_recipe_submission", 400)
+        return web.json_response(
+            {"error": "recipe_submission_not_found", "message": "Kvitteringen blev ikke fundet"},
+            status=404,
+            headers={"Cache-Control": "no-store"},
+        )
+    except (ValueError, TypeError, RecursionError):
+        return web.json_response(
+            {"error": "invalid_recipe_submission", "message": "Ugyldigt opskriftslink"},
+            status=400,
+            headers={"Cache-Control": "no-store"},
+        )
     except TimeoutError:
-        return _error("recipe_request_timeout", 408)
+        return web.json_response(
+            {
+                "error": "recipe_request_timeout",
+                "message": "Indsendelsen tog for lang tid. Kontrollér uploadhistorikken",
+            },
+            status=408,
+            headers={"Cache-Control": "no-store"},
+        )
     except OSError:
-        return _error("recipes_unavailable", 503)
+        return web.json_response(
+            {
+                "error": "recipes_unavailable",
+                "message": "Opskriftslageret er ikke tilgængeligt. Prøv igen",
+            },
+            status=503,
+            headers={"Cache-Control": "no-store"},
+        )
     return web.json_response(result, status=status, headers={"Cache-Control": "no-store"})
 
 
@@ -2122,6 +2184,7 @@ def _project_published_recipes(published: object) -> list[dict]:
         "portions",
         "waiting",
         "baking",
+        "cookingTime",
         "totalTime",
         "description",
         "image",
@@ -2142,7 +2205,15 @@ def _project_published_recipes(published: object) -> list[dict]:
         recipes.append(
             {
                 **{key: value for key, value in recipe.items() if key in fields},
-                "source": {"url": url, "files": []},
+                "source": {
+                    "url": url,
+                    "files": [],
+                    **(
+                        {"uploadedAt": recipe["source"]["uploadedAt"]}
+                        if isinstance(recipe["source"].get("uploadedAt"), (int, float))
+                        else {}
+                    ),
+                },
             }
         )
     return recipes
@@ -3767,7 +3838,10 @@ async def _music_selection(request: web.Request) -> web.Response:
         )
 
     if request.path.endswith("/setup"):
-        if bridge.music_selection.busy(room) or room in bridge.controls.busy:
+        if (
+            bridge.music_selection.busy(room)
+            or bridge.controls.resource_key("music") in bridge.controls.busy
+        ):
             return _error("music_busy", 429)
         required = {"bootId", "roomId", "candidateSetId", "target"}
         if set(body) not in (required, required | {"candidateIds"}) or not isinstance(
@@ -4098,6 +4172,15 @@ def _home_vacuum(value: object) -> dict:
                     row["entityId"],
                 ),
                 "actions": [],
+                "transportActions": {
+                    "status": "observed",
+                    "source": "home_assistant_state",
+                    "entityId": row["entityId"],
+                    "observedAt": row["observedAt"],
+                    "actions": transport_actions(row["state"], row.get("supportedFeatures")),
+                }
+                if type(row.get("supportedFeatures")) is int
+                else None,
             }
         )
     return {"status": "observed", "items": result}
@@ -4118,6 +4201,14 @@ async def _home(request: web.Request) -> web.Response:
     ):
         return _error("home_unavailable", 503)
 
+    def vacuum_revision_now():
+        # Cache-ordering fences from the existing resource owner, never state.
+        return tuple(
+            (resource, revision)
+            for resource, revision in sorted(bridge.controls.mutations.items())
+            if resource[0] == "vacuum"
+        )
+
     def binding_now():
         return (
             tools,
@@ -4134,6 +4225,7 @@ async def _home(request: web.Request) -> web.Response:
                 getattr(tools, "podview_vehicle_binding", lambda: None)(),
                 getattr(tools, "podview_vehicle_available", lambda: False)(),
             ),
+            vacuum_revision_now(),
         )
 
     binding = binding_now()
@@ -4166,6 +4258,28 @@ async def _home(request: web.Request) -> web.Response:
             and bridge.tools is tools
             and binding_now() == binding
         )
+
+    def with_transport_actions(result):
+        result = {**result, "vacuum": copy.deepcopy(result.get("vacuum", {}))}
+        token = _request_token(request, room)
+        allowed = bool(same_read() and "vacuum" in bridge.controls.domains(room, token))
+        rules = bridge.controls.policy.get("vacuum", [])
+        now = time.time()
+        for row in result["vacuum"].get("items", []):
+            offer = row.get("transportActions")
+            rule = next((rule for rule in rules if rule["entityId"] == row["entityId"]), None)
+            if (
+                not allowed
+                or rule is None
+                or not isinstance(offer, dict)
+                or not -1 <= now - offer["observedAt"] <= 15
+            ):
+                row["transportActions"] = None
+            else:
+                offer["actions"] = [
+                    action for action in offer["actions"] if action in rule["actions"]
+                ]
+        return result
 
     cached = current_cache()
     joined = False
@@ -4204,7 +4318,11 @@ async def _home(request: web.Request) -> web.Response:
         vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
         if (joined or vehicle_visible) and (not same_read() or current_cache() is None):
             return _error("home_unavailable", 503)
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        if binding[-1] != vacuum_revision_now():
+            return _error("home_unavailable", 503)
+        return web.json_response(
+            with_transport_actions(result), headers={"Cache-Control": "no-store"}
+        )
     if bridge._home_busy:
         return _error("home_busy", 429)
     bridge._home_busy = True
@@ -4325,7 +4443,11 @@ async def _home(request: web.Request) -> web.Response:
         vehicle_visible = result.get("vehicle", {}).get("status") in {"observed", "stale"}
         if vehicle_visible and (not same_read() or current_cache() is None):
             return _error("home_unavailable", 503)
-        return web.json_response(result, headers={"Cache-Control": "no-store"})
+        if binding[-1] != vacuum_revision_now():
+            return _error("home_unavailable", 503)
+        return web.json_response(
+            with_transport_actions(result), headers={"Cache-Control": "no-store"}
+        )
 
     finally:
         if not completion.done():
@@ -4454,10 +4576,35 @@ def mount(
     async def start_vehicle_controls(_app):
         bridge.start_vehicle_controls()
 
+    recipe_recovery_task = None
+
+    async def recover_recipe_uploads():
+        submissions = bridge.recipe_submissions
+        if submissions is None:
+            return
+        try:
+            urls = await asyncio.to_thread(submissions.pending_urls)
+            for url in urls:
+                await import_link(submissions, url)
+        except OSError:
+            _LOG.warning("recipe_import_recovery_failed code=storage_unavailable")
+
+    async def start_recipe_imports(_app):
+        nonlocal recipe_recovery_task
+        if bridge.recipe_submissions is not None:
+            recipe_recovery_task = asyncio.create_task(recover_recipe_uploads())
+
+    app.on_startup.append(start_recipe_imports)
     app.on_startup.append(start_vehicle_controls)
     app.on_startup.append(retain_client_diagnostics)
 
     async def close_receipts(_app):
+        if recipe_recovery_task is not None:
+            recipe_recovery_task.cancel()
+            try:
+                await recipe_recovery_task
+            except asyncio.CancelledError:
+                pass
         await bridge.stop_vehicle_controls()
         radio_native = getattr(tools, "podview_radio_native", None)
         if radio_native is not None:
@@ -4489,6 +4636,7 @@ def mount(
             web.post("/view/api/recipe-submissions", _recipe_submissions),
             web.patch("/view/api/recipe-submissions", _recipe_submissions),
             web.get("/view/api/recipe-status", _recipe_submissions),
+            web.get("/view/api/recipe-upload-history", _recipe_submissions),
             web.post("/view/api/recipe-publication", _recipe_submissions),
             web.get("/view/api/client-diagnostics", _client_diagnostics),
             web.post("/view/api/client-diagnostics", _client_diagnostics),

@@ -81,17 +81,20 @@ test('all closed refusals already remain unavailable and one-read fenced without
  }
 });
 
-for(const reason of reasons)for(const action of ['pause','volume'])test(`explicit ${action} JIT HTTP200 ${reason} preserves exact refusal and consumes the old grant without an effect`,async()=>{
- const f=fixture();try{
-  f.reply(f.offer(['pause','volume'],35));await f.view.prepareMusic();const old=f.view.musicOffer.task,context=f.view.musicContext();
-  assert.ok(old.options.some(option=>option.action===action));assert.equal(f.calls.length,1);
-  f.reply({ok:false,error:reason,retryAllowed:false});
-  assert.equal(await f.view.musicIntent(action,action==='volume'?{percent:20}:{}),false);
-  noEffects(f,2);assert.equal(f.calls[1].body.requestedAction,action==='volume'?'volume':undefined);
-  assert.equal(f.calls[1].body.target.expectedBindingId,context.target.expectedBindingId);
-  const result=terminal(f,action==='volume'?'volume_setup':'control_setup');assert.equal(result.code,reason);assert.equal(result.current,true);
-  assert.equal(f.view.musicFence.key,context.key);assert.equal(f.view.musicFence.outcome,'unavailable');assert.equal(f.view.musicIntentPending,false);
-  assert.equal(f.view.spent.has(old.taskId),true,'the original displayed executable grant stays consumed');assert.equal(f.view.musicOffer,null);assert.equal(f.view.volumeOffer??null,null);
-  for(let i=0;i<3;i++)f.view.renderMusicControls();noEffects(f,2);assert.equal(f.view.spent.has(old.taskId),true,'redraw cannot renew or reuse the consumed grant');
- }finally{f.cleanup();}
+// Ordinary music no longer obtains a browser JIT task. Its direct response
+// remains closed and correlated; malformed responses cannot authorize a retry.
+for(const action of ['pause','volume'])test(`direct ${action} keeps rejected and malformed responses closed without replay`,async()=>{
+ const requestId='00000000-0000-4000-8000-000000000001',calls=[];
+ const t=new PodVoiceTransport({url:'https://inert.invalid/view/',diagnosticStorage:null});
+ const intent={bootId:'test',roomId:'room',action,target:{accountId:'account',kind:'spotify_device',targetId:'device',expectedBindingId:'a'.repeat(64)},args:action==='volume'?{percent:20}:{},requestId,issuedAt:Date.now()};
+ for(const [body,expected] of [
+  [{ok:false,requestId,outcome:'rejected',retryAllowed:false,physicalResultVerified:false,error:'target_not_granted'},'rejected'],
+  [{ok:false,requestId:'foreign',outcome:'rejected',retryAllowed:false,physicalResultVerified:false},'unknown'],
+  [{ok:false,requestId,outcome:'rejected',retryAllowed:true,physicalResultVerified:false},'unknown'],
+ ]){
+  t.request=async(url,options)=>{calls.push({url:String(url),body:JSON.parse(options.body)});return {status:200,ok:true,json:async()=>body};};
+  const result=await t.controlIntent(intent);assert.equal(result.outcome,expected);assert.equal(result.requestId,requestId);assert.equal(result.retryAllowed,false);assert.equal(result.physicalResultVerified,false);
+ }
+ assert.equal(calls.length,3,'one request for each explicit invocation, no automatic retry');
+ for(const call of calls){assert.match(call.url,/\/view\/api\/control\/actions$/);assert.deepEqual(call.body,{...intent,domain:'music'});}
 });

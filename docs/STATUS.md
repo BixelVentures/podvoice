@@ -1,3 +1,123 @@
+
+## Foundation · samlet kandidat og tværgående afstemning · 4. november
+
+Denne PodView-tråd ejer fundament, kanonisk UI og samlet funktionsbevis. De eksisterende aktive tråde `Forbedr Roborock-widget UX og UI` og `v2.X` har bekræftet HOLD af overlappende merge/publicering/installation. Deres PR296 ee2d8459-delta er selektivt afstemt; den nyere recipe local-store/Noneguard og formattering er bevaret. Ingen af deres branches er overskrevet. Navngiven eksisterende integrationslead bevarer den ene release-/Green-installation efter den fælles frysning. Leadens oplyste Green-status: PV127, Control29, companion0.1.14; Control31 downloadet men ingen HA-genstart sendt. Dette er ikke root-verificeret ny Green-/hardwareaccept.
+
+Samme byggede kandidat `b80d1c9a00666fda5f65a666aaef214ed1ebc3de7281e215332a7533452fc562`, CSS `c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b`, 68 matchende kildeinputs:
+- Musik: actual browser → Python owner → inert native service; Pause under sangmetadata-skift, midlertidigt ukendt witness → samme receipt bekræftet før Resume, korrekt overblik/player og vedvarende korreleret log. Én Pause-effekt, ingen browser-JIT-setup. Log `/private/tmp/podview-foundation-music-final.log`.
+- Robot: actual browser → faktisk backend/DeviceControl → inert HA; Pause under ventende musik, detail-Fortsæt, tilbagevendende header-Pause og bevarede rengøringsvalg. Den faktisk fundne gamle home-cache er rettet med effekt/inflight-fence og passiv genlæsning, ingen effect replay. Log `/private/tmp/podview-foundation-robot-final.log`.
+- Opskrift: actual browser → eksisterende HA proxy/addonroute → offentlig kilde → varig teststore → automatisk katalogpost, dublet og faktisk serverproces-restart; 1024×768, bevaret fokus/kategori/scroll. Log `/private/tmp/podview-foundation-recipe-final.log`.
+- Samlet eksisterende UI-suite inkl. komponentgate består uden fail/cancel/skip. Log `/private/tmp/podview-foundation-ui-final-final.log`. Relevant backend-scope består, `/private/tmp/podview-foundation-final-backend-all.log`. Astra har godkendt de konkrete ændrede grænser og sidste late-robot-fence. Faktiske service/hardware og hele inventaret er fortsat særskilt åbent.
+
+Checkout-build bruger samme committede renderer: manglende `dist` skabes kun som disponibel staging fra `gatekeeper/static/podview`; eksisterende arbejdsfiler overskrives ikke. Der er ingen ekstra committet UI-kilde.
+
+Dette lukker ikke hele A/B/D-inventaret, outputskift/volumen/kø som realservice-E2E, faktisk Green/Mac/iPad eller naturlig native song-transition. PodConnect-ekstradelta er isoleret commit c4a25ddf84478681856162c0500b5c52e2c320c1 fra Control31; exact route ved faktisk naturligt sangskift er endnu ikke observeret (aktuelt output iPhone), og der fremprovokeres ingen lyd for denne læseprøve.
+
+## 4/11 — Go: fundament for direkte touch og domæneisolation · under arbejde
+
+Brugerens Go gennemfører PodView-grundplanen. Arbejdskandidat er den isolerede
+`codex/podview-foundation-20261104`, fra verificeret remote PR296
+`eae9066ad558e25ffda0cdda58a61afce8e88910` (2.0.128), med selektivt adopteret
+samlet overlay og opskriftsbackend. Main var `37680d1831ce26fd1c41a82a19a35482435b2ece`.
+Ingen runtime-, service- eller fysisk accept udledes heraf.
+
+Læst kodeårsag: almindelig musikintention kan afhænge af sang/samtaleskift; kontrol-,
+kø- og musikvalg deler rumglobal effektventen; robot-/lyssetup kan blokeres af musik.
+Det præcise gamle brugerklik er ikke kausalt rekonstrueret. Falsificerbar hypotese:
+direkte normal touch med præcist mål, samme serviceejer og ressourceafgrænset venten
+bevarer Pause gennem sangskift og gør robot/lys uafhængige af musikarbejde.
+
+Implementationsbeslutning: eksisterende control/actions modtager lukket direkte
+musikintention; nuværende requestauth, policy, ejer og faktisk native binding
+valideres. Samme receiptlager reserveres før første await med original fingerprint;
+issuedAt begrænser intentionen til120s (+5s fremadskævhed), receipts bevares til
+intentionens frist+90s uafhængigt af kort tilbudsfrist. Original udløbet body afvises;
+UNKNOWN eller ændret timestamp gensendes ikke automatisk. Backendkonflikter deles
+mellem musik-ejer, robotentity og lysområde; fælles policy/adgang/placement/ejer-
+invalidering bevares. Kølæsning er ingen effektlås. Ingen ny bus, renderer eller login.
+
+Kausale checks: direkte Pause efter item-/samtaleskift, dublet under await, forkert mål,
+expiry/pruning, cancellation og sent svar samt samtidig musik/robot/lys. Genbrug
+eksisterende inerte HA/Connect-ejere; bygget PodView-browser→rigtig service→observation
+og UI/log er primært acceptbevis. Mac fysisk adgang er aktuelt blokeret; uafhængigt
+softwarearbejde fortsætter. Astra har accepteret designet med konkrete reservation-/
+expiry-/authkrav; faktisk diff reviewes før integration/release. Rollback er dette
+afgrænsede ændringssæt; ingen firmware/audio/HA-politik ændres og ingen fysiske effekter
+udføres i dette arbejde. Publicering, Green-installation og Mac/iPad/fysisk accept er åbne.
+
+
+Resultat på denne kandidat: direkte musikcommand og ressourceafgrænsning implementeret;
+normal købetjening bevarer samme ejer gennem uvedkommende samtaletur. Originalt input
+reserveres før første await; dublet, cancellation før/efter mulig send, kort taskexpiry,
+gammel intention efter receiptpruning, forkert mål, tilbagekaldt adgang og sidste ledgerslot
+er kausalt prøvet. Fire berørte eksisterende kontrol-/kø-/musikvalgmoduler består samlet
+233 checks med inerte HA/Connect-ejere og lokale HTTP-ruter. Ændret Python består Ruff
+og Python3.12 AST. Ingen bred ny testsuite tilføjet. Astra har verificeret de fire core-
+sourcehashes og givet APPROVED FOR ADOPTION uden resterende sourceblocker.
+
+Corehashes: controls `90600bf727e2a492c25526780c8644befe5ccdbfbfdb2b4bf0beb07ad1312c43`,
+queue `7f09b3ff2f7ded64a0efc25ec000e95b8cee5af176578fbbaa10a8581437b3e4`,
+selection `b817ecfa372c14f4728a1a030bbe08a389e1d5205440ae5809a1eeb5f0dc91eb`,
+bridge `d3706b1f4a4f1679d762748002bce48c20baf2edeb16d4fe53029794728d1161`.
+Faktisk browser→service→observation/UI, native input-/sangskift, ekstern allerede-paused,
+Green-installation, Mac/iPad-brugsklarhed og fysisk accept er fortsat åbne. Headless
+samlet E2E udføres af lead; PodConnect-ejer afklarer den påviste native poll-race uden
+at erstatte eksakte route-/adgangsgrænser med automatisk genforsøg.
+
+
+B-pakke under arbejde: samme lukkede direkte kommando udvides kun til robotens
+pause/resume/stop/return. Transport-only setup springer map/settings/dock over, men
+bevarer eksisterende VacuumTransport registry-, feature-, state-, target- og ejer-
+validering før servicekald. En kortlivet readonly transportActions-række beregnes
+fra supported_features i den allerede læste HA-state; ingen ekstra poll eller ny
+myndighed. Aktuel auth/policy filtreres per HTTP-svar efter sidste await, uafhængigt
+af den delte observationscache. De to øvrige aktive tråde er afstemt af lead; ingen
+merge/publicering/installation udføres fra denne isolerede kandidat før samlet freeze.
+Nyere ee2d8459's safe robotstage-log er bevaret; recipe-recovery Noneguard er optaget
+selektivt, uden at overskrive ændrede kontroldomæner. Browser/servicebevis følger hos
+lead; fysisk robot er ikke prøvet.
+
+
+B-resultat på samme kandidat: direkte Pause/Fortsæt/Stop/Base går gennem præcis
+VacuumTransport-service med frisk registry/state/features-validering. Readonly
+transportActions filtreres per request og kan ikke genbruges som myndighed.
+Et faktisk browserfund viste gammel home-cache efter accepteret Pause; rettet ved
+at retire cachen og avancere eksisterende vacuum-mutationsfence ved accepted/unknown.
+En ældre in-flight home-read kan ikke publicere før-effekt cleaning bagefter. Den
+kausale HTTP-prøve ændrer rigtig inert HA-state til paused og genfinder Resume ved
+næste friske læsning. Astra har godkendt den afgrænsede backend. Sidste relevante
+kontrol/home/kø/musikvalg-integration består samlet på Python3.12; ingen fysisk robot
+eller live Green-accept udledes af dette.
+
+Testkontrakten er rettet, ikke omgået. Den første reelt kørte samlede UI-suite fandt
+forældede protokolkrav og reelle harnesshuller. Browser-JIT pr. klik, opaque task-ID
+som touchidentitet, Pause afbrudt af sang/samtaleskift, permanent UNKNOWN-lås og musik
+som global robotlås er ikke længere gyldige produktorakler. De erstattes af offentlige
+controlIntent-/receiptforløb, aktuelle auth-/target-/volume-/racegrænser og faktisk
+browser→backend→inert service→state/UI/log. Passive expiry-/cleanupkontroller og
+unikke state-/volumeregler bevares. Verificerede dubletter konsolideres i samme suites;
+ingen testpattern-exclude, skip eller komponentrebaseline bruges til at få PASS.
+
+- Native/JIT-/diagnosesporet: 202 aktuelle kontroller består, inklusive to MOVE i træk,
+  køkken→Svend→afspil→pause→køkken→afspil, volume100 mod max35, correlation og no-replay.
+- Fire små renderer-/transportharnessrettelser:30 består uden produktændring.
+- Media-suiternes identiske kopier er konsolideret med unik dækning bevaret;91 relevante
+  kontroller består. Ægte konto/boot/rum/binding/transport/adgangsgrænser er bevaret.
+  Endelig samlet npm-kørsel kræver frosne fælles bytes og er ikke påstået her.
+- Bevarede tests fandt en reel forskel mellem command-outcome UNKNOWN og et accepted
+  commands midlertidigt ukendte native witness. Frontend beholder nu det accepterede
+  requests passive custody til samme30s deadline; næste læsning kan bekræfte samme
+  receipt uden ny kommando. Historisk accepted efter readonly control_not_granted
+  forbliver historik, mens nye handlinger er deaktiveret; accepted er aldrig confirmed.
+
+Det faktiske browserbevis findes i tests/browser/music_actual_e2e.cjs med tilhørende
+music_e2e_server.py og recipe_actual_e2e.cjs/recipe_e2e_server.py. Disse bruger inerte
+HA/nativeejere og midlertidigt lager, og er derfor hverken Green eller fysisk iPad.
+Original samlet UI-log: /private/tmp/podview-foundation-ui-final.log. Rettet fokuseret
+UI-scope: /private/tmp/owned-final-after-sync.log. Backendens sidste relevante samlede
+kørsel: /private/tmp/podview-foundation-final-backend-all.log. Lead binder endelige
+source-/assetpins, browserprøver og de øvrige aktive trådes adoption før publicering.
+
 ## 4/11 — 2.0.127 Tesla field retention · planned build
 
 The installed 2.0.126 approved UI remains the visual reference. The follow-up source changes only Tesla snapshot field retention and its causal regression, plus 2.0.127 / HA 0.1.14 release metadata. Base is d84caab0077b1a677ace55a2ec00873a938e5151, tree 5231347d0d06591dc6bf0c5154a0b31671e30508. Source review GO supplied by lead. Profile 127 remains unbound until the reviewed source upload returns its commit and tree. Official CI, publication and installation remain pending.
@@ -7647,3 +7767,26 @@ Lead root; candidate /private/tmp/pv126-approved-ui-20261104 copied from publish
 Tesla PV126 source-update correction: exact scoped HA Inside-temperature sensor reports 8.9 C while retained Fleet block shows8.1 C. Current HA snapshot supplement reads only defrost; temperatureC is omitted. Owner tesla_climate tests this boundary with old Fleetclimate/unknownHAclimate/new knownsensor. Minimal planned fix merges only configured temperatureC when its real HA report is newer, retains actual field timestamp and historical climateauthority, no wake or request. Companioncode requires independent review and deployment; no acceptance claimed.
 
 PV126 freeze result: recipe renderer unchanged and same canonicalsource781f9edb…; restored missingapprovedCSS includingnumbergrid/ingredientdisclosure/resumerow/widgetanchor/fullwidthdetail/reviewform/quietaction. Fourmusic tabs restored26missinglayoutblocks, nestedheaderselector and3exactcanonicalSVGs. Local1280x800 reference/productscreens matched forcatalog/start/ingredients/About/widget andall4musictabs+expandedlists; fixturesareinert, noGreen/physicalclaim. Tesla guards causalold18fail/new65pass; newsnapshottemperaturecausaloldFAIL/new56pass, combined121Pythonpass;119vehicleJSpass. FullUI5001 ran:4994pass,3artifact/registrymismatch subsequentlycorrected and97focusedPASS;4sandboxlocalportcases rerun4PASS. Newrecipe2causalchecksPASS. Impeccabledetector[]; leadinspectedcomparisonimages. Independentreviewha_admission_reviewsource/artifactGO includingbothbundles/CSSrecompositionand221assets. FrozenPV126 productbundle4176e1b1c9b87c8e6705be93ad56a4acec3cba85f4b89989d67dad436c4e6bea,CSSc572bf5349ce24cc249db66ce442e14f9d25524b1dcf29099b635bf18211c558,library742a7e8c8a905d1a8ccf54c1b005fc44326aa0543b59f76d14c3756f81b2a283. HAcompanion0.1.13 includesreviewedtemperaturemerge. OfficialCI/publication/installpending.
+
+
+### 2026-11-04 · Foundation isolated speaker closure
+Parent ac8c261 preserves the newer PR296 ee2d8459 work. Production delta is only canonical speaker-output-view.js and generated bundle/manifest: confirmed/rejected/superseded accepted operations release the output fence; unknown/unconfirmed remain protected. Voice-turn changes do not invalidate catalogue identity. Soft binding/policy changes retain displayed rows but expire their action authority and refresh passively; hard identity changes still clear.
+Astra actual-source RUNTIME GO for speaker SHA c3132c534ef0c5f284386047f2d5a7ecf64c1dd1b6763784db3a82121ed0838c. Full npm UI suite: 4576 passed, zero failures (/private/tmp/podview-speaker-hotfix-suite.log). Updated causal assertions preserve actual transport-generation/access-revocation negatives.
+Actual packaged PodView -> actual Python bridge -> inert native final service PASS: Pause during song transition, one unknown witness then persisted correlated confirmation before Resume; next/previous, volume0/100, move bedroom and explicitly back, actual output observed, no browser setup requests and no page errors. /private/tmp/podview-speaker-final-browser.log. Fixture harness and portable environment helper are included; no production test seam.
+Rendered Product Design/Impeccable review: same registered speaker/modal renderer and unchanged kit CSS; root inspected /private/tmp/podview-speaker-proof/podview-speaker-roster-bedroom.png after finite transition completed. Viewport1280x800, dialog520 wide,32padding, full-viewport scrim, centered, actual selected-output vs selectable row clear, no overlap/clipping; existing prior detector review unchanged. Functional and visual review passed for this scope; no user acceptance implied.
+Bundle0cf1e9bbf74f4fa6d8708d07a02670864fadcdad91149343ccbddb17b82a454b; podview.css c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b; ui/components.css13e24b11e69e00f0439f06629041bff2541cbd4b097dc328f292216be57f6333 unchanged. Publication/installation owned by existing integration lead. Real Green/music output/Mac/iPad and full product acceptance remain open. NEXT HA-events/admin/motion/focus changes are deliberately excluded from this frozen release closure.
+
+
+### 2026-11-04 · Official CI voice-MOVE integration closure
+Official128CI found one stale voicecaller using removed TouchControls._move_revision; local reproduction FAIL at PodViewBridge.voice_move_select. Removed the obsolete reassignment entirely: setup already pins _owner_revision(room,"music"), and later voice approval must not repin actual device authority. Existing answer/turn/grant/policy/destination/source checks retained; controls.action checks original owner revision. Added real owner-replacement negative to the existing voice dispatcher test. All14voice integration cases PASS, adjacent touch-MOVE caller suite PASS, Ruff/format/diff PASS. /private/tmp/podview-voice-move-{before,after}.log; /private/tmp/podview-voice-move-touch-neighbor.log. Astra actual two-file RUNTIME GO on128podviewSHA5c9bd92fec6d9326034883794d3b3d8082c022ba695afe6b028589b7413b6854 and testSHA dd5592dc12f47fdcd860f19bf52f5b2821b37e57b60fe0f9c91780b3c4cb36a0. No UIassets changed; valid existing actualbrowser/UI proof retained. Existing integration lead reruns officialCI and alone owns release/install. Green/native physical voice effect remains unverified.
+
+
+### 2026-11-04 · CI955 consolidated fixture-contract closure
+Test-only delta on frozen1286a61230, no runtime/UI change. All five affected modules run together with Python3.12 and inert dependencies: test_podview_light_controls, start_move_settlement, room_move_caller, test_locality_lifecycle, test_podview_vehicle_control. Exit0, no failed cases: /private/tmp/podview-ci955-fixture-closure.log. Ruff check/format separately exit0. Both remaining obsolete _move_revision test references now use setup's _owner_revision(room,"music"); full podvoice/tests Python search finds no old caller. Passive-home fake now declares no-grant controls/domains/policy and empty resource mutations.
+Light/Tesla expectations now preserve the agreed separation: unrelated voice-session/answer changes are allowed, actual source/grant/placement/controller/token/boot changes remain inert. Held light answer update can still finish setup and execute one explicit action; post-send actual source change remains UNKNOWN, while unrelated answer revision preserves accepted outcome. Neither case replays the original task. All actual target/policy/hardware-negative checks retained; no production fallback or fixture-induced runtime bypass.
+Correction to earlier STATUS note: the neighboring touchMOVE caller suite was initially incorrectly marked PASS because a subsequent Ruff/diff command masked pytest's exit. Its log in fact failed an obsolete helper assertion. This consolidated run corrects that assertion and independently verifies exit0. Voice14 and UIactual evidence were separate valid results; they are not invalidated. Future checks inspect pytest exit and log separately. Existing integration lead owns fresh exact-tree admission/officialCI before release/install; no total functional acceptance claimed.
+
+
+### 2026-11-04 · CI956 passive-home fixture closure
+Independent Codex app check diagnostics for exact PRhead502e14d15ddc76e35c5fa8bf25844a54c306f837 showed CI956 completed, not queued: all8unit/UI/HA/build groups passed; remaining-shard2 failed test_podview_vehicle_home fakebridge missing controls. The prior GitHub-wrapper queued report was stale and is no longer used for this run. One test-only line backports the already verified NEXT fake: empty mutations, no command domains and empty policy. No product/UI/authority change.
+The COMPLETE exact remaining-shard2 file list from scripts.dev_cycle.rest_test_batches(root)[1] was then run locally with --maxfail=0, not only the first node. Exit0 independently checked, every case passed: /private/tmp/podview-ci956-rest-shard2.log. Existing Python3.12 plus pinned openai3.13.0/websockets15.0.1/httpx0.28.1 were used from temporary dependency storage; no requirement/global environment change. Initial collection attempts missing those dependencies did not run tests and were not PASS. Ruff and diff exit0. Other passed official groups are reused without rerunning. Existing release lead owns exact-tree admission and officialCI before install.

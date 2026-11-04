@@ -52,14 +52,19 @@ def _artwork(value: Any, *, kind: str = "album_cover") -> dict | None:
             value.get("kind") != kind
             or value.get("provider") != "spotify"
             or parsed.scheme != "https"
-            or parsed.hostname != "i.scdn.co"
+            or parsed.hostname
+            not in (
+                {"i.scdn.co", "image-cdn-fa.spotifycdn.com", "image-cdn-ak.spotifycdn.com"}
+                if kind == "playlist_cover"
+                else {"i.scdn.co"}
+            )
             or parsed.username is not None
             or parsed.password is not None
             or parsed.port is not None
             or parsed.query
             or parsed.fragment
             or not _ARTWORK_PATH.fullmatch(parsed.path)
-            or (kind == "playlist_cover" and url != f"https://i.scdn.co{parsed.path}")
+            or (kind == "playlist_cover" and url != f"https://{parsed.hostname}{parsed.path}")
         ):
             return None
     except ValueError:

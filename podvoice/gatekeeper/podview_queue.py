@@ -180,22 +180,11 @@ class QueueBroker:
         ]
 
     def binding(self, room, token):
-        from .podview import _music_binding
-
-        snapshot = self.bridge.snapshot(room)
-        answers = snapshot.get("answers", {})
-        voice = snapshot.get("voice", {})
+        # A shown queue occurrence belongs to its actual music owner, not the
+        # unrelated current voice/answer turn. Dispatch still refreshes Native.
         return (
-            (
-                voice.get("sessionId"),
-                voice.get("turnId"),
-                answers.get("taskId"),
-                answers.get("inputRevision"),
-                answers.get("revision"),
-            ),
             self.bridge.boot_id,
             self.bridge.tools,
-            _music_binding(self.bridge, room),
             self.bridge._grant_for_token(room, token),
             id(self.bridge.controls),
             id(self.bridge.controls.music),
@@ -273,7 +262,11 @@ class QueueBroker:
             and scope["targetId"] == target
         ]
         rule = matches[0] if len(matches) == 1 else None
-        if rule is None or room in self.bridge.controls.busy or len(self.receipts) >= 1024:
+        if (
+            rule is None
+            or self.bridge.controls.resource_key("music") in self.bridge.controls.busy
+            or len(self.receipts) >= 1024
+        ):
             return {"ok": False, "error": "queue_not_paired", "retryAllowed": False}
         assert resolved is not None and scope is not None
         generation_key = (room, token)
@@ -291,7 +284,6 @@ class QueueBroker:
             "actual_current": resolved["current"],
         }
         facade = self.bridge.controls.music
-        self.bridge.controls.busy.add(room)
         try:
             async with asyncio.timeout(14):
                 if not self.current(task, token):
@@ -368,8 +360,6 @@ class QueueBroker:
             }
         except (Exception, asyncio.CancelledError):
             return {"ok": False, "error": "queue_offer_unavailable", "retryAllowed": False}
-        finally:
-            self.bridge.controls.busy.discard(room)
 
     async def action(self, body, token):
         rejected = {
@@ -407,7 +397,11 @@ class QueueBroker:
         shown = next(
             (r for r in task["source"]["items"] if r["option_id"] == body["optionId"]), None
         )
-        if task["consumed"] or task["room"] in self.bridge.controls.busy or shown is None:
+        if (
+            task["consumed"]
+            or self.bridge.controls.resource_key("music") in self.bridge.controls.busy
+            or shown is None
+        ):
             return rejected
         if len(self.receipts) >= 1024:
             return rejected
@@ -418,7 +412,7 @@ class QueueBroker:
         task["consumed"] = True
         unknown = {**rejected, "outcome": "unknown"}
         self.receipts[key] = fingerprint, unknown, time.monotonic() + 8
-        self.bridge.controls.busy.add(task["room"])
+        self.bridge.controls.busy.add(self.bridge.controls.resource_key("music"))
         sent = False
         try:
             async with asyncio.timeout(8):
@@ -600,7 +594,7 @@ class QueueBroker:
                 self.receipts[key] = fingerprint, rejected, task["deadline"]
             return unknown if sent else rejected
         finally:
-            self.bridge.controls.busy.discard(task["room"])
+            self.bridge.controls.busy.discard(self.bridge.controls.resource_key("music"))
 
 
 async def queue_http(request):

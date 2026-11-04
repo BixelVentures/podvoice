@@ -406,12 +406,17 @@ async def test_legacy_service_pair_stays_closed_without_native_contract(rig):
     assert bridge.controls.music._read.await_count == 0
 
 
-async def test_new_voice_turn_rejects_old_queue_task(rig):
+async def test_new_voice_turn_preserves_same_owner_queue_choice(rig):
     bridge, request = prepare(rig)
     offer = await bridge.queue.offer(request, "grant")
     bridge.sessions["kitchen"]._external_turn_id = lambda: "s1:new-turn"
-    assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "rejected"
-    assert bridge.controls.music._read.await_count == 1
+    assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "accepted"
+    assert [call.args[2] for call in bridge.controls.music._read.await_args_list] == [
+        "get_room_queue_controls",
+        "get_room_queue_controls",
+        "prepare_room_queue",
+        "control_room_queue",
+    ]
 
 
 async def test_expired_shown_reference_gets_fresh_authority_without_renewal(rig):
@@ -512,7 +517,7 @@ async def test_one_click_custody_precedes_first_owner_await(rig, monkeypatch):
     try:
         await entered.wait()
         assert bridge.queue.tasks[offer["taskId"]]["consumed"]
-        assert "kitchen" in bridge.controls.busy
+        assert bridge.controls.resource_key("music") in bridge.controls.busy
         assert (await bridge.queue.action(body, "grant"))["outcome"] == "unknown"
         assert (await bridge.queue.action(action(offer, request="other-click"), "grant"))[
             "outcome"

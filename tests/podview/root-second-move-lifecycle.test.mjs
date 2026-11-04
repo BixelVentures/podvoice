@@ -20,7 +20,7 @@ function fixture(){
  host.liveMedia={account:'account'};const adopt=options=>{const body=wire(options);body.controls.valid_until=body.controls.status==='observed'?body.binding.validUntil:null;host.liveMedia.playback=roomPlaybackObservation(body,'account',host.liveSnapshot);return body;};adopt();
  const setups=[],effects=[],feedback=[];let serial=0,response;
  const offer=(requested,volume=35)=>{const n=++serial,chosen=requested?[requested]:actions;return {ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'music',expectedBindingId:host.liveMedia.playback.roomBinding.bindingId,taskId:'control:'+n.toString(16).padStart(32,'0'),revision:1,expiresAt:Date.now()/1000+5,options:chosen.map((action,i)=>({id:(n*10+i).toString(16).padStart(24,'0'),action,label:action,argsSchema:action==='volume'?{kind:'percent',min:0,max:35}:{kind:'none'}})),setup:{volume}};};
- host.liveTransport={connected:true,generation:1,controlSetup:async(...args)=>{setups.push(args);return response?response(...args):offer(args[3]?.requestedAction);},controlAction:async(task,id,args)=>{effects.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'receipt'};}};host.showFeedback=(message)=>feedback.push(message);
+ host.liveTransport={connected:true,generation:1,controlSetup:async(...args)=>{setups.push(args);return response?response(...args):offer(args[3]?.requestedAction);},controlIntent:async(intent)=>{effects.push(intent);return {ok:true,outcome:'accepted',requestId:intent.requestId};}};host.showFeedback=(message)=>feedback.push(message);
  const view=new LiveControlView(host);return {host,view,nodes,setups,effects,feedback,wire,adopt,offer,setResponse:fn=>response=fn,close(){view.cleanup();globalThis.document=previous;}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -46,8 +46,7 @@ function lifecycle(){
   if(options?.receiptRequestId)b.settlement={requestId:options.receiptRequestId,request_id:'epoch-'+destination+':'+destination,command_sequence:destination,owner_epoch:'epoch-'+destination,status:'confirmed',effect:{source:'native_bound_state',effect_revision:String(destination)}};
   return Promise.resolve(b);
  });
- f.host.liveTransport.controlSetup=async(domain,target)=>{f.setups.push({domain,target});const task=f.offer();task.options=[{id:'move:'+target.speakerId,action:'move_existing_session',label:'Move',argsSchema:{kind:'none'}}];return task;};
- f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});destination=speakers.findIndex(s=>'move:'+s.speakerId===id);return {ok:true,outcome:'accepted',requestId:'move-'+destination};};
+ f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);destination=speakers.findIndex(s=>s.speakerId===intent.target.speakerId);return {ok:true,outcome:'accepted',requestId:intent.requestId};};
  return {f,g,output,speakers,close(){output.cleanup();f.close();}};
 }
 test('public MOVE, confirmed fresh destination, roster refresh, then second MOVE uses fresh destination binding without fence resets',async()=>{
@@ -57,12 +56,12 @@ test('public MOVE, confirmed fresh destination, roster refresh, then second MOVE
   assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),true);await tick();
   assert.equal(f.effects.length,1);assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-1');
   assert.equal([...f.view.receipts.values()].at(-1).settlementStatus,'confirmed');
-  const firstTask=f.effects[0].task.taskId,firstBinding=f.setups[0].target.expectedBindingId;
+  const firstRequest=f.effects[0].requestId,firstBinding=f.effects[0].target.expectedBindingId;
   await output.open();assert.equal(output.rows.children[2].disabled,false);
   assert.equal(await f.view.moveSpeaker(speakers[2],()=>output.validUntil>Date.now()),true);await tick();
-  assert.equal(f.effects.length,2);assert.notEqual(f.effects[1].task.taskId,firstTask);
-  assert.notEqual(f.setups[1].target.expectedBindingId,firstBinding);
-  assert.equal(f.setups[1].target.expectedBindingId,'1'.repeat(64));
+  assert.equal(f.effects.length,2);assert.notEqual(f.effects[1].requestId,firstRequest);
+  assert.notEqual(f.effects[1].target.expectedBindingId,firstBinding);
+  assert.equal(f.effects[1].target.expectedBindingId,'1'.repeat(64));
   assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-2');
   assert.equal([...f.view.receipts.values()].at(-1).settlementStatus,'confirmed');
  }finally{h.close();}
@@ -84,7 +83,7 @@ for(const order of ['response-first','observation-first'])test(`v3 MOVE ${order}
   await g.media.refresh({immediate:true});await output.open();
   const destination=()=>{const b=g.body({epoch:'epoch-1',binding:'1'.repeat(64)});b.binding.nativeRoomId='room-1';b.binding.nativeHomepodId='3';b.data.poll_sequence=2;return b;};
   g.setRead((_kind,_account,_query,options)=>{const b=destination();if(options?.receiptRequestId)b.settlement={requestId:options.receiptRequestId,request_id:'epoch-1:1',command_sequence:1,owner_epoch:'epoch-1',status:'confirmed',effect:{source:'native_bound_state',effect_revision:'1'}};return Promise.resolve(b);});
-  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return new Promise(resolve=>release=resolve);};
+  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return new Promise(resolve=>release=result=>resolve({...result,requestId:intent.requestId}));};
   const moving=f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now());await tick();assert.equal(f.effects.length,1);
   if(order==='observation-first')await g.media.refresh({immediate:true});
   release({outcome:'accepted',requestId:'move-1'});await moving;await tick();
@@ -119,9 +118,8 @@ test('paused MOVE keeps paused observation and resumes on confirmed new binding'
   g.setRead((_kind,_account,_query,options)=>{const body=pausedDestination();if(options?.receiptRequestId)body.settlement={requestId:options.receiptRequestId,request_id:'epoch-1:1',command_sequence:1,owner_epoch:'epoch-1',status:'confirmed',effect:{source:'native_bound_state',effect_revision:'1'}};return Promise.resolve(body);});
   assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),true);await tick();
   assert.equal(g.media.playback.state,'paused');assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-1');
-  f.host.liveTransport.controlSetup=async(domain,target)=>{f.setups.push({domain,target});const task=f.offer('resume');return task;};
-  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'resume-1'};};
-  assert.equal(await f.view.musicIntent('resume'),true);assert.equal(f.setups.at(-1).target.expectedBindingId,'1'.repeat(64));
+  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {ok:true,outcome:'accepted',requestId:intent.requestId};};
+  assert.equal(await f.view.musicIntent('resume'),true);assert.equal(f.effects.at(-1).target.expectedBindingId,'1'.repeat(64));
  }finally{h.close();}
 });
 
@@ -135,18 +133,17 @@ test('paused kitchen → Svend → play → pause → kitchen → play uses conf
    return Promise.resolve(b);
   };
   g.setRead(read);
-  f.host.liveTransport.controlSetup=async(domain,target)=>{f.setups.push({domain,target});if(target.speakerId){const t=f.offer();t.options=[{id:'move:'+target.speakerId,action:'move_existing_session',label:'Move',argsSchema:{kind:'none'}}];return t;}return f.offer(state==='paused'?'resume':'pause');};
-  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});const action=task.options.find(o=>o.id===id).action;if(action==='move_existing_session')destination=speakers.findIndex(s=>'move:'+s.speakerId===id);else if(action==='resume')state='playing';else if(action==='pause')state='paused';requestId='request-'+f.effects.length;return {outcome:'accepted',requestId};};
+  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);const action=intent.action;if(action==='move_existing_session')destination=speakers.findIndex(s=>s.speakerId===intent.target.speakerId);else if(action==='resume')state='playing';else if(action==='pause')state='paused';requestId=intent.requestId;return {outcome:'accepted',requestId};};
   await g.media.refresh({immediate:true});await output.open();const track=g.media.playback.item?.uri;assert.equal(track,'spotify:track:0123456789ABCDEFGHIJKL');
   assert.equal(g.media.playback.state,'paused');assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),true);await tick();assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-1');assert.equal(g.media.playback.state,'paused');
-  assert.equal(await f.view.musicIntent('resume'),true);await tick();await g.media.refresh({immediate:true});await tick();assert.equal(f.setups.at(-1).target.expectedBindingId,'2'.repeat(64));assert.equal(g.media.playback.state,'playing');
+  assert.equal(await f.view.musicIntent('resume'),true);await tick();await g.media.refresh({immediate:true});await tick();assert.equal(f.effects.at(-1).target.expectedBindingId,'2'.repeat(64));assert.equal(g.media.playback.state,'playing');
   assert.equal(await f.view.musicIntent('pause'),true);await tick();await g.media.refresh({immediate:true});await tick();assert.equal(g.media.playback.state,'paused');
   await output.open();assert.equal(await f.view.moveSpeaker(speakers[0],()=>output.validUntil>Date.now()),true);await tick();assert.equal(g.media.playback.roomBinding.nativeRoomId,'native-room');assert.equal(g.media.playback.state,'paused');
-  assert.equal(await f.view.musicIntent('resume'),true);await tick();assert.equal(f.setups.at(-1).target.expectedBindingId,'1'.repeat(64));assert.equal(g.media.playback.item?.uri,track);
+  assert.equal(await f.view.musicIntent('resume'),true);await tick();assert.equal(f.effects.at(-1).target.expectedBindingId,'1'.repeat(64));assert.equal(g.media.playback.item?.uri,track);
  }finally{h.close();}
 });
 
-for (const status of ['rejected','unknown','superseded']) test(`MOVE ${status} on observed original route releases exact pending choice`, async()=>{
+for (const status of ['rejected','superseded']) test(`MOVE ${status} on observed original route releases exact pending choice`, async()=>{
  const h=lifecycle(), {f,g,output}=h; try {
   await g.media.refresh({immediate:true});
   const p=g.media.playback, choice=Object.freeze({speakerId:'2'.repeat(64)}), receipt={kind:'move',choice,requestId:'req-1',operationKey:'op-1',destination:{accountId:'account',nativeRoomId:'room-1',nativeHomepodId:'3'},origin:{accountId:'account',nativeRoomId:'native-room',nativeHomepodId:'2'}};
@@ -156,6 +153,16 @@ for (const status of ['rejected','unknown','superseded']) test(`MOVE ${status} o
   assert.equal(f.view.observeMusicSettlement(p,receipt,true),true,'terminal response on original route must be observed');
   assert.equal(output.pendingChoice,null);
  } finally {h.close();}
+});
+
+test('MOVE interim unknown keeps its choice until a later correlated rejection',async()=>{
+ const h=lifecycle(),{f,g,output}=h;try{
+  await g.media.refresh({immediate:true});const p=g.media.playback,choice=Object.freeze({speakerId:'2'.repeat(64)}),receipt={kind:'move',choice,requestId:'req-1',operationKey:'op-1',destination:{accountId:'account',nativeRoomId:'room-1',nativeHomepodId:'3'},origin:{accountId:'account',nativeRoomId:'native-room',nativeHomepodId:'2'}};
+  output.pendingChoice=choice;f.view.musicFence={outcome:'accepted',settlementReceipt:receipt};f.view.receipts.set('op-1',{});f.view.musicSettlementReceipt=()=>receipt;
+  p.settlement={requestId:'req-1',request_id:'epoch:1',command_sequence:1,owner_epoch:p.owner_epoch,status:'unknown',effect:null};
+  assert.equal(f.view.observeMusicSettlement(p,receipt,true),true);assert.equal(output.pendingChoice,choice);assert.equal(f.view.musicFence.settlementStatus,'unconfirmed');
+  p.settlement={...p.settlement,status:'rejected'};assert.equal(f.view.observeMusicSettlement(p,receipt,true),true);assert.equal(output.pendingChoice,null);assert.equal(f.effects.length,0);
+ }finally{h.close();}
 });
 
 test('late rejected old A cannot clear newer A choice identity',async()=>{
@@ -189,7 +196,7 @@ for(const reason of ['owner_changed','account_unavailable'])for(const action of 
  const f=fixture(),g=integrate(f);let mode='ready',seq=0;try{
   g.setRead((_kind,_account,_query,options)=>{if(mode==='unavailable')return Promise.resolve({ok:true,schema:'podview.room-playback.v3',bootId:'boot',roomId:'room',configEntryId:'account',status:'unavailable',reason,binding:null,data:null,controls:{status:'unavailable',reason,binding_id:null,valid_until:null,supported_actions:[],volume:null},permissions:{actions:[],maxVolume:null},...(options?.receiptRequestId?{settlement:null}:{})});const b=g.body({state:action==='resume'?'paused':'playing'});b.data.poll_sequence=++seq;return Promise.resolve(b);});
   await g.media.refresh({immediate:true});assert.equal(f.nodes.get('play-pause').disabled,false);
-  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {outcome:f.effects.length===1?'rejected':'accepted',requestId:'fresh-request'};};assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,1);
+  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {outcome:f.effects.length===1?'rejected':'accepted',requestId:intent.requestId};};assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,1);
   for(let i=0;i<12;i++){const entry=timers.get(g.media.freshnessTimer);assert.ok(entry,`step=${i} seq=${seq} state=${g.media.readState} timer=${g.media.freshnessTimer}`);timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();}
   assert.ok(now-started>=30000);assert.ok(seq>=12);assert.equal(f.nodes.get('play-pause').disabled,false);
   mode='unavailable';let entry=timers.get(g.media.freshnessTimer);timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();assert.equal(f.nodes.get('play-pause').disabled,true);
@@ -204,7 +211,7 @@ for(const failure of ['network','http','timeout','abort'])test(`transient ${fail
  const f=fixture(),g=integrate(f);let mode='ready',seq=0;try{
   g.setRead((_kind,_account,_query,options)=>{if(mode==='unavailable'){const e=failure==='network'?new TypeError('network'):new Error(failure);if(failure==='http')e.code='read_transient';if(failure==='timeout')e.name='TimeoutError';if(failure==='abort')e.name='AbortError';return Promise.reject(e);}const b=g.body({state:action==='resume'?'paused':'playing'});b.data.poll_sequence=++seq;return Promise.resolve(b);});
   await g.media.refresh({immediate:true});assert.equal(f.nodes.get('play-pause').disabled,false);
-  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {outcome:f.effects.length===1?'rejected':'accepted',requestId:'fresh-request'};};assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,1);
+  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {outcome:f.effects.length===1?'rejected':'accepted',requestId:intent.requestId};};assert.equal(await f.view.musicIntent(action),true);assert.equal(f.effects.length,1);
   for(let i=0;i<12;i++){const entry=timers.get(g.media.freshnessTimer);assert.ok(entry,`step=${i} seq=${seq} state=${g.media.readState} timer=${g.media.freshnessTimer}`);timers.delete(g.media.freshnessTimer);now=entry.at;entry.fn();await tick();}
   assert.ok(now-started>=30000);assert.ok(seq>=12);assert.equal(f.nodes.get('play-pause').disabled,false);
   mode='unavailable';let entry=timers.get(g.media.freshnessTimer);timers.delete(g.media.freshnessTimer);now=entry.at+6000;entry.fn();await tick();assert.equal(f.nodes.get('play-pause').disabled,true);
@@ -226,7 +233,7 @@ test('network recovery never clears an unknown music action or replays it',async
  const oldSet=globalThis.setTimeout,oldClear=globalThis.clearTimeout;let serial=0;const timers=new Map();globalThis.setTimeout=(fn,ms)=>{const id=++serial;timers.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>timers.delete(id);
  const f=fixture(),g=integrate(f);let fail=false;try{
   g.setRead(()=>fail?Promise.reject(new TypeError('network')):Promise.resolve(g.body()));await g.media.refresh({immediate:true});
-  f.host.liveTransport.controlAction=async(task,id,args)=>{f.effects.push({task,id,args});return {outcome:'unknown'};};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);
+  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);
   fail=true;await g.media.refresh({immediate:true});assert.equal(f.view.musicFence.outcome,'unknown');const timer=timers.get(g.media.freshnessTimer);assert.ok(timer);fail=false;timer.fn();await tick();
   assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.effects.length,1);
  }finally{f.close();globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
@@ -238,4 +245,106 @@ test('repeated transient playback failures stop at the existing three retry boun
   for(let i=0;i<3;i++){const id=g.media.freshnessTimer,entry=timers.get(id);assert.ok(entry);timers.delete(id);entry.fn();await tick();}
   assert.equal(calls,4);assert.equal(g.media.freshnessTimer,null);assert.equal(f.effects.length,0);
  }finally{f.close();globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
+});
+
+// Direct commands have no browser-side JIT offer. These tests exercise the view's
+// public transport port; the server separately validates authority and target.
+test('Pause remains correlated across a same-output track change and never performs browser setup',async()=>{
+ const f=fixture();let finish;
+ try{
+  f.view.render();
+  f.host.liveTransport.controlSetup=()=>{throw Error('explicit action must not request setup');};
+  f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>finish=()=>resolve({ok:true,outcome:'accepted',requestId:intent.requestId}));};
+  const pending=f.view.musicIntent('pause');assert.equal(f.effects.length,1);
+  const intent=f.effects[0];assert.equal(intent.action,'pause');assert.deepEqual(intent.args,{});assert.equal(intent.target.expectedBindingId,'a'.repeat(64));
+  f.host.liveMedia.playback.item={...f.host.liveMedia.playback.item,uri:'spotify:track:1123456789ABCDEFGHIJKL'};
+  f.host.liveMedia.playback.poll_sequence++;f.view.render();finish();await pending;
+  assert.equal(f.effects.length,1);assert.equal([...f.view.receipts.values()].at(-1).outcome,'accepted');
+  assert.equal(f.view.musicFence.outcome,'accepted');
+ }finally{finish?.();f.close();}
+});
+
+test('late accepted direct receipt stays recorded but cannot publish into a replacement owner',async()=>{
+ const f=fixture();let finish;
+ try{
+  let refreshes=0;f.host.liveMedia.refresh=async()=>{refreshes++;};
+  f.view.render();f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>finish=()=>resolve({ok:true,outcome:'accepted',requestId:intent.requestId}));};
+  const pending=f.view.musicIntent('pause');assert.equal(f.effects.length,1);
+  f.adopt({epoch:'other-owner',binding:'b'.repeat(64)});f.view.render();const replacementFence=f.view.musicFence;
+  finish();await pending;assert.equal(f.view.musicFence,replacementFence);
+  const receipt=[...f.view.receipts.values()].at(-1);assert.equal(receipt.outcome,'accepted');assert.equal(receipt.target.expectedBindingId,'a'.repeat(64));
+  assert.equal(f.effects.length,1);await tick();assert.equal(refreshes,0,'late old receipt cannot refresh a replacement owner');
+ }finally{finish?.();f.close();}
+});
+
+test('measured 100 stays truthful with max 35; lowering and mute are explicit bounded commands',async()=>{
+ const f=fixture();
+ try{
+  f.view.render();assert.equal(f.nodes.get('volume-value').textContent,'100 %');assert.equal(f.nodes.get('volume').dataset.actionMax,'35');
+  assert.equal(await f.view.musicIntent('volume',{percent:36}),false);assert.equal(await f.view.musicIntent('volume',{percent:1.5}),false);assert.equal(f.effects.length,0);
+  assert.equal(await f.view.musicIntent('volume',{percent:35}),true);assert.deepEqual(f.effects[0].args,{percent:35});assert.equal(f.view.musicMeasurement.volume,100);
+  // A new observation permits a new explicit input; it does not infer volume.
+  f.adopt({base:100,effective:35,ceiling:35});f.host.liveMedia.playback.poll_sequence=2;f.view.render();
+  assert.equal(await f.view.musicIntent('volume',{percent:0}),true);assert.deepEqual(f.effects[1].args,{percent:0});assert.equal(f.view.musicMeasurement.volume,100);
+ }finally{f.close();}
+});
+
+for(const change of ['revoked','target','binding','disconnected'])test(`direct Pause rejects ${change} before dispatch`,async()=>{
+ const f=fixture();try{
+  if(change==='revoked')f.adopt({base:null,status:'unavailable',reason:'control_not_granted',supported:[]});
+  if(change==='target')f.host.liveMedia.playback.target.id='foreign';
+  if(change==='binding')f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;
+  if(change==='disconnected')f.host.liveTransport.connected=false;
+  assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.effects.length,0);
+ }finally{f.close();}
+});
+
+test('UNKNOWN is not replayed on reads; a newer observation permits a new explicit request identity',async()=>{
+ const f=fixture();try{
+  f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {ok:false,outcome:'unknown',requestId:intent.requestId};};
+  assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);
+  f.view.render();await f.view.prepareMusic();assert.equal(f.effects.length,1);assert.equal(await f.view.musicIntent('pause'),false);
+  f.adopt();f.host.liveMedia.playback.poll_sequence=2;f.view.render();assert.equal(f.effects.length,1,'a read is not a command');
+  assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,2);assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);
+ }finally{f.close();}
+});
+
+test('Pause dispatches while an independent playback read is held without inventing a result',async()=>{
+ const f=fixture(),g=integrate(f);let release,calls=0;
+ try{
+  g.setRead(()=>++calls===1?new Promise(resolve=>release=resolve):Promise.resolve(g.body()));
+  const reading=g.media.refresh({immediate:true});await tick();assert.equal(g.media.pending,true);
+  assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);assert.equal(f.effects[0].action,'pause');
+  assert.equal(g.media.playback.state,'playing','accepted command is not an observed state change');
+  release(g.body());await reading;assert.equal(f.effects.length,1);
+ }finally{release?.(g.body());f.close();}
+});
+
+test('pending music does not block opening a robot control',async()=>{
+ const f=fixture();let finish;
+ try{
+  f.host.state.devices=[{id:'vacuum.actual',kind:'vacuum',live:true,stale:false,status:'cleaning'}];f.host.liveSnapshot.capabilities.controlSetup.push('vacuum');
+  const task={ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:'vacuum-independent',revision:1,expiresAt:Date.now()/1000+60,options:[{id:'pause',action:'pause',label:'Pause',argsSchema:{kind:'none'}}],setup:{mapName:null}};
+  f.host.liveTransport.controlSetup=async domain=>{assert.equal(domain,'vacuum');return task;};
+  f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>finish=()=>resolve({outcome:'accepted',requestId:intent.requestId}));};
+  const music=f.view.musicIntent('pause');assert.equal(f.effects.length,1);
+  await f.view.open('vacuum',{entityId:'vacuum.actual'});assert.equal(f.view.task?.taskId,'vacuum-independent');
+  const robot=[];f.host.liveTransport.controlAction=async(task,id,args)=>{robot.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'robot-receipt'};};
+  await f.view.send('pause',{});assert.equal(robot.length,1);assert.equal(robot[0].id,'pause');
+  finish();await music;assert.equal(f.effects.length,1);
+ }finally{finish?.();f.close();}
+});
+
+for(const state of ['playing','paused'])test(`direct transport rejects a mismatched toggle while ${state}`,async()=>{
+ const f=fixture();try{f.adopt({state});assert.equal(await f.view.musicIntent(state==='playing'?'resume':'pause'),false);assert.equal(f.effects.length,0);assert.equal(await f.view.musicIntent(state==='playing'?'pause':'resume'),true);assert.equal(f.effects.length,1);}finally{f.close();}
+});
+
+test('a new voice turn and provider generation do not cancel same-output Pause',async()=>{
+ const f=fixture();let finish;
+ try{
+  f.view.render();f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>finish=()=>resolve({outcome:'accepted',requestId:intent.requestId}));};
+  const pending=f.view.musicIntent('pause');f.host.liveSnapshot.voice={sessionId:'new-session',turnId:'new-turn'};f.host.liveSnapshot.providerGeneration++;
+  f.host.liveSnapshot.taskId='new-task';f.host.liveSnapshot.inputRevision=2;f.view.render();finish();await pending;
+  assert.equal(f.effects.length,1);assert.equal(f.view.musicFence.outcome,'accepted');
+ }finally{finish?.();f.close();}
 });

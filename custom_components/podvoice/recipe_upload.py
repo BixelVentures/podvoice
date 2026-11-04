@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import re
 
 from aiohttp import ClientError, ClientTimeout, web
@@ -42,9 +43,9 @@ async def _relay(
             data=body,
             headers={"Authorization": authorization[0], "Content-Type": "application/json"},
             allow_redirects=False,
-            timeout=ClientTimeout(total=5),
+            timeout=ClientTimeout(total=20),
         ) as response:
-            if response.status in {200, 202, 400, 401, 403, 404, 413, 503} and (
+            if response.status in {200, 202, 400, 401, 403, 404, 408, 409, 413, 422, 503} and (
                 response.content_type == "application/json"
             ):
                 receipt = bytearray()
@@ -53,13 +54,24 @@ async def _relay(
                     if len(receipt) > _MAX_RECEIPT:
                         break
                 else:
-                    return web.Response(
-                        body=bytes(receipt),
-                        status=response.status,
-                        content_type="application/json",
-                        headers=_NO_STORE,
-                    )
-    except (ClientError, TimeoutError):
+                    payload = json.loads(receipt)
+                    if not isinstance(payload, dict):
+                        raise ValueError("invalid receipt")
+                    if (
+                        not isinstance(payload.get("message"), str)
+                        or not payload["message"].strip()
+                    ):
+                        payload["message"] = {
+                            "saved": "Gemt",
+                            "received": "Modtaget: importen afventer",
+                            "importing": "Modtaget: importerer opskriften",
+                            "rejected": "Opskriften kunne ikke importeres automatisk",
+                            "failed": "Importen mislykkedes. Prøv igen",
+                        }.get(
+                            payload.get("status"), "Indsendelsen kunne ikke gennemføres. Prøv igen"
+                        )
+                    return web.json_response(payload, status=response.status, headers=_NO_STORE)
+    except (ClientError, TimeoutError, ValueError):
         pass
     return web.json_response(
         {"message": "Opskriftsmodtageren er ikke tilgængelig"}, status=503, headers=_NO_STORE

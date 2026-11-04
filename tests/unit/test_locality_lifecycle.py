@@ -103,6 +103,7 @@ async def test_real_home_and_frontend_continuity_through_120(clock, monkeypatch,
     r.podview_home_read = AsyncMock(return_value={"status": "observed", "items": []})
     bridge = SimpleNamespace(
         tools=r,
+        controls=SimpleNamespace(mutations={}, domains=lambda *_: [], policy={}),
         sessions={},
         _home_cache={},
         _weather_source_cache=None,

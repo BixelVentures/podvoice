@@ -47,7 +47,19 @@ test('changed draft performs at most one bounded read retry without sending a co
 
 test('draft-change retry cannot reissue after scope changes',async()=>{const f=fixture();try{await open(f);inline(f);const old=f.view.task,panel=f.view.robotPanel,first=deferred();let count=1,reads=0;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:count,settingChoices:[]});f.host.liveTransport.controlSetup=()=>{reads++;return first.promise};const reading=f.view.renewRobotTask(old);count=2;const response=f.offer('fresh');response.setup.draft={status:'restored',optionId:'fresh-start',areaIds:['fresh-area'],repeat:1,settingChoices:[]};first.resolve(response);await reading;f.host.liveSnapshot.bootId='other';await new Promise(resolve=>setTimeout(resolve,300));assert.equal(reads,1);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
 
-test('overview pause offer survives unrelated home revision while setup reads; status or authority change still rejects',async()=>{for(const changed of ['revision','status','scope']){const f=fixture();try{const d=f.host.state.devices[0];d.status='cleaning';d.revision=1;f.host.state.focus='now';f.host.liveTransport.controlSetup=()=>f.next.promise;const read=f.view.prepareRobotOverview(d);const updated={...d,revision:2};if(changed==='status')updated.status='paused';f.host.state.devices=[updated];if(changed==='scope')f.host.liveSnapshot.roomId='other';const raw=f.offer('offered');raw.options=[{id:'pause-id',action:'pause',label:'Pause',argsSchema:{kind:'none'}}];f.next.resolve(raw);await read;if(changed==='revision'){assert.equal(f.view.robotOverviewAction(updated).id,'pause');assert.equal(f.writes(),0);}else assert.equal(f.view.robotOverviewAction(updated),null);}finally{f.view.cleanup();}}});
+test('overview uses fresh native action offer during unrelated setup read and fences changed authority',async()=>{
+ for(const changed of ['revision','status','scope','stale','entity','expired','access','disconnect']){
+  const f=fixture();try{
+   const d=f.host.state.devices[0];d.status='cleaning';d.revision=1;d.transportActions={status:'observed',source:'home_assistant_state',entityId:d.id,observedAt:Date.now()/1000,actions:['pause']};
+   f.host.state.focus='now';f.host.state.homeScope=JSON.stringify(['boot','room']);let reads=0;f.host.liveTransport.controlSetup=()=>{reads++;return f.next.promise;};
+   const read=f.host.liveTransport.controlSetup('vacuum',target),updated={...d,revision:2,transportActions:{...d.transportActions}};
+   if(changed==='status')updated.status='paused';if(changed==='scope')f.host.liveSnapshot.roomId='other';if(changed==='stale')updated.stale=true;if(changed==='entity')updated.transportActions.entityId='vacuum.other';if(changed==='expired')updated.transportActions.observedAt-=16;if(changed==='access')f.host.liveSnapshot.capabilities.controlSetup=[];if(changed==='disconnect')f.host.liveTransport.connected=false;
+   f.host.state.devices=[updated];
+   if(changed==='revision')assert.equal(f.view.robotOverviewAction(updated)?.id,'pause');else assert.equal(f.view.robotOverviewAction(updated),null);
+   f.next.resolve(f.offer('offered'));await read;assert.equal(reads,1);assert.equal(f.writes(),0);
+  }finally{f.view.cleanup();}
+ }
+});
 
 test('renewal restores focus only to a uniquely labelled matching replacement without dispatching an action',async()=>{for(const duplicates of [false,true]){const f=fixture();try{await open(f);inline(f);const panel=f.view.robotPanel,old=f.view.task,button=new Node('button');button.type='button';button.dataset={};button.textContent='Pause';panel.replaceChildren(button);panel.contains=node=>panel.children.includes(node);button.focus();let replacement;Object.defineProperty(panel,'data',{set(value){this.value=value;replacement=new Node('button');replacement.type='button';replacement.dataset={};replacement.textContent='Pause';this.replaceChildren(replacement);if(duplicates){const second=new Node('button');second.type='button';second.dataset={};second.textContent='Pause';this.append(second);}document.activeElement=document.body;}});const read=f.view.renewRobotTask(old);f.next.resolve(f.offer('fresh'));await read;assert.equal(document.activeElement,duplicates?document.body:replacement);assert.equal(f.writes(),0);}finally{f.view.cleanup();}}});
 
@@ -70,3 +82,36 @@ test('spent offer cannot be retained by same-robot reopening',async()=>{
 test('direct same-robot open with unknown outcome does not preserve the old offer',async()=>{const f=fixture();try{await open(f);inline(f);const old=f.view.task;f.view.receipts.set('uncertain',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});const reading=f.view.open('vacuum',target,new Node('button'));assert.notEqual(f.view.task,old);assert.equal(f.view.robotPanel.disabled,true);f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
 
 test('first open without a current offer still waits for a validated setup',async()=>{const f=fixture();try{inline(f);const card=new Node('card');card.dataset={};card.parentNode={parentNode:f.host,after(){}};f.host.deviceNodes=new Map([[target.entityId,card]]);f.host.liveTransport.controlSetup=()=>f.next.promise;const reading=f.view.openRobot(new Node('button'));assert.equal(f.view.task,null);assert.equal(f.view.robotPanel.disabled,true);f.next.resolve(f.offer('first'));await reading;assert.equal(f.view.task.taskId,'first');assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
+
+test('renewal records only allowlisted server rejection reason with no task identifiers',async()=>{
+ for(const reason of ['robot_deny_source_deadline','PRIVATE-TASK']){const f=fixture();try{await open(f);inline(f);const rows=[];f.host.liveTransport.recordDiagnostic=(stage,row)=>rows.push({stage,...row});const read=f.view.renewRobotTask(f.view.task);const next=f.offer('fresh');next.setup.rebind={status:'not_restored'};next.setup.rebindReason=reason;f.next.resolve(next);await read;assert.equal(rows.some(row=>row.code==='robot_deny_source_deadline'),reason==='robot_deny_source_deadline');assert.doesNotMatch(JSON.stringify(rows),/PRIVATE-TASK|old-start|fresh-start/);assert.equal(f.writes(),0);}finally{f.view.cleanup();}}
+});
+
+test('long robot offer starts renewal early enough for an eight-second setup without extending its authority',async()=>{
+ const f=fixture(),realNow=Date.now,realSet=globalThis.setTimeout,realClear=globalThis.clearTimeout;let now=1_000_000,timers=[];
+ try{
+  Date.now=()=>now;await open(f);inline(f);const old=f.view.task;old.expiresAt=(now+120_000)/1000;
+  globalThis.setTimeout=(fn,delay)=>{const timer={fn,delay};timers.push(timer);return timer};globalThis.clearTimeout=()=>{};
+  f.view.scheduleRobotTaskExpiry();const renewal=timers.find(timer=>timer.delay<120_000);assert(renewal.delay<120_000);
+  now+=renewal.delay;renewal.fn();assert.equal(f.reads(),2);assert.equal(f.view.task,old);assert.equal(f.view.robotPanel.disabled,false);
+  now+=8_000;assert(now<old.expiresAt*1000,'old offer is still valid after the bounded read');
+  f.next.resolve(f.offer('fresh'));await Promise.resolve();await Promise.resolve();await Promise.resolve();assert.equal(f.view.task.taskId,'fresh');assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();Date.now=realNow;globalThis.setTimeout=realSet;globalThis.clearTimeout=realClear;}
+});
+
+test('short robot offer keeps the halfway renewal rule',async()=>{
+ const f=fixture(),realSet=globalThis.setTimeout,realClear=globalThis.clearTimeout;let timers=[];
+ try{await open(f);inline(f);f.view.task.expiresAt=Date.now()/1000+15;clearTimeout(f.view.expiryTimer);clearTimeout(f.view.robotEarlyRenewal);globalThis.setTimeout=(fn,delay)=>{const timer={fn,delay};timers.push(timer);return timer};globalThis.clearTimeout=()=>{};f.view.scheduleRobotTaskExpiry();const renewal=timers.at(-1);assert(renewal.delay>7000&&renewal.delay<=7500);assert.equal(f.writes(),0);}finally{f.view.cleanup();globalThis.setTimeout=realSet;globalThis.clearTimeout=realClear;}
+});
+
+test('reopening an expired same-robot offer requests owner-validated draft restoration',async()=>{
+ const f=fixture();try{await open(f);inline(f);const old=f.view.task,panel=f.view.robotPanel;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});old.expiresAt=Date.now()/1000-1;let sent;f.host.liveTransport.controlSetup=(domain,target,recipe,options)=>{sent=options;return f.next.promise};const reading=f.view.openRobot(new Node('button'));assert.deepEqual(sent.draft,{taskId:old.taskId,revision:old.revision,optionId:'old-start',areaIds:['old-area'],repeat:2,settingChoices:[]});const response=f.offer('fresh');response.setup.draft={status:'not_restored'};f.next.resolve(response);await reading;assert.equal(f.view.task.taskId,'fresh');assert.equal(f.view.task.draft.status,'not_restored');assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+});
+
+test('reopening after boot scope change does not submit previous draft',async()=>{
+ const f=fixture();try{await open(f);inline(f);f.view.robotPanel.cleaningDirty=true;f.view.robotPanel.cleaningOptionId='old-start';f.view.robotPanel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});f.host.liveSnapshot.bootId='new-boot';let sent;f.host.liveTransport.controlSetup=(domain,target,recipe,options)=>{sent=options;return f.next.promise};const reading=f.view.openRobot(new Node('button'));assert.deepEqual(sent,{});const response=f.offer('fresh');response.bootId='new-boot';f.next.resolve(response);await reading;assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+});
+
+test('expired same-context reopen accepts only owner-restored draft with fresh choices',async()=>{
+ const f=fixture();try{await open(f);inline(f);const old=f.view.task,panel=f.view.robotPanel;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});old.expiresAt=Date.now()/1000-1;f.host.liveTransport.controlSetup=()=>f.next.promise;const reading=f.view.openRobot(new Node('button'));const response=f.offer('fresh');response.setup.draft={status:'restored',optionId:'fresh-start',areaIds:['fresh-area'],repeat:2,settingChoices:[]};f.next.resolve(response);await reading;assert.deepEqual(f.view.task.draft,response.setup.draft);assert.equal(f.view.robotPanel.value.task.draft.status,'restored');assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+});

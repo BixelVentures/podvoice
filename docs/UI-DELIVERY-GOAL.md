@@ -1,8 +1,744 @@
-## 3/11 · samlet118-kandidat med radio, isoleret
+## Gældende leverancemål · 4. november 2026
 
-Radio er semantisk samlet med v2.X-ejerens nyeste kompakte robotvedligehold og vejrfallback i separat `codex/radio-v2x-118-combined`; ejerens mappe er uændret. Ni beskyttede robot/vejr/Tesla-kilder er bytebevarede. Fælles PlayerView bevarer radioens live Start/Stop, kontrolfeedback og kildeidentitet under lydstyrkegestus. [Samlet kilde, faktisk browser og beviser](qa-radio-v2x-20261103/README.md):4978/4978 UI PASS, gate67,124/124 Go→Python→JS/assets PASS. Kildeskift midt i input gav nul kald til begge inerte kommandoveje i begge retninger; samme ejer/normal baggrundsopdatering bevarer volumenintention. Det lukker ikke faktisk runtime-coexistence, Green eller fysisk lydaccept. v2.X ejer review, publicering og installation; ingen release/install udført her.
+**Aktuel samlet softwarekandidat:** `/private/tmp/podview-foundation-v2-20261104`, bundle `b80d1c9a00666fda5f65a666aaef214ed1ebc3de7281e215332a7533452fc562`, fælles CSS uændret `c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b`. Alle 68 bundle-kildepins er kontrolleret. Den eksisterende fulde UI-kontrol består på den samlede kandidat; de tre actual-browserforløb (musik, robot, opskrift) består med inerte slutafhængigheder. Musikprøven verificerer samme accepterede Pause-kvittering gennem midlertidigt ukendt witness til vedvarende korreleret bekræftelse før Fortsæt; det første for korte logvindue blev rettet i testharnesset, ingen ekstra runtimeændring. Recipe-recovery fra den nyere aktive tråd er bevaret. Kilde-review fra Astra er bestået for de ændrede kommando-/idempotens-/ressource-/cache-/adgangsgrænser. Dette er en gennemprøvet forbedringskandidat, **ikke samlet produktaccept**: fuldt musikscope, øvrigt aftalt inventar, faktisk Green/service, Mac/iPad og fysisk accept bevares som åbent arbejde.
 
-# PodView ·24.oktober · samlet musikbetjening under rettelse
+**Seneste ejerskab og samtidige tråde:** Denne tråd, **Gendan funktioner**, ejer den samlede PodView-fundamentleverance, kanonisk UI og samlet funktionsbevis. De aktive tråde **Forbedr Roborock-widget UX og UI** (`01a17192-afc3-7b92-87c4-6f1cbfb702dc`) og **v2.X** (`01a1117f-a7c4-7113-bb51-1f5e5df6af45`) er kontaktet direkte efter brugerens beslutning. Deres bidrag bevares og afstemmes mod den isolerede foundation-kandidat; ingen overskrivning af deres branches. Den eksisterende integrationslead bevarer release-/installationsansvaret, men næste samlede PodView-installation skal afstemmes før frysning. PR296 er siden arbejdsstart avanceret til `ee2d845971bb12c7cbe5522e0c02ca0cebcf3533`; den nyere delta er endnu ikke samlet verificeret her.
+
+**Afstemning bekræftet af PodVoice-lead:** PR296-merge/publicering/installation er sat på hold; HA-genstart var endnu ikke sendt. Oplyst Green-status er PodView 127, Control 29 og companion 0.1.14; Control 31 er downloadet, men ikke aktiveret. Dette er leadens aktuelle rapport, ikke vores egen nye Green-aflæsning. Foundation samler den præcise kandidat og funktionsbevis; den eksisterende integrationslead overtager derefter én afstemt release/installation. Seneste recipe-delta er optaget selektivt; metadata/admission for 128 kopieres ikke blindt til foundation.
+
+**Ny faktisk funktionsprøve:** Bygget PodView → faktisk Python-backend → inerte HA/native serviceejere har bestået robot-Pause under samtidig ventende musikkommando, efterfølgende Fortsæt i detaljen og tilbagevendende Pause under rengøring. Rengøringsvalg er visuelt bevaret. Browseren fandt først en reel cachefejl (gammel cleaning-status efter faktisk pause); serverens cache/inflight-læsning og klientens passive efterlæsning er rettet. Bevis `/private/tmp/podview-foundation-robot-e2e.log`, bundle `92da3031139b1d5eea05556ffaa9fdd8bd58abaf8d42256af8377a117a816caf`. Senere snæver musikrettelse kræver samlet slutkontrol. Midlertidigt ukendt musik-witness og vedvarende logkæde undersøges i actual-browser, selv om fokuserede klienttests består. Green, faktisk iPad og fysisk effekt er fortsat åbne.
+
+**Gældende prioritering:** Brugeren har efterfølgende overladt den tekniske rækkefølge til Sol/Astra. Fundamentet afprøves gennem musik og robot, med opskrifter parallelt; hele musikoplevelsen og øvrigt aftalt scope bevares. De ældre udsagn nedenfor om “Musik først” og “afventer Go” er historiske og er erstattet af denne status.
+
+**Startidentitet ved Go (historik):** Seneste verificerede PodVoice-main er `37680d1831ce26fd1c41a82a19a35482435b2ece` (127); faktisk v2.x-arbejdskandidat er PR296 `eae9066ad558e25ffda0cdda58a61afce8e88910` (128). Isoleret arbejdsgren `codex/podview-foundation-20261104` i `/private/tmp/podview-foundation-v2-20261104` bevarer nyere selektivt afstemte overlays. Arbejdet retter fælles fundament gennem konkrete musik-/robotforløb; hele det aftalte inventar består. Sol ejer backend/integration, Terra afgrænset frontend og opskrifter, Astra uafhængigt review. Root ejer sammenhæng og faktisk funktionskontrol.
+
+Mac-computerstyring er aktuelt låst; brugeren er væk cirka to timer. Separat headless Chrome med tom midlertidig profil er startet og kontrolleret uden brugersession. Opskriftskæden har nu bestået isoleret faktisk browser → HA-proxykode/add-onroute → offentlig Arla-kilde → varigt testlager → automatisk synlig katalogpost, med bevaret kategori/fokus/scroll, dublet og faktisk serverproces-genstart. HA/session er inert; dette er ikke Green-/iPad-/iPhone-accept. Produktbundle for dette afgrænsede preview er `56b614b2c610cb6eac3a8842dffd7a5736db9a85d692b4b3a7a08079498f08fe`; senere musikændringer skal bygges og kontrolleres samlet. Installation og samlet brugsklarhed er åbne.
+
+**Seneste kildebeslutning:** Brug den seneste faktiske PodVoice v2.x-løsning som base. Verificér aktuel kilde, kandidat/build og installeret Green-version før ændringer. Historiske lokale kopier er kun reference, og nyere v2.x-arbejde skal bevares. Dette angiver arbejdsbasen; den aktuelle versionsidentitet er endnu ikke genaflæst i denne planpræcisering.
+
+**Seneste prioritering fra brugeren: Musik først som samlet oplevelse**, ikke kun en Pause-rettelse. Pakke A omfatter start, pause/fortsæt, sangskift, højttalervalg, volumen, kø og aftalte musikvalg med stabilt UI. Derefter robot og resten; opskriftsadoption kan køre parallelt. Dette præciserer rækkefølgen i den Go-klare plan og starter ikke implementation før Go. Astras hash nedenfor identificerer den reviewede grundversion før denne brugerpræcisering.
+
+**Go-klar plan: Sol 6.1 high har revideret [grundplanen](PODVIEW-FOUNDATION-PLAN-2026-11-04.md), og Astra high har grillet plan, kodebase og udviklingsproces fra [15 dokumenterede vinkler](reviews/ASTRA-FOUNDATION-REVIEW-2026-11-04.md). Første plan blev afvist; otte fund og to efterfølgende lukningskrav er indarbejdet. Astra har genkontrolleret slutrevisionen og givet READY FOR GO, SHA-256 `bdea44ffbfbd22f5c5d8f9bf10c175e55205167f92fb50e3dab59c37152a44a8`. Det er plangodkendelse, ikke produktaccept. Produktkode og installation afventer brugerens Go.**
+
+Efter Go er leverancen fungerende aftalt PodView installeret på Green og klar til brug på **Mac/Chrome og iPad/Safari via samme faste adresse**. Seneste direkte brugerbeslutning erstatter ældre sole-Denver-afgrænsning. Frameo-display, køb, kompatibilitet og kiosk er næste særskilte trin; kamera er kun et eksempel på fremtidig modularitet.
+
+Brugeren definerer oplevelse og resultat; agenten ejer teknik, implementation, funktionskontrol og levering. Produktet er i udvikling: interne lag og kontrakter må ændres, og kunstige produktions-/kompatibilitetskrav må ikke fastholde en dårlig løsning. Bevar faktisk adgang, korrekt mål, data og beskyttelse mod dubleret effekt. Minimum nødvendig kodetest; primært bevis er end-to-end i faktisk PodView gennem service, observeret resultat, UI og forklarlig log. Ingen flashes/hop eller tabte valg; Play/Pause/outputskift virker, og vellykket upload bliver til en varig synlig opskrift.
+
+Alle tidligere aftalte funktioner bevares; historiske lokale PASS, publiceringer og installationer er kun bevis for deres konkrete kilde og forløb. Dokumenteret begrænsning er fortsat åbent/blokeret, aldrig funktionelt PASS. Denne fil er fortsat den eneste aktuelle feedback-/resultatoversigt.
+
+---
+
+## 3. november · Find musik på tværs af PodView og v2.X
+
+Kildeaudit af det lokale workspace og daterede v2.X-overdragelser. Den [fælles 25/10-audit](qa-ui22/FEEDBACK-20261025-AUDIT.md) bevarer 47 brugerbeskeder og F01–F23. [M01–M23](qa-ui22/FEEDBACK-EVIDENCE.md) bevarer de tidligere musikønsker og afgrænsede beviser. Historiksøgningen gav desuden det oprindelige brief 14/10 om Spotify-søgning, resultater, kontrol og musik til højre. Direkte adgang til alle chattråde og fuld dækning efter 27/10 er ubekræftet. De eksisterende ID'er og deres status bevares.
+
+| Emne | Brugerinput og beslutninger | Tidligere agentforslag og auditfund |
+| --- | --- | --- |
+| Indgang og faner | Spotify-søgning, resultater og styring. Musik til højre. Likede ud. Stemning først ved ny åbning efter reload, bevar sidste fane og kort ved retur. Kun eksplicit Andre forslag skifter tilbud. | Oprindeligt tale → kandidater → valg med stemme/touch → observeret afspilning. Aktuel musikrenderer har Stemning, Humør, For dig og Senest. Præcisering 3/11: Voice PE tager søgeinput. Ingen søgefelt i Find musik. Skærmen viser stemmeresultater ved tvetydighed og tilbyder fire faner til valg og genvalg. |
+| Stemning, Humør og For dig | Tre faktiske playlistevalg i Stemning/Humør når kilden rækker. Smag, tid og kontekst. Personlige mixes kun når kilden leverer dem. | Eksisterende forslag om kontoplaylister, top/senest som rangsignaler, deduplikering og kunstnerspredning. Kontobibliotek og topsange er afgrænsede kilder. Fuld kontekstrangering og adgang til navngivne Spotify-mixes er åbne under M09–M12. Brug de faktiske kilderoller til at forklare, hvad der vises. |
+| Covers, copy og bevægelse | Naturlige, forskellige billeder. Ægte cover før illustration. Ens højde, tekst/valg først, ingen løs generisk Spotify-note. Ét loading-signal, ingen hop, bevaret indhold. | Async billedlivscyklus med konto/URI-identitet og indholdsfade. Historiske lokale beviser for faste kort og klik før decode. Deres scope dækker ikke alle nye providerudfald. M03–M08, M20, M22, F07–F10. |
+| Start og transport | Spotify/Apple Music-niveau. Start hurtigt, vælg igen uden reload, behold player og kø, Pause/Fortsæt/Næste/Forrige virker. Radio → sang med én tydelig ventetilstand. | Én eksisterende serviceejer, eksplicit frisk adgang pr. handling, passiv efterlæsning, ingen automatisk gentagelse af UNKNOWN. Prefetch er historisk implementeret, men fysisk latensgevinst er ikke bevist. Feltet har rapporteret lang Forbinder og forsvindende player/kø. F01–F05, F20–F22, M14, M21, M23. |
+| Kø, output og volumen | Reel kø, spørgsmålet om 50 rækker, tydeligt valgt output, mindre Opdater liste, feedback uden overlap, uønsket 35%-loft. | Skeln tom kø, læsefejl og kendt seneste kø. Historisk DTO med 20 rækker er producentbevis. Vis næste destination særskilt fra faktisk output. Vis faktisk volumen særskilt fra ønsket værdi, med det gældende serviceloft. M15–M18, F04, F06, F11. |
+| Handoff og recovery | Stabil Connect, også når iPhone tager over og efter idle/netværksskift. Automatisk tilgængelig fejllog, så brugeren slipper for eksportarbejde. | 27/10 og 2/11 foreslog agenten korreleret helflowtest, reconnect, afbrydelse, seek og ducking/resume. Seek er et kapabilitetsforslag, og lokal playerbevægelse beviser ikke live-seek. Brug eksisterende diagnostik og hold konto/output/kommandoeffekt sammen. |
+
+**Prioritering fra denne audit.** P0 er tale → hørbar start → korrekt titel/output → touch-pause → observeret pause på samme konto og route. Udvid med to valg i træk, Connect-handoff, næste/forrige, reel kø og timeout. Mål separat tid til synlig kvittering, faktisk lyd og opdateret player. P1 er tydelig fanelogik og reelle valgmuligheder via den eksisterende resultatkomposition. Voice PE er søgeindgangen. P2 er bedre For dig, med testbare kontosignaler og ærlig fallback. Omfanget er forslag til prioritering, og tidligere brugerkrav bevares.
+
+**Evidens nu.** Kilde læst i [musikresultater](../dist/music-results.js), [livekatalog](../dist/live-music-view.js), [player](../dist/player-view.js) og [ejerskabskortet](qa-ui22/MUSIC-UI-OWNER-MAP-20261025.md). Unit/kontrakt, sammensat integration, browser, rigtig service og fysisk hardware er ikke genkørt i denne audit. Historiske lokale beviser og tidligere Green-kvitteringer står i deres respektive poster. Ingen runtimeændring, ny udgivelse eller installation.
+
+### Find musik · fire faner og Voice PE · brugerpræcisering 3/11
+
+Voice PE tager søgeinput. Find musik har fire faner og ingen søgefelt. Forslag til fanelogik:
+
+| Fane | Spørgsmål den besvarer | Næste iteration med eksisterende kilder | Mulig udvidelse |
+| --- | --- | --- | --- |
+| Stemning | Hvad passer til det, vi laver nu? | Tre forskellige afspillelige playlister med hver sin anledning, fx Madlavning, Middag og Rolig aften. Brug de allerede tilgængelige tidssignaler og katalogkilder. | Rangér med samtykkede kontosignaler og verificeret kontekst. |
+| Humør | Hvilken energi vil jeg have? | Tydelige, genkendelige retninger som Energi, Godt humør og Ro. Hvert kort repræsenterer en faktisk playliste. | Voice PE kan bede om en bestemt energi og vise de relevante valg. |
+| For dig | Hvad vil jeg sandsynligvis høre igen eller opdage? | Faktiske kontoplaylister eller topsange med ærlig undertitel. Prioritér genkendelighed og variation. | Rangér efter smag, varier kunstnere og vis kuraterede mixes, når de er faktisk tilgængelige. |
+| Senest | Hvad var det, jeg lige hørte? | Tre faktiske nyligt afspillede numre med nyeste først og stabil kildeidentitet. | Genoptag den konkrete playliste eller kontekst, hvis ejeren leverer den. |
+
+Ved stemmesøgning vises eventuelle kandidater med samme stabile valg-ID for tale og touch. Ved retur bevares den valgte fane og dens kort. Andre forslag opdaterer forslag, hvor kilden kan levere noget nyt. Senest er historik med faktiske lyttehændelser som kilde. Fanelogikken er et forslag til næste iteration, ikke implementeret eller browserprøvet.
+
+### Andre forslag · AI og Spotify-viden
+
+- Stemning: Andre forslag vælger tre nye muligheder til samme tidspunkt eller anledning. AI kan foreslå nye temaer ud fra tidspunkt og egne brugerinput. Det eksisterende katalog matcher derefter temaerne med reelle Spotify-valg.
+- Humør: Andre forslag beholder retninger som Energi, Godt humør og Ro og finder andre playlister inden for dem. AI kan hjælpe med at formulere retninger fra egne brugerinput. Spotify-match og variation håndteres i kataloget.
+- For dig: Andre forslag viser næste relevante udvalg fra kontoplaylister eller topsange, hvor kilden tillader det. Brug almindelige regler til variation mellem kunstnere og udeluk de senest viste URI'er, hvor der er alternativer. Adgang til Daily Mix og daylist verificeres separat.
+- Senest: Ældre afspilninger hentes kronologisk med Se tidligere, hvis historikkilden understøtter det. Senest opdateres fra faktiske lyttehændelser. AI rangerer ikke historikken.
+
+Fælles for refresh: Bevar kortene og den aktuelle afspilning under hentning. Ét ventetegn. Opdatér kun kort med nye validerede alternativer. Ved tomt resultat beholdes kortene med en kort forklaring. Fejl giver eksplicit genforsøg. Retur bevarer fane og kort.
+
+Kildegrænse: AI bruger egne signaler, fx tidspunkt og brugerens anledning. Spotify-indhold holdes ude af modellen. Regler og eksisterende katalogejer vælger faktiske, tilgængelige resultater, og Spotify er kilden til metadata, covers og historik efter kontoens adgang. Se [Spotify Developer Policy](https://developer.spotify.com/policy), inklusive særskilt begrænsning for stemmestyring via Spotify-platformen, hvis integrationsruten udvides. [Spotify API-ændringer](https://developer.spotify.com/documentation/web-api/references/changes/february-2026) beskriver søgning, topnumre og seneste afspilninger. Dette er designforslag, ikke runtimeændring eller kapabilitetsbevis.
+
+### Ny brugerfeedback · For dig står stille, Senest giver for lidt værdi
+
+Kildeaudit: For dig læser kontoplaylister, når de er tilgængelige, ellers topsange. Refresh henter samme kildetype og forsøger at flytte tre pladser i det modtagne udsnit. Det er bladren i kilden. Det kan forklare gentagelse ved et lille udsnit, men den konkrete liveårsag er ikke målt.
+
+Forslag: For dig viser tre forskellige grunde til at trykke. **Et sikkert valg** fra kontoplaylister eller topsange, **Noget andet fra din Spotify** med en anden kunstner eller playliste, og **Prøv noget nyt** fra et verificeret katalogmatch. Vis kun roller med reel dækning. Første sæt er stabilt gennem besøget. Andre forslag henter næste matchende sæt, foretrækker endnu ikke viste URI'er inden for konto og fane, og udskifter kun pladser med relevante alternativer. Intet tilfældigt shuffle eller automatisk loop efter udtømning. AI kan foreslå en retning fra egen kontekst, mens regler bruger Spotify-data til udvalg og variation.
+
+Forslag: Senest hjælper med at finde tilbage til en lytteoplevelse. Første iteration viser faktiske numre, artist og let tidssammenhæng, fx I dag eller I går. Behold kronologien og brug Se tidligere, hvis kilden understøtter det. Næste iteration samler sammenhængende afspilninger med samme faktisk observerede kontekst og tilbyder fx Fortsæt playlisten, hvis ejeren kan genoptage den. Mangler kontekst, vis almindelige nummerhistorik. Ingen AI-kategorisering eller sammenlægning ud fra et gæt.
+
+Første acceptprøve for For dig: Tre tryk på Andre forslag med en fyldig kilde giver meningsfuldt nye URI'er uden dubletter, med bevaret player og uden afspilningseffekt. En tynd kilde bevarer brugbare valg og forklarer udtømning. Senest: Et faktisk nyere nummer vises øverst, ældre valg er tilgængelige hvor kilden tillader det, og eventuel genoptagelse bruger den rigtige konto og kontekst. Kildeaudit og designforslag; ingen runtime- eller browserændring.
+
+### Konceptrevision · alle fire faner og titler åbne
+
+Brugeren præciserer, at hele Find musik skal gentænkes. Nedenstående er en ny konceptretning, som erstatter de foregående faneforslag som anbefaling. Voice PE er fortsat indgangen til søgeinput. Ingen implementering eller releasebestilling følger af konceptrevisionen.
+
+| Anbefalet fane | Job | Tre kort | Handling |
+| --- | --- | --- | --- |
+| Lige nu | Find musik til situationen | Tre forskellige musikretninger til den samme anledning | Andre forslag beholder anledningen og skifter til nye, reelle matches |
+| Vælg en vibe | Vælg stemning og energi selv | Fx Mere energi, Blød landing, Syng med | Andre forslag skifter musik under retningerne. Retningsnavne skal være genkendelige |
+| Opdag | Find et nyt spor at følge | Fx En anden side af en kendt retning, En nærliggende lyd, Et overraskende bud | Andre forslag skifter udvalg og undgår nyligt viste URI'er, hvor kilden rækker |
+| Hør igen | Find tilbage til noget, der var godt | Fx Fortsæt playlisten, Spil et nyligt nummer igen, Find tilbage til en tidligere kontekst | Se tidligere bladrer i faktiske lyttehændelser. Genoptagelse kræver verificeret kontekst og tilbud |
+
+Lige nu kan kollidere med PodViews overbliksnavn. Foretrukken testtitel er derfor **Til øjeblikket**. Vælg en vibe er en prototypetitel. Test den mod **Humør** og **Vælg energi** i faktisk dansk UI. Opdag forudsætter reel katalogbredde. Ved kun kendte kontodata er **Din musik** en mere dækkende titel og et andet job. Hør igen kan begynde med ægte numre og tidskontekst. Fortsættelse af sessioner er en senere kapabilitet.
+
+Alternativ struktur: Til øjeblikket / Genrer / Din musik / Hør igen, hvis forudsigelig manuel betjening vægter højere end AI-styret inspiration. Prøv den anbefalede konceptretning mod denne i kitkompositionen med tre konkrete brugssituationer. AI foreslår temaer ud fra egne signaler. Katalog og regler matcher Spotify-kilder uden Spotify-indhold til modellen. Ingen nye tilladelser udledes.
+
+### Research · Hvilke roller skal hjemmehubben have?
+
+| Reference | Dokumenteret struktur | Overførsel til PodView |
+| --- | --- | --- |
+| [Google Nest Hub](https://support.google.com/googlehome/answer/9137285?hl=en) | Foto/ur i hvile, dagsoversigt, hjemmekontrol og medier som særskilte sider. | Bevar Ro som hvileflade og Lige nu som kort situationsbillede. |
+| [Echo Hub](https://press.aboutamazon.com/canada-press-center/2023/9/amazon-unveils-echo-hub-an-all-new-echo-device) | Overgang fra ur til kontrolflade, widgets og rutiner. | Gør den aktuelle handling tydelig, og lad kort åbne eksisterende detaljer. |
+| [Home Assistant](https://www.home-assistant.io/dashboards/dashboards/) | Hjem som indgang til rum og domæner. | Brug rum i lys, robot og output. Prioritér aktuel aktivitet på selve forsiden. |
+| [Skylight Calendar](https://myskylight.com/en-gb/calendar) | Kalender, opgaver, lister, madplan og import fra mobil/mail. | Husstandens opskriftsindbakke er et selvstændigt job. Afprøv Del til PodView mod privat mailmodtagelse. Kilde, adgang og behandling skal afklares før integration. |
+| [Sonos](https://support.sonos.com/en/article/navigating-the-sonos-app-with-tabs) | Hjem og senest, separat søgning og separat oversigt over output. Køen følger rummet. | Adskil valg af indhold, faktisk afspilning og højttaler, også når playeren forbliver synlig. |
+
+**Foreslået PodView-ramme.** Ro giver orientering på afstand. Lige nu prioriterer hændelser med betydning lige nu, herunder aktive timere, robot og faktisk afspilning. Find musik, Svar og Opskrifter er destinationer, man opsøger. En aktiv opgave kan have en vedvarende fokusvisning. For opskrifter er det eksplicit Start → fortsat trinvisning → Afslut eller Tilbage, med bevaret trin ved afbrydelse og eksisterende timeradgang. Fuldskærm og faktisk skærmhold er design-/kapabilitetsspørgsmål. Hjemmets drift bliver i de eksisterende detaljekompositioner og bruger de faktiske domæneejere.
+
+## Genåbnet 28/10 · Svar-historik fra brugerprøve kl. 11.41
+
+Rapporteret via integrationslead: El Clásico-kort optræder sammen med 4–5 separate samtaleudskrifter, inklusive mellemreplikker og kvitteringer. Ikke visuelt reproduceret her endnu.
+
+Ønsket rettelse: én overskuelig samtaleindgang med relevante svar og visuelle kort, grupperet efter faktisk samtale-/turn-identitet. Mellemreplikker som “Lad mig lige tjekke” og kvitteringer skal ikke være selvstændige svarposter. Bevar rå diagnostik og provenance. Ingen sammenlægning alene efter tekst eller minuttid; fundet beviser ikke flere OpenAI-sessioner.
+
+Indledende kildekontrol: `answerReadContext` i `dist/live-answer-view.js` binder allerede læsning til sessionId, turnId, taskId og revisioner; det beviser ikke, at historikkens poster indeholder samme identitet. Undersøg eksisterende historikdata og renderer før ændring. Status: registreret, implementation og faktisk Product Design/Impeccable-browserreview udestår. Ingen runtimeændring, udgivelse eller installation.
+
+## Tværgående Pod-accept · standard v1 · 27. oktober 2026
+
+Denne eksisterende oversigt bevarer PodViews feedback, faktisk evidens og rester også
+ved tværgående arbejde. Fælles standard og kandidatbinding:
+[`PODVIEW-CONTRACT.md`](PODVIEW-CONTRACT.md).
+Ingen ny runtime, release, installation eller fysisk accept følger af regelindførelsen.
+
+For hver berørt brugerrejse registreres faktisk input → serviceejer → observation →
+renderet feedback og recovery på samme identificerede kandidat. Første fælles flow er
+stemme → afspilning → korrekt player → touch-pause → verificeret paused hos samme ejer.
+Angiv unit/kontrakt, sammensat integration, rigtig browser, rigtig service og fysisk
+hardware med inerte afhængigheder og bestået/fejlet/blokeret/ikke kørt. Knyt resultaterne
+til de eksisterende konkrete feedbackpunkter og evidenskvitteringer. Bevar alle åbne
+feltfund nedenfor; eksisterende lokale tests og UI-review lukker ikke fysisk musikaccept.
+
+### 27/10 — fælles krav og konkret inert fixtureoprydning
+
+Den fulde fælles standard dækker nu også den eksplicitte autonome browser/log/netværk/
+state-cyklus, timer/HA/samtale/recoveryforløb og Definition of Done. Forældede workshop-
+/milepælsinstruktioner er fjernet som autoritet; dateret evidens bevares.
+
+Den eksisterende music-remote-night-fixture har nu fungerende inert Pause/Fortsæt,
+exact scope, én effekt, IDmaks120, volumen-only tilbud og udløbsregression. Syntaks og
+fokuseret HTTP-test PASS; uafhængige P2-fixturefund er rettet og lukket. Rigtig browser
+på endelige bits viste Pause→Fortsæt→Pause med samme track. Ingen rigtig service/lyd.
+
+Browserkonsollen viste samtidig en uafklaret opstartsfejl i MutationObserver.observe
+(parameter1 er ikke Node), også efter reload. Relevante UI-assets er uændrede og
+byteidentiske i mirror/kilde; ingen spekulativ UI-patch. Ejer PodView; næste handling:
+indhent præcis stack/URL og ret årsagen i kanonisk ejer. Samlet browsergate er åben.
+Screenshots og originaler findes i denne tasks eksisterende evidencefolder. Ingen ny
+UI-runtime, release, installation eller fysisk accept. Tidligere feltfund bevares.
+
+## Aktuel status27oktober ·96 installeret og Sites58 publiceret
+
+Samme3c5 UI i Green96 og Sites58. Fælles feedback-efterfølger har3198 tests bestået men visuelt overlap i Toast/Lys, så den er ikke publiceringsklar. Se docs/qa-visual-baseline-20261027/STATUS.md.
+
+
+## Aktuel kandidat27oktober · musikfeedback, kø og Robot-opfølgning
+
+Kandidaten har3143PASS/gate66, kilde-GO og faktisk Product Design/Impeccable+parent-slutreview; endnu ikke installeret. Se docs/qa-music-session-20261027/queue/STATUS.md. Musikknapper bevarer eksisterende ikonvariant ved progress; brugerdraft og faktisk observation adskilles. Højttaleren er fast centreret med afgrænset feedback ovenover. Køloading bevarer den aktuelle sang og kendte rækker. Robot-historik/tre modes/Vælg alle rum ejes af separat Robot-iteration; ikke meldt installeret.
+<!-- consolidated-current:start -->
+
+### GENÅBNET28/10 · Huevisning i faktisk release
+
+Brugeren siger “det her UI er ikke i release version”. TidligereSites97normalfixture/assetparitetbeviser ikke Greens unconfiguredUI. Faktisk kildefund: manglendeHue/sceneData skjuler heleLightRoomView og lader genericHero/modalCTA erstatte den aftalteCard. Ny mindstepatchmodROOTNEXTgenbruger sammeCard/SectionHeader/body/Disclosure ogsåempty/no-scenes, skelner setup/readerror/denied, opfinderingenrum/scener/authority.71rootPASS/nativeDOM2suiterPASS/ProductDesign+ImpeccableafgrænsetGO. [Aktuel evidens og præcis rest](research/hue-empty-owner-20261028/REVIEW.md). Sendttilv2.X; IKKEgenmeldtinstalleretellerpåSitesførfaktisknyadoption.
+
+
+### Hue28/10 · feedbackrettelse og bevaret læsbarhed
+
+Brugeren fremhæver nuværende luftige Hue-layout som læsbart og brugbart. Store rum-tænd/slukfelter, separat rumvalg, fælles TopBar og scene/lysstyrke/Lamper bevares. Favoritadministration udskydes udtrykkeligt til flere rum. Ny afgrænset rettelse mod faktisk v2.X-kandidat har71/71 foreskrevne root-testsPASS, inspicerede Product Design/Impeccable-billeder og bounded visuelt SOURCEGO: normal waiting kun i target-kontrol; vedvarende fejl også uden scener; fokus-/transportbundet readrecovery. [Aktuel matrix, billeder og rester](research/hue-rework-20261028/REVIEW.md). Fælles Toast-overlap skal stadig sammenlægges og visuelt lukkes af UI-ejeren. OPDATERET28/10: Hue-deltaer matcher endeligGreen2.0.97/Sites-kilde70867996, deploysucceeded, manifestf7ed7a10/bundlec292. Faktisk reloadSitesroot→foto→overblik→normaltLysklikPASS med Køkken/scener/slider/Lamper/player; billede11 inspiceret. [Publicerings-/adoptionskvittering](research/hue-rework-20261028/SITES97-ADOPTION.json). Ingen fysisk lysaccept.
+
+
+## Musiksession27oktober ·årsag stadig åben
+
+Konkret backendfejl malformednon204→falskfreshidle rettet/installeret somControl0.10.26 afv2.X. Dagens09:27paused→09:30emptykanendnuikketilskrivesdennefejl;retainedSpeakers/source-logundersøgelsefortsætter. Eksakt05aacfrontendharingenfundneimplicitstop/transfer/release;141read/recoverytestsPASS. IngenUIændring/effektprøve;lydtestudskudtafbrugeren. docs/qa-music-session-20261027/STATUS.md.
+
+## Aktuel levering27oktober ·Green2.0.95 / Sites57
+
+Green2.0.95Kører, committc1c7281f/buildb3ee073d verificeretafreleaseejer. Samme05aacUI+libraryprivatSites57nativeSUCCEEDED, sourcee4d2a4f/215runtime+assetmanifestverified. HvideRobotkontrolkort/pinkHero/8rumnavne/ombrydningersetpassivtpåGreen. NormalHjem→LysbådelokaltogpåpubliceretSites57actualklikPASS;senesteKøkken/scener/slider/Lamper/playerbevaret. Denneaktuellestatuserstatterældreventestatussernedenfor;frosnebeviserbevares. Kvittering: docs/qa-card-hue-20261027/SITES57-PUBLICATION.json. Ingenfysiskmusik-/HAkommandoacceptpåstås.
+
+
+Senesteinstallerede/publiceredebasis: Green2.0.94verificeretafreleaseejer; privatSites56nativeSUCCEEDEDsammeexport694b,215runtimeverificeret/source2f5109c2. NæsteCard/Huepakke05aac0e2(3126PASS+scopevisualGO)afleverettilv2.X,IKKEinkluderetendnu. FejllogliveeksportudfaldUKENDT;ingenpåstandompraktiskexportPASS.
+
+## Genåbnet27oktober ·kortfladerogLysindgang
+
+Robotkontrolkortskalhvide; kunHero-widgetaccent. FællesCardrettelseover694bharSOURCEGOogfaktiskprodukt-/biblioteksreviewpåtværs. NormalHjem→LysbrugerkanoniskHuefixtureogernuklik-/visueltkontrolleret. Samlet3126PASS/gate66;afleverestilv2.X,næstepakkeendnuikkepubliceret/installeret. Se docs/qa-card-hue-20261027/STATUS.md.
+
+Fejllog-export efter93: kausalt whitelist-gap for readHash rettet i separat immutable694b4d9e-pakke;SOURCEGO/3122PASS/gate66. Kun datavalidering, ingen præsentationsændring. Afleveretv2.X; ikkeinstalleret/publiceret. FaktiskGreen-exportudfald varUKENDT og kræver accept. docs/qa-kit-edges-20261026/export93/STATUS.md.
+## Seneste levering ·2.0.93 / Sites55
+
+v2.X har verificeret Green Kører2.0.93, commita49711ea og buildidentitybcd20dc6. Robotens8rumnavne og ombrudte niveauvalg er desuden set påGreen uden robotkommando. Samme c2004c4d-frontend er privat publiceret somSites55, native succeeded; source743012d4,215/215runtimefiler samtassetmanifest verificeret i leveret arkiv. ProductDesign/Impeccable scopedGO og3121PASS/gate66. Kvittering: docs/qa-kit-edges-20261026/post92/SITES55-PUBLICATION.json.
+
+Åbent: oprindeligStemning-årsag; råVaskemønsterlabels fast/custom som separatpolish; fysisk musik/Connect/kø/provider/robotaccept. Installation/publicering lukker ikke disse. Historiske statusser nedenfor bevares som tidsafgrænsede beviser.
+
+# PodView · samlet UI-leverance ·26oktober2026
+
+**Aktuelt:** v2.X har bekræftet samlet **PodVoice2.0.92 Kører på Green**, CI-grøn/mergetPR256 og publiceret image med præcis slut-UIe386521d. Samme215runtimefiler og bibliotek er privat publiceret som **Sites54**, native succeeded; gemt sourcecommit858020c7 og215-filers lokalt leveret arkiv er verificeret. Frontend3118/3118PASS/gate66/12familier er ikke fysisk accept. **Nye efter-installationsfejl er genåbnet:** Robotrumnavne/overlappende niveauskift/rawlabels og Stemning-hentefejl. Robotrettelsen er kilde-/visuelt godkendt og pakkes til næste release; Stemning-årsagen er fortsat åben. Ingen huskommandoer; Sites54/frosnepakker ændres ikke skjult. Aktuel publiceringskvittering og nye fund: docs/qa-kit-edges-20261026/read-correlation/SITES54-PUBLICATION.json og POST-INSTALL-FINDINGS.md.
+
+| Del | Aktuel status | Rester |
+|---|---|---|
+| Tidligere fælles kit/Robot1146/210 | Historiske delpakker bevaret; nu indgår den efterfølgende samlede215-runtime i2.0.92 | Nye feltfund nedenfor genåbner konkrete UI-punkter |
+| Tesla og fælles kit | Kanonisk UI og false-liveflagrettelse installeret ifølge v2.X; aktuelt Ikke forbundet påGreen | Faktisk Tesla-backend/kilde/kommandoaccept er ikke bevist |
+| Gentagen “Henter”-tekst | KausaltIDLE-fix indgår i den installerede slutpakke | Tidligere lokale16read-billeder er ikke generel fysisk accept |
+| Fuld Huev5 | GodkendtUI og liveflagrettelse med i2.0.92; aktuelt Ikke forbundet påGreen | Faktisk placement/controller/scene-/gruppe-/undoaccept separat |
+| Roborock | Seneste rum/indstillinger/Start ses faktisk påGreen uden robotstart | GENÅBNET: navne skjules af forkertButton/progress-styling;7/6niveauvalg overlapper; source-safe labels. Kitrettelse SOURCE GO + faktisk ProductDesign/Impeccable1280/980/bibliotek/Tesla/Hue GO;3121PASS/gate66. Afventer næste samlede release/installation |
+| Radioafspilning | Separat aktivt spor; nativehandoff fortsat ikke accepteret | Udelades som aktiveringsfunktion. Styling er ikke radioaccept |
+| Produktrelease og Green | v2.X bekræfter PR256CIgrøn/merget/imagepubliceret/2.0.92Kører med exaktUIe386521d | Ingen samlet fysisk lyd-/Connect-/robotaccept; nye feltfejl holdes åbne |
+| GPTSites + bibliotek | PrivatSites54 native succeeded, kilde858020c7/215runtimefrae386521d, audience1ejer/0grupper bevaret | Ny robotrettelse skal i efterfølgende samlet udgivelse; Sites54 blev publiceret før nye fejl blev meldt |
+
+Alle seks tværgående auditfund og F01–F23 bevares nedenfor. Lokal kode/test/billedreview, udgivelse, installation og fysisk accept er særskilte statusser. Samlede beviser: docs/qa-kit-edges-20261026/release-ui/STATUS.md.
+
+## Genåbnet fysisk musikfejl efter2.0.91
+
+Brugerens nye feltprøve: PodView starter faktisk lyd, men lang Forbinder; efter~30s læsefejl/player+kø forsvinder/reconnect; Pause/Næste/Forrige betjeningsfejl; normal playlistkø mangler upcoming; uønsket max35%; langsom stemning og billeder; kæmpeOpdaterliste-knap i højttalermodal og akavet outputlabel. Hele dette forløb er ÅBENT, uanset tidligere lokalQA/release/installationsPASS. Senere eskalation: Spotifymobilappen låser også efterMOVE; v2.X ejer nativeConnect/session/oldwriter-retirement. UIprojektion alene forklarer ikke dette. Backend har bekræftet, at moodimagegen ikke afventes; coldmetadataforløb selector+Spotifysearch undersøges viafasejournal. Ingen ny asyncartarkitektur bestilt.
+
+Ejerskab: v2.X backend/admission/status/command+korrelerede logs; denne tråd kanonisk UI read/intent/display/catalogue/modal, ingen parallelrelease. Ingen huskommandoer. Arbejdsbase er frossenUI215 i separat/private/tmp/pv-music-field92-20261026-work; leveret215 ændres ikke. Foreløbig kildeundersøgelse viser ingen egen35%-konstant og ingen titelblokering på billeddecode; selveHTTPJSON er listebarrieren. Disse er kildefund, ikke bevist feltårsag.
+
+
+## Kø-recovery · supplement til samme release
+
+UI92 er kvitteret215/215 hos v2.X. En særskilt afgrænset kø-recovery-kandidat er nu kodefærdig:3108/3108PASS, faktisk inert produkt-/biblioteksreview og kilde-GO. Ét ekstra passivt opslag efter transient fejl ved næste validerede playback; ingen kommando-replay. v2.X vurderer integration i samme samlede release, ingen separat udgivelse. Ikke installeret/fysisk accepteret. Aktuel dokumentation: docs/qa-kit-edges-20261026/queue-recovery/STATUS.md. NativeConnect-/provider-/lydbevis er fortsat åbent.
+
+
+<!-- consolidated-current:end -->
+
+## Robot27 · nye input10:38–40 · selvstændig kandidat over05aac
+
+**GENÅBNET/HOLD efter brugerens faktiske QRevo-appbilleder27okt11:17–19.** 3137tests PASS i mellemrevisionen er ikke semantisk accept. Nuværende7/6-værdilister repræsenterer HA-tilbud, ikke appens niveauskala: Custom204 er samlet tilstand; custom_water_flow207 er særskilt vandredigering. Numerisk vandværdi/range/handling mangler; ingen falsk live-slider. Backend skriver også skjulte indstillinger ved Start og mangler modekompatibilitet. Tidligere2a4-pakke er superseded/HOLD. Product Design/Impeccable anbefaler4normale sugestyrker i kombineret,5iVacuum;3vandtrin+én inlineCustomeditor;antal1/2i det dokumenterede appflow;route separat. API-ejer skal tilbyde korrekte modeafhængigheder og numerisk kontrakt. Se docs/qa-robot-modes-20261027/APP-API-MATRIX.md og API-MAPPING-AUDIT.md. UI-kit får generisk source-bundetSlider, ikke opfundet robotrange. Musik96 bevares separat.
+
+
+| Brugerinput | Implementering og faktisk evidens | Status / rester |
+|---|---|---|
+| Lettere Vælg alle rum | Eksisterende quiet Button, ikon+label uden fyldt CTA/toggle-state.05-rooms-final og14-library-rooms | Lokalt visueltGO; ikke release/installeret |
+| Tre type-layouts |06/07/08 viser kombineret, støvsug og vask;11/12/13 gentager ved faktisk980px. Kildeudbudt vaskemønster16/17 er separat authoredQA | Valg/opaque payload bevares; aktivt typeskift afventer observeret kilde. Ingen ny kapabilitet |
+| Historik nederst + grænse | Fælles ActivityTimeline3synlige + lokal Vis flere/Vis færre;09/10 klikflow.15 ærlig tom historik | Sande native timestamp-/journalfelter; ingen fuld rengøringsarkivpåstand |
+| Ensretning/luft | Kanonisk ChoiceGroup er undtaget gamle setting-marginer; felter flugter og beholder32/24/16/8/64px kontrakt | ProductDesign/Impeccable boundedGO i docs/qa-robot-modes-20261027/REVIEW.md |
+
+Isoleret kilde /private/tmp/pv-robot-ux-20261027-work, uændret publiceretSites57/Green95.3130/3130PASS/gate66, syntaks/buildkontrol. Midlertidig lokal tom/patternQA er gendannet eksakt før sidste build/gate; ingen huskommandoer. Musik96/Stop er separat og må ikke forsinkes. Aktuel pakke og før/efterpins føres i integration/robot-modes-history-20261027.
+
+
+## Robot · seneste feedback 14:25–14:35 · lokal kontrol 14:40
+
+| Input | Konkret ændring / faktisk bevis | Status / rest |
+|---|---|---|
+| Aktivt rum mangler; tekster svæver | Denne tur med kildevalgte ikon-Tiles; separat Rengøringsvalg. Ingen løst rum/antal-resumé. `docs/research/robot-context-actions-20261026/evidence/14-active-rooms.png` | Lokalt renderet/kliktestet; menneskelig accept åben |
+| Base er én accordion; Start ved siden af | 12-ready-confirm / 13-base-confirm: Start og Base samlet højre; rødt Hero udvides nedad; linje kun inde i åben del; Vask/Tøm støv/Tør i én vandret række | Visuelt gennemgået ved faktisk1280×800, samme bibliotek i16-library-base |
+| Header klemt og forkert streg | Legacy toolbar-kollisioner fjernet i eksisterende CSS-ejere;32px statusafstand,24px Card,16px kontroller og64px touch bevares | Ingen lokal ny komponentfamilie |
+| Etagevælger | Faktisk Stueplan→1.sal skifter til4 rum og rydder tidligere valg;15-floor-selection | Lokal fixture, ikke fysisk kortskift |
+| Integration før release | Selektiv6fils patch043e93…;2590/2590 testPASS og komponentgate66 | Root samlet adoption/release/installation skal bekræftes særskilt. Scalar-pending faktisk billedkontrol i18-scalar-pending (midlertidig authored lokal fixture; gendannet før build/gate), ikke live fysisk bevis |
+
+
+---
+
+# Hue v5 · klar til v2.x hovedintegration26oktober14:18
+
+Brugeren har nu udtrykkeligt krævet integration i v2.x hovedbranch. Komplet selektiv pakke mod1146/210 er samlet i `/private/tmp/pv-hue-v5-complete-20261026`:19sourcefiler/15runtimeændringer, eksakt før/efterpins, faktisk replay+inversePASS,2988/2988tests og komponentgate65PASS. Integrerede billeder01–05/07 viser rumkort, inlineLamper, stueskift,1linjeprogress og fejlheader; ProductDesign/Impeccable scopedGO. Dette erstatter den tidligere rest om manglende fullv5pakning.
+
+**Åben rest ud over HA:** faktisk adoption i v2.x hovedbranch og branch/commitkvittering fra den fælles integrationsansvarlige. Pakkeaflevering er ikke mergebevis. Udgivelse/installation/fysisk accept særskilt. Ingen ny polish eller HAeffekt.
+
+---
+
+# Robot · brugerrettelser13:26–13:50 ·26oktober2026
+
+| Input | Konkret ændring | Bevis | Rest |
+|---|---|---|---|
+| Start måske i header | Én Start i status-Hero; samme zone som Pause/Fortsæt, oprindelig formbinding |06 + faktisk Start→Turbo→Pause/Fortsæt | Lokal fixture; fysisk effekt åben |
+| Kæmpe valg kontra sædevarme | Samme default level-anatomi, labelover, Sug/Vaskpar480Card, antal320px |03 ved980×800 og07 ved1280×800 | Ingen generel app-paritet |
+| Husk ikoner | Originale kit-ikoner ved Type/sug/vand/antal, labels bevaret |03/07/08 | Ingen opdigtet moppemønsterikon |
+| Lange rumnavne to linjer | Fælles Tile-truncation genoprettet; fuldt native navn |05 ni rum, Gæstevære… | Brugeraccept åben |
+| Scalar progress klipper label | Egen fieldset/legend-feedback; ingen command-Chip-padding på scalar |88 paneltests; normal render03/07 | Pending visuelt åben |
+
+[Afgrænset Product Design/Impeccable-review](research/robot-compact-levels-20261026/REVIEW.md).2580/2580PASS, gate66, syntaxPASS. Ingen installation eller fysisk accept; senere selektiv pakke efter frossen1146/210.
+
+---
+
+## Genåbnet klima13:32–13:43 · lokal ændring26oktober
+
+| Input | Konkret ændring | Aktuelt bevis | Rester |
+|---|---|---|---|
+| Sluk ligner afrim | Eksisterende Toggle/power med observeret checked, bekræftelse og in-control progress | Tesla88, bibliotek84/85 | Brugeraccept og release |
+| ± er strakte | Eksisterende Button/icon64×64 | Tesla87/88 | Ingen scoped visuel rest |
+| Afrim skal matche bagagerum | Fælles kolonnebredde og højrekant,64px højde; responsivt lige kolonner | Tesla87/88 | Ingen scoped visuel rest |
+| For meget afstand i kontakt |192px fast gruppe,8px gaps, samme on/off-geometri | Bibliotek84/85, Tesla88 | Brugeraccept |
+
+[Review og kontrolgrænser](research/tesla-20261026/POWER-TOGGLE-REVIEW.md). Uafhængigt billedreview: ingen synlig scoped blocker. Seneste fuldgate er blokeret af samtidige uregistrerede Robot-QA-filer;66 scoped tests og syntaks PASS. Dette ophæver ikke tidligere åbne punkter nedenfor.
+
+---
+
+# Lys · genåbnet progressafstand og lange labels26oktober13:40
+
+| Input | Ændring | Faktisk bevis | Status/rest |
+|---|---|---|---|
+| Loader for tæt på kanten | Canonical Chip24/Button32px indvendig kant;16px markør+8px labelafstand, reserveret i begge states |51 og55 | Visuelt inspiceret; consumeradoption separat |
+| Lange labels må aldrig blive2linjer | Ældre command-wrapregel fjernet; én linje med ellipsis og fuldt navn i DOM |54 ·1024×600 | Product Design visuelt gennemgået, brugeraccept åben |
+| Kittet skal forebygge gentagelse | Fælles regler dokumenteret, regressionkontrol og kitreview | [Aktuel rapport](research/light-control-v5-20261026/PROGRESS-INSET-REVIEW.md) | Endelig npm test2580/2580PASS inkl. gate66; billedbevis56. Ingen installations-/fysisk accept |
+
+---
+
+# Robot · custody og pending-præcisering26oktober2026
+
+a9a18dc1-auditpatch er på HOLD efter fund af én fremmed Light-feedback-linje. Kun pakket diff korrigeres; Hue-main bevares. Nyt patchpin/applycheck kræves før adoption.1280-layout/Card24/Start-header/bibliotek består som afgrænset review. Billede36 bevarer label, men spinneren erstatter visuelt Pause-ikonet; det er ikke bevis for synligt bevaret aktiveret ikon. Senere fælles progress-CSS kræver aktuelt Robot-billede. Final980 samt nye fault/unknown-renders forbliver åbne. [Aktuel rapport](research/robot-audit-20261026/REVIEW.md).
+
+---
+
+# Lys · seneste request/loadingbeslutning26oktober2026
+
+| Input | Konkret ændring | Faktisk bevis | Status/rest |
+|---|---|---|---|
+| Normal afventer skal bruge knap-load | Shared progressvariant i egen Button/Chip/Toggle/power-Tile; navn/observeret state bevares; kun exacttarget busy |43/47/48; to rotationsmålinger | Implementeret og visuelt gennemgået |
+| Fejl må skubbe indhold, ingen tom normalstatus | Skjult headerstatus fylder0; kun rejected/unknown tilføjer tekst |43/45 samme y462/504;44+28px ved fejl | Tidligere20px reserve erstattet |
+| Long labels/reduced motion/bibliotek |16px markør passer kant/ikonplads; stillestående ved reduceret bevægelse |46/49 og shared API-tests | Ingen fysisk effektclaim |
+| Push alle nye kitforbedringer til detaljetråde | Konkrete adoptionskrav sendt til Tesla, Robot, Radio, generel PodView-detaljetråd og samlende audit | [Præcis consumerstatus og overlevering](research/light-control-v5-20261026/PROGRESS-ADOPTION.md) | Sendt er ikke det samme som visuelt verificeret adoption overalt |
+
+Slutkontrol2571/2571PASS inkl. gate66. [Seneste leverance og billedbevis](research/light-control-v5-20261026/PROGRESS-ADOPTION.md). Øvrige åbne data-/native-/installationsgrænser bevares. Historiske feedbackregler nedenfor gælder kun hvor de ikke er erstattet her.
+
+---
+
+# Genåbnet knaphierarki og visuelle states ·26oktober12:23
+
+Brugeren afviste12:20s inverterede vægtning. [Aktuel Button-state-audit](research/tesla-20261026/BUTTON-STATES.md) erstatter tidligere lukning af65–68.
+
+| Input/fund | Konkret rettelse | Aktuelt bevis | Status/rest |
+| --- | --- | --- | --- |
+| Lås op er sikkerhedsfølsom | primary+danger rød/hvid; Lås bilen secondary/neutral; rød modal bevares |69 og endeligt normalbillede | Ny brugeraccept åben |
+| Alle knapper lignede hinanden | Konsekvens/primær/sekundær/justering/udfoldning har særskilte eksisterende roller |69 og BUTTON-STATES hierarkitabel | Ingen ny familie |
+| States skal analyseres visuelt | Fælles Button-matrix plus faktisk keyboard/pending/rejected/unknown |71–76 | Hover/pressed er mærkede bibliotekstilstande, ikke påstået fysisk touchprøve |
+| Disabled blev lyserød og så aktiv ud | Neutrale availabilityfarver/opacity1; både direkte farver og rolleværdier nulstilles |70/75 genåbnede;71 bibliotek og76 produkt retter | Ikke lukket på kildetest alene |
+| Fejl må ikke være normal risiko | Danger-tint+2px error; fyldt danger er normal sensitiv handling; fejlens kant prioriteres over materialekant |71/73 | Observeret udfald og fejltekst bevares |
+| Ny fælles progress-ejer fra Hue | Tesla-Buttons adopterer feedback:progress; handlingslabel/ikon/geometri bevares; fejl/ukendt i header |72/76 og view-regression | Kompakte native seat-ChoiceGroups har særskilt endnu ikke adopteret progress-layout; ingen påstand om komplet tværgående adoption |
+
+Øvrige leverancer og rester bevares nedenfor.
+
+---
+
+# Robot · samlet audit26oktober2026 · normal pending visuelt gennemgået
+
+Én rengøring, én aktuel opgave. Seneste kildevaliderede setup forudfylder klar-visningen; ingen separat **Næste rengøring**-editor eller **Seneste valg**-liste. [Tre faktiske audit-runder, nummererede hovedforløb og grænser](research/robot-audit-20261026/REVIEW.md).
+
+| Input | Konkret ændring | Faktisk bevis | Status/rest |
+|---|---|---|---|
+| Simpelt som Tesla, færre store knapper | Native niveauvalg; Type først, relevante styrker/mønster og antal; samme kit før/under turen |27/28 og comparison-final | Visuelt gennemgået1280×800; Frameo-touch åben |
+| Hurtig start og rumvalg | Én Start208×64px i eksisterende header ved Vælg alle rum; individuelle rum bevares |27 | Lokal form-/klikregression; fysisk rengøring åben |
+| Korrekt luft og Card |32px sektion,24px Card-inset,16px relateret række,8px label; legacy0-padding ekskluderer reelle Cards |12 viser fejlen;27 viser x40→x64 | Visuelt gennemgået; final980px er ikke verificeret |
+| Samme tur under vask | Kildebundet valgte rum og antal; ingen ny setupeditor; cyklustal kaldes ikke Senest under kendt igangværende vask |28/29 | Kildekontrakt/lokal fixture; native jobresultat åben |
+| Stop og base har forskellig betydning | Native viewportmodal med konkret konsekvenstekst og separat basehandling |30 | Visuelt gennemgået; tastatur/fokus dækkes af regressioner |
+| Fælles ventefeedback | Nyeste Hue-beslutning: progress i aktiveret Button, ikon+label bevares, ingen ekstra normal feedbackrække |31 er tidligere variant;36 er aktuel | Lokal funktion og render gennemgået; fysisk svartid åben |
+| Bibliotek og produkt bruger samme ejer | Kanonisk robot-iframe, ingen alternativ studiekomponent |33/34/37 | Kanonisk Robot-bibliotek inspiceret;35 er ikke Robot-accept |
+
+Reelle kildeejede cyklusresultater/historik, korteditor, planer og individuelle rumsekvenser er fortsat åbne. Software, visuelt review, release, installation og fysisk accept er adskilte. Software2571/2571PASS, build/gate66/syntaksPASS; lokal normal-pending er visuelt gennemgået. Release/installation/fysisk accept mangler. Øvrige ejere og leverancer bevares nedenfor.
+
+---
+
+# Lys · sidste feedback-adoption26oktober2026
+
+| Input | Konkret ændring | Bevis | Rest |
+|---|---|---|---|
+| Fælles afventer/fejl/ukendt-komponent | Eksisterende ListRow feedback i stacked room SectionHeader, neutral/rød/gul; målrettet kort tekst |35–40, Product Design/Impeccable | Implementeret og visuelt gennemgået, brugeraccept åben |
+| Stabil geometri | Reserveret20px statusrolle i header, ingen footer, Scener/Slider samme y i ready/sending |41/42:490/628 | Lang feedback har naturlig tekstombrydning |
+| Gamle/fremmede kvitteringer | Original context-custody, irreversibel revoke og cleanup; localfixture revision/roomguard |136/136PASS | Ingen fysisk effekt påstået |
+| Vis arbejdet når færdigt | Fire klikbare biblioteksvalg + produktlinks og billeder | [Feedbackleverance](research/light-control-v5-20261026/FEEDBACK-ADOPTION.md) | Global gate blokeret af samtidig Robot-anatomiroot; ikke rebaselinet her |
+
+Det tidligere åbne lysfeedback-punkt nedenfor erstattes af denne status. Native Hue/service/installation og fysisk accept er fortsat separate. Øvrige leverancer bevares.
+
+---
+
+# Tesla konteksthandlinger ·26oktober12:20
+
+| Input | Ændring i samme kit | Faktisk bevis | Status/rest |
+| --- | --- | --- | --- |
+| Bare Tænd | Knaplabel Tænd/Sluk; domænet står i kortoverskriften |65/67 | Renderet og gennemgået |
+| Afventer bilen bryder kompakt knap | Tænder…/Slukker… på én linje, fase i headerstatus |66,208×64px uændret | Lokal pending kontrolleret; fysisk svartid åben |
+| Tænd/Sluk forskelligt look | Eksisterende primary mørk/secondary lys |65/67 samt bibliotek68 | Ingen ny Button-familie |
+| Lås op/Lås bilen forskelligt look | Lås op sekundær, Lås bilen primær; rød unlock-confirmation bevares |65/67,497×64px og2:1layout bevares | Variant ændres ved observeret resultat |
+
+[Samlet audit](research/tesla-20261026/AIR-LOOPS.md) og VALIDATION.json indeholder aktuelle grænser/pins. Øvrige leverancer bevares nedenfor.
+
+---
+
+# Genåbnet fælles luft/Accordion ·26oktober12:10
+
+Tre faktiske audit-runder med Product Design og Impeccable Layout: [findings, regler, adoption og billedbeviser](research/tesla-20261026/AIR-LOOPS.md). Ikke brugeraccepteret eller fysisk accepteret.
+
+| Input | Konkret ændring | Bevis | Status/rest |
+| --- | --- | --- | --- |
+| Ikke klemte kontrolgrupper |32px separate grupper,24px panel,16px relaterede kontroller,8px label;24px Card-inset bevares |55/58/61 og konkrete DOM-mål | Visuelt gennemgået Tesla/Lys/Robot; øvrig tværgående adoption hos samlende ejer |
+| Accordion uden data/resumé | Ingen tom skjult tekstlinje, hasSummaryfalse, titel/ikon/pil på fælles midte |55/56, native regression | Rettet i fælles fabrik |
+| Dobbelte afstande og legacyregler | Modstridende headerpadding fjernet; Lys liste-gap0/separator16+16; shared panelafstand |58 og kildeejere | Visuelt gennemgået; ingen lokal alternativ styling |
+| Disabled når klima slukket | Fælles Disclosure.setDisabled, lukket og native disabled; først enabled efter faktisk on-svar |63/64 + flow/regression | Lokal fixture; fysisk bilstatus ikke verificeret |
+| Robot-card flush ved kanten | Genåbnet fra59; efter samtidig ejers aktuelle rettelse målt24pxCard-inset |61: Cardx40/formx64 | Verificeret aktuel kilde, ikke separat Robot-patch |
+
+Senere opfølgning erstatter tidligere påstand om usynlig reserveret20px resumélinje. Øvrige leverancer bevares nedenfor.
+
+---
+
+# Lys · hierarki, luft og fælles kolonner26oktober12:10
+
+Seneste brugerfeedback genåbnede den tidligere vurdering. [To faktiske Product Design-/Impeccable-runder, fund og billedbevis](research/light-control-v5-20261026/HIERARCHY-SPACING-AUDIT.md).
+
+| Input | Konkret ændring | Faktisk bevis | Rest |
+|---|---|---|---|
+| Køkken/Scener samme niveau | Eksisterende headline28/34, section20/26, field17/24. Scener H3 under rummets H2 |29/33/34 | Brugeraccept åben |
+| Scenevalg/dimmer sammenklemt |32px mellem separate grupper;16px inden for scenegruppen;24px Card-inset; naturlig scroll |28/29/30 | Ingen komprimering for at passe viewport |
+| Scene- og lampetoggle ulige bredde | Fælles3kolonner; Toggle én, Slider to;16px kolonneafstand |28/30 begge243.28125px | Lange labels ombryder naturligt |
+| Ikonstørrelser og Enkeltlamper | Lamper; fælles leading32px med eksisterende Phosphor-pære, chevron24 |30/31/32 | Ingen ny ikonfamilie |
+| Flere dybe audit-runder | Første runde fandt17px skæve centerlinjer, rettet i fælles Toggle; anden runde gennemgik åben/lukket, bibliotek,1024×600/lange labels |29–34, DESIGN-/KIT-REVIEW | Ikke generel bruger-/fysisk accept |
+
+Software:2551/2551PASS efter ændringerne; syntaks/build/gatePASS. Separat åben cross-audit-gæld: lightSceneStatus skal adoptere fælles headerfeedbackrolle inkl. preparing/sending/rejected/unknown og faktisk tilstandsreview. Native Hue/service/installation/fysiske grænser bevares. Øvrige aktive leverancer nedenfor ændres ikke.
+
+---
+
+# Fælles tekst/feedback og Tesla Accordion ·26oktober11:55
+
+Lokal software og faktisk visuelt review. Ingen live-/fysisk accept. [Audit med billeder og rester](research/tesla-20261026/GLOBAL-TEXT-ICON-AUDIT.md).
+
+| Input | Konkret ændring | Faktisk reference | Status/rest |
+| --- | --- | --- | --- |
+|11.44 spacing/accordion | Fælles ikon/tekst/chevron-pladser, stabil64px minimum,8/16px inset, resumé15/20, naturlig højde ved lang tekst | Kit createKitDisclosure; produkt48/49, bibliotek50, Lys51,980px52 | Visuelt gennemgået; brugeraccept åben |
+|11.54 fjern Måltemperatur | Synlig label fjernet, tom gridrække fjernet, tilgængelige gruppenavne bevaret | Tesla-kontrol i52 og endeligt1280-billede | Implementeret og renderet |
+| Tekststørrelse/vægt på tværs | Eksplicitte delte tekstroller; faktiske store instrumenter bevaret | Bibliotek38; Robot39, Tesla40, Timer41, Vejr42, Musik43, Radio44, Player45, Lys46 | Faktiske repræsentative sider inspiceret; ikke påstand om alle mulige tilstande |
+| Feedbacktekst, placering og dubletter | Headerstatus for kompakte/native kontroller; bred knap ejer sin fase alene; ingen bundprosa | Tesla37 og view-/lifecycle-regressioner | Lokalt forløb kontrolleret; faktisk bil/HA-feedback åben |
+| Ikoner eller ikon + label | Fastholdt original24px ikon/8px label; skalaer tekst, etableret transport ikon alene | Button-bibliotek, Tesla40, Timer41, Robot39 | Kildeprovenance og faktisk rendering kontrolleret |
+
+Øvrige aktuelle leverancer og deres rester bevares nedenfor.
+
+---
+
+# Lys v5 · samlet feedback26oktober2026
+
+**Lokal produktændring med faktisk Product Design-/Impeccable-review og tre afgrænsede agentreviews. Ikke brugeraccepteret, udgivet, installeret eller fysisk accepteret.** [Aktuel leverance, billeder og præcise grænser](research/light-control-v5-20261026/REVIEW.md). Denne version erstatter v4-fund nedenfor.
+
+| Input | Konkret ændring | Faktisk bevis | Status/rest |
+| --- | --- | --- | --- |
+| Rum uklart, flydende knapper, sammenlign Tesla/Robot | Rumvalg som horisontal native Chip/Segmented-navigation; tydelig rumoverskrift i fælles Card med scener/dim/lamper |18,19,20 + DESIGN-REVIEW/KIT-REVIEW | Visuelt gennemgået; bred brugeraccept åben |
+|20–30rum og fade | Begge rumrækker scroller vandret; fælles48px overflow-fade, valgt rum afsløres uden uændret-render-scroll |13/14 med29/30,23vejrtimer; layoutfixture30rum | Kun layouttest, ikke faktisk katalog |
+| Stor global tekstaktion, fejltryk skal kunne fortrydes |176px husikon+Sluk alt/Gendan lys, præcis engangssnapshotrestore |04/05 + FUNCTIONAL-REVIEW, reducerregression | Lokal funktion; ingen opfundet live undo |
+| Accordion hopper/overlapper ved Stue | Naturlige gridrækker, min-content og ingen nyindholdsankring; root0px ved direkte native åbning | Målt scroll0, rumY96/toolbarY292/triggerY699 før/efter;13/14 og19 | Tastatur/locator kan selv scrolle fokuseret kontrol i visning; det er særskilt |
+| Gentænk accordion, brug på tværs | Én delt64px neutral ListRow-header med ikon/titel/chevron; topstreg fjernet; samme Lys/Tesla |18/25 + officielle referencer i DISCLOSURE-REFERENCES | Mobbin afviste plankrav; ingen Mobbin-billedresearch påstås |
+| Seneste radiusfeedback · tydelig Toggle versus Accordion | Fælles Toggle-row fuld pill-radius; Accordion16px række med chevron; tæt navn/status | [27](research/light-control-v5-20261026/evidence/27-lamp-toggle-pill.png), Product Design og Impeccable genreview | Lokalt visuelt vurderet; afventer brugeraccept |
+| Lamper mere visuelle, færre knapper, ens Toggle | Tæt pæreikon/navn/status som samlet Toggle; uafhængig Slider ved siden af, transparent række |17/19, exactscope-/lifecycle-tests | Ingen modal, samme12familier |
+| Enkeltlampe ændret betyder ingen valgt scene | Scenehighlight fjernes, rumdæmpning fortsætter relativt; slukkede naboer bevares | Faktisk60/30→30/15, alle3scenerfalse i19; relative regression | Native relative HA-gruppefunktion åben |
+| Store Forskellige niveauer, skrift/spacing | Shared field-label/control-value/meta, ikke særskilt lysfont; kendt lokal gruppe får relativ procent fremfor tung statusprosa |18/19 + fælles kit-ejer | Ukendt/mixed livefeedback bevares ærlig |
+| Small gul også Slukket | Gul domæneflade bevares i overblik; rum/lamper stadig on/off-palette |26, eksplicit tekst Slukket | Seneste brugerbeslutning erstatter gammel Small-regel |
+
+Komplet softwarevalidering og eventuelle samtidige workspace-rester registreres i [VALIDATION](research/light-control-v5-20261026/VALIDATION.md). Tidligere Hue/native scene-resolver og fysisk touch-/lyseffekt er fortsat åbne. Hele øvrige leverance nedenfor bevares.
+
+---
+
+# Robot · genåbnet efter direkte feedback26oktober11:25
+
+| Input | Konkret ændring | Synligt sted / bevis | Rest |
+|---|---|---|---|
+| Sammenklemt UI | Bindende fælles24/24/16/8px kontrolspacing; naturlig scroll | Robotens kanoniske Card/level-kontroller | Renderet1280×800; faktisk visuelt efterkontrolleret |
+| Fjern fire fold-ud-afsnit | Fjernes fra daglig robotflade | Robotdetail | Fjernet fra faktisk DOM; daglig kontrol bevaret |
+| Vask/tøm/stop/base i header | Relevante kildeudbudte handlinger samles i eksisterende status-Hero | Samme panel lokalt/live | Direkte ikon+label, kontekstafhængigt; stop/base har native modal |
+| To kolonner til historik | Seneste valg og hændelser på fælles topanker; stack på smal flade | Under rengøringsfladen | Renderet to kolonner, overlap og timeline-punkter rettet |
+
+Ekstra11:31–11:38-feedback: Antal gange er synligt i Denne tur fra faktisk opgave; redigeres kun ved eksplicit tilbudt handling. Sekundære knapper på farvet Hero er lyse. Ikon+label-regel og officielle Phosphor-assets er fælles kit. Stop omdøbt Afslut rengøring med separat modal fra afslut+base. Robotens rosefarve i Ro er genskabt; aktivitetsanimation kontrolleret aktiv/pauset og dækket for reduceret bevægelse/cleanup.
+
+Tidligere11:24-billeder er afvist og er ikke brugeraccept. Endelig lokal2551/2551PASS/gate66. Minimal releaseefterfølger pakkes med denne revision; [aktuelt review/bevis og integrationsrester](research/robot-20261026/REVIEW.md). Visuelt vurderet er ikke brugeraccepteret, udgivet eller installeret. Hele tidligere scope og integrationsgrænser bevares.
+
+---
+
+# Tesla · genåbnet11.07–11.10 ·26oktober2026
+
+Aktuelt: visuelt gennemgået produkt1280/980 og bibliotek;106/106målrettede testsPASS. Seneste samlede komponentgate er blokeret af samtidig Lys-anatomi `light-lamp-list`, som ikke rebaselines her. Live/installation og brugeraccept er fortsat åbne.
+
+| Direkte input | Konkret ændring | Reference/billedbevis | Rest |
+|---|---|---|---|
+| Klemt divider og stor bund | Fælles Tile/Disclosure:24px sektionsluft/ydre indryk,16px indre afstand, ingen tom feedbackrække | `30-spacing-expanded.png`, `33-spacing-980.png` i Tesla visual | Visuelt vurderet lokalt; ikke brugeraccepteret |
+| Dobbelt Vækker bilen | Knap ejer fasen; kun kompakte/native kontroller får én kortrække; ingen rutinefooter efter succes | Renderet pendingforløb og regression | Livebilrespons ikke tilsluttet |
+| Brun oplåsning afvist | Fælles red danger-tone til konsekvensbekræftelse | `31-red-confirmation.png`, Button-bibliotek | Brugeraccept åben |
+| Hurtig frem/tilbage gav ukendt | Aktiv kommando overlever præsentationsnavigation; skjult owner får ny revision | Faktisk bagagerum→overblik→detalje→overblik; lifecycle-regression | Reelt offline/ukendt forbliver sikkert blokeret |
+| Afkortet Bagagerum åbent | Kort fuldt statustekstvalg og delt2linje-statusrolle | `32-trunk-overview.png` | Aktuel Macdemo; andre faktiske enheder mangler |
+| Løbende fetch | Ansvar dokumenteret hos Green/HA; kildebaserede observationer, afgrænset opfølgning efter kommando uden gensendelse | Tesla/HA primærkilder i kitkontrakt | Liveintegration mangler; intet fysisk resultat påstås |
+
+Tidligere matrix bevares; nyeste direkte brugerbeslutninger ovenfor har forrang.
+
+---
+
+# Tesla · seneste brugerrettelser26oktober10.45–10.48
+
+| Input | Ændring | Bibliotek/produkt og bevis | Rest |
+|---|---|---|---|
+| Stor, inkonsekvent feedback | Fælles ListRow-feedback15/20px,20px reserveret rolle, ens inset, kort fase/fejl/ukendt | `library.html#level=components&recipe=listrow`; `visual/23-shared-feedback.png`, `25-feedback-library.png` i Tesla-review | Lokal visuel kontrol; brugeraccept åben |
+| Justér når klima er tændt | Temperatur/sæder sender direkte; aflæst værdi bevares indtil svar; ingen per-valg-modal | `vehicle-view.js`; direkte async-regression og faktisk klik uden dialog | API/HA/fysisk svar er ikke testet |
+| Fuld bredde powerknap |208×64px header-action i samme eksisterende Tile |1280 og980 screenshot23/24 | Brugeraccept åben |
+| Ensart sliders | Fælles lys skinne; tidslinje/justering/måler adskilles i funktion og håndtag | `SLIDER-REVIEW.md`, samme shared CSS i produkt/bibliotek | Ikke en fysisk integrationstest |
+| Åbent bagagerum og dvale | Vedvarende bagagerum åbent-status i Hero og Adgang; eksplicit dvalefakta erstatter Parkeret i demo; kommandosvar vækker demomodellen | Statusregression; demo og auditforløb | Passiv HA-kontrakt har endnu ikke dvale/bagagerumsfelter; ingen gættet live-status |
+
+Tidligere Tesla-feedback genåbnet og rettet. Hele øvrige leverance nedenfor bevares. Detaljer: [aktuelt Tesla-review](research/tesla-20261026/REVIEW.md).
+
+---
+
+## Vejrheaderens kitkant26oktober10:48-feedback
+
+To legacy box-shadow:none-overstyringer fjernet; fælles1px tonet Hero-kant er nu synlig. Padding/mål uændrede. Faktisk bibliotek-/produktbilleder og uafhængigt Product Design/ImpeccableGO, main2493PASS/gate66. Lokalt rettet, IKKE Greeninstalleret; selektiv f00fc-efterfølger sammensættes før v2.X-adoption. [Bevis og grænser](qa-kit-edges-20261026/weather/README.md).
+
+# Godkendt kitfinish integreret26oktober2026
+
+De seks afgrænsede rettelser er efter brugerens “ja tak” flettet ind i den aktuelle hovedkilde: farvetilpasset1px widgetkant, kort fælles skygge, ens Hjem/Svar, visuelt skjult Lige nu på rent overblik, mørk Ro-timerkant og bevaret farvet hoverflade. Nyere lampe-/Tile-arbejde er bevaret; studieharness er separat. [Aktuel input→ændring→bibliotek/produkt→billedbevis→rest-matrix](qa-kit-edges-20261026/REVIEW.md).2493/2493tests/gatePASS, faktisk renderet Product Design-/Impeccable-review. Integration er godkendt; installeret/fysisk accept udledes ikke. Hele tidligere F01–F23 og andre åbne leverancer nedenfor bevares.
+
+---
+
+# Lys v4 · genåbnet efter skærmbilleder26oktober2026
+
+**Implementeret og afgrænset visuelt gennemgået lokalt; ikke brugeraccepteret eller installeret.** Denne status erstatter v3's faner, hjælpetekster og lampemodal. [Aktuelt Product Design-/Impeccable-review](research/light-control-v4-20261026/REVIEW.md).
+
+| Direkte input | Konkret ændring | Faktisk produkt-/biblioteksbevis | Status/rest |
+| --- | --- | --- | --- |
+| Small-titel overlapper Tændt | Eksisterende korte titel Lys også ved automatisk Small; fast titelrolle, status nedenunder | [04](research/light-control-v4-20261026/evidence/04-small.png), samme resource-tile og fælles CSS | Visuelt kontrolleret1280×800; fuldt tilgængeligt rumnavn bevaret |
+| Faner virker ikke visuelt | Understregede sceneåbnere fjernet; native rumvælger ved scenerne; store rumkort ejer kun tænd/sluk | [07 Køkken](research/light-control-v4-20261026/evidence/07-final-kitchen.png), [05 Stue](research/light-control-v4-20261026/evidence/05-living-scene.png), [bibliotek](research/light-control-v4-20261026/evidence/06-library-full.png) | Faktisk rumskift→Hygge→29%; Kitchen-placement og musikoutput bevares |
+| Skærm: Køkken, Justeret mm unødvendigt | Normal hjælpetekst og gentaget scenenavn fjernet; kun reel venten/fejl og ukendt/blandet måling vises |07/05, LightScene-viewregression | Ingen opdigtet aktiv scene ved eksterne ændringer |
+| Sluk alt placering/sticky | Sekundær almindelig handling i toolbar ved rumvælgeren; ingen footer eller sticky-position |07; DOM position:static og handlingen scroller ud ved inline-lamper | Visuelt/kliktestet lokalt; live kræver faktisk home-kapabilitet |
+| Sort touchkant og gul Slukket | Off neutral i Tile og Resource; gul følger on; pointerfokus uden ramme, keyboardfocus-visible bevaret | [02](research/light-control-v4-20261026/evidence/02-off-pointer.png), [08 keyboard Slider](research/light-control-v4-20261026/evidence/08-inline-final.png) | Pointer/keyboard konkret kontrolleret; fysisk touchaccept mangler |
+| Drop modal for enkeltlamper | Eksisterende disclosure med ListRow, Toggle og vandret SliderField direkte pr. lampe; ingen dialog i aktivt forløb | [08 inline](research/light-control-v4-20261026/evidence/08-inline-final.png),03; browser0åbne dialoger;2/6scope | Registreret komposition, stadig12familier; live exactscope/lifecycle-værn regressionstestet |
+
+Køkken2lamper/Stue6lamper og3eksempelscener pr. rum bevares; scenevælg→dæmp er hovedflow. Faktisk provider-katalog, native scene-medlemsresolver, fysisk effekt, tidligere toast-overlap og samlet brugeraccept er fortsat åbne. Fuld `npm test`:2491/2493bestået;2fejl i samtidige Tesla-tests (`vehicle-view.test.js`, forventede sædevarme-/ventetekster). Ingen lysfejl; komponentgate66moduler/12familierPASS. Se [validering](research/light-control-v4-20261026/VALIDATION.md). Impeccable har én dokumenteret statisk ikoninitialiseringsadvarsel, ikke et rent automatiskPASS.
+
+---
+
+# Lys v3 · v2 genåbnet efter brugerfeedback26oktober2026
+
+**Brugerens centrale rettelse er implementeret lokalt; ikke brugeraccepteret eller installeret.** Køkken2lamper/Stue6lamper, hvert rum3eksempelscener for de samme lamper. Hele rumkortet tænder/slukker. Scenenavn→sceneskift→fælles Lysstyrke. Antal fjernet fra hoved-UI og S/M/L-overblik. Ingen dobbelt optællings-Hero/grå header-CTA. [Faktiske flows, billeder og review](research/light-control-v3-20261026/REVIEW.md).
+
+| Direkte input | Konkret ændring | Faktisk bevis | Status/rest |
+| --- | --- | --- | --- |
+|2Køkken/6Stue, ikke2/6prscene | Fixture rettet til8lamper,3scenerprrum med samme medlemmer | Seks scene-/lysforløb i regression; produkt01/04 | Lokale eksempler; faktiske Hue-navne/medlemmer ikke indlæst |
+| Man skifter scene og dæmper til sidst | Valgt scenemål på Chip, fælles Slider med scenenavn; preset overskrives ikke | Faktisk Morgen→Madlavning→Aften→29%; StueHygge→31%,02/04 | Software/visuelt gennemgået; native resolver og fysisk effekt åbne |
+| Samme kort som tænd/sluk | Eksisterende Tile-power hele kortet; særskilt sceneåbning | StueOff fra Køkken uden omvalg,03; roompowerregression | Foreign-live-room kræver fortsat frisk scope-read; ingen implicit myndighed |
+| Antal er uvigtigt, grå headerknap afvist | Redundant Hero fjernet; varmt on/neutralt off; countfri overblik |01/03/07 + fælles kitregler | Tydelig softwareændring, ikke fuld tværgående brugeraccept |
+| Ens kit og pluginreview | Tile/Button/Chip/Slider, samme WidgetHost i produkt/bibliotek |06, REVIEW-NOTES.md, mekanisk Impeccable med én efterprøvet statisk ikonadvarsel,gate65 | V2accept genåbnet; transient fælles toastrest og fysisk QA bevares |
+
+---
+
+# Tesla · ny samlet korrektion26oktober2026
+
+**Lokal klikbar kandidat, visuelt gennemgået med Product Design og Impeccable.** Den tidligere Apply-/modalventemodel er erstattet. [Aktuelt review, billeder og præcise rester](research/tesla-20261026/REVIEW.md).
+
+| Input | Konkret ændring | Produkt-/biblioteksbevis | Status/rest |
+| --- | --- | --- | --- |
+| Anvend ændringer skal ud; behold Tænd klima-modal | Apply+hjælpetekster fjernet. Direkte konkret modal for temperatur/sædevalg; Cancel nulstiller uden kommando |12produkt;15/16bibliotek; native sædevalg→modal→Escape faktisk prøvet | Lokal levering; fysisk effekt åben |
+| Global klima før indstillinger | Én global Tænd/Sluk øverst. Temp/afrimning/sæder disabled indtil tændt model |02/03første iteration;09/12slutkomposition;41viewregressioner | Faktisk global start→vent→aktivering prøvet |
+| Spinner virker ufærdig; modal blokerer enheden | Dialog lukker straks ved send. Delt Button label-feedback uden ring; reserveret ListRow i samme kort |18inline pending;07/17ukendt;08afvist;16samme kit | Musik/navigation tilgængelig; kun bilhandlinger blokeret |
+| Komposition, alignment og afstande |24px kortindryk,16px rækker,8px labelgap,64px kontroller, samme kontrolbaseline; kompakt modalheader og80px scrollreveal |06modal;09ved980;12ved1280; fælles kontrakt opdateret | Visuelt gennemgået; brugeraccept åben |
+| Tabs/ikoner/niveauer | Ingen ekstra tabs til få indstillinger. Phosphor Regular seat24px + tekst; sammenhængende firevalg; redundant åben status fjernet |09/12produkt;15bibliotek; provenance for seat.svg | Native labels/keyboard bevares |
+| Farlige handlinger og fejl | Rav i adgangsbekræftelse; rød ved definitiv fejl. Ukendt advarer og tillader ingen automatisk gentagelse |06warning;08fejl;17unknown;16bibliotek | Kun inerte lokale udfald; faktisk liveowner mangler |
+| Tesla-status og privatliv | Primære Tesla/HA-kilder; skelner wake/ack/observeret. Ingen position/rute/destination/frunk |STATUS-SOURCES.md; passive kontrolværn bevaret | Faktiske scopes/Green-data og fysisk biltest åbne |
+
+Automatiske kontroller og hashbeviser er registreret i reviewet. Browseradgang er genetableret efter den gamle fejlfane; den tidligere blocker er løst. Dette er **software- og visuelt review**, ikke brugeraccept, installation eller fysisk bilbetjening. Alle øvrige leverancer/F01–F23 nedenfor bevares.
+
+---
+
+## F09 · afleveret til v2.X26oktober2026
+
+Samme aktive kategori afbryder ikke længere en aktuel indlæsning. Frosset efter2806PASS/gate63, uafhængigt kilde-review og faktisk afgrænset Product Design/Impeccable-review af fem renderede billeder.203runtime+578sourcepins selvstændigt verificeret uden afvigelser. Pakken er overført til v2.X til dens ene samlede integration/installation; intet installbevis endnu. [Ændring og rester](qa-ui22/MUSIC-LOADING-SAME-TAB-20261026.md) · [UI-review](qa-ui22/MUSIC-LOADING-SAME-TAB-VISUAL-REVIEW-20261026.md).
+
+## Musik · genvalg og volumen · afgrænset kandidat26oktober2026
+
+**F02/F04: konkrete softwarefejl rettet og lokalt verificeret; ikke installeret eller feltaccepteret.** Source rejected/superseded og korreleret definitiv POST-rejected tillader nu et nyt eksplicit valg via friske kandidat-/setup-/optionreferencer. Volumenens ventende håndtag er adskilt fra faktisk måling/mute.2792/2792PASS/gate63, tre syntakskontroller, uafhængigt kilde-review og faktisk Product Design-/Impeccable-review. [Ændringer, præcise klik-/journalbeviser, billeder og rester](qa-ui22/MUSIC-RETRY-VOLUME-20261026.md).
+
+Tre faktiske inerte browserforløb uden reload/Andre forslag mellem afvisning og genvalg gav hvert præcis ét nyt setup og én ny selection action med nye referencer og0fysiske effekter.980START-afvisningstekst er nu synligt inspiceret. Den tidligere980MOVE-toast er fortsat ikke et nyt billedbevis. UNKNOWN og fremmed/udløbet myndighed bevarer deres værn. Alle F01–F23 bevares; dette lukker ikke hele Spotify-/provider-/hardwareforløbet. v2.X er ene ejer af samlet release/installation.
+
+Layout og komposition er del af den bindende kit-kontrakt, også ved udvidelser: fælles ankre, grid, padding/spacing, rollefordeling og stabile mål i bibliotek/produkt. Ingen lokal særstyling eller ny familie i denne rettelse.
+
+# Lys v2 · implementeret lokal kandidat25oktober2026
+
+**Aktuel nye version:** fælles kit-komposition implementeret og visuelt gennemgået med Product Design og Impeccable;2460/2460tests og komponentgate64PASS. [Review, flows, billedbevis og afgrænsede rester](research/light-control-v2-20261025/REVIEW.md). Tidligere første-rul-/auditstatus nedenfor er historik og må ikke erstatte denne præcise status. Ikke installeret eller fysisk accepteret; den frosne D2-kandidat er ikke overskrevet.
+
+| Input/fund | Konkret ændring | Faktisk produkt-/biblioteksbevis | Status/rest |
+| --- | --- | --- | --- |
+| Sluk Stue·1.sal fra Køkken | Separat rumkommando i ListRow; bevarer detailvalg, ownRoom, musik og timer | Produkt02/03; faktiske klik; model-/viewregressioner | Lokal rejse gennemført. Fremmed liveområde kræver først frisk områdelæsning; ingen opfundet status/genvej |
+| Få scener og manuel lysstyrke | Kommando-Chips, fælles SliderField med præcise2/6medlemmer; ingen gemning | Produkt03/05/07, bibliotek08; faktisk Scene2→30% | Software kontrolleret; native scenemedlemsresolver og fysisk effekt åbne |
+| Ensartethed med øvrige detaljer | Fælles topanker, kompakt Hero, kittypografi/tokens, ListRow/Disclosure og eksisterende Dialog |02/04/08/10 + tidligere fire-domæneaudit | Visuelt gennemgået1280×800og980×800, ikke brugeraccepteret |
+| Custom skal tilbage i kittet | Shared SliderField; Chip command og Button navigation; begrundet kompakt Hero; fælles Toggle-hoverkontrast | docs/COMPONENT-LIBRARY.md; registry samme12familier | Dokumenteret udvidelse af eksisterende ejere, ingen ny familie |
+| Mixed/offline/source-form | Neutral ukendt skala; ærlig disabled betjening; bevaret navigation og seneste data |05/06/09; source-form uden active scene/kommandomyndighed | Transient offline-toast kan overlappe deaktiveret skala; fælles kitrest P2 |
+| Plugin-review og iteration | Første render→konkrete samlede layoutrettelser→slutreview; separat klik-/kontraktkontrol | REVIEW.md + INDEPENDENT-REVIEW.md; Impeccable detector[] | Ingen automatisk designcertificering; pending/live resultater hovedsageligt kontrakttestet |
+
+---
+
+# Lys · andet rul er audit/research25oktober2026
+
+**Første Hue-rul genåbnet som første iteration, ikke samlet kit-/UX-accept.** [Faktisk Product Design-/Impeccable-audit,4detaljesider,7forløb og anbefalet enkel retning](research/light-control-audit-20261025/AUDIT.md). HomeKit/AppleHjem er inspirationskilde til betjening, ikke en ny teknisk integration. Ingen ny runtimeændring/installation i denne audit.
+
+| Input/fund | Beslutning/ændringsbehov | Aktuelt bevis | Status |
+| --- | --- | --- | --- |
+| “Sluk lys i stuen (1.sal)” er vigtig | Primær hurtig rumkommando fra Køkken; konkret Stue·1.sal og direkte Sluk, uden scenevalg. Kun global Slukalt sekundær. | Faktisk Køkken→Stue→Sluk virker2tryk i eksempel; audit05/06 | Etage-/flerumsmodel og ny prioritering er åbne, ikke påstået manglende rumsluk |
+| Ensartet med Tesla/Robot/Vejr? | Bevar samme template/topanker/roller; ikke ens indre instrumenter/højder | Fire aktuelle1280×800billeder + MEASUREMENTS.json; alle topy96 | Fælles ramme verificeret; customkomposition delvist uafsluttet |
+| Hvad er custom/hvorfor? | Genbrug createKitDisclosure; formaliser label/scope/Slider/value i eksisterende kit; scenehandling er kommando, ikke ukritisk radio-valg | KIT-AUDIT.md med præcise ejere/kilder | HUE06fra første rul må ikke læses som fuld kitaccept |
+| Enkel styring inspireret af Home/Hue/andre | To rum, få scenehandlinger, direkte target-labellet Slider, sekundær enkeltlampe/globalstyring | Officielle Apple/Google/IKEA/HA/Hue-kilder og inspicerede producentbilleder | Anbefalet retning, ikke ny implementeret/brugergodkendt komposition |
+| Lokal/live og mixed-data | Samme hovedflow og ærlige ukendte/mixed tilstande; ingen fake50%-måling | Kildeverificeret inline/local versus modal/live; faktisk mixedskala | P1/P2åbne til næste implementation |
+
+---
+
+# Hue · aktuel feedback25oktober2026
+
+**Ny lokal kildekandidat;2417/2416tests og gate63PASS; visuelt gennemgået i bibliotek/produkt. Ikke adopteret i den frosne D2-kandidat eller installeret.** Hele den eksisterende leverance nedenfor bevares. [Samlet Hue-review og faktisk billedbevis](research/hue-20261025/REVIEW.md).
+
+| Input | Konkret ændring | Bibliotek/produkt og inspiceret bevis | Rest/status |
+| --- | --- | --- | --- |
+| HUE01 · Analysér Hue-appens vigtigste flows | Officielle skærmbilleder/flow og HA-kilde undersøgt; rum→scene→lys prioriteret | [Appanalyse](research/hue-20261025/APP-FLOWS.md) | Dokument-/billedresearch; brugerens telefonapp ikke betjent |
+| HUE02 · 2–3 scener i Køkken/Stue; skærm i Køkken | Køkken-først eksempel, separat detaljebrowse; live own-area binding bevares | Samme WidgetHost i bibliotek/produkt; billeder02/05/07 i review | Lokalt visuelt gennemgået, brugeraccept og faktisk HA-Køkkenbinding åbne |
+| HUE03 · Scene1 har2lys, scene2 har5–6 | Scenechips viser eksakt medlemsantal; ny closed sceneadmission og source-bound kandidat | Billede02/03 og scene-/hostregressioner | Native Hue-medlemsresolver mangler; ingen sceneeffekt uden frisk witness |
+| HUE04 · Manuel lysstyrke i valgt scene | Scene-Slider ændrer præcis valgte medlemmer, markerer Justeret og gemmer ikke scene | Faktisk scene2→30% og lampedialog;03/04 | Lokal klik/keyboard og visuelt gennemgået. Live bruger eksisterende autoriserede kontrolmodal; fysiskaccept åben |
+| HUE05 · Sekundær samlet styring/Sluk alt | Tydeligt afgrænset Sluk alle i Køkken/Stue, sekundær Enkeltlamper og fælles modal |02/04/05; lampe→Sluk→returfokus kontrolleret | Global live hjemmekommando mangler eksplicit capability; lokal Hele hjemmet er eksempel |
+| HUE06 · UI-kit som Tesla/Robot/Vejr | TopBar/Hero200px/Chip/Slider/Tile/Dialog fra samme kit; kontrast, spacing, offline og reduced motion gennemgået |02–07; Product Design/Impeccable review; gate63PASS | Visuelt gennemgået lokalt; brugeraccept, samlet D2-adoption og installation åbne |
+
+---
+
+**D2 UI-kilde faktisk integreret:** denne tråd har selv verificeret203/203 runtimepins og identisk assetmanifest i v2.X-kandidaten,0afvigelser. [Integrationsbevis](qa-ui22/D2-UI-INTEGRATED-PINS-20261025.json). Eksisterende2670tests og afgrænset visuelt review gælder uændrede bytes; samlet backend/provider/Native, udgivelse, installation og fysiskaccept er fortsat åbne. Ingen parallel UI-ændring eller installation.
+
+**Nyeste samlede D2-UI-kandidat:** `/private/tmp/podview-d2-ui-20261025-final` er frosset med203runtimepins,2670/2670PASS/gate63 og faktisk Product Design-/Impeccable-review af ti inspicerede billeder. Kanonisk Robot+NEXT91, readonly v3-kontrol/volumen, præcis vist køreference og neutral ukendt Slider er samlet. [Ændringer, billedbeviser og rester](qa-ui22/D2-UI-COMPOSITION-20261025.md). Kræver koordineret adoption med de reviewede backend-/Native-kontrakter; ikke udgivet, installeret eller fysisk accepteret. Alle F01–F23 bevares. Layout og komposition er dokumenteret som kit-kontrakt, inklusive eventuelle udvidelser i samme ejer. Ældre checkpoints nedenfor ændrer ikke denne leverancestatus.
+
+# Tesla · direkte knap-/flowkorrektion25oktober2026
+
+**Aktuel bestilling:** stærkere farve-/vægtroller i kittet, større lås end bagagerum, frunk ud, enklere bekræftelse, samlet klima inkl. afrimning/sædevarme. Lokation er fortsat udelukket; ønsket bilbetjening bevares.
+
+| Input | Konkret ændring | Faktisk reference/review | Rest |
+| --- | --- | --- | --- |
+| Knapper virkede ligeværdige | Neutral primary lås2:1 mod secondary bagagerum,64px; Hero-grøn adskilt fra kommandorolle | [Faktiske billeder01/09 og review](research/tesla-20261025/CLIMATE-REFINEMENT.md) | Brugeraccept |
+| Skift til bekræft var kluntet | Stabil adgangsrække, eksisterende full-viewport Dialog; direkte låsning, bekræftet oplåsning og eksplicit bagagerumsintent | Samme ejer i produkt/bibliotek;02/03; faktiske klik | Live owner/revision/pending/unknown |
+| Frunk ud | Fjernet fra DOM/model/reducer | Regression + inspicerede billeder | Ingen aktuel UI-rest |
+| Afrimning og sædevarme | Samlet Klima, sekundær afrimning, ListRow/native ChoiceGroups; præcis samtidig-klima-bekræftelse |04/05/06/07;40/40Tesla-ejertests | Faktiske HA-capabilities og fysisk resultat |
+| UI-kit/audit-loop · genåbnet og afsluttet | Samme registrerede Button/Tile/ListRow/Chip/Dialog-ejere; kompositionskontrakten opdateret; konkret klip/scroll/copy rettet | Product Design + Impeccable og selvstændigt visuelt review; ingen ny familie |Menneskelig og fysisk accept;980px er nu faktisk kontrolleret |
+| Intet positionsindhold | Ingen lokation/rute/destination i renderer eller optaget passiv kontrakt | Tidligere08/09 + regression bevaret | Verificér faktiske scopes/HA-returdata ved opsætning |
+| Klar til morgen | Separat offentligt nøgle-Site og kort opsætningsvejledning bevaret | [Morgenvejledning](TESLA-MORGEN-2026-10-26.md) | Tesla-login/samtykke, Green-nøgle, registrering og telefonparring |
+
+**Genåbnet efter brugerens auditbestilling og afsluttet:** [Product Design + Impeccable + axe, friske12flowtrin,8rettede fund og uafhængig efterkontrol](research/tesla-20261025/FINAL-PLUGIN-AUDIT.md). Ingen åbne P0/P1/P2-fund i det afgrænsede Tesla-scope.0axe-overtrædelser i8målte tilstande; min.målt tekstkontrast5,28:1; native tastatur/fokus,980px, offline og genindsættelse prøvet. **2419/2419fulde testsPASS/gate63;53/53fokuserede kit/Tesla/lifecyclePASS.** Dette er en lokal klikbar og visuelt gennemgået leverance. Ingen livekommando, installation, fysisk bilhandling eller brugeraccept udledes. Alle F01–F23 og øvrige samtidige leverancer nedenfor bevares. Den tidligere inline-bekræftelse og frunk er eksplicit erstattet, ikke accepteret.
+
+---
+
+**Senere brugerpræcisering25oktober: layout og komposition er en del af UI-kittet.** Faste pladser, topanker, kolonner og tilstandsskift følger samme kanoniske ejer i bibliotek og produkt. Nødvendige udvidelser sker dér, med faktisk Product Design-/Impeccable-review; ingen lokal skærmrettelse. [Gældende kompositionsregler](COMPONENT-LIBRARY.md#layout-og-komposition-er-kit-kontrakt--direkte-brugerpræcisering25oktober2026).
+
+**D2 kandidatkilde verificeret:** PV-kandidaten `/private/tmp/pv91-single-owner-integration-20261025` på65fe801/tree58f550af har203/203UI-pins identiske med den frosne diagnose-only90/F05-reference,0afvigelser. [Selvstændigt hashkontrolleret kvittering](qa-ui22/D2-CANDIDATE-UI-PREFLIGHT-20261025.json). NEXT91/robot og nye servicekontrakter er endnu ikke adopteret i disse bytes. Backendkontraktejer: sol61_release75_review; root ejer HTTP-projektion/QueueBroker og integration. Ingen udgivelses-/installations-/feltaccept udledes.
+
+**D2 godkendt til udførelse:** Brugeren har nu i v2.X godkendt D2 som trådens mål og bedt om fortsat udførelse med PodView-tråden. v2.X fastlægger verificeret fælles kandidatkilde og navngivne servicekontraktejere. Denne tråd adopterer UI efter konkret backendhåndoff; ingen konkurrerende backend/protokol/release. Hele F01–F23 består. En gemt plan eller score er ikke implementering.
+
+**Gemte lead-plan kontrolleret:** [Kanonisk D2-plan](/Users/madsbachandersen/Documents/PodVoice/.claude/worktrees/practical-bassi-4831d4/docs/LEAD-PLAN.md), SHA `eaf089bdf7a966140b3555242c8c7440b7bd1abc32155ae7258a7a7795edc545`, er læst i sin helhed her. Afsnit2.2 indeholder servicekontrakterne,9/11 bevarer alle F01–F23 og overdragelsen. Tre planreviews er registreret97/98/97; implementering/installation/fysiskaccept udledes ikke. Ny UI-kontraktintegration afventer konkrete reviewede service-DTOer og aktuelt kandidattræ.
+
+**Direkte videnoverdragelse til lead-planen:** Brugerens bestilling om at overføre al viden er samlet og sendt til den eksisterende v2.X-plan: [hele kilde- og risikohandoffet](qa-ui22/LEAD-PLAN-KNOWLEDGE-HANDOFF-20261025.md). Alle F01–F23, faktiske logfund, serviceejerskab, NEXT91/robotfletning, UI-review og acceptgrænser bevares. Det er planinput, ikke en ny færdigmelding.
+
+**Aktuel koordination:** releaseejeren har kvitteret diagnose-only90 officielCI40220096680PASS og [PR254](https://github.com/BixelVentures/podvoice/pull/254) merged til65fe801a8bb587ba42518ce4dbb04ee39b59fd76. Publicering/installation er endnu ikke verificeret her. Den holistiske D2-plan er nu gemt, reviewet og direkte godkendt til udførelse i v2.X; ingen konkurrerende kontrolvej eller parallel release. [Kildebundet frontend-ejerskabsmap](qa-ui22/MUSIC-UI-OWNER-MAP-20261025.md) er afleveret som faktuelt input, ikke et nyt projekt eller en ekstra scoringreview. Alle23punkter og den frosneNEXT91 bevares.
+
+**Nyeste selvstændige UI-levering:** [NEXT91 højttaleropdatering og kø ved nummerskift](qa-ui22/NEXT91-REMOTE-DELIVERY-20261025.md) er kilde/test/produkt-/biblioteksreviewGO og frosset/afleveret til samme releaseejer. To nye kausale fejl er rettet i eksisterende ejere;2506PASS/gate63. Ikke installeret eller fysisk accepteret;90 og nyere robotarbejde bevares. [Samlet faktisk loggennemgang](qa-ui22/CENTRAL-LOG-ERROR-REVIEW-20261025.md) omfatter hele den aktuelle512-rækkers retention plus240gemte ældre rækker, med konkrete afgrænsninger.
+
+Aktuel efterfølgerbeslutning: releaseejeren forbereder **diagnose-only90 på exact89**, med den reviewede F05/F20-klassifikation og uændret89-stemme/prompt/routing. Den ikke-accepterede F17-routing holdes separat som WIP; den må ikke forsinke original musikfejlsøgning. Ingen90-installation eller fysiskaccept er endnu kvitteret. F17s faktiske originalkvittering har nu afgrænset produkt-/biblioteksreviewGO; men talt færdiggørelse/providerkrav består. [Præcise beviser](qa-ui22/VISUAL-ANSWER-ROUTING-DIAGNOSIS-20261025.md).
+
+Aktuel25oktober-status: **PodVoice2.0.89/RUNNING er installeret og faktisk runtimeversion/git/artifact er matchet med publiceretOCI. Control23/Speakers53 er senest verificerede uændrede serviceversioner; ny separat serviceaccept udledes ikke.** Automatisk central Green-log er læst selvstændigt:176unikke serverrækker. Det er ikke en samlet musik-/lydaccept.
+
+**2.0.89-kilden:** samlet NEXT-UI er kilde-/test-/produkt- og biblioteksreviewGO og adopteret hos v2.X. Sidste F06-køtillæg er frosset, verificeret203/203kombinerede runtimepins og afleveret til den samme releaseejer. [Officiel89-CI40213219335](https://github.com/BixelVentures/podvoice/actions/runs/40213219335) er SUCCESS og [PR253](https://github.com/BixelVentures/podvoice/pull/253) MERGED, main5a9bb2b2. Publisher40213792750 og offentligOCI-readback er PASS. Green-opdateringen er gennemført én gang; faktisk version/git/runtimeartifact matcher publiceret89. Passiv installeretUI- og faktisk feltaccept er fortsat særskilt. [Aktuel levering med billeder og pins](qa-ui22/NEXT89-UI-DELIVERY-20261025.md).
+
+**Alle23punkter består:** [dagens samlede matrix](qa-ui22/FEEDBACK-20261025-AUDIT.md) angiver konkrete kilder, softwarestatus og manglende feltbeviser. F05/F20 har fortsat en uafklaret faktisk kontrolsetupfejl; isoleret klassifikationsfix er nu kilde/test/visueltGO og backend→JS→holdbarACK/lager/adminPASS, endnu ikke udgivet/installeret. F17 har en særskilt rest om bredere relevant visuel svarproduktion. Ingen af disse lukkes af kørettelsen. Agentarbejde forbliver lydløst.
+
+# Aktivt leverancemål · direkte godkendt25. oktober2026
+
+Brugeren har udtrykkeligt sat **alle23 punkter F01–F23** i [dagens samlede feedbackmatrix](qa-ui22/FEEDBACK-20261025-AUDIT.md) som mål. De20 fejl/forbedringer og3 tværgående krav er én samlet leverance, inklusive koordineret udgivelse og installation på Green. Ingen del annulleres af en fremhævet fejl eller senere præcisering. Originale47 feedbackbeskeder og gentagelser samt senere målaccept(R29), samlet48 menneskelige beskeder, bevares som kilder; senere input tilføjes med samme sporbarhed.
+
+**Afslutningskrav:** hvert teknisk punkt har en konkret ændring/årsag, relevante tests, faktisk UI-kit-review og produkt-/biblioteksbevis hvor UI ændres, samt installations-/feltbevis hvor det er nødvendigt. Kodefærdig, testet, visuelt gennemgået, udgivet, installeret og fysisk accepteret er særskilte statusser. Ingen samlet færdigmelding alene fra testtal. Manglende fysisk prøve står åbent.
+
+**Senere præcisering25oktober:** cache AI-svar/dele/billeder hvor det konkret sparer, som del af færdiggørelsen af alle23 punkter. Cache er ikke et nyt hovedspor og må ikke fortrænge resten. Genbrug kun relevant indhold med korrekt scope/kilde/version; ingen cachefornyelse af handlingsadgang eller opdigtet live musik-/enhedsstatus.
+
+**Bindende retning:** simplificér i eksisterende ejere; én servicebaseret musikvej, én eksplicit klient-intentejer, faktisk HA/PodConnect/PodSpeakers-state og automatisk agenttilgængelig fejllog på Green uden brugerens eksportarbejde. v2.X er eneste backend-/release-/installationsejer; denne tråd ejer det kanoniske UI og endelige assetpins. Agenttest er lydløse uden uopfordrede musik-/enhedseffekter. Frosne pakker bevares.
+
+Nedenstående statusafsnit er historik og skal læses med den aktuelle matrix; det ændrer ikke dette accepterede mål.
+
+**Dagens samlede liste25. oktober:** [47 brugerbeskeder fra PodView og v2.X →20 fejl/forbedringer +3 tværgående krav](qa-ui22/FEEDBACK-20261025-AUDIT.md). Alle gentagelser og originale beskeder er bevaret. Dagens23 punkter er ikke en ny optælling af de tidligere127 acceptkriterier; genåbnede feltfejl er fortsat åbne.
+
+**Direkte brugerbeslutning25. oktober: automatisk central fejllog på Green er hovedforløbet.** Brugeren skal ikke gemme eller sende filer for at få fejl diagnosticeret. Den manuelle eksport er kun reserve. Backendens eksisterende releaseejer implementerer autentificeret append/adminlæsning; denne tråd kobler den eksisterende lukkede klientring på. Endpoints/kvittering/retention afstemmes før wireændring. Ingen central opsamling er endnu leveret eller installeret; den frosne lokale pakke nedenfor er forarbejde, ikke opfyldelse af dette nye krav.
+
+**25. oktober, nyeste status:** releaseejeren har kvitteret87/53 installeret med exact-tree-readback. Ny klientdiagnostik er kildefærdig i isoleret efterfølger,2332PASS; ikke installeret. [Optagelser, review og præcise rester](qa-ui22/CLIENT-DIAGNOSTICS-20261025.md).29/127 fastholdes. Ældre installationsstatus nedenfor er historik.
+
+# PodView ·25.oktober · samlet musikbetjening under rettelse
+
+**87-UI er frosset og afleveret til v2.X:** [pakke, pins og udeståender](qa-ui22/FIELD87-UI-HANDOFF-20261025.md).
+
+**87-UI er kildefærdig og lokalt gennemgået:** separate volumen-/transportlæsninger, kontrol-recovery, køgenindlæsning, illustrationer, renere copy, indholdsmotion og outputrækker.2299PASS/gate63; faktisk produkt/bibliotekreview. [Præcise beviser og åbne feltkrav](qa-ui22/GREEN86-HUMAN-FEEDBACK-20261025.md#samlet87-ui-leverance-25oktober-endnu-ikke-installeret). Samlet backend/release/installation ejes fortsat af v2.X; ingen ny totalaccept.
+
+**Ny faktisk86-feltprøve12.22–12.24: første hørbare PodViewstart bekræftet; betjening/volumen/timing/kø/billeder/motion/outputtekst/timer/vejrråd genåbnet.** [Menneskets fotos, præcise fund og aktive rettelser](qa-ui22/GREEN86-HUMAN-FEEDBACK-20261025.md). Ny direkte beslutning: fjern lokal vejrrådskvote/cooldown, bevar hurtig lilleGPTmodel og kildecache.86/52er installeret; efterfølgende rettelser er endnu ikke afleveret/installeret.29/127bevares.
+
+**Nyeste installerede baseline25oktober: PodVoice2.0.86 +Speakers0.26.52 Kører.** Version/git/runtimeartifact er selvstændigt matchet mod publiceret image;306source/203UIverificeret, kanoniskmain synkroniseret. Wake/read-softwarefix er nu installeret; oprindeligSSE-/Stemningfeltårsag, nativebrowserwake og fysisklyd er fortsat åbne. VoicePE igenconnected/IDLE, men faktiskvoice/providerbrug uafprøvet. [Kvittering, billede og rester](qa-ui22/GREEN86-HANDOFF-20261025.md).29/127bevares; ældre baselineafsnit nedenfor er historik.
+
+**Samlet fejlsøgning og installation bestilt25oktober:** [årsager, logs, mulige løsninger og hele restkortet](qa-ui22/REMAINING-DIAGNOSIS-20261025.md). Releaseejeren forbereder86;85/52er fortsat senest kvitteret installeret. Ny HAwebsocket/reconnectobservation uden PodView og aktuel VoicePEoffline holdes åbne; ingen kriterier lukkes.
+
+**Afgrænset wake/læsefejl25oktober:** kausal softwarefejl reproduceret og rettet i isoleret, reviewet kildepakke;2237PASS/gate63. Almindelig produkt-/bibliotekvisning visuelt gennemgået. Native browser-wake og oprindelig Green/SSE-feltårsag er ikke bevist; ikke installeret, ingen kriterier lukkes. [Beviser og præcise rester](qa-ui22/READ-RECOVERY-DIAGNOSIS-20261025.md).
+
+**Nyeste baseline: PodVoice2.0.85 +Speakers0.26.52 installeret/Running.** Runtimegit/rootfs matcher publiceret image; UI203assets er byteidentiske med84. Ingen nye UI-/lydtest eller hjemmeeffekter. [Slutkvittering, åbne fund og senere fysiskaccept](qa-ui22/GREEN85-HANDOFF-20261025.md).29/127kriterier forbliver åbne; ældre installerede versioner nedenfor er historik.
+
+**Nyeste installerede baseline25oktober:84/52RUNNING.** UI/sourcepakkerne er adopteret; passiv efterkontrol viser vejr/robot, Senest/covers, samletBack og3højttalere. Stemning gav faktisk læsefejl og er sendt til backendtriage. Ingen afspilning eller fysiskaccept. [Præcise beviser og rester](qa-ui22/GREEN84-PASSIVE-20261025.md).29/127forbliver ulukkede;83/51FAIL nedenfor er historisk feltprøve.
+
+## Genåbnet Robot-UX · direkte brugerfeedback 25. oktober 2026
+
+**Direkte releasebestilling25oktober:** den samlede robotkandidat skal med og installeres i næste planlagte release. [Konkret overdragelse](../integration/robot-complete-20261025/NEXT-RELEASE.md). Bestilt, endnu ikke installeret; ingen fysisk robotkommando er udført.
+
+
+**Nyeste samlede kandidat25oktober:** kanonisk Frameo1280×800-panel, staged mode/sug/vand+rum/gennemløb i én Start, direkte kildevalg under tur, vask/tøm/tør og aktivitetsspecifikt Stop, separat næste-kladde, konkret fejlhjælp og frisk live M Pause/Fortsæt. Product Design og Impeccable fandt/rettede ekstra handlingsrække, historikoverlap og blank status efter dockklik. [Faktiske billeder, klikreview og testkvittering](research/robot-20261025/complete/REVIEW.md).2383PASS/gate63; servicekandidat på exact2.0.87 har299 ejerregressioner+24grænsetests+3kontrakter PASS. Ikke udgivet/installeret/provisioneret eller fysisk accepteret.
+
+**Dækning er ikke fuld app-paritet:** [aktuelle38ID'er](research/robot-20261025/complete/COVERAGE.md) skelner klient, kildekandidat, apphjælp og manglende native funktion. Korteditor/zoner, planer, pr.rum-sekvenser, stabil persistent næste-kladde og jobbundet terminalresultat består som konkrete rester. Automatisk seneste forslag er fortsat rum/gennemløb; valgt fuld global historisk opskrift opløses af serviceejeren. Ingen kriterier lukkes. De følgende tidsmærkede afsnit er tidligere checkpoints.
+
+| Aktuelt input | Konkret ændring | Faktisk bevis | Rest |
+| --- | --- | --- | --- |
+| Hurtig komplet forberedelse | Staged tilbudte mode/sug/vand; ét serverejet Start | complete/evidence/frameo-setup.png; klient/source-kontrakt | Automatisk fuld historik, pr.rum-setup og fysisk effekt |
+| Kontrol under tur og basearbejde | Én64px handlingsrække, aktuelle settings, eget dock-Stop | complete/evidence/frameo-active.png, washing/emptying/drying | Faktiske provisionerede entities, jobsemantik og latency |
+| Samme status/widget | Frisk fælles projektion; source-offer til M Pause/Fortsæt | complete/evidence/frameo-overview.png; separate autoritetsregressioner | Fysisk samme-job og extern app-betjening |
+| UI-kit og hele forløb | Samme panel i kit/produkt; naturlig scroll/historik; hjælperækker | complete/evidence/library-frameo.png, next-draft/recovery | Fysisk touch, fuld biblioteks-/hjælpemiddelaccept |
+
+**Efterkontrol af hovedfunktioner25oktober: IKKE fuldt dækket.** [Aktuel funktionsmatrix R01–R38 og13 nødvendige acceptforløb](research/robot-20261025/FEATURE-COVERAGE.md) genåbner den samlede dækning. P0-rest: komplet setup, faktiske live-indstillinger, vask/tøm/tør/stop af dockaktivitet, live M Pause/Fortsæt, jobbundet resultat/fejlhjælp og målt live-feedback. HA dokumenterer dock-switches og polling+MQTT; vores manglende kontrakt er ikke en bevist HA-/modelbegrænsning. Kortredigering/app-opsætning er foreslået app-opgave, ikke besluttet udeladt. Ingen kriterier lukkes.
+
+**Kanonisk implementation25oktober, klientdel leveret:** samme lokale/live RobotControlPanel er nu inline med seneste gyldige rum/gennemløb, Rengøringsvalg, direkte tilbudte Sug/Vand, inline Stop/base og64px kernekontroller. Header/player bevares. Product Design-/Impeccable-review fandt og rettede skjult Start, usynligt valg og scrollspring. [Aktuelt review, faktiske screenshots og præcise rester](research/robot-20261025/implementation/REVIEW.md).2314PASS/gate63. Live dockkommandoer, current-choice-værdier, komplet opskrift/cyklus, næste-tur-kladde og fysisk hardwareaccept er fortsat åbne; ingen kriterier lukkes.
+
+| Aktuelt input | Konkret produktændring | Faktisk evidens | Rester |
+| --- | --- | --- | --- |
+| Frameo og hurtig start | Samme1280×800-header/player; valideret seneste rumvalg automatisk | implementation/frameo-ready.png; samme panel i implementation/library-frameo.png | Fysisk touch og komplet gemt opskrift |
+| Nem ændring under turen | Tilbudte hyppige indstillinger direkte; kladde/disclosure bevares | implementation/frameo-active.png; Start→Turbo klikprøvet | Live current-choice-ID og reel robotvirkning |
+| Stop/base uden modalkæde | Inline konsekvens/bekræftelse,64px knapper | implementation/frameo-stop.png; Behold turen afprøvet | Faktisk stop/base fysisk uafprøvet |
+| Samme widget/status | Fælles frisk dockprojektion, samme Rengør/pauseordlyd | implementation/frameo-overview.png; statusprojektionstests | Live M-kommandoudbud og alle modelnære fejl |
+
+Tidligere studieafsnit nedenfor er historik, ikke aktuel implementation eller fuld accept.
+
+**Seneste brugerfeedback:6–7/10; dybere audit og eksplicit Frameo-korrektion.** [Samlet audit og ændringer](research/robot-20261025/audit-v2/AUDIT.md) adskiller aktuel/næste tur, viser komplet setup før Start, flytter aktivitetsspecifikt Stop til hovedbetjeningen og genbruger den kanoniske M-renderer. To fælles kit-kompositioner er udvidet inden for eksisterende familier. **PFF-1082/1280×800 er produktmålet; mobilen er udelukkende review-wrapper.** Aktuel Frameo-canvas og fastholdt højre player er renderet og klikprøvet ved1280×800; kernekontroller er synlige. [Klar](research/robot-20261025/audit-v2/frameo-ready.png), [aktiv](research/robot-20261025/audit-v2/frameo-active.png), [overblik](research/robot-20261025/audit-v2/frameo-overview.png). Ingen kriterier lukkes; brugeraccept, faktisk integration og fysisk hardwaretouch resterer.
+
+**Nyeste leverance25oktober: klikbart kit-studie.** Seneste setup→Start, direkte inline-sug/vand under simuleret rengøring, vask, stop/base og fælles widget-/detaljestatus er nu bygget og afprøvet. Samme renderer/kit er pakket til indlejret mobilvisning i chatten; ingen localhost-adgang kræves af mobilen. [Review, ejere, screenshots, faktisk kontrol og rester](research/robot-20261025/clickable/REVIEW.md). Desktop1280×800, mobil390 og breddekontrol320 gennemgået. Ingen livehandling, installation, brugeraccept eller kriterielukning. Dette erstatter den tidligere billedgennemgang som aktuel robotstudieleverance.
+
+**Nyeste korrektion25oktober:** brugeren kræver væsentligt mere original Q Revo-/appresearch, hurtig brug og færre modaler. [Modelnær research med ti konkrete forløb og klikmål](research/robot-20261025/QREVO-FLOW-RESEARCH.md) og [observationslog](research/robot-20261025/QREVO-APP-WALKTHROUGH.md) bygger nu på faktisk visuelt inspicerede officielle modelbilleder samt udvalgte originale videoframes. Original manual dokumenterer retur til moppevask under rengøring. Det tidligere billedstudies handlingsmodal, parameterdialog og obligatoriske Send-trin er supersederet som retning: ét beholdt arbejdsområde, samlet inline-ændring, direkte relevante handlinger. Research er leveret; kanonisk runtime, integrationens aktive ændringer/jobbevarelse og fysisk accept resterer. Ingen kriterier lukkes.
+
+**Seneste udvidelse25oktober:** brugeren vil se hele interaktionen under rengøring, inklusive ændrede valg, Stop, Til basen, moppevask og tømning. Retning3 har potentiale til kompakt dialog, men er ikke endeligt accepteret. [Udvidet interaktionsstudie](research/robot-20261025/study/STUDIE.md) og [klikbar billedgennemgang](research/robot-20261025/study/index.html) omfatter seks nye skitser og seks manuelle forløb. Studiet skelner aktuel tur, eksplicit parameterændring og ny-tur-kladde; original Qrevo har dokumenteret ikke Add Area/Skip Area. Én samlet billedrevision rettede gamle Start-kontroller bag aktive dialoger. Det er review af illustrative billeder, ikke ny kanonisk runtime eller fysisk accept. Kit-/produktimplementation, præcis under-turen-effekt og faktiske docktilbud resterer; ingen kriterier lukkes.
+
+**Seneste designfeedback25oktober:** alle tre første robotbilleder er afvist som for komplekse. Fasthold UI-kittets header og sammenhæng med Tesla/Vejr, forudindstillet/evt. senest brugte setup, ultra nemme ændringer samt samme solide statusfeedback i Hero og medium-widget. [Northstar: Åbn, genkend, start](research/robot-20261025/design/NORTHSTAR-REVISION.md) har konkrete klikmål og skel mellem komplet setup og nuværende delvise genbrug. Reviderede billeder er designforslag, ikke implementeret UI eller accept. Ingen gammel Robot-lukning arves som godkendelse af den nye opgave.
+
+Brugeren afviser den nuværende robotoplevelse som utilstrækkelig og kræver Roborock-analyse: betjening, genbrug af cyklusser, standardvalg, modalbehov, fejl, løbende faktisk status og samme robot i Ro/Hjem, overblik og detalje. Tidligere lokale Robot-checkpoints er afgrænsede beviser og udgør ikke accept af denne samlede oplevelse.
+
+| Input | Konkret behandling | Reference og bevis | Resterende arbejde |
+| --- | --- | --- | --- |
+| Robot skal opleves som faktisk løbende rengøring | Analyse forbinder kladde, kommando, observation og cyklusresultat; identificerer manglende jobbinding og grov statusprojektion | [Roborock-analyse, top 10 og statusmatrix](research/robot-20261025/ANALYSE.md); aktuel kildekontrol | Servicekontrakt, implementation og målt fysisk forløb; ingen kriterier lukkes |
+| Modal til alt er tvivlsomt; standardvalg og genbrug | Anbefalet normal betjening inline; kildekontrol viser forskel mellem lokal detalje og live-dialog. Komplet opskrift adskilles fra nuværende rum/gennemløb-quickfill | [Renderet lokal detalje](research/robot-20261025/01-local-detail.jpg), [genbrug](research/robot-20261025/02-reuse-choice.jpg), [Start og historik](research/robot-20261025/05-local-start-history.jpg), inspiceret ved1280×800 via Product Design-/Impeccable-vurdering | Native Qrevo-appaudit, samme flow lokalt/live og efterfølgende visuel brugervurdering |
+| Fejl og tilstande i alle tre lag | Konkret præsentationsmatrix og kildebaserede fejl-/recoveryregler i analysen | Officielle Roborock-/HA-kilder genlæst25oktober; leverandørillustration inspiceret | Implementeret dansk fejlhjælp, friske faktiske data, afbrydelses-/dock-/afslutningsbevis |
+
+**Status:** analyse leveret; UI, udgivelse, installation og fysisk accept er uændrede. Roborock-referencerne er kilderesearch, ikke en udført native appaudit. Eksisterende127-ID-matrix og optælling er ikke omskrevet eller kunstigt lukket af researchen.
+
+---
+
+**Aktuel feltstatus25oktober: FAIL på83/51.** Brugerens efterfølgende musikprøve gav ingen lyd, låste valg/kontroller og ustabil volumenvisning. Tidligere passiv PASS er kun læse-/navigationsbevis. [Konkrete fund, ejere og rester](qa-ui22/MUSIC-FIELD-FAILURE-20261025.md). Rettelse og inert kontrol pågår; ingen ny installation eller agentudløst lyd.29/127 forbliver ulukkede. Ældre tidsmærkede statusafsnit nedenfor er historik.
+
+**Aktuel status25oktober06.16CET:** PV2.0.83 er installeret og exactgit/rootfs-verificeret på Green; Speakers0.26.51 er uændret. Lydløs faktisk UI-efterkontrol viste frisk forbindelse, Timer/Back, tre højttalere og faktiske Senest-sange/covers. [Klargøring og billedbeviser](qa-ui22/MORNING-MUSIC-CHECK-20261025.md). Ingen Play eller fysisk prøve; brugeren tester musik senere.29/127kriterier er stadig ulukkede; ingen automatisk recovery-/lydaccept udledes.
+
+**Nyeste status25oktober nat:** samlet PV2.0.83 er publiceret og offentlig artifact-verificeret med203aftalte UIassets/306shippedsourcehashes. Green er fortsat82/51; ingen natlig installation, lyd eller fysisk accept. [Endelig kvittering og dagaccept-rest](qa-ui22/MUSIC-REMOTE-DELIVERY-20261024.md#endelig-publicering-25oktober-nat). Natteopgavens software-/releaseforberedelse er afsluttet;29/127kriterier og øvrig restliste forbliver åbne som hidtil.
 
 **Ny direkte bestilling til natten 24.–25. oktober:** mobilens Spotify→Connect giver faktisk lyd, men PodViews valgte musik giver 8–12 sekunders feedbackforsinkelse og ingen lyd. Denne tråd ejer nu også den samlede frontend-musikbetjening, koordineret med v2.X som backend-/native-/releaseejer med direkte menneskelig beskedtilladelse. [Aktuel natteopgave, kausale fund, sikkerhedsgrænser og beviskrav](qa-ui22/NIGHT-MUSIC-REMOTE-20261024.md). Ingen højttalere afprøves om natten; 82/51 og frosne pakker bevares. Restlisten nedenfor består, indtil konkrete beviser ændrer den.
 
@@ -822,6 +1558,13 @@ Build `20261020-complete-ui6`; kun GPT Sites.1453 tests, komponentgate og73 Java
 
 Evidens: `docs/visual/v30-qa-20261020.json`, slutbilleder i samme mappe og `design-qa.md`.6×CPU, fuld194-tilstands axe/token-census og fysisk accept er fortsat ikke dokumenteret. Ekstra ambient-/lyd-/fjernlayoutidéer er ikke implementeret i denne release.
 
+### Senere prioriteringer · 28. oktober
+
+- **4. Ro ved forbindelsesbrud:** Gennemgå beskåret banner og genforsøg, foto-overløb, fokusmarkering og dobbelt fejlbesked samt faktisk genforbindelse. Bevar én relevant feedback og gentag ikke handlinger med ukendt udfald automatisk.
+- **5. Personlige billeder i Ro:** Undersøg den allerede oprettede delte iCloud-albumadresse og dens faktiske adgang, før implementering. Forslag: Green ejer albumindeks og en begrænset, vedvarende optimeret billedcache; browseren indlæser næste billede på forhånd og beholder det nuværende, indtil næste er klar. Brug cache offline og ellers den eksisterende ambientvisning. Ingen private billeder eller albumadresse i GitHub, Sites eller bibliotek. Foreløbig retning: 60 sekunder pr. billede, 800 ms krydsfade, ingen zoom/pan, reduceret bevægelse og pause når skærmen ikke er synlig eller brugeren interagerer. Ingen funktion eller kildeadgang er verificeret endnu.
+
+Rækkefølgen er musikrelease, Find musik og AI-billeder, radio separat, derefter punkt 4 og 5. Disse punkter forsinker ikke musikreleasen.
+
 # Topbar · complete-ui5 · udgivet v29
 
 **Seneste direkte brugerbeslutning:** kun én timer ad gangen. Groks forslag om flere samtidige timere er afvist. Den lokale ændring til flere timere er tilbageført; udgivelseskandidaten har hele tiden bevaret én timer. Brugeren har bedt om at udgive den verificerede HA-kandidat nu og tage yderligere feedback bagefter.
@@ -1231,3 +1974,580 @@ Afsluttende lokal kontrol, 20. oktober 2026: syntakskontrol af ændrede moduler 
 <!-- FEEDBACK-HISTORICAL-END -->
 
 </details>
+
+## Musik · kildekorreleret UI-delta25oktober2026
+
+Isoleret kilde-/test-/afgrænset visuelt GO: [leverance og aktuelle billeder](qa-ui22/MUSIC-SETTLEMENT-UI-20261025.md). Immutable /private/tmp/podview-settlement-ui-20261025-final afleveret til samme v2.X-releaseejer;203runtimepins og præcis6filsdelta over D2.2731PASS/gate63, faktisk Product Design-/Impeccable-review. Accepted AUDIO4/volume kan nu følge originalrequest gennem almindelige servicelæsninger uden egen kontrolmatcher/nyt loop. Ingen integration, udgivelse, installation eller fysisk musikaccept er endnu bekræftet for denne delta. START/MOVE/lyd og hele F01–F23 består som særskilt gældende scope.
+
+
+## START/MOVE · afgrænset softwareleverance26oktober2026
+
+Første korrelerede START/MOVE-kvittering og den eksisterende læsning er samlet i samme kanoniske player. Den tidligere otte-sekunders tilstandsmatcher er fjernet; en faktisk inert idle-forsinkelse er rettet med tidsafgrænset ét-sekundskadence inden oprindeligt kildedeadline.2752/2752PASS/gate63, uafhængigt kilde-review og faktisk Product Design-/Impeccable-review af bibliotek/produkt ved1280og980px. [Ændringer, billeder og præcise rester](qa-ui22/MUSIC-START-MOVE-UI-20261026.md).
+
+Layout og komposition er bindende kit-kontrakt, også ved udvidelser: topankre, kolonner/grid, padding/spacing, særskilte tekst-/feedbackzoner og faste betjeningsmål. Produkt og bibliotek deler samme registrerede ejer. Ingen ny familie eller lokal særstyling.
+
+Ikke installeret eller lydaccepteret.980afvisningens synlige feedback mangler fortsat billedbevis; F02samme-entry recovery og F04volumen-draft er åbne. Alle F01–F23 bevares; denne del lukker ikke restlisten. v2.X ejer integration/release/installation.
+
+F02/F04-kilden er faktisk integreret af v2.X. Denne tråd har selv verificeret203/203 runtimepins og identisk assetmanifest i den samlede kandidat;0afvigelser. [Integrationskvittering](qa-ui22/MUSIC-RETRY-VOLUME-INTEGRATED-PINS-20261026.json). Ingen udgivelses-, installations-, provider- eller fysiskaccept er udledt heraf.
+
+
+## Afgrænset lokal efterkontrol · disconnected Hero, playerstatus, scroll og hover ·26oktober2026
+
+Lys bruger nu den fælles fulde message-Hero uden konkurrerende compact-variant; metric-/off-CSS kan ikke overstyre ukendt/disconnected. Radio forbliver bevidst kompakt, Timer/Player egne varianter. Playerens status/output bevarer20px+8px+28px-roller; to collapse-overstyringer er fjernet. Navbarens divider følger samme nested vertikale ScrollEdges-predicate som faden. Overview-hover bevarer farvefeedback, men anvender ikke brightness-filter på tekst.
+
+Afgrænset kilde-GO og faktisk Product Design-/ImpeccableGO;2880/2880 sluttestsPASS, gate65. Nativehover true/false har filter:none og identiske mål; authored fixture: selection1,denied1,fysiske effekter0. Billederne er produkt1280×800; biblioteksejere er fælles, **ingen frisk980/bibliotekscapture** for slutdeltaet påstås. Lokalt gennemgået, **ikke installeret eller fysisk/brugeraccepteret**. Alle øvrige åbne feedbackpunkter bevares.
+
+Se [konkret ændring → billeder → rester](qa-kit-edges-20261026/disconnected/README.md).
+
+Efterfølgende bevis samme26oktober: parent har personligt inspiceret den friske bibliotekscapture `12-library-light-final.jpg` med kandidatens aktuelle CSS. Den opdaterer ovenstående mangel på frisk biblioteksreference;980-capture er fortsat ikke foretaget. Biblioteksreviewets særskilte tilføjelse afventes.
+
+Endelig biblioteksreviewtilføjelse: uafhængig reviewer har nu personligt inspiceret12-library-light-final.jpg og fastholder scoped Product Design-/ImpeccableGO. Det er bibliotekets skalerede1280×800 preview, ikke en ny native980-kontrol.
+
+
+## Samlet Tesla/Hue-kitgennemgang · direkte koordinering26oktober2026
+
+Brugeren har bedt den samlende PodView-chat hjælpe mellem de aktive Tesla- og Hue-tråde. Aktuelt kriterium: den renderede komposition må ikke være klemt; fælles pixelmål alene er ikke accept. Ingen nye UI-rettelser i denne chat før den bestilte samlede findingsgennemgang. De to domænetrådes allerede autoriserede implementering fortsætter.
+
+- Tesla (`01a1748e-af79-7700-8e4c-ff2dc19041a8`): anmodet om at fastholde ejerskab af aktuel fælles Accordion/hasSummary, gruppeluft og egen kontrolkomposition.
+- Hue (`01a174bf-d766-71b0-832d-12ceee2f0468`): anmodet om at fastholde LightRoom/LightLamp-komposition, teksthierarki, delte trekolonneankre og Toggle-/ikonroller; bygger på samme Accordion/luftregler. Ejerskabet er foreslået og sendt, kvittering afventes.
+- Samlende chat: samler faktisk slutrender, kildeejere og konkrete rester; kontrollerer genbrug på tværs af Robot, Timer, Radio, vejr, player, historik, svar og dialoger. Ingen parallel styling eller hel-main-adoption.
+- v2.X: eneste release-/installationsansvarlige.37c2/205 er særskilt integreret kilde, ikke Green-installation. Nyere Tesla/Hue-arbejde er endnu ikke udledt som integreret.
+
+Afleveringskrav til begge tråde: præcis ændret ejer/delta; gældende padding/margin/gruppeluft/hierarki/ikonregler; faktisk inspiceret produkt og bibliotek; åben/lukket/uden resumé/uden data og relevante feedbacktilstande; konkrete rester. Ingen gentagelse af allerede beståede brede tests alene for koordinering.
+
+Aktuelle tværgående fund bevares: Lys-/Timer-feedbackroller, Radio-stationsmaterialekant, dokumentationsdrift og manglende samlet versionsbundet visuel dækning. Tesla-feedback i kortheader følger senere direkte brugerretning; ældre dokumentation om placering under kontrollerne er ikke automatisk korrektionsmål. Enkeltstående ældre screenshots må ikke bruges til at lukke nyere iterationer. Hele F01–F23 bevares.
+
+
+### Cross-product ownership and component adoption - 26 October 2026
+
+The consolidating PodView chat owns ALL six audit findings and the subsequent Tesla/Hue/Robot requirements. A shared component is not complete merely because its token/helper exists: relevant consumers must adopt it and pass actual Product Design/Impeccable review in the same source version. Existing F01-F23 remain in scope.
+
+| Finding | Implementation owner / consolidation | Required evidence |
+|---|---|---|
+|1 Light action feedback|Hue; concrete source gap sent, this chat follows adoption|Actual pending/error/unknown with canonical feedback role and semantics|
+|2 Timer feedback|This chat|Canonical feedback anatomy and dark-instrument context reviewed|
+|3 Radio station material edge|This chat|Actual station and selected-state review in product/library|
+|4 Conflicting feedback/spacing documentation|This chat with Tesla shared-component owner|Later human decisions and current reviewed spacing supersede obsolete footer/24px assumptions|
+|5 Light library/product typography parity|Hue supplies current capture; this chat compares|Same source version and actual dimensions, not old screenshots|
+|6 Current narrow composition|Tesla/Hue/Robot supply their relevant current views; this chat consolidates|Latest Accordion/spacing/Robot Card changes included in actual inspected images|
+
+| Shared addition | Relevant consumers | Adoption criterion |
+|---|---|---|
+|Text hierarchy roles|Details, player, answers/history, dialogs, library|Consistent semantic weight; measurements retain their distinct role|
+|Retained icon and label Button|Domain actions, Timer, output/connection refresh|Icon and label survive pending/update; scalar and transport variants preserved|
+|Accordion icon/title/summary/chevron|Tesla seats, Hue lamps, library|Open/closed/no-summary/no-data, no hidden blank row or page jump|
+|ChoiceGroup levels|Tesla heat, Robot suction/water/repeat|Readable selected value, columns and actual offered authority|
+|SliderField hierarchy|Hue room/lamp and relevant adjustment controls|Label/value/unknown and actual gesture scope; music/seek authority unchanged|
+|Grouped control Card, spacing and feedback|Tesla/Hue/Robot, Timer and relevant controls|Good actual composition; no zero-padding overrides, duplicate gaps or empty footer|
+|Material edge, scroll fade and stationary feedback|Relevant Hero/Card/Tile and scrollers|One canonical owner, stable anchors and no hover text movement|
+
+Specific user goal: Roborock detail becomes substantially better and easier by adopting interface parts developed in Tesla/Hue. Robot thread retains implementation ownership. Reuse must improve status/main action, room/type/levels/start, current-job controls and errors, while reducing competing or duplicate groups. This is not a measured 10x claim. Robot owner reports an actual 0px Card-padding cascade defect corrected to24px; final current narrow capture and combined review remain pending. Rejected Robot disclosures are not reintroduced. Read-only ListRow appearance is being corrected by the Robot owner in the canonical kit, not via a Robot-only button patch.
+
+Tesla/Hue/Robot owners have received explicit coordination messages. This chat owns final cross-consumer verification and keeps new work separate from the already-integrated37c2 successor. Source completion, visual review, integration, installation and physical acceptance remain distinct. No household effects are authorized by this review.
+
+
+## Timer/Radio shared-kit adoption - 26 October 2026
+
+Scoped local source and actual product/library visual GO: [evidence and limits](qa-kit-edges-20261026/timer-radio/README.md). Timer uses canonical feedback/meta and readable neutral on-dark; Radio stations inherit the shared material edge while selected stays white/2px.2880PASS/gate65. Minimal successor to37c2 only, not installed. Other cross-consumer work and all F01-F23 remain tracked above.
+
+
+Cross-thread adoption handoff sent - 26 October 2026: Tesla, Hue, Roborock and Radio owners have received the explicit eight-part reuse checklist and the completed Timer/Radio successor reference. Roborock has an explicit requirement for meaningful icon+visible label on Start/Pause/Resume/Finish/Return/dock actions, retained through pending and refresh. Existing manual canonical icon anatomy is valid only if it actually survives updates. Level choices and +/- keep their appropriate scalar role. All consumer owners must return concrete adoption/remaining evidence, not a general promise. Radio handoff does not authorize a new backend/install workstream. The consolidating chat retains all six audit findings and final cross-product review ownership.
+
+
+Timer/Radio integration verified26October2026: v2.X adopted7c503e08 over37c2. This chat independently verified205/205 runtime hashes and identical assetmanifest in the actual root integration tree, with zero mismatches. [Exact evidence](qa-kit-edges-20261026/timer-radio/ROOT-INTEGRATED-PINS.json). This closes source adoption for these two scoped fixes only; no installation or physical acceptance is inferred. Existing2880PASS/gate65 and actual visual reviews retained without repeating tests. Tesla/Hue/Robot successors and the remaining cross-consumer findings remain separate.
+
+
+### Latest daily inputs reconciled across owners - 26 October 2026
+
+- Tesla: corrected action hierarchy for Unlock versus Lock; actual normal/hover/pressed/focus/disabled/pending/rejected/unknown states under active shared-kit review. Do not infer completion from source declarations. Disabled must remain legible and distinct from a pale consequence action.
+- Roborock: Start in the control Card header is a concrete consumer of Tesla header-action composition; primary daily action must be findable before dock/base secondary actions. Suction/water controls keep the same layout before and during cleaning. Preserve the same job, selected rooms and repeat through Pause and mop washing; remove duplicate next/recent-choice areas. These are active software/review findings, not physical Roborock proof.
+- Hue: existing composition, text hierarchy, column alignment, Toggle/Accordion distinction and action-feedback adoption stay owned by Hue; the message the user identified as sent to the wrong thread is not treated as a new Hue defect.
+- Shared follow-up: all six original audit findings, eight reuse areas, current library/product parity and current narrow evidence remain tracked. Timer/Radio7c503e08 is independently source-integrated205/205 with matching assetmanifest, not installed. Other active successor work is not included by implication.
+
+Concrete updates above were sent to all three detail owners. The consolidating chat owns cross-product closure; a sent message, token value, passing test or old screenshot does not close an item. Existing source/review evidence remains linked in its scoped entry instead of replacing the full day's list.
+
+
+Pending shared progress successor reported by Hue owner - 26 October 2026: Hue reports a later direct user decision to show routine preparing/sending in the activated Button/Chip/Toggle/power Tile, preserving label and observed value, rather than pushing controls with routine status text. Only the exact target is busy; error/unknown remain explicit shared ListRow feedback. Hue owns kit.js and the relevant final ui-kit.css block for this active successor. Its source, contract supersession, current consumer list and actual visual review are still pending here; existing reserved-header captures are not evidence for the new variant. No competing implementation is started by the consolidating chat. Adoption is followed after the owner delivers the reviewed canonical delta; no installation or physical acceptance is inferred.
+
+
+Timer/Radio source push reported by v2.X26October2026: candidate commit f5a2ef9f56f47097543b4670d6007571f71ff535, tree c922a05b37b5c62c708f1533c39f65560c57057a. This advances the scoped source integration to pushed candidate only. No publication, Green installation or physical acceptance. Later Tesla/Hue/Robot/progress successors remain separately tracked; source push closes none of their remaining visual or provider gates.
+
+
+Robot audit successor received - 26 October 2026: integration/robot-audit-20261026/candidate.patch a9a18dc1cb7f4cdbad6cb80695a8ab99d07eabc71a1bf234b15df6cd5aa46850 is an append-only correction after dad1, which remains on HOLD alone. Owner reports2571PASS/gate66 and actual1280 product/library review. Concrete adoption includes one Start in the control Card header, shared level controls, restored24px Card inset,32/16/8 grouping, same current job/rooms/repeat through Pause and washing, and progress in the activated Button with icon/label retained. This chat is performing bounded custody and visual consolidation; no root adoption or Green installation is inferred.
+
+Dependency gate: exact Hue/UI-kit feedback:progress API and shared CSS must be adopted before the Robot consumer. Review-only dependency snapshots are not permission to replace the owner's newer bytes. v2.X and Hue have been explicitly notified. Preserve37c2 and7c503Timer/Radio bytes during selective integration. Still open: final actual980 capture, final fault/unknown wording/render, native cycle history/current-job integration and physical acceptance. Do not close those from earlier captures or local accepted commands.
+
+
+### Samlet dagsansvar fastholdt ·26oktober2026
+
+Seneste brugerinput: hold fortsat styr på alle dagens UI-kit-/designsysteminputs på tværs. Tabellen med seks oprindelige fund, genbrugskravene og F01–F23 ovenfor bevares; nye domænefund erstatter dem ikke. Samlende ejer følger konkret forbrugeradoption, faktisk bibliotek/produktreview og særskilt integration/installation.
+
+Aktuel isoleret fælleskit+Robot-sammenstilling er bygget over v2.X's eksakte7c503/205-kilde; ingen main-/root-/frosne pakker er overskrevet. Den inkluderer de nødvendige fælles tekstroller, niveauvalg, konsekvenstone og progress i aktiveret kontrol samt Robotforbruger fra kompaktforgænger+final-v2. Uvedkommende Hue-linje og Tesla-navigation er udeladt.
+
+Faktisk første slutreview fangede to åbne980px-fund: Rengøring har arvet dobbelt rosa/hvid flade; Gæsteværelse brydes med ét slutbogstav. Disse må ikke lukkes på tidligere1280billeder. Den brede aktive tur viser fælles ikon+labelhandlinger og niveauvalg; slutreview og afgrænset testsammenstilling pågår. Tesla/Hues seneste egne tilføjelser er fortsat separate ejere, ikke automatisk indeholdt i denne pakke. Ingen Green-installation eller fysisk accept udledes.
+
+
+Tværgående kit+Robot slutkontrol26oktober: tre konkrete980fund er rettet i de eksisterende ejere: dobbelt legacyformflade, rumnavnsbrud og legacysetting-regler der tilsidesatte flade ListRows. Faktisk Product Design/Impeccable scopedGO omfatter klar980 inkl. nedre rækker, aktiv1280+bibliotek, pending og fejl/ukendt. [Aktuelt bevis og begrænsninger](qa-kit-edges-20261026/cross-detail/README.md).2965PASS; efter sidsteCSSændring build+gate65+faktiskbilledkontrol. Kildebevaring verificerer43uændredeLiveControlmetoder og beskyttede musik/Light/Timer/Radio/scrollmoduler. Seneste Tesla/Hueforbrugerarbejde, nativehistorik/aktuel-tur-data, installation og fysisk accept er stadig separate rester. Pakke/rootadoption registreres efterfreeze; ingen af dagens øvrige punkter er lukket ved implikation.
+
+
+Kit+Robot afgrænset pakke frosset26oktober: `/private/tmp/pv-cross-detail-20261026-final`, runtime210manifest1146bfbd3ab2129fc16bee93600bfc97aefe85e7ec5efbed32c0049779f7ac5a. Eksakt7c503base bevaret; runtime/sourcepatch replayet med nul mismatch;2965PASS/gate65 og faktisk visuelt review. [Receipt](qa-kit-edges-20261026/cross-detail/DELIVERY-RECEIPT.json) · [Bevaringsreview](qa-kit-edges-20261026/cross-detail/SOURCE-REVIEW.md). Varigt arkiv `docs/qa-ui22/deliveries/pv-cross-detail-20261026-final.zip`, SHA2569e0c8801d501f939e3e748776344206192804e7645fad1977ce32f078d494da5. Afleveres til v2.X som eneste integrations-/releaseejer. Endnu ikke dokumenteret rootadopteret/installeret. Hele dagens liste bevares.
+
+
+Kit+Robot rootadoption verificeret26oktober2026: denne chat har selv læst alle210runtimefiler i den faktiske v2.X-integration og sammenlignet med frosset1146bfbdmanifest;210/210match,0afvigelser og identisk assetmanifest0b131c1a27ba13b99da3f84f628a4f8bf4dc6ed90003a0202d470abae0bdac32. [Uafhængig kildeparitet](qa-kit-edges-20261026/cross-detail/ROOT-INTEGRATED-PINS.json) · [v2.Xkvittering](qa-kit-edges-20261026/cross-detail/ROOT-INTEGRATION-RECEIPT.json). v2.Xoplyser push/readback6e899c4e7f0dcbfff1c4907fbc509adf62d53a60/treec72dc9dec9157d2b2bec70ee7fd232600f0b39f2; remote er ikke genlæst her. Kun runtimepatch adopteret; source.patch er ikke blindt påført.210er nu den præcise nye integrationsbase; ingen yderligere forbrugeradoption før rootreview. Ingen CI/udgivelse/installation eller fysisk accept udledes. Alle øvrige dagsfund og Tesla/Hueforbrugersuccessorer bevares separat.
+
+
+Aktuel status efter nye brugerinputs26oktober ca.13:26: root1146/210 er integreret og beskyttet, ikke dokumenteret udgivet/installeret. Nye domænesuccessorer er aktive og separate: Robot flytter Start tilHero vedPause/Fortsæt-ankeret, bruger Tesla-labelover påniveauvalg, Sug/Vaskpar fra480pxCard og kompaktantal; Tesla retter±tilrunde64×64 og Afrimruder-kolonneankre; Hue tilpasserkontrolgrid efter faktiskCardbredde sålange labels+loaderfårplads. Robot rapporterer main-testgateblokering: ny fælleskitfunktion syncKitPowerToggle mangler præcisregistrering. Sendt til Hue/kit-ejer; ingen blindrebaseline eller ændring af frossen210base. Nye rendering-/testbeviser afventes. v2.Xarbejder fortsat samletrelease/stemmeafslutning; ingen ny installation udledes af arbejdsstatus.
+
+
+Releaseafgrænsning meldt af v2.X26oktober: brugeren har pauset lang SpotifyRadiofortsættelse efter cirka100numre; alene denne del er ikke længere releaseblokering og er ikke markeretDone. AlmindeligPlay, faktisklyd, betjening, reconnect og ærlig404tilstand er fortsat obligatoriske. Ingen ny station-/providerresearch i dette spor. UI210 uændret. v2.Xmelder positivt afgrænset nytVoiceforløb med fuldt6trinssvar+observerettavsafslutning; oprindeligtstriktFAILbevares, resterendeVoicecases/admissionCI/release/installationfortsatåbne. Green89rapporteretgendannet; ingen nyinstallationudledes.
+
+
+Direktebrugerkrav13:27/13:40 meldt af Hue: sharedprogress genåbnet. Langehandlingslabels skal ALTIDværeénlinje+ellipsis (fuldaccessiblelabelbevares), loaderikkekantnær. Hueejerpræcisdelta i ui-kit.css/components.css commandChip:24pxChip/32pxButtonkant,16pxmarkør+8pxlabelgap, symmetrisknormal/busy, icon-onlycentreret. Aktuelle54/55renderreviewsog39scopedtests er Hueejerbevis, ikke alleforbrugeresaccept. Se docs/research/light-control-v5-20261026/PROGRESS-INSET-REVIEW.md ogPROGRESS-PINS.json. Dette erstatter tidligere8px/wrap/direct-imgpræsentationsbeskrivelse for dennyeefterfølger;1146/210frossetbase ændresikke. Tesla/Robot/v2.Xorienteret om separatdelta og kravomnormal+busyreviewvedfaktiskbredde. Ingenwholefileadoption,4pxedgepatch eller implicitinstallation.
+
+
+Efterfølgende Hueejermelding26oktober: syncKitPowerToggle er nu præcisregistreret i main og er ikke længere gateblokering; decorateLevel også semantiskregistreret. Hueoplyser2577/2580testsPASS,3FAILfra2midlertidige dist/qa/robot-980*.html; Robot ejer selv slutbilleder+oprydning. Dette er ikke nyt produktionsfejlbevis. Ingen4pxscalarregel; Robot flytter sinfeedbacktillegend-slot.39kit/librarytests og4commandlayouttests er scopedPASS. Endelig samletgateafventes; ingenfrossen210-/root-/installationsstatusændring udledes.
+
+
+Nyt direktebrugerfeltfund26oktober: RO/Hjem og musikwidget viser gentagen hjælpetekst som “Henter” med oplevet2–3sekundersinterval. Kausalfund i både main og root210: LiveMedia valideretidle/owner_changed clearRoomnulstillerestablishedReadScope og øgergeneration, så completedreadikkeetableres; næste passivereadvisesigeninitialloading. Isoleret2hunkfix registrererfærdigtvisningsscopeeftervalideretclearRoom;128fokuseredetestPASS inklv2/v3/START/scope/replayguards. Normal8sidle/boundedSTARTcadenceændresikke; denoplevede2–3srytmeerikkeårsagsbevist. Faktiskinertfixture16passive2,5sforsinkedereads viser kunstartupoffline→førsteloading→stableempty, ingenfornyetloading,0effects. FinalsamletUIintegration/review/installationafventes.
+
+Timertekst14:01: fuldtekstfortsat“Start en timer”; brugeroplyserkorrektvisningvedrigtigskærmstørrelseog“no worries”. IngenTimertekst/layoutrettelsebestiltellerudførtpådettegrundlag.
+
+Releaseafgrænsning: fuldnyHuev5consumerkompositionerikkeleveringsklarsomselektiv210pakke; minimalinset/ellipsisergodkendtseparat. FullHueadoptionbevaressomrest, udskydesafrootfradenneafgrænsederelease. NyeRobotidéer13:55–13:58dockButtongroup/More/mapselector/compactrepeatvalueernæsterevision, ikkeimplicitidelta3f35. Radioaktiveringudeladeshvorenabledfalse; ingenfalskradioacceptpga styling.
+
+
+Hueefterfølgendemelding: direktebruger“fortsæt”harautoriseretselektivFULLHuev5-pakkearbejdeiisolated /private/tmp/pv-hue-v5-complete-20261026. Detteforbliveråbentognæsteseparatleveranceefterroot'safgrænsedeaktuelleUIpakke; minimalinset/ellipsiserklar. AktuelrootreleaseholdesikketilbagemednyestoreHuev5dependencies. Ingenmainpolish/HAeffekterellerforudtagetintegration.
+
+
+Nyt direktebrugerkrav meldt afroot: efter samletproduktrelease skal eksisterendeGPTSites+librarygenudgives fraSAMMEfærdigeUIpin. Eksisterendeprojectappgprj_6ace7e3d1ab081919f479dba4698f567, https://podview-poc.boxzakamads.chatgpt.site og/library.html; historiskSites52kvitteringerdokumenteret, aktuelversion/adgangskalfrisklæsesførændring. Bevarowner-privateaudienceogprojectidentitet. UIchatkanegeslutpubliceringkoordineretmedroot; ikkeetnytredesignellerførproduktrelease.
+
+
+Aktuelfinalsamling efterdirekte“byg færdig og send tilv2.xrelease”:215runtimekompositionminimalHueloader/ellipsis+hele dagensTesla+Robot3f35+IDLEfix bestod3006/3006tests/gate66. FaktiskTesla1280/980/bibliotek/pending/åbensædevarme gennemgås; integrationsfejlÅbnbagagerumafkortningrettetmedTeslaejerens280pxsekundærkolonne/stackunder580, ingenfont-/paddingreduktion. SenesteRobot14:10menneskekrav“fixdetheleFØRintegrationen”harHOLDpågammel3f35somfinal; Robotownerleverernyafgrænsetbatchførfreeze. Det er ikke nyt bredtpolishspor. FullHuev5forbliverseparatefterfølger, radiosikkeaktiveret. RootoplyserGreen90observeret/startetafroot; dennechat har hverkeninstalleretellerbetjentGreen. Nuvarandeproduktreleasekandidatikkeudgivet.
+
+Robot14:45sidstepræcisering: Base-handlinger højrestillet jf.direktefeedback. Faktisk produkt19-base-right-aligned og bibliotek20-library-right-aligned visuelt gennemgået;2590PASS/gate66efterændring. Selektivt tillæg3043c3 efter043e, ingen øvrige UIændringer.
+
+
+## Tesla Green/Ro27oktober · separat efter96
+
+Brugerbestilt faktiskFleetintegration koordineres medv2.X;96frozen holdesuændret. Roopladeflise ernu sourceadmittedviaeksisterendeTile, gennemgåetlokaltogklik→Tesla;2595PASS. [Aktuelstatusogbilledbevis](research/tesla-green-20261027/STATUS.md). NativeFleetikkeconfiguredpåGreen, brugerTesla-login/appoprettelseafventer; backendpassiv/kommandoejermanglerfortsataccept. IngenfysiskkommandoellerGreenrestart. Detteerikkeinstalleret/liveTeslaaccept.
+
+## Tesla · fælles toast og vedvarende fejl ·27 oktober
+
+Direkte brugerkrav: ret via UI-kittet; Tesla følger én fælles toast for handlingsforløbet, mens fejl/ukendt udfald fortsat er tydelige efter toastens udløb. Med i kommende v2.x og samlet Sites-baseline. Timer ændres ikke af Tesla-arbejdet.
+
+Aktuel uafhængig kildegennemgang af /private/tmp/pv-ui-baseline-20261027-work: sæde-pending er flyttet fra header til toast, men BUTTON-handlinger mangler toast; UNKNOWN/failed gentager identisk tekst begge steder; kausal sessionsskift-reproduktion viser sent UNKNOWN fra session A i session B med samme bil/revision. Disse tre punkter er genåbnet hos den fælles kandidat-ejer. Ingen færdig-/visuel accept på dette tidspunkt. Kanoniske ejere: VehicleView, WidgetHost og NotificationQueue, eksisterende Button/Toggle/ListRow/Toast. Endelig reference/billedbevis, test og adoption/publicering udfyldes efter samlet rettelse.
+
+### Tesla feedback · samlet kandidat gennemgået
+
+Fælles kandidat /private/tmp/pv-ui-baseline-20261027-work, VehicleView SHA d20ab349b94a48566c639fb8505b7f89ac29b7a942b73aa56d80394afe04ec82; WidgetHost ff91012d42c48838074346c2a403f6f0baa5e35304493b587d3833686c498475. Tidligere tre fund rettet; separat reviewer kørte66 relevante tests og session A→B-forløb PASS. Impeccable detect JSON []. Product Design og Impeccable visuelt gennemgået på faktisk byggeoutput og kanonisk UI: 1280 pending og UNKNOWN efter toast, 980 afvist efter toast, bibliotekets faktiske klikbare komposition og Ro. Billedbeviser docs/research/tesla-feedback-20261027/01-pending.png, 03-unknown-after-toast.png, 04-failed-after-toast-980.png, 05-library.png, 06-ro-widget.png. Detaljer: stabil kontrolprogress; én toast under handlingsforløb; kort lokal vedvarende fejl; ingen gammel toast efter navigation; Tesla-farve på Ro. Kun lokal fixture, ikke Green/bilaccept. Samlet fuldtest, endeligt aktiv fra UI-ejer, Sites-publicering og v2.x-installation mangler stadig.
+
+### Korrigeret visuelt udfald · toast overlap
+
+Tidligere visuelt GO for toastplacering trækkes tilbage: 01-pending.png viser, at toasten overlapper sædevarme-accordion i 1280-produktvisningen. Dette bryder fælleskitreglen om ingen overlap. Fælles UI-ejer er orienteret og retter på tværs; Tesla-feedback er HOLD for visuel accept/publicering til dette overlap er løst og kontrolleret igen. Source-/sessionsreview og 66 målrettede tests står fortsat. 03/04 viser vedvarende fejl efter toast, men dokumenterer ikke accept af placering under ventetid.
+
+## Robot · lokal fortsættelse 28. oktober 2026
+
+**Tesla, aktuel passiv observation 28. oktober:** Releaseejeren har læst fire konfigurerede HA-sensorer med kendte værdier: batteri 25 %, rækkevidde 94,17881088 km, ladeeffekt 0 kW og ladestatus disconnected. Det tidligere PodView-svar `no_data` kl. 17.03 er fra et andet tidspunkt og beviser ikke en permanent mappingfejl. 2.0.98 har kun disse passive signaler; Tesla-kommandoer er ikke integreret og skal følges som selvstændigt funktionspunkt. En ny side eller genstart uden tidligere data kan muligvis vise misvisende “Ikke forbundet”; dette kræver verificering af kildeidentitet og aktuel UI-læsning før ændring af retention eller ordlyd. Ingen vækning eller bilkommando er udført.
+
+**Feltkontrol kl. 17.26:** Releaseejeren observerede efter HA-læsningen Tesla-overblik i samme browser med “Oplader frakoblet · 25 %”, svarende til de kendte HA-værdier. Den tidligere `no_data` er fortsat et uafklaret, periodisk fund; næste faktiske fejl kræver præcise manglende rollekoder. Ingen fraværsrettelse er begrundet af denne positive kontrol. Manglende kommandointegration står separat.
+
+Brugerens skærmbillede 11.49.33 accepterer specifikt headeren Ved basen med Start og Base; det er ikke en samlet godkendelse af hele robotfladen. Skærmbilledet 11.49.49 afviser Off/Custom-cirklerne. Brugerens Roborock-billeder fra 27. oktober er reference: fire normale sugetrin i kombineret, fem ved støvsugning; vandniveauer og rute afhænger af typen. Extreme ønskes som egen ekstra visuel genvej; det lokale eksempel tilbyder den med et eksempel-ID, men faktisk Qrevo-maksimum er ikke verificeret.
+
+Arbejdskandidat: `/private/tmp/pv-robot-ux-20261027-work`. Den eksisterende ActivityTimeline viser Vælg igen kun for komplet og aktuelt genbrugelig opsætning. Inert browserforløb: vælg tidligere → rum og indstillinger udfyldes → justér → eksplicit Start. Live-historikkens eksisterende DTO dokumenterer ikke komplet opsætning, så denne handling forbliver skjult dér indtil ejerens kontrakt udvides. Ingen faktisk robotkommando.
+
+Faktisk browserreview ved 1280×800: `docs/qa-robot-continuation-20261028/history-1280.png`, `active-after.png`, `fault-1280.png`, `rest-completed.png`, `overview-completed.png`, `library-robot.png`. Inert testservice viser ventende, accepteret anmodning og senere uafhængig pauset observation; afvist og ukendt udfald er gennemgået (`rejected.png`, `unknown.png`). Ukendt genudføres ikke. Product Design Audit og Impeccable Operate/craft-floor anvendt på renderet produkt/kit: fund om store historikknapper og aktiv feltoverflade rettet i eksisterende komponenter; brugerens seneste cirkelfeedback kræver afsluttende render. Fast player bevares. Gennemgang er lokal; ingen publicering, installation eller fysisk enhedsaccept.
+
+Afsluttende kontrol 28. oktober: cirklerne Off/Custom er fjernet; `both-final.png`, `vacuum-final.png` og `mop-final.png` viser de tre lokale typer og den ønskede ekstra visuelle Extreme-mulighed. Product Design og Impeccable har vurderet renderet produkt og bibliotek ved 1280×800; dette er ikke brugeraccept af hele fladen. Fuld npm-test: 3161/3161 og komponentgate 66 bestået. Detaljer om hver indstillings dokumenterede HA-/API-dækning og begrænsninger: `docs/qa-robot-continuation-20261028/HA-SETTINGS.md`. Extreme er ikke bekræftet som en styrbar HA-værdi; faktisk typeafhængig kapabilitetsmatrix og komplet livehistorik mangler. Samlet integrationspakke `integration/robot-continuation-20261028-v3` er til review; den er ikke flettet, udgivet eller installeret.
+
+### Robot · knapper, typer og scenarier 28. oktober
+Lokal kandidat `/private/tmp/pv-robot-ux-20261027-work`: aktiv/pause viser Pause/Fortsæt og Handlinger; relevante tilbudte retur-, afslut- og basehandlinger findes i disclosure, med eksisterende bekræftelse. Ved basen bevares Start + Base. Enlige handlinger er kompakte. Type og afhængige valg deler én flade med skillelinje; antal gange i aktiv tur vises uden overflødig forklaring. Fejlheader viser fejlen, hjælpekort forklarer handlingen uden gentaget titel. Lokale vaske-/tømme-/tørre-scenarier viser kun eksempeltilbudte stophandlinger; de er ikke fysisk HA-bevis. Ukendt status adskilles fra ukendt handlingsudfald.
+Produkt i 1280×800 visuelt gennemgået: aktiv, udvidet handlinger, pause, pending, børstefejl, tørring, afsluttet og Type-flade. `docs/qa-robot-continuation-20261028/completed-compact-20261028.png` viser afsluttet efter rettelse. Fuld test 3163/3163 og komponentgate 66 bestod på lokal kandidat. Product Design/Impeccable-gennemgang er lokal; øvrige tilstande er primært kilde-/testkontrolleret og ikke alle visuelt genkontrolleret efter sidste ændring. Live HA, integration på nyere fælles baseline, release, installation og fysisk accept er ikke udført. Extreme og stop af baseoperationer kræver faktiske ejerudbud og er ikke fysisk bekræftet.
+
+### Robot og Button/ChoiceGroup · feedback 28. oktober kl. 12.14–12.20
+Lokal kandidat `/private/tmp/pv-robot-ux-20261027-work`: generisk Handlinger er erstattet med Pause/Fortsæt, Afslut og Base; Afslut åbner Til basen/Afslut rengøring med eksisterende bekræftelser. Button/Disclosure har fælles symmetrisk inset, højde og ikonafstand i kanonisk kit; deaktiveret Start har læsbart ikon. ChoiceGroup har fælles geometri, læsbart minimum for tekst og større luft ved Type-skillelinjen. Aktive rumfliser holder samme gridspor som setup. Faktisk browsergennemgang 1280×800 omfattede aktiv header, begge udvidelser, dock, deaktiveret Start, rumflise og samlet valgområde; `active-kit-28.png` er optagelse før sidste rumgridrettelse. Balanced ses helt i browser; smallere format mangler pålideligt viewportbevis. Product Design/Impeccable anvendt. Øvrige produkters eksisterende Button-overstyringer er identificeret, men endnu ikke alle gennemgået/rettet: global ensretning kan ikke meldes fuldført. Ingen release, installation eller fysisk robotkontrol.
+
+### Robot · én headeraccordion og knaphierarki 28. oktober
+Brugerpræcisering: højst én accordion pr. header; aktiv robot viser direkte Pause/Fortsæt og destruktiv Afslut rengøring; Base åbner kun de aktuelt tilbudte Til basen/basehandlinger. Afslut bruger krydsikon, også i bekræftelsen. Produktvisning ved 1280×800 inspiceret med lukket/åben Base og bekræftelse (sidste modalikon rettet efter billedgennemgang). 3164/3164 tests og komponentgate 66 bestod efter sidste rettelse. Lokal kandidat `/private/tmp/pv-robot-ux-20261027-work`; ingen integration, installation eller fysisk accept. Button disabled-regler er fælles, men ensrettede header-insets er endnu ikke dokumenteret implementeret i alle PodView Buttons; øvrige domæners overrides kræver fortsat særskilt gennemgang. Regel om én accordion er dokumenteret; andre headers er ikke alle auditeret for overholdelse.
+
+### Fælles knapper og robotvalg · 28. oktober kl. 12.31
+Lokal kandidat `/private/tmp/pv-robot-ux-20261027-work`: registreret almindelig Button har en fælles baseline for højde, symmetrisk indryk og indholdsgap; ikon/quiet/Tile/Chip/ListRow er egne eksisterende varianter. Den grå Base-overstyring er fjernet. ChoiceGroup level lader hele indholdsbaserede valg ombryde frem for skjult horisontal scroll; 64px trykmål og fulde labels bevares. Antal gange ved aktiv rengøring ligger ved siden af Rute ved tilstrækkelig bredde. Renderet 1280-produkt gennemgået: robot, Tesla opladning/adgang, timer aktiv, radio klar og lysrum. `docs/qa-robot-continuation-20261028/repeat-beside-route.png` viser robotopsætningen. Product Design og Impeccable anvendt; alle PodViews øvrige knaptilstande, biblioteket, Tesla ChoiceGroup, smalt viewport og tilbageværende domæneoverstyringer er endnu ikke visuelt kontrolleret på denne kandidat. Fuld tværgående ensretning kan ikke hævdes. Ingen integration, publicering, installation eller fysisk accept.
+
+Opfølgning kl. 12.36–12.40: ChoiceGroup level har 64px valghøjde og standard-/kompakt bredde; valgene 1×/2× ligger vandret. Lokalt aktivt eksempel viser samme deaktiverede selector, når den gemte tur indeholder et valideret interval; ukendt integrationsinterval vises ærligt som værdi. Historikkens ActivityTimeline har reduceret rækkeafstand; ingen start/slut gruppering uden fælles cyklus-ID. Start/Base højrejustering kontrolleret lokalt. Product Design vurderer headeren tættere på, men Afslut får potentielt for megen opmærksomhed; roligere behandling er ikke implementeret. 3165/3165 tests og komponentgate 66 PASS. Global knapreview omfatter ikke alle produkt- og bibliotekstilstande på samme kandidat; fuld ensretning må ikke hævdes. Ingen fysisk Frameo eller live HA accept.
+
+### Robot · seneste rettelser og releasekandidat
+Lokal kandidat `/private/tmp/pv-robot-ux-20261027-work`: De tre rengøringstyper har separate lokale valg, så et valg fra en anden type ikke fastholdes; Vask viser Vandmængde og Rute side om side; Rute fylder sin egen kolonne ved fire muligheder, mens de øvrige anvender kompakt Rute. Visuelt kontrolleret: docs/qa-robot-continuation-20261028/mop-two-columns-final.png. Start og Base bevarer deres placering, når Base åbnes. Fælles Button har en særskilt disabled-overflade med læsbar tekst og ikon; faktisk 1280-produktvisning er inspiceret i `docs/qa-robot-continuation-20261028/disabled-final.png`. Product Design og Impeccable er anvendt; gennemgangen er lokal og dækker ikke samtlige knaptilstande i PodView. Fuldtest 3165/3165 PASS, komponentgate 66 PASS. Extreme tilbydes kun, når integrationskilden tilbyder det; faktisk Qrevo-understøttelse er ikke bekræftet. En isoleret sammenstilling med den aktuelle releasekandidat bygger og passerer komponentgaten, men releasekilden ændres samtidig, og adoption, publicering, installation og fysisk accept er ikke bekræftet.
+
+### Robot · sugeevne og blink 3. november
+Bruger: Ved Støvsug skal Sugeevne spænde begge kolonner og være på én linje ved Frameo-målet. Isoleret kandidat `/private/tmp/pv-suction-full-20261103` viser fem valg på én linje ved 1280×800; billede `docs/qa-robot-continuation-20261028/suction-full-20261103.png`. Fokuseret modeskift-test, build og komponentgate PASS. Product Design/Impeccable-kontrol af det konkrete billede: hierarki og fulde labels er bevaret; detector advarer om eksisterende Inter, som er projektets gældende typografi. Produktbibliotek, øvrige størrelser, faktisk samlet kandidat og brugeraccept af resultatet er endnu ikke verificeret. Kildebasen er en isoleret sammensætning, ikke release; adoption og fuld test resterer.
+
+Blink/låst betjening: en inert PV116-reproduktion viser, at fornyet `open` for samme robot midlertidigt nulstiller et gyldigt tilbud og deaktiverer panelet, mens hentning afventes. Normal proaktiv fornyelse har allerede separat beskyttelse og 11 beståede tests. Det er ikke fastslået, om brugerens installerede forløb skyldes samme genåbning, udløb eller forbindelsesændring. Ingen robotkommando sendt; årsagsfikset og liveverifikation resterer.
+
+Opfølgning: I isoleret `/private/tmp/pv-suction-full-20261103` har Vask nu fuldbredde Vandmængde; Rute og Antal gange står nedenunder i to kolonner. Fire rutenavne vises på én linje ved 1280×800 med kort label Grundig+ og uændret choice-ID; faktisk produktbillede `docs/qa-robot-continuation-20261028/mop-water-full-20261103.png`. De to fokuserede tests består, build og komponentgate består. Product Design/Impeccable-vurdering af renderet produkt: konsistent hierarki med Støvsug og fulde labels; bibliotek/smalle størrelser og faktisk samlet kandidat er ikke visuelt kontrolleret. Bredt gammelt panelharness 107/108 med kendt mismatch i aktuelt rum på den blandede baseline; ingen påstand om fuld suite PASS. Hverken adoption, udgivelse, installation eller fysisk accept er bekræftet.
+
+Opfølgning samlet PV118-kilde: `/private/tmp/pv118-robot-layout-20261103`. En senere kitregel overstyrede først bredderne; efter rettelse viser produktbuild Vask med Vandmængde i fuld bredde og Rute/Antal på næste række, `docs/qa-robot-continuation-20261028/pv118-mop-final-20261103.png`. Fælles disabled primary er afdæmpet mørk med lyst ikon/tekst, faktisk billede `docs/qa-robot-continuation-20261028/pv118-disabled-primary-20261103.png`; busy undtages. Panel og CSS er ens i dist og samlet source, 231 fokuserede paneltests og komponentgate PASS; fuld npm test kunne ikke køre, idet den isolerede sammensætning mangler tests/*.test.js. Produktdesign-/Impeccable-vurdering af faktisk 1280-produkt er foretaget; bibliotek og øvrige tilstande er ikke fuldt kontrolleret. Kilde og bevis overdraget til v2.X; adoption og installation ikke bekræftet. Blinkets same-context-hypotese har en isoleret rettelse med 13 beståede tests, men den aktuelle live-trigger er ikke påvist og blinket ikke lukket.
+
+Seneste feedback: Rækkeafstand skyldtes fast `minmax(192px,auto)`; rettet til indholdshøjde i kitkilden og faktisk 1280-produkt gennemgået for alle tre typer, Vask `docs/qa-robot-continuation-20261028/pv118-spacing-final-20261103.png`. Endeligt bygget CSS SHA 94868ed7f4b235f7f2738b41fb28004d4825935fbe2b819f5e6c2ea60cf39754. Overdraget til v2.X med krav om samme frosne kilde og build; ingen adoptions-/installationskvittering.
+
+Blink: inert test af PV118 viser normal renewal med nye tilfældige task-/option-ID'er, som får `sameTaskContent` til at bygge formularen på ny. Den eksisterende draft-kontrakt mapper kun allerede valgte controls; den kan ikke sikkert genbinde alle knapper. Faktisk Green-udløser er ikke bekræftet. Komplet entydig mapping og klientgenbinding undersøges isoleret; ingen fysisk kommando, ingen løst-påstand.
+
+## Opskrifter · visuelt leverancemål
+
+**Mål: 97/100 for ét sammenhængende Opskrifter-forløb ved 1280 × 800.** Før næste samlede iteration fastlægges én målfast, renderet reference med PodViews fælles komponenter. Katalog, opskrift før Start og aktiv madlavning vises side om side med det renderede UI-kit og Tesla-, Hue- og Robot-detaljerne. Mål topanker, sideindryk, grid, padding, typografi og touchmål fra de faktiske referenceflader.
+
+- **Lige nu → katalog.** Widgetten følger nabokortenes anatomi. Fælles topbar ejer titel og tilbagevej. Alfabetisk liste og fingerindeks til højre. En aktiv opskrift viser fortsættelse og fremdrift i sin række.
+- **Opskrift → Start.** Fuld bredde uden player. Ingredienser og Sådan gør du topflugter, med mest plads til metoden. Start står ved metodens overskrift. Hele trin er læsbare. Originalfoto, når det findes, må ikke skubbe begge sektioner ud af første skærmbillede.
+- **Madlavning → afbrydelse → afslut.** Samme komposition før og efter Start. Aktuelt trin, fremdrift og handling er tydelige. Timerudløb og kvittering bevarer trin, scrollposition og afkrydsninger. Kontrollér også tilbage, fortsæt, fortryd og afslut.
+- **Visuel accept.** Product Design og Impeccable gennemgår samme browseroptagelser før og efter én samlet iteration. Bedøm hierarki, afstande, typografi, billeder, læsbarhed, kit-sammenhæng, navigation, touch/fokus, tilstande og afbrydelser. Underbyg vurderingen med browserbilleder og klikforløb.
+
+**Status:** Lokal produktbuild har kompakt introduktion med kendte fakta og eventuelt billede. Start ligger i metodeoverskriften, og originalkilden ligger efter arbejdsfladen. Browsergennemgangen er blokeret: dev-serveren får EPERM, og Chrome afslutter før gengivelse. Målfast før-/efterreference, sammenligning med bibliotek/Tesla/Hue/Robot, smal visning og klikprøve af timerafbrydelse udestår. Ingen visuel score, installation eller fysisk accept registreret.
+
+**Browserreview 3. november · 1280 × 800.** Den åbne lokale produktfane kunne betjenes og fotograferes. Product Design og Impeccable gennemgik Lige nu, kataloget og citronkagen før og efter Start. Fælles topbar, neutral ListRow, tjekliste, fuld bredde uden player og metodekolonnens 32 px afstand til ingredienserne er synlige. Opskrifter-kortets status ligger under folden. Katalogets B-overskrift er delvist klippet, og indeksbogstaverne ligger ca. 18 px fra hinanden. Introduktionskortet bruger ca. 180 px på et lille ingrediensfoto. Metoden er læsbar i sin fulde længde før Start. Start flytter sektionerne ca. 10 px, og en afkrydset række beholder en mørk kontur. Arlas færdigfoto og særskilte metodefaser for kage og glasur er relevante referencer. Impeccables kildedetektor fandt én eksisterende Inter-advarsel i skallen. Detektorens egen browser kunne ikke starte, så den visuelle vurdering bruger Chrome-optagelserne.
+
+**Timerprøve.** En lokal timer på ét minut kørte, mens citronkagen var åben på trin 2 med smør og flormelis afkrydset. De to målinger i opskriften viste samme scroll på 326 px. Dialogen blev først observeret efter navigation tilbage. Efter Stop og genåbning var trin og afkrydsninger bevaret, mens scroll stod på 0 px. Kvittering oven på selve opskriften og præcist bevaret scroll gennem hele afbrydelsen er derfor stadig åbne. Ingen ny visuel score eller brugeraccept.
+
+**Rettet lokal kandidat · 1280 × 800.** Opskrifter viser titel og status i Lige nu. Katalogets B-overskrift er hel, og alfabetindeksets rækker er 22 px ved målformatet. Citronkagen bruger kompakt metadata, samme topanker før og efter Start og Kage/Glasur som metodeoverskrifter. Originalbilleder vises, når de findes. Tjeklisten bruger flueben og bevarer tastaturfokus. Product Design-efterkontrol på renderet Chrome og Impeccable-kildescan gennemført. Fysisk touch og samlet brugeraccept er åbne.
+
+**Timer bestået lokalt.** En rigtig lokal nedtælling på ét minut viste den eksisterende native timerdialog centreret over den åbne citronkage. Stop lukkede dialogen og returnerede fokus til flormelis. Før, under og efter var opskriften på trin 2, scroll var 210 px, og smør og flormelis var afkrydset. Komponentgate og syntaks bestået. Fem HTTP-fixturetests blev blokeret af sandboxens `listen EPERM`. Green og fysisk timer er ikke prøvet.
+
+### Visuel audit af Opskrifter · 1280 × 800
+
+| Flade | Observeret og rettet | Rester |
+| --- | --- | --- |
+| Lige nu | Titel og katalogstatus kan læses, og hele kortet åbner kataloget. Samme ikon- og tekstroller som nabokortene. | Kortets bund ligger i scrollfladens fade ved første visning. |
+| Katalog | B og C er læsbare. Fælles ListRow og topbar. Aktiv række viser 1 af 4 trin og Fortsæt, som genåbner trin 2. | Rækker med og uden foto har forskelligt tekstanker. 22 px mellem alfabetbogstaverne. Scrub med et større katalog og fysisk touch er åbent. |
+| Før og efter Start | 480/720 px kolonner, 32 px mellemrum og 24 px kortindryk. Begge kolonner starter ved y=132 før og efter Start. Hele metoden og begge faseoverskrifter ses ved første visning. Metadata er én linje. Ingrediensrækker har 64 px trykhøjde. | Den sidste ingrediens kræver scroll. Eksemplet har et ingrediensfoto i kataloget, og Arla viser et færdigfoto. |
+| Markering og tilstande | Klik på ingredienstekst giver flueben og udstregning. Nyt klik fortryder, og mellemrumstasten bruger samme native tilstand. Færdige trin viser flueben og udstregning på instruktionen, mens faseoverskriften står fri. Fortryd, tilbage, Fortsæt og Afslut prøvet. | Metodetrin bruger den eksplicitte Markér trin færdigt-knap. Fysisk læseafstand er åben. |
+
+**Referencer.** Product Design gennemgik Chrome-billeder af PodViews ListRow samt Robot, Hue og Tesla ved samme gennemgang. Produktets detaljereferencer har fælles y=96 og x=24 for indholdsrammen, samt 64 px primærkontrol i Robot. Opskrifter bruger fuld bredde, så metoden får 720 px. [Arlas citronkage](https://www.arla.dk/opskrifter/citronkage/) gav reference for to arbejdsflader, faseinddeling og tryk på metode. Impeccables egen browser kunne ikke starte, så det visuelle review er baseret på Chrome og suppleret med kildedetektoren. Ingen samlet acceptscore.
+
+### Opskrifter · tre visuelle gennemgange af den lokale kandidat
+
+1. **Reference.** Product Design sammenholdt den renderede Lige nu-widget, ListRow, arbejdsfladen og timerdialogen med PodView-kittet, Tesla/Hue/Robot og Arlas citronkage. Katalogtitlerne flugtede ikke, widgetten gik ind i bundens fade, og den direkte trykflade på instruktionen manglede.
+2. **Komposition.** Widgetten blev en 64 px høj, neutral genvej med ikon, titel og status på én række. Kataloget fik ens rækkehøjde, venstrestillede titler og et valgfrit foto til højre. Ingrediensfotoet er eksempelillustration. Vedhæftede originaler bruger den eksisterende kildevisning. Den første klikbare metode klippede lange instruktioner, observeret i Chrome.
+3. **Efterkontrol.** Metodens kolonne er afgrænset, og tekstknapper ombryder lange instruktioner. Et tryk på aktuelt trin markerer det færdigt og flytter fokus frem. Et tryk på færdigt trin fortryder. Klik og mellemrum afprøvet. Impeccables kildescan returnerede ingen fund. Den visuelle vurdering bruger Chrome, da Impeccables egen browser ikke kunne starte.
+
+**Timerprøve bestået på samme build ved 1280 × 800.** Efter en reel lokal nedtælling åbnede timerdialogen oven på trin 2. Stop lukkede dialogen. Før, under og efter var scroll 102 px, og smør, flormelis og trin 1 var stadig udstreget. Browseren blev efterladt i den åbne opskrift.
+
+**Produktrester.** Varig opskrifts- og madlavningstilstand gennem genindlæsning, deling fra iPhone til privat modtager, håndtering af faktiske kilde-/billeddata og fysisk afprøvning af touch, læseafstand og skærmhold er stadig åbne. Ingen samlet 9/10-produktaccept.
+
+### Opskrifter · fælles S-widget og timeralarm
+
+Den tidligere kompakte række og lyse alarm er erstattet af Card S (199 × 177 px) i det eksisterende scrollgrid og den fælles mørke fuldskærmsalarm. Opskriften bruger fortsat Detail-template, TopBar, ListRow og Checklist. Lokal Chrome ved 1280 × 800: efter reel nedtælling og Stop var trin 2, scroll på 102 px, smør, flormelis og udstreget trin 1 identiske. Impeccable-kildescan uden fund, komponentgate bestået. Fem HTTP-fixtures blokeret af listen EPERM.
+
+**Produktforløb A–Z.** Del eller tilføj kilde → modtag og kvittér → gennemse og ret udtræk → gem og find i familiens katalog → læs og Start → markér, afbryd og fortsæt → afslut → find igen. Den lokale produktvej begynder i kataloget med to eksempler. Der findes en lokal indbakkerenderer til link eller billede og manuel tekst, men kataloget har ingen indgang til den. Kilder og madlavningssessioner ligger i hukommelsen. Varig familielagring, privat modtagelse, udtræk og fejlretning, genoptagelse efter genindlæsning samt fysisk skærmhold og touch er åbne produktled.
+
+**Browserkommentar · S-widget.** Opskrifter følger den responsive kolonnebredde og Card S-statusrollen. Målt i Chrome sammen med Radio og Timer: 177 × 177 px ved 1156 × 1060 og ca. 198,5 × 177 px ved 1280 × 800. Statuslinjen starter 72 px fra kortets top på alle tre. Se katalog åbner de to kildeopskrifter.
+
+**UI-opfølgning.** Start opskrift ligger i billedkortet. Opskriftsdetaljen bruger samme scrollregel som de øvrige detaljer. Scroll med pointer på ingredienskolonnen i Burgerboller ved 1485 × 1060 nåede 174 px og viste Sesamfrø og Original. Korte kataloger skjuler alfabetindekset. Lange kataloger viser bogstaver med indhold, tryk og træk; fysisk touch på langt katalog er åbent. Katalog → Indbakke → Tilføj kilde → gennemgå original → indtast og gem → åbn blev gennemført med Meyers-link ved 1280 × 800. Lagring er lokal i den åbne fane. Privat iPhone-modtagelse, udtræk, varig lagring, ny timerregression og fysisk accept er åbne.
+
+**Én handling pr. trin.** Efter Start markeres og fortrydes hvert trin direkte på teksten. Første uafkrydsede trin fremhæves, og Afslut madlavning vises efter sidste markering. Chrome 1280 × 800 på bagels: tryk, nyt tryk, mellemrum og afslutning gennemført.
+
+### Opskrifter · 24 spørgsmål til madlavningsforløbet
+
+| Situation | Spørgsmål | Beslutning eller rest |
+| --- | --- | --- |
+| Åbning | Hvad laver jeg? Hvor meget? Hvem er kilden? Hvor starter jeg? | TopBar viser titel. Card samler foto, kilde, antal, trin og Start. |
+| Klargøring | Hvad mangler? Hvad er valgfrit? Kan jeg folde sammen? Husker den mit valg? | Checklist bevarer grupper og markeringer. Disclosure viser samlet antal og husker åbning i sessionen. |
+| Madlavning | Hvilket trin er næste? Kan jeg springe et trin over? Hvordan fortryder jeg? Hvad med tastatur? | Første åbne trin fremhæves. Hvert trin har én vendbar tekstknap med tastaturbetjening. |
+| Afbrydelse | Kan jeg gå væk? Skal jeg bekræfte? Hvordan finder jeg tilbage? Hvad sker der ved alarm? | Fortsæt senere går til kataloget og bevarer sessionen. Kataloget viser Fortsæt. Ny timerregression afventer. |
+| Afslutning | Hvornår kan jeg afslutte? Kan jeg fortryde sidste trin? Hvad ser kataloget? Hvordan starter jeg igen? | Alle trin færdige åbner Afslut madlavning. Nyt tryk på et trin gendanner Fortsæt senere. Efter afslutning tilbyder detaljen Start forfra. |
+| Grænser | Hvad hvis foto fejler? Hvad ved genindlæsning? Hvad med flere aktive opskrifter? Virker det på fysisk touch? | Metadata og handling fungerer uden foto. Varig session og fysisk touch er åbne. Én aktiv opskrift kan genoptages ad gangen. |
+
+Chrome ved 1280 × 800 verificerede Start, afkrydsning, sammenklapning, Fortsæt senere, genoptagelse på trin 2 og Afslut madlavning. Sammenklapning bevarer kolonnerne for at undgå ny linjeombrydning midt i et trin.
+
+### Opskrifter · produktplan fra deling til genbrug
+
+**Seneste beslutning.** PodView-kataloget viser gemte opskrifter. Upload, gennemgang og kvittering hører til i kulissen. En upload identificeres med et tag og uploaddato.
+
+Faste revieweksempler: Burgerboller fra Meyers (15 stk., to æltemetoder og hævning) og Protein bagels med hytteost fra Louises Madblog (4 stk., valgfrit fyld og foto i portrætformat). Begge er lokalt renderet ved 1280 × 800 med kildehenvisning, kildebilleder via URL og egne korte trin. De erstatter tidligere eksempler.
+
+| Rækkefølge | Leverance | Accept |
+| --- | --- | --- |
+| 1. Modtag | Modtag links og billeder privat i kulissen. Registrér tag og uploaddato. | Del begge opskrifter fra iPhone. Afsender ser kvittering efter lagring. Gentaget deling skaber ingen dublet. Fejl kan prøves igen. |
+| 2. Gennemse og gem | Kladde med original, titel, antal, foto, ingrediensgrupper og trin. Brugeren kan rette før gem. | Begge kilder kan gennemgås. Ved manglende felter bevares original og kladde. Test hånd/maskine og valgfrit fyld. |
+| 3. Find og genbrug | Varigt privat familiekatalog med A–Å, kildespor, redigering og fjernelse. | Gem, genindlæs, find og redigér begge på PodView. Test tom liste, manglende foto og offline med sidst kendte data. |
+| 4. Tilbered og fortsæt | Varig madlavningssession med aktivt trin, markeringer og scroll. Samme timeralarm og Detail-template. | Begge gennemføres med Start, Fortryd, Stop, tilbage, genindlæs og Afslut. Kontroller at en ny tilberedning starter rent. |
+| 5. Afprøv på enheden | Samme renderer på Green og den fysiske skærm. | Del fra telefon → find → bag → genfind. Verificér touch, læseafstand, skærmhold, offline og alarm fysisk. |
+
+## Opskrifter · designforslag 3. november
+
+| Input | Lokal designvisning | Rester |
+| --- | --- | --- |
+| A–Å som i Kontakter | Højre indeks med træk, stort bogstav og tilbagevenden til samme listeposition | Browser- og fysisk touchprøve |
+| Ingredienser og fremgangsmåde | Separate afkrydsninger og tællere i ListRows, original og nulstilling i detaljen | Ægte kilder og billeder, varig session og visuel brugeraccept |
+| Del → Gem opskrift | Eksempelindbakke med manglende fremgangsmåde og lokalt billedvalg | iPhone-genvej, privat modtager, opbevaring, udtræk og kvittering |
+
+[Klikprototype](../output/opskrifter/opskrifter-preview.html) bruger de registrerede TopBar-, Card-, SectionHeader-, Button- og ListRow-opskrifter samt Detail-template. Alfabetgestussen er et forslag til kompositionen i reviewvisningen. Ingen ny produktfamilie registreret. Syntakskontrol bestået. Browseråbning blokeret af lokalt serverforbud og browserens filpolitik. Billedbevis og sammenligning mellem bibliotek og produkt udestår. Rigtig modtagerservice og hardware ikke kørt. Lokal designvisning, hverken udgivet, installeret eller brugeraccepteret.
+
+### Opskrifter i produktet · 3. november
+
+Denne række afløser den separate designvisning ovenfor. Produktreference er `dist/index.html` → Ro → Lige nu → Opskrifter. Biblioteksreference er de registrerede Card, ListRow, SectionHeader, Button, Checklist og Detail-template; samme Checklist-renderer og kittokens bruges i produktet.
+
+| Input | Ændring og placering | Rester |
+| --- | --- | --- |
+| Samme UI-niveau som PodView | WidgetHost ejer navigationen. Katalog, opskrift og indbakke bruger eksisterende komponenter i venstre detaljeflade. A–Å-indeks, indholdsgrupper, afkrydsninger og original er del af samme forløb. | Renderet review på 1280 × 800 og faktisk touch. Kildedata og originalfotos afventer modtagelse. |
+| Start opskrift og hold den åben | Start opskrift → aktiv madlavning → Afslut madlavning. Inaktivitet og vækning bevarer den åbne opskrift i ScreenLifecycle. Afkrydsninger bevares i den åbne browser og kan nulstilles eksplicit. Fuld skærm udvider indholdet, mens musik fortsætter. | Verificér visuelt, og prøv wake lock på fysisk WebView. |
+| Sofies Del-menu | Indbakken viser et tydeligt mærket screenshot-eksempel og tillader lokalt valg af flere billeder. | iPhone-genvej, privat modtager, lagring, udtræk og reel kvittering. |
+
+Komponentgate, syntakskontrol og inaktivitet/vækning i det eksisterende lifecycle-harness bestået. Impeccable-kildedetektor fandt to eksisterende signaler i produktets skal (køpadding og baggrund); ingen i opskriftsmodulet. Product Design-gennemgang af renderet flow og billedbevis er blokeret af `listen EPERM` ved lokal preview. Rigtig browser, rigtig modtagerservice og fysisk hardware er ikke verificeret. Kilde og lokal build, ingen publicering eller installation.
+
+## 3. november · klikbar Find musik-prototype
+
+[Produkt](http://127.0.0.1:53879/?stage=music-prototype) · [Bibliotek](http://127.0.0.1:53879/library.html#level=screens&component=music&state=music%3Amusic-prototype). Fælles MusicResults, Card, knap, faner, player og lokal fixture. Fire faner med faste roller og eksplicit refresh uden wrap. Hør igen har Se tidligere. Tre lokale grafiske SVG'er, og Opdag viser bevidst et eksempel uden providercover sammen med ægte covers. AI- og personlige Spotify-kilder er ikke koblet på prototypen. Ingen livehandling eller publicering.
+
+Visuel gennemgang af produkt 1280×720 og bibliotekets 1280×800-komposition i browser. Kontrolleret hierarki, fanemarkering, coverformat, spacing, kort-/playerforhold og footer. Første gennemgang viste delvist skjult footer, og det fælles kort blev komprimeret i prototypens korte landskabsvisning. Efterbilleder viser læselig footer og beholdt kvadratformat. De længste tredjelinjer forkortes i kittet. Browserklik separat: faneskift, Opdag → Andre forslag med tre andre kort og samme player, Hør igen → Se tidligere med egen ventetekst. Live AI/Spotify, fysisk lyd og fuld mobil/reduceret bevægelse er fortsat ikke afprøvet.
+
+**Genåbnet efter brugerfeedback.** Opskrifter er nu et kort i Lige nu-gridets faste rækkefølge med samme ikon-, titel- og statuslayout som de andre overblikskort. Hele kortet åbner den eksisterende opskriftsdetalje. Den tidligere indlejring i chatten tæller ikke som bevis. Renderet review og en fungerende forhåndsvisning af produktet udestår fortsat.
+
+### Opfølgende audit · anbefalet retning
+
+Test **Til lige nu · Stemninger · Din musik · Hør igen**. Første fane bruger én situation med tre forskellige musikalske bud. Anden fane giver stabile, selvvalgte retninger. Din musik viser verificerede kontoalternativer og undgår at love opdagelse ud fra samme topsange. Hør igen bruger kronologi og viser fortsættelse kun med verificeret kontekst. Opdag er et muligt senere katalogspor.
+
+Prototypefund: Opdag-roller er positionstitler, ikke dokumenteret rangering. Refresh bladrer i et statisk udsnit med 520 ms simuleret ventetid. Hør igen erstatter synlige kort ved paging. De grafiske covers demonstrerer hurtig lokal fallback, men tre gentagne illustrationer giver svagere genkendelse på tværs af refresh. Prototypeudfald er ikke feltmålinger.
+
+Anbefalet logik: hurtigt første sæt fra verificerede kilder, AI-valgfri temafortolkning baseret på egne signaler, regelbaseret Spotify-match med variation og afspilningskontrol hos eksisterende ejer. Andre forslag skifter kun til reelt nye match, ellers bevar sidste sæt. Historik bør bevare vejen tilbage til det nyeste. Mål fane→brugbare kort, refresh→nye kort, valg→kvittering og valg→bekræftet afspilning separat. Mål varme og kolde forløb på Green før hastighedskrav meldes opfyldt. Audit og forslag, ingen runtimeændring.
+
+**Ny komposition efter clean-slate-bestilling.** Opskriftsdetaljen har én tilbagehandling i PodViews topbar, uafhængige kit-tjeklister, original i fælles Disclosure og et aktivt trin med direkte færdighandling. Start og afslut er eksplicitte. Kataloget kan genoptage aktiv opskrift med bevaret afkrydsning. Fuld skærm skjuler playerfladen, mens afspillerens ejer er den samme.
+
+Browser: faktiske localhost-produkt ved 1280 × 800. Inspiceret overblik, aktivt trin med player, fuld bredde med 1 af 4 trin markeret og indbakke. Klik bekræftet for widget → katalog → Boller → Start → markér trin → fuld skærm → tilbage → fortsæt → afslut → indbakke. Browseren viser eksempeldata. Modtagelse, udtræk, dubletter, læsefejl og offline/retry fra rigtig service, vedvarende familielagring, fysisk touch og skærmhold udestår. Ingen release eller brugeraccept.
+
+**Clean slate · nyt lokalt opskriftsforløb.** Opskriftsrenderer erstattet. Verificeret i localhost ved 1280 × 800: Lige nu → Opskrifter → tom indbakke → tilføj testlink → mangler opskriftstekst → gem manuelt → åbn opskrift → Start → markér sidste trin. PodViews player var synlig under prøven. Inspektion af afslutning viste en deaktiveret trinhandling og tab af topanker; rettet i kilden med afslutning på samme handling og nulstilling af detaljens scroll ved sideskift. Sidste rettelse skal bekræftes visuelt. Det lokale forløb har ingen iPhone-modtager, automatisk udtræk eller permanent lagring. Brugeraccept og fysisk prøve udestår.
+
+### Find musik · køkkenprototype med kontoudsnit
+
+Lokal produkt-/biblioteksfixture music-prototype bruger samme resultatejer. Tid på dagen har ét fremhævet valg og to alternativer, Vibe tre konkrete genreindgange, Din musik og Hør igen kompakte fem-rækkers lister med udvidelse. Eksplicitte morgen-, eftermiddags- og aftenscener. Spotify-playlistenavne er fra det læste udsnit. Covers på disse kort er pakkede illustrationer. Historik og afspilningskvitteringer er fixturedata. Ingen privat kontoforespørgsel, live AI eller hardware i browserforløbet.
+
+Browser visuelt: 1280×720 produkt, fremhævet komposition og listevisning inspiceret. Første listevisning arvede for høj kortgeometri, rettet i fælles CSS og bekræftet med fem synlige rækker. Footer kan ligge i scrollområdet ved denne højde. Klik på listeudvidelse viste pending med bevaret player. Denne iteration mangler fuldt bibliotek-/reduceret bevægelsesreview og fysisk accept.
+
+**Visuel iteration efter afvisning.** Ved 1280 × 800 er den indlejrede kortstak i madlavning erstattet med kit-Hero til aktuelt trin og synlig Checklist ved siden af. Sammenlignet med den arkiverede StepGuide- og overbliksreference. Første browserbillede viste, at Hero spændte over begge kolonner. Efter rettelse viste browserbilledet de to topjusterede flader og den fastholdte player. Programmatisk titelfokus viste en ring; sidste CSS-rettelse fjerner kun denne ring og lader tastaturkontrollers fokusindikator bestå. Én primær handling skifter til Afslut ved sidste trin. Katalog og indbakke er fortsat lokale. Fuld visuel audit af alle scenarier og slutaccept udestår.
+
+### Køkkenprototype · opfølgende audit 3. november
+
+Ny visuel browserstikprøve af Morgen og Vibe på 1280×720 og bibliotekets Afprøv. Klik: Andre forslag gav busy, nyt sæt og bevaret player. Morgenens næste sæt genbrugte to playlister. Vibe viser samme orange illustration på to forskellige valg og lægger selve viben i sekundær tekst. I Morgen ligger Godmorgen i metadata, alternativerne har store tomme flader, og footerhandlingen er delvist uden for viewport. Biblioteket viser prototypens faner, men forklaringen nævner de tidligere titler. Kildeaudit: kompakte lister er CSS-formede resultatkort, ikke kanoniske ListRows. Dagsperioden vælges ved fixturestart, og historikken er simuleret. Næste designrevision foreslår SectionHeader til dagsperioden, Hero plus to ListRows, tydelig genre som primær Vibe-tekst, ét fælles ListRow-mønster for bibliotek/historik og mere bevidst fallback-artwork. Fuld tastatur-, kontrast-, bevægelses-, service- og fysisk accept er åben. Audit, ingen runtimeændring.
+
+**Tre faser i lokal opskriftsvisning.** Inspiceret renderet produkt ved 1280 × 800: klargøring med synlig ingrediensliste, trin 4 af 4 med 220 °C og 15 minutter i fuld venstre indholdsbredde, og afslutning med samme knapanker og tilbagetrukne ingrediens-/trinrækker. Tastaturforløbet blev gennemført til afslutning. Rest: topanker mellem læse-/arbejdsflade, fysisk læseafstand, længere flersammensat opskrift, timerafbrydelse, katalog/indbakke og samlet visuel accept.
+
+### Køkkenprototype · næste iteration og Lost
+
+Morgen har SectionHeader og Andre forslag øverst, Hero samt ListRow-alternativer. Vibe prioriterer genren og viser forskellige lokale motiver. Din musik og Hør igen bruger registreret ListRow-anatomi. Demolinjen på Lost er fjernet. Bibliotekets forklaring nævner de nye faner. Produktbilleder ved 1280×720 viste Lost med samme to tekstlinjer som øvrige rækker og synlig refresh i morgenens header efter gridrettelse. Live covers, historik, AI og fysisk afspilning er fortsat åbne. Fuld biblioteksmatrix og bevægelsesaccept udestår.
+
+**Fuld bredde efter brugerbeslutning.** Opskrifter bruger produktets fælles topbar med den aktuelle sidetitel og én tilbagehandling. Medieplayer vises ikke i opskriftsoverfladen. Læsning bruger to indholdskolonner, madlavning bruger én bred Hero med separate relaterede rækker, katalog bruger liste og typografisk indeks. Kittets 32/24/16/8-roller følger Device/Tesla/Hue/Robot-kontrakten. Aktiv fremdrift ligger på den faktiske katalogrække, og én aktiv opskrift kan fortsættes. Vedhæftet originalbillede vises ubeskåret i kildesøjlen; eksempel uden billede viser ingen reserveillustration. Browserbilleder af klargøring og aktivt trin ved 1280 × 800 inspiceret, uden player. Billedtilstanden og fuld visuel kitaccept udestår. Ingen release eller hardwareprøve.
+
+### Find musik · visuel, kit- og copyaudit
+
+Fire renderede produktfaner inspiceret i Chrome. Morgenens Andre forslag er synlig i SectionHeader og hører til samme gruppe som Godmorgen. Vibe, Din musik og Hør igen har derimod handlinger ved bunden af indholdsområdet, med stor afstand til sidste valg ved høj viewport. Anbefaling: samme headerhandling for Vibe, naturlig footer efter sidste række for de to lister. Brug eksisterende Button, behold label under pending og placér udtømnings-/fejlfeedback ved handlingen. Morgenens feedback har i kilden samme gridrække som resultaterne og skal afprøves for overlap. Heroens handlingsikon har mindre visuel vægt end ListRow-handlingerne, og alternativerne har for stor indbyrdes afstand. Vibe har korrekt genre→playliste-hierarki. Din musik og Hør igen har rolige rækker, og Lost er fri for demolinjen. Brug tydelige, kildebårne musikbeskrivelser, og markér eventuelle eksempeldata på fladeniveau. Ingen runtimeændring i denne audit. Nyt biblioteksbillede, smallere mål, fokus/kontrast og pending/fejl er åbne.
+
+**Opskrifter · IA- og billedrunde.** Chrome på localhost, 1280px produktcanvas i bredere viewport. Inspiceret katalog med/uden foto, læsning med to ingrediensgrupper og foto, langt trin med temperatur/tid og fælles header. Første runde viste strakt sidste katalogrække; fjernet kunstig minimumshøjde og verificeret kompakte rækker i anden runde. Produktklik/tastatur: start → markér → tilbage → fremdrift på katalogrække → fortsæt på korrekt trin → afslutning → fortryd → afslut. Kildebilledets ramme er ubeskåret; katalogets miniature er beskåret. Citronkagens eksisterende køkkenmotiv er markeret som ingrediensfoto i eksemplet. Komponentgate bestået; fem kendte netværksprøver fejler i sandbox. Ny visuel sammenligning med renderet bibliotek/nabodetaljer, eksakt 1280×800 på denne build, upload fra iPhone, varig lagring, timer og fysisk prøve er åbne.
+
+### Radio til v2.X · 3. november 2026
+
+Den [lokale releasekandidat](../integration/radio-v2x-release-20261103/README.md) binder PodConnect `3b1fc53` til den samlede PodVoice/PodView `b050588`. Kanonisk player viser fælles startfeedback og Stop for live radio. Produkt og bibliotek er gennemgået renderet i Chrome med Product Design og Impeccable; ingen ekstra topstatus eller dobbelt ramme. Browser- og regressionstest dækker begge retninger af kildeskift under lydstyrkebetjening. Ni adskilte runtimeforløb bestod med inerte modtagere; en tidligere fixture-startfejl er uafklaret og tæller ikke som bestået. Se pakkens UI-billeder og receipts. Software og visuel gennemgang er registreret; slutimage skal bygges i release CI, og brugeraccept, Green-installation og fysisk afprøvning er udestående.
+
+### Find musik · placering af handlinger
+
+I den lokale prototype deler Tid på dagen og Vibe samme SectionHeader-placering for forslag. Din musik og Hør igen placerer deres knap direkte efter listen. Fejl og tomt resultat har en separat gridrække. Komponentkontrol og 72 fokuserede tests bestået. Visuel efterkontrol i produkt og bibliotek samt kliktest af feedback udestår.
+
+### Robot · samlet fornyelseskandidat 3. november
+På `/private/tmp/pv118-integrated-final-20261103` er asset-build og komponentgate bestået, samt 131 målrettede robot-/fornyelsestest. Backendens faktiske `tests/integration/test_podview_controls.py` består 133/133 i Python 3.12 med inerte lokale afhængigheder; testet patch `/private/tmp/pv118-backend-renew-tested.patch` SHA-256 `528f53fbd2521f752ca69a9d2065dc9b593c171fe287704fd2ca591808926417`. En ny testfixture blev rettet til gyldigt bytte af kortsegmenter, hvorefter ændret kort bekræfter `not_restored`. Lokal produktvisning på 1280 × 800 er visuelt gennemgået for alle tre typer: fuld bredde for sugeevne ved Støvsug og vandmængde ved Vask, samt normal rækkeafstand. Visningen bruger eksempeldata; fysisk handling blev ikke udført. Versionsbundet samlet UI-test, faktisk browser mod serverfornyelse, integration i frossen releasekilde, publicering, installation og fysisk accept udestår. Releaseejer er orienteret; ingen release-GO er givet.
+
+Sammensat inert browser/server-prøve 3. november: faktisk PodViewBridge + runtimepanel med produktets `controlTask`-normalisering. Ændret rum og Maks blev bevaret ved fornyelse (`restored`, samme node, `draftKept`, `writes=0`); Start-event anvendte det nye option-ID. Ved aktiv rengøring med udbudt Pause/Stop/retur blev Pause-noden bevaret (`nodePresent`, `sameNode`, `restored`) og Pause-event brugte nyt option-ID. Handlinger blev opfanget lokalt og ingen fysisk robotkommando sendt. Dette viser det prøvede forløb, ikke at alle mulige årsager til blink på Green er bevist eller fysisk accept er opnået.
+
+**Opskrifter · læsning og madlavning i samme visning.** Browserfeedback viste afkortede trin, gentagne foldemenuer, en dominerende trin-Hero og et katalogbillede uden synlig header. Produktets opskriftsrenderer bruger nu Checklist til ingredienser og en nummereret liste med kittets brødtekst til hele fremgangsmåden. Start står øverst i metoden, den aktuelle række ejer næste handling og fortryd, og kataloget bevarer fortsættelse. Den fælles topbar har sticky placering i opskriftsoverfladen. Referencer: produktets Lige nu → Opskrifter og bibliotekets Card, SectionHeader, Button, Checklist og TopBar. Det indsendte browserbillede er før-billede. Efterbilleder, fuldt visuelt plugin-review ved 1280 × 800 og timerafbrydelsen er åbne.
+
+### Find musik · lange titler i lister
+
+Browserkommentar på Get Lucky ved 1196 × 1060: de eksisterende musik-ListRows i prototypen afkorter titel og kunstner visuelt til én linje hver med ellipsis. Komplet tekst bliver i DOM og i det tilgængelige navn. Cover- og playkolonnen beholder deres pladser. Visuelt efterbevis i produkt og bibliotek udestår.
+
+### Find musik · balance i morgenvisningen
+
+Browserkommentarer ved 1196 × 1060: overskrift og forslagshandling konkurrerede, og hovedkortet var gråt ved siden af små alternativer. Fjernet den særskilte grå flade, brugt neutral kitflade, hævet sektionsoverskriften til titelrollen og gjort forslagshandlingen visuelt roligere med uændret trykhøjde. Morgenens kolonner deler bredden ligeligt, og alternativerne har mere plads. Renderet efterbevis i produkt og bibliotek udestår.
+
+### Find musik · cover, alternativer og køfeedback
+
+Morgenens højre kolonne får mere bredde, mens Hero-coveret har et loft på 144 CSS-px. Morgenalternativer beholder flerliniereglen. Énlinjeafkortning gælder bibliotek og historik. Lokal prototypekø sender valg gennem eksisterende pending/receipt og viser venteringen på den valgte række med reduceret bevægelse. Fokuserede tests og komponentkontrol bestod. Visuelt efterbevis og live køfeedback udestår.
+
+### Find musik · listeudvidelse i scrollflow
+
+Browserkommentar ved 1196 × 1060: Se tidligere skal ligge efter hele den udvidede liste. Din musik og Hør igen reserverer nu en række efter listen i venstre scrollflade, også ved smalle mål. Bundafstand giver luft til handlingen. Visuel browser-/biblioteksefterkontrol udestår.
+
+### Find musik · kompakt morgen-Hero og flash ved forslag
+
+Godkendt iteration: Tid på dagen bruger en vandret Hero over to lige brede alternativer ved mindst 1000 CSS-px. Cover, titel og play står på samme række. Alternativerne beholder to titellinjer. Ved refresh i prototypen forbliver indholdet synligt under hentning, og nye indholdslag starter tæt på fuld synlighed. Visuel efterkontrol i produkt og bibliotek samt gentagne refresh med reduceret bevægelse udestår.
+
+**Opfølgning.** Afslut ligger nu efter sidste trin. Ved trinskift følges handlingsknappen med fokus og mindst mulig scroll. Ny build og komponentgate bestået. Localhost svarer ikke fra sessionen, og visuelt efterbillede og timerprøve udestår.
+
+### Find musik · morgenlayout efter brugerkommentar
+
+Ved 1270 × 1060 foretrækkes den tidligere to-kolonnekomposition. Morgen-Hero spænder igen over to lige høje rækker til venstre. Jazz og Lounge strækker sig hver over én række til højre, med fælles mellemrum. Heroens cover er venstrejusteret, og titel og play deler den nederste række. Visuel efterkontrol i produkt og bibliotek udestår.
+
+### Find musik · fælles højde for Tid på dagen og Vibe
+
+Fra 1000 CSS-px beregnes morgenlayoutets minimumshøjde fra Vibes kortbredde, cover, tekstfelt, playfelt og mellemrum. De to alternativer deler fortsat højden til højre. Kort viewport bruger den tilsvarende kompakte teksthøjde. Visuelt efterbevis i produkt og bibliotek udestår.
+
+### Find musik · Vibe som højdemål
+
+Brugeren bekræfter Vibes eksisterende korthøjde som reference. Tid på dagen får den beregnede højde direkte på kortgruppen med specificitet over detailvisningens generelle height:auto. Vibes kort ændres ikke. Forslagshandlingen bliver i SectionHeader med roligere kant og eksisterende fokus. Renderet efterkontrol ved 1270 × 1060 udestår.
+
+Find musik · browserkommentarer ved 1270 × 1060: Begge listehandlinger centreres under sidste række. Visuel efterkontrol i produkt og bibliotek udestår.
+
+### Find musik · Vibe og Din musik
+- Vibe viser tre musikretninger med konkrete playlistenavne. Den lokale dagsperiode vælger startsættet. Flere vibes går videre til to andre sæt uden gentagelse af playlisten.
+- Din musik har Lavet til dig med en tom tilstand, indtil personlige Spotify-mixes er verificeret, og Dine playlister med prototypens eksisterende kontoudsnit. Flere playlister udvider den nederste liste.
+- Ændringer i de eksisterende MusicResults- og widget-model-ejere. Visuelt review af produkt og bibliotek, live Spotify og fysisk prøve er åbne.
+
+### Green-installation 2.0.118 · 3. november
+Home Assistant Supervisor viste PodVoice 2.0.117 kørende; opdatering til 2.0.118 blev installeret med sikkerhedskopi og viste efterfølgende 2.0.118 og Kører. Faktisk Ingress/PodView viste robot med rigtige rum, status Rent vand mangler og den mørke deaktiverede primære Start-knap med lyst ikon/tekst. Rumvalg blev afprøvet uden startkommando og gendannet. Efter cirka 20 sekunder viste tilgængelighedstræet en udskiftning af robotpanelets elementer, mens det valgte rum og knaptekst blev bevaret; det dokumenterer ikke alene et synligt blink eller dets årsag, men betyder at blinkfri fornyelse ikke kan erklæres verificeret på Green. Efter cirka 45 sekunders inaktivitet vendte visningen tilbage til overblikket. Fejltilstanden Rent vand mangler og ingen aktiv rengøring forhindrede prøve af aktiv rengøring og fysisk effekt. Ingen robotkommando blev sendt. Frameo/hardwareaccept og faktisk gentaget fornyelse kræver yderligere observation.
+- Din musik blander prototypebiblioteket ved ny indlæsning. Flere playlister bevarer de første rækker og tilføjer resten. Spotify-forbindelsen i ChatGPT returnerede Daily Mix 1 som MADE_FOR_YOU og PLAYABLE. PodViews egen kilde og afspilningsvej er fortsat uverificeret for Daily Mix.
+- Daily Mix 1 er en Spotify-linkrække under Lavet til dig i den lokale Din musik-prototype. Rækken bevares, når Dine playlister udvides. Klik åbner Spotify i ny fane. Direkte afspilning via PodViews kontobundne musikvej og visuel browser-/kitkontrol af rækken udestår.
+
+### Find musik · releasebestilling
+Brugeren har bestilt en samlet release og præciseret, at direkte Daily Mix-afspilning er ønsket, men ikke en releaseblokering. Reference er det godkendte klikbare Find musik-forløb fra tråden. Bevar fanerne Tid på dagen, Vibe, Din musik og Hør igen, Voice PE som søgeindgang, den fælles højde for Tid på dagen og Vibe, hovedkortet med to alternativer fordelt over højden, læsbare titler, stabil indholdsopdatering uden flash, fælles afspilningsfeedback og centrerede udvidelseshandlinger under listerne. Tidspunktet styrer begge startudvalg. Din musik har Lavet til dig og varieret playlistestart. Flere playlister og Se tidligere udvider deres respektive lister.
+
+Før release skal den faktiske kandidat matche referencen i produkt og kit og bruge den eksisterende kontobundne afspilningsejer. Daily Mix-linket beviser Spotify-navigation; PodViews egen kilde og afspilningsvej mangler fortsat bevis. Kontrollér klik, visuel paritet og de faktiske musikhandlinger på samme kandidat. Release/installation koordineres af integrationslead under det gældende Robot/Tesla-hold. Ingen release er udgivet med denne registrering.
+
+Præcisering fra brugeren: Releasebestillingen gælder hele den godkendte funktion. Verificér tabstart og faneskift, genvalg uden at afbryde afspiller eller kø, forslagsskift, udvidelse af lister, kontobundne Spotify-valg og reel historik, afspilning og transport, kø, destination, loading og recovery. Release kræver bevis for afspilning og pause gennem den eksisterende ejer på samme konto og output. Spotify-linket er prototypebevis for navigation alene.
+
+#### Find musik · konkrete acceptpunkter fra tråden
+
+| Feedback | Prøve på releasekandidaten |
+| --- | --- |
+| Kø og afspilningsfeedback | Tryk på et nummer i køen. Vis samme ventetilstand på den valgte række som ved valg af nummer eller playliste andre steder. Bekræft faktisk afspilning og korrekt titel/output. Bevar afspiller og kø under faneskift og hentning af forslag. |
+| Flash ved nye forslag | Tryk gentagne gange på Andre forslag og Flere vibes. Bevar kortene under hentning. Skift kun ændret indhold med rolig overgang, uden flash, hop eller blink ved uændrede svar. Prøv også reduceret bevægelse. |
+| Højde, cover og overskrift | Tid på dagen matcher Vibes godkendte korthøjde. Hovedkortet har egen tydelig hierarki med samlet cover, titel og play. To alternativer deler hele højden. Godmorgen og Andre forslag afbalanceres under fanerne. Kontrollér knappen i hvile og ved synligt tastaturfokus. |
+| Lange titler og listehandlinger | Jazz og Lounge må bruge op til to titellinjer. Lange listeoverskrifter som Get Lucky afkortes visuelt med fuld titel tilgængelig for hjælpemidler. Lost har titel og kunstner uden prototypebemærkningen. Flere playlister og Se tidligere centreres efter sidste række og må ikke overlappe indhold. |
+| Indhold og coverfallback | Tid på dagen og Vibe starter ud fra tidspunktet. Vibe viser konkrete, skiftende retninger og faktiske playlistenavne. Din musik varierer startsættet og bevarer rækkefølgen under besøget. Brug verificerede Spotify-covers, hvor kilden leverer dem, og hurtige, tydeligt forskellige grafiske fallbacks ellers. |
+
+Køanimation: Kittets eksisterende spinner og kontrast deles nu af Find musik og køen. Køindikatoren er centreret i play-ikonets egen gridcelle, også ved reduceret bevægelse. Lokal og live kø bruger deres eksisterende pending-tilstande. Lokal browser- og visuelt kit-review er blokeret i denne kørsel: previewserveren kunne ikke binde port 53879 (EPERM). Direkte afspilning og fysisk accept er ikke kørt.
+
+Brugeraccept for Din musik: Inddelingen i Lavet til dig og Dine playlister er godkendt. I den færdige version må valg i Din musik aldrig åbne Spotify i en ny fane eller i Spotify-appen. Vis kun Daily Mix som spilbar række, når PodViews eksisterende kontobundne ejer kan starte den på det valgte output med almindelig afspilningsfeedback. Uden den kapabilitet udelades mixrækken fra releasen. Bevar inddelingen, og brug en ærlig tom tilstand for Lavet til dig, hvis der ikke er andre afspillelige personlige mixes. Daily Mix er fortsat valgfri for releasen.
+
+Ny beslutning for Din musik erstatter inddelingen ovenfor: Én fælles dynamisk liste med egne/gemte playlister og verificerede personlige mixes, når de kan afspilles via PodView. Flere playlister udvider den samme liste uden at flytte de viste rækker. Lokalt eksempel samler listen og varierer placeringen af Daily Mix-linket. Den færdige version må ikke åbne Spotify. Browser- og kit-review af den samlede liste udestår.
+
+Spotify-linket er fjernet fra MusicResults, inklusive prototypen. Din musik bevarer én dynamisk liste. Livekataloget leverer fortsat højst tre autoriserede valgmuligheder pr. sæt gennem collectionSelection. En voksende live-liste kræver, at tidligere viste rækker kan få fornyet valgrettighed uden at omgå ejerens kandidatbinding. Visuelt review og 1:1 live-release er åbne.
+
+Live Din musik: Den kontobundne playlisteliste starter med fem i varieret rækkefølge og udvides med fem ad gangen inden for den verificerede Spotify-side på højst 20. Tidligere viste rækker bevarer deres indbyrdes rækkefølge. En række uden for det aktuelle afspilningssæt får et nyt valg gennem eksisterende kandidatfornyelse, eksakt identitetsmatch og samme outputejer. Spotify-link er fjernet. Browser/kit, live service og fysisk afspilning samt fuld paritet for de øvrige faner er åbne.
+
+### Robot · brugerafvist spacing og genåbning 3. november
+Brugeren afviser den installerede fejl-/vedligeholdelsesflades spacing; den er ikke UI-godkendt. Isoleret kitkandidat `/private/tmp/pv118-fault-rhythm-20261103`, patch `/private/tmp/pv118-fault-rhythm.patch`, bruger fælles disclosure/recovery-tokens til indvendig afstand og afstand mellem fejl og vedligeholdelse. Produktvisning 1280×800 med kombineret fejl og fire påmindelser er inspiceret i browser, lukket og åbent; bibliotekets samme scenarie er åbnet. Product Design og Impeccable anvendt; build, komponentgate og 120 fokuserede robottests PASS. Muligt kortvarigt overlap under udfoldning er observeret i ét screenshot, men årsag og gentagelse ikke dokumenteret. Kandidat ikke integreret, udgivet, installeret eller brugeraccepteret.
+
+Live 2.0.118: AX-indeksændring alene beviser ikke genopbygning; ved efterfølgende åbning blev dog faktiske `robot-cleaning-*` ID'er ændret mellem initialt disabled og senere aktivt tilbud. Kilden har en genåbningsvej der nulstiller et eksisterende tilbud og deaktiverer kontroller under hentning. En isoleret kandidat `/private/tmp/pv118-reopen-fix.patch` bevarer gyldige tilbud ved samme kontekst, med 168 fokuserede test og gate PASS; uafhængig sikkerhedsgennemgang gennemført. Den dækker ikke første åbning uden et eksisterende tilbud, og forbindelsen til den faktiske liveobservation er ikke kausalt bevist. Ingen release eller installation af disse kandidater.
+
+Opfølgning: Overlappet ved åbning af Vedligeholdelse skyldtes screen-lifecycle-højdelåsen, som fastholdt den gamle detaljehøjde i to sekunder efter berøring. Kandidat `/private/tmp/pv118-fault-rhythm-20261103` frigiver låsen ved disclosure-interaktion; øvrige interaktioner beholder beskyttelsen. Produkt og kit er visuelt kontrolleret åbent, 32 lifecycle-tests inkl. kausal regression og build PASS. Patch `/private/tmp/pv118-disclosure-geometry.patch` er overdraget til v2.X; regressionstesten skal ind i den kanoniske suite. Green viste under passiv kontrol genoprettelse af forbindelsen, så det observerede robotblink kan fortsat ikke forbindes sikkert til genåbningsfejlen. Ingen release eller installation af denne opfølgning er bekræftet.
+
+### Find musik · v2.x-integrationsarbejde
+Livekataloget anvender nu samme MusicResults-komposition som den godkendte lokale visning. Faner og handlingsplacering følger Tid på dagen, Vibe, Din musik og Hør igen. Første udvalg i Tid på dagen og Vibe roteres efter lokal dagsperiode inden for det faktiske serverudbud. Dette er endnu ikke særskilt tidsbaseret serverkuratering. Hør igen viser fem unikke faktiske numre i kildens rækkefølge og udvider i samme liste. Din musik og Hør igen fornyer det valgte elements kandidatbinding, hvis rækken ligger uden for det aktive afspilningssæt. Der anvendes ingen eksterne Spotify-links.
+Byg og komponentgate kørt. Browser, visuelt kit-review og fysisk afspilning på samme v2.x-kandidat udestår. Daily Mix er valgfri. Integrationslead og eksisterende Robot/Tesla-hold gælder for publicering.
+
+### PodVoice v2.x · lokal integration af Find musik
+Selektivt integreret i en isoleret kopi af PodVoice-kandidaten med base 652499b349f0c45973e366221ff8667dc5ed944f. Build og served static har identiske musikbytes. Patch: /tmp/podvoice-find-musik-integration.patch. Kandidat: /tmp/pv-music-integrated-dmkawrr4. Bevarede PodVoice-beskyttelser omfatter den eksisterende musikhandlingslås, settlement/recovery og artwork retry. Komponentgate og 236 berørte tests består. En bred kørsel på mellemkandidaten fandt fire sandboxblokerede localhost-tests og tre berørte afvigelser, som bestod ved fokuseret genprøve. Chrome kunne åbne produkt- og biblioteksoverflader. Morgenbilledet viste konkret overlap i alternativerne, rettet med eksplicit grid; sidste visuelle kontrol, rigtig Spotify/Green og samlet release er åbne. Ingen ny manifestpin eller version er tildelt den lokale kandidat.
+
+Coverfeedback 1156 × 1060: Chrome-billedet /tmp/pv-cover-final.png viser 208 px hovedcover og 88 px alternativcovers med læsbare titler. Kompakte lister har faste 56 px covers; visuel kliktest udestår. Kandidatens coverkæde bruger Spotify → allerede genereret temabillede → kanonisk fallback, med neutral reserveret plads under decode og bevaret billede ved rolig opdatering af samme indhold. 121 berørte cover-/renderertests og komponentgate består. Den eksisterende AI-generator producerer fotografisk temakunst; ny grafisk stil og livegenerering er åbne. Integrationspatch er genbygget; ingen Green-installation.
+
+Releasekontrol på den isolerede musikkandidat: Chrome-visuel kontrol af Tid på dagen, Vibe og Hør igen ved 1156 × 1060 med lokale fixtures. Din musik og Hør igen blev gennemklikket og måltes til 56 × 56 pr. cover. 218 serverede asset-hashes verificeret; patch omfatter opdateret assetmanifest. Komponentgate bestod, 4897 af 4901 tests bestod i almindelig kørsel, og de fire localhost-tests, der fik EPERM, bestod på de samme bytes ved genprøve med fungerende localhost. Dette er en testet musikintegration; officiel versionsadmission, samling med Robot/Tesla, Green og grafisk AI-generation udestår. Eksisterende tematisk AI-lager binder stilprompten i sin godkendte policy-hash. En promptændring alene ville afvise det eksisterende lager og må ikke føre til ny automatisk generation.
+
+**Opskrifter · katalogscroll og Ny.** Chrome 1485 × 1060 målte 924 px listehøjde. A, P og Å blev prøvet med fælles topstreg, kantfade og kitskygge. Ny vises ved katalogrendering i syv dage fra upload, også efter åbning. Ældre poster kan bruge oprettelsesdato. Privat uploadmodtager afventer.
+
+**Opskrifter · indhold og topkant.** Chrome ved 1485 × 1060 viste Burgerboller med foto, beskrivelse og metadata, testopskrifter med billedikon samt detaljeheaderens Start. Katalogets topkant og topstregen målte begge y=80 px efter tryk på B. Fotoets fejlhandler bruger samme ikon som poster uden foto. [Arla-reference](https://www.arla.dk/opskrifter/citronkage/).
+
+| Situation | Spørgsmål gennemgået | Beslutning |
+| --- | --- | --- |
+| Find | Hvad hedder retten? Hvad gør den genkendelig? Hvor meget giver den? Hvor kommer den fra? | Titel, kort beskrivelse, antal og kilde. |
+| Vælg | Hvor længe er den i ovnen? Er der hævetid? Kan jeg kende fotoet? Hvad hvis billedet mangler? | Angiv bagetid som bagetid, nævn hævning i beskrivelsen, brug kildefoto og fast ikonplads. |
+| Data | Hvad hvis billedlinket fejler? Hvis tid er ukendt? Hvis antal mangler? Hvis der kun er testdata? | Samme ikon ved billedfejl. Vis kendte værdier og mærk testopskrifter. |
+| Åbn | Gentages titlen? Hvad viser headeren? Hvor starter jeg? Er ingredienser synlige? | Titlen står i topbaren. Kortet samler foto, beskrivelse, fakta og Start. Ingredienser åbner som standard. |
+| Tilbered | Hvor er jeg? Hvordan fortryder jeg? Kan jeg skjule ingredienser? Hvordan forlader jeg opskriften? | Trinstatus, vendbar trintekst, sammenklapning og Fortsæt senere. |
+| Genoptag | Hvad betyder Ny? Hvordan vises fremdrift? Hvornår afslutter jeg? Hvad efter genindlæsning? | Syv dage fra upload, Fortsæt i kataloget, Afslut efter sidste trin. Varig session afventer. |
+
+**Opskrifter · I gang og Stop.** Aktiv opskrift står én gang øverst i kataloget under I gang, med fremdrift og Fortsæt. Stop madlavning bruger fælles Dialog og beder om bekræftelse før nulstilling. Chrome verificerede Burgerboller → trin 1 → Fortsæt senere → genoptag → afvis Stop med bevaret trin → bekræft Stop, hvorefter I gang forsvandt.
+
+**Opskrifter · ensartede katalogrækker.** Chrome 1485 × 1060 viste titel med kendt kilde, antal og udtrykkelig bagetid på en fast underlinje. Beskrivelse og metode ligger i detaljen. Testopskrifter mærkes uden opdigtet antal eller tid. I gang viser fremdrift på underlinjen.
+
+**Opskrifter · foldbart ingredienskort.** Card og Disclosure deler den hvide flade. Enkeltgrupper viser samlet tæller i overskriften. Chrome 1485 × 1060 verificerede to markeringer, sammenklapning med synlig status og genåbning med bevarede markeringer.
+
+**Opskrifter · fælles Hero.** Lokal Chrome 1485 × 1060 sammenlignede Tesla uden forbindelse, Robot ved basen, Hue med tændte lamper og Vejr. Opskrifter genbruger Hero med 200 px minimum og 32 px indryk. Foto, fakta og knapper er visuelt efterset i aktiv Burgerboller, og Start skiftede til Fortsæt senere.
+
+**Opskrifter · Om opskriften.** Kilde, tilgængelige upload- og gemmedatoer samt originalfilnavne står direkte i detaljen. Browser 1485 × 1060 viste Kilde · Meyers uden ekstern handling. Eksempelposten har ingen upload- eller gemmedato.
+
+**Opskrifter · aktiv status.** Katalogets aktive række bruger fælles ListRow-farve for den aktuelle post og står øverst. S-widgetten viser I gang i sit eksisterende statusfelt. I Chrome 1485 × 1060 skiftede widgetten til I gang efter Start og tilbage til Se katalog efter bekræftet nulstilling.
+
+**Opskrifter · rød nulstillingsknap.** Bekræftelsen bruger den fælles Button med farefarve i Dialog. Product Design-gennemgang af lokal Chrome-visning viste tydelig forskel mellem Nulstil og Fortsæt madlavning. Impeccable-kildescanningen gav ingen fund. Brugeraccept afventer.
+
+**Opskrifter · ingredienskortets hierarki.** Disclosure i Card flugter med gruppeoverskrifterne og bruger samme titelrolle som Sådan gør du. Lokal Chrome viste åben og lukket tilstand og bevarede ingrediensmarkeringen. Impeccable-kildescanning uden fund. Fysisk accept afventer.
+
+**Opskrifter · afslutning og historik.** Afslut madlavning rydder sessionen og gemmer de seneste fem gennemførsler i lokal browserlagring. Katalogets Card og read-only ListRow viser titel og tidspunkt. Lokal Chrome verificerede nulstilling og historik efter genindlæsning.
+
+**Opskrifter · fakta og historik.** Detaljen bruger Card og read-only ListRow i to kolonner. Visuelt efterset i lokal Chrome. Burgerbollernes fem trin blev gennemført, og samme historiktidspunkt blev verificeret efter genindlæsning.
+
+**Opskrifter · aktiv katalogrække.** I gang står inde i den mørke ListRow over titlen. Lokal Chrome viste Burgerboller med 96 px foto, 128 px række og synlig fremdrift. Impeccable-kildescanning uden fund.
+
+**Opskrifter · releaseindhold.** Kataloget starter med Burgerboller fra Meyers og Protein bagels med hytteost fra Louises Madblog. Lokale testopskrifter og eksempelmetadata er fjernet. Historik vises for opskrifter i kataloget. Ved 1280 × 800 gennemførte lokal Chrome Bagels og viste gennemførslen efter genindlæsning. Fælles release afventer det aftalte Robot/Tesla-hold og integrationens accept. Delt, varig import og genoptagelse efter genindlæsning kræver særskilt arbejde.
+
+**Opskrifter · klar til releaseoverdragelse, 3. november 2026.** Lokal build med Burgerboller og Protein bagels samt sammenfoldet gennemførelseshistorik. Pakke: /private/tmp/podview-opskrifter-release.WnNqpD/podview-dist.tar.gz. SHA-256: f3ff56bba4373dc0b2ba2425c4b7acbd5421177f3800e3104e1bc8464a0dd33b. Integrationslead skal optage den i en navngiven kandidat. Robot/Tesla-holdet gælder fortsat.
+
+**Opskrifter · uploadplan.** Første kanal er Del fra iOS med opskriftslink. Den fælles import bag kulissen validerer kilden, udtrækker opskriftsdata og relevante billeder og gemmer først efter kildekontrol. Manglende trin eller modstridende oplysninger kræver gennemgang uden for PodView. Gem original URL, kilde, tilføjelsesdato og en stabil opskriftsidentitet i familiens katalog. Kvitter på telefonen efter lagring, genkend dubletter, og vis Ny i syv dage. Afprøv begge kendte kilder, dobbelt deling, ugyldig kilde og adgang efter genindlæsning på Green. Billeder fra iOS og mail kan kobles på samme import efter linkforløbet.
+
+**Opskrifter · opdateret releasepakke, 3. november 2026.** Indeholder tre opskrifter, kategorifiltre og lokal sletning. Kylling i karry åbnet via Aftensmad i Chrome. Byg og komponentgate bestået. Pakke til integrationslead: /private/tmp/podview-recipes-2026-11-03/podview-dist.tar.gz. SHA-256: ef0364e82a78284dcb1c24ac9562817aae67805febe457495f397ec03a30d97c. Afventer optagelse i navngiven kandidat og Robot/Tesla-hold.
+
+**Upload · rækkefølge og accept.**
+1. Afprøv iOS-delingsforløbet med et link og en privat modtager for familien. Vis Modtaget, hvis behandlingen fortsætter, og Gemt først efter varig lagring.
+2. Udtræk opskriftsdata og billeder fra kilden. Bevar original URL, udgiver, tilføjelsesdato og kategorier. Knyt kun billeder til trin ved eksplicit belæg i kilden. Send mangler og modstridende trin til kontrol bag kulissen.
+3. Gem under en stabil identitet. Samme URL og gentagne forsøg skal give én katalogpost. Opdater relevante kategorifiltre, og vis Ny i syv dage fra tilføjelsen. PodView viser det publicerede katalog.
+4. Prøv Meyers, Louises Madblog og Emma Olsen fra en iPhone til Green. Kontrollér gentagen deling, en utilgængelig kilde, en opskrift med manglende trin og kataloget efter genindlæsning. Udvid derefter med fotodeling og eventuelt mail via samme modtager.
+
+**Opskrifter · varigt lager og linkmodtagelse.** Den lokale server kan nu tage imod et link og gemme det i en privat gennemgangskø på disk. En operatør publicerer den kildekontrollerede opskrift. PodView henter publicerede opskrifter, når kataloget åbnes, og bevarer de otte medfølgende opskrifter. Test af handleren med midlertidig datamappe dækkede adgang, ugyldigt link, samtidige dubletter, afvisning af manglende felter, publicering og genåbning af lageret.
+
+Start lokalt med `PODVIEW_RECIPE_DATA` sat til en varig datamappe uden for dist og `PODVIEW_RECIPE_TOKEN` sat til en hemmelig værdi. Kør `npm run dev -- --host 127.0.0.1`. Til en iOS-genvej bruges inputtypen URL og en JSON-POST til `/api/recipe-submissions` med feltet `url` og Authorization Bearer. Vis svarets `message` på telefonen. Modtagelse kvitterer med Modtaget til gennemgang. Gentagen deling af en publiceret URL kvitterer med Gemt. Læs køen med autoriseret GET til samme sti. Publicér en kildekontrolleret JSON-post med `node scripts/recipe-catalog.mjs <server-URL> <opskrift.json>` og samme miljøvariabel til adgang. Posten bruger katalogets titel, udgiver, source.url, categories, groups og steps samt relevante billed- og tidsfelter.
+
+Green mangler at montere lageret og de tre ruter bag hjemmets adgangskontrol. Den lokale GET-rute arver kun serverens netværksadgang. iPhone-genvejen, kildeudtræk, kvittering til telefonen efter manuel publicering og browserprøve på Green udestår. Test releasekandidaten med både alle otte medfølgende opskrifter og en ny post fra lageret efter genindlæsning.
+
+**Opskrifter · fælles kataloglager.** De otte opskrifter ligger nu i `scripts/recipe-seed.json` og migreres én gang ind i samme `catalog.json` som publicerede uploads. Eksisterende poster vinder ved samme normaliserede URL. Browseren henter kataloget fra API'et. Lokal udvikling bruger som standard `~/.podview/recipes` med mulighed for at angive `PODVIEW_RECIPE_DATA`. Skjulning på en enhed gemmes fortsat som en lokal visningspræference. Drift på Green kræver de private API-ruter og en varig datamappe før release. De fokuserede katalogtests dækker migrering, genstart, adgang, dubletter, ugyldig og for stor indsendelse, mangelfuld gennemgang samt korrupt og repareret lager.
+
+**Opskrifter · uploadkvittering.** Brug `PODVIEW_RECIPE_UPLOAD_TOKEN` til iPhone. Den giver adgang til POST `api/recipe-submissions` og GET `api/recipe-status?id=<kvittering>`. Gennemgang og publicering kræver fortsat `PODVIEW_RECIPE_TOKEN`. Kvitteringen kan læses igen efter publicering og servergenstart. De fem katalogtests bestod. Kandidatpakken i `output/recipe-release/podview-recipes-candidate.tar.gz` indeholder browserbuild, lagerkode, startdata og katalogtests. Green skal montere API'et under den private PodView-adresse og pege lageret på en varig datamappe. Robot/Tesla-holdet er ophævet efter direkte brugerbeslutning. Tidligere omtaler af holdet i oversigten er historiske.
+
+
+### Robotfornyelse · 2.0.125 på Green · 4. november
+PR #293, head 3a08b2dd250885924f6bc7eaff87cec4a221b6ce, flettet som b10f0931b47d1711aa30eb07c2c4c448d4866549. CI 41801071373 og main/publicering 41801841377 PASS. Rettelse bevarer native current i time-schema under rebind; gammel regression giver mapping_exception, rettet kode og ændret-tid-negativ kontrol består, 135 integrationstests og Ruff PASS. UI-assets bevaret. Green installeret med backup valgt, Supervisor viser 2.0.125 Kører. Fem observationer over 44 sekunder viste samme aktive robotkontrol/DOM-ID; Vedligeholdelse kunne åbnes hver gang. Ingen robot_rebind_denied i tilgængeligt serverlogudsnit. Chrome blev overtaget under efterfølgende klientdiagnostik. Antallet af faktiske renewals er derfor ikke verificeret; fysisk Frameo-accept resterer. Ingen fysisk robotkommando sendt.
+
+**Opskrifter · uploadhistorik, 4. november 2026.** Kataloget har en separat, som udgangspunkt sammenfoldet Uploadhistorik fra `api/recipe-upload-history`. Den eksisterende Disclosure og read-only ListRow viser titel/URL, faktisk status, modtagerens besked og tidspunkt. Tom historik og manglende adgang/serverforbindelse har tydelig tekst; fejl giver Prøv igen. Der beholdes højst 50 poster i klientvisningen, nyeste først. Historikopdateringen udskifter kun dens panel. Uændret katalog genrenderes ikke; ved ændret katalog bevares kategori, scroll og fokuseret opskriftsrække/filter, når den stadig findes. Syntaks, assetbuild og komponentgate består. Renderet Product Design-/Impeccable-gennemgang, faktisk API-prøve og release/Green er fortsat åbne for denne ændring.
+
+**Opskrifter · automatisk import, samlet aflevering 4. november.** Ovenstående lokale UI-punkt er nu visuelt gennemgået i Chrome ved 1280×800 med Product Design/Impeccable mod eksisterende Disclosure, read-only ListRow og opskriftens Hero. Faktisk fold/udfold, genindlæsning og tom/utilgængelig historik er kontrolleret. Lange ubrudte URL'er kunne overlappe datoen; det er rettet i den fælles kit-række. Arlas lange kildebeskrivelse afslørede også en sammenpresset header; den eksisterende tekstkolonne får nu plads, og kortet bevarer naturlig højde med synlig Start. Alle oplysninger beholdes. Skærmbilleder: `upload-history-local.png` og `arla-import-local.png` i chattens visualizations-mappe. Dette er lokal softwareevidens, ikke Green/iPhone-accept.
+
+Produktionspatchen importerer Recipe JSON-LD automatisk fra offentlige kilder uden genererede trin, publicerer kun komplette entydige opskrifter til samme varige lager som de otte startopskrifter og svarer `Gemt: <titel>` efter lagring. Statusser og uploadhistorik bevares, netværksfejl kan prøves igen, og tidligere modtagne/afbrudte links genoptages ved opstart. Uafhængigt backendreview afsluttet uden resterende blocker. 41 fokuserede backend/API/HA-proxytests og 8 eksisterende HTTP-ingresstests består; Ruff/Python3.12 AST består. Faktisk netværksimport af Arlas nemme chokoladekage til midlertidigt varigt lager gav 11 ingredienser, 7 kildetrin og en sand gemmekvittering. Final lokal UI-suite: 2607/2607 PASS. Kildekategorier opdeles uden at opfinde nye; generisk cookTime vises som Tilberedningstid.
+
+Den synkroniserede Mac-genvej “Opskrifter til PodView” er faktisk ændret fra Vis notifikation til Vis indhold med det udtrukne `message`. POST, JSON-felt og messagebinding er inspiceret uden ændring af uploadkode. iPhone-synkronisering/fysisk slutprøve er åben; PodPhone svarede ikke. Det viste Green-logudsnit ved gennemgangen dækkede fra11.29 og indeholdt ikke brugerens09.56-forsøg. Status for den oprindelige indsendelse er derfor IKKE bevist; integrationslead er bedt om at aflæse den varige receipt før opstartsgendannelse.
+
+v2.X har modtaget pakken til opfølgningen efter den allerede frosne2.0.127 (mål2.0.128). Pakke: `output/recipe-release/recipe-autoimport-next.tar.gz`, SHA256 `c0d2127a1b95a59a026043585f268eeca7a113df3b301e28ef7b1cc8160c6155`. Begge fokuserede patches består gitapply--check mod126. Hele lokale CSS/registry må ikke overskrive nyere releaseejere. Integrationslead ejer sammenbygning, publicering og Green. Der er ikke udført Green-mutationer her. Installation, oprindelig receipt og faktisk iPhone-feedback er fortsat åbne.
+
+
+### Robot · afsluttende Green-kontrol 2.0.126 · 4. november
+Published125 og126 podview_controls.py sammenlignet via GitHub: identiske, time/current-fix bevaret. Green126: fem robot_rebind_restored i log11.09.14–11.09.55, men forudgående denied/genopbygning og efterfølgende offer_invalid. Synkron prøve setup11.12.20: første fornyelse11.14.15–16 denied, DOM ændret11.14.24, næste restored11.14.36. Seks disclosure-klik virkede, men fem sammenhængende fornyelser med uafbrudt betjening er ikke bevist. Senere målrettet genåbning mistede seks lokale rumvalg ved build; derefter stabil ca100sek. Supervisorbuffer/logdownload gav ikke specifik afvisningsgren. Greenaccept genåbnet: resterende første-fornyelses-/drafttab kræver kausal servermåling. Ingen robotkommandoer.
+
+**Receipt-diagnostik, samme aflevering.** En midlertidig kopi af den synkroniserede genvej blev sat til GET af den normaliserede Arla-URL's receipt, med uændret eksisterende adgang. Der blev ikke indsendt en opskrift. Message-visning gav intet læsbart svar, og rå resultatvisning hang; kontrollen blev afbrudt, kopien fjernet, originalen bevaret med Vis indhold af message. Det beviser hverken afvisning eller manglende modtagelse. v2.X er orienteret og har bekræftet128-handoff; varig storeaflæsning før recovery er fortsat åben.
+## Grundlæggende forenkling · direkte brugerbeslutning 4. november 2026
+
+**Samlet grundplan og seneste præcisering:** [Grundplanen](PODVIEW-FOUNDATION-PLAN-2026-11-04.md) omsætter alle 50 spørgsmål til korte brugerforløb, konkrete tekniske beslutninger, modulgrænser, modelroller og faktisk Green/Mac/iPad-accept. Sol og Astra har færdiggjort reviewloopet; se gældende topindgang og [reviewkvittering](reviews/ASTRA-FOUNDATION-REVIEW-2026-11-04.md). HA genbruges også i valg af indgang, adgang og dataflow. Brugeren ejer oplevelseskravene; agenten ejer teknikken og end-to-end-verifikationen. Runtimeændringer og produktaccept er fortsat åbne og afventer Go.
+
+PodView er brugerens visuelt tilpassede HTML/CSS/JavaScript-dashboard over Home Assistant. Almindelig touchbetjening skal virke gennem de eksisterende HA-/PodConnect-/PodSpeakers-ejere, selvstændigt af stemmesamtalen. Agenten ejer softwarefejlsøgning og samlet funktionskontrol; brugeren skal ikke genbestille allerede aftalte funktioner. Nye featureudvidelser og løse symptomrettelser er standset i denne tråd til fordel for det grundlæggende korrektionsarbejde.
+
+[50 hårde spørgsmål med svar og kildegrundlag](reviews/PODVIEW-FUNDAMENTAL-AUDIT-2026-11-04.md) samler hele denne tråds kritik, de verificerede kodefund, forenklingsretning og åbne beviser. Hovedfund: samtalekoblede robotkontroller, item-koblet Pause, særskilte widget-/detailtilbud, fælles venteflag og ufuldstændig handlingslog. Dokumentet er auditmateriale; denne fil er fortsat den eneste aktuelle leveranceoversigt. Ingen af fundene er med denne registrering meldt rettet, udgivet eller fysisk accepteret.
+
+## Handlingslog · direkte brugerbeslutning 4. november 2026
+
+Loggen skal gøre en faktisk testkørsel forklarlig fra brugerinput til observeret resultat. Alle brugerhandlinger, afvisninger, fejl, succesudfald og recoveryforsøg skal kunne følges i den eksisterende diagnostik på tværs af PodView, bridge og faktisk serviceejer. Dette er et leverancekrav, ikke en påstand om implementeret dækning eller løste produktfejl.
+
+- Registrér intentionen allerede ved input, også når et klik aldrig når HTTP/action-kaldet. Angiv handling, tidspunkt, rækkefølge og relevant kilde-/buildidentitet.
+- Bevar én sikker korrelation gennem input, validering, setup, afsendelse, modtagelse, ejerens udførelse, efterfølgende observation og brugerfeedback. Underkald forbindes til samme forløb; log-ID'er giver ingen kommandomyndighed.
+- Hver valideringsafvisning og hver tidlig afbrydelse skal have et navngivet trin og en konkret årsag. Registrér relevant ændring af konto, output, sang, session, revision, forbindelse eller tilbudsfrist med sikre referencer; undgå rå credentials og private payloads.
+- Skeln mellem sendt, accepteret, udført og observeret effekt. HTTP 200 eller accepted må aldrig stå som bevis for faktisk pause eller robotbevægelse. Angiv observationskilde og friskhed.
+- Hver intention skal have et forklarligt slutudfald: bekræftet effekt, afvist, afbrudt, fejlet eller ukendt. Timeout og manglende observation angiver præcis hvilket svar eller bevis der mangler. Ukendt udfald gentager ingen effekt automatisk.
+- Recovery registrerer oprindelig fejl, forsøg, resultat og genoprettelse eller endelig afbrydelse. Delvist setup angiver hvilke kontrolgrupper der mangler og hvorfor; en undtagelse må ikke forsvinde bag et vellykket delresultat.
+- Bevar succesfulde handlinger og tilstandsovergange samt nødvendig læsekontekst omkring fejlen. Gentagne baggrundslæsninger må ikke fortrænge handlingsforløbet. Eksporten skal synligt angive tidsvindue, tabte poster, afkortning og manglende klientupload, når sådanne huller findes; manglende log er ikke bevis for manglende klik.
+- En testkørsel vurderer forventet brugerresultat mod serviceejerens faktiske observation og den viste feedback. Ubrudt logkæde uden korrekt effekt er stadig en fejlet funktion. Uforklarede afbrydelser eller manglende korrelation er selv åbne diagnostikfejl. En log kan ikke bevise et fysisk forhold, der ikke er observeret.
+
+**Konkrete huller fundet i den undersøgte 127/128-kilde:** Pause kan afbrydes ved ændret musikkontekst før afsendelse; robotsetup kan returnere et delresultat efter opslugte undtagelser; musiklæsefejl kan ende som generisk owner/unavailable uden entydig oprindelig fejlgren. Installeret Green blev i denne gennemgang aflæst som 2.0.127, commit `37680d1831ce26fd1c41a82a19a35482435b2ece`. Kausal sammenhæng til brugerens konkrete pauseklik er endnu ikke bevist. Kravet ovenfor skal gennemføres hos de eksisterende ejere; ingen runtime-, release- eller installationsændring er udført med denne registrering.
+
+
+**Robot · samlet 2.0.128-kandidat, 4. november.** Serverens afvisning af fornyelse har nu separate allowlistede `source_*`-årsager i den eksisterende persistente klientdiagnostik. De fire setup-grænser logger desuden fast stage (`transport`, `dock`, `settings`, `display`) og sikker fejlkategori; tidligere opslugte undtagelser kan dermed adskilles fra følgeafvisningen uden privat fejltekst. Fornyelse starter 15 sekunder før deadline; dirty rumvalg ved genåbning sendes kun i samme kontekst til ny servervalidering. Kilde: `/private/tmp/pv128-recipe-assessment-20261104`; overlay på PR296: `/tmp/pv128-combined-final-on-296.patch`, SHA256 `7dd7f10678aa649b2b5e446b37d44157a4348978b3608d92e7f534dec1dddee0`. Produktbundle `e67b730bf3685966f385158fa3688cf0a1fa25fa812934d8054fe30ce99a290a`, CSS `c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b`. 5012 UI-kontroller består samlet (fire lokale socketprøver genkørt uden sandboxportblokering), 247 berørte Pythonprøver og Ruff består. Det godkendte robotlayout er bevaret. Product Design/Impeccable-visuel kontrol af samlet musik/recipe-overlay: fire indlæste faner og syntetisk uploadhistorik uden overlap; første-load→loaded via rigtig transport samt faktisk import er ikke visuelt bevist. v2.X ejer samlet freeze, publicering og installation. Green127 er installeret; disse robotændringer er endnu ikke verificeret på Green. Ingen fysisk robotkommando sendt. Åbent: flere faktiske fornyelser, bevaret rumvalg og uafbrudte tryk på installeret128, samt eventuel konkret afvisningskode.
+
+**Robot / Gendan funktioner · afstemt releasekilde, 4. november.** PR296 endelig HEAD `ee2d845971bb12c7cbe5522e0c02ca0cebcf3533`, runtime `f1eedb417b6ddd3ec0421bcb49c0768e55d3e0c5`, final tree `8fb46f0e8561a2bba75acdb925cea603b09bda28`. Den officielle CI953 (`41828455652`) har bestået hele mypy-gaten, unit-/restshards, browser, HA og build; lokal mypy afsluttede ikke og tæller ikke som PASS. Det lokale robotbillede `/tmp/pv128-robot-approved-local.png` er inspiceret efter genåbning fra Ro. Gendannelsesregressioner: 20 klient-/enrollment- og 37 servertests består; ingen automatisk effektgensendelse. `widget-view.js`, skærmadgangens `config_flow.py` og `podview_controller_admin.py` er uændrede mod127.
+
+Brugerens senere hensyn til chatten **Gendan funktioner** er også afstemt: read-only sammenligning viser, at `/private/tmp/podview-foundation-v2-20261104` allerede indeholder robotrettelserne og nyere fælles musik-/ressourceisolationslogik. Ældre128-filer må ikke overskrive denne kilde. v2.X og foundationejeren har bekræftet selektiv adoption af den seneste recipe-Noneguard, formatering og HA-komponent0.1.15. **PR296 merge/publicering/installation er derfor på koordineret HOLD**, indtil den samlede foundationkandidat er frosset. Dette er ikke en påstand om Green-accept; den faktiske127-baseline viste igen deaktiveret Pause/Afslut/Base efter udløb. Ingen fysisk robotkommando er sendt. Efter samlet installation skal flere faktiske renewals, bevaret rumvalg og uafbrudte disclosuretryk korreleres med serverloggen.

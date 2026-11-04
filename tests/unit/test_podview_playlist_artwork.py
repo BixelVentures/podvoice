@@ -73,3 +73,23 @@ def test_missing_cover_remains_valid_and_unknown_playlist_metadata_is_rejected()
         "error_kind": "malformed_response",
         "retryAllowed": False,
     }
+
+
+@pytest.mark.parametrize("host", ["image-cdn-fa.spotifycdn.com", "image-cdn-ak.spotifycdn.com"])
+def test_actual_spotify_playlist_cdn_and_negative_boundaries(host):
+    url = f"https://{host}/image/ab67706c0000da848a8fc555493a58db7da9fc94"
+    assert project_playlists(payload(cover(url)), ACCOUNT, QUERY)["data"]["playlists"][0][
+        "artwork"
+    ] == cover(url)
+    for bad in [
+        url + "?x=1",
+        url + "#x",
+        url.replace(host, host + ".evil.invalid"),
+        url.replace(host, "user@" + host),
+        url.replace(host, host + ":443"),
+        url.replace("/image/", "/other/"),
+    ]:
+        assert (
+            "artwork"
+            not in project_playlists(payload(cover(bad)), ACCOUNT, QUERY)["data"]["playlists"][0]
+        )

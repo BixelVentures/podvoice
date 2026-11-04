@@ -608,6 +608,10 @@ class DeviceControl:
                     else None,
                     "observedAt": time.time(),
                     "source": "home_assistant_state",
+                    "supportedFeatures": attrs.get("supported_features")
+                    if type(attrs.get("supported_features")) is int
+                    and 0 <= attrs["supported_features"] <= 2**31
+                    else None,
                     "telemetry": await self._robot_observation(entity_id, generation),
                 }
             )

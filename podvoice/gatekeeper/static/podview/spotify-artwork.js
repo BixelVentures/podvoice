@@ -4,7 +4,7 @@ const PLAYLIST_URI=/^spotify:playlist:[A-Za-z0-9]{22}$/;
 const IMAGE_PATH=/^\/image\/[A-Za-z0-9_-]{1,128}$/;
 export function spotifyArtwork(value,uri){
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).sort().join(',')!=='kind,provider,url'||(value.kind!=='album_cover'&&!(value.kind==='playlist_cover'&&PLAYLIST_URI.test(uri)))||value.kind==='album_cover'&&PLAYLIST_URI.test(uri)||value.provider!=='spotify'||typeof value.url!=='string'||value.url.length>512)return null;
- try{const url=new URL(value.url);if(url.protocol!=='https:'||url.hostname!=='i.scdn.co'||url.port||url.username||url.password||url.search||url.hash||!IMAGE_PATH.test(url.pathname)||value.url!==`https://i.scdn.co${url.pathname}`)return null;return {kind:value.kind,provider:'spotify',url:value.url};}catch{return null;}
+ try{const url=new URL(value.url);if(url.protocol!=='https:'||!(value.kind==='playlist_cover'?['i.scdn.co','image-cdn-fa.spotifycdn.com','image-cdn-ak.spotifycdn.com']:['i.scdn.co']).includes(url.hostname)||url.port||url.username||url.password||url.search||url.hash||!IMAGE_PATH.test(url.pathname)||value.url!==`https://${url.hostname}${url.pathname}`)return null;return {kind:value.kind,provider:'spotify',url:value.url};}catch{return null;}
 }
 // Immutable, owner-published thematic files; never an arbitrary image URL.
 export function generatedMoodArtwork(value,themeId){

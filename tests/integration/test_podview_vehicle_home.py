@@ -38,6 +38,7 @@ def rig(monkeypatch):
     )
     bridge = SimpleNamespace(
         tools=tools,
+        controls=SimpleNamespace(mutations={}, domains=lambda room, token: set(), policy={}),
         sessions={"room": object()},
         boot_id="boot-1",
         _home_cache={},

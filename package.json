@@ -3,9 +3,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "npm run check:components && node --test tests/*.test.js",
+    "test": "npm run check:components && node --test tests/podview/*.test.mjs",
     "dev": "node scripts/dev.mjs",
     "check:components": "node scripts/check-component-library.mjs",
+    "prebuild:assets": "node scripts/prepare-podview-checkout.mjs",
     "build:assets": "node scripts/build-assets.mjs && node scripts/build-scripts.mjs",
     "predev": "npm run build:assets",
     "pretest": "npm run build:assets"
