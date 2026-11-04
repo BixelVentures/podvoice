@@ -1,7 +1,10 @@
 ## 2.0.128
 
 - Renew robot controls earlier and preserve eligible room selections on reopening.
-- Record bounded reasons when robot control renewal cannot be restored.
+- Record bounded server stage and rejection reasons when robot control renewal cannot be restored.
+- Import supported recipe links automatically and retain upload status/history.
+- Keep Find musik loading rows aligned with their loaded layout and admit verified Spotify playlist cover hosts.
+- Keep the first connection render safe before radio observations arrive.
 
 ## 2.0.127
 
