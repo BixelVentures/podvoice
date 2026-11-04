@@ -4522,10 +4522,13 @@ def mount(
     recipe_recovery_task = None
 
     async def recover_recipe_uploads():
+        submissions = bridge.recipe_submissions
+        if submissions is None:
+            return
         try:
-            urls = await asyncio.to_thread(bridge.recipe_submissions.pending_urls)
+            urls = await asyncio.to_thread(submissions.pending_urls)
             for url in urls:
-                await import_link(bridge.recipe_submissions, url)
+                await import_link(submissions, url)
         except OSError:
             _LOG.warning("recipe_import_recovery_failed code=storage_unavailable")
 
