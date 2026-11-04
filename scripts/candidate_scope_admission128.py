@@ -8,8 +8,8 @@ from pathlib import Path
 
 BASE = "37680d1831ce26fd1c41a82a19a35482435b2ece"
 BASE_TREE = "9198748c8a2e1d4bb675473ad38eb4cb460ff719"
-CANDIDATE = "09b677f6ef53c43e5fb847f5a73e9e62d09bab3a"
-CANDIDATE_TREE = "558b6508b7b67174d8f498c2c8f74ec8dbad0c8a"
+CANDIDATE = "50d147048462d4b2bfcd6b69b8e6982b110bc97c"
+CANDIDATE_TREE = "62f41617e7549c6a8a8c18e29d976d45a63165f5"
 REVIEWER = "/root/backend_review, /root/ha_admission_review and /root"
 RELEASE_PINS = {
     "custom_components/podvoice/manifest.json": "444efd499153a715c3f88cac803e289fdfee486876c151d1e9fff89b0f993ace",
@@ -19,7 +19,7 @@ RELEASE_PINS = {
     "podvoice/gatekeeper/__init__.py": "5dcf74e434b7f5ef3c637bd0e226ba902f3a249a5debc2aed5ab781b0a2a3d34",
     "pyproject.toml": "59dd877483a57974f3c9992037d3d576d1bf4d79d91d2c3f3afde498cd9c5829",
 }
-REGISTRATION = {"custom_components/podvoice/manifest.json", "podvoice/CHANGELOG.md", "scripts/candidate_scope_admission128.py"}
+REGISTRATION = {"scripts/candidate_scope_admission128.py"}
 
 
 def git(*args: str) -> str:
