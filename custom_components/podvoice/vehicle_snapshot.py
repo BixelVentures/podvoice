@@ -464,8 +464,9 @@ class VehicleSnapshot:
                     and unit in {"°C", "°F"}
                     and _number(value, -50, 70)
                     and _number(stamp, 1, time.time())
-                    and time.time() - stamp <= TTL
                 ):
+                    # Old is still known: field merging below chooses the newer
+                    # observation, while the original timestamp preserves its age.
                     cabin = {"value": value, "observedAt": stamp}
             except (AttributeError, TypeError, ValueError, OverflowError):
                 pass

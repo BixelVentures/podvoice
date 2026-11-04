@@ -558,6 +558,7 @@ async def test_failed_load_after_owner_replacement_cannot_return_observation(rig
     "sensor_state,sensor_unit,sensor_age,sensor_id,expected",
     [
         ("8.9", "°C", 3, "sensor.inside", 8.9),
+        ("8.9", "°C", 1800, "sensor.inside", 8.9),
         ("48.02", "°F", 3, "sensor.inside", 8.9),
         ("unknown", "°C", 3, "sensor.inside", 8.1),
         (True, "°C", 3, "sensor.inside", 8.1),
@@ -618,6 +619,7 @@ async def test_newer_scoped_ha_cabin_sensor_updates_old_fleet_temperature_withou
     )
     assert result["fieldObservedAt"]["climate.status"] == rig.now - 3600
     assert result["observedAt"] == rig.now - 3600
+    assert result["status"] == "stale"
     scope = addon.parse_policy(
         json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
     )

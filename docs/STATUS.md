@@ -1,3 +1,7 @@
+## 4/11 — 2.0.127 Tesla field retention · planned build
+
+The installed 2.0.126 approved UI remains the visual reference. The follow-up source changes only Tesla snapshot field retention and its causal regression, plus 2.0.127 / HA 0.1.14 release metadata. Base is d84caab0077b1a677ace55a2ec00873a938e5151, tree 5231347d0d06591dc6bf0c5154a0b31671e30508. Source review GO supplied by lead. Profile 127 remains unbound until the reviewed source upload returns its commit and tree. Official CI, publication and installation remain pending.
+
 ## 3/11 — robotfornyelse med valg bevaret
 
 På robotsporets lokale browser med faktisk backend og inert robot blev rum og Maks bevaret på samme kontrolnode efter fornyelse. Start-handleren brugte det nye tilbuds-ID; ingen robotkommando blev udført. Den første fejlmelding skyldtes manglende normalisering i testharness. Samlet lokal UI-suite dækket efter genprøvning af én label og fire localhost-tests. Aktiv rengøring afventer målrettet prøve; officiel releasekontrol og Green-installation udestår.
