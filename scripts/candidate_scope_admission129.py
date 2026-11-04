@@ -8,8 +8,8 @@ from pathlib import Path
 
 BASE = "0daa2b99b4c0db32b174414462956fee054e7257"
 BASE_TREE = "9b55c82a5e2f7c0c6de762ac9fc3abc81c026e02"
-CANDIDATE = "34298bba87a114c61b474e7eca4ec71ae4c569f0"
-CANDIDATE_TREE = "6593a0453ec422e3dd8502cf77256d317c6aeefb"
+CANDIDATE = "687438ba282d9c7456331b907a67ec350379cb3d"
+CANDIDATE_TREE = "43f063012145f741887efcaa733f27a8b658ddad"
 REVIEWER = "/root/astra_plan_grill and /root; scoped foundation, touch, owner diagnostics reviews"
 RELEASE_PINS = {
     "custom_components/podvoice/manifest.json": "444efd499153a715c3f88cac803e289fdfee486876c151d1e9fff89b0f993ace",
