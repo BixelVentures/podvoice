@@ -1087,6 +1087,7 @@
           "arrow:pendingCurrent": 1,
           "class:LiveMusicSelectionView": 1,
           "method:chooseCard": 1,
+          "method:chooseCardIntent": 1,
           "method:chooseCollection": 1,
           "method:cleanup": 1,
           "method:constructor": 1,

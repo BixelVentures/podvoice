@@ -1,10 +1,13 @@
 """Extend the existing inert native service with actual catalogue/content/queue contracts."""
 
 import copy
+import hashlib
 import json
+import logging
 import os
 import secrets
 from dataclasses import replace
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
@@ -19,8 +22,12 @@ with patch("aiohttp.web.run_app"):
 
 from gatekeeper.podview import BRIDGE
 
+cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
+reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
+logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
+
 content = Rig()
-content_owner(content)
+content_owner(content, action="play_context" if cold else "play_track")
 tracks = [
     {"name": f"Katalogsang {i}", "artist": "Inert kunstner", "uri": f"spotify:track:{i:022d}"}
     for i in (11, 12, 13)
@@ -28,6 +35,48 @@ tracks = [
 base.state.update(
     state="paused", song=1, queue=[21, 22], selections=[], queueSelections=[], nativeCalls=[]
 )
+if cold:
+    # Both existing inerts describe one native owner; alias/content incarnation
+    # must agree exactly, just as the real setup route requires.
+    content.value["start_offer"]["native_incarnation"] = "a" * 32
+    base.state["state"] = "no_active_playback"
+    original_observation = base.observation
+
+    def cold_observation(args):
+        if base.state["state"] != "no_active_playback":
+            return original_observation(args)
+        raw = base.payload("playback", "account")
+        raw["poll_sequence"] = base.state["sequence"]
+        raw["playback"] = {"state": "no_active_playback", "target": None, "item": None}
+        value = base.project_owner("playback", raw, "account")["data"]
+        if args.get("include_output"):
+            value.update(
+                schema="podconnect.playback.v3"
+                if args.get("include_controls")
+                else "podconnect.playback.v2",
+                output={"status": "unavailable", "reason": "route_unavailable", "binding": None},
+            )
+            if args.get("include_controls"):
+                value["controls"] = {
+                    "status": "unavailable",
+                    "reason": "route_unavailable",
+                    "binding_id": None,
+                    "valid_until": None,
+                    "supported_actions": [],
+                    "volume": None,
+                }
+                if args.get("request_id"):
+                    value["settlement"] = None
+        return value
+
+    base.observation = cold_observation
+    base.music.tools.podview_mood_selector = SimpleNamespace(available=False, room_kind="kitchen")
+
+    async def mood_context(current):
+        return {"hour": 20, "roomKind": "kitchen"} if current() else None
+
+    base.music.tools.podview_mood_context = mood_context
+
 original_transport = base.music.client
 
 
@@ -50,6 +99,37 @@ async def native(request):
     args = json.loads(request.content)
     service = request.url.path.rsplit("/", 1)[-1]
     base.state["nativeCalls"].append({"service": service, "args": args})
+    if cold and service == "get_targets" and args.get("config_entry_id"):
+        response = await base.native_service(request)
+        value = response.json()["service_response"]
+        value["targets"] = [row for row in value["targets"] if row["kind"] != "spotify_device"]
+        if base.state["state"] == "no_active_playback":
+            for row in value["targets"]:
+                if row["kind"] == "observed_output":
+                    row["selected"] = False
+        return httpx.Response(200, json={"service_response": value})
+    if cold and service == "search_playlists":
+        suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
+        return httpx.Response(
+            200,
+            json={
+                "service_response": {
+                    "ok": True,
+                    "schema": "podconnect.search_playlists.v1",
+                    "config_entry_id": "account",
+                    "owner_epoch": "a" * 32,
+                    "source": "spotify_web_api",
+                    "query": args["query"],
+                    "limit": 3,
+                    "returned_count": 1,
+                    "playlists": [
+                        {"uri": "spotify:playlist:" + suffix, "name": "Kold jazz " + suffix[:4]}
+                    ],
+                }
+            },
+        )
+    if cold and reject_setup and service == "get_room_content_controls":
+        return httpx.Response(503, json={"error": "inert_setup_unavailable"})
     if service in {"top_tracks", "recently_played"}:
         return httpx.Response(
             200,
@@ -70,17 +150,24 @@ async def native(request):
         content.value["observation"]["observed_at"] = base.timestamp()
         response = await content.handle(request)
         if service == "start_room_selected_content":
-            uri = args["args"]["track_uri"]
-            assert uri in {row["uri"] for row in tracks}
+            uri = args["args"]["context_uri" if cold else "track_uri"]
+            if cold:
+                assert uri.startswith("spotify:playlist:")
+            else:
+                assert uri in {row["uri"] for row in tracks}
             base.state.update(
-                song=int(uri.rsplit(":", 1)[-1]),
+                song=11 if cold else int(uri.rsplit(":", 1)[-1]),
                 state="playing",
                 volume=args["start_offer"]["start_volume_percent"],
             )
             base.state["sequence"] += 1
             base.state["selections"].append({"uri": uri, "requestId": args["request_id"]})
             base.state["writes"].append(
-                {"action": "play_track", "uri": uri, "requestId": args["request_id"]}
+                {
+                    "action": "play_context" if cold else "play_track",
+                    "uri": uri,
+                    "requestId": args["request_id"],
+                }
             )
             base.music.value["next_command_sequence"] += 1
             settle(args)
@@ -154,6 +241,7 @@ base.music.tools._discovery = replace(
     | {
         "get_queue",
         "top_tracks",
+        *({"search_playlists"} if cold else set()),
         "recently_played",
         "get_room_content_controls",
         "prepare_room_selected_content",
@@ -165,7 +253,7 @@ base.music.tools._discovery = replace(
     },
 )
 base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
-    ["play_track", "play_queue_occurrence"]
+    ["play_context"] if cold else ["play_track", "play_queue_occurrence"]
 )
 
 

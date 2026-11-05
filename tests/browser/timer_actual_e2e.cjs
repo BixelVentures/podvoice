@@ -24,7 +24,7 @@ const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let 
  page.on('pageerror',error=>errors.push(error.message));
  page.on('request',request=>{if(new URL(request.url()).pathname==='/view/api/actions')actions.push(request.postDataJSON())});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- await page.locator('#photo-view').waitFor({state:'visible'});await page.locator('#photo-view').tap();
+ await env.openOverview(page);
  await page.locator('#open-timers').tap();
  const form=page.getByRole('form',{name:'Ny timer'});
  await form.getByRole('button',{name:'1 minut mere'}).tap();

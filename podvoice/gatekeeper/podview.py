@@ -38,7 +38,7 @@ from . import (
 )
 from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry
-from .podview_music_selection import MusicSelection
+from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
 from .recipe_import import import_link
 from .recipe_submissions import RecipeRejectedError, RecipeSubmissions
@@ -4014,6 +4014,56 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
 
 
 async def _music_selection(request: web.Request) -> web.Response:
+    try:
+        response = await _music_selection_impl(request)
+    except (Exception, asyncio.CancelledError):
+        trace_event(
+            request.get("selection_trace_ref"),
+            "setup" if request.path.endswith("/setup") else "action",
+            "unknown",
+        )
+        raise
+    ref = request.get("selection_trace_ref")
+    if ref:
+        try:
+            body = json.loads(response.body) if isinstance(response.body, bytes) else {}
+            error = body.get("error") if isinstance(body, dict) else None
+            outcome = (
+                {
+                    "music_busy": "busy",
+                    "stale_music_selection": "stale_source",
+                    "target_not_granted": "target_not_granted",
+                    "music_selection_unavailable": "native_unavailable",
+                    "native_account_claim_required": "account_claim_required",
+                    "invalid_music_selection": "invalid_request",
+                    "invalid_candidate_ids": "invalid_request",
+                }.get(error)
+                if isinstance(error, str)
+                else None
+            )
+            if outcome is None:
+                outcome = body.get("outcome") if isinstance(body, dict) else None
+            if outcome not in {
+                "accepted",
+                "rejected",
+                "unknown",
+                "busy",
+                "stale_source",
+                "target_not_granted",
+                "native_unavailable",
+                "account_claim_required",
+                "invalid_request",
+            }:
+                outcome = (
+                    "accepted" if isinstance(body, dict) and body.get("ok") is True else "other"
+                )
+            trace_event(ref, "setup" if request.path.endswith("/setup") else "action", outcome)
+        except Exception:
+            pass
+    return response
+
+
+async def _music_selection_impl(request: web.Request) -> web.Response:
     """One short-lived server option set; the browser never supplies a Spotify URI."""
     denied = await _guard(request)
     if denied is not None:
@@ -4037,6 +4087,15 @@ async def _music_selection(request: web.Request) -> web.Response:
         or not bridge.controls.selection_allowed(room, token)
     ):
         return _error("music_selection_not_paired", 403)
+
+    # Trace is diagnostic only, established after the existing actor admission.
+    # A mismatched action header cannot be attributed to its request receipt.
+    headers = request.headers.getall("X-PodView-Trace", [])
+    trace_id = headers[0] if len(headers) == 1 else ""
+    if re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", trace_id
+    ) and (request.path.endswith("/setup") or body.get("requestId") == trace_id):
+        request["selection_trace_ref"] = hashlib.sha256(trace_id.encode("ascii")).hexdigest()[:16]
 
     def source_current(source: dict, *, fresh: bool = True) -> bool:
         return _selection_source_current(bridge, source, room, token, fresh=fresh)
@@ -4249,7 +4308,18 @@ async def _music_selection(request: web.Request) -> web.Response:
 
     async def send_selected(controls, uri, max_volume, current):
         return await podview_room_media.execute_selected_destination(
-            bridge, room, task, controls, uri, max_volume, current
+            bridge,
+            room,
+            task,
+            controls,
+            uri,
+            max_volume,
+            current,
+            **(
+                {"trace_ref": request["selection_trace_ref"]}
+                if request.get("selection_trace_ref")
+                else {}
+            ),
         )
 
     result = await bridge.music_selection.execute(
@@ -4275,6 +4345,7 @@ async def _music_selection(request: web.Request) -> web.Response:
                 "bindingId"
             ),
         ),
+        trace_ref=request.get("selection_trace_ref"),
     )
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 

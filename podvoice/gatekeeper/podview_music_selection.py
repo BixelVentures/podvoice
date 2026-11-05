@@ -11,6 +11,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import logging
 import math
 import re
 import secrets
@@ -20,6 +21,47 @@ from typing import Any
 
 _TRACK = re.compile(r"^spotify:track:[A-Za-z0-9]{22}$")
 _ID = re.compile(r"^[a-f0-9]{64}$")
+_TRACE = re.compile(r"^[a-f0-9]{16}$")
+_LOG = logging.getLogger("podvoice.music_start")
+
+
+def trace_event(trace_ref: str | None, stage: str, outcome: str) -> None:
+    """Best-effort, closed diagnostics; never an authority or effect input."""
+    if (
+        not isinstance(trace_ref, str)
+        or _TRACE.fullmatch(trace_ref) is None
+        or stage not in {"setup", "action", "selection"}
+        or outcome
+        not in {
+            "accepted",
+            "rejected",
+            "unknown",
+            "other",
+            "invalid_identity",
+            "task_missing",
+            "source_missing",
+            "invalid_input",
+            "stale_or_consumed",
+            "fresh_controls_failed",
+            "owner_or_target_changed",
+            "binding_or_expired",
+            "send_started",
+            "cached_receipt",
+            "busy",
+            "stale_source",
+            "target_not_granted",
+            "native_unavailable",
+            "account_claim_required",
+            "invalid_request",
+        }
+    ):
+        return
+    try:
+        _LOG.info("selected_trace trace_ref=%s stage=%s outcome=%s", trace_ref, stage, outcome)
+    except Exception:
+        pass
+
+
 _CONTEXT = (
     "bootId",
     "roomId",
@@ -474,6 +516,7 @@ class MusicSelection:
         fresh_controls: Callable[[], Awaitable[dict]],
         send_once: Callable[[dict, str, int, Callable[[], bool]], Awaitable[dict]],
         receipt_owner: tuple | None = None,
+        trace_ref: str | None = None,
     ) -> dict:
         failure = {
             "ok": False,
@@ -482,18 +525,22 @@ class MusicSelection:
             "physicalResultVerified": False,
         }
         if not all(isinstance(x, str) and x for x in (task_id, option_id, request_id)):
+            trace_event(trace_ref, "selection", "invalid_identity")
             return failure
         task = self.tasks.get(task_id)
         if task is None:
+            trace_event(trace_ref, "selection", "task_missing")
             return failure
         source = self.sources.get(task["candidateSetId"])
         if source is None:
+            trace_event(trace_ref, "selection", "source_missing")
             return failure
         chosen_uri = task["choices"].get(option_id)
         chosen_destination = task["nativeBinding"]
         chosen_ceiling = task["maxVolume"]
         chosen_start_binding = task["startBinding"]
         if type(revision) is not int or type(confirmed_volume) is not int:
+            trace_event(trace_ref, "selection", "invalid_input")
             return failure
         key = (task_id, request_id)
         fingerprint = hashlib.sha256(
@@ -501,6 +548,11 @@ class MusicSelection:
         ).hexdigest()
         previous = self.receipts.get(key)
         if previous is not None:
+            trace_event(
+                trace_ref,
+                "selection",
+                "cached_receipt" if previous[0] == fingerprint else "invalid_input",
+            )
             return copy.deepcopy(previous[1]) if previous[0] == fingerprint else failure
 
         admitted = False
@@ -529,6 +581,7 @@ class MusicSelection:
             or confirmed_volume != task["volume"]
             or not active()
         ):
+            trace_event(trace_ref, "selection", "stale_or_consumed")
             return failure
         # The first accepted action consumes all choices before any await. A lost
         # HTTP response can return the cached unknown receipt but never repeat play.
@@ -547,6 +600,7 @@ class MusicSelection:
         try:
             controls = await fresh_controls()
         except (Exception, asyncio.CancelledError):
+            trace_event(trace_ref, "selection", "fresh_controls_failed")
             self.receipts[key] = fingerprint, failure
             return copy.deepcopy(failure)
         try:
@@ -559,6 +613,7 @@ class MusicSelection:
                 or controls.get("status") != "ready"
                 or (controls.get("room_id"), controls.get("homepod_id")) != task["nativeBinding"]
             ):
+                trace_event(trace_ref, "selection", "owner_or_target_changed")
                 self.receipts[key] = fingerprint, failure
                 return failure
             start = controls.get("start_offer")
@@ -574,10 +629,12 @@ class MusicSelection:
                 or type(controls.get("valid_until")) not in (int, float)
                 or controls["valid_until"] <= time.time()
             ):
+                trace_event(trace_ref, "selection", "binding_or_expired")
                 self.receipts[key] = fingerprint, failure
                 return failure
             # The URI exists only in this server task. The provider adapter receives
             # the exact currently observed owner epoch/poll, and sends at most once.
+            trace_event(trace_ref, "selection", "send_started")
             result = await send_once(controls, chosen_uri, chosen_ceiling, active)
             if result.get("outcome") not in {"accepted", "unknown", "rejected"}:
                 result = unknown

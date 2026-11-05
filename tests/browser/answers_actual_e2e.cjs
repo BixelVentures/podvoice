@@ -17,7 +17,7 @@ let server,browser,data;
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('answer fixture exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('answer fixture startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],writes=[];
  page.on('pageerror',error=>errors.push(error.message));page.on('request',r=>{if(r.method()!=='GET')writes.push({path:new URL(r.url()).pathname,body:r.postData()})});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await page.locator('#photo-view').waitFor({state:'visible'});await page.locator('#photo-view').tap();
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
  for(let n=0;!(await (await fetch(base+'/lab/history')).json()).held;n++){if(n>100)throw Error('history read not held');await sleep(100)}
  // Unrelated control remains usable while the actual history HTTP read is pending.
  await page.locator('#open-timers').tap();const form=page.getByRole('form',{name:'Ny timer'});await form.getByRole('button',{name:'Start timer'}).tap();

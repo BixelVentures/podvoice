@@ -22,7 +22,7 @@ let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],err
  browser=await chromium.launch(env.browserOptions());page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
  page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(/\/api\/(radio|music\/selection)/.test(r.url()))responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(radio|music\/selection)/.test(r.url()))actions.push({url:r.url(),body:r.postDataJSON()})});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await page.locator('#photo-view').tap();await page.locator('#home-radio').tap();
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
  const stations=page.locator('#radio-view pv-choice-list');
  await stations.getByRole('button',{name:/P3/}).waitFor({state:'visible',timeout:15000});
  assert.deepEqual((await state()).radioWrites,[],'navigation and passive state reads have no effects');
