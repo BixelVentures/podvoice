@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import re
 import socket
 from html import unescape
 from html.parser import HTMLParser
+from typing import Any
 from urllib.parse import urljoin, urlsplit
 
 from aiohttp import (
@@ -195,6 +197,265 @@ def duration(value):
     return (f"{minutes} min." if minutes else "") or (f"{seconds} sek." if seconds else "")
 
 
+# Deliberately narrow schema.org microdata support. This is not a general
+# microdata processor: external itemref and unsupported instruction blocks fail closed.
+class RecipeMicrodata(HTMLParser):
+    _void = frozenset(
+        "area base br col embed hr img input link meta param source track wbr".split()
+    )
+    _ignored = frozenset(("script", "style", "template", "iframe", "noscript"))
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.root: dict[str, Any] = {"tag": "", "attrs": {}, "children": []}
+        self.stack: list[dict[str, Any]] = [self.root]
+        self.recipes = []
+        self.invalid = False
+
+    @classmethod
+    def ignored(cls, node):
+        if node["tag"] in cls._ignored:
+            return True
+        marker = " ".join(node["attrs"].get(key, "") for key in ("class", "id", "role"))
+        return bool(
+            re.search(
+                r"(?:^|[\s_-])(?:ad|ads|advert|advertisement|advertising|sponsored)(?:$|[\s_-])",
+                marker,
+                re.I,
+            )
+        )
+
+    def handle_starttag(self, tag, attrs):
+        keys = [key for key, _ in attrs]
+        if any(
+            keys.count(key) > 1
+            for key in (
+                "itemprop",
+                "itemscope",
+                "itemtype",
+                "itemref",
+                "content",
+                "datetime",
+                "src",
+                "href",
+            )
+        ):
+            self.invalid = True
+        attributes = {key: value or "" for key, value in attrs}
+        node = {"tag": tag, "attrs": attributes, "children": []}
+        self.stack[-1]["children"].append(node)
+        if (
+            "itemscope" in attributes
+            and not self.ignored(node)
+            and not any(self.ignored(parent) for parent in self.stack)
+            and any(
+                token in {"http://schema.org/Recipe", "https://schema.org/Recipe"}
+                for token in attributes.get("itemtype", "").split()
+            )
+        ):
+            self.recipes.append(node)
+        if tag not in self._void:
+            self.stack.append(node)
+
+    def handle_startendtag(self, tag, attrs):
+        self.handle_starttag(tag, attrs)
+        if tag not in self._void:
+            self.handle_endtag(tag)
+
+    def handle_data(self, value):
+        self.stack[-1]["children"].append(value)
+
+    def handle_endtag(self, tag):
+        indices = [i for i, node in enumerate(self.stack) if node["tag"] == tag]
+        if not indices:
+            return
+        index = indices[-1]
+        # A mismatched close must not silently close a recipe or one of its
+        # property/item scopes. Unrelated malformed document markup is ignored.
+        for node in self.stack[index + 1 :]:
+            if "itemscope" in node["attrs"] or "itemprop" in node["attrs"]:
+                self.invalid = True
+        del self.stack[index:]
+
+    def finish(self):
+        if any(
+            "itemscope" in node["attrs"] or "itemprop" in node["attrs"] for node in self.stack[1:]
+        ):
+            self.invalid = True
+        if self.invalid:
+            raise ImportRejected("unreadable")
+        if len(self.recipes) > 1:
+            raise ImportRejected("ambiguous")
+        if not self.recipes:
+            return None
+        return self.project(self.recipes[0])
+
+    @classmethod
+    def project(cls, root):
+        allowed = {
+            "name",
+            "headline",
+            "author",
+            "publisher",
+            "image",
+            "description",
+            "recipeYield",
+            "recipeCategory",
+            "cookTime",
+            "totalTime",
+            "recipeIngredient",
+            "recipeInstructions",
+        }
+        values: dict[str, list[Any]] = {}
+        inline = frozenset("a abbr b br code em i mark small span strong sub sup time".split())
+
+        def scalar(node):
+            attrs = node["attrs"]
+            if "itemscope" in attrs or "itemref" in attrs:
+                raise ImportRejected("unreadable")
+            for key in ("content", "datetime", "src", "href"):
+                if key in attrs:
+                    return attrs[key]
+            parts = []
+
+            def collect(item):
+                if isinstance(item, str):
+                    parts.append(item)
+                elif item["tag"] in cls._ignored:
+                    return
+                elif cls.ignored(item) or "itemref" in item["attrs"]:
+                    raise ImportRejected("unreadable")
+                elif "itemscope" in item["attrs"] or item["tag"] not in inline:
+                    raise ImportRejected("unreadable")
+                else:
+                    if item["tag"] == "br":
+                        parts.append(" ")
+                    for child in item["children"]:
+                        collect(child)
+
+            for child in node["children"]:
+                collect(child)
+            return " ".join("".join(parts).split())
+
+        def nested(node, prop):
+            permitted = {
+                "author": {"Person", "Organization"},
+                "publisher": {"Person", "Organization"},
+                "image": {"ImageObject"},
+            }
+            kinds = set(node["attrs"].get("itemtype", "").split())
+            allowed_kinds = {
+                scheme + kind
+                for kind in permitted.get(prop, ())
+                for scheme in ("https://schema.org/", "http://schema.org/")
+            }
+            if not kinds & allowed_kinds:
+                raise ImportRejected("unreadable")
+            key = "url" if prop == "image" else "name"
+            found = []
+
+            def descend(item):
+                for child in item["children"]:
+                    if not isinstance(child, dict) or cls.ignored(child):
+                        continue
+                    attrs = child["attrs"]
+                    if "itemref" in attrs:
+                        raise ImportRejected("unreadable")
+                    if "itemscope" in attrs:
+                        continue
+                    if key in attrs.get("itemprop", "").split():
+                        found.append(scalar(child))
+                    else:
+                        descend(child)
+
+            descend(node)
+            if len(set(found)) != 1 or not found[0]:
+                raise ImportRejected("unreadable")
+            return {key: found[0]}
+
+        def instructions(node):
+            if any(isinstance(child, str) and child.strip() for child in node["children"]):
+                if any(
+                    isinstance(child, dict) and child["tag"] in {"p", "li", "ol", "ul", "div"}
+                    for child in node["children"]
+                ):
+                    raise ImportRejected("unreadable")
+                return [scalar(node)]
+            blocks = []
+            for child in node["children"]:
+                if isinstance(child, str):
+                    continue
+                if child["tag"] in cls._ignored:
+                    continue
+                if (
+                    cls.ignored(child)
+                    or "itemscope" in child["attrs"]
+                    or "itemref" in child["attrs"]
+                ):
+                    raise ImportRejected("unreadable")
+                if child["tag"] in {"p", "li"}:
+                    blocks.append(scalar(child))
+                elif child["tag"] in {"ol", "ul"}:
+                    for item in child["children"]:
+                        if isinstance(item, str) and not item.strip():
+                            continue
+                        if (
+                            not isinstance(item, dict)
+                            or item["tag"] != "li"
+                            or cls.ignored(item)
+                            or "itemscope" in item["attrs"]
+                            or "itemref" in item["attrs"]
+                        ):
+                            raise ImportRejected("unreadable")
+                        blocks.append(scalar(item))
+                else:
+                    raise ImportRejected("unreadable")
+            return blocks
+
+        def visit(node):
+            if "itemref" in node["attrs"]:
+                raise ImportRejected("unreadable")
+            for child in node["children"]:
+                if not isinstance(child, dict) or cls.ignored(child):
+                    continue
+                attrs = child["attrs"]
+                if "itemref" in attrs:
+                    raise ImportRejected("unreadable")
+                props = set(attrs.get("itemprop", "").split()) & allowed
+                if "itemscope" in attrs:
+                    for prop in props:
+                        values.setdefault(prop, []).append(nested(child, prop))
+                    continue
+                # Description is optional and can contain page chrome or even
+                # other recipe properties; never flatten it into recipe text.
+                if props == {"description"}:
+                    visit(child)
+                    continue
+                if props:
+                    for prop in props:
+                        value = (
+                            instructions(child) if prop == "recipeInstructions" else scalar(child)
+                        )
+                        values.setdefault(prop, []).extend(
+                            value if prop == "recipeInstructions" else [value]
+                        )
+                else:
+                    visit(child)
+
+        visit(root)
+        result: dict[str, Any] = {"@type": "Recipe"}
+        for prop, items in values.items():
+            if prop in {"recipeIngredient", "recipeInstructions", "recipeCategory"}:
+                result[prop] = items
+            elif any(item != items[0] for item in items[1:]):
+                raise ImportRejected("ambiguous")
+            else:
+                result[prop] = items[0]
+        if "name" not in result and "headline" in result:
+            result["name"] = result["headline"]
+        return result
+
+
 def extract_recipe(html: str, source_url: str) -> dict:
     parser = SourceParser()
     parser.feed(html)
@@ -218,17 +479,26 @@ def extract_recipe(html: str, source_url: str) -> dict:
             value[key] = item
         return value
 
+    malformed_jsonld = False
     for script in parser.scripts:
         try:
             walk(json.loads(script, object_pairs_hook=unique_object))
         except ImportRejected:
             raise
         except (ValueError, RecursionError):
+            malformed_jsonld = True
             continue
     recipes = [node for node in nodes if typed(node, "Recipe")]
     unique = {json.dumps(node, sort_keys=True): node for node in recipes}
     if not unique:
-        raise ImportRejected("not_recipe")
+        if malformed_jsonld:
+            raise ImportRejected("not_recipe")
+        microdata = RecipeMicrodata()
+        microdata.feed(html)
+        recipe = microdata.finish()
+        if recipe is None:
+            raise ImportRejected("not_recipe")
+        unique = {"microdata": recipe}
     if len(unique) != 1:
         raise ImportRejected("ambiguous")
     recipe = next(iter(unique.values()))
