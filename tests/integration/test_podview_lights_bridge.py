@@ -172,7 +172,7 @@ async def test_home_route_light_transport_failure_retains_other_domain_data(tmp_
         body = await response.json()
         assert body["lights"]["status"] == "unavailable"
         assert body["vacuum"] == {"status": "unavailable", "items": []}
-        assert body["weather"] == {"status": "unavailable", "data": None}
+        assert body["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
         assert "lights" not in bridge._home_cache["room"][2]
 
 

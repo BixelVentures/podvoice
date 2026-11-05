@@ -1,3 +1,9 @@
+## Aktuel 134-lukning · vejrkompatibilitet · 5. november 2026
+
+Den officielle kontrol fandt en reel tilbagegang for understøttet ældre HA-vejrlæsning. Den oprindelige single-read-prøve bevares; at erstatte den med en nyere datakilde er afvist som løsning. Rettelsen bevarer frisk vejrvisning fra begge kildetyper, faste udløbstider og streng identitet for sidst kendte data. Ældre data uden kildeidentitet får kun udtrykkelig, tidsafgrænset aktuel visning og gemmes aldrig som historik. Den byggede kandidat13e2b20e er kontrolleret i to faktiske lokale touch-browserforløb: både legacy uden historik og normal scoped retention/reload/recovery/oprindeligt offlineudløb består, uden enhedseffekter eller browserfejl. Fælles UI/komponentkontrol og afgrænset kildegennemgang består. Stabile current-only-/udløbsbilleder er inspiceret mod eksisterende kit ved1280×800; Product Design/Impeccable afgrænset PASS, ingen nye layoutfund. [Billed- og funktionsbevis](qa-weather-retention-20261105/receipt.json) bevarer det separate åbne toast-overlap; 133 er senest verificeret installeret. Ingen ægte lydprøver før6.november kl08.00 dansk tid.
+
+Separat inert offlineprøve på 134-kandidaten bekræfter aktiv Robot-Pause i intervallet mellem browserens offlineevent og transportens forbindelsestab. Ét touch gav ét POST-forsøg, som browseren blokerede; ingen enhedshandling. Dette er et åbent forbindelses-/feedbackpunkt, ikke fysisk robotbevis. Log: `/private/tmp/pv-offline-robot-probe.log`. Browserens offlinehint alene må ikke sidestilles med utilgængelig lokal HA.
+
 <!-- Current refinement: direct user screenshot normal-mood-10.png, 5 November. Main + two secondary music cards must use space better and be more Spotify-like within the canonical kit. Existing Hero/Card anatomy, surfaces and64px touch action remain; larger artwork and stronger hierarchy are being built and await actual library/product image review. -->
 ## Hele den igangværende UI-leverance bevares · direkte brugerpræcisering 5. november
 
@@ -2710,3 +2716,45 @@ Root og Sol inspicerede 16s-pendingbilledet og fandt konkret progress-overlap: l
 Endelig actualbrowser med loaded51b+loaded665e: normal/busy259.25×64 sammeanker/padding56, Playikon synligt, labelslut577.469 og ringstart585.469 giver8px fri afstand. Actual15s-offer/4×4s-settingStart består igen, accepted16.159s/énUUID/énStart. Eksisterende naturlige homepoll viste derefter Rengør ved29.683s; rå fixturevacuum ogstatussensor havde korrekt cleaning/segment_cleaning allerede vednativePOST. Ingen UI-/WS-injektion eller tvungen læsning. Dette er inert native/service/browserobservation; ingen fysisk robot-, lyd- eller realtimeWS-latenspåstand. Fixtureudbuddet i netop denne Startprøve beviser ikke alle aktive transportkontroller eller currentSetup-rum.
 
 /private/tmp/podview132-robot-slow-start-final.log og -final-proof/ indeholder målte normal/pending/accepted/observedforløb; pending- og observedbilleder rootinspiceret. Afgrænset ProductDesign/Impeccable-review lukker label/ring/ikonfundet; slutdetektor[] /private/tmp/pv-recovery-final-css-impeccable.json. Fuld samlet4710UI/componentPASS efter sidsteCSS, /private/tmp/pv-recovery-final-npm4.log. Tidligere7faa-vejr/Tesla/recipe-beviser genbruges for uændrede respektive renderer/anatomi; CSSdelta er kun HeroButtonprogress og legacyiconhide. Ingen Greeninstallation endnu.
+
+
+## NEXT vejrhistorik og kildeklargøring ·5nov
+
+Kilde: separat NEXT-gren fra d208/133, ikke blandet i PR302. PR302 musik-harnesstouchkorrektion13830a2d er adopteret; testmålet måles efter browserens første faktiske tap/autoscroll, og unknown→confirmed/no-double-Pause-orakler bevares. Native runtime/Node5s-guard uændret.
+
+| Input/observeret problem | Leveret ændring | Faktisk bevis / rest |
+|---|---|---|
+| Reload efter nativevejrfejl bliver tom | Bridge gemmer kun oprindelige scoped fakta uafhængigt af AI/fresh-cache; unavailable/data:null med valideretlastKnown eller eksplicitnull. Friske markerede facts kræver sammeprovenance | Faktisk Assist→HTTP causalRED ogGREEN, revalideret ved sidste levering/efter ventende lyslæsning; originalretrieved/stateUpdated bevares; max2h, auxhourly15min |
+| Sidst kendt må ikke ligne frisk eller leve evigt | Eksisterende model viser stale, original Hentet-metadata og bruger eksisterende timer; alle fire faktakonsumenter+rådsadgang følgerdeadline. Ingen nywidget/familie/CSS | Første actualbrowserf15RED viste detaljetom men21° iHome/topbar. Sidste07f1GREEN rydder ogsådeøvrige flader;2kausaleRED→97focusedGREEN/AstraGO |
+| En kildeændring kan bygge gammelstaging | Eksisterende prepareCheckout validerer alle kilder før copy; canonical-only ændring synkes hvisDmatcherbaseline, lokaleændringer/sletninger/divergens stoppes uden tab | Faktisk133index132-stagingfejl er facit;9focusedPASS/AstraGO. Sidste2vejrændringer autostaged korrekt. Ved kendt mellemliggende egenstaging blev de3filer først bevaret før eksplicit synk; intet blev blindoverskrevet |
+| Funktionelle regressioner skal opdages automatisk | Eksisterende browserjourney-runner inkluderer nu slowStart15→16s ogweatherfail/reload/recovery/offline-expiry som ekstra modes | Ingen nyjob/workflow/permissions/timeoutændring; sammeinert dependencies/cleanup/artifacts. Begge modes faktisk kørt lokalt; næsteofficielleCI skalprøve den samlede nye kandidat |
+
+Slutbuild: produkt07f1ea20b7211c112e37e0021c23d27b83f7c2229c1d62cb32080730aa0f429a; CSS665eb9b4f6dd675e3943aea0f5619fb56d76d3b30c93891ccae7d8a96bb665b3 uændret; bibliotekbecd7b4830fe99f728c31507bc2e95924ef5147573544f7b2888558324887181;225canonical/stagingposterexact.4722samledeUI/componentPASS /private/tmp/pv-weather-all-surfaces-final-npm.log;97focusedfrontendPASS; backend144førreview/12berørteefterreviewPASS, Ruff/Mypy, scopedAstrareadbackGO. Detector[] på nye frontend-ejere før sidste2hunks; slutdetektor registreres vedfreeze. Ingen miljø-/silenceregel ændret.
+
+Actual1280browser: /private/tmp/podview-weather-retention-green.log og -green-proof/weather-retention-proof.json. Faktisk indlæste07f1/665e;8nativeMCPweatherreads gennem eksisterendeinertHA WS+SSE+ToolRouter,0nativeeffekter/0pageerrors. GodHome/detalje→nativefejl→5.1snaturligcacheexpiry→reload med15°/prognose+ORIGINAL synligHentet→nativefreshrecovery20°→offlineoriginalD ryddetalje vedD+246ms ogHome/header vedD+549ms. Ingen browserur/UI-stateinjektion.11skærmtrin; ProductDesign/Impeccable-scope review og rootinspektion afreloadstale+offlineempty følger eksisterendekit, Hentet iDescriptionList uden overlap. Dette er software/inertservice/browser, ikkeGreen/iPad/fysiskaccept; serverrestart gørfaktahistorikkenkold.
+
+Separat GLOBALTUIFUND OPEN: eksisterende offlineToast x24–445/y712–776 dækker første dagprognoserække i weather-09-offline-retained.png (række ca.y738). Ændringen kaldes ikke globalt visuelt fejlfri. Ret i eksisterende NotificationQueue/placeringsregel med bevaret ingenlayoutplads og aktivvenstrekolonne; ingen lokalvejrtoast eller ekstraUIejer.
+
+### Aktuel konkret restliste for HELE planen
+
+- Musik: den faktiske14:05 source=owner/unavailable-årsag er endnu ikke identificeret.133 giver nu lukkede adaptergrene til næste observation; metadata/kø/volumenrettelser er ikke en påstand om løst providerudfald. AktuelNativeControlmain73512c95/0.10.32 er pluginverificeret, installerede bytes ikke bevist.
+- Robot: softwareStartforløb/feedback/ukendtudfaldsbeskyttelse er prøvet inert. Faktisk start, Pause/Fortsæt, rum/rengøringstype og recovery på robotten står åbne; intet ukendt tidligereudfald genafsendes automatisk.
+- Opskrifter: godkendt katalog/aktivbar/lysHomewidget/reload-flow består lokalt. Den konkrete genvejstypeændring Tekst→URL-adresse afventer allerede stillet godkendelsesspørgsmål efter autoreview afviste ændring under inspektionstilladelse. TelefonShare→serverkvittering→katalog skal derefter faktisk prøves.
+- Companion: native pull-to-refresh er ikke deaktiveret; understøttet indstilling er ikke verificeret. CSS må ikke kaldes en native løsning.
+- Timer: nativejustering medsammeID er bevist i isoleret HA2026.8.2, men touch/stemme-justeringsforløbet er endnu ikke implementeret. Alarm/Stop/lyd fysiskaccept er separat.
+- VoicePE: faktisk tal→afspil→vis→touchPause medsammeowner/output og LED/lydaccept mangler; enheden var offline ved seneste faktiske snapshot.
+- Lys/radio/Tesla: eksisterendeejere/kontrakter bevares; de resterende faktiske betjenings-/adgangs-/recoveryforløb skal afsluttes. Ingen faktisk kørselsspærre eller trunkrettighed opfindes uden nativewitness.
+- UI/touch: den samlede godkendte komposition og alle tilstande skal bevare faktiskGreen/iPad/Mac-paritet; offlineToast-fundet er åbent. Primært1280×800/og1200×800, fysiskFrameo/FullyKiosk efter den nuværendeMac/iPad-accept og køb af konkret enhed.
+- Levering:133 mainpublisher/Green ejes afv2.X og er endnu ikke meldt installeret her; NEXTvejrkandidaten er ikke udgivet/installeret. Før næste merge læses helefinalattempt workflowstatus completed/success, ikke kun joblisten, så promotion ikke mistergyldigtgenbrug i enfinaliseringsrace.
+
+
+Varigt billedbevis for NEXT: [genindlæst sidst kendt](qa-weather-retention-20261105/reload-last-known-detail.png), [udløbet/offlineHome](qa-weather-retention-20261105/offline-expired-home.png), [åbent globalttoastfund](qa-weather-retention-20261105/offline-toast-open.png), [afgrænset datakvittering med billedhashes](qa-weather-retention-20261105/receipt.json). Ingenlive/personligecredentials; kun inertscenario. Slutdetektor[] /private/tmp/pv-weather-all-surfaces-impeccable-final.json. Billedreview lukker den afgrænsede vejrretention/Hentet/expiry-visning; globaltoast-komposition forbliver åben.
+
+Browserrunnerens nye robotmode bruger40s ydre fixtureguard til at dække den eksisterende30s-server/35s-klientkvitteringsgrænse; ingen produktdeadline ellerfunktionelassertion erændret. AlmindeligNode5s-unitguard/andreCItesttimeouts er uændrede. De eksisterende240s journeyguards/job22min ogartefaktopsamling bevares.
+
+
+### Faktisk133levering, fortsat separat fra NEXT
+
+PR302 final3e5e2521→normalmainmerge30fa605bd75bb0f2ed48d2949bf9dde69c7ed178, main/publisher42061843373completedSUCCESS. Supervisorinstalled/latest133, éninstallationmedbackup. Actualadmin133+30fa oggemtbuildidentity2dda52f30030fb46e7f8cea676b53da6f533cfc419999669a41af662bbd73141 aflæst. PassivGreen: fogikoner itimer/dage nuvist, opskriftswidgetåbnerkatalog. Ingenaktivopskriftfandtes; aktivbar derforikkeGreenbevist ogingennewsessionskabt. Ingenmusik/robot/Tesla/stemmehandling;VoicePEoffline. Denoprindeligemusikowner-read-fejlerstadigåben. NEXTvejrretention/prepareændringerovenforerikkeinstalleret.
+
+Yderligereafgrænsetoffline-observationtilnæsteQA: screenshotetsRobotPause serfortsattilgængeligudunderoffline; kildeviserbrowserOffline-event kan kommeførtransport.connected=false. Billedetaleneerikkeeffektbevis. Næsteprøveskalobservereaktueltconnected/disabled+étinertklik/requesttællerogskelnereelHAforbindelsefrabrowserensmuligvisupålideligeoffline-signal. Ingenblindnavigator-baseretblokeringellernyadmissionindføresudenreeltforløb; lokalHAkanværetilgængeligudeninternet.

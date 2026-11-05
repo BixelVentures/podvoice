@@ -2828,7 +2828,7 @@ class ToolRouter:
 
         def project(response: object) -> dict:
             return weather_projection(
-                response, display_city=display_city, owner_epoch=observation_epoch if dual else ""
+                response, display_city=display_city, owner_epoch=observation_epoch
             )
 
         def current() -> bool:
@@ -2857,7 +2857,21 @@ class ToolRouter:
         try:
             if not dual:
                 result = await call({})
-                return project(_mcp_result_to_contract(result)) if current() else unavailable
+                if not current():
+                    return unavailable
+                contract = _mcp_result_to_contract(result)
+                projected = project(contract)
+                raw = contract.get("data") if isinstance(contract, dict) else None
+                raw_result = raw.get("result") if isinstance(raw, dict) else None
+                if (
+                    projected.get("status") == "observed"
+                    and isinstance(raw_result, dict)
+                    and "entity_id" not in raw_result
+                ):
+                    # Only this admitted legacy empty-read branch can classify
+                    # genuinely absent identity as current-only; never raw flags.
+                    projected = {**projected, "currentOnly": True}
+                return projected
             # The existing /home envelope is eight seconds. A single shared
             # deadline leaves room to return a valid daily result after auxiliary
             # timeout, without a second owner, retry or background operation.

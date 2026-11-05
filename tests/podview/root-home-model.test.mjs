@@ -1,3 +1,5 @@
+import {weatherFactObservation,weatherAdviceCapability} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';
+import {liveWeatherModel} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
 import test from 'node:test';import assert from 'node:assert/strict';import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
 const home=()=>({schema:'podview.home.v1',roomId:'kitchen',revision:2,observedAt:1700000000,vacuum:{status:'observed',items:[{entityId:'vacuum.actual',name:'Robot',state:'cleaning',battery:65,observedAt:1700000000,source:'home_assistant_state',actions:['start'],settings:{invented:true}}]}});
 test('passive robot reads retain exact entity and observed state but never admit commands',()=>{const h=validateHome(home(),'kitchen');assert.equal(h.vacuum.items[0].entityId,'vacuum.actual');assert.equal(h.vacuum.items[0].state,'cleaning');assert.equal(h.vacuum.items[0].actions,undefined);assert.equal(h.vacuum.items[0].settings,undefined);const s=applyHome({devices:[{kind:'light',status:'unavailable'}]},h);assert.equal(s.devices[0].status,'cleaning');assert.equal(s.devices[0].pending,null);});
@@ -28,4 +30,54 @@ test('partial robot observations retain bound fields and never promote old sampl
  const now=Date.now()/1000,bindingId='a'.repeat(64),row=(key,value,at)=>({key,entityId:`sensor.${key}`,value,unit:'%',updatedAt:at,retrievedAt:at,stale:false}),telemetry=items=>({status:'observed',bindingId,items,currentActivity:{status:'unavailable'}}),home={bootId:'boot',roomId:'room',revision:1,vacuum:{status:'observed',items:[{entityId:'vacuum.actual',source:'home_assistant_state',state:'docked',telemetry:telemetry([row('battery',80,now-10),row('clean_percent',40,now-20)])}]}};
  const first=applyHome({devices:[]},home),next=structuredClone(home);next.vacuum.items[0].telemetry=telemetry([row('battery',90,now),row('clean_percent',10,now-30)]);const merged=applyHome(first,next).devices[0].telemetry;assert.equal(merged.items.find(x=>x.key==='battery').value,90);const retained=merged.items.find(x=>x.key==='clean_percent');assert.equal(retained.value,40);assert.equal(retained.updatedAt,now-20);assert.equal(retained.stale,true);
  for(const mutate of [x=>x.vacuum.items[0].telemetry.bindingId='b'.repeat(64),x=>x.bootId='other',x=>x.vacuum.items[0].entityId='vacuum.other']){const changed=structuredClone(next);changed.vacuum.items[0].telemetry.items=[];mutate(changed);assert.equal(applyHome(first,changed).devices[0].telemetry.items.length,0);}
+});
+
+const retainedFacts=(now=Date.now())=>({source:'Home Assistant',location:'Home',retrievedAt:new Date(now-1000).toISOString(),stateUpdatedAt:new Date(now-2000).toISOString(),observedAt:(now-1000)/1000,units:{temperature:'°C',precipitation:'mm',windSpeed:'m/s'},current:{temperature:10,condition:'fog'},forecastType:'daily',forecast:[{datetime:new Date(now+3600000).toISOString(),temperature:12,highTemperature:12,lowTemperature:8,condition:'cloudy'}],observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}});
+const retainedHome=weather=>({schema:'podview.home.v1',bootId:'boot',roomId:'room',revision:1,observedAt:Date.now()/1000,vacuum:{status:'observed',items:[]},weather});
+test('fresh browser receives scoped last-known weather without renewing original source timestamps',()=>{
+ const raw=retainedFacts(),until=(Date.parse(raw.stateUpdatedAt)+7200000)/1000;
+ const fresh=validateHome(retainedHome({status:'observed',data:raw,lastKnown:null}),'room','boot');
+ const recovered=validateHome(retainedHome({status:'unavailable',data:null,lastKnown:{data:raw,validUntil:until}}),'room','boot');
+ const scene=applyHome({devices:[]},recovered,['weather']);
+ assert.equal(scene.liveWeather.current.temperature,10);assert.equal(scene.liveWeather.stale,true);
+ assert.equal(scene.liveWeather.retrievedAt,raw.retrievedAt);assert.equal(scene.liveWeather.stateUpdatedAt,raw.stateUpdatedAt);
+ assert.equal(scene.liveWeather.displayUntil,until*1000);assert.equal(fresh.weather.displayUntil,until*1000);
+ assert.equal(scene.liveWeather.aiAdvice,null);assert.equal(scene.liveWeather.passiveAdvice,null);assert.equal(scene.liveWeather.advice,null);
+});
+test('explicit absent or malformed history clears prior weather rather than taking legacy retention',()=>{
+ const raw=retainedFacts(),prior=applyHome({devices:[]},validateHome(retainedHome({status:'observed',data:raw,lastKnown:null}),'room','boot'),['weather']);
+ for(const lastKnown of [null,undefined,{data:raw,validUntil:Date.now()/1000+7201},{data:{...raw,observationScope:null},validUntil:Date.now()/1000+10}]){
+  const next=validateHome(retainedHome({status:'unavailable',data:null,lastKnown}),'room','boot');assert.equal(next.weather,null);assert.equal(applyHome(prior,next,['weather']).liveWeather,null);
+ }
+ const invalid=validateHome(retainedHome({status:'observed',data:{...raw,observationScope:null},lastKnown:null}),'room','boot');assert.equal(invalid.weather,null);assert.equal(applyHome(prior,invalid,['weather']).liveWeather,null);
+ assert.throws(()=>validateHome({...retainedHome({status:'unavailable',data:null,lastKnown:null}),bootId:'other'},'room','boot'));
+});
+test('forecast-only facts use their original retrieval limit while expired auxiliary hours cannot return',()=>{
+ const now=Date.now(),raw=retainedFacts(now),hourly={...raw,current:null,forecastType:'hourly',retrievedAt:new Date(now-901000).toISOString()};delete hourly.stateUpdatedAt;
+ const facts=weatherFactObservation({...raw,current:null,stateUpdatedAt:undefined,hourly},{now,stale:true});
+ assert.equal(facts.current,null);assert.equal(facts.displayUntil,Date.parse(raw.retrievedAt)+7200000);assert.equal(facts.hourly,undefined);assert.equal(facts.hourlyUnavailable,false);assert.equal(facts.forecast.length,1);
+ assert.equal(weatherFactObservation({...raw,stateUpdatedAt:new Date(now+1000).toISOString()},{now}),null);
+ for(const invalid of [{...raw,observedAt:(Date.parse(raw.retrievedAt)-1)/1000},{...raw,observedAt:(now+1)/1000},{...raw,current:null,stateUpdatedAt:'invalid'},{...raw,current:null,stateUpdatedAt:new Date(now+1000).toISOString()}])assert.equal(weatherFactObservation(invalid,{now}),null);
+});
+test('fresh scoped weather expires offline via the existing model deadline, with no facts or advice at its boundary',()=>{
+ const now=Date.now(),raw=retainedFacts(now);raw.stateUpdatedAt=new Date(now-7199000).toISOString();
+ const facts=weatherFactObservation(raw,{now}),deadline=now+1000;
+ assert.equal(facts.displayUntil,deadline);
+ const before=liveWeatherModel(facts,{now:deadline-1,connected:false});assert.equal(before.current.temperature,'10°');assert.equal(before.sourceStale,true);assert.equal(before.refreshAt,deadline);assert.equal(before.metadata.find(row=>row.id==='weather-retrieved').label,'Hentet');
+ const after=liveWeatherModel(facts,{now:deadline,connected:false});assert.equal(after.current,null);assert.deepEqual(after.days,[]);assert.deepEqual(after.hours,[]);assert.equal(after.summary,'');
+});
+
+test('expired bounded source cannot retain passive advice capability while its raw snapshot remains in memory',()=>{
+ const now=Date.now(),raw=retainedFacts(now);raw.stateUpdatedAt=new Date(now-7199000).toISOString();const facts=weatherFactObservation(raw,{now}),scope={bootId:'boot',roomId:'room'},cap={schema:'podview.weather-advice-capability.v1',...scope,weatherKey:'b'.repeat(64),source:raw.source,sourceRetrievedAt:Date.parse(raw.retrievedAt)/1000,availability:'available',status:'idle',validUntil:(now+60000)/1000};
+ assert.ok(weatherAdviceCapability(cap,facts,scope,now));
+ assert.equal(weatherAdviceCapability(cap,facts,scope,facts.displayUntil),null);
+});
+
+test('explicit legacy current-only weather is bounded, never retained, and never inferred from absent scope',()=>{
+ const now=Date.now(),raw=retainedFacts(now);delete raw.observationScope;const deadline=Date.parse(raw.stateUpdatedAt)+7200000;
+ const direct=weatherFactObservation(raw,{now,allowCurrentOnly:true});assert.equal(direct.current.temperature,10);assert.equal(direct.displayUntil,deadline);assert.equal(direct.observationScope,undefined);assert.equal(weatherFactObservation(raw,{now:deadline,allowCurrentOnly:true}),null);assert.equal(weatherFactObservation(raw,{now}),null);assert.equal(weatherFactObservation(raw,{now,allowCurrentOnly:true,stale:true}),null);assert.equal(weatherFactObservation(raw,{now:deadline,allowCurrentOnly:true,stale:true,validUntil:deadline/1000+3600}),null);
+ const unscopedHourly=weatherFactObservation({...raw,hourly:{...raw,forecastType:'hourly'}},{now,allowCurrentOnly:true});assert.equal(unscopedHourly.hourly,undefined);
+ const good={status:'observed',data:raw,lastKnown:null,currentOnly:true},home=validateHome(retainedHome(good),'room','boot');assert.equal(home.weather.current.temperature,10);assert.equal(home.weather.displayUntil,deadline);const scene=applyHome({devices:[]},home,['weather']);const unavailable=validateHome(retainedHome({status:'unavailable',data:null,lastKnown:null}),'room','boot');assert.equal(applyHome(scene,unavailable,['weather']).liveWeather,null);
+ const variants=[{...good,currentOnly:false},{status:'observed',data:raw,lastKnown:null},{status:'observed',data:raw,currentOnly:true},{...good,lastKnown:{data:raw,validUntil:deadline/1000}},{...good,data:{...raw,observationScope:null}},{...good,data:{...raw,observationScope:{entityId:'weather.actual'}}},{...good,data:{...raw,observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}}},{...good,status:'unavailable',data:null,lastKnown:{data:{...raw,observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}},validUntil:deadline/1000}},{...good,data:{...raw,forecast:null}}];
+ for(const variant of variants){const value=validateHome(retainedHome(variant),'room','boot');assert.equal(value.weather,null,JSON.stringify(variant));assert.equal(applyHome(scene,value,['weather']).liveWeather,null,JSON.stringify(variant));}
 });

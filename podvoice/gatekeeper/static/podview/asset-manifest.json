@@ -487,11 +487,11 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "52383b56565fe34bfd39a2de19f6dcf2548b0cd7988bd98d30ad640af967a644"
+      "sha256": "24c414bc45a0d653fa8a64feef6a9421092e903908ed40e26572fb5b393a3f6d"
     },
     {
       "path": "index.html",
-      "sha256": "45ffad48f7693a163b5a7f5247c47767fcf9b5a70c238ebd53da01fc74db1be9"
+      "sha256": "cbd6ee327f5a77aeccd0be00173fe1ca7c7b7eb68b94e4dff014ee2c2fd0ea67"
     },
     {
       "path": "ingress-kiosk.js",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "1f38eb5e77224c27f66bb14720fcab89db5c746d0dcebf960ff535fb428c336f"
+      "sha256": "26167bfb713c5375dcc9097aaae1e1eb5e80a1673e501b6957b19ef844741da4"
     },
     {
       "path": "library.css",
@@ -539,7 +539,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "68a9805ba5a092b1d8da975645a55665890b5195665941723db705951e7db7ad"
+      "sha256": "56988600e59aee255b862cb08f9702ae0e44ea184668905029518030d6ada9d4"
     },
     {
       "path": "live-media-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "9ca844f2aecb7cf622f6e1292bbdfa3db89135ea0d82c89fbe8dd6ea1737df01"
+      "sha256": "13e2b20e2b1b4c960089f1cff66129e15685644203fd0bef668297fa37f21dd1"
     },
     {
       "path": "podview.css",
@@ -871,11 +871,11 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "d22430a27dac3484a0481976b95adfa61e021be38077840613ec85a73841a36d"
+      "sha256": "8f70f3d1295a3921318e80d944f11bc9d67c6417e32ca80fe972518449ec184b"
     },
     {
       "path": "weather-view.js",
-      "sha256": "778a9564d97ec89c2f412f574f2e095c9aaa5f919e8e132899c3e4e376ed810f"
+      "sha256": "acf46709493af83b957e5283a944c91891785d6fd5191eb9683b155337043474"
     },
     {
       "path": "widget-model.js",

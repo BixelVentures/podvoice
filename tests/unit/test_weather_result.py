@@ -19,6 +19,7 @@ from gatekeeper.podview_weather import (
     MAX_CURRENT_AGE_S,
     MAX_RETRIEVAL_AGE_S,
     observation_is_current,
+    retained_facts,
     weather_projection,
 )
 from gatekeeper.tools import ToolRouter
@@ -392,12 +393,17 @@ class _PassiveWeatherMCP:
 
 async def test_passive_weather_calls_only_admitted_owner_without_mutating_voice_schema():
     fixture = _PassiveWeatherMCP()
+    fixture.payload["data"]["result"]["entity_id"] = "weather.inert"
     async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
         router = await fixture.router(client)
         snapshot, declarations = router._discovery, router.declarations()
         assert router.podview_weather_available()
         projected = await router.podview_weather_read()
         assert projected["status"] == "observed"
+        scope = projected["data"]["observationScope"]
+        assert scope["entityId"] == "weather.inert"
+        assert len(scope["ownerEpoch"]) == 64
+        assert int(scope["ownerEpoch"], 16) >= 0
         assert fixture.calls[0]["params"] == {"name": "weather_forecast", "arguments": {}}
         assert len(fixture.calls) == 1
         assert router._discovery is snapshot and router.declarations() == declarations
@@ -1066,3 +1072,106 @@ async def test_actual_weather_owner_read_adds_only_configured_display_city():
         assert fixture.payload == original
         assert len(fixture.calls) == 1
         assert fixture.calls[0]["params"]["arguments"] == {}
+
+
+def _retention_facts():
+    payload = _current_weather_payload()
+    payload["data"]["result"]["entity_id"] = "weather.inert"
+    return weather_projection(payload, owner_epoch="a" * 64)["data"]
+
+
+def test_retained_weather_fixed_deadline_and_closed_facts_without_mutation():
+    data = _retention_facts()
+    data.update(
+        advice={"text": "generated"},
+        aiAdvice={"text": "generated"},
+        displayLocation={"name": "derived"},
+        capabilities={"action": "private"},
+    )
+    data["forecast"][0]["private"] = "private"
+    original = copy.deepcopy(data)
+    r = datetime.fromisoformat(data["retrievedAt"]).timestamp()
+    u = datetime.fromisoformat(data["stateUpdatedAt"]).timestamp()
+    retained = retained_facts(data, now=r + 1000)
+    assert retained["validUntil"] == min(r, u) + 7200
+    assert retained["data"]["retrievedAt"] == data["retrievedAt"]
+    assert retained["data"]["observedAt"] == data["observedAt"]
+    assert not {"advice", "aiAdvice", "displayLocation", "capabilities"}.intersection(
+        retained["data"]
+    )
+    assert "private" not in retained["data"]["forecast"][0]
+    assert retained_facts(data, now=retained["validUntil"]) is None
+    assert data == original
+    data["current"] = None
+    data["stateUpdatedAt"] = None
+    assert retained_facts(data, now=r + 7199)["validUntil"] == r + 7200
+    assert retained_facts(data, now=r + 7200) is None
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        lambda d: d.pop("observationScope"),
+        lambda d: d["observationScope"].update(ownerEpoch="bad"),
+        lambda d: d["observationScope"].update(entityId="light.unrelated"),
+        lambda d: d.update(retrievedAt="not-a-date"),
+        lambda d: d.update(stateUpdatedAt="2099-01-01T00:00:00+00:00"),
+        lambda d: d["current"].update(temperature=float("nan")),
+        lambda d: d["forecast"][0].update(temperature=float("inf")),
+        lambda d: d["coverage"].update(returnedRows=0),
+        lambda d: d.update(units={"temperature": None}),
+    ],
+)
+def test_retained_weather_rejects_mutated_or_unscoped_facts(change):
+    data = _retention_facts()
+    change(data)
+    assert retained_facts(data) is None
+
+
+def test_retained_weather_hourly_is_independently_expired_and_identity_bound():
+    data = _retention_facts()
+    r = datetime.fromisoformat(data["retrievedAt"]).timestamp()
+    data["current"] = None
+    data["stateUpdatedAt"] = None
+    hourly = _retention_facts()
+    hourly["stateUpdatedAt"] = datetime.fromtimestamp(r - 7100, UTC).isoformat()
+    data["hourly"] = hourly
+    assert "hourly" in retained_facts(data, now=r + 50)["data"]
+    retained = retained_facts(data, now=r + 1000)
+    assert retained is not None and "hourly" not in retained["data"]
+    hourly["stateUpdatedAt"] = data["retrievedAt"]
+    hourly["observationScope"]["entityId"] = "weather.other"
+    assert "hourly" not in retained_facts(data, now=r + 1000)["data"]
+
+
+def test_retained_weather_90_minute_primary_drops_15_minute_auxiliary_hours():
+    payload = _current_weather_payload()
+    payload["data"]["result"].update(entity_id="weather.inert", forecast_type="daily")
+    data = weather_projection(payload, owner_epoch="a" * 64)["data"]
+    assert data["forecastType"] == "daily"
+    r = datetime.fromisoformat(data["retrievedAt"]).timestamp()
+    data["current"] = None
+    data["stateUpdatedAt"] = None
+    hourly = _retention_facts()
+    hourly["stateUpdatedAt"] = data["retrievedAt"]
+    data["hourly"] = hourly
+    assert "hourly" in retained_facts(data, now=r + 899)["data"]
+    retained = retained_facts(data, now=r + 5400)
+    assert retained is not None
+    assert retained["validUntil"] == r + 7200
+    assert "hourly" not in retained["data"]
+
+
+def test_current_only_validation_allows_only_absent_scope_with_same_fact_bounds():
+    data = _retention_facts()
+    data.pop("observationScope")
+    assert retained_facts(data) is None
+    current = retained_facts(data, require_scope=False)
+    assert current is not None and "observationScope" not in current["data"]
+    assert retained_facts(data, now=current["validUntil"], require_scope=False) is None
+    for malformed in (None, {}, {"entityId": "weather.inert", "ownerEpoch": "bad"}):
+        data["observationScope"] = malformed
+        assert retained_facts(data, require_scope=False) is None
+    data.pop("observationScope")
+    data["current"]["temperature"] = float("nan")
+    assert retained_facts(data, require_scope=False) is None

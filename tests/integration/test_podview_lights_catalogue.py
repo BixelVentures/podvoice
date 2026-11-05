@@ -195,7 +195,7 @@ async def test_failed_catalogue_transport_has_null_metadata_and_preserves_other_
         value = await get_home(client, profiles[0][1])
     absent(value, "unavailable")
     assert value["vacuum"] == {"status": "unavailable", "items": []}
-    assert value["weather"] == {"status": "unavailable", "data": None}
+    assert value["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
     assert not FIELDS.intersection(bridge._home_cache["room"][2])
 
 

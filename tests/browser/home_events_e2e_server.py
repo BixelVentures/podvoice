@@ -5,7 +5,7 @@ import copy
 import json
 import os
 from contextlib import asynccontextmanager
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -17,11 +17,47 @@ from unit.test_device_control import ROBOT, Rig
 
 from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
+from gatekeeper.mcp_client import HomeAssistantMCP
 from gatekeeper.podview import BRIDGE
 from gatekeeper.tools import ToolRouter
 from gatekeeper.web import create_app
 
 port = int(os.environ.get("HOME_EVENT_TEST_PORT", "18978"))
+weather_mode = os.environ.get("WEATHER_RETENTION_TEST") == "1"
+weather_entity = "weather.inert"
+weather_owner = None
+weather_failed = False
+weather_reads = []
+if weather_mode:
+    from unit.test_weather_result import _dual_weather_fixture
+
+    weather_owner = _dual_weather_fixture()
+    weather_owner.names = ("HassGetWeather",)
+
+
+def reset_weather(*, temperature=15.1, remaining=None):
+    if weather_owner is None:
+        return
+    now = datetime.now(UTC)
+    for payload in weather_owner.forecast_payloads.values():
+        result = payload["data"]["result"]
+        shift = now - datetime.fromisoformat(result["retrieved_at"])
+        for row in result["forecast"]:
+            row["datetime"] = (datetime.fromisoformat(row["datetime"]) + shift).isoformat()
+        result.update(
+            entity_id=weather_entity,
+            location="Inert vejrsted",
+            retrieved_at=now.isoformat(),
+            state_updated_at=(now - timedelta(seconds=7200 - remaining)).isoformat()
+            if remaining is not None
+            else now.isoformat(),
+            temperature=temperature,
+            condition="rainy" if temperature > 18 else "partlycloudy",
+        )
+        payload["data"]["success"] = True
+
+
+reset_weather()
 robot = Rig()
 original_client = robot.client
 robot.states[ROBOT]["state"] = "cleaning"
@@ -38,6 +74,22 @@ release_read = asyncio.Event()
 
 async def ha_rest(request):
     global hold_read
+    if weather_owner is not None:
+        if request.url.path == "/api/mcp/assist":
+            body = json.loads(request.content)
+            if body.get("method") == "tools/call":
+                weather_reads.append(
+                    {
+                        "at": datetime.now(UTC).timestamp(),
+                        "forecastType": body["params"]["arguments"].get("forecast_type"),
+                        "failed": weather_failed,
+                    }
+                )
+            return await weather_owner.respond(request)
+        if request.method == "GET" and request.url.path.endswith("/services"):
+            return httpx.Response(200, json=[])
+        if request.method == "GET" and request.url.path.endswith("/config"):
+            return httpx.Response(200, json={})
     if request.url.path.endswith("/states/" + ROBOT):
         counts["stateReads"] += 1
         captured = {"entity_id": ROBOT, **copy.deepcopy(robot.states[ROBOT])}
@@ -61,7 +113,12 @@ async def home_connector():
 
 
 tools = ToolRouter(
-    None, client=robot.client, supervisor_token="test-token", home_event_connect=home_connector
+    HomeAssistantMCP("http://fixture.invalid/api/mcp/assist", "test-token", robot.client)
+    if weather_owner is not None
+    else None,
+    client=robot.client,
+    supervisor_token="test-token",
+    home_event_connect=home_connector,
 )
 tools._device_control = robot.router._device_control
 session, _ = owner()
@@ -146,9 +203,32 @@ async def emit(entity, state):
 
 
 async def lab(request):
-    global hold_read
+    global hold_read, weather_failed
     if request.method == "POST":
         body = await request.json()
+        if weather_owner is not None:
+            if "weatherFail" in body:
+                weather_failed = body["weatherFail"] is True
+                for payload in weather_owner.forecast_payloads.values():
+                    payload["data"]["success"] = not weather_failed
+            if body.get("weatherRecover"):
+                weather_failed = False
+                reset_weather(temperature=19.6)
+            if "weatherNearExpirySeconds" in body:
+                seconds = body["weatherNearExpirySeconds"]
+                assert type(seconds) is int and 5 <= seconds <= 30
+                weather_failed = False
+                reset_weather(temperature=21.1, remaining=seconds)
+            if any(
+                key in body for key in ("weatherFail", "weatherRecover", "weatherNearExpirySeconds")
+            ):
+                await emit(
+                    weather_entity,
+                    {
+                        "entity_id": weather_entity,
+                        "state": "unavailable" if weather_failed else "rainy",
+                    },
+                )
         if body.get("holdRead"):
             hold_read = True
             read_started.clear()
@@ -169,6 +249,20 @@ async def lab(request):
             "state": robot.states[ROBOT]["state"],
             "writes": robot.writes,
             "readHeld": read_started.is_set() and not release_read.is_set(),
+            **(
+                {
+                    "weather": {
+                        "failed": weather_failed,
+                        "reads": copy.deepcopy(weather_reads),
+                        "sources": {
+                            kind: copy.deepcopy(payload["data"]["result"])
+                            for kind, payload in weather_owner.forecast_payloads.items()
+                        },
+                    }
+                }
+                if weather_owner is not None
+                else {}
+            ),
         }
     )
 
@@ -223,6 +317,13 @@ addEventListener('message',event=>{if(event.source!==frame.contentWindow||event.
     )
 
 
+async def startup(_):
+    if weather_owner is not None:
+        # The real MCP initialize/tools-list admission runs before browser requests.
+        await tools._refresh(force=True)
+        assert tools.podview_weather_available()
+
+
 async def cleanup(_):
     release_read.set()
     for websocket in list(clients):
@@ -245,6 +346,7 @@ app.router.add_post("/lab/state", lab)
 app.router.add_route("*", "/api/hassio_ingress/inert-session/{tail:.*}", ingress_proxy)
 app.router.add_get("/app/inert_podvoice", ha_shell)
 app.router.add_get("/app/inert_podvoice/view", ha_shell)
+app.on_startup.append(startup)
 app.on_cleanup.append(cleanup)
 app.on_shutdown.append(shutdown)
 web.run_app(app, host="127.0.0.1", port=port, print=None)

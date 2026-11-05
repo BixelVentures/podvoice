@@ -3,16 +3,18 @@
 import asyncio
 import json
 import time
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 from aiohttp.test_utils import make_mocked_request
 from integration.test_podview_bridge import owner
-from unit.test_passive_weather_advice import observation
+from unit.test_passive_weather_advice import observation as advice_observation
 
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview import BRIDGE, _home
+from gatekeeper.podview_weather import weather_projection
 from gatekeeper.podview_weather_http import weather_advice
 from gatekeeper.web import create_app
 
@@ -42,6 +44,34 @@ def request(app, method, path, body=None):
     if raw is not None:
         value._read_bytes = raw
     return value
+
+
+def observation():
+    # The isolated advice-owner fixture omits HTTP DTO metadata. Exercise the
+    # home boundary with the same closed projection the native read supplies.
+    data = advice_observation()["data"]
+    return weather_projection(
+        {
+            "ok": True,
+            "data": {
+                "success": True,
+                "result": {
+                    "source": data["source"],
+                    "location": data["location"],
+                    "entity_id": data["observationScope"]["entityId"],
+                    "retrieved_at": data["retrievedAt"],
+                    "state_updated_at": data["stateUpdatedAt"],
+                    "temperature_unit": data["units"]["temperature"],
+                    "precipitation_unit": data["units"]["precipitation"],
+                    "wind_speed_unit": data["units"]["windSpeed"],
+                    **data["current"],
+                    "forecast_type": data["forecastType"],
+                    "forecast": data["forecast"],
+                },
+            },
+        },
+        owner_epoch=data["observationScope"]["ownerEpoch"],
+    )
 
 
 def setup(provider=None):
@@ -230,4 +260,68 @@ async def test_distinct_fresh_weather_can_generate_without_local_quota_or_cooldo
         tools.podview_weather_available = lambda: False
         revoked = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
         assert revoked["weatherAdvice"]["availability"] == "unavailable"
+        await tools.podview_weather_advice.close()
+
+
+async def test_final_rejected_weather_cannot_advertise_ready_advice():
+    provider = SimpleNamespace(
+        available=True,
+        generate=AsyncMock(
+            return_value={
+                "summary": "Tag en trøje med på turen.",
+                "evidenceFactIds": ["current:temperature"],
+            }
+        ),
+    )
+    app, tools, provider = setup(provider)
+    try:
+        initial = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
+        assert initial["weather"]["status"] == "observed"
+        body = {key: initial["weatherAdvice"][key] for key in ("bootId", "roomId", "weatherKey")}
+        await weather_advice(request(app, "POST", "/view/api/weather-advice", body))
+        await asyncio.gather(
+            *(record["task"] for record in tools.podview_weather_advice.records.values())
+        )
+        ready = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
+        assert ready["weatherAdvice"]["status"] == "ready"
+        assert ready["weather"]["data"]["passiveAdvice"]["status"] == "ready"
+        # Mutated cache facts are rejected at final delivery, after capability
+        # was captured. No grant or generated advice can survive that rejection.
+        app[BRIDGE]._home_cache["kitchen"][2]["weather"]["data"].pop("coverage")
+        rejected = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
+        assert rejected["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
+        assert rejected["weatherAdvice"]["status"] == "unavailable"
+        assert rejected["weatherAdvice"]["availability"] == "unavailable"
+        assert rejected["weatherAdvice"]["weatherKey"] is None
+        provider.generate.assert_awaited_once()
+    finally:
+        await tools.podview_weather_advice.close()
+
+
+async def test_held_light_read_expiry_cannot_advertise_weather_advice():
+    app, tools, provider = setup()
+    updated = time.time() - 7198
+    tools.podview_weather_read.return_value["data"]["stateUpdatedAt"] = datetime.fromtimestamp(
+        updated, UTC
+    ).isoformat()
+    held = []
+
+    async def lights(*args, **kwargs):
+        assert app[BRIDGE]._home_cache["kitchen"][2]["weather"]["status"] == "observed"
+        remaining = updated + 7200 - time.time()
+        assert remaining > 0
+        held.append(True)
+        await asyncio.sleep(remaining + 0.05)
+        return {}
+
+    app[BRIDGE].read_lights = lights
+    try:
+        result = json.loads((await _home(request(app, "GET", "/view/api/home"))).text)
+        assert held == [True]
+        assert result["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
+        assert result["weatherAdvice"]["status"] == "unavailable"
+        assert result["weatherAdvice"]["availability"] == "unavailable"
+        assert result["weatherAdvice"]["weatherKey"] is None
+        provider.generate.assert_not_awaited()
+    finally:
         await tools.podview_weather_advice.close()
