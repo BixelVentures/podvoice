@@ -136,9 +136,13 @@ def _routine_read(row):
 def _action_trace(row):
     """Only explicit action lifecycle or unambiguous user-selection/effect endpoints.
 
-    control/setup and queue/offer can be background prefetch and confer no priority.
+    Uncorrelated setup and queue/offer remain background prefetch.
     HTTP method is intentionally not used as a proxy for human intent.
     """
+    if row["stage"] == "control_setup":
+        return _matches(_REF, row.get("diagnosticRef")) and row.get(
+            "action"
+        ) in _DOMAIN_ACTIONS.get(row.get("domain"), ())
     return row["stage"] in {
         "control_intent",
         "control_action",

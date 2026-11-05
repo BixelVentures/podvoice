@@ -838,7 +838,23 @@ def test_telemetry_client_identity_is_optional_but_closed_when_present(client_id
 async def test_actual_background_radio_home_pressure_retains_action_trace_after_reload(store):
     owner, clock = store
     actions = [
-        {"stage": "control_intent", "code": "start", "requestId": UUID},
+        {"stage": "control_intent", "code": "start", "requestId": UUID, "diagnosticRef": UUID},
+        {
+            "stage": "control_setup",
+            "code": "ok",
+            "diagnosticRef": UUID,
+            "domain": "radio",
+            "action": "stop",
+        },
+        {
+            "stage": "control_observation",
+            "code": "observed",
+            "diagnosticRef": UUID,
+            "domain": "radio",
+            "action": "stop",
+            "source": "podradio",
+            "trust": "state_observation",
+        },
         {"stage": "request", "code": "start", "endpoint": "music/selection/setup"},
         {
             "stage": "request",
@@ -846,7 +862,7 @@ async def test_actual_background_radio_home_pressure_retains_action_trace_after_
             "endpoint": "music/selection/actions",
             "requestId": UUID,
         },
-        {"stage": "control_action", "code": "rejected", "requestId": UUID},
+        {"stage": "control_action", "code": "rejected", "requestId": UUID, "diagnosticRef": UUID},
         {"stage": "control_action", "code": "unknown", "requestId": UUID},
     ]
     await owner.append(
@@ -884,6 +900,14 @@ async def test_actual_background_radio_home_pressure_retains_action_trace_after_
         if not page["hasMore"]:
             break
     assert [r["serverSeq"] for r in saved[: len(actions)]] == list(range(1, len(actions) + 1))
+    correlated = [r["row"] for r in saved if r["row"].get("diagnosticRef")]
+    assert {r["stage"] for r in correlated} == {
+        "control_intent",
+        "control_setup",
+        "control_action",
+        "control_observation",
+    }
+    assert len({r["diagnosticRef"] for r in correlated}) == 1
     assert len(saved) <= module.MAX_RECORDS and owner.path.stat().st_size <= module.MAX_BYTES
 
 
@@ -951,6 +975,20 @@ def test_action_retention_uses_finite_existing_owner_contract(stage, endpoint, p
     )
 
 
+@pytest.mark.parametrize(
+    "extra, priority",
+    [
+        ({}, False),
+        ({"diagnosticRef": "a" * 16}, False),
+        ({"diagnosticRef": "a" * 16, "domain": "radio", "action": "stop"}, True),
+        ({"diagnosticRef": "a" * 16, "domain": "radio", "action": "pause"}, False),
+        ({"diagnosticRef": "invalid", "domain": "radio", "action": "stop"}, False),
+    ],
+)
+def test_setup_retention_requires_valid_correlation_and_owner_action(extra, priority):
+    assert module._action_trace({"stage": "control_setup", **extra}) is priority
+
+
 async def test_action_saturation_rejects_background_atomically_but_admits_mixed_action_batch(store):
     owner, clock = store
     for index in range(32):
@@ -979,7 +1017,14 @@ async def test_action_saturation_rejects_background_atomically_but_admits_mixed_
         32,
         records=[
             {"stage": "request", "code": "ok", "endpoint": "radio", "seq": 1, "ageMs": 0},
-            {"stage": "home_read", "code": "superseded", "seq": 2, "ageMs": 0},
+            {
+                "stage": "control_setup",
+                "code": "ok",
+                "domain": "radio",
+                "action": "stop",
+                "seq": 2,
+                "ageMs": 0,
+            },
         ],
     )
     with pytest.raises(module.DiagnosticFailure) as denied:

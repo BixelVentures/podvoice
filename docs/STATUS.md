@@ -1,3 +1,11 @@
+## 130 · CI963 radiojournalclosure ·5. november2026
+
+Faktisk CI963/head41ba fejlede på radio_stop setupkorrelation. Reproduceret medCIChromium151: setup/startseq55 og setup/okseq58 blev korrekt emitted/lokalt bevaret efterSpotify (111rows/dropped0), men forsvandt uACKed under senere128rowbufferpres/dropped49; serverhavdekun64rows. Det er en klientretentionsårsag, ikke manglende emission eller server512eviction. Førbevis `/private/tmp/podview-radio-journal-before-evidence.json`.
+
+Minimalrettelse: eksisterende finite diagnosticActionklassificerer korreleret control_setup med validreference/domain/action som handling. Samme klientpredicate bruges critical/eviction/backgroundpressure; serverens eksisterende512tier matcher for at bevare samme logkontrakt ved senere pres. Ukorreleretsetup/prefetch er stadigbaggrund;128/512/256KiB/7d, adgang, ACK/batch-ID og kommandomyndighed er uændrede. Astra scopedGO på client17fdc734…/server33adec2d… .
+
+Samlet130kandidat oven påbfea indeholder også integrationsleadens test-onlymood-preview requestfixture med bevaret denialassertion. Build545f52f28ad320bd1c0f5d482723149eb700a0c1042a392b87f9204badc0d7c6,221canonical/stagingmanifestPASS, CSS/bibliotekuændrede. FullUI4668PASSexit0, fullmypy103PASSexit0, focusedstore+HTTP+moodpreviewPASSexit0, Ruff/format/syntaxPASS. Strengt actualtouch→Python→inertRadio→Spotifyforløb påsamletbuild ogserverPASSexit0/CI151: énvolumeeffekt31%,stop,4radioeffekter/1Spotifyvalg, persistedsetup/action/observation/target/valuecorrelation og0pageerrors. `/private/tmp/podview130-radio-combined-actual.log` og `/private/tmp/podview130-radio-combined-proof/` bevarer faktiskjournal/billeder; stopped/toSpotifybillederrootinspiceretudennewvisualblockiændredescope. Eksisterendejournalartifact gemmes nu FØRassertion; ingenassertion lempet. Kilder/lokalQA, officielCI, release, Green og fysiskaccept registreres særskilt. IngenGreen/lydhandling her;lydprøve tidligst08:32CET ogingenautomatiskPlayvedinstallation.
+
 ## NEXT · samlet selectiontrace lukket ·4. november2026
 
 **Ingen Greeninstallation/genstart/lydprøver resten af natten4→5nov.** Ny direkte menneskelig grænse tilsidesætter tidligere lydtest-Go. Kun lydfri software/inertservices.
