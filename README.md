@@ -7,6 +7,14 @@ gates. Product behavior and measurable goals are in [docs/PRODUKTMÅL.md](docs/P
 The [documentation index](docs/README.md) distinguishes current guides, diagnostics,
 proposals and historical material; agents start at [AGENTS.md](AGENTS.md).
 
+## PodView dashboard
+
+PodView's browser UI lives in this repository at
+[`podvoice/gatekeeper/static/podview/`](podvoice/gatekeeper/static/podview/).
+Its UI tests, component contract and build tools share the same Git history and release.
+See [PodView source and development](docs/PODVIEW-SOURCE.md) for the tracked paths,
+local preview workflow and the distinction between source and disposable `dist/`.
+
 ## How it works
 
 **GPT-Live is the only production conversation engine.** `ThinSession` owns the conversation

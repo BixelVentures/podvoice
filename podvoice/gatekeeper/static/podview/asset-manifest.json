@@ -475,7 +475,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "bf536fd1bf3f362eb7b293a49fffe6f328148cd753a339e8101fc29d05818d5f"
+      "sha256": "deacb3485c0d566b24c4085b73600a75aa35d0786e322cd02adcc30ab0040e75"
     },
     {
       "path": "ingress-kiosk.js",
@@ -487,11 +487,11 @@
     },
     {
       "path": "library-catalog.js",
-      "sha256": "c27a6efbb607b0befff3080c635f1c094b46ad4ef8dd4d0c1f66ccb756ff0977"
+      "sha256": "60394c20405fcb9dd3864de2cc558ad0ed0018b65a4257eee2b5b3739547fdbf"
     },
     {
       "path": "library.bundle.js",
-      "sha256": "00045b5dffc59fa2707ab024ae26cfb061e1e78345b40c3d73aa4bc52b7e78e0"
+      "sha256": "fbe7ac8929324373e8af3a2a683a504107e80b52c761fb4ad8fd984c21aab03c"
     },
     {
       "path": "library.css",
@@ -575,7 +575,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "d2d026de5c1f5df1dbe8b90a8d31871b91508d62c64b491aed65bcd6cd4dab24"
+      "sha256": "0a6b26b772c62eb0d1bf90f4e7db91efe151a06d081b6a7d18bed188c1ca16fb"
     },
     {
       "path": "music-selection-model.js",
@@ -619,11 +619,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "1b7b230361ef2fc2227595aa3d801aa272686867dd3e84b6e8cfef0a2511d596"
+      "sha256": "48d21e13c3ab10f80aa258776d50f7ad0c52f27ff3c94c35b5cb40c5954edc78"
     },
     {
       "path": "podview.css",
-      "sha256": "c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b"
+      "sha256": "3a4601030e2e3710deff97648bce0f8fd889977c06fae3ac290b93539d6a40b5"
     },
     {
       "path": "podvoice-transport.js",
@@ -647,7 +647,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "6e14942a2b24d666a9533c5932d247700b4ec9c805d904e7f76acb9a09b5ef52"
+      "sha256": "da5925ed5d233cb2206fd55e383d67843936d467f09b2baf709e9c2dce089b76"
     },
     {
       "path": "references.json",
@@ -727,7 +727,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "4224e4ea9ff6cb7a497fc7a1adca44be6aafe38623f1ba8ddfca05e4e830eb1b"
+      "sha256": "6a2e8fbac010983ef4f5ad45163f6e989df0f24c41aec6ac85ee69bd5c9eb11a"
     },
     {
       "path": "ui/answer-auto-return.js",

@@ -4,6 +4,9 @@ const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ#'];
 const collator = new Intl.Collator('da');
 const deletedKey = 'podview.deleted-recipes';
 const historyKey = 'podview.recipe-history';
+const sessionKey = 'podview.recipe-session.v1';
+const sessionMaxAge = 30*86400000;
+const recipeSignature = recipe=>JSON.stringify([recipe.steps,recipe.groups || [{title:'Råvarer',lines:recipe.ingredients}]]);
 const historyDate = new Intl.DateTimeFormat('da-DK',{dateStyle:'medium',timeStyle:'short'});
 
 function element(tag, text = '') {
@@ -44,6 +47,19 @@ export class RecipeView {
   this.uploads = [];
   this.sources = [];
   this.sessions = new Map();
+  this.pendingSession = null;
+  try {
+   const raw = localStorage.getItem(sessionKey);
+   if (raw && raw.length <= 65536) this.pendingSession = JSON.parse(raw);
+   else if (raw) localStorage.removeItem(sessionKey);
+  } catch {this.clearSession();}
+  this.sessionScroll = ()=>{
+   if (this.readingRecipe && this.readingRecipe === this.active) {
+    const session = this.sessions.get(this.active);
+    if (session) {session.scroll = this.root.scrollTop;this.persistSession();}
+   }
+  };
+  this.root.addEventListener('scroll',this.sessionScroll);
   try {
    const entries = JSON.parse(localStorage.getItem(historyKey));
    this.history = Array.isArray(entries) ? entries.filter(entry=>typeof entry?.title === 'string'
@@ -57,6 +73,7 @@ export class RecipeView {
  page(title, subtitle, back, ...actions) {
   this.stopCatalogRefresh();
   this.catalogResize?.disconnect();
+  this.readingRecipe = null;
   this.goBack = back;
   if (this.coverUrl) URL.revokeObjectURL(this.coverUrl);
   this.coverUrl = null;
@@ -84,6 +101,48 @@ export class RecipeView {
  dispose() {
   this.stopCatalogRefresh();
   this.catalogResize?.disconnect();
+  this.root.removeEventListener('scroll',this.sessionScroll);
+ }
+
+ persistSession() {
+  const recipe = this.active, session = this.sessions.get(recipe);
+  if (!recipe || !session || typeof recipe.source?.url !== 'string') return;
+  try {
+   const record = JSON.stringify({version:1,url:recipe.source.url,signature:recipeSignature(recipe),
+    savedAt:Date.now(),steps:[...session.steps],ingredients:[...session.ingredients],
+    expanded:session.ingredientsExpanded ?? true,scroll:session.scroll || 0});
+   if (record.length <= 65536) localStorage.setItem(sessionKey,record);
+  } catch { /* Cooking remains usable without browser storage. */ }
+ }
+
+ clearSession() {
+  this.pendingSession = null;
+  try {localStorage.removeItem(sessionKey);} catch { /* No storage access. */ }
+ }
+
+ restoreSession() {
+  const record = this.pendingSession;
+  if (!record) return;
+  this.pendingSession = null;
+  try {
+   const matches = this.saved.filter(recipe=>recipe.source?.url === record.url);
+   const recipe = matches.length === 1 ? matches[0] : null;
+   const groups = recipe?.groups || [{title:'Råvarer',lines:recipe?.ingredients}];
+   const allowed = new Set(groups.flatMap(group=>group.lines.map((_,i)=>group.title+'-'+i)));
+   if (record.version !== 1 || !recipe || recipeSignature(recipe) !== record.signature
+    || !Number.isFinite(record.savedAt) || record.savedAt > Date.now()+60000
+    || Date.now()-record.savedAt > sessionMaxAge || typeof record.expanded !== 'boolean'
+    || !Number.isFinite(record.scroll) || record.scroll < 0 || record.scroll > 1000000
+    || !Array.isArray(record.steps) || record.steps.length > recipe.steps.length
+    || !record.steps.every(id=>typeof id === 'string' && /^(0|[1-9][0-9]*)$/.test(id) && Number(id) < recipe.steps.length)
+    || new Set(record.steps).size !== record.steps.length
+    || !Array.isArray(record.ingredients) || record.ingredients.length > allowed.size
+    || !record.ingredients.every(id=>typeof id === 'string' && allowed.has(id))
+    || new Set(record.ingredients).size !== record.ingredients.length) throw Error('invalid session');
+   this.sessions.set(recipe,{steps:new Set(record.steps),ingredients:new Set(record.ingredients),
+    ingredientsExpanded:record.expanded,scroll:record.scroll});
+   this.active = recipe;
+  } catch {this.clearSession();}
  }
 
  async refreshPublishedCatalog(signal) {
@@ -99,6 +158,7 @@ export class RecipeView {
     return existing && this.sessions.has(existing) ? existing : recipe;
    });
    this.catalogStatus = 'ready';
+   this.restoreSession();
   } catch {
    if (signal?.aborted) return false;
    this.catalogStatus = 'unavailable';
@@ -375,7 +435,7 @@ export class RecipeView {
   const groups = recipe.groups || [{title:'Råvarer',lines:recipe.ingredients}];
   const ingredients = createKitDisclosure({
    id:'recipe-ingredients',title:'Ingredienser',expanded:session.ingredientsExpanded ?? true,
-   onToggle:expanded=>{session.ingredientsExpanded = expanded;},
+   onToggle:expanded=>{session.ingredientsExpanded = expanded;this.persistSession();},
   });
   applyKitComponent(ingredients.node,'card');
   ingredients.node.dataset.recipeLayout = 'ingredients';
@@ -385,7 +445,7 @@ export class RecipeView {
   ingredients.setDescription(session.ingredients.size+' af '+ingredientCount+' fundet frem');
   for (const group of groups) {
    const {card} = this.checklist(group.title,group.lines,session.ingredients,'fundet frem',
-    ()=>ingredients.setDescription(session.ingredients.size+' af '+ingredientCount+' fundet frem'),'group-title');
+    ()=>{ingredients.setDescription(session.ingredients.size+' af '+ingredientCount+' fundet frem');this.persistSession();},'group-title');
    if (groups.length === 1) card.firstChild.hidden = true;
    ingredients.panel.append(card);
   }
@@ -433,6 +493,7 @@ export class RecipeView {
    try { localStorage.setItem(historyKey,JSON.stringify(this.history)); } catch { /* Keep the in-memory history. */ }
    this.sessions.delete(recipe);
    this.active = null;
+   this.clearSession();
    this.root.dataset.cooking = 'false';
    this.catalog();
   },'primary');
@@ -449,6 +510,7 @@ export class RecipeView {
    confirm.close();
    this.active = null;
    this.sessions.delete(recipe);
+   this.clearSession();
    this.root.dataset.cooking = 'false';
    this.catalog();
   },'primary','danger'));
@@ -599,7 +661,7 @@ export class RecipeView {
    }
    this.saved = this.saved.filter(entry=>entry !== recipe);
    this.sessions.delete(recipe);
-   if (this.active === recipe) this.active = null;
+   if (this.active === recipe) {this.active = null;this.clearSession();}
    this.root.dataset.cooking = String(Boolean(this.active));
    if (recipe.source?.recipe === recipe) {
     this.sources = this.sources.filter(entry=>entry !== recipe.source);
@@ -641,9 +703,12 @@ export class RecipeView {
    advance.textContent = active
     ? 'Afslut madlavning'
     : this.active ? 'Fortsæt '+this.active.title : 'Start opskrift';
+   this.persistSession();
    this.onCookingChange();
   }
+  this.readingRecipe = recipe;
   updateStep.call(this);
+  if (this.active === recipe && session.scroll) this.root.scrollTop = session.scroll;
 
  }
 

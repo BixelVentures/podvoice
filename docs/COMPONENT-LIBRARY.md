@@ -748,3 +748,8 @@ Playerens native outputknap beholder sin64pxplads. Ekstraordinær status har sin
 Pause/Play og volumen bruger hver deres friske native tilbud. Et volume-onlysetup er samme eksisterende endpoint med eksplicit requestedActionvolume og egen task, aldrig lånt fra transporttilbuddet. Udløbet volumeadgang kan bevare kendt måling deaktiveret; et tilbud uden volumenlæsning er ikke en ny ukendt måling. Fælles pending/UNKNOWN/ejer-/binding-/freshnesskrav gælder stadig. Ingen effekt bliver automatisk gentaget.
 
 TimerView leverer det samme sekundtal til overblik, detalje og foto-mini-rail via ét præsentationsur. Identiske cachedsnapshots må ikke nulstille uret. Stale/offline/paused stopper det; et lokalt0:00 bliver aldrig nativefinished eller en alarm. Ny autoritativ timerobservation afgør tilstanden.
+
+
+## Musikvalg · direkte visuel præcisering 5. november 2026
+
+Tid på dagen bevarer eksisterende MusicResults: én Hero til venstre og to stablede alternativer til højre på brede skærme. Hero bruger den ledige kvadratiske billedplads og kittets28/34-titel; alternativer bruger128px cover med eksisterende64px touchhandling. Fælles overflader, afstande og anatomi bevares via samme ui-kit.css og MusicResults i bibliotek/produkt. Ingen ny familie. Ved opdatering bevares én tekst; korrekt placeret artwork krydsfades.

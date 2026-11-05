@@ -43,6 +43,8 @@ _LABELS = {
     "move_existing_session": "Flyt afspilning",
 }
 _ROBOT_TOUCH_REPEAT_MAX = 2
+_ROBOT_DRAFT_METADATA_TTL = 30 * 60
+_ROBOT_DRAFT_METADATA_CAPACITY = 64
 # Closed diagnostic labels, independent of authority and action-wire schemas.
 _TRACE_ACTIONS = {
     "music": set(_LABELS),
@@ -266,6 +268,7 @@ class TouchControls:
         self.move = RoomMoveFacade(bridge.tools, policy_revision=move_policy_revision)
         self.policy = policy(configuration)
         self.tasks: dict[str, dict] = {}
+        self.robot_draft_sources: dict[str, dict] = {}
         self.receipts: dict[tuple, tuple] = {}
         self.busy: set[tuple[str, ...]] = set()
         self.setups: dict[tuple[str, ...], str] = {}
@@ -648,6 +651,39 @@ class TouchControls:
         scope = task.get("actual_binding")
         return (scope["targetId"], scope["bindingId"]) if scope is not None else None
 
+    def _retire_robot_drafts(self) -> None:
+        # Cleanup is not authorization: another HA user's request must not erase
+        # retained provenance. Full request-local guards run only at draft lookup.
+        now = time.monotonic()
+        candidates = {**self.robot_draft_sources, **self.tasks}
+        eligible = (
+            (key, task)
+            for key, task in candidates.items()
+            if task.get("domain") == "vacuum"
+            and task["deadline"] <= now < task["deadline"] + _ROBOT_DRAFT_METADATA_TTL
+            and task.get("draft_boot") == self.bridge.boot_id
+            and task.get("draft_identity") is not None
+            and task.get("draft_authority") is not None
+            and not task["consumed"]
+            and not task.get("setup_in_progress")
+            and self.bridge._authority_retained(task["room"], task["token"])
+            and task["draft_authority"] is self._robot_draft_authority(task["room"], task["token"])
+            and task["binding"] == self._binding(task["room"], "vacuum")
+        )
+        # Keep original objects so later consumption invalidates custody too.
+        # Fixed original deadlines never move on lookup; eviction cannot block setup.
+        self.robot_draft_sources = dict(
+            sorted(eligible, key=lambda row: row[1]["deadline"])[-_ROBOT_DRAFT_METADATA_CAPACITY:]
+        )
+
+    def _retire_tasks(self) -> None:
+        self._retire_robot_drafts()
+        self.tasks = {
+            key: task
+            for key, task in self.tasks.items()
+            if self.bridge._ha_task_retained(task) or self._current(task, task["token"])
+        }
+
     def _retire_receipts(self) -> None:
         # Temporary owner unavailability is not terminal: retain those replay fences.
         self.receipts = {
@@ -738,11 +774,7 @@ class TouchControls:
         if resource in self.busy or resource in self.setups:
             return failure("busy")
         self._retire_receipts()
-        self.tasks = {
-            key: task
-            for key, task in self.tasks.items()
-            if self.bridge._ha_task_retained(task) or self._current(task, task["token"])
-        }
+        self._retire_tasks()
         if len(self.tasks) >= 64:
             return failure("setup_capacity")
         task_id = "control:" + secrets.token_hex(16)
@@ -1019,11 +1051,7 @@ class TouchControls:
         renew_id = body.get("renewTaskId")
         renew_source = self.tasks.get(renew_id) if isinstance(renew_id, str) else None
         self._retire_receipts()
-        self.tasks = {
-            k: t
-            for k, t in self.tasks.items()
-            if self.bridge._ha_task_retained(t) or self._current(t, t["token"])
-        }
+        self._retire_tasks()
         if len(self.tasks) >= 64:
             return failure("setup_capacity")
         task_id = "control:" + secrets.token_hex(16)
@@ -1348,7 +1376,9 @@ class TouchControls:
                             dock_offer = await dock_facade.setup(target["entityId"], current)
                             task["dock_transport"] = dock_facade
                             task["dock_offer"] = dock_offer
-                            task["deadline"] = min(task["deadline"], dock_offer["deadline"])
+                            # Only an executable dock offer owns this short deadline.
+                            if dock_offer["actions"]:
+                                task["deadline"] = min(task["deadline"], dock_offer["deadline"])
                             for operation, command in dock_offer["actions"].items():
                                 oid = secrets.token_hex(12)
                                 schema = {"kind": "dock", "operation": operation}
@@ -2072,6 +2102,7 @@ class TouchControls:
         return bool(
             source
             and source["domain"] == "vacuum"
+            and time.monotonic() < source["deadline"] + _ROBOT_DRAFT_METADATA_TTL
             and source.get("draft_boot") == self.bridge.boot_id
             and source.get("draft_identity") is not None
             and source.get("draft_authority") is not None
@@ -2101,7 +2132,8 @@ class TouchControls:
             or draft["revision"] != 1
         ):
             return None
-        source = self.tasks.get(draft["taskId"])
+        self._retire_robot_drafts()
+        source = self.tasks.get(draft["taskId"]) or self.robot_draft_sources.get(draft["taskId"])
         return source if self._robot_draft_current(source, room, target, token) else None
 
     def _robot_remap_draft(self, source, draft, task, token):
