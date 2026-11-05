@@ -1306,6 +1306,7 @@ class MusicControlFacade:
         current: Callable[[], bool],
         *,
         context: bool = False,
+        trace_ref: str | None = None,
     ) -> dict:
         """Send only an exact selected URI through the native START35 service."""
         possible_send = False
@@ -1319,6 +1320,7 @@ class MusicControlFacade:
         phase_body: dict | None = None
         diagnostic_error = "none"
         final_result: dict = {}
+        validated_final = False
 
         def finish(result: dict) -> dict:
             nonlocal final_result
@@ -1340,21 +1342,41 @@ class MusicControlFacade:
                 and value.get("room_id") == room
                 and value.get("homepod_id") == homepod
             )
-            _START_LOG.info(
-                "%s request_ref=%s elapsed_ms=%d state=%s error_class=%s error_kind=%s "
-                "accepted=%s native_identity_match=%s poll_floor=%s possible_send=%s prepared=%s",
-                marker,
-                request_ref,
-                max(0, int((time.monotonic() - at) * 1000)),
-                state,
-                error_class,
-                kind,
-                state == "accepted" and value.get("accepted_selected_content") is True,
-                native_match,
-                poll,
-                possible_send,
-                prepared,
+            joined = (
+                trace_ref
+                if isinstance(trace_ref, str)
+                and re.fullmatch(r"[a-f0-9]{16}", trace_ref)
+                and (
+                    marker in {"selected_start_prepare", "selected_start_commit"}
+                    or (marker == "selected_start_receipt" and validated_final)
+                )
+                and state != "unvalidated"
+                and value.get("request_id") == request_id
+                and value.get("owner_epoch") == identity.get("owner_epoch")
+                and value.get("command_sequence") == identity.get("command_sequence")
+                and request_id
+                else "none"
             )
+            try:
+                _START_LOG.info(
+                    "%s trace_ref=%s request_ref=%s elapsed_ms=%d state=%s error_class=%s "
+                    "error_kind=%s accepted=%s native_identity_match=%s poll_floor=%s "
+                    "possible_send=%s prepared=%s",
+                    marker,
+                    joined,
+                    request_ref,
+                    max(0, int((time.monotonic() - at) * 1000)),
+                    state,
+                    error_class,
+                    kind,
+                    state == "accepted" and value.get("accepted_selected_content") is True,
+                    native_match,
+                    poll,
+                    possible_send,
+                    prepared,
+                )
+            except Exception:
+                pass
 
         try:
             account = _text(controls.get("config_entry_id"))
@@ -1456,6 +1478,7 @@ class MusicControlFacade:
                 await self._cancel_content_preparation(client, token, request)
                 return finish(_failure("owner_replaced", possible_send=True, identity=identity))
             receipt = _content_receipt(result, identity, room, homepod)
+            validated_final = True
             emit("selected_start_commit", phase_started, receipt, receipt["outcome"], "none")
             phase = None
             return finish(receipt)
@@ -1501,5 +1524,7 @@ class MusicControlFacade:
         except (Exception, asyncio.CancelledError):
             pass
 
-    async def execute_context(self, controls, uri, max_volume, current):
-        return await self.execute_track(controls, uri, max_volume, current, context=True)
+    async def execute_context(self, controls, uri, max_volume, current, *, trace_ref=None):
+        return await self.execute_track(
+            controls, uri, max_volume, current, context=True, trace_ref=trace_ref
+        )

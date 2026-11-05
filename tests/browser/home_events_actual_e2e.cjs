@@ -26,7 +26,7 @@ const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let 
  page.on('request',r=>{if(new URL(r.url()).pathname==='/view/api/home')homeRequests.push(Date.now())});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await page.evaluate(()=>{window.homeTestClicks=[];document.addEventListener('click',e=>window.homeTestClicks.push({target:e.target.outerHTML?.slice(0,200),focus:document.querySelector('pv-widget-host')?.state?.focus}),true)});
- await page.locator('#photo-view').waitFor({state:'visible'});await page.locator('#photo-view').tap();
+ await testEnv.openOverview(page);
  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
  await card.waitFor({state:'visible',timeout:15000});console.log('beforeCard',await card.evaluate(b=>({button:b.outerHTML,focus:document.querySelector('pv-widget-host')?.state?.focus})));await card.tap();await sleep(100);console.log('afterCard',await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,status:h.liveStatus,pending:h.liveHomePending,devices:h.state.devices.map(d=>({id:d.id,live:d.live,status:d.status}))})));
  const panel=page.locator('pv-robot-control-panel');await panel.waitFor({state:'visible'});
@@ -79,20 +79,26 @@ const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let 
  await shell.goto(base+'/app/inert_podvoice/view',{waitUntil:'domcontentloaded'});
  const frame=shell.frameLocator('#ha-frame');
  await frame.locator('pv-widget-host').waitFor({state:'visible',timeout:15000});
- await frame.locator('#photo-view').tap();
+ await testEnv.openOverview(frame);
  await frame.locator('#header-ro').tap();
  await frame.locator('#screen-device-more-summary').tap();
  const admin=frame.getByRole('link',{name:'Administration',exact:true});
  await admin.waitFor({state:'visible',timeout:10000});
  assert.equal(await admin.getAttribute('href'),base+'/api/hassio_ingress/inert-session/');
- const dialog=frame.locator('#quick-sheet');
+ const dialog=frame.locator('#quick-sheet'),scrollEvidence=[];
+ const recordScroll=async (width,height,stage)=>{const geometry=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return {dialog:{top:box.top,bottom:box.bottom,height:box.height},admin:{top:button.top,bottom:button.bottom,height:button.height},padding:Number.parseFloat(getComputedStyle(d).paddingBottom),scrollTop:d.scrollTop,scrollHeight:d.scrollHeight,clientHeight:d.clientHeight};});scrollEvidence.push({width,height,stage,...geometry});await fs.writeFile(path.join(testEnv.artifactDir(),'podview-screen-admin-scroll.json'),JSON.stringify(scrollEvidence,null,2));};
  for(const [width,height] of [[1280,800],[768,600]]){
-  await shell.setViewportSize({width,height});await dialog.evaluate(async d=>{await Promise.all(d.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});for(let swipe=0;swipe<4&&await dialog.evaluate(d=>d.scrollTop>0);swipe++)await testEnv.touchScroll(shell,dialog,{dy:-800});
-  for(let gesture=0;gesture<4;gesture++){await testEnv.touchScroll(shell,dialog,{dy:800});const fits=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return button.bottom<=box.bottom-Number.parseFloat(getComputedStyle(d).paddingBottom)+1;});if(fits)break;}
+  await shell.setViewportSize({width,height});await dialog.evaluate(async d=>{await Promise.all(d.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});await recordScroll(width,height,'initial');for(let swipe=0;swipe<4&&await dialog.evaluate(d=>d.scrollTop>0);swipe++){await testEnv.touchScroll(shell,dialog,{dy:-800});await recordScroll(width,height,`up-${swipe}`);}
+  for(let gesture=0;gesture<4;gesture++){await testEnv.touchScroll(shell,dialog,{dy:800});await recordScroll(width,height,`down-${gesture}`);const fits=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return button.bottom<=box.bottom-Number.parseFloat(getComputedStyle(d).paddingBottom)+1;});if(fits)break;}
   await shell.waitForFunction(()=>document.querySelector('#ha-frame')?.contentDocument?.querySelector('#quick-sheet')?.scrollTop>0,undefined,{timeout:5000});
+  // A real same-owner HA event must not briefly remove admission-dependent content
+  // and clamp the user's already successful touch scroll back to the top.
+  const previousRead=await frame.locator('pv-widget-host').evaluate(h=>h.liveTransport.acceptedReadAt);await emit({state:(await state()).state});
+  await shell.waitForFunction(previous=>document.querySelector('#ha-frame')?.contentDocument?.querySelector('pv-widget-host')?.liveTransport?.acceptedReadAt>previous,previousRead,{timeout:5000});
+  await recordScroll(width,height,'after-passive-update');
   const geometry=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return {left:box.left,top:box.top,width:box.width,height:box.height,bottom:box.bottom,buttonTop:button.top,buttonBottom:button.bottom,scrollTop:d.scrollTop,padding:Number.parseFloat(getComputedStyle(d).paddingBottom)};});
-  assert.equal(geometry.width,520);assert(Math.abs(geometry.left-(width-geometry.width)/2)<1);assert(Math.abs(geometry.top-(height-geometry.height)/2)<1);assert(geometry.scrollTop>0);assert(geometry.buttonTop>=geometry.top);assert(geometry.buttonBottom<=geometry.bottom-geometry.padding+1,'manual scroll reveals whole Administration control with bottom padding');
   await shell.screenshot({path:path.join(testEnv.artifactDir(),`podview-next-screen-admin-${width}.png`)});
+  assert.equal(geometry.width,520);assert(Math.abs(geometry.left-(width-geometry.width)/2)<1);assert(Math.abs(geometry.top-(height-geometry.height)/2)<1);assert(geometry.scrollTop>0);assert(geometry.buttonTop>=geometry.top);assert(geometry.buttonBottom<=geometry.bottom-geometry.padding+1,'manual scroll reveals whole Administration control with bottom padding');
  }
  await shell.setViewportSize({width:1280,height:800});
  await admin.tap();

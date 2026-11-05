@@ -28,8 +28,7 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- await page.locator('#photo-view').waitFor({state:'visible'});
- await page.locator('#photo-view').tap();
+ await testEnv.openOverview(page);
  const control=page.locator('#play-pause');
  await control.waitFor({state:'visible',timeout:10000}).catch(async error=>{
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-failure.png')});

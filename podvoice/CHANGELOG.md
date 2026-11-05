@@ -1,3 +1,8 @@
+## 2.0.130
+
+- Preserve bounded action diagnostics under polling pressure and trace music selection through the existing native receipt.
+- Retain existing touch controls and the approved component library; add cold-start and natural night-entry browser coverage.
+
 ## 2.0.129
 
 - Update Home Assistant observations through the existing live connection while preserving touch navigation, focus and content.

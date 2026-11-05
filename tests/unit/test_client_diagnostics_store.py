@@ -833,3 +833,233 @@ async def test_client_cadence_survives_restart_and_room_changes_while_global_cap
 def test_telemetry_client_identity_is_optional_but_closed_when_present(client_id):
     with pytest.raises(module.DiagnosticFailure):
         parsed(clientId=client_id)
+
+
+async def test_actual_background_radio_home_pressure_retains_action_trace_after_reload(store):
+    owner, clock = store
+    actions = [
+        {"stage": "control_intent", "code": "start", "requestId": UUID, "diagnosticRef": UUID},
+        {
+            "stage": "control_setup",
+            "code": "ok",
+            "diagnosticRef": UUID,
+            "domain": "radio",
+            "action": "stop",
+        },
+        {
+            "stage": "control_observation",
+            "code": "observed",
+            "diagnosticRef": UUID,
+            "domain": "radio",
+            "action": "stop",
+            "source": "podradio",
+            "trust": "state_observation",
+        },
+        {"stage": "request", "code": "start", "endpoint": "music/selection/setup"},
+        {
+            "stage": "request",
+            "code": "ok",
+            "endpoint": "music/selection/actions",
+            "requestId": UUID,
+        },
+        {"stage": "control_action", "code": "rejected", "requestId": UUID, "diagnosticRef": UUID},
+        {"stage": "control_action", "code": "unknown", "requestId": UUID},
+    ]
+    await owner.append(
+        parsed(0, records=[{**row, "seq": i + 1, "ageMs": 0} for i, row in enumerate(actions)]),
+        "principal",
+        lambda: True,
+    )
+    for index in range(1, 34):
+        clock[0] += 61
+        rows = [
+            {
+                **(
+                    {"stage": "request", "code": "ok", "endpoint": "radio"}
+                    if seq % 2
+                    else {
+                        "stage": "home_read",
+                        "code": "superseded",
+                        "domain": "home",
+                        "source": "home_assistant",
+                        "trust": "state_observation",
+                    }
+                ),
+                "seq": seq,
+                "ageMs": 0,
+            }
+            for seq in range(1, 17)
+        ]
+        await owner.append(parsed(index, records=rows), "principal", lambda: True)
+    restarted = module.ClientDiagnosticsStore(owner.path, clock=lambda: clock[0])
+    after, saved = 0, []
+    while True:
+        page = await restarted.read("PRIVATE_room", after, lambda: True)
+        saved.extend(page["records"])
+        after = page["nextAfter"]
+        if not page["hasMore"]:
+            break
+    assert [r["serverSeq"] for r in saved[: len(actions)]] == list(range(1, len(actions) + 1))
+    correlated = [r["row"] for r in saved if r["row"].get("diagnosticRef")]
+    assert {r["stage"] for r in correlated} == {
+        "control_intent",
+        "control_setup",
+        "control_action",
+        "control_observation",
+    }
+    assert len({r["diagnosticRef"] for r in correlated}) == 1
+    assert len(saved) <= module.MAX_RECORDS and owner.path.stat().st_size <= module.MAX_BYTES
+
+
+async def test_action_only_pressure_is_bounded_and_duplicate_ack_does_not_resurrect(store):
+    owner, clock = store
+    for index in range(33):
+        clock[0] += 61
+        batch = parsed(
+            index,
+            records=[
+                {
+                    "stage": "control_action",
+                    "code": "unknown",
+                    "requestId": UUID,
+                    "seq": seq,
+                    "ageMs": 0,
+                }
+                for seq in range(1, 17)
+            ],
+        )
+        ack = await owner.append(batch, "principal", lambda: True)
+    restarted = module.ClientDiagnosticsStore(owner.path, clock=lambda: clock[0])
+    data = json.loads(owner.path.read_bytes())
+    assert len(data["records"]) <= module.MAX_RECORDS
+    assert data["records"][0]["serverSeq"] > 1
+    assert owner.path.stat().st_size <= module.MAX_BYTES
+    before = owner.path.read_bytes()
+    # Existing5minute dedup lifetime remains fixed, so retry a still-live last batch.
+    assert await restarted.append(batch, "principal", lambda: True) == {**ack, "duplicate": True}
+    assert owner.path.read_bytes() == before
+    page = await restarted.read("PRIVATE_room", 0, lambda: True)
+    assert page["retention"] == {
+        "bounded": True,
+        "maxRecords": 512,
+        "maxBytes": 256 * 1024,
+        "maxAgeMs": 7 * 86400 * 1000,
+        "evictionOrder": "background_first",
+        "backgroundOnlyMayEvictActions": False,
+        "actionBatchMayEvictOldestActions": True,
+    }
+
+
+@pytest.mark.parametrize(
+    "stage,endpoint,priority",
+    [
+        ("request", "radio", False),
+        ("home_read", None, False),
+        ("request", "control/setup", False),
+        ("request", "music/queue/offer", False),
+        ("request", "music/selection/setup", True),
+        ("request", "music/selection/actions", True),
+        ("request", "control/actions", True),
+        ("request", "actions", True),
+        ("request", "radio/actions", True),
+        ("request", "music/queue/actions", True),
+        ("control_action", None, True),
+        ("control_intent", None, True),
+        ("control_observation", None, True),
+        ("playback_confirmation", None, True),
+    ],
+)
+def test_action_retention_uses_finite_existing_owner_contract(stage, endpoint, priority):
+    assert (
+        module._action_trace({"stage": stage, "code": "unknown", "endpoint": endpoint}) is priority
+    )
+
+
+@pytest.mark.parametrize(
+    "extra, priority",
+    [
+        ({}, False),
+        ({"diagnosticRef": "a" * 16}, False),
+        ({"diagnosticRef": "a" * 16, "domain": "radio", "action": "stop"}, True),
+        ({"diagnosticRef": "a" * 16, "domain": "radio", "action": "pause"}, False),
+        ({"diagnosticRef": "invalid", "domain": "radio", "action": "stop"}, False),
+    ],
+)
+def test_setup_retention_requires_valid_correlation_and_owner_action(extra, priority):
+    assert module._action_trace({"stage": "control_setup", **extra}) is priority
+
+
+async def test_action_saturation_rejects_background_atomically_but_admits_mixed_action_batch(store):
+    owner, clock = store
+    for index in range(32):
+        clock[0] += 61
+        await owner.append(
+            parsed(
+                index,
+                records=[
+                    {
+                        "stage": "control_action",
+                        "code": "unknown",
+                        "requestId": UUID,
+                        "seq": seq,
+                        "ageMs": 0,
+                    }
+                    for seq in range(1, 17)
+                ],
+            ),
+            "principal",
+            lambda: True,
+        )
+    before = owner.path.read_bytes()
+    assert len(json.loads(before)["records"]) == 512
+    clock[0] += 61
+    background = parsed(
+        32,
+        records=[
+            {"stage": "request", "code": "ok", "endpoint": "radio", "seq": 1, "ageMs": 0},
+            {
+                "stage": "control_setup",
+                "code": "ok",
+                "domain": "radio",
+                "action": "stop",
+                "seq": 2,
+                "ageMs": 0,
+            },
+        ],
+    )
+    with pytest.raises(module.DiagnosticFailure) as denied:
+        await owner.append(background, "principal", lambda: True)
+    assert (denied.value.code, denied.value.status) == ("diagnostics_background_pressure", 429)
+    assert owner.path.read_bytes() == before  # No stored rows, batch key, ACK or cursor advance.
+    restarted = module.ClientDiagnosticsStore(owner.path, clock=lambda: clock[0])
+    with pytest.raises(module.DiagnosticFailure):
+        await restarted.append(background, "principal", lambda: True)
+    assert owner.path.read_bytes() == before
+    mixed = parsed(
+        33,
+        records=[
+            {"stage": "request", "code": "ok", "endpoint": "radio", "seq": 1, "ageMs": 0},
+            {
+                "stage": "control_action",
+                "code": "rejected",
+                "requestId": UUID,
+                "seq": 2,
+                "ageMs": 0,
+            },
+        ],
+    )
+    ack = await restarted.append(mixed, "principal", lambda: True)
+    assert ack["stored"] and ack["acceptedCount"] == 2
+    data = json.loads(owner.path.read_bytes())
+    assert len(data["records"]) == 512 and data["records"][0]["serverSeq"] == 3
+    assert [row["serverSeq"] for row in data["records"][-2:]] == [513, 514]
+    assert data["next"] == 515 and owner.path.stat().st_size <= module.MAX_BYTES
+    assert await restarted.append(mixed, "principal", lambda: True) == {**ack, "duplicate": True}
+    after, seen = 0, []
+    while True:
+        page = await restarted.read("PRIVATE_room", after, lambda: True)
+        seen.extend(row["serverSeq"] for row in page["records"])
+        after = page["nextAfter"]
+        if not page["hasMore"]:
+            break
+    assert seen == list(range(3, 515))

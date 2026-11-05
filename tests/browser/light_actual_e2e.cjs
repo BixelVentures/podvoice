@@ -12,7 +12,7 @@ let server,browser;
  server=spawn(env.python,[path.join(__dirname,'light_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({LIGHT_TEST_PORT:String(port),LIGHT_TEST_DATA:data}),stdio:['ignore','pipe','pipe']});server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});const errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(/\/view\/api\/(home|control)/.test(r.url()))console.log('API',Date.now(),r.status(),r.url(),(await r.text().catch(()=>'' )));});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await page.locator('#photo-view').tap();
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
  const card=page.locator('.resource-preview[data-kind="light"]:visible').first();await card.waitFor({timeout:15000});await card.tap();
  const row=page.locator('.light-room-power').first();await row.waitFor({state:'visible',timeout:15000});
  console.log('initial',await page.locator('#device-view').innerText());

@@ -162,6 +162,8 @@ async def test_preview_cannot_mint_play_offer_even_with_forged_id_and_cookie(moo
     bridge = unpaired(mood_rig)
     assert (await read(mood_rig))["ok"]
     req = request(mood_rig, cookie="grant")
+    req.get = lambda _key, default=None: default
+    req.path = "/view/api/music/selection/setup"
     req.method = "POST"
     req.content_length = 256
     req.content_type = "application/json"

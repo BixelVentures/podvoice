@@ -30,6 +30,21 @@ function artifactDir(){
  }
  return artifacts;
 }
+// Enter the existing overview using the real screen wake gesture at night.
+async function openOverview(surface){
+ const photo=surface.locator('#photo-view'),host=surface.locator('pv-widget-host');
+ await photo.waitFor({state:'visible',timeout:15000});
+ const read=()=>host.evaluate(h=>{const visible=node=>!!node&&!node.hidden&&node.getClientRects().length>0&&getComputedStyle(node).visibility!=='hidden'&&getComputedStyle(node).display!=='none';return {night:h.dataset.night,view:h.dataset.view,photoVisible:visible(h.querySelector('#photo-view')),overviewVisible:visible(h.querySelector('#now-view'))};});
+ const wait=async(predicate,label)=>{let state;for(let n=0;n<100;n++){state=await read();if(predicate(state))return state;await new Promise(resolve=>setTimeout(resolve,50));}throw Error(`${label}: ${JSON.stringify(state)}`);};
+ const initial=await wait(s=>['true','false'].includes(s.night)&&s.view==='rest'&&s.photoVisible&&!s.overviewVisible,'screen did not reach Ro');
+ await photo.tap();
+ if(initial.night==='true'){
+  await wait(s=>s.night==='false'&&s.view==='rest'&&s.photoVisible&&!s.overviewVisible,'first night touch did not wake in Ro');
+  await photo.waitFor({state:'visible'});await new Promise(resolve=>setTimeout(resolve,1100));await photo.tap();
+ }
+ await wait(s=>s.view==='active'&&!s.photoVisible&&s.overviewVisible,'touch did not open overview');
+ console.log('overviewTouch',JSON.stringify({initialNight:initial.night,taps:initial.night==='true'?2:1}));
+}
 // Actual touch events, including the native range/scroll gesture. These helpers
 // never set product input values or dispatch synthetic DOM input/change events.
 async function touchDrag(page,from,to,{via,beforeRelease}={}){
@@ -71,4 +86,4 @@ async function touchScroll(page,locator,{dy=400}={}){
   stable=Math.abs(current-previous)<0.5?stable+1:0;previous=current;
  }
 }
-module.exports={root,runtimeRoot,python,pythonEnv,browserOptions,artifactDir,touchRange,touchScroll};
+module.exports={root,runtimeRoot,python,pythonEnv,browserOptions,artifactDir,openOverview,touchRange,touchScroll};

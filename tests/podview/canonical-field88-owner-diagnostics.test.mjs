@@ -55,7 +55,8 @@ function selectionFixture({knownTarget=true}={}){const f=catalogue();f.view.sele
 for(const superseded of [false,true])test(`selection action UUID survives an ordinary read without guessed confirmation when presentation superseded=${superseded}`,async()=>{
  const f=selectionFixture(),events=[],confirmation=deferred(),requestId='00000000-0000-4000-8000-000000000002';
  f.host.liveTransport.recordDiagnostic=(stage,fields)=>events.push({stage,...fields});
- f.host.liveTransport.musicSelectionAction=async()=>({outcome:'accepted',requestId});
+ f.host.liveTransport.crypto={randomUUID:()=>requestId};
+ f.host.liveTransport.musicSelectionAction=async(_offer,_option,{requestId:issuedId})=>{assert.equal(issuedId,requestId);return {outcome:'accepted',requestId};};
  f.host.liveMedia.refresh=()=>confirmation.promise;
  try{
   await f.view.chooseCard(f.entry.cards[0]);assert.equal(events.at(-1).code,'accepted');assert.equal(events.at(-1).requestId,requestId);

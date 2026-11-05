@@ -262,6 +262,32 @@ async def test_setup_rechecks_equal_discovery_replacement_after_await(rig):
     assert not (await rig.facade.setup("account", "device", lambda: True))["ok"]
 
 
+async def test_validated_unknown_receipt_retains_trace_without_claiming_effect(rig, caplog):
+    import logging
+
+    content_owner(rig)
+    offer = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    rig.mutate_receipt = lambda value: value.update(
+        ok=False,
+        outcome="unknown",
+        accepted_selected_content=False,
+        start_operation_id=None,
+        start_volume_percent=None,
+    )
+    with caplog.at_level(logging.INFO, logger="podvoice.music_start"):
+        result = await rig.facade.execute_track(
+            offer["data"],
+            "spotify:track:" + "A" * 22,
+            40,
+            lambda: True,
+            trace_ref="1234567890abcdef",
+        )
+    assert result["outcome"] == "unknown"
+    assert result["physical_result_verified"] is False
+    assert "selected_start_receipt trace_ref=1234567890abcdef" in caplog.text
+    assert "state=unknown" in caplog.text
+
+
 @pytest.mark.parametrize(
     "field,value",
     [
@@ -1229,7 +1255,11 @@ async def test_selected_start_content_free_phase_diagnostics_preserve_receipt(ri
     uri = "spotify:track:" + "A" * 22
     with caplog.at_level(logging.INFO, logger="podvoice.music_start"):
         result = await rig.facade.execute_track(
-            offer["data"], "invalid-SECRET" if failure == "early" else uri, 40, lambda: True
+            offer["data"],
+            "invalid-SECRET" if failure == "early" else uri,
+            40,
+            lambda: True,
+            trace_ref="1234567890abcdef",
         )
     records = [r for r in caplog.records if r.name == "podvoice.music_start"]
     expected_markers = (
@@ -1247,6 +1277,14 @@ async def test_selected_start_content_free_phase_diagnostics_preserve_receipt(ri
     )
     assert [r.getMessage().split()[0] for r in records] == expected_markers
     text = "\n".join(r.getMessage() for r in records)
+    if failure is None:
+        assert "selected_start_prepare trace_ref=1234567890abcdef" in text
+        assert "selected_start_commit trace_ref=1234567890abcdef" in text
+        assert "selected_start_receipt trace_ref=1234567890abcdef" in text
+    else:
+        assert "selected_start_receipt trace_ref=none" in text
+    if failure in {"early", "timeout", "cancelled"}:
+        assert all("trace_ref=none" in r.getMessage() for r in records)
     for secret in [
         "SECRET",
         "account",
@@ -1458,3 +1496,23 @@ async def test_selected_peer_content_actions_still_reject_unknown_or_duplicate(r
     result = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
     assert result["ok"] is False
     assert len(rig.calls) == 1
+
+
+async def test_selection_trace_broken_log_sink_cannot_change_start(rig, monkeypatch):
+    from gatekeeper import podview_music_control
+
+    content_owner(rig)
+    offer = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("private logger failure")
+
+    monkeypatch.setattr(podview_music_control._START_LOG, "info", broken)
+    result = await rig.facade.execute_track(
+        offer["data"],
+        "spotify:track:" + "A" * 22,
+        40,
+        lambda: True,
+        trace_ref="1234567890abcdef",
+    )
+    assert result["outcome"] == "accepted"

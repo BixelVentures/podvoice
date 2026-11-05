@@ -290,3 +290,63 @@ async def test_two_authorized_clients_persist_distinct_seq_one_flows_without_gra
     )
     assert (await rig.client.post(URL, json=value, headers=HEADERS)).status == 429
     assert not rig.timers.command.await_count and not rig.bridge._grants
+
+
+async def test_actual_sender_recovers_from_background_pressure_without_acknowledging_it(rig):
+    """A real JS sender reaches the real HTTP/store boundary; no provider is called."""
+    from pathlib import Path
+
+    from gatekeeper import podview_client_diagnostics as module
+
+    store = rig.bridge.client_diagnostics
+    now = [1_800_000_000.0]
+    store.clock = lambda: now[0]
+    for index in range(32):
+        now[0] += 61
+        body = batch(
+            rig.bridge,
+            batchId=f"{index:08x}-0123-4567-89ab-0123456789ab",
+            records=[
+                {"stage": "control_action", "code": "unknown", "seq": seq, "ageMs": 0}
+                for seq in range(1, 17)
+            ],
+        )
+        await store.append(module.parse_batch(json.dumps(body).encode()), "seed", lambda: True)
+    now[0] += 61
+    before = rig.path.read_bytes()
+    script = r"""
+import assert from 'node:assert/strict';
+import {webcrypto,createHash} from 'node:crypto';
+import {readFileSync} from 'node:fs';
+const {PodVoiceTransport}=await import(process.argv[3]);
+const base=process.argv[1],boot=process.argv[2],requests=[];let offset=0;const realNow=Date.now;Date.now=()=>realNow()+offset;
+const t=new PodVoiceTransport({url:base+'/view/',crypto:webcrypto,diagnosticStorage:null,fetch:async(url,init)=>{const response=await fetch(url,{...init,headers:{...init.headers,'X-Remote-User-Id':'a'.repeat(32)}});requests.push({body:JSON.parse(init.body),status:response.status,payload:await response.clone().json()});return response;}});
+t.closed=false;assert.equal(t.accept({schema:'podview.snapshot.v1',bootId:boot,revision:1,roomId:'kitchen',admission:{kind:'ha_ingress',authenticated:true},voice:{phase:'IDLE'},timers:{status:'observed',items:[]},capabilities:{musicRead:[],timerActions:[]}}),true);
+t.recordDiagnostic('control_setup',{code:'start'});await t.flushDiagnosticUpload();assert.equal(requests[0].status,429);assert.equal(requests[0].payload.error,'diagnostics_background_pressure');assert.equal(createHash('sha256').update(readFileSync(process.argv[4])).digest('hex'),process.argv[5],'429 persists neither rows nor batch ACK');assert.equal(t.diagnosticUploadBatch,null);assert.equal(t.diagnosticUploadAcked.size,0);assert(t.diagnostics().dropped>0);
+t.recordDiagnostic('control_intent',{code:'start',domain:'music',action:'resume'});offset+=11000;await t.flushDiagnosticUpload();assert.equal(requests[1].status,200);assert.notEqual(requests[0].body.batchId,requests[1].body.batchId);const action=requests[1].body.records.find(r=>r.stage==='control_intent');assert(action);assert(t.diagnosticUploadAcked.has(action.seq));t.close();console.log(JSON.stringify(requests.map(x=>({status:x.status,batchId:x.body.batchId}))));
+"""
+    source = (
+        Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/podvoice-transport.js"
+    ).as_uri()
+    process = await asyncio.create_subprocess_exec(
+        "node",
+        "--input-type=module",
+        "-e",
+        script,
+        str(rig.client.make_url("/")).rstrip("/"),
+        rig.bridge.boot_id,
+        source,
+        str(rig.path),
+        hashlib.sha256(before).hexdigest(),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+    stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=20)
+    assert process.returncode == 0, stderr.decode()
+    statuses = json.loads(stdout)
+    assert [item["status"] for item in statuses] == [429, 200]
+    assert rig.path.read_bytes() != before
+    data = json.loads(rig.path.read_bytes())
+    assert len(data["records"]) == 512
+    assert any(item["row"]["stage"] == "control_intent" for item in data["records"])
+    assert not any(item["row"]["stage"] == "control_setup" for item in data["records"])

@@ -88,9 +88,19 @@ async def rig():
     await value.client.aclose()
 
 
-async def test_paired_search_choice_same_option_and_one_provider_send(rig):
+async def test_paired_search_choice_same_option_and_one_provider_send(rig, caplog):
+    import hashlib
+    import logging
+
+    trace = "12345678-1234-4234-8234-123456789abc"
+    ref = hashlib.sha256(trace.encode()).hexdigest()[:16]
+    caplog.set_level(logging.INFO, logger="podvoice.music_start")
     async with TestClient(TestServer(rig.app)) as client:
-        headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+        headers = {
+            "Cookie": "podview_control=grant",
+            "X-PodView-Request": "1",
+            "X-PodView-Trace": trace,
+        }
         search = await client.get(
             "/view/api/music?kind=search&account=account-alpha&query=jazz",
             headers={"Cookie": "podview_control=grant"},
@@ -123,7 +133,7 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig):
             "taskId": offer["taskId"],
             "revision": offer["revision"],
             "optionId": offer["options"][1]["id"],
-            "requestId": "one",
+            "requestId": trace,
             "confirmedVolumePercent": 35,
         }
         first = await (
@@ -132,13 +142,124 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig):
         second = await (
             await client.post("/view/api/music/selection/actions", headers=headers, json=action)
         ).json()
+        conflict = await (
+            await client.post(
+                "/view/api/music/selection/actions",
+                headers=headers,
+                json={**action, "confirmedVolumePercent": 36},
+            )
+        ).json()
         assert first == second and first["outcome"] == "accepted"
+        assert conflict["outcome"] == "rejected"
         assert rig.app[BRIDGE].controls.music.execute_track.await_count == 1
         sent = rig.app[BRIDGE].controls.music.execute_track.await_args.args
         assert sent[1] == "spotify:track:" + "0" * 21 + "1"
         assert sent[2] == 40
+        assert rig.app[BRIDGE].controls.music.execute_track.await_args.kwargs == {"trace_ref": ref}
+        lines = [r.message for r in caplog.records if f"trace_ref={ref}" in r.message]
+        assert any("stage=setup outcome=accepted" in line for line in lines)
+        assert any("stage=selection outcome=send_started" in line for line in lines)
+        assert any("stage=selection outcome=cached_receipt" in line for line in lines)
+        assert any("stage=selection outcome=invalid_input" in line for line in lines)
+        assert sum("stage=selection outcome=cached_receipt" in line for line in lines) == 1
+        assert any("stage=action outcome=accepted" in line for line in lines)
+        assert trace not in caplog.text
         assert offer["startVolumePercent"] == 35
         assert "observedVolumePercent" not in offer
+
+
+async def test_trace_is_diagnostic_only_for_early_setup_rejection(rig, caplog):
+    import hashlib
+    import logging
+
+    trace = "12345678-1234-4234-8234-123456789abc"
+    ref = hashlib.sha256(trace.encode()).hexdigest()[:16]
+    caplog.set_level(logging.INFO, logger="podvoice.music_start")
+    bridge = rig.app[BRIDGE]
+    async with TestClient(TestServer(rig.app)) as client:
+        body = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "candidateSetId": "f" * 64,
+            "target": {
+                "accountId": "account-alpha",
+                "kind": "spotify_device",
+                "targetId": "device-one",
+            },
+        }
+        base = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+        invalid = await (
+            await client.post(
+                "/view/api/music/selection/setup",
+                headers={**base, "X-PodView-Trace": "private-invalid"},
+                json=body,
+            )
+        ).json()
+        valid = await (
+            await client.post(
+                "/view/api/music/selection/setup",
+                headers={**base, "X-PodView-Trace": trace},
+                json=body,
+            )
+        ).json()
+        assert invalid == valid and valid["ok"] is False
+        assert f"trace_ref={ref} stage=setup outcome=stale_source" in caplog.text
+        assert "private-invalid" not in caplog.text and trace not in caplog.text
+        assert bridge.controls.music.execute_track.await_count == 0
+
+
+async def test_trace_records_binding_rejection_before_facade_send(rig, caplog):
+    import hashlib
+    import logging
+
+    trace = "12345678-1234-4234-8234-123456789abc"
+    ref = hashlib.sha256(trace.encode()).hexdigest()[:16]
+    caplog.set_level(logging.INFO, logger="podvoice.music_start")
+    bridge = rig.app[BRIDGE]
+    headers = {
+        "Cookie": "podview_control=grant",
+        "X-PodView-Request": "1",
+        "X-PodView-Trace": trace,
+    }
+    async with TestClient(TestServer(rig.app)) as client:
+        source = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=jazz",
+                headers={"Cookie": "podview_control=grant"},
+            )
+        ).json()
+        setup = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "candidateSetId": source["candidateSet"]["candidateSetId"],
+            "target": {
+                "accountId": "account-alpha",
+                "kind": "spotify_device",
+                "targetId": "device-one",
+            },
+        }
+        offer = await (
+            await client.post("/view/api/music/selection/setup", headers=headers, json=setup)
+        ).json()
+        bridge.controls.music.setup_track.return_value["data"]["start_offer"]["binding_id"] = (
+            "e" * 64
+        )
+        action = {
+            "bootId": bridge.boot_id,
+            "roomId": "kitchen",
+            "taskId": offer["taskId"],
+            "revision": offer["revision"],
+            "requestId": trace,
+            "optionId": offer["options"][0]["id"],
+            "confirmedVolumePercent": 35,
+        }
+        result = await (
+            await client.post("/view/api/music/selection/actions", headers=headers, json=action)
+        ).json()
+        assert result["outcome"] == "rejected"
+        assert bridge.controls.music.execute_track.await_count == 0
+        assert f"trace_ref={ref} stage=selection outcome=binding_or_expired" in caplog.text
+        assert trace not in caplog.text
 
 
 async def test_second_browser_search_keeps_first_browser_candidate_live(rig, tmp_path):
@@ -683,10 +804,22 @@ async def test_real_controls_get_facade_and_route_preserve_only_current_account_
         "provider_expired",
     ],
 )
-async def test_admitted_selection_retains_only_presentation_freshness_exemption(rig, change):
+async def test_admitted_selection_retains_only_presentation_freshness_exemption(
+    rig, change, caplog
+):
+    import hashlib
+    import logging
+
+    trace = "12345678-1234-4234-8234-123456789abc"
+    ref = hashlib.sha256(trace.encode()).hexdigest()[:16]
+    caplog.set_level(logging.INFO, logger="podvoice.music_start")
     bridge, facade = rig.app[BRIDGE], rig.app[BRIDGE].controls.music
     async with TestClient(TestServer(rig.app)) as client:
-        headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+        headers = {
+            "Cookie": "podview_control=grant",
+            "X-PodView-Request": "1",
+            "X-PodView-Trace": trace,
+        }
         search = await (
             await client.get(
                 "/view/api/music?kind=search&account=account-alpha&query=jazz",
@@ -796,7 +929,7 @@ async def test_admitted_selection_retains_only_presentation_freshness_exemption(
             "roomId": "kitchen",
             "taskId": offer["taskId"],
             "revision": offer["revision"],
-            "requestId": "revoke-during-stage",
+            "requestId": trace,
             "optionId": offer["options"][0]["id"],
             "confirmedVolumePercent": 35,
         }
@@ -808,6 +941,15 @@ async def test_admitted_selection_retains_only_presentation_freshness_exemption(
         assert result["physicalResultVerified"] is False
         expected = ["get_room_content_controls", "prepare_room_selected_content"]
         if change == "display_expiry":
+            assert any(
+                f"selected_start_prepare trace_ref={ref} request_ref=" in r.message
+                for r in caplog.records
+            )
+            assert any(
+                f"selected_start_commit trace_ref={ref} request_ref=" in r.message
+                for r in caplog.records
+            )
+            assert trace not in caplog.text
             expected.append("start_room_selected_content")
             # Same consumed request remains readable after presentation expiry;
             # neither it nor a distinct request may dispatch again.

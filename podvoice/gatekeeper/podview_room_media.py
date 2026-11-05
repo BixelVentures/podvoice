@@ -150,14 +150,16 @@ async def confirm_move_destination(bridge, task, result, current):
     return confirmed
 
 
-async def execute_selected_destination(bridge, room, task, controls, uri, max_volume, current):
+async def execute_selected_destination(
+    bridge, room, task, controls, uri, max_volume, current, *, trace_ref=None
+):
     """Touch and voice use the same send-once and confirmed-room publication path."""
     try:
         result = await (
             bridge.controls.music.execute_context
             if task.get("action") == "play_context"
             else bridge.controls.music.execute_track
-        )(controls, uri, max_volume, current)
+        )(controls, uri, max_volume, current, **({"trace_ref": trace_ref} if trace_ref else {}))
         if task.get("destination") is not None:
             await finish_selected_destination(bridge, room, task, controls, result, current)
         return result

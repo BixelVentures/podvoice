@@ -25,8 +25,7 @@ async function start(){
 async function stop(){if(!server||server.exitCode!==null)return;const exited=new Promise(resolve=>server.once('exit',resolve));server.kill('SIGTERM');await exited;server=null}
 async function openCatalog(page){
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});
- await page.locator('#photo-view').waitFor({state:'visible',timeout:15000});
- await page.locator('#photo-view').tap();
+ await testEnv.openOverview(page);
  await page.locator('#home-recipes').waitFor({state:'visible'});
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  await page.locator('#home-recipes').tap();

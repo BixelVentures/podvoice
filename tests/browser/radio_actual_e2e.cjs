@@ -22,7 +22,7 @@ let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],err
  browser=await chromium.launch(env.browserOptions());page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
  page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(/\/api\/(radio|music\/selection)/.test(r.url()))responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(radio|music\/selection)/.test(r.url()))actions.push({url:r.url(),body:r.postDataJSON()})});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await page.locator('#photo-view').tap();await page.locator('#home-radio').tap();
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
  const stations=page.locator('#radio-view pv-choice-list');
  await stations.getByRole('button',{name:/P3/}).waitFor({state:'visible',timeout:15000});
  assert.deepEqual((await state()).radioWrites,[],'navigation and passive state reads have no effects');
@@ -65,6 +65,7 @@ let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],err
   if(journal.records?.some(({row})=>row.stage==='control_observation'&&row.domain==='radio'&&row.action==='volume'&&row.code==='observed'&&row.observedValue===31)&&journal.records?.some(({row})=>row.stage==='control_observation'&&row.domain==='radio'&&row.action==='stop'&&row.code==='observed'))break;
   await sleep(500);
  }
+ await fs.writeFile(path.join(env.artifactDir(),'podview-radio-product-journal.json'),JSON.stringify(journal,null,2));
  const rows=journal.records?.map(entry=>entry.row)||[],resourceRef=createHash('sha256').update('42').digest('hex').slice(0,16);
  for(const action of ['volume','stop']){
   const observation=rows.find(row=>row.stage==='control_observation'&&row.domain==='radio'&&row.action===action&&row.code==='observed');assert(observation,`persisted radio ${action} observation`);
@@ -81,7 +82,6 @@ let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],err
  });
  assert.equal(serverProof.length,4,'every explicit radio command has its owner trace');
  await fs.writeFile(path.join(env.artifactDir(),'podview-radio-server-trace.json'),JSON.stringify(serverProof,null,2));
- await fs.writeFile(path.join(env.artifactDir(),'podview-radio-product-journal.json'),JSON.stringify(journal,null,2));
  await fs.writeFile(path.join(env.artifactDir(),'podview-radio-trace.json'),JSON.stringify({bundleSHA,service:final,radio:await radio(),actions,responses},null,2));
  console.log(JSON.stringify({outcome:'PASS',bundleSHA,actualPackagedPodView:true,actualNativeRadioHTTP:true,inertFinalService:true,stationStart:true,authoritativeOutput:'42',radioVolume:{gesture:'touch-drag',passivePaintDuringTouch:true,observedPercent:31,effects:1},stop:true,radioToSpotifyCatalogue:true,persistedValueTargetTrace:true,oneEffectPerExplicitInput:true,pageErrors:errors}));
  }catch(error){if(page){console.log('failureState',JSON.stringify({service:await state(),radio:await radio(),ui:await page.locator('body').innerText(),actions,responses:responses.slice(-5)}));await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-failure.png')})}throw error;

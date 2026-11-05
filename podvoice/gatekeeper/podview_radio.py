@@ -59,6 +59,10 @@ ACTIONS = frozenset({"start", "stop", "move", "volume"})
 RADIO_READ_BUDGET_SECONDS = 10
 RADIO_ACTION_BUDGET_SECONDS = 15
 STATUSES = frozenset({"idle", "preparing", "playing", "stopped", "error", "unknown"})
+_BOOTSTRAP_FAILURES = {
+    "Built-in radio bootstrap unavailable": "prepare_failed",
+    "Native radio safety proof unavailable": "enable_failed",
+}
 
 
 def denied(reason="radio_unavailable"):
@@ -251,6 +255,7 @@ class NativeRadio:
 
     def __init__(self, base_url, token, *, client=None):
         self.configured = bool(base_url and token)
+        self._logged_bootstrap_failures: set[str] = set()
         self._client = client or httpx.AsyncClient(
             base_url=base_url.rstrip("/") or "http://radio.invalid",
             headers={"X-PodConnect-Token": token} if token else {},
@@ -277,7 +282,16 @@ class NativeRadio:
         if not self.configured:
             raise ValueError("native radio unavailable")
         _, value = await self._json("GET", "/api/radio/state", 32768)
-        return validate_native(value)
+        validated = validate_native(value)
+        phase = _BOOTSTRAP_FAILURES.get(value.get("error"))
+        if phase and phase not in self._logged_bootstrap_failures:
+            # Mark before logging: a broken sink cannot change or flood reads.
+            self._logged_bootstrap_failures.add(phase)
+            try:
+                _LOG.warning("podview_radio stage=bootstrap phase=%s outcome=unavailable", phase)
+            except Exception:
+                pass
+        return validated
 
     async def execute(self, body):
         status, value = await self._json(

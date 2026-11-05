@@ -155,6 +155,42 @@ async def post(rig, route, body, *, paired=True):
     return await rig.client.post("/view/api/radio/" + route, json=body, headers=headers)
 
 
+async def test_native_bootstrap_failure_logging_is_closed_deduplicated_and_inert(
+    rig, caplog, monkeypatch
+):
+    import logging
+
+    from gatekeeper import podview_radio
+
+    caplog.set_level(logging.WARNING, logger="podvoice.radio")
+    baseline = await rig.bridge.radio.read("kitchen")
+    for raw, phase in (
+        ("Built-in radio bootstrap unavailable", "prepare_failed"),
+        ("Native radio safety proof unavailable", "enable_failed"),
+    ):
+        rig.value["error"] = raw
+        assert await rig.bridge.radio.read("kitchen") == baseline
+        assert await rig.bridge.radio.read("kitchen") == baseline
+        assert sum(f"phase={phase}" in row.message for row in caplog.records) == 1
+
+    rig.value["error"] = "private token or endpoint must never appear"
+    assert await rig.bridge.radio.read("kitchen") == baseline
+    assert "private token" not in caplog.text
+    assert len(caplog.records) == 2
+    assert all("Built-in radio" not in row.message for row in caplog.records)
+
+    def broken_sink(*args, **kwargs):
+        raise RuntimeError("logging failure")
+
+    rig.bridge.radio.native._logged_bootstrap_failures.clear()
+    monkeypatch.setattr(podview_radio._LOG, "warning", broken_sink)
+    rig.value["error"] = "Built-in radio bootstrap unavailable"
+    assert await rig.bridge.radio.read("kitchen") == baseline
+    assert await rig.bridge.radio.read("kitchen") == baseline
+    assert rig.bridge.radio.native._logged_bootstrap_failures == {"prepare_failed"}
+    assert not effects(rig)
+
+
 async def offer(rig, **extra):
     return await (await post(rig, "offer", offer_body(rig, **extra))).json()
 
@@ -402,13 +438,18 @@ async def test_radio_controls_use_only_native_radio_owner(rig, action, station, 
         {"station_id": "foreign"},
         {"source_kind": "untrusted"},
         {"capabilities": ["arbitrary"]},
+        {"error": {"private": "never-log"}},
+        {"error": ["never-log"]},
+        {"error": None},
+        {"error": 42},
     ],
 )
-def test_native_projection_rejects_stale_or_fabricated_authority(change):
+def test_native_projection_rejects_stale_or_fabricated_authority(change, caplog):
     value = native_state()
     value.update(change)
     with pytest.raises((ValueError, TypeError)):
         validate_native(value)
+    assert "never-log" not in caplog.text
 
 
 async def test_wrong_option_or_other_room_does_not_consume_real_task(rig):

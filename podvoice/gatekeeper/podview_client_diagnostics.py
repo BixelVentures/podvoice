@@ -133,6 +133,36 @@ def _routine_read(row):
     return False
 
 
+def _action_trace(row):
+    """Only explicit action lifecycle or unambiguous user-selection/effect endpoints.
+
+    Uncorrelated setup and queue/offer remain background prefetch.
+    HTTP method is intentionally not used as a proxy for human intent.
+    """
+    if row["stage"] == "control_setup":
+        return _matches(_REF, row.get("diagnosticRef")) and row.get(
+            "action"
+        ) in _DOMAIN_ACTIONS.get(row.get("domain"), ())
+    return row["stage"] in {
+        "control_intent",
+        "control_action",
+        "control_observation",
+        "queue_action",
+        "playback_confirmation",
+    } or (
+        row["stage"] == "request"
+        and row.get("endpoint")
+        in {
+            "actions",
+            "control/actions",
+            "radio/actions",
+            "music/queue/actions",
+            "music/selection/setup",
+            "music/selection/actions",
+        }
+    )
+
+
 def _integer(value, low=0, high=MAX_INT):
     return type(value) is int and low <= value <= high
 
@@ -461,10 +491,32 @@ class ClientDiagnosticsStore:
             ]
             if not eligible:
                 raise ValueError("diagnostic store full")
-            index = next(
-                (index for index in eligible if _routine_read(data["records"][index]["row"])),
-                eligible[0],
+            # Preserve the oldest explicit action trace over all background,
+            # including radio reads and superseded/recovered home observations.
+            # Within each tier, server sequence order makes eviction oldest-first.
+            index = min(
+                eligible,
+                key=lambda i: (
+                    2
+                    if _action_trace(data["records"][i]["row"])
+                    else 0
+                    if _routine_read(data["records"][i]["row"])
+                    else 1
+                ),
             )
+            if (
+                incoming_from is not None
+                and _action_trace(data["records"][index]["row"])
+                and not any(
+                    item["serverSeq"] >= incoming_from and _action_trace(item["row"])
+                    for item in data["records"]
+                )
+            ):
+                # Background alone cannot consume retained action history.
+                # Reject the entire local candidate before any file/ACK change.
+                # An incoming action may replace oldest actions once background
+                # is exhausted; its mixed batch remains atomic and fully stored.
+                raise DiagnosticFailure("diagnostics_background_pressure", 429)
             del data["records"][index]
             raw = _encoded(data)
         temporary = self.path.name + "." + secrets.token_hex(12)
@@ -619,4 +671,15 @@ class ClientDiagnosticsStore:
                 "records": page,
                 "nextAfter": page[-1]["serverSeq"] if page else after,
                 "hasMore": len(rows) > 64,
+                # Bounds are policy, not a claim that earlier records survived.
+                # No inferred gap count: server sequences also span other rooms.
+                "retention": {
+                    "bounded": True,
+                    "maxRecords": MAX_RECORDS,
+                    "maxBytes": MAX_BYTES,
+                    "maxAgeMs": MAX_AGE_MS,
+                    "evictionOrder": "background_first",
+                    "backgroundOnlyMayEvictActions": False,
+                    "actionBatchMayEvictOldestActions": True,
+                },
             }

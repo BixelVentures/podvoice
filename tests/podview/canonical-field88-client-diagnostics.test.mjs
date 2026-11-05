@@ -100,3 +100,12 @@ test('forged home tokens and failed diagnostic sinks never change home request o
  const calls=[],t=make({fetch:async(url,init)=>{calls.push({url:String(url),init});return {ok:true,status:200,json:async()=>({ok:true})};}});t.closed=false;t.connected=true;t.snapshot={roomId:'room',capabilities:{homeRead:['vacuum']}};
  assert.deepEqual(await t.home({readDiagnostic:{forged:true}}),{ok:true});assert.equal(t.diagnostics().records.some(row=>row.readHash),false);const token=t.createReadDiagnostic();t.recordDiagnostic=()=>{throw Error('inert sink failure');};assert.deepEqual(await t.home({readDiagnostic:token}),{ok:true});for(let n=0;n<8;n++)await Promise.resolve();assert.equal(calls.length,2);assert.equal(calls[0].url,calls[1].url);assert.ok(calls.every(({init})=>!new Headers(init.headers).has('X-PodView-Read-Id')&&init.body===undefined));
 });
+
+test('correlated radio setup survives quiet queue pressure while passive setup stays evictable',()=>{
+ const t=make(),diagnosticRef='01234567-89ab-4cde-8fab-0123456789ab';
+ t.recordDiagnostic('control_setup',{code:'ok',domain:'radio',action:'stop',diagnosticRef});t.recordDiagnostic('control_setup',{code:'ok',domain:'music'});
+ for(let i=0;i<200;i++)t.recordDiagnostic('request',{code:'ok',endpoint:'snapshot'});
+ let rows=t.diagnostics().records;assert.equal(rows.length,128);assert.ok(rows.some(row=>row.stage==='control_setup'&&row.domain==='radio'&&row.action==='stop'&&row.diagnosticRef===diagnosticRef));assert.equal(rows.some(row=>row.stage==='control_setup'&&row.domain==='music'),false);
+ for(let i=0;i<128;i++)t.recordDiagnostic('request',{code:'ok',endpoint:'snapshot'});
+ t.recordDiagnostic('control_setup',{code:'start',domain:'radio',action:'start',diagnosticRef});rows=t.diagnostics().records;assert.ok(rows.some(row=>row.stage==='control_setup'&&row.action==='start'&&row.diagnosticRef===diagnosticRef));
+});
