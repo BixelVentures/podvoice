@@ -8,8 +8,8 @@ from pathlib import Path
 
 BASE = "dbcbc554830b4a07524cdd868a861ed83d7c1551"
 BASE_TREE = "3e7045981ab5b6a8b3c32d901f1eba52cdcfa6f7"
-CANDIDATE = "4ee9c90ef845549982f115827db51b1f7db2d6b0"
-CANDIDATE_TREE = "e5ef4a49fdf7a5101139c43b6f08c298c6a0655f"
+CANDIDATE = "267713c9a91f9fd8104aa49a3d9d8ebbb3342ef9"
+CANDIDATE_TREE = "2ab5947227aad9ef46c7055d21e77040ef85f6ff"
 REVIEWER = "Scoped Astra source reviews; /root/ha_admission_review registration and artifact review"
 RELEASE_PINS = {
     "custom_components/podvoice/manifest.json": "444efd499153a715c3f88cac803e289fdfee486876c151d1e9fff89b0f993ace",
@@ -19,7 +19,7 @@ RELEASE_PINS = {
     "podvoice/gatekeeper/__init__.py": "c4cf6c8ee132c672faaf2891e8ce6f1b4d80c9f17d6fcde9e586c6508c771a46",
     "pyproject.toml": "1dfb25ac54e2a725b7c8c4bb3a1931705f5802012c5c63295b34685fb192bbfb",
 }
-REGISTRATION = {".github/workflows/ci.yml", "scripts/candidate_scope_admission131.py"}
+REGISTRATION = {"scripts/candidate_scope_admission131.py"}
 
 
 def git(*args: str) -> str:
