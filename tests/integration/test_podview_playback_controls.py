@@ -738,3 +738,87 @@ async def test_owner_error_reaches_passive_room_log_without_grant(controls_rig, 
     assert body["controls"]["supported_actions"] == []
     assert "source=owner reason=rate_limited" in caplog.text
     assert_passive(rig)
+
+
+@pytest.mark.parametrize(
+    "branch",
+    [
+        "discovery_missing",
+        "response_oversize",
+        "binding_changed",
+        "read_revoked",
+        "malformed_envelope",
+        "owner_projection",
+    ],
+)
+async def test_playback_adapter_closed_failure_evidence(branch, caplog, monkeypatch):
+    rig = Rig()
+    secret = "PRIVATE-ACCOUNT-TOKEN-URL"
+    reads = {"playback"}
+    monkeypatch.setattr(rig.router, "podview_music_reads", lambda: reads)
+    binding = ["original"]
+    monkeypatch.setattr(rig.router, "podview_music_binding", lambda: binding[0])
+    if branch == "discovery_missing":
+        reads.clear()
+
+    async def receive(request):
+        rig.calls.append((request.method, request.url.path, json.loads(request.content)))
+        if branch == "binding_changed":
+            binding[0] = "changed"
+        elif branch == "read_revoked":
+            reads.clear()
+        if branch == "response_oversize":
+            return httpx.Response(200, content=b"x" * 262145)
+        if branch == "malformed_envelope":
+            return httpx.Response(200, json={"private": secret})
+        value = (
+            {"ok": False, "error_kind": "unavailable"}
+            if branch == "owner_projection"
+            else rig.values["playback"]
+        )
+        return httpx.Response(200, json={"service_response": value})
+
+    await rig.client.aclose()
+    rig.router._client = rig.client = httpx.AsyncClient(transport=httpx.MockTransport(receive))
+    try:
+        with caplog.at_level("WARNING", logger="podvoice.tools"):
+            result = await rig.router.podview_read("playback", "account-alpha", include_output=True)
+        messages = [r.message for r in caplog.records if "podview_adapter_failure" in r.message]
+        assert f"branch={branch}" in " ".join(messages)
+        assert secret not in caplog.text and "server-only" not in caplog.text
+        assert all("readHash=none" in m for m in messages)
+        assert len(rig.calls) == (0 if branch == "discovery_missing" else 1)
+        assert result.get("ok") is False
+        assert not rig.router._refresh_podconnect_services.await_count
+    finally:
+        await rig.client.aclose()
+
+
+async def test_playback_adapter_diagnostic_logger_failure_preserves_result(monkeypatch):
+    from gatekeeper import tools
+
+    rig = Rig()
+    monkeypatch.setattr(rig.router, "podview_music_reads", lambda: set())
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("private logger exception")
+
+    monkeypatch.setattr(tools.log, "warning", broken)
+    try:
+        assert await rig.router.podview_read("playback", "account-alpha") == {
+            "ok": False,
+            "error_kind": "unavailable",
+        }
+        assert not rig.calls
+    finally:
+        await rig.client.aclose()
+
+
+async def test_playback_adapter_success_has_no_failure_log(controls_rig, caplog):
+    with caplog.at_level("WARNING", logger="podvoice.tools"):
+        result = await controls_rig.router.podview_read(
+            "playback", "account-alpha", include_output=True, include_controls=True
+        )
+    assert result["ok"] is True
+    assert not [r for r in caplog.records if "podview_adapter_failure" in r.message]
+    assert_passive(controls_rig)

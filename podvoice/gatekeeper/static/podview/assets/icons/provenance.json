@@ -210,6 +210,22 @@
     "power.svg": {
       "source": "https://cdn.jsdelivr.net/npm/@phosphor-icons/core@2.1.1/assets/regular/power.svg",
       "sha256": "7c493f7a807a08a5fcaadd33493fd4ad66cb0aa752a822c71a5f5cf5fd665b53"
+    },
+    "cloud-fog.svg": {
+      "source": "package/assets/regular/cloud-fog.svg",
+      "sha256": "718e2223a5fd5b074b94731c09e7a41ef74434e38505ce184a9725cf57c14ee0"
+    },
+    "cloud-snow.svg": {
+      "source": "package/assets/regular/cloud-snow.svg",
+      "sha256": "9facddf58abc9473da02eee1f7ae3fb56073789c75007bf3349d0e68b9ba48d0"
+    },
+    "cloud-lightning.svg": {
+      "source": "package/assets/regular/cloud-lightning.svg",
+      "sha256": "f6d079024531d0ae614d5ee481345554bc9f186714be161041b6c04e158ff996"
+    },
+    "warning.svg": {
+      "source": "package/assets/regular/warning.svg",
+      "sha256": "047c8edbdfddb9f1692bbf56acc85b7e4649b567c60eb39470e98e4f9ddc6a2e"
     }
   },
   "exceptions": {

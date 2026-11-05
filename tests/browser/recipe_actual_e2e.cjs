@@ -15,7 +15,7 @@ const width=Number(process.env.RECIPE_VIEW_WIDTH || 1280),height=Number(process.
 const shot=`${width}x${height}`;
 const sourceMode=process.env.PODVIEW_RECIPE_LIVE_SOURCE==='1'?'public-live':'inert-fixture';
 const source=sourceMode==='public-live'?'https://www.arla.dk/opskrifter/nem-chokoladekage-i-bradepande/':'https://example.com/podview-recipe';
-let dir,server,browser,productLog='';
+let dir,server,browser,productLog='',homeBaseline;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 async function start(){
  server=spawn(python,[path.join(__dirname,'recipe_e2e_server.py')],{cwd:testEnv.runtimeRoot,env:{...envBase,RECIPE_TEST_CATALOG:path.join(dir,'catalog.json')},stdio:['ignore','pipe','pipe']});
@@ -27,6 +27,7 @@ async function openCatalog(page){
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});
  await testEnv.openOverview(page);
  await page.locator('#home-recipes').waitFor({state:'visible'});
+ homeBaseline ||= await page.locator('#home-recipes').evaluate(el=>{const css=getComputedStyle(el);return {background:css.backgroundColor,color:css.color,border:css.borderColor,variant:el.getAttribute('data-kit-variant')};});
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  await page.locator('#home-recipes').tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
@@ -67,10 +68,46 @@ async function openCatalog(page){
  const savedSession=await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1'));
  assert(cookingScroll>0,'touch must scroll the active recipe');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-before-reload.png`)});
- await openCatalog(page);
+ // The active row stays pinned once, even in an unrelated category.
+ await page.locator('#header-title-action').tap();
+ await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor();
+ await page.locator('#recipe-view input[type=radio][value="Brød og bagværk"]').locator('..').tap();
  const active=page.locator('#recipe-view [data-recipe="Nem chokoladekage i bradepande"][aria-current=true]');
  await active.waitFor({state:'visible',timeout:16000});
+ assert.equal(await active.count(),1);
+ assert.equal(await active.getAttribute('data-kit-variant'),'resume');
  assert.match(await active.innerText(),/1 af 7 trin · Fortsæt/);
+ assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] [data-recipe]').first().getAttribute('aria-current'),'true');
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-active-filter.png`)});
+ // Home retains its established widget, and clicking it always enters the catalogue.
+ await page.locator('#header-title-action').tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
+ const widget=page.locator('#home-recipes');
+ await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ assert.match(await widget.innerText(),/Nem chokoladekage i bradepande/);
+ assert.notEqual(await widget.getAttribute('data-kit-variant'),'resume');
+ const homeStyle=await widget.evaluate(el=>{const css=getComputedStyle(el);return {background:css.backgroundColor,color:css.color,border:css.borderColor,variant:el.getAttribute('data-kit-variant')};});
+ assert.deepEqual(homeStyle,homeBaseline,'active Home widget retains its approved visual styling');
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-active-home.png`)});
+ await widget.tap();
+ await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
+ await active.tap();
+ assert.match(await page.locator('#recipe-view').innerText(),/Trin 2 af 7/);
+ // A reload hydrates Home before opening Recipes, without focusing hidden UI or polling.
+ const reads=[];
+ page.on('request',request=>{if(request.method()==='GET'&&new URL(request.url()).pathname.endsWith('/view/api/recipes'))reads.push(request.url());});
+ await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});
+ await page.waitForFunction(()=>document.querySelector('#home-recipes .resource-value')?.textContent==='Nem chokoladekage i bradepande',null,{timeout:16000});
+ assert.equal(await page.evaluate(()=>document.querySelector('#recipe-view').contains(document.activeElement)),false);
+ assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host')?.state?.focus),'photo');
+ await testEnv.openOverview(page);
+ await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ await sleep(1000);
+ assert.equal(reads.length,1,'home hydration performs one catalogue read and no hidden polling');
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-restored-home.png`)});
+ await widget.tap();
+ await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
+ await active.waitFor({state:'visible'});
  await active.tap();
  assert.match(await page.locator('#recipe-view').innerText(),/Trin 2 af 7/);
  assert.match(await page.locator('#recipe-view').innerText(),/1 af 11 fundet frem/);
@@ -82,6 +119,13 @@ async function openCatalog(page){
  await page.getByRole('button',{name:'Nulstil',exact:true}).tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor();
  assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),null);
+ assert.equal(await page.locator('#recipe-view [data-recipe][aria-current=true]').count(),0);
+ await page.locator('#header-title-action').tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
+ assert.equal(await widget.getByText('I gang',{exact:true}).count(),0);
+ assert.equal(await widget.locator('.resource-value').isVisible(),false);
+ await widget.tap();
+ await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
  // Damaged or changed data must never resume an unrelated recipe.
  for(const raw of ['{invalid',JSON.stringify({...JSON.parse(savedSession),signature:'changed'})]){
   await page.evaluate(value=>localStorage.setItem('podview.recipe-session.v1',value),raw);

@@ -34,7 +34,7 @@ function section(title, ...children) {
 }
 
 export class RecipeView {
- constructor(root, back, onCookingChange) {
+ constructor(root, back, onCookingChange, {background = false} = {}) {
   this.root = root;
   this.back = back;
   this.onCookingChange = onCookingChange;
@@ -67,7 +67,9 @@ export class RecipeView {
   } catch {
    this.history = [];
   }
-  this.catalog();
+  this.suppressPageFocus = background;
+  this.catalog(!background);
+  this.suppressPageFocus = false;
  }
 
  page(title, subtitle, back, ...actions) {
@@ -146,6 +148,8 @@ export class RecipeView {
  }
 
  async refreshPublishedCatalog(signal) {
+  if (this.publishedCatalogRead) return this.publishedCatalogRead;
+  const read = (async()=>{
   const before = JSON.stringify(this.saved), status = this.catalogStatus;
   try {
    const response = await fetch(new URL('api/recipes',document.baseURI),{cache:'no-store',signal});
@@ -164,6 +168,10 @@ export class RecipeView {
    this.catalogStatus = 'unavailable';
   }
   return status !== this.catalogStatus || before !== JSON.stringify(this.saved);
+  })();
+  this.publishedCatalogRead = read;
+  try {return await read;}
+  finally {if (this.publishedCatalogRead === read) this.publishedCatalogRead = null;}
  }
 
  async refreshUploadHistory(signal) {
@@ -264,27 +272,32 @@ export class RecipeView {
    index.hidden = groups.size < 2 || entries.scrollHeight <= entries.clientHeight;
   }
   const render = () => {
-   const recipes = this.saved.filter(recipe=>!this.catalogCategory || categoriesOf(recipe).includes(this.catalogCategory));
+   // The current cooking task is pinned independently of browsing filters.
+   // Only this catalogue's actual session object may own the resume row.
+   const activeRecipe = this.saved.includes(this.active) && this.sessions.has(this.active) ? this.active : null;
+   const recipes = this.saved.filter(recipe=>recipe !== activeRecipe
+    && (!this.catalogCategory || categoriesOf(recipe).includes(this.catalogCategory)));
+   if (activeRecipe) recipes.unshift(activeRecipe);
    entries.replaceChildren();
    groups.clear();
    for (const recipe of recipes.sort((a,b)=>collator.compare(a.title,b.title))) {
     const initial = recipe.title[0].toLocaleUpperCase('da');
-    const letter = recipe === this.active ? 'I gang' : alphabet.includes(initial) ? initial : '#';
+    const letter = recipe === activeRecipe ? 'I gang' : alphabet.includes(initial) ? initial : '#';
     if (!groups.has(letter)) {
      const group = element('section');
-     if (recipe !== this.active) group.append(applyKitTextRole(element('h3',letter),'group-title'));
+     if (recipe !== activeRecipe) group.append(applyKitTextRole(element('h3',letter),'group-title'));
      groups.set(letter,group);
     }
-    const row = kit('listrow', undefined, {variant: recipe === this.active ? 'resume' : undefined});
+    const row = kit('listrow', undefined, {variant: recipe === activeRecipe ? 'resume' : undefined});
     row.dataset.recipe = recipe.title;
-    if (recipe === this.active) row.setAttribute('aria-current','true');
+    if (recipe === activeRecipe) row.setAttribute('aria-current','true');
     const copy = element('span');
     const age = Date.now() - (recipe.source?.uploadedAt ?? recipe.createdAt);
-    const status = recipe === this.active ? this.sessions.get(recipe).steps.size+' af '+recipe.steps.length+' trin · Fortsæt'
+    const status = recipe === activeRecipe ? this.sessions.get(recipe).steps.size+' af '+recipe.steps.length+' trin · Fortsæt'
      : [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ') || 'Gemt opskrift';
     const title = recipe.publisher ? recipe.title+' af '+recipe.publisher : recipe.title;
-    if (recipe === this.active) copy.append(applyKitTextRole(element('small','I gang'),'meta'));
-    copy.append(applyKitTextRole(element('strong',title),recipe === this.active ? 'section-title' : 'field-label'));
+    if (recipe === activeRecipe) copy.append(applyKitTextRole(element('small','I gang'),'meta'));
+    copy.append(applyKitTextRole(element('strong',title),recipe === activeRecipe ? 'section-title' : 'field-label'));
     copy.append(applyKitTextRole(element('small',
      age >= 0 && age < 7*86400000 ? 'Ny · '+status : status),'meta'));
     row.append(copy);

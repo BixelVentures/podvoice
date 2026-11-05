@@ -56,14 +56,14 @@ for(const superseded of [false,true])test(`selection action UUID survives an ord
  const f=selectionFixture(),events=[],confirmation=deferred(),requestId='00000000-0000-4000-8000-000000000002';
  f.host.liveTransport.recordDiagnostic=(stage,fields)=>events.push({stage,...fields});
  f.host.liveTransport.crypto={randomUUID:()=>requestId};
- f.host.liveTransport.musicSelectionAction=async(_offer,_option,{requestId:issuedId})=>{assert.equal(issuedId,requestId);return {outcome:'accepted',requestId};};
+ f.host.liveTransport.musicSelectionAction=async(_offer,_option,{requestId:issuedId})=>{assert.equal(issuedId,requestId);f.sent.push({requestId:issuedId});return {outcome:'accepted',requestId};};
  f.host.liveMedia.refresh=()=>confirmation.promise;
  try{
   await f.view.chooseCard(f.entry.cards[0]);assert.equal(events.at(-1).code,'accepted');assert.equal(events.at(-1).requestId,requestId);
   if(superseded){f.view.resultTicket=null;f.view.feedback=null;f.host.liveTransport={connected:true,recordDiagnostic(){throw Error('must use captured transport');}};}
   confirmation.resolve({status:'unconfirmed'});await Promise.resolve();await Promise.resolve();
   assert.deepEqual(events.filter(row=>row.stage==='playback_confirmation'),[]);assert.equal(events.find(row=>row.stage==='control_action').requestId,requestId);
-  if(superseded)assert.equal(f.view.feedback,null);else{assert.equal(f.view.feedback.awaitingObservation,true);assert.equal(f.view.pendingPlayer(),null,'accepted POST does not block actual playback controls');}
+  if(superseded)assert.equal(f.view.feedback,null);else{assert.equal(f.view.feedback.awaitingObservation,true);assert.equal(f.view.pendingPlayer()?.title,'Actual 0','accepted receipt retains the unverified selected track');assert.equal(f.view.feedback.pending,false);assert.equal(f.sent.length,1,'presentation never sends a second action');}
   assert.equal(JSON.stringify(events).includes('spotify:'),false);assert.equal(JSON.stringify(events).includes('Actual'),false);
  }finally{f.cleanup();}
 });

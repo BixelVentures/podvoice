@@ -51,23 +51,58 @@ state = {
 }
 receipts = {}
 service_reads = []
+robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
+robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 if robot is not None:
     robot.states[ROBOT]["state"] = (
-        "docked" if os.environ.get("ROBOT_DRAFT_TEST") == "1" else "cleaning"
+        "docked" if os.environ.get("ROBOT_DRAFT_TEST") == "1" or robot_slow_start else "cleaning"
     )
     robot.states[ROBOT]["attributes"].update(
         supported_features=32 | 4 | 8 | 16 | 8192, battery_level=78
     )
+    if robot_slow_start:
+        mop_mode = "select.qrevo_mop_mode"
+        robot.registry[mop_mode] = {
+            "entity_id": mop_mode,
+            "platform": "roborock",
+            "device_id": "robot-one",
+            "unique_id": mop_mode,
+            "translation_key": "mop_mode",
+            "disabled_by": None,
+        }
+        robot.states[mop_mode] = {
+            "state": "standard",
+            "attributes": {"options": ["standard", "deep"]},
+        }
+        robot.configure()
     bind(robot, Path(os.environ["MUSIC_TEST_DATA"]) / "cleaning.json")
 
     async def robot_effect():
-        path, _ = robot.writes[-1]
-        await asyncio.sleep(0.15)
+        path, data = robot.writes[-1]
+        if robot_slow_start and path in {
+            "services/select/select_option",
+            "services/vacuum/set_fan_speed",
+            "services/vacuum/send_command",
+        }:
+            post = {"path": path, "receivedAt": time.time()}
+            robot_slow_posts.append(post)
+            if path in {"services/select/select_option", "services/vacuum/set_fan_speed"}:
+                # Real final-owner HTTP latency, not a delayed PodView response.
+                await asyncio.sleep(4)
+            post["completedAt"] = time.time()
+        else:
+            await asyncio.sleep(0.15)
         if path.endswith("/pause"):
             robot.states[ROBOT]["state"] = "paused"
-        elif path.endswith("/start"):
+        elif path.endswith("/start") or (
+            robot_slow_start
+            and path == "services/vacuum/send_command"
+            and data.get("command") == "app_segment_clean"
+        ):
             robot.states[ROBOT]["state"] = "cleaning"
+            if robot_slow_start:
+                robot.states["sensor.fixture_status"]["state"] = "segment_cleaning"
         elif path.endswith("/stop"):
             robot.states[ROBOT]["state"] = "idle"
         elif path.endswith("/return_to_base"):
@@ -321,6 +356,14 @@ app = create_app(
     locked=True,
 )
 
+if robot_slow_start:
+    # The existing dock owner issues the genuine15s admission lease. The Start
+    # transaction must retain custody through four real4s setting HTTP calls.
+    from integration.test_podview_dock_commands import command_catalog
+
+    command_catalog(robot, app[BRIDGE], state="docked", status="charging", error="ok")
+    app[BRIDGE].controls.policy["vacuum"][0]["actions"] = ["settings", "start", "dock"]
+
 if os.environ.get("ROBOT_DRAFT_TEST") == "1":
     # Keep the actual server-issued task and deadline in agreement, but make
     # this fixture's real offer short enough to exercise natural timer expiry.
@@ -385,6 +428,14 @@ async def lab_state(request):
             "mop": robot.states[MOP]["state"],
             "battery": robot.states[ROBOT]["attributes"]["battery_level"],
             "writes": copy.deepcopy(robot.writes),
+            **(
+                {
+                    "slowStartPosts": copy.deepcopy(robot_slow_posts),
+                    "observedStatus": robot.states["sensor.fixture_status"]["state"],
+                }
+                if robot_slow_start
+                else {}
+            ),
         }
     return web.json_response(value)
 
