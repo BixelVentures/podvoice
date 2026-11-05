@@ -8,7 +8,7 @@ const os=require('node:os');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
-const root=testEnv.root, port=18972, base=`http://127.0.0.1:${port}`;
+const root=testEnv.root, port=Number(process.env.RECIPE_TEST_PORT || 18972), base=`http://127.0.0.1:${port}`;
 const python=testEnv.python;
 const envBase=testEnv.pythonEnv({RECIPE_TEST_PORT:String(port)});
 const width=Number(process.env.RECIPE_VIEW_WIDTH || 1280),height=Number(process.env.RECIPE_VIEW_HEIGHT || 800);
@@ -55,6 +55,41 @@ async function openCatalog(page){
  await page.locator('#recipe-view [data-recipe="Nem chokoladekage i bradepande"]').tap();
  await page.getByRole('heading',{name:'Nem chokoladekage i bradepande'}).waitFor();
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-detail.png`)});
+ // Actual imported recipe -> marked progress -> browser reload -> same session.
+ await page.getByRole('button',{name:'Start opskrift',exact:true}).tap();
+ await page.locator('#recipe-view [data-recipe-layout=ingredients] pv-checklist button').first().tap();
+ await page.locator('#recipe-view [data-recipe-layout=reading] li button').first().tap();
+ const ingredients=page.locator('#recipe-ingredients-trigger');
+ await ingredients.tap();
+ assert.equal(await ingredients.getAttribute('aria-expanded'),'false');
+ await testEnv.touchScroll(page,page.locator('#recipe-view'),{dy:220});
+ const cookingScroll=await page.locator('#recipe-view').evaluate(el=>el.scrollTop);
+ const savedSession=await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1'));
+ assert(cookingScroll>0,'touch must scroll the active recipe');
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-before-reload.png`)});
+ await openCatalog(page);
+ const active=page.locator('#recipe-view [data-recipe="Nem chokoladekage i bradepande"][aria-current=true]');
+ await active.waitFor({state:'visible',timeout:16000});
+ assert.match(await active.innerText(),/1 af 7 trin · Fortsæt/);
+ await active.tap();
+ assert.match(await page.locator('#recipe-view').innerText(),/Trin 2 af 7/);
+ assert.match(await page.locator('#recipe-view').innerText(),/1 af 11 fundet frem/);
+ assert.equal(await page.locator('#recipe-ingredients-trigger').getAttribute('aria-expanded'),'false');
+ assert.equal(await page.locator('#recipe-view').evaluate(el=>el.scrollTop),cookingScroll);
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-after-reload.png`)});
+ // Reset removes the persisted session, keeping all original import assertions.
+ await page.getByRole('button',{name:'Nulstil opskrift',exact:true}).tap();
+ await page.getByRole('button',{name:'Nulstil',exact:true}).tap();
+ await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor();
+ assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),null);
+ // Damaged or changed data must never resume an unrelated recipe.
+ for(const raw of ['{invalid',JSON.stringify({...JSON.parse(savedSession),signature:'changed'})]){
+  await page.evaluate(value=>localStorage.setItem('podview.recipe-session.v1',value),raw);
+  await openCatalog(page);
+  await page.waitForFunction(()=>document.querySelector('#recipe-view [data-recipe="Nem chokoladekage i bradepande"]'));
+  assert.equal(await page.locator('#recipe-view [aria-current=true][data-recipe]').count(),0);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),null);
+ }
  const duplicate=await page.evaluate(async ({base,source})=>{const r=await fetch(base+'/api/podvoice/recipe-submissions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+'x'.repeat(32)},body:JSON.stringify({url:source+'?utm_source=test'})});return r.json()},{base,source});
  assert.equal(duplicate.id,saved.body.id);assert.equal(duplicate.status,'saved');
  const reference=createHash('sha256').update('podview-recipe-journal:'+saved.body.id).digest('hex').slice(0,24);

@@ -3291,6 +3291,10 @@
           "arrow:schedule": 1,
           "arrow:visibility": 1,
           "method:dispose": 1,
+          "arrow:recipeSignature": 1,
+          "method:persistSession": 1,
+          "method:clearSession": 1,
+          "method:restoreSession": 1,
           "method:stopCatalogRefresh": 1
         },
         "roots": [],

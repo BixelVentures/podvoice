@@ -1,3 +1,9 @@
+## 2.0.132
+
+- Improve the approved touch music cards and preserve a single text layer during recommendation refresh.
+- Restore local cooking progress, checked ingredients and disclosure state after reload.
+- Preserve unsent robot room selections across expired setup cleanup and avoid shortening unrelated controls for unused base actions.
+
 ## 2.0.131
 
 - Preserve a pending music choice through ordinary Home Assistant snapshot updates; require fresh validated playback authority before starting.

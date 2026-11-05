@@ -69,15 +69,16 @@ export class MusicResults{
   const finish=()=>{if(stopped)return;stopped=true;for(const animation of animations)animation?.cancel();if(this.contentTransitions.get(row)===finish)this.contentTransitions.delete(row);};
   this.contentTransitions.set(row,finish);Promise.all(animations.map(animation=>animation?.finished)).catch(()=>{}).finally(finish);
  }
- // Only content layers crossfade; the retained button and action never move.
+ // Artwork crossfades; one readable copy remains, and the retained action never moves.
  captureContent(row){
   this.contentTransitions.get(row)?.();
   const motion=this.host.motion;if(!motion||motion.reduced||!row.cloneNode||!row.getClientRects().length)return ()=>{};
   const bounds=row.getBoundingClientRect(),layers=[],animations=[];let stopped=false,timer;
   const finish=()=>{if(stopped)return;stopped=true;clearTimeout(timer);for(const animation of animations)animation?.cancel();for(const {node,clone,ready}of layers){node.removeEventListener('load',ready);node.removeEventListener('error',ready);clone.remove();}if(this.contentTransitions.get(row)===finish)this.contentTransitions.delete(row);};
-  for(const node of [row.children[0],row.children[1]]){const rect=node.getBoundingClientRect(),clone=node.cloneNode(true);clone.setAttribute('aria-hidden','true');clone.dataset.contentTransition='true';clone.style.cssText=`position:absolute;grid-area:auto!important;left:${rect.left-bounds.left}px;top:${rect.top-bounds.top}px;width:${rect.width}px;height:${rect.height}px;margin:0;pointer-events:none;z-index:2;`;row.append(clone);layers.push({node,clone});}
+  for(const node of [row.children[0]]){const rect=node.getBoundingClientRect(),clone=node.cloneNode(true);clone.setAttribute('aria-hidden','true');clone.dataset.contentTransition='true';clone.style.cssText=`position:absolute;grid-area:auto!important;justify-self:start!important;align-self:start!important;left:${rect.left-bounds.left}px;top:${rect.top-bounds.top}px;width:${rect.width}px;height:${rect.height}px;margin:0;pointer-events:none;z-index:2;`;row.append(clone);layers.push({node,clone});}
   this.contentTransitions.set(row,finish);
-  return ()=>{if(stopped)return;let remaining=layers.length;const duration=Number.parseFloat(this.doc.defaultView?.getComputedStyle(this.host).getPropertyValue('--pv-d-fast'))||200;
+  return ()=>{if(stopped)return;let remaining=layers.length+1;const duration=Number.parseFloat(this.doc.defaultView?.getComputedStyle(this.host).getPropertyValue('--pv-d-fast'))||200;
+   const copy=motion.animate(row.children[1],[{opacity:.85},{opacity:1}],duration);animations.push(copy);Promise.resolve(copy?.finished).catch(finish).finally(()=>{if(--remaining===0)finish();});
    for(const layer of layers){let started=false;const ready=()=>{if(stopped||started)return;if(layer.node===row.children[0]&&layer.node.dataset.artworkPending==='true')return;started=true;const outgoing=motion.animate(layer.clone,[{opacity:1},{opacity:0}],duration),incoming=motion.animate(layer.node,[{opacity:0},{opacity:1}],duration);animations.push(outgoing,incoming);Promise.resolve(outgoing?.finished).catch(finish).finally(()=>{if(--remaining===0)finish();});};layer.ready=ready;if(layer.node===row.children[0]){layer.node.addEventListener('load',ready);layer.node.addEventListener('error',ready);}ready();}
    timer=setTimeout(finish,4000);
   };

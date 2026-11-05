@@ -1416,6 +1416,73 @@ async def test_executable_native_transport_keeps_original_short_deadline(
     assert not rig.writes
 
 
+@pytest.mark.parametrize(
+    "dock_error,offered_actions",
+    [("clean_water_tank_empty", False), ("ok", True)],
+)
+async def test_only_offered_dock_actions_shorten_editable_start_task(
+    fixture, monkeypatch, dock_error, offered_actions
+):
+    from gatekeeper import podview_controls, podview_dock_control
+
+    rig, bridge, token = fixture
+    rule = bridge.controls.policy["vacuum"][0]
+    rule["actions"] = ["settings", "start", "dock"]
+    rule["dockControls"] = [
+        {
+            "transport": "vacuum_command",
+            "role": "mop_washing",
+            "model": "fixture",
+            "dockModel": "fixture",
+        }
+    ]
+    clock = podview_controls.time
+    elapsed = 0
+    simulated = SimpleNamespace(
+        monotonic=lambda: clock.monotonic() + elapsed,
+        time=lambda: clock.time() + elapsed,
+    )
+    monkeypatch.setattr(podview_controls, "time", simulated)
+    monkeypatch.setattr(podview_dock_control, "time", simulated)
+
+    async def observe(self, vacuum, current):
+        assert current()
+        return {
+            "state": "docked",
+            "switches": {"mop_washing": "off"},
+            "dock_error": dock_error,
+        }
+
+    monkeypatch.setattr(podview_dock_control.DockTransport, "_observe", observe)
+    device = rig.router._device_control
+    original = device.display_setup
+
+    async def slow_read(*args, **kwargs):
+        nonlocal elapsed
+        result = await original(*args, **kwargs)
+        elapsed += 4
+        return result
+
+    monkeypatch.setattr(device, "display_setup", slow_read)
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    assert offer["ok"], offer
+    task = bridge.controls.tasks[offer["taskId"]]
+    assert bool(task["dock_offer"]["actions"]) is offered_actions
+    assert any(row["action"] == "dock" for row in offer["options"]) is offered_actions
+    assert any(row["action"] == "start" for row in offer["options"])
+    remaining = offer["expiresAt"] - simulated.time()
+    if offered_actions:
+        assert task["deadline"] == task["dock_offer"]["deadline"]
+        assert 10 < remaining < 12
+    else:
+        assert task["deadline"] > task["dock_offer"]["deadline"]
+        assert 114 < remaining <= 116
+    assert bridge.controls._current(task, token)
+    elapsed += 121
+    assert not bridge.controls._current(task, token)
+    assert not rig.writes
+
+
 async def test_optional_volume_read_cannot_hold_available_transport_offer(fixture):
     _, bridge, token = fixture
     volume_entered, volume_cancelled = asyncio.Event(), asyncio.Event()
@@ -2634,3 +2701,174 @@ async def test_task_server_trace_unknown_remains_terminal_without_replay(
     assert len(messages) == 4
     assert "phase=receipt" in messages[1] and "outcome=unknown delivery=new" in messages[1]
     assert "phase=receipt" in messages[3] and "outcome=unknown delivery=cached" in messages[3]
+
+
+@pytest.mark.parametrize("lane", ["paired", "ha"])
+async def test_robot_expired_draft_survives_intervening_setup_cleanup(fixture, lane):
+    from gatekeeper.podview import _HA_REQUEST
+
+    rig, bridge, token = fixture
+    scope = None
+    if lane == "ha":
+        token = bridge._ha_actor("kitchen", "draft-owner")
+        scope = _HA_REQUEST.set({"active": True, "user": "draft-owner"})
+    try:
+        first = await bridge.controls.setup(setup_body(bridge), token)
+        assert first["ok"], first
+        draft = unsent_robot_draft(first)
+        source = bridge.controls.tasks[first["taskId"]]
+        source["deadline"] = time.monotonic() - 1
+        if lane == "ha":
+            other = bridge._ha_actor("kitchen", "another-user")
+            _HA_REQUEST.set({"active": True, "user": "another-user"})
+        else:
+            other = token
+        intervening = await bridge.controls.setup(setup_body(bridge), other)
+        assert intervening["ok"], intervening
+        assert first["taskId"] not in bridge.controls.tasks
+        assert bridge.controls.robot_draft_sources[first["taskId"]] is source
+        if lane == "ha":
+            _HA_REQUEST.set({"active": True, "user": "draft-owner"})
+        renewed = await bridge.controls.setup(setup_body(bridge, draft=draft), token)
+        assert renewed["ok"], renewed
+        restored = renewed["setup"]["draft"]
+        assert restored["status"] == "restored" and restored["repeat"] == draft["repeat"]
+        assert restored["optionId"] != draft["optionId"]
+        assert restored["areaIds"] != draft["areaIds"]
+        old_start = next(row for row in first["options"] if row["id"] == draft["optionId"])
+        stale = action_body(
+            first, old_start, {key: draft[key] for key in ("areaIds", "repeat", "settingChoices")}
+        )
+        assert (await bridge.controls.action(stale, token))["error"] == "stale_action"
+        assert not rig.writes
+    finally:
+        if scope is not None:
+            _HA_REQUEST.reset(scope)
+
+
+@pytest.mark.parametrize("archived", [False, True])
+async def test_robot_draft_archive_ttl_uses_original_deadline_without_read_refresh(
+    fixture, monkeypatch, archived
+):
+    from gatekeeper import podview_controls as controls
+    from gatekeeper.podview import _HA_REQUEST
+
+    rig, bridge, _ = fixture
+    token = bridge._ha_actor("kitchen", "draft-owner")
+    scope = _HA_REQUEST.set({"active": True, "user": "draft-owner"})
+    try:
+        first = await bridge.controls.setup(setup_body(bridge), token)
+        draft = unsent_robot_draft(first)
+        source = bridge.controls.tasks[first["taskId"]]
+        source["deadline"] = time.monotonic() - 1
+        original_deadline = source["deadline"]
+        clock = controls.time
+        now = original_deadline + 1799
+        monkeypatch.setattr(
+            controls, "time", SimpleNamespace(monotonic=lambda: now, time=clock.time)
+        )
+        if archived:
+            bridge.controls._retire_tasks()
+            assert bridge.controls.robot_draft_sources[first["taskId"]] is source
+        for _ in range(3):
+            assert (
+                bridge.controls._robot_draft_source(
+                    draft, "kitchen", setup_body(bridge)["target"], token
+                )
+                is source
+            )
+        assert source["deadline"] == original_deadline
+        assert (first["taskId"] in bridge.controls.tasks) is not archived
+        now = original_deadline + 1800
+        # Full remap guard rejects expired provenance even before housekeeping.
+        assert not bridge.controls._robot_draft_current(
+            source, "kitchen", setup_body(bridge)["target"], token
+        )
+        assert (
+            bridge.controls._robot_draft_source(
+                draft, "kitchen", setup_body(bridge)["target"], token
+            )
+            is None
+        )
+        assert first["taskId"] not in bridge.controls.robot_draft_sources
+        assert not rig.writes
+    finally:
+        _HA_REQUEST.reset(scope)
+
+
+async def test_robot_draft_archive_capacity_evicts_oldest_deadline_without_blocking_setup(fixture):
+    rig, bridge, token = fixture
+    now = time.monotonic()
+    sources = []
+    for index in range(65):
+        offer = await bridge.controls.setup(setup_body(bridge), token)
+        assert offer["ok"], offer
+        source = bridge.controls.tasks[offer["taskId"]]
+        source["deadline"] = now - 100 + index
+        sources.append(source)
+        bridge.controls._retire_tasks()
+    archive = bridge.controls.robot_draft_sources
+    assert len(archive) == 64
+    assert sources[0]["id"] not in archive
+    assert archive[sources[-1]["id"]] is sources[-1]
+    assert not bridge.controls.tasks
+    fresh = await bridge.controls.setup(setup_body(bridge), token)
+    assert fresh["ok"], fresh
+    assert len(bridge.controls.tasks) == 1
+    assert len(bridge.controls.robot_draft_sources) == 64
+    assert not rig.writes
+
+
+@pytest.mark.parametrize("outcome", ["consumed", "pending", "unknown"])
+async def test_robot_archived_draft_keeps_original_consumed_reference(fixture, outcome):
+    rig, bridge, token = fixture
+    first = await bridge.controls.setup(setup_body(bridge), token)
+    draft = unsent_robot_draft(first)
+    source = bridge.controls.tasks[first["taskId"]]
+    source["deadline"] = time.monotonic() - 1
+    bridge.controls._retire_tasks()
+    assert bridge.controls.robot_draft_sources[first["taskId"]] is source
+    source["consumed"] = True
+    bridge.controls.receipts[("kitchen", token, "prior")] = (
+        "fingerprint",
+        {"outcome": outcome},
+        source["deadline"],
+    )
+    renewed = await bridge.controls.setup(setup_body(bridge, draft=draft), token)
+    assert renewed["ok"], renewed
+    assert renewed["setup"]["draft"] == {"status": "not_restored"}
+    assert first["taskId"] not in bridge.controls.robot_draft_sources
+    assert not rig.writes
+
+
+@pytest.mark.parametrize("change", ["actor_replaced", "actor_revoked", "binding", "boot", "target"])
+async def test_robot_archived_draft_rejects_changed_actor_or_scope(fixture, change):
+    from gatekeeper.podview import _HA_REQUEST
+
+    rig, bridge, _ = fixture
+    token = bridge._ha_actor("kitchen", "draft-owner")
+    scope = _HA_REQUEST.set({"active": True, "user": "draft-owner"})
+    try:
+        first = await bridge.controls.setup(setup_body(bridge), token)
+        draft = unsent_robot_draft(first)
+        source = bridge.controls.tasks[first["taskId"]]
+        source["deadline"] = time.monotonic() - 1
+        bridge.controls._retire_tasks()
+        assert bridge.controls.robot_draft_sources[first["taskId"]] is source
+        target = setup_body(bridge)["target"]
+        if change == "actor_replaced":
+            bridge._ha_actors[token] = dict(bridge._ha_actors[token])
+        elif change == "actor_revoked":
+            bridge._ha_actors.pop(token)
+        elif change == "binding":
+            source["binding"] = ("changed",)
+        elif change == "boot":
+            source["draft_boot"] = "previous-boot"
+        else:
+            target = {"entityId": "vacuum.other"}
+        assert bridge.controls._robot_draft_source(draft, "kitchen", target, token) is None
+        if change != "target":
+            assert first["taskId"] not in bridge.controls.robot_draft_sources
+        assert not rig.writes
+    finally:
+        _HA_REQUEST.reset(scope)
