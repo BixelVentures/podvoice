@@ -162,7 +162,7 @@
       ],
       "variants": [
         "Stemning",
-        "Humør",
+        "Hum\u00f8r",
         "Topsange",
         "Senest"
       ],
@@ -924,7 +924,8 @@
           "arrow:read": 1,
           "method:journalDevice": 1,
           "method:observeDeviceJournal": 1,
-          "method:trackDeviceJournal": 1
+          "method:trackDeviceJournal": 1,
+          "arrow:sameScope": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1337,7 +1338,7 @@
       "requiredCalls": [
         "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
       ],
-      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority.",
+      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Forts\u00e6t, Stemning/Hum\u00f8r, and actual Senest/Topsange fixtures; no invented library or live authority.",
       "reviewedField87Source": "Same existing card anatomy. Preserve closed generated themeArt for mood as editorial illustration, retain exact source identity, remove duplicate generic Spotify caption; one finite content-only loading cue plus existing replacement fade. No new family or action grant. Actual render review is separate."
     },
     "dist/music-recommendation-model.js": {
@@ -2378,7 +2379,8 @@
           "arrow:offered": 1,
           "method:feedbackScopeFor": 1,
           "method:finishVehicle": 1,
-          "arrow:liveClimateActive": 1
+          "arrow:liveClimateActive": 1,
+          "arrow:historicalField": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
@@ -3295,7 +3297,8 @@
           "method:persistSession": 1,
           "method:clearSession": 1,
           "method:restoreSession": 1,
-          "method:stopCatalogRefresh": 1
+          "method:stopCatalogRefresh": 1,
+          "arrow:read": 1
         },
         "roots": [],
         "registrations": {},
@@ -3398,11 +3401,11 @@
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md",
       "scope": "Extend existing canonical identities only; visual direction1 is selected for improvement, previous visual styling is not newly approved.",
       "variants": [
-        "Header Svar → vejr → ur, grouped right: header-history/header-left/header-navigation.",
+        "Header Svar \u2192 vejr \u2192 ur, grouped right: header-history/header-left/header-navigation.",
         "Visual history gallery: retained-answer article, inert history-preview containing pv-answer and history-open same-answer button. Empty history uses existing pv-inline-status.",
         "Robot observations and separately labelled requests reuse pv-activity-timeline; care/settings stay in existing details disclosure.",
         "Ten local QA formats reuse existing answer renderers; preview-scenes imports existing visual-examples. Normal/live history is not seeded.",
-        "Music tabs Stemning · Humør · Topsange · Senest; no Likede promotion."
+        "Music tabs Stemning \u00b7 Hum\u00f8r \u00b7 Topsange \u00b7 Senest; no Likede promotion."
       ]
     },
     {

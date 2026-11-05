@@ -2969,7 +2969,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 6a2e8fbac010983ef4f5ad45163f6e989df0f24c41aec6ac85ee69bd5c9eb11a */
+/* Source: ui-kit.css · SHA256 2cca8b954294fd806fc58d952221a7fabc0d57774892485bf2ee74439fef3838 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -4047,6 +4047,26 @@ pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focu
 #music-response #result-list>.result .result-play::before{content:none}
 #music-response #result-list>.result[data-pending=true][aria-busy=true] .result-play::before{content:'';position:absolute;inset:4px;border:3px solid var(--pv-line);border-top-color:var(--pv-ink);border-radius:var(--pv-r-pill);animation:pv-music-play-pending 1s linear infinite;pointer-events:none}
 #music-response #result-list>.result[data-pending=true] .result-play>img{opacity:.65}
+/* The approved ListRow progress belongs only to the explicitly chosen track. */
+#music-detail #queue .queue-track>.queue-play,
+#music-detail #queue .queue-track[aria-busy=true]::after{grid-area:1 / 4}
+#music-detail #queue .queue-track[aria-busy=true]::after{
+ content:'';
+ position:relative;
+ inset:auto;
+ place-self:center;
+ width:calc(var(--pv-hit) - 8px);
+ height:calc(var(--pv-hit) - 8px);
+ box-sizing:border-box;
+ border:3px solid var(--pv-line);
+ border-top-color:var(--pv-ink);
+ border-radius:var(--pv-r-pill);
+ animation:pv-music-play-pending 1s linear infinite;
+ pointer-events:none;
+}
+#music-detail #queue .queue-track[aria-busy=true]>.queue-play{opacity:.65}
+@media(prefers-reduced-motion:reduce){#music-detail #queue .queue-track[aria-busy=true]::after{animation:none}}
+[data-motion=reduced] #music-detail #queue .queue-track[aria-busy=true]::after{animation:none}
 @keyframes pv-music-play-pending{from{transform:rotate(0)}to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){#music-response #result-list>.result[data-pending=true] .result-play::before{animation:none}}
 [data-motion=reduced] #music-response #result-list>.result[data-pending=true] .result-play::before{animation:none}
@@ -4511,7 +4531,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home
 
 /* Button owns the only pending indicator. A retained leading icon reserves its
    normal slot but is replaced by the pending mark, never animated alongside it. */
-.pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer)>img{visibility:hidden;animation:none!important;transform:none!important}
+.pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer):not([data-feedback=progress])>img{visibility:hidden;animation:none!important;transform:none!important}
 .pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play)::after{left:var(--pv-s2);right:auto}
 /* The Ro player uses one compact copy group centred beside its icon/chevron,
    with equal geometry for loading, offline and failure messages. */
@@ -5194,13 +5214,15 @@ pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[
 pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(>.start):has(.pv-kit-disclosure[data-kit-layout=header-more]){grid-template-columns:minmax(0,1fr) max-content max-content}
 pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(>.start):has(.pv-kit-disclosure[data-kit-layout=header-more])>.start{grid-column:2}
 pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(>.start) .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-column:3}
-pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-button,pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-column:auto;grid-row:1;justify-self:end;width:max-content;max-width:100%;min-width:0;min-height:var(--pv-hit);padding-inline:var(--pv-button-content-inset)!important}
+pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-button,pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-column:auto;grid-row:1;justify-self:end;width:max-content;max-width:100%;min-width:0;min-height:var(--pv-hit);}
+pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-button:not([data-feedback=progress]),pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button:not([data-feedback=progress]){padding-inline:var(--pv-button-content-inset)!important}
 pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{display:inline-flex;align-items:center;justify-content:center;gap:var(--pv-s1)}
 /* In an active Hero, the contextual direct command is the light anchor; its
    secondary disclosure uses the neutral surface token for visual hierarchy. */
 pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button>[data-kit-slot=copy]{flex:0 1 auto}
 pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div:not([hidden]){grid-column:1/-1;grid-row:auto;width:100%;min-width:0;contain:inline-size;display:flex;flex-wrap:wrap;gap:var(--pv-control-row-gap);border-top:1px solid var(--pv-line);padding-block-start:var(--pv-control-card-inset);margin-block-start:var(--pv-s1)}
-pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div>.pv-actions>.pv-kit-button{flex:0 0 auto;width:max-content;min-height:var(--pv-hit);padding-inline:var(--pv-button-content-inset)!important}
+pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div>.pv-actions>.pv-kit-button{flex:0 0 auto;width:max-content;min-height:var(--pv-hit);}
+pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>div>.pv-actions>.pv-kit-button:not([data-feedback=progress]){padding-inline:var(--pv-button-content-inset)!important}
 @media(max-width:720px){pv-widget-host #device-view .pv-kit-hero[data-component]:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-actions.transport:not(:empty){grid-template-columns:repeat(2,minmax(0,1fr))}pv-widget-host #device-view .pv-kit-hero[data-component]>.pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout=header-more])>.pv-button,pv-widget-host #device-view .pv-kit-hero .pv-kit-disclosure[data-kit-layout=header-more]>button{grid-row:auto;max-width:100%}}
 /* Native dropdown alternative for the existing navigation ChoiceGroup. */
 select[data-choice-variant=navigation]{box-sizing:border-box;min-height:var(--pv-hit);max-width:100%;width:208px;padding:var(--pv-s2) var(--pv-s3);border:1px solid var(--pv-line);border-radius:var(--pv-r-pill);background:var(--pv-surface-2);color:var(--pv-ink);font:var(--pv-t-body);text-overflow:ellipsis;white-space:nowrap}
@@ -5705,3 +5727,14 @@ pv-widget-host #music-response[data-discovery-preview]>.music-refresh-message {g
 /* Recipe quiet actions retain the approved recipe label role. Other domains
    keep their current shared quiet/link action typography. */
 #recipe-view .pv-kit.pv-kit-button[data-kit-variant=quiet]{font:var(--pv-t-label)}
+
+/* Cold robot setup retains the canonical action track without inventing actions. */
+pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-setup-pending=true]>.pv-actions.transport:empty{
+ display:block;
+ grid-column:1/-1;
+ grid-row:auto;
+ width:100%;
+ min-height:var(--pv-hit);
+ margin:0;
+ margin-block-start:var(--pv-control-section-gap);
+}

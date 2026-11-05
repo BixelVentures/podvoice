@@ -10,6 +10,14 @@ test('scoped action requires exact successful terminal receipt and sends only on
  }
 });
 
+test('ordinary vacuum action preserves only explicit boolean startSent metadata without retrying',async()=>{
+ for(const outcome of ['accepted','unknown'])for(const startSent of [false,true,undefined,null,'false',0,1,{}]){
+  let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async(url,init)=>{calls++;assert.equal(new URL(url).pathname,'/view/api/control/actions');const request=JSON.parse(init.body);assert.deepEqual(request.args,{});return {ok:true,json:async()=>({ok:outcome==='accepted',requestId:request.requestId,outcome,physicalResultVerified:false,retryAllowed:false,partial:outcome==='unknown',completedSteps:2,...(startSent!==undefined?{startSent}:{})})};}});
+  t.connected=true;t.snapshot={...snap(),capabilities:{controlSetup:['vacuum']}};
+  try{const result=await t.controlAction({bootId:'test',roomId:'kitchen',taskId:'task',revision:1,domain:'vacuum'},'opaque',{});assert.equal(calls,1);assert.equal(result.outcome,outcome);assert.equal(result.partial,outcome==='unknown');assert.equal(result.completedSteps,2);assert.equal(result.retryAllowed,false);assert.equal(result.physicalResultVerified,false);assert.equal(Object.hasOwn(result,'startSent'),typeof startSent==='boolean');if(typeof startSent==='boolean')assert.equal(result.startSent,startSent);}finally{t.close();}
+ }
+});
+
 test('music reads distinguish transient HTTP failures from access and invalid-response failures without retries',async()=>{
  for(const status of [401,403,404,409,408,429,500,503,599,200])for(const malformed of [false,true]){
   let calls=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async()=>{calls++;return {ok:status===200,status,json:async()=>{if(malformed)throw new SyntaxError('invalid JSON');return {ok:false,error:'music_unavailable'};}};}});
@@ -115,4 +123,20 @@ test('vacuum draft setup sends exact partial opaque payload and rejects unsafe c
 test('MOVE recovery is account scoped, fresh offer bound and consumed without granting ordinary controls',async()=>{
  const id='c'.repeat(64),speakerId='b'.repeat(64),calls=[];let serial=0;const t=new PodVoiceTransport({url:'https://ha.example/view/',fetch:async(url,init)=>{const data=JSON.parse(init.body);calls.push(data);if(new URL(url).pathname.endsWith('/control/setup')){return {ok:true,json:async()=>({ok:true,schema:'podview.control.v1',bootId:'test',roomId:'kitchen',domain:'music',taskId:'control:'+String(++serial).padStart(32,'0'),revision:1,expiresAt:Date.now()/1000+10,expectedBindingId:id,options:[{id:'move:'+speakerId,label:'Flyt',action:'move_existing_session',argsSchema:{kind:'none'}}],setup:{volume:null}})};}return {ok:true,json:async()=>({ok:false,requestId:data.requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false})};}});t.closed=false;t.connected=true;t.snapshot={...snap(),capabilities:{controlSetup:[],musicMoveRecovery:['account']}};
  const target={accountId:'account',kind:'spotify_device',targetId:'device',expectedBindingId:id,speakerId};try{await assert.rejects(()=>t.controlSetup('music',{...target,accountId:'other'}));await assert.rejects(()=>t.controlSetup('music',Object.fromEntries(Object.entries(target).filter(([k])=>k!=='speakerId'))));const task=await t.controlSetup('music',target);assert.equal((await t.controlAction(task,task.options[0].id,{})).outcome,'unknown');assert.equal((await t.controlAction(task,task.options[0].id,{})).outcome,'rejected');assert.equal(calls.length,2);const fresh=await t.controlSetup('music',target);t.snapshot.capabilities.musicMoveRecovery=[];assert.equal((await t.controlAction(fresh,fresh.options[0].id,{})).outcome,'rejected');assert.equal(calls.length,3);}finally{t.close();}
+});
+
+test('only a fresh vacuum cleaning start receives the extended receipt wait',async()=>{
+ const t=new PodVoiceTransport({url:'https://ha.example/view/'}),calls=[];t.connected=true;t.snapshot={...snap(),capabilities:{controlSetup:['vacuum','music']}};
+ t.request=async(url,options,ms,signal)=>{const body=JSON.parse(options.body);calls.push({url:new URL(url).pathname,ms,signal,optionId:body.optionId});return {ok:true,json:async()=>({ok:true,requestId:body.requestId,outcome:'accepted',retryAllowed:false,physicalResultVerified:false})};};
+ const base={bootId:'test',roomId:'kitchen',taskId:'task',revision:1,domain:'vacuum',expiresAt:Date.now()/1000+30};
+ const cases=[
+  {name:'fresh cleaning start',task:{...base,options:[{id:'chosen',action:'start',argsSchema:{kind:'cleaning'}}]},wait:35000},
+  {name:'expired cleaning start',task:{...base,expiresAt:Date.now()/1000-1,options:[{id:'chosen',action:'start',argsSchema:{kind:'cleaning'}}]}},
+  {name:'non-cleaning start',task:{...base,options:[{id:'chosen',action:'start',argsSchema:{kind:'none'}}]}},
+  {name:'reuse',task:{...base,options:[{id:'chosen',action:'reuse',argsSchema:{kind:'cleaning'}}]}},
+  {name:'dock',task:{...base,options:[{id:'chosen',action:'return',argsSchema:{kind:'none'}}]}},
+  {name:'music',task:{...base,domain:'music',options:[{id:'chosen',action:'start',argsSchema:{kind:'cleaning'}}]}},
+  {name:'foreign option',task:{...base,options:[{id:'other',action:'start',argsSchema:{kind:'cleaning'}}]}}
+ ];
+ try{for(const item of cases){const result=await t.controlAction(item.task,'chosen',{});assert.equal(result.outcome,'accepted',item.name);assert.equal(calls.at(-1).ms,item.wait,item.name);assert.equal(calls.at(-1).signal,undefined,item.name+' uses existing parent signal default');assert.equal(calls.at(-1).url,'/view/api/control/actions');}assert.equal(calls.length,cases.length);}finally{t.close();}
 });

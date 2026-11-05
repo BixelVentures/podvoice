@@ -106,9 +106,16 @@ export class LiveMusicSelectionView{
 
  // Presentation of the explicit choice is not playback evidence or action authority.
  pendingPlayer(){
-  const feedback=this.feedback;if(!feedback||feedback.outcome==='accepted'||!(feedback.pending||feedback.awaitingObservation)||!this.context()||this.pendingFeedbackScope!==this.feedbackScope())return null;
+  const feedback=this.feedback;if(!feedback||!this.context()||this.pendingFeedbackScope!==this.feedbackScope())return null;
   if(this.resultTicket&&!this.resultCurrent(this.resultTicket))return null;
   const source=this.pendingCardSource;if(source!==this.source)return null;const track=source?.tracks?.[this.pendingCardIndex];if(!track||!/^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/.test(track.uri||''))return null;
+  // An accepted receipt is not an observation of the chosen track. Keep only
+  // an exact track/episode presentation while the same owner is catching up.
+  // A playlist has no knowable first item; never invent one from its context.
+  if(feedback.outcome==='accepted'){
+   const p=this.host.liveMedia?.playback,observed=Date.parse(p?.observedAt),matches=/^spotify:(track|episode):/.test(track.uri)&&roomObservationCurrent(p,this.host.liveSnapshot)&&p.config_entry_id===feedback.accountId&&p.target?.id===feedback.targetId&&p.item?.uri===track.uri&&(feedback.nativeDestination?this.destinationObserved(p,feedback.nativeDestination):!feedback.destination||this.host.liveOutputs?.observedDestination?.(feedback.destination.speakerId)===true)&&Number.isFinite(observed)&&observed>=feedback.requestedAt;
+   if(!/^spotify:(track|episode):/.test(track.uri)||!Number.isFinite(feedback.requestedAt)||Date.now()-feedback.requestedAt>=30000||['rejected','superseded'].includes(feedback.settlementStatus)||matches)return null;
+  }else if(!(feedback.pending||feedback.awaitingObservation))return null;
   return {title:track.name||track.title||'',artist:track.artist||'',uri:track.uri,artwork:track.artwork,target:feedback.destination?.name||this.host.liveOutputs?.nextDestinationLabel?.()||this.offer?.target?.name||this.host.liveOutputs?.configuredLabel?.()||'Højttaleren i rummet'};
  }
  destinationObserved(playback,destination){const binding=playbackBinding(playback,this.host.liveSnapshot,destination.accountId);return !!binding&&binding.accountId===destination.accountId&&binding.nativeRoomId===destination.nativeRoomId&&binding.nativeHomepodId===destination.nativeHomepodId;}

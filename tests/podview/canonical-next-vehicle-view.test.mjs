@@ -324,7 +324,15 @@ test('vehicle admits only the explicit Tesla snapshot source and retains existin
  const stale=vehicleObservation({...value,status:'stale'});assert.equal(stale.stale,true);assert.equal(stale.observedAt,value.observedAt);assert.deepEqual(stale.actions,[]);
 });
 
-test('Tesla snapshot update label uses only source observedAt and retains it when stale',()=>{
- const {root}=fixture(),view=new VehicleView(root),stamp=1793350000,source={status:'observed',source:'tesla_fleet_snapshot',observedAt:stamp,entityIds:['sensor.car_battery'],data:{batteryPercent:94}},data=vehicleObservation(source),expected=`Sidst opdateret ${new Date(stamp*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`;
+test('Tesla snapshot labels the oldest source observation and retains it when stale',()=>{
+ const {root}=fixture(),view=new VehicleView(root),stamp=1793350000,source={status:'observed',source:'tesla_fleet_snapshot',observedAt:stamp,entityIds:['sensor.car_battery'],data:{batteryPercent:94}},data=vehicleObservation(source),expected=`Ældste observation ${new Date(stamp*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`;
  view.render(data);assert.equal(view.connectionNote.hidden,false);assert.equal(view.connectionNote.textContent,expected);view.render(data);assert.equal(view.connectionNote.textContent,expected,'rerender cannot move the source timestamp');view.render({...data,stale:true});assert.equal(view.connectionNote.textContent,expected);view.render(null,{chargeContext:{readGranted:true,scope:'scope',sourceScope:'scope'}});assert.equal(view.connectionNote.hidden,true,'unavailable without source data does not invent a timestamp');view.render(vehicleObservation({...source,source:'home_assistant_state'}));assert.equal(view.connectionNote.hidden,true);view.cleanup();
+});
+
+
+test('vehicle qualifies historical access independently from fresh climate and keeps unknown honest',()=>{
+ const {root}=fixture(),view=new VehicleView(root),stamp=1793350000,source={status:'observed',source:'tesla_fleet_snapshot',observedAt:stamp,entityIds:['lock.car','climate.car'],historicalFields:['locked','trunk'],fieldObservedAt:{locked:stamp,trunk:stamp,'climate.status':stamp+3600},data:{locked:false,trunk:'open',climate:{status:'heat',temperatureC:20}}};
+ const model=vehicleObservation(source);view.render(model);assert.equal(view.access.status.textContent,'Sidst kendt: Ulåst');assert.equal(view.climate.status.textContent,'Varmer');assert.match(view.status.textContent,/Sidst kendt: bagagerum åbent/);assert.match(view.connectionNote.textContent,/^Ældste observation /);assert.equal(view.model.fieldObservedAt.locked,stamp);assert.deepEqual(view.vehicleActions,[]);
+ view.render(vehicleObservation({...source,historicalFields:[]}));assert.equal(view.access.status.textContent,'Ulåst');assert.equal(view.climate.status.textContent,'Varmer');
+ view.render(vehicleObservation({...source,historicalFields:['climate.status'],data:{climate:{status:null}}}));assert.equal(view.access.status.textContent,'Ukendt');assert.equal(view.climate.status.textContent,'Ukendt');view.cleanup();
 });

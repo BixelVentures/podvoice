@@ -72,9 +72,12 @@ export class LiveMediaView{
    return;
   }
   const native=this.queueControls.model(this.account,this.playback);
+  // Opening the player renders before its first queue read is dispatched.
+  // A currently admitted owner is loading, not an unavailable empty queue.
+  if(!native&&this.host.state?.focus==='player'&&['unavailable','stale'].includes(this.queueControls.status)&&!this.queueControls.retained&&!this.queueControls.consumed&&!this.queueReadKey&&this.queueControls.allowed(this.account,this.playback)){this.host.playerView.renderQueue([],{status:'loading',empty:''});return;}
   if(native){
    const status=native.status,empty=native.metadataPending?'Køens oplysninger er ikke tilgængelige endnu.':status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den sidst kendte kø.':status==='error'?(this.queueControls.errorKind==='choice'?'Køvalget blev afvist.':'Køen kunne ikke hentes.'):status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
-   this.host.playerView.renderQueue(native.items,{status,empty,errorKind:native.errorKind});return;
+   const items=this.host.liveSelection?.pendingPlayer?.()?native.items.map(item=>({...item,selectable:false})):native.items;this.host.playerView.renderQueue(items,{status,empty,errorKind:native.errorKind});return;
   }
   const admitted=snapshot?.capabilities?.queueSelection===true,connected=!!this.host.liveTransport?.connected,current=roomObservationCurrent(this.playback,snapshot);
   const status=admitted&&connected&&current?this.queueControls.status:'unavailable';
@@ -103,6 +106,6 @@ export class LiveMediaView{
   const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()||'';
   this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{selectedTarget:pendingChoice}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:feedback,...(selected?{...selected,active:true,playing:false,fresh:false,loading:true,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:false,feedback:{...feedback,message:'Starter afspilning…',pending:true}}:{})});
   if(!this.host.liveControls)this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true});
-  if(selected)this.host.playerView.renderQueue([],{status:'pending',empty:'Starter afspilning…'});else this.renderQueue();this.host.liveControls?.render();if(selected)this.host.playerView.renderControls({playing:false,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
+  this.renderQueue();this.host.liveControls?.render();if(selected)this.host.playerView.renderControls({playing:false,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
  }
 }

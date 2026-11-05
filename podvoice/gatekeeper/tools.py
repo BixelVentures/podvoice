@@ -50,12 +50,35 @@ from .ha_timers import HomeAssistantTimers
 from .mcp_client import HomeAssistantMCP, McpError
 from .podview_continuity import ControllerRegistry
 from .podview_locality import LocalityOwner
+from .podview_read_diagnostics import read_hash
 from .podview_receipts import VisualReceiptOwner
 from .podview_weather import observation_is_current, weather_projection, with_hourly_projection
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
 from .weather_result import compact_weather_result
 
 log = logging.getLogger("podvoice.tools")
+
+
+def _log_playback_adapter_failure(branch: str) -> None:
+    """Closed, content-free transport evidence; never affects the read result."""
+    if branch not in {
+        "discovery_missing",
+        "response_oversize",
+        "binding_changed",
+        "read_revoked",
+        "malformed_envelope",
+        "owner_projection",
+    }:
+        return
+    try:
+        log.warning(
+            "podview_adapter_failure kind=playback branch=%s readHash=%s",
+            branch,
+            read_hash(),
+        )
+    except Exception:
+        pass
+
 
 _TOOLS_TTL_S = 600.0
 _PODVIEW_MUSIC_OPTIONS = "podview_music_options"
@@ -3023,6 +3046,8 @@ class ToolRouter:
             if kind == "playlist_search"
             else kind not in self.podview_music_reads()
         ):
+            if kind == "playback":
+                _log_playback_adapter_failure("discovery_missing")
             return {"ok": False, "error_kind": "unavailable"}
         binding = self.podview_music_binding()
         names = {
@@ -3066,28 +3091,50 @@ class ToolRouter:
                 async for chunk in response.aiter_bytes(8192):
                     raw.extend(chunk)
                     if len(raw) > 262144:
+                        if kind == "playback":
+                            _log_playback_adapter_failure("response_oversize")
                         return podview_music.unavailable()
-        if binding != self.podview_music_binding() or (
+        current_binding = self.podview_music_binding()
+        if binding != current_binding or (
             not ({"mood", "feeling"} & set(self.podview_music_reads()))
             if kind == "playlist_search"
             else kind not in self.podview_music_reads()
         ):
+            if kind == "playback":
+                _log_playback_adapter_failure(
+                    "binding_changed" if binding != current_binding else "read_revoked"
+                )
             return podview_music.unavailable()
-        payload = json.loads(raw)
+        try:
+            payload = json.loads(raw)
+        except (ValueError, UnicodeError):
+            if kind == "playback":
+                _log_playback_adapter_failure("malformed_envelope")
+            raise
         data = payload.get("service_response") if isinstance(payload, dict) else None
+        if kind == "playback" and (
+            not isinstance(payload, dict) or "service_response" not in payload
+        ):
+            _log_playback_adapter_failure("malformed_envelope")
         if kind == "account_playlists":
             return podview_music.project_account_playlists(data, account)
         if kind == "playlist_search":
             return podview_music.project_playlists(data, account, query)
         if include_controls:
-            return podview_music.project_playback_controls(
+            result = podview_music.project_playback_controls(
                 data,
                 account,
                 settlement_identity=settlement_identity,
                 private_settlement=settlement_identity is not None,
             )
+            if not result.get("ok"):
+                _log_playback_adapter_failure("owner_projection")
+            return result
         if include_output:
-            return podview_music.project_playback_output(data, account)
+            result = podview_music.project_playback_output(data, account)
+            if not result.get("ok"):
+                _log_playback_adapter_failure("owner_projection")
+            return result
         if kind in podview_music.SERVICES:
             return podview_music.project_owner(kind, data, account, query=query)
         if kind in {"recent", "top", "liked"}:

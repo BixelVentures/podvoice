@@ -2872,3 +2872,318 @@ async def test_robot_archived_draft_rejects_changed_actor_or_scope(fixture, chan
         assert not rig.writes
     finally:
         _HA_REQUEST.reset(scope)
+
+
+@pytest.mark.parametrize(
+    "branch,final_step,broken_sink",
+    [
+        ("tool_failed", False, False),
+        ("guard_changed", False, False),
+        ("continuation_missing", False, False),
+        ("exception", False, False),
+        ("tool_failed", True, False),
+        ("tool_failed", False, True),
+    ],
+)
+async def test_robot_start_step_failure_trace_is_private_terminal_and_fail_open(
+    fixture, caplog, monkeypatch, branch, final_step, broken_sink
+):
+    rig, bridge, token = fixture
+    offered = await bridge.controls.setup(setup_body(bridge), token)
+    assert offered["ok"], offered
+    draft = unsent_robot_draft(offered)
+    option = next(row for row in offered["options"] if row["id"] == draft["optionId"])
+    args = {key: draft[key] for key in ("areaIds", "repeat", "settingChoices")}
+    body = action_body(offered, option, args)
+    body["requestId"] = "PRIVATE-step-request"
+    task = bridge.controls.tasks[offered["taskId"]]
+    steps = bridge.controls._steps(task, task["options"][option["id"]], args)
+    assert len(steps) >= 3 and steps[-1]["action"] == "vacuum.send_command"
+    failure_index = len(steps) - 1 if final_step else 0 if branch == "continuation_missing" else 1
+    calls = []
+
+    async def dispatch(name, arguments, **kwargs):
+        index = len(calls)
+        calls.append(dict(arguments))
+        if branch == "guard_changed" and index == 0:
+            task["binding"] = ("changed-authority",)
+        if index == failure_index:
+            if branch == "exception":
+                raise RuntimeError("PRIVATE-raw-exception")
+            if branch == "continuation_missing":
+                return {"ok": True, "data": {"accepted_by_ha": True}}
+            return {
+                "ok": False,
+                "error_kind": "device_capability" if final_step else "PRIVATE-error-kind",
+                "error": "PRIVATE-raw-device-error",
+            }
+        return {"ok": True, "capability_token": "PRIVATE-continuation-token"}
+
+    monkeypatch.setattr(bridge.tools, "dispatch", dispatch)
+    if broken_sink:
+
+        def broken(*args, **kwargs):
+            raise RuntimeError("PRIVATE-log-sink")
+
+        monkeypatch.setattr("gatekeeper.podview_controls._LOGGER.info", broken)
+    caplog.clear()
+    with caplog.at_level("INFO", logger="gatekeeper.podview_controls"):
+        result = await bridge.controls.action(body, token)
+        duplicate = await bridge.controls.action(body, token)
+    completed = failure_index if branch != "continuation_missing" else 1
+    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+    assert result["completedSteps"] == completed and result["partial"] is True
+    assert result["startSent"] is final_step
+    expected_calls = failure_index if branch == "guard_changed" else failure_index + 1
+    assert len(calls) == expected_calls
+    assert [call["action"] for call in calls] == [step["action"] for step in steps[:expected_calls]]
+    if not final_step:
+        assert not any(call["action"] == "vacuum.send_command" for call in calls)
+    if branch == "guard_changed":
+        assert duplicate["error"] == "stale_action"
+    else:
+        assert duplicate == result
+    assert not rig.writes  # The final native dependency is inert, including attempted Start.
+    messages = [row.getMessage() for row in caplog.records]
+    if broken_sink:
+        assert not messages
+        return
+    step_messages = [
+        message for message in messages if "control_command" in message and "phase=step" in message
+    ]
+    assert len(step_messages) == 1
+    message = step_messages[0]
+    ref = hashlib.sha256(body["requestId"].encode()).hexdigest()[:16]
+    assert f"request_ref={ref}" in message
+    assert "domain=vacuum action=start" in message and "kind=task" in message
+    assert f"branch={branch}" in message and f"step_index={failure_index}" in message
+    assert f"step_action={steps[failure_index]['action']}" in message
+    assert f"completedSteps={completed}" in message and "partial=true" in message
+    assert f"startSent={str(final_step).lower()}" in message
+    error_kind = (
+        "device_capability"
+        if branch == "tool_failed" and final_step
+        else "none"
+        if branch in {"guard_changed", "continuation_missing"}
+        else "other"
+    )
+    assert f"error_kind={error_kind}" in message
+    assert "capability_present=false" in message
+    assert "physical_result_verified=false" in message
+    private = [token, offered["taskId"], draft["optionId"], ROBOT, body["requestId"], "PRIVATE-"]
+    assert not any(value in " ".join(messages) for value in private)
+
+
+async def robot_start_reservation_offer(fixture, *, ha_user=None):
+    from integration.test_podview_dock_commands import command_catalog
+
+    rig, bridge, token = fixture
+    mop_mode = "select.qrevo_mop_mode"
+    rig.registry[mop_mode] = {
+        "entity_id": mop_mode,
+        "platform": "roborock",
+        "device_id": "robot-one",
+        "unique_id": mop_mode,
+        "translation_key": "mop_mode",
+        "disabled_by": None,
+    }
+    rig.states[mop_mode] = {"state": "standard", "attributes": {"options": ["standard", "deep"]}}
+    rig.configure()
+    command_catalog(rig, bridge, state="docked", status="charging", error="ok")
+    bridge.controls.policy["vacuum"][0]["actions"] = ["settings", "start", "dock"]
+    token = (
+        bridge._ha_actor("kitchen", ha_user) if ha_user else bridge.grant_timer_control("kitchen")
+    )
+    offered = await bridge.controls.setup(setup_body(bridge), token)
+    assert offered["ok"], offered
+    task = bridge.controls.tasks[offered["taskId"]]
+    assert task["dock_offer"]["actions"]
+    assert task["deadline"] == task["dock_offer"]["deadline"]
+    draft = unsent_robot_draft(offered)
+    option = next(row for row in offered["options"] if row["id"] == draft["optionId"])
+    args = {key: draft[key] for key in ("areaIds", "repeat", "settingChoices")}
+    args["areaIds"] = [row["id"] for row in option["argsSchema"]["areas"]]
+    assert len(args["areaIds"]) == 2
+    steps = bridge.controls._steps(task, task["options"][option["id"]], args)
+    assert len(steps) == 5
+    assert [step["action"] for step in steps] == [
+        "select.select_option",
+        "select.select_option",
+        "select.select_option",
+        "vacuum.set_fan_speed",
+        "vacuum.send_command",
+    ]
+    return rig, bridge, token, offered, task, action_body(offered, option, args)
+
+
+@pytest.mark.parametrize("ha_cleanup", [False, True])
+async def test_admitted_robot_start_outlives_base_lease_without_extending_new_admission(
+    fixture, ha_cleanup
+):
+    from gatekeeper.podview import _HA_REQUEST
+
+    scope = _HA_REQUEST.set({"active": True, "user": "start-owner"}) if ha_cleanup else None
+    try:
+        rig, bridge, token, offered, task, body = await robot_start_reservation_offer(
+            fixture, ha_user="start-owner" if ha_cleanup else None
+        )
+        original_deadline = task["deadline"]
+        started = time.monotonic()
+        setting_posts = 0
+        cleanup_observed = []
+
+        async def latency():
+            nonlocal setting_posts
+            path, _ = rig.writes[-1]
+            if path not in {"services/select/select_option", "services/vacuum/set_fan_speed"}:
+                return
+            setting_posts += 1
+            if ha_cleanup and setting_posts == 4:
+                await asyncio.sleep(3.2)
+                other = bridge._ha_actor("kitchen", "other-user")
+                other_scope = _HA_REQUEST.set({"active": True, "user": "other-user"})
+                try:
+                    assert other != token and time.monotonic() > original_deadline
+                    bridge.controls._retire_tasks()
+                    bridge.controls._retire_receipts()
+                    assert offered["taskId"] not in bridge.controls.tasks
+                    receipt = bridge.controls.receipts[("kitchen", token, body["requestId"])]
+                    assert receipt[2] > time.monotonic()
+                    assert 29 <= receipt[2] - started <= 31
+                    cleanup_observed.append(True)
+                finally:
+                    _HA_REQUEST.reset(other_scope)
+                await asyncio.sleep(0.8)
+            else:
+                await asyncio.sleep(4)
+
+        rig.write_hook = latency
+        async with asyncio.timeout(22):
+            result = await bridge.controls.action(body, token)
+        elapsed = time.monotonic() - started
+        assert 16 <= elapsed < 22
+        assert result["outcome"] == "accepted" and result["partial"] is False
+        assert result["completedSteps"] == 5 and result["startSent"] is True
+        assert task["deadline"] == original_deadline
+        assert cleanup_observed == ([True] if ha_cleanup else [])
+        starts = [data for path, data in rig.writes if path == "services/vacuum/send_command"]
+        assert len(starts) == 1 and len(rig.writes) == 5
+        expired_new = {**body, "requestId": "new-after-original-deadline"}
+        assert (await bridge.controls.action(expired_new, token))["error"] == "stale_action"
+        assert len(rig.writes) == 5
+    finally:
+        if scope is not None:
+            _HA_REQUEST.reset(scope)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "actor_replaced",
+        "actor_revoked",
+        "binding",
+        "mutation",
+        "deadline",
+        "boot",
+        "target",
+        "receipt",
+    ],
+)
+async def test_robot_start_execution_reservation_still_fences_changed_authority(
+    fixture, monkeypatch, change
+):
+    from gatekeeper import podview_controls as controls
+    from gatekeeper.podview import _HA_REQUEST
+
+    scope = _HA_REQUEST.set({"active": True, "user": "start-owner"})
+    try:
+        rig, bridge, token, _offered, task, body = await robot_start_reservation_offer(
+            fixture, ha_user="start-owner"
+        )
+        original_deadline = task["deadline"]
+        clock = controls.time
+        elapsed = 0
+        monkeypatch.setattr(
+            controls,
+            "time",
+            SimpleNamespace(monotonic=lambda: clock.monotonic() + elapsed, time=clock.time),
+        )
+
+        async def changed_after_first_setting():
+            nonlocal elapsed
+            assert len(rig.writes) == 1
+            if change == "actor_replaced":
+                bridge._ha_actors[token] = dict(bridge._ha_actors[token])
+            elif change == "actor_revoked":
+                bridge._ha_actors.pop(token)
+            elif change == "binding":
+                bridge.controls.policy["vacuum"][0]["actions"].remove("dock")
+            elif change == "mutation":
+                resource = bridge.controls.resource_key("vacuum", task["target"])
+                bridge.controls.mutations[resource] = object()
+            elif change == "boot":
+                bridge.boot_id = "replacement-boot"
+            elif change == "target":
+                task["target"]["entityId"] = "vacuum.other"
+            elif change == "receipt":
+                key = ("kitchen", token, body["requestId"])
+                retained = bridge.controls.receipts[key]
+                bridge.controls.receipts[key] = (retained[0], dict(retained[1]), retained[2])
+            else:
+                elapsed = 31
+
+        rig.write_hook = changed_after_first_setting
+        result = await bridge.controls.action(body, token)
+        assert result["outcome"] == "unknown" and result["retryAllowed"] is False
+        assert result["completedSteps"] == 1 and result["partial"] is True
+        assert result["startSent"] is False
+        assert task["deadline"] == original_deadline
+        assert len(rig.writes) == 1
+        assert not any(path == "services/vacuum/send_command" for path, _ in rig.writes)
+    finally:
+        _HA_REQUEST.reset(scope)
+
+
+async def test_fast_ha_start_keeps_original_long_receipt_through_other_user_cleanup(
+    fixture, monkeypatch
+):
+    from gatekeeper import podview_controls as controls
+    from gatekeeper.podview import _HA_REQUEST
+
+    rig, bridge, _ = fixture
+    token = bridge._ha_actor("kitchen", "start-owner")
+    scope = _HA_REQUEST.set({"active": True, "user": "start-owner"})
+    try:
+        offered = await bridge.controls.setup(setup_body(bridge), token)
+        assert offered["ok"], offered
+        task = bridge.controls.tasks[offered["taskId"]]
+        assert "dock_offer" not in task
+        original_deadline = task["deadline"]
+        assert original_deadline - time.monotonic() > 100
+        draft = unsent_robot_draft(offered)
+        option = next(row for row in offered["options"] if row["id"] == draft["optionId"])
+        args = {key: draft[key] for key in ("areaIds", "repeat", "settingChoices")}
+        body = action_body(offered, option, args)
+        result = await bridge.controls.action(body, token)
+        assert result["outcome"] == "accepted"
+        writes = list(rig.writes)
+        assert len([path for path, _ in writes if path == "services/vacuum/send_command"]) == 1
+        clock = controls.time
+        monkeypatch.setattr(
+            controls,
+            "time",
+            SimpleNamespace(monotonic=lambda: clock.monotonic() + 31, time=clock.time),
+        )
+        bridge._ha_actor("kitchen", "other-user")
+        other_scope = _HA_REQUEST.set({"active": True, "user": "other-user"})
+        try:
+            bridge.controls._retire_receipts()
+            retained = bridge.controls.receipts[("kitchen", token, body["requestId"])]
+            assert retained[2] == original_deadline
+        finally:
+            _HA_REQUEST.reset(other_scope)
+        assert await bridge.controls.action(body, token) == result
+        assert rig.writes == writes
+        assert task["deadline"] == original_deadline
+    finally:
+        _HA_REQUEST.reset(scope)

@@ -45,10 +45,15 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
  await change({delayMs:1200,witnessUnknownReads:1});
- const pauseBox=await control.boundingBox();assert(pauseBox);const started=Date.now();await control.tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending===true,undefined,{timeout:3000});
+ const started=Date.now();await control.tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending===true,undefined,{timeout:3000});
+ const pauseBox=await control.boundingBox();assert(pauseBox);
  const pendingTouch=await control.evaluate(button=>{const host=document.querySelector('pv-widget-host');return {disabled:button.disabled,ariaBusy:button.getAttribute('aria-busy'),ariaLabel:button.getAttribute('aria-label'),feedback:button.dataset.feedback,html:button.outerHTML,ownerPending:host?.liveControls?.musicIntentPending===true,status:host?.liveControls?.musicStatus?.textContent,feedbackMessage:host?.feedbackMessage};});
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-touch-pending-witness.json'),JSON.stringify(pendingTouch,null,2));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-touch-pending.png')});
- await page.touchscreen.tap(pauseBox.x+pauseBox.width/2,pauseBox.y+pauseBox.height/2);
+ const duplicatePauseBox=await control.boundingBox();assert(duplicatePauseBox);
+ for(const key of ['x','y','width','height'])assert(Math.abs(duplicatePauseBox[key]-pauseBox[key])<1,'pending Pause geometry stays stable: '+key);
+ const duplicatePoint={x:duplicatePauseBox.x+duplicatePauseBox.width/2,y:duplicatePauseBox.y+duplicatePauseBox.height/2};
+ assert(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('#play-pause'),duplicatePoint),'duplicate touch targets the actual pending Pause control');
+ await page.touchscreen.tap(duplicatePoint.x,duplicatePoint.y);
  await change({song:2});
  await page.waitForFunction(()=>document.getElementById('play-pause')?.getAttribute('aria-label')?.includes('Fortsæt'),undefined,{timeout:15000});
  const afterPause=await state();

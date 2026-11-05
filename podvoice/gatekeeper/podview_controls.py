@@ -2317,7 +2317,13 @@ class TouchControls:
 
     @staticmethod
     def _log_command(
-        body: dict, phase: str, outcome: str, delivery: str, *, kind: str = "direct"
+        body: dict,
+        phase: str,
+        outcome: str,
+        delivery: str,
+        *,
+        kind: str = "direct",
+        step: dict | None = None,
     ) -> None:
         """Small server-owned trace survives client reload/drop; sink is fail-open."""
         try:
@@ -2329,9 +2335,65 @@ class TouchControls:
             request_ref = hashlib.sha256(
                 body["requestId"].encode(errors="surrogatepass")
             ).hexdigest()[:16]
+            step_format = ""
+            step_values: tuple[object, ...] = ()
+            if step is not None:
+                if (
+                    domain != "vacuum"
+                    or body["action"] != "start"
+                    or phase != "step"
+                    or kind != "task"
+                    or step.get("branch")
+                    not in {"guard_changed", "tool_failed", "continuation_missing", "exception"}
+                    or type(step.get("step_index")) is not int
+                    or not 0 <= step["step_index"] < 64
+                    or type(step.get("completedSteps")) is not int
+                    or not 0 <= step["completedSteps"] <= 64
+                    or any(
+                        type(step.get(key)) is not bool
+                        for key in ("capability_present", "partial", "startSent")
+                    )
+                    or step["partial"] != (step["completedSteps"] > 0)
+                ):
+                    return
+                step_action = step.get("step_action")
+                if not isinstance(step_action, str) or step_action not in {
+                    "select.select_option",
+                    "vacuum.set_fan_speed",
+                    "vacuum.send_command",
+                    "podvoice.extreme_water",
+                }:
+                    step_action = "other"
+                error_kind = step.get("error_kind")
+                if not isinstance(error_kind, str) or error_kind not in {
+                    "device_capability",
+                    "device_outcome_unknown",
+                    "device_unavailable",
+                    "stale_action",
+                    "invalid_arguments",
+                    "busy",
+                    "not_authorized",
+                    "approval_required",
+                    "none",
+                }:
+                    error_kind = "other"
+                step_format = (
+                    " branch=%s step_index=%s step_action=%s error_kind=%s"
+                    " capability_present=%s completedSteps=%s partial=%s startSent=%s"
+                )
+                step_values = (
+                    step["branch"],
+                    step["step_index"],
+                    step_action,
+                    error_kind,
+                    str(step["capability_present"]).lower(),
+                    step["completedSteps"],
+                    str(step["partial"]).lower(),
+                    str(step["startSent"]).lower(),
+                )
             _LOGGER.info(
                 "control_command phase=%s domain=%s action=%s request_ref=%s "
-                "outcome=%s delivery=%s physical_result_verified=false kind=%s",
+                "outcome=%s delivery=%s physical_result_verified=false kind=%s" + step_format,
                 phase,
                 body["domain"],
                 body["action"],
@@ -2341,6 +2403,7 @@ class TouchControls:
                 else "unknown",
                 delivery,
                 kind,
+                *step_values,
             )
         except Exception:
             pass
@@ -2573,12 +2636,52 @@ class TouchControls:
         # reserved, its pre-action reads must never publish new authority.
         self.mutations[self.resource_key(task["domain"], task["target"])] = object()
         self.setups.pop(self.resource_key(task["domain"], task["target"]), None)
-        self.busy.add(self.resource_key(task["domain"], task["target"]))
+        resource = self.resource_key(task["domain"], task["target"])
+        self.busy.add(resource)
+        start_execution = None
+        start_authority = None
+        start_boot = self.bridge.boot_id
+        start_mutation = self.mutations[resource]
+        if (
+            task["domain"] == "vacuum"
+            and option["action"] == "start"
+            and option["schema"]["kind"] == "cleaning"
+        ):
+            # A consumed, freshly admitted Start owns one bounded transaction.
+            # Its independent dock offer still expires at the original deadline.
+            # This private view is never registered or usable for new admission.
+            execution_deadline = time.monotonic() + 30
+            receipt_deadline = max(receipt_deadline, execution_deadline)
+            start_execution = {
+                **task,
+                "deadline": execution_deadline,
+                "target": dict(task["target"]),
+            }
+            start_authority = self._robot_draft_authority(task["room"], token)
+            self.receipts[key] = fingerprint, receipt, receipt_deadline
 
         def current():
             entry = self.receipts.get(key)
+            if start_execution is not None:
+                if (
+                    start_authority is None
+                    or self.bridge.boot_id != start_boot
+                    or self._robot_draft_authority(task["room"], token) is not start_authority
+                    or task["consumed"] is not True
+                    or task["options"].get(body["optionId"]) is not option
+                    or any(
+                        task[field] != start_execution[field]
+                        for field in ("id", "room", "domain", "token", "owner", "target", "binding")
+                    )
+                    or self.mutations.get(resource) is not start_mutation
+                    or resource not in self.busy
+                ):
+                    return False
+                authority_current = self._current(start_execution, token)
+            else:
+                authority_current = self._current(task, token)
             return bool(
-                self._current(task, token)
+                authority_current
                 and entry is not None
                 and entry[0] == fingerprint
                 and entry[1] is receipt
@@ -2586,6 +2689,31 @@ class TouchControls:
 
         def receipt_current():
             return self._receipt_current(task, token)
+
+        step_index = None
+        step_action = None
+        step_capability_present = False
+
+        def log_step_failure(branch: str, error_kind: object = "none") -> None:
+            if task["domain"] != "vacuum" or option["action"] != "start" or step_index is None:
+                return
+            self._log_command(
+                {"domain": "vacuum", "action": "start", "requestId": body["requestId"]},
+                "step",
+                "unknown",
+                "new",
+                kind="task",
+                step={
+                    "branch": branch,
+                    "step_index": step_index,
+                    "step_action": step_action,
+                    "error_kind": error_kind,
+                    "capability_present": step_capability_present,
+                    "completedSteps": receipt["completedSteps"],
+                    "partial": receipt["completedSteps"] > 0,
+                    "startSent": receipt["startSent"],
+                },
+            )
 
         moving = option["action"] == "move_existing_session"
         move_dispatched = False
@@ -2744,9 +2872,13 @@ class TouchControls:
                 else:
                     capability = task["offered"]["capability_token"]
                     outcome = "rejected"
-                    for step in steps:
+                    for index, step in enumerate(steps):
+                        step_index = index
+                        step_action = step["action"]
+                        step_capability_present = False
                         if not current():
                             outcome = "unknown"
+                            log_step_failure("guard_changed")
                             break
                         outcome = "unknown"
                         if step["action"] == "vacuum.send_command":
@@ -2757,13 +2889,16 @@ class TouchControls:
                             execution_context=ExecutionContext(*task["owner"]),
                             execution_guard=current,
                         )
+                        step_capability_present = isinstance(result.get("capability_token"), str)
                         if result.get("ok") is not True:
+                            log_step_failure("tool_failed", result.get("error_kind"))
                             break
                         outcome = "accepted"
                         receipt["completedSteps"] += 1
                         capability = result.get("capability_token")
                         if step is not steps[-1] and not isinstance(capability, str):
                             outcome = "unknown"
+                            log_step_failure("continuation_missing")
                             break
                 receipt = {
                     **receipt,
@@ -2835,6 +2970,7 @@ class TouchControls:
                 else:
                     self.receipts[key] = fingerprint, receipt, receipt_deadline
         except (Exception, asyncio.CancelledError):
+            log_step_failure("exception", "other")
             if moving and not move_dispatched:
                 if not prior_fence:
                     self.bridge._music_move_fence.discard(move_key)

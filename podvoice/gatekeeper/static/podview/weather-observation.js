@@ -1,7 +1,7 @@
 const conditions={clear:'Klart',sunny:'Solrigt',partlycloudy:'Let skyet',cloudy:'Skyet',rainy:'Regn',pouring:'Kraftig regn',snowy:'Sne',fog:'Tåge',windy:'Blæsende','clear-night':'Klar nat',lightning:'Torden','lightning-rainy':'Torden og regn','snowy-rainy':'Slud',exceptional:'Usædvanligt vejr'};
 export const conditionLabel=v=>Object.hasOwn(conditions,v)?conditions[v]:String(v||'').slice(0,80);
 export function conditionIcon(value,isDaytime){
- const icons={clear:'sun',sunny:'sun','clear-night':'moon',partlycloudy:'cloud-sun',cloudy:'cloud',rainy:'cloud-rain',pouring:'cloud-rain'};
+ const icons={clear:'sun',sunny:'sun','clear-night':'moon',partlycloudy:'cloud-sun',cloudy:'cloud',rainy:'cloud-rain',pouring:'cloud-rain',snowy:'cloud-snow','snowy-rainy':'cloud-snow',fog:'cloud-fog',windy:'wind',lightning:'cloud-lightning','lightning-rainy':'cloud-lightning',exceptional:'warning'};
  if(isDaytime===false&&['clear','sunny','partlycloudy'].includes(value))return value==='partlycloudy'?'cloud':'moon';
  return Object.hasOwn(icons,value)?icons[value]:null;
 }

@@ -1,3 +1,11 @@
+## 2.0.133
+
+- Preserve pending music choices and current controls while playback and queue observations settle; keep refresh feedback local to the affected action.
+- Restore the approved ongoing-recipe row across category changes and hydrate the existing recipe widget without changing its design.
+- Keep an admitted robot start alive through slow settings, preserve exact-once dispatch, and align the approved busy-state layout.
+- Restore missing fog and severe-weather icons and add content-free playback adapter failure categories.
+- Underlying native music-read failures and physical acceptance remain open; no automatic replay is introduced.
+
 ## 2.0.132
 
 - Improve the approved touch music cards and preserve a single text layer during recommendation refresh.
