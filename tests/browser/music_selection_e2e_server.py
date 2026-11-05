@@ -24,7 +24,11 @@ from gatekeeper.podview import BRIDGE
 
 cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
+repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
+if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
+    logging.getLogger("podvoice.mood").setLevel(logging.INFO)
+    logging.getLogger("podvoice.podview").setLevel(logging.INFO)
 
 content = Rig()
 content_owner(content, action="play_context" if cold else "play_track")
@@ -156,7 +160,15 @@ async def native(request):
             else:
                 assert uri in {row["uri"] for row in tracks}
             base.state.update(
-                song=11 if cold else int(uri.rsplit(":", 1)[-1]),
+                song=(
+                    12
+                    if repeat_mood
+                    and base.state["selections"]
+                    and uri != base.state["selections"][0]["uri"]
+                    else 11
+                )
+                if cold
+                else int(uri.rsplit(":", 1)[-1]),
                 state="playing",
                 volume=args["start_offer"]["start_volume_percent"],
             )

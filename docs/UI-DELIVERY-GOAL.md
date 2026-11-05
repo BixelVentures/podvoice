@@ -1,3 +1,47 @@
+## 131 klar til fælles udgivelsesvej · 5. november
+
+Den konkrete musikfejl er reproduceret og rettet i software: en almindelig uændret SSE-opdatering afbrød et ventende andet playlistvalg. Den eksisterende kilde og visningskontekst følges nu ad, mens afspilning fortsat kræver frisk ejer/nyt setup. Endelig131-bundle `1b7b230361ef2fc2227595aa3d801aa272686867dd3e84b6e8cfef0a2511d596` er prøvet i faktisk Mac Chrome→Python→inert native ejer med holdt svar/rigtig SSE: præcis én ny afspilning efter svaret og ingen ekstra effekt. Kort/player og synlig read-only-fejl er prøvet efter normal SSE ved1280/980/768; ingen beskedafklipning. Root har inspiceret billeder mod eksisterende kit med Product Design/Impeccable; CSS/bibliotek er uændrede. Endelig UI/komponentkontrol og afgrænsede backendchecks består; scoped Astra-sourceGO er registreret i STATUS.
+
+Afgrænset eksisterende diagnostik forbinder nu touch→mood-response/gate→konkret klientgren→lagret klientlog og HA-stdout uden nye rettigheder, indholdsdata eller genafsendelse. Preview-browserprøven bruger en tydeligt inert HTTP-fixture, mens rigtig server-preview dækkes af den eksisterende Python-integration. Dette er ikke en påstand om historisk Green-årsag eller fysisk accept.
+
+**Næste:** sole v2.X-operatør ejer officiel CI, merge/publicering, én131-installation og ny afgrænset liveprøve. Green er fortsat130 ved seneste aflæsning;131 er endnu ikke udgivet/installeret. Musik stoppes efter hver lydprøve. Hele restlisten nedenfor er fortsat gældende; egentlig iPad-/portrætaccept og øvrige domæner er åbne. Screenshots og logs: `/private/tmp/podview131-release-held-proof/`, `/private/tmp/podview131-release-preview-proof/` og tilsvarende `.log`-filer. Ældre beskrivelser af manglende feedback og kodefrys nedenfor er historik, erstattet af denne post.
+
+## Aktuel fælles PodView-leverance · 5. november 2026
+
+Den kanoniske renderer udvikles nu i dette fælles repository på den afstemte installerede130-base dbcbc. Den historiske Documents/PodView-mappe og dens beviser bevares; denne målrettede aktuelle post erstatter ikke eller masseadopterer dens øvrige indhold.
+
+## Aktuel status · 5. november efter installation og liveprøve
+
+Denne post erstatter ældre aktuelle version-/installationsangivelser nedenfor; de bevares som historik. Sole integrationslead har verificeret **PodVoice 2.0.130 installeret og Kører på Green**, runtimecommit `dbcbc554830b4a07524cdd868a861ed83d7c1551`, efter officiel grøn CI967 og normal merge/publicering. Det er leveringsbevis, ikke samlet funktionsaccept.
+
+**Kritisk åben musikfejl:** Ved faktisk touchprøve omkring10.02 virkede første musikvalg (Beanie/Chezile) og efterfølgende Pause omkring10.03. Ved ét andet eksplicit playlistkort, “Musik til madlavningen”, kl10.04.33 kom “Henter forslag”, derefter samme tre forslag; afspilningen forblev pauset. Ingen ny automatisk afspilning eller gentaget ukendt kommando. DOM bekræfter et rigtigt playlistbundet Play-kort. Kildehypotese: choice-renewal modtager read-only preview og afslutter uden setup/action. Det er IKKE bevist som liveårsag. Manglende observation er det oprindelige requests schema/readOnly/guardreason og korrelerede setup-/actionspor. Lead undersøger eksisterende HA-logvisning afgrænset; downloadloops er stoppet. Afsluttende frisk HA/Spotify-guard10.19CET: NO_ACTIVE_PLAYBACK, ingen aktiv afspilning.
+
+**Øvrige aktuelle rester:** Vejr var fortsat utilgængeligt efter normal reload; HA Met.no-fejl er observeret særskilt. Reload fjernede HA-reconnectnotifikationer, men beviser ikke automatisk recovery. VoicePE var fortsat offline ved installationskontrol. Hele den eksisterende12punktsrestliste nedenfor gælder fortsat; installationstrinnet er gennemført, de faktiske funktions-/enhedsforløb er ikke samlet accepteret. Rigtig iPad-prøve udestår.
+
+**Arbejde og kilde:** Brugeren har igen givet go til hele planen uden nye godkendelsesstop. PodView ejer kanonisk UI og samlet feedback; v2.X er eneste Green-/releaseoperatør. Ny udvikling skal ske i `/Users/madsbachandersen/Developer/podvoice`, men den rene docsbranch3739 er stadig baseret129. Afstem installeret130-base med lead før nye ændringer; bevar docsbranch/PR299 og alle tidligere kildepins. Ingen spekulativ produktpatch eller ny release ud fra ukendt musikårsag. Tidligere ETA10–10.30 gjaldt installation/første prøve og er opfyldt; samlet færdigtid er ikke fastlagt.
+
+**Seneste årsagsafgrænsning:** Sole operatør nåede den oprindelige hændelse i almindelig HA-logvisning. Det andet kort gav playlist-søgninger og mood_result publish/success omkring10:04:09–10:04:10, men ingen selection-setup/action;10:04:33 var tidligere omtrentlig UI-tid. Samme almindelige first-confirmed-playlist→Pause→different-playlist-forløb består lokalt gennem rigtig browser/Python og inert native ejer. Liveårsagen er fortsat ukendt. Scoped Astra- og leadgodkendt minimal diagnostik forberedes i eksisterende moodlog/journalsink, så næste afgrænsede liveprøve kan skelne schema/gate/klientgren; ingen spekulativ myndighedsrettelse.
+
+**Synlig feedbackrettelse, separat fra årsagen:** Preview-afvisning efter et aktivt Play viser nu en konkret fejl i den eksisterende playerrolle; status-only første forsøg var visuelt skjult og blev rettet inden levering. Faktisk1280×800 browser/inert-HTTP-forløb har bekræftet synlig besked, bevarede kort/pauset player og ingen ekstra selection-action. Root har inspiceret billedet mod eksisterende kanonisk kit med Product Design-/Impeccable-kriterier; CSS/bibliotek er uændrede. Endelig samlet diagnostisk kilde/build/review og øvrige relevante viewportbeviser mangler endnu. Ikke installeret på Green som ny rettelse.
+
+| Område | Det konkrete restarbejde før samlet færdigmelding |
+| --- | --- |
+| Udgivelse | 130 er CI-verificeret, publiceret og installeret. Næste ændring kræver sin egen afstemte slutkilde, review/CI og én koordineret installation; samlet funktionsaccept er stadig åben. |
+| Musik | Afklar/ret gentaget valgsvigt; faktisk start/pause/fortsæt/næste/forrige/volumen/kø/output, sangovergang, eksternændring og recovery på samme rigtige ejere. Original tavs start er stadig ukendt. |
+| Stemme og svar | Genkontrollér VoicePE, gennemfør stemmestart→vis→touchpause og rigtige svar/råd, ti aftalte formater og visuel historik. VoicePE var offline ved130-installationskontrollen; ny faktisk forbindelse og accept udestår. |
+| Vejr | Luk den faktiske tilbagevendende fejl og bevis stabil data-/prognosevisning, sidst kendte data og recovery i den berørte Chrome-profil. |
+| Robot | På installeret kandidat: aktivpause i header/widget, fortsæt/afslut/base, ændrbare rengøringsvalg og bevarede rum/drafts gennem gentagne fornyelser/navigation med faktiskHA-observation. |
+| Opskrifter | Rigtig upload/import→gemmekvittering→automatiskGreenkatalog→variggenfinding, dublet/fejl/recovery samt åbn/start/genoptag/afslut og timer-samspil. |
+| Lys | Afklar faktisk HA-integration/entities/områder/adgang; afprøv tænd/sluk/niveau og aftalte lamper/scener. Brugerens screenshot viser stadig ikke forbundet. |
+| Radio | Afklar faktisk ikke-tilgængelig-status/ejer/route; prøv stationsvalg/start/stop/volumen og Spotify-kildeskift med rigtig ejer/output. |
+| Timer | Færdiggør aktivjustering i eksisterende ejer, hvis den fortsat ikke tilbydes; faktisk opret/stop/annullér/færdig/alarm/kvittering og samspil. Ingen unsupported handling kaldesPASS. |
+| Tesla | Aktuelle rigtige data/ærlige sidst-kendte tilstande samt kun de aftalte, faktisk understøttede handlinger mod rigtig integration. |
+| Mac og iPad | Samlet normalbrug på slutversionen i MacChrome og rigtig iPadSafari, beggeKøkkenalrum/samme faste link; iPadidentitet/adgang må ikke opfindes. |
+| Fælles stabilitet/log | Faktisk samtidigbrug, hurtige/gentagne tryk, ingen dobbelteffekter, bevarede valg/fokus/scroll, reconnectudenreplay og forklarlige spor fra input til observeret resultat/ukendt udfald. |
+
+
+---
+
 ## Gældende leverancemål · 4. november 2026
 
 **Aktuel samlet softwarekandidat:** `/private/tmp/podview-foundation-v2-20261104`, bundle `b80d1c9a00666fda5f65a666aaef214ed1ebc3de7281e215332a7533452fc562`, fælles CSS uændret `c6e4c75f0990502d2d61d2f084d15863cfe78f34f4cc24baf6caeb677aa52f4b`. Alle 68 bundle-kildepins er kontrolleret. Den eksisterende fulde UI-kontrol består på den samlede kandidat; de tre actual-browserforløb (musik, robot, opskrift) består med inerte slutafhængigheder. Musikprøven verificerer samme accepterede Pause-kvittering gennem midlertidigt ukendt witness til vedvarende korreleret bekræftelse før Fortsæt; det første for korte logvindue blev rettet i testharnesset, ingen ekstra runtimeændring. Recipe-recovery fra den nyere aktive tråd er bevaret. Kilde-review fra Astra er bestået for de ændrede kommando-/idempotens-/ressource-/cache-/adgangsgrænser. Dette er en gennemprøvet forbedringskandidat, **ikke samlet produktaccept**: fuldt musikscope, øvrigt aftalt inventar, faktisk Green/service, Mac/iPad og fysisk accept bevares som åbent arbejde.
