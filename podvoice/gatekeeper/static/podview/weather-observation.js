@@ -47,8 +47,37 @@ export function weatherObservation(v,includeHourly=true){
  return projected;
 }
 
+// One fixed display deadline from source facts. Delivery and rendering never
+// renew it; the source's shorter hourly limit remains independently binding.
+function weatherFactDeadline(weather,now){
+ const timestamp=value=>typeof value==='string'&&/(?:Z|[+-]\d{2}:\d{2})$/.test(value)?Date.parse(value):NaN;
+ const retrieved=timestamp(weather.retrievedAt),observed=weather.observedAt*1000,updated=weather.stateUpdatedAt==null?null:timestamp(weather.stateUpdatedAt);
+ if(!weather.observationScope||!Number.isFinite(now)||!Number.isFinite(retrieved)||retrieved>now||!Number.isFinite(observed)||observed<retrieved||observed>now||updated!==null&&(!Number.isFinite(updated)||updated>retrieved))return null;
+ if(weather.current===null)return retrieved+7200000;
+ return updated!==null?Math.min(retrieved+7200000,updated+7200000):null;
+}
+
+export function weatherFactObservation(value,{now=Date.now(),validUntil=null,stale=false}={}){
+ const weather=weatherObservation(value),deadline=weatherFactDeadline(weather,now);
+ if(deadline===null||deadline<=now)return null;
+ let displayUntil=deadline;
+ if(validUntil!==null){
+  if(typeof validUntil!=='number'||!Number.isFinite(validUntil))return null;
+  const offered=Math.floor(validUntil*1000);
+  if(offered<=now||offered>deadline)return null;
+  displayUntil=offered;
+ }
+ const result={...weather,displayUntil,...(stale?{stale:true,advice:null,aiAdvice:null,passiveAdvice:null,displayLocation:null}:{})};
+ if(weather.hourly){
+  const hourlyDeadline=weatherFactDeadline(weather.hourly,now),hourlyUntil=Math.min(displayUntil,hourlyDeadline??0,Date.parse(weather.hourly.retrievedAt)+900000);
+  if(!Number.isFinite(hourlyUntil)||hourlyUntil<=now){delete result.hourly;result.hourlyUnavailable=false;}
+  else result.hourly={...weather.hourly,displayUntil:hourlyUntil,...(stale?{stale:true,advice:null,aiAdvice:null,passiveAdvice:null,displayLocation:null}:{})};
+ }
+ return result;
+}
+
 export function hourlyWeather(weather,now=Date.now()){
- const h=weather.forecastType==='hourly'?weather:weather.hourly;if(!h||h.forecastType!=='hourly'||h.source!==weather.source||h.location!==weather.location||['temperature','precipitation','windSpeed'].some(key=>h.units?.[key]!==weather.units?.[key]))return null;
+ const h=weather.forecastType==='hourly'?weather:weather.hourly;if(h&&Object.hasOwn(h,'displayUntil')&&(!Number.isFinite(h.displayUntil)||now>=h.displayUntil))return null;if(!h||h.forecastType!=='hourly'||h.source!==weather.source||h.location!==weather.location||['temperature','precipitation','windSpeed'].some(key=>h.units?.[key]!==weather.units?.[key]))return null;
  const retrieved=Date.parse(h.retrievedAt);return Number.isFinite(now)&&retrieved<=now&&now<retrieved+900000?h:null;
 }
 
@@ -91,7 +120,7 @@ export function weatherAdviceCapability(value,weather,{bootId,roomId}={},now=Dat
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(key=>!Object.hasOwn(value,key))||value.schema!=='podview.weather-advice-capability.v1'||value.bootId!==bootId||value.roomId!==roomId||!['bootId','roomId'].every(key=>typeof value[key]==='string'&&value[key].length>0&&value[key].length<=160)||!['available','unavailable'].includes(value.availability)||!['idle','pending','ready','unavailable','error'].includes(value.status))return null;
  if(value.availability==='unavailable')return ['unavailable','error'].includes(value.status)&&(value.weatherKey===null||typeof value.weatherKey==='string'&&/^[a-f0-9]{64}$/.test(value.weatherKey))&&(value.source===null||typeof value.source==='string'&&value.source.length>0&&value.source.length<=120)&&(value.sourceRetrievedAt===null||Number.isFinite(value.sourceRetrievedAt))&&(value.validUntil===null||Number.isFinite(value.validUntil))?{...value}:null;
  const retrieved=Date.parse(weather?.retrievedAt);
- if(!weather||weather.stale||!/^[a-f0-9]{64}$/.test(value.weatherKey||'')||value.source!==weather.source||!Number.isFinite(value.sourceRetrievedAt)||Math.abs(value.sourceRetrievedAt*1000-retrieved)>=1||!Number.isFinite(now)||retrieved>now||now>=retrieved+900000||!Number.isFinite(value.validUntil)||value.validUntil*1000<=now||Math.floor(value.validUntil*1000)>retrieved+900000)return null;
+ if(!weather||weather.stale||Object.hasOwn(weather,'displayUntil')&&(!Number.isFinite(weather.displayUntil)||now>=weather.displayUntil)||!/^[a-f0-9]{64}$/.test(value.weatherKey||'')||value.source!==weather.source||!Number.isFinite(value.sourceRetrievedAt)||Math.abs(value.sourceRetrievedAt*1000-retrieved)>=1||!Number.isFinite(now)||retrieved>now||now>=retrieved+900000||!Number.isFinite(value.validUntil)||value.validUntil*1000<=now||Math.floor(value.validUntil*1000)>retrieved+900000)return null;
  return {...value};
 }
 export function weatherPassiveAdvice(value,weather,now=Date.now(),context=null,{allowUnadmitted=false}={}){

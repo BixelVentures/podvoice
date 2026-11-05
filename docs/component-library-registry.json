@@ -2522,14 +2522,17 @@
           "function:weatherAdvice": 1,
           "function:weatherObservation": 1,
           "function:weatherTemperature": 1,
-          "function:weatherDisplayLocation": 1
+          "function:weatherDisplayLocation": 1,
+          "function:weatherFactDeadline": 1,
+          "function:weatherFactObservation": 1,
+          "arrow:timestamp": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
       },
-      "compositionScope": "Reviewed47 bounded display-locality data projection only. Existing configured label or fresh closed-shape HA-home locality feeds the same weather title/footer; no DOM, renderer, family, authority, forecast-location replacement or provider request."
+      "compositionScope": "Reviewed47 bounded display-locality data projection only. Existing configured label or fresh closed-shape HA-home locality feeds the same weather title/footer; no DOM, renderer, family, authority, forecast-location replacement or provider request. Existing scoped fact projection now also validates a fixed source-timestamp display deadline and strips advice from last-known facts. No DOM, network, family or authority."
     },
     "dist/weather-view.js": {
       "status": "approved-renderer",

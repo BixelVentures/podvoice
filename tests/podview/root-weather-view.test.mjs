@@ -423,3 +423,17 @@ test('missing daily condition keeps a neutral icon cell and range alignment, the
  model.days[0]={...model.days[0],condition:'Solrigt',icon:'sun'};renderWeather(node,model);
  assert.equal(n.days.children[1],day);assert.equal(day.children[1],icon);assert.equal(icon.src,'assets/icons/sun.svg');assert.equal(icon.hidden,false);
 });
+
+test('expired bounded weather clears raw Home, header and photo facts as well as its detail model',()=>{
+ const f=fixture(),previousDoc=globalThis.document,previousNow=Date.now;
+ globalThis.document=f.doc;Date.now=()=>now;
+ try{
+  const w={...weatherObservation(raw()),displayUntil:now},host={isConnected:true,live:true,liveTransport:{connected:false},state:{focus:'weather',liveWeather:w}};
+  renderLiveWeather(host);
+  assert.equal(host.weatherNodes.value.textContent,'');
+  assert.equal(f.ids.get('home-weather').querySelector('.home-temperature').textContent,'');
+  assert.equal(f.ids.get('header-weather').querySelector('strong').textContent,'—');
+  assert.equal(f.ids.get('photo-weather').querySelector('strong').textContent,'');
+  for(const id of ['home-weather','header-weather','photo-weather'])assert.equal(f.ids.get(id).querySelector(':scope > img').hidden,true,id);
+ }finally{globalThis.document=previousDoc;Date.now=previousNow;}
+});

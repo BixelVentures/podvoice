@@ -1,3 +1,10 @@
+## 2.0.134
+
+- Retain dated weather facts through bounded source failures and reload, and clear expired current facts consistently across detail, Home and photo views.
+- Preserve original retrieval timestamps and existing authorization checks; cached weather does not grant action rights.
+- Synchronize canonical UI sources safely before asset generation and include the existing weather/slow-start journeys in the browser check.
+- Native music-read diagnosis and physical acceptance remain open.
+
 ## 2.0.133
 
 - Preserve pending music choices and current controls while playback and queue observations settle; keep refresh feedback local to the affected action.

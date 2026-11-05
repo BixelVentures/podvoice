@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import math
@@ -408,3 +409,136 @@ def with_home_locality(weather: dict, locality: dict | None) -> dict:
             {"status": "observed", "data": data["hourly"]}, locality
         )["data"]
     return weather if data == weather["data"] else {**weather, "data": data}
+
+
+def retained_facts(value: object, *, now: float | None = None) -> dict | None:
+    """Closed, dated source facts; never a cached grant or generated advice.
+
+    This only consumes the existing validated read projection. Revalidation on
+    delivery prevents mutation or a short aggregate cache from renewing history.
+    Auxiliary hours expire independently from the primary observation.
+    """
+    now = time.time() if now is None else now
+    if not isinstance(value, dict):
+        return None
+    scope = value.get("observationScope")
+    if (
+        not isinstance(scope, dict)
+        or not isinstance(scope.get("entityId"), str)
+        or not re.fullmatch(r"weather\.[a-z0-9_]{1,120}", scope["entityId"])
+        or not isinstance(scope.get("ownerEpoch"), str)
+        or not re.fullmatch(r"[0-9a-f]{64}", scope["ownerEpoch"])
+    ):
+        return None
+    retrieved = _timestamp(value.get("retrievedAt"))
+    if retrieved is None or retrieved.timestamp() > now:
+        return None
+    deadline = retrieved.timestamp() + MAX_CURRENT_AGE_S
+    updated = _timestamp(value.get("stateUpdatedAt"))
+    if value.get("stateUpdatedAt") is not None and (updated is None or updated > retrieved):
+        return None
+    current = value.get("current")
+    if current is not None:
+        if not isinstance(current, dict) or (
+            current.get("condition") is None and current.get("temperature") is None
+        ):
+            return None
+        if current.get("condition") is not None and not _text(current["condition"], 64):
+            return None
+        if current.get("temperature") is not None and not _number(current["temperature"]):
+            return None
+        updated = _timestamp(value.get("stateUpdatedAt"))
+        if updated is None or updated > retrieved:
+            return None
+        deadline = min(deadline, updated.timestamp() + MAX_CURRENT_AGE_S)
+    if (
+        now >= deadline
+        or not _number(value.get("observedAt"))
+        or not (retrieved.timestamp() <= value["observedAt"] <= now)
+    ):
+        return None
+    units, rows, coverage = value.get("units"), value.get("forecast"), value.get("coverage")
+    if (
+        not all(_text(value.get(key), 160) for key in ("source", "location"))
+        or not isinstance(units, dict)
+        or not _text(units.get("temperature"), 16)
+        or any(
+            units.get(key) is not None and not _text(units[key], 16)
+            for key in ("precipitation", "windSpeed")
+        )
+        or not _text(value.get("forecastType"), 32)
+        or not isinstance(rows, list)
+        or not 1 <= len(rows) <= _MAX_FORECAST_ROWS
+        or not isinstance(coverage, dict)
+    ):
+        return None
+    previous = None
+    numbers = _NUMBERS | {"highTemperature", "lowTemperature", "wind_bearing"}
+    clean_rows = []
+    for row in rows:
+        if not isinstance(row, dict):
+            return None
+        stamp = _timestamp(row.get("datetime"))
+        if stamp is None or (previous is not None and stamp <= previous):
+            return None
+        previous = stamp
+        if row.get("condition") is not None and not _text(row["condition"], 64):
+            return None
+        if any(not _number(row[key]) for key in numbers.intersection(row)):
+            return None
+        if any(
+            not 0 <= row[key] <= 100
+            for key in {"precipitation_probability", "humidity", "cloud_coverage"}.intersection(row)
+        ):
+            return None
+        if any(
+            row[key] < 0 for key in {"precipitation", "wind_speed", "uv_index"}.intersection(row)
+        ):
+            return None
+        if "wind_bearing" in row and not 0 <= row["wind_bearing"] <= 360:
+            return None
+        if value["forecastType"] == "daily" and "highTemperature" not in row:
+            return None
+        clean_rows.append(
+            {
+                key: copy.deepcopy(item)
+                for key, item in row.items()
+                if key in numbers | {"datetime", "condition"}
+            }
+        )
+    if (
+        not isinstance(coverage.get("totalRows"), int)
+        or isinstance(coverage["totalRows"], bool)
+        or not len(rows) <= coverage["totalRows"] <= 512
+        or coverage.get("returnedRows") != len(rows)
+        or coverage.get("truncated") is not (coverage["totalRows"] > len(rows))
+        or coverage.get("start") != rows[0]["datetime"]
+        or coverage.get("end") != rows[-1]["datetime"]
+    ):
+        return None
+    keys = ("source", "location", "retrievedAt", "stateUpdatedAt", "observedAt", "forecastType")
+    facts = {key: copy.deepcopy(value.get(key)) for key in keys}
+    facts.update(
+        observationScope={key: scope[key] for key in ("entityId", "ownerEpoch")},
+        units={key: units.get(key) for key in ("temperature", "precipitation", "windSpeed")},
+        current=None
+        if current is None
+        else {key: current.get(key) for key in ("condition", "temperature")},
+        forecast=clean_rows,
+        coverage={
+            key: coverage[key] for key in ("totalRows", "returnedRows", "truncated", "start", "end")
+        },
+    )
+    hourly = retained_facts(value.get("hourly"), now=now)
+    hourly_retrieved = _timestamp(hourly["data"]["retrievedAt"]) if hourly is not None else None
+    if (
+        hourly is not None
+        and hourly_retrieved is not None
+        and now < hourly_retrieved.timestamp() + MAX_RETRIEVAL_AGE_S
+        and all(
+            hourly["data"][key] == facts[key]
+            for key in ("source", "location", "units", "observationScope")
+        )
+    ):
+        facts["hourly"] = hourly["data"]
+    return {"data": facts, "validUntil": deadline}

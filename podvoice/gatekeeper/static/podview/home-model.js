@@ -1,5 +1,5 @@
 import {scopedLightsObservation,scopedLightSummary,lightAreasObservation,lightPlacementObservation,vehicleObservation} from './ha-home-observation.js';
-import {weatherObservation,hourlyWeather,weatherAdviceCapability} from './weather-observation.js';
+import {weatherObservation,weatherFactObservation,hourlyWeather,weatherAdviceCapability} from './weather-observation.js';
 import {robotObservation} from './robot-observation.js';
 // Closed passive projection. It never issues capabilities, stores HA keys,
 // infers a cleaning area, or treats an accepted command as observed cleaning.
@@ -30,9 +30,17 @@ export function validateHome(value,roomId,bootId){
  }
  // Settings/actions are deliberately excluded until their separate owner
  // contract is implemented. Extra remote fields cannot silently enable controls.
- let weather=null;try{if(value.weather?.status==='observed')weather=weatherObservation(value.weather.data);}catch{}
+ const weatherRetention=!!value.weather&&Object.hasOwn(value.weather,'lastKnown');
+ let weather=null;
+ try{
+  if(value.weather?.status==='observed')weather=weatherRetention?weatherFactObservation(value.weather.data):weatherObservation(value.weather.data);
+  else if(value.weather?.status==='unavailable'&&weatherRetention){
+   const known=value.weather.lastKnown;
+   if(known&&typeof known==='object'&&!Array.isArray(known)&&Object.keys(known).sort().join(',')==='data,validUntil'&&typeof known.validUntil==='number')weather=weatherFactObservation(known.data,{validUntil:known.validUntil,stale:true});
+  }
+ }catch{}
  const lightAreas=lightAreasObservation(value.lightAreas),lightPlacement=lightPlacementObservation(value.lightPlacement,lightAreas),lights=lightAreas&&lightPlacement?scopedLightsObservation(value.lights,{areas:lightAreas,placement:lightPlacement}):null;
- return {schema:value.schema,bootId:value.bootId,roomId,revision:value.revision,observedAt:value.observedAt,vacuum:{status:value.vacuum.status,items},weather,weatherAdvice:weatherAdviceCapability(value.weatherAdvice,weather,{bootId:value.bootId,roomId}),lights,lightAreas,lightPlacement,vehicle:vehicleObservation(value.vehicle),vehicleBinding:['observed','stale','unavailable'].includes(value.vehicle?.status)&&typeof value.vehicle?.bindingId==='string'&&/^[a-f0-9]{64}$/.test(value.vehicle.bindingId)?value.vehicle.bindingId:null};
+ return {schema:value.schema,bootId:value.bootId,roomId,revision:value.revision,observedAt:value.observedAt,vacuum:{status:value.vacuum.status,items},weather,...(weatherRetention?{weatherRetention:true}:{}),weatherAdvice:weatherAdviceCapability(value.weatherAdvice,weather,{bootId:value.bootId,roomId}),lights,lightAreas,lightPlacement,vehicle:vehicleObservation(value.vehicle),vehicleBinding:['observed','stale','unavailable'].includes(value.vehicle?.status)&&typeof value.vehicle?.bindingId==='string'&&/^[a-f0-9]{64}$/.test(value.vehicle.bindingId)?value.vehicle.bindingId:null};
 }
 // This projector also serves explicitly browsed detail. Only applyHome decides
 // whether an observation is the controller's own area for overview admission.
@@ -55,12 +63,12 @@ export function applyHome(scene,home,allowed=["vacuum","weather"]){
  // Stable family slots match the approved overview, regardless of which
  // observation arrives first. Activity or urgency never reorders them.
  const priorWeather=scene.liveWeather,incoming=home.weather,identity=incoming?.observationScope,oldIdentity=priorWeather?.observationScope,priorHourly=priorWeather?hourlyWeather(priorWeather):null;
- const retainHourly=sameScope&&incoming?.forecastType==='daily'&&incoming.hourlyUnavailable===true&&!incoming.hourly&&identity&&oldIdentity&&identity.entityId===oldIdentity.entityId&&identity.ownerEpoch===oldIdentity.ownerEpoch&&priorHourly?.observationScope?.entityId===identity.entityId&&priorHourly.observationScope.ownerEpoch===identity.ownerEpoch&&incoming.source===priorWeather.source&&incoming.location===priorWeather.location&&['temperature','precipitation','windSpeed'].every(key=>incoming.units?.[key]===priorWeather.units?.[key]);
+ const retainHourly=sameScope&&!incoming?.stale&&incoming?.forecastType==='daily'&&incoming.hourlyUnavailable===true&&!incoming.hourly&&identity&&oldIdentity&&identity.entityId===oldIdentity.entityId&&identity.ownerEpoch===oldIdentity.ownerEpoch&&priorHourly?.observationScope?.entityId===identity.entityId&&priorHourly.observationScope.ownerEpoch===identity.ownerEpoch&&incoming.source===priorWeather.source&&incoming.location===priorWeather.location&&['temperature','precipitation','windSpeed'].every(key=>incoming.units?.[key]===priorWeather.units?.[key]);
  const weather=retainHourly?{...incoming,hourly:{...priorHourly,stale:true}}:incoming;
  const priorLights=scene.devices.filter(d=>d.kind==='light'&&d.source==='home_assistant_state'),areas=home.lightAreas,placement=home.lightPlacement,lightAllowed=allowed.includes('light'),currentBinding=lightAllowed&&areas?.status==='observed'&&placement?.status==='bound'&&lightPlacementObservation(placement,areas),priorBinding=scene.lightAreas?.status==='observed'&&scene.lightPlacement?.status==='bound'&&lightPlacementObservation(scene.lightPlacement,scene.lightAreas),sameLightBinding=!!(sameScope&&currentBinding&&priorBinding&&areas.sourceEpoch===scene.lightAreas.sourceEpoch&&['areaId','bindingId','placementRevision'].every(key=>placement[key]===scene.lightPlacement[key]));
  const ownLight=lightAllowed&&home.lights?.scope?.isOwnArea===true&&currentBinding?scopedLightDevice(home.lights,home.revision):null,lights=ownLight?[ownLight]:lightAllowed&&sameLightBinding&&home.lights?.status==='unavailable'?priorLights.filter(d=>d.lightScope?.isOwnArea===true&&d.lightScope.areaId===placement.areaId&&d.lightScope.bindingId===placement.bindingId&&d.lightScope.placementRevision===placement.placementRevision&&d.lightSourceEpoch===areas.sourceEpoch).map(d=>({...d,stale:true})):[];
  const devices=orderHomeDevices([...scene.devices.filter(d=>d.source!=='home_assistant_state'&&!(d.kind==='light'&&lights.length)),...rows,...lights]),removed=[...previous,...priorLights].some(d=>d.id===scene.focus)&&!devices.some(d=>d.id===scene.focus);
- return {...scene,lightAreas:lightAllowed?areas:null,lightPlacement:lightAllowed?placement:null,liveLightDetail:sameLightBinding?scene.liveLightDetail:null,weatherAdvice:allowed.includes('weather')?home.weatherAdvice:null,vehicleBinding:allowed.includes('vehicle')&&typeof home.vehicleBinding==='string'&&/^[a-f0-9]{64}$/.test(home.vehicleBinding)?home.vehicleBinding:null,vehicle:!allowed.includes('vehicle')?null:home.vehicle||(sameScope&&typeof home.vehicleBinding==='string'&&/^[a-f0-9]{64}$/.test(home.vehicleBinding)&&home.vehicleBinding===scene.vehicleBinding&&scene.vehicle?{...scene.vehicle,stale:true}:null),liveWeather:!allowed.includes('weather')?null:weather|| (!scopeChanged&&scene.liveWeather?{...scene.liveWeather,stale:true}:null),devices,focus:removed?'now':scene.focus,homeRevision:home.revision,homeScope:scope};
+ return {...scene,lightAreas:lightAllowed?areas:null,lightPlacement:lightAllowed?placement:null,liveLightDetail:sameLightBinding?scene.liveLightDetail:null,weatherAdvice:allowed.includes('weather')?home.weatherAdvice:null,vehicleBinding:allowed.includes('vehicle')&&typeof home.vehicleBinding==='string'&&/^[a-f0-9]{64}$/.test(home.vehicleBinding)?home.vehicleBinding:null,vehicle:!allowed.includes('vehicle')?null:home.vehicle||(sameScope&&typeof home.vehicleBinding==='string'&&/^[a-f0-9]{64}$/.test(home.vehicleBinding)&&home.vehicleBinding===scene.vehicleBinding&&scene.vehicle?{...scene.vehicle,stale:true}:null),liveWeather:!allowed.includes('weather')?null:weather|| (!home.weatherRetention&&!scopeChanged&&scene.liveWeather?{...scene.liveWeather,stale:true}:null),devices,focus:removed?'now':scene.focus,homeRevision:home.revision,homeScope:scope};
 }
 
 function historyObservation(v){

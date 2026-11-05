@@ -342,6 +342,7 @@ class PodViewBridge:
 
         self.radio = RadioService(self, getattr(tools, "podview_radio_native", None))
         self._weather_source_cache: tuple | None = None
+        self._weather_fact_history: dict[str, tuple] = {}
         provider = getattr(tools, "podview_weather_provider", None)
         if provider is not None:
             from .podview_weather_advice import WeatherAdviceOwner
@@ -4556,6 +4557,44 @@ async def _home(request: web.Request) -> web.Response:
             ):
                 return _error("home_unavailable", 503)
             result = {**result, "sourceRevision": bridge.home_source_revision(room, token, counts)}
+        # History is source facts only, independent of AI/source reuse. Guard
+        # again at delivery; a denied caller never reaches or clears this slot.
+        latest = binding_now()
+        identity = (bridge.boot_id, bridge.tools, bridge.sessions.get(room), latest[2])
+        slot = bridge._weather_fact_history.get(room)
+        if slot is not None and slot[0] != identity:
+            bridge._weather_fact_history.pop(room, None)
+            slot = None
+        admitted = (
+            bridge.tools is tools
+            and latest[3] is binding[3]
+            and read_key[0] == bridge.boot_id
+            and latest[2] == binding[2]
+            and latest[2][1]
+            and room in bridge.sessions
+        )
+        weather = result.get("weather", {"status": "unavailable", "data": None})
+        retained = None
+        if not admitted:
+            weather = {"status": "unavailable", "data": None}
+        if admitted:
+            if weather.get("status") == "observed":
+                facts = podview_weather.retained_facts(weather.get("data"))
+                if facts is None:
+                    bridge._weather_fact_history.pop(room, None)
+                    weather = {"status": "unavailable", "data": None}
+                elif (
+                    not event_enabled
+                    or counts.get("weather") == bridge._home_event_revisions["weather"]
+                ):
+                    bridge._weather_fact_history[room] = (identity, facts["data"])
+            elif slot is not None:
+                retained = podview_weather.retained_facts(slot[1])
+                if retained is None:
+                    bridge._weather_fact_history.pop(room, None)
+        elif not latest[2][1]:
+            bridge._weather_fact_history.pop(room, None)
+        result = {**result, "weather": {**weather, "lastKnown": retained}}
         return web.json_response(
             with_transport_actions(result), headers={"Cache-Control": "no-store"}
         )
