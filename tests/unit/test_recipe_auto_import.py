@@ -453,3 +453,98 @@ async def test_recipe_import_and_durable_receipt_survive_failing_log_handler(tmp
         reopened = RecipeSubmissions(store.path)
         assert reopened.phone_receipt(saved["id"]) == saved
         assert json.loads(store.path.read_text())["recipes"][saved["id"]]["title"] == "Boller"
+
+
+MICRODATA = """
+<div itemscope itemtype="https://schema.org/Recipe">
+ <span itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Bageren</span></span>
+ <span itemprop="publisher" itemscope itemtype="https://schema.org/Organization"><span itemprop="name">Udgiver</span></span>
+ <h1 itemprop="name">Boller</h1>
+ <img itemprop="image" src="/photo.jpg" />
+ <meta itemprop="cookTime" content="PT15M" />
+ <ul><li itemprop="recipeIngredient">200 g mel</li><li itemprop="recipeIngredient">1 æg</li></ul>
+ <div itemprop="recipeInstructions"><p>Bland <strong>mel</strong> og æg.</p><p>Bag 15 minutter.</p></div>
+ <div itemscope itemtype="https://schema.org/Article"><span itemprop="name">Ikke opskrift</span><span itemprop="recipeIngredient">Annonceingrediens</span></div>
+ <script>fake recipeIngredient</script><style>hidden recipe</style>
+</div>"""
+
+
+def test_microdata_uses_scoped_recipe_properties_and_order():
+    result = extract_recipe(MICRODATA, URL)
+    assert result["title"] == "Boller"
+    assert result["publisher"] == "Bageren"
+    assert result["groups"][0]["lines"] == ["200 g mel", "1 æg"]
+    assert result["steps"] == ["Bland mel og æg.", "Bag 15 minutter."]
+    assert result["image"] == "https://example.test/photo.jpg"
+    assert result["cookingTime"] == "15 min."
+
+
+def test_microdata_rejects_ads_inside_a_marked_instruction_without_dropping_text():
+    source = MICRODATA.replace(
+        "<p>Bag 15 minutter.</p>",
+        '<p>Bag <span class="advertisement">30 minutter</span>.</p>',
+    )
+    with pytest.raises(ImportRejected, match="unreadable"):
+        extract_recipe(source, URL)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        MICRODATA + MICRODATA,
+        '<div class="advertisement">' + MICRODATA + "</div>",
+        "<template>" + MICRODATA + "</template>",
+        MICRODATA.replace(
+            "<p>Bag 15 minutter.</p>",
+            '<p itemscope itemtype="https://schema.org/Comment">Reklame</p>',
+        ),
+        MICRODATA.replace("<p>Bag 15 minutter.</p>", '<p itemref="outside">Bag 15 minutter.</p>'),
+        MICRODATA.replace(
+            'itemtype="https://schema.org/Recipe"',
+            'itemtype="https://schema.org/Comment" itemtype="https://schema.org/Recipe"',
+            1,
+        ),
+        MICRODATA.replace('src="/photo.jpg"', 'src="/first.jpg" src="/photo.jpg"'),
+        MICRODATA.replace('itemtype="https://schema.org/Recipe"', "itemtype", 1),
+        MICRODATA.replace("https://schema.org/Recipe", "https://other.schema.org/Recipe"),
+        MICRODATA.replace("200 g mel", ""),
+        MICRODATA.replace("<p>Bag 15 minutter.</p>", "<div>Ukendt blok</div>"),
+        MICRODATA.replace(
+            '<h1 itemprop="name">Boller</h1>',
+            '<h1 itemprop="name">Boller</h1><h2 itemprop="name">Andre</h2>',
+        ),
+        MICRODATA.replace(
+            'itemscope itemtype="https://schema.org/Recipe"',
+            'itemscope itemref="outside" itemtype="https://schema.org/Recipe"',
+        ),
+        MICRODATA.replace("</div>", "", 1),
+        '<script type="application/ld+json">{invalid</script>' + MICRODATA,
+    ],
+)
+def test_microdata_ambiguous_or_unbounded_input_is_rejected(source):
+    with pytest.raises(ImportRejected):
+        extract_recipe(source, URL)
+
+
+def test_microdata_does_not_override_invalid_or_valid_jsonld_recipe():
+    bad = html({**RECIPE, "recipeInstructions": []})
+    with pytest.raises(ImportRejected, match="incomplete"):
+        extract_recipe(bad + MICRODATA, URL)
+    assert extract_recipe(html() + MICRODATA, URL)["steps"] == extract_recipe(html(), URL)["steps"]
+    assert (
+        extract_recipe(html() + '<script type="application/ld+json">{invalid</script>', URL)[
+            "title"
+        ]
+        == "Boller"
+    )
+
+
+@pytest.mark.asyncio
+async def test_microdata_uses_existing_durable_import_and_phone_receipt(tmp_path):
+    store = RecipeSubmissions(tmp_path / "catalog.json")
+    with patch("gatekeeper.recipe_import.fetch_html", new=AsyncMock(return_value=(MICRODATA, URL))):
+        saved = await import_link(store, URL)
+    assert saved["status"] == "saved" and saved["message"] == "Gemt: Boller"
+    assert store.phone_receipt(saved["id"]) == saved
+    catalog = json.loads(store.path.read_text())["recipes"]
+    assert catalog[saved["id"]]["steps"] == ["Bland mel og æg.", "Bag 15 minutter."]

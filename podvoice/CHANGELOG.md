@@ -1,3 +1,9 @@
+## 2.0.136
+
+- Import valid recipe microdata when a source has no usable recipe JSON-LD, through the existing importer and storage flow.
+- Preserve JSON-LD priority, source validation, rejection history and the approved recipe UI.
+- Native music-read diagnosis and physical iPhone/device acceptance remain open.
+
 ## 2.0.135
 
 - Adjust active and paused timers through the same native Home Assistant timer owner, with revision checks and no automatic effect replay.
