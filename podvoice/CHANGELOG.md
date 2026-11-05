@@ -1,3 +1,9 @@
+## 2.0.131
+
+- Preserve a pending music choice through ordinary Home Assistant snapshot updates; require fresh validated playback authority before starting.
+- Show a readable, scoped failure when an explicit playlist choice receives read-only recommendations.
+- Correlate renewal response and rejection through the existing bounded diagnostics and Home Assistant logs without retrying commands.
+
 ## 2.0.130
 
 - Preserve bounded action diagnostics under polling pressure and trace music selection through the existing native receipt.

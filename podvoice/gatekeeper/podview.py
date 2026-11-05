@@ -2533,6 +2533,22 @@ async def _client_diagnostics(request: web.Request) -> web.Response:
             if batch.room != room or batch.boot != bridge.boot_id:
                 raise DiagnosticFailure("diagnostics_binding_changed", 409)
             result = await store.append(batch, principal, current)
+            if not result["duplicate"]:
+                for row in batch.rows:
+                    if (
+                        row["stage"] == "control_intent"
+                        and row.get("domain") == "music"
+                        and "requestRef" in row
+                    ):
+                        try:
+                            _LOG.info(
+                                "client_diagnostics source=client seq=%s requestRef=%s code=%s",
+                                row["seq"],
+                                row["requestRef"],
+                                row["code"],
+                            )
+                        except Exception:
+                            pass
         return web.json_response(result, headers={"Cache-Control": "no-store"})
     except TimeoutError:
         return _error("diagnostics_unavailable", 503)
@@ -3669,7 +3685,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     bridge._music_busy = True
     if writable:
         bridge._retire_music_source(token)
-    diagnostic, diagnostic_token = diagnostic_log.begin(kind=kind)
+    diagnostic, diagnostic_token = diagnostic_log.begin(
+        kind=kind,
+        selection_allowed=writable,
+        selection_reason=diagnostic_log.selection_reason(bridge, room, token, writable),
+        trace_ref=diagnostic_log.request_trace(request.headers),
+    )
     total_deadline = None
 
     def failed(error):
@@ -3929,7 +3950,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     },
                 )
                 diagnostic.outcome = "success"
-                return web.json_response(
+                response = web.json_response(
                     {
                         "ok": True,
                         "schema": f"podview.{kind}-preview.v1",
@@ -3953,6 +3974,8 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     },
                     headers={"Cache-Control": "no-store"},
                 )
+                diagnostic.response = "preview"
+                return response
             assert context is not None
             identifier = bridge.music_selection.register(
                 context,
@@ -3974,7 +3997,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 },
             )
             diagnostic.outcome = "success"
-            return web.json_response(
+            response = web.json_response(
                 {
                     "ok": True,
                     "data": {
@@ -3994,6 +4017,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 },
                 headers={"Cache-Control": "no-store"},
             )
+            diagnostic.response = "full"
+            diagnostic.candidate_set_present = True
+            return response
     except asyncio.CancelledError:
         diagnostic.outcome = "cancelled"
         diagnostic_log.note("cancelled")

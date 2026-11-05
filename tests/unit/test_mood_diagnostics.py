@@ -196,6 +196,7 @@ def test_monotonic_phase_timings_are_bounded_closed_and_do_not_log_content(caplo
     assert (
         caplog.records[-1]
         .getMessage()
+        .split(" response=", 1)[0]
         .endswith(
             "total_ms=1105 playback_before_ms=125 time_context_ms=50 model_ms=700 parallel_selection_search_ms=0 playlist_search_ms=200 playback_after_ms=25 publish_ms=5"
         )

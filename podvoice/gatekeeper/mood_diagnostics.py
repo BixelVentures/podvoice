@@ -1,7 +1,9 @@
 """One bounded terminal log, without source content or account/session identifiers."""
 
 import contextvars
+import hashlib
 import logging
+import re
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -81,6 +83,11 @@ class MoodDiagnostic:
     outcome: str = "mood_unavailable"
     reason: str = "none"
     http_status: int | None = None
+    response: str = "none"
+    candidate_set_present: bool = False
+    selection_allowed: bool | None = None
+    selection_reason: str = "other"
+    trace_ref: str = "none"
     _clock: Callable[[], float] = field(default=time.monotonic, repr=False)
     _started: float = field(init=False, repr=False)
     _phase_started: float = field(init=False, repr=False)
@@ -126,9 +133,85 @@ _CURRENT: contextvars.ContextVar[MoodDiagnostic | None] = contextvars.ContextVar
 )
 
 
-def begin(*, clock=time.monotonic, kind="mood"):
-    diagnostic = MoodDiagnostic(_clock=clock, kind=_closed(kind, _KINDS))
+def begin(
+    *,
+    clock=time.monotonic,
+    kind="mood",
+    selection_allowed=None,
+    selection_reason="other",
+    trace_ref="none",
+):
+    diagnostic = MoodDiagnostic(
+        _clock=clock,
+        kind=_closed(kind, _KINDS),
+        selection_allowed=selection_allowed if type(selection_allowed) is bool else None,
+        selection_reason=_closed(
+            selection_reason,
+            {
+                "none",
+                "other",
+                "room_start_unavailable",
+                "move_fenced",
+                "policy_room_mismatch",
+                "grant_not_current",
+                "tools_changed",
+                "no_eligible_policy_target",
+            },
+        ),
+        trace_ref=trace_ref
+        if isinstance(trace_ref, str) and re.fullmatch(r"[a-f0-9]{16}", trace_ref)
+        else "none",
+    )
     return diagnostic, _CURRENT.set(diagnostic)
+
+
+def request_trace(headers):
+    """Hash only a single canonical UUID4; invalid diagnostic input is ignored."""
+    try:
+        values = (
+            headers.getall("X-PodView-Trace", [])
+            if hasattr(headers, "getall")
+            else [headers.get("X-PodView-Trace", "")]
+        )
+        value = values[0] if len(values) == 1 else ""
+        if isinstance(value, str) and re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}", value
+        ):
+            return hashlib.sha256(value.encode("ascii")).hexdigest()[:16]
+    except Exception:
+        pass
+    return "none"
+
+
+def selection_reason(bridge, room, token, writable):
+    """Inspect existing in-memory predicates, for diagnostics, never authority."""
+    try:
+        if writable:
+            return "none"
+        music = bridge.controls.music
+        policy = bridge.controls.policy
+        checks = (
+            (not music.room_start_available, "room_start_unavailable"),
+            (any(key[0] == room for key in bridge._music_move_fence), "move_fenced"),
+            (policy.get("roomId") != room, "policy_room_mismatch"),
+            (not bridge._grant_current(room, token), "grant_not_current"),
+            (music.tools is not bridge.tools, "tools_changed"),
+            (
+                not any(
+                    "play_context" in row["actions"]
+                    and music.context_available
+                    and all(
+                        isinstance(row.get(key), str) and row[key]
+                        for key in ("nativeRoomId", "nativeHomepodId")
+                    )
+                    for row in policy["music"]
+                ),
+                "no_eligible_policy_target",
+            ),
+        )
+        return next((label for failed, label in checks if failed), "other")
+    except Exception:
+        return "other"
 
 
 def _closed(value, allowed):
@@ -150,7 +233,8 @@ def finish(diagnostic, token):
         _LOG.info(
             "mood_result phase=%s outcome=%s reason=%s http_status=%s kind=%s "
             "total_ms=%s playback_before_ms=%s time_context_ms=%s model_ms=%s "
-            "parallel_selection_search_ms=%s playlist_search_ms=%s playback_after_ms=%s publish_ms=%s",
+            "parallel_selection_search_ms=%s playlist_search_ms=%s playback_after_ms=%s publish_ms=%s "
+            "response=%s candidate_set_present=%s selection_allowed=%s selection_reason=%s trace_ref=%s",
             _closed(diagnostic.phase, _PHASES),
             _closed(diagnostic.outcome, _OUTCOMES),
             _closed(diagnostic.reason, _REASONS),
@@ -159,6 +243,28 @@ def finish(diagnostic, token):
             else "none",
             _closed(diagnostic.kind, _KINDS),
             *diagnostic.timings(),
+            _closed(diagnostic.response, {"preview", "full", "none"}),
+            diagnostic.candidate_set_present is True,
+            diagnostic.selection_allowed
+            if type(diagnostic.selection_allowed) is bool
+            else "unknown",
+            _closed(
+                diagnostic.selection_reason,
+                {
+                    "none",
+                    "other",
+                    "room_start_unavailable",
+                    "move_fenced",
+                    "policy_room_mismatch",
+                    "grant_not_current",
+                    "tools_changed",
+                    "no_eligible_policy_target",
+                },
+            ),
+            diagnostic.trace_ref
+            if isinstance(diagnostic.trace_ref, str)
+            and re.fullmatch(r"[a-f0-9]{16}", diagnostic.trace_ref)
+            else "none",
         )
     except Exception:
         pass  # Observability must not replace a response or interrupt cancellation cleanup.

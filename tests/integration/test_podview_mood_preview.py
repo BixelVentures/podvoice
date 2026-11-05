@@ -345,3 +345,53 @@ async def test_writable_join_preserves_grant_and_one_candidate_source(mood_rig, 
     finally:
         release.set()
         await asyncio.gather(target, *([pending] if pending else []), return_exceptions=True)
+
+
+async def test_mood_diagnostics_distinguishes_full_preview_and_invalid_trace(
+    mood_rig, caplog, monkeypatch
+):
+    import hashlib
+    import logging
+
+    from gatekeeper import mood_diagnostics
+
+    trace = "12345678-1234-4234-8234-123456789abc"
+    ref = hashlib.sha256(trace.encode()).hexdigest()[:16]
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    full = await read(mood_rig, cookie="grant", headers={"X-PodView-Trace": trace})
+    assert full["ok"] and "candidateSet" in full
+    assert (
+        f"response=full candidate_set_present=True selection_allowed=True selection_reason=none trace_ref={ref}"
+        in caplog.text
+    )
+    bridge = mood_rig.app[BRIDGE]
+    bridge._music_move_fence.add(("kitchen", "account-alpha"))
+    preview = await read(mood_rig, cookie="grant", headers={"X-PodView-Trace": "private-invalid"})
+    assert preview["schema"] == "podview.mood-preview.v1" and "candidateSet" not in preview
+    assert (
+        "response=preview candidate_set_present=False selection_allowed=False selection_reason=move_fenced trace_ref=none"
+        in caplog.text
+    )
+    assert "private-invalid" not in caplog.text and trace not in caplog.text
+    monkeypatch.setattr(
+        mood_diagnostics._LOG,
+        "info",
+        lambda *a, **k: (_ for _ in ()).throw(RuntimeError("private")),
+    )
+    assert (await read(mood_rig, cookie="grant"))["schema"] == "podview.mood-preview.v1"
+    assert bridge.controls.music.execute_context.await_count == 0
+
+
+async def test_mood_diagnostic_reports_expired_grant_that_is_still_present(
+    mood_rig, caplog, monkeypatch
+):
+    import logging
+
+    caplog.set_level(logging.INFO, logger="podvoice.mood")
+    bridge = mood_rig.app[BRIDGE]
+    assert bridge._grant_for_token("kitchen", "grant") is not None
+    monkeypatch.setattr(bridge, "_grant_current", lambda *_: False)
+    result = await read(mood_rig, cookie="grant")
+    assert result["schema"] == "podview.mood-preview.v1"
+    assert "selection_allowed=False selection_reason=grant_not_current" in caplog.text
+    assert bridge.controls.music.execute_context.await_count == 0

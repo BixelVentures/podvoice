@@ -93,6 +93,102 @@ async def test_admin_upload_durable_read_and_lost_ack_retry_are_exact(rig):
     assert not rig.timers.command.await_count and not rig.bridge._grants
 
 
+@pytest.mark.parametrize(
+    "code",
+    [
+        "renewal_readonly",
+        "renewal_invalid_dto",
+        "renewal_owner_changed",
+        "renewal_candidate_reused",
+        "renewal_card_nonunique",
+        "renewal_card_mismatch",
+        "renewal_focus_changed",
+        "renewal_cancelled",
+        "renewal_other",
+    ],
+)
+def test_music_renewal_codes_are_accepted_by_closed_validation(code):
+    from gatekeeper.podview_client_diagnostics import parse_batch
+
+    value = batch(
+        SimpleNamespace(boot_id="b" * 32),
+        records=[{"stage": "control_intent", "code": code, "seq": 1, "ageMs": 0}],
+    )
+    assert parse_batch(json.dumps(value).encode()).rows[0]["code"] == code
+
+
+async def test_only_stored_correlated_music_intents_reach_fail_open_client_log(rig, monkeypatch):
+    from gatekeeper import podview as module
+    from gatekeeper.podview_client_diagnostics import DiagnosticFailure
+
+    logged = []
+    monkeypatch.setattr(module._LOG, "info", lambda *args: logged.append(args))
+    row = {
+        "stage": "control_intent",
+        "code": "renewal_readonly",
+        "seq": 1,
+        "ageMs": 0,
+        "domain": "music",
+        "requestId": UUID,
+    }
+    value = batch(
+        rig.bridge,
+        records=[
+            row,
+            {"stage": "request", "code": "ok", "seq": 2, "ageMs": 0},
+            {
+                "stage": "control_intent",
+                "code": "start",
+                "seq": 3,
+                "ageMs": 0,
+                "domain": "music",
+            },
+        ],
+    )
+    assert (await rig.client.post(URL, json=value, headers=HEADERS)).status == 200
+    assert len(logged) == 1
+    message = logged[0][0] % logged[0][1:]
+    assert message == (
+        "client_diagnostics source=client seq=1 requestRef="
+        + hashlib.sha256(UUID.encode()).hexdigest()[:16]
+        + " code=renewal_readonly"
+    )
+    assert UUID not in message and "kitchen" not in message and "a" * 32 not in message
+    assert (await rig.client.post(URL, json=value, headers=HEADERS)).status == 200
+    assert len(logged) == 1
+    invalid = batch(
+        rig.bridge,
+        batchId="11111111-0123-4567-89ab-0123456789ab",
+        records=[{**row, "code": "PRIVATE"}],
+    )
+    assert (await rig.client.post(URL, json=invalid, headers=HEADERS)).status == 400
+    assert (await rig.client.post(URL, json=value, headers={})).status == 403
+    assert len(logged) == 1
+
+    async def unavailable(*args, **kwargs):
+        raise DiagnosticFailure()
+
+    original = rig.bridge.client_diagnostics.append
+    monkeypatch.setattr(rig.bridge.client_diagnostics, "append", unavailable)
+    fresh = batch(
+        rig.bridge,
+        batchId="22222222-0123-4567-89ab-0123456789ab",
+        clientId="33333333-0123-4567-89ab-0123456789ab",
+        records=[row],
+    )
+    assert (await rig.client.post(URL, json=fresh, headers=HEADERS)).status == 503
+    assert len(logged) == 1
+    monkeypatch.setattr(rig.bridge.client_diagnostics, "append", original)
+    monkeypatch.setattr(
+        module._LOG,
+        "info",
+        lambda *args: (_ for _ in ()).throw(RuntimeError("private")),
+    )
+    response = await rig.client.post(URL, json=fresh, headers=HEADERS)
+    assert response.status == 200 and (await response.json())["stored"] is True
+    assert not rig.timers.command.await_count and not rig.bridge._grants
+
+
 @pytest.mark.parametrize("change", [{"bootId": "f" * 32}, {"roomId": "other"}])
 async def test_wrong_boot_or_room_cannot_be_relabelled(rig, change):
     assert (

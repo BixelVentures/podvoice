@@ -66,8 +66,8 @@ export function collectionSelection(source,indices){
  const tracks=[],candidateIds=[];for(const index of indices){const item=source.items.find(row=>row.index===index);if(!Number.isInteger(index)||!source.tracks[index]||!item)return null;tracks.push(source.tracks[index]);candidateIds.push(item.id);}return {...source,tracks,candidateIds};
 }
 const identity=row=>JSON.stringify([row.uri,row.sourceName??row.name??row.title,row.sourceArtist??row.artist??row.description,spotifyArtwork(row.sourceArtwork??row.artwork,row.uri)]);
-export function renewCollectionSelection(source,cards){
- if(!source||!Array.isArray(cards)||!cards.length||cards.length>3)return null;const indices=[];for(const card of cards){const matches=source.tracks.flatMap((track,index)=>identity(track)===identity(card)?[index]:[]);if(matches.length!==1||indices.includes(matches[0]))return null;indices.push(matches[0]);}return collectionSelection(source,indices);
+export function renewCollectionSelection(source,cards,diagnostic){
+ if(!source||!Array.isArray(cards)||!cards.length||cards.length>3){try{diagnostic?.('renewal_other');}catch{}return null;}const indices=[];for(const card of cards){const matches=source.tracks.flatMap((track,index)=>identity(track)===identity(card)?[index]:[]);if(matches.length!==1||indices.includes(matches[0])){try{diagnostic?.(matches.length===0?'renewal_card_mismatch':'renewal_card_nonunique');}catch{}return null;}indices.push(matches[0]);}const result=collectionSelection(source,indices);if(!result)try{diagnostic?.('renewal_other');}catch{}return result;
 }
 
 export function directTargets(body,account,snapshot){

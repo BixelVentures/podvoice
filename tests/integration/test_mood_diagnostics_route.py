@@ -79,7 +79,22 @@ async def test_actual_terminal_record_one_per_attempt_and_cleanup(
     raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
     lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
     for line in raw_lines:
-        durations = dict(pair.split("=") for pair in line.split()[6:])
+        fields = dict(pair.split("=") for pair in line.split()[6:])
+        assert fields.pop("response") in {"none", "preview", "full"}
+        assert fields.pop("candidate_set_present") in {"True", "False"}
+        assert fields.pop("selection_allowed") in {"True", "False", "unknown"}
+        assert fields.pop("selection_reason") in {
+            "none",
+            "other",
+            "room_start_unavailable",
+            "move_fenced",
+            "policy_room_mismatch",
+            "grant_not_current",
+            "tools_changed",
+            "no_eligible_policy_target",
+        }
+        assert fields.pop("trace_ref") == "none"
+        durations = fields
         assert set(durations) == {
             "total_ms",
             "playback_before_ms",
@@ -129,7 +144,22 @@ async def test_total_deadline_diagnostic_uses_inert_expiry_barrier(mood_rig, cap
     raw_lines = [r.getMessage() for r in caplog.records if r.name == "podvoice.mood"]
     lines = [line.split(" total_ms=", 1)[0] for line in raw_lines]
     for line in raw_lines:
-        durations = dict(pair.split("=") for pair in line.split()[6:])
+        fields = dict(pair.split("=") for pair in line.split()[6:])
+        assert fields.pop("response") in {"none", "preview", "full"}
+        assert fields.pop("candidate_set_present") in {"True", "False"}
+        assert fields.pop("selection_allowed") in {"True", "False", "unknown"}
+        assert fields.pop("selection_reason") in {
+            "none",
+            "other",
+            "room_start_unavailable",
+            "move_fenced",
+            "policy_room_mismatch",
+            "grant_not_current",
+            "tools_changed",
+            "no_eligible_policy_target",
+        }
+        assert fields.pop("trace_ref") == "none"
+        durations = fields
         assert set(durations) == {
             "total_ms",
             "playback_before_ms",

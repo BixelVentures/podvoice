@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {musicSourcePage} from '../../podvoice/gatekeeper/static/podview/music-recommendation-model.js';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {collectionCurrent,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
+import {collectionCurrent,selectionOffer,selectionCurrent,renewCollectionSelection} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
 const track=(index,artist)=>({uri:'spotify:track:'+String(index).padStart(22,'0'),name:'Source '+index,artist,artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/cover'+index}});
 const rows=()=>[track(0,'A'),track(1,'A'),track(2,'A'),track(3,'B'),track(4,'B'),track(5,'C'),track(0,'A')];
 const snapshot=()=>({bootId:'boot',roomId:'room',capabilities:{musicRead:['top','recent','targets'],musicSelection:true},answers:{},voice:{}});
@@ -32,3 +32,5 @@ test('read-only deduplicated catalogue stays read-only and small unique source n
  const f=catalogue();try{const body=wire('recent',[track(0,'A'),track(0,'A'),track(0,'A'),track(0,'A')]);delete body.candidateSet;f.view.select('recent');f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.equal(f.renders.at(-1).canChoose,false);f.view.refresh();f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.match(f.view.status,/Ingen andre sange/);assert.equal(f.view.entries.get(f.view.key()).source,null);
  }finally{f.close();}
 });
+
+test('renewal validator reports exact identity mismatch or ambiguity without changing grants',()=>{const source={tracks:[track(1,'A'),track(1,'A')],context:{},items:[{id:'a',index:0},{id:'b',index:1}]},card=track(1,'A'),reasons=[];assert.equal(renewCollectionSelection(source,[card],reason=>reasons.push(reason)),null);assert.deepEqual(reasons,['renewal_card_nonunique']);reasons.length=0;assert.equal(renewCollectionSelection(source,[track(8,'A')],reason=>reasons.push(reason)),null);assert.deepEqual(reasons,['renewal_card_mismatch']);assert.doesNotThrow(()=>renewCollectionSelection(source,[card],()=>{throw Error('diagnostics cannot affect validation')}));});
