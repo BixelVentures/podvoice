@@ -49,16 +49,18 @@ export function weatherObservation(v,includeHourly=true){
 
 // One fixed display deadline from source facts. Delivery and rendering never
 // renew it; the source's shorter hourly limit remains independently binding.
-function weatherFactDeadline(weather,now){
+function weatherFactDeadline(weather,now,allowCurrentOnly=false){
  const timestamp=value=>typeof value==='string'&&/(?:Z|[+-]\d{2}:\d{2})$/.test(value)?Date.parse(value):NaN;
  const retrieved=timestamp(weather.retrievedAt),observed=weather.observedAt*1000,updated=weather.stateUpdatedAt==null?null:timestamp(weather.stateUpdatedAt);
- if(!weather.observationScope||!Number.isFinite(now)||!Number.isFinite(retrieved)||retrieved>now||!Number.isFinite(observed)||observed<retrieved||observed>now||updated!==null&&(!Number.isFinite(updated)||updated>retrieved))return null;
+ if(!weather.observationScope&&!allowCurrentOnly||!Number.isFinite(now)||!Number.isFinite(retrieved)||retrieved>now||!Number.isFinite(observed)||observed<retrieved||observed>now||updated!==null&&(!Number.isFinite(updated)||updated>retrieved))return null;
  if(weather.current===null)return retrieved+7200000;
  return updated!==null?Math.min(retrieved+7200000,updated+7200000):null;
 }
 
-export function weatherFactObservation(value,{now=Date.now(),validUntil=null,stale=false}={}){
- const weather=weatherObservation(value),deadline=weatherFactDeadline(weather,now);
+export function weatherFactObservation(value,{now=Date.now(),validUntil=null,stale=false,allowCurrentOnly=false}={}){
+ const currentOnly=allowCurrentOnly===true&&!stale&&value&&typeof value==='object'&&!Array.isArray(value)&&!Object.hasOwn(value,'observationScope');
+ if(allowCurrentOnly===true&&!currentOnly)return null;
+ const weather=weatherObservation(value),deadline=weatherFactDeadline(weather,now,currentOnly);
  if(deadline===null||deadline<=now)return null;
  let displayUntil=deadline;
  if(validUntil!==null){

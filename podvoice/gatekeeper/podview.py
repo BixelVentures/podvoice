@@ -4578,11 +4578,28 @@ async def _home(request: web.Request) -> web.Response:
         if not admitted:
             weather = {"status": "unavailable", "data": None}
         if admitted:
+            if "currentOnly" in weather and not (
+                weather.get("status") == "observed"
+                and weather["currentOnly"] is True
+                and isinstance(weather.get("data"), dict)
+                and "observationScope" not in weather["data"]
+            ):
+                bridge._weather_fact_history.pop(room, None)
+                slot = None
+                weather = {"status": "unavailable", "data": None}
             if weather.get("status") == "observed":
-                facts = podview_weather.retained_facts(weather.get("data"))
+                data = weather.get("data")
+                current_only = (
+                    weather.get("currentOnly") is True
+                    and isinstance(data, dict)
+                    and "observationScope" not in data
+                )
+                facts = podview_weather.retained_facts(data, require_scope=not current_only)
                 if facts is None:
                     bridge._weather_fact_history.pop(room, None)
                     weather = {"status": "unavailable", "data": None}
+                elif current_only:
+                    bridge._weather_fact_history.pop(room, None)
                 elif (
                     not event_enabled
                     or counts.get("weather") == bridge._home_event_revisions["weather"]

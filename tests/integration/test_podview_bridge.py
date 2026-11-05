@@ -986,6 +986,7 @@ async def test_actual_weather_advice_reaches_home_and_cache_cannot_extend_its_pe
     from gatekeeper import podview_weather
 
     payload, result, fixed = _advice_payload(monkeypatch, temperature=6)
+    result["entity_id"] = "weather.inert"
     result["forecast"][0]["datetime"] = (fixed + timedelta(minutes=5)).isoformat()
     result["forecast"].append(
         {"datetime": (fixed + timedelta(days=1)).isoformat(), "temperature": 6}
@@ -1192,3 +1193,99 @@ async def test_start_receipt_names_only_new_ha_timer_with_existing_snapshot_row(
         assert result["physicalResultVerified"] is False
         assert await bridge.action(body, token) == result
         assert [row["action"] for row in calls if "action" in row] == ["start"]
+
+
+async def test_legacy_weather_absent_entity_is_current_only_and_never_history():
+    from unit.test_weather_result import _PassiveWeatherMCP
+
+    fixture = _PassiveWeatherMCP()
+    fixture.payload["data"]["result"]["entity_id"] = "weather.inert"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as http:
+        tools = await fixture.router(http)
+        session, _ = owner()
+        app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+        bridge = app[BRIDGE]
+        async with TestClient(TestServer(app)) as client:
+            first = await (await client.get("/view/api/home")).json()
+            assert first["weather"]["status"] == "observed"
+            assert first["weather"]["data"]["observationScope"]["entityId"] == "weather.inert"
+            assert "currentOnly" not in first["weather"]
+            assert "kitchen" in bridge._weather_fact_history
+            fixture.payload["data"]["result"].pop("entity_id")
+            bridge._home_cache.clear()
+            current = await (await client.get("/view/api/home")).json()
+            assert current["weather"]["status"] == "observed"
+            assert current["weather"]["currentOnly"] is True
+            assert "observationScope" not in current["weather"]["data"]
+            assert current["weather"]["lastKnown"] is None
+            assert "kitchen" not in bridge._weather_fact_history
+            fixture.payload = {"data": {"success": False}}
+            bridge._home_cache.clear()
+            failed = await (await client.get("/view/api/home")).json()
+            assert failed["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
+            assert len(fixture.calls) == 3
+        tools._refresh.assert_not_awaited()
+        tools._dispatch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("entity", [None, "", {}, "sensor.unrelated"])
+async def test_legacy_weather_present_invalid_entity_cannot_be_current_only(entity):
+    from unit.test_weather_result import _PassiveWeatherMCP
+
+    fixture = _PassiveWeatherMCP()
+    fixture.payload["data"]["result"].update(entity_id=entity, currentOnly=True)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as http:
+        tools = await fixture.router(http)
+        session, _ = owner()
+        app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+        async with TestClient(TestServer(app)) as client:
+            reply = await (await client.get("/view/api/home")).json()
+            assert reply["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
+            assert len(fixture.calls) == 1
+            assert not app[BRIDGE]._weather_fact_history
+        tools._refresh.assert_not_awaited()
+        tools._dispatch.assert_not_awaited()
+
+
+async def test_dual_weather_bad_identity_pair_cannot_downgrade_to_current_only():
+    from unit.test_weather_result import _dual_weather_fixture
+
+    fixture = _dual_weather_fixture()
+    fixture.forecast_payloads["daily"]["data"]["result"]["entity_id"] = "weather.primary"
+    fixture.forecast_payloads["hourly"]["data"]["result"].update(
+        entity_id="weather.other", currentOnly=True
+    )
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as http:
+        tools = await fixture.router(http)
+        session, _ = owner()
+        app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+        async with TestClient(TestServer(app)) as client:
+            reply = await (await client.get("/view/api/home")).json()
+            assert reply["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
+            assert len(fixture.calls) == 2
+            assert not app[BRIDGE]._weather_fact_history
+        tools._refresh.assert_not_awaited()
+        tools._dispatch.assert_not_awaited()
+
+
+@pytest.mark.parametrize("marker", [True, False, None, "true"])
+async def test_scoped_weather_rejects_contradictory_current_only_marker(marker):
+    from unit.test_weather_result import _PassiveWeatherMCP
+
+    fixture = _PassiveWeatherMCP()
+    fixture.payload["data"]["result"]["entity_id"] = "weather.inert"
+    async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as http:
+        tools = await fixture.router(http)
+        session, _ = owner()
+        app = create_app(StatusHub(), {"kitchen": session}, tools=tools, locked=True)
+        async with TestClient(TestServer(app)) as client:
+            first = await (await client.get("/view/api/home")).json()
+            assert first["weather"]["status"] == "observed"
+            assert "kitchen" in app[BRIDGE]._weather_fact_history
+            app[BRIDGE]._home_cache["kitchen"][2]["weather"]["currentOnly"] = marker
+            rejected = await (await client.get("/view/api/home")).json()
+            assert rejected["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
+            assert not app[BRIDGE]._weather_fact_history
+            assert len(fixture.calls) == 1
+        tools._refresh.assert_not_awaited()
+        tools._dispatch.assert_not_awaited()

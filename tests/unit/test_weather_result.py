@@ -393,12 +393,17 @@ class _PassiveWeatherMCP:
 
 async def test_passive_weather_calls_only_admitted_owner_without_mutating_voice_schema():
     fixture = _PassiveWeatherMCP()
+    fixture.payload["data"]["result"]["entity_id"] = "weather.inert"
     async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
         router = await fixture.router(client)
         snapshot, declarations = router._discovery, router.declarations()
         assert router.podview_weather_available()
         projected = await router.podview_weather_read()
         assert projected["status"] == "observed"
+        scope = projected["data"]["observationScope"]
+        assert scope["entityId"] == "weather.inert"
+        assert len(scope["ownerEpoch"]) == 64
+        assert int(scope["ownerEpoch"], 16) >= 0
         assert fixture.calls[0]["params"] == {"name": "weather_forecast", "arguments": {}}
         assert len(fixture.calls) == 1
         assert router._discovery is snapshot and router.declarations() == declarations
@@ -1155,3 +1160,18 @@ def test_retained_weather_90_minute_primary_drops_15_minute_auxiliary_hours():
     assert retained is not None
     assert retained["validUntil"] == r + 7200
     assert "hourly" not in retained["data"]
+
+
+def test_current_only_validation_allows_only_absent_scope_with_same_fact_bounds():
+    data = _retention_facts()
+    data.pop("observationScope")
+    assert retained_facts(data) is None
+    current = retained_facts(data, require_scope=False)
+    assert current is not None and "observationScope" not in current["data"]
+    assert retained_facts(data, now=current["validUntil"], require_scope=False) is None
+    for malformed in (None, {}, {"entityId": "weather.inert", "ownerEpoch": "bad"}):
+        data["observationScope"] = malformed
+        assert retained_facts(data, require_scope=False) is None
+    data.pop("observationScope")
+    data["current"]["temperature"] = float("nan")
+    assert retained_facts(data, require_scope=False) is None

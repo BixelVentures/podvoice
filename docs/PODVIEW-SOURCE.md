@@ -24,15 +24,17 @@ implicitly replaced by a fresh checkout of main.
 ## Source, staging and generated files
 
 Edit the tracked renderer under `podvoice/gatekeeper/static/podview/`.
-Root `dist/` is ignored, disposable build/preview staging. The existing
-`scripts/prepare-podview-checkout.mjs` copies tracked renderer files into `dist/`
-**only when `dist/` does not exist**. It does not synchronize later edits in either
-direction. A successful preview or test therefore does not prove the tracked source
-contains changes made only in staging.
+Root `dist/` is ignored build/preview staging, but may contain in-flight work.
+The existing `scripts/prepare-podview-checkout.mjs` validates the canonical source,
+staging and asset-manifest baseline before writing. It prepares missing staging and
+synchronizes a changed canonical file only when staging still matches the recorded
+baseline. Staging edits, deletions, divergence and unknown baselines stop preparation
+with the exact path; they must not be overwritten to make a build pass.
 
-Before building a changed tracked renderer, inspect any existing `dist/` and preserve
-uncommitted staging work outside the checkout. Once that work is preserved, move the
-old staging directory aside, then use the existing commands from the repository root:
+Inspect a reported conflict and preserve its actual bytes before reconciling the
+specific file against its identified source pin. Preserve the existing directory;
+do not bulk-replace it with another checkout. Run the existing commands from the
+repository root:
 
 ```sh
 npm ci

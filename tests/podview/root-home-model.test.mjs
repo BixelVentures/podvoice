@@ -72,3 +72,12 @@ test('expired bounded source cannot retain passive advice capability while its r
  assert.ok(weatherAdviceCapability(cap,facts,scope,now));
  assert.equal(weatherAdviceCapability(cap,facts,scope,facts.displayUntil),null);
 });
+
+test('explicit legacy current-only weather is bounded, never retained, and never inferred from absent scope',()=>{
+ const now=Date.now(),raw=retainedFacts(now);delete raw.observationScope;const deadline=Date.parse(raw.stateUpdatedAt)+7200000;
+ const direct=weatherFactObservation(raw,{now,allowCurrentOnly:true});assert.equal(direct.current.temperature,10);assert.equal(direct.displayUntil,deadline);assert.equal(direct.observationScope,undefined);assert.equal(weatherFactObservation(raw,{now:deadline,allowCurrentOnly:true}),null);assert.equal(weatherFactObservation(raw,{now}),null);assert.equal(weatherFactObservation(raw,{now,allowCurrentOnly:true,stale:true}),null);assert.equal(weatherFactObservation(raw,{now:deadline,allowCurrentOnly:true,stale:true,validUntil:deadline/1000+3600}),null);
+ const unscopedHourly=weatherFactObservation({...raw,hourly:{...raw,forecastType:'hourly'}},{now,allowCurrentOnly:true});assert.equal(unscopedHourly.hourly,undefined);
+ const good={status:'observed',data:raw,lastKnown:null,currentOnly:true},home=validateHome(retainedHome(good),'room','boot');assert.equal(home.weather.current.temperature,10);assert.equal(home.weather.displayUntil,deadline);const scene=applyHome({devices:[]},home,['weather']);const unavailable=validateHome(retainedHome({status:'unavailable',data:null,lastKnown:null}),'room','boot');assert.equal(applyHome(scene,unavailable,['weather']).liveWeather,null);
+ const variants=[{...good,currentOnly:false},{status:'observed',data:raw,lastKnown:null},{status:'observed',data:raw,currentOnly:true},{...good,lastKnown:{data:raw,validUntil:deadline/1000}},{...good,data:{...raw,observationScope:null}},{...good,data:{...raw,observationScope:{entityId:'weather.actual'}}},{...good,data:{...raw,observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}}},{...good,status:'unavailable',data:null,lastKnown:{data:{...raw,observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}},validUntil:deadline/1000}},{...good,data:{...raw,forecast:null}}];
+ for(const variant of variants){const value=validateHome(retainedHome(variant),'room','boot');assert.equal(value.weather,null,JSON.stringify(variant));assert.equal(applyHome(scene,value,['weather']).liveWeather,null,JSON.stringify(variant));}
+});

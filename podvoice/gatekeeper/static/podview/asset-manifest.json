@@ -487,7 +487,7 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "a496c99016de98d5268971fc1547072743e048465ef71be8b62bc30835ef83f2"
+      "sha256": "24c414bc45a0d653fa8a64feef6a9421092e903908ed40e26572fb5b393a3f6d"
     },
     {
       "path": "index.html",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "becd7b4830fe99f728c31507bc2e95924ef5147573544f7b2888558324887181"
+      "sha256": "26167bfb713c5375dcc9097aaae1e1eb5e80a1673e501b6957b19ef844741da4"
     },
     {
       "path": "library.css",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "93e322d63acecc0e52210187730ffba74126a742f155bc3704f448bd0419e0bb"
+      "sha256": "13e2b20e2b1b4c960089f1cff66129e15685644203fd0bef668297fa37f21dd1"
     },
     {
       "path": "podview.css",
@@ -871,7 +871,7 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "b8061252a603acb966d061afd26e558b7cf1c5576a8685936329e30f3b5f250e"
+      "sha256": "8f70f3d1295a3921318e80d944f11bc9d67c6417e32ca80fe972518449ec184b"
     },
     {
       "path": "weather-view.js",

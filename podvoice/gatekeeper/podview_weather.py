@@ -411,7 +411,9 @@ def with_home_locality(weather: dict, locality: dict | None) -> dict:
     return weather if data == weather["data"] else {**weather, "data": data}
 
 
-def retained_facts(value: object, *, now: float | None = None) -> dict | None:
+def retained_facts(
+    value: object, *, now: float | None = None, require_scope: bool = True
+) -> dict | None:
     """Closed, dated source facts; never a cached grant or generated advice.
 
     This only consumes the existing validated read projection. Revalidation on
@@ -422,7 +424,7 @@ def retained_facts(value: object, *, now: float | None = None) -> dict | None:
     if not isinstance(value, dict):
         return None
     scope = value.get("observationScope")
-    if (
+    if not (not require_scope and "observationScope" not in value) and (
         not isinstance(scope, dict)
         or not isinstance(scope.get("entityId"), str)
         or not re.fullmatch(r"weather\.[a-z0-9_]{1,120}", scope["entityId"])
@@ -519,7 +521,11 @@ def retained_facts(value: object, *, now: float | None = None) -> dict | None:
     keys = ("source", "location", "retrievedAt", "stateUpdatedAt", "observedAt", "forecastType")
     facts = {key: copy.deepcopy(value.get(key)) for key in keys}
     facts.update(
-        observationScope={key: scope[key] for key in ("entityId", "ownerEpoch")},
+        **(
+            {"observationScope": {key: scope[key] for key in ("entityId", "ownerEpoch")}}
+            if isinstance(scope, dict)
+            else {}
+        ),
         units={key: units.get(key) for key in ("temperature", "precipitation", "windSpeed")},
         current=None
         if current is None
@@ -533,6 +539,7 @@ def retained_facts(value: object, *, now: float | None = None) -> dict | None:
     hourly_retrieved = _timestamp(hourly["data"]["retrievedAt"]) if hourly is not None else None
     if (
         hourly is not None
+        and isinstance(scope, dict)
         and hourly_retrieved is not None
         and now < hourly_retrieved.timestamp() + MAX_RETRIEVAL_AGE_S
         and all(

@@ -30,10 +30,12 @@ export function validateHome(value,roomId,bootId){
  }
  // Settings/actions are deliberately excluded until their separate owner
  // contract is implemented. Extra remote fields cannot silently enable controls.
- const weatherRetention=!!value.weather&&Object.hasOwn(value.weather,'lastKnown');
+ const weatherRetention=!!value.weather&&(Object.hasOwn(value.weather,'lastKnown')||Object.hasOwn(value.weather,'currentOnly'));
  let weather=null;
  try{
-  if(value.weather?.status==='observed')weather=weatherRetention?weatherFactObservation(value.weather.data):weatherObservation(value.weather.data);
+  const currentOnlyMarked=!!value.weather&&Object.hasOwn(value.weather,'currentOnly');
+  if(currentOnlyMarked){if(value.weather.status==='observed'&&value.weather.currentOnly===true&&weatherRetention&&value.weather.lastKnown===null)weather=weatherFactObservation(value.weather.data,{allowCurrentOnly:true});}
+  else if(value.weather?.status==='observed')weather=weatherRetention?weatherFactObservation(value.weather.data):weatherObservation(value.weather.data);
   else if(value.weather?.status==='unavailable'&&weatherRetention){
    const known=value.weather.lastKnown;
    if(known&&typeof known==='object'&&!Array.isArray(known)&&Object.keys(known).sort().join(',')==='data,validUntil'&&typeof known.validUntil==='number')weather=weatherFactObservation(known.data,{validUntil:known.validUntil,stale:true});
