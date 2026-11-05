@@ -27,13 +27,13 @@ test('host connection notice and real queue notify once while Radio keeps offlin
  const host={state:{},showFeedback:(message,pending,options)=>queue.update(options.source,message,{pending,...options})};
  const update=connected=>{render.call(host,connectionPresentation({status:connected?'connected':'disconnected',snapshot:{}}));view.render({live:false,connected,stationId:'p3'});};
  update(true);const list=view.list,hero=view.hero;update(false);
- assert.equal(queue.current.source,'connection');assert.match(queue.current.message,/afbrudt/);assert.match(view.stationStatus.textContent,/Ikke forbundet/);assert.equal(view.list.data.connected,false);
- queue.dismiss();const count=rendered.length;
+ assert.equal(queue.current,null);assert.equal(host.connectionNotice.headerLabel,'Forbindelsen er afbrudt');assert.match(view.stationStatus.textContent,/Ikke forbundet/);assert.equal(view.list.data.connected,false);
+ const count=rendered.length;
  // Navigation retains the same canonical Radio renderer and rerenders the host.
  root.hidden=true;update(false);root.hidden=false;update(false);
  assert.equal(rendered.length,count);assert.equal(queue.current,null);assert.equal(view.list,list);assert.equal(view.hero,hero);assert.match(view.stationStatus.textContent,/Kontrollér forbindelsen/);
  root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.deepEqual(calls,[]);
- update(true);update(false);assert.equal(queue.current.source,'connection');assert.equal(rendered.length,count+1,'a genuinely new loss may notify again');
+ update(true);update(false);assert.equal(queue.current,null);assert.equal(host.connectionNotice.headerLabel,'Forbindelsen er afbrudt');assert.equal(rendered.length,count,'persistent status does not create a duplicate toast');
  queue.cleanup();view.destroy();assert.equal(timers.size,0);
 });
 

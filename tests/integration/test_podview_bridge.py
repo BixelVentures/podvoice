@@ -159,6 +159,12 @@ async def test_unknown_outcome_is_fenced_and_never_retried(caplog, request_id):
         + hashlib.sha256(body["requestId"].encode(errors="surrogatepass")).hexdigest()[:16]
         in failure_records[0]
     )
+    native_request = hashlib.sha256(
+        json.dumps(["podview:" + bridge.boot_id, "kitchen", request_id]).encode()
+    ).hexdigest()
+    native_ref = hashlib.sha256(native_request.encode()).hexdigest()[:16]
+    timer_traces = [record for record in records if record.startswith("podview_timer ")]
+    assert timer_traces and all(f"native_ref={native_ref}" in record for record in timer_traces)
     assert "PRIVATE" not in caplog.text and body["requestId"] not in caplog.text
     assert f"version={__version__}" in failure_records[0]
     assert all(r.exc_info is None for r in caplog.records if r.name == "podvoice.podview")
@@ -1289,3 +1295,191 @@ async def test_scoped_weather_rejects_contradictory_current_only_marker(marker):
             assert len(fixture.calls) == 1
         tools._refresh.assert_not_awaited()
         tools._dispatch.assert_not_awaited()
+
+
+def _adjustable_timer_bridge():
+    session, timers = owner()
+    row = timers.snapshots["kitchen"]["timers"][0]
+    row.update(duration_seconds=120, revision="900719925474099312345")
+    timers.adjust_available = lambda room, timer_id=None: (
+        room == "kitchen" and timer_id in (None, "t1")
+    )
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = {
+        **envelope(bridge),
+        "action": "timer.adjust",
+        "args": {"timer_id": "t1", "delta_seconds": 60, "expected_revision": row["revision"]},
+    }
+
+    async def dispatch(
+        name, args, room, session_id, request_id, execution_guard=None, deadline=None
+    ):
+        assert name == "podvoice_adjust_timer" and execution_guard()
+        assert deadline > podview.time.monotonic()
+        return {
+            "ok": True,
+            "epoch": "a" * 32,
+            "request_id": hashlib.sha256(
+                json.dumps([session_id, room, request_id]).encode()
+            ).hexdigest(),
+            "id": "t1",
+            "delta_seconds": 60,
+            "expected_revision": row["revision"],
+            "revision": "900719925474099312346",
+            "duration_seconds": 180,
+            "seconds_left": 120,
+            "state": "active",
+        }
+
+    timers.dispatch = AsyncMock(side_effect=dispatch)
+    return bridge, timers, token, body
+
+
+async def test_native_adjust_bridge_projects_segment_and_exact_correlated_receipt_once():
+    bridge, timers, token, body = _adjustable_timer_bridge()
+    snapshot = bridge.snapshot("kitchen", token)
+    row = snapshot["timers"]["items"][0]
+    assert row["durationSeconds"] == 120 and row["sourceRevision"] == "900719925474099312345"
+    assert snapshot["capabilities"]["timerActions"] == [
+        "timer.start",
+        "timer.cancel",
+        "timer.adjust",
+    ]
+    first = await bridge.action(body, token)
+    assert first["outcome"] == "accepted" and first["ok"] is True
+    assert first["timerId"] == "t1" and first["deltaSeconds"] == 60
+    assert first["expectedSourceRevision"] == "900719925474099312345"
+    assert first["sourceRevision"] == "900719925474099312346"
+    assert first["durationSeconds"] == 180 and first["secondsLeft"] == 120
+    assert first["status"] == "running" and first["physicalResultVerified"] is False
+    assert await bridge.action(body, token) == first
+    assert timers.dispatch.await_count == 1
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        {"request_id": "unrelated"},
+        {"delta_seconds": 61},
+        {"expected_revision": "900719925474099312344"},
+        {"revision": "900719925474099312345"},
+        {"seconds_left": 181},
+        {"duration_seconds": None},
+        {"state": "finished"},
+        {"epoch": "b" * 32},
+    ],
+)
+async def test_native_adjust_bridge_never_accepts_mismatched_or_malformed_native_proof(invalid):
+    bridge, timers, token, body = _adjustable_timer_bridge()
+    original = timers.dispatch.side_effect
+
+    async def dispatch(*args, **kwargs):
+        return {**await original(*args, **kwargs), **invalid}
+
+    timers.dispatch.side_effect = dispatch
+    receipt = await bridge.action(body, token)
+    assert receipt["outcome"] == "unknown" and receipt["ok"] is False
+    assert "sourceRevision" not in receipt
+    assert await bridge.action(body, token) == receipt
+    assert timers.dispatch.await_count == 1
+
+
+@pytest.mark.parametrize("outcome", ["rejected", "unknown"])
+async def test_native_adjust_bridge_preserves_definite_rejection_and_unknown_without_replay(
+    outcome,
+):
+    bridge, timers, token, body = _adjustable_timer_bridge()
+    timers.dispatch = AsyncMock(return_value={"ok": False, "outcome": outcome})
+    receipt = await bridge.action(body, token)
+    assert receipt["outcome"] == outcome and receipt["retryAllowed"] is False
+    assert await bridge.action(body, token) == receipt
+    assert timers.dispatch.await_count == 1
+
+
+@pytest.mark.parametrize(
+    "invalid", [{"revision": None}, {"revision": "01"}, {"duration_seconds": 30}]
+)
+def test_native_timer_invalid_segment_metadata_cannot_fall_back_to_historical_duration(invalid):
+    bridge, timers, token, _ = _adjustable_timer_bridge()
+    timers.snapshots["kitchen"]["timers"][0].update(invalid)
+    snapshot = bridge.snapshot("kitchen", token)
+    assert snapshot["timers"]["status"] == "unavailable" and snapshot["timers"]["items"] == []
+    assert snapshot["capabilities"]["timerActions"] == []
+
+
+async def test_native_timer_adjust_requires_negotiated_capability_and_exact_current_revision():
+    bridge, timers, token, body = _adjustable_timer_bridge()
+    wrong = {**body, "args": {**body["args"], "expected_revision": "900719925474099312344"}}
+    assert (await bridge.action(wrong, token))["error"] == "unsupported_action"
+    timers.adjust_available = lambda *args: False
+    assert bridge.snapshot("kitchen", token)["capabilities"]["timerActions"] == [
+        "timer.start",
+        "timer.cancel",
+    ]
+    assert (await bridge.action(body, token))["error"] == "unsupported_action"
+    assert timers.dispatch.await_count == 0
+
+
+@pytest.mark.parametrize("change", ["countdown", "voice"])
+async def test_native_adjust_survives_unrelated_snapshot_revision_with_same_native_revision(change):
+    bridge, timers, token, body = _adjustable_timer_bridge()
+    if change == "countdown":
+        timers.snapshots["kitchen"]["timers"][0]["seconds_left"] = 59
+    else:
+        bridge.sessions["kitchen"]._active = False
+    assert bridge.snapshot("kitchen")["revision"] > body["revision"]
+    assert (await bridge.action(body, token))["outcome"] == "accepted"
+    assert timers.dispatch.await_count == 1
+
+
+@pytest.mark.parametrize("revision", [0, True, 999999])
+async def test_native_adjust_rejects_invalid_or_future_enclosing_revision(revision):
+    bridge, timers, token, body = _adjustable_timer_bridge()
+    assert (await bridge.action({**body, "revision": revision}, token))["error"] == "stale_action"
+    assert timers.dispatch.await_count == 0
+
+
+async def test_exact_cancel_preempts_held_native_adjust_without_waiting_or_replay():
+    bridge, timers, token, adjust = _adjustable_timer_bridge()
+    cancel = {
+        **adjust,
+        "requestId": "cancel-held-adjust",
+        "action": "timer.cancel",
+        "args": {"timer_id": "t1"},
+    }
+    entered, release, cancelled = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    original = timers.dispatch.side_effect
+    effects = []
+
+    async def dispatch(name, args, *pos, **kwargs):
+        if name == "podvoice_cancel_timer":
+            effects.append("cancel")
+            timers.snapshots["kitchen"]["timers"].clear()
+            cancelled.set()
+            return {"ok": True, "id": "t1"}
+        result = await original(name, args, *pos, **kwargs)
+        effects.append("adjust")
+        timers.snapshots["kitchen"]["timers"][0].update(
+            duration_seconds=180, revision="900719925474099312346", seconds_left=120
+        )
+        entered.set()
+        await release.wait()
+        return result
+
+    timers.dispatch.side_effect = dispatch
+    pending = asyncio.create_task(bridge.action(adjust, token))
+    await entered.wait()
+    stopping = asyncio.create_task(bridge.action(cancel, token))
+    try:
+        await asyncio.wait_for(cancelled.wait(), 0.2)
+        assert not pending.done()
+        receipt = await stopping
+        assert receipt["outcome"] == "accepted"
+        assert bridge.snapshot("kitchen")["timers"]["items"] == []
+    finally:
+        release.set()
+        await asyncio.gather(pending, stopping)
+    assert effects == ["adjust", "cancel"]
+    assert await bridge.action(cancel, token) == receipt
+    assert effects == ["adjust", "cancel"]

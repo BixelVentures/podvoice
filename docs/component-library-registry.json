@@ -1902,7 +1902,8 @@
           "function:readTimerDuration": 1,
           "function:timerProgress": 1,
           "function:timerTransition": 1,
-          "arrow:timerFinishLabel": 1
+          "arrow:timerFinishLabel": 1,
+          "function:timerAdjustmentBounds": 1
         },
         "roots": [],
         "registrations": {},
@@ -1941,7 +1942,7 @@
     "dist/timer-view.js": {
       "status": "approved-renderer",
       "domOwner": "TimerView",
-      "compositionScope": "Latest direct user decision: exactly one timer. Running/paused blocks new creation and duration changes until cancellation/completion. No replacement dialog. Existing canonical timer owner and hero; no new family or live authority. Direct user21Oct14.00: same TimerView ring/copy become read-only siblings in active overview bar; same two existing native Buttons use Cancel then detail chevron focus order. No new action/family.",
+      "compositionScope": "Latest direct user decision: exactly one timer. Running/paused blocks new creation. Later UI-DELIVERY-GOAL52 admits source-owned native v2 adjustment by60 seconds in active detail only, using the existing64px Timer stepper Buttons and progress feedback; fresh sourceRevision/duration and offered capability required. Pending adjustment retains exact Cancel. No local duration rewrite or native Pause. No replacement dialog. Existing canonical timer owner and hero; no new family or live authority. Direct user21Oct14.00: same TimerView ring/copy become read-only siblings in active overview bar; same two existing native Buttons use Cancel then detail chevron focus order. No new action/family.",
       "factoryClassArgument": 1,
       "imports": [
         "dist/timer-model.js",
@@ -1968,7 +1969,8 @@
           "method:updatePicker": 1,
           "method:completeStartNavigation": 1,
           "arrow:stop": 1,
-          "method:presentationTimer": 1
+          "method:presentationTimer": 1,
+          "method:renderTimerActions": 1
         },
         "roots": [
           "html:button:timer-adjust",

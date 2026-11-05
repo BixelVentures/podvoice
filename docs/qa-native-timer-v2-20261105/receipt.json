@@ -1,0 +1,23 @@
+{
+  "product": "bece3a5163f7e8371447ab1f94af1456add255ce09d7368c4374f1677915cd84",
+  "css": "82449bc64c241d88245d0d288687d8f2502827fa6936ce3edef93c5e4c08aec4",
+  "library": "f994b8b3da8e8b2f293045f2a7b9da0999cc0385675dc9016a67a7f63641e220",
+  "sourceBase": "cc77852a688dbdbd6eaa4b779488a851e9be7c7e (134 final; provenance oracle also adopted)",
+  "scope": "actual Chrome touch -> PodView -> ToolRouter -> native TimerBridge with inert Core/service transport; separate actual pinned Core2026.8.2 framework gate",
+  "nativeEffects": "6 explicit adjust requests /6 add_time effects;2 read-only lookups;3 explicit cancel;0 real devices/audio",
+  "visualReview": "Product Design/Impeccable scoped PASS: existing TimerView dark Hero and64px Button roles compared with existing library detail/draft references; product normal/pending at1280/1200x800. Library is local demo, not live authority. Root personally inspected stable1200 and pending1280; no duplicate header, clipping or overlap in affected Timer.",
+  "regressions": "held adjust -> Cancel reaches native before release -> late accepted receipt cannot resurrect; UNKNOWN never replayed or reported confirmed; original Start observed plus signed adjustments persist in journal",
+  "loggingOnlyDeltaAfterBrowser": "closed native UNKNOWN phase/recovery log plus hashed native_ref join in existing touch log; focused fault/log tests passed; no wire, effect, renderer or build changes",
+  "physicalAcceptance": "NOT RUN. Green still133;134 published. No real audio until6Nov08:00 Europe/Copenhagen. Updated native integration must be installed and v2discovery observed before live adjust is offered.",
+  "files": {
+    "podview-timer-adjust-proof.json": "043ab1be2b51e026cf0b07a6cfdc63cec220b954ed36ef35a29e2038704b44ce",
+    "podview-timer-adjust-1280.png": "9a9c7dd5bc88fb0b906a2118a1c9f2e92197916456c5ffb339c3d849f4e1d6c1",
+    "podview-timer-adjust-1200.png": "58da640e78a9e6466f5a3b261d853a5ab075a7668515927bc9af2f5072f39456",
+    "podview-timer-adjust-pending-1280.png": "cdd0a46108cb5687d026ee73163ee280b8c347db4cea0fada7c0d794b5681c59",
+    "podview-timer-adjust-pending-1200.png": "e007c4a0058d70cf09dda4bb0795b1728c8a202be0ef2e2b8ba644e8b93b8ab6",
+    "podview-timer-library-local-running.png": "6d8e9f391fe51599a2814bd759e1d997e3befc4dfb97b067d8e0bae61ce0be58",
+    "podview-timer-library-local-stepper.png": "7e13083ee39061dae468a593fc6fcea14ed33cf66cc5d95379ee9e76f23330ec"
+  },
+  "reconciledPublishedBase": "fe22a542ded9755cbea2b83c56e11ba287e9577a",
+  "adoption": "Published main merged; source/runtime evidence unchanged; published134admission profile preserved"
+}

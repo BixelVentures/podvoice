@@ -10,6 +10,12 @@ export function timerProgress(timer){
  const {duration,remaining}=timer||{};
  return Number.isFinite(duration)&&duration>0&&Number.isFinite(remaining)&&remaining>=0&&remaining<=duration?remaining/duration*100:null;
 }
+// Source metadata admits an adjustment; it never rewrites the local countdown.
+export function timerAdjustmentBounds(timer){
+ const {duration,remaining,sourceRevision,status,stale}=timer||{};
+ if(stale||!['running','paused'].includes(status)||!Number.isInteger(duration)||duration<1||duration>86400||!Number.isFinite(remaining)||remaining<=0||remaining>duration||typeof sourceRevision!=='string'||!/^(0|[1-9][0-9]*)$/.test(sourceRevision))return null;
+ return {minus:remaining>60,plus:duration+60<=86400};
+}
 export const visibleTimers=s=>timersFor(s).filter(t=>t.status!=='cancelled'&&!t.hidden);
 const mapTimers=(s,fn)=>{const timer=s.timer?fn(s.timer):null,extraTimers=(s.extraTimers||[]).map(fn);return timer===s.timer&&extraTimers.every((t,i)=>t===s.extraTimers[i])?s:{...s,timer,extraTimers};};
 export function timerTransition(s,e){

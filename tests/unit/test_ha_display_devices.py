@@ -99,6 +99,7 @@ async def setup(monkeypatch):
     for key in (
         "READ_SCHEMA",
         "COMMAND_SCHEMA",
+        "COMMAND_V2_SCHEMA",
         "ADMIN_SCHEMA",
         "ADMIN_APPROVE_SCHEMA",
         "ADMIN_REVOKE_IDENTITY_SCHEMA",
@@ -108,6 +109,7 @@ async def setup(monkeypatch):
         namespace[key] = object()
     exec(compile(ast.Module(body=[node], type_ignores=[]), str(source), "exec"), namespace)
     assert await namespace["async_setup_entry"](hass, entry)
+    assert services["timer_command_v2"] is services["timer_command"]
     return SimpleNamespace(
         api=api,
         hass=hass,

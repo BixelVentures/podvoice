@@ -1234,7 +1234,14 @@ class ToolRouter:
         timer_endpoints = {
             endpoint: self.timers.available(endpoint) for endpoint in self.timers.bindings
         }
-        timer_names = sorted(TIMER_TOOLS) if any(timer_endpoints.values()) else []
+        timer_names = sorted(
+            {
+                row["name"]
+                for endpoint, available in timer_endpoints.items()
+                if available
+                for row in self.timers.declarations(endpoint)
+            }
+        )
         names.extend(name for name in timer_names if name not in names)
 
         current = self._discovery.retry_state in {"ready", "disabled"}

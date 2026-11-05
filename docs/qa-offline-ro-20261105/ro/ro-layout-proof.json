@@ -1,0 +1,1143 @@
+{
+  "pins": {
+    "podview.css": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6",
+    "podview.bundle.js": "da7bfef5e96e2aed34dfed543288513c7f4e3d7af3f1c2402c55fc80cd04fc2c"
+  },
+  "proof": [
+    {
+      "viewport": [
+        1280,
+        800
+      ],
+      "focus": "photo",
+      "frame": {
+        "x": 24,
+        "y": 24,
+        "width": 1232,
+        "height": 752,
+        "right": 1256,
+        "bottom": 776
+      },
+      "rail": {
+        "hidden": false,
+        "rect": {
+          "x": 48,
+          "y": 544,
+          "width": 320,
+          "height": 208,
+          "right": 368,
+          "bottom": 752
+        },
+        "items": [
+          {
+            "kind": "timer",
+            "rect": {
+              "x": 48,
+              "y": 544,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 640
+            }
+          },
+          {
+            "kind": "vacuum",
+            "rect": {
+              "x": 48,
+              "y": 656,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 752
+            }
+          }
+        ]
+      },
+      "player": {
+        "rect": {
+          "x": 842,
+          "y": 656,
+          "width": 390,
+          "height": 96,
+          "right": 1232,
+          "bottom": 752
+        },
+        "minWidth": "0px",
+        "grid": "32px 310px"
+      },
+      "navigation": {
+        "rect": {
+          "x": 842,
+          "y": 656,
+          "width": 390,
+          "height": 96,
+          "right": 1232,
+          "bottom": 752
+        },
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "timerId": "1",
+      "gap": 474
+    },
+    {
+      "viewport": [
+        1200,
+        800
+      ],
+      "focus": "photo",
+      "frame": {
+        "x": 24,
+        "y": 24,
+        "width": 1152,
+        "height": 752,
+        "right": 1176,
+        "bottom": 776
+      },
+      "rail": {
+        "hidden": false,
+        "rect": {
+          "x": 48,
+          "y": 544,
+          "width": 320,
+          "height": 208,
+          "right": 368,
+          "bottom": 752
+        },
+        "items": [
+          {
+            "kind": "timer",
+            "rect": {
+              "x": 48,
+              "y": 544,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 640
+            }
+          },
+          {
+            "kind": "vacuum",
+            "rect": {
+              "x": 48,
+              "y": 656,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 752
+            }
+          }
+        ]
+      },
+      "player": {
+        "rect": {
+          "x": 762,
+          "y": 656,
+          "width": 390,
+          "height": 96,
+          "right": 1152,
+          "bottom": 752
+        },
+        "minWidth": "0px",
+        "grid": "32px 310px"
+      },
+      "navigation": {
+        "rect": {
+          "x": 762,
+          "y": 656,
+          "width": 390,
+          "height": 96,
+          "right": 1152,
+          "bottom": 752
+        },
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "timerId": "1",
+      "gap": 394
+    },
+    {
+      "viewport": [
+        980,
+        800
+      ],
+      "focus": "photo",
+      "frame": {
+        "x": 24,
+        "y": 24,
+        "width": 932,
+        "height": 752,
+        "right": 956,
+        "bottom": 776
+      },
+      "rail": {
+        "hidden": false,
+        "rect": {
+          "x": 48,
+          "y": 544,
+          "width": 320,
+          "height": 208,
+          "right": 368,
+          "bottom": 752
+        },
+        "items": [
+          {
+            "kind": "timer",
+            "rect": {
+              "x": 48,
+              "y": 544,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 640
+            }
+          },
+          {
+            "kind": "vacuum",
+            "rect": {
+              "x": 48,
+              "y": 656,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 752
+            }
+          }
+        ]
+      },
+      "player": {
+        "rect": {
+          "x": 542,
+          "y": 656,
+          "width": 390,
+          "height": 96,
+          "right": 932,
+          "bottom": 752
+        },
+        "minWidth": "0px",
+        "grid": "32px 310px"
+      },
+      "navigation": {
+        "rect": {
+          "x": 542,
+          "y": 656,
+          "width": 390,
+          "height": 96,
+          "right": 932,
+          "bottom": 752
+        },
+        "scrollWidth": 390,
+        "clientWidth": 390
+      },
+      "timerId": "1",
+      "gap": 174
+    },
+    {
+      "viewport": [
+        768,
+        800
+      ],
+      "focus": "photo",
+      "frame": {
+        "x": 24,
+        "y": 24,
+        "width": 720,
+        "height": 752,
+        "right": 744,
+        "bottom": 776
+      },
+      "rail": {
+        "hidden": false,
+        "rect": {
+          "x": 48,
+          "y": 544,
+          "width": 320,
+          "height": 208,
+          "right": 368,
+          "bottom": 752
+        },
+        "items": [
+          {
+            "kind": "timer",
+            "rect": {
+              "x": 48,
+              "y": 544,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 640
+            }
+          },
+          {
+            "kind": "vacuum",
+            "rect": {
+              "x": 48,
+              "y": 656,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 752
+            }
+          }
+        ]
+      },
+      "player": {
+        "rect": {
+          "x": 384,
+          "y": 656,
+          "width": 336,
+          "height": 96,
+          "right": 720,
+          "bottom": 752
+        },
+        "minWidth": "0px",
+        "grid": "32px 256px"
+      },
+      "navigation": {
+        "rect": {
+          "x": 384,
+          "y": 656,
+          "width": 336,
+          "height": 96,
+          "right": 720,
+          "bottom": 752
+        },
+        "scrollWidth": 336,
+        "clientWidth": 336
+      },
+      "timerId": "1",
+      "gap": 16
+    },
+    {
+      "viewport": [
+        768,
+        1024
+      ],
+      "focus": "photo",
+      "frame": {
+        "x": 24,
+        "y": 24,
+        "width": 720,
+        "height": 976,
+        "right": 744,
+        "bottom": 1000
+      },
+      "rail": {
+        "hidden": false,
+        "rect": {
+          "x": 48,
+          "y": 768,
+          "width": 320,
+          "height": 208,
+          "right": 368,
+          "bottom": 976
+        },
+        "items": [
+          {
+            "kind": "timer",
+            "rect": {
+              "x": 48,
+              "y": 768,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 864
+            }
+          },
+          {
+            "kind": "vacuum",
+            "rect": {
+              "x": 48,
+              "y": 880,
+              "width": 320,
+              "height": 96,
+              "right": 368,
+              "bottom": 976
+            }
+          }
+        ]
+      },
+      "player": {
+        "rect": {
+          "x": 384,
+          "y": 880,
+          "width": 336,
+          "height": 96,
+          "right": 720,
+          "bottom": 976
+        },
+        "minWidth": "0px",
+        "grid": "32px 256px"
+      },
+      "navigation": {
+        "rect": {
+          "x": 384,
+          "y": 880,
+          "width": 336,
+          "height": 96,
+          "right": 720,
+          "bottom": 976
+        },
+        "scrollWidth": 336,
+        "clientWidth": 336
+      },
+      "timerId": "1",
+      "gap": 16
+    }
+  ],
+  "noRail": {
+    "viewport": [
+      768,
+      1024
+    ],
+    "focus": "photo",
+    "frame": {
+      "x": 24,
+      "y": 24,
+      "width": 720,
+      "height": 976,
+      "right": 744,
+      "bottom": 1000
+    },
+    "rail": {
+      "hidden": true,
+      "rect": {
+        "x": 0,
+        "y": 0,
+        "width": 0,
+        "height": 0,
+        "right": 0,
+        "bottom": 0
+      },
+      "items": []
+    },
+    "player": {
+      "rect": {
+        "x": 330,
+        "y": 880,
+        "width": 390,
+        "height": 96,
+        "right": 720,
+        "bottom": 976
+      },
+      "minWidth": "0px",
+      "grid": "32px 310px"
+    },
+    "navigation": {
+      "rect": {
+        "x": 330,
+        "y": 880,
+        "width": 390,
+        "height": 96,
+        "right": 720,
+        "bottom": 976
+      },
+      "scrollWidth": 390,
+      "clientWidth": 390
+    }
+  },
+  "final": {
+    "stateReads": 5,
+    "connections": 1,
+    "subscriptions": 4,
+    "state": "docked",
+    "writes": [],
+    "readHeld": false,
+    "transport": {
+      "eventResponses": 1,
+      "eventEOFs": 0,
+      "apiFailures": 0,
+      "blocked": false,
+      "snapshotHeld": false
+    },
+    "nativeTimer": {
+      "starts": 1,
+      "ids": [],
+      "commands": [
+        {
+          "endpoint": "kitchen",
+          "epoch": "566bcc13c790d7aa0c8b4f4ad36c19de",
+          "request_id": "6679c1dac91e72d3d498a5807188de0b52ca9511166d02b29d37da8c5b5153a8",
+          "action": "start",
+          "seconds": 300,
+          "name": ""
+        },
+        {
+          "endpoint": "kitchen",
+          "epoch": "566bcc13c790d7aa0c8b4f4ad36c19de",
+          "request_id": "04c431300e2da2506bd78b3ab4f175d49a4c8ec1de7c193a451da49336248e6b",
+          "action": "cancel",
+          "timer_id": "1"
+        }
+      ]
+    },
+    "weather": {
+      "failed": false,
+      "reads": [
+        {
+          "at": 1793909510.048387,
+          "forecastType": "daily",
+          "failed": false
+        },
+        {
+          "at": 1793909510.048769,
+          "forecastType": "hourly",
+          "failed": false
+        },
+        {
+          "at": 1793909510.350415,
+          "forecastType": "daily",
+          "failed": false
+        },
+        {
+          "at": 1793909510.350699,
+          "forecastType": "hourly",
+          "failed": false
+        },
+        {
+          "at": 1793909512.916362,
+          "forecastType": "daily",
+          "failed": false
+        },
+        {
+          "at": 1793909512.916606,
+          "forecastType": "hourly",
+          "failed": false
+        }
+      ],
+      "sources": {
+        "daily": {
+          "source": "Home Assistant / Met.no",
+          "location": "Inert vejrsted",
+          "retrieved_at": "2026-11-05T20:11:49.333614+00:00",
+          "state_updated_at": "2026-11-05T20:11:49.333614+00:00",
+          "condition": "partlycloudy",
+          "temperature": 15.1,
+          "temperature_unit": "°C",
+          "precipitation_unit": "mm",
+          "wind_speed_unit": "km/h",
+          "forecast_type": "daily",
+          "forecast": [
+            {
+              "datetime": "2026-11-05T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.399999999999999
+            },
+            {
+              "datetime": "2026-11-06T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.5
+            },
+            {
+              "datetime": "2026-11-07T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.599999999999998
+            },
+            {
+              "datetime": "2026-11-08T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.7
+            },
+            {
+              "datetime": "2026-11-09T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.799999999999997
+            },
+            {
+              "datetime": "2026-11-10T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.899999999999999
+            }
+          ],
+          "entity_id": "weather.inert"
+        },
+        "hourly": {
+          "source": "Home Assistant / Met.no",
+          "location": "Inert vejrsted",
+          "retrieved_at": "2026-11-05T20:11:49.333614+00:00",
+          "state_updated_at": "2026-11-05T20:11:49.333614+00:00",
+          "condition": "partlycloudy",
+          "temperature": 15.1,
+          "temperature_unit": "°C",
+          "precipitation_unit": "mm",
+          "wind_speed_unit": "km/h",
+          "forecast_type": "hourly",
+          "forecast": [
+            {
+              "datetime": "2026-11-05T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T21:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T22:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T23:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T00:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T01:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T02:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T03:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T04:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T05:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T06:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T07:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T08:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T09:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T10:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T11:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T12:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T13:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T14:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T15:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T16:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T17:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T18:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T19:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T20:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T21:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T22:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T23:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T00:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T01:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T02:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T03:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T04:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T05:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T06:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T07:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T08:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T09:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T10:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T11:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T12:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T13:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T14:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T15:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T16:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T17:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T18:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 21,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T19:08:29.333614+00:00",
+              "condition": "partlycloudy",
+              "temperature": 21.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            }
+          ],
+          "entity_id": "weather.inert"
+        }
+      }
+    }
+  },
+  "errors": []
+}

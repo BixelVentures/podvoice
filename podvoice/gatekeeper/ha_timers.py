@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import copy
 import hashlib
 import json
 import math
@@ -12,7 +14,12 @@ import httpx
 
 from . import constants as C
 
-TOOLS = {"podvoice_start_timer", "podvoice_timer_status", "podvoice_cancel_timer"}
+TOOLS = {
+    "podvoice_start_timer",
+    "podvoice_timer_status",
+    "podvoice_cancel_timer",
+    "podvoice_adjust_timer",
+}
 _FIELDS = {
     "endpoint",
     "epoch",
@@ -27,11 +34,27 @@ _FIELDS = {
     "sink_id",
 }
 
+_ACTIONS = ["start", "cancel", "acknowledge_finished", "claim_alert", "report_alert"]
+_V2_FIELDS = _FIELDS | {"delta_seconds", "expected_revision", "lookup_only"}
+
+
+def _revision(value: object) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"(?:0|[1-9][0-9]{0,23})", value) is not None
+
+
+def _adjust_metadata(row: dict) -> bool:
+    return (
+        type(row.get("duration_seconds")) is int
+        and 1 <= row["duration_seconds"] <= 86400
+        and _revision(row.get("revision"))
+    )
+
 
 class HomeAssistantTimers:
     def __init__(self, client: httpx.AsyncClient | None, token: str) -> None:
         self.client, self.token = client, token
         self.contract = ""
+        self.command_service = "timer_command"
         self.bindings: dict[str, tuple[str, str] | tuple[str, str, str]] = {}
         self._registered_invalid: set[str] = set()
         self._registered_reads: dict[str, int] = {}
@@ -41,28 +64,54 @@ class HomeAssistantTimers:
 
     def discover(self, domains: list) -> None:
         self.contract = ""
+        self.command_service = "timer_command"
         for domain in domains:
             if domain.get("domain") != "podvoice":
                 continue
             services = domain.get("services", {})
             status, command = services.get("timer_status", {}), services.get("timer_command", {})
-            if (
-                status.get("response") != {"optional": False}
-                or command.get("response") != {"optional": False}
-                or set(status.get("fields", {})) != {"endpoint"}
-                or set(command.get("fields", {})) != _FIELDS
-            ):
+
+            def valid(command, fields, actions):
+                metadata = command.get("fields") if isinstance(command, dict) else None
+                action = metadata.get("action") if isinstance(metadata, dict) else None
+                selector = action.get("selector") if isinstance(action, dict) else None
+                select = selector.get("select") if isinstance(selector, dict) else None
+                return (
+                    isinstance(command, dict)
+                    and command.get("response") == {"optional": False}
+                    and isinstance(metadata, dict)
+                    and set(metadata) == fields
+                    and isinstance(select, dict)
+                    and select.get("options") == actions
+                )
+
+            if status.get("response") != {"optional": False} or set(status.get("fields", {})) != {
+                "endpoint"
+            }:
                 return
-            actions = (
-                command["fields"]["action"].get("selector", {}).get("select", {}).get("options")
-            )
-            if actions != [
-                "start",
-                "cancel",
-                "acknowledge_finished",
-                "claim_alert",
-                "report_alert",
-            ]:
+            v2 = services.get("timer_command_v2", {})
+            if valid(v2, _V2_FIELDS, [*_ACTIONS, "adjust"]):
+                fields = v2["fields"]
+                selectors: dict[str, dict] = {
+                    key: {"text": None} for key in _V2_FIELDS - {"action"}
+                }
+                selectors["seconds"] = {"number": {"min": 1, "max": 86400, "mode": "box"}}
+                selectors["delta_seconds"] = {
+                    "number": {"min": -86400, "max": 86400, "mode": "box"}
+                }
+                selectors["lookup_only"] = {"boolean": None}
+                if (
+                    all(
+                        isinstance(fields[key], dict)
+                        and fields[key].get("selector") == selector
+                        and fields[key].get("required", False)
+                        is (key in {"endpoint", "epoch", "request_id"})
+                        for key, selector in selectors.items()
+                    )
+                    and fields["action"].get("required") is True
+                ):
+                    self.command_service = "timer_command_v2"
+            if self.command_service != "timer_command_v2" and not valid(command, _FIELDS, _ACTIONS):
                 return
             self.contract = hashlib.sha256(
                 json.dumps(services, sort_keys=True).encode()
@@ -100,13 +149,18 @@ class HomeAssistantTimers:
             and time.monotonic() - self.observed_at.get(endpoint, 0) <= 15
         )
 
-    async def _service(self, service: str, args: dict, *, mutation: bool = False) -> dict:
-        if not self.client or not self.token or not self.contract:
+    async def _service(
+        self, service: str, args: dict, *, mutation: bool = False, source=None
+    ) -> dict:
+        client, token, contract = (
+            source if source is not None else (self.client, self.token, self.contract)
+        )
+        if not client or not token or not contract:
             return {"ok": False, "error_kind": "timer_unavailable"}
         try:
-            response = await self.client.post(
+            response = await client.post(
                 f"{C.SUPERVISOR_CORE_API}/services/podvoice/{service}?return_response",
-                headers={"Authorization": f"Bearer {self.token}"},
+                headers={"Authorization": f"Bearer {token}"},
                 json=args,
             )
             response.raise_for_status()
@@ -132,8 +186,15 @@ class HomeAssistantTimers:
         previous = self.bindings.get(endpoint)
         if previous is not None and len(previous) == 3:
             return await self.refresh_registered(endpoint, expected_kind="voice_pe")
+        serial = self._registered_reads.get(endpoint, 0) + 1
+        self._registered_reads[endpoint] = serial
+        source = (self.contract, self.client, self.token, previous)
         data = await self._service("timer_status", {"endpoint": endpoint})
-        return self._accept_snapshot(endpoint, data, self.bindings.get(endpoint))
+        if self._registered_reads.get(endpoint) != serial:
+            return {"ok": False, "error_kind": "stale_timer_read"}
+        if source != (self.contract, self.client, self.token, self.bindings.get(endpoint)):
+            return self._unavailable(endpoint)
+        return self._accept_snapshot(endpoint, data, previous)
 
     async def refresh_registered(
         self, endpoint: str, *, expected_kind: str, live_identity: str | None = None
@@ -227,6 +288,13 @@ class HomeAssistantTimers:
             self.snapshots.pop(endpoint, None)
             return {"ok": False, "error_kind": "malformed_timer_state"}
         rows = data["timers"] + data["finished"]
+        if any(
+            isinstance(row, dict)
+            and (("duration_seconds" in row or "revision" in row) and not _adjust_metadata(row))
+            for row in rows
+        ):
+            self.snapshots.pop(endpoint, None)
+            return {"ok": False, "error_kind": "malformed_timer_state"}
         bool_fields = (
             "stop_requested",
             "alerted",
@@ -263,6 +331,18 @@ class HomeAssistantTimers:
             self.observed_at[endpoint] = time.monotonic()
         return data
 
+    def adjust_available(self, endpoint: str, timer_id: str | None = None) -> bool:
+        return bool(
+            self.command_service == "timer_command_v2"
+            and self.available(endpoint)
+            and any(
+                row.get("state") in {"active", "paused"}
+                and _adjust_metadata(row)
+                and (timer_id is None or row["id"] == timer_id)
+                for row in self.snapshots[endpoint]["timers"]
+            )
+        )
+
     def declarations(self, endpoint: str) -> list[dict]:
         snapshot = self.snapshots.get(endpoint)
         if not self.available(endpoint) or not snapshot:
@@ -275,6 +355,11 @@ class HomeAssistantTimers:
             "podvoice_cancel_timer": "Cancel one exact timer_id from fresh status. Never guess a name/ID. "
             "For a finished timer this requests alert stop; do not claim physical silence until confirmed.",
         }
+        if self.adjust_available(endpoint):
+            descriptions["podvoice_adjust_timer"] = (
+                "Adjust one exact active/paused HA timer by delta_seconds from current status. "
+                "The native owner validates its current revision; never invent IDs or duration."
+            )
         rows = []
         for name, description in descriptions.items():
             properties = {}
@@ -283,8 +368,15 @@ class HomeAssistantTimers:
                     "seconds": {"type": "integer", "minimum": 1, "maximum": 86400},
                     "name": {"type": "string", "maxLength": 120},
                 }
-            elif name == "podvoice_cancel_timer":
+            elif name in {"podvoice_cancel_timer", "podvoice_adjust_timer"}:
                 properties = {"timer_id": {"type": "string", "minLength": 1, "maxLength": 200}}
+                if name == "podvoice_adjust_timer":
+                    properties["delta_seconds"] = {
+                        "type": "integer",
+                        "minimum": -86400,
+                        "maximum": 86400,
+                        "not": {"const": 0},
+                    }
             rows.append(
                 {
                     "name": name,
@@ -310,28 +402,157 @@ class HomeAssistantTimers:
         action: str,
         epoch: str | None = None,
         execution_guard=None,
+        deadline: float | None = None,
         **args,
     ) -> dict:
+        def local_rejected(error):
+            return {
+                "ok": False,
+                "error_kind": error,
+                **({"outcome": "rejected", "retry_allowed": False} if action == "adjust" else {}),
+            }
+
         snapshot = self.snapshots.get(endpoint)
         if not snapshot:
-            return {"ok": False, "error_kind": "timer_endpoint_unavailable"}
-        if execution_guard is not None and not execution_guard():
-            return {"ok": False, "error_kind": "stale_execution"}
-        return await self._service(
-            "timer_command",
-            {
-                "endpoint": endpoint,
-                "epoch": epoch or snapshot["epoch"],
-                "request_id": request_id,
-                "action": action,
-                **args,
-            },
-            mutation=True,
-        )
+            return local_rejected("timer_endpoint_unavailable")
+        service = self.command_service
+        source = (self.client, self.token, self.contract)
+        binding = self.bindings.get(endpoint)
+        chosen_epoch = epoch or snapshot["epoch"]
+        deadline = time.monotonic() + C.TOOL_TIMEOUT_S if deadline is None else deadline
+        params = {
+            "endpoint": endpoint,
+            "epoch": chosen_epoch,
+            "request_id": request_id,
+            "action": action,
+            **copy.deepcopy(args),
+        }
+        if action == "adjust":
+            timer_id, delta = args.get("timer_id"), args.get("delta_seconds")
+            row = next((row for row in snapshot.get("timers", []) if row["id"] == timer_id), None)
+            if (
+                set(args) - {"timer_id", "delta_seconds", "expected_revision"}
+                or not isinstance(timer_id, str)
+                or not self.adjust_available(endpoint, timer_id)
+                or type(delta) is not int
+                or delta == 0
+                or not -86400 <= delta <= 86400
+                or row is None
+                or chosen_epoch != snapshot["epoch"]
+            ):
+                return local_rejected("bad_args")
+            expected = args.get("expected_revision", row["revision"])
+            if not _revision(expected) or expected != row["revision"]:
+                return local_rejected("stale_timer_revision")
+            params["expected_revision"] = expected
+
+        def current():
+            return (
+                source == (self.client, self.token, self.contract)
+                and service == self.command_service
+                and binding == self.bindings.get(endpoint)
+                and endpoint in self.ready
+                and endpoint not in self._registered_invalid
+                and chosen_epoch == self.snapshots.get(endpoint, {}).get("epoch")
+                and (execution_guard is None or execution_guard())
+            )
+
+        if not current():
+            return local_rejected("stale_execution")
+        self._registered_reads[endpoint] = self._registered_reads.get(endpoint, 0) + 1
+        serial = self._registered_reads[endpoint]
+        try:
+            unknown = {"ok": False, "error_kind": "unknown_outcome", "retry_allowed": False}
+
+            async def send(payload):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or not current():
+                    return unknown
+                try:
+                    return await asyncio.wait_for(
+                        self._service(service, payload, mutation=True, source=source), remaining
+                    )
+                except TimeoutError:
+                    return unknown
+
+            result = await send(params)
+            if not current():
+                return unknown
+            if (
+                service == "timer_command_v2"
+                and result.get("error_kind") == "unknown_outcome"
+                and time.monotonic() < deadline
+            ):
+                result = await send({**params, "lookup_only": True})
+                if not current():
+                    return unknown
+                if result.get("ok") is not True:
+                    result = unknown
+            if action == "adjust" and result.get("ok") is True:
+                fields = {
+                    "epoch",
+                    "owner",
+                    "restart_contract",
+                    "ok",
+                    "request_id",
+                    "id",
+                    "delta_seconds",
+                    "expected_revision",
+                    "duration_seconds",
+                    "revision",
+                    "seconds_left",
+                    "state",
+                }
+                if (
+                    set(result) != fields
+                    or result["epoch"] != chosen_epoch
+                    or result["restart_contract"] != "core_restart_clears_timers"
+                    or result["request_id"] != request_id
+                    or result["id"] != params["timer_id"]
+                    or type(result["delta_seconds"]) is not int
+                    or result["delta_seconds"] != params["delta_seconds"]
+                    or result["expected_revision"] != params["expected_revision"]
+                    or not _adjust_metadata(result)
+                    or int(result["revision"]) <= int(params["expected_revision"])
+                    or type(result["seconds_left"]) is not int
+                    or not 1 <= result["seconds_left"] <= result["duration_seconds"]
+                    or result["state"] not in {"active", "paused"}
+                ):
+                    return unknown
+                if self._registered_reads.get(endpoint) == serial:
+                    updated = copy.deepcopy(snapshot)
+                    updated["timers"] = [
+                        {
+                            **row,
+                            **{
+                                key: result[key]
+                                for key in ("duration_seconds", "revision", "seconds_left", "state")
+                            },
+                        }
+                        if row["id"] == result["id"]
+                        else row
+                        for row in updated["timers"]
+                    ]
+                    self.snapshots[endpoint] = updated
+                    self.observed_at[endpoint] = time.monotonic()
+            return result
+        finally:
+            # Even outer cancellation or a failed guard must retire reads that
+            # started while this mutation was in flight. Cancellation propagates.
+            self._registered_reads[endpoint] = self._registered_reads.get(endpoint, 0) + 1
 
     async def dispatch(
-        self, name: str, args: dict, endpoint: str, session: str, call_id: str, execution_guard=None
+        self,
+        name: str,
+        args: dict,
+        endpoint: str,
+        session: str,
+        call_id: str,
+        execution_guard=None,
+        *,
+        deadline: float | None = None,
     ) -> dict:
+        deadline = time.monotonic() + C.TOOL_TIMEOUT_S if deadline is None else deadline
         old = self.snapshots.get(endpoint, {}).get("epoch")
         old_contract = self.contract
         state = await self.refresh(endpoint)
@@ -362,6 +583,17 @@ class HomeAssistantTimers:
                 action="start",
                 epoch=old,
                 execution_guard=execution_guard,
+                deadline=deadline,
+                **args,
+            )
+        if name == "podvoice_adjust_timer":
+            return await self.command(
+                endpoint,
+                request_id=request,
+                action="adjust",
+                epoch=old,
+                execution_guard=execution_guard,
+                deadline=deadline,
                 **args,
             )
         if (
@@ -376,6 +608,7 @@ class HomeAssistantTimers:
             action="cancel",
             epoch=old,
             execution_guard=execution_guard,
+            deadline=deadline,
             **args,
         )
         current = await self.refresh(endpoint)
@@ -397,6 +630,7 @@ class HomeAssistantTimers:
                 action="acknowledge_finished",
                 epoch=old,
                 execution_guard=execution_guard,
+                deadline=deadline,
                 **args,
             )
             if ack.get("ok"):

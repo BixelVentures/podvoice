@@ -1,3 +1,7 @@
+Ro: den eksisterende390px player bevarer96px højde; når en faktisk synlig320px aktivitetsrail er til stede, begrænses bredden til det resterende indholdsmål med eksisterende16px mellemrum. Uden rail bevares390px. Ingen ny komponent eller lokal produktvariant.
+
+Forbindelsesstatus med topbar-tekst vises vedvarende i eksisterende datofelt (i Ro fotovisningens datofelt), med polite oplæsning. Genforsøg bruger den eksisterende Button i Skærm og enhed → Om skærmen; øvrige kvitteringer bruger fortsat den fælles toastportal. Ved status uden topbar-tekst bevares den eksisterende toast.
+
 ## Touch, toast og journal i eksisterende ejere · 4. november 2026
 
 Toast bliver i én eksisterende fixed portal uden flowplads. Dens normale anker er nederst i den aktive venstre indholdskolonne; Ro bruger sin eksisterende placering over widgetrækken. Ved kollision beskyttes reelle kommando-/felthitboxes samt navigationskortets tekst og artwork. Samme portal flyttes kun vertikalt til nærmeste frie plads inden for kolonnen. Ingen midlertidig feedbackrække indsættes/fjernes i grid ved berøring, og ingen generisk toast skriver i en anden komponents statusrolle. Connection Retry bevarer sin eksisterende handling. Pointerdown→touchstart og dismissal må ikke flytte den berørte kontrol; en uløst faktisk kollision er fortsat et åbent fund.
@@ -301,7 +305,7 @@ Produktets eksisterende ejere importerer denne fælles kode: `WidgetHost`, `Time
 - **2 templates:** selvstændige detalje- og svarrammer fra den delte template-helper, sammensat af de samme primitiver.
 - **Skærme og forløb:** navngivne opskrifter angiver de brugte primitiver og åbner den fulde faktiske `index.html`-komposition. Domæne-/tilstandsgrupper tælles særskilt. Komponentopslag er ikke beskårne skærmbilleder eller iframes af et uvedkommende domæne.
 
-Den seneste direkte timerbeslutning har forrang: **En aktiv eller pauset timer skal annulleres eller afsluttes, før en ny kan oprettes eller varigheden ændres. Ingen Erstat/Behold, presets eller +1/+5 under den aktive timer.** Ældre Grok-tekst og historiske releaseforløb nedenfor ophæver ikke dette.
+Den senere direkte beslutning i UI-DELIVERY-GOAL punkt52 har forrang: **Én timer ad gangen. En kildeudbudt v2-timer kan justeres med ±60 sekunder i den aktive detaljes eksisterende actions; ingen Erstat/Behold eller aktive presets.** Samme mørke Hero, dial og64px stepper-Buttons bevares. Frisk running/paused-status, varighed og sourceRevision er nødvendige; minus deaktiveres ved højst60sekunder tilbage og plus ved24timersgrænsen. Ventende justering beholder sin valgte Button med eksisterende progress-feedback, spærrer kun justeringerne og bevarer præcis Annuller. UI ændrer aldrig selv kildevarighed eller nedtælling. Overblikkets Annuller/chevron og lokal Pause er uændrede; native Pause opfindes ikke.
 
 Dette afsnit beskriver v34-kandidatens kilde-/ejerskabskontrakt. Aktuel render-, klik-, motion- og tilstandskontrol samles i `docs/UI-DELIVERY-GOAL.md`; kode eller komponentgate er ikke visuel accept, performancebevis, publicering eller fysisk accept. Ældre beskrivelser og målinger nedenfor bevares som dateret baggrund.
 
@@ -579,7 +583,7 @@ Lang form har naturlig højde, rigtige sektioner og den eksisterende venstre scr
 - Robot: Hero → faktisk områdevalg som Tiles og gentagelse som Seg → gemte valg/historik. Ingen tilfældig betjeningsmodal og ingen fabrikeret plantegning.
 - Lys: aktuel Hero → rum-Chips64 → ens lampe-Tiles med navn/status og kendt lysstyrke. Navneknappen åbner samme lampedialog; Toggle og Slider bruger kun ejerens faktiske lokale rettigheder. Ingen eksempel-scener eller farvevalg i produktet. Ukendt/frakoblet må ikke blive til falsk succes.
 - Tesla: Hero med kendt batteri/rækkevidde/ladegrænse → Klima, temperatur og adgang som kontrolfliser → faktisk historik. Lås/lås op kræver bekræftelse.
-- Timer: **Én timer. Aktiv eller pauset timer skal afsluttes eller annulleres før en ny eller en varighedsændring. Ingen Erstat/Behold og ingen presets/+1/+5 under aktiv timer.** Denne senere direkte brugerbeslutning overstyrer den modstridende Grok-tekst. Færdig alarm følger eksisterende femminutters afslutning.
+- Timer: **Én timer; kildeudbudt native v2-justering ±60sekunder i aktiv detalje følger den gældende regel ovenfor (UI-DELIVERY-GOAL punkt52).** Ingen Erstat/Behold eller aktive presets. Færdig alarm følger eksisterende femminutters afslutning.
 - Find musik: faktisk Fortsæt/valg, stemninger og senest; covers bevarer identitet og korrekte kilder. Ingen opfundne playlister.
 - Radio: kendte stationer i ens fliser; sidste celle kan være faktisk Afspiller-handling. Valgt er ikke automatisk bekræftet lyd.
 - Player/kø: én vedvarende player, output samlet med volumen, kø til venstre uden dobbelt transport. Træk bevarer rækkefølge.

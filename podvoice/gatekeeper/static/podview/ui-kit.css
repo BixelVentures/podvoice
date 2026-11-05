@@ -553,6 +553,8 @@ pv-widget-host[data-view=rest] .photo-view{padding:var(--pv-rest-content-inset)}
 /* Canonical Ro resources. One retained96px row; state never changes its footprint. */
 pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview){position:absolute;bottom:var(--pv-rest-content-inset);height:96px;min-height:96px;max-height:96px;margin:0;padding:var(--pv-s2)!important;gap:var(--pv-s2);align-items:center;background:var(--pv-rest-glass);color:var(--pv-ink);backdrop-filter:blur(16px);box-shadow:var(--pv-shadow);border-radius:var(--pv-r-l);translate:none;overflow:hidden}
 pv-widget-host[data-view=rest] :is(.player,#player-empty){right:var(--pv-rest-content-inset);top:auto;width:390px;display:grid;grid-template-columns:64px minmax(0,1fr) 48px;grid-template-rows:64px}
+/* A real visible Ro activity rail keeps its16px gap beside the same player. */
+pv-widget-host[data-view=rest]:has(#resource-rail:not([hidden])>.resource-preview:not([hidden])) :is(.player,#player-empty){width:min(390px,calc(100% - 2 * var(--pv-rest-content-inset) - 320px - var(--pv-s2)))}
 /* Only the finite moving player suspends backdrop sampling; settled Ro keeps glass. */
 pv-widget-host[data-view=rest] :is(.player,#player-empty)[data-scene-player-moving=true]{backdrop-filter:none;-webkit-backdrop-filter:none}
 pv-widget-host[data-view=rest] .player :is(.cover-button,.cover-button .cover){grid-column:1;grid-row:1;width:64px;height:64px;min-height:0;margin:0;align-self:center;border-radius:var(--pv-r-s)}
@@ -1032,6 +1034,12 @@ pv-widget-host #timers-view .timer-running :is(.timer-track,.timer-progress){str
 pv-widget-host #timers-view .timer-running .timer-actions{grid-column:1;grid-row:2;display:block;width:100%;margin:0;padding:0}
 pv-widget-host #timers-view .timer-running :is(.timer-actions>button,.timer-finish){display:flex;align-items:center;justify-content:center;width:100%;height:64px;min-height:64px;margin:0;padding:0 var(--pv-s3);border:0;border-radius:var(--pv-r-pill);font:var(--pv-t-label)}
 pv-widget-host #timers-view .timer-running .timer-actions>button{background:var(--pv-on-dark);color:var(--pv-dark)}
+/* Native active adjustment reuses the same64px Timer stepper Buttons. */
+pv-widget-host #timers-view .timer-running .timer-actions:has(>.timer-adjust:not([hidden])){display:flex;align-items:center;justify-content:center;gap:var(--pv-s3)}
+pv-widget-host #timers-view .timer-running .timer-actions>.timer-adjust{flex:0 0 var(--pv-hit);width:var(--pv-hit);padding:var(--pv-s2);background:var(--pv-ink-2);color:var(--pv-on-dark)}
+pv-widget-host #timers-view .timer-running .timer-actions>.timer-adjust>img{width:32px;height:32px;filter:brightness(0) invert(1)}
+/* Same muted dark SVG treatment as the shared disabled Button icon role. */
+pv-widget-host #timers-view .timer-adjust:is(:disabled,[aria-disabled=true]):not([aria-busy=true])>img{filter:brightness(0)!important;opacity:.58}
 pv-widget-host #timers-view .timer-running .timer-finish{position:static;grid-column:2;grid-row:2;background:var(--pv-ink-2);color:var(--pv-on-dark)}
 /* Overview cancellation keeps the same canonical Button target and body role. */
 pv-widget-host #now-view #timer-card .timer-active-list .timer-panel .timer-finish{height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);font:var(--pv-t-body)}

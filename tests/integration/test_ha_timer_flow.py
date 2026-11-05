@@ -6,6 +6,7 @@ these tests do not claim physical room acceptance.
 
 import asyncio
 import secrets
+from contextlib import asynccontextmanager
 
 import httpx
 import pytest
@@ -988,3 +989,417 @@ async def test_stop_during_new_source_read_prevents_next_physical_effect(which_r
             assert "arm" not in device.admission
         else:
             assert "arm" in device.admission
+
+
+@asynccontextmanager
+async def _native_v2_adapter():
+    import copy
+    import json
+
+    from unit.test_tools_mcp import _rest_recovery_services
+
+    manager, native, client, tools, _, _ = build()
+    metadata = copy.deepcopy(
+        next(row["services"] for row in _rest_recovery_services() if row["domain"] == "podvoice")
+    )
+    metadata["timer_command_v2"] = copy.deepcopy(metadata["timer_command"])
+    fields = metadata["timer_command_v2"]["fields"]
+    for key in fields:
+        if key != "action":
+            fields[key]["selector"] = {"text": None}
+    fields["action"]["selector"]["select"]["options"].append("adjust")
+    for key in ("endpoint", "epoch", "request_id", "action"):
+        fields[key]["required"] = True
+    fields["seconds"] = {"selector": {"number": {"min": 1, "max": 86400, "mode": "box"}}}
+    fields["delta_seconds"] = {"selector": {"number": {"min": -86400, "max": 86400, "mode": "box"}}}
+    fields["expected_revision"] = {"selector": {"text": None}}
+    fields["lookup_only"] = {"selector": {"boolean": None}}
+    tools.timers.discover([{"domain": "podvoice", "services": metadata}])
+    controls, calls = {}, []
+
+    async def transport(request):
+        args = json.loads(request.content)
+        calls.append((request.url.path, copy.deepcopy(args)))
+        if (
+            args.get("action") == "adjust"
+            and not args.get("lookup_only")
+            and controls.get("hold_before_effect")
+        ):
+            entered, release = controls["hold_before_effect"]
+            entered.set()
+            await release.wait()
+        body = (
+            native.snapshot(args["endpoint"])
+            if "timer_status" in request.url.path
+            else native.command(**args)
+        )
+        if controls.get("alter") and args.get("action") == "adjust" and body.get("ok"):
+            body = {**body, **controls["alter"]}
+        if controls.get("hold_read") and "timer_status" in request.url.path:
+            entered, release = controls.pop("hold_read")
+            entered.set()
+            await release.wait()
+        if args.get("action") == "adjust" and not args.get("lookup_only"):
+            if controls.get("after_effect"):
+                controls["after_effect"]()
+            if controls.get("hold_effect"):
+                entered, release = controls["hold_effect"]
+                entered.set()
+                await release.wait()
+            if controls.pop("lose_response", False):
+                raise httpx.ReadError("inert lost response", request=request)
+        if args.get("lookup_only") and controls.get("lookup_miss"):
+            body = native._reply(ok=False, error="request_not_found", retry_allowed=False)
+        return httpx.Response(200, json={"service_response": body})
+
+    client._transport = httpx.MockTransport(transport)
+    made = native.command(
+        endpoint="kitchen", epoch=native.epoch, request_id="seed", action="start", seconds=120
+    )
+    assert made["ok"]
+    async with client:
+        await tools.timers.refresh("kitchen")
+        calls.clear()
+        yield manager, native, client, tools, calls, controls, metadata, made["id"]
+
+
+async def test_v2_adapter_voice_adjust_binds_current_revision_and_exact_native_alias():
+    async with _native_v2_adapter() as (manager, _native, _client, tools, calls, _, _, timer_id):
+        timers = tools.timers
+        assert timers.adjust_available("kitchen", timer_id)
+        assert "podvoice_adjust_timer" in {row["name"] for row in timers.declarations("kitchen")}
+        assert "podvoice_adjust_timer" in tools.capabilities()["tools"]
+        old = timers.snapshots["kitchen"]["timers"][0]["revision"]
+        result = await timers.dispatch(
+            "podvoice_adjust_timer",
+            {"timer_id": timer_id, "delta_seconds": 60},
+            "kitchen",
+            "session",
+            "adjust-one",
+        )
+        assert result["ok"] and result["expected_revision"] == old
+        assert int(result["revision"]) > int(old)
+        assert result["duration_seconds"] == result["seconds_left"] == 180
+        assert manager.timers[timer_id].seconds_left == 180
+        assert (
+            len(calls) == 2
+            and calls[0][0].endswith("/timer_status")
+            and calls[1][0].endswith("/timer_command_v2")
+        )
+        assert calls[1][1]["expected_revision"] == old
+        assert timers.snapshots["kitchen"]["timers"][0]["revision"] == result["revision"]
+        rejected = await timers.command(
+            "kitchen",
+            request_id="stale",
+            action="adjust",
+            timer_id=timer_id,
+            delta_seconds=60,
+            expected_revision=old,
+        )
+        assert rejected["error_kind"] == "stale_timer_revision" and len(calls) == 2
+        assert rejected["outcome"] == "rejected" and rejected["retry_allowed"] is False
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["missing_field", "optional_response", "delta_range", "required_lookup", "wrong_actions"],
+)
+async def test_v2_discovery_invalid_contract_fully_downgrades_to_original_v1(mutation):
+    import copy
+
+    async with _native_v2_adapter() as (_, _, _client, tools, _, _, metadata, _):
+        assert tools.timers.adjust_available("kitchen")
+        invalid = copy.deepcopy(metadata)
+        v2 = invalid["timer_command_v2"]
+        if mutation == "missing_field":
+            v2["fields"].pop("expected_revision")
+        elif mutation == "optional_response":
+            v2["response"] = {"optional": True}
+        elif mutation == "delta_range":
+            v2["fields"]["delta_seconds"]["selector"]["number"]["max"] = 999999
+        elif mutation == "required_lookup":
+            v2["fields"]["lookup_only"]["required"] = True
+        else:
+            v2["fields"]["action"]["selector"]["select"]["options"] = ["adjust"]
+        tools.timers.discover([{"domain": "podvoice", "services": invalid}])
+        assert tools.timers.contract and tools.timers.command_service == "timer_command"
+        assert not tools.timers.adjust_available("kitchen")
+        assert "podvoice_adjust_timer" not in tools.capabilities()["tools"]
+        assert {row["name"] for row in tools.timers.declarations("kitchen")} == {
+            "podvoice_start_timer",
+            "podvoice_timer_status",
+            "podvoice_cancel_timer",
+        }
+
+
+@pytest.mark.parametrize(
+    "pair",
+    [
+        None,
+        {"duration_seconds": 120},
+        {"revision": "1"},
+        {"duration_seconds": True, "revision": "1"},
+        {"duration_seconds": 120, "revision": 1},
+        {"duration_seconds": 120, "revision": "01"},
+        {"duration_seconds": 0, "revision": "1"},
+    ],
+)
+async def test_v2_adapter_absent_pair_is_legacy_present_invalid_pair_rejects_snapshot(pair):
+    async with _native_v2_adapter() as (_, native, _client, tools, _, _, _, timer_id):
+        state = native.snapshot("kitchen")
+        row = state["timers"][0]
+        row.pop("duration_seconds", None)
+        row.pop("revision", None)
+        if pair is not None:
+            row.update(pair)
+        accepted = tools.timers._accept_snapshot("kitchen", state, tools.timers.bindings["kitchen"])
+        if pair is None:
+            assert accepted["ok"] and not tools.timers.adjust_available("kitchen", timer_id)
+        else:
+            assert accepted["error_kind"] == "malformed_timer_state"
+            assert not tools.timers.available("kitchen")
+
+
+async def test_v2_lost_response_lookup_same_original_signature_once_without_effect_replay():
+    async with _native_v2_adapter() as (manager, _, _client, tools, calls, controls, _, timer_id):
+        old = tools.timers.snapshots["kitchen"]["timers"][0]["revision"]
+        controls["lose_response"] = True
+        serial_before = tools.timers._registered_reads["kitchen"]
+        result = await tools.timers.command(
+            "kitchen",
+            request_id="lost",
+            action="adjust",
+            timer_id=timer_id,
+            delta_seconds=60,
+            expected_revision=old,
+        )
+        assert result["ok"] and manager.timers[timer_id].seconds_left == 180
+        assert tools.timers._registered_reads["kitchen"] == serial_before + 2
+        assert len(calls) == 2 and all(path.endswith("/timer_command_v2") for path, _ in calls)
+        assert calls[1][1] == {**calls[0][1], "lookup_only": True}
+        assert calls[0][1]["expected_revision"] == old
+
+
+@pytest.mark.parametrize(
+    "boundary",
+    [
+        "lookup_miss",
+        "owner_change",
+        "unbind",
+        "token_change",
+        "binding_change",
+        "execution_guard",
+        "deadline",
+        "cancel",
+    ],
+)
+async def test_v2_unknown_never_replays_effect_or_resets_deadline(boundary):
+    import time
+
+    async with _native_v2_adapter() as (manager, _, _client, tools, calls, controls, _, timer_id):
+        controls["lose_response"] = True
+        guard = [True]
+        deadline = time.monotonic() + 1
+        if boundary == "lookup_miss":
+            controls["lookup_miss"] = True
+        elif boundary == "owner_change":
+            controls["after_effect"] = lambda: tools.timers.discover([])
+        elif boundary == "unbind":
+            controls["after_effect"] = lambda: tools.timers.unbind("kitchen")
+        elif boundary == "token_change":
+            controls["after_effect"] = lambda: setattr(tools.timers, "token", "new-inert-token")
+        elif boundary == "binding_change":
+            controls["after_effect"] = lambda: tools.timers.bind(
+                "kitchen", "voice_pe", "02:00:00:00:00:02"
+            )
+        elif boundary == "execution_guard":
+            controls["after_effect"] = lambda: guard.__setitem__(0, False)
+        else:
+            entered, release = asyncio.Event(), asyncio.Event()
+            controls["hold_effect"] = entered, release
+            deadline = time.monotonic() + 0.03 if boundary == "deadline" else deadline
+        pending = asyncio.create_task(
+            tools.timers.command(
+                "kitchen",
+                request_id="unknown",
+                action="adjust",
+                timer_id=timer_id,
+                delta_seconds=60,
+                deadline=deadline,
+                execution_guard=lambda: guard[0],
+            )
+        )
+        if boundary == "cancel":
+            await asyncio.wait_for(entered.wait(), 1)
+            pending.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await pending
+        else:
+            result = await pending
+            assert result["error_kind"] == "unknown_outcome" and result["retry_allowed"] is False
+        assert manager.timers[timer_id].seconds_left == 180
+        assert len(calls) == (2 if boundary == "lookup_miss" else 1)
+        assert sum(not args.get("lookup_only", False) for _, args in calls) == 1
+
+
+@pytest.mark.parametrize(
+    "alter",
+    [
+        {"request_id": "wrong"},
+        {"id": "wrong"},
+        {"delta_seconds": 61},
+        {"expected_revision": "0"},
+        {"duration_seconds": 0},
+        {"revision": "01"},
+        {"revision": "0"},
+        {"seconds_left": 180.0},
+        {"state": "finished"},
+        {"extra": "not allowed"},
+    ],
+)
+async def test_v2_adjust_receipt_requires_closed_correlated_new_native_proof(alter):
+    async with _native_v2_adapter() as (manager, _, _client, tools, calls, controls, _, timer_id):
+        controls["alter"] = alter
+        result = await tools.timers.command(
+            "kitchen", request_id="proof", action="adjust", timer_id=timer_id, delta_seconds=60
+        )
+        assert result["error_kind"] == "unknown_outcome" and result["retry_allowed"] is False
+        assert manager.timers[timer_id].seconds_left == 180 and len(calls) == 1
+        assert tools.timers.snapshots["kitchen"]["timers"][0]["duration_seconds"] == 120
+
+
+@pytest.mark.parametrize("registered", [False, True])
+async def test_v2_adjust_receipt_fences_read_started_before_effect(registered):
+    async with _native_v2_adapter() as (_, _, _client, tools, _, controls, _, timer_id):
+        if registered:
+            assert (await tools.timers.refresh_registered("kitchen", expected_kind="voice_pe"))[
+                "ok"
+            ]
+        entered, release = asyncio.Event(), asyncio.Event()
+        controls["hold_read"] = entered, release
+        old = asyncio.create_task(tools.timers.refresh("kitchen"))
+        await asyncio.wait_for(entered.wait(), 1)
+        result = await tools.timers.command(
+            "kitchen", request_id="newer", action="adjust", timer_id=timer_id, delta_seconds=60
+        )
+        assert result["ok"]
+        release.set()
+        assert (await old)["error_kind"] == "stale_timer_read"
+        assert tools.timers.snapshots["kitchen"]["timers"][0]["revision"] == result["revision"]
+        assert tools.timers.snapshots["kitchen"]["timers"][0]["duration_seconds"] == 180
+
+
+async def test_v2_dispatch_refresh_uses_original_remaining_deadline_without_effect():
+    import time
+
+    async with _native_v2_adapter() as (manager, _, _client, tools, calls, _, _, timer_id):
+        original = tools.timers.refresh
+
+        async def slow_refresh(endpoint):
+            result = await original(endpoint)
+            await asyncio.sleep(0.03)
+            return result
+
+        tools.timers.refresh = slow_refresh
+        result = await tools.timers.dispatch(
+            "podvoice_adjust_timer",
+            {"timer_id": timer_id, "delta_seconds": 60},
+            "kitchen",
+            "session",
+            "late",
+            deadline=time.monotonic() + 0.01,
+        )
+        assert result["error_kind"] == "unknown_outcome"
+        assert manager.timers[timer_id].seconds_left == 120
+        assert len(calls) == 1 and calls[0][0].endswith("/timer_status")
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"delta_seconds": 0},
+        {"delta_seconds": True},
+        {"delta_seconds": 86401},
+        {"delta_seconds": 60, "expected_revision": "bad"},
+        {"delta_seconds": 60, "expected_revision": "0"},
+        {"delta_seconds": 60, "timer_id": "missing"},
+    ],
+)
+async def test_v2_local_adjust_validation_rejects_with_zero_command_send(args):
+    async with _native_v2_adapter() as (_, _, _client, tools, calls, _, _, timer_id):
+        result = await tools.timers.command(
+            "kitchen", request_id="local", action="adjust", **{"timer_id": timer_id, **args}
+        )
+        assert result["ok"] is False and result["outcome"] == "rejected"
+        assert result["retry_allowed"] is False and calls == []
+
+
+async def test_v2_pre_send_guard_rejected_but_v1_result_shape_unchanged():
+    async with _native_v2_adapter() as (_, _, _client, tools, calls, _, _, timer_id):
+        args = dict(endpoint="kitchen", request_id="guard", execution_guard=lambda: False)
+        result = await tools.timers.command(
+            action="adjust", timer_id=timer_id, delta_seconds=60, **args
+        )
+        assert result == {
+            "ok": False,
+            "error_kind": "stale_execution",
+            "outcome": "rejected",
+            "retry_allowed": False,
+        }
+        assert await tools.timers.command(action="cancel", timer_id=timer_id, **args) == {
+            "ok": False,
+            "error_kind": "stale_execution",
+        }
+        assert calls == []
+
+
+@pytest.mark.parametrize("registered", [False, True])
+async def test_v2_cancelled_command_completion_fences_read_started_during_mutation(registered):
+    async with _native_v2_adapter() as (manager, _, _client, tools, calls, controls, _, timer_id):
+        timers = tools.timers
+        if registered:
+            assert (await timers.refresh_registered("kitchen", expected_kind="voice_pe"))["ok"]
+            calls.clear()
+        before, mutate = asyncio.Event(), asyncio.Event()
+        read_started, read_release = asyncio.Event(), asyncio.Event()
+        effect_applied, effect_release = asyncio.Event(), asyncio.Event()
+        controls["hold_before_effect"] = before, mutate
+        controls["hold_effect"] = effect_applied, effect_release
+        command = asyncio.create_task(
+            timers.command(
+                "kitchen",
+                request_id="cancel-race",
+                action="adjust",
+                timer_id=timer_id,
+                delta_seconds=60,
+            )
+        )
+        old_read = None
+        try:
+            await asyncio.wait_for(before.wait(), 1)
+            controls["hold_read"] = read_started, read_release
+            old_read = asyncio.create_task(timers.refresh("kitchen"))
+            await asyncio.wait_for(read_started.wait(), 1)
+            original_observed_at = timers.observed_at["kitchen"]
+            mutate.set()
+            await asyncio.wait_for(effect_applied.wait(), 1)
+            assert manager.timers[timer_id].seconds_left == 180
+            command.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await command
+            read_release.set()
+            result = await asyncio.wait_for(old_read, 1)
+            assert result == {"ok": False, "error_kind": "stale_timer_read"}
+            assert timers.observed_at["kitchen"] == original_observed_at
+            assert len(calls) == 2
+            assert sum(args.get("action") == "adjust" for _, args in calls) == 1
+            assert not any(args.get("lookup_only") for _, args in calls)
+        finally:
+            mutate.set()
+            effect_release.set()
+            read_release.set()
+            if not command.done():
+                command.cancel()
+            await asyncio.gather(
+                command, *([old_read] if old_read is not None else []), return_exceptions=True
+            )

@@ -65,3 +65,9 @@ test('live read-only player and radio routes open without granting local media o
  for(const event of [{type:'music',event:{type:'play'}},{type:'radio-select',stationId:'p3'},{type:'vehicle-control',action:'climate'},{type:'device-action',action:'turn_on'},{type:'timer-start',seconds:60,name:'Te'},{type:'timer',id:timer.id,action:'cancel'},{type:'request',kind:'concise'},{type:'queue-select',optionId:'invented'}])assert.equal(liveLocalEvent(event,state),false,event.type);
  assert.equal(liveTimerRequest(snapshot,true,{type:'timer',id:timer.id,action:'cancel'}),null,'opening either route cannot manufacture a native action capability');
 });
+
+test('native adjust requires exact current revision and native duration without history fallback',()=>{
+ const row={id:'native',name:'Te',secondsLeft:30,status:'running',durationSeconds:100,sourceRevision:'9007199254740993'},s={voice:{},timers:{status:'observed',items:[row]},capabilities:{timerActions:['timer.adjust']}};const event={type:'timer',action:'adjust',id:'native',deltaSeconds:60};
+ assert.deepEqual(liveTimerRequest(s,true,event),{action:'timer.adjust',args:{timer_id:'native',delta_seconds:60,expected_revision:row.sourceRevision}});assert.equal(liveScene(initialScene(),s).timer.duration,100);
+ for(const bad of [{...row,sourceRevision:'01'},{...row,durationSeconds:null},{...row,status:'finished'}])assert.equal(liveTimerRequest({...s,timers:{...s.timers,items:[bad]}},true,event),null);assert.equal(liveTimerRequest(s,true,{...event,deltaSeconds:30}),null);assert.equal(liveTimerRequest(s,false,event),null);
+});

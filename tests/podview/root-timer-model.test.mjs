@@ -53,3 +53,11 @@ test('extension and pause never mutate offline, stale, live or native timers and
  assert.equal(step(state,{type:'timer',id,action:'add',seconds:60,now:2000}),state);
  for(const s of [{...state,connected:false},{...state,live:true},{...state,timer:{...state.timer,stale:true}},{...state,timer:{...state.timer,ownerBootId:'native'}}])for(const action of ['pause','resume','add'])assert.equal(step(s,{type:'timer',id,action,seconds:60,now:2000}),s);
 });
+
+
+import {timerAdjustmentBounds} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
+test('native adjustment bounds require source revision, active fresh status and consistent duration',()=>{
+ const t={status:'running',remaining:120,duration:300,sourceRevision:'18446744073709551616'};assert.deepEqual(timerAdjustmentBounds(t),{minus:true,plus:true});assert.deepEqual(timerAdjustmentBounds({...t,status:'paused',remaining:60}),{minus:false,plus:true});assert.deepEqual(timerAdjustmentBounds({...t,duration:86400}),{minus:true,plus:false});assert.deepEqual(timerAdjustmentBounds({...t,duration:86341}),{minus:true,plus:false});
+ for(const patch of [{stale:true},{status:'done'},{status:'cancelled'},{duration:null},{duration:86401},{duration:1.5},{remaining:0},{remaining:301},{remaining:NaN},{sourceRevision:undefined},{sourceRevision:1},{sourceRevision:'01'},{sourceRevision:'-1'}])assert.equal(timerAdjustmentBounds({...t,...patch}),null,JSON.stringify(patch));
+ assert.equal(t.remaining,120);assert.equal(t.duration,300);
+});
