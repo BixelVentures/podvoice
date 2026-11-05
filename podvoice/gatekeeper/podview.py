@@ -4594,6 +4594,13 @@ async def _home(request: web.Request) -> web.Response:
                     bridge._weather_fact_history.pop(room, None)
         elif not latest[2][1]:
             bridge._weather_fact_history.pop(room, None)
+        if weather.get("status") != "observed":
+            # Final delivery may reject facts after an independent await. Never
+            # advertise the capability captured before that rejection, or grant
+            # advice from last-known facts. This existing owner starts no work.
+            from .podview_weather_http import capability
+
+            result = {**result, "weatherAdvice": capability(bridge, room, weather)}
         result = {**result, "weather": {**weather, "lastKnown": retained}}
         return web.json_response(
             with_transport_actions(result), headers={"Cache-Control": "no-store"}

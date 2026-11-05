@@ -91,8 +91,20 @@ async def test_real_home_and_frontend_continuity_through_120(clock, monkeypatch,
         "units": {"temperature": "°C", "precipitation": "mm", "windSpeed": "km/h"},
         "current": None,
         "forecastType": "daily",
+        "observationScope": {"entityId": "weather.inert", "ownerEpoch": "a" * 64},
+        "coverage": {
+            "totalRows": 1,
+            "returnedRows": 1,
+            "truncated": False,
+            "start": datetime.fromtimestamp(base + 86400, UTC).isoformat(),
+            "end": datetime.fromtimestamp(base + 86400, UTC).isoformat(),
+        },
         "forecast": [
-            {"datetime": datetime.fromtimestamp(base + 86400, UTC).isoformat(), "temperature": 12}
+            {
+                "datetime": datetime.fromtimestamp(base + 86400, UTC).isoformat(),
+                "temperature": 12,
+                "highTemperature": 12,
+            }
         ],
     }
     r._podview_weather_read = AsyncMock(
@@ -104,9 +116,10 @@ async def test_real_home_and_frontend_continuity_through_120(clock, monkeypatch,
     bridge = SimpleNamespace(
         tools=r,
         controls=SimpleNamespace(mutations={}, domains=lambda *_: [], policy={}),
-        sessions={},
+        sessions={"room": object()},
         _home_cache={},
         _weather_source_cache=None,
+        _weather_fact_history={},
         _home_busy=False,
         _home_revision=0,
         boot_id="inert",

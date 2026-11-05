@@ -45,6 +45,7 @@ def rig(monkeypatch):
         _home_busy=False,
         _home_inflight=None,
         _weather_source_cache=None,
+        _weather_fact_history={},
         _home_revision=0,
         read_lights=AsyncMock(return_value={}),
     )
@@ -67,7 +68,7 @@ async def test_actual_home_includes_passive_vehicle_and_coalesces_cache_without_
     second = json.loads((await podview._home(request())).text)
     assert second == first and tools.podview_vehicle_read.await_count == 1
     assert first["vacuum"] == {"status": "unavailable", "items": []}
-    assert first["weather"] == {"status": "unavailable", "data": None}
+    assert first["weather"] == {"status": "unavailable", "data": None, "lastKnown": None}
     assert not bridge._home_busy
 
 
