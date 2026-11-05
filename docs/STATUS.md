@@ -1,3 +1,9 @@
+## 131 · CI remaining1 request-fixture closure · 5 November 2026
+
+Official PR300 head d99fe1ae/run42010969250 remaining-test-shards1 failed at the playlist batch entry barrier. Exact local RED captured the earlier task exception: direct SimpleNamespace HTTP fixtures lacked headers, so the diagnostic header accessor failed before any playlist read entered. Only seven fixture requests in tests/integration/test_podview_mood_playlists.py now supply headers={}; existing barriers, assertions, deadlines and production bytes are unchanged. The other direct mood caller already uses aiohttp make_mocked_request and needs no change.
+
+Affected module33PASS; full identical CI remaining1 file partition with maxfail=0:1282PASS, real exit0 in142.04s, /private/tmp/mood131-rest-shard1-after.log. Ruff/format PASS. Fixture SHA96d196b8aa8423f3e473d11860af6f879385d436d5886cac50cd5774b7f91995. Reproduction /private/tmp/mood131-exception-proof.log. Prior131 product/build/browser/Astra evidence remains valid for byte-identical runtime and assets; official final-head admission/CI must be refreshed by the release lead, without a new version or product rebuild.
+
 ## 2.0.131 · frozen source and affected browser proof · 5 November 2026
 
 Persistent shared branch codex/podview-foundation-20261105 is based on installed130 commit dbcbc554830b4a07524cdd868a861ed83d7c1551. Version trio and canonical index now agree on2.0.131, as authorized by the integration lead. Final bundle1b7b230361ef2fc2227595aa3d801aa272686867dd3e84b6e8cfef0a2511d596; canonical/staging221manifest entries match. CSS c6e4c75f... and library00045b5d... are unchanged. Source-workflow3739/PR299 remains separately preserved; no archive bulk-copy or branch reset.

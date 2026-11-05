@@ -475,7 +475,10 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
 
     router.podview_read = blocked
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -545,7 +548,10 @@ async def test_playlist_batch_joins_child_cleanup_before_busy_fence_release(mood
 
     router.podview_read = blocked
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -575,7 +581,10 @@ async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
 
     bridge, router = mood_rig.app[BRIDGE], mood_rig.router
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     assert json.loads((await podview._mood_music(request, bridge, "kitchen")).body)["ok"]
     retained = bridge._mood_retained
@@ -654,7 +663,10 @@ async def test_mood_speculative_reads_overlap_model_and_publish_only_selected(mo
     router.podview_mood_selector.select.side_effect = model
     router.podview_read = read
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -701,7 +713,10 @@ async def test_mood_speculation_fences_owner_and_joins_cancelled_reads(mood_rig,
     router.podview_mood_selector.select.side_effect = model
     router.podview_read = read
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     await asyncio.wait_for(started.wait(), 2)
@@ -747,7 +762,10 @@ async def test_mood_speculative_selected_failure_and_unselected_cancellation(moo
     router.podview_mood_selector.select.side_effect = model
     router.podview_read = read
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     response = await asyncio.wait_for(_mood_music(request, bridge, "kitchen"), 2)
     body = json.loads(response.body)
@@ -764,7 +782,10 @@ async def test_mood_speculation_broadens_only_if_needed_with_nine_read_limit(moo
     bridge = mood_rig.app[BRIDGE]
     mood_rig.playlist_same = True
     request = SimpleNamespace(
-        app=mood_rig.app, query={"account": "account-alpha"}, cookies={"podview_control": "grant"}
+        app=mood_rig.app,
+        query={"account": "account-alpha"},
+        cookies={"podview_control": "grant"},
+        headers={},
     )
     body = json.loads((await _mood_music(request, bridge, "kitchen")).body)
     assert not body["ok"] and body["error"] == "mood_catalogue_empty"
