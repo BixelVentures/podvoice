@@ -58,7 +58,15 @@ async def test_undeclared_hourly_does_not_authorize_retained_auxiliary():
     fixture.payload["data"]["result"]["entity_id"] = "weather.admitted"
     async with httpx.AsyncClient(transport=httpx.MockTransport(fixture.respond)) as client:
         router = await fixture.router(client)
-        assert "observationScope" not in (await router.podview_weather_read())["data"]
+        data = (await router.podview_weather_read())["data"]
+        assert data["observationScope"] == {
+            "entityId": "weather.admitted",
+            "ownerEpoch": router._weather_observation_epoch,
+        }
+        assert re.fullmatch(r"[a-f0-9]{64}", data["observationScope"]["ownerEpoch"])
+        assert "hourly" not in data
+        assert len(fixture.calls) == 1
+        assert fixture.calls[0]["params"] == {"name": "weather_forecast", "arguments": {}}
 
 
 async def test_failed_auxiliary_preserves_only_primary_resolved_entity_scope():
