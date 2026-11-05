@@ -8,11 +8,16 @@ no cancellation window or competing coroutine between the native effect and cach
 
 from __future__ import annotations
 
+import hashlib
+import logging
+import re
 import secrets
 import time
 from collections import OrderedDict
 from collections.abc import Callable
 from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
 
 MAX_REQUESTS = 8192
 MAX_TIMERS_PER_ENDPOINT = 32
@@ -80,7 +85,7 @@ class TimerBridge:
         }
 
     def _remember(self, key: tuple, signature: tuple, result: dict) -> None:
-        if signature[0] == "start":
+        if signature[0] in {"start", "adjust"}:
             self._requests[key] = (signature, dict(result))
         else:
             # Cleanup is exact timer/alert-owner scoped and cannot create a timer.
@@ -105,6 +110,128 @@ class TimerBridge:
                 break
         return rows
 
+    @staticmethod
+    def _native_metadata(timer: Any) -> dict:
+        seconds = getattr(timer, "seconds", None)
+        revision = getattr(timer, "updated_at", None)
+        if (
+            type(seconds) is not int
+            or not 1 <= seconds <= 86400
+            or type(revision) is not int
+            or revision < 0
+            or len(str(revision)) > 24
+        ):
+            return {}
+        return {"duration_seconds": seconds, "revision": str(revision)}
+
+    def _adjust(
+        self, key: tuple, signature: tuple, timer_id: str, delta: int, revision: str
+    ) -> dict:
+        def reject(error):
+            return self._reply(ok=False, error=error, outcome="rejected", retry_allowed=False)
+
+        timer = self.manager.timers.get(timer_id)
+        if timer is None or timer.device_id != self.devices[key[0]] or timer.conversation_command:
+            return reject("timer_not_found")
+        metadata = self._native_metadata(timer)
+        if not metadata or not all(
+            callable(getattr(self.manager, method, None))
+            for method in ("add_time", "pause_timer", "unpause_timer")
+        ):
+            return reject("adjust_unavailable")
+        if metadata["revision"] != revision:
+            return reject("stale_timer_revision")
+        if type(timer.is_active) is not bool:
+            return reject("adjust_unavailable")
+        remaining = timer.seconds_left
+        if type(remaining) is not int or not 1 <= remaining <= 86400:
+            return reject("invalid_remaining")
+        if not 1 <= remaining + delta <= 86400:
+            return reject("invalid_duration")
+        if self._starts >= MAX_REQUESTS:
+            return reject("request_ledger_full")
+        correlation = {
+            "request_id": key[1],
+            "id": timer_id,
+            "delta_seconds": delta,
+            "expected_revision": revision,
+        }
+        unknown = self._reply(
+            ok=False,
+            error="native_outcome_unknown",
+            outcome="unknown",
+            retry_allowed=False,
+            **correlation,
+        )
+        self._starts += 1  # Shared non-evicting start/adjust admission budget.
+        self._requests[key] = (signature, dict(unknown))
+        was_active = timer.is_active
+        frozen_rejected = False
+        phase = "validate"
+        try:
+            if was_active and delta < 0:
+                # Core re-reads the clock in add_time. Freeze before the final
+                # lower-bound check so a second boundary cannot create an alarm.
+                phase = "pause"
+                self.manager.pause_timer(timer_id)
+            phase = "validate"
+            frozen = timer.seconds_left
+            if type(frozen) is not int or not 1 <= frozen + delta <= 86400:
+                frozen_rejected = True
+            else:
+                phase = "add"
+                self.manager.add_time(timer_id, delta)
+            if was_active and not timer.is_active:
+                phase = "resume"
+                self.manager.unpause_timer(timer_id)
+            phase = "validate"
+            if self.manager.timers.get(timer_id) is not timer or timer.is_active != was_active:
+                raise ValueError("native timer changed")
+            final = self._native_metadata(timer)
+            remaining = timer.seconds_left
+            if (
+                not final
+                or int(final["revision"]) <= int(revision)
+                or type(remaining) is not int
+                or not 1 <= remaining <= final["duration_seconds"]
+            ):
+                raise ValueError("invalid native result")
+            result = self._reply(
+                ok=not frozen_rejected,
+                **({"error": "invalid_duration", "outcome": "rejected"} if frozen_rejected else {}),
+                **correlation,
+                **final,
+                seconds_left=remaining,
+                state="active" if timer.is_active else "paused",
+            )
+        except Exception:
+            # Restoration is best-effort; failure never becomes accepted or a
+            # replayable request. Preserve native events rather than hiding them.
+            recovery = "not_needed"
+            try:
+                if (
+                    was_active
+                    and self.manager.timers.get(timer_id) is timer
+                    and not timer.is_active
+                ):
+                    recovery = "failed"
+                    self.manager.unpause_timer(timer_id)
+                    recovery = "restored" if timer.is_active else "failed"
+            except Exception:
+                recovery = "failed"
+            try:
+                _LOGGER.warning(
+                    "native_timer_adjust phase=%s outcome=unknown recovery=%s request_ref=%s",
+                    phase,
+                    recovery,
+                    hashlib.sha256(key[1].encode()).hexdigest()[:16],
+                )
+            except Exception:
+                pass  # Diagnostics never change the receipt or native effects.
+            return dict(unknown)
+        self._remember(key, signature, result)
+        return result
+
     def snapshot(self, endpoint: str) -> dict:
         if self._closed or endpoint not in self.devices:
             return self._reply(ok=False, error="endpoint_unavailable")
@@ -115,6 +242,7 @@ class TimerBridge:
                 "name": timer.name or "",
                 "seconds_left": timer.seconds_left,
                 "state": "active" if timer.is_active else "paused",
+                **self._native_metadata(timer),
             }
             for timer in self.manager.timers.values()
             if timer.device_id == device_id and not timer.conversation_command
@@ -143,45 +271,126 @@ class TimerBridge:
         alert_id: str = "",
         phase: str = "",
         sink_id: str = "",
+        delta_seconds: int | None = None,
+        expected_revision: str = "",
+        lookup_only: bool = False,
     ) -> dict:
         """Execute one complete classified tool call, never a retry in a new epoch."""
+
+        def reject(error):
+            return self._reply(
+                ok=False, error=error, **({"outcome": "rejected"} if action == "adjust" else {})
+            )
+
         if self._closed or endpoint not in self.devices:
-            return self._reply(ok=False, error="endpoint_unavailable")
+            return reject("endpoint_unavailable")
         if epoch != self.epoch:
             return self._reply(
                 ok=False, error="core_epoch_changed", outcome="unknown", retry_allowed=False
             )
         if not isinstance(request_id, str) or not 1 <= len(request_id) <= 200:
-            return self._reply(ok=False, error="invalid_request_id")
-        signature = (action, seconds, name, timer_id, language, alert_id, phase, sink_id)
+            return reject("invalid_request_id")
+        if type(lookup_only) is not bool:
+            return reject("invalid_lookup")
+        if action not in (
+            "start",
+            "cancel",
+            "acknowledge_finished",
+            "claim_alert",
+            "report_alert",
+            "adjust",
+        ):
+            return reject("unsupported_action")
+        if not isinstance(name, str) or len(name) > 120:
+            return reject("invalid_name")
+        if not isinstance(language, str) or not 1 <= len(language) <= 20:
+            return reject("invalid_language")
+        if any(
+            not isinstance(value, str)
+            for value in (timer_id, alert_id, phase, sink_id, expected_revision)
+        ):
+            return reject("invalid_arguments")
+        if action == "adjust":
+            if (
+                type(delta_seconds) is not int
+                or not 1 <= abs(delta_seconds) <= 86400
+                or not re.fullmatch(r"(?:0|[1-9][0-9]{0,23})", expected_revision)
+                or not 1 <= len(timer_id) <= 200
+                or seconds is not None
+                or name
+                or alert_id
+                or phase
+                or sink_id
+            ):
+                return reject("invalid_adjustment")
+        elif delta_seconds is not None or expected_revision:
+            return reject("unexpected_adjust_arguments")
+        if action == "start" and (
+            type(seconds) is not int or not 1 <= seconds <= 86400 or timer_id
+        ):
+            return reject("invalid_duration")
+        if (
+            action != "start"
+            and action != "adjust"
+            and (not timer_id or seconds is not None or name)
+        ):
+            return reject("exact_timer_id_required")
+        if action in ("start", "cancel", "acknowledge_finished") and (alert_id or phase or sink_id):
+            return reject("unexpected_alert_arguments")
+        if action in ("claim_alert", "report_alert") and (
+            not 1 <= len(alert_id) <= 200
+            or not 1 <= len(sink_id) <= 200
+            or (action == "claim_alert" and phase)
+            or (
+                action == "report_alert"
+                and phase not in ("started", "drained", "stopped", "unknown")
+            )
+        ):
+            return reject("invalid_alert_arguments")
+        signature = (
+            action,
+            seconds,
+            name,
+            timer_id,
+            language,
+            alert_id,
+            phase,
+            sink_id,
+            delta_seconds,
+            expected_revision,
+        )
         key = (endpoint, request_id)
         if old := self._requests.get(key) or self._cleanup_requests.get(key):
             if old[0] != signature:
-                return self._reply(ok=False, error="request_id_conflict")
+                return reject("request_id_conflict")
             return dict(old[1])
+        if lookup_only:
+            return self._reply(ok=False, error="request_not_found", retry_allowed=False)
+        if action == "adjust":
+            return self._adjust(key, signature, timer_id, delta_seconds, expected_revision)
         # No LRU eviction: a late duplicate must not create a second timer.
         if action == "start" and self._starts >= MAX_REQUESTS:
             return self._reply(ok=False, error="request_ledger_full", retry_allowed=False)
         if action not in ("start", "cancel", "acknowledge_finished", "claim_alert", "report_alert"):
-            return self._reply(ok=False, error="unsupported_action")
+            return reject("unsupported_action")
         if not isinstance(name, str) or len(name) > 120:
-            return self._reply(ok=False, error="invalid_name")
+            return reject("invalid_name")
         if not isinstance(language, str) or not 1 <= len(language) <= 20:
-            return self._reply(ok=False, error="invalid_language")
+            return reject("invalid_language")
         device_id = self.devices[endpoint]
         if action in ("claim_alert", "report_alert"):
             finished = self._finished[endpoint].get(timer_id)
             if not finished or not isinstance(alert_id, str) or not 1 <= len(alert_id) <= 200:
-                return self._reply(ok=False, error="invalid_alert_owner")
+                return reject("invalid_alert_owner")
             if action == "claim_alert":
                 if not isinstance(sink_id, str) or not 1 <= len(sink_id) <= 200:
-                    return self._reply(ok=False, error="invalid_sink_identity")
+                    return reject("invalid_sink_identity")
                 if finished["alert_id"] or finished["stop_requested"]:
-                    return self._reply(ok=False, error="alert_already_claimed")
+                    return reject("alert_already_claimed")
                 finished.update(alert_id=alert_id, sink_id=sink_id, alert_state="requested")
             else:
                 if finished["alert_id"] != alert_id or finished["sink_id"] != sink_id:
-                    return self._reply(ok=False, error="stale_alert_owner")
+                    return reject("stale_alert_owner")
                 state = finished["alert_state"]
                 if phase == state:
                     return self._reply(ok=True, **dict(finished))
@@ -198,18 +407,18 @@ class TimerBridge:
                 elif phase == "unknown" and state in ("requested", "started"):
                     finished["alert_state"] = "unknown"
                 elif phase != state:
-                    return self._reply(ok=False, error="invalid_alert_sequence")
+                    return reject("invalid_alert_sequence")
             result = self._reply(ok=True, **dict(finished))
             self._remember(key, signature, result)
             return result
         if alert_id or phase or sink_id:
-            return self._reply(ok=False, error="unexpected_alert_arguments")
+            return reject("unexpected_alert_arguments")
         if action == "start":
             if type(seconds) is not int or not 1 <= seconds <= 86400 or timer_id:
-                return self._reply(ok=False, error="invalid_duration")
+                return reject("invalid_duration")
             state = self.snapshot(endpoint)
             if len(state["timers"]) + len(state["finished"]) >= MAX_TIMERS_PER_ENDPOINT:
-                return self._reply(ok=False, error="too_many_timers")
+                return reject("too_many_timers")
             unknown = self._reply(ok=False, error="native_outcome_unknown", retry_allowed=False)
             self._starts += 1
             self._requests[key] = (signature, unknown)
@@ -237,7 +446,7 @@ class TimerBridge:
             )
         else:
             if not isinstance(timer_id, str) or not timer_id or seconds is not None or name:
-                return self._reply(ok=False, error="exact_timer_id_required")
+                return reject("exact_timer_id_required")
             finished = self._finished[endpoint].get(timer_id)
             timer = self.manager.timers.get(timer_id)
             if action == "cancel" and timer is not None and timer.device_id == device_id:
@@ -275,12 +484,12 @@ class TimerBridge:
                     if finished["alert_id"] and not (
                         finished["physical_drained"] or finished["physical_stopped"]
                     ):
-                        return self._reply(ok=False, error="alert_drain_required")
+                        return reject("alert_drain_required")
                     self._finished[endpoint].pop(timer_id)
                     self._acknowledged.add((endpoint, timer_id))
                     result = self._reply(ok=True, id=timer_id, state="acknowledged")
             else:
-                return self._reply(ok=False, error="timer_not_found")
+                return reject("timer_not_found")
         self._remember(key, signature, result)
         return result
 

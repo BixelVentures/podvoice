@@ -38,7 +38,7 @@ _DOMAIN_ACTIONS = {
     "vehicle": frozenset(
         "lock unlock climateOn climateOff temperature defrostOn defrostOff driverSeatHeat passengerSeatHeat rearTrunkToggle".split()
     ),
-    "timer": frozenset(("timer.start", "timer.cancel")),
+    "timer": frozenset(("timer.start", "timer.cancel", "timer.adjust")),
     "radio": frozenset("start stop move volume".split()),
     "home": frozenset(),
 }

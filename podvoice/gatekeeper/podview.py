@@ -18,6 +18,7 @@ import os
 import re
 import secrets
 import time
+from contextlib import nullcontext
 from contextvars import ContextVar, copy_context
 from pathlib import Path
 from urllib.parse import urlencode
@@ -1646,6 +1647,25 @@ class PodViewBridge:
         return {"ok": result["ok"], "data": result}
 
     @staticmethod
+    def _timer_metadata(row: dict) -> dict:
+        if "duration_seconds" not in row and "revision" not in row:
+            return {}  # Existing native v1 observations have no segment metadata.
+        duration, revision = row.get("duration_seconds"), row.get("revision")
+        remaining = row.get("seconds_left")
+        if (
+            type(duration) is not int
+            or not 1 <= duration <= 86400
+            or not isinstance(revision, str)
+            or re.fullmatch(r"(?:0|[1-9][0-9]{0,23})", revision) is None
+            or not isinstance(remaining, (int, float))
+            or isinstance(remaining, bool)
+            or not math.isfinite(remaining)
+            or not 0 <= remaining <= duration
+        ):
+            raise ValueError("invalid_native_timer_metadata")
+        return {"durationSeconds": duration, "sourceRevision": revision}
+
+    @staticmethod
     def _timer_history(state: dict) -> dict:
         result: dict = {"status": "unavailable", "scope": "core_lifetime", "items": []}
         rows = state.get("recent")
@@ -1843,11 +1863,19 @@ class PodViewBridge:
         ):
             fresh = False
             timer_state = {}
+        if fresh:
+            try:
+                for group in ("timers", "finished"):
+                    for row in timer_state.get(group, []):
+                        self._timer_metadata(row)
+            except ValueError:
+                fresh, timer_state = False, {}
         items = [
             {
                 "id": row["id"],
                 "name": row["name"],
                 "secondsLeft": row["seconds_left"],
+                **self._timer_metadata(row),
                 "status": "paused"
                 if status == "running" and row.get("state") == "paused"
                 else status,
@@ -1956,6 +1984,8 @@ class PodViewBridge:
         # Authorization is per connection, not part of the shared resource revision.
         if fresh and self._grant_current(room, token):
             result["capabilities"]["timerActions"] = ["timer.start", "timer.cancel"]
+            if getattr(timer_owner, "adjust_available", lambda *args: False)(room):
+                result["capabilities"]["timerActions"].append("timer.adjust")
         domains = self.controls.domains(room, token)
         # HA ingress keeps its own policy-bound actor, including lights. A screen
         # cookie cannot replace that actor or supply its saved placement.
@@ -2013,17 +2043,22 @@ class PodViewBridge:
         def timer_trace(stage, outcome):
             try:
                 action = body.get("action")
-                if action not in ("timer.start", "timer.cancel"):
+                if action not in ("timer.start", "timer.cancel", "timer.adjust"):
                     action = "other"
                 request_ref = hashlib.sha256(request_id.encode(errors="surrogatepass")).hexdigest()[
                     :16
                 ]
+                native_request = hashlib.sha256(
+                    json.dumps(["podview:" + self.boot_id, room, request_id]).encode()
+                ).hexdigest()
+                native_ref = hashlib.sha256(native_request.encode()).hexdigest()[:16]
                 _LOG.info(
-                    "podview_timer stage=%s action=%s outcome=%s request_ref=%s",
+                    "podview_timer stage=%s action=%s outcome=%s request_ref=%s native_ref=%s",
                     stage,
                     action,
                     outcome,
                     request_ref,
+                    native_ref,
                 )
             except Exception:
                 pass  # Diagnostics must not affect dispatch or its receipt.
@@ -2032,7 +2067,9 @@ class PodViewBridge:
         # A renewed action cookie must not reopen an unknown timer command.
         # The durable profile identity is the replay owner across renewals.
         key = (room, self._grant_slot(room, token), request_id)
-        async with self._action_lock:
+        # Adjust reserves its receipt synchronously before its first await;
+        # native CAS resolves competition. It must not queue exact cancellation.
+        async with nullcontext() if body["action"] == "timer.adjust" else self._action_lock:
             if key in self._receipts:
                 before, receipt = self._receipts[key]
                 timer_trace(
@@ -2049,10 +2086,17 @@ class PodViewBridge:
             snap = self.snapshot(room)
             if snap["timers"]["status"] != "observed":
                 return {"ok": False, "error": "timer_unavailable", "retryAllowed": False}
+            revision = body["revision"]
+            revision_current = type(revision) is int and (
+                1 <= revision <= snap["revision"]
+                if body["action"] in ("timer.adjust", "timer.cancel")
+                else revision == snap["revision"]
+            )
+            # Adjust binds native revision; Cancel binds the exact native ID.
+            # Countdown/voice updates do not invalidate these target intents.
             if (
                 body["bootId"] != self.boot_id
-                or type(body["revision"]) is not int
-                or body["revision"] != snap["revision"]
+                or not revision_current
                 or body["taskId"] != f"timers:{snap['timers']['epoch']}"
             ):
                 return {"ok": False, "error": "stale_action", "retryAllowed": False}
@@ -2073,6 +2117,25 @@ class PodViewBridge:
                 and set(args) == {"timer_id"}
                 and isinstance(args["timer_id"], str)
                 and args["timer_id"] in {r["id"] for r in snap["timers"]["items"]}
+            )
+            adjusted = next(
+                (row for row in snap["timers"]["items"] if row["id"] == args.get("timer_id")), None
+            )
+            valid |= (
+                action == "timer.adjust"
+                and set(args) == {"timer_id", "delta_seconds", "expected_revision"}
+                and type(args.get("delta_seconds")) is int
+                and args["delta_seconds"] != 0
+                and -86400 <= args["delta_seconds"] <= 86400
+                and adjusted is not None
+                and adjusted["status"] in ("running", "paused")
+                and args.get("expected_revision") == adjusted.get("sourceRevision")
+                and isinstance(args.get("expected_revision"), str)
+                and bool(
+                    getattr(owner, "adjust_available", lambda *values: False)(
+                        room, args["timer_id"]
+                    )
+                )
             )
             if not valid:
                 timer_trace("validation", "rejected")
@@ -2106,14 +2169,17 @@ class PodViewBridge:
             try:
                 result = await asyncio.wait_for(
                     owner.dispatch(
-                        "podvoice_start_timer"
-                        if action == "timer.start"
-                        else "podvoice_cancel_timer",
+                        {
+                            "timer.start": "podvoice_start_timer",
+                            "timer.cancel": "podvoice_cancel_timer",
+                            "timer.adjust": "podvoice_adjust_timer",
+                        }[action],
                         args,
                         room,
                         "podview:" + self.boot_id,
                         request_id,
                         execution_guard=current,
+                        **({"deadline": time.monotonic() + 8} if action == "timer.adjust" else {}),
                     ),
                     timeout=8,
                 )
@@ -2126,12 +2192,54 @@ class PodViewBridge:
                         or (isinstance(timer_id, str) and 1 <= len(timer_id) <= 200)
                     )
                 )
+                adjustment = {}
+                if action == "timer.adjust":
+                    native_request = hashlib.sha256(
+                        json.dumps(["podview:" + self.boot_id, room, request_id]).encode()
+                    ).hexdigest()
+                    try:
+                        metadata = self._timer_metadata(result)
+                    except ValueError:
+                        metadata = {}
+                    revision = metadata.get("sourceRevision")
+                    expected = args["expected_revision"]
+                    newer = isinstance(revision, str) and (len(revision), revision) > (
+                        len(expected),
+                        expected,
+                    )
+                    accepted = bool(
+                        accepted
+                        and result.get("request_id") == native_request
+                        and timer_id == args["timer_id"]
+                        and type(result.get("delta_seconds")) is int
+                        and result["delta_seconds"] == args["delta_seconds"]
+                        and result.get("expected_revision") == expected
+                        and result.get("epoch") == epoch
+                        and result.get("state") in ("active", "paused")
+                        and type(result.get("seconds_left")) is int
+                        and result["seconds_left"] >= 1
+                        and newer
+                    )
+                    if accepted:
+                        adjustment = {
+                            "timerId": timer_id,
+                            "deltaSeconds": args["delta_seconds"],
+                            "expectedSourceRevision": expected,
+                            **metadata,
+                            "secondsLeft": result["seconds_left"],
+                            "status": "running" if result["state"] == "active" else "paused",
+                        }
                 receipt = {
                     "ok": accepted,
                     "requestId": request_id,
-                    "outcome": "accepted" if accepted else "unknown",
+                    "outcome": "accepted"
+                    if accepted
+                    else "rejected"
+                    if action == "timer.adjust" and result.get("outcome") == "rejected"
+                    else "unknown",
                     "retryAllowed": False,
                     "physicalResultVerified": False,
+                    **adjustment,
                 }
                 if accepted and action == "timer.start":
                     receipt["timerId"] = timer_id

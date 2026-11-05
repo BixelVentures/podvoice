@@ -89,6 +89,32 @@ COMMAND_SCHEMA = vol.Schema(
         vol.Optional("sink_id", default=""): cv.string,
     }
 )
+
+
+def timer_delta(value: object) -> int:
+    if type(value) is not int or not 1 <= abs(value) <= 86400:
+        raise vol.Invalid("delta_seconds must be a nonzero integer within 24 hours")
+    return value
+
+
+def timer_lookup(value: object) -> bool:
+    if type(value) is not bool:
+        raise vol.Invalid("lookup_only must be a boolean")
+    return value
+
+
+COMMAND_V2_SCHEMA = COMMAND_SCHEMA.extend(
+    {
+        vol.Required("action"): vol.In(
+            ("start", "cancel", "acknowledge_finished", "claim_alert", "report_alert", "adjust")
+        ),
+        vol.Optional("delta_seconds"): vol.Any(None, timer_delta),
+        vol.Optional("expected_revision", default=""): vol.Any(
+            "", vol.Match(r"^(?:0|[1-9][0-9]{0,23})$")
+        ),
+        vol.Optional("lookup_only", default=False): timer_lookup,
+    }
+)
 ADMIN_SCHEMA = vol.Schema({vol.Required("room"): vol.All(cv.string, vol.Length(min=1, max=160))})
 ADMIN_APPROVE_SCHEMA = ADMIN_SCHEMA.extend({vol.Required("request_id"): vol.Match(r"[a-f0-9]{32}")})
 ADMIN_REVOKE_IDENTITY_SCHEMA = ADMIN_SCHEMA.extend(
@@ -154,6 +180,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         return False
     hass.services.async_remove(DOMAIN, "timer_status")
     hass.services.async_remove(DOMAIN, "timer_command")
+    hass.services.async_remove(DOMAIN, "timer_command_v2")
     hass.services.async_remove(DOMAIN, "robot_snapshot")
     hass.services.async_remove(DOMAIN, "robot_water_snapshot")
     hass.services.async_remove(DOMAIN, "robot_observation_snapshot")
@@ -279,6 +306,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         schema=COMMAND_SCHEMA,
         supports_response=SupportsResponse.ONLY,
     )
+    if all(
+        callable(getattr(manager, method, None))
+        for method in ("add_time", "pause_timer", "unpause_timer")
+    ):
+        hass.services.async_register(
+            DOMAIN,
+            "timer_command_v2",
+            command,
+            schema=COMMAND_V2_SCHEMA,
+            supports_response=SupportsResponse.ONLY,
+        )
     hass.services.async_register(
         DOMAIN,
         "controller_list",

@@ -23,7 +23,19 @@ from gatekeeper.tools import ToolRouter
 from gatekeeper.web import create_app
 
 port = int(os.environ.get("HOME_EVENT_TEST_PORT", "18978"))
-weather_mode = os.environ.get("WEATHER_RETENTION_TEST") == "1"
+offline_mode = os.environ.get("OFFLINE_FEEDBACK_TEST") == "1"
+weather_mode = os.environ.get("WEATHER_RETENTION_TEST") == "1" or offline_mode
+transport_blocked = False
+hold_snapshot = False
+snapshot_started = asyncio.Event()
+release_snapshot = asyncio.Event()
+event_streams = set()
+transport_counts = {"eventResponses": 0, "eventEOFs": 0, "apiFailures": 0}
+native_timer_fixture = None
+if offline_mode:
+    from integration.test_ha_timer_flow import build
+
+    native_timer_fixture = build()
 weather_entity = "weather.inert"
 weather_owner = None
 weather_failed = False
@@ -149,6 +161,12 @@ app = create_app(
 
 @web.middleware
 async def ingress(request, handler):
+    if offline_mode and transport_blocked and request.path.startswith("/view/api/"):
+        transport_counts["apiFailures"] += 1
+        return web.json_response({"ok": False, "error": "inert_transport_unavailable"}, status=503)
+    if offline_mode and hold_snapshot and request.path == "/view/api/snapshot":
+        snapshot_started.set()
+        await asyncio.wait_for(release_snapshot.wait(), 8)
     if not request.path.startswith(("/lab/", "/app/", "/api/hassio_ingress/")):
         headers = CIMultiDict(request.headers)
         headers["X-Remote-User-Id"] = "a" * 32
@@ -157,6 +175,20 @@ async def ingress(request, handler):
 
 
 app.middlewares.insert(0, ingress)
+
+
+async def capture_event_stream(request, response):
+    if (
+        offline_mode
+        and request.path == "/view/api/events"
+        and response.status == 200
+        and response.content_type == "text/event-stream"
+    ):
+        event_streams.add(response)
+        transport_counts["eventResponses"] += 1
+
+
+app.on_response_prepare.append(capture_event_stream)
 
 
 async def ha_websocket(request):
@@ -203,9 +235,26 @@ async def emit(entity, state):
 
 
 async def lab(request):
-    global hold_read, weather_failed
+    global hold_read, weather_failed, transport_blocked, hold_snapshot
     if request.method == "POST":
         body = await request.json()
+        if offline_mode and body.get("holdSnapshot"):
+            hold_snapshot = True
+            snapshot_started.clear()
+            release_snapshot.clear()
+        if offline_mode and body.get("releaseSnapshot"):
+            hold_snapshot = False
+            release_snapshot.set()
+        if offline_mode and "transportBlocked" in body:
+            transport_blocked = body["transportBlocked"] is True
+            if transport_blocked:
+                for response in list(event_streams):
+                    try:
+                        await response.write_eof()
+                        transport_counts["eventEOFs"] += 1
+                    except (RuntimeError, ConnectionResetError):
+                        pass
+                    event_streams.discard(response)
         if weather_owner is not None:
             if "weatherFail" in body:
                 weather_failed = body["weatherFail"] is True
@@ -249,6 +298,22 @@ async def lab(request):
             "state": robot.states[ROBOT]["state"],
             "writes": robot.writes,
             "readHeld": read_started.is_set() and not release_read.is_set(),
+            **(
+                {
+                    "transport": {
+                        **transport_counts,
+                        "blocked": transport_blocked,
+                        "snapshotHeld": snapshot_started.is_set() and not release_snapshot.is_set(),
+                    },
+                    "nativeTimer": {
+                        "starts": native_timer_fixture[0].starts,
+                        "ids": list(native_timer_fixture[0].timers),
+                        "commands": [row for row in native_timer_fixture[4] if row.get("action")],
+                    },
+                }
+                if offline_mode
+                else {}
+            ),
             **(
                 {
                     "weather": {
@@ -322,9 +387,24 @@ async def startup(_):
         # The real MCP initialize/tools-list admission runs before browser requests.
         await tools._refresh(force=True)
         assert tools.podview_weather_available()
+    if native_timer_fixture is not None:
+        tools.timers = native_timer_fixture[3].timers
+        await tools.timers.refresh("kitchen")
+
+        async def refresh_native_timer():
+            while True:
+                await tools.timers.refresh("kitchen")
+                await asyncio.sleep(0.25)
+
+        app["offline_native_timer_poll"] = asyncio.create_task(refresh_native_timer())
 
 
 async def cleanup(_):
+    if native_timer_fixture is not None:
+        task = app["offline_native_timer_poll"]
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
+        await native_timer_fixture[2].aclose()
     release_read.set()
     for websocket in list(clients):
         await websocket.close()
@@ -334,6 +414,7 @@ async def cleanup(_):
 
 async def shutdown(app):
     release_read.set()
+    release_snapshot.set()
     # Stop the fixture listener before closing its WS peer, preventing reconnect during teardown.
     await app[BRIDGE].stop_home_events()
     for websocket in list(clients):

@@ -2,7 +2,7 @@ const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Obj
 import {requestWithin} from './request-deadline.js';
 const controlSetupFailureCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable']);
 // Content-free classifications only: these records never grant control authority.
-const diagnosticDomainActions={music:['pause','resume','next','previous','volume','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel'],radio:['start','stop','move','volume'],home:[]};
+const diagnosticDomainActions={music:['pause','resume','next','previous','volume','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel','timer.adjust'],radio:['start','stop','move','volume'],home:[]};
 const diagnosticActions=new Set(Object.values(diagnosticDomainActions).flat());
 const diagnosticSources=new Set(['home_assistant','podconnect','podspeakers','podradio','snapshot']);
 const diagnosticTrust=new Set(['state_observation','owner_settlement']);
@@ -173,6 +173,7 @@ export class PodVoiceTransport {
  accept(value,readAt=Date.now()) {
   if (Date.now()-readAt>=6000||this.closed || value?.schema !== 'podview.snapshot.v1' || typeof value.bootId !== 'string' || !Number.isInteger(value.revision) || value.revision < 1 || typeof value.roomId !== 'string' || !value.voice || !value.timers || !value.capabilities) return false;
   if (!['observed','unavailable'].includes(value.timers.status)||!Array.isArray(value.timers.items)||!Array.isArray(value.capabilities.musicRead)||!Array.isArray(value.capabilities.timerActions)) return false;
+  if(value.timers.items.some(t=>{if(!t||typeof t!=='object')return false;const d=Object.hasOwn(t,'durationSeconds'),r=Object.hasOwn(t,'sourceRevision');return (d||r)&&(!d||!r||!Number.isInteger(t.durationSeconds)||t.durationSeconds<1||t.durationSeconds>86400||typeof t.sourceRevision!=='string'||!/^(0|[1-9][0-9]{0,23})$/.test(t.sourceRevision));}))return false;
   if(value.capabilities.homeRead!==undefined&&(!Array.isArray(value.capabilities.homeRead)||value.capabilities.homeRead.some(x=>!['vacuum','weather','light','vehicle'].includes(x))))return false;
   if(value.homeRevision!==undefined&&(!value.homeRevision||typeof value.homeRevision!=='object'||Array.isArray(value.homeRevision)||Object.keys(value.homeRevision).sort().join(',')!=='revision,scope'||typeof value.homeRevision.scope!=='string'||!/^[a-f0-9]{64}$/.test(value.homeRevision.scope)||!Number.isSafeInteger(value.homeRevision.revision)||value.homeRevision.revision<0))return false;
   if(this.snapshot?.bootId===value.bootId&&this.snapshot?.roomId===value.roomId&&this.snapshot.homeRevision?.scope===value.homeRevision?.scope&&this.snapshot.homeRevision?.revision>value.homeRevision?.revision)return false;
@@ -436,6 +437,7 @@ export class PodVoiceTransport {
   if (!this.connected || !this.snapshot) throw new Error('control_not_paired');
   const snapshot = this.snapshot;
   if (!snapshot.capabilities.timerActions.includes(action)) throw new Error('unsupported_action');
+  if(action==='timer.adjust'){const row=snapshot.timers.status==='observed'&&snapshot.timers.items.find(t=>t.id===args?.timer_id);if(!row||!['running','paused'].includes(row.status)||![-60,60].includes(args?.delta_seconds)||!Number.isInteger(row.durationSeconds)||row.durationSeconds<1||row.durationSeconds>86400||typeof row.sourceRevision!=='string'||!/^(0|[1-9][0-9]{0,23})$/.test(row.sourceRevision)||args?.expected_revision!==row.sourceRevision)throw new Error('stale_action');}
   const body = {bootId:snapshot.bootId,roomId:snapshot.roomId,taskId:`timers:${snapshot.timers.epoch}`,revision:snapshot.revision,requestId,action,args};
   // Exactly one send. A transport failure is UNKNOWN, never permission to resend.
   try {
@@ -443,6 +445,7 @@ export class PodVoiceTransport {
    const result=await response.json();
    if(response.status===409&&result?.ok===false&&result.retryAllowed===false&&Object.keys(result).every(key=>['ok','error','retryAllowed'].includes(key))&&['invalid_action','control_not_paired','invalid_request','timer_unavailable','stale_action','unsupported_action','request_capacity'].includes(result.error))return {...result,requestId,outcome:'rejected'};
    if((!response.ok&&response.status!==409)||(response.status===409&&result?.ok!==false)||result?.requestId!==requestId||typeof result.ok!=='boolean'||!['accepted','unknown','rejected'].includes(result.outcome)||result.ok!==(result.outcome==='accepted')||result.retryAllowed!==false||action==='timer.start'&&result.ok&&(typeof result.timerId!=='string'||result.timerId.length<1||result.timerId.length>200))return {ok:false,requestId,outcome:'unknown',retryAllowed:false};
+   if(action==='timer.adjust'&&result.ok){const revision=x=>typeof x==='string'&&/^(0|[1-9][0-9]{0,23})$/.test(x);const newer=(a,b)=>a.length>b.length||a.length===b.length&&a>b;if(result.timerId!==args?.timer_id||result.deltaSeconds!==args?.delta_seconds||result.expectedSourceRevision!==args?.expected_revision||!revision(result.sourceRevision)||!revision(result.expectedSourceRevision)||!newer(result.sourceRevision,result.expectedSourceRevision)||!Number.isInteger(result.durationSeconds)||result.durationSeconds<1||result.durationSeconds>86400||!Number.isInteger(result.secondsLeft)||result.secondsLeft<1||result.secondsLeft>result.durationSeconds||!['running','paused'].includes(result.status))return {ok:false,requestId,outcome:'unknown',retryAllowed:false};}
    return result;
   } catch { return {ok:false,requestId,outcome:'unknown',retryAllowed:false}; }
  }

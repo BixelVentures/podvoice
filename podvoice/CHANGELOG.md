@@ -1,3 +1,12 @@
+## 2.0.135
+
+- Adjust active and paused timers through the same native Home Assistant timer owner, with revision checks and no automatic effect replay.
+- Preserve the original timer and signed adjustments in the existing journal; cancellation cannot resurrect an earlier pending adjustment.
+- Native timer adjustment requires Home Assistant component 0.1.16 loaded and its v2 capability discovered; existing basic controls remain available with older components.
+- Keep connection feedback in the existing header and screen settings without covering weather or action feedback; preserve Retry focus and geometry.
+- Keep the Ro player clear of the active timer/robot rail on portrait displays.
+- Native music-read diagnosis and physical acceptance remain open.
+
 ## 2.0.134
 
 - Retain dated weather facts through bounded source failures and reload, and clear expired current facts consistently across detail, Home and photo views.

@@ -491,7 +491,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "cbd6ee327f5a77aeccd0be00173fe1ca7c7b7eb68b94e4dff014ee2c2fd0ea67"
+      "sha256": "b70cbd549e82cd88dc7231e172572e210e95376a56cb1480f7630255bf059e25"
     },
     {
       "path": "ingress-kiosk.js",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "26167bfb713c5375dcc9097aaae1e1eb5e80a1673e501b6957b19ef844741da4"
+      "sha256": "f994b8b3da8e8b2f293045f2a7b9da0999cc0385675dc9016a67a7f63641e220"
     },
     {
       "path": "library.css",
@@ -635,19 +635,19 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "13e2b20e2b1b4c960089f1cff66129e15685644203fd0bef668297fa37f21dd1"
+      "sha256": "05c7490481463b408d3c4d069d2142593193ca6ed04d673d8511f8a2f59b837f"
     },
     {
       "path": "podview.css",
-      "sha256": "665eb9b4f6dd675e3943aea0f5619fb56d76d3b30c93891ccae7d8a96bb665b3"
+      "sha256": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "9bbd5cc8fdc1793f61b053656eb270202b7ed7e5fe5d778bfe7be2a7e5b516d0"
+      "sha256": "927d5814a2c181526e7eef81eab4d7859deb896db2d06b6ba4e2753f1bfb0c21"
     },
     {
       "path": "podvoice-view.js",
-      "sha256": "f9e11f1adc8685078c5b1fb388d8d7ad38d9a5dfd32df976c11c7b080f5ddc3f"
+      "sha256": "7894b8371da71dcc75cd0d62538d4b4175635924563d2d021ed22a3c8752e97e"
     },
     {
       "path": "preview-scenes.js",
@@ -727,7 +727,7 @@
     },
     {
       "path": "timer-model.js",
-      "sha256": "5e19db8145ab3e4cdc6f70ec3b2b301cfff86a7f24fdcb6b319382fdfd0926b3"
+      "sha256": "837fdc90e2d8281855da160610b4c300350659bbe497fab5b0eacb6f7336e0ea"
     },
     {
       "path": "timer-notice.css",
@@ -739,11 +739,11 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "337d8b4029a134ee84de0fb9e40195e8f05726fed8b2a26aa2c570194970b10a"
+      "sha256": "19d481751206f946c1e41bd64ec19005e98bd331e484ed8d597088148345debd"
     },
     {
       "path": "ui-kit.css",
-      "sha256": "2cca8b954294fd806fc58d952221a7fabc0d57774892485bf2ee74439fef3838"
+      "sha256": "8d93368014a86f2e61259b7d11f9f3371776526554ba36d0939c60e0083f43ac"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "68b247a3d5652a26f5669714e46e654b241fcff4a83329536ef19b7266cde1dd"
+      "sha256": "c7fc6a80d66d20e34e388bac22f74584cb525589a52626780cabcf93c0e29e78"
     },
     {
       "path": "workshop.css",

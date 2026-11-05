@@ -1,0 +1,3972 @@
+{
+  "pins": {
+    "podview.css": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6",
+    "podview.bundle.js": "da7bfef5e96e2aed34dfed543288513c7f4e3d7af3f1c2402c55fc80cd04fc2c"
+  },
+  "proof": {
+    "01-ready-rest": {
+      "at": 1793909650496,
+      "focus": "photo",
+      "status": "connected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "ready",
+        "headerLabel": "",
+        "text": "",
+        "retry": false
+      },
+      "header": {
+        "text": "Tors. 5. nov.",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "photo": {
+        "text": "torsdag 5. november",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 48,
+          "y": 192,
+          "width": 340.078125,
+          "height": 26,
+          "bottom": 218
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "text": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "",
+        "text": "\nHjemLige nuMusikHjemSvar15°Let skyet21.14Tors. 5. nov.AfspillerVælg en stemning eller sang.Lydstyrk"
+      },
+      "navs": [],
+      "player": {
+        "x": 842,
+        "y": 656,
+        "width": 390,
+        "height": 96,
+        "bottom": 752
+      },
+      "weather": {
+        "hero": null,
+        "forecast": null,
+        "hours": 0,
+        "visibleHourHits": []
+      }
+    },
+    "02-ready-weather": {
+      "at": 1793909651067,
+      "focus": "weather",
+      "status": "connected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "ready",
+        "headerLabel": "",
+        "text": "",
+        "retry": false
+      },
+      "header": {
+        "text": "Tors. 5. nov.",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 1153.0625,
+          "y": 46.875,
+          "width": 86.9375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "torsdag 5. november",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "text": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Vejr"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 809.84375,
+          "height": 314,
+          "bottom": 410
+        },
+        "forecast": {
+          "x": 40,
+          "y": 434,
+          "width": 809.84375,
+          "height": 184,
+          "bottom": 618
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          }
+        ]
+      }
+    },
+    "03-browser-offline-weather": {
+      "at": 1793909651166,
+      "focus": "weather",
+      "status": "connected",
+      "online": false,
+      "browserOffline": true,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Ingen netværksforbindelse",
+        "text": "Ingen netværksforbindelse · viser det seneste.",
+        "retry": false
+      },
+      "header": {
+        "text": "Ingen netværksforbindelse",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Ingen netværksforbindelse · viser det seneste.",
+        "rect": {
+          "x": 1049.421875,
+          "y": 46.875,
+          "width": 190.578125,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Ingen netværksforbindelse",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Ingen netværksforbindelse · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "text": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Vejr"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 809.84375,
+          "height": 314,
+          "bottom": 410
+        },
+        "forecast": {
+          "x": 40,
+          "y": 434,
+          "width": 809.84375,
+          "height": 184,
+          "bottom": 618
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          }
+        ]
+      }
+    },
+    "04-browser-offline-rest": {
+      "at": 1793909651564,
+      "focus": "photo",
+      "status": "connected",
+      "online": false,
+      "browserOffline": true,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Ingen netværksforbindelse",
+        "text": "Ingen netværksforbindelse · viser det seneste.",
+        "retry": false
+      },
+      "header": {
+        "text": "Ingen netværksforbindelse",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Ingen netværksforbindelse · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "photo": {
+        "text": "Ingen netværksforbindelse",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Ingen netværksforbindelse · viser det seneste.",
+        "rect": {
+          "x": 48,
+          "y": 192,
+          "width": 340.078125,
+          "height": 26,
+          "bottom": 218
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "text": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "photo-view",
+        "text": "21.14Ingen netværksforbindelseEt øjeblik til bare at være.Tryk for overblik"
+      },
+      "navs": [],
+      "player": {
+        "x": 842,
+        "y": 656,
+        "width": 390,
+        "height": 96,
+        "bottom": 752
+      },
+      "weather": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "forecast": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": []
+      }
+    },
+    "05-browser-recovered-rest": {
+      "at": 1793909651763,
+      "focus": "photo",
+      "status": "connected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "ready",
+        "headerLabel": "",
+        "text": "",
+        "retry": false
+      },
+      "header": {
+        "text": "Tors. 5. nov.",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "photo": {
+        "text": "torsdag 5. november",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 48,
+          "y": 192,
+          "width": 340.078125,
+          "height": 26,
+          "bottom": 218
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "text": "",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "photo-view",
+        "text": "21.14torsdag 5. novemberEt øjeblik til bare at være.Tryk for overblik"
+      },
+      "navs": [],
+      "player": {
+        "x": 842,
+        "y": 656,
+        "width": 390,
+        "height": 96,
+        "bottom": 752
+      },
+      "weather": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "forecast": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": []
+      }
+    },
+    "actionBefore": {
+      "at": 1793909653307,
+      "focus": "now",
+      "status": "connected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "ready",
+        "headerLabel": "",
+        "text": "",
+        "retry": false
+      },
+      "header": {
+        "text": "Tors. 5. nov.",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 1153.0625,
+          "y": 46.875,
+          "width": 86.9375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "torsdag 5. november",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": true,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 24,
+          "y": 712,
+          "width": 306.671875,
+          "height": 64,
+          "bottom": 776
+        }
+      },
+      "notification": {
+        "source": "action",
+        "message": "Timeranmodningen er modtaget"
+      },
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Lige nu"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "forecast": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": []
+      }
+    },
+    "actionAfterEOF": {
+      "at": 1793909653332,
+      "focus": "now",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 1073.65625,
+          "y": 46.875,
+          "width": 166.34375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": true,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 24,
+          "y": 712,
+          "width": 306.671875,
+          "height": 64,
+          "bottom": 776
+        }
+      },
+      "notification": {
+        "source": "action",
+        "message": "Timeranmodningen er modtaget"
+      },
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Lige nu"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "forecast": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": []
+      }
+    },
+    "06-transport-offline-weather-1280": {
+      "at": 1793909653832,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 1073.65625,
+          "y": 46.875,
+          "width": 166.34375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Vejr"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 809.84375,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 809.84375,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          }
+        ]
+      }
+    },
+    "06-transport-offline-weather-1200": {
+      "at": 1793909653930,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 993.65625,
+          "y": 46.875,
+          "width": 166.34375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Vejr"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1152,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 826.453125,
+        "y": 96,
+        "width": 349.546875,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 754.453125,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 754.453125,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          }
+        ]
+      }
+    },
+    "06-transport-offline-weather-768": {
+      "at": 1793909654048,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 668.796875,
+          "y": 46.875,
+          "width": 59.203125,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Ikke tilsluttet",
+        "role": null,
+        "live": null,
+        "atomic": null,
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "header-title",
+        "text": "Vejr"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 720,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 474,
+        "y": 96,
+        "width": 270,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 402,
+          "height": 290,
+          "bottom": 386
+        },
+        "forecast": {
+          "x": 40,
+          "y": 410,
+          "width": 402,
+          "height": 184,
+          "bottom": 594
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          },
+          {
+            "inside": true,
+            "unobstructed": true,
+            "hit": ""
+          }
+        ]
+      }
+    },
+    "retryFocused": {
+      "at": 1793909654286,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 1073.65625,
+          "y": 46.875,
+          "width": 166.34375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 553.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": true,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 412,
+          "y": 550,
+          "width": 456,
+          "height": 64,
+          "bottom": 614
+        },
+        "active": true
+      },
+      "modal": true,
+      "active": {
+        "id": "",
+        "text": "Prøv igen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 809.84375,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 809.84375,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "07-retry-modal-1280": {
+      "at": 1793909654581,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 1073.65625,
+          "y": 46.875,
+          "width": 166.34375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 553.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": true,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 412,
+          "y": 550,
+          "width": 456,
+          "height": 64,
+          "bottom": 614
+        },
+        "active": false
+      },
+      "modal": true,
+      "active": {
+        "id": "screen-device-more-summary",
+        "text": "Om skærmen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1232,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 881.84375,
+        "y": 96,
+        "width": 374.140625,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 809.84375,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 809.84375,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "07-retry-modal-1200": {
+      "at": 1793909654764,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 993.65625,
+          "y": 46.875,
+          "width": 166.34375,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 513.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": true,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 372,
+          "y": 550,
+          "width": 456,
+          "height": 64,
+          "bottom": 614
+        },
+        "active": false
+      },
+      "modal": true,
+      "active": {
+        "id": "screen-device-more-summary",
+        "text": "Om skærmen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 1152,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 826.453125,
+        "y": 96,
+        "width": 349.546875,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 754.453125,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 754.453125,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "07-retry-modal-768": {
+      "at": 1793909654947,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 668.796875,
+          "y": 46.875,
+          "width": 59.203125,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 297.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": true,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 156,
+          "y": 550,
+          "width": 456,
+          "height": 64,
+          "bottom": 614
+        },
+        "active": false
+      },
+      "modal": true,
+      "active": {
+        "id": "screen-device-more-summary",
+        "text": "Om skærmen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 720,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 474,
+        "y": 96,
+        "width": 270,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 402,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 402,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "retryBeforeTouch": {
+      "at": 1793909655009,
+      "focus": "weather",
+      "status": "disconnected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "offline",
+        "headerLabel": "Forbindelsen er afbrudt",
+        "text": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "retry": true
+      },
+      "header": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 668.796875,
+          "y": 46.875,
+          "width": 59.203125,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Forbindelsen er afbrudt",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbindelsen til hjemmet er afbrudt · viser det seneste.",
+        "rect": {
+          "x": 297.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": true,
+        "hidden": false,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 156,
+          "y": 550,
+          "width": 456,
+          "height": 64,
+          "bottom": 614
+        },
+        "active": true
+      },
+      "modal": true,
+      "active": {
+        "id": "",
+        "text": "Prøv igen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 720,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 474,
+        "y": 96,
+        "width": 270,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 402,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 402,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "08-pending-retry-modal": {
+      "at": 1793909655468,
+      "focus": "weather",
+      "status": "connecting",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "connecting",
+        "headerLabel": "Genopretter forbindelse…",
+        "text": "Genopretter forbindelsen til hjemmet…",
+        "retry": false
+      },
+      "header": {
+        "text": "Genopretter forbindelse…",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Genopretter forbindelsen til hjemmet…",
+        "rect": {
+          "x": 666.25,
+          "y": 46.875,
+          "width": 61.75,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "Genopretter forbindelse…",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": "Genopretter forbindelsen til hjemmet…",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Genopretter forbindelse…",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Genopretter forbindelsen til hjemmet…",
+        "rect": {
+          "x": 297.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": true,
+        "hidden": false,
+        "disabled": true,
+        "nativeDisabled": false,
+        "ariaDisabled": "true",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 156,
+          "y": 550,
+          "width": 456,
+          "height": 64,
+          "bottom": 614
+        },
+        "active": true
+      },
+      "modal": true,
+      "active": {
+        "id": "",
+        "text": "Prøv igen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 720,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 474,
+        "y": 96,
+        "width": 270,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 402,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 402,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "08-recovered-modal": {
+      "at": 1793909655648,
+      "focus": "weather",
+      "status": "connected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "ready",
+        "headerLabel": "",
+        "text": "",
+        "retry": false
+      },
+      "header": {
+        "text": "Tors. 5. nov.",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 656,
+          "y": 46.875,
+          "width": 72,
+          "height": 17.25,
+          "bottom": 64.125
+        }
+      },
+      "photo": {
+        "text": "torsdag 5. november",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "homeStatus": {
+        "text": "Forbundet",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbundet",
+        "rect": {
+          "x": 297.984375,
+          "y": 502,
+          "width": 314.015625,
+          "height": 24,
+          "bottom": 526
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": true,
+      "active": {
+        "id": "screen-device-more-summary",
+        "text": "Om skærmen"
+      },
+      "navs": [
+        {
+          "x": 24,
+          "y": 0,
+          "width": 720,
+          "height": 80,
+          "bottom": 80
+        }
+      ],
+      "player": {
+        "x": 474,
+        "y": 96,
+        "width": 270,
+        "height": 688,
+        "bottom": 784
+      },
+      "weather": {
+        "hero": {
+          "x": 40,
+          "y": 96,
+          "width": 402,
+          "height": 226,
+          "bottom": 322
+        },
+        "forecast": {
+          "x": 40,
+          "y": 346,
+          "width": 402,
+          "height": 184,
+          "bottom": 530
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": [
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "quick-sheet"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          },
+          {
+            "inside": true,
+            "unobstructed": false,
+            "hit": "screen-settings-content"
+          }
+        ]
+      }
+    },
+    "09-final-rest": {
+      "at": 1793909656132,
+      "focus": "photo",
+      "status": "connected",
+      "online": true,
+      "browserOffline": false,
+      "connection": {
+        "state": "ready",
+        "headerLabel": "",
+        "text": "",
+        "retry": false
+      },
+      "header": {
+        "text": "Tors. 5. nov.",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "photo": {
+        "text": "torsdag 5. november",
+        "role": "status",
+        "live": "polite",
+        "atomic": "true",
+        "label": null,
+        "rect": {
+          "x": 48,
+          "y": 192,
+          "width": 340.078125,
+          "height": 26,
+          "bottom": 218
+        }
+      },
+      "homeStatus": {
+        "text": "Forbundet",
+        "role": "status",
+        "live": null,
+        "atomic": null,
+        "label": "Forbundet",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "toast": {
+        "visible": false,
+        "source": "action",
+        "text": "Timeranmodningen er modtaget",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        }
+      },
+      "notification": null,
+      "retry": {
+        "exists": true,
+        "visible": false,
+        "hidden": true,
+        "disabled": false,
+        "nativeDisabled": false,
+        "ariaDisabled": "false",
+        "parent": "screen-device-network",
+        "rect": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "active": false
+      },
+      "modal": false,
+      "active": {
+        "id": "photo-view",
+        "text": "21.14torsdag 5. novemberEt øjeblik til bare at være.Tryk for overblik"
+      },
+      "navs": [],
+      "player": {
+        "x": 384,
+        "y": 656,
+        "width": 336,
+        "height": 96,
+        "bottom": 752
+      },
+      "weather": {
+        "hero": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "forecast": {
+          "x": 0,
+          "y": 0,
+          "width": 0,
+          "height": 0,
+          "bottom": 0
+        },
+        "hours": 12,
+        "temperature": "15°",
+        "visibleHourHits": []
+      }
+    }
+  },
+  "uiEvents": [
+    {
+      "trusted": true,
+      "type": "click",
+      "at": 1793909655049,
+      "online": true,
+      "focused": true,
+      "pointerType": "touch",
+      "detail": 1
+    },
+    {
+      "trusted": true,
+      "type": "click",
+      "at": 1793909655517,
+      "online": true,
+      "focused": true,
+      "pointerType": null,
+      "detail": 0
+    }
+  ],
+  "snapshotRequests": [
+    {
+      "at": 1793909650225,
+      "method": "GET"
+    },
+    {
+      "at": 1793909654342,
+      "method": "GET"
+    },
+    {
+      "at": 1793909655063,
+      "method": "GET"
+    }
+  ],
+  "transportBefore": {
+    "stateReads": 1,
+    "connections": 1,
+    "subscriptions": 4,
+    "state": "cleaning",
+    "writes": [],
+    "readHeld": false,
+    "transport": {
+      "eventResponses": 1,
+      "eventEOFs": 0,
+      "apiFailures": 0,
+      "blocked": false,
+      "snapshotHeld": false
+    },
+    "nativeTimer": {
+      "starts": 1,
+      "ids": [
+        "1"
+      ],
+      "commands": [
+        {
+          "endpoint": "kitchen",
+          "epoch": "e3a12eab40638cb666f81504116acda4",
+          "request_id": "65a6448e6678fe0b5a018ee7d91f6091994d74cfd74368ce14080537d7ff167a",
+          "action": "start",
+          "seconds": 300,
+          "name": ""
+        }
+      ]
+    },
+    "weather": {
+      "failed": false,
+      "reads": [
+        {
+          "at": 1793909650.271051,
+          "forecastType": "daily",
+          "failed": false
+        },
+        {
+          "at": 1793909650.27142,
+          "forecastType": "hourly",
+          "failed": false
+        }
+      ],
+      "sources": {
+        "daily": {
+          "source": "Home Assistant / Met.no",
+          "location": "Inert vejrsted",
+          "retrieved_at": "2026-11-05T20:14:08.940779+00:00",
+          "state_updated_at": "2026-11-05T20:14:08.940779+00:00",
+          "condition": "partlycloudy",
+          "temperature": 15.1,
+          "temperature_unit": "°C",
+          "precipitation_unit": "mm",
+          "wind_speed_unit": "km/h",
+          "forecast_type": "daily",
+          "forecast": [
+            {
+              "datetime": "2026-11-05T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.399999999999999
+            },
+            {
+              "datetime": "2026-11-06T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.5
+            },
+            {
+              "datetime": "2026-11-07T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.599999999999998
+            },
+            {
+              "datetime": "2026-11-08T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.7
+            },
+            {
+              "datetime": "2026-11-09T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.799999999999997
+            },
+            {
+              "datetime": "2026-11-10T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.899999999999999
+            }
+          ],
+          "entity_id": "weather.inert"
+        },
+        "hourly": {
+          "source": "Home Assistant / Met.no",
+          "location": "Inert vejrsted",
+          "retrieved_at": "2026-11-05T20:14:08.940779+00:00",
+          "state_updated_at": "2026-11-05T20:14:08.940779+00:00",
+          "condition": "partlycloudy",
+          "temperature": 15.1,
+          "temperature_unit": "°C",
+          "precipitation_unit": "mm",
+          "wind_speed_unit": "km/h",
+          "forecast_type": "hourly",
+          "forecast": [
+            {
+              "datetime": "2026-11-05T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T21:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T22:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T23:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T00:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T01:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T02:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T03:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T04:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T05:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T06:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T07:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T08:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T09:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T10:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T11:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T12:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T13:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T14:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T15:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T16:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T17:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T18:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T19:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T21:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T22:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T23:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T00:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T01:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T02:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T03:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T04:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T05:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T06:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T07:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T08:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T09:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T10:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T11:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T12:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T13:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T14:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T15:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T16:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T17:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T18:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 21,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T19:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 21.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            }
+          ],
+          "entity_id": "weather.inert"
+        }
+      }
+    }
+  },
+  "final": {
+    "stateReads": 2,
+    "connections": 1,
+    "subscriptions": 4,
+    "state": "cleaning",
+    "writes": [],
+    "readHeld": false,
+    "transport": {
+      "eventResponses": 2,
+      "eventEOFs": 1,
+      "apiFailures": 1,
+      "blocked": false,
+      "snapshotHeld": false
+    },
+    "nativeTimer": {
+      "starts": 1,
+      "ids": [
+        "1"
+      ],
+      "commands": [
+        {
+          "endpoint": "kitchen",
+          "epoch": "e3a12eab40638cb666f81504116acda4",
+          "request_id": "65a6448e6678fe0b5a018ee7d91f6091994d74cfd74368ce14080537d7ff167a",
+          "action": "start",
+          "seconds": 300,
+          "name": ""
+        }
+      ]
+    },
+    "weather": {
+      "failed": false,
+      "reads": [
+        {
+          "at": 1793909650.271051,
+          "forecastType": "daily",
+          "failed": false
+        },
+        {
+          "at": 1793909650.27142,
+          "forecastType": "hourly",
+          "failed": false
+        },
+        {
+          "at": 1793909655.556461,
+          "forecastType": "daily",
+          "failed": false
+        },
+        {
+          "at": 1793909655.556696,
+          "forecastType": "hourly",
+          "failed": false
+        }
+      ],
+      "sources": {
+        "daily": {
+          "source": "Home Assistant / Met.no",
+          "location": "Inert vejrsted",
+          "retrieved_at": "2026-11-05T20:14:08.940779+00:00",
+          "state_updated_at": "2026-11-05T20:14:08.940779+00:00",
+          "condition": "partlycloudy",
+          "temperature": 15.1,
+          "temperature_unit": "°C",
+          "precipitation_unit": "mm",
+          "wind_speed_unit": "km/h",
+          "forecast_type": "daily",
+          "forecast": [
+            {
+              "datetime": "2026-11-05T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.399999999999999
+            },
+            {
+              "datetime": "2026-11-06T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.5
+            },
+            {
+              "datetime": "2026-11-07T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.599999999999998
+            },
+            {
+              "datetime": "2026-11-08T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.7
+            },
+            {
+              "datetime": "2026-11-09T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.799999999999997
+            },
+            {
+              "datetime": "2026-11-10T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2,
+              "templow": 11.899999999999999
+            }
+          ],
+          "entity_id": "weather.inert"
+        },
+        "hourly": {
+          "source": "Home Assistant / Met.no",
+          "location": "Inert vejrsted",
+          "retrieved_at": "2026-11-05T20:14:08.940779+00:00",
+          "state_updated_at": "2026-11-05T20:14:08.940779+00:00",
+          "condition": "partlycloudy",
+          "temperature": 15.1,
+          "temperature_unit": "°C",
+          "precipitation_unit": "mm",
+          "wind_speed_unit": "km/h",
+          "forecast_type": "hourly",
+          "forecast": [
+            {
+              "datetime": "2026-11-05T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T21:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T22:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-05T23:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T00:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T01:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 16.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T02:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T03:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T04:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T05:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T06:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T07:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T08:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T09:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T10:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T11:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 17.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T12:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T13:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T14:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T15:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T16:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T17:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T18:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T19:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T20:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T21:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 18.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T22:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-06T23:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T00:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T01:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T02:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T03:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T04:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T05:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T06:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T07:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 19.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T08:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T09:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T10:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.2,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T11:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.299999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T12:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.4,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T13:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.5,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T14:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.599999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T15:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.7,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T16:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.799999999999997,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T17:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 20.9,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T18:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 21,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            },
+            {
+              "datetime": "2026-11-07T19:10:48.940779+00:00",
+              "condition": "partlycloudy",
+              "temperature": 21.099999999999998,
+              "precipitation": 0,
+              "precipitation_probability": 4.6,
+              "wind_speed": 18.7,
+              "humidity": 82,
+              "cloud_coverage": 58.3,
+              "uv_index": 2.2
+            }
+          ],
+          "entity_id": "weather.inert"
+        }
+      }
+    }
+  },
+  "errors": []
+}
