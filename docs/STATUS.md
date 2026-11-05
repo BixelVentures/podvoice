@@ -1,3 +1,13 @@
+## 130 · CI964 modal-scrollclosure ·5nov2026
+
+CI964/headcd654bestod16non-UIgrupper; UIfejlede på1280modal-scrollreset. FaktiskCIartifact13395644349/SHA79510ca… viste korrekt touch38px→efterfølgende0 ogklippetadmin. Énnonintrusivtrace samt deterministicREALinertHAevent/SSEpåoldccdd bevisteårsag: renderScreenSettings afviste snapshotOBJECTidentity i en kort sameboot/room-adoptionsfase; admin blev skjult, content774→694<client736, nativebrowserclampede38→0, derefterkomlinketigen. Ingen gesture/focus/scrollTopwritevarårsagen.
+
+Mindste kanoniskeWidgetHostrettelse bruger AKTUELvaliderettransportadmission og nonemptyboot/roommatch modUI fremfor JSobjectidentity. Connected/exactadmissionkeys/origin/path/revocation/actualscopechangeguards er bevarede; ingen cachedgrant/nykommandomyndighed/adoptmutation. AstraGO Widget4fd2e902…/bundlefdf1f9c3… . Førog efter: gammel1280scroll38→0, ny128038→38/admin672–736med32padding;768238→238/admin472–536/padding32. Testen anvender faktisk inertHAevent→accepteretSSEeftermanualtouch, ingenoverrideafappstate/scrollværdier ogingenassertionlempelse.
+
+Samletbuildfdf1f9c38fae4e65dba552dccc0d25bff1df98de0b52ffd77fde09134c5d84ce, CSS/bibliotekuændrede, manifest221canonical/stagingPASS. FuldUI4668/componentgateexit0, JSsyntax/diffPASS. Pythonruntimebyteidentiskmedccdd, så tidligerefullmypy103/berørtePython/Ruffbevisgenbruges. ActualCI151Home→touchscroll→passivepush1280+768→adminroundtrip→reloadPASSexit0 `/private/tmp/podview130-modal-combined-actual.log`, externalupdate18ms/0servicewrites/0pageerrors; ingen generalDOMidentitetsgaranti. Billedergeometri `/private/tmp/podview130-modal-combined-proof/`; SolharinspiceretbeggeidentiskefdfviewportsogAstrareviewerlæstbevis, ingennewvisualblockiændredescope. DenkarakteristiskeCIfejlerlukketlokalt; nyofficialCIkræves, CI964markeresikkebestået.
+
+VejrfeedbackblevseparatpassivtchecketafsoleGreenoperator08:31–33:actualHA2.4°Tåge ogactualPodView1292°Tåge+time/6dayforecast. CI-billederudenweatherfixturedata erikkefaktiskGreen. Ingenreload/config/restart/audioforvejrkontrollen; relativ49minUItekstikkefreshnessgaranti. IngenGreenmutationher.
+
 ## 130 · CI963 radiojournalclosure ·5. november2026
 
 Faktisk CI963/head41ba fejlede på radio_stop setupkorrelation. Reproduceret medCIChromium151: setup/startseq55 og setup/okseq58 blev korrekt emitted/lokalt bevaret efterSpotify (111rows/dropped0), men forsvandt uACKed under senere128rowbufferpres/dropped49; serverhavdekun64rows. Det er en klientretentionsårsag, ikke manglende emission eller server512eviction. Førbevis `/private/tmp/podview-radio-journal-before-evidence.json`.
