@@ -14,13 +14,13 @@ REVIEWER = "Astra HACS metadata source, quiet rule and exact registration review
 RELEASE_PINS = {
     "hacs.json": "eb7edf100babf756294792cdd709bc2306598b4fcb0c4c1d1d54fe1b94f0ccea",
     "custom_components/podvoice/manifest.json": "7eac83b25fdadb88eb22a7b9f2baed91b29ceebbdab584fda632e7b3c543c541",
-    ".github/workflows/ci.yml": "35e5bbab9bcdd84bae6d5153a2c73fd7d4f07125dc0727a2bba6d88592433240",
+    ".github/workflows/ci.yml": "4056304fe950b7649998ca572f8e28e5095c4aed5c1180fa5794545f435add55",
     "podvoice/CHANGELOG.md": "ecb0149048cc7b996058f7cd3ca6daa7d3ebae19ff5ed8de36908166695071f7",
     "podvoice/config.yaml": "257a6c7b9d1424c61177200303b52701e74489c63276efecdd44d9cfc33c7a98",
     "podvoice/gatekeeper/__init__.py": "188a70ecdfbbe5760043fd38612cf4059dbcbc9e771fd37f5556763cce343171",
     "pyproject.toml": "f73469c72d2929eb696cf308d68cd3da673699c3d950d6f2ee86e65aacb0963d",
 }
-REGISTRATION = {".github/workflows/ci.yml", "scripts/candidate_scope_hacs_metadata.py"}
+REGISTRATION = {".github/workflows/ci.yml", "scripts/candidate_scope_admission140.py"}
 
 
 def git(*args: str) -> str:
