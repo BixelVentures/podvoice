@@ -1,3 +1,10 @@
+## 2.0.139
+
+- Preserve the confirmed speaker destination across healthy, semantically unchanged service discovery, including idle, while retaining exact current owner checks for every executable read and action.
+- Keep existing UNKNOWN fences and reject old offers and real owner or contract changes; remembered destination never grants playback authority.
+- Record bounded queue request/receipt outcomes, execution stage and possible-send status in the existing owner log without playback content or credentials.
+- Preserve the approved UI and native companion 0.1.16. The original unobserved queue receipt and actual device acceptance remain separately tracked.
+
 ## 2.0.138
 
 - Keep native content execution identities separate from speaker alias identities when selecting music and confirming output changes.
