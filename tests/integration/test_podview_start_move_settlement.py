@@ -4,6 +4,7 @@ import copy
 import hashlib
 import json
 import time
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -228,7 +229,7 @@ async def test_actual_move_action_retains_identity_only_after_confirmed_destinat
         bridge._music_destinations[("kitchen", "account")] = {
             "policy": bridge.controls.policy,
             "session": bridge.sessions["kitchen"],
-            "binding": bridge.tools.podview_music_binding(),
+            "binding": bridge.tools.podview_music_destination_binding(),
             "engine": "speaker",
             "rule": rule,
             "room": "r1",
@@ -399,7 +400,7 @@ async def test_move_receipt_uses_new_confirmed_binding_not_old_read_closure(cont
     bridge._music_destinations[("kitchen", "account-alpha")] = {
         "policy": controls.policy,
         "session": bridge.sessions["kitchen"],
-        "binding": bridge.tools.podview_music_binding(),
+        "binding": bridge.tools.podview_music_destination_binding(),
         "engine": "device-one",
         "rule": destination_rule,
         "room": "r1",
@@ -468,11 +469,45 @@ async def test_move_receipt_uses_new_confirmed_binding_not_old_read_closure(cont
 async def test_real_move_confirmation_controls_projection_and_second_move(
     monkeypatch, extra_native_actions, alias_change
 ):
+    await _real_move_confirmation_case(monkeypatch, extra_native_actions, alias_change)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "refresh_change",
+    [
+        None,
+        "idle",
+        "mcp_metadata",
+        "unknown",
+        "client",
+        "token",
+        "schema",
+        "policy",
+        "session",
+        "mcp_owner",
+        "mcp_epoch",
+        "target_contracts",
+    ],
+)
+async def test_confirmed_move_keeps_authority_after_identical_real_service_refresh(
+    monkeypatch, refresh_change
+):
+    await _real_move_confirmation_case(
+        monkeypatch, False, None, refresh_services=True, refresh_change=refresh_change
+    )
+
+
+async def _real_move_confirmation_case(
+    monkeypatch, extra_native_actions, alias_change, *, refresh_services=False, refresh_change=None
+):
     rig = Rig()
     session, _ = owner()
-    bridge = PodViewBridge(
-        {"kitchen": session}, rig.router, control_policy=json.dumps(configuration())
-    )
+    config = configuration()
+    if refresh_services:
+        for rule in config["music"]:
+            rule["actions"].extend(["play_queue_occurrence", "play_track"])
+    bridge = PodViewBridge({"kitchen": session}, rig.router, control_policy=json.dumps(config))
     actual = install_actual_playback(rig)
 
     import httpx
@@ -489,10 +524,45 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
         target_id="speaker", room_id="r1", homepod_id="43", alias_incarnation="a" * 32
     )
     dto.value["route"]["device_id"] = "43"
+    if refresh_services:
+        rig.router._discovery = replace(
+            rig.router._discovery,
+            podconnect_services=rig.router._discovery.podconnect_services
+            | {
+                "get_targets",
+                "get_room_queue_controls",
+                "prepare_room_queue",
+                "control_room_queue",
+                "get_room_content_controls",
+                "prepare_room_selected_content",
+                "start_room_selected_content",
+                "cancel_room_content_preparation",
+            },
+        )
+    # Real HA service metadata, including the required target-read contract.
+    service_metadata = {
+        name: {"fields": {}} for name in sorted(rig.router._discovery.podconnect_services)
+    }
+    if refresh_services:
+        service_metadata["get_targets"] = {
+            "fields": {
+                "config_entry_id": {
+                    "required": False,
+                    "selector": {"config_entry": {"integration": "podconnect"}},
+                }
+            },
+            "response": {"optional": False},
+        }
+    service_reads = []
     original = rig.request
     native_reads = []
 
     async def request(req):
+        if req.method == "GET" and req.url.path.endswith("/services"):
+            service_reads.append(req.url.path)
+            return httpx.Response(
+                200, json=[{"domain": "podconnect", "services": service_metadata}]
+            )
         args = json.loads(req.content)
         if req.url.path.endswith("get_playback_snapshot"):
             value = copy.deepcopy(actual)
@@ -506,6 +576,8 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
         return await original(req)
 
     rig.client._transport = httpx.MockTransport(request)
+    if refresh_services:
+        await type(rig.router)._refresh_podconnect_services(rig.router)
     token = bridge.grant_timer_control("kitchen")
     source = payload()
     source["targets"][-1]["target_id"] = "speaker"
@@ -601,6 +673,102 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
         assert not bridge._music_destinations
     else:
         assert binding(bridge, "kitchen", "account")["nativeRoomId"] == "r1"
+        if refresh_services:
+            before = bridge.snapshot("kitchen", token)
+            assert "music" in before["capabilities"]["controlSetup"]
+            assert before["capabilities"]["queueSelection"] is True
+            old_discovery = rig.router._discovery
+            old_client, old_token = rig.router._client, rig.router._token
+            old_preference = bridge._music_destinations[("kitchen", "account")]
+            native_owner = copy.deepcopy(dto.value["native"])
+            old_offer = await bridge.controls.setup(
+                {
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "domain": "music",
+                    "target": {
+                        "accountId": "account",
+                        "kind": "spotify_device",
+                        "targetId": "speaker",
+                        "speakerId": podview_speakers.project(
+                            source,
+                            boot=bridge.boot_id,
+                            room="kitchen",
+                            account="account",
+                            default_room="r0",
+                        )["speakers"][0]["speakerId"],
+                        "expectedBindingId": ACTUAL_BINDING,
+                    },
+                },
+                token,
+            )
+            assert old_offer["ok"]
+            await type(rig.router)._refresh_podconnect_services(rig.router)
+            assert len(service_reads) == 2
+            assert rig.router._client is old_client and rig.router._token == old_token
+            assert rig.router._discovery.podconnect_services == old_discovery.podconnect_services
+            assert rig.router._discovery.target_contracts == old_discovery.target_contracts
+            assert rig.router._discovery.schema_sha256 == old_discovery.schema_sha256
+            assert bridge._grant_current("kitchen", token)
+            assert dto.value["native"] == native_owner
+            assert bridge._music_destinations[("kitchen", "account")] is old_preference
+            old_action = action_body(old_offer, old_offer["options"][0])
+            old_action["requestId"] = "old-offer-after-refresh"
+            stale = await bridge.controls.action(old_action, token)
+            assert stale["ok"] is False and stale["error"] == "stale_action"
+            assert bridge.controls.move.move.await_count == 1
+            if refresh_change == "unknown":
+                bridge._music_move_fence.add(("kitchen", "account"))
+            elif refresh_change == "client":
+                rig.router._client = httpx.AsyncClient(transport=httpx.MockTransport(request))
+            elif refresh_change == "token":
+                rig.router._token = "different-test-token"
+            elif refresh_change == "schema":
+                rig.router._discovery = replace(rig.router._discovery, schema_sha256="e" * 64)
+            elif refresh_change == "policy":
+                bridge.controls.policy = copy.deepcopy(bridge.controls.policy)
+            elif refresh_change == "session":
+                bridge.sessions["kitchen"] = owner()[0]
+            elif refresh_change == "mcp_owner":
+                rig.router._mcp = SimpleNamespace(initialized=False)
+            elif refresh_change == "mcp_epoch":
+                rig.router._mcp_epoch += 1
+            elif refresh_change == "target_contracts":
+                contracts = dict(rig.router._discovery.target_contracts)
+                contracts["podconnect_get_targets"] = "e" * 64
+                rig.router._discovery = replace(
+                    rig.router._discovery, target_contracts=tuple(sorted(contracts.items()))
+                )
+            elif refresh_change == "idle":
+                actual["playback"].update(state="no_active_playback", target=None, item=None)
+            elif refresh_change == "mcp_metadata":
+                # Equal-content MCP metadata publication, not a replacement
+                # connected MCP owner. This rig has no live MCP client/probe.
+                discovery = rig.router._discovery
+                rig.router._discovery = replace(discovery, generation=discovery.generation + 1)
+            after = bridge.snapshot("kitchen", token)
+            if refresh_change not in {None, "idle", "mcp_metadata"}:
+                assert ("kitchen", "account") in bridge._music_move_fence
+                assert "music" not in after["capabilities"]["controlSetup"]
+                assert after["capabilities"]["queueSelection"] is False
+                assert bridge.controls.move.move.await_count == 1
+                if refresh_change == "client":
+                    await rig.router._client.aclose()
+                await rig.client.aclose()
+                return
+            assert "music" in after["capabilities"]["controlSetup"]
+            assert after["capabilities"]["queueSelection"] is True
+            assert after["capabilities"]["musicSelection"] is True
+            catalogue = await podview_speakers.read_catalogue(
+                bridge, "kitchen", "account", lambda: "owner", token=token
+            )
+            assert catalogue["ok"] and all(row["startSelectable"] for row in catalogue["speakers"])
+            assert not bridge._music_move_fence
+            assert binding(bridge, "kitchen", "account")["nativeRoomId"] == "r1"
+            if refresh_change == "idle":
+                assert bridge.controls.move.move.await_count == 1
+                await rig.client.aclose()
+                return
         return_destination = podview_speakers.project(
             source, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
         )["speakers"][0]

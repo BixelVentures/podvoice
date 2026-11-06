@@ -6,6 +6,7 @@ import asyncio
 import copy
 import hashlib
 import json
+import logging
 import math
 import re
 import secrets
@@ -19,6 +20,40 @@ from .podview_music_control import _integer, _room_receipt, _text
 from .podview_queue_scope import PURPOSE, owner_identity, owner_scope
 
 ACTION = "play_queue_occurrence"
+_LOGGER = logging.getLogger(__name__)
+
+
+def _error_category(error):
+    if isinstance(error, asyncio.CancelledError):
+        return "cancelled"
+    if isinstance(error, TimeoutError):
+        return "timeout"
+    if isinstance(error, (ValueError, TypeError, KeyError)):
+        return "invalid_response"
+    return "exception"
+
+
+def _trace_action(body, phase, trace, outcome):
+    """Bounded diagnostic only: never serialize request content or exceptions."""
+    try:
+        request_id = body.get("requestId") if isinstance(body, dict) else None
+        request_ref = (
+            hashlib.sha256(request_id.encode()).hexdigest()[:16]
+            if isinstance(request_id, str) and 1 <= len(request_id) <= 160
+            else "none"
+        )
+        _LOGGER.info(
+            "queue_command phase=%s action=play_queue_occurrence request_ref=%s "
+            "stage=%s dispatched=%s outcome=%s kind=%s physical_result_verified=false",
+            phase,
+            request_ref,
+            trace["stage"],
+            str(trace["dispatched"]).lower(),
+            outcome if outcome in {"accepted", "rejected", "unknown", "pending"} else "unknown",
+            trace["kind"],
+        )
+    except Exception:
+        pass
 
 
 def project(value: object, account: str, target: str, *, room: str, homepod: str) -> dict:
@@ -362,6 +397,20 @@ class QueueBroker:
             return {"ok": False, "error": "queue_offer_unavailable", "retryAllowed": False}
 
     async def action(self, body, token):
+        trace = {"stage": "validation", "dispatched": False, "kind": "none"}
+        outcome = "unknown"
+        _trace_action(body, "request", trace, "pending")
+        try:
+            result = await self._action(body, token, trace)
+            outcome = result["outcome"]
+            return result
+        except (Exception, asyncio.CancelledError) as error:
+            trace["kind"] = _error_category(error)
+            raise
+        finally:
+            _trace_action(body, "receipt", trace, outcome)
+
+    async def _action(self, body, token, trace):
         rejected = {
             "ok": False,
             "requestId": body.get("requestId") if isinstance(body, dict) else None,
@@ -382,6 +431,7 @@ class QueueBroker:
             for k in ("roomId", "taskId", "requestId", "optionId")
         ):
             return rejected
+        trace["stage"] = "presentation"
         task = self.tasks.get(body["taskId"])
         if (
             task is None
@@ -392,8 +442,10 @@ class QueueBroker:
         key = (task["room"], token, body["requestId"])
         fingerprint = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).digest()
         if key in self.receipts:
+            trace["stage"] = "cached_receipt"
             old_fp, result = self.receipts[key][:2]
             return dict(result) if old_fp == fingerprint else rejected
+        trace["stage"] = "admission"
         shown = next(
             (r for r in task["source"]["items"] if r["option_id"] == body["optionId"]), None
         )
@@ -416,6 +468,7 @@ class QueueBroker:
         sent = False
         try:
             async with asyncio.timeout(8):
+                trace["stage"] = "resolve_owner"
                 resolved = await expected_actual(
                     self.bridge,
                     task["room"],
@@ -425,6 +478,7 @@ class QueueBroker:
                 )
                 if resolved is None or not self.presented_current(task, token):
                     raise ValueError("stale queue presentation owner")
+                trace["stage"] = "read_queue"
                 rule, old_source = task["rule"], task["source"]
                 value = await self.bridge.controls.music._read(
                     self.bridge.tools._client,
@@ -440,6 +494,7 @@ class QueueBroker:
                 )
                 if not self.presented_current(task, token) or not resolved["current"]():
                     raise ValueError("queue owner changed during resolution")
+                trace["stage"] = "validate_queue"
                 source = project(
                     value,
                     rule["accountId"],
@@ -514,6 +569,7 @@ class QueueBroker:
                     "native": copy.deepcopy(source["native"]),
                     "route": copy.deepcopy(source["route"]),
                 }
+                trace["stage"] = "prepare_queue"
                 prepared_started = time.monotonic()
                 prepared = await self.bridge.controls.music._read(
                     self.bridge.tools._client,
@@ -521,6 +577,7 @@ class QueueBroker:
                     "prepare_room_queue",
                     request,
                 )
+                trace["stage"] = "validate_preparation"
                 if not self.current(task, token):
                     self.receipts[key] = fingerprint, rejected, task["deadline"]
                     return rejected
@@ -576,6 +633,8 @@ class QueueBroker:
                 if not self.current(task, token):
                     self.receipts[key] = fingerprint, rejected, task["deadline"]
                     return rejected
+                trace["stage"] = "dispatch"
+                trace["dispatched"] = True
                 sent = True
                 value = await self.bridge.controls.music._read(
                     self.bridge.tools._client,
@@ -583,13 +642,15 @@ class QueueBroker:
                     "control_room_queue",
                     {**request, "prepare_id": prepared["prepare_id"]},
                 )
+            trace["stage"] = "validate_receipt"
             if not self.current(task, token):
                 return unknown
             result = _room_receipt(value, identity)
             public = {**rejected, "ok": result["ok"], "outcome": result["outcome"]}
             self.receipts[key] = fingerprint, public, task["deadline"]
             return dict(public)
-        except (Exception, asyncio.CancelledError):
+        except (Exception, asyncio.CancelledError) as error:
+            trace["kind"] = _error_category(error)
             if not sent:
                 self.receipts[key] = fingerprint, rejected, task["deadline"]
             return unknown if sent else rejected
