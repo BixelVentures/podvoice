@@ -4360,12 +4360,8 @@ async def _music_selection_impl(request: web.Request) -> web.Response:
             ):
                 return _error("native_account_claim_required")
             return _error("music_selection_unavailable")
-        if (
-            destination is not None
-            and controls.get("data", {}).get("start_offer", {}).get("native_incarnation")
-            != destination["alias"]["binding"]["incarnation"]
-        ):
-            return _error("music_selection_unavailable")
+        # The native content offer and configured alias have independent incarnations.
+        # The exact captured alias is revalidated in fresh_controls before execution.
         context = source["context"]
         session = bridge.sessions[room]
         authority = (session, getattr(session, "_epoch", None), context["taskId"], grant)

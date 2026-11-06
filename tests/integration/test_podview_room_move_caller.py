@@ -396,7 +396,7 @@ async def test_effective_destination_requires_new_matching_account_alias_and_nat
         wire={
             "owner_epoch": "a" * 32,
             "poll_sequence": 4,
-            "move_offer": {"native_incarnation": "a" * 32},
+            "move_offer": {"native_incarnation": "c" * 32},
         }
     )
     task = {
@@ -404,6 +404,7 @@ async def test_effective_destination_requires_new_matching_account_alias_and_nat
         "room": "kitchen",
         "target": {"accountId": account, "targetId": engine},
         "move_destination": destination,
+        "move_alias_binding": dict(owner),
         "move_offer": offer,
         "rule": policy_object["music"][1],
     }

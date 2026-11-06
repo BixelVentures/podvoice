@@ -464,8 +464,9 @@ async def test_move_receipt_uses_new_confirmed_binding_not_old_read_closure(cont
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("extra_native_actions", [False, True])
+@pytest.mark.parametrize("alias_change", [None, "incarnation", "registry"])
 async def test_real_move_confirmation_controls_projection_and_second_move(
-    monkeypatch, extra_native_actions
+    monkeypatch, extra_native_actions, alias_change
 ):
     rig = Rig()
     session, _ = owner()
@@ -508,7 +509,9 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
     token = bridge.grant_timer_control("kitchen")
     source = payload()
     source["targets"][-1]["target_id"] = "speaker"
-    monkeypatch.setattr(podview_speakers, "read_service", AsyncMock(return_value=source))
+    monkeypatch.setattr(
+        podview_speakers, "read_service", AsyncMock(side_effect=lambda *_: copy.deepcopy(source))
+    )
     destination = podview_speakers.project(
         source, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
     )["speakers"][1]
@@ -526,7 +529,7 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
                 wire={
                     "owner_epoch": identity["owner_epoch"],
                     "poll_sequence": 4,
-                    "move_offer": {"native_incarnation": "a" * 32},
+                    "move_offer": {"native_incarnation": "c" * 32},
                 },
             )
         )
@@ -553,6 +556,11 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
             row["binding"]["room_id"] = "r1"
         source["targets"][2]["selected"] = False
         source["targets"][3]["selected"] = True
+        if alias_change is not None:
+            changed = "e" * (32 if alias_change == "incarnation" else 64)
+            for row in source["targets"][:2]:
+                row["binding"][alias_change] = changed
+            dto.value["native"]["alias_" + alias_change] = changed
         return bridge.controls.move.move.return_value
 
     bridge.controls.move.move.side_effect = perform_move
@@ -575,7 +583,8 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
     action = action_body(setup, setup["options"][0])
     action["requestId"] = "move-one"
     first = await bridge.controls.action(action, token)
-    assert first["outcome"] == ("unknown" if extra_native_actions else "accepted")
+    proof_rejected = extra_native_actions or alias_change is not None
+    assert first["outcome"] == ("unknown" if proof_rejected else "accepted")
     assert bridge.controls.move.move.await_count == 1
     assert native_reads == [
         {
@@ -586,9 +595,11 @@ async def test_real_move_confirmation_controls_projection_and_second_move(
             "homepod_id": "43",
         }
     ]
-    assert (("kitchen", "account") in bridge._music_move_fence) is extra_native_actions
-    assert ("music" in bridge.controls.domains("kitchen", token)) is (not extra_native_actions)
-    if not extra_native_actions:
+    assert (("kitchen", "account") in bridge._music_move_fence) is proof_rejected
+    assert ("music" in bridge.controls.domains("kitchen", token)) is (not proof_rejected)
+    if proof_rejected:
+        assert not bridge._music_destinations
+    else:
         assert binding(bridge, "kitchen", "account")["nativeRoomId"] == "r1"
         return_destination = podview_speakers.project(
             source, boot=bridge.boot_id, room="kitchen", account="account", default_room="r0"
