@@ -2944,6 +2944,24 @@ class ToolRouter:
             hashlib.sha256(self._token.encode()).digest(),
         )
 
+    def podview_music_destination_binding(self) -> tuple:
+        """Retained destination preference, never an executable read or action lease."""
+        discovery, client = self._discovery, self._client
+        mcp = getattr(self, "_mcp", None)
+        return (
+            client,
+            id(client),
+            mcp,
+            id(mcp),
+            getattr(self, "_mcp_epoch", 0),
+            frozenset(discovery.podconnect_services),
+            discovery.target_contracts,
+            discovery.schema_sha256,
+            discovery.endpoint,
+            discovery.api_id,
+            hashlib.sha256(self._token.encode()).digest(),
+        )
+
     async def podview_mood_context(self, current) -> dict | None:
         """Coarse time from the existing HA GetDateTime owner, never a local clock."""
         from .mood_diagnostics import note

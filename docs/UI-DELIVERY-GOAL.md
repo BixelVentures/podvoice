@@ -1,3 +1,25 @@
+## Next delivery139 · source reviewed, actual acceptance pending ·6 November2026
+
+Final Astra SOURCE GO and focused causal/owner/queue checks pass for the healthy-discovery destination correction and minimal queue request/receipt trace. Existing exact action/read guards, UNKNOWN fences, native016 and approved renderer stay unchanged.225 asset pins match; product/index differ only by the build version. Official139 CI, normal publication/adoption and actual healthy-probe/idle/queue proof are next. Green is still actually138 with owned playback paused. Prior verified138 MOVE/transport successes remain recorded; missing historical queue receipt, intermittent playback-read and remaining Plan1–6/device requirements are not silently closed.
+
+## Current principal gap · view capability loss after healthy refresh ·6 November2026
+
+138 actually passed both MOVE directions, Pause/Resume/Next and volume35→30. Its one queue click then lacked a terminal result; after cleanup the view lost music/queue access while fresh native output/controls remained healthy. Owned playback is confirmed paused. Queue POST outcome and actual timed probe attribution remainUNKNOWN; no replay occurred.
+
+The ordinary unchanged-service-refresh→sticky destination fence mechanism is causally reproduced offline. The minimal source fix separates retained destination preference from exact short-lived read/action leases, without clearing fences or adding owners/permissions/reads.35 scoped cases now pass active/idle retention, unchanged real service refresh, stale old offer rejection, new setup and real-owner/UNKNOWN negatives. Next delivery also needs the precise missing queue outcome in the existing owner log. Final review/CI/publication/adoption and actual new music acceptance remain pending;138 remains installed. Previous verified138 successes stay valid, not full-plan completion.
+
+## Actual138 music acceptance · confirmed return and transport ·6 November2026
+
+Verified actual Green138/26cb: explicit Start→MOVE Kitchen→other admitted room→return Kitchen passes with final accepted MOVE receipts both ways and controls retained. Pause→visible paused, Resume→advancing position, and Next→changed track also pass. Volume stays enabled during Next. Exact admission/receipt times and safe request references are in STATUS; they are not physical audio-latency measurements. This closes the observed return/identity-confirmation defect's real service/browser boundary. It does not reconstruct the old missing receipt or prove audible/iPad acceptance.
+
+The live operator continues only the existing owned volume/source-switch/queue/loading/Robot-navigation scenarios and then stops owned playback. These remain pending until observed. The original intermittent playback-read error and other Plan4–6/device/voice requirements remain separately open. No full-plan completion or UI change is claimed.
+
+## Current delivery ·138 adopted; actual music acceptance in progress ·6 November2026
+
+OfficialPR308 CI42253575269 and mainCI/publisher42255731873 passed. Actual stable138 release targets26cb4671e864fa051f0ab60a98c3c886cacb21e7/tree3fba38190617e833b185aad4a7db859ddcdd5d4b. Green is actually running138; its Runtimeoplysninger UI shows that commit and declared build05a185748728295ce289f42062ce6bd0ec2d569b698a44080917a05949dbbd67. Root inspected installed/runtime images. HACS Version downloaded138 is persisted; loaded native016/Control033 remain unchanged and no Core restart occurred. One normal Green installation used a backup;137 was skipped.
+
+Plan1–2 software adoption is verified. The initial store reload timed out, but a later passive read offered138 and normal installation succeeded; exact timeout cause remains unknown, with no extra store refresh, terminal or fabricated diagnosis. Plan3 now needs actual Start→MOVE→final receipt→return→Pause/Resume and existing queue/selection/navigation proof on this loaded candidate. Pending trial results are not PASS. VoicePE remains offline; actual iPad/phone/physical audio and other Plan4–6 requirements remain separately open. The following older136/137 holds are historical, not current. This follow-up documents adoption and the independent identity-domain contract; it does not change runtime, UI or permissions.
+
 ## Current music correction · identity join and idle lock · 6 November 2026
 
 137 is actually published after successful PR/main CI, but Green remains136/69b + loaded Control033/companion016; no137 installation or new household effect started. Further137 consumer retries are stopped while the proven identity correction is prepared. The old idle lock remains a real observation with historical MOVE receiptUNKNOWN; restart clearing memory cannot count as recovery.

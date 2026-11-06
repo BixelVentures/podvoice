@@ -48,6 +48,13 @@ def _log_playback_failure(stage, error):
         pass
 
 
+def _destination_binding(tools):
+    # A remembered room is not a command or observation. Legacy facades without
+    # the narrower preference identity retain their exact existing owner guard.
+    read = getattr(tools, "podview_music_destination_binding", None)
+    return read() if callable(read) else tools.podview_music_binding()
+
+
 def room_bindings(bridge, room):
     policy = bridge.controls.policy
     if not isinstance(policy, dict) or policy.get("roomId") != room:
@@ -84,7 +91,7 @@ def room_bindings(bridge, room):
             current = (
                 preference["policy"] is policy
                 and preference["session"] is bridge.sessions.get(room)
-                and preference["binding"] == bridge.tools.podview_music_binding()
+                and preference["binding"] == _destination_binding(bridge.tools)
                 and preference["engine"] == chosen.get("targetId")
                 and any(candidate is preference["rule"] for candidate in owned)
                 and preference["rule"].get("nativeRoomId") == preference["room"]
@@ -324,7 +331,7 @@ async def _confirm_destination(
             "policy": bridge.controls.policy,
             "rule": rule,
             "session": bridge.sessions[room],
-            "binding": bridge.tools.podview_music_binding(),
+            "binding": _destination_binding(bridge.tools),
             "engine": engine,
             "room": native_room,
             "homepod": homepod,
