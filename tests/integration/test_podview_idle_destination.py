@@ -160,11 +160,25 @@ async def test_idle_destination_is_freshly_revalidated_before_one_use_start(
 
 @pytest.mark.parametrize(
     "outcome",
-    ["accepted", "unknown", "rejected", "bad_route", "bad_registry", "stale_poll", "raise"],
+    [
+        "accepted",
+        "unknown",
+        "rejected",
+        "bad_route",
+        "bad_registry",
+        "stale_poll",
+        "raise",
+        "alias_incarnation_changed",
+        "alias_registry_changed",
+    ],
 )
 async def test_start_destination_changes_only_after_fresh_joined_proof(destination_rig, outcome):
     rig, bridge, native, speaker, _, proof = destination_rig
     sends = []
+    # Content authority and the configured-alias incarnation are separate owners.
+    bridge.controls.music.setup_track.return_value["data"]["start_offer"]["native_incarnation"] = (
+        "c" * 32
+    )
 
     async def send(controls, uri, ceiling, current):
         assert current()
@@ -179,6 +193,14 @@ async def test_start_destination_changes_only_after_fresh_joined_proof(destinati
             row["binding"]["room_id"] = "r1"
         native["targets"][2]["selected"] = False
         native["targets"][3]["selected"] = True
+        if outcome == "alias_incarnation_changed":
+            for row in native["targets"][:2]:
+                row["binding"]["incarnation"] = "e" * 32
+            proof["native"]["alias_incarnation"] = "e" * 32
+        if outcome == "alias_registry_changed":
+            for row in native["targets"][:2]:
+                row["binding"]["registry"] = "e" * 64
+            proof["native"]["alias_registry"] = "e" * 64
         if outcome == "bad_route":
             proof["route"]["device_id"] = "42"
         if outcome == "bad_registry":
@@ -191,6 +213,7 @@ async def test_start_destination_changes_only_after_fresh_joined_proof(destinati
     bridge.controls.music.execute_track.side_effect = send
     async with TestClient(TestServer(rig.app)) as client:
         offer = await (await setup(client, bridge, speaker["speakerId"])).json()
+        assert offer["ok"] is True
         body = action(bridge, offer)
         first = await (
             await client.post("/view/api/music/selection/actions", headers=HEADERS, json=body)

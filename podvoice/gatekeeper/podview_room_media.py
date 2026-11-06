@@ -135,9 +135,10 @@ async def confirm_move_destination(bridge, task, result, current):
         task["move_destination"],
         task["rule"],
         task["move_offer"].wire,
-        task["move_offer"].wire["move_offer"]["native_incarnation"],
+        task["move_alias_binding"]["incarnation"],
         result,
         current,
+        native_registry=task["move_alias_binding"]["registry"],
     )
     if confirmed:
         scope = binding(bridge, task["room"], task["target"]["accountId"])
@@ -198,7 +199,7 @@ async def finish_selected_destination(bridge, room, task, controls, result, curr
             destination,
             task["destinationRule"],
             controls,
-            controls["start_offer"]["native_incarnation"],
+            task["destination"]["alias"]["binding"]["incarnation"],
             result,
             current,
             native_registry=task["destination"]["alias"]["binding"]["registry"],
@@ -224,13 +225,13 @@ async def _confirm_destination(
     destination,
     rule,
     wire,
-    native_incarnation,
+    alias_incarnation,
     result,
     current,
     *,
     native_registry=None,
 ):
-    """Shared MOVE/START publication owner: exact fresh account, alias and route."""
+    """Join the captured alias owner, not the independent content-offer incarnation."""
     native_room, homepod = destination["nativeRoomId"], destination["homepodId"]
     if not current():
         return False
@@ -305,7 +306,7 @@ async def _confirm_destination(
                 or native.get("alias_incarnation") != owner.get("incarnation")
                 or native.get("alias_registry") != owner.get("registry")
                 or route.get("device_id") != homepod
-                or owner.get("incarnation") != native_incarnation
+                or owner.get("incarnation") != alias_incarnation
                 or (native_registry is not None and owner.get("registry") != native_registry)
                 or proof_data.get("owner_epoch") != source["owner_epoch"]
                 or proof_data.get("poll_sequence") != source["poll_sequence"]

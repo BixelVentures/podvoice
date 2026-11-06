@@ -1,3 +1,10 @@
+## 2.0.138
+
+- Keep native content execution identities separate from speaker alias identities when selecting music and confirming output changes.
+- Confirm the captured destination alias and registry before publishing the new room, preserving native command, account, route and freshness guards.
+- Prevent a valid output change from being rejected solely because its independent content and alias identities differ; retain uncertainty fences for actual owner changes.
+- Preserve the approved UI and native companion 0.1.16. Intermittent playback-read and actual device acceptance remain separately tracked.
+
 ## 2.0.137
 
 - Keep the configured speaker available as a return destination after moving an existing session to another native output on the same Spotify Connect device.
