@@ -491,7 +491,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "8df77c343607f03bbd9a21b5bf65ad07a99915026736a6925ec3be28d628ff48"
+      "sha256": "a3db627a126c944e443c6643c5cf58d124590ef7a9bf06e0c1335948aaba6058"
     },
     {
       "path": "ingress-kiosk.js",
@@ -631,11 +631,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "16e546fa61ebfac81090c0ce3c237f65515f1971ab7abd663f41f08510c343ad"
+      "sha256": "71669dcd649023324958b32ac29c00d2a6ed1012c0eaab1cb5dd95d6085e807b"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "e20df3bac4f2adb6f83a37caa21a8a29bc888025e215f6025673f5d901c85ed0"
+      "sha256": "631c849e642fdbcdfab637247cda27151bc7437aa7b7207a126183cbbc057969"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "eb6b1728e59d934019e2e4105467eac0e3dea76540d1e695722f3d6be09ed28c"
+      "sha256": "d544951bbf8364fff469fa5c9bb238c363773f903d73e5aed9acb19ed79e101b"
     },
     {
       "path": "robot-observation.js",

@@ -1,0 +1,43 @@
+{
+  "mode": "inert HA, actual canonical HTTP owners and packaged browser",
+  "physicalEffects": false,
+  "touch": "emulated touch navigation; native select exercised with Playwright selectOption, not physical iPad acceptance",
+  "renderer_sha256": "9ee9a2918ff6263735f3f399414d8ff5835864aeefb600ffa8240f29ef6130ee",
+  "captures": [
+    {
+      "width": 1280,
+      "initialSelector": {
+        "x": 646.128662109375,
+        "y": 258,
+        "width": 208,
+        "height": 64
+      },
+      "effectCount": 1,
+      "action": "set_option",
+      "pins": {
+        "podview.css": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6",
+        "podview.bundle.js": "d9873da7ee4dbb6772410967f9432271c7f13667e929714b2b1ce7554c6e231f"
+      },
+      "errors": [],
+      "source": "actual canonical HTTP owners with inert HA"
+    },
+    {
+      "width": 1200,
+      "initialSelector": {
+        "x": 595.9471435546875,
+        "y": 258,
+        "width": 208,
+        "height": 64
+      },
+      "effectCount": 1,
+      "action": "set_option",
+      "pins": {
+        "podview.css": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6",
+        "podview.bundle.js": "d9873da7ee4dbb6772410967f9432271c7f13667e929714b2b1ce7554c6e231f"
+      },
+      "errors": [],
+      "source": "actual canonical HTTP owners with inert HA"
+    }
+  ],
+  "visualAcceptance": "REOPENED: user rejected the unmapped composition; not approved UI"
+}

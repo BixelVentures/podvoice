@@ -1,3 +1,11 @@
+## 2.0.140
+
+- Keep an admitted floor selector reachable when the active robot map has no configured HA areas, including a single offered alternate.
+- Retain the existing Rooms and Cleaning options composition for partial setups, with explicit owner-admitted settings and honest absent room/Start capabilities.
+- Show the verified current floor without inventing a current-floor action; preserve expiry, offline, pending and unknown-outcome guards.
+- Keep missing-cover music-note artwork neutral instead of tinting the whole player gray; retain real cover and radio palette behavior.
+- Record the short UX request delivery agreement. Actual robot, music and device acceptance remain separately open.
+
 ## 2.0.139
 
 - Preserve the confirmed speaker destination across healthy, semantically unchanged service discovery, including idle, while retaining exact current owner checks for every executable read and action.

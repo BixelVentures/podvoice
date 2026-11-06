@@ -492,7 +492,93 @@ test('map select exists only for a genuine multi-map offer and sends one opaque 
 });
 
 test('map selection never guesses unknown or ambiguous names and active map control requires its own offer',()=>{
- const map={id:'map',action:'set_option',settingKey:'selected_map',label:'Etage',argsSchema:{kind:'choice',current:null,choices:[{id:'one',label:'Etage'},{id:'two',label:'Etage'}]}},panel=new RobotControlPanel();panel.data={task:{domain:'vacuum',mapName:'Etage',options:[map]},device:{...device,status:'cleaning'},connected:true};assert.equal(panel.mapControl.select.value,'');panel.observed({...device,status:'cleaning'},{settingValues:{map:'two'}});assert.equal(panel.mapControl.select.value,'two');panel.data={task:{domain:'vacuum',mapName:'Stueplan',options:[]},device:{...device,status:'cleaning'},currentSetup:{repeat:2,mapName:'Stueplan'},connected:true};assert.equal(panel.mapControl,null);assert.equal(panel.querySelectorAll('select').length,0);assert.equal(panel.currentMap.textContent,'Stueplan');panel.data={task:{domain:'vacuum',mapName:'Stueplan',options:[{...map,argsSchema:{kind:'choice',choices:[{id:'one',label:'Stueplan'}]}}]},device,connected:true};assert.equal(panel.querySelectorAll('select').length,0);
+ const map={id:'map',action:'set_option',settingKey:'selected_map',label:'Etage',argsSchema:{kind:'choice',current:null,choices:[{id:'one',label:'Etage'},{id:'two',label:'Etage'}]}},panel=new RobotControlPanel();panel.data={task:{domain:'vacuum',mapName:'Etage',options:[map]},device:{...device,status:'cleaning'},connected:true};assert.equal(panel.mapControl.select.value,'');panel.observed({...device,status:'cleaning'},{settingValues:{map:'two'}});assert.equal(panel.mapControl.select.value,'two');panel.data={task:{domain:'vacuum',mapName:'Stueplan',options:[]},device:{...device,status:'cleaning'},currentSetup:{repeat:2,mapName:'Stueplan'},connected:true};assert.equal(panel.mapControl,null);assert.equal(panel.querySelectorAll('select').length,0);assert.equal(panel.currentMap.textContent,'Stueplan');panel.data={task:{domain:'vacuum',mapName:'Stueplan',options:[{...map,argsSchema:{kind:'choice',choices:[{id:'one',label:'Stueplan'}]}}]},device,connected:true};assert.equal(panel.querySelectorAll('select').length,1);assert.equal(panel.mapControl.select.value,'one');
+});
+
+for(const includeCurrent of [false,true])test(`idle admitted map choice remains reachable without Start, includeCurrent=${includeCurrent}`,()=>{
+ const panel=new RobotControlPanel(),effects=[];
+ panel.addEventListener('robot-control-action',event=>effects.push(event.detail));
+ const map={id:'map-option',action:'set_option',settingKey:'selected_map',label:'Kort',argsSchema:{kind:'choice',choices:[...(includeCurrent?[{id:'current-map',label:'1. Sal'}]:[]),{id:'ground-map',label:'Stueplan (2025)'}]}},mode={id:'mode-option',action:'set_option',settingKey:'cleaning_mode',label:'Rengøringstype',argsSchema:{kind:'choice',current:'both',choices:[{id:'both',label:'Støvsugning og gulvvask'},{id:'vacuum',label:'Støvsugning'}]}},dock={id:'dock-option',action:'dock',label:'Tøm støv',argsSchema:{kind:'dock',operation:'empty_start'}},offer={domain:'vacuum',bootId:'boot',roomId:'room',mapName:'1. Sal',options:[map,mode,dock]},robot={...device,id:'vacuum.inert',kind:'vacuum',live:true,stale:false,status:'docked'};
+ panel.data={task:offer,device:robot,connected:true,readOnly:false};
+ assert.equal(panel.querySelectorAll('select').filter(s=>s.dataset.controlOptionId===map.id).length,1);
+ const select=panel.mapControl.select;
+ assert.equal(select.disabled,false);assert.equal(select.value,includeCurrent?'current-map':'');
+ assert.equal(select.children[0].textContent,'1. Sal');assert.equal(select.children[0].value,'');assert.equal(select.children[0].disabled,true);
+ assert.deepEqual(select.children.filter(o=>o.value).map(o=>o.value),map.argsSchema.choices.map(c=>c.id));
+ assert.equal(panel.querySelectorAll('button').some(b=>b.dataset.controlOptionId===dock.id),true);
+ assert.equal(cleaningForm(panel),null);assert.equal(panel.cleaningSubmit,null);
+ assert.deepEqual(effects,[]);
+ select.value='ground-map';emit(select,'change');
+ assert.deepEqual(effects,[{optionId:map.id,args:{choiceId:'ground-map'}}]);
+ assert.equal(panel.value.task.options.some(o=>o.action==='start'),false);
+ panel.data={task:offer,device:robot,connected:false,readOnly:false};
+ assert.equal(panel.mapControl.select.disabled,true);
+ panel.mapControl.select.value='ground-map';emit(panel.mapControl.select,'change');assert.equal(effects.length,1);
+ panel.data={task:{...offer,options:[mode,dock]},device:robot,connected:true,readOnly:false};
+ assert.equal(panel.mapControl,null);assert.equal(panel.querySelectorAll('select').length,0);assert.equal(effects.length,1);
+});
+
+test('map-only admitted task does not claim there are no controls and offline remains explained',()=>{
+ const panel=new RobotControlPanel(),effects=[],map={id:'map-only',action:'set_option',settingKey:'selected_map',label:'Kort',argsSchema:{kind:'choice',choices:[{id:'ground-map',label:'Stueplan (2025)'}]}},offer={domain:'vacuum',mapName:'1. Sal',options:[map]};
+ panel.addEventListener('robot-control-action',event=>effects.push(event.detail));
+ panel.data={task:offer,device,connected:true};
+ assert.equal(panel.mapControl.select.disabled,false);assert.equal(panel.availabilityNote.textContent,'');assert.equal(panel.availabilityNote.hidden,true);assert.deepEqual(effects,[]);
+ panel.data={task:{...offer,mapName:null},device,connected:true};assert.equal(panel.mapControl.select.children[0].textContent,'Vælg etage');assert.equal(panel.mapControl.select.value,'');assert.deepEqual(effects,[]);
+ panel.data={task:offer,device,connected:false};
+ assert.equal(panel.mapControl.select.disabled,true);assert.equal(panel.availabilityNote.textContent,'Du kan ikke ændre rengøringen her lige nu.');assert.equal(panel.availabilityNote.hidden,false);assert.deepEqual(effects,[]);
+});
+
+function partialRobotOffer(){return {domain:'vacuum',bootId:'boot',roomId:'room',mapName:'1. Sal',expiresAt:Date.now()/1000+60,options:[
+ {id:'partial-map',action:'set_option',settingKey:'selected_map',label:'Kort',argsSchema:{kind:'choice',choices:[{id:'ground-map',label:'Stueplan (2025)'}]}},
+ {id:'partial-mode',action:'set_option',settingKey:'cleaning_mode',label:'Rengøringstype',argsSchema:{kind:'choice',current:'both',choices:[{id:'both',label:'Støvsug og vask'},{id:'vacuum',label:'Støvsug'},{id:'mop',label:'Vask'}]}},
+ {id:'partial-suction',action:'set_option',settingKey:'suction',label:'Sugestyrke',argsSchema:{kind:'choice',current:'quiet',choices:[{id:'quiet',label:'Stille'},{id:'max',label:'Maksimal'}]}},
+ {id:'partial-water',action:'set_option',settingKey:'mop_intensity',label:'Vandmængde',argsSchema:{kind:'choice',current:'medium',choices:[{id:'medium',label:'Mellem'},{id:'high',label:'Høj'}]}},
+ ]};}
+test('partial idle setup retains canonical room and settings cards with independent admitted choices',()=>{
+ const panel=new RobotControlPanel(),offer=partialRobotOffer(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:offer,device,connected:true};
+ const cards=panel.querySelectorAll('section').filter(node=>node.dataset.kit==='card');
+ assert.deepEqual(cards.map(card=>card.querySelector('h2')?.textContent),['Rum','Rengøringsvalg']);
+ assert.equal(cards[0].querySelector('p').textContent,'Ingen rum at vælge på denne etage.');assert.equal(cards[0].querySelectorAll('select').length,1);
+ assert.equal(cleaningForm(panel),null);assert.equal(panel.cleaningSubmit,null);assert.equal(panel.querySelectorAll('button').some(b=>b.name==='areaIds'),false);
+ const mode=panel.settingControls.find(c=>c.option.id==='partial-mode'),water=panel.settingControls.find(c=>c.option.id==='partial-water'),suction=panel.settingControls.find(c=>c.option.id==='partial-suction');
+ assert.ok(mode.rail&&water.rail&&suction.rail);assert.notEqual(water.wrapper.hidden,true);assert.deepEqual(effects,[]);
+ emit(mode.rail.inputs.find(input=>input.value==='vacuum'),'click');
+ assert.deepEqual(effects,[{optionId:'partial-mode',args:{choiceId:'vacuum'}}]);assert.notEqual(water.wrapper.hidden,true,'requested mode is not an observed mode');
+ panel.observed(device,{settingValues:{'partial-mode':'vacuum'}});assert.equal(water.wrapper.hidden,true);assert.equal(suction.wrapper.hidden,false);
+ panel.observed(device,{settingValues:{'partial-mode':'mop'}});assert.equal(suction.wrapper.hidden,true);assert.equal(water.wrapper.hidden,false);assert.equal(effects.length,1);
+ assert.equal(offer.options.some(option=>option.action==='start'),false);assert.equal(panel.repeatStatus,null);
+});
+for(const blocked of ['offline','pending','expired','stale'])test(`partial independent setting remains guarded when ${blocked}`,()=>{
+ const panel=new RobotControlPanel(),offer=partialRobotOffer(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));
+ if(blocked==='expired')offer.expiresAt=Date.now()/1000-1;
+ panel.data={task:offer,device:{...device,stale:blocked==='stale'},connected:blocked!=='offline',...(blocked==='pending'?{pendingOptionId:'partial-mode'}:{})};
+ const choice=panel.settingControls.find(c=>c.option.id==='partial-mode').rail.inputs.find(input=>input.value==='vacuum');assert.equal(choice.disabled,true);emit(choice,'change');assert.deepEqual(effects,[]);
+});
+
+test('translated independent robot choices use kit labels and retain exact opaque action IDs',()=>{
+ const panel=new RobotControlPanel(),offer=partialRobotOffer(),effects=[],mode=offer.options.find(option=>option.id==='partial-mode'),suction=offer.options.find(option=>option.id==='partial-suction');
+ mode.argsSchema.choices=[{id:'translated-vacuum',label:'Støvsugning'},{id:'translated-mop',label:'Gulvvask'}];mode.argsSchema.current='translated-vacuum';
+ const original=structuredClone(offer);panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:offer,device,connected:true};
+ const modeRail=panel.settingControls.find(control=>control.option.id===mode.id).rail,suctionRail=panel.settingControls.find(control=>control.option.id===suction.id).rail;
+ assert.deepEqual(modeRail.inputs.map(input=>input.parentNode.querySelector('span').textContent),['Støvsug','Vask']);
+ assert.deepEqual(suctionRail.inputs.map(input=>input.parentNode.querySelector('span').textContent),['Stille','Maks.']);
+ assert.deepEqual(modeRail.inputs.map(input=>input.value),['translated-vacuum','translated-mop']);assert.deepEqual(offer,original);assert.deepEqual(effects,[]);
+ emit(modeRail.inputs.find(input=>input.value==='translated-mop'),'click');assert.deepEqual(effects,[{optionId:mode.id,args:{choiceId:'translated-mop'}}]);
+});
+
+for(const mode of ['both','vacuum','mop'])test(`native and translated admitted choices share product filtering in ${mode}`,()=>{
+ const values={cleaning_mode:[['both','vacuum_and_mop','Støvsugning og gulvvask'],['vacuum','vacuum','Støvsugning'],['mop','mop','Gulvvask']],suction:[['quiet','quiet','Stille'],['balanced','balanced','Balanceret'],['turbo','turbo','Turbo'],['max','max','Maksimal'],['max-plus','max_plus','Maksimal+'],['off','off','Fra'],['custom','custom','Tilpasset']],mop_intensity:[['low','low','Lav'],['medium','medium','Mellem'],['high','high','Høj'],['off','off','Fra'],['custom','custom_water_flow','Tilpasset vandmængde']],mop_mode:[['standard','standard','Standard'],['fast','fast','Hurtig'],['deep','deep','Grundig'],['deep-plus','deep_plus','Ekstra grundig']]},panels=[];
+ for(const translated of [false,true]){
+  const panel=new RobotControlPanel(),effects=[],offer={domain:'vacuum',bootId:'boot',roomId:'room',mapName:'1. Sal',options:Object.entries(values).map(([key,rows])=>({id:key,action:'set_option',settingKey:key,label:({cleaning_mode:'Rengøringstype',suction:'Sugestyrke',mop_intensity:'Vandmængde',mop_mode:'Moppetilstand'})[key],argsSchema:{kind:'choice',current:key==='cleaning_mode'?mode:rows[0][0],choices:rows.map(([id,native,label])=>({id,label:translated?label:native}))}}))};
+  const original=structuredClone(offer);panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:offer,device,connected:true};assert.deepEqual(offer,original);assert.deepEqual(effects,[]);panels.push(panel);
+ }
+ const visible=(panel,key)=>{const control=panel.settingControls.find(row=>row.option.id===key);return control.wrapper.hidden?[]:control.rail.inputs.filter(input=>!input.parentNode.hidden).map(input=>input.value);};
+ for(const key of Object.keys(values))assert.deepEqual(visible(panels[0],key),visible(panels[1],key),key);
+ assert.deepEqual(visible(panels[1],'suction'),mode==='mop'?[]:['quiet','balanced','turbo','max',...(mode==='vacuum'?['max-plus']:[])]);
+ assert.deepEqual(visible(panels[1],'mop_intensity'),mode==='vacuum'?[]:['low','medium','high']);
+ assert.deepEqual(visible(panels[1],'mop_mode'),['standard','fast',...(mode==='mop'?['deep','deep-plus']:[])]);
+ const route=panels[1].settingControls.find(row=>row.option.id==='mop_mode').rail;assert.equal(route.inputs.find(input=>input.value==='deep-plus').parentNode.querySelector('span').textContent,'Grundig+');
+ const suction=panels[1].settingControls.find(row=>row.option.id==='suction').rail;assert.equal(suction.inputs.find(input=>input.value==='max-plus').parentNode.querySelector('span').textContent,'Maks.+');
 });
 
 test('compact prepared repeat exposes all offered mutually exclusive native values without action before Start',()=>{
