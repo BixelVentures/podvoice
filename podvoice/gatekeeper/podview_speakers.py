@@ -267,10 +267,11 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
                 )
         if paired and isinstance(scope.get("targetId"), str):
             any_available = False
+            # The configured start preference does not identify the actual output.
+            # The picker and MOVE setup independently revalidate that output.
             for speaker in catalogue["speakers"]:
                 allowed = (
                     speaker["availability"] == "available"
-                    and speaker["nativeRoomId"] != scope["nativeRoomId"]
                     and sum(
                         row.get("accountId") == account
                         and row.get("targetId") == scope["targetId"]

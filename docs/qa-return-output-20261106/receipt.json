@@ -1,0 +1,798 @@
+{
+  "source": "/Users/madsbachandersen/Developer/podvoice",
+  "inert": true,
+  "viewports": [
+    {
+      "width": 1280,
+      "height": 800,
+      "steps": [
+        {
+          "target": {
+            "id": "device",
+            "name": "Kitchen"
+          },
+          "binding": {
+            "roomId": "kitchen",
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "native-room",
+            "nativeHomepodId": "42",
+            "bindingId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validUntil": 1793978374.614916
+          },
+          "item": {
+            "type": "track",
+            "uri": "spotify:track:0000000000000000000001",
+            "name": "Isoleret sang 1",
+            "artists": [
+              "Artist"
+            ],
+            "duration_ms": 123000,
+            "artwork": null,
+            "spotifyUrl": "https://open.spotify.com/track/0000000000000000000001"
+          },
+          "state": "playing",
+          "rows": [
+            {
+              "id": "9ef1f25b93467a8a826cb2ea91d59c3aa2ed0a76373c0cf2038bd75f00281606",
+              "text": "K\u00f8kkenalrum HomePod\nBruges til den aktuelle afspilning\nAktuelt output",
+              "disabled": true,
+              "pressed": "true",
+              "rect": {
+                "x": 412,
+                "y": 308,
+                "width": 456,
+                "height": 96
+              }
+            },
+            {
+              "id": "b99fdaa89447faa4f9ee3c4e37bb1feb5bef8e3492a397c92a1e0caaeace7b53",
+              "text": "Sovev\u00e6relse\nKan v\u00e6lges til den aktuelle afspilning",
+              "disabled": false,
+              "pressed": "false",
+              "rect": {
+                "x": 412,
+                "y": 420,
+                "width": 456,
+                "height": 96
+              }
+            }
+          ],
+          "dialog": {
+            "x": 380,
+            "y": 156,
+            "width": 520,
+            "height": 488
+          }
+        },
+        {
+          "target": {
+            "id": "device",
+            "name": "Kitchen"
+          },
+          "binding": {
+            "roomId": "kitchen",
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "bedroom",
+            "nativeHomepodId": "43",
+            "bindingId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "validUntil": 1793978375.2583911
+          },
+          "item": {
+            "type": "track",
+            "uri": "spotify:track:0000000000000000000001",
+            "name": "Isoleret sang 1",
+            "artists": [
+              "Artist"
+            ],
+            "duration_ms": 123000,
+            "artwork": null,
+            "spotifyUrl": "https://open.spotify.com/track/0000000000000000000001"
+          },
+          "state": "playing",
+          "rows": [
+            {
+              "id": "9ef1f25b93467a8a826cb2ea91d59c3aa2ed0a76373c0cf2038bd75f00281606",
+              "text": "K\u00f8kkenalrum HomePod\nKan v\u00e6lges til den aktuelle afspilning",
+              "disabled": false,
+              "pressed": "false",
+              "rect": {
+                "x": 412,
+                "y": 308,
+                "width": 456,
+                "height": 96
+              }
+            },
+            {
+              "id": "b99fdaa89447faa4f9ee3c4e37bb1feb5bef8e3492a397c92a1e0caaeace7b53",
+              "text": "Sovev\u00e6relse\nBruges til den aktuelle afspilning\nAktuelt output",
+              "disabled": true,
+              "pressed": "true",
+              "rect": {
+                "x": 412,
+                "y": 420,
+                "width": 456,
+                "height": 96
+              }
+            }
+          ],
+          "dialog": {
+            "x": 380,
+            "y": 156,
+            "width": 520,
+            "height": 488
+          }
+        },
+        {
+          "target": {
+            "id": "device",
+            "name": "Kitchen"
+          },
+          "binding": {
+            "roomId": "kitchen",
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "native-room",
+            "nativeHomepodId": "42",
+            "bindingId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validUntil": 1793978375.557993
+          },
+          "item": {
+            "type": "track",
+            "uri": "spotify:track:0000000000000000000001",
+            "name": "Isoleret sang 1",
+            "artists": [
+              "Artist"
+            ],
+            "duration_ms": 123000,
+            "artwork": null,
+            "spotifyUrl": "https://open.spotify.com/track/0000000000000000000001"
+          },
+          "state": "playing",
+          "rows": [
+            {
+              "id": "9ef1f25b93467a8a826cb2ea91d59c3aa2ed0a76373c0cf2038bd75f00281606",
+              "text": "K\u00f8kkenalrum HomePod\nBruges til den aktuelle afspilning\nAktuelt output",
+              "disabled": true,
+              "pressed": "true",
+              "rect": {
+                "x": 412,
+                "y": 308,
+                "width": 456,
+                "height": 96
+              }
+            },
+            {
+              "id": "b99fdaa89447faa4f9ee3c4e37bb1feb5bef8e3492a397c92a1e0caaeace7b53",
+              "text": "Sovev\u00e6relse\nKan v\u00e6lges til den aktuelle afspilning",
+              "disabled": false,
+              "pressed": "false",
+              "rect": {
+                "x": 412,
+                "y": 420,
+                "width": 456,
+                "height": 96
+              }
+            }
+          ],
+          "dialog": {
+            "x": 380,
+            "y": 156,
+            "width": 520,
+            "height": 488
+          }
+        }
+      ]
+    },
+    {
+      "width": 1200,
+      "height": 800,
+      "steps": [
+        {
+          "target": {
+            "id": "device",
+            "name": "Kitchen"
+          },
+          "binding": {
+            "roomId": "kitchen",
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "native-room",
+            "nativeHomepodId": "42",
+            "bindingId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validUntil": 1793978376.1986408
+          },
+          "item": {
+            "type": "track",
+            "uri": "spotify:track:0000000000000000000001",
+            "name": "Isoleret sang 1",
+            "artists": [
+              "Artist"
+            ],
+            "duration_ms": 123000,
+            "artwork": null,
+            "spotifyUrl": "https://open.spotify.com/track/0000000000000000000001"
+          },
+          "state": "playing",
+          "rows": [
+            {
+              "id": "9ef1f25b93467a8a826cb2ea91d59c3aa2ed0a76373c0cf2038bd75f00281606",
+              "text": "K\u00f8kkenalrum HomePod\nBruges til den aktuelle afspilning\nAktuelt output",
+              "disabled": true,
+              "pressed": "true",
+              "rect": {
+                "x": 372,
+                "y": 308,
+                "width": 456,
+                "height": 96
+              }
+            },
+            {
+              "id": "b99fdaa89447faa4f9ee3c4e37bb1feb5bef8e3492a397c92a1e0caaeace7b53",
+              "text": "Sovev\u00e6relse\nKan v\u00e6lges til den aktuelle afspilning",
+              "disabled": false,
+              "pressed": "false",
+              "rect": {
+                "x": 372,
+                "y": 420,
+                "width": 456,
+                "height": 96
+              }
+            }
+          ],
+          "dialog": {
+            "x": 340,
+            "y": 156,
+            "width": 520,
+            "height": 488
+          }
+        },
+        {
+          "target": {
+            "id": "device",
+            "name": "Kitchen"
+          },
+          "binding": {
+            "roomId": "kitchen",
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "bedroom",
+            "nativeHomepodId": "43",
+            "bindingId": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+            "validUntil": 1793978376.8927932
+          },
+          "item": {
+            "type": "track",
+            "uri": "spotify:track:0000000000000000000001",
+            "name": "Isoleret sang 1",
+            "artists": [
+              "Artist"
+            ],
+            "duration_ms": 123000,
+            "artwork": null,
+            "spotifyUrl": "https://open.spotify.com/track/0000000000000000000001"
+          },
+          "state": "playing",
+          "rows": [
+            {
+              "id": "9ef1f25b93467a8a826cb2ea91d59c3aa2ed0a76373c0cf2038bd75f00281606",
+              "text": "K\u00f8kkenalrum HomePod\nKan v\u00e6lges til den aktuelle afspilning",
+              "disabled": false,
+              "pressed": "false",
+              "rect": {
+                "x": 372,
+                "y": 308,
+                "width": 456,
+                "height": 96
+              }
+            },
+            {
+              "id": "b99fdaa89447faa4f9ee3c4e37bb1feb5bef8e3492a397c92a1e0caaeace7b53",
+              "text": "Sovev\u00e6relse\nBruges til den aktuelle afspilning\nAktuelt output",
+              "disabled": true,
+              "pressed": "true",
+              "rect": {
+                "x": 372,
+                "y": 420,
+                "width": 456,
+                "height": 96
+              }
+            }
+          ],
+          "dialog": {
+            "x": 340,
+            "y": 156,
+            "width": 520,
+            "height": 488
+          }
+        },
+        {
+          "target": {
+            "id": "device",
+            "name": "Kitchen"
+          },
+          "binding": {
+            "roomId": "kitchen",
+            "accountId": "account",
+            "targetId": "device",
+            "nativeRoomId": "native-room",
+            "nativeHomepodId": "42",
+            "bindingId": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            "validUntil": 1793978377.193683
+          },
+          "item": {
+            "type": "track",
+            "uri": "spotify:track:0000000000000000000001",
+            "name": "Isoleret sang 1",
+            "artists": [
+              "Artist"
+            ],
+            "duration_ms": 123000,
+            "artwork": null,
+            "spotifyUrl": "https://open.spotify.com/track/0000000000000000000001"
+          },
+          "state": "playing",
+          "rows": [
+            {
+              "id": "9ef1f25b93467a8a826cb2ea91d59c3aa2ed0a76373c0cf2038bd75f00281606",
+              "text": "K\u00f8kkenalrum HomePod\nBruges til den aktuelle afspilning\nAktuelt output",
+              "disabled": true,
+              "pressed": "true",
+              "rect": {
+                "x": 372,
+                "y": 308,
+                "width": 456,
+                "height": 96
+              }
+            },
+            {
+              "id": "b99fdaa89447faa4f9ee3c4e37bb1feb5bef8e3492a397c92a1e0caaeace7b53",
+              "text": "Sovev\u00e6relse\nKan v\u00e6lges til den aktuelle afspilning",
+              "disabled": false,
+              "pressed": "false",
+              "rect": {
+                "x": 372,
+                "y": 420,
+                "width": 456,
+                "height": 96
+              }
+            }
+          ],
+          "dialog": {
+            "x": 340,
+            "y": 156,
+            "width": 520,
+            "height": 488
+          }
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "service": {
+    "state": "playing",
+    "song": 1,
+    "sequence": 13,
+    "delayMs": 0,
+    "witnessUnknownReads": 0,
+    "unknownWitnesses": 0,
+    "writes": [
+      {
+        "action": "move_existing_session",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:3",
+        "room": "bedroom"
+      },
+      {
+        "action": "move_existing_session",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:4",
+        "room": "native-room"
+      },
+      {
+        "action": "move_existing_session",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:5",
+        "room": "bedroom"
+      },
+      {
+        "action": "move_existing_session",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:6",
+        "room": "native-room"
+      },
+      {
+        "action": "move_existing_session",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:7",
+        "room": "bedroom"
+      },
+      {
+        "action": "move_existing_session",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:8",
+        "room": "native-room"
+      }
+    ],
+    "volume": 30,
+    "volumeRevision": 1,
+    "room": "native-room",
+    "homepod": "42",
+    "serviceReads": [
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_move_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/prepare_room_move_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:3"
+      },
+      {
+        "path": "/core/api/services/podconnect/move_room_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:3"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_playback_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:3"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_move_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/prepare_room_move_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:4"
+      },
+      {
+        "path": "/core/api/services/podconnect/move_room_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:4"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_playback_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:4"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_move_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/prepare_room_move_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:5"
+      },
+      {
+        "path": "/core/api/services/podconnect/move_room_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:5"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_playback_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:5"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_move_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/prepare_room_move_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:6"
+      },
+      {
+        "path": "/core/api/services/podconnect/move_room_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:6"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_playback_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:6"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_move_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/prepare_room_move_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:7"
+      },
+      {
+        "path": "/core/api/services/podconnect/move_room_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:7"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_playback_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:7"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_move_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/prepare_room_move_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:8"
+      },
+      {
+        "path": "/core/api/services/podconnect/move_room_playback",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:8"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_room_playback_controls",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_playback_snapshot",
+        "requestId": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa:8"
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      },
+      {
+        "path": "/core/api/services/podconnect/get_targets",
+        "requestId": null
+      }
+    ]
+  },
+  "finalRunLogicalMoves": 4,
+  "priorRejectedCaptureMoves": 2,
+  "pins": {
+    "backend": "06beec1e46512d763b1cba800adc08153f6fa9b2a023a1726ecd3d7b4dd13dba",
+    "product": "d2329d184916b351fc95c2a66c6fcb99ff846a545a4641b73cf7da3b4e6b21b1",
+    "css": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6",
+    "library": "f994b8b3da8e8b2f293045f2a7b9da0999cc0385675dc9016a67a7f63641e220"
+  },
+  "review": {
+    "productDesign": "Six saved actual product screenshots inspected. Same canonical Dialog/ListRow anatomy; no new layout, truncation, hierarchy or alignment finding in changed row availability states.",
+    "impeccable": "Detector [] on unchanged SpeakerOutputView; scoped pixel review no new finding. Current disabled row muted style retained from canonical kit. Not a full accessibility audit.",
+    "limitations": [
+      "Second native fixture is named Sovev\u00e6relse rather than actual Svend; this is inert identity-equivalent route test.",
+      "No populated timer fixture, timer preservation not proven here.",
+      "No fresh library screenshot; unchanged library/renderer pins permit reuse of prior canonical visual evidence.",
+      "Headless real browser with touch emulation, not physical iPad/audio/Green acceptance."
+    ],
+    "geometry": "520x488 centered at380,156 /340,156;96px rows. Return control keyboard focus checked before click."
+  }
+}
