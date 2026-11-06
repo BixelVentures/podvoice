@@ -264,3 +264,84 @@ def test_real_passive_transport_is_bounded_and_exact(monkeypatch, change):
             "/services/podconnect/get_targets?return_response"
         )
         assert calls[0][2]["json"] == {"config_entry_id": "account"}
+
+
+@pytest.mark.parametrize(
+    "restriction",
+    ["none", "missing_grant", "duplicate_grant", "unavailable", "revoked", "move_off"],
+)
+def test_return_to_configured_room_is_not_excluded_by_preference_or_roster(
+    monkeypatch, restriction
+):
+    """Exercise the real catalogue owner; actual-output suppression belongs to the view."""
+
+    async def run():
+        owner = object()
+        tools = SimpleNamespace(
+            podview_music_reads=lambda: ["targets"],
+            podview_music_binding=lambda: owner,
+        )
+        kitchen = {
+            "accountId": "account",
+            "targetId": "same-connect-engine",
+            "nativeRoomId": "r0",
+            "nativeHomepodId": "42",
+            "actions": ["pause", "move_existing_session"],
+        }
+        bedroom = {
+            "accountId": "account",
+            "targetId": "same-connect-engine",
+            "nativeRoomId": "r1",
+            "nativeHomepodId": "43",
+            "actions": ["move_existing_session"],
+        }
+        if restriction == "missing_grant":
+            kitchen["actions"] = ["pause"]
+        rules = [kitchen, bedroom]
+        if restriction == "duplicate_grant":
+            rules.append({**kitchen, "actions": ["move_existing_session"]})
+        grant = object()
+        bridge = SimpleNamespace(
+            boot_id="boot",
+            tools=tools,
+            sessions={"r0": object()},
+            controls=SimpleNamespace(
+                policy={"roomId": "r0", "music": rules},
+                move=SimpleNamespace(available=restriction != "move_off"),
+                domains=lambda *_: ["music"],
+                selection_allowed=lambda *_: False,
+            ),
+            _grant_for_token=lambda *_: grant,
+            _grant_current=lambda *_: restriction != "revoked",
+        )
+        data = payload()
+
+        async def read(_tools, account):
+            assert _tools is tools and account == "account"
+            return copy.deepcopy(data)
+
+        monkeypatch.setattr(speakers, "read_service", read)
+        # Keep configured/native roster preference r0 even as actual output changes.
+        # The independently fresh playback binding is consumed by the canonical view.
+        identities = None
+        for actual_homepod in ("42", "43", "42"):
+            for row in data["targets"]:
+                if row["kind"] == "observed_output":
+                    row["selected"] = row["target_id"] == actual_homepod
+                    if restriction == "unavailable" and row["target_id"] == "42":
+                        row["query_up"] = False
+            result = await speakers.read_catalogue(
+                bridge, "r0", "account", lambda: owner, token="token"
+            )
+            assert result["ok"] is True
+            rows = {row["nativeRoomId"]: row for row in result["speakers"]}
+            if actual_homepod == "43":
+                assert rows["r0"]["selectable"] is (restriction == "none")
+            assert rows["r0"]["default"] is True
+            assert all(row["startSelectable"] is False for row in rows.values())
+            current_ids = {key: row["speakerId"] for key, row in rows.items()}
+            if identities is not None:
+                assert current_ids == identities
+            identities = current_ids
+
+    asyncio.run(run())
