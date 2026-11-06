@@ -1,3 +1,7 @@
+## Aktuel planopdatering · opgave1-6 · 6. november 2026
+
+Brugeren har bedt om en opdateret plan og Astra-grill ud fra ny viden. Den autoritative seks-punkts udførelses-/acceptplan står øverst i [UI-DELIVERY-GOAL](UI-DELIVERY-GOAL.md); nedenstående versions-/feltbeviser bevares. Aktuel ekstern blokering er brugerbekræftet Green uden strøm, ikke en uafklaret netværks-/Macfejl. Udgivet136/companion0.1.16source/Control033 er ikke installeret eller fysisk accepteret her. Planen adskiller adoption, normal funktion, årsagslukning og enhedsaccept; ingen ny runtime eller livehandling. Astra-grill afsluttet med PLAN GO efter to indarbejdede præciseringer: eksplicit accept af de tidligere fejlede musikskift og en konkret recovery-vej ved terminal opskriftsafvisning uden omgåelse. Dette er plangodkendelse, ikke bevis for installation eller funktion.
+
 ## Current blocker · Green without power · direct user confirmation6November2026
 
 The user directly confirmed that Green currently has no power. This explains the newly observed HA remote connection failure. Stop NabuCasa/LAN retries and browser/network diagnosis while that state remains known; Mac is unlocked and is not the blocker. No installation, HACS update, integration reload, HA restart, household action or sound trial was started in the resumed run. Installed versions cannot be read;133 remains last verified, not a fresh current observation.
