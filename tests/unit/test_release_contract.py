@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -23,6 +24,22 @@ def test_release_version_is_identical_everywhere() -> None:
 
     assert match is not None
     assert project_version == match.group(1) == __version__
+
+
+def test_explicit_hacs_versions_include_root_metadata_and_native_component() -> None:
+    # HACS 2.0.5 fetches this exact tagged file before explicit-version install.
+    # A latest-version cached manifest cannot prove an older tag is installable.
+    metadata = json.loads((ROOT / "hacs.json").read_text())
+    assert isinstance(metadata, dict) and metadata.get("name") == "PodVoice"
+    assert metadata.get("content_in_root", False) is False
+    assert metadata.get("zip_release", False) is False
+    components = ROOT / "custom_components"
+    packaged = sorted(
+        path.name for path in components.iterdir() if (path / "manifest.json").is_file()
+    )
+    assert packaged == ["podvoice"]
+    manifest = json.loads((components / "podvoice" / "manifest.json").read_text())
+    assert manifest["domain"] == "podvoice"
 
 
 def test_shipped_package_has_no_selectable_simulation_runtime() -> None:
