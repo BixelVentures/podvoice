@@ -1,3 +1,54 @@
+## Candidate140 · rejected composition corrected locally · 6 November 2026
+
+The rejected flat robot composition is replaced with the established Rum and
+Rengøringsvalg cards and admitted Type/dependent choice controls. Native/Danish
+labels now follow identical existing presentation rules. The player fallback icon
+no longer tints the whole player gray. No CSS or new component family; no invented
+Start/rooms/repeat/permissions or automatic map switch. This corrects the local
+candidate against the actual prior references; it does not claim human acceptance.
+
+The actual139 HA map/area diagnosis and inert full HTTP map recovery are recorded
+in [the corrected scoped review](qa-robot-map-recovery-20261106/REVIEW.md), preserving
+the earlier rejection. Final140 full UI4755PASS, release contract14PASS,225 asset
+pins exact, Astra sourceGO and actual local browser1280/1200 proof. Explicit Vask
+touch also settles accepted with the observed type-dependent layout. Native select
+selection/emulated touch are not actual iPad/physical acceptance. Normal CI/publication/installation remain pending; no noisy test has occurred. v2.X alone owns normal CI/release/live;
+all music/other plan rests and daily18–08 quiet policy remain open/applicable.
+
+## Robot UI rejected · visual acceptance reopened · 6 November 2026
+
+The human rejected the1200-unmapped-floor screenshot as not the approved UI.
+The previous scoped visual PASS is withdrawn. Keep the proven map-selector
+recovery correction, but reconcile its composition and the shown player with the
+latest actual approved references before candidate140 publication. No release
+packet has been sent. Functional/inert evidence does not approve the visual result.
+
+## Robot map recovery · actual cause isolated, software verified · 6 November 2026
+
+Green139 is docked on1.Sal; its two native rooms have no HA-area mapping. Stueplan
+already has mappings. HA get_maps and native entity settings were read once without
+changing map/mapping or moving the robot. The source therefore has a concrete empty-
+area condition, plus a causally reproduced presentation deadend: the admitted map
+selector vanished without Start and with a single offered alternate.
+
+The existing canonical selector now retains that alternate and the verified current
+floor; no invented Start, room mapping, action grant or automatic switch. Final full
+UI/component4744PASS and actual packaged-browser/inert-HA flow at1280×800/1200×800
+pass. [Scoped visual/function evidence](qa-robot-map-recovery-20261106/REVIEW.md)
+records Product Design/Impeccable findings and limits. This software change is not
+yet installed; actual map selection/Start/iPad acceptance and all music/other plan
+rests remain open. Daily18–08 quiet policy and sole v2.X live/release operator remain.
+
+## Kort UX-bestilling implementeret · 6. november 2026
+
+Direkte Go til “lav [del] fuldt” er omsat til routing i AGENTS.md og den konkrete
+arbejdsaftale/media-player-færdigdefinition øverst i UI-DELIVERY-GOAL.md. Standard:
+fuld aftalt UX med mindste tilstrækkelige teknik; hurtig kun eksplicit. Eksisterende
+scope, ejergrænser, kit, feedbackoversigt og én liveoperatør bevares. Dette er en
+docs-/arbejdsformsændring uden runtime, UI, version, installation eller nye skills.
+Aktuel frozen PR310 ændres ikke; docsdelta afleveres separat til næste kildeadoption.
+Musikfejl, robotstart og øvrige faktiske enheds-/funktionsrester er fortsat åbne.
+
 ## Actual139 HACS consumer accepted · soundless metadata correction continues ·6 November2026
 
 Sole v2.X completed exactly one normal HACS repository information refresh, then ordinary LATEST139 download after the known pre-write refusal. No DifferentVersion/validation override was used. One passive page reload confirmed persisted Version downloaded2.0.139. Existing already-loaded native016 is unchanged; no Core/loaded-integration/gateway restart/reload or household effect occurred. The inspected exact2.0.5 source performs only files and custom-component metadata-cache work for this already-installed repository; a restart-required notification is not an executed restart. Current139 Green/runtime and HACS adoption now both pass as software adoption, not audio/device acceptance.

@@ -501,3 +501,22 @@ test('only the chosen queue row exposes busy state to the action spinner',()=>{
  assert.equal(f.view.rows.get(item.id),chosen);
  assert.equal(chosen.getAttribute('aria-busy'),null);
 });
+
+test('canonical missing artwork stays neutral after fallback load and repeated player renders',()=>{
+ const f=surface({live:true}),cover=f.doc.getElementById('cover'),style=f.host.querySelector('.player').style,create=f.doc.createElement;let samples=0;
+ f.doc.createElement=tag=>tag==='canvas'?{getContext:()=>({drawImage(){},getImageData(){samples++;return {data:new Uint8ClampedArray([0,0,0,255])};}})}:create(tag);
+ const vm={active:true,title:'Known song without artwork',uri:item.uri,artwork:null};f.view.renderPlayer(vm);
+ assert.equal(cover.src,'assets/icons/music-note-beamed.svg');assert.equal(cover.classList.contains('live-art-fallback'),true);
+ cover.complete=true;cover.naturalWidth=256;cover.dispatchEvent(new Event('load'));f.view.renderPlayer(vm);
+ assert.equal(style.getPropertyValue('--player-cover-tone'),'transparent');assert.equal(style.getPropertyValue('--pv-cover'),'transparent');assert.equal(samples,0,'the artwork owner’s fallback icon is not a cover palette');assert.equal(f.view.coverTones.has(cover.src),false);f.view.cleanup();
+});
+
+test('canonical fallback cancels a pending cover palette and a late palette cannot restore tint',()=>{
+ const f=surface({live:true}),cover=f.doc.getElementById('cover'),style=f.host.querySelector('.player').style,probes=[];
+ f.view.renderPlayer({active:true,title:item.title,uri:item.uri,artwork:item.artwork});
+ class PaletteImage{constructor(){probes.push(this);}set src(value){this.request=value;}removeAttribute(){this.removed=true;}}
+ f.doc.defaultView={Image:PaletteImage};f.view.updateCoverTone();const pending=probes[0],late=pending.onload;assert.equal(pending.request,item.artwork.url);
+ f.view.renderPlayer({active:true,title:item.title,uri:item.uri,artwork:null});cover.complete=true;cover.naturalWidth=256;cover.dispatchEvent(new Event('load'));
+ assert.equal(cover.classList.contains('live-art-fallback'),true);assert.equal(f.view.coverToneRequest,null);assert.equal(pending.onload,null);assert.equal(pending.onerror,null);assert.equal(pending.removed,true);late();
+ assert.equal(style.getPropertyValue('--pv-cover'),'transparent');assert.equal(style.getPropertyValue('--player-cover-tone'),'transparent');assert.equal(f.view.coverTones.size,0);assert.equal(probes.length,1);f.view.cleanup();
+});

@@ -1,3 +1,104 @@
+## Candidate140 · rejected composition corrected locally · 6 November 2026
+
+The rejected flat robot composition is replaced with the established Rum and
+Rengøringsvalg cards and admitted Type/dependent choice controls. Native/Danish
+labels now follow identical existing presentation rules. The player fallback icon
+no longer tints the whole player gray. No CSS or new component family; no invented
+Start/rooms/repeat/permissions or automatic map switch. This corrects the local
+candidate against the actual prior references; it does not claim human acceptance.
+
+The actual139 HA map/area diagnosis and inert full HTTP map recovery are recorded
+in [the corrected scoped review](qa-robot-map-recovery-20261106/REVIEW.md), preserving
+the earlier rejection. Final140 full UI4755PASS, release contract14PASS,225 asset
+pins exact, Astra sourceGO and actual local browser1280/1200 proof. Explicit Vask
+touch also settles accepted with the observed type-dependent layout. Native select
+selection/emulated touch are not actual iPad/physical acceptance. Normal CI/publication/installation remain pending; no noisy test has occurred. v2.X alone owns normal CI/release/live;
+all music/other plan rests and daily18–08 quiet policy remain open/applicable.
+
+## Robot UI rejected · visual acceptance reopened · 6 November 2026
+
+The human rejected the1200-unmapped-floor screenshot as not the approved UI.
+The previous scoped visual PASS is withdrawn. Keep the proven map-selector
+recovery correction, but reconcile its composition and the shown player with the
+latest actual approved references before candidate140 publication. No release
+packet has been sent. Functional/inert evidence does not approve the visual result.
+
+## Robot map recovery · actual cause isolated, software verified · 6 November 2026
+
+Green139 is docked on1.Sal; its two native rooms have no HA-area mapping. Stueplan
+already has mappings. HA get_maps and native entity settings were read once without
+changing map/mapping or moving the robot. The source therefore has a concrete empty-
+area condition, plus a causally reproduced presentation deadend: the admitted map
+selector vanished without Start and with a single offered alternate.
+
+The existing canonical selector now retains that alternate and the verified current
+floor; no invented Start, room mapping, action grant or automatic switch. Final full
+UI/component4744PASS and actual packaged-browser/inert-HA flow at1280×800/1200×800
+pass. [Scoped visual/function evidence](qa-robot-map-recovery-20261106/REVIEW.md)
+records Product Design/Impeccable findings and limits. This software change is not
+yet installed; actual map selection/Start/iPad acceptance and all music/other plan
+rests remain open. Daily18–08 quiet policy and sole v2.X live/release operator remain.
+
+<a id="kort-ux-bestilling"></a>
+
+## Kort UX-bestilling · implementeret arbejdsaftale 6. november 2026
+
+**Udløser:** “Lav [del] fuldt”, “[del] fuld” eller tilsvarende bestiller en samlet
+funktion. Agenten omsætter brugerens UX-mål til implementering og afprøvning, uden
+at kræve tekniske instruktioner. Aftalen ændrer arbejdsformen; den færdigmelder ikke
+nuværende musik-, robot-, opskrifts- eller enhedsrester nedenfor.
+
+| Niveau | Leverance og afgrænsning |
+| --- | --- |
+| Standard / fuld | Hele det aftalte brugerforløb, relevante tilstande, fejl/recovery, godkendt UI, berørte nabofunktioner og faktisk integrationsprøve. Hurtigste tilstrækkelige teknik; ombyg kun dokumenterede hindringer. |
+| Hurtig, kun eksplicit | Mindste sammenhængende løsning med eksisterende ejere/kit. Angiv hvad der medtages og udskydes; ingen stiltiende reduktion af tidligere accepteret scope eller lavere sandhedskrav. |
+
+### Udførelse fra én bestilling
+
+1. Genbrug den eksisterende feedbackpost: forventet brugerresultat, relevant aftalt
+   scope og åbne beviser. Læs faktisk kilde/kapabilitet og godkendt reference; spørg
+   kun om et nødvendigt, uafklaret produktvalg eller en ny tilladelse. Træf almindelige
+   tekniske valg selv. Ingen ny specifikations-/ticketplatform eller fuld audit.
+2. Følg input → valideret handling → eksisterende ejer → observeret resultat →
+   synlig feedback/recovery. HA ejer integration, PodConnect eksisterende musik/output.
+   Genbrug push og autoritativ tilstand; opret ingen parallel kommando-/state-ejer.
+3. Genskab en konkret fejl gennem det berørte forløb, når der findes en fejl. Ret den
+   dokumenterede årsag og kontrollér det forventede udfald. Tests gennem brugerens
+   eller ejerens offentlige grænse foretrækkes; undgå tests der blot spejler koden.
+   Mangler en observation, navngiv den og fortsæt uafhængigt arbejde. UNKNOWN gensendes ikke.
+4. Saml rettelserne på én integrationskandidat. Kontrollér gentagne skift, forsinkede
+   svar, navigation og berørte nabofunktioner; nødvendige tests/reviews bevares.
+   Brug én implementeringsansvarlig (Sol), Terra ved afgrænset UI-arbejde og Astra ved
+   krævende ejer-/race-/arkitekturgrænser. Parallelisér kun selvstændigt arbejde;
+   opret ikke en agent eller reviewrunde alene for at følge en skabelon.
+5. Følg den eksisterende CI/publicerings-/installationsvej med v2.X som eneste
+   liveoperatør. Vis ændret adfærd og præcise rester. Kode, renderet browser,
+   faktisk service, publicering, installation og fysisk accept er særskilte beviser.
+   En nødvendig utilgængelig enhedsprøve bliver ved med at være åben.
+
+### Eksempel: “Lav media player fuld”
+
+Bestillingen omfatter nedenstående i det allerede aftalte musikscope. Kontrollér
+faktisk støtte hos ejeren; opfind ingen kontrolrettighed eller hardwareegenskab.
+En manglende aftalt kapabilitet er et åbent leverancepunkt, ikke en skjult scopeændring.
+
+| Brugerforløb | Forventet resultat |
+| --- | --- |
+| Play/pause, næste/forrige, lydstyrke og understøttet søgning i tidslinjen | Handling rammer samme konto/output/ejer som vist; UI følger det bekræftede resultat. |
+| Find musik → playlist/album/sang → Hør igen → nyt valg | Seneste valg bevares; gammel metadata overskriver ikke et nyere valg. |
+| Åbn kø → vælg nummer | Hentning adskilles fra tom/fejl; valgt række har feedback indtil afgjort udfald. |
+| Skift højttaler → skift tilbage → betjen | Eksisterende session/output håndteres af PodConnect; kontroller bevares efter bekræftet skift. |
+| Næste samtidig med lydstyrke, gentagne valg og sidenavigation | Kun berørte handlinger afventer; ingen uvedkommende låsning, stop eller gamle svar. |
+| Spotify/anden klient ændrer afspilning, data forsinkes, forbindelse tabes/genoprettes, app vender tilbage | Vis autoritativ aktuel/sidst kendt tilstand ærligt og gendan uden automatisk gentagelse af ukendt kommando. |
+| Touch og visuelt samspil | Godkendt kit/anatomi bevares; ingen blink, layout-hop eller uvedkommende animation. Kontrollér 1280×800 og 1200×800 samt faktisk Mac/iPad efter deres acceptkrav. |
+
+Berøringsfeedback kommer straks; fysisk sang-/outputskift måles på faktisk tjeneste
+og må ikke loves i mikrosekunder. UI-ændringer følger fortsat Product Design og
+Impeccable, samme kanoniske bibliotek/produkt og eksisterende visuelle referencer.
+Browser-/serviceprøver bruger eksisterende harness og relevant fejloptagelse; inert
+eller emuleret prøve tæller ikke som fysisk effekt. Daglig ro 18–08 Europe/Copenhagen
+og eksisterende tilladelser gælder fortsat; ingen automatisk lydstart kl. 08.
+
 ## HACS139 software adoption passes · quiet source delivery remains ·6 November2026
 
 Normal repository metadata refresh followed by one standard LATEST139 download and one passive reload confirmed persisted HACS Version downloaded2.0.139. No Core/native/gateway restart or household effect occurred. Green139/c1c and unchanged loaded native016 remain verified. The earlier explicit-version refusal was pre-write, not an unknown partial installation.
