@@ -43,7 +43,7 @@ function lifecycle(){
  g.setRead((kind,account,query,options)=>{
   if(kind==='speakers')return Promise.resolve(catalogue());
   const b=g.body({epoch:'epoch-'+destination,binding:String(destination+10).slice(-1).repeat(64)});b.binding.nativeRoomId=speakers[destination].nativeRoomId;b.binding.nativeHomepodId=speakers[destination].homepodId;b.data.poll_sequence=sequence++;
-  if(options?.receiptRequestId)b.settlement={requestId:options.receiptRequestId,request_id:'epoch-'+destination+':'+destination,command_sequence:destination,owner_epoch:'epoch-'+destination,status:'confirmed',effect:{source:'native_bound_state',effect_revision:String(destination)}};
+  if(options?.receiptRequestId)b.settlement={requestId:options.receiptRequestId,request_id:'epoch-'+destination+':'+sequence,command_sequence:sequence,owner_epoch:'epoch-'+destination,status:'confirmed',effect:{source:'native_bound_state',effect_revision:String(sequence)}};
   return Promise.resolve(b);
  });
  f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);destination=speakers.findIndex(s=>s.speakerId===intent.target.speakerId);return {ok:true,outcome:'accepted',requestId:intent.requestId};};
@@ -64,6 +64,40 @@ test('public MOVE, confirmed fresh destination, roster refresh, then second MOVE
   assert.equal(f.effects[1].target.expectedBindingId,'1'.repeat(64));
   assert.equal(g.media.playback.roomBinding.nativeRoomId,'room-2');
   assert.equal([...f.view.receipts.values()].at(-1).settlementStatus,'confirmed');
+ }finally{h.close();}
+});
+// The catalogue is a supplied DTO here; server selectability is covered separately.
+test('Kitchen to Svend to Kitchen reopens the original row with fresh authority on one Spotify target',async()=>{
+ const h=lifecycle(),{f,g,output,speakers}=h;try{
+  await g.media.refresh({immediate:true});await output.open();
+  const originalTarget=structuredClone(g.media.playback.target),originalBinding=g.media.playback.roomBinding.bindingId;
+  const rowFor=speaker=>[...output.rows.children].find(row=>row.speakerRow.speakerId===speaker.speakerId);
+  assert.equal(rowFor(speakers[0]).disabled,true);
+  assert.equal(rowFor(speakers[1]).disabled,false);
+  assert.equal(await f.view.moveSpeaker(speakers[1],()=>output.validUntil>Date.now()),true);await tick();
+  assert.equal(f.effects.length,1);
+  assert.equal(g.media.playback.roomBinding.nativeRoomId,speakers[1].nativeRoomId);
+  assert.deepEqual(g.media.playback.target,originalTarget);
+  const firstRequest=f.effects[0].requestId,returnBinding=g.media.playback.roomBinding.bindingId;
+  assert.notEqual(returnBinding,originalBinding);
+  await output.open();
+  const kitchen=rowFor(speakers[0]),svend=rowFor(speakers[1]);
+  assert.equal(kitchen.disabled,false);assert.equal(kitchen.getAttribute('aria-pressed'),'false');
+  assert.equal(svend.disabled,true);assert.equal(svend.getAttribute('aria-pressed'),'true');
+  assert.equal(await f.view.moveSpeaker(kitchen.speakerRow,()=>output.validUntil>Date.now()),true);await tick();
+  assert.equal(f.effects.length,2);
+  assert.deepEqual(f.effects.map(effect=>effect.action),['move_existing_session','move_existing_session']);
+  assert.deepEqual(f.effects.map(effect=>effect.target.speakerId),[speakers[1].speakerId,speakers[0].speakerId]);
+  assert.notEqual(f.effects[1].requestId,firstRequest);
+  assert.equal(f.effects[1].target.expectedBindingId,returnBinding);
+  assert.notEqual(f.effects[1].target.expectedBindingId,f.effects[0].target.expectedBindingId);
+  assert(f.effects.every(effect=>effect.target.targetId===originalTarget.id));
+  assert.equal(g.media.playback.roomBinding.nativeRoomId,speakers[0].nativeRoomId);
+  assert.equal(g.media.playback.roomBinding.nativeHomepodId,speakers[0].homepodId);
+  assert.deepEqual(g.media.playback.target,originalTarget);
+  assert.equal([...f.view.receipts.values()].at(-1).settlementStatus,'confirmed');
+  f.view.renderMusicControls();
+  assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);
  }finally{h.close();}
 });
 for(const failure of ['stale','missing'])test('fresh roster cannot authorize MOVE with '+failure+' playback observation',async()=>{

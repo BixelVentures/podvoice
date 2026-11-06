@@ -1,3 +1,9 @@
+## 2.0.137
+
+- Keep the configured speaker available as a return destination after moving an existing session to another native output on the same Spotify Connect device.
+- Preserve existing destination permissions, fresh actual-output checks, native MOVE receipts and the approved speaker-picker UI.
+- Native companion remains 0.1.16; unrelated music-read, queue and device acceptance remain separately tracked.
+
 ## 2.0.136
 
 - Import valid recipe microdata when a source has no usable recipe JSON-LD, through the existing importer and storage flow.
