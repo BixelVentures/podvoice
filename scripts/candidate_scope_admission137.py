@@ -8,9 +8,9 @@ from pathlib import Path
 
 BASE = "ae59c086e082a1a4d9974c21fe69d463b31e81a5"
 BASE_TREE = "f8782d6a78b201c36e180591197af8675c4de637"
-CANDIDATE = "d45a57ef801665f5eb788920c74d53aa9560f064"
-CANDIDATE_TREE = "d67c0b6d7c34cd998297367cff8730a80ba21f90"
-REVIEWER = "Astra return-output source review and exact 2.0.137 registration review"
+CANDIDATE = "6f468d89726d215d003a12d06f555971e9884c52"
+CANDIDATE_TREE = "7dec32a87595a9fdd369ae355dffaf742787929f"
+REVIEWER = "Astra return-output source, voice fixture and exact 2.0.137 registration reviews"
 RELEASE_PINS = {
     "custom_components/podvoice/manifest.json": "7eac83b25fdadb88eb22a7b9f2baed91b29ceebbdab584fda632e7b3c543c541",
     ".github/workflows/ci.yml": "92f33e7ea1a1e9ad3cbe7c5e47773bbc1931fffe6c38e14675767c5b7929e815",
@@ -19,7 +19,7 @@ RELEASE_PINS = {
     "podvoice/gatekeeper/__init__.py": "42da3251fa7c549b76bd325a9126885fbbcd9a0e4ec01d2a615533a0687a7146",
     "pyproject.toml": "7834341a9fa09d55444be8f2d778a4bfc617211a893524fd959051e0405fd3d4",
 }
-REGISTRATION = {".github/workflows/ci.yml", "scripts/candidate_scope_admission137.py"}
+REGISTRATION = {"scripts/candidate_scope_admission137.py"}
 
 
 def git(*args: str) -> str:
