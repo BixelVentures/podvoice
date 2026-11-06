@@ -1,3 +1,13 @@
+## Kort UX-bestilling implementeret · 6. november 2026
+
+Direkte Go til “lav [del] fuldt” er omsat til routing i AGENTS.md og den konkrete
+arbejdsaftale/media-player-færdigdefinition øverst i UI-DELIVERY-GOAL.md. Standard:
+fuld aftalt UX med mindste tilstrækkelige teknik; hurtig kun eksplicit. Eksisterende
+scope, ejergrænser, kit, feedbackoversigt og én liveoperatør bevares. Dette er en
+docs-/arbejdsformsændring uden runtime, UI, version, installation eller nye skills.
+Aktuel frozen PR310 ændres ikke; docsdelta afleveres separat til næste kildeadoption.
+Musikfejl, robotstart og øvrige faktiske enheds-/funktionsrester er fortsat åbne.
+
 ## Actual139 HACS consumer accepted · soundless metadata correction continues ·6 November2026
 
 Sole v2.X completed exactly one normal HACS repository information refresh, then ordinary LATEST139 download after the known pre-write refusal. No DifferentVersion/validation override was used. One passive page reload confirmed persisted Version downloaded2.0.139. Existing already-loaded native016 is unchanged; no Core/loaded-integration/gateway restart/reload or household effect occurred. The inspected exact2.0.5 source performs only files and custom-component metadata-cache work for this already-installed repository; a restart-required notification is not an executed restart. Current139 Green/runtime and HACS adoption now both pass as software adoption, not audio/device acceptance.

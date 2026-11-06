@@ -183,6 +183,19 @@ Legacy `full_duplex`-flags beviser ikke Live-adfærd. Talk beviser ikke puckens
 fysiske lydvej. Classic og direct PCM er karantæneret legacy. Tests, Talk, CI, transcript
 eller korrekt svar alene giver ikke fysisk accept.
 
+## Kort UX-bestilling → samlet leverance · direkte brugerbeslutning 6. november 2026
+
+“Lav [del] fuldt” / “[del] fuld” aktiverer den eksisterende leveranceaftale i
+[UI-DELIVERY-GOAL: Kort UX-bestilling](docs/UI-DELIVERY-GOAL.md#kort-ux-bestilling).
+Standard er fuld brugeroplevelse med hurtigste tilstrækkelige teknik. Udled krav af
+samtalen, godkendt UI, faktisk kilde og ejerens kapabiliteter; agenten ejer tekniske
+valg og QA. Bed ikke brugeren gentage krav eller vælge test-/implementeringsdetaljer.
+“Hurtig” vælges kun ved eksplicit bestilling; oplys afgrænsningen uden at reducere
+allerede accepteret scope. Brug eksisterende ejere, kit, harness og feedbackoversigt.
+Gennemfør hele forløbet og saml beslægtede rettelser før levering; undgå ny udgivelse
+pr. hypotese. Ingen ny tracker, obligatorisk skillpakke eller generel audit.
+Dette ophæver ingen adgangs-, UNKNOWN-, review-, lyd- eller installationsgrænse.
+
 ## Normal arbejdssekvens
 
 Produktkode: ret den observerede årsag, kør berørt regression/adaptor, få ét fokuseret
