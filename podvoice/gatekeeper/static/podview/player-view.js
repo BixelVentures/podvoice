@@ -77,7 +77,7 @@ export class PlayerView{
  radioHistorySuperseded(history){if(!history||history.scope!==this.sourceScope())return false;if(history.superseded)return true;const h=this.host,p=h.liveMedia?.playback,s=h.liveSnapshot,b=[2,3].includes(p?.projectionVersion)&&p.state==='playing'&&playbackObservationCurrent(p,s)&&roomObservationCurrent(p,s)?playbackBinding(p,s,h.liveMedia?.account):null;if(b&&b.nativeRoomId===history.targetId&&Number.isFinite(history.observedAt)&&Date.parse(p.observedAt)>=(history.observedAt+1)*1000)history.superseded=true;return history.superseded;}
  sourceModel(kind){if(this.host.live!==true)return this.progressVM||{};return (kind==='radio'?this.host.liveRadio?.playerModel?.():this.host.liveMedia?.observedPlayerModel?.())||{};}
  updateCoverTone(sample=null){
-  const cover=this.doc.getElementById('cover'),player=this.host.querySelector('.player'),source=this.progressVM?.active===true?(cover?.currentSrc||cover?.src):null;let tone='transparent';
+  const cover=this.doc.getElementById('cover'),player=this.host.querySelector('.player'),source=this.progressVM?.active===true&&!cover?.classList.contains('live-art-fallback')?(cover?.currentSrc||cover?.src):null;let tone='transparent';
   if(this.coverToneRequest&&this.coverToneRequest.source!==source){this.coverToneRequest.image.onload=null;this.coverToneRequest.image.onerror=null;this.coverToneRequest.image.removeAttribute?.('src');this.coverToneRequest=null;}
   // Keep the visible artwork untouched. Only its optional palette read needs CORS.
   const ImageClass=this.doc.defaultView?.Image;
