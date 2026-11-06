@@ -1,3 +1,7 @@
+## Current execution · power restored by user · 6 November 2026
+
+The user has now directly stated that Green was connected to power and instructed continuation. The known-power-off hold is superseded; actual HA reachability and installed versions remain unverified until a fresh observation. v2.X is notified to resume the reviewed Plan1-6 through the existing sole live/install lease, beginning with state/version/pending-update reads before mutation. No new Go is needed. Do not assume136/companion0.1.16/Control033 are already loaded or repeat an unknown update. Root performs no parallel household action. Earlier power-off records below are historical; no current install/function PASS is inferred from restored power alone.
+
 ## Plan 1-6 · opdateret 6. november 2026
 
 **Aktuel beslutning:** Green er ifølge brugeren uden strøm. Derfor er opgave1 en ekstern forudsætning, ikke en netværksfejl, der skal fejlsøges.136 og Control0.10.33 er udgivet; companion0.1.16 findes i kilden. Installeret/indlæst version er uaflæst, og133 er kun senest verificeret. Ingen installation eller hjemmehandling er udført i den genoptagne kørsel. Denne plan ajourfører udførelsen; den indfører ingen runtime-, UI- eller adgangsændring. Astra har grillet planen. De to krævede præciseringer om musikskift og terminal opskriftsafvisning er indarbejdet; afgrænset PLAN GO, ikke funktions-/enhedsaccept.
