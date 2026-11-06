@@ -1,3 +1,9 @@
+## Fast lydgrænse · direkte brugerbeslutning6 november2026
+
+Reglen afgrænser agenternes udviklings-, QA- og releasehandlinger. Brugerens normale produktbetjening følger de eksisterende produktkontrakter; der tilføjes ingen runtime-tidsstyring.
+
+Hver dag kl.18.00–08.00 Europe/Copenhagen: ingen lydprøver eller handlinger, der kan starte/genoptage lyd, herunder Play/Resume/Next/kø/radio/stemme/alarmer, støjende robotprøver og relevante installationer/genstarter/reloads. Stop og oprydning af lyd er tilladt. Alt lydfrit kilde-, test-, review-, CI/publiceringsarbejde og faktiske passive læsninger kan fortsætte.08.00 udløser ikke automatisk afspilning, testgenoptagelse eller en ny automation. Før senere tilladte daghandlinger skal konto, faktisk output, ejer/adgang og ukendte udfald kontrolleres på ny; én navngiven liveoperatør bevares. En softwarehentning, der beviseligt hverken genstarter eller genindlæser en kørende lyd-/nativeejer, må ikke stiltiende udvides til runtime-reload eller fysisk accept.
+
 ## Direkte PodView-touch · 4. november 2026 · foundation-kandidat
 
 Implementeret og kilde-reviewet på den isolerede aktuelle v2.x-kandidat; dette er
