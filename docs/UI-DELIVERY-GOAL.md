@@ -1,3 +1,21 @@
+## HACS139 software adoption passes · quiet source delivery remains ·6 November2026
+
+Normal repository metadata refresh followed by one standard LATEST139 download and one passive reload confirmed persisted HACS Version downloaded2.0.139. No Core/native/gateway restart or household effect occurred. Green139/c1c and unchanged loaded native016 remain verified. The earlier explicit-version refusal was pre-write, not an unknown partial installation.
+
+The minimal root metadata+artifact-gate correction is being delivered for main/future tags, with runtime/native/renderer/139tags untouched. Agent/QA actions remain subject to daily18–08 Europe/Copenhagen quiet policy; user's normal product controls keep their existing contracts. Actual139 MOVE/queue/probe/audio and the other Plan1–6/device requirements remain open. Software adoption and a metadata fix are not full-plan completion.
+
+## Standing quiet policy and HACS correction ·6 November2026
+
+Permanent direct user rule: no audio/noisy tests or audio-capable install/restart/reload18–08 Europe/Copenhagen; all soundless work continues. This replaces the earlier indefinite wording. No automatic08resume or new automation.139 remains installed and quiet; actual139 MOVE/queue/through-probe/device acceptance is pending.
+
+HACS2.0.5 was passively verified. Its139 refusal is conclusively pre-install: a noncached explicit version requires tagged root hacs.json, absent at139. The offline minimum metadata+release-artifact fix now passes14 existing release-contract cases. It will update main/future tags only, preserving immutable139 and all runtime/native/UI bytes. Normal soundless latest-metadata/download consumer recovery is separately coordinated by the sole operator, with no Core/loaded-integration restart or audio. No consumer success is claimed before persisted readback. Other Plan1–6 and phone/iPad/VoicePE requirements remain open.
+
+## Active sound hold ·139 installed, actual acceptance incomplete ·6 November2026 19:27CET
+
+New direct human instruction: “Ingen lydprøver!!!!”. No time-based expiry; audio/noisy robot tests and installs/restarts/reloads capable of sound remain prohibited until explicit lift. Continue quiet source/read-only work only. Green139/c1c is actually running; all normal139 CI and both publishers passed. Start was observed before the hold; currentKitchen is paused0:27. No139 MOVE was dispatched, and139 return/queue/probe/physical acceptance remains open.
+
+HACS139 explicit-version download refused the missing/unusable versioned hacs.json before the official source's installation branch; both138/139 tagged rootmetadata reads return404. Actual HACSversion confirmation is pending; do not claim139download or retag. Minimal offline metadata correction is next, preserving current runtime/UI and the sound hold. Actual iPhone sharing is also blocked by disconnected helper/pending app-scope consent; no phone action occurred. Other Plan1–6 requirements stay open; this is not full delivery completion.
+
 ## Next delivery139 · source reviewed, actual acceptance pending ·6 November2026
 
 Final Astra SOURCE GO and focused causal/owner/queue checks pass for the healthy-discovery destination correction and minimal queue request/receipt trace. Existing exact action/read guards, UNKNOWN fences, native016 and approved renderer stay unchanged.225 asset pins match; product/index differ only by the build version. Official139 CI, normal publication/adoption and actual healthy-probe/idle/queue proof are next. Green is still actually138 with owned playback paused. Prior verified138 MOVE/transport successes remain recorded; missing historical queue receipt, intermittent playback-read and remaining Plan1–6/device requirements are not silently closed.
