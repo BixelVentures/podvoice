@@ -132,9 +132,13 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
     )
     assert not passive["moveAvailable"]
     assert all(not row["selectable"] for row in passive["speakers"])
-    assert paired["moveAvailable"] and sum(row["selectable"] for row in paired["speakers"]) == (
-        2 if change == "none" else 1
-    )
+    assert paired["moveAvailable"]
+    eligible = {row["nativeRoomId"] for row in paired["speakers"] if row["selectable"]}
+    assert eligible == ({"r0", "r1", "r2"} if change == "none" else {"r0", "r1"})
+    # Catalogue eligibility preserves return destinations; voice options still
+    # suppress the independently observed current output before any proposal.
+    current_speaker = next(row for row in paired["speakers"] if row["nativeRoomId"] == "r0")
+    assert current_speaker["selectable"] is True
     proposal = ExecutionContext("s1", "live:1:proposal", "live")
     offered = await rig.router.dispatch(
         "podview_music_options",
@@ -144,6 +148,12 @@ async def test_voice_move_exact_option_later_confirmation_and_causal_fences(
     assert offered["ok"], offered
     options = offered["data"]["options"]
     assert len(options) == (2 if change == "none" else 1)
+    assert {row["id"] for row in options} == {
+        "move:" + row["speakerId"]
+        for row in paired["speakers"]
+        if row["selectable"] and row["nativeRoomId"] != "r0"
+    }
+    assert "move:" + current_speaker["speakerId"] not in {row["id"] for row in options}
     if change == "none":
         assert len(bridge.controls.tasks) == 2
     destination = podview_speakers.project(
