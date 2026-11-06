@@ -47,6 +47,18 @@ CI_PUBLISHER_OPTIONAL = CI_CONTROL_OPTIONAL | frozenset(
         "tests/integration/test_thin_live_ten_cycles.py",
     }
 )
+CI_HA_RELEASE_REQUIRED = frozenset(
+    {
+        ".github/workflows/ha-component-release.yml",
+        "scripts/publish_ha_component_release.py",
+        "tests/unit/test_publish_ha_component_release.py",
+        "scripts/ci_scope.py",
+        "tests/unit/test_ci_scope.py",
+    }
+)
+CI_HA_RELEASE_OPTIONAL = frozenset(
+    {"docs/STATUS.md", "docs/UI-DELIVERY-GOAL.md", "docs/PODVIEW-SOURCE.md"}
+)
 CI_SHARD_REQUIRED = frozenset(
     {
         WORKFLOW,
@@ -110,6 +122,7 @@ def ci_control_only(paths: Sequence[str]) -> bool:
         required <= changed <= (required | optional)
         for required, optional in (
             (CI_CONTROL_REQUIRED, CI_CONTROL_OPTIONAL),
+            (CI_HA_RELEASE_REQUIRED, CI_HA_RELEASE_OPTIONAL),
             (CI_PUBLISHER_REQUIRED, CI_PUBLISHER_OPTIONAL),
             (CI_SHARD_REQUIRED, CI_SHARD_OPTIONAL | CI_CONTROL_OPTIONAL),
         )

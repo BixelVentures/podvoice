@@ -64,6 +64,30 @@ PR → official CI → merge → publisher → Green installation path. Preserve
 release's exact source/asset pins and existing admission rules. This guide creates no
 new release, installation or physical acceptance claim.
 
+## HA companion publication is a separate producer output
+
+The add-on GHCR image and the native `custom_components/podvoice` integration are
+consumed through different mechanisms. A successful add-on publisher does not
+prove that HACS can obtain or load the matching native component. Record the normal
+GitHub release/tag and its resolved source commit separately from the GHCR image,
+HACS download, loaded integration version and discovered capabilities.
+
+The 6 November adoption found that add-on136 was installed while HACS still offered
+only old2.0.70, which contains companion0.1.5. The reviewed metadata-only publisher
+path must run after successful trusted same-repository main-push CI, preserve all
+product checks and immutable targets, and read back any uncertain write before a
+retry. Its136 backfill archive target is the exact fully-CI-verified metadata main commit,
+with byte-identical shipped/native payload to the already-tested
+69b357b72cdd451751e0c3ea72d3feed4c8c9527 and companion0.1.16. Record both source
+identities honestly; the installed add-on remains69b. This avoids requesting an
+unavailable Workflows:write grant for an old target with different workflow files.
+Normal HACS repository-archive delivery needs no invented ZIP asset. Existing tags
+or releases are never moved or overwritten to make adoption pass.
+
+The integration lead remains the sole live/install/release operator. Actual native
+load and fresh discovery are required before timer-v2 is offered as available;
+source contents, a release label or download alone do not establish capability.
+
 ## Preserving the earlier standalone workspace
 
 The previous Documents/PodView workspace is retained with its local files and

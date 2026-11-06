@@ -69,6 +69,75 @@ def test_only_admitted_ci_control_files_skip_product_admission_but_not_checks(pa
     assert not ci_scope.ci_control_only([*paths, "scripts/unknown.py"])
 
 
+@pytest.mark.parametrize(
+    "optional",
+    [set(), {"docs/STATUS.md"}, ci_scope.CI_HA_RELEASE_OPTIONAL],
+)
+def test_ha_release_scope_keeps_full_product_checks(optional):
+    paths = ci_scope.CI_HA_RELEASE_REQUIRED | optional
+    assert ci_scope.ci_control_only(paths)
+    assert not ci_scope.tooling_only(paths)
+    assert not ci_scope.addon_payload_changed(sorted(paths))
+
+
+@pytest.mark.parametrize("missing", sorted(ci_scope.CI_HA_RELEASE_REQUIRED))
+def test_ha_release_scope_requires_every_core_path(missing):
+    paths = (ci_scope.CI_HA_RELEASE_REQUIRED - {missing}) | ci_scope.CI_HA_RELEASE_OPTIONAL
+    assert not ci_scope.ci_control_only(paths)
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        "scripts/unknown.py",
+        "podvoice/gatekeeper/thin.py",
+        "custom_components/podvoice/timer_bridge.py",
+        "podvoice/gatekeeper/static/podview/widget-view.js",
+        ".github/workflows/ci.yml",
+        "docs/another-note.md",
+    ],
+)
+def test_ha_release_scope_rejects_unknown_runtime_and_other_workflow_changes(extra):
+    assert not ci_scope.ci_control_only(ci_scope.CI_HA_RELEASE_REQUIRED | {extra})
+
+
+@pytest.mark.parametrize("unsafe", [None, "missing", "symlink", "symlink-parent"])
+def test_ha_release_diff_exception_requires_actual_regular_checkout_files(
+    monkeypatch, tmp_path, unsafe
+):
+    paths = sorted(ci_scope.CI_HA_RELEASE_REQUIRED | ci_scope.CI_HA_RELEASE_OPTIONAL)
+    for name in paths:
+        item = tmp_path / name
+        item.parent.mkdir(parents=True, exist_ok=True)
+        item.write_text("# Inert scope fixture\n")
+    target = tmp_path / "scripts/publish_ha_component_release.py"
+    if unsafe == "missing":
+        target.unlink()
+    elif unsafe == "symlink":
+        alternate = tmp_path / "publisher.py"
+        target.rename(alternate)
+        target.symlink_to(alternate)
+    elif unsafe == "symlink-parent":
+        (tmp_path / "scripts").rename(tmp_path / "actual-scripts")
+        (tmp_path / "scripts").symlink_to("actual-scripts", target_is_directory=True)
+    output = tmp_path / "output"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("CI_DIFF_BASE", "a" * 40)
+    monkeypatch.setenv("GITHUB_OUTPUT", str(output))
+    monkeypatch.setattr(subprocess, "run", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        subprocess,
+        "check_output",
+        lambda *_args, **_kwargs: ("\0".join(paths) + "\0").encode(),
+    )
+    ci_scope.main()
+    assert output.read_text() == (
+        "tooling_only=false\n"
+        f"ci_control_only={str(unsafe is None).lower()}\n"
+        "addon_changed=false\npr_addon_changed=false\n"
+    )
+
+
 @pytest.mark.parametrize("missing", sorted(ci_scope.CI_SHARD_REQUIRED))
 def test_ci_shard_scope_requires_every_core_path(missing):
     paths = (ci_scope.CI_SHARD_REQUIRED - {missing}) | ci_scope.CI_SHARD_OPTIONAL

@@ -1,0 +1,94 @@
+name: HA component release
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/ha-component-release.yml
+      - scripts/publish_ha_component_release.py
+      - tests/unit/test_publish_ha_component_release.py
+      - scripts/ci_scope.py
+      - tests/unit/test_ci_scope.py
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/ha-component-release.yml
+      - scripts/publish_ha_component_release.py
+      - tests/unit/test_publish_ha_component_release.py
+      - scripts/ci_scope.py
+      - tests/unit/test_ci_scope.py
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    # PR/push runs are inert. Only trusted successful main CI may supply checkout code
+    # to the workflow_run path; the publisher independently verifies API provenance.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.action == 'completed' &&
+       github.event.workflow_run.status == 'completed' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.name == 'CI' &&
+       github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+       github.event.workflow_run.repository.full_name == github.repository &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.head_repository.fork == false)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Inert publisher protocol tests
+        run: python -m unittest discover -s tests/unit -p test_publish_ha_component_release.py -v
+
+  publish:
+    needs: [validate]
+    if: >-
+      github.event_name == 'workflow_run' &&
+      github.event.action == 'completed' &&
+      github.event.workflow_run.status == 'completed' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.name == 'CI' &&
+      github.event.workflow_run.path == '.github/workflows/ci.yml' &&
+      github.event.workflow_run.repository.full_name == github.repository &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_repository.fork == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: ha-component-release-${{ github.repository }}
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Verify provenance and publish immutable HACS release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+        run: python scripts/publish_ha_component_release.py
