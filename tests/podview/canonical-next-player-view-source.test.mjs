@@ -152,14 +152,14 @@ test('local timeline previews and commits exact position without changing pause,
  f.view.renderPlayer({...vm});assert.equal(range.value,'121000');assert.equal(state.music.playback.playing,false);
  range.dispatchEvent(new Event('change'));assert.deepEqual(intents,[{positionMs:121000,trackId:vm.trackId,operation:vm.seekOperation}]);assert.equal(state.music.playback.playing,false);
 });
-test('local timeline fences a track change during drag, pointer cancellation and offline controls; live never gets a range',()=>{
+test('local timeline fences a track change during drag, pointer cancellation and offline controls; unsupported live remains read-only',()=>{
  const intents=[],f=surface({seek:event=>intents.push(event)}),vm=localPlayerModel(previewScene('now'));f.view.renderPlayer(vm);const range=f.view.seekControl;
  range.dispatchEvent(new Event('pointerdown'));range.value='120000';range.dispatchEvent(new Event('input'));
  f.view.renderPlayer({...vm,trackId:'new-track',seekOperation:2,progressMs:0});range.value='130000';range.dispatchEvent(new Event('input'));range.dispatchEvent(new Event('change'));assert.deepEqual(intents,[]);
  f.view.renderPlayer(vm);range.value='120000';range.dispatchEvent(new Event('input'));range.dispatchEvent(new Event('pointercancel'));range.dispatchEvent(new Event('change'));assert.deepEqual(intents,[]);assert.equal(range.value,String(vm.progressMs));
  f.view.renderPlayer({...vm,canSeek:false,positionFresh:false});assert.equal(range.disabled,true);range.value='120000';range.dispatchEvent(new Event('input'));range.dispatchEvent(new Event('change'));assert.deepEqual(intents,[]);
  f.view.renderPlayer({active:true,exampleOnly:true,sourceKind:'radio'});assert.equal(range.hidden,true);assert.equal(range.disabled,true);
- const live=surface({live:true});live.view.renderPlayer({...vm,examplePosition:false});assert.equal(live.view.seekControl,undefined);assert.equal(live.doc.getElementById('detail-progress-meter').hidden,false);
+ const live=surface({live:true});live.view.renderPlayer({...vm,examplePosition:false});assert.equal(live.view.seekControl.hidden,true);assert.equal(live.doc.getElementById('detail-progress-meter').hidden,false);
 });
 
 
@@ -379,7 +379,7 @@ test('live display progress advances once per second from real observation witho
  const tick=ms=>{now+=ms;for(const [id,job]of [...timers])if(job.at<=now){timers.delete(id);job.fn();}};
  const f=surface({live:true}),s={bootId:'boot',roomId:'room'},p=boundPlayback(s,{owner_epoch:'epoch',poll_sequence:1,observedAt:new Date(now-1000).toISOString(),expiresAt:now+5000,state:'playing',progressMs:10000,item:{name:'Real song',artists:['Artist'],duration_ms:60000,uri:item.uri},target:{name:'Real output'}}),vm=livePlayerModel(p,true,'ready',s),original=structuredClone(p);f.view.renderPlayer(vm);
  assert.equal(f.nodes.get('player-elapsed').textContent,'0:11');assert.equal(timers.size,1);const timer=[...timers.keys()][0];f.view.renderPlayer({...vm});assert.equal([...timers.keys()][0],timer,'unchanged render does not postpone tick');
- tick(1000);assert.equal(f.nodes.get('player-elapsed').textContent,'0:12');assert.equal(f.nodes.get('detail-elapsed').textContent,'0:12');assert.match(f.nodes.get('player-progress-meter').getAttribute('aria-label'),/Beregnet position/);assert.equal(f.view.progressVM.progressMs,10000);assert.deepEqual(p,original);assert.equal(vm.canSeek,false);assert.equal(f.view.seekControl,undefined);
+ tick(1000);assert.equal(f.nodes.get('player-elapsed').textContent,'0:12');assert.equal(f.nodes.get('detail-elapsed').textContent,'0:12');assert.match(f.nodes.get('player-progress-meter').getAttribute('aria-label'),/Beregnet position/);assert.equal(f.view.progressVM.progressMs,10000);assert.deepEqual(p,original);assert.equal(vm.canSeek,false);assert.equal(f.view.seekControl.hidden,true);
  tick(4000);assert.equal(f.nodes.get('player-progress').dataset.stale,'true');assert.equal(timers.size,0);const stopped=f.nodes.get('player-elapsed').textContent;tick(5000);assert.equal(f.nodes.get('player-elapsed').textContent,stopped);
  f.view.cleanup();
 });

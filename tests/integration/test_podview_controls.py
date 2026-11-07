@@ -30,10 +30,11 @@ from gatekeeper.web import create_app
 ACTUAL_BINDING_ID = "b" * 64
 
 
-def actual_playback_response(request, *, target="speaker", homepod="42", item_uri=None):
+def actual_playback_response(request, *, target="speaker", homepod="42", item_uri=None, poll=4):
     """Explicit Control aggregate fixture, independent of PodView policy/defaults."""
     assert json.loads(request.content) == {"config_entry_id": "account", "include_output": True}
     source = playback_payload("playback", "account")
+    source["poll_sequence"] = poll
     source["playback"]["target"]["target_id"] = target
     if item_uri is not None:
         source["playback"]["item"]["uri"] = item_uri
@@ -152,7 +153,11 @@ async def offline_direct(tmp_path):
     async def routed_music(request):
         if request.url.path.endswith("/get_playback_snapshot"):
             return actual_playback_response(
-                request, target="device", homepod="42", item_uri=getattr(music, "item_uri", None)
+                request,
+                target="device",
+                homepod="42",
+                item_uri=getattr(music, "item_uri", None),
+                poll=getattr(music, "playback_poll_sequence", 4),
             )
         return await music.handle(request)
 
@@ -2316,6 +2321,94 @@ def direct_music_body(bridge, *, action="next", request_id="direct-one"):
         "args": {},
         "requestId": request_id,
         "issuedAt": int(time.time() * 1000),
+    }
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "accepted",
+        "old_owner",
+        "wrong_epoch",
+        "range",
+        "track_change",
+        "poll_change",
+        "poll_refresh",
+        "refresh_route_changed",
+        "refresh_owner_changed",
+        "refresh_track_changed",
+        "refresh_access_revoked",
+    ],
+)
+async def test_seek_uses_current_track_duration_and_existing_room_owner(offline_direct, case):
+    client, bridge, _, _, _, _, _, music = offline_direct
+    track_uri = "spotify:track:" + "x" * 22
+    music.item_uri = track_uri
+    music.value.update(actions=["seek"], poll_sequence=4 if case != "poll_change" else 5)
+    if case != "old_owner":
+        music.tools._discovery = replace(music.tools._discovery, room_playback_seek=True)
+    bridge.controls.policy["music"][0]["actions"] = ["seek"]
+    token = bridge.grant_timer_control("kitchen")
+    headers = {"X-PodView-Request": "1", "Cookie": f"podview_control={token}"}
+    body = direct_music_body(bridge, action="seek")
+    body["args"] = {
+        "positionMs": 123001 if case == "range" else 18000,
+        "expectedOwnerEpoch": "b" * 32 if case == "wrong_epoch" else music.value["owner_epoch"],
+        "expectedTrackUri": track_uri,
+    }
+
+    if case == "track_change":
+
+        async def replace_track_during_setup():
+            if music.calls[-1][1].endswith("get_room_playback_controls"):
+                music.item_uri = "spotify:track:" + "y" * 22
+
+        music.hook = replace_track_during_setup
+
+    if case == "poll_refresh" or case.startswith("refresh_"):
+
+        async def advance_poll_during_setup():
+            if not music.calls[-1][1].endswith("get_room_playback_controls"):
+                return
+            if len(music.calls) == 1:
+                music.playback_poll_sequence = 5
+                return
+            music.value["poll_sequence"] = 5
+            if case == "refresh_route_changed":
+                music.value["route"]["route_revision"] = "9"
+            elif case == "refresh_owner_changed":
+                music.value["owner_epoch"] = "b" * 32
+            elif case == "refresh_track_changed":
+                music.item_uri = "spotify:track:" + "y" * 22
+            elif case == "refresh_access_revoked":
+                bridge.revoke("kitchen")
+
+        music.hook = advance_poll_during_setup
+
+    receipt = await (
+        await client.post("/view/api/control/actions", json=body, headers=headers)
+    ).json()
+    effects = [call[3] for call in music.calls if call[1].endswith("/control_room_playback")]
+    if case not in {"accepted", "poll_refresh"}:
+        assert receipt["outcome"] == "rejected", receipt
+        assert effects == []
+        if case.startswith("refresh_") or case == "poll_change":
+            assert len(music.calls) == 2, "poll reconciliation is bounded to one fresh offer"
+        return
+
+    assert receipt["outcome"] == "accepted", receipt
+    assert receipt["physicalResultVerified"] is False
+    assert len(effects) == 1
+    assert effects[0]["action"] == "seek" and effects[0]["args"] == {"position_ms": 18000}
+    assert effects[0]["expected_poll_sequence"] == (5 if case == "poll_refresh" else 4)
+    assert music.calls[0][3]["include_seek"] is True
+    assert len(music.calls) == (3 if case == "poll_refresh" else 2)
+    assert await bridge.controls.command(body, token) == receipt
+    assert len([call for call in music.calls if call[1].endswith("/control_room_playback")]) == 1
+    assert bridge.controls.settlement_identity("kitchen", token, body["requestId"], "account") == {
+        "request_id": effects[0]["request_id"],
+        "command_sequence": effects[0]["command_sequence"],
+        "owner_epoch": effects[0]["owner_epoch"],
     }
 
 

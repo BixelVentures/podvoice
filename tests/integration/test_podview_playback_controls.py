@@ -100,6 +100,56 @@ async def read(rig, *, token=None, receipt_request_id=None):
     return json.loads(response.body)
 
 
+async def test_seek_opt_in_requires_both_service_fields_and_room_policy(controls_rig):
+    rig = controls_rig
+    services = ("get_playback_snapshot", "get_room_playback_controls")
+    advertised = set()
+    args = []
+
+    async def receive(request):
+        if request.method == "GET":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "domain": "podconnect",
+                        "services": {
+                            service: {"fields": {"include_seek": {"required": False}}}
+                            if service in advertised
+                            else {}
+                            for service in services
+                        },
+                    }
+                ],
+            )
+        body = json.loads(request.content)
+        args.append(body)
+        value = copy.deepcopy(rig.value)
+        if body.get("include_seek") is True:
+            value["controls"]["supported_actions"].append("seek")
+        return httpx.Response(200, json={"service_response": value})
+
+    old = rig.router._client
+    async with httpx.AsyncClient(transport=httpx.MockTransport(receive)) as client:
+        rig.router._client = client
+        try:
+            for advertised_services in ((), services[:1], services, ()):
+                advertised = set(advertised_services)
+                await type(rig.router)._refresh_podconnect_services(rig.router)
+                body = await read(rig)
+                assert ("include_seek" in args[-1]) is (advertised_services == services)
+                assert "seek" not in body["permissions"]["actions"]
+            advertised = set(services)
+            await type(rig.router)._refresh_podconnect_services(rig.router)
+            rig.bridge.controls.policy["music"][0]["actions"].append("seek")
+            body = await read(rig)
+            assert args[-1]["include_seek"] is True
+            assert "seek" in body["permissions"]["actions"]
+            assert body["permissions"]["actions"] == body["controls"]["supported_actions"]
+        finally:
+            rig.router._client = old
+
+
 def assert_passive(rig):
     assert len(rig.calls) == 1
     assert not rig.bridge.controls.tasks

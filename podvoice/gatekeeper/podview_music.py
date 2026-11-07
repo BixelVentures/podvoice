@@ -630,7 +630,7 @@ def project_playback_controls(
                 not isinstance(actions, list)
                 or any(
                     not isinstance(action, str)
-                    or action not in {"pause", "resume", "next", "previous", "volume"}
+                    or action not in {"pause", "resume", "next", "previous", "volume", "seek"}
                     for action in actions
                 )
                 or len(actions) != len(set(actions))

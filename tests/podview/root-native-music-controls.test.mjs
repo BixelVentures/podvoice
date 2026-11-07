@@ -225,6 +225,124 @@ test('fresh v3 draws readonly actions/base100 with policy35 and performs zero pa
 for(const action of ['pause','next','previous','volume'])test(`v3 explicit ${action} sends one direct intent without setup`,async()=>{
  const f=fixture();try{f.view.render();assert.equal(await f.view.musicIntent(action,action==='volume'?{percent:20}:{}),true);assert.equal(f.setups.length,0);assert.equal(f.effects.length,1);const intent=f.effects[0];assert.equal(intent.action,action);assert.equal(intent.target.expectedBindingId,'a'.repeat(64));assert.deepEqual(intent.args,action==='volume'?{percent:20}:{});assert.ok(intent.requestId);assert.equal(f.view.musicMeasurement.volume,100);f.view.render();assert.equal(f.effects.length,1);}finally{f.close();}
 });
+test('observed v3 seek sends the scoped absolute position and retains it until position is observed',async()=>{
+ const f=fixture();
+ try{
+  const track=f.host.liveMedia.playback.item.uri;
+  assert.equal(f.view.musicSeekState(track),null);
+  const offered={supported:[...actions,'seek']};
+  f.adopt(offered);
+  const {witness}=f.view.musicSeekState(track),issued=Date.now();
+  assert.equal(await f.view.musicIntent('seek',{positionMs:32000,witness}),true);
+  assert.deepEqual(f.effects[0].args,{positionMs:32000,expectedOwnerEpoch:'epoch',expectedTrackUri:track});
+  assert.equal(f.setups.length,0);
+  assert.equal(f.view.musicSeekState(track).positionMs,32000);
+  const receipt=f.view.musicSettlementReceipt();
+  const observed=progressMs=>{
+   f.adopt(offered);
+   const p=f.host.liveMedia.playback;
+   Object.assign(p,{observedAt:new Date(issued+1000).toISOString(),progressMs,settlement:{
+    requestId:receipt.requestId,request_id:'epoch:7',owner_epoch:'epoch',command_sequence:7,status:'confirmed',
+    effect:{source:'native_bound_state',effect_revision:'19'},
+   }});
+   assert.equal(f.view.observeMusicSettlement(p,receipt),true);
+  };
+  observed(2000);
+  assert.equal(f.view.musicSeekState(track).positionMs,32000,'correlated old progress cannot snap back');
+  observed(32500);
+  assert.equal(f.view.musicSeekState(track).positionMs,null,'matching fresh progress owns the timeline');
+  assert.equal(f.effects.length,1);
+ }finally{f.close();}
+});
+
+test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',async()=>{
+ const f=fixture();
+ let first,finish;
+ try{
+  f.adopt({supported:[...actions,'seek']});
+  const track=f.host.liveMedia.playback.item.uri,{witness}=f.view.musicSeekState(track);
+  f.host.liveTransport.controlIntent=intent=>{
+   f.effects.push(intent);
+   return f.effects.length===1?new Promise(resolve=>finish=()=>resolve({outcome:'unknown'}))
+    :Promise.resolve({outcome:'accepted'});
+  };
+  first=f.view.musicIntent('seek',{positionMs:12000,witness});
+  assert.equal(await f.view.musicIntent('seek',{positionMs:13000,witness}),true);
+  assert.equal(await f.view.musicIntent('seek',{positionMs:14000,witness}),true);
+  const queued=f.view.musicQueued.intents.at(-1).requestId;
+  assert.equal(f.view.musicSeekState(track).positionMs,14000);
+  finish();
+  await first;
+  await tick();
+  assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),[12000,14000]);
+  assert.equal(f.effects[1].requestId,queued);
+  assert.notEqual(f.effects[0].requestId,queued);
+ }finally{finish?.();await first;f.close();}
+});
+
+for(const boundary of ['track','owner','account','binding','transport','permission','disconnect']){
+ test(`a seek queued for the old player cannot execute after ${boundary}`,async()=>{
+  const f=fixture();
+  let first,finish;
+  try{
+   const offered={supported:[...actions,'seek']};
+   f.adopt(offered);
+   f.view.render();
+   const track=f.host.liveMedia.playback.item.uri,{witness}=f.view.musicSeekState(track);
+   f.host.liveTransport.controlIntent=intent=>{
+    f.effects.push(intent);
+    return new Promise(resolve=>finish=()=>resolve({outcome:'accepted'}));
+   };
+   first=f.view.musicIntent('seek',{positionMs:12000,witness});
+   assert.equal(await f.view.musicIntent('seek',{positionMs:13000,witness}),true);
+   if(boundary==='track')f.host.liveMedia.playback.item.uri='spotify:track:ABCDEFGHIJKLMNOPQRSTUV';
+   if(boundary==='owner')f.adopt({...offered,epoch:'new-owner'});
+   if(boundary==='account')f.host.liveMedia.account='other-account';
+   if(boundary==='binding')f.adopt({...offered,binding:'b'.repeat(64)});
+   if(boundary==='transport')f.host.liveTransport={...f.host.liveTransport};
+   if(boundary==='permission')f.adopt();
+   if(boundary==='disconnect')f.host.liveTransport.connected=false;
+   f.view.render();
+   // Restoring the original shape must not revive an intent cancelled on change.
+   if(boundary!=='transport'){
+    f.adopt(offered);
+    f.host.liveTransport.connected=true;
+    f.host.liveMedia.account='account';
+    f.view.render();
+   }
+   finish();
+   await first;
+   await tick();
+   assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),[12000]);
+  }finally{finish?.();await first;f.close();}
+ });
+}
+
+test('seek does not coalesce across a queued skip or apply to its old track after acceptance',async()=>{
+ const f=fixture();
+ let first,finish;
+ try{
+  f.adopt({supported:[...actions,'seek']});
+  const track=f.host.liveMedia.playback.item.uri,{witness}=f.view.musicSeekState(track);
+  f.host.liveTransport.controlIntent=intent=>{
+   f.effects.push(intent);
+   return f.effects.length===1?new Promise(resolve=>finish=()=>resolve({outcome:'accepted'}))
+    :Promise.resolve({outcome:'accepted'});
+  };
+  first=f.view.musicIntent('pause');
+  await f.view.musicIntent('seek',{positionMs:12000,witness});
+  await f.view.musicIntent('next');
+  await f.view.musicIntent('seek',{positionMs:15000,witness});
+  assert.deepEqual(f.view.musicQueued.intents.map(intent=>intent.action),['seek','next','seek']);
+  finish();
+  await first;
+  await tick();
+  assert.deepEqual(f.effects.map(intent=>[intent.action,intent.args.positionMs]),[
+   ['pause',undefined],['seek',12000],['next',undefined],
+  ]);
+ }finally{finish?.();await first;f.close();}
+});
+
 test('v3 paused source offers resume without inferring an unavailable action',async()=>{
  const f=fixture();try{f.adopt({state:'paused',supported:['resume'],base:null,reason:'volume_unavailable'});f.view.render();assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.setups.length,0);assert.equal(await f.view.musicIntent('resume'),true);assert.equal(f.effects.length,1);}finally{f.close();}
 });

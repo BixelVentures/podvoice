@@ -23,11 +23,13 @@ from .podview_vacuum_settings import ActiveVacuumSettings
 
 _LOGGER = logging.getLogger(__name__)
 
+_ROOM_TRANSPORT_ACTIONS = {"pause", "resume", "next", "previous"}
 _MUSIC = {
     "pause",
     "resume",
     "next",
     "previous",
+    "seek",
     "volume",
     "play_track",
     "play_context",
@@ -39,6 +41,7 @@ _LABELS = {
     "resume": "Afspil",
     "next": "Næste",
     "previous": "Forrige",
+    "seek": "Spol",
     "volume": "Lydstyrke",
     "move_existing_session": "Flyt afspilning",
 }
@@ -303,10 +306,8 @@ class TouchControls:
         if (
             any(
                 (
-                    (
-                        set(row["actions"]) & {"pause", "resume", "next", "previous"}
-                        and self.music.room_available
-                    )
+                    (set(row["actions"]) & _ROOM_TRANSPORT_ACTIONS and self.music.room_available)
+                    or ("seek" in row["actions"] and getattr(self.music, "seek_available", False))
                     or (
                         "volume" in row["actions"]
                         and getattr(self.music, "volume_available", False)
@@ -358,8 +359,12 @@ class TouchControls:
                 and all(row.get(key) for key in ("targetId", "nativeRoomId", "nativeHomepodId"))
                 and (
                     (
-                        bool(set(row.get("actions", [])) & {"pause", "resume", "next", "previous"})
+                        bool(set(row.get("actions", [])) & _ROOM_TRANSPORT_ACTIONS)
                         and self.music.room_available
+                    )
+                    or (
+                        "seek" in row.get("actions", [])
+                        and getattr(self.music, "seek_available", False)
                     )
                     or (
                         "volume" in row.get("actions", [])
@@ -934,7 +939,7 @@ class TouchControls:
         ):
             return failure("invalid_setup")
         requested_actions = {
-            "music": {"pause", "resume", "next", "previous", "volume"},
+            "music": _ROOM_TRANSPORT_ACTIONS | {"volume", "seek"},
             "vacuum": {"pause", "resume", "stop", "return"},
         }
         if "requestedAction" in body and (
@@ -1177,9 +1182,14 @@ class TouchControls:
                         )
                     else:
                         reads = []
+                        transport_actions = _ROOM_TRANSPORT_ACTIONS
+                        if body.get("requestedAction") == "seek" and getattr(
+                            self.music, "seek_available", False
+                        ):
+                            transport_actions = transport_actions | {"seek"}
                         for actions, available, read, slot in (
                             (
-                                {"pause", "resume", "next", "previous"},
+                                transport_actions,
                                 self.music.room_available,
                                 self.music.setup_room,
                                 "offered",
@@ -1249,11 +1259,12 @@ class TouchControls:
                                 if action not in actions or action not in rule["actions"]:
                                     continue
                                 oid = secrets.token_hex(12)
-                                schema = (
-                                    {"kind": "percent", "min": 0, "max": rule["maxVolume"]}
-                                    if action == "volume"
-                                    else {"kind": "none"}
-                                )
+                                if action == "volume":
+                                    schema = {"kind": "percent", "min": 0, "max": rule["maxVolume"]}
+                                elif action == "seek":
+                                    schema = {"kind": "position"}
+                                else:
+                                    schema = {"kind": "none"}
                                 task["options"][oid] = {"action": action, "schema": schema}
                                 public_options.append(
                                     {
@@ -2282,7 +2293,7 @@ class TouchControls:
             "issuedAt",
         }
         actions = {
-            "music": {"pause", "resume", "next", "previous", "volume", "move_existing_session"},
+            "music": _ROOM_TRANSPORT_ACTIONS | {"volume", "seek", "move_existing_session"},
             "vacuum": {"pause", "resume", "stop", "return"},
         }
         if (
@@ -2600,6 +2611,54 @@ class TouchControls:
             )
             if resolved is None:
                 return failure("stale_action")
+            refreshed_seek_offer = None
+            if option["action"] == "seek":
+
+                def track_matches(observed):
+                    item = observed["playback"].get("item") or {}
+                    duration = item.get("duration_ms")
+                    return (
+                        observed["owner_epoch"] == args["expectedOwnerEpoch"]
+                        and item.get("uri") == args["expectedTrackUri"]
+                        and type(duration) is int
+                        and 0 <= args["positionMs"] <= duration
+                    )
+
+                observed, offered = resolved["data"], task["offered"]
+                if not track_matches(observed) or offered["owner_epoch"] != observed["owner_epoch"]:
+                    return failure("stale_action")
+                if offered["poll_sequence"] != observed["poll_sequence"]:
+                    # A routine poll may land between the two reads. Join once
+                    # on fresh authority without carrying any effect across the gap.
+                    target, rule = task["target"], task["rule"]
+                    refreshed = await self.music.setup_room(
+                        target["accountId"],
+                        target["targetId"],
+                        rule["nativeRoomId"],
+                        rule["nativeHomepodId"],
+                        lambda: self._current(task, token),
+                    )
+                    if refreshed.get("ok") is not True:
+                        return failure("stale_action")
+                    latest = refreshed["data"]
+                    if "seek" not in latest["actions"] or any(
+                        latest[key] != offered[key] for key in ("owner_epoch", "native", "route")
+                    ):
+                        return failure("stale_action")
+                    resolved = await expected_actual(
+                        self.bridge,
+                        task["room"],
+                        target["accountId"],
+                        task["actual_binding"]["bindingId"],
+                        lambda: self._current(task, token),
+                    )
+                    if (
+                        resolved is None
+                        or not track_matches(resolved["data"])
+                        or latest["poll_sequence"] != resolved["data"]["poll_sequence"]
+                    ):
+                        return failure("stale_action")
+                    refreshed_seek_offer = latest
             if key in self.receipts and self.receipts[key] is not _reservation:
                 previous, receipt = self.receipts[key][:2]
                 if _trace is not None:
@@ -2615,6 +2674,12 @@ class TouchControls:
             ):
                 return failure("stale_action")
             task["actual_binding"] = resolved["binding"]
+            if refreshed_seek_offer is not None:
+                task["deadline"] = min(
+                    task["deadline"],
+                    time.monotonic() + max(0, refreshed_seek_offer["valid_until"] - time.time()),
+                )
+                task["offered"] = refreshed_seek_offer
         receipt = {
             "ok": False,
             "requestId": body["requestId"],
@@ -2763,6 +2828,11 @@ class TouchControls:
                             option["action"],
                             current,
                             receipt_current=receipt_current,
+                            **(
+                                {"position_ms": args["positionMs"]}
+                                if option["action"] == "seek"
+                                else {}
+                            ),
                         )
                     outcome = result.get("outcome", "unknown")
                     if moving:
@@ -2915,7 +2985,7 @@ class TouchControls:
                 if (
                     task["domain"] == "music"
                     and option["action"]
-                    in {"pause", "resume", "next", "previous", "volume", "move_existing_session"}
+                    in _ROOM_TRANSPORT_ACTIONS | {"volume", "seek", "move_existing_session"}
                     and receipt["outcome"] == "accepted"
                     and result.get("schema") == "podconnect.command.v1"
                     and result.get("config_entry_id") == task["target"]["accountId"]
@@ -3034,6 +3104,21 @@ class TouchControls:
                 set(args) != {"percent"}
                 or type(args["percent"]) is not int
                 or not 0 <= args["percent"] <= option["schema"]["max"]
+            ):
+                raise ValueError
+            return []
+        if kind == "position":
+            if (
+                set(args) != {"positionMs", "expectedOwnerEpoch", "expectedTrackUri"}
+                or type(args["positionMs"]) is not int
+                or not 0 <= args["positionMs"] < 2**53
+                or not isinstance(args["expectedOwnerEpoch"], str)
+                or not 1 <= len(args["expectedOwnerEpoch"]) <= 128
+                or not isinstance(args["expectedTrackUri"], str)
+                or re.fullmatch(
+                    r"spotify:(?:track|episode):[a-zA-Z0-9]{22}", args["expectedTrackUri"]
+                )
+                is None
             ):
                 raise ValueError
             return []

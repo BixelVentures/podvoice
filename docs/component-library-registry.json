@@ -929,7 +929,11 @@
           "method:journalDevice": 1,
           "method:observeDeviceJournal": 1,
           "method:trackDeviceJournal": 1,
-          "arrow:sameScope": 1
+          "arrow:sameScope": 1,
+          "method:musicSeekCurrent": 1,
+          "method:musicSeekState": 1,
+          "method:musicSeekWitness": 1,
+          "method:seekPositionObserved": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1472,7 +1476,11 @@
           "method:bindVolumeInput": 1,
           "method:beginVolumeGesture": 1,
           "method:volumeGestureCurrent": 1,
-          "method:commitVolumeInput": 1
+          "method:commitVolumeInput": 1,
+          "arrow:paint": 1,
+          "method:renderTimeline": 1,
+          "method:sameSeek": 1,
+          "method:seekState": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"

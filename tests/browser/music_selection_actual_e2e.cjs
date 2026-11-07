@@ -7,10 +7,139 @@ const {createHash}=require('node:crypto');
 const path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os'),assert=require('node:assert/strict');
 const holdPlayback=process.env.MUSIC_HOLD_PLAYBACK==='1';
 const loseSelectionReceipt = process.env.MUSIC_UNKNOWN_AFTER_COMMIT === '1';
+const queueJourney = process.env.MUSIC_QUEUE_JOURNEY === '1';
 const cold=process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+async function queuePersistenceJourney(){
+ const queue=page.locator('#queue');
+ const rows=queue.locator('button.queue-track[data-current="false"]');
+ const title=page.locator('#queue-title');
+ const open=async()=>page.locator('#track').tap();
+ const close=async()=>page.locator('#header-title-action').tap();
+ const itemNames=()=>rows.locator('.queue-copy strong').allTextContents();
+ const status=async expected=>page.waitForFunction(value=>document.querySelector('#queue').dataset.status===value,
+  expected,{timeout:10000});
+ const assertNames=async numbers=>assert.deepEqual(await itemNames(),numbers.map(number=>`Køsang ${number}`));
+ const assertNoEmpty=async()=>assert.equal(await queue.locator('.queue-empty').count(),0);
+ const condition=async condition=>{
+  assert.equal((await page.request.post(base+'/lab/queue',{data:{condition}})).ok(),true);
+ };
+ async function holdNext(endpoint){
+  let markEntered,release;
+  const entered=new Promise(resolve=>{markEntered=resolve;});
+  const gate=new Promise(resolve=>{release=resolve;});
+  const handler=async route=>{
+   markEntered();
+   await gate;
+   await route.continue();
+  };
+  await page.route(`**/view/api/music/queue/${endpoint}`,handler,{times:1});
+  return {wait:async()=>{
+   let timer;
+   try{
+    await Promise.race([entered,new Promise((_,reject)=>{
+     timer=setTimeout(()=>reject(Error(`queue ${endpoint} was not requested`)),10000);
+    })]);
+   }finally{clearTimeout(timer);}
+  },release};
+ }
+
+ await open();
+ await status('ready');
+ await assertNames([21,22,23,24]);
+ const stableRow=await rows.filter({hasText:'Køsang 23'}).elementHandle();
+ const sourceBefore=await state();
+ const command=await holdNext('actions');
+ await queue.evaluate(node=>{
+  const list={minimum:Infinity,frames:0,stopped:false};
+  window.queueFrameProbe=list;
+  const watch=()=>{
+   if(list.stopped)return;
+   const visible=[...node.querySelectorAll('button.queue-track[data-current="false"]')]
+    .filter(row=>row.getClientRects().length>0).length;
+   list.minimum=Math.min(list.minimum,visible);
+   list.frames++;
+   requestAnimationFrame(watch);
+  };
+  requestAnimationFrame(watch);
+ });
+ try{
+  await rows.filter({hasText:'Køsang 22'}).tap();
+  await command.wait();
+  await status('pending');
+  await assertNames([21,22,23,24]);
+  const pendingRows=rows.and(queue.locator('[aria-busy="true"]'));
+  assert.deepEqual(await pendingRows.locator('.queue-copy strong').allTextContents(),['Køsang 22']);
+  const spinners=await rows.evaluateAll(items=>items
+   .filter(row=>getComputedStyle(row,'::after').animationName==='pv-music-play-pending')
+   .map(row=>row.querySelector('.queue-copy strong').textContent));
+  assert.deepEqual(spinners,['Køsang 22'],'only the tapped occurrence renders a spinner');
+  await assertNoEmpty();
+  assert.equal((await state()).writes.length,sourceBefore.writes.length);
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-selected-only.png')});
+ }finally{command.release();}
+ await page.locator('#track-name').filter({hasText:'Isoleret sang 22'}).waitFor({state:'visible',timeout:15000});
+ await status('ready');
+ await assertNames([23,24]);
+ const frameProbe=await page.evaluate(()=>{
+  const probe=window.queueFrameProbe;
+  probe.stopped=true;
+  return {minimum:probe.minimum,frames:probe.frames};
+ });
+ assert(frameProbe.frames>0&&frameProbe.minimum>=2,'queue never paints an empty frame while advancing');
+ assert.equal(await stableRow.evaluate(row=>row.isConnected&&row.querySelector('.queue-order').textContent==='1'),
+  true,'remaining occurrence moves to the first position on the same DOM row');
+ await assertNoEmpty();
+ assert.equal(await queue.locator('button[aria-busy="true"]').count(),0);
+ const afterChoice=await state();
+ assert.deepEqual(afterChoice.queueSelections.map(({song,index})=>[song,index]),[[22,1]]);
+ assert.equal(actions.filter(row=>row.url.endsWith('/music/queue/actions')).length,1);
+
+ // A new real queue offer fails on the service side while reopening same-session display custody.
+ await condition('failed');
+ const failedRead=await holdNext('offer');
+ try{
+  await close();
+  await open();
+  await failedRead.wait();
+  await status('loading');
+  await assertNames([23,24]);
+  await assertNoEmpty();
+  assert.equal(await stableRow.evaluate(row=>row.isConnected&&row.getClientRects().length>0),true);
+ }finally{failedRead.release();}
+ await status('error');
+ await assertNames([23,24]);
+ await assertNoEmpty();
+ assert.equal(await title.innerText(),'Køen kunne ikke hentes');
+ assert.equal(await stableRow.evaluate(row=>row.isConnected),true);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-refresh-failed.png')});
+
+ // A separate actual owner observation with zero upcoming rows is authoritative empty.
+ await condition('empty');
+ const emptyRead=await holdNext('offer');
+ try{
+  await close();
+  await open();
+  await emptyRead.wait();
+  await status('loading');
+  await assertNames([23,24]);
+  await assertNoEmpty();
+ }finally{emptyRead.release();}
+ await status('ready');
+ await assertNames([]);
+ assert.equal(await queue.locator('.queue-empty').innerText(),'Ingen sange i køen.');
+ assert.equal(await queue.locator('button[data-current="true"] strong').innerText(),'Isoleret sang 22');
+ assert.equal((await state()).writes.length,sourceBefore.writes.length+1);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',stories:['K2','K5','K7'],bundleSHA,frameProbe,
+  selectedOccurrence:22,retainedAfterFailure:[23,24],authoritativeEmpty:true,
+  sameSessionReopen:true,inertNativeService:true,pageErrors:errors};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-queue-persistence-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 (async()=>{try{
  const nonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-selection-'));
@@ -151,6 +280,7 @@ const state=()=>fetch(base+'/lab/state').then(r=>r.json());
   console.log(JSON.stringify({outcome:'PASS',coldContext:true,rejectSetup,prepares:prepares.length,commits:commits.length,pageErrors:errors}));return;
  }
  await env.openOverview(page);
+ if(queueJourney){await queuePersistenceJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();
  const rows=page.locator('#result-list button.result');

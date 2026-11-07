@@ -9,7 +9,8 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const root=testEnv.root,port=Number(process.env.MUSIC_TEST_PORT||18973),base=`http://127.0.0.1:${port}`;
 const runtimeRoot=testEnv.runtimeRoot;
-if(process.env.MUSIC_LONG_SESSION==='1')process.env.MUSIC_EXTENDED='1';
+const seekMode=process.env.MUSIC_SEEK_TEST==='1';
+if(process.env.MUSIC_LONG_SESSION==='1'||seekMode)process.env.MUSIC_EXTENDED='1';
 let server,browser,data,servedBundleSHA,serverSuspended=false;
 const requests=[];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -17,6 +18,132 @@ const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const playbackReads=s=>s.serviceReads.filter(row=>row.path.endsWith('/get_playback_snapshot')).length;
 const readJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+async function seekJourney(page,errors){
+ const slider=page.locator('#detail-seek');
+ const player=page.locator('pv-widget-host');
+ const pause=page.locator('#play-pause');
+ const effects=async count=>{
+  for(let attempt=0;attempt<100;attempt++){
+   const snapshot=await state();
+   if(snapshot.writes.length>=count)return snapshot;
+   await sleep(50);
+  }
+  throw Error(`A5: inert owner did not receive effect ${count}`);
+ };
+ const assertControls=async expected=>{
+  assert.equal(await pause.isEnabled(),true);
+  assert.match(await pause.getAttribute('aria-label'),expected);
+  for(const selector of ['#next','#previous','#volume','#detail-seek']){
+   assert.equal(await page.locator(selector).isEnabled(),true,selector);
+  }
+ };
+ const observed=async (positionMs,phase)=>page.waitForFunction(({positionMs,phase})=>{
+  const host=document.querySelector('pv-widget-host'),p=host.liveMedia.playback;
+  return p?.progressMs===positionMs&&p?.state===phase
+   &&host.liveControls.musicFence?.settlementStatus==='confirmed';
+ },{positionMs,phase},{timeout:12000});
+ await slider.waitFor({state:'visible'});
+ await assertControls(/pause/i);
+ const initial=await state();
+ const initialIdentity=await player.evaluate(h=>({
+  uri:h.liveMedia.playback.item.uri,epoch:h.liveMedia.playback.owner_epoch,
+  binding:h.liveMedia.playback.roomBinding.bindingId,
+ }));
+ assert.equal(await slider.evaluate(n=>n.type),'range');
+ await slider.evaluate(n=>{
+  window.seekProbe={input:[],changes:[]};
+  n.addEventListener('input',event=>window.seekProbe.input.push([event.isTrusted,Number(n.value)]));
+  n.addEventListener('change',event=>window.seekProbe.changes.push([event.isTrusted,Number(n.value)]));
+ });
+ const held={};
+ await change({delayMs:700});
+ await testEnv.touchRange(page,slider,82000,{beforeRelease:async()=>{
+  held.positionMs=Number(await slider.inputValue());
+  assert(Math.abs(held.positionMs-82000)<=1000,'actual touch previews the requested timeline position');
+  const before=await state();
+  assert.equal(before.writes.length,initial.writes.length,'drag has not reached the owner before release');
+  assert.equal(requests.filter(row=>row.body?.action==='seek').length,0,'no early browser POST');
+  const response=await change({externalPlaybackState:'playing'});
+  const {sequence}=await response.json();
+  await page.waitForFunction(sequence=>{
+   const host=document.querySelector('pv-widget-host');
+   return host.liveMedia.playback?.poll_sequence>=sequence;
+  },sequence,{timeout:10000});
+  assert.equal(Number(await slider.inputValue()),held.positionMs,'real background read preserves held thumb');
+  assert.equal(await slider.isEnabled(),true);
+  held.pollSequence=sequence;
+  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-seek-held.png')});
+ }});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveControls.musicIntentPending,
+  undefined,{timeout:5000});
+ assert.equal(Number(await slider.inputValue()),held.positionMs,'pending command preserves last intent');
+ await assertControls(/pause/i);
+ const played=await effects(initial.writes.length+1);
+ assert.equal(played.writes.at(-1).positionMs,held.positionMs);
+ await observed(held.positionMs,'playing');
+ await change({delayMs:0});
+ await pause.tap();
+ const paused=await effects(initial.writes.length+2);
+ assert.equal(paused.state,'paused');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveMedia.playback?.state==='paused',
+  undefined,{timeout:10000});
+ await assertControls(/Fortsæt/);
+ await testEnv.touchRange(page,slider,34000);
+ const pausedSeek=await effects(initial.writes.length+3);
+ const pausedPosition=pausedSeek.writes.at(-1).positionMs;
+ assert(Math.abs(pausedPosition-34000)<=1000);
+ await observed(pausedPosition,'paused');
+ assert.equal(Number(await slider.inputValue()),pausedPosition);
+ await assertControls(/Fortsæt/);
+ await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-seek-paused.png')});
+
+ let lostCount=0;
+ await page.route('**/view/api/control/actions',async route=>{
+  if(route.request().postDataJSON()?.action!=='seek'||lostCount)return route.continue();
+  lostCount++;
+  const response=await route.fetch();
+  assert.equal((await response.json()).outcome,'accepted','owner applies seek before response is lost');
+  await route.fulfill({status:502,json:{error:'inert_response_lost'}});
+ });
+ await testEnv.touchRange(page,slider,57000);
+ const lost=await effects(initial.writes.length+4);
+ const lostPosition=lost.writes.at(-1).positionMs;
+ await page.waitForFunction(()=>{
+  const controls=document.querySelector('pv-widget-host').liveControls;
+  return controls.musicFence?.action==='seek'&&controls.musicFence.outcome==='unknown'
+   &&!controls.musicIntentPending;
+ },undefined,{timeout:10000});
+ assert.equal(lostCount,1);
+ assert.match(await page.locator('#playback-status').innerText(),/Kunne ikke bekræfte ændringen/);
+ const observedAfterLoss=await change({externalPlaybackState:'paused'});
+ await page.waitForFunction(({sequence,positionMs})=>{
+  const p=document.querySelector('pv-widget-host').liveMedia.playback;
+  return p?.poll_sequence>=sequence&&p?.progressMs===positionMs&&p?.state==='paused';
+ },{sequence:(await observedAfterLoss.json()).sequence,positionMs:lostPosition},{timeout:12000});
+ assert.equal((await state()).writes.length,initial.writes.length+4,'ordinary observation never repeats seek');
+ await assertControls(/Fortsæt/);
+ const writes=(await state()).writes.slice(initial.writes.length);
+ assert.deepEqual(writes.map(row=>row.action),['seek','pause','seek','seek']);
+ const seekPosts=requests.filter(row=>row.body?.action==='seek').map(row=>row.body);
+ const seekPositions=[held.positionMs,pausedPosition,lostPosition];
+ assert.equal(seekPosts.length,3);
+ assert.deepEqual(seekPosts.map(row=>row.args),seekPositions.map(positionMs=>({
+  positionMs,expectedOwnerEpoch:initialIdentity.epoch,expectedTrackUri:initialIdentity.uri,
+ })));
+ assert(seekPosts.every(row=>row.target.expectedBindingId===initialIdentity.binding));
+ assert.equal(new Set(seekPosts.map(row=>row.requestId)).size,3);
+ assert.deepEqual(writes.filter(row=>row.action==='seek').map(row=>row.positionMs),seekPositions);
+ const probe=await page.evaluate(()=>window.seekProbe);
+ assert.deepEqual(probe.changes,seekPositions.map(positionMs=>[true,positionMs]));
+ assert(probe.input.length>=3&&probe.input.every(([trusted])=>trusted));
+ assert.deepEqual(errors,[]);
+ const proof={outcome:'PASS',story:'A5',servedBundleSHA,actualPackagedPodView:true,
+  inertFinalService:true,physicalAudioVerified:false,held,playingAndPausedSeek:true,
+  seekPositions,heldThroughActualRefresh:true,unknownWithoutReplay:true,controlsPreserved:true,pageErrors:errors};
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-seek-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 // Opt-in real elapsed-time coverage: both browser and Python use their real clocks.
 // This proves local lease renewal and browser recovery, not ten minutes of Spotify or hardware.
 async function longSession(page,errors){
@@ -121,6 +248,7 @@ async function longSession(page,errors){
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
+ if(seekMode){await seekJourney(page,errors);return;}
  if(process.env.MUSIC_LONG_SESSION==='1'){await longSession(page,errors);return;}
  // Measure from the actual trusted touch-generated click, not from a later screenshot.
  await page.evaluate(()=>{
@@ -219,7 +347,15 @@ async function longSession(page,errors){
   }
   assert.deepEqual((await state()).writes.filter(x=>x.action==='volume').map(x=>x.percent),[0,100]);
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-volume-100.png')});
-  for(const [name,room] of [['Soveværelse','bedroom'],['Køkkenalrum HomePod','native-room']]){
+  const beforeRoundtrip=await state();
+  const roundtripTrack=await page.locator('pv-widget-host').evaluate(h=>h.liveMedia.playback.item.uri);
+  const waitForRoomControl=(room,homepod,phase)=>page.waitForFunction(({room,homepod,phase,uri})=>{
+   const h=document.querySelector('pv-widget-host'),p=h.liveMedia.playback,button=document.querySelector('#play-pause');
+   return p?.roomBinding?.nativeRoomId===room&&p.roomBinding.nativeHomepodId===homepod
+    &&p.item?.uri===uri&&p.state===phase&&button&&!button.disabled&&!h.liveControls.musicIntentPending
+    &&(phase==='paused'?button.getAttribute('aria-label')?.includes('Fortsæt'):/pause/i.test(button.getAttribute('aria-label')||''));
+  },{room,homepod,phase,uri:roundtripTrack},{timeout:15000});
+  for(const [name,room,homepod] of [['Soveværelse','bedroom','43'],['Køkkenalrum HomePod','native-room','42']]){
    await page.locator('#output').tap();
    const speaker=page.locator('#room-options button').filter({hasText:name});
    await speaker.waitFor({state:'visible',timeout:10000});
@@ -227,6 +363,16 @@ async function longSession(page,errors){
    await speaker.tap();
    for(let n=0;(await state()).room!==room;n++){if(n>80)throw Error('output move not observed: '+room);await sleep(100)}
    await page.waitForFunction(n=>document.querySelector('#output')?.textContent.includes(n)&&document.querySelector('#output')?.getAttribute('aria-label')?.includes('Aktuelt output'),name,{timeout:15000});
+   await waitForRoomControl(room,homepod,'playing');
+   const beforeTouch=await state();
+   for(const phase of ['paused','playing']){
+    await control.tap();
+    await waitForRoomControl(room,homepod,phase);
+   }
+   const afterTouch=await state();
+   assert.equal(afterTouch.song,beforeRoundtrip.song,'H5: pause and resume keep the same track after move');
+   assert.deepEqual(afterTouch.writes.slice(beforeTouch.writes.length).map(({action,room,homepod})=>[action,room,homepod]),
+    [['pause',room,homepod],['resume',room,homepod]],'H5: exactly one owner effect per touch on the current output');
   }
   assert.deepEqual((await state()).writes.filter(x=>x.action==='move_existing_session').map(x=>x.room),['bedroom','native-room']);
   // Actual owner snapshots change outside PodView; no command/receipt is fabricated.

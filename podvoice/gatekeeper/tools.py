@@ -210,6 +210,7 @@ class _DiscoverySnapshot:
     next_retry_at: float | None
     target_contracts: tuple[tuple[str, str], ...] = ()
     playlist_search_artwork: bool = False
+    room_playback_seek: bool = False
 
 
 _TARGETED_HA_INTENTS = {
@@ -644,6 +645,7 @@ class ToolRouter:
             discovered: set[str] = set()
             target_contracts: tuple[tuple[str, str], ...] = ()
             playlist_search_artwork = False
+            room_playback_seek = False
             for domain in domains:
                 if domain.get("domain") != "podconnect":
                     continue
@@ -671,6 +673,17 @@ class ToolRouter:
                 playlist_search_artwork = (
                     isinstance(artwork_field, dict) and artwork_field.get("required") is False
                 )
+                seek_reads = set()
+                if isinstance(services, dict):
+                    for name in ("get_playback_snapshot", "get_room_playback_controls"):
+                        service = services.get(name)
+                        fields = service.get("fields") if isinstance(service, dict) else None
+                        seek_field = (
+                            fields.get("include_seek") if isinstance(fields, dict) else None
+                        )
+                        if isinstance(seek_field, dict) and seek_field.get("required") is False:
+                            seek_reads.add(name)
+                room_playback_seek = len(seek_reads) == 2
                 break
             # Only the latest service read may publish either domain. A cancelled
             # or delayed older read cannot restore contracts after a newer failure.
@@ -693,6 +706,7 @@ class ToolRouter:
                 schema_sha256=self._schema_sha256_for(snap.mcp_tools, discovered, target_contracts),
                 target_contracts=target_contracts,
                 playlist_search_artwork=playlist_search_artwork,
+                room_playback_seek=room_playback_seek,
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -789,6 +803,7 @@ class ToolRouter:
                 podconnect_services=self._discovery.podconnect_services,
                 target_contracts=self._discovery.target_contracts,
                 playlist_search_artwork=self._discovery.playlist_search_artwork,
+                room_playback_seek=self._discovery.room_playback_seek,
                 fetched_at=time.time(),
                 endpoint=self._safe_endpoint(getattr(self._mcp, "url", "")),
                 api_id=self._mcp_api_id(self._mcp),
@@ -3112,6 +3127,8 @@ class ToolRouter:
             args["include_output"] = True
         if include_controls:
             args["include_controls"] = True
+            if self._discovery.room_playback_seek:
+                args["include_seek"] = True
         if settlement_identity is not None:
             args["request_id"] = settlement_identity["request_id"]
             args["command_sequence"] = settlement_identity["command_sequence"]

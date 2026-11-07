@@ -53,7 +53,8 @@ function roomPlaybackV2(body,account,snapshot,previous){
 function roomPlaybackV3(body,account,snapshot,previous,receiptRequestId){
  if(!exact(body,['ok','schema','bootId','roomId','configEntryId','status','reason','binding','data','controls','permissions',...(receiptRequestId===null?[]:['settlement'])]))throw Error('invalid_room_playback_v3');
  const result=roomPlaybackV2({ok:body.ok,schema:'podview.room-playback.v2',bootId:body.bootId,roomId:body.roomId,configEntryId:body.configEntryId,status:body.status,reason:body.reason,binding:body.binding,data:body.data},account,snapshot,previous),controls=body.controls,permissions=body.permissions;
- const actions=value=>Array.isArray(value)&&value.length<=5&&new Set(value).size===value.length&&value.every(action=>['pause','resume','next','previous','volume'].includes(action));
+ const actions=value=>Array.isArray(value)&&value.length<=6&&new Set(value).size===value.length
+  &&value.every(action=>['pause','resume','next','previous','volume','seek'].includes(action));
  if(!exact(controls,['status','reason','binding_id','valid_until','supported_actions','volume'])||!exact(permissions,['actions','maxVolume'])||!actions(controls.supported_actions)||!actions(permissions.actions)||controls.supported_actions.length!==permissions.actions.length||controls.supported_actions.some((action,index)=>action!==permissions.actions[index]))throw Error('invalid_readonly_controls');
  if(result.roomBound&&body.binding.validUntil*1000>result.expiresAt||body.data&&!Number.isSafeInteger(body.data.poll_sequence))throw Error('renewed_readonly_controls');
  if(controls.status==='unavailable'){

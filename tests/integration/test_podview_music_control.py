@@ -1466,7 +1466,7 @@ async def test_both_room_capabilities_do_not_relax_exact_owner_validation(rig, c
     elif change == "stale":
         rig.value["observation"]["age_ms"] = 15001
     elif change == "unknown_action":
-        rig.value["actions"].append("seek")
+        rig.value["actions"].append("shuffle")
     elif change == "malformed":
         rig.value["route"]["selection_revision"] = True
     else:
