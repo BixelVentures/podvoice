@@ -61,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        journey: [robot_ux, music, music_selection, radio, robot, light, vehicle, timer, home_events, answers, recipe, panel]
+        journey: [robot_ux, music_push, music, music_selection, radio, robot, light, vehicle, timer, home_events, answers, recipe, panel]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

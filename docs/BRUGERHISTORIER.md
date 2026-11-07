@@ -16,7 +16,7 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 | A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | ⬜ |
 | A4 | Jeg trækker i lydstyrken → slideren følger fingeren uden at hoppe tilbage, lyden ændres < 1 s | område: music |
 | A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ |
-| A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | ⬜ (kræver push) |
+| A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | ✅ music_push (< 1,5 s; målt ~30 ms efter HA-hændelse; PodConnect læser Spotify hvert 3. s under afspilning) |
 | A7 | Netværket falder ud og kommer igen → sidst kendte sang bliver stående, knapperne virker igen uden genindlæsning | område: home_events |
 
 ## Kø
@@ -57,8 +57,8 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 |---|---|---|
 | S1 | Jeg åbner robotten → status, batteri og igangværende rum vises straks | område: robot |
 | S2 | Jeg vælger rum og trykker Start → robotten starter; knappen bliver ikke grå undervejs | område: robot |
-| S3 | Robotten kører → jeg trykker pause / fortsæt / til base → det sker < 2 s | område: robot |
-| S4 | Jeg lader skærmen stå åben i 10 min → alle knapper virker stadig uden genindlæsning | ⬜ |
+| S3 | Robotten kører → jeg trykker pause / fortsæt / til base → knappen skifter < 300 ms og bliver aldrig grå; robotten følger < 2 s | delvis ✅ robot_ux: pause/fortsæt < 300 ms, 0 grå, langsom og tavs robot; til base ikke målt |
+| S4 | Jeg lader skærmen stå åben i 10 min → alle knapper virker stadig uden genindlæsning | delvis ✅ robot_ux: pause virker efter serverens tilbud er udløbet; 10 min og Start ikke målt |
 
 ## Lys
 

@@ -296,3 +296,33 @@ async def test_wake_uses_fresh_projection_after_read_authority_lost(monkeypatch)
     finally:
         await client.close()
     assert not sink._subscribers
+
+
+def test_podconnect_playback_event_wakes_only_music():
+    from gatekeeper.tools import ToolRouter
+
+    event_types = (
+        "state_changed",
+        "entity_registry_updated",
+        "area_registry_updated",
+        "device_registry_updated",
+        "podconnect_playback_changed",
+    )
+    seen = []
+    message = {
+        "type": "event",
+        "id": 5,
+        "event": {"event_type": "podconnect_playback_changed", "data": {"config_entry_id": "x"}},
+    }
+    ToolRouter._podview_home_event(
+        message,
+        event_types,
+        lambda: {"music": {"*"}, "vacuum": {"vacuum.a"}},
+        lambda k, r: seen.append(k),
+    )
+    assert seen == [{"music"}]
+    seen.clear()
+    ToolRouter._podview_home_event(
+        message, event_types, lambda: {"music": set()}, lambda k, r: seen.append(k)
+    )
+    assert seen == []
