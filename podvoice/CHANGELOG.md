@@ -1,3 +1,8 @@
+## 2.0.143
+
+- Music controls never grey out while a command settles: pause/play flips at once, a tap during a running command is queued, and an unknown outcome no longer locks the controls. Requires PodConnect Control 0.10.35.
+- Simpler development process and CI; public README.
+
 ## 2.0.142
 
 - Show the selected song or playlist immediately and retain its cover while the player waits for the matching playback observation.
