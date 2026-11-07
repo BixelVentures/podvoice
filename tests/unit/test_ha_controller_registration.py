@@ -60,6 +60,7 @@ async def test_admin_services_register_coroutine_handlers_and_dispatch():
         vol=SimpleNamespace(
             Schema=lambda value, **_: value,
             Required=lambda value: value,
+            Optional=lambda value: value,
             All=lambda *args: args,
             Length=lambda **kwargs: kwargs,
             PREVENT_EXTRA=object(),
