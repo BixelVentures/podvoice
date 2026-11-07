@@ -2,7 +2,7 @@ const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Obj
 import {requestWithin} from './request-deadline.js';
 const controlSetupFailureCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable']);
 // Content-free classifications only: these records never grant control authority.
-const diagnosticDomainActions={music:['pause','resume','next','previous','volume','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel','timer.adjust'],radio:['start','stop','move','volume'],home:[]};
+const diagnosticDomainActions={music:['pause','resume','next','previous','volume','seek','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel','timer.adjust'],radio:['start','stop','move','volume'],home:[]};
 const diagnosticActions=new Set(Object.values(diagnosticDomainActions).flat());
 const diagnosticSources=new Set(['home_assistant','podconnect','podspeakers','podradio','snapshot']);
 const diagnosticTrust=new Set(['state_observation','owner_settlement']);

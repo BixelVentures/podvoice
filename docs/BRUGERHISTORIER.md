@@ -46,9 +46,9 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | A2 | Musik er sat på pause → jeg trykker afspil → samme som A1 omvendt | område: music |
 | A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | delvis ✅ music: tre hurtige browsertryk giver tre simulerede ejerkommandoer, titel efter sidste tryk 695 ms; fysisk afspilning ikke målt |
 | A4 | Jeg trækker i lydstyrken → slideren følger fingeren uden at hoppe tilbage, lyden ændres < 1 s | område: music |
-| A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ livefunktion mangler: player-view begrænser seek til lokal eksempelvisning; PodVoice musikhandlinger har endnu ingen seek-kontrakt |
+| A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | delvis ✅ MUSIC_SEEK_TEST: faktisk browsertræk → Python-broker → simuleret ejer; spoling under afspilning/pause, fastholdt position under refresh og UNKNOWN uden gensendelse. Control 0.10.37 publiceret. PodVoice-kandidat er endnu ikke leveret; poll-race mellem tilbud og frisk læsning er rettet med én afgrænset læseafstemning og kausal regression. Rigtig Spotify/fysisk effekt ikke prøvet |
 | A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | delvis: music_push måler ~30 ms efter HA-hændelse; hele < 1,5 s fra Spotify er ikke bevist med 3 s polling |
-| A7 | Netværket falder ud og kommer igen → sidst kendte sang bliver stående, knapperne virker igen uden genindlæsning | område: home_events |
+| A7 | Netværket falder ud og kommer igen → sidst kendte sang bliver stående, knapperne virker igen uden genindlæsning | delvis ✅ music: mistet accepteret pause-svar efterfulgt af browser-offline; genforbindelse læser simuleret ejer igen med samme sang/output og faktisk pausetilstand uden gensendelse. Nyt tryk efter netop denne genforbindelse og fysisk effekt er endnu ikke bevist |
 | A8 | Jeg starter musik i Spotify på hjemmets højttaler → PodView viser titel, cover og output og kan pause/fortsætte uden først at starte musikken selv | delvis ✅ music_push: ny browser modtager simuleret ekstern start, viser sang/Køkkenalrum og sender præcis én pause og fortsæt via Python-broker uden lokal start; rigtig Spotify, cover og fysisk effekt ikke prøvet |
 | A9 | Jeg trykker pause, fortsæt og pause under et langsomt svar → trykkene håndteres i rækkefølge, sidste intention respekteres, ingen knap låses af polling | delvis ✅ music: tre browsertryk giver pause/resume/pause hos simuleret ejer, korrekt sidste label, ingen disabled-blink; fysisk lyd ikke prøvet |
 | A10 | Musik har spillet i 10 minutter med løbende refresh → pause, næste og lydstyrke virker stadig; ingen udløbet kontroladgang | delvis ✅ MUSIC_LONG_SESSION: 600 s reel tid, 263 simulerede ejerlæsninger, ingen automatiske effekter; pause/næste/volumen/fortsæt når ejer én gang både efter ventetid og luk/genåbn browser. Rigtig Spotify og fysisk lyd ikke prøvet |
@@ -62,12 +62,12 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | # | Historie | Test |
 |---|---|---|
 | K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | delvis ✅ enhedstest: køen hentes ved sangskift på alle sider og vises som klar, når afspilleren åbnes; tid i browser ikke målt; music_selection har separat simuleret køkilde |
-| K2 | Sangen skifter → køen rykker op uden at listen blinker | ⬜ |
+| K2 | Sangen skifter → køen rykker op uden at listen blinker | delvis ✅ QUEUE_PERSISTENCE_TEST: faktisk browser/simuleret ejer; valg flytter kommende rækker frem med samme DOM-række, mindst to synlige kommende rækker i 20 overgangsframes. Automatisk Spotify-sangskift ikke prøvet |
 | K3 | Jeg trykker på en sang i køen → den spiller < 1,5 s | delvis: music_selection vælger præcis anden forekomst via rigtig Python-broker og simuleret ejer, også efter uvedkommende stemmesnapshot; tidsmål/fysisk effekt ikke målt |
 | K4 | Auto-fortsæt spiller videre → vis kommende sange, når kilden leverer dem; opfind ikke fremtidige sange og forveksl ikke manglende kødata med stoppet musik | ⬜ |
-| K5 | Jeg vælger en kø-række → kun denne række viser spinner; køen forsvinder ikke under start, sangskift eller fejlet opdatering | ⬜ |
+| K5 | Jeg vælger en kø-række → kun denne række viser spinner; køen forsvinder ikke under start, sangskift eller fejlet opdatering | delvis ✅ QUEUE_PERSISTENCE_TEST: kun valgt forekomst spinner (beregnet CSS kontrolleret); kendte rækker bevares under tilbageholdt POST, sangskift og native læsefejl. Åben dokumenteret fejl: andre køvalg er disabled, mens første valg afventer. Rigtig Spotify ikke prøvet |
 | K6 | Køen indeholder samme sang flere gange → valg rammer den valgte forekomst; et sent svar fra forrige session erstatter ikke den aktuelle kø | ⬜ |
-| K7 | Jeg forlader køen og åbner den igen under samme afspilning → kendt kø genbruges og opdateres i baggrunden; refresh, tomt svar og fejl behandles forskelligt | ⬜ |
+| K7 | Jeg forlader køen og åbner den igen under samme afspilning → kendt kø genbruges og opdateres i baggrunden; refresh, tomt svar og fejl behandles forskelligt | delvis ✅ QUEUE_PERSISTENCE_TEST: luk/genåbn samme kø bevarer kendte rækker under forsinket læsning; faktisk simuleret 503 bevarer rækker med fejlbesked, autoritativ tom kø viser kun aktuelt nummer og tomtekst. Ingen fysisk prøve |
 
 ## Find musik
 
@@ -94,7 +94,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | H2 | Sofie spiller fra sin konto på Køkken → skærmen viser "Spiller fra en anden konto" og tilbyder "Spil her" | ⬜ (funktion mangler) |
 | H3 | Jeg trykker "Spil her" → min musik spiller på Køkken < 3 s; aldrig uden mit tryk | ⬜ (funktion mangler) |
 | H4 | Jeg åbner på iPad uden aktiv afspilning → Køkkenalrum er valgt som standard. Aktiv faktisk afspilning på et andet output overtages ikke automatisk | ⬜ |
-| H5 | Jeg flytter Køkkenalrum → Svend → Køkkenalrum → musikken og styringen følger hver gang; pause, lydstyrke og kø virker også efter ventetid | ⬜ |
+| H5 | Jeg flytter Køkkenalrum → Svend → Køkkenalrum → musikken og styringen følger hver gang; pause, lydstyrke og kø virker også efter ventetid | delvis ✅ music: faktisk browser flytter til simuleret Soveværelse og tilbage; pause/fortsæt rammer præcis nyt room/homepod én gang efter hver flytning med uændret sang. Volumen/kø efter flytning og ventetid samt rigtig højttaler er ikke bevist |
 | H6 | Højttalerdialogen er åben under refresh → listen udløber ikke synligt, valgt output har samme kantmarkering som valgt radiokanal; stabilt navn og layout | ⬜ |
 | H7 | Spotify flyttes til Tesla/iPhone og senere tilbage til Køkkenalrum → PodView følger faktisk output, tager ikke kontoen tilbage automatisk og genvinder betjening ved hjemkomst | ⬜ |
 | H8 | Flytning afvises eller får ukendt udfald → ønsket højttaler vises ikke som bekræftet output; ingen automatisk gentagelse, og gammel sessions kø/kommandoer flyttes ikke blindt | ⬜ |

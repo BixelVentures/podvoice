@@ -40,7 +40,7 @@ _CONTENT_SERVICES = frozenset(
         "cancel_room_content_preparation",
     }
 )
-_ROOM_ACTIONS = frozenset({"pause", "resume", "next", "previous"})
+_ROOM_ACTIONS = frozenset({"pause", "resume", "next", "previous", "seek"})
 _VOLUME_STATES = frozenset(
     {
         "prepared",
@@ -216,10 +216,11 @@ def _controls(
     if deadline <= now:
         raise ValueError("expired source")
     actions = value.get("actions")
+    allowed_actions = _ROOM_ACTIONS if schema == "podconnect.room_controls.v1" else _ACTIONS
     if (
         not isinstance(actions, list)
         or len(actions) > 7
-        or any(not isinstance(action, str) or action not in _ACTIONS for action in actions)
+        or any(not isinstance(action, str) or action not in allowed_actions for action in actions)
         or len(set(actions)) != len(actions)
         or (schema != "podconnect.room_controls.v1" and {"pause", "resume"}.issubset(actions))
         or (status != "ready" and actions)
@@ -855,6 +856,11 @@ class MusicControlFacade:
         )
 
     @property
+    def seek_available(self) -> bool:
+        discovery = getattr(self.tools, "_discovery", None)
+        return self.room_available and getattr(discovery, "room_playback_seek", False) is True
+
+    @property
     def volume_available(self) -> bool:
         discovery = getattr(self.tools, "_discovery", None)
         return bool(
@@ -985,6 +991,7 @@ class MusicControlFacade:
                         "target_id": target,
                         "room_id": room,
                         "homepod_id": homepod,
+                        **({"include_seek": True} if self.seek_available else {}),
                     },
                 )
             if not self._current(binding, current):
@@ -1000,6 +1007,7 @@ class MusicControlFacade:
         current: Callable[[], bool],
         *,
         receipt_current: Callable[[], bool] | None = None,
+        position_ms: int | None = None,
     ) -> dict:
         """Send one bound native AUDIO4 command and retain an unknown possible send."""
         possible_send = False
@@ -1014,6 +1022,13 @@ class MusicControlFacade:
             value = _room_controls(offered, account, target, room, homepod, offered=True)
             if action not in _ROOM_ACTIONS or action not in value["actions"]:
                 return _failure("unsupported_action")
+            args = {}
+            if action == "seek":
+                if not self.seek_available:
+                    return _failure("unsupported_action")
+                args["position_ms"] = _integer(position_ms, 0)
+            elif position_ms is not None:
+                return _failure("invalid_arguments")
             sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
             identity = {
                 "schema": "podconnect.command.v1",
@@ -1033,7 +1048,7 @@ class MusicControlFacade:
                 "request_id": identity["request_id"],
                 "command_sequence": sequence,
                 "action": action,
-                "args": {},
+                "args": args,
                 "room_id": room,
                 "homepod_id": homepod,
                 "native": value["native"],

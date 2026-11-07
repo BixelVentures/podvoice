@@ -36,11 +36,13 @@ logging.basicConfig(level=logging.WARNING)
 music = Rig()
 room_owner(music)
 extended = os.environ.get("MUSIC_EXTENDED") == "1"
+seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
 original_client = music.client
 state = {
     "state": "playing",
     "song": 1,
     "sequence": 7,
+    "progressMs": 1000,
     "delayMs": 0,
     "witnessUnknownReads": 0,
     "unknownWitnesses": 0,
@@ -124,6 +126,8 @@ def observation(args):
         uri="spotify:track:" + str(state["song"]).zfill(22),
         name="Isoleret sang " + str(state["song"]),
     )
+    if seek_test:
+        raw["playback"]["progress_ms"] = state["progressMs"]
     value = project_owner("playback", raw, "account")["data"]
     if not args.get("include_output"):
         return value
@@ -159,6 +163,8 @@ def observation(args):
                 supported_actions=["pause", "resume", "next", "previous", "volume"],
                 volume={"base_percent": state["volume"], "effective_percent": state["volume"]},
             )
+        if seek_test and args.get("include_seek") is True:
+            value["controls"]["supported_actions"].append("seek")
         if args.get("request_id") in receipts:
             value["settlement"] = copy.deepcopy(receipts[args["request_id"]])
             if state["witnessUnknownReads"] > 0:
@@ -194,6 +200,8 @@ async def native_service(request):
     if path.endswith("get_playback_snapshot"):
         return httpx.Response(200, json={"service_response": observation(args)})
     music.value["actions"] = ["pause", "resume", "next", "previous"]
+    if seek_test and args.get("include_seek") is True:
+        music.value["actions"].append("seek")
     music.value["poll_sequence"] = state["sequence"]
     music.value["observation"]["observed_at"] = timestamp()
     music.value["room_id"] = state["room"]
@@ -270,6 +278,11 @@ async def native_service(request):
             state["state"] = "paused" if action == "pause" else "playing"
         elif action in {"next", "previous"}:
             state["song"] += 1 if action == "next" else -1
+        elif action == "seek":
+            assert seek_test
+            position = args["args"]["position_ms"]
+            assert type(position) is int and 0 <= position <= 123000
+            state["progressMs"] = position
         elif action == "volume":
             state["volume"] = args["args"]["percent"]
             state["volumeRevision"] += 1
@@ -278,7 +291,10 @@ async def native_service(request):
             {
                 "action": action,
                 "requestId": args["request_id"],
+                "room": args["room_id"],
+                "homepod": args["homepod_id"],
                 **({"percent": state["volume"]} if action == "volume" else {}),
+                **({"positionMs": state["progressMs"]} if action == "seek" else {}),
             }
         )
         receipts[args["request_id"]] = {
@@ -318,6 +334,7 @@ music.tools._discovery = replace(
         else set()
     ),
     target_contracts=(("podconnect_get_targets", "a" * 64),),
+    room_playback_seek=seek_test,
 )
 session, _ = owner()
 session._active = False
@@ -382,7 +399,9 @@ configuration = {
             "targetId": "device",
             "nativeRoomId": "native-room",
             "nativeHomepodId": "42",
-            "actions": ["pause", "resume", "next", "previous"] + (["volume"] if extended else []),
+            "actions": ["pause", "resume", "next", "previous"]
+            + (["volume"] if extended else [])
+            + (["seek"] if seek_test else []),
             "maxVolume": 100 if extended else 40,
         }
     ],
@@ -467,6 +486,8 @@ async def lab_state(request):
             state["state"] = args["externalPlaybackState"]
         if "externalSong" in args:
             state["song"] = int(args["externalSong"])
+            if seek_test:
+                state["progressMs"] = 1000
         if "externalOutput" in args:
             outputs = {"native-room": "42", "bedroom": "43"}
             if args["externalOutput"] not in outputs:

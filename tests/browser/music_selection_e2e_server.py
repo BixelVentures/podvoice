@@ -26,6 +26,7 @@ from gatekeeper.podview import BRIDGE
 cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
+queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -40,7 +41,12 @@ tracks = [
     for i in (11, 12, 13)
 ]
 base.state.update(
-    state="paused", song=1, queue=[21, 22], selections=[], queueSelections=[], nativeCalls=[]
+    state="paused",
+    song=1,
+    queue=[21, 22, 23, 24] if queue_journey else [21, 22],
+    selections=[],
+    queueSelections=[],
+    nativeCalls=[],
 )
 if cold:
     # Both existing inerts describe one native owner; alias/content incarnation
@@ -209,6 +215,8 @@ async def native(request):
         value["returned_count"] = len(value["items"])
         return httpx.Response(200, json={"service_response": value})
     if service == "get_room_queue_controls":
+        if queue_journey and base.state.get("queueReadFailure") is True:
+            return httpx.Response(503, json={"error": "inert_queue_unavailable"})
         value = bound_source()
         value.update(
             config_entry_id="account",
@@ -239,6 +247,8 @@ async def native(request):
         assert song in base.state["queue"]
         index = base.state["queue"].index(song)
         base.state.update(song=song, state="playing")
+        if queue_journey:
+            base.state["queue"] = base.state["queue"][index + 1 :]
         base.state["sequence"] += 1
         base.state["queueSelections"].append(
             {"index": index, "song": song, "requestId": args["request_id"]}
@@ -282,6 +292,19 @@ async def cleanup(_):
     await original_transport.aclose()
     await content.client.aclose()
 
+
+if queue_journey:
+
+    async def queue_state(request):
+        condition = (await request.json()).get("condition")
+        if condition not in {"failed", "empty"}:
+            raise web.HTTPBadRequest()
+        base.state["queueReadFailure"] = condition == "failed"
+        if condition == "empty":
+            base.state["queue"] = []
+        return web.json_response({"condition": condition})
+
+    base.app.router.add_post("/lab/queue", queue_state)
 
 base.app.on_cleanup.append(cleanup)
 web.run_app(

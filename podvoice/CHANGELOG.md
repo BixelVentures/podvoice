@@ -1,3 +1,7 @@
+## 2.0.144
+
+- Seek on the existing player timeline while playing or paused, retain the chosen position during refresh, and keep each seek bound to the current track and output. Requires PodConnect Control 0.10.37; older Control keeps existing controls.
+
 ## 2.0.143
 
 - Music controls never grey out while a command settles: pause/play flips at once, a tap during a running command is queued, and an unknown outcome no longer locks the controls. Requires PodConnect Control 0.10.35.

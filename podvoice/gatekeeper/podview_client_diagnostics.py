@@ -32,7 +32,7 @@ _VALUE_LIMIT = 86400
 _RESOURCE = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,255}")
 _BUILD = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,79}")
 _DOMAIN_ACTIONS = {
-    "music": frozenset("pause resume next previous volume move_existing_session".split()),
+    "music": frozenset("pause resume next previous volume seek move_existing_session".split()),
     "vacuum": frozenset("pause resume stop return start settings dock".split()),
     "light": frozenset("turn_on turn_off brightness scene".split()),
     "vehicle": frozenset(
