@@ -1,44 +1,12 @@
 # PodVoice
 
 PodVoice is a Home Assistant add-on for voice conversations through a custom-firmware
-[Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/). Start with the
-[current status](docs/STATUS.md) for the installed version, known limits and open acceptance
-gates. Product behavior and measurable goals are in [docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md).
-The [documentation index](docs/README.md) distinguishes current guides, diagnostics,
-proposals and historical material; agents start at [AGENTS.md](AGENTS.md).
-
-## PodView dashboard
-
-PodView's browser UI lives in this repository at
+[Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/), and the home of
+**PodView**, the wall-screen UI in
 [`podvoice/gatekeeper/static/podview/`](podvoice/gatekeeper/static/podview/).
-Its UI tests, component contract and build tools share the same Git history and release.
-See [PodView source and development](docs/PODVIEW-SOURCE.md) for the tracked paths,
-local preview workflow and the distinction between source and disposable `dist/`.
+Music and speakers are provided by [PodConnect](https://github.com/BixelVentures/podconnect).
 
-## How it works
-
-**GPT-Live is the only production conversation engine.** `ThinSession` owns the conversation
-for both Voice PE and Talk. Voice PE firmware owns physical wake, microphone forwarding,
-playback events and rearm. V2.x targets full-duplex GPT-Live on Voice PE and Talk: the
-active conversation keeps listening while it speaks. Native Live already submits input
-during playback; audible interruption and acoustic isolation require physical evidence
-on the same candidate. Talk is a separate browser I/O adapter. Talk can exercise the shared software engine, but it does not prove the puck's
-microphone, speaker, wake, or physical lifecycle.
-
-Home data and actions belong to Home Assistant. PodVoice uses only the connected MCP tools
-and other statically admitted adapters available to the current session. PodConnect owns its
-music services and physical HomePod playback. Web search depends on the existing Home
-Assistant search integration. The live capability and service status in the panel indicate
-what the current installation exposes; a configured integration alone is not proof that an
-action works end to end.
-
-## Home Assistant panel
-
-Open PodVoice from the Home Assistant sidebar. The panel has Home, Talk, History and Settings
-views. Use it to inspect the current connection/readiness state, talk through the browser, and
-manage the add-on's available settings. The panel does not provide a simulation mode or a
-conversation test wizard. Product and physical acceptance remain separate; see
-[docs/STATUS.md](docs/STATUS.md).
+Developers and agents: start with [AGENTS.md](AGENTS.md). It is the whole workflow.
 
 ## Requirements and first setup
 
@@ -55,23 +23,7 @@ separate and is documented below.
 
 ## Develop and check
 
-Follow [docs/UDVIKLINGSFLOW.md](docs/UDVIKLINGSFLOW.md). Create the shared Python 3.12
-virtual environment once, outside the synchronized checkout, then reuse it:
-
-```sh
-python3.12 -m venv ~/Developer/venvs/podvoice
-~/Developer/venvs/podvoice/bin/pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-```
-
-For focused feedback, run one command from the persistent unsynchronized clone, substituting
-the affected test module or node:
-
-```sh
-PODVOICE_PYTHON=~/Developer/venvs/podvoice/bin/python scripts/dev fast --test tests/path/test_file.py
-```
-
-The focused check is development feedback, not release or physical acceptance. The frozen
-candidate's official CI and the hardware gates listed in STATUS remain required.
+See [AGENTS.md](AGENTS.md) for setup and test commands.
 
 ## HA-owned timers
 

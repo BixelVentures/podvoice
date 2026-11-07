@@ -6,9 +6,7 @@ ejer wake og fysisk lyd; `VoicePELink` og den fælles `ThinSession` fører samta
 og højttaler. Begge er v2.x full-duplex-samtaler: nyt input kan fortsætte, mens et svar
 afspilles. Talk eller sendt lyd alene beviser ikke den fysiske oplevelse på Voice PE.
 
-Aktuel produktstatus, bindende regler og den detaljerede kæde findes i
-[STATUS](../docs/STATUS.md), [INVARIANTER](../docs/INVARIANTER.md),
-[PRODUKTMÅL](../docs/PRODUKTMÅL.md) og [ARKITEKTUR](../docs/ARKITEKTUR.md).
+Udviklingsarbejdet følger `AGENTS.md` i repositoriet.
 
 ## Før installation
 
@@ -67,8 +65,7 @@ og [gendannelse af backups](https://www.home-assistant.io/common-tasks/general/)
 Panelets forside viser forbindelser og kapabiliteter; **Avanceret → Fejlfinding** har
 forbindelses-, lydstrøm- og højttalerkontrol. En anmodet testtone eller et grønt
 statusfelt beviser ikke, at samtalen høres korrekt i rummet. Hør selv første svar,
-tal under et svar, prøv opfølgning, lukning og næste wake. Den gældende fysiske
-accept står i [STATUS](../docs/STATUS.md).
+tal under et svar, prøv opfølgning, lukning og næste wake.
 
 Talk-fanen kan tage tekst og, hvor browseren tillader det, mikrofoninput. Browserens
 mikrofon kræver en sikker kontekst som HTTPS eller localhost; Home Assistant-paneler

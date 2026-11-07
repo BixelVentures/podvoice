@@ -53,9 +53,10 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
  for(const key of ['x','y','width','height'])assert(Math.abs(duplicatePauseBox[key]-pauseBox[key])<1,'pending Pause geometry stays stable: '+key);
  const duplicatePoint={x:duplicatePauseBox.x+duplicatePauseBox.width/2,y:duplicatePauseBox.y+duplicatePauseBox.height/2};
  assert(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('#play-pause'),duplicatePoint),'duplicate touch targets the actual pending Pause control');
- await page.touchscreen.tap(duplicatePoint.x,duplicatePoint.y);
+ // Optimistic toggle: the tapped Pause shows "Fortsæt" at once and is never disabled.
+ await page.waitForFunction(()=>{const b=document.getElementById('play-pause');return b&&!b.disabled&&b.getAttribute('aria-label')?.includes('Fortsæt');},undefined,{timeout:500});
  await change({song:2});
- await page.waitForFunction(()=>document.getElementById('play-pause')?.getAttribute('aria-label')?.includes('Fortsæt'),undefined,{timeout:15000});
+ for(let n=0;n<60&&(await state()).state!=='paused';n++)await sleep(250);
  const afterPause=await state();
  assert.equal(afterPause.state,'paused');assert.equal(afterPause.song,2);
  await page.waitForFunction(()=>{const player=document.querySelector('#track-name')?.textContent?.trim(),overview=document.querySelector('#home-music strong')?.textContent?.trim();return player==='Isoleret sang 2'&&overview===player;},undefined,{timeout:10000});

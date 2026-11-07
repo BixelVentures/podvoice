@@ -108,8 +108,8 @@ export class LiveControlView{
  // but never locks the controls. The next tap is simply a new intent.
  musicUnknownBlocks(context=this.musicContext()){return false;}
  // Optimistic presentation only: a pending/accepted pause or resume is shown at once
- // and yields to the observed state on settlement or after 4 s.
- optimisticPlaying(observed){const f=this.musicFence;if(!f||!['pause','resume'].includes(f.action)||!['pending','accepted'].includes(f.outcome)||!Number.isFinite(f.at)||Date.now()-f.at>4000||f.key!==this.musicContext()?.key)return observed;return f.action==='resume';}
+ // and yields to the observed state on settlement or 6 s after acceptance.
+ optimisticPlaying(observed){const f=this.musicFence;if(!f||!['pause','resume'].includes(f.action)||!['pending','accepted'].includes(f.outcome)||!Number.isFinite(f.at)||f.outcome==='accepted'&&Date.now()-f.at>6000||f.key!==this.musicContext()?.key)return observed;return f.action==='resume';}
  // Readonly service facts explain the controls; only fresh setup can execute.
  musicReadonlyControls(context=this.musicContext()){
   const p=this.host.liveMedia?.playback,c=p?.controls,permissions=p?.permissions;

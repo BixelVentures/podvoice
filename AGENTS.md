@@ -1,235 +1,82 @@
-# PodVoice agentindgang
+# PodVoice / PodView — sådan arbejder du her
 
-## Pod System Engineering Standard v1 · 27. oktober 2026
+Én side. Læs ikke andet end denne fil, issuet og den kode, issuet berører.
 
-PodVoice, PodView og PodConnect er ét produkt. Læs den fælles
-[Pod-systemstandard](docs/POD-SYSTEM-STANDARD.md) ved berørte brugerforløb.
+## Produktet
 
-1. Design input → handling → faktisk service/enhed → observeret resultat → feedback
-   → recovery på tværs af de relevante flader; inspicér kilde og naboejere først.
-2. Stemme og touch bruger samme autoritative ejer pr. domæne. Accepteret er ikke
-   bekræftet effekt; UNKNOWN må ikke automatisk gensendes. Ingen parallel state-ejer.
-3. Agenten ejer softwarefejlsøgning og QA. Genbrug eksisterende miljø/harness og
-   kausale regressioner; ændret UI følger fortsat PodViews kanoniske kit/reviewkrav.
-4. Færdigmelding kræver det forventede brugerresultat. Angiv særskilt unit/kontrakt,
-   integration, rigtig browser, rigtig service og fysisk hardware samt inerte
-   afhængigheder, faktisk evidens og rester. Kode/udgivelse/installation er ikke accept.
-5. Kravene gælder permanent i alle Pod-projekter. PodVoice-lead ejer integration,
-   PodView UI og PodConnect musik/output; eksisterende sikkerheds- og releasekrav bevares.
+PodView er en vægskærm oven på Home Assistant (musik, robotstøvsuger, lys, opskrifter,
+timere, vejr, bil, svar fra stemmeassistenten). PodVoice er Home Assistant-add-on'et, der
+serverer PodView og taler med HA. Musik og højttalere ejes af PodConnect (separat repo
+`BixelVentures/podconnect`: HA-integrationen "Control" + add-on'et "Speakers").
 
-Fejl skal kunne diagnosticeres: registrér afvisning, timeout, exception, ukendt udfald
-og mislykket recovery i den eksisterende ejerlog med fast trin/årsag/udfald og sikker
-korrelation, hvor kontrakten tilbyder det. Ingen nøgler, rå payloads eller persondata;
-ingen ny logplatform eller støjende logning af alle succesfulde poll-kald.
+| Lag | Hvor |
+|---|---|
+| Skærm (browser) | `podvoice/gatekeeper/static/podview/*.js` |
+| PodVoice-server, PodView-API | `podvoice/gatekeeper/podview*.py`, `web.py`, `tools.py` |
+| HA-integration (PodVoice) | `custom_components/podvoice/` |
+| Musik/højttaler-kommandoer | PodConnect: `custom_components/podconnect/` og `podconnect/manager/` (Go) |
+| Tests: skærm | `tests/podview/*.test.mjs` (node), `tests/browser/*_actual_e2e.cjs` (rigtig browser) |
+| Tests: server | `tests/unit`, `tests/integration` (pytest), `tests/ha_framework` (rigtig HA) |
 
-Første fælles accept er tal → afspil → vis → touch-pause → verificér samme output.
-Følg den aktive kandidat; historiske checkouts er ikke releasekilde. Resultater og
-næste handling føres i eksisterende STATUS/feedbackpost. Ingen ny konkurrerende log.
+## Arbejdsgang for et issue
 
-Denne fil er den korte indgang til aktuel status og arbejdsgang. Risikofyldte ændringer
-følger fortsat de fulde sikkerheds-, lifecycle-, review- og beviskrav i
-[docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md). Den oprindelige lange indgang findes i
-Git-historikken før issue #157. Det historiske statuslog er bevaret i
-[docs/archive/STATUS-2026-10-14-pre-157.md](docs/archive/STATUS-2026-10-14-pre-157.md).
+1. **Formulér brugerresultatet**: "Når jeg trykker X, sker Y inden for Z ms."
+2. **Skriv en test, der fejler nu**, i det lag hvor brugeren kan se fejlen. For UX/flow er
+   det en browserrejse i `tests/browser/*_actual_e2e.cjs` eller en PodView-test.
+3. **Find det led, fejlen opstår i** (skærm → PodVoice → PodConnect Control → Speakers),
+   og ret den dér. Kompensér aldrig i skærmen for en fejl i et lag længere nede.
+4. **Kør testen og de berørte suiter** (kommandoer nedenfor). Grøn = færdig med koden.
+5. **PR**: beskriv hvad brugeren oplever nu, hvilken test der beviser det, og hvad der
+   ikke kunne afprøves (fx fysisk lyd). Ingen andre dokumenter.
 
-## Hvad skal læses?
+Når en test fejler af en grund, du ikke forstår: læs testen og koden. Gentag ikke den
+samme undersøgelse; skift tilgang eller skriv præcist, hvad du mangler.
 
-Til almindelige docs-, tooling- og fixtureopgaver: læs denne fil og
-[docs/STATUS.md](docs/STATUS.md); åbn kun de filer, ændringen berører.
+## Krav til oplevelsen (gælder alle features)
 
-Til runtime, provider, VAD, audio, firmware, prompt, værktøjskontrakt, lifecycle eller
-release: læs alle fire autoritative produktdokumenter i rækkefølge:
+- Tryk giver synlig reaktion med det samme; korrekt tilstand < 300 ms ved egen handling,
+  < 1,5 s når noget ændres udefra (fx en anden app).
+- Knapper låses aldrig, fordi en kommando er undervejs. Et tryk under en igangværende
+  kommando sættes i kø.
+- Ingen blink: indhold, der ikke har ændret sig, tegnes ikke om; ingen tomme mellemtilstande.
+- Pause, afspil, næste, forrige, spol, lydstyrke, lys til/fra, robot pause/retur er
+  *idempotente*: de må sendes igen og kræver ikke frisk observation. Kun handlinger, der
+  starter nyt indhold eller flytter noget til et andet rum, bekræftes mod aktuel tilstand.
+- Et ukendt udfald vises ærligt, men gensendes aldrig automatisk og låser intet.
+- Tomme tilstande og fejl forklarer, hvad brugeren kan gøre.
 
-1. [docs/STATUS.md](docs/STATUS.md) — aktuel kandidat, evidens og beslutninger.
-2. [docs/INVARIANTER.md](docs/INVARIANTER.md) — bindende system- og ejergrænser.
-3. [docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md) — gates og målbar accept.
-4. [docs/ARKITEKTUR.md](docs/ARKITEKTUR.md) — den ene produktionsvej.
+## Regler for koden
 
-Læs derefter de relevante sektioner i
-[docs/AGENTKONTRAKT.md](docs/AGENTKONTRAKT.md), herunder ændringskontrol,
-stoplinje, beviskrav, review, fysisk diagnose og releasegrænser. Planer og handovers er
-historisk baggrund, aldrig autoritet over de fire produktfiler. Hele filoversigten og
-klassifikationen findes i [dokumentationsindekset](docs/README.md).
+- Ny og ændret kode skal kunne læses: almindelig formatering, ingen linjer over 120 tegn.
+- Én tilstandsmodel pr. feature på skærmen; ingen nye vagt-tjek-lag ovenpå eksisterende.
+- Hemmeligheder, tokens og persondata må aldrig logges.
+- PodView-assets: efter ændring i `static/podview/*.js|css` kør `npm run build:assets`,
+  kopiér ændrede `podview.bundle.js`, `library.bundle.js`, `podview.css` fra `dist/`
+  tilbage og opdatér `asset-manifest.json` (sha256). `npm test` fortæller, hvis du glemmer det.
 
-## Regressioner: hovedfejl før leveringsarbejde
+## Det gør du ikke
 
-- Lead fastholder brugerens højst prioriterede fejl som kritisk vej i eksisterende
-  STATUS: handling → faktisk forkert resultat → næste konkrete årsagsspørgsmål.
-  En lettere sidefejl må løses parallelt, men må ikke overtage budget eller fremstå
-  som løsning på hovedfejlen.
-- Hver undersøgelse skal kunne skelne navngivne årsager eller føre til en konkret
-  rettelse. Efter én afgrænset undersøgelse uden ny årsagsevidens skal lead ændre
-  tilgang eller angive den præcise manglende observation. Gentag ikke samme audit,
-  flere generiske tests eller ny planlægning som erstatning.
-- Start ikke versionsbump, ny releaseprofil, manifestbinding, PR-/CI-klargøring eller
-  installation, mens hovedfejlens årsag og rettelse stadig er ukendte. Undtagelse:
-  mindst mulig diagnostik, når lead navngiver præcis hvilken manglende observation
-  den indsamler, hvordan den afgør næste rettelse, og et afgrænset forløb til at få
-  observationen. Ren logningsleverance tæller aldrig som løst hovedproblem.
-- Når årsagen er dokumenteret, ret mindste ejergrænse og bevis det berørte samlede
-  flow før leveringsklargøring. Bevar nødvendige sikkerheds-/reviewkrav; en CI- eller
-  fixturefejl må ikke udløse runtimeændringer eller gentagne brede checks.
-- Ved creditbudget: aflæs faktisk saldo før et nyt væsentligt arbejdstrin; medregn
-  udestående agentarbejde og reserve. Hvis resten ikke kan rummes, indsnævr næste
-  konkrete resultat eller stop og gem arbejdet. Start ikke et nyt sidespor for at
-  vise fremdrift. Rapportér ændret brugeradfærd og åbent hovedproblem, ikke testantal
-  eller releaseaktivitet som erstatning for resultat.
-- En docs-/agentoprydning genoptager ikke et pauset produktarbejde. Denne regel
-  giver heller ikke adgang til at springe sikkerhed, officiel CI eller fysisk bevis over.
+- Skriver status-, plan-, handover- eller evidensdokumenter.
+- Laver versionsbump, release eller installation som en del af et fejlrettelses-issue.
+- Tilføjer proces-scripts, "admission", "binding" eller nye CI-gates.
+- Ændrer en test, så den passer til fejlen. En test ændres kun, når den ønskede adfærd ændres,
+  og det står i PR'en.
 
-## Ti regler for levering
+## Kommandoer
 
-1. Saml beslægtede rettelser i én kandidat, ét PR-flow og én installation.
-2. Kør kausal regression og berørt adapter under udvikling; gem brede checks til freeze.
-3. Genbrug PASS på uændrede bytes; gentag kun ugyldiggjorte og endnu ikke kørte trin.
-4. Parallelisér uafhængigt arbejde med én teknisk lead og tydeligt filejerskab.
-5. Review berørt ejergrænse, nabotrinnene og relevante races én gang.
-6. Genbrug fast Python 3.12-venv, dependencies og eksterne caches.
-7. Kør lokale gates fra den vedvarende usynkroniserede dev-klon.
-8. Brug eksisterende traces og optagelser før nye provider- eller fysiske prøver.
-9. Bevar én branch/PR; push er ikke release eller installation.
-10. Saml fysisk afprøvning i én kort serie; rapportér fysisk accept adskilt fra CI og kode.
+```sh
+python3.12 -m venv .venv && .venv/bin/pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+npm ci
 
-## Issueejerskab og faktisk levering
+.venv/bin/python -m pytest -n auto tests/unit tests/integration   # server
+.venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy podvoice/gatekeeper
+npm test                                                           # PodView (bygger først)
+node tests/browser/podview_actual_journeys.cjs                     # brugerrejser i rigtig browser
+npm run dev -- --host 127.0.0.1 --port 4173                        # PodView-preview med testdata
+```
 
-- Hvert aktivt issue har én ansvarlig agent, et konkret brugerresultat
-  (`udløsende handling → forventet udfald`) og én næste handling i den eksisterende
-  STATUS-post. Lead ejer integration og levering; brugeren skal ikke koordinere agenter.
-- Issueejeren følger årsag → mindste rettelse → kausal regression af hele det berørte
-  softwareflow. En audit, patch, PR eller grøn komponenttest afslutter ikke opgaven.
-  Dokumenteres ingen kodefejl, angives den præcise resterende usikkerhed uden spekulativ patch.
-- Parallelisér uafhængige issues med tydeligt filejerskab og genbrug eksisterende
-  agenter. PodView ejer UI; PodVoice ejer stemme/Voice PE og koordinerer fælles
-  kontrakter og samlet installation uden parallel UI-implementation.
-- Før fysisk slutprøve skal kendte softwarefejl være rettet, og de relevante
-  automatiserbare brugerforløb have kontrollerede forventede udfald på samme kandidat.
-  Fysisk accept dækker de resterende mikrofon-, lyd-, synlige LED- og enhedsforhold;
-  den erstatter ikke manglende softwarearbejde. Udfald, som ikke kan automatiseres,
-  angives konkret; ingen opdigtet sikkerhedsprocent.
-- Én navngiven releaseejer fører autoriseret levering gennem merge → publicering →
-  installation på Green → versionsaflæsning og relevante live softwareforløb.
-  Push, review eller opstart alene er ikke slutleverance. Brug eksisterende
-  godkendelser inden for deres omfang; spørg kun ved en ny nødvendig grænse.
-- Genbrug uændrede beståede checks og reviews. Hver ny prøve eller gentagen
-  undersøgelse skal afgøre et konkret uløst spørgsmål; byg ikke nye test-, status-
-  eller koordinationssystemer som erstatning for rettelsen. Gentagne blokeringer
-  kræver en ændret kausal handling eller et præcist handoff, ikke samme loop.
-- Registrér pr. issue kode, verificeret softwareflow, publicering, installation og
-  fysisk accept særskilt. Fejlet eller ukendt forbliver åbent med ejer og næste
-  handling. Luk først issuet mod dets faktiske acceptkrav; testantal og estimater
-  er ikke bevis for funktion. Eksisterende sikkerheds- og reviewkrav bevares.
+## Udgivelse (kun når det er bestilt)
 
-## Godkendt UI er et leveringskrav
-
-- Brugerens seneste godkendte UI og adfærdsregler er acceptgrundlaget. Lead knytter
-  reference/screenshot, kilderevision og de konkrete regler til den eksisterende
-  STATUS-/feedbackpost; godkendelser fra andre Pod-chats skal indhentes før integration.
-- Bibliotek, eksempelvisning og liveprodukt bruger samme kanoniske komponent og
-  layout. Testdata/adaptorer må variere; en særskilt reduceret live-renderer må ikke
-  erstatte den godkendte oplevelse. Adgang og faktisk kapabilitet håndhæves ved
-  handlingsgrænsen og må ikke skjule et udokumenteret integrationsgap.
-- Før release valideres med mindste dækkende kontrol, at det godkendte er med:
-  sammenlign lokal godkendt visning med lokalt bygget produkt og kontrollér komponent-/
-  kodebinding. Genbrug uændret evidens; kode-til-kode-kontrol er nok ved uændret render.
-  Prøv kun relevante ændrede tilstande, klik, refresh, bevarede valg og navigation.
-  Kendt manglende funktion/layout blokerer; manglende Green-/fysisk prøve gør ikke
-  lokal UI-validering til en ny releaseblokering. Fixture er ikke live-/fysisk bevis.
-- Genbyg produkt og bibliotek fra samme kandidat med eksisterende buildværktøjer.
-  Kontrollér kilde-/assetbinding før release. Efter installation kontrolleres version
-  og relevant visning på Green; dette er leveringskontrol, ikke et cirkulært krav om
-  installation før release. En gammel bundle tæller ikke som den nye kandidats bevis.
-- Manglende data, adgang, funktion eller visuel afvigelse står åbent med ejer og næste
-  handling. Ingen tavs scopeindskrænkning, opdigtede enhedsdata eller færdigmelding.
-  Har brugeren krævet begge områder færdige før release, er enhver sådan rest en
-  releaseblokering. Brug eksisterende kontroller; opret ikke et nyt QA-/statussystem.
-
-## Agentvalg
-
-Brug hurtigste tilstrækkeligt kompetente model. Afgrænsede docs-, status-, GitHub- og
-fixtureopgaver kan bruge GPT-6-Luna low/medium. Brug GPT-6-Sol til krævende runtime- og
-ejeranalyse. Brug kompetent Sol uden Ultra til uafhængigt high-risk review ved freeze;
-brugeren har fravalgt Ultra og foretrækker nyttigt parallelt arbejde. Review skal fortsat
-dække ejerskab, stale events, side effects og artifact-sandhed. Reviewkrav svækkes ikke.
-
-## Vælg kontrol
-
-De autoritative kommandoer og arbejdsgangen står i [docs/UDVIKLINGSFLOW.md](docs/UDVIKLINGSFLOW.md).
-
-| Ændring | Under arbejdet | Freeze og accept |
-|---|---|---|
-| Docs-only | Læs STATUS og denne indgang; gennemgå diff/links | Officiel CI på endelig kandidat |
-| Isoleret fixture/tooling | Berørte statiske checks og fokuseret test | Genbrug PASS på uændrede checks; officiel CI |
-| Produktkode | `scripts/dev fast --test <test-module-or-node>` | Exact-tree/scope, review og officiel CI |
-| Lifecycle | `scripts/dev lifecycle`, kun dækkende mekanisk scope | Samlede mål og gates i PRODUKTMÅL |
-| Prompt/schema/tool/provider | Berørte regressioner og faktisk provider-preflight | Uafhængigt adversarial review og officiel CI |
-| Firmware/build | Firmwaremiljø- og bootregression | Generated C++ ved bootændring; fysisk evidens separat |
-| Konkret CI-fejl/offlinearbejde | Isolér ugyldiggjort årsag | Lokal `scripts/dev release` kun ved behov |
-
-`fast --test` er fokuseret pytest-feedback, ikke releasegate; den valgte pytest køres hver
-gang. Ruff og mypy bruger deres eksisterende inkrementelle caches. Tilføj ikke et nyt
-resultatcachelag. Gentag `--test` for flere noder i samme kørsel. Coverageprocent erstatter
-ikke kausal regression, ejergrænse eller fysisk bevis.
-
-## Stoplinje
-
-Lead ejer den tekniske beslutning og kan stoppe arbejdet. Risikofyldt ændring kræver aktiv
-beslutningspost i STATUS før kode, uafhængigt adversarial review før merge/release og
-opdaterede faktiske resultater. En plan er ikke et resultat.
-
-Voice PE-firmware ejer fysisk wake/playback/rearm; `VoicePELink` er eneste nativeadapter;
-`ThinSession` er samtalemotor; GPT-Live ejer semantik. V2.x er full duplex: aktiv
-Live-input må fortsætte under svar; v1.x-half-duplex må ikke genindføres som krav.
-Legacy `full_duplex`-flags beviser ikke Live-adfærd. Talk beviser ikke puckens
-fysiske lydvej. Classic og direct PCM er karantæneret legacy. Tests, Talk, CI, transcript
-eller korrekt svar alene giver ikke fysisk accept.
-
-## Kort UX-bestilling → samlet leverance · direkte brugerbeslutning 6. november 2026
-
-“Lav [del] fuldt” / “[del] fuld” aktiverer den eksisterende leveranceaftale i
-[UI-DELIVERY-GOAL: Kort UX-bestilling](docs/UI-DELIVERY-GOAL.md#kort-ux-bestilling).
-Standard er fuld brugeroplevelse med hurtigste tilstrækkelige teknik. Udled krav af
-samtalen, godkendt UI, faktisk kilde og ejerens kapabiliteter; agenten ejer tekniske
-valg og QA. Bed ikke brugeren gentage krav eller vælge test-/implementeringsdetaljer.
-“Hurtig” vælges kun ved eksplicit bestilling; oplys afgrænsningen uden at reducere
-allerede accepteret scope. Brug eksisterende ejere, kit, harness og feedbackoversigt.
-Gennemfør hele forløbet og saml beslægtede rettelser før levering; undgå ny udgivelse
-pr. hypotese. Ingen ny tracker, obligatorisk skillpakke eller generel audit.
-Dette ophæver ingen adgangs-, UNKNOWN-, review-, lyd- eller installationsgrænse.
-
-## Normal arbejdssekvens
-
-Produktkode: ret den observerede årsag, kør berørt regression/adaptor, få ét fokuseret
-review, bind exact tree og kør officiel CI én gang på den frosne kandidat.
-
-Ved levering med genbrug af grøn PR-CI skal releaseejeren bruge normal merge
-(`merge_method="merge"`) og før merge kontrollere den valgte metode samt præcis
-reviewet base, head, tree og tilhørende PR-CI. `scripts/ci_promotion.py` kræver en
-merge med to forældre og samme base/head/tree for at kunne genbruge PR-resultatet;
-identiske filer alene er ikke nok. Squash eller rebase må kun vælges, når en fuld
-main-CI bevidst accepteres. Kontrollér metoden før merge: squash/rebase mister den
-krævede merge-relation og udløser ny CI; gentagelse efter merge reparerer den ikke.
-
-Docs-only ændringer og isolerede fixture-rettelser bruger kun relevante statiske eller
-fokuserede checks; de udløser ikke lokal bred releasegate.
-
-Før freeze følges ændrede signaturer, callbacks og admission-grænser gennem kaldesteder,
-wrappers og fixtures. Ret relaterede stale fixtures i samme ændringssæt.
-
-Testopsætning er et middel til issue-rettelsen. Genbrug eksisterende harness og mindste
-adapter; byg ikke et selvstændigt testprodukt.
-
-Ved timeout, sandboxfejl eller flaky test: isolér tooling/testårsag én gang. Gentag kun
-den ugyldiggjorte gate; gør ikke runtimepatch ud fra procesforsinkelse.
-
-## Status og handoff
-
-Før pause gemmes konkret arbejde og åbne issues med status **planlagt build**,
-**udgivet/afventer test** eller **ingen version aftalt**.
-
-Hvis brugeren beder om at færdiggøre en igangværende afgrænset udgivelse før pause,
-færdiggøres den uden at starte nye forbedringsspor.
-
-Lead opdaterer den aktive STATUS-beslutning med faktisk ændring, kontroller, afvigelser,
-usikkerhed og fysisk gate-status. Planer må ikke registreres som resultater.
-
-Provider, CI, publicering, installation og fysisk accept rapporteres hver for sig.
+Bump versionen i `pyproject.toml`, `podvoice/config.yaml`, `podvoice/gatekeeper/__init__.py`
+og skriv én linje i `podvoice/CHANGELOG.md`. Merge til `main` → CI tester og publicerer
+add-on-imaget. Installation på Home Assistant er et separat, manuelt trin.

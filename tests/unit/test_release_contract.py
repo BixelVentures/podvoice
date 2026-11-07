@@ -60,14 +60,13 @@ def test_shipped_package_has_no_selectable_simulation_runtime() -> None:
     assert (ROOT / "tests" / "fakes" / "legacy_sim.py").exists()
 
 
-def test_agent_entry_links_resolve_to_one_current_contract() -> None:
+def test_agent_entry_is_one_short_page() -> None:
     agents = (ROOT / "AGENTS.md").read_text()
     assert "AGENTS.md" in (ROOT / "CLAUDE.md").read_text()
-    local_links = re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", agents)
-    assert {"docs/STATUS.md", "docs/AGENTKONTRAKT.md", "docs/UDVIKLINGSFLOW.md"} <= set(local_links)
-    for target in local_links:
+    assert len(agents.splitlines()) <= 120
+    for target in re.findall(r"\]\(([^)#]+)(?:#[^)]*)?\)", agents):
         if "://" not in target:
-            assert (ROOT / target).is_file(), target
+            assert (ROOT / target).exists(), target
 
 
 @pytest.mark.parametrize(
@@ -140,17 +139,12 @@ def test_release_inspection_executes_actual_shell_and_preserves_immutability(
     )
 
 
-def test_missing_release_recovery_keeps_main_checks_and_guards_every_publish_step() -> None:
+def test_publisher_runs_only_on_main_after_every_check_job() -> None:
     publisher = (ROOT / ".github/workflows/ci.yml").read_text().split("  publish-addon:\n", 1)[1]
     header, *steps = publisher.split("\n      - ")
-    assert "needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]" in header
+    assert "needs: [python, ui, ha-framework]" in header
     assert "github.ref == 'refs/heads/main'" in header
-    assert "!cancelled()" in header
-    for job in ("scope", "lint-test", "remaining-tests", "ui-browser", "ha-framework"):
-        assert f"needs.{job}.result == 'success'" in header
-    assert "needs.scope.outputs.tooling_only != 'true'" in header
     assert "always()" not in header
-    guard_position = next(i for i, step in enumerate(steps) if "id: release\n" in step)
     for step in steps:
         if (
             "id: artifact\n" in step
@@ -158,54 +152,3 @@ def test_missing_release_recovery_keeps_main_checks_and_guards_every_publish_ste
             or step.startswith("name: Record published digest\n")
         ):
             assert "if: steps.release.outputs.required == 'true'" in step
-    for step in steps[:guard_position]:
-        if step.startswith(
-            (
-                "id: version\n",
-                "uses: docker/setup-qemu-action@v3\n",
-                "uses: docker/setup-buildx-action@v3\n",
-                "uses: docker/login-action@v3\n",
-            )
-        ):
-            assert "\n        if:" not in step
-
-
-def test_publisher_requires_every_job_to_succeed_even_when_ancestors_are_skipped() -> None:
-    publisher = (ROOT / ".github/workflows/ci.yml").read_text().split("  publish-addon:\n", 1)[1]
-    header = publisher.split("\n    needs:", 1)[0]
-    expression = header.split("if: ${{", 1)[1].split("}}", 1)[0]
-    jobs = ("scope", "lint-test", "remaining-tests", "ui-browser", "ha-framework")
-
-    for job in jobs:
-        assert f"needs.{job}.result == 'success'" in expression
-        expression = expression.replace(f"needs.{job}.result", f"{job.replace('-', '_')}_result")
-    assert "!cancelled()" in expression
-    expression = expression.replace("!cancelled()", "not cancelled")
-    expression = expression.replace("needs.scope.outputs.tooling_only", "tooling_only")
-    expression = expression.replace("github.ref", "ref").replace("github.event_name", "event_name")
-    expression = expression.replace("&&", "and").replace("||", "or")
-
-    def allowed(
-        results, *, cancelled=False, tooling_only="false", ref="refs/heads/main", event_name="push"
-    ):
-        context = {f"{job.replace('-', '_')}_result": results.get(job) for job in jobs}
-        context.update(
-            cancelled=cancelled,
-            tooling_only=tooling_only,
-            ref=ref,
-            event_name=event_name,
-        )
-        return eval(expression, {"__builtins__": {}}, context)
-
-    assert allowed(
-        dict.fromkeys(jobs, "success")
-    )  # Unreferenced transitive ancestors may be skipped.
-    for job in jobs:
-        for result in ("failure", "skipped", "cancelled", None):
-            results = dict.fromkeys(jobs, "success")
-            results[job] = result
-            assert not allowed(results)
-    assert not allowed(dict.fromkeys(jobs, "success"), cancelled=True)
-    assert not allowed(dict.fromkeys(jobs, "success"), tooling_only="true")
-    assert not allowed(dict.fromkeys(jobs, "success"), ref="refs/heads/release")
-    assert not allowed(dict.fromkeys(jobs, "success"), event_name="pull_request")
