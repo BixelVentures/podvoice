@@ -407,15 +407,14 @@ class VehicleSnapshot:
                     observed = ha_trunk
                     result["sourceIdentity"] += "_and_ha_state"
             stamp = observed["observedAt"]
-            if time.time() - stamp <= TTL:
-                result.update(
-                    status="observed",
-                    data={"trunk": observed["value"]},
-                    timestamps={"vehicle_state": stamp},
-                    observedAt=stamp,
-                    fieldObservedAt={"trunk": stamp},
-                    historicalFields=[],
-                )
+            result.update(
+                status="observed" if time.time() - stamp <= TTL else "stale",
+                data={"trunk": observed["value"]},
+                timestamps={"vehicle_state": stamp},
+                observedAt=stamp,
+                fieldObservedAt={"trunk": stamp},
+                historicalFields=[],
+            )
             return result
         required = {
             "climate_state"

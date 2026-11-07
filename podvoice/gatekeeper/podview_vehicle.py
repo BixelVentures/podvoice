@@ -605,6 +605,12 @@ async def read_snapshot(
                 or any(type(path) is not str or path not in field_times for path in historical)
             ):
                 return unavailable
+            if trunk_control and (
+                value["sourceIdentity"] not in {"coordinator", "coordinator_and_ha_state"}
+                or historical
+                or field_times != {"trunk": value["observedAt"]}
+            ):
+                return unavailable
             for path, stamp in field_times.items():
                 if type(path) is not str or not number(stamp, 1, clock):
                     return unavailable

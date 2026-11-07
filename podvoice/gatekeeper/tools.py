@@ -2625,10 +2625,8 @@ class ToolRouter:
                 current=lambda: self.podview_vehicle_control_binding() == binding,
                 trunk_control=True,
             )
-            if (
-                result["status"] == "observed"
-                and "trunk" in result.get("fieldObservedAt", {})
-                and not result.get("historicalFields")
+            if result["status"] in {"observed", "stale"} and "trunk" in result.get(
+                "fieldObservedAt", {}
             ):
                 return result["data"]["trunk"]
             return None

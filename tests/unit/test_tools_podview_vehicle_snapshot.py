@@ -180,15 +180,25 @@ async def test_binding_is_stable_on_failure_and_changes_when_policy_replaced_and
         )
 
 
-@pytest.mark.parametrize("legacy", [False, True])
-async def test_trunk_control_negotiates_scope_and_does_not_retry_older_component(legacy):
+@pytest.mark.parametrize(
+    "legacy,age,source",
+    [
+        (False, 10, "coordinator"),
+        (False, 12 * 3600, "coordinator"),
+        (False, 12 * 3600, "cached"),
+        (True, 10, "coordinator"),
+    ],
+)
+async def test_trunk_control_negotiates_scope_and_does_not_retry_older_component(
+    legacy, age, source
+):
     seen = []
     scope = podview_vehicle.VehicleScope("fleet", "car", (("trunk", "cover.trunk"),))
-    value = snapshot()
+    value = snapshot(age)
     stamp = value["observedAt"]
     value.update(
         entities={"trunk": "cover.trunk"},
-        sourceIdentity="coordinator",
+        sourceIdentity=source,
         timestamps={"vehicle_state": stamp},
         data={"trunk": "open"},
         fieldObservedAt={"trunk": stamp},
@@ -210,7 +220,8 @@ async def test_trunk_control_negotiates_scope_and_does_not_retry_older_component
             with pytest.raises(httpx.HTTPStatusError):
                 await control.trunk_state_read("cover.trunk")
         else:
-            assert await control.trunk_state_read("cover.trunk") == "open"
+            expected = "open" if source == "coordinator" else None
+            assert await control.trunk_state_read("cover.trunk") == expected
         assert await control.trunk_state_read("cover.other") is None
     assert len(seen) == 1
     assert seen[0].method == "POST"

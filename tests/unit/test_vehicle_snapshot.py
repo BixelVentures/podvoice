@@ -788,7 +788,7 @@ async def test_partial_coordinator_refresh_during_cache_read_cannot_admit_false_
         (0, 5, "closed", "closed"),
         (1, 5, "open", "open"),
         (0, 5, "open", "open"),
-        (0, 1800, "closed", None),
+        (0, 12 * 3600, "closed", "closed"),
     ],
 )
 async def test_trunk_control_proof_uses_current_local_evidence_only(
@@ -812,6 +812,7 @@ async def test_trunk_control_proof_uses_current_local_evidence_only(
     if expected is None:
         assert result["status"] == "unavailable" and result["data"] is None
     else:
-        assert result["status"] == "observed" and result["data"] == {"trunk": expected}
         stamp = rig.now - (2 if raw_rt == 0 and ha_state == "open" else age)
+        expected_status = "stale" if rig.now - stamp > snapshot.TTL else "observed"
+        assert result["status"] == expected_status and result["data"] == {"trunk": expected}
         assert result["fieldObservedAt"] == {"trunk": stamp}
