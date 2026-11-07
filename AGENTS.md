@@ -1,6 +1,7 @@
 # PodVoice / PodView — sådan arbejder du her
 
-Én side. Læs ikke andet end denne fil, issuet og den kode, issuet berører.
+Én side. Læs ikke andet end denne fil, issuet og den kode, issuet berører. Acceptkravene pr. feature
+står i `docs/BRUGERHISTORIER.md`; et issue henviser til historiens nummer (fx A3).
 
 ## Produktet
 
