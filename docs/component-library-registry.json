@@ -1106,6 +1106,8 @@
           "method:openSearch": 1,
           "method:ownerChanged": 1,
           "method:pendingPlayer": 1,
+          "method:playerFeedback": 1,
+          "method:selectionItemObserved": 1,
           "method:prefetchTargets": 1,
           "method:readTargets": 1,
           "method:render": 1,

@@ -107,7 +107,7 @@ test('expired source explicit renewal shows selected metadata immediately but ca
 });
 
 test('default playlist intent captures configured native pair and rejects another room on the same engine',async()=>{
- const f=selectionFixture({knownTarget:false});try{f.host.liveSnapshot.capabilities.musicRead.push('playback');f.host.liveTransport.musicSelectionAction=async()=>({outcome:'accepted',requestId:'selected'});await f.view.chooseCard(f.entry.cards[0]);const configured=f.host.liveSnapshot.mediaRoomBindings[0];assert.deepEqual(f.view.feedback.settlementReceipt.destination,{accountId:'account',nativeRoomId:configured.nativeRoomId,nativeHomepodId:configured.nativeHomepodId});assert.equal(Object.isFrozen(f.view.feedback.settlementReceipt.destination),true);f.view.feedback.uri='spotify:playlist:'+'P'.repeat(22);const feedback=f.view.feedback,now=Date.now(),playback={projectionVersion:2,observationStatus:'observed',config_entry_id:'account',bootId:'boot',roomId:'room',state:'playing',target:{id:'device'},item:{uri:'spotify:track:'+'T'.repeat(22)},observedAt:new Date(now+1).toISOString(),expiresAt:now+10000,roomBinding:{...configured,nativeRoomId:'other-room',nativeHomepodId:'other-homepod',validUntil:now/1000+10}};f.view.observePlayback(playback);assert.equal(f.view.feedback,feedback);playback.roomBinding={...configured,validUntil:now/1000+10};f.view.observePlayback(playback);assert.equal(f.view.feedback.awaitingObservation,false);assert.notEqual(f.entry.selectionConfirmed,true);}finally{f.cleanup();}
+ const f=selectionFixture({knownTarget:false});try{f.host.liveSnapshot.capabilities.musicRead.push('playback');f.host.liveTransport.musicSelectionAction=async()=>({outcome:'accepted',requestId:'selected'});await f.view.chooseCard(f.entry.cards[0]);const configured=f.host.liveSnapshot.mediaRoomBindings[0];assert.deepEqual(f.view.feedback.settlementReceipt.destination,{accountId:'account',nativeRoomId:configured.nativeRoomId,nativeHomepodId:configured.nativeHomepodId});assert.equal(Object.isFrozen(f.view.feedback.settlementReceipt.destination),true);f.view.feedback.uri='spotify:playlist:'+'P'.repeat(22);const feedback=f.view.feedback,now=Date.now(),playback={projectionVersion:2,observationStatus:'observed',config_entry_id:'account',bootId:'boot',roomId:'room',state:'playing',target:{id:'device'},item:{uri:'spotify:track:'+'T'.repeat(22)},observedAt:new Date(now+1).toISOString(),expiresAt:now+10000,roomBinding:{...configured,nativeRoomId:'other-room',nativeHomepodId:'other-homepod',validUntil:now/1000+10}};f.view.observePlayback(playback);assert.equal(f.view.feedback,feedback);playback.roomBinding={...configured,validUntil:now/1000+10};f.view.observePlayback(playback);assert.equal(f.view.feedback.awaitingObservation,true,'destination alone does not identify the playlist transition');assert.notEqual(f.entry.selectionConfirmed,true);}finally{f.cleanup();}
 });
 
 test('accepted observed first choice permits explicit different retained card only through new candidate authority',async()=>{
@@ -147,4 +147,47 @@ test('successful renewal that loses focused control logs focus change without di
 test('held explicit renewal cannot dispatch after owner, capability, room or focus changes',async()=>{for(const change of ['owner','capability','boot','room','account','binding','focus']){const f=selectionFixture({knownTarget:false}),previous=globalThis.document,focus={};globalThis.document={activeElement:focus,body:{}};try{const c=f.host.liveCatalogue,cards=f.entry.cards;f.entry.renewalScope=c.renewalScope();f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{f.sent.push({offer,optionId});return {outcome:'accepted',requestId:'selected'};};await f.view.chooseCard(cards[0]);sourceSettlement(f);assert.equal(f.entry.selectionConfirmed,true);const pending=f.view.chooseCard(cards[1]);assert.equal(c.pendingRead.reason,'choice');if(change==='owner')f.host.liveSnapshot.voice={sessionId:'other'};if(change==='capability')f.host.liveSnapshot.capabilities.musicSelection=false;if(change==='boot')f.host.liveSnapshot.bootId='other';if(change==='room')f.host.liveSnapshot.roomId='other';if(change==='account')f.host.liveMedia.account='other';if(change==='binding')f.host.liveSnapshot.mediaRoomBindings[0].bindingId='b'.repeat(64);if(change==='focus')globalThis.document.activeElement={};f.view.onSnapshot();const fresh=body();fresh.candidateSet.candidateSetId='d'.repeat(64);c.tracks('top',fresh,'account');await pending;assert.equal(f.sent.length,1,change);assert.equal(f.setups.length,1,change);}finally{globalThis.document=previous;f.cleanup();}}});
 
 test('accepted explicit track stays pending through old observation and confirmed receipt until exact fresh track arrives',async()=>{const f=selectionFixture({knownTarget:false});try{f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{f.sent.push({offer,optionId});return {outcome:'accepted',requestId:'selected'};};await f.view.chooseCard(f.entry.cards[1]);const feedback=f.view.feedback,uri=feedback.uri;assert.equal(f.view.pendingPlayer()?.title,'Actual 1');f.view.feedback={...feedback,settlementStatus:'confirmed',awaitingObservation:false};f.host.liveMedia.playback=boundPlayback(f.host.liveSnapshot,{state:'playing',observedAt:new Date(feedback.requestedAt+1).toISOString(),expiresAt:Date.now()+10000,item:{uri:'spotify:track:'+'Z'.repeat(22)}},'account');assert.equal(f.view.pendingPlayer()?.title,'Actual 1','confirmed receipt and different observed track are not item proof');f.host.liveMedia.playback=boundPlayback(f.host.liveSnapshot,{state:'playing',observedAt:new Date(feedback.requestedAt+1).toISOString(),expiresAt:Date.now()+10000,item:{uri}},'account');assert.equal(f.view.pendingPlayer(),null,'fresh exact observation owns display');assert.equal(f.sent.length,1);}finally{f.cleanup();}});
-test('accepted playlist never invents its first track and rejected selection never stays pending',async()=>{const f=selectionFixture({knownTarget:false});try{f.host.liveTransport.musicSelectionAction=async()=>({outcome:'accepted',requestId:'selected'});await f.view.chooseCard(f.entry.cards[0]);f.view.pendingCardSource.tracks[f.view.pendingCardIndex].uri='spotify:playlist:'+'A'.repeat(22);assert.equal(f.view.pendingPlayer(),null);f.view.pendingCardSource.tracks[f.view.pendingCardIndex].uri='spotify:track:'+'A'.repeat(22);f.view.feedback={...f.view.feedback,settlementStatus:'rejected'};assert.equal(f.view.pendingPlayer(),null);}finally{f.cleanup();}});
+test('accepted playlist holds its title and cover until owner confirmation and a post-selection item agree',async()=>{
+ for(const confirmationFirst of [false,true]){
+  const f=selectionFixture({knownTarget:false});
+  try{
+   const selected=f.entry.source.tracks[0];
+   f.host.liveTransport.musicSelectionAction=async()=>({outcome:'accepted',requestId:'selected'});
+   await f.view.chooseCard(f.entry.cards[0]);
+   f.view.pendingCardSource.tracks[f.view.pendingCardIndex].uri='spotify:playlist:'+'A'.repeat(22);
+   f.view.feedback.uri=selected.uri;
+   const feedback=f.view.feedback,epoch='source-owner',receipt=f.view.settlementReceipt();
+   const payload=sourceSettlement(f,'confirmed','selected',true);
+   payload.data.playback.item.uri='spotify:track:'+'T'.repeat(22);
+   payload.data.observation.observed_at=new Date(feedback.requestedAt+2).toISOString();
+   const observation=(changedAt,withReceipt=false)=>{
+    const next=structuredClone(payload);
+    next.data.playback.provider_changed_at_ms=changedAt;
+    if(!withReceipt)delete next.settlement;
+    const playback=roomPlaybackObservation(next,'account',f.host.liveSnapshot,undefined,withReceipt?{receiptRequestId:'selected'}:{});
+    f.host.liveMedia.playback=playback;
+    f.view.observePlayback(playback,withReceipt?receipt:null);
+   };
+   const old=feedback.requestedAt-1,newItem=feedback.requestedAt+1;
+   assert.equal(f.view.pendingPlayer()?.title,selected.name);
+   assert.deepEqual(f.view.pendingPlayer()?.artwork,selected.artwork);
+   observation(confirmationFirst?old:newItem,confirmationFirst);
+   assert.equal(f.view.pendingPlayer()?.uri,selected.uri);
+   if(confirmationFirst){
+    const waiting=f.view.feedback;
+    f.view.feedback={...waiting,requestedAt:Date.now()-30000};
+    assert.equal(f.view.pendingPlayer(),null);
+    assert.equal(f.view.playerFeedback().message,'Kunne ikke bekræfte det valgte nummer.');
+    assert.equal(f.view.playerFeedback().displayExpired,true);
+    assert.equal(f.sent.length,0);
+    f.view.feedback=waiting;
+   }
+   observation(newItem,!confirmationFirst);
+   assert.equal(f.view.feedback.settlementTuple.owner_epoch,epoch);
+   assert.equal(f.view.feedback.displayObserved,true);
+   assert.equal(f.view.pendingPlayer(),null);
+   f.view.feedback={...feedback,settlementStatus:'rejected'};
+   assert.equal(f.view.pendingPlayer(),null);
+  }finally{f.cleanup();}
+ }
+});

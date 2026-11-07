@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import secrets
+import time
 from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -32,6 +33,8 @@ if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
 
 content = Rig()
 content_owner(content, action="play_context" if cold else "play_track")
+if cold and repeat_mood:
+    content.value["actions"].append("play_track")
 tracks = [
     {"name": f"Katalogsang {i}", "artist": "Inert kunstner", "uri": f"spotify:track:{i:022d}"}
     for i in (11, 12, 13)
@@ -48,7 +51,9 @@ if cold:
 
     def cold_observation(args):
         if base.state["state"] != "no_active_playback":
-            return original_observation(args)
+            value = original_observation(args)
+            value["playback"]["provider_changed_at_ms"] = base.state.get("selected_at_ms")
+            return value
         raw = base.payload("playback", "account")
         raw["poll_sequence"] = base.state["sequence"]
         raw["playback"] = {"state": "no_active_playback", "target": None, "item": None}
@@ -154,8 +159,9 @@ async def native(request):
         content.value["observation"]["observed_at"] = base.timestamp()
         response = await content.handle(request)
         if service == "start_room_selected_content":
-            uri = args["args"]["context_uri" if cold else "track_uri"]
-            if cold:
+            context_start = args["action"] == "play_context"
+            uri = args["args"]["context_uri" if context_start else "track_uri"]
+            if context_start:
                 assert uri.startswith("spotify:playlist:")
             else:
                 assert uri in {row["uri"] for row in tracks}
@@ -167,16 +173,17 @@ async def native(request):
                     and uri != base.state["selections"][0]["uri"]
                     else 11
                 )
-                if cold
+                if context_start
                 else int(uri.rsplit(":", 1)[-1]),
                 state="playing",
                 volume=args["start_offer"]["start_volume_percent"],
+                selected_at_ms=int(time.time() * 1000),
             )
             base.state["sequence"] += 1
             base.state["selections"].append({"uri": uri, "requestId": args["request_id"]})
             base.state["writes"].append(
                 {
-                    "action": "play_context" if cold else "play_track",
+                    "action": args["action"],
                     "uri": uri,
                     "requestId": args["request_id"],
                 }
@@ -265,7 +272,9 @@ base.music.tools._discovery = replace(
     },
 )
 base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
-    ["play_context"] if cold else ["play_track", "play_queue_occurrence"]
+    (["play_context", "play_track"] if repeat_mood else ["play_context"])
+    if cold
+    else ["play_track", "play_queue_occurrence"]
 )
 
 

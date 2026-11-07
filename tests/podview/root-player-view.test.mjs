@@ -479,14 +479,19 @@ test('matching observed playback clears only the selection waiting text in the r
 });
 
 
-test('newer actual different playback or explicit control dismisses only accepted waiting copy',()=>{
+test('a different playback item preserves the explicit selection while a new control can dismiss waiting copy',()=>{
  const f=surface({live:true}),snapshot={bootId:'boot',roomId:'room',capabilities:{musicRead:['playback']}},now=Date.now(),uri='spotify:track:0123456789ABCDEFGHIJKL';
  const selection=Object.create(LiveMusicSelectionView.prototype);selection.host={liveSnapshot:snapshot};selection.context=()=>({});selection.resultTicket=null;
  const receipt={requestId:'original'},waiting={outcome:'accepted',message:'Anmodningen er modtaget · afventer observeret afspilning.',pending:false,awaitingObservation:true,accountId:'account',targetId:'device',uri,requestedAt:now,settlementReceipt:receipt};
  const playback=boundPlayback(snapshot,{expiresAt:now+10000,observedAt:new Date(now+1).toISOString(),state:'paused',item:{name:'Different song',artists:['Artist'],uri:'spotify:track:ZZZZZZZZZZZZZZZZZZZZZZ'},target:{name:'Actual room'}});
  for(const invalid of [{...playback,observedAt:new Date(now-1).toISOString()},{...playback,roomBound:false}]){selection.feedback={...waiting};selection.observePlayback(invalid);assert.equal(selection.feedback.message,waiting.message);}
- selection.feedback={...waiting};selection.observePlayback(playback);f.view.renderPlayer({...livePlayerModel(playback,true,'ready',snapshot),feedback:selection.feedback});assert.equal(selection.feedback.message,'');assert.equal(selection.feedback.outcome,'accepted');assert.equal(selection.feedback.settlementReceipt,receipt);assert.equal(selection.feedback.settlementStatus,undefined);assert.equal(f.nodes.get('track-name').textContent,'Different song');assert.equal(f.nodes.get('play-icon').src,'assets/icons/play-fill.svg');
- selection.feedback={...waiting};const playing={...playback,state:'playing'};selection.observePlayback(playing);f.view.renderPlayer({...livePlayerModel(playing,true,'ready',snapshot),feedback:selection.feedback});assert.equal(selection.feedback.message,'');assert.equal(f.nodes.get('track-name').textContent,'Different song');assert.equal(f.nodes.get('play-icon').src,'assets/icons/pause-fill.svg');assert.equal(selection.feedback.settlementStatus,undefined);
+ for(const state of ['paused','playing']){
+  selection.feedback={...waiting};
+  selection.observePlayback({...playback,state});
+  assert.equal(selection.feedback.message,waiting.message);
+  assert.equal(selection.feedback.awaitingObservation,true);
+  assert.equal(selection.feedback.settlementReceipt,receipt);
+ }
  for(const outcome of ['accepted','unknown']){selection.feedback={...waiting,outcome,message:outcome==='accepted'?waiting.message:'Udfaldet er ukendt · handlingen gentages ikke.'};const control=Object.create(LiveControlView.prototype);control.host={liveSelection:selection};const token=control.beginMusicIntent();assert.ok(token);assert.equal(selection.feedback.outcome,outcome);assert.equal(selection.feedback.message,outcome==='accepted'?'':'Udfaldet er ukendt · handlingen gentages ikke.');}
 });
 

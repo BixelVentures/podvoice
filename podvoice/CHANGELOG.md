@@ -1,3 +1,7 @@
+## 2.0.142
+
+- Show the selected song or playlist immediately and retain its cover while the player waits for the matching playback observation.
+
 ## 2.0.141
 
 - Distinguish an unavailable queue read, an invalid response and the first failed comparison in rejected queue selection receipts. Keep existing checks and playback behavior.
