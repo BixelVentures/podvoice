@@ -34,6 +34,7 @@ udtrykkeligt siger andet.
 | [EVALUERING.md](EVALUERING.md) | Afgrænset OpenAI Realtime-diagnostik/oracle; den evaluerer ikke GPT-Live-produktion og kan ikke godkende v2.x eller fysisk accept. |
 | [LATENCY_MEASUREMENT.md](LATENCY_MEASUREMENT.md) | Aktuelle krav til fysisk rumsmåling samt historisk reporter-/manifestskema; offline-rapporteren er ikke den GPT-Live fysiske måleprotokol. STATUS ejer faktiske måleresultater. |
 | [wake-word.md](wake-word.md) | Wake-word-procedure og baggrund; kontroller aktuelle firmware-/enhedsforhold i STATUS før brug. |
+| [AUDIT-PODVIEW-MUSIK-2026-11-07.md](AUDIT-PODVIEW-MUSIK-2026-11-07.md) | Brugerbestilt audit af musikoplevelsens rodårsager (PodView/PodVoice/PodConnect) og arbejdsmetode. Input til lead, ikke autoritet over de fire produktfiler. |
 | [PODVIEW-CONTROLLER-POLICY-CANDIDATE.md](PODVIEW-CONTROLLER-POLICY-CANDIDATE.md) | Separat PodView-kontrolejeres kandidat. Den ændrer ikke PodVoice-adgang eller aktiv policy. |
 | [PODVIEW-ROBOT-READ-CONTRACT.md](PODVIEW-ROBOT-READ-CONTRACT.md) | Separat PodView/Roborock read-contract-kandidat. Bevar filen og dens direkte ejerbeslutninger; den er ikke PodVoice-adgangsautoritet. |
 | [reviews/RESEARCH-ENRICHMENT-2026-10-15.md](reviews/RESEARCH-ENRICHMENT-2026-10-15.md) | Dateret review-/research-record. Brug kun dens eksplicitte beslutningsstatus; den erstatter ikke core docs. |
