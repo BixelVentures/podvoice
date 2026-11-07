@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "0ed3cd5690d081ce17f5c14b15120fbcac7fadf77971c35c39cb9bafde80d646"
+      "sha256": "5d5f64212f0e8ca182ef4abe60262b5894006437a4ac19b4fedad760afac407b"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "d21af13f2d85c092cb5f1a07f1bf7cd590f286d74d9c81cd0467b636fad8d956"
+      "sha256": "1799877fc9946ec9ce967bf084f9120f9547e154b431ff5a3d8bf30b57cbefc6"
     },
     {
       "path": "podview.css",

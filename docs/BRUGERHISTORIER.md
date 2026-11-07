@@ -13,7 +13,7 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 |---|---|---|
 | A1 | Musik spiller → jeg trykker pause → knappen viser "Fortsæt" < 100 ms, musikken stopper < 1 s, knappen bliver aldrig grå | delvis ✅ music: knap < 500 ms og aldrig grå; stoptid ikke målt |
 | A2 | Musik er sat på pause → jeg trykker afspil → samme som A1 omvendt | område: music |
-| A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | ⬜ |
+| A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | delvis ✅ enhedstest: 3 hurtige tryk giver 3 næste i rækkefølge, aldrig grå; tid i browser ikke målt |
 | A4 | Jeg trækker i lydstyrken → slideren følger fingeren uden at hoppe tilbage, lyden ændres < 1 s | område: music |
 | A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ |
 | A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | ✅ music_push (< 1,5 s; målt ~30 ms efter HA-hændelse; PodConnect læser Spotify hvert 3. s under afspilning) |
