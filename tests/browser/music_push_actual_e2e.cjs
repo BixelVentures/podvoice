@@ -1,6 +1,6 @@
 'use strict';
-// User story A6 (docs/BRUGERHISTORIER.md): a change made in another app (Spotify on a phone)
-// shows on the screen within 1.5 s, pushed from Home Assistant instead of waiting for a poll.
+// Partial A6 coverage: an inert HA playback-change event reaches the screen within 1.5 s.
+// This does not measure Spotify polling/provider delay or physical playback.
 const {chromium} = require('playwright');
 const testEnv = require('./podview_actual_env.cjs');
 const {spawn} = require('node:child_process');
@@ -66,7 +66,7 @@ let browser;
     times.push(await shownWithin(page,
       () => /Fortsæt/.test(document.getElementById('play-pause')?.getAttribute('aria-label') || ''),
       undefined, 1500, 'external-pause'));
-    console.log(`PASS music push: external changes shown in ${times.join(', ')} ms`);
+    console.log(`PASS music push: injected HA changes shown in ${times.join(', ')} ms`);
   } catch (error) {
     console.error(error);
     process.exitCode = 1;

@@ -171,6 +171,12 @@ const state=()=>fetch(base+'/lab/state').then(r=>r.json());
  const queueRow=page.locator('#queue button.queue-track').filter({hasText:'Køsang 22'});
  await queueRow.waitFor({state:'visible',timeout:15000});
  await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track')].some(b=>b.textContent.includes('Køsang 22')&&!b.disabled),undefined,{timeout:15000});
+ // A voice answer must not revoke an unchanged music queue (A12/K7).
+ const queueBeforeVoice=await page.locator('#queue').innerText();
+ await page.request.post(base+'/lab/state',{data:{unrelatedVoiceTurn:'s1:unrelated-answer'}});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.turnId==='s1:unrelated-answer',undefined,{timeout:10000});
+ assert.equal(await page.locator('#queue').innerText(),queueBeforeVoice,'unrelated voice keeps queue content');
+ assert.equal(await queueRow.isEnabled(),true,'unrelated voice keeps queue selectable');
  await queueRow.tap();
  for(let n=0;(await state()).song!==22;n++){if(n>100)throw Error('queue occurrence effect missing');await sleep(100)}
  await page.waitForFunction(()=>document.querySelector('#track-name')?.textContent?.trim()==='Isoleret sang 22',undefined,{timeout:15000});

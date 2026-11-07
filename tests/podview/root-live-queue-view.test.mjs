@@ -104,11 +104,43 @@ test('confirmed empty queue removes old rows without deduplicating valid repeate
  }finally{f.close();}
 });
 
-test('voice or answer revision change retains known queue as stale display but revokes old occurrence authority',async()=>{
- const f=fixture();try{const p=f.host.liveMedia.playback;p.item={uri:'spotify:track:'+'a'.repeat(22)};await f.view.load('account',p);const old=f.view.model('account',p).items[0];assert.equal(old.selectable,true);
-  f.host.liveSnapshot.voice={sessionId:'next'};const changed=f.view.model('account',p);assert.equal(changed.items[0].title,old.title);assert.equal(changed.items[0].selectable,false);assert.equal(changed.status,'stale');await f.view.choose(old);assert.equal(f.actions.length,0);
-  f.host.liveSnapshot.voice={sessionId:'session'};assert.equal(f.view.model('account',p).items[0].selectable,false,'returning to an old voice scope never resurrects a revoked occurrence');f.host.liveSnapshot.answers={taskId:'new',inputRevision:2,revision:2};assert.equal(f.view.model('account',p).items[0].selectable,false);await f.view.choose(old);assert.equal(f.actions.length,0);
- }finally{f.close();}
+test('an unrelated voice answer leaves the same music queue occurrence selectable', async () => {
+ const f = fixture();
+ try {
+  const {playback} = f.host.liveMedia;
+  await f.view.load('account', playback);
+  const offer = f.view.offer;
+  const occurrence = f.view.model('account', playback).items[0];
+  f.host.liveSnapshot.voice = {sessionId: 'next', turnId: 'question'};
+  f.host.liveSnapshot.answers = {taskId: 'weather', inputRevision: 2, revision: 2};
+  const queue = f.view.model('account', playback);
+  assert.equal(queue.status, 'ready');
+  assert.equal(queue.items[0].selectable, true);
+  await f.view.choose(occurrence);
+  assert.deepEqual(f.actions, [{taskId: offer.taskId, id: occurrence.id}]);
+  assert.equal(f.reads.length, 1);
+ } finally {
+  f.close();
+ }
+});
+
+test('an unrelated voice answer does not discard a held read for the same music queue', async () => {
+ const f = fixture();
+ try {
+  const {playback} = f.host.liveMedia;
+  const offer = await f.host.liveTransport.queueOffer();
+  let resolveOffer;
+  f.host.liveTransport.queueOffer = () => new Promise(resolve => { resolveOffer = resolve; });
+  const reading = f.view.load('account', playback);
+  f.host.liveSnapshot.voice = {sessionId: 'next', turnId: 'question'};
+  f.host.liveSnapshot.answers = {taskId: 'weather', inputRevision: 2, revision: 2};
+  resolveOffer(offer);
+  assert.equal(await reading, true);
+  assert.equal(f.view.model('account', playback).items[0].selectable, true);
+  assert.equal(f.actions.length, 0);
+ } finally {
+  f.close();
+ }
 });
 
 test('incomplete queue metadata cannot overwrite known rows or fabricate replacement',async()=>{
@@ -138,8 +170,41 @@ test('duplicate queue occurrences use real metadata but retain each new id and o
  }finally{f.close();}
 });
 
-test('queue metadata matches exact URI across current song changes, but never another owner or voice session',async()=>{
- for(const change of ['song','owner','session']){const f=fixture();try{let p=f.host.liveMedia.playback;const read=f.host.liveTransport.queueOffer;p.item={uri:'spotify:track:'+'a'.repeat(22)};await f.view.load('account',p);const old=f.view.model('account',p).items[0];p=f.host.liveMedia.playback=change==='song'?{...p,item:{uri:'spotify:track:'+'b'.repeat(22)}}:change==='owner'?{...p,owner_epoch:'new-epoch'}:p;if(change==='session')f.host.liveSnapshot.voice.sessionId='next-session';f.host.liveTransport.queueOffer=async()=>{const x=await read();x.ownerEpoch=p.owner_epoch;x.items[0]={...x.items[0],uri:old.uri,title:'Nummer i køen',metadataKnown:false};return x;};assert.equal(await f.view.load('account',p),true);const state=f.view.model('account',p);if(change==='song'){assert.equal(state.items[0].title,old.title);assert.notEqual(state.items[0].id,old.id);assert.equal(state.items[0].selectable,true);assert.equal(state.metadataPending,false);}else{assert.deepEqual(state.items,[]);assert.equal(state.metadataPending,true);}assert.equal(f.actions.length,0);}finally{f.close();}}
+test('queue metadata follows the same music owner across song and conversation changes', async () => {
+ for (const change of ['song', 'owner', 'voice']) {
+  const f = fixture();
+  try {
+   let {playback} = f.host.liveMedia;
+   const read = f.host.liveTransport.queueOffer;
+   playback.item = {uri: 'spotify:track:' + 'a'.repeat(22)};
+   await f.view.load('account', playback);
+   const old = f.view.model('account', playback).items[0];
+   if (change === 'song') playback = {...playback, item: {uri: 'spotify:track:' + 'b'.repeat(22)}};
+   if (change === 'owner') playback = {...playback, owner_epoch: 'new-epoch'};
+   if (change === 'voice') f.host.liveSnapshot.voice.sessionId = 'next-session';
+   f.host.liveMedia.playback = playback;
+   f.host.liveTransport.queueOffer = async () => {
+    const offer = await read();
+    offer.ownerEpoch = playback.owner_epoch;
+    offer.items[0] = {...offer.items[0], uri: old.uri, title: 'Nummer i køen', metadataKnown: false};
+    return offer;
+   };
+   assert.equal(await f.view.load('account', playback), true);
+   const state = f.view.model('account', playback);
+   if (change === 'owner') {
+    assert.deepEqual(state.items, []);
+    assert.equal(state.metadataPending, true);
+   } else {
+    assert.equal(state.items[0].title, old.title);
+    assert.notEqual(state.items[0].id, old.id);
+    assert.equal(state.items[0].selectable, true);
+    assert.equal(state.metadataPending, false);
+   }
+   assert.equal(f.actions.length, 0);
+  } finally {
+   f.close();
+  }
+ }
 });
 
 test('conflicting metadata for same URI is never guessed for an unknown occurrence',async()=>{
@@ -158,15 +223,36 @@ for(const change of ['owner','binding','account','room','boot','logout'])test(`i
  }finally{f.close();}
 });
 
-for(const change of ['owner','binding','voice','transport'])test(`late accepted queue reply cannot continue across ${change} replacement`,async()=>{
+for(const change of ['owner','binding','transport'])test(`late accepted queue reply cannot continue across ${change} replacement`,async()=>{
  const f=fixture();let reply;try{let effects=0,refreshes=0;f.host.liveTransport.queueAction=()=>{effects++;return new Promise(resolve=>reply=resolve);};f.host.liveMedia.refresh=async()=>{refreshes++;};await f.view.load('account',f.host.liveMedia.playback);const old=f.view.model('account',f.host.liveMedia.playback).items[0],choosing=f.view.choose(old);await new Promise(resolve=>setImmediate(resolve));
   f.host.liveMedia.playback={...f.host.liveMedia.playback,item:{uri:'spotify:track:'+'b'.repeat(22)}};
   if(change==='owner')f.host.liveMedia.playback.owner_epoch='new-owner';
   if(change==='binding')f.host.liveMedia.playback.roomBinding={...f.host.liveMedia.playback.roomBinding,bindingId:'b'.repeat(64)};
-  if(change==='voice')f.host.liveSnapshot.voice={sessionId:'new-session'};
   if(change==='transport')f.host.liveTransport={...f.host.liveTransport};
   f.view.model('account',f.host.liveMedia.playback);reply({outcome:'accepted'});await choosing;assert.equal(effects,1);assert.equal(refreshes,0);assert.equal(f.reads.length,1);assert.equal(f.view.offer,null);
  }finally{reply?.({outcome:'unknown'});f.close();}
+});
+
+test('an unrelated voice answer does not discard an accepted queue action or its refresh', async () => {
+ const f = fixture();
+ try {
+  let settle, refreshes = 0;
+  f.host.liveTransport.queueAction = () => new Promise(resolve => { settle = resolve; });
+  f.host.liveMedia.refresh = async () => { refreshes++; };
+  await f.view.load('account', f.host.liveMedia.playback);
+  const occurrence = f.view.model('account', f.host.liveMedia.playback).items[0];
+  const choosing = f.view.choose(occurrence);
+  f.host.liveSnapshot.voice = {sessionId: 'next', turnId: 'question'};
+  f.host.liveSnapshot.answers = {taskId: 'weather', inputRevision: 2, revision: 2};
+  assert.equal(f.view.model('account', f.host.liveMedia.playback).items[0].pending, true);
+  settle({outcome: 'accepted'});
+  await choosing;
+  assert.equal(refreshes, 1);
+  assert.equal(f.reads.length, 2);
+  assert.equal(f.view.model('account', f.host.liveMedia.playback).items[0].selectable, true);
+ } finally {
+  f.close();
+ }
 });
 
 test('only the chosen queue occurrence stays busy until the command settles',async()=>{

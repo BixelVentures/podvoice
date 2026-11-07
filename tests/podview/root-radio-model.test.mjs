@@ -59,7 +59,8 @@ test('actual host routes local radio controls and valid music selection returns 
  const host={live:false,state:localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'}),render(){},dispatch(event){this.state=sceneTransition(this.state,event);}};
  music.call(host,{type:'toggle'});assert.equal(host.state.radioPlaying,false);music.call(host,{type:'volume',value:38});assert.equal(host.state.music.playback.volume,38);
  music.call(host,{type:'select',id:'smooth-jazz',revision:0});assert.equal(host.state.radioStationId,'p3');music.call(host,{type:'select',id:'smooth-jazz',revision:host.state.music.revision});assert.equal(host.state.radioStationId,null);assert.ok(host.state.music.pending);
- const live={live:true,state:host.state,liveMedia:{playback:{state:'playing'}},liveControls:{musicIntent(action){this.action=action;}}};music.call(live,{type:'toggle'});assert.equal(live.liveControls.action,'pause');assert.equal(live.state,host.state);
+ const live={live:true,state:host.state,liveMedia:{playback:{state:'playing'}},liveControls:{optimisticPlaying:observed=>observed,musicIntent(action){this.action=action;}}};music.call(live,{type:'toggle'});assert.equal(live.liveControls.action,'pause');assert.equal(live.state,host.state);
+ live.liveControls.optimisticPlaying=()=>false;music.call(live,{type:'toggle'});assert.equal(live.liveControls.action,'resume','toggle follows visible pending pause, not stale playing observation');
 });
 
 test('retained Radio transport focus callback cannot navigate or dispatch playback',async()=>{

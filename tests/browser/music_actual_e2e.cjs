@@ -44,8 +44,53 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
+ // Measure from the actual trusted touch-generated click, not from a later screenshot.
+ await page.evaluate(()=>{
+  const probe={clickAt:null,pausePaintMs:null,rapidSong:null,rapidLastTap:null,rapidPaintMs:null,disabled:[]};
+  window.musicUXProbe=probe;
+  const selectors='#play-pause, #next, #previous';
+  document.addEventListener('click',event=>{
+   if(event.isTrusted&&event.target.closest('#next')&&probe.rapidSong!==null){
+    probe.rapidLastTap=performance.now();
+    const painted=()=>{
+     if(document.querySelector('#track-name')?.textContent?.trim()===`Isoleret sang ${probe.rapidSong}`){
+      probe.rapidPaintMs=performance.now()-probe.rapidLastTap;
+     }else requestAnimationFrame(painted);
+    };
+    requestAnimationFrame(painted);
+   }
+   if(event.isTrusted&&event.target.closest('#play-pause')&&probe.clickAt===null){
+    probe.clickAt=performance.now();
+    const painted=()=>{
+     const button=document.querySelector('#play-pause');
+     if(button?.getAttribute('aria-label')?.includes('Fortsæt')&&!button.disabled){
+      probe.pausePaintMs=performance.now()-probe.clickAt;
+     }else requestAnimationFrame(painted);
+    };
+    requestAnimationFrame(painted);
+   }
+  },{capture:true});
+  probe.observer=new MutationObserver(records=>{
+   for(const record of records){
+    const target=record.target;
+    if(target.matches?.(selectors)&&record.attributeName==='disabled'&&
+      (target.disabled||record.oldValue!==null)){
+     probe.disabled.push({id:target.id,at:performance.now(),oldValue:record.oldValue});
+    }
+   }
+  });
+  probe.observer.observe(document.querySelector('pv-widget-host'),{
+   subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled'],
+  });
+ });
  await change({delayMs:1200,witnessUnknownReads:1});
  const started=Date.now();await control.tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending===true,undefined,{timeout:3000});
+ await page.waitForFunction(()=>window.musicUXProbe.pausePaintMs!==null,undefined,{timeout:1000});
+ const pausePaintMs=await page.evaluate(()=>window.musicUXProbe.pausePaintMs);
+ assert(pausePaintMs<100,`A1: optimistic Pause paints within 100 ms; observed ${pausePaintMs} ms`);
+ // A real read while the command is in flight must not undo the optimistic view or lock controls.
+ await page.evaluate(()=>document.querySelector('pv-widget-host').liveMedia.refresh({immediate:true}));
+ assert.match(await control.getAttribute('aria-label'),/^Fortsæt/,'refresh preserves the pending Pause intent');
  const pauseBox=await control.boundingBox();assert(pauseBox);
  const pendingTouch=await control.evaluate(button=>{const host=document.querySelector('pv-widget-host');return {disabled:button.disabled,ariaBusy:button.getAttribute('aria-busy'),ariaLabel:button.getAttribute('aria-label'),feedback:button.dataset.feedback,html:button.outerHTML,ownerPending:host?.liveControls?.musicIntentPending===true,status:host?.liveControls?.musicStatus?.textContent,feedbackMessage:host?.feedbackMessage};});
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-touch-pending-witness.json'),JSON.stringify(pendingTouch,null,2));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-touch-pending.png')});
@@ -54,7 +99,7 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
  const duplicatePoint={x:duplicatePauseBox.x+duplicatePauseBox.width/2,y:duplicatePauseBox.y+duplicatePauseBox.height/2};
  assert(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('#play-pause'),duplicatePoint),'duplicate touch targets the actual pending Pause control');
  // Optimistic toggle: the tapped Pause shows "Fortsæt" at once and is never disabled.
- await page.waitForFunction(()=>{const b=document.getElementById('play-pause');return b&&!b.disabled&&b.getAttribute('aria-label')?.includes('Fortsæt');},undefined,{timeout:500});
+ await page.waitForFunction(()=>{const b=document.getElementById('play-pause');return b&&!b.disabled&&b.getAttribute('aria-label')?.includes('Fortsæt');},undefined,{timeout:100});
  await change({song:2});
  for(let n=0;n<60&&(await state()).state!=='paused';n++)await sleep(250);
  const afterPause=await state();
@@ -123,6 +168,51 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.state==='playing',undefined,{timeout:15000});
   assert.equal((await state()).writes.length,externalWrites+2,'touch control remains usable after an external route change');
  }
+ // Three explicit rapid taps must become three commands, including taps while the first is pending.
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending,
+  undefined,{timeout:15000});
+ const beforeRapid=await state();
+ await change({delayMs:250});
+ const next=page.locator('#next');
+ await page.evaluate(song=>{window.musicUXProbe.rapidSong=song;},beforeRapid.song+3);
+ for(let tap=0;tap<3;tap++)await next.tap();
+ await page.waitForFunction(()=>window.musicUXProbe.rapidPaintMs!==null,undefined,{timeout:10000});
+ const rapidVisibleMs=await page.evaluate(()=>window.musicUXProbe.rapidPaintMs);
+ const afterRapid=await state();
+ assert.equal(afterRapid.song,beforeRapid.song+3,'A3: three taps advance three songs');
+ assert.deepEqual(afterRapid.writes.slice(beforeRapid.writes.length).map(row=>row.action),['next','next','next'],
+  'A3: no rapid tap is lost or automatically duplicated');
+ assert(rapidVisibleMs<1500,`A3: final track visible within 1.5 s of last tap; observed ${rapidVisibleMs} ms`);
+ // A9: each tap follows the visible toggle, even before the owner confirms the first Pause.
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending,
+  undefined,{timeout:15000});
+ const beforeToggleBurst=await state();
+ await change({delayMs:600});
+ const toggleLabels=[];
+ for(let tap=0;tap<3;tap++){
+  await control.tap();
+  toggleLabels.push(await control.getAttribute('aria-label'));
+ }
+ await page.waitForFunction(()=>{
+  const controls=document.querySelector('pv-widget-host')?.liveControls;
+  return !controls?.musicIntentPending&&!controls?.musicQueued;
+ },undefined,{timeout:15000});
+ const toggleWrites=(await state()).writes.slice(beforeToggleBurst.writes.length).map(row=>row.action);
+ assert.deepEqual(toggleWrites,['pause','resume','pause'],
+  `A9: rapid visible Pause/Resume/Pause preserves all intents; labels ${JSON.stringify(toggleLabels)}`);
+ assert.equal((await state()).state,'paused','A9: final explicit Pause wins');
+ assert.match(toggleLabels[0],/^Fortsæt/);
+ assert.match(toggleLabels[1],/pause/i);
+ assert.match(toggleLabels[2],/^Fortsæt/);
+ await change({delayMs:0});
+ await control.tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.state==='playing',
+  undefined,{timeout:15000});
+ const disabledDuringRefresh=await page.evaluate(()=>{
+  const probe=window.musicUXProbe;probe.observer.disconnect();return probe.disabled;
+ });
+ assert.deepEqual(disabledDuringRefresh,[],'A1/A3/A9: controls never flash disabled during commands and refresh');
+ await change({delayMs:0});
  // Lose one actual accepted Pause response, then the browser connection. No
  // fixture state mutation or fabricated receipt substitutes for the backend.
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),b=document.querySelector('#play-pause');return h?.liveMedia?.playback?.state==='playing'&&b&&!b.disabled},undefined,{timeout:15000});
@@ -155,7 +245,15 @@ const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-e2e-diagnostics.json'),JSON.stringify(journal,null,2));
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-recovery-witness.json'),JSON.stringify({servedBundleSHA,lostRequestRef,swallowedResponses,writesBefore:beforeLoss.writes.length,writesAfterRecovery:recovered.writes.length,serviceReadsBeforeRecovery:readsBeforeRecovery,serviceReadsAfterRecovery:recovered.serviceReads.length,observedBeforeOffline,observedAfterRecovery:await page.locator('pv-widget-host').evaluate(h=>h.liveMedia.playback.observedAt),journal},null,2));
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({outcome:'PASS',inertFinalService:true,actualPackagedPodView:true,pauseDuringSongChange:true,resume:true,extendedTransport:process.env.MUSIC_EXTENDED==='1',externalOwnerPlaybackAndOutput:process.env.MUSIC_EXTENDED==='1',overviewMatchesPlayer:true,persistedActionTrace:true,lostAcceptedResponse:true,offlineReadRecoveryWithoutEffectReplay:true,touchInput:true,repeatedPendingTapOneEffect:true,pauseRequests:(await state()).writes.filter(row=>row.action==='pause').length,browserSetupRequests:0,pauseObservedWithinMs:pauseObservedMs,pageErrors:errors}));
+ console.log(JSON.stringify({
+  outcome:'PASS',inertFinalService:true,actualPackagedPodView:true,
+  pauseDuringSongChange:true,resume:true,
+  extendedTransport:process.env.MUSIC_EXTENDED==='1',
+  externalOwnerPlaybackAndOutput:process.env.MUSIC_EXTENDED==='1',
+  overviewMatchesPlayer:true,persistedActionTrace:true,lostAcceptedResponse:true,
+  offlineReadRecoveryWithoutEffectReplay:true,touchInput:true,rapidPendingTapsPreserved:true,rapidToggleSequence:toggleWrites,
+  pauseRequests:(await state()).writes.filter(row=>row.action==='pause').length,browserSetupRequests:0,pauseObservedWithinMs:pauseObservedMs,
+  optimisticPausePaintMs:pausePaintMs,rapidThreeNextVisibleMs:rapidVisibleMs,disabledDuringRefresh,pageErrors:errors}));
  }catch(error){
   if(serverSuspended){server.kill('SIGCONT');serverSuspended=false;}
   const page=browser?.contexts()[0]?.pages()[0];
