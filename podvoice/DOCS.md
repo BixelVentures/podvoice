@@ -81,3 +81,44 @@ Hvis noget fejler, læs panelets konkrete status og add-on-loggen. Ved manglende
 Voice PE-forbindelse: kontrollér adresse, PSK og firmware. Ved manglende musikdæmpning:
 kontrollér PodConnect URL/token. Ved værktøjsfejl: kontrollér HA/MCP-eksponering.
 Bevar event- og lydspor fra den berørte samtale, før indstillinger ændres.
+
+## HA-owned timers
+
+Copy this repository's `custom_components/podvoice` directory into Home Assistant's
+`config/custom_components/podvoice`. Add the endpoints to `configuration.yaml`, then
+restart Home Assistant. Use the exact room key from PodVoice Settings and the Voice PE's
+verified MAC address from its device information; the example MAC below is a placeholder.
+The browser endpoint uses `talk` for both endpoint and identity.
+
+```yaml
+podvoice:
+  endpoints:
+    - endpoint: kitchen
+      name: Kitchen Voice PE
+      kind: voice_pe
+      identity: "02:00:00:00:00:01" # Replace with your verified device MAC.
+    - endpoint: talk
+      name: Talk
+      kind: talk
+      identity: talk
+```
+
+The bridge registers its own timer endpoints and uses HA's native intent timer manager.
+It does not change the ESPHome device or start stock Assist. The add-on uses its existing
+authenticated HA connection; no new credential or public endpoint is needed. Timer tools
+appear only after the bridge, endpoint identity and connected adapter agree.
+
+Ask to start, list or cancel a named timer. Each timer has its own ID, including timers
+with the same name. An expiry waits for the current reply/conversation to finish, then
+plays a brief alarm and returns to normal wake. Ask about or cancel the finished timer
+on the next wake. An add-on restart leaves HA countdowns intact; **a Home Assistant Core
+restart clears native timers**. Ambiguous starts are never retried automatically. An
+interrupted alarm stays recorded until actual stop is confirmed; a different Talk tab
+cannot claim that the original tab stopped. Normal integration unload is refused while timers or
+unacknowledged expiry receipts remain, so the sole HA expiry handler is not discarded.
+
+Endpoint configuration is imported once into the PodVoice HA integration entry. Editing
+YAML alone does not replace that entry. To change endpoints, finish/cancel and acknowledge
+its timers first, remove the integration entry, update YAML, then restart HA to import it
+again. Core restart clears native timers. The native bridge has been checked against
+Home Assistant Core 2026.8.2.

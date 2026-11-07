@@ -142,7 +142,7 @@ def test_release_inspection_executes_actual_shell_and_preserves_immutability(
 def test_publisher_runs_only_on_main_after_every_check_job() -> None:
     publisher = (ROOT / ".github/workflows/ci.yml").read_text().split("  publish-addon:\n", 1)[1]
     header, *steps = publisher.split("\n      - ")
-    assert "needs: [python, ui, ha-framework]" in header
+    assert "needs: [python, ui, journeys, ha-framework]" in header
     assert "github.ref == 'refs/heads/main'" in header
     assert "always()" not in header
     for step in steps:

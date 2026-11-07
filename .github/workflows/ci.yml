@@ -39,7 +39,29 @@ jobs:
 
   ui:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Committed PodView assets match their sources
+        run: |
+          node scripts/prepare-podview-checkout.mjs
+          npm run check:components
+      - name: PodView unit and component tests
+        run: node --test tests/podview/*.test.mjs
+
+  journeys:
+    # Real-browser user journeys, one per job so they run in parallel.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        journey: [music, music_selection, radio, robot, light, vehicle, timer, home_events, answers, recipe, panel]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -53,27 +75,23 @@ jobs:
         with:
           node-version: "24.19.0"
           cache: npm
-      - run: npm ci --ignore-scripts
-      - name: Committed PodView assets match their sources
-        run: |
-          node scripts/prepare-podview-checkout.mjs
-          npm run check:components
-      - name: PodView unit and component tests
-        run: node --test tests/podview/*.test.mjs
-      - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+          cache-dependency-path: tests/browser/package-lock.json
+      - run: pip install -r podvoice/requirements.txt
       - working-directory: tests/browser
         run: |
           npm ci --ignore-scripts
           node node_modules/playwright/cli.js install --with-deps chromium
-      - name: PodView user journeys in a real browser
+      - name: PodView journey
+        if: matrix.journey != 'panel'
         env:
           PODVIEW_TEST_PYTHON: python3
-          PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof/podview
-        run: node tests/browser/podview_actual_journeys.cjs
-      - name: Panel journeys in a real browser
+          PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
+        run: node tests/browser/podview_actual_journeys.cjs ${{ matrix.journey }}
+      - name: Panel journeys
+        if: matrix.journey == 'panel'
         env:
           PODVOICE_BROWSER_PROOF: "1"
-          PODVOICE_UI_PROOF_DIR: ${{ runner.temp }}/browser-proof/panel
+          PODVOICE_UI_PROOF_DIR: ${{ runner.temp }}/browser-proof
         run: |
           mkdir -p "$PODVOICE_UI_PROOF_DIR"
           export PODVOICE_TEST_CHROMIUM="$(node -e "console.log(require('./tests/browser/node_modules/playwright').chromium.executablePath())")"
@@ -83,11 +101,11 @@ jobs:
             echo "::endgroup::"
           done
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: browser-proof-${{ github.sha }}
+          name: browser-proof-${{ matrix.journey }}-${{ github.sha }}
           path: ${{ runner.temp }}/browser-proof
-          if-no-files-found: warn
+          if-no-files-found: ignore
 
   ha-framework:
     runs-on: ubuntu-latest
@@ -106,29 +124,44 @@ jobs:
             -B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v
 
   build-addon:
+    # Only when the add-on image itself can change; code is covered by the test jobs.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
+      - id: packaging
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if git diff --quiet "$base" HEAD -- podvoice/Dockerfile podvoice/requirements.txt podvoice/run.sh podvoice/build.yaml podvoice/config.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
       # Build the aarch64 image with docker buildx + an explicit FROM
       # (BUILD_FROM is no longer auto-injected since Supervisor 2026.04.0).
       - uses: docker/setup-qemu-action@v3
+        if: steps.packaging.outputs.changed == 'true'
       - uses: docker/setup-buildx-action@v3
+        if: steps.packaging.outputs.changed == 'true'
       - id: version
+        if: steps.packaging.outputs.changed == 'true'
         run: |
           echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
       - id: artifact
+        if: steps.packaging.outputs.changed == 'true'
         run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         if: >-
+          steps.packaging.outputs.changed == 'true' &&
           github.event.pull_request.head.repo.full_name == github.repository
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: candidate-image
+        if: steps.packaging.outputs.changed == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./podvoice
@@ -140,7 +173,7 @@ jobs:
           cache-from: type=gha,scope=podvoice-aarch64
           # Optional cache export must not hold a completed image push open.
       - name: Verify shipped admin stdin through normal entrypoint
-        if: github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.packaging.outputs.changed == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         shell: bash
         env:
           CANDIDATE_DIGEST: ${{ steps.candidate-image.outputs.digest }}
@@ -153,7 +186,7 @@ jobs:
 
   publish-addon:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
-    needs: [python, ui, ha-framework]
+    needs: [python, ui, journeys, ha-framework]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

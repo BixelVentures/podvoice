@@ -81,3 +81,8 @@ npm run dev -- --host 127.0.0.1 --port 4173                        # PodView-pre
 Bump versionen i `pyproject.toml`, `podvoice/config.yaml`, `podvoice/gatekeeper/__init__.py`
 og skriv én linje i `podvoice/CHANGELOG.md`. Merge til `main` → CI tester og publicerer
 add-on-imaget. Installation på Home Assistant er et separat, manuelt trin.
+
+## Standardprompt til en feature
+
+I Claude Code: `/feature <navn>` (fx `/feature robot`). Andre agenter (fx Codex): brug teksten i
+`.claude/commands/feature.md` og erstat `$ARGUMENTS` med featurens navn.

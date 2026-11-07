@@ -11,7 +11,10 @@ function runJourney(journey,extraEnv={}){
  if(result.error)throw result.error;
  if(result.status!==0)throw new Error(`${journey} failed: ${result.signal||result.status}`);
 }
-for(const journey of journeys){
+// Optional names (e.g. `robot music`) run only those journeys, so CI can run them in parallel.
+const only=process.argv.slice(2).map(name=>name.endsWith('_actual_e2e.cjs')?name:`${name}_actual_e2e.cjs`);
+for(const name of only)if(!journeys.includes(name))throw new Error(`Unknown journey: ${name}`);
+for(const journey of only.length?only:journeys){
  runJourney(journey);
  if(journey==='music_selection_actual_e2e.cjs'){
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'0'});
