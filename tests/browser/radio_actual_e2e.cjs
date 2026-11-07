@@ -31,6 +31,18 @@ let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],err
  assert.equal((await radio()).source_kind,'radio');assert.equal((await radio()).target_id,'42');
  assert((await page.locator('#output').innerText()).includes('Køkkenalrum HomePod'));
  assert.equal(await page.locator('#play-pause').getAttribute('aria-label'),'Stop radio');
+ const p3=stations.getByRole('button',{name:/P3/});
+ assert.equal(await p3.getAttribute('aria-pressed'),'true','observed station is selected');
+ const originalP3=await p3.elementHandle();
+ await page.locator('pv-widget-host').evaluate(host=>host.renderLive());
+ assert(await p3.evaluate((node,original)=>node===original,originalP3),
+  'unchanged repaint preserves station node');
+ await page.locator('#header-title-action').tap();
+ await page.locator('#home-radio').tap();
+ await p3.waitFor({state:'visible'});
+ assert.equal(await p3.getAttribute('aria-pressed'),'true','reopening retains observed station selection');
+ assert.equal((await state()).radioWrites.length,1,'repaint and reopen do not restart the station');
+
  await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-playing.png')});
  const volume=page.locator('#volume');
  assert.equal(await volume.getAttribute('max'),'100');
