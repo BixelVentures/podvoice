@@ -427,16 +427,20 @@ async def test_morning_and_evening_are_real_query_themes_not_automatic_card_rota
 async def test_mood_fallback_uses_fresh_time_to_choose_spotify_playlists(mood_rig):
     router = mood_rig.router
     router.podview_mood_selector.select.return_value = None
+    selected = []
     async with TestClient(TestServer(mood_rig.app)) as client:
-        router.podview_mood_context.return_value = {"hour": 7, "roomKind": "kitchen"}
-        morning = await mood(client)
-        router.podview_mood_context.return_value = {"hour": 20, "roomKind": "kitchen"}
-        evening = await mood(client, True)
-        assert morning["ok"], morning
-        assert evening["ok"], evening
-        assert morning["data"]["tracks"][0]["themeId"] == "morning_acoustic"
-        assert evening["data"]["tracks"][0]["themeId"] == "evening_jazz"
-        assert morning["data"]["tracks"][0]["uri"] != evening["data"]["tracks"][0]["uri"]
+        for hour, theme in [(7, "morning_acoustic"), (14, "indie"), (20, "evening_jazz")]:
+            router.podview_mood_context.return_value = {"hour": hour, "roomKind": "kitchen"}
+            result = await mood(client, bool(selected))
+            assert result["ok"], result
+            tracks = result["data"]["tracks"]
+            assert len(tracks) == 3
+            assert tracks[0]["themeId"] == theme
+            selected.append({track["uri"] for track in tracks})
+        assert all(len(uris) == 3 for uris in selected)
+        assert len({frozenset(uris) for uris in selected}) == 3, (
+            "time changes the actual playlist selection, not only its order"
+        )
 
 
 @pytest.mark.parametrize("mutation", [None, "account", "epoch", "session", "grant"])

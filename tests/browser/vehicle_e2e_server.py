@@ -19,7 +19,12 @@ from gatekeeper.web import create_app
 
 port = int(os.getenv("VEHICLE_TEST_PORT", "18980"))
 entity = "climate.car"
-fields = {"climate": entity}
+fields = {
+    "climate": entity,
+    "driverSeat": "select.left",
+    "passengerSeat": "select.right",
+    "defrost": "switch.defrost",
+}
 state = {"climate": "off", "temperature": 20.0}
 writes = []
 hold = False
@@ -57,6 +62,9 @@ async def ha(request):
             "data": {
                 "climate": {
                     "status": state["climate"],
+                    "driverSeatHeat": "off",
+                    "passengerSeatHeat": "low",
+                    "defrost": False,
                     "temperatureC": 21,
                     "targetTemperatureC": state["temperature"],
                     "minTemperatureC": 15,
@@ -76,6 +84,19 @@ async def ha(request):
         return httpx.Response(200, json={"service_response": snapshot})
     if path == "/core/api/config":
         return httpx.Response(200, json={"unit_system": {"temperature": "°C"}})
+    if path in ("/core/api/states/select.left", "/core/api/states/select.right"):
+        return httpx.Response(
+            200,
+            json={
+                "entity_id": path.rsplit("/", 1)[1],
+                "state": "off" if path.endswith("left") else "low",
+                "attributes": {"options": ["off", "low", "medium", "high"]},
+            },
+        )
+    if path == "/core/api/states/switch.defrost":
+        return httpx.Response(
+            200, json={"entity_id": "switch.defrost", "state": "off", "attributes": {}}
+        )
     if path == "/core/api/states/" + entity:
         return httpx.Response(
             200,
@@ -122,7 +143,15 @@ tools.configure_podview_vehicle_control(
             "configEntryId": "entry-a",
             "deviceId": "device-a",
             "entities": fields,
-            "actions": ["climateOn", "climateOff", "temperature"],
+            "actions": [
+                "climateOn",
+                "climateOff",
+                "temperature",
+                "driverSeatHeat",
+                "passengerSeatHeat",
+                "defrostOn",
+                "defrostOff",
+            ],
         }
     )
 )
@@ -133,15 +162,21 @@ async def registry(command):
         return [{"id": "device-a", "config_entries": ["entry-a"], "model": "Model Y"}]
     if command["type"] == "config/entity_registry/get_entries":
         return {
-            entity: {
-                "entity_id": entity,
-                "id": "reg-climate",
+            eid: {
+                "entity_id": eid,
+                "id": "reg-" + role,
                 "platform": "tesla_fleet",
                 "device_id": "device-a",
                 "config_entry_id": "entry-a",
                 "disabled_by": None,
-                "translation_key": "driver_temp",
+                "translation_key": {
+                    "climate": "driver_temp",
+                    "driverSeat": "climate_state_seat_heater_left",
+                    "passengerSeat": "climate_state_seat_heater_right",
+                    "defrost": "climate_state_defrost_mode",
+                }[role],
             }
+            for role, eid in fields.items()
         }
     raise AssertionError("unexpected registry command " + repr(command))
 

@@ -27,6 +27,7 @@ cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
+queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -235,6 +236,11 @@ async def native(request):
                 "name": f"Køsang {i}",
                 "artist": "Inert kunstner",
                 "artwork": None,
+                **(
+                    {"name": "Nummer i køen", "artist": "", "metadata_known": False}
+                    if queue_cold_tail and i == 25 and base.state["song"] == 22
+                    else {}
+                ),
             }
             for index, i in enumerate(base.state["queue"])
         ]
@@ -249,6 +255,8 @@ async def native(request):
         base.state.update(song=song, state="playing")
         if queue_journey:
             base.state["queue"] = base.state["queue"][index + 1 :]
+            if queue_cold_tail and song == 22:
+                base.state["queue"].append(25)
         base.state["sequence"] += 1
         base.state["queueSelections"].append(
             {"index": index, "song": song, "requestId": args["request_id"]}

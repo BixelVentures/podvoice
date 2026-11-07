@@ -177,7 +177,14 @@ class WidgetHost extends HTMLElement {
  $('now-rest').addEventListener('click',()=>{this.journey.cancel();this.dispatch({type:'show',id:'photo'});this.focusHeading();});
  const refresh=$('music-refresh');if(!refresh.querySelector('[data-refresh-label]')){for(const node of [...refresh.childNodes])if(node.nodeType===3)node.remove();const label=document.createElement('span');label.dataset.refreshLabel='';label.textContent='Andre forslag';refresh.append(label);}refresh.addEventListener('click',()=>this.music({type:'refresh'}));$('result-count').setAttribute('role','status');
  $('home-music').addEventListener('click',()=>{this.dispatch({type:'show',id:'music'});this.focusHeading();});
- $('home-recipes').addEventListener('click',()=>{const existing=this.recipeView;this.dispatch({type:'show',id:'recipes'});if(existing)existing.catalog();this.recipeView?.title.focus({preventScroll:true});});
+ $('home-recipes').addEventListener('click',()=>{
+  const existing=this.recipeView;
+  this.dispatch({type:'show',id:'recipes'});
+  const owner=this.recipeView,active=owner?.active;
+  if(active&&owner.saved.includes(active)&&owner.sessions.has(active))owner.recipe(active);
+  else if(existing)existing.catalog();
+  owner?.title.focus({preventScroll:true});
+ });
  for(const [id,focus]of [['home-radio','radio'],['home-vehicle','vehicle']])$(id).addEventListener('click',()=>{this.dispatch({type:'show',id:focus});this.focusHeading();});
  this.lightRooms=document.createElement('pv-choice-list');this.lightRooms.dataset.contextPicker='rooms';this.lightRooms.setAttribute('aria-label','Vælg rum');this.lightLamps=document.createElement('pv-choice-list');this.lightLamps.dataset.contextPicker='lamps';this.lightLamps.setAttribute('aria-label','Vælg lampe');$('device-detail').after(this.lightRooms);this.lightRooms.after(this.lightLamps);this.lightRoomView=new LightRoomView(this);this.inlineLamps=new LightLampView(this);
  this.timerView=new TimerView(this,$('timers-view'),$('timer-card'));$('open-timers').addEventListener('click',()=>{this.dispatch({type:'show',id:'timers'});this.focusHeading();});

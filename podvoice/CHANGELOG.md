@@ -1,3 +1,8 @@
+## 2.0.145
+
+- Keep explicit queue choices through in-flight commands and refresh, including fresh surviving rows when newly exposed metadata is missing. Exact occurrence continuity is supplied by Speakers 0.26.68; no URI/index guessing or replay after unknown outcomes. A new deliberate choice can recover in the same view without waiting for a poll or reloading.
+- Open the existing active recipe directly from its home widget without changing its visual layout.
+
 ## 2.0.144
 
 - Seek on the existing player timeline while playing or paused, retain the chosen position during refresh, and keep each seek bound to the current track and output. Requires PodConnect Control 0.10.37; older Control keeps existing controls.

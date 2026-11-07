@@ -47,7 +47,10 @@ export class LiveMediaView{
  async loadQueue({automatic=false,afterPlayback=false}={}){
   const host=this.host,p=this.playback,queue=this.queueControls,feedback=host.liveSelection?.feedback;
   if(queue.pending||host.liveControls?.musicIntentPending)return;
-  if(automatic&&(queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed?.(this.account,p)))return;
+  const recoverUnknown=automatic&&afterPlayback&&host.state?.focus==='player'
+   &&queue.unknownRecoveryReady?.(this.account,p);
+  if(automatic&&(queue.consumed&&!recoverUnknown||feedback?.pending||feedback?.outcome==='unknown'
+   ||host.liveSelection?.pendingPlayer?.()||!queue.allowed?.(this.account,p)))return;
   const snapshot=host.liveSnapshot,key=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.account,p?.roomBinding?.bindingId,p?.owner_epoch,p?.target?.id,p?.item?.uri??null,]);
   const transport=host.liveTransport,generation=this.generation,transportGeneration=transport?.generation,retry=this.queueReadRetry,sameRead=this.queueReadKey===key&&this.queueReadTransport===transport;
   // Prefetch: a new song's queue is read on every page so the player opens with it at once.
@@ -60,7 +63,7 @@ export class LiveMediaView{
   // Existing playback observations may refresh expired display custody. Expiry
   // alone schedules no read and never renews an action/occurrence authority.
   const expired=automatic&&sameRead&&afterPlayback&&queue.status==='stale'&&!queue.offer&&queue.retained?.transport===transport&&queue.retained?.transportGeneration===transportGeneration&&Number.isFinite(queue.retained?.shownOffer?.expiresAt)&&queue.retained.shownOffer.expiresAt<=Date.now();
-  if(automatic&&sameRead&&!recovering&&!expired)return;
+  if(automatic&&sameRead&&!recovering&&!expired&&!recoverUnknown)return;
   if(!roomObservationCurrent(this.playback,this.host.liveSnapshot)||!this.host.liveTransport?.connected){this.queueControls.invalidate(!roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account));this.renderQueue();return;}
   // Consume before dispatch; no timer, repeated poll or failed retry can rearm it.
   if(recovering)retry.used=true;else this.queueReadRetry=null;

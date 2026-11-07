@@ -79,7 +79,7 @@ async function openCatalog(page){
  assert.match(await active.innerText(),/1 af 7 trin · Fortsæt/);
  assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] [data-recipe]').first().getAttribute('aria-current'),'true');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-active-filter.png`)});
- // Home retains its established widget, and clicking it always enters the catalogue.
+ // The active widget retains its styling and opens the same cooking session directly.
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  const widget=page.locator('#home-recipes');
@@ -90,8 +90,7 @@ async function openCatalog(page){
  assert.deepEqual(homeStyle,homeBaseline,'active Home widget retains its approved visual styling');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-active-home.png`)});
  await widget.tap();
- await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
- await active.tap();
+ await page.locator('#recipe-view [data-recipe-layout=reading]').waitFor({state:'visible',timeout:3000});
  assert.match(await page.locator('#recipe-view').innerText(),/Trin 2 af 7/);
  // A reload hydrates Home before opening Recipes, without focusing hidden UI or polling.
  const reads=[];
@@ -106,9 +105,7 @@ async function openCatalog(page){
  assert.equal(reads.length,1,'home hydration performs one catalogue read and no hidden polling');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-restored-home.png`)});
  await widget.tap();
- await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
- await active.waitFor({state:'visible'});
- await active.tap();
+ await page.locator('#recipe-view [data-recipe-layout=reading]').waitFor({state:'visible',timeout:3000});
  assert.match(await page.locator('#recipe-view').innerText(),/Trin 2 af 7/);
  assert.match(await page.locator('#recipe-view').innerText(),/1 af 11 fundet frem/);
  assert.equal(await page.locator('#recipe-ingredients-trigger').getAttribute('aria-expanded'),'false');

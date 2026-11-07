@@ -7,7 +7,12 @@ const {createHash}=require('node:crypto');
 const path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os'),assert=require('node:assert/strict');
 const holdPlayback=process.env.MUSIC_HOLD_PLAYBACK==='1';
 const loseSelectionReceipt = process.env.MUSIC_UNKNOWN_AFTER_COMMIT === '1';
-const queueJourney = process.env.MUSIC_QUEUE_JOURNEY === '1';
+const queueColdTail = process.env.MUSIC_QUEUE_INTENTS === 'cold-tail';
+const queueIntentDuringRefresh = process.env.MUSIC_QUEUE_INTENTS === 'refresh' || queueColdTail;
+const queueUnknownUnchanged = process.env.MUSIC_QUEUE_INTENTS === 'unknown-unchanged';
+const queueUnknown = process.env.MUSIC_QUEUE_INTENTS === 'unknown' || queueUnknownUnchanged;
+const queueIntents = process.env.MUSIC_QUEUE_INTENTS === '1' || queueIntentDuringRefresh || queueUnknown;
+const queueJourney = process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
 const cold=process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
@@ -23,17 +28,31 @@ async function queuePersistenceJourney(){
   expected,{timeout:10000});
  const assertNames=async numbers=>assert.deepEqual(await itemNames(),numbers.map(number=>`Køsang ${number}`));
  const assertNoEmpty=async()=>assert.equal(await queue.locator('.queue-empty').count(),0);
+ const tapPaints=[];
+ async function assertTapPaint(song){
+  const title=`Køsang ${song}`;
+  await page.waitForFunction(title=>window.queueTapPaints.some(row=>row.title===title),title,{timeout:2000});
+  const paint=await page.evaluate(title=>window.queueTapPaints.find(row=>row.title===title),title);
+  assert.deepEqual(paint.spinners,[title],'new trusted touch moves the single existing spinner');
+  assert(paint.elapsedMs<100,`new selection paint took ${paint.elapsedMs} ms`);
+  tapPaints.push(paint);
+ }
  const condition=async condition=>{
   assert.equal((await page.request.post(base+'/lab/queue',{data:{condition}})).ok(),true);
  };
- async function holdNext(endpoint){
+ async function holdNext(endpoint,{loseReply=false}={}){
   let markEntered,release;
   const entered=new Promise(resolve=>{markEntered=resolve;});
   const gate=new Promise(resolve=>{release=resolve;});
   const handler=async route=>{
    markEntered();
    await gate;
-   await route.continue();
+   if(!loseReply)return route.continue();
+   if(!queueUnknownUnchanged){
+    const response=await route.fetch();
+    assert.equal((await response.json()).outcome,'accepted','owner applied the first choice before reply loss');
+   }
+   await route.fulfill({status:502,json:{error:'inert_queue_receipt_lost'}});
   };
   await page.route(`**/view/api/music/queue/${endpoint}`,handler,{times:1});
   return {wait:async()=>{
@@ -49,9 +68,25 @@ async function queuePersistenceJourney(){
  await open();
  await status('ready');
  await assertNames([21,22,23,24]);
+ if(queueIntents)await queue.evaluate(node=>{
+  window.queueTapPaints=[];
+  document.addEventListener('click',event=>{
+   const row=event.target.closest?.('button.queue-track[data-current="false"]');
+   if(!event.isTrusted||!node.contains(row))return;
+   const label=item=>item.querySelector('.queue-copy strong').textContent;
+   const title=label(row),started=performance.now();
+   requestAnimationFrame(()=>{
+    const spinners=[...node.querySelectorAll('button.queue-track')]
+     .filter(item=>getComputedStyle(item,'::after').animationName==='pv-music-play-pending')
+     .map(label);
+    window.queueTapPaints.push({title,elapsedMs:performance.now()-started,spinners});
+   });
+  },true);
+ });
  const stableRow=await rows.filter({hasText:'Køsang 23'}).elementHandle();
  const sourceBefore=await state();
- const command=await holdNext('actions');
+ const command=await holdNext('actions',{loseReply:queueUnknown});
+ const postAcceptRead=queueIntentDuringRefresh?await holdNext('offer'):null;
  await queue.evaluate(node=>{
   const list={minimum:Infinity,frames:0,stopped:false};
   window.queueFrameProbe=list;
@@ -79,7 +114,119 @@ async function queuePersistenceJourney(){
   await assertNoEmpty();
   assert.equal((await state()).writes.length,sourceBefore.writes.length);
   await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-selected-only.png')});
+  if(queueIntents&&!queueIntentDuringRefresh){
+   const second=rows.filter({hasText:'Køsang 23'});
+   assert.equal(await second.isEnabled(),true,'pending queue command must not disable another row');
+   await second.tap();
+   await assertTapPaint(23);
+   assert.equal(actions.filter(row=>row.url.endsWith('/music/queue/actions')).length,1);
+   assert.equal((await state()).writes.length,sourceBefore.writes.length,'second touch waits behind first');
+  }
  }finally{command.release();}
+ if(queueUnknown){
+  await status('unknown');
+  assert.equal(await queue.locator('button[aria-busy="true"]').count(),0,'UNKNOWN clears visible selection');
+  assert.equal(await rows.evaluateAll(items=>items.some(
+   row=>getComputedStyle(row,'::after').animationName==='pv-music-play-pending',
+  )),false);
+  assert.match(await page.locator('#playback-status').innerText(),/dit næste valg blev ikke sendt/);
+  const unknown=await state(),priorEffects=queueUnknownUnchanged?[]:[22];
+  assert.equal(unknown.writes.length,sourceBefore.writes.length+priorEffects.length);
+  const initialOffers=actions.filter(row=>row.url.endsWith('/music/queue/offer')).length;
+  if(queueUnknownUnchanged){
+   assert.equal(unknown.sequence,sourceBefore.sequence,'the existing same-track source is current');
+  }else{
+   const pushed=await page.request.post(base+'/lab/state',{data:{externalPlaybackState:'playing'}});
+   const {sequence}=await pushed.json();
+   await page.waitForFunction(sequence=>{
+    const h=document.querySelector('pv-widget-host');
+    return h?.liveMedia?.playback?.poll_sequence>=sequence;
+   },sequence,{timeout:10000});
+   await status('ready');
+   assert.equal(actions.filter(row=>row.url.endsWith('/music/queue/offer')).length,initialOffers+1);
+  }
+  assert.equal(await queue.locator('button[aria-busy="true"]').count(),0);
+  assert.equal(actions.filter(row=>row.url.endsWith('/music/queue/actions')).length,1);
+  assert.deepEqual((await state()).queueSelections.map(row=>row.song),priorEffects);
+  const deliberate=rows.filter({hasText:'Køsang 24'});
+  assert.equal(await deliberate.isEnabled(),true,'a new deliberate choice is possible without reload');
+  await deliberate.tap();
+  await page.locator('#track-name').filter({hasText:'Isoleret sang 24'}).waitFor({state:'visible',timeout:15000});
+  await status('ready');
+  const final=await state(),posts=actions.filter(row=>row.url.endsWith('/music/queue/actions'));
+  const effectSongs=[...priorEffects,24];
+  assert.deepEqual(final.queueSelections.map(row=>row.song),effectSongs);
+  assert.equal(posts.length,2);
+  assert.notEqual(posts[0].body.taskId,posts[1].body.taskId);
+  assert.notEqual(posts[0].body.requestId,posts[1].body.requestId);
+  assert.deepEqual(errors,[]);
+  await page.evaluate(()=>{window.queueFrameProbe.stopped=true;});
+  const proof={outcome:'PASS',bundleSHA,unknownQueueReply:true,visibleSpinnerCleared:true,tapPaints,
+   effectSongs,recoveryWithoutReload:true,explicitReadBeforeNewPoll:queueUnknownUnchanged,
+   inertNativeService:true,pageErrors:errors};
+  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+  await fs.writeFile(path.join(env.artifactDir(),'podview-queue-unknown-proof.json'),JSON.stringify(proof,null,2));
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-unknown.png')});
+  console.log(JSON.stringify(proof));
+  return;
+ }
+ let secondCommand;
+ if(postAcceptRead){
+  try{
+   await postAcceptRead.wait();
+   await status('loading');
+   await page.locator('#track-name').filter({hasText:'Isoleret sang 22'}).waitFor({state:'visible'});
+   const second=rows.filter({hasText:'Køsang 23'});
+   assert.equal(await second.isEnabled(),true,'an accepted command does not lock another row during refresh');
+   if(queueColdTail)secondCommand=await holdNext('actions');
+   await second.tap();
+   await assertTapPaint(23);
+   assert.equal(actions.filter(row=>row.url.endsWith('/music/queue/actions')).length,1);
+   assert.equal((await state()).writes.length,sourceBefore.writes.length+1,'second touch needs the new offer');
+  }finally{postAcceptRead.release();}
+ }
+ if(secondCommand){
+  try{
+   await secondCommand.wait();
+   await status('pending');
+   await assertNames([21,22,23,24]);
+   const third=rows.filter({hasText:'Køsang 24'});
+   assert.equal(await third.isEnabled(),true,'fresh exact surviving row stays tappable with a cold tail');
+   for(const removed of [21,22])assert.equal(await rows.filter({hasText:`Køsang ${removed}`}).isEnabled(),false);
+   assert.equal(await rows.filter({hasText:'Køsang 23'}).getAttribute('aria-busy'),'true');
+   assert.equal(await queue.getByText('Nummer i køen').count(),0,'unknown tail cannot invent a visible row');
+   await third.tap();
+   await assertTapPaint(24);
+   assert.equal(actions.filter(row=>row.url.endsWith('/music/queue/actions')).length,2);
+   assert.equal((await state()).writes.length,sourceBefore.writes.length+1,'new touch waits behind row 23');
+   await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-intents-cold-tail.png')});
+  }finally{secondCommand.release();}
+ }
+ if(queueIntents){
+  const expectedOrder=queueColdTail?[22,23,24]:[22,23];
+  await page.locator('#track-name').filter({hasText:`Isoleret sang ${expectedOrder.at(-1)}`})
+   .waitFor({state:'visible',timeout:15000});
+  await status('ready');
+  await assertNames(queueColdTail?[25]:[24]);
+  const value=await state();
+  const posts=actions.filter(row=>row.url.endsWith('/music/queue/actions'));
+  const seenTasks=posts.map(row=>row.body.taskId),seenRequests=posts.map(row=>row.body.requestId);
+  assert.equal(posts.length,expectedOrder.length);
+  assert.equal(new Set(seenTasks).size,expectedOrder.length,'each later touch uses a fresh broker task');
+  assert.equal(new Set(seenRequests).size,expectedOrder.length,'one identity per explicit choice');
+  assert.deepEqual(value.queueSelections.map(({song,index})=>[song,index]),
+   expectedOrder.map((song,index)=>[song,index===0?1:0]));
+  assert.equal(value.writes.length,sourceBefore.writes.length+expectedOrder.length);
+  assert.deepEqual(errors,[]);
+  await page.evaluate(()=>{window.queueFrameProbe.stopped=true;});
+  const proof={outcome:'PASS',bundleSHA,queueIntentOrder:expectedOrder,freshTasks:seenTasks.length,queueIntentDuringRefresh,queueColdTail,
+   tapPaints,fixturePreservedOpaqueOccurrenceIds:true,inertNativeService:true,pageErrors:errors};
+  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+  await fs.writeFile(path.join(env.artifactDir(),'podview-queue-intents-proof.json'),JSON.stringify(proof,null,2));
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-intents.png')});
+  console.log(JSON.stringify(proof));
+  return;
+ }
  await page.locator('#track-name').filter({hasText:'Isoleret sang 22'}).waitFor({state:'visible',timeout:15000});
  await status('ready');
  await assertNames([23,24]);
@@ -89,8 +236,10 @@ async function queuePersistenceJourney(){
   return {minimum:probe.minimum,frames:probe.frames};
  });
  assert(frameProbe.frames>0&&frameProbe.minimum>=2,'queue never paints an empty frame while advancing');
+ // This inert fixture keeps opaque IDs stable across advancement; the native owner must
+ // independently prove continuity before the same node can be expected on the live route.
  assert.equal(await stableRow.evaluate(row=>row.isConnected&&row.querySelector('.queue-order').textContent==='1'),
-  true,'remaining occurrence moves to the first position on the same DOM row');
+  true,'fixture-preserved occurrence moves to the first position on the same DOM row');
  await assertNoEmpty();
  assert.equal(await queue.locator('button[aria-busy="true"]').count(),0);
  const afterChoice=await state();
@@ -136,14 +285,14 @@ async function queuePersistenceJourney(){
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',stories:['K2','K5','K7'],bundleSHA,frameProbe,
   selectedOccurrence:22,retainedAfterFailure:[23,24],authoritativeEmpty:true,
-  sameSessionReopen:true,inertNativeService:true,pageErrors:errors};
+  sameSessionReopen:true,fixturePreservedOpaqueOccurrenceIds:true,inertNativeService:true,pageErrors:errors};
  await fs.writeFile(path.join(env.artifactDir(),'podview-queue-persistence-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 (async()=>{try{
  const nonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-selection-'));
- server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:"1",MUSIC_COLD_CONTEXT:cold?"1":"0",MUSIC_COLD_REJECT:rejectSetup?"1":"0",MUSIC_REPEAT_MOOD:repeatMood?"1":"0",PODVIEW_TEST_NONCE:nonce}),stdio:['ignore','pipe','pipe']});
+ server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:"1",MUSIC_COLD_CONTEXT:cold?"1":"0",MUSIC_COLD_REJECT:rejectSetup?"1":"0",MUSIC_REPEAT_MOOD:repeatMood?"1":"0",MUSIC_QUEUE_JOURNEY:queueJourney?"1":"0",MUSIC_QUEUE_COLD_TAIL:queueColdTail?"1":"0",PODVIEW_TEST_NONCE:nonce}),stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');

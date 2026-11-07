@@ -486,6 +486,30 @@ async function longSession(page,errors){
  assert.equal((await state()).unknownWitnesses,1,'actual service returned one temporary unknown witness before confirmation');
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-e2e-diagnostics.json'),JSON.stringify(journal,null,2));
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-recovery-witness.json'),JSON.stringify({servedBundleSHA,lostRequestRef,swallowedResponses,writesBefore:beforeLoss.writes.length,writesAfterRecovery:recovered.writes.length,serviceReadsBeforeRecovery:readsBeforeRecovery,serviceReadsAfterRecovery:playbackReads(recovered),observedBeforeOffline,observedAfterRecovery:await page.locator('pv-widget-host').evaluate(h=>h.liveMedia.playback.observedAt),journal},null,2));
+ // A7: recovery must restore deliberate touch, not only source reads.
+ const beforeRecoveredTouch=await state();
+ for(const [action,expectedState,label] of [['resume','playing','Fortsæt'],['pause','paused','pause']]){
+  await page.waitForFunction(label=>{
+   const button=document.querySelector('#play-pause');
+   return button&&!button.disabled&&(button.getAttribute('aria-label')||'').toLowerCase().includes(label.toLowerCase());
+  },label,{timeout:15000});
+  await control.tap();
+  for(let n=0;(await state()).state!==expectedState;n++){
+   if(n>=100)throw Error(`A7: recovered ${action} did not reach owner`);
+   await sleep(100);
+  }
+ }
+ const recoveredTouch=(await state()).writes.slice(beforeRecoveredTouch.writes.length);
+ assert.deepEqual(recoveredTouch.map(row=>row.action),['resume','pause']);
+ assert(recoveredTouch.every(row=>row.requestId!==afterLoss.writes.at(-1).requestId),
+  'new touch never reuses the lost native request');
+ assert.equal(new Set(recoveredTouch.map(row=>row.requestId)).size,2);
+ assert.equal((await state()).song,beforeRecoveredTouch.song);
+ assert.equal((await state()).room,beforeRecoveredTouch.room);
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-recovered-touch.json'),JSON.stringify({
+  servedBundleSHA,outcome:'PASS',inertFinalService:true,actions:recoveredTouch,
+  noReload:true,sameSong:true,sameOutput:true,physicalAudioVerified:false,
+ },null,2));
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({
   outcome:'PASS',inertFinalService:true,actualPackagedPodView:true,

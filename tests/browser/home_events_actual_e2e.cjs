@@ -13,6 +13,39 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const emit=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
+const dailyRowsSelector='#weather-view .weather-days > div';
+async function dailyWeatherColumns(page,icons,stage){
+ const originalViewport=page.viewportSize(),evidence=[];
+ try{
+  await page.waitForFunction(({selector,icons})=>[...document.querySelectorAll(selector)].slice(0,3).length===3
+   &&[...document.querySelectorAll(selector)].slice(0,3).every((row,index)=>{
+    const image=row.children[1];
+    return image?.getAttribute('src')===`assets/icons/${icons[index]}.svg`&&image.complete&&image.naturalWidth>0;
+   }),{selector:dailyRowsSelector,icons});
+  for(const [width,height] of [[1280,800],[768,1024]]){
+   await page.setViewportSize({width,height});
+   await page.evaluate(async()=>{
+    await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+    await Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));
+   });
+   const rows=await page.locator(dailyRowsSelector).evaluateAll(days=>days.slice(0,3).map(day=>({
+    label:day.children[0].textContent,
+    values:[day.children[2].textContent,day.children[4].textContent],
+    alt:day.children[1].getAttribute('alt'),
+    columns:[...day.children].map(cell=>{const {x,width,height}=cell.getBoundingClientRect();return {x,width,height,hidden:cell.hidden};}),
+   })));
+   for(const row of rows){
+    assert.equal(row.columns.length,5);
+    assert.deepEqual(row.values,['3°','9°']);
+    assert(row.columns.every(cell=>!cell.hidden&&cell.width>0&&cell.height>0));
+    assert.deepEqual(row.columns,rows[0].columns,'daily temperature columns stay aligned with known weather');
+   }
+   if(stage==='fallback')assert.equal(rows[1].alt,'Vejrtype ikke oplyst');
+   evidence.push({width,height,rows});
+  }
+  return evidence;
+ }finally{await page.setViewportSize(originalViewport);}
+}
 async function roLayoutJourney(page,errors){
  const proof=[],pins={};offlineEvidence={proof,pins,mode:'ro-layout'};const geometry=()=>page.locator('pv-widget-host').evaluate(h=>{const rect=n=>{const r=n.getBoundingClientRect();return{x:r.x,y:r.y,width:r.width,height:r.height,right:r.right,bottom:r.bottom}},rail=h.querySelector('#resource-rail'),player=h.querySelector('.player:not([hidden]),#player-empty:not([hidden])'),children=[...rail.children].filter(n=>!n.hidden&&n.getClientRects().length),frame=h.querySelector('.frame'),nav=h.querySelector('#empty-find-music');return {viewport:[innerWidth,innerHeight],focus:h.state.focus,frame:rect(frame),rail:{hidden:rail.hidden,rect:rect(rail),items:children.map(n=>({kind:n.dataset.kind,rect:rect(n)}))},player:{rect:rect(player),minWidth:getComputedStyle(player).minWidth,grid:getComputedStyle(player).gridTemplateColumns},navigation:{rect:rect(nav),scrollWidth:nav.scrollWidth,clientWidth:nav.clientWidth},timerId:h.state.timer?.id}});
  const settle=async()=>{await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));await page.waitForFunction(()=>document.getAnimations().every(a=>!(a.playState==='running'||a.pending)||a.effect?.getTiming().iterations===Infinity),undefined,{timeout:8000});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));};
@@ -86,13 +119,27 @@ async function offlineFeedbackJourney(page,errors){
   for(let n=0;(await state()).subscriptions<4;n++){if(n>100)throw Error('HA subscription ACKs missing');await sleep(50)}
   const original=homeResponses.find(row=>row.value.weather?.status==='observed')?.value.weather.data;assert(original?.observationScope?.entityId==='weather.inert');assert(original.hourly?.forecast.length>0);const originalRetrieved=original.retrievedAt;
   await save('weather-01-current-rest');await testEnv.openOverview(page);await page.locator('#home-weather').waitFor({state:'visible'});const goodHome=await save('weather-02-current-home');assert.match(goodHome.home.temperature,/15/);assert(goodHome.home.hourCount>0);assert.equal(goodHome.home.stale,'false');await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const goodDetail=await save('weather-03-current-detail');assert(goodDetail.detail.hours>0);
+  assert.equal(goodDetail.detail.value,goodHome.home.temperature,'overview and detail show the same observed temperature');
+  assert.equal(goodDetail.weather.retrievedAt,goodHome.weather.retrievedAt,'overview and detail use the same observation');
   await emit({weatherFail:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.liveWeather?.stale===true,undefined,{timeout:10000});const failed=await save('weather-04-failed-detail');assert.equal(failed.weather.retrievedAt,originalRetrieved);assert.equal(failed.detail.value,goodDetail.detail.value);assert.equal(failed.detail.hours,goodDetail.detail.hours);assert.match(failed.detail.text,/Sidst kendte vejr/);
   const expectedClock=await page.evaluate(stamp=>new Date(stamp).toLocaleString('da-DK',{timeZone:'Europe/Copenhagen',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}),originalRetrieved);assert.equal(failed.detail.metadata.find(row=>row.label==='Hentet')?.value,expectedClock,'visible original retrieval date/time is not a DTO-only assertion');
   const readsBeforeReload=(await state()).weather.reads.length;await sleep(5100);await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.liveWeather?.stale===true,undefined,{timeout:12000});await testEnv.openOverview(page);const reloadHome=await save('weather-05-reload-last-known-home');assert.equal(reloadHome.weather.retrievedAt,originalRetrieved);assert.equal(reloadHome.home.temperature,goodHome.home.temperature);assert.equal(reloadHome.home.hourCount,goodHome.home.hourCount);assert.match(reloadHome.home.condition,/Sidst kendt/);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const reloadDetail=await save('weather-06-reload-last-known-detail');assert.equal(reloadDetail.detail.value,goodDetail.detail.value);assert.equal(reloadDetail.detail.metadata.find(row=>row.label==='Hentet')?.value,expectedClock);assert((await state()).weather.reads.length>readsBeforeReload,'natural5.1s expiry plus reload reaches the real failed weather owner again');
   const retained=homeResponses.findLast(row=>row.value.weather?.status==='unavailable'&&row.value.weather.lastKnown)?.value.weather.lastKnown;assert.equal(retained.data.retrievedAt,originalRetrieved);assert.equal(retained.data.stateUpdatedAt,original.stateUpdatedAt);assert.equal(retained.data.hourly.retrievedAt,original.hourly.retrievedAt);
-  await emit({weatherRecover:true});await fresh(19.6);const recoveredDetail=await save('weather-07-recovered-detail');assert.equal(recoveredDetail.weather.stale,false);assert(recoveredDetail.weather.retrievedAt!==originalRetrieved);assert(!recoveredDetail.detail.metadata.some(row=>row.label==='Hentet'));await page.locator('#header-title-action').tap();await page.locator('#home-weather').waitFor({state:'visible'});const recoveredHome=await save('weather-08-recovered-home');assert.match(recoveredHome.home.temperature,/20/);assert.equal(recoveredHome.home.stale,'false');
+  const fallbackColumns=await dailyWeatherColumns(page,['cloud','dash','dash'],'fallback');
+  const originalDailyRows=(await page.locator(dailyRowsSelector).elementHandles()).slice(0,3);
+  const originalDailyIcons=await Promise.all(originalDailyRows.map(row=>row.$('img')));
+  await emit({weatherRecover:true});await fresh(19.6);const recoveredDetail=await save('weather-07-recovered-detail');assert.equal(recoveredDetail.weather.stale,false);assert(recoveredDetail.weather.retrievedAt!==originalRetrieved);assert(!recoveredDetail.detail.metadata.some(row=>row.label==='Hentet'));
+  const recoveredColumns=await dailyWeatherColumns(page,['cloud','sun','cloud-rain'],'recovered');
+  for(let index=0;index<3;index++){
+   assert(await originalDailyRows[index].evaluate((row,{selector,index})=>row===document.querySelectorAll(selector)[index],{selector:dailyRowsSelector,index}));
+   assert(await originalDailyIcons[index].evaluate((icon,{selector,index})=>icon===document.querySelectorAll(selector)[index].children[1],{selector:dailyRowsSelector,index}));
+  }
+  const positions=evidence=>evidence.map(({rows})=>rows.map(({label,values,columns})=>({label,values,columns})));
+  assert.deepEqual(positions(recoveredColumns),positions(fallbackColumns),'weather recovery keeps date, range and all column positions in place');
+  await fs.writeFile(path.join(testEnv.artifactDir(),'weather-daily-columns-proof.json'),JSON.stringify({loadedBundle,loadedCss,fallbackColumns,recoveredColumns,retainedNodes:true},null,2));
+  await page.locator('#header-title-action').tap();await page.locator('#home-weather').waitFor({state:'visible'});const recoveredHome=await save('weather-08-recovered-home');assert.match(recoveredHome.home.temperature,/20/);assert.equal(recoveredHome.home.stale,'false');
   await emit({weatherNearExpirySeconds:8});await fresh(21.1);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const near=await capture();assert(near.weather.displayUntil>near.at&&near.weather.displayUntil<=near.at+8100);const nearSource=near.weather.stateUpdatedAt;await page.context().setOffline(true);await save('weather-09-offline-retained');await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),w=h?.state.liveWeather;return w&&Date.now()>=w.displayUntil&&!h.querySelector('#weather-view .weather-current strong')?.textContent?.trim()},undefined,{timeout:12000});const expiredDetail=await save('weather-10-offline-expired-detail');assert.equal(expiredDetail.weather.stateUpdatedAt,nearSource);assert.equal(expiredDetail.detail.value,'');assert.equal(expiredDetail.detail.hours,0);await page.locator('#header-title-action').tap();const expiredHome=await save('weather-11-offline-expired-home');assert.equal(expiredHome.home.temperature,'');assert(!/[0-9]/.test(expiredHome.header.temperature),'expired source temperature cannot survive in the visible header');assert.equal(expiredHome.home.hourCount,0);assert(expiredHome.at>=near.weather.displayUntil);await page.context().setOffline(false);
-  const final=await state();assert.deepEqual(final.writes,[]);assert.deepEqual(errors,[]);await fs.writeFile(path.join(testEnv.artifactDir(),'weather-retention-proof.json'),JSON.stringify({loadedBundle,loadedCss,original,retained,expectedClock,goodHome,goodDetail,failed,reloadHome,reloadDetail,recoveredHome,recoveredDetail,near,expiredDetail,expiredHome,homeResponses,final,errors},null,2));console.log(JSON.stringify({outcome:'PASS',loadedBundle,loadedCss,actualHAWebSocketProtocol:true,actualAssistMCP:true,nativeWeatherReads:final.weather.reads.length,lastKnownAfterReload:true,originalRetrievalClockVisible:true,nativeFreshRecovery:true,offlineFixedSourceExpiry:true,sourceExpiryMs:near.weather.displayUntil,nativeEffects:final.writes.length,pageErrors:errors}));return;
+  const final=await state();assert.deepEqual(final.writes,[]);assert.deepEqual(errors,[]);await fs.writeFile(path.join(testEnv.artifactDir(),'weather-retention-proof.json'),JSON.stringify({loadedBundle,loadedCss,original,retained,expectedClock,goodHome,goodDetail,failed,reloadHome,reloadDetail,recoveredHome,recoveredDetail,near,expiredDetail,expiredHome,homeResponses,final,errors},null,2));console.log(JSON.stringify({outcome:'PASS',loadedBundle,loadedCss,actualHAWebSocketProtocol:true,actualAssistMCP:true,nativeWeatherReads:final.weather.reads.length,lastKnownAfterReload:true,originalRetrievalClockVisible:true,nativeFreshRecovery:true,dailyColumnsRecoverInPlace:true,offlineFixedSourceExpiry:true,sourceExpiryMs:near.weather.displayUntil,nativeEffects:final.writes.length,pageErrors:errors}));return;
  }
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await page.evaluate(()=>{window.homeTestClicks=[];document.addEventListener('click',e=>window.homeTestClicks.push({target:e.target.outerHTML?.slice(0,200),focus:document.querySelector('pv-widget-host')?.state?.focus}),true)});
