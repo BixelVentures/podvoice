@@ -427,20 +427,23 @@ async def read(scope: VehicleScope, *, registry_read, state_read, current, now=t
         return unavailable
 
 
-async def read_snapshot(scope: VehicleScope, *, service_read, current, now=time.time) -> dict:
+async def read_snapshot(
+    scope: VehicleScope, *, service_read, current, now=time.time, trunk_control=False
+) -> dict:
     """Admit only the HA-owned exact Tesla snapshot contract, never entity guesses."""
     unavailable = {"status": "unavailable", "data": None}
     try:
         async with asyncio.timeout(READ_TIMEOUT + 2):
             if not current():
                 return unavailable
-            value = await service_read(
-                {
-                    "config_entry_id": scope.config_entry_id,
-                    "device_id": scope.device_id,
-                    "entities": dict(scope.entities),
-                }
-            )
+            request: dict[str, object] = {
+                "config_entry_id": scope.config_entry_id,
+                "device_id": scope.device_id,
+                "entities": dict(scope.entities),
+            }
+            if trunk_control:
+                request["trunk_control"] = True
+            value = await service_read(request)
             _bounded(value)
             if (
                 not current()
@@ -600,6 +603,12 @@ async def read_snapshot(scope: VehicleScope, *, service_read, current, now=time.
                 or type(historical) is not list
                 or len(set(historical)) != len(historical)
                 or any(type(path) is not str or path not in field_times for path in historical)
+            ):
+                return unavailable
+            if trunk_control and (
+                value["sourceIdentity"] not in {"coordinator", "coordinator_and_ha_state"}
+                or historical
+                or field_times != {"trunk": value["observedAt"]}
             ):
                 return unavailable
             for path, stamp in field_times.items():

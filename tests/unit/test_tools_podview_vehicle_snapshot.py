@@ -178,3 +178,57 @@ async def test_binding_is_stable_on_failure_and_changes_when_policy_replaced_and
             item["status"] == "unavailable" and item["data"] is None
             for item in (replaced, restored)
         )
+
+
+@pytest.mark.parametrize(
+    "legacy,age,source",
+    [
+        (False, 10, "coordinator"),
+        (False, 12 * 3600, "coordinator"),
+        (False, 12 * 3600, "cached"),
+        (True, 10, "coordinator"),
+    ],
+)
+async def test_trunk_control_negotiates_scope_and_does_not_retry_older_component(
+    legacy, age, source
+):
+    seen = []
+    scope = podview_vehicle.VehicleScope("fleet", "car", (("trunk", "cover.trunk"),))
+    value = snapshot(age)
+    stamp = value["observedAt"]
+    value.update(
+        entities={"trunk": "cover.trunk"},
+        sourceIdentity=source,
+        timestamps={"vehicle_state": stamp},
+        data={"trunk": "open"},
+        fieldObservedAt={"trunk": stamp},
+        historicalFields=[],
+    )
+
+    def handler(request):
+        seen.append(request)
+        if legacy:
+            return httpx.Response(400)  # Earlier service schema prevents extra fields.
+        return httpx.Response(200, json={"service_response": value})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        router = ToolRouter(None, client=client, supervisor_token="inert-token")
+        router.configure_podview_vehicle_read(READ_POLICY)
+        router.podview_vehicle_control_binding = lambda: ("inert",)
+        control = router.podview_vehicle_control()
+        if legacy:
+            with pytest.raises(httpx.HTTPStatusError):
+                await control.trunk_state_read("cover.trunk")
+        else:
+            expected = "open" if source == "coordinator" else None
+            assert await control.trunk_state_read("cover.trunk") == expected
+        assert await control.trunk_state_read("cover.other") is None
+    assert len(seen) == 1
+    assert seen[0].method == "POST"
+    assert seen[0].url.path == "/core/api/services/podvoice/vehicle_snapshot"
+    assert json.loads(seen[0].content) == {
+        "config_entry_id": scope.config_entry_id,
+        "device_id": scope.device_id,
+        "entities": dict(scope.entities),
+        "trunk_control": True,
+    }

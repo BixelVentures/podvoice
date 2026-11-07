@@ -269,3 +269,7 @@ vehicle_snapshot:
       required: true
       selector:
         object:
+    trunk_control:
+      description: Read only the current native evidence for the configured rear trunk.
+      selector:
+        boolean:

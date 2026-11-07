@@ -19,6 +19,13 @@ for(const journey of only.length?only:journeys){
  if(journey==='music_selection_actual_e2e.cjs'){
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'0'});
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'1'});
+  runJourney(journey,{MUSIC_DEFAULT_SPEAKER_PROOF:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'default-speaker')});
+  for(const scenario of ['cold-tail','unknown','unknown-unchanged']){
+   console.log(`Queue recovery scenario: ${scenario}`);
+   runJourney(journey,{MUSIC_QUEUE_INTENTS:scenario,
+    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`queue-${scenario}`)});
+  }
  }
  if(journey==='robot_actual_e2e.cjs'){
   runJourney(journey,{ROBOT_DRAFT_TEST:'1'});

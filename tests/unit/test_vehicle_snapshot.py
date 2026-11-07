@@ -630,3 +630,189 @@ async def test_newer_scoped_ha_cabin_sensor_updates_old_fleet_temperature_withou
     assert projected["fieldObservedAt"]["climate.temperatureC"] == rig.now - (
         sensor_age if expected == 8.9 else 3600
     )
+
+
+@pytest.mark.parametrize(
+    "role,entity_id,path,ha_value,fleet_value,fleet_stamp",
+    [
+        ("locked", "lock.car", "locked", "unlocked", True, 10),
+        ("trunk", "cover.trunk", "trunk", "open", "closed", 10),
+        ("climate", "climate.car", "climate.status", "heat_cool", "off", 20),
+    ],
+)
+async def test_newer_ha_change_reaches_addon_with_independent_field_time(
+    rig, role, entity_id, path, ha_value, fleet_value, fleet_stamp
+):
+    from datetime import datetime
+
+    rig.entities[role] = entity_id
+    rig.rows[entity_id] = NS(
+        id=role,
+        platform="tesla_fleet",
+        config_entry_id="fleet",
+        device_id="car",
+        disabled_by=None,
+        translation_key=snapshot.ROLES[role][1],
+    )
+    if role == "climate":
+        rig.frame["climate_state"] = {
+            "timestamp": (rig.now - fleet_stamp) * 1000,
+            "is_climate_on": False,
+            "inside_temp": 8.1,
+        }
+    rig.vehicle.coordinator.data = {
+        f"{block}_{key}": value for block, row in rig.frame.items() for key, value in row.items()
+    }
+    state = NS(
+        entity_id=entity_id,
+        state=ha_value,
+        last_changed=datetime.fromtimestamp(rig.now - 2, UTC),
+        last_reported=datetime.fromtimestamp(rig.now - 1, UTC),
+    )
+    rig.hass.states = NS(get=lambda _: state)
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+
+    async def service_read(_):
+        return await rig.owner.async_read(rig.call)
+
+    first = await addon.read_snapshot(scope, service_read=service_read, current=lambda: True)
+    key, _, sub = path.partition(".")
+    assert (first["data"][key][sub] if sub else first["data"][key]) != fleet_value
+    assert first["fieldObservedAt"][path] == rig.now - 2
+    assert first["data"]["batteryPercent"] == 95
+    assert first["fieldObservedAt"]["batteryPercent"] == rig.now - 30
+    if role == "climate":
+        assert first["data"]["climate"]["temperatureC"] == 8.1
+        assert first["fieldObservedAt"]["climate.temperatureC"] == rig.now - fleet_stamp
+    assert rig.read.await_count == 0
+
+    # A fresh report of an older value cannot outrank newer Fleet telemetry.
+    state.last_changed = datetime.fromtimestamp(rig.now - 40, UTC)
+    second = await addon.read_snapshot(scope, service_read=service_read, current=lambda: True)
+    assert (second["data"][key][sub] if sub else second["data"][key]) == fleet_value
+    assert second["fieldObservedAt"][path] == rig.now - fleet_stamp
+
+
+@pytest.mark.parametrize("rt", ["missing", None, False])
+async def test_partial_coordinator_keeps_older_cached_trunk_without_false_ha_open(rig, rt):
+    from datetime import datetime
+
+    rig.vehicle.coordinator.data = {
+        "vehicle_state_timestamp": (rig.now - 5) * 1000,
+        "vehicle_state_locked": False,
+        "charge_state_timestamp": (rig.now - 3) * 1000,
+        "charge_state_battery_level": 96,
+    }
+    if rt != "missing":
+        rig.vehicle.coordinator.data["vehicle_state_rt"] = rt
+    state = NS(
+        entity_id="cover.trunk",
+        state="open",
+        last_changed=datetime.fromtimestamp(rig.now - 2, UTC),
+        last_reported=datetime.fromtimestamp(rig.now - 1, UTC),
+    )
+    rig.hass.states = NS(get=lambda eid: state if eid == "cover.trunk" else None)
+    result = await rig.owner.async_read(rig.call)
+    assert result["data"] == {"locked": False, "trunk": "closed", "batteryPercent": 96}
+    assert result["fieldObservedAt"] == {
+        "locked": rig.now - 5,
+        "trunk": rig.now - 10,
+        "batteryPercent": rig.now - 3,
+    }
+    assert result["timestamps"]["vehicle_state"] == rig.now - 10
+    assert result["historicalFields"] == ["trunk"]
+    assert rig.read.await_count == 1
+
+
+async def test_unchanged_ha_republication_does_not_refresh_sleeping_tesla_field(rig):
+    from datetime import datetime
+
+    rig.vehicle.coordinator.data = {
+        "state": "asleep",
+        "vehicle_state_timestamp": (rig.now - 1800) * 1000,
+        "vehicle_state_locked": True,
+        "vehicle_state_rt": 0,
+    }
+    rig.frame["vehicle_state"]["timestamp"] = (rig.now - 1800) * 1000
+    state = NS(
+        entity_id="lock.car",
+        state="locked",
+        last_changed=datetime.fromtimestamp(rig.now - 2, UTC),
+        last_reported=datetime.fromtimestamp(rig.now - 1, UTC),
+    )
+    rig.hass.states = NS(get=lambda eid: state if eid == "lock.car" else None)
+    result = await rig.owner.async_read(rig.call)
+    assert result["data"]["locked"] is True
+    assert result["fieldObservedAt"]["locked"] == rig.now - 1800
+    assert result["status"] == "stale"
+
+
+async def test_partial_coordinator_refresh_during_cache_read_cannot_admit_false_trunk_open(rig):
+    from datetime import datetime
+
+    rig.vehicle.coordinator.data = {
+        "vehicle_state_timestamp": (rig.now - 10) * 1000,
+        "vehicle_state_locked": True,
+        "vehicle_state_rt": 0,
+    }
+    rig.hass.states = NS(get=lambda _: None)
+
+    async def cache_read(_):
+        rig.vehicle.coordinator.data = {
+            "vehicle_state_timestamp": (rig.now - 5) * 1000,
+            "vehicle_state_locked": False,
+        }
+        state = NS(
+            entity_id="cover.trunk",
+            state="open",
+            last_changed=datetime.fromtimestamp(rig.now - 2, UTC),
+        )
+        rig.hass.states = NS(get=lambda eid: state if eid == "cover.trunk" else None)
+        return {"response": rig.frame}
+
+    rig.read.side_effect = cache_read
+    result = await rig.owner.async_read(rig.call)
+    assert result["data"] == {"locked": False, "trunk": "closed", "batteryPercent": 95}
+    assert result["fieldObservedAt"]["locked"] == rig.now - 5
+    assert result["fieldObservedAt"]["trunk"] == rig.now - 10
+
+
+@pytest.mark.parametrize(
+    "raw_rt,age,ha_state,expected",
+    [
+        ("missing", 5, "open", None),
+        (None, 5, "open", None),
+        (False, 5, "open", None),
+        (0, 5, "closed", "closed"),
+        (1, 5, "open", "open"),
+        (0, 5, "open", "open"),
+        (0, 12 * 3600, "closed", "closed"),
+    ],
+)
+async def test_trunk_control_proof_uses_current_local_evidence_only(
+    rig, monkeypatch, raw_rt, age, ha_state, expected
+):
+    from datetime import datetime
+
+    rig.request.update(entities={"trunk": "cover.trunk"}, trunk_control=True)
+    rig.vehicle.coordinator.data = {"vehicle_state_timestamp": (rig.now - age) * 1000}
+    if raw_rt != "missing":
+        rig.vehicle.coordinator.data["vehicle_state_rt"] = raw_rt
+    state = NS(
+        entity_id="cover.trunk",
+        state=ha_state,
+        last_changed=datetime.fromtimestamp(rig.now - 2, UTC),
+    )
+    rig.hass.states = NS(get=lambda _: state)
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: pytest.fail("proof touched Store"))
+    result = await rig.owner.async_read(rig.call)
+    rig.read.assert_not_awaited()
+    if expected is None:
+        assert result["status"] == "unavailable" and result["data"] is None
+    else:
+        stamp = rig.now - (2 if raw_rt == 0 and ha_state == "open" else age)
+        expected_status = "stale" if rig.now - stamp > snapshot.TTL else "observed"
+        assert result["status"] == expected_status and result["data"] == {"trunk": expected}
+        assert result["fieldObservedAt"] == {"trunk": stamp}

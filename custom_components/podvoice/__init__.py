@@ -424,6 +424,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 vol.Required("config_entry_id"): vol.All(str, vol.Length(min=1, max=128)),
                 vol.Required("device_id"): vol.All(str, vol.Length(min=1, max=128)),
                 vol.Required("entities"): dict,
+                vol.Optional("trunk_control"): bool,
             },
             extra=vol.PREVENT_EXTRA,
         ),

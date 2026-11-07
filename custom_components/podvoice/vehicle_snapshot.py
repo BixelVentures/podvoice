@@ -173,37 +173,91 @@ def _valid_history_field(path, value):
     return path in {"locked", "climate.defrost"} and type(value) is bool
 
 
-def _flatten_vehicle(data, stamps, defrost_stamp, climate_stamp):
+def _project_coordinator(coordinator, entities):
+    flat = coordinator.data
+    frame = (
+        {
+            name: {k[len(name) + 1 :]: v for k, v in flat.items() if k.startswith(name + "_")}
+            for name in BLOCKS
+        }
+        if type(flat) is dict
+        else {}
+    )
+    try:
+        return project(frame, entities, now=time.time())
+    except (ValueError, TypeError, OverflowError):
+        return {}, {}
+
+
+def _field_block(path):
+    if path in {"batteryPercent", "rangeKm"} or path.startswith("charging."):
+        return "charge_state"
+    if path.startswith("climate."):
+        return "climate_state"
+    return "vehicle_state"
+
+
+def _flatten_vehicle(data, stamps):
     result = {}
     for key, value in data.items():
-        block = (
-            "charge_state"
-            if key in {"batteryPercent", "rangeKm", "charging"}
-            else "climate_state"
-            if key == "climate"
-            else "vehicle_state"
-        )
         fields = value.items() if key in {"charging", "climate"} else [(None, value)]
         for sub, item in fields:
             path = f"{key}.{sub}" if sub is not None else key
-            stamp = (
-                defrost_stamp
-                if path == "climate.defrost"
-                else climate_stamp
-                if block == "climate_state"
-                else stamps.get(block)
-            )
+            stamp = stamps.get(_field_block(path))
             if _valid_history_field(path, item) and _number(stamp, 1, time.time()):
                 result[path] = {"value": item, "observedAt": stamp}
     return result
 
 
-def _put_field(data, path, value):
-    bits = path.split(".")
-    if len(bits) == 1:
-        data[bits[0]] = value
-    else:
-        data.setdefault(bits[0], {})[bits[1]] = value
+def _assemble_vehicle(fields):
+    data, stamps = {}, {}
+    for path, row in fields.items():
+        key, separator, sub = path.partition(".")
+        if separator:
+            data.setdefault(key, {})[sub] = row["value"]
+        else:
+            data[key] = row["value"]
+        block = _field_block(path)
+        stamp = row["observedAt"]
+        stamps[block] = min(stamps.get(block, stamp), stamp)
+    return data, stamps
+
+
+def _merge_fields(fields, observations):
+    changed = False
+    for path, row in observations.items():
+        if row["observedAt"] > fields.get(path, {}).get("observedAt", 0):
+            fields[path] = row
+            changed = True
+    return changed
+
+
+def _ha_discrete_fields(states, entities, coordinator_fields):
+    observations = {}
+    for role, path, values in (
+        ("locked", "locked", {"locked": True, "unlocked": False}),
+        ("trunk", "trunk", {"open": "open", "closed": "closed"}),
+        ("climate", "climate.status", {"off": "off", "heat_cool": "heat_cool"}),
+    ):
+        eid = entities.get(role)
+        state = states.get(eid) if eid else None
+        try:
+            if state.entity_id != eid or state.state not in values:
+                continue
+            stamp = state.last_changed.timestamp()
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            continue
+        value = values[state.state]
+        raw = coordinator_fields.get(path)
+        if raw is not None and raw["value"] == value:
+            # HA may republish unchanged coordinator data while the car sleeps.
+            continue
+        if path == "trunk" and value == "open" and raw is None:
+            # Tesla Fleet's rear cover also renders missing/null raw rt as open.
+            continue
+        if _number(stamp, 1, time.time()):
+            observations[path] = {"value": value, "observedAt": stamp}
+    return observations
 
 
 class VehicleSnapshot:
@@ -303,6 +357,9 @@ class VehicleSnapshot:
         ):
             raise ValueError("authenticated Supervisor required")
         request = dict(call.data)
+        trunk_control = request.pop("trunk_control", False)
+        if type(trunk_control) is not bool:
+            raise ValueError("invalid trunk control read")
         owner = self._resolve(request)
         entry, _runtime, vehicle, _api, coordinator, identity = owner
         entities = dict(request["entities"])
@@ -333,28 +390,43 @@ class VehicleSnapshot:
             except (ValueError, AttributeError, TypeError):
                 return False
 
-        flat = coordinator.data
-        frame = (
-            {
-                name: {k[len(name) + 1 :]: v for k, v in flat.items() if k.startswith(name + "_")}
-                for name in BLOCKS
-            }
-            if type(flat) is dict
-            else {}
-        )
-        try:
-            data, stamps = project(frame, entities, now=time.time())
-        except (ValueError, TypeError, OverflowError):
-            data, stamps = {}, {}
+        data, stamps = _project_coordinator(coordinator, entities)
+        coordinator_fields = _flatten_vehicle(data, stamps)
+        if trunk_control:
+            if set(entities) != {"trunk"}:
+                raise ValueError("trunk control read requires the rear trunk only")
+            # This proof path never uses the cloud cache or Store history.
+            raw = coordinator_fields.get("trunk")
+            if raw is None or not current():
+                return result
+            states = getattr(self.hass, "states", None)
+            observed = raw
+            if states is not None:
+                ha_trunk = _ha_discrete_fields(states, entities, coordinator_fields).get("trunk")
+                if ha_trunk and ha_trunk["observedAt"] > raw["observedAt"]:
+                    observed = ha_trunk
+                    result["sourceIdentity"] += "_and_ha_state"
+            stamp = observed["observedAt"]
+            result.update(
+                status="observed" if time.time() - stamp <= TTL else "stale",
+                data={"trunk": observed["value"]},
+                timestamps={"vehicle_state": stamp},
+                observedAt=stamp,
+                fieldObservedAt={"trunk": stamp},
+                historicalFields=[],
+            )
+            return result
         required = {
             "climate_state"
             if role == "climate"
             else next(block for block in BLOCKS if ROLES[role][1].startswith(block + "_"))
             for role in entities
         }
-        coordinator_data, coordinator_stamps = data, stamps
-        if not required <= stamps.keys() or any(
-            time.time() - stamp > TTL for stamp in stamps.values()
+        current_fields = dict(coordinator_fields)
+        if (
+            not required <= stamps.keys()
+            or ("trunk" in entities and "trunk" not in coordinator_fields)
+            or any(time.time() - stamp > TTL for stamp in stamps.values())
         ):
             # Cache only sanitized projections, bound to actual entry/runtime/API custody.
             key = (entry.entry_id, request["device_id"], identity)
@@ -400,59 +472,39 @@ class VehicleSnapshot:
                             cached["until"] = math.inf
                 data, stamps = copy.deepcopy(cached["data"]), dict(cached["stamps"])
             result["sourceIdentity"] = "cached"
-            # Each block is its own observation. A cached older/missing block
-            # must not erase a newer timestamped coordinator observation.
-            for block, stamp in coordinator_stamps.items():
-                if stamp > stamps.get(block, 0):
-                    keys = {
-                        "charge_state": ("batteryPercent", "rangeKm", "charging"),
-                        "climate_state": ("climate",),
-                        "vehicle_state": ("locked", "trunk"),
-                    }[block]
-                    for name in keys:
-                        data.pop(name, None)
-                        if name in coordinator_data:
-                            data[name] = copy.deepcopy(coordinator_data[name])
-                    stamps[block] = stamp
-                    result["sourceIdentity"] = "coordinator_and_cached"
-        # The configured Tesla Fleet switch is the HA authority for this value.
-        # Do not infer it from a missing raw field or from a cache retrieval time.
-        defrost_stamp = None
-        climate_stamp = stamps.get("climate_state")
-        eid = entities.get("defrost")
-        if eid:
-            state_machine = getattr(self.hass, "states", None)
-            state = state_machine.get(eid) if state_machine is not None else None
+            current_fields = _flatten_vehicle(data, stamps)
+            # The coordinator can refresh while the bounded cache read is in flight.
+            # Keep initial values for fields omitted by that newer observation.
+            initial_changed = _merge_fields(current_fields, coordinator_fields)
+            coordinator_fields = _flatten_vehicle(*_project_coordinator(coordinator, entities))
+            if _merge_fields(current_fields, coordinator_fields) or initial_changed:
+                result["sourceIdentity"] = "coordinator_and_cached"
+        if not current():
+            return result
+
+        state_machine = getattr(self.hass, "states", None)
+        ha_fields = {}
+        if state_machine is not None:
+            ha_fields = _ha_discrete_fields(state_machine, entities, coordinator_fields)
+            # Defrost has no trustworthy raw counterpart in the Fleet projection.
+            eid = entities.get("defrost")
+            state = state_machine.get(eid) if eid else None
             try:
                 stamp = state.last_reported.timestamp()
-                known = (
+                if (
                     state.entity_id == eid
                     and state.state in {"on", "off"}
-                    and _number(stamp, 1, time.time())
-                    and time.time() - stamp <= TTL
-                )
+                    and _number(stamp, time.time() - TTL, time.time())
+                ):
+                    ha_fields["climate.defrost"] = {
+                        "value": state.state == "on",
+                        "observedAt": stamp,
+                    }
             except (AttributeError, TypeError, ValueError, OverflowError):
-                known = False
-            if known:
-                defrost_stamp = stamp
-                data.setdefault("climate", {})["defrost"] = state.state == "on"
-                stamps["climate_state"] = min(stamps.get("climate_state", stamp), stamp)
-                result["sourceIdentity"] += "_and_ha_state"
-        if not current():
-            return {
-                **result,
-                "status": "unavailable",
-                "data": None,
-                "timestamps": {},
-                "observedAt": None,
-            }
-        # The separately configured HA cabin sensor may report after the Fleet
-        # climate block. Its timestamp updates that field only, never climate state.
-        cabin = None
-        eid = entities.get("temperatureC")
-        if eid:
-            state_machine = getattr(self.hass, "states", None)
-            state = state_machine.get(eid) if state_machine is not None else None
+                pass
+            # The separate cabin sensor updates temperature only.
+            eid = entities.get("temperatureC")
+            state = state_machine.get(eid) if eid else None
             try:
                 stamp = state.last_reported.timestamp()
                 unit = state.attributes.get("unit_of_measurement")
@@ -465,25 +517,14 @@ class VehicleSnapshot:
                     and _number(value, -50, 70)
                     and _number(stamp, 1, time.time())
                 ):
-                    # Old is still known: field merging below chooses the newer
-                    # observation, while the original timestamp preserves its age.
-                    cabin = {"value": value, "observedAt": stamp}
+                    ha_fields["climate.temperatureC"] = {"value": value, "observedAt": stamp}
             except (AttributeError, TypeError, ValueError, OverflowError):
                 pass
+            if _merge_fields(current_fields, ha_fields):
+                result["sourceIdentity"] += "_and_ha_state"
+        fields = current_fields
         # Serialize HA Store reads/writes; identity remains bound across each await.
         async with self._history_lock:
-            current_fields = _flatten_vehicle(data, stamps, defrost_stamp, climate_stamp)
-            if cabin and cabin["observedAt"] > current_fields.get("climate.temperatureC", {}).get(
-                "observedAt", 0
-            ):
-                current_fields["climate.temperatureC"] = cabin
-                _put_field(data, "climate.temperatureC", cabin["value"])
-                stamps["climate_state"] = min(
-                    stamps.get("climate_state", cabin["observedAt"]), cabin["observedAt"]
-                )
-                if not result["sourceIdentity"].endswith("_and_ha_state"):
-                    result["sourceIdentity"] += "_and_ha_state"
-            current_data, current_stamps = copy.deepcopy(data), dict(stamps)
             scope_key = hashlib.sha256(
                 json.dumps(
                     [entry.entry_id, request["device_id"], identity], sort_keys=True
@@ -521,19 +562,9 @@ class VehicleSnapshot:
                         changed = True
                     elif row["observedAt"] < old["observedAt"] or row != old:
                         historical.append(path)
-                for path, row in saved.items():
+                for path in saved:
                     if path not in current_fields:
                         historical.append(path)
-                    if path in historical:
-                        _put_field(data, path, row["value"])
-                    block = (
-                        "charge_state"
-                        if path.startswith("charging.") or path in {"batteryPercent", "rangeKm"}
-                        else "climate_state"
-                        if path.startswith("climate.")
-                        else "vehicle_state"
-                    )
-                    stamps[block] = min(stamps.get(block, row["observedAt"]), row["observedAt"])
                 if changed and (scope_key in rows or len(rows) < 16):
                     rows[scope_key] = saved
                     await store.async_save(rows)
@@ -545,14 +576,20 @@ class VehicleSnapshot:
                             "timestamps": {},
                             "observedAt": None,
                         }
-                result["fieldObservedAt"] = {path: row["observedAt"] for path, row in saved.items()}
+                fields = saved
                 result["historicalFields"] = sorted(historical)
             except (OSError, ValueError, TypeError, ImportError):
-                data, stamps = current_data, current_stamps
-                result["fieldObservedAt"] = {
-                    path: row["observedAt"] for path, row in current_fields.items()
-                }
                 result["historicalFields"] = []
+        result["fieldObservedAt"] = {path: row["observedAt"] for path, row in fields.items()}
+        if (
+            "trunk" in fields
+            and "trunk" not in coordinator_fields
+            and fields["trunk"] != ha_fields.get("trunk")
+            and "trunk" not in result["historicalFields"]
+        ):
+            # A cached trunk value is display history if current evidence is missing.
+            result["historicalFields"] = sorted([*result["historicalFields"], "trunk"])
+        data, stamps = _assemble_vehicle(fields)
         if not current():
             return {
                 **result,

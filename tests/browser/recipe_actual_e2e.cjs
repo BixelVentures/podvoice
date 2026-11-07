@@ -3,7 +3,8 @@
 const {chromium}=require('playwright');
 const testEnv=require('./podview_actual_env.cjs');
 const {spawn}=require('node:child_process');
-const {mkdtemp,rm}=require('node:fs/promises');
+const fs=require('node:fs/promises');
+const {mkdtemp,rm}=fs;
 const os=require('node:os');
 const path=require('node:path');
 const assert=require('node:assert/strict');
@@ -111,6 +112,49 @@ async function openCatalog(page){
  assert.equal(await page.locator('#recipe-ingredients-trigger').getAttribute('aria-expanded'),'false');
  assert.equal(await page.locator('#recipe-view').evaluate(el=>el.scrollTop),cookingScroll);
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-after-reload.png`)});
+ // G2: real browser network loss/resume preserves the active recipe without a reload.
+ const lifecycleWrites=[];
+ const observeWrite=request=>{
+  const pathname=new URL(request.url()).pathname;
+  if(request.method()==='POST'&&!pathname.endsWith('/client-diagnostics'))lifecycleWrites.push(pathname);
+ };
+ page.on('request',observeWrite);
+ const beforeLifecycle=await page.locator('pv-widget-host').evaluate(host=>{
+  const view=host.recipeView,session=view.sessions.get(view.active);
+  window.recipeLifecycleOwner={host,view,active:view.active,session};
+  return {title:view.active.title,steps:[...session.steps],ingredients:[...session.ingredients],
+   expanded:session.ingredientsExpanded,scroll:host.querySelector('#recipe-view').scrollTop,
+   acceptedReadAt:host.liveTransport.acceptedReadAt,origin:performance.timeOrigin};
+ });
+ try{
+  await page.context().setOffline(true);
+  await sleep(250);
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.browserOffline===true);
+  await page.context().setOffline(false);
+  await page.waitForFunction(previous=>{
+   const host=document.querySelector('pv-widget-host');
+   return host?.liveTransport?.connected&&host.liveTransport.acceptedReadAt>previous&&!host.browserOffline;
+  },beforeLifecycle.acceptedReadAt,{timeout:20000});
+ }finally{await page.context().setOffline(false);}
+ const afterLifecycle=await page.locator('pv-widget-host').evaluate(host=>{
+  const prior=window.recipeLifecycleOwner,view=host.recipeView,session=view.sessions.get(view.active);
+  return {title:view.active.title,steps:[...session.steps],ingredients:[...session.ingredients],
+   expanded:session.ingredientsExpanded,scroll:host.querySelector('#recipe-view').scrollTop,
+   acceptedReadAt:host.liveTransport.acceptedReadAt,origin:performance.timeOrigin,
+   sameOwners:prior.host===host&&prior.view===view&&prior.active===view.active&&prior.session===session,
+   admission:host.liveSnapshot.admission.kind};
+ });
+ assert(afterLifecycle.sameOwners,'resume retains the exact recipe/session objects');
+ assert.deepEqual({...afterLifecycle,acceptedReadAt:0,sameOwners:undefined,admission:undefined},
+  {...beforeLifecycle,acceptedReadAt:0,sameOwners:undefined,admission:undefined});
+ assert.equal(afterLifecycle.admission,'ha_ingress');
+ assert.deepEqual(lifecycleWrites,[],'resume cannot enroll a screen or send a product effect');
+ page.off('request',observeWrite);
+ const lifecycleBundle=await fetch(base+'/view/podview.bundle.js').then(response=>response.arrayBuffer());
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-lifecycle.json'),JSON.stringify({
+  outcome:'PASS',beforeLifecycle,afterLifecycle,lifecycleWrites,inertHA:true,physicalIPadSleepVerified:false,
+  bundleSHA:createHash('sha256').update(Buffer.from(lifecycleBundle)).digest('hex'),
+ },null,2));
  // Reset removes the persisted session, keeping all original import assertions.
  await page.getByRole('button',{name:'Nulstil opskrift',exact:true}).tap();
  await page.getByRole('button',{name:'Nulstil',exact:true}).tap();

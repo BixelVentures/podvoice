@@ -56,6 +56,7 @@ def rig(tmp_path):
         binding=current_binding,
         risk_registry=registry,
         temperature_unit_read=h.read_temperature_unit,
+        trunk_state_read=h.read_trunk,
     )
     tools.podview_vehicle_control = lambda: h.adapter
     credential, identity, _ = registry.enroll("kitchen", bridge.controller_pin("kitchen"))

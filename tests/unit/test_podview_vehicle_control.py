@@ -72,6 +72,7 @@ class Harness:
             binding=lambda: self.bound,
             risk_registry=self.store,
             temperature_unit_read=self.read_temperature_unit,
+            trunk_state_read=self.read_trunk,
         )
         self.bridge = SimpleNamespace(
             boot_id="boot",
@@ -96,6 +97,10 @@ class Harness:
             podview_vehicle_control=lambda: self.adapter,
         )
         self.tasks = TouchControls(self.bridge, "", SimpleNamespace(tools=self.bridge.tools))
+
+    async def read_trunk(self, eid):
+        state = self.states[eid]["state"]
+        return state if state in {"open", "closed"} else None
 
     async def read_temperature_unit(self):
         return self.temperature_unit
@@ -594,3 +599,36 @@ async def test_climate_power_on_remains_available_when_off(h):
     assert setup["ok"] is True
     await h.run(setup)
     assert h.calls == [("climate", "turn_on", "climate.climate", {})]
+
+
+@pytest.mark.asyncio
+async def test_trunk_close_is_unavailable_when_ha_open_has_no_native_observation(h):
+    eid = h.policy["entities"]["trunk"]
+    h.states[eid]["state"] = "open"
+
+    async def no_trustworthy_observation(_):
+        return None
+
+    h.adapter.trunk_state_read = no_trustworthy_observation
+    setup = await h.setup("rearTrunkToggle", {"direction": "close"})
+    assert not setup["ok"]
+    assert not h.calls
+
+
+@pytest.mark.asyncio
+async def test_trunk_close_rechecks_native_observation_at_last_send(h):
+    eid = h.policy["entities"]["trunk"]
+    h.states[eid]["state"] = "open"
+    proof = "open"
+
+    async def current_native_state(requested_entity):
+        assert requested_entity == eid
+        return proof
+
+    h.adapter.trunk_state_read = current_native_state
+    setup = await h.setup("rearTrunkToggle", {"direction": "close"})
+    assert setup["ok"]
+    proof = None  # HA still says open after the native raw value disappears.
+    result = await h.run(setup)
+    assert result["outcome"] == "rejected"
+    assert not h.calls and not h.risk()["pending"]

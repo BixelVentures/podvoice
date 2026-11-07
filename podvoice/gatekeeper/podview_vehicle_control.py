@@ -138,6 +138,7 @@ class VehicleControl:
         clock=None,
         risk_registry=None,
         temperature_unit_read=None,
+        trunk_state_read=None,
     ):
         import time
 
@@ -146,6 +147,7 @@ class VehicleControl:
         self.clock = clock or time.time
         self.risk_registry = risk_registry
         self.temperature_unit_read = temperature_unit_read
+        self.trunk_state_read = trunk_state_read
         self._owner = object()
         self._spent = []
 
@@ -259,6 +261,12 @@ class VehicleControl:
             raise ValueError("vehicle registry changed")
         if any(after[eid].get("translation_key") != ROLES[role][1] for role, eid in scope.entities):
             raise ValueError("vehicle role changed")
+        if role == "trunk" and (
+            self.trunk_state_read is None
+            or await self.trunk_state_read(eid) != state
+            or not self._current(expected, current)
+        ):
+            raise ValueError("trunk direction lacks current native evidence")
         return identity, Operation(action, eid, domain, service, capability)
 
     async def prepare(self, *, current, action=None) -> Offer | None:
@@ -399,7 +407,11 @@ class VehicleControl:
                 if self.clock() > offer.expires_at:
                     return False
                 identity, op = await self._read(offer.binding, current, action)
-                if identity != offer.registry or op != offer.operations[0]:
+                if (
+                    identity != offer.registry
+                    or op != offer.operations[0]
+                    or self.clock() > offer.expires_at
+                ):
                     return False
                 if action == "temperature":
                     if (
