@@ -89,6 +89,16 @@ async def radio_action(request):
             },
             status=409,
         )
+    if os.environ.get("RADIO_STATION_ORDER_TEST") == "rejected" and body["station_id"] == "p1":
+        return web.json_response(
+            {
+                "schema": "podconnect.radio-action.v1",
+                "action_id": body["action_id"],
+                "status": "rejected",
+                "retry_allowed": False,
+            },
+            status=409,
+        )
     if body["action"] == "start":
         assert body["station_id"] in {row["id"] for row in radio["stations"]}
         assert body["target_id"] in {row["id"] for row in radio["targets"]}

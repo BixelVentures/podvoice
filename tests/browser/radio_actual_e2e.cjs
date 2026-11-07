@@ -7,11 +7,92 @@ const {createHash}=require('node:crypto');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
 const port=Number(process.env.RADIO_TEST_PORT||18982),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+const stationOrderMode=process.env.RADIO_STATION_ORDER_TEST;
+const orderedStations=['1','unknown','rejected'].includes(stationOrderMode);
 // Read every bounded persisted page; a healthy trace may exceed the first64 rows.
 const readJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 const radio=()=>fetch(base+'/lab/radio').then(r=>r.json());
 const settleMotion=()=>page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})))});
 let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],errors=[];
+async function stationOrderJourney(stations){
+ const station=name=>stations.getByRole('button',{name:new RegExp(name)});
+ const p3=station('P3'),p1=station('P1'),p6=station('P6 Beat');
+ const observed=stationId=>page.waitForFunction(stationId=>{
+  const radio=document.querySelector('pv-widget-host').liveRadio;
+  return !radio.pending&&radio.value?.state?.status==='playing'&&radio.value.state.stationId===stationId;
+ },stationId,{timeout:12000});
+ await p3.tap();
+ await observed('p3');
+ let enter,release;
+ const entered=new Promise(resolve=>{enter=resolve;});
+ const gate=new Promise(resolve=>{release=resolve;});
+ await page.route('**/view/api/radio/actions',async route=>{
+  enter();
+  await gate;
+  if(stationOrderMode!=='unknown')return route.continue();
+  const committed=await route.fetch();
+  assert.equal((await committed.json()).status,'accepted');
+  await route.fulfill({status:502,json:{error:'inert_radio_receipt_lost'}});
+ },{times:1});
+ try{
+  await p1.tap();
+  let timeout;
+  try{await Promise.race([entered,new Promise((_,reject)=>{
+   timeout=setTimeout(()=>reject(Error('first station request was not observed')),10000);
+  })]);}finally{clearTimeout(timeout);}
+  assert.equal(await p3.getAttribute('aria-pressed'),'true','last observed station stays selected while request waits');
+  assert.equal(await p1.getAttribute('aria-busy'),'true');
+  assert.equal(await p6.isEnabled(),true,'ordinary station pending must not disable a second explicit tap');
+  if(stationOrderMode!=='rejected'){
+   await p6.tap();
+   assert.equal(await p3.getAttribute('aria-pressed'),'true','queued choice does not claim playback');
+   assert.equal(await p1.getAttribute('aria-pressed'),'false');
+   assert.equal(await p6.getAttribute('aria-busy'),'true','latest explicit choice paints existing pending label');
+   assert.equal(await p1.getAttribute('aria-busy'),'false');
+  }
+  assert.deepEqual((await state()).radioWrites.map(row=>row.station_id),['p3']);
+  assert.equal(actions.filter(row=>row.url.endsWith('/radio/actions')).length,2);
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-stations-held.png')});
+ }finally{release();}
+ let expected=['p3','p1','p6-beat'];
+ if(stationOrderMode==='unknown'){
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveRadio.unknown,
+   undefined,{timeout:12000});
+  assert.equal(await p6.getAttribute('aria-busy'),'false','lost reply clears the queued choice');
+  assert.deepEqual((await state()).radioWrites.map(row=>row.station_id),['p3','p1']);
+  const p8=station('P8 Jazz');
+  await page.waitForFunction(()=>{
+   const h=document.querySelector('pv-widget-host'),radio=h.liveRadio;
+   return !radio.unknown&&radio.value?.state?.stationId==='p1';
+  },undefined,{timeout:16000});
+  assert.equal(await p8.isEnabled(),true);
+  await p8.tap();
+  await observed('p8-jazz');
+  expected=['p3','p1','p8-jazz'];
+ }else{
+  if(stationOrderMode==='rejected'){
+   await page.getByText('Radio kunne ikke startes. Prøv igen.',{exact:true}).waitFor({state:'visible'});
+   assert.equal(await p3.getAttribute('aria-pressed'),'true');
+   assert.equal(await p6.isEnabled(),true);
+   await p6.tap();
+   expected=['p3','p6-beat'];
+  }
+  await observed('p6-beat');
+  assert.equal(await p6.getAttribute('aria-pressed'),'true');
+  assert.equal(await p6.getAttribute('aria-busy'),'false');
+ }
+ const final=await state();
+ assert.deepEqual(final.radioWrites.map(row=>row.station_id),expected);
+ const posts=actions.filter(row=>row.url.endsWith('/radio/actions')).map(row=>row.body);
+ assert.equal(new Set(posts.map(row=>row.taskId)).size,3);
+ assert.equal(posts.length,3);
+ assert.deepEqual(errors,[]);
+ const proof={outcome:'PASS',bundleSHA,orderedStations:final.radioWrites.map(row=>row.station_id),
+  mode:stationOrderMode,freshTasks:posts.length,inertNativeService:true,pageErrors:errors};
+ if(process.env.RADIO_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RADIO_EXPECTED_BUNDLE);
+ await fs.writeFile(path.join(env.artifactDir(),'podview-radio-station-order-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 (async()=>{try{
  const testNonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-radio-'));
@@ -26,6 +107,7 @@ let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],err
  const stations=page.locator('#radio-view pv-choice-list');
  await stations.getByRole('button',{name:/P3/}).waitFor({state:'visible',timeout:15000});
  assert.deepEqual((await state()).radioWrites,[],'navigation and passive state reads have no effects');
+ if(orderedStations){await stationOrderJourney(stations);return;}
  await stations.getByRole('button',{name:/P3/}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='playing'&&!h.liveRadio.pending&&h.liveRadio.value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});
  assert.equal((await radio()).source_kind,'radio');assert.equal((await radio()).target_id,'42');
