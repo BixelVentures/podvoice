@@ -372,6 +372,8 @@ async def emit_playback_changed():
         for number, event_type in list(subscriptions.items()):
             if event_type == "podconnect_playback_changed":
                 await websocket.send_json({"id": number, "type": "event", "event": event})
+
+
 configuration = {
     "roomId": "kitchen",
     "music": [
