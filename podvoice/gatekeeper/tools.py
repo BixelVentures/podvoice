@@ -2607,6 +2607,32 @@ class ToolRouter:
                 row["attributes"]["temperature_unit"] = unit
             return row
 
+        async def trunk_state_read(entity_id):
+            read_scope = self._vehicle_scope
+            if (
+                read_scope is None
+                or dict(read_scope.entities).get("trunk") != entity_id
+                or self.podview_vehicle_control_binding() != binding
+            ):
+                return None
+            proof_scope = podview_vehicle.VehicleScope(
+                read_scope.config_entry_id, read_scope.device_id, (("trunk", entity_id),)
+            )
+            result = await self._read_podview_vehicle_snapshot(
+                proof_scope,
+                client=client,
+                token=token,
+                current=lambda: self.podview_vehicle_control_binding() == binding,
+                trunk_control=True,
+            )
+            if (
+                result["status"] == "observed"
+                and "trunk" in result.get("fieldObservedAt", {})
+                and not result.get("historicalFields")
+            ):
+                return result["data"]["trunk"]
+            return None
+
         async def service_call(domain, service, entity_id, data, *, preflight):
             if not await preflight():
                 return {"outcome": "rejected", "noEffect": True}
@@ -2629,6 +2655,7 @@ class ToolRouter:
                 client, token, lambda: self.podview_vehicle_control_binding() == binding
             ),
             risk_registry=registry,
+            trunk_state_read=trunk_state_read,
         )
 
     def configure_podview_vehicle_read(self, policy: object) -> None:
@@ -2656,6 +2683,37 @@ class ToolRouter:
             self._device_control,
         )
 
+    async def _read_podview_vehicle_snapshot(
+        self, scope, *, client, token, current, trunk_control=False
+    ):
+        async def service_read(data):
+            if not current():
+                raise ValueError("vehicle source changed")
+            payload = bytearray()
+            async with client.stream(
+                "POST",
+                f"{C.SUPERVISOR_CORE_API}/services/podvoice/vehicle_snapshot?return_response",
+                headers={"Authorization": f"Bearer {token}"},
+                json=data,
+            ) as response:
+                response.raise_for_status()
+                async for chunk in response.aiter_bytes():
+                    if not current() or len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
+                        raise ValueError("vehicle source changed or too large")
+                    payload.extend(chunk)
+            if not current():
+                raise ValueError("vehicle source changed")
+            wrapper = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
+            if not isinstance(wrapper, dict) or not isinstance(
+                wrapper.get("service_response"), dict
+            ):
+                raise ValueError("vehicle snapshot response unavailable")
+            return wrapper["service_response"]
+
+        return await podview_vehicle.read_snapshot(
+            scope, service_read=service_read, current=current, trunk_control=trunk_control
+        )
+
     async def podview_vehicle_read(self) -> dict:
         unavailable = {"status": "unavailable", "data": None}
         if not self.podview_vehicle_available():
@@ -2680,33 +2738,11 @@ class ToolRouter:
         def current():
             return self.podview_vehicle_available() and self.podview_vehicle_binding() == binding
 
-        async def service_read(data):
-            if not current() or client is None:
-                raise ValueError("vehicle source changed")
-            payload = bytearray()
-            async with client.stream(
-                "POST",
-                f"{C.SUPERVISOR_CORE_API}/services/podvoice/vehicle_snapshot?return_response",
-                headers={"Authorization": f"Bearer {token}"},
-                json=data,
-            ) as response:
-                response.raise_for_status()
-                async for chunk in response.aiter_bytes():
-                    if not current() or len(payload) + len(chunk) > podview_vehicle.MAX_BYTES:
-                        raise ValueError("vehicle source changed or too large")
-                    payload.extend(chunk)
-            if not current():
-                raise ValueError("vehicle source changed")
-            wrapper = json.loads(payload, object_pairs_hook=podview_vehicle.unique_pairs)
-            if not isinstance(wrapper, dict) or not isinstance(
-                wrapper.get("service_response"), dict
-            ):
-                raise ValueError("vehicle snapshot response unavailable")
-            return wrapper["service_response"]
-
         try:
-            result = await podview_vehicle.read_snapshot(
-                scope, service_read=service_read, current=current
+            if client is None:
+                return unavailable
+            result = await self._read_podview_vehicle_snapshot(
+                scope, client=client, token=token, current=current
             )
             if result.get("status") in {"observed", "stale"}:
 
