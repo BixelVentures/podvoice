@@ -109,3 +109,42 @@ test('failed mood cache survives reentry but actual visible retry recovers three
  f.view.refresh.events.get('click')({preventDefault(){assert.fail('retry blocked');},stopImmediatePropagation(){assert.fail('retry stopped');}});retryClick();assert.deepEqual(reads,[['mood','initial'],['mood','refresh']]);assert.equal(catalogue.busy,true);assert.equal(catalogue.cards.length,0);catalogue.tracks('mood',body,'one');catalogue.setBusy(false);assert.equal(catalogue.cards.length,3);assert.equal([...f.view.rows.values()].filter(row=>!row.hidden).length,3);assert.equal(f.view.empty.dataset.refreshOutcome,'');assert.equal(f.probes.length,3,'artwork is still held while three cards render');assert.equal(catalogue.pendingRead,null);assert.equal(catalogue.entries.get(catalogue.key()).source,null,'read-only preview grants no effects');
  }finally{clearTimeout(catalogue.expiryTimer);f.view.cleanup();}
 });
+
+for(const [kind,collection,uri,artworkKind] of [
+ ['account_playlists','top','spotify:playlist:0123456789ABCDEFGHIJKL','playlist_cover'],
+ ['recent','recent','spotify:track:0123456789ABCDEFGHIJKL','album_cover'],
+])test(`${kind} retains an accepted cover through missing metadata within one item and account`,async()=>{
+ const f=surface(),accepted={...cover,kind:artworkKind};
+ const track={uri,name:'Actual item',artist:'Artist',artwork:accepted};
+ const render=(row,busy=false)=>f.view.render({cards:sourceMusicCards([row],kind),collection,
+  accountLibrary:kind==='account_playlists',discovery:true,busy});
+ try{
+  render(track);
+  await f.succeed(f.probes[0]);
+  const row=[...f.view.rows.values()][0],image=row.children[0];
+  assert.equal(image.src,accepted.url);
+  render(track,true);
+  render({...track,artwork:undefined});
+  assert.equal([...f.view.rows.values()][0],row);
+  assert.equal(image.src,accepted.url,'the same item keeps already decoded source artwork');
+  assert.equal(image.classList.contains('spotify-artwork'),true);
+  assert.equal(f.probes.length,1);
+  for(const [owner,key,value] of [
+   [f.host.liveCatalogue,'account','two'],
+   [f.host.liveSnapshot,'bootId','new-boot'],
+   [f.host.liveSnapshot,'roomId','new-room'],
+  ]){
+   owner[key]=value;
+   render({...track,artwork:undefined});
+   assert.equal(image.src,'assets/icons/music-note-beamed.svg',key+' cannot inherit artwork');
+   render(track);
+   await f.succeed(f.probes.at(-1));
+  }
+  render(track,true);
+  render({...track,uri:uri.slice(0,-1)+'M',artwork:undefined});
+  assert.equal([...f.view.rows.values()][0],row,'the refresh reused the existing slot');
+  assert.equal(image.src,'assets/icons/music-note-beamed.svg','a different item in the same slot never retains the old cover');
+  f.view.render({cards:[],collection,discovery:true});
+  assert.equal(row.parentNode,null,'a removed item leaves no retained cover');
+ }finally{f.view.cleanup();}
+});

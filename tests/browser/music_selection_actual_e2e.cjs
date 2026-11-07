@@ -16,6 +16,7 @@ const queueJourney = process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
 const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
 const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
+const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
@@ -166,6 +167,56 @@ async function discoveryRevisitJourney(){
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',story:'F5',bundleSHA,revisitedAbandonedFirstRead:true,reads,inertNativeService:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-revisit-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
+async function discoveryCoverJourney(){
+ const coverUrl='https://i.scdn.co/image/InertRecentCover';
+ await page.route(coverUrl,route=>route.fulfill({contentType:'image/svg+xml',
+  body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'}));
+ let reads=0,releaseRefresh,markHeld;
+ const gate=new Promise(resolve=>{releaseRefresh=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
+ await page.route('**/view/api/music?**',async route=>{
+  if(new URL(route.request().url()).searchParams.get('kind')!=='recent'||++reads!==2)return route.continue();
+  const response=await route.fetch(),body=await response.json();
+  assert.equal(body.ok,true);
+  assert.equal(body.data.tracks[0].artwork,undefined,'the actual refresh returns no cover for the same item');
+  markHeld();
+  await gate;
+  await route.fulfill({response});
+ });
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection=recent]').tap();
+ const list=page.locator('#result-list'),row=list.locator('button.result').filter({hasText:'Katalogsang 11'});
+ const image=row.locator('img.result-art:not([data-content-transition])');
+ await page.waitForFunction(url=>[...document.querySelectorAll('#result-list img.result-art')]
+  .some(image=>image.getAttribute('src')===url&&image.naturalWidth>0),coverUrl,{timeout:15000});
+ const initial=await row.elementHandle();
+ await row.evaluate(element=>{
+  element.coverTransitions=0;
+  new MutationObserver(records=>{
+   for(const record of records)for(const node of record.addedNodes){
+    if(node.nodeType===Node.ELEMENT_NODE&&node.matches('img[data-content-transition]'))element.coverTransitions++;
+   }
+  }).observe(element,{childList:true});
+ });
+ assert.equal(await image.getAttribute('src'),coverUrl);
+ await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+ try{
+  await Promise.race([held,sleep(10000).then(()=>{throw Error('cover refresh not held');})]);
+  assert.equal(await image.getAttribute('src'),coverUrl);
+ }finally{releaseRefresh();}
+ await list.locator('button.result').filter({hasText:'Katalogsang 17'}).waitFor({timeout:15000});
+ assert.equal(await row.evaluate((current,original)=>current===original,initial),true);
+ assert.equal(await image.getAttribute('src'),coverUrl,'missing metadata never resets the accepted cover');
+ assert.equal(await image.evaluate(img=>img.naturalWidth),64);
+ assert.equal(await row.evaluate(element=>element.coverTransitions),0,'unchanged visible cover never crossfades to itself');
+ assert.equal(reads,2);
+ assert.deepEqual((await state()).writes,[]);
+ assert.deepEqual(actions.filter(action=>!action.url.endsWith('/queue/offer')),[]);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',story:'F9',bundleSHA,retainedCover:true,retainedWithoutCrossfade:true,recentExpanded:7,inertNativeService:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 async function queuePersistenceJourney(){
@@ -584,6 +635,7 @@ async function queuePersistenceJourney(){
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}
+ if(discoveryCover){await discoveryCoverJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();
  const rows=page.locator('#result-list button.result');

@@ -563,7 +563,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "a5e8d94db44a1cbc9bc66886d0a7b5f516d2e5686c4cdfd23f51d9a49afdf762"
+      "sha256": "291a16babdc0b201cbcd6be0c468ed7628361a5dbfdac38ad4c8ab67bad1e173"
     },
     {
       "path": "local-robot-view.js",
@@ -591,7 +591,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "96bc7f06b7b8f05d56bfa95c203f0d9eccecc689073d730677b7056935088ceb"
+      "sha256": "bdb9ffe4b3bd06557eb1073aab6c91d5dd997232af105f0a84e29653d71173c4"
     },
     {
       "path": "music-selection-model.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "48d1f77cb8391d530a1e73c9ac940d04f89a79382fbce9318129730c7f312641"
+      "sha256": "1ce6a97db7f419053c61e31833e33629648d0b546081e4f24d0fc8a6dfb0b363"
     },
     {
       "path": "podview.css",
@@ -659,7 +659,7 @@
     },
     {
       "path": "radio-view.js",
-      "sha256": "cf44e56d7b9f984ab2717ee2959dffdb323218a297367c7946d57f96bcf7cd77"
+      "sha256": "88a2b8aca721c0000b1961e9343bab53113894b9ddad786315562de386303164"
     },
     {
       "path": "recipe-view.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "1580e02d65914fd844eb34842906e2d711108e323498d25664b09511a2a58dfd"
+      "sha256": "9321b223c0332e98e03b8935ee1ab657d38d69774f88e87efaa95652fbd56930"
     },
     {
       "path": "workshop.css",
