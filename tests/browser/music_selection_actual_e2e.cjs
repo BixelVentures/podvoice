@@ -13,10 +13,76 @@ const queueUnknownUnchanged = process.env.MUSIC_QUEUE_INTENTS === 'unknown-uncha
 const queueUnknown = process.env.MUSIC_QUEUE_INTENTS === 'unknown' || queueUnknownUnchanged;
 const queueIntents = process.env.MUSIC_QUEUE_INTENTS === '1' || queueIntentDuringRefresh || queueUnknown;
 const queueJourney = process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
-const cold=process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
+const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
+const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+async function defaultSpeakerJourney(){
+ const viewport={width:1194,height:834},controls=[];
+ const record=surface=>surface.on('request',request=>{
+  if(request.method()==='POST'&&/\/(control|music)\/.*actions$/.test(new URL(request.url()).pathname)){
+   controls.push(request.postDataJSON()?.action);
+  }
+ });
+ const modal=surface=>surface.locator('#rooms');
+ const row=(surface,name)=>modal(surface).locator('#room-options button').filter({hasText:name});
+ const open=async surface=>{
+  await surface.locator('#output').tap();
+  await modal(surface).waitFor({state:'visible'});
+  await row(surface,'Køkkenalrum HomePod').waitFor({state:'visible'});
+ };
+ await page.setViewportSize(viewport);
+ record(page);
+ await env.openOverview(page);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.readState==='idle',
+  undefined,{timeout:15000});
+ await open(page);
+ const kitchen=row(page,'Køkkenalrum HomePod'),bedroom=row(page,'Soveværelse');
+ assert.equal(await kitchen.getAttribute('aria-pressed'),'true');
+ assert.equal(await kitchen.locator('.target-status').innerText(),'Valgt');
+ assert.equal(await bedroom.getAttribute('aria-pressed'),'false');
+ assert.equal(await modal(page).locator('#room-options button[aria-pressed="true"]').count(),1);
+ assert.equal((await state()).state,'no_active_playback');
+ assert.deepEqual((await state()).writes,[]);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-speaker-default-idle.png')});
+
+ await page.close();
+ assert.equal((await (await fetch(base+'/lab/state',{method:'POST',
+  headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({externalOutput:'bedroom',externalPlaybackState:'playing'}),
+ })).json()).room,'bedroom');
+ page=await browser.newPage({hasTouch:true,viewport});
+ record(page);
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await page.waitForFunction(()=>{
+  const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
+  return p?.state==='playing'&&p.roomBinding?.nativeRoomId==='bedroom'
+   &&document.querySelector('#output')?.textContent.includes('Soveværelse');
+ },undefined,{timeout:15000});
+ await open(page);
+ const active=row(page,'Soveværelse'),standard=row(page,'Køkkenalrum HomePod');
+ assert.equal(await active.getAttribute('aria-pressed'),'true');
+ assert.equal(await active.locator('.target-status').innerText(),'Aktuelt output');
+ assert.equal(await standard.getAttribute('aria-pressed'),'false');
+ assert.equal(await standard.locator('.target-status').innerText(),'Standardrum');
+ assert.equal(await modal(page).locator('#room-options button[aria-pressed="true"]').count(),1);
+ const after=await state();
+ assert.equal(after.room,'bedroom');
+ assert.equal(after.state,'playing');
+ assert.deepEqual(after.writes,[]);
+ assert.deepEqual(controls,[]);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',story:'H4',bundleSHA,viewport,touch:true,
+  idleDefault:'Køkkenalrum HomePod',alreadyPlayingOutput:'Soveværelse',
+  controlPosts:controls.length,inertOwnerWrites:after.writes.length,inertNativeService:true,pageErrors:errors};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-speaker-default-proof.json'),JSON.stringify(proof,null,2));
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-speaker-existing-output.png')});
+ console.log(JSON.stringify(proof));
+}
 async function queuePersistenceJourney(){
  const queue=page.locator('#queue');
  const rows=queue.locator('button.queue-track[data-current="false"]');
@@ -301,6 +367,7 @@ async function queuePersistenceJourney(){
  page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(r.url().includes('/music/selection/')||r.url().includes('/music/queue/')||cold&&r.url().includes('/music?')&&new URL(r.url()).searchParams.get('kind')==='mood')responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/music/'))actions.push({url:r.url(),body:r.postDataJSON(),traceHeader:r.headers()['x-podview-trace']});if(previewRenew&&r.method()==='GET'&&r.url().includes('/music?')){const url=new URL(r.url());if(url.searchParams.get('kind')==='mood'&&url.searchParams.get('renew')==='1')moodRenewals.push(r.headers()['x-podview-trace']);}});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(defaultSpeakerProof){await defaultSpeakerJourney();return;}
  if(cold){
   const initial=await (await page.request.get(base+'/view/api/music?kind=playback&account=account&include_controls=1')).json();
   assert.equal(initial.ok,true);assert.equal(initial.status,'idle');
