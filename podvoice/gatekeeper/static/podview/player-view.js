@@ -1,7 +1,7 @@
 import {applyKitComponent,applyKitTemplate,syncKitSlider} from './ui/kit.js';
 import {TRACKS,LOCAL_POSITION_EXAMPLE} from './widget-model.js';
 import {fixtureArtwork} from './music-results.js';
-import {renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
+import {renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork,generatedMoodArtwork,spotifyArtwork} from './spotify-artwork.js';
 import {roomObservationCurrent,roomObservationDisplay,playbackObservationCurrent,playbackBinding,mediaRoomBinding} from './media-observation.js';
 const txt=value=>typeof value==='string'?value:'';
 const fixtureArt=art=>fixtureArtwork(art?.startsWith('https:')?art:`assets/${art}`);
@@ -92,7 +92,12 @@ export class PlayerView{
   }
   for(const name of ['--pv-cover','--player-cover-tone'])if(player?.style.getPropertyValue(name)!==tone)player?.style.setProperty(name,tone);
  }
- artwork(node,item){const diagnosticOwner=this.host.liveTransport;if(item.sourceKind==='radio'&&/^assets\/radio-(p3|p1|p4-ostjylland|p6-beat|p8-jazz)\.svg$/.test(item.fixtureArt||'')){renderRetainedArtwork(node,{url:item.fixtureArt,identity:`radio|${item.fixtureArt}`,contentIdentity:item.fixtureArt,label:`Stationslogo til ${txt(item.title)}`,diagnosticOwner});}else if(item.fixtureArt&&fixtureArtwork(item.fixtureArt)){renderRetainedArtwork(node,{url:item.fixtureArt,identity:`fixture|${item.fixtureArt}`,contentIdentity:item.trackId||item.id||item.fixtureArt,diagnosticOwner,label:`Albumomslag til ${txt(item.title)}`});}else renderSpotifyArtwork(node,{uri:item.uri,name:item.title,artwork:item.artwork},undefined,false,diagnosticOwner);}
+ artwork(node,item){const diagnosticOwner=this.host.liveTransport;
+  if(item.loading&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(item.uri||'')&&!spotifyArtwork(item.artwork,item.uri)){
+   const illustration=generatedMoodArtwork(item.themeArt,item.themeId)||(item.themeArt?.startsWith('assets/')?fixtureArtwork(item.themeArt):null);
+   if(illustration){renderRetainedArtwork(node,{url:illustration,identity:illustration,contentIdentity:item.uri,label:`Illustration til ${txt(item.title)}`,diagnosticOwner});return;}
+  }
+if(item.sourceKind==='radio'&&/^assets\/radio-(p3|p1|p4-ostjylland|p6-beat|p8-jazz)\.svg$/.test(item.fixtureArt||'')){renderRetainedArtwork(node,{url:item.fixtureArt,identity:`radio|${item.fixtureArt}`,contentIdentity:item.fixtureArt,label:`Stationslogo til ${txt(item.title)}`,diagnosticOwner});}else if(item.fixtureArt&&fixtureArtwork(item.fixtureArt)){renderRetainedArtwork(node,{url:item.fixtureArt,identity:`fixture|${item.fixtureArt}`,contentIdentity:item.trackId||item.id||item.fixtureArt,diagnosticOwner,label:`Albumomslag til ${txt(item.title)}`});}else renderSpotifyArtwork(node,{uri:item.uri,name:item.title,artwork:item.artwork},undefined,false,diagnosticOwner);}
  renderLiveProgress(vm){
   const anchor=vm.positionAnchor,now=Date.now(),eligible=this.host.live===true&&!this.suspended&&this.host.isConnected!==false&&this.host.liveTransport?.connected!==false&&vm.active===true&&vm.playing===true&&vm.fresh===true&&vm.positionFresh===true&&vm.examplePosition!==true&&Number.isSafeInteger(vm.progressMs)&&vm.progressMs>=0&&Number.isSafeInteger(vm.durationMs)&&vm.durationMs>0&&vm.progressMs<=vm.durationMs&&Number.isFinite(anchor?.observedAt)&&anchor.observedAt<=now&&Number.isFinite(anchor.expiresAt)&&anchor.expiresAt>anchor.observedAt;
   const key=eligible?JSON.stringify([anchor.key,anchor.observedAt,anchor.expiresAt,vm.progressMs,vm.durationMs]):null;
