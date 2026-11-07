@@ -179,7 +179,9 @@ export class LiveControlView{
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
- pruneSpent(){for(const[id,expiry]of this.spent)if(expiry*1000<=Date.now())this.spent.delete(id);}
+ // An in-flight operation keeps its spent marker until it settles, even past offer expiry;
+ // otherwise any unrelated refresh (e.g. a music push) would turn a running Start into UNKNOWN.
+ pruneSpent(){const active=this.pending?this.activeOperation?.taskId:null;for(const[id,expiry]of this.spent)if(id!==active&&expiry*1000<=Date.now())this.spent.delete(id);}
  async prepareMusic(){
   this.pruneSpent();
   const context=this.musicContext();if(!context||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending)return;
