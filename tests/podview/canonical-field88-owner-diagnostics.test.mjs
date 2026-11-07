@@ -78,7 +78,7 @@ test('control-state diagnostics emit only independent reason transitions or tran
   f.host.liveTransport.controlSetup=()=>volumeHeld.promise;const volumeRead=f.view.prepareVolume();f.view.renderMusicControls();
   assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'read_inflight');assert.equal(f.nodes.get('play-pause').disabled,false);
   volumeHeld.resolve(f.offer(['volume'],35));await volumeRead;assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'ok');
-  f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};f.view.renderMusicControls();assert.deepEqual(states().slice(-2).map(e=>e.code),['unknown_fence','unknown_fence']);
+  {const before=states().length;f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};f.view.renderMusicControls();assert.equal(states().length,before,'unknown no longer changes usable control state');assert.equal(f.nodes.get('play-pause').disabled,false);}
   f.view.musicFence=null;f.view.spent.set(f.view.musicOffer.task.taskId,Date.now()/1000+30);f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='control_state').at(-1).code,'ok','spent display task is not an intent lock or executable authority');assert.equal(f.writes.length,0);
   f.view.spent.clear();f.view.musicOffer.task.expiresAt=Date.now()/1000-1;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='control_state').at(-1).code,'ok','expired display task does not disable a fresh-JIT intent');assert.equal(f.writes.length,0);
   const before=states().length;f.view.renderMusicControls();assert.equal(states().length,before);

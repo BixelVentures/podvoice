@@ -269,7 +269,7 @@ test('network recovery never clears an unknown music action or replays it',async
   g.setRead(()=>fail?Promise.reject(new TypeError('network')):Promise.resolve(g.body()));await g.media.refresh({immediate:true});
   f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);
   fail=true;await g.media.refresh({immediate:true});assert.equal(f.view.musicFence.outcome,'unknown');const timer=timers.get(g.media.freshnessTimer);assert.ok(timer);fail=false;timer.fn();await tick();
-  assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.effects.length,1);
+  assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.effects.length,1,'recovery never replays');assert.equal(f.nodes.get('play-pause').disabled,false,'unknown never locks transport');
  }finally{f.close();globalThis.setTimeout=oldSet;globalThis.clearTimeout=oldClear;}
 });
 test('repeated transient playback failures stop at the existing three retry bound',async()=>{
@@ -337,7 +337,7 @@ test('UNKNOWN is not replayed on reads; a newer observation permits a new explic
  const f=fixture();try{
   f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {ok:false,outcome:'unknown',requestId:intent.requestId};};
   assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,1);
-  f.view.render();await f.view.prepareMusic();assert.equal(f.effects.length,1);assert.equal(await f.view.musicIntent('pause'),false);
+  f.view.render();await f.view.prepareMusic();assert.equal(f.effects.length,1);
   f.adopt();f.host.liveMedia.playback.poll_sequence=2;f.view.render();assert.equal(f.effects.length,1,'a read is not a command');
   assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,2);assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);
  }finally{f.close();}
@@ -369,8 +369,8 @@ test('pending music does not block opening a robot control',async()=>{
  }finally{finish?.();f.close();}
 });
 
-for(const state of ['playing','paused'])test(`direct transport rejects a mismatched toggle while ${state}`,async()=>{
- const f=fixture();try{f.adopt({state});assert.equal(await f.view.musicIntent(state==='playing'?'resume':'pause'),false);assert.equal(f.effects.length,0);assert.equal(await f.view.musicIntent(state==='playing'?'pause':'resume'),true);assert.equal(f.effects.length,1);}finally{f.close();}
+for(const state of ['playing','paused'])test(`direct transport sends an idempotent toggle even when the observation lags (${state})`,async()=>{
+ const f=fixture();try{f.adopt({state});assert.equal(await f.view.musicIntent(state==='playing'?'resume':'pause'),true);assert.equal(f.effects.length,1);assert.equal(await f.view.musicIntent(state==='playing'?'pause':'resume'),true);assert.equal(f.effects.length,2);}finally{f.close();}
 });
 
 test('a new voice turn and provider generation do not cancel same-output Pause',async()=>{

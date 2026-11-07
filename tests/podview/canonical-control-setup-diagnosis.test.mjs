@@ -63,8 +63,8 @@ for(const ending of ['owner','generation','disconnect','cleanup'])test(`late clo
   assert.equal(f.view.musicFence,fence);assert.equal(f.view.musicOffer,null);noEffects(f,1);
  }finally{f.cleanup();}
 });
-test('UNKNOWN blocks passive setup and explicit replay even if HTTP200 would issue a valid offer',async()=>{
- const f=fixture();try{f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};f.reply(f.offer());await f.view.prepareMusic();assert.equal(await f.view.musicIntent('pause'),false);noEffects(f,0);assert.equal(f.view.musicFence.outcome,'unknown');}finally{f.cleanup();}
+test('UNKNOWN never replays by itself; passive setup may read controls again without any command',async()=>{
+ const f=fixture();try{f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};f.reply(f.offer());await f.view.prepareMusic();noEffects(f,1);}finally{f.cleanup();}
 });
 for(const body of [{ok:false,error:'unlisted_private_text',retryAllowed:false},{ok:false,error:'busy',retryAllowed:true},{ok:false,error:'busy',retryAllowed:false,privatePayload:'never log'}])test(`malformed refusal remains closed and cannot leak raw fields (${Object.keys(body).length} fields)`,async()=>{
  const f=fixture();try{f.reply(body);await f.view.prepareMusic();assert.equal(f.view.musicOffer,null);noEffects(f,1);const diagnostics=JSON.stringify(f.rows());assert.equal(diagnostics.includes('unlisted_private_text'),false);assert.equal(diagnostics.includes('never log'),false);assert.equal(terminal(f,'control_setup').code,'invalid_dto');}finally{f.cleanup();}

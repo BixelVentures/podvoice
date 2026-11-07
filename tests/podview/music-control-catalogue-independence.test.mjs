@@ -57,8 +57,8 @@ for(const outcome of ['accepted','unknown'])test(`catalogue refresh cannot relea
   action.resolve({outcome});await intent;await settle();assert.equal(f.controls.musicFence?.outcome,outcome);assert.equal(f.media.playback.state,'playing','receipt does not manufacture observation');
   f.refreshCatalogue();await settle();assert.equal(f.writes.length,1,'catalogue update must not replay intent');
   if(outcome==='unknown'){
-   disabled(f);assert.equal(await f.controls.musicIntent('pause'),false);assert.equal(f.writes.length,1);
-   f.newPoll();await f.media.refresh({immediate:true});await settle();usable(f);assert.equal(f.writes.length,1,'fresh observation unlocks explicit recovery without automatic replay');
+   usable(f);assert.equal(f.writes.length,1,'unknown never locks, never replays');
+   f.newPoll();await f.media.refresh({immediate:true});await settle();usable(f);assert.equal(f.writes.length,1,'fresh observation never replays automatically');
   }else{
    f.newPoll('paused');await f.media.refresh({immediate:true});await settle();assert.equal(f.media.playback.state,'paused');usable(f);assert.equal(f.writes.length,1);
   }
