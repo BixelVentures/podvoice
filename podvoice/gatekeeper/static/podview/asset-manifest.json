@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "d753e44ced6426a0e602f47bf07c59028b87e582a12010243ec23af0fb945a41"
+      "sha256": "35e9e87c16d9e2e7a23fa71cb0064bb9b8d15be067f15d13c2eaebca2ee7683d"
     },
     {
       "path": "live-home-view.js",
@@ -543,15 +543,15 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "a728fded7427efeac7b01b403f844b74c12ad7664a735eb01036e86ea06c78fd"
+      "sha256": "e81ba5bab770004c678640eef8351d7b6a288596e2cb996cf120d5ef871ebc5a"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "2f60e691e9d3cb3c2240842cca06c8d825b7f5cc20bc1264ca8fd9acd1ad29cb"
+      "sha256": "f40779f202e9e76afa8c99df4b9aa00775a0f7437e65193e7cc9f3cfd38bdfc4"
     },
     {
       "path": "live-music-view.js",
-      "sha256": "63752e23a20d842c2de7c26f2a9e31ce9e6dec8846c7d8c5c828fcd32b45ed45"
+      "sha256": "9eed9b9cf9620da0c8294467bbf70442922813ca1178e6911b63a87b5ab00cd8"
     },
     {
       "path": "live-music.css",
@@ -559,7 +559,7 @@
     },
     {
       "path": "live-queue-view.js",
-      "sha256": "d5388f126e5e7cf6af5024318defc6fc75d27c980f551ddf35c914bc3fb81085"
+      "sha256": "0ce2da242cba01f8afe2d3d071506950d89019095e27d9b38ed4909ade1174e2"
     },
     {
       "path": "live-radio-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "ee0cc027471daed117ccf6cec3482ef0f0e3ac819760b615f93e181207553b26"
+      "sha256": "0364cf0a998d3be27aba16312049ac19cdc931e00f4dff782e75a925542b8bd6"
     },
     {
       "path": "podview.css",
@@ -819,7 +819,7 @@
     },
     {
       "path": "ui/resource-tile.js",
-      "sha256": "f8781a0d4f048958e1151f79f7798433c0771a56263c99dab8db8dff012f40a4"
+      "sha256": "5fedee0793f4b8cccbdb9712acbd688a0ece4b095374dbfedc3a77ad2d240fbe"
     },
     {
       "path": "ui/robot-motion.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "c7fc6a80d66d20e34e388bac22f74584cb525589a52626780cabcf93c0e29e78"
+      "sha256": "976cef695b667bb72417686ef3adacabdc5d6cc84702e196d10989c228044b55"
     },
     {
       "path": "workshop.css",

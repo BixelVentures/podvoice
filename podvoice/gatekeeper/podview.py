@@ -396,7 +396,9 @@ class PodViewBridge:
         self._home_cache: dict[str, tuple] = {}
         self._lights_cache: dict[tuple, dict] = {}
         self._home_revision = 0
-        self._home_event_revisions = dict.fromkeys(("vacuum", "weather", "light", "vehicle"), 0)
+        self._home_event_revisions = dict.fromkeys(
+            ("vacuum", "weather", "light", "vehicle", "music"), 0
+        )
         self._home_event_wakes: dict = {}
         self._home_event_task: asyncio.Task[None] | None = None
         self._home_events_closed = False
@@ -1750,6 +1752,10 @@ class PodViewBridge:
     def home_event_interests(self):
         interests: dict[str, set[str]] = {kind: set() for kind in self._home_event_revisions}
         interests.update({"light:areas": set(), "vacuum:devices": set(), "vehicle:devices": set()})
+        # PodConnect fires one HA event per real playback change; any account wakes music.
+        music = getattr(getattr(self, "controls", None), "music", None)
+        if getattr(music, "available", False) or getattr(music, "room_start_available", False):
+            interests["music"] = {"*"}
         tools = self.tools
         owner = getattr(tools, "_device_control", None)
         if owner is not None and getattr(tools, "podview_home_available", lambda: False)():
@@ -2026,6 +2032,8 @@ class PodViewBridge:
         if getattr(self.tools, "home_event_connect", None) is not None:
             self.start_home_events()
             result["homeRevision"] = self.home_source_revision(room, token)
+            # Separate from homeRevision: a music change refreshes only the player.
+            result["musicRevision"] = self._home_event_revisions["music"]
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:
@@ -2699,7 +2707,7 @@ async def _events(request: web.Request) -> web.StreamResponse:
             wake = asyncio.Event()
         bridge._home_event_wakes[wake] = (
             copy_context(),
-            lambda: bridge.home_read_kinds(room, _request_token(request, room)),
+            lambda: bridge.home_read_kinds(room, _request_token(request, room)) | {"music"},
         )
         bridge.start_home_events()
         await response.prepare(request)

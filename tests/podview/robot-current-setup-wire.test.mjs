@@ -7,7 +7,7 @@ test('home projection clears unavailable and inactive jobs without granting auth
 
 test('live panel forgets expired setup and never presents it under a different scope or stale device',async()=>{
  const {LiveControlView}=await import('../../podvoice/gatekeeper/static/podview/live-control-view.js');const scope=JSON.stringify(['b','r']),t=Date.now()/1000,device={id:entity,live:true,status:'cleaning',stale:false,currentSetup:{...wire,observedAt:t-59.98}},updates=[];
- const panel={observed:(d,v)=>updates.push(v.currentSetup)},view={host:{liveSnapshot:{bootId:'b',roomId:'r'},liveTransport:{connected:true},state:{homeScope:scope}},robotPanel:panel,robotDevice:()=>device};
+ const panel={observed:(d,v)=>updates.push(v.currentSetup)},view={host:{liveSnapshot:{bootId:'b',roomId:'r'},liveTransport:{connected:true},state:{homeScope:scope}},robotPanel:panel,robotDevice:()=>device,robotView:d=>d};
  assert.ok(LiveControlView.prototype.currentRobotSetup.call(view,device));await new Promise(resolve=>setTimeout(resolve,70));assert.deepEqual(updates,[null]);
  view.host.state.homeScope='other';assert.equal(LiveControlView.prototype.currentRobotSetup.call(view,device),null);view.host.state.homeScope=scope;device.stale=true;assert.equal(LiveControlView.prototype.currentRobotSetup.call(view,device),null);clearTimeout(view.robotSetupExpiry);
 });

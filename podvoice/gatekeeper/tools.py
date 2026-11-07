@@ -464,6 +464,7 @@ class ToolRouter:
             "entity_registry_updated",
             "area_registry_updated",
             "device_registry_updated",
+            "podconnect_playback_changed",
         )
         attempt = 0
         while current():
@@ -572,6 +573,10 @@ class ToolRouter:
         data = event.get("data")
         if event.get("event_type") != event_type or not isinstance(data, dict):
             raise ValueError("invalid_event")
+        if event_type == "podconnect_playback_changed":
+            if interests().get("music"):
+                changed({"music"}, False)
+            return
         fields = (
             {"entity_id"}
             if event_type in {"state_changed", "entity_registry_updated"}

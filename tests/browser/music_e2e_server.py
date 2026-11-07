@@ -6,11 +6,12 @@ import json
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 from dataclasses import replace
 from pathlib import Path
 
 import httpx
-from aiohttp import web
+from aiohttp import ClientSession, WSMsgType, web
 from integration.test_cleaning_journal import bind
 from integration.test_podview_bridge import owner
 from integration.test_podview_music import payload, timestamp
@@ -54,6 +55,7 @@ service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
+robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
 if robot is not None:
     robot.states[ROBOT]["state"] = (
         "docked" if os.environ.get("ROBOT_DRAFT_TEST") == "1" or robot_slow_start else "cleaning"
@@ -92,7 +94,9 @@ if robot is not None:
                 await asyncio.sleep(4)
             post["completedAt"] = time.time()
         else:
-            await asyncio.sleep(0.15)
+            await asyncio.sleep(robot_lab["effectDelayMs"] / 1000)
+        if robot_lab["ignoreCommands"]:
+            return  # The robot accepted the call but never changes state.
         if path.endswith("/pause"):
             robot.states[ROBOT]["state"] = "paused"
         elif path.endswith("/start") or (
@@ -319,6 +323,57 @@ session, _ = owner()
 session._active = False
 session.sm.state = State.IDLE
 session.tools = music.tools
+ha_clients = {}
+
+
+@asynccontextmanager
+async def ha_events_connector():
+    port = int(os.environ.get("MUSIC_TEST_PORT", "18973"))
+    async with ClientSession() as client:
+        async with client.ws_connect(f"http://127.0.0.1:{port}/lab/ha-websocket") as websocket:
+            yield websocket
+
+
+# Inert HA event stream: PodConnect's real playback-change event, never a command.
+music.tools.home_event_connect = ha_events_connector
+
+
+async def ha_websocket(request):
+    websocket = web.WebSocketResponse()
+    await websocket.prepare(request)
+    await websocket.send_json({"type": "auth_required", "ha_version": "2026.10.2"})
+    await websocket.receive_json()
+    await websocket.send_json({"type": "auth_ok", "ha_version": "2026.10.2"})
+    ha_clients[websocket] = {}
+    try:
+        async for message in websocket:
+            if message.type != WSMsgType.TEXT:
+                continue
+            command = json.loads(message.data)
+            if command.get("type") == "subscribe_events":
+                ha_clients[websocket][command["id"]] = command["event_type"]
+                await websocket.send_json(
+                    {"id": command["id"], "type": "result", "success": True, "result": None}
+                )
+    finally:
+        ha_clients.pop(websocket, None)
+    return websocket
+
+
+async def emit_playback_changed():
+    event = {
+        "event_type": "podconnect_playback_changed",
+        "data": {"config_entry_id": "account"},
+        "origin": "LOCAL",
+        "time_fired": "2026-11-07T00:00:00+00:00",
+        "context": {"id": "inert-event", "parent_id": None, "user_id": None},
+    }
+    for websocket, subscriptions in list(ha_clients.items()):
+        for number, event_type in list(subscriptions.items()):
+            if event_type == "podconnect_playback_changed":
+                await websocket.send_json({"id": number, "type": "event", "event": event})
+
+
 configuration = {
     "roomId": "kitchen",
     "music": [
@@ -400,11 +455,18 @@ async def lab_state(request):
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])
+        # An unrelated voice turn changes the UI snapshot, not the music owner.
+        if "unrelatedVoiceTurn" in args:
+            turn = str(args["unrelatedVoiceTurn"])
+            session._active = True
+            session._external_turn_id = lambda: turn
         # External native-owner changes do not create a PodView command or receipt.
         if "externalPlaybackState" in args:
             if args["externalPlaybackState"] not in {"playing", "paused"}:
                 raise web.HTTPBadRequest()
             state["state"] = args["externalPlaybackState"]
+        if "externalSong" in args:
+            state["song"] = int(args["externalSong"])
         if "externalOutput" in args:
             outputs = {"native-room": "42", "bedroom": "43"}
             if args["externalOutput"] not in outputs:
@@ -412,6 +474,8 @@ async def lab_state(request):
             state["room"] = args["externalOutput"]
             state["homepod"] = outputs[args["externalOutput"]]
         state["sequence"] += 1
+        if args.keys() & {"externalPlaybackState", "externalSong", "externalOutput"}:
+            await emit_playback_changed()
         if robot is not None:
             if "robotBattery" in args:
                 robot.states[ROBOT]["attributes"]["battery_level"] = int(args["robotBattery"])
@@ -419,6 +483,10 @@ async def lab_state(request):
                 robot.states[MOP]["state"] = args["robotMop"]
             if "robotState" in args:
                 robot.states[ROBOT]["state"] = args["robotState"]
+            if "robotEffectDelayMs" in args:
+                robot_lab["effectDelayMs"] = int(args["robotEffectDelayMs"])
+            if "robotIgnoreCommands" in args:
+                robot_lab["ignoreCommands"] = bool(args["robotIgnoreCommands"])
     value = copy.deepcopy(state)
     value["serviceReads"] = copy.deepcopy(service_reads)
     if robot is not None:
@@ -445,6 +513,7 @@ async def lab_identity(request):
 
 
 app.router.add_get("/lab/identity", lab_identity)
+app.router.add_get("/lab/ha-websocket", ha_websocket)
 app.router.add_get("/lab/state", lab_state)
 app.router.add_post("/lab/state", lab_state)
 

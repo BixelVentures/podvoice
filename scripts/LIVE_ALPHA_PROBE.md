@@ -1,13 +1,12 @@
 # Official GPT-Live SDK probe
 
 This is an isolated historical developer probe, not the Voice PE production
-integration or a production setting. Current v2.x uses the GPT-Live path described
-in `docs/ARKITEKTUR.md`; its evidence status is in `docs/STATUS.md`.
+integration or a production setting. Current v2.x uses the production GPT-Live path in `podvoice/gatekeeper/`.
 The probe uses OpenAI's SDK and Responses delegation with a fixed, harmless
 `get_probe_status` function. It has no HA client, home actions, microphone capture,
 speaker driver or automatic reconnect.
 
-The active decision and actual gate status remain in `docs/STATUS.md`.
+
 
 Use the existing external Python 3.12 development venv with
 `scripts/requirements-live-alpha.txt` installed. Set `PODVOICE_PYTHON` to that

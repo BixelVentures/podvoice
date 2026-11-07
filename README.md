@@ -1,115 +1,49 @@
-# PodVoice
+# PodVoice & PodView
 
-PodVoice is a Home Assistant add-on for voice conversations through a custom-firmware
-[Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/). Start with the
-[current status](docs/STATUS.md) for the installed version, known limits and open acceptance
-gates. Product behavior and measurable goals are in [docs/PRODUKTMÅL.md](docs/PRODUKTMÅL.md).
-The [documentation index](docs/README.md) distinguishes current guides, diagnostics,
-proposals and historical material; agents start at [AGENTS.md](AGENTS.md).
+A voice assistant and a wall screen for Home Assistant.
 
-## PodView dashboard
+- **PodVoice** is a Home Assistant add-on that turns a
+  [Home Assistant Voice PE](https://www.home-assistant.io/voice-pe/) (with custom firmware) into a
+  full-duplex conversational assistant powered by OpenAI's realtime models. It controls your home
+  through Home Assistant and shows answers on screen.
+- **PodView** is the wall-screen app served by the add-on: music, radio, robot vacuum, lights,
+  recipes, timers, weather, car and the assistant's answers, in one touch interface.
 
-PodView's browser UI lives in this repository at
-[`podvoice/gatekeeper/static/podview/`](podvoice/gatekeeper/static/podview/).
-Its UI tests, component contract and build tools share the same Git history and release.
-See [PodView source and development](docs/PODVIEW-SOURCE.md) for the tracked paths,
-local preview workflow and the distinction between source and disposable `dist/`.
+Music and speakers come from [PodConnect](https://github.com/BixelVentures/podconnect).
 
-## How it works
+## Features
 
-**GPT-Live is the only production conversation engine.** `ThinSession` owns the conversation
-for both Voice PE and Talk. Voice PE firmware owns physical wake, microphone forwarding,
-playback events and rearm. V2.x targets full-duplex GPT-Live on Voice PE and Talk: the
-active conversation keeps listening while it speaks. Native Live already submits input
-during playback; audible interruption and acoustic isolation require physical evidence
-on the same candidate. Talk is a separate browser I/O adapter. Talk can exercise the shared software engine, but it does not prove the puck's
-microphone, speaker, wake, or physical lifecycle.
+| Area | What you can do |
+|---|---|
+| Music | Browse moods and suggestions, play, pause, skip, seek, change volume, see the queue, move music between speakers |
+| Radio | Pick a station and play it on any speaker |
+| Robot vacuum | See status and battery, clean selected rooms, pause, resume, send to base, change cleaning options |
+| Lights | Turn rooms and lamps on/off and dim them |
+| Recipes | Browse your recipes, check off ingredients, follow the steps |
+| Timers | Start, adjust and stop timers, also by voice |
+| Weather, car | Current weather and forecast; car battery and range |
+| Assistant | Talk to the Voice PE or in the browser; answers appear as cards on the screen |
 
-Home data and actions belong to Home Assistant. PodVoice uses only the connected MCP tools
-and other statically admitted adapters available to the current session. PodConnect owns its
-music services and physical HomePod playback. Web search depends on the existing Home
-Assistant search integration. The live capability and service status in the panel indicate
-what the current installation exposes; a configured integration alone is not proof that an
-action works end to end.
+## Requirements
 
-## Home Assistant panel
+Home Assistant, an OpenAI API key, a Voice PE with the firmware in [`esphome/`](esphome/),
+and Home Assistant's Model Context Protocol Server integration. PodConnect for music.
 
-Open PodVoice from the Home Assistant sidebar. The panel has Home, Talk, History and Settings
-views. Use it to inspect the current connection/readiness state, talk through the browser, and
-manage the add-on's available settings. The panel does not provide a simulation mode or a
-conversation test wizard. Product and physical acceptance remain separate; see
-[docs/STATUS.md](docs/STATUS.md).
+## Install
 
-## Requirements and first setup
+1. Settings → Add-on Store → ⋮ → Repositories → add `https://github.com/BixelVentures/podvoice`.
+2. Install **PodVoice**, set your OpenAI key in the add-on configuration and start it.
+3. Open **PodVoice** in the sidebar and connect your services and rooms.
+4. Optional: install the **PodVoice** integration through HACS for Home Assistant–owned timers
+   and wall-screen pairing.
 
-You need Home Assistant, an OpenAI API key, a Voice PE running the PodVoice firmware, and the
-Home Assistant MCP integration for home tools. PodConnect is needed for its music and speaker
-services. Voice PE setup and currently accepted versions are described by the release and
-status documentation; do not infer physical acceptance from a successful add-on install.
+More in [podvoice/DOCS.md](podvoice/DOCS.md).
 
-Install PodVoice from the Home Assistant add-on repository and set the OpenAI key in the
-Home Assistant add-on configuration. Use PodVoice Settings for connected services and rooms,
-using the room identifiers you
-will use for devices and optional HA-owned timer endpoints. The timer bridge installation is
-separate and is documented below.
+## Development
 
-## Develop and check
-
-Follow [docs/UDVIKLINGSFLOW.md](docs/UDVIKLINGSFLOW.md). Create the shared Python 3.12
-virtual environment once, outside the synchronized checkout, then reuse it:
+See [AGENTS.md](AGENTS.md): describe the user outcome, write a failing test, fix it in the
+layer where it happens, keep it green. Acceptance per feature: [docs/BRUGERHISTORIER.md](docs/BRUGERHISTORIER.md).
 
 ```sh
-python3.12 -m venv ~/Developer/venvs/podvoice
-~/Developer/venvs/podvoice/bin/pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+npm ci && npm run dev -- --host 127.0.0.1 --port 4173   # PodView preview with sample data
 ```
-
-For focused feedback, run one command from the persistent unsynchronized clone, substituting
-the affected test module or node:
-
-```sh
-PODVOICE_PYTHON=~/Developer/venvs/podvoice/bin/python scripts/dev fast --test tests/path/test_file.py
-```
-
-The focused check is development feedback, not release or physical acceptance. The frozen
-candidate's official CI and the hardware gates listed in STATUS remain required.
-
-## HA-owned timers
-
-Copy this repository's `custom_components/podvoice` directory into Home Assistant's
-`config/custom_components/podvoice`. Add the endpoints to `configuration.yaml`, then
-restart Home Assistant. Use the exact room key from PodVoice Settings and the Voice PE's
-verified MAC address from its device information; the example MAC below is a placeholder.
-The browser endpoint uses `talk` for both endpoint and identity.
-
-```yaml
-podvoice:
-  endpoints:
-    - endpoint: kitchen
-      name: Kitchen Voice PE
-      kind: voice_pe
-      identity: "02:00:00:00:00:01" # Replace with your verified device MAC.
-    - endpoint: talk
-      name: Talk
-      kind: talk
-      identity: talk
-```
-
-The bridge registers its own timer endpoints and uses HA's native intent timer manager.
-It does not change the ESPHome device or start stock Assist. The add-on uses its existing
-authenticated HA connection; no new credential or public endpoint is needed. Timer tools
-appear only after the bridge, endpoint identity and connected adapter agree.
-
-Ask to start, list or cancel a named timer. Each timer has its own ID, including timers
-with the same name. An expiry waits for the current reply/conversation to finish, then
-plays a brief alarm and returns to normal wake. Ask about or cancel the finished timer
-on the next wake. An add-on restart leaves HA countdowns intact; **a Home Assistant Core
-restart clears native timers**. Ambiguous starts are never retried automatically. An
-interrupted alarm stays recorded until actual stop is confirmed; a different Talk tab
-cannot claim that the original tab stopped. Normal integration unload is refused while timers or
-unacknowledged expiry receipts remain, so the sole HA expiry handler is not discarded.
-
-Endpoint configuration is imported once into the PodVoice HA integration entry. Editing
-YAML alone does not replace that entry. To change endpoints, finish/cancel and acknowledge
-its timers first, remove the integration entry, update YAML, then restart HA to import it
-again. Core restart clears native timers. The native bridge has been checked against
-Home Assistant Core 2026.8.2.

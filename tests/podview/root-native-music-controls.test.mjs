@@ -77,14 +77,16 @@ test('expired music offer renews once from a genuinely newer fresh observation w
  }finally{f.restore();Date.now=previousNow;}
 });
 
-test('failed passive preparation is not retried on the same poll and a newer read cannot bypass UNKNOWN intent',async()=>{
+test('failed passive preparation is not retried on the same poll and UNKNOWN never writes by itself',async()=>{
  const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=fixture();try{
   let calls=0;f.host.liveTransport.controlSetup=async()=>{calls++;throw Error('temporary read failure');};
   await f.view.prepareMusic();await f.view.prepareMusic();assert.equal(calls,1);
   f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:2,expiresAt:clock+15000};await f.view.prepareMusic();assert.equal(calls,2);
   const key=f.view.musicContext().key;f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};
   f.host.liveMedia.playback={...f.host.liveMedia.playback,poll_sequence:3,expiresAt:clock+15000};
-  await f.view.prepareMusic();assert.equal(calls,2);assert.equal(f.view.musicContext().key,key);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.writes.length,0);assert.equal(f.view.musicFence.outcome,'unknown');
+  // UNKNOWN no longer locks idempotent controls: a newer poll may read controls again,
+  // but nothing is ever written or replayed without an explicit tap.
+  await f.view.prepareMusic();assert.equal(calls,3);assert.equal(f.view.musicContext().key,key);assert.equal(f.writes.length,0);
  }finally{f.restore();Date.now=previousNow;}
 });
 
@@ -238,8 +240,8 @@ test('readonly revocation clears hints without falling back to passive executabl
 test('fresh same-route readonly refresh during an unrelated held read never disables controls or requests setup',async()=>{
  const f=fixture();try{f.view.render();f.host.liveMedia.pending=true;for(let i=0;i<4;i++){f.adopt({base:100,effective:30+i});f.host.liveMedia.playback.poll_sequence=i+2;f.view.render();assert.equal(f.nodes.get('play-pause').disabled,false);assert.equal(f.nodes.get('volume').disabled,false);assert.equal(f.nodes.get('volume').value,'100');}assert.equal(f.setups.length,0);assert.equal(f.effects.length,0);}finally{f.close();}
 });
-test('v3 UNKNOWN never replays; a new observed poll permits a new explicit intent',async()=>{
- const f=fixture();try{f.view.render();f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.musicIntent('pause'),true);f.view.render();assert.equal(await f.view.musicIntent('pause'),false);await f.view.prepareMusic();assert.equal(f.effects.length,1);f.host.liveMedia.playback.poll_sequence=2;f.view.render();assert.equal(f.effects.length,1);assert.equal(await f.view.musicIntent('pause'),true);assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);}finally{f.close();}
+test('v3 UNKNOWN never replays by itself; an explicit new tap is a new intent',async()=>{
+ const f=fixture();try{f.view.render();f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.musicIntent('pause'),true);f.view.render();await f.view.prepareMusic();f.host.liveMedia.playback.poll_sequence=2;f.view.render();assert.equal(f.effects.length,1,'reads and renders never replay');assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.effects.length,2);assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);}finally{f.close();}
 });
 for(const change of ['owner','binding','disconnect'])test(`late direct receipt cannot publish after ${change}`,async()=>{
  const f=fixture();let finish,running;try{f.view.render();f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>finish=()=>resolve({outcome:'accepted',requestId:intent.requestId}));};running=f.view.musicIntent('pause');assert.equal(f.effects.length,1);if(change==='owner')f.adopt({epoch:'new-owner'});if(change==='binding')f.adopt({binding:'b'.repeat(64)});if(change==='disconnect')f.host.liveTransport.connected=false;if(change==='revocation')f.adopt({status:'unavailable',reason:'control_not_granted',supported:[],base:null});f.view.render();const fence=f.view.musicFence;finish();await running;assert.equal(f.view.musicFence,fence);assert.equal(f.effects.length,1);}finally{finish?.();await running;f.close();}
@@ -264,7 +266,7 @@ test('unknown MOVE needs newer observation and a new explicit request',async()=>
  const f=fixture();try{f.view.render();f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.moveSpeaker(alias(),()=>true),true);assert.equal(await f.view.moveSpeaker(alias(),()=>true),false);f.adopt();f.host.liveMedia.playback.poll_sequence=2;f.view.render();assert.equal(f.effects.length,1);assert.equal(await f.view.moveSpeaker(alias(),()=>true),true);assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);}finally{f.close();}
 });
 test('transport exception retains its own unknown action without replay',async()=>{
- const f=fixture();try{let calls=0;f.view.render();f.host.liveTransport.controlIntent=async()=>{calls++;throw Error('network');};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.view.musicFence.action,'pause');assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.view.moveUnknownFence,undefined);f.view.render();assert.equal(calls,1);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(calls,1);}finally{f.close();}
+ const f=fixture();try{let calls=0;f.view.render();f.host.liveTransport.controlIntent=async()=>{calls++;throw Error('network');};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.view.musicFence.action,'pause');assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.view.moveUnknownFence,undefined);f.view.render();assert.equal(calls,1,'no automatic replay');assert.equal(await f.view.musicIntent('pause'),true);assert.equal(calls,2,'explicit tap is a new intent');}finally{f.close();}
 });
 for(const change of ['busy','invalid-target','binding-drift'])test(`unknown MOVE new explicit choice respects ${change}`,async()=>{
  const f=fixture();try{f.view.render();f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.moveSpeaker(alias(),()=>true),true);f.adopt();f.host.liveMedia.playback.poll_sequence=2;f.view.render();const speaker=alias();if(change==='busy')f.view.musicIntentPending=true;if(change==='invalid-target')speaker.selectable=false;if(change==='binding-drift')f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;assert.equal(await f.view.moveSpeaker(speaker,()=>true),false);assert.equal(f.effects.length,1);}finally{f.close();}
@@ -304,7 +306,7 @@ test('released slider preserves the explicit35 draft through a held700ms respons
  const priorNow=Date.now;let clock=priorNow();Date.now=()=>clock;const f=fixture();let release,running;try{f.adopt({base:70,effective:70,ceiling:100});f.view.render();const input=f.nodes.get('volume');assert.equal(input.value,'70');input.dispatchEvent(new Event('pointerdown'));input.value='35';input.dispatchEvent(new Event('input'));assert.equal(input.value,'35');assert.equal(f.nodes.get('volume-value').textContent,'35 %');input.dispatchEvent(new Event('pointerup'));f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>release=()=>resolve({outcome:'accepted',requestId:intent.requestId}));};running=f.view.musicIntent('volume',{percent:35});clock+=700;f.view.renderMusicControls();assert.equal(f.effects.length,1,'explicit intent has dispatched once');assert.equal(f.host.liveMedia.playback.controls.volume.base_percent,70,'the actual measurement remains untouched');assert.equal(input.value,'35','pending rerender cannot replace the chosen thumb with old observed70');assert.equal(f.nodes.get('volume-value').textContent,'35 %','numeric output retains chosen value; actual measurement is separately asserted');assert.equal(input.getAttribute('aria-valuetext'),'35 % valgt · observeret 70 %');assert.equal(f.feedback.length,0);release();await running;
  }finally{release?.();await running;f.close();Date.now=priorNow;}
 });
-for(const outcome of ['unknown','rejected'])test('volume POST '+outcome+' restores measured value without replay',async()=>{const f=fixture();try{f.adopt({base:70,effective:70,ceiling:100});f.view.render();f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {outcome,requestId:intent.requestId};};assert.equal(await f.view.musicIntent('volume',{percent:35}),true);f.view.renderMusicControls();assert.equal(f.nodes.get('volume').value,'70');assert.equal(f.nodes.get('volume-value').textContent,'70 %');assert.equal(f.view.musicFence.volumeDraft,undefined);assert.equal(f.host.liveMedia.playback.controls.volume.base_percent,70);assert.equal(f.effects.length,1);if(outcome==='unknown'){assert.equal(f.nodes.get('volume').disabled,true);assert.equal(await f.view.musicIntent('volume',{percent:35}),false);assert.equal(f.effects.length,1);}}finally{f.close();}});
+for(const outcome of ['unknown','rejected'])test('volume POST '+outcome+' restores measured value without replay',async()=>{const f=fixture();try{f.adopt({base:70,effective:70,ceiling:100});f.view.render();f.host.liveTransport.controlIntent=async(intent)=>{f.effects.push(intent);return {outcome,requestId:intent.requestId};};assert.equal(await f.view.musicIntent('volume',{percent:35}),true);f.view.renderMusicControls();assert.equal(f.nodes.get('volume').value,'70');assert.equal(f.nodes.get('volume-value').textContent,'70 %');assert.equal(f.view.musicFence.volumeDraft,undefined);assert.equal(f.host.liveMedia.playback.controls.volume.base_percent,70);assert.equal(f.effects.length,1);if(outcome==='unknown'){assert.equal(f.nodes.get('volume').disabled,false,'unknown never locks volume');assert.equal(f.effects.length,1,'no automatic replay');}}finally{f.close();}});
 // Direct rejected/unknown volume outcomes above preserve the measured value.
 
 for(const status of ['unknown','confirmed','rejected','superseded'])test('volume source '+status+' preserves the truthful measurement until settlement',async()=>{const f=fixture();try{f.adopt({base:70,effective:70,ceiling:100});f.view.render();assert.equal(await f.view.musicIntent('volume',{percent:35}),true);assert.equal(f.nodes.get('volume').value,'35');assert.equal(f.nodes.get('volume-value').textContent,'35 %');const receipt=f.view.musicSettlementReceipt(),body=f.wire({base:70,effective:70,ceiling:100});body.controls.valid_until=body.binding.validUntil;body.settlement=settle(receipt.requestId,status);const p=roomPlaybackObservation(body,'account',f.host.liveSnapshot,undefined,{receiptRequestId:receipt.requestId});f.host.liveMedia.playback=p;assert.equal(f.view.observeMusicSettlement(p,receipt),true);f.view.renderMusicControls();assert.equal(f.view.musicMeasurement.volume,70);if(status==='unknown'){assert.equal(f.nodes.get('volume').value,'35');assert.equal(f.nodes.get('volume').getAttribute('aria-valuetext'),'35 % valgt · observeret 70 %');assert.equal(f.view.musicFence.settlementStatus,'unconfirmed');assert.equal(f.view.musicSettlementReceipt(),receipt,'interim source UNKNOWN retains the accepted receipt for passive reconciliation');const later=f.wire({base:35,effective:35,ceiling:100});later.controls.valid_until=later.binding.validUntil;later.settlement=settle(receipt.requestId,'confirmed');const confirmed=roomPlaybackObservation(later,'account',f.host.liveSnapshot,undefined,{receiptRequestId:receipt.requestId});f.host.liveMedia.playback=confirmed;assert.equal(f.view.observeMusicSettlement(confirmed,receipt),true);assert.equal(f.view.receipts.get(receipt.operationKey).settlementStatus,'confirmed');f.view.renderMusicControls();assert.equal(f.view.musicMeasurement.volume,35);}else{assert.equal(f.nodes.get('volume').value,'70');assert.equal(f.nodes.get('volume-value').textContent,'70 %');assert.equal(f.view.musicFence.volumeDraft,undefined);}assert.equal(f.effects.length,1);}finally{f.close();}});
@@ -320,6 +322,163 @@ test('radio range input never consumes retained Spotify bounds or mutates its vo
 
 test('explicit volume commits during held Next coalesce and send only the latest after accepted with fresh authority',async()=>{const f=fixture();let release,running;try{f.adopt({base:35,effective:35,ceiling:100});f.view.render();f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);if(intent.action==='next')return new Promise(resolve=>release=()=>resolve({outcome:'accepted',requestId:intent.requestId}));return Promise.resolve({outcome:'accepted',requestId:intent.requestId});};running=f.view.musicIntent('next');assert.equal(await f.view.musicIntent('volume',{percent:50}),true);assert.equal(f.nodes.get('volume').value,'50');assert.equal(f.nodes.get('volume').getAttribute('aria-valuetext'),'50 % valgt · observeret 35 %');assert.equal(await f.view.musicIntent('volume',{percent:60}),true);f.view.invalidateMusic(undefined,false,true);assert.equal(f.view.musicDeferred?.percent,60,'same-source reconciliation preserves explicit input');assert.equal(f.effects.length,1);release();await running;await tick();assert.deepEqual(f.effects.map(x=>x.action),['next','volume']);assert.deepEqual(f.effects[1].args,{percent:60});assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);assert.equal(f.host.liveMedia.playback.controls.volume.base_percent,35);assert.equal(f.view.musicDeferred,null);}finally{release?.();await running;f.close();}});
 for(const boundary of ['unknown','rejected','binding','disconnect','access','lower-ceiling','volume-removed'])test(`deferred volume never sends after ${boundary}`,async()=>{const f=fixture();let release,running;try{f.adopt({base:35,effective:35,ceiling:100});f.view.render();f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>release=()=>resolve({outcome:boundary==='unknown'?'unknown':boundary==='rejected'?'rejected':'accepted',requestId:intent.requestId}));};running=f.view.musicIntent('next');assert.equal(await f.view.musicIntent('volume',{percent:50}),true);if(boundary==='binding')f.adopt({base:35,effective:35,ceiling:100,binding:'b'.repeat(64)});if(boundary==='disconnect')f.host.liveTransport.connected=false;if(boundary==='access')f.host.liveSnapshot.capabilities.controlSetup=[];if(boundary==='lower-ceiling'){f.adopt({base:35,effective:35,ceiling:40});f.view.renderMusicControls();assert.equal(f.nodes.get('volume').value,'35');}if(boundary==='volume-removed'){f.adopt({base:35,effective:35,ceiling:100,supported:['pause','next','previous']});f.view.renderMusicControls();assert.equal(f.nodes.get('volume').disabled,true);}release();await running;await tick();assert.deepEqual(f.effects.map(x=>x.action),['next']);assert.equal(f.view.musicDeferred,null);assert.ok(f.feedback.some(text=>/ikke sendt/.test(text)),boundary);}finally{release?.();await running;f.close();}});
+
+test('three fast Next taps skip three songs in order, one at a time (A3)',async()=>{
+ const f=fixture();const releases=[];try{f.view.render();
+  f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>releases.push(()=>resolve({outcome:'accepted',requestId:intent.requestId})));};
+  const first=f.view.musicIntent('next');await tick();
+  assert.equal(await f.view.musicIntent('next'),true);assert.equal(await f.view.musicIntent('next'),true);
+  assert.equal(f.effects.length,1,'one command on the wire at a time');assert.equal(f.nodes.get('next').disabled,false);
+  for(let n=0;n<3;n++){releases[n]?.();for(let i=0;i<5;i++)await tick();}
+  await first;assert.deepEqual(f.effects.map(e=>e.action),['next','next','next']);assert.equal(new Set(f.effects.map(e=>e.requestId)).size,3);
+ }finally{for(const release of releases)release();f.close();}
+});
+test('held pause then two explicit toggles keep Pause, Resume, Pause in FIFO order (A9)', async () => {
+ const f = fixture(), releases = [];
+ let first;
+ try {
+  f.adopt({supported: ['pause', 'next', 'previous', 'volume']});
+  f.host.liveTransport.controlIntent = intent => {
+   f.effects.push(intent);
+   return new Promise(resolve => releases.push(() => resolve({outcome: 'accepted', requestId: intent.requestId})));
+  };
+  const toggle = () => f.view.musicIntent(
+   f.view.optimisticPlaying(f.host.liveMedia.playback.state === 'playing') ? 'pause' : 'resume',
+  );
+  f.view.render();
+  first = toggle();
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+  assert.equal(await toggle(), true);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Sæt musik på pause');
+  assert.equal(await toggle(), true);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+  assert.equal(f.nodes.get('play-pause').disabled, false);
+  assert.deepEqual(f.effects.map(intent => intent.action), ['pause']);
+
+  f.adopt({state: 'paused', supported: ['resume', 'next', 'previous', 'volume']});
+  releases[0]();
+  await first;
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['pause', 'resume']);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+
+  f.adopt({supported: ['pause', 'next', 'previous', 'volume']});
+  releases[1]();
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['pause', 'resume', 'pause']);
+  f.adopt({state: 'paused', supported: ['resume', 'next', 'previous', 'volume']});
+  releases[2]();
+  await tick();
+  assert.equal(new Set(f.effects.map(intent => intent.requestId)).size, 3);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+ } finally {
+  for (const release of releases) release();
+  await first;
+  f.close();
+ }
+});
+
+for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
+ test(`queued explicit skips never replay UNKNOWN after ${boundary}`, async () => {
+  const f = fixture();
+  let finish, first;
+  try {
+   f.host.liveTransport.controlIntent = intent => {
+    f.effects.push(intent);
+    const receipt = {outcome: 'accepted', requestId: intent.requestId};
+    return f.effects.length === 1
+     ? new Promise(resolve => { finish = () => resolve({...receipt, outcome: 'unknown'}); })
+     : Promise.resolve(receipt);
+   };
+   first = f.view.musicIntent('next');
+   assert.equal(await f.view.musicIntent('previous'), true);
+   assert.equal(await f.view.musicIntent('next'), true);
+   if (boundary === 'binding') f.adopt({binding: 'b'.repeat(64)});
+   if (boundary === 'transport') f.host.liveTransport = {...f.host.liveTransport};
+   if (boundary === 'access') f.host.liveSnapshot.capabilities.controlSetup = [];
+   finish();
+   await first;
+   await tick();
+   const expected = boundary === 'same-owner' ? ['next', 'previous', 'next'] : ['next'];
+   assert.deepEqual(f.effects.map(intent => intent.action), expected);
+   assert.equal(new Set(f.effects.map(intent => intent.requestId)).size, expected.length);
+  } finally {
+   finish?.();
+   await first;
+   f.close();
+  }
+ });
+}
+
+test('revoking and restoring music access cannot resurrect a queued tap', async () => {
+ const f = fixture();
+ let finish, first;
+ try {
+  f.host.liveTransport.controlIntent = intent => {
+   f.effects.push(intent);
+   const receipt = {outcome: 'accepted', requestId: intent.requestId};
+   return f.effects.length === 1
+    ? new Promise(resolve => { finish = () => resolve(receipt); })
+    : Promise.resolve(receipt);
+  };
+  first = f.view.musicIntent('next');
+  assert.equal(await f.view.musicIntent('previous'), true);
+  f.host.liveSnapshot.capabilities.controlSetup = [];
+  f.view.invalidateMusic(undefined, false, true);
+  f.host.liveSnapshot.capabilities.controlSetup = ['music'];
+  finish();
+  await first;
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next']);
+  assert.equal(await f.view.musicIntent('previous'), true);
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next', 'previous']);
+ } finally {
+  finish?.();
+  await first;
+  f.close();
+ }
+});
+
+test('the latest explicit volume survives queued skips on the same output', async () => {
+ const f = fixture(), releases = [];
+ let first;
+ try {
+  f.adopt({base: 35, effective: 35, ceiling: 100});
+  f.host.liveTransport.controlIntent = intent => {
+   f.effects.push(intent);
+   return new Promise(resolve => releases.push(() => resolve({outcome: 'accepted', requestId: intent.requestId})));
+  };
+  first = f.view.musicIntent('next');
+  assert.equal(await f.view.musicIntent('volume', {percent: 50}), true);
+  assert.equal(await f.view.musicIntent('previous'), true);
+  assert.equal(await f.view.musicIntent('volume', {percent: 60}), true);
+  releases[0]();
+  await first;
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next', 'previous']);
+  assert.equal(f.nodes.get('volume').value, '60');
+  releases[1]();
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next', 'previous', 'volume']);
+  assert.deepEqual(f.effects.at(-1).args, {percent: 60});
+  releases[2]();
+  await tick();
+ } finally {
+  for (const release of releases) release();
+  await first;
+  f.close();
+ }
+});
+
+test('a tap during an in-flight intent is queued and sent next, never dropped or disabled',async()=>{
+ const f=fixture();let release;try{f.view.render();
+  f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return f.effects.length===1?new Promise(resolve=>release=()=>resolve({outcome:'accepted',requestId:intent.requestId})):Promise.resolve({outcome:'accepted',requestId:intent.requestId});};
+  const first=f.view.musicIntent('next');await tick();
+  assert.equal(f.effects.length,1);assert.equal(f.nodes.get('next').disabled,false,'controls stay usable while sending');
+  assert.equal(await f.view.musicIntent('next'),true,'second tap is accepted for sending');assert.equal(f.effects.length,1);
+  release();await first;for(let i=0;i<5;i++)await tick();
+  assert.equal(f.effects.length,2);assert.deepEqual(f.effects.map(e=>e.action),['next','next']);assert.notEqual(f.effects[0].requestId,f.effects[1].requestId);
+ }finally{release?.();f.close();}
+});
 
 }
 

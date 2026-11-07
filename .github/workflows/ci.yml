@@ -1,5 +1,8 @@
 name: CI
 
+# One simple pipeline: lint, tests, UI, HA framework, build. Main publishes the add-on.
+# No candidate admission, exact-tree binding or result reuse: every run tests the code.
+
 on:
   workflow_dispatch:
   pull_request:
@@ -13,519 +16,104 @@ permissions:
 
 concurrency:
   group: podvoice-ci-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  promotion:
+  python:
     runs-on: ubuntu-latest
-    continue-on-error: true
-    permissions:
-      actions: read
-      contents: read
-      pull-requests: read
-    outputs:
-      reuse: ${{ steps.evaluate.outputs.reuse }}
-    steps:
-      - id: checkout
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        continue-on-error: true
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-      - id: evaluate
-        continue-on-error: true
-        if: >-
-          github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-          steps.checkout.outcome == 'success'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python3 -m scripts.ci_promotion
-
-  scope:
-    needs: [promotion]
-    runs-on: ubuntu-latest
-    outputs:
-      tooling_only: ${{ steps.scope.outputs.tooling_only }}
-      ci_control_only: ${{ steps.scope.outputs.ci_control_only }}
-      addon_changed: ${{ steps.scope.outputs.addon_changed }}
-      pr_addon_changed: ${{ steps.scope.outputs.pr_addon_changed }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - id: scope
-        env:
-          CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: python3 scripts/ci_scope.py
-      - name: Exact candidate admission (historical31/32, strict34-143)
-        if: >-
-          steps.scope.outputs.tooling_only != 'true' &&
-          steps.scope.outputs.ci_control_only != 'true' &&
-          needs.promotion.outputs.reuse != 'true'
-        env:
-          CI_DIFF_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          candidate_base="${CI_DIFF_BASE:-729668ffa45067bfb75fd6928ccac9f9beaf5576}"
-          if [ "$candidate_base" = "0cf97375e4483fddeb5e0d9f74f875bcda68c2f1" ]; then
-            python3 scripts/candidate_scope_admission143.py --base "$candidate_base"
-          elif [ "$candidate_base" = "3f00b25412fdc3b7cd2ef2fbc707d2fdecf5d372" ]; then
-            python3 scripts/candidate_scope_admission142.py --base "$candidate_base"
-          elif [ "$candidate_base" = "ee57ff3cf6d4a7a308b9a8da04c8dc4bcc6ba43c" ]; then
-            python3 scripts/candidate_scope_admission141.py --base "$candidate_base"
-          elif [ "$candidate_base" = "c1c061e1c27adec34dccdf0980bd1678bd65d070" ]; then
-            python3 scripts/candidate_scope_admission140.py --base "$candidate_base"
-          elif [ "$candidate_base" = "26cb4671e864fa051f0ab60a98c3c886cacb21e7" ]; then
-            python3 scripts/candidate_scope_admission139.py --base "$candidate_base"
-          elif [ "$candidate_base" = "2004eef9fe044d583db981d672704a204eba2ab7" ]; then
-            python3 scripts/candidate_scope_admission138.py --base "$candidate_base"
-          elif [ "$candidate_base" = "ae59c086e082a1a4d9974c21fe69d463b31e81a5" ]; then
-            python3 scripts/candidate_scope_admission137.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e344450608c5581362746cdcec34df4a3d4d53da" ]; then
-            python3 scripts/candidate_scope_admission136.py --base "$candidate_base"
-          elif [ "$candidate_base" = "fe22a542ded9755cbea2b83c56e11ba287e9577a" ]; then
-            python3 scripts/candidate_scope_admission135.py --base "$candidate_base"
-          elif [ "$candidate_base" = "30fa605bd75bb0f2ed48d2949bf9dde69c7ed178" ]; then
-            python3 scripts/candidate_scope_admission134.py --base "$candidate_base"
-          elif [ "$candidate_base" = "bff9146559498b7e2505ca1311d62055a49fbfa1" ]; then
-            python3 scripts/candidate_scope_admission133.py --base "$candidate_base"
-          elif [ "$candidate_base" = "92a5f2be7bb285a0c27d8110624f8a3163cc8724" ]; then
-            python3 scripts/candidate_scope_admission132.py --base "$candidate_base"
-          elif [ "$candidate_base" = "dbcbc554830b4a07524cdd868a861ed83d7c1551" ]; then
-            python3 scripts/candidate_scope_admission131.py --base "$candidate_base"
-          elif [ "$candidate_base" = "ab9cfbb380eb9b8db931409708d09366ae11f485" ]; then
-            python3 scripts/candidate_scope_admission130.py --base "$candidate_base"
-          elif [ "$candidate_base" = "0daa2b99b4c0db32b174414462956fee054e7257" ]; then
-            python3 scripts/candidate_scope_admission129.py --base "$candidate_base"
-          elif [ "$candidate_base" = "37680d1831ce26fd1c41a82a19a35482435b2ece" ]; then
-            python3 scripts/candidate_scope_admission128.py --base "$candidate_base"
-          elif [ "$candidate_base" = "d84caab0077b1a677ace55a2ec00873a938e5151" ]; then
-            python3 scripts/candidate_scope_admission127.py --base "$candidate_base"
-          elif [ "$candidate_base" = "b10f0931b47d1711aa30eb07c2c4c448d4866549" ]; then
-            python3 scripts/candidate_scope_admission126.py --base "$candidate_base"
-          elif [ "$candidate_base" = "07a89aac9d90bac3784aae5e9333da045937a0d7" ]; then
-            python3 scripts/candidate_scope_admission125.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8e333eade0810d92bd3ce9f87c85394aeb6a449d" ]; then
-            python3 scripts/candidate_scope_admission124.py --base "$candidate_base"
-          elif [ "$candidate_base" = "ccf893443e53a9bc303e9fce4c2d3d5a574a7d0e" ]; then
-            python3 scripts/candidate_scope_admission123.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e923374d078c8ca5acd4eef705b91a7d0c899ff9" ]; then
-            python3 scripts/candidate_scope_admission122.py --base "$candidate_base"
-          elif [ "$candidate_base" = "4642233ed597949df30a35697507419f06f20d0f" ]; then
-            python3 scripts/candidate_scope_admission121.py --base "$candidate_base"
-          elif [ "$candidate_base" = "1d1f2d32e6a4a7c5c4feca4f3e590cf1af4dd332" ]; then
-            python3 scripts/candidate_scope_admission120.py --base "$candidate_base"
-          elif [ "$candidate_base" = "0b38672b237da16ebc3ed3caef916922e070f7e2" ]; then
-            python3 scripts/candidate_scope_admission119.py --base "$candidate_base"
-          elif [ "$candidate_base" = "652499b349f0c45973e366221ff8667dc5ed944f" ]; then
-            python3 scripts/candidate_scope_admission118.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8dc24b32007666087c603a23cd57ec3ddb5de113" ]; then
-            python3 scripts/candidate_scope_admission117.py --base "$candidate_base"
-          elif [ "$candidate_base" = "fc0fcd003e495933048ee3f1439b203855804bad" ]; then
-            python3 scripts/candidate_scope_admission116.py --base "$candidate_base"
-          elif [ "$candidate_base" = "bad8148fd07a0ec43af6155cbcbd10ccd0e08eba" ]; then
-            python3 scripts/candidate_scope_admission115.py --base "$candidate_base"
-          elif [ "$candidate_base" = "c2af999cf8dd2263a16c50d57342f7d2db2bf8d6" ]; then
-            python3 scripts/candidate_scope_admission114.py --base "$candidate_base"
-          elif [ "$candidate_base" = "73a566620b054d390ad747d323b3b51a48f4ba57" ]; then
-            python3 scripts/candidate_scope_admission113.py --base "$candidate_base"
-          elif [ "$candidate_base" = "6c5c7b130e72681392762a6ab83973bb9e071d29" ]; then
-            python3 scripts/candidate_scope_admission112.py --base "$candidate_base"
-          elif [ "$candidate_base" = "63efe04efa45be6468a527290c171ce303aebd0c" ]; then
-            python3 scripts/candidate_scope_admission111.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8b9c6591e1443c21797c617e1dd601d60d606a08" ]; then
-            python3 scripts/candidate_scope_admission110.py --base "$candidate_base"
-          elif [ "$candidate_base" = "a451d65a20290cc2c43b163c12abb52511a3ac57" ]; then
-            python3 scripts/candidate_scope_admission109.py --base "$candidate_base"
-          elif [ "$candidate_base" = "2c46f3e6c70e531746a8afa2836eb2b07ac57b49" ]; then
-            python3 scripts/candidate_scope_admission108.py --base "$candidate_base"
-          elif [ "$candidate_base" = "59413ce4734c3ca8d85cd458a75365520124048d" ]; then
-            python3 scripts/candidate_scope_admission107.py --base "$candidate_base"
-          elif [ "$candidate_base" = "0458f59108a099a0bb898becdd14941ed885b535" ]; then
-            python3 scripts/candidate_scope_admission106.py --base "$candidate_base"
-          elif [ "$candidate_base" = "425bb80f1441d76a55d18b32517e146c5f8e1757" ]; then
-            python3 scripts/candidate_scope_admission105.py --base "$candidate_base"
-          elif [ "$candidate_base" = "fbf3c808432d370e12ae82024bc72a87d2e401c7" ]; then
-            python3 scripts/candidate_scope_admission104.py --base "$candidate_base"
-          elif [ "$candidate_base" = "c5d90263fd4da106a1b573ab9fb1fd7d4e4fe3b6" ]; then
-            python3 scripts/candidate_scope_admission103.py --base "$candidate_base"
-          elif [ "$candidate_base" = "97b9863b855446c20c043fdb0ab5ad1b37e99020" ]; then
-            python3 scripts/candidate_scope_admission102.py --base "$candidate_base"
-          elif [ "$candidate_base" = "5844270ca7334f94f3f791c18b008259a77b12ae" ]; then
-            python3 scripts/candidate_scope_admission101.py --base "$candidate_base"
-          elif [ "$candidate_base" = "58a65c12074203afcbcfbb39deb7de7cc3a4ac7a" ]; then
-            python3 scripts/candidate_scope_admission100.py --base "$candidate_base"
-          elif [ "$candidate_base" = "574b38c684b2c838a6d011db6314f657535dab66" ]; then
-            python3 scripts/candidate_scope_admission99.py --base "$candidate_base"
-          elif [ "$candidate_base" = "312562b66f2d2406e54a0ed22b80130f941f8417" ]; then
-            python3 scripts/candidate_scope_admission98.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8ecd76bc3603fccdd94066212a66d5138e0cebd5" ]; then
-            python3 scripts/candidate_scope_admission97.py --base "$candidate_base"
-          elif [ "$candidate_base" = "f492f4cca291757677429019422823d263665132" ]; then
-            python3 scripts/candidate_scope_admission96.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e7cd9ded8aa99287eb0aae1305278e4e95b78f04" ]; then
-            python3 scripts/candidate_scope_admission95.py --base "$candidate_base"
-          elif [ "$candidate_base" = "a49711ea3a81d8420b91ddd9407cf83ea45029c0" ]; then
-            python3 scripts/candidate_scope_admission94.py --base "$candidate_base"
-          elif [ "$candidate_base" = "815c9a19e8369f14015ea597a46e63c80f4c9956" ]; then
-            python3 scripts/candidate_scope_admission93.py --base "$candidate_base"
-          elif [ "$candidate_base" = "1606b2015f8c5dcd165505303a8968824ba83147" ]; then
-            python3 scripts/candidate_scope_admission92.py --base "$candidate_base"
-          elif [ "$candidate_base" = "65fe801a8bb587ba42518ce4dbb04ee39b59fd76" ]; then
-            python3 scripts/candidate_scope_admission91.py --base "$candidate_base"
-          elif [ "$candidate_base" = "5a9bb2b2da735399a1069f529ca4ace572779efb" ]; then
-            python3 scripts/candidate_scope_admission90.py --base "$candidate_base"
-          elif [ "$candidate_base" = "ba10807df5c297881c360bd0510eb599b3d348aa" ]; then
-            python3 scripts/candidate_scope_admission89.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8d08c039b54ec5503b7e1d995b1faecc5213f50f" ]; then
-            python3 scripts/candidate_scope_admission88.py --base "$candidate_base"
-          elif [ "$candidate_base" = "c5c34a2efb4fba70d186d735baa6a3d58dbf00b5" ]; then
-            python3 scripts/candidate_scope_admission87.py --base "$candidate_base"
-          elif [ "$candidate_base" = "1945c899f067d46e9dd3b5d031c880573a102e0c" ]; then
-            python3 scripts/candidate_scope_admission86.py --base "$candidate_base"
-          elif [ "$candidate_base" = "5538e34765d4418f60622446fa1bd32f292d7ff2" ]; then
-            python3 scripts/candidate_scope_admission85.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8648a99e5e524c20fca542ca0d62207dfeb904f4" ]; then
-            python3 scripts/candidate_scope_admission84.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8884c78573384c436bfa0287c135d584fd929ce8" ]; then
-            python3 scripts/candidate_scope_admission83.py --base "$candidate_base"
-          elif [ "$candidate_base" = "9fd3aa3f660baaea1e4dbaf71455853ee2c84e26" ]; then
-            python3 scripts/candidate_scope_admission83.py --base "8884c78573384c436bfa0287c135d584fd929ce8"
-          elif [ "$candidate_base" = "ae3ea766485914e98bfc8a883301978971e103b7" ]; then
-            python3 scripts/candidate_scope_admission82.py --base "$candidate_base"
-          elif [ "$candidate_base" = "7c1481f6682df89526081932c05d9bb5d83324f3" ]; then
-            python3 scripts/candidate_scope_admission81.py --base "$candidate_base"
-          elif [ "$candidate_base" = "dbd6949dcddce6487f04d89d4ef051213e6f4d35" ]; then
-            python3 scripts/candidate_scope_admission80.py --base "$candidate_base"
-          elif [ "$candidate_base" = "7742699ea8ca0c9b70498a7c2f63e86b039c3eed" ]; then
-            python3 scripts/candidate_scope_admission79.py --base "$candidate_base"
-          elif [ "$candidate_base" = "a537077b0ecb31a9def0759cf5a5c44873f0ec85" ]; then
-            python3 scripts/candidate_scope_admission78.py --base "$candidate_base"
-          elif [ "$candidate_base" = "5b753604c703e90f7fd5c63ea3ccd219ab814670" ]; then
-            python3 scripts/candidate_scope_admission77.py --base "$candidate_base"
-          elif [ "$candidate_base" = "64028590b1a45008bbb0f8e77e6b2fbe81fc9c06" ]; then
-            python3 scripts/candidate_scope_admission76.py --base "$candidate_base"
-          elif [ "$candidate_base" = "3f50a1c29433ff5f34bb04c8928d23f41c90abe0" ]; then
-            python3 scripts/candidate_scope_admission75.py --base "$candidate_base"
-          elif [ "$candidate_base" = "0dfae681c18c104d98a1b91fe8b03f9ef8c75834" ]; then
-            python3 scripts/candidate_scope_admission74.py --base "$candidate_base"
-          elif [ "$candidate_base" = "c9b04906f7f3386ea404fbf5deca9011489936a1" ]; then
-            python3 scripts/candidate_scope_admission73.py --base "$candidate_base"
-          elif [ "$candidate_base" = "85a296a7394b621e76533cc4365e435fd9017743" ]; then
-            python3 scripts/candidate_scope_admission72.py --base "$candidate_base"
-          elif [ "$candidate_base" = "0508f9d9d8ae39b2cc2328eec9e6f437a288ebf3" ]; then
-            python3 scripts/candidate_scope_admission71.py --base "$candidate_base"
-          elif [ "$candidate_base" = "d21c267817ce6744dfd59efeafb13a186f5fb78d" ]; then
-            python3 scripts/candidate_scope_admission70.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8cbca02897b8f59cbfd3392ef965b523b6d1db10" ]; then
-            python3 scripts/candidate_scope_admission69.py --base "$candidate_base"
-          elif [ "$candidate_base" = "f99be699315de44375bea46f1c667712dca21229" ]; then
-            python3 scripts/candidate_scope_admission68.py --base "$candidate_base"
-          elif [ "$candidate_base" = "f12537026e6ceb199932c5aa05d977e43a47920e" ]; then
-            python3 scripts/candidate_scope_admission67.py --base "$candidate_base"
-          elif [ "$candidate_base" = "2c585fabdaaf52895a103db698988477eed098a4" ]; then
-            python3 scripts/candidate_scope_admission66.py --base "$candidate_base"
-          elif [ "$candidate_base" = "eead19bcf86e958fdb78321fdd54549d393698c8" ]; then
-            python3 scripts/candidate_scope_admission65.py --base "$candidate_base"
-          elif [ "$candidate_base" = "fe3750cd47bd8f0d2d518fb5ccc51a380c17f65b" ]; then
-            python3 scripts/candidate_scope_admission64.py --base "$candidate_base"
-          elif [ "$candidate_base" = "382c8275125fda4742c8f5947bb1ceed0e3b102d" ]; then
-            python3 scripts/candidate_scope_admission63.py --base "$candidate_base"
-          elif [ "$candidate_base" = "79b8fe8cdd3d2ee55e811cd76ac9f37e067cae48" ]; then
-            python3 scripts/candidate_scope_admission62.py --base "$candidate_base"
-          elif [ "$candidate_base" = "1db7642e1e67eb9a02c65ed95a2a4891b69e87bb" ]; then
-            python3 scripts/candidate_scope_admission61.py --base "$candidate_base"
-          elif [ "$candidate_base" = "fcfdbbd775d7d04640254545cf21ffc302a0b9d8" ]; then
-            python3 scripts/candidate_scope_admission60.py --base "$candidate_base"
-          elif [ "$candidate_base" = "78d9dc7528b964d2986e50eee31ecdd0d942571b" ]; then
-            python3 scripts/candidate_scope_admission59.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8dd2f725ff43e1d1bcb0d2ea35d3ae64b055b0c5" ]; then
-            python3 scripts/candidate_scope_admission58.py --base "$candidate_base"
-          elif [ "$candidate_base" = "b39498a0c6b965395d8b20ea8387e7c546f7c663" ]; then
-            python3 scripts/candidate_scope_admission57.py --base "$candidate_base"
-          elif [ "$candidate_base" = "a97b6658f3d5cd20a5c5d0396a3c07253eae5963" ]; then
-            python3 scripts/candidate_scope_admission56.py --base "$candidate_base"
-          elif [ "$candidate_base" = "98006350907c329869ed60c2ea256f9eb1725393" ]; then
-            python3 scripts/candidate_scope_admission55.py --base "$candidate_base"
-          elif [ "$candidate_base" = "c89d429937dbbbc1195b363f9dc531fa185e3d22" ]; then
-            python3 scripts/candidate_scope_admission54.py --base "$candidate_base"
-          elif [ "$candidate_base" = "16fb39d8f780ae9b2925163027974e4952424217" ]; then
-            python3 scripts/candidate_scope_admission53.py --base "$candidate_base"
-          elif [ "$candidate_base" = "2a93c1673fdf0d8051b877ced32fe51628e534e6" ]; then
-            python3 scripts/candidate_scope_admission52.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e2e9552459f920385f4228b80ce9a35750b072a5" ]; then
-            python3 scripts/candidate_scope_admission51.py --base "$candidate_base"
-          elif [ "$candidate_base" = "9d8d72326569061f16c3af5724d6c9e54a9e661a" ]; then
-            python3 scripts/candidate_scope_admission50.py --base "$candidate_base"
-          elif [ "$candidate_base" = "d6c1cfe7c761a80056771af5f9ccccbc1fdd2437" ]; then
-            python3 scripts/candidate_scope_admission49.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8604704df3175b9b34acca654a92bfe0305437c0" ]; then
-            python3 scripts/candidate_scope_admission48.py --base "$candidate_base"
-          elif [ "$candidate_base" = "26438cdefac88c8bac071e8089636cd823c7a891" ]; then
-            python3 scripts/candidate_scope_admission47.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e5e9ec495061e6b3f97f6555a28dafecdeceed3f" ]; then
-            python3 scripts/candidate_scope_admission46.py --base "$candidate_base"
-          elif [ "$candidate_base" = "383a72f1170ebf97ac8ef7f121c933cd731dd311" ]; then
-            python3 scripts/candidate_scope_admission45.py --base "$candidate_base"
-          elif [ "$candidate_base" = "3f3628a6a847a322a0aa49788b56dd65836d1986" ]; then
-            python3 scripts/candidate_scope_admission44.py --base "$candidate_base"
-          elif [ "$candidate_base" = "4f183f19689fcf87f90d26c6a14a8e6e153d93c1" ]; then
-            python3 scripts/candidate_scope_admission43.py --base "$candidate_base"
-          elif [ "$candidate_base" = "fa7a3d1d5f09d31aa04e842dbce22f8654f2eca5" ]; then
-            python3 scripts/candidate_scope_admission42.py --base "$candidate_base"
-          elif [ "$candidate_base" = "6799ee3d65cb67fb406346c565dc206e08cbf0da" ]; then
-            python3 scripts/candidate_scope_admission41.py --base "$candidate_base"
-          elif [ "$candidate_base" = "97e4b44fd5299136e562d5eebf0076c8ebf83bb2" ]; then
-            python3 scripts/candidate_scope_admission40.py --base "$candidate_base"
-          elif [ "$candidate_base" = "f0e3d62a5677050d2373f691a61cd733b3dd5be6" ]; then
-            python3 scripts/candidate_scope_admission39.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e4c2966197ac28aa6e86a0df55e7f461203df269" ]; then
-            python3 scripts/candidate_scope_admission38.py --base "$candidate_base"
-          elif [ "$candidate_base" = "aa49d94e588974683ad3b9ad4b6d34da81676b58" ]; then
-            python3 scripts/candidate_scope_admission37.py --base "$candidate_base"
-          elif [ "$candidate_base" = "ed0fbc41d9ab2a9fcdbf0648d2ee0839abd1befd" ]; then
-            python3 scripts/candidate_scope_admission36.py --base "$candidate_base"
-          elif [ "$candidate_base" = "e4d19282aaa18ddc2d5d1f04b6c7de84c0823d8b" ]; then
-            python3 scripts/candidate_scope_admission35.py --base "$candidate_base"
-          elif [ "$candidate_base" = "8e7ff9bc9aaaf298a23c93e53bed90c672558b25" ]; then
-            python3 scripts/candidate_scope_admission34.py --base "$candidate_base"
-          elif [ "$candidate_base" = "abe759678168ba6408e10ae0a8a3621249631d13" ]; then
-            python3 scripts/candidate_scope_admission33.py --base "$candidate_base"
-          elif [ "$candidate_base" = "0e56c593c6ce9a3e1666b5fd535d3424cc691b9c" ]; then
-            python3 scripts/candidate_scope_admission31.py --base "$candidate_base"
-          else
-            python3 scripts/candidate_scope_admission32.py --base "$candidate_base"
-          fi
-
-  lint-test:
-    name: lint-test (unit)
-    needs: [scope, promotion, unit-shards]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject cancelled unit checks
-        if: ${{ cancelled() }}
-        run: exit 1
-      - name: Require complete unit evidence
-        if: ${{ always() }}
-        env:
-          SCOPE_RESULT: ${{ needs.scope.result }}
-          PROMOTION_RESULT: ${{ needs.promotion.result }}
-          TOOLING_ONLY: ${{ needs.scope.outputs.tooling_only }}
-          REUSE: ${{ needs.promotion.outputs.reuse }}
-          UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}
-        run: |
-          test "$SCOPE_RESULT" = success
-          test "$PROMOTION_RESULT" = success
-          if [ "$TOOLING_ONLY" = true ] || [ "$REUSE" = true ]; then
-            test "$UNIT_SHARDS_RESULT" = skipped
-          else
-            test "$UNIT_SHARDS_RESULT" = success
-          fi
-      - name: Reuse previously passed exact-tree PR checks
-        if: needs.promotion.outputs.reuse == 'true'
-        run: echo "Required PR checks already passed for this exact tree."
-      - uses: actions/checkout@v4
-        if: needs.promotion.outputs.reuse != 'true'
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        if: needs.promotion.outputs.reuse != 'true'
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
-      - name: Install development-check dependencies
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only == 'true'
-        run: pip install -r podvoice/requirements-dev.txt
-      - name: Install product dependencies
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
-        run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - name: Check development tools and documentation
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only == 'true'
-        run: |
-          ruff check scripts/dev_cycle.py scripts/ci_scope.py scripts/ci_promotion.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
-          ruff format --check scripts/dev_cycle.py scripts/ci_scope.py scripts/ci_promotion.py tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
-          python -m pytest -q tests/unit/test_dev_cycle.py tests/unit/test_ci_scope.py tests/unit/test_ci_promotion.py tests/unit/test_release_contract.py
+      - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
       - run: ruff check .
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
       - run: ruff format --check .
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
       - run: mypy podvoice/gatekeeper
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
-      - name: Unit tests
-        if: needs.promotion.outputs.reuse != 'true' && needs.scope.outputs.tooling_only != 'true'
-        env:
-          UNIT_SHARDS_RESULT: ${{ needs.unit-shards.result }}
-        run: test "$UNIT_SHARDS_RESULT" = success
+      - run: python -m pytest -n auto tests/unit tests/integration
 
-  unit-shards:
-    needs: [scope, promotion]
-    if: needs.scope.outputs.tooling_only != 'true' && needs.promotion.outputs.reuse != 'true'
+  ui:
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            podvoice/requirements.txt
-            podvoice/requirements-dev.txt
-      - name: Install product dependencies
-        run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - name: Unit partition
-        run: python scripts/dev_cycle.py unit-shard --shard ${{ matrix.shard }}
-
-  remaining-tests:
-    name: lint-test (rest)
-    needs: [scope, promotion, remaining-test-shards]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject cancelled remainder checks
-        if: ${{ cancelled() }}
-        run: exit 1
-      - name: Remaining tests
-        if: ${{ always() }}
-        env:
-          SCOPE_RESULT: ${{ needs.scope.result }}
-          PROMOTION_RESULT: ${{ needs.promotion.result }}
-          TOOLING_ONLY: ${{ needs.scope.outputs.tooling_only }}
-          REUSE: ${{ needs.promotion.outputs.reuse }}
-          REST_SHARDS_RESULT: ${{ needs.remaining-test-shards.result }}
-        run: |
-          test "$SCOPE_RESULT" = success
-          test "$PROMOTION_RESULT" = success
-          if [ "$TOOLING_ONLY" = true ] || [ "$REUSE" = true ]; then
-            test "$REST_SHARDS_RESULT" = skipped
-          else
-            test "$REST_SHARDS_RESULT" = success
-          fi
-      - name: Reuse previously passed exact-tree PR checks
-        if: needs.promotion.outputs.reuse == 'true'
-        run: echo "Required PR checks already passed for this exact tree."
-
-  remaining-test-shards:
-    needs: [scope, promotion]
-    if: needs.scope.outputs.tooling_only != 'true' && needs.promotion.outputs.reuse != 'true'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: |
-            podvoice/requirements.txt
-            podvoice/requirements-dev.txt
-      - name: Install product dependencies
-        run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - name: Remaining test partition
-        run: python scripts/dev_cycle.py rest-shard --shard ${{ matrix.shard }}
-
-  ui-browser:
-    needs: [scope, promotion]
-    if: needs.scope.outputs.tooling_only != 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 22
-    env:
-      PODVOICE_DEV_CACHE: /home/runner/.cache/podvoice-dev
-      PLAYWRIGHT_BROWSERS_PATH: /home/runner/.cache/podvoice-dev/browser/ui-browser
-    steps:
-      - name: Reuse previously passed exact-tree PR checks
-        if: needs.promotion.outputs.reuse == 'true'
-        run: echo "Browser checks already passed for this exact tree."
-      - uses: actions/checkout@v4
-        if: needs.promotion.outputs.reuse != 'true'
-      - uses: actions/setup-python@v5
-        if: needs.promotion.outputs.reuse != 'true'
-        with:
-          python-version: "3.12"
       - uses: actions/setup-node@v4
-        if: needs.promotion.outputs.reuse != 'true'
+        with:
+          node-version: "24.19.0"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Committed PodView assets match their sources
+        run: |
+          node scripts/prepare-podview-checkout.mjs
+          npm run check:components
+      - name: PodView unit and component tests
+        run: node --test tests/podview/*.test.mjs
+
+  journeys:
+    # Real-browser user journeys, one per job so they run in parallel.
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        journey: [robot_ux, music_push, music, music_selection, radio, robot, light, vehicle, timer, home_events, answers, recipe, panel]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            podvoice/requirements.txt
+            podvoice/requirements-dev.txt
+      - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
           cache: npm
           cache-dependency-path: tests/browser/package-lock.json
-      - name: Install pinned canonical UI validator dependencies
-        if: needs.promotion.outputs.reuse != 'true'
-        run: npm ci --ignore-scripts
-      - name: Verify committed PodView assets before any build
-        if: needs.promotion.outputs.reuse != 'true'
+      - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+      - working-directory: tests/browser
         run: |
-          test ! -e dist
-          node scripts/prepare-podview-checkout.mjs
-          npm run check:components
-      - name: Verify packaged PodView transport and owner contracts
-        if: needs.promotion.outputs.reuse != 'true'
-        run: node --test tests/podview/*.test.mjs
-      - name: Install product and test dependencies for actual journeys
-        if: needs.promotion.outputs.reuse != 'true'
-        run: python -m pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - name: Install pinned development browser packages
-        if: needs.promotion.outputs.reuse != 'true'
-        working-directory: tests/browser
-        run: npm ci --ignore-scripts
-      - name: Restore pinned Playwright browsers
-        if: needs.promotion.outputs.reuse != 'true'
-        uses: actions/cache@v4
-        with:
-          path: /home/runner/.cache/podvoice-dev/browser/ui-browser
-          key: podvoice-playwright-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('tests/browser/package-lock.json') }}
-      - name: Install Chromium and system dependencies
-        if: needs.promotion.outputs.reuse != 'true'
-        working-directory: tests/browser
-        run: node node_modules/playwright/cli.js install --with-deps chromium
-      - name: Verify actual PodView journeys against committed assets
-        if: needs.promotion.outputs.reuse != 'true'
+          npm ci --ignore-scripts
+          node node_modules/playwright/cli.js install --with-deps chromium
+      - name: PodView journey
+        if: matrix.journey != 'panel'
         env:
           PODVIEW_TEST_PYTHON: python3
-          PODVIEW_TEST_ARTIFACT_DIR: /home/runner/.cache/podvoice-dev/browser-proof/ui-browser/podview-actual
-        run: node tests/browser/podview_actual_journeys.cjs
-      - name: Verify shipped UI in bounded serial browser workers
-        if: needs.promotion.outputs.reuse != 'true'
-        run: python -m scripts.browser_gate --worker-timeout 240
+          PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
+        run: node tests/browser/podview_actual_journeys.cjs ${{ matrix.journey }}
+      - name: Panel journeys
+        if: matrix.journey == 'panel'
+        env:
+          PODVOICE_BROWSER_PROOF: "1"
+          PODVOICE_UI_PROOF_DIR: ${{ runner.temp }}/browser-proof
+        run: |
+          mkdir -p "$PODVOICE_UI_PROOF_DIR"
+          export PODVOICE_TEST_CHROMIUM="$(node -e "console.log(require('./tests/browser/node_modules/playwright').chromium.executablePath())")"
+          for journey in live_status daily_ui wake_words settings_dirty setup_flow; do
+            echo "::group::$journey"
+            node "tests/browser/$journey.cjs"
+            echo "::endgroup::"
+          done
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: failure()
         with:
-          name: ui-browser-proof-${{ github.sha }}
-          path: /home/runner/.cache/podvoice-dev/browser-proof/ui-browser
-          if-no-files-found: warn
+          name: browser-proof-${{ matrix.journey }}-${{ github.sha }}
+          path: ${{ runner.temp }}/browser-proof
+          if-no-files-found: ignore
 
   ha-framework:
-    needs: [scope, promotion]
-    if: ${{ always() && !cancelled() && needs.scope.outputs.tooling_only != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
-    permissions:
-      contents: read
     steps:
-      - name: Reuse previously passed exact-tree PR checks
-        if: needs.promotion.outputs.reuse == 'true'
-        run: echo "HA framework checks already passed for this exact tree."
       - uses: actions/checkout@v4
-        if: needs.promotion.outputs.reuse != 'true'
-      - name: Test native admin options and services in pinned HA 2026.8.2
-        if: needs.promotion.outputs.reuse != 'true'
+      - name: Native integration in pinned HA 2026.8.2
         run: |
-          test -f tests/ha_framework/test_options_flow_http.py
           docker run --rm --platform linux/amd64 --network none --read-only \
             --cap-drop ALL --security-opt no-new-privileges --user 65534:65534 \
             --pids-limit 256 --memory 2g --cpus 2 \
@@ -536,34 +124,44 @@ jobs:
             -B -m unittest discover -s tests/ha_framework -p 'test_*.py' -v
 
   build-addon:
-    needs: [scope]
-    if: >-
-      github.event_name == 'pull_request' &&
-      needs.scope.outputs.tooling_only != 'true' &&
-      needs.scope.outputs.pr_addon_changed == 'true'
+    # Only when the add-on image itself can change; code is covered by the test jobs.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
-      # home-assistant/builder is deprecated; build the aarch64 image with
-      # docker buildx + an explicit FROM (BUILD_FROM no longer auto-injected
-      # since Supervisor 2026.04.0). See PLAN.md §11 / §6 B.2.
+          fetch-depth: 0
+      - id: packaging
+        run: |
+          base="${{ github.event.pull_request.base.sha }}"
+          if git diff --quiet "$base" HEAD -- podvoice/Dockerfile podvoice/requirements.txt podvoice/run.sh podvoice/build.yaml podvoice/config.yaml; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Build the aarch64 image with docker buildx + an explicit FROM
+      # (BUILD_FROM is no longer auto-injected since Supervisor 2026.04.0).
       - uses: docker/setup-qemu-action@v3
+        if: steps.packaging.outputs.changed == 'true'
       - uses: docker/setup-buildx-action@v3
+        if: steps.packaging.outputs.changed == 'true'
       - id: version
+        if: steps.packaging.outputs.changed == 'true'
         run: |
           echo "version=$(sed -n 's/^version: \"\(.*\)\"/\1/p' podvoice/config.yaml)" >> "$GITHUB_OUTPUT"
       - id: artifact
+        if: steps.packaging.outputs.changed == 'true'
         run: echo "context_sha=$(git ls-files -s podvoice | shasum -a 256 | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v3
         if: >-
+          steps.packaging.outputs.changed == 'true' &&
           github.event.pull_request.head.repo.full_name == github.repository
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - id: candidate-image
+        if: steps.packaging.outputs.changed == 'true'
         uses: docker/build-push-action@v6
         with:
           context: ./podvoice
@@ -575,7 +173,7 @@ jobs:
           cache-from: type=gha,scope=podvoice-aarch64
           # Optional cache export must not hold a completed image push open.
       - name: Verify shipped admin stdin through normal entrypoint
-        if: github.event.pull_request.head.repo.full_name == github.repository
+        if: steps.packaging.outputs.changed == 'true' && github.event.pull_request.head.repo.full_name == github.repository
         shell: bash
         env:
           CANDIDATE_DIGEST: ${{ steps.candidate-image.outputs.digest }}
@@ -587,8 +185,8 @@ jobs:
           bash scripts/check_podview_admin_stdin.sh "$image"
 
   publish-addon:
-    if: ${{ !cancelled() && needs.scope.result == 'success' && needs.lint-test.result == 'success' && needs.remaining-tests.result == 'success' && needs.ui-browser.result == 'success' && needs.ha-framework.result == 'success' && needs.scope.outputs.tooling_only != 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
-    needs: [scope, lint-test, remaining-tests, ui-browser, ha-framework]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    needs: [python, ui, journeys, ha-framework]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -604,12 +202,15 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - id: changed
+        run: |
+          if git diff --quiet HEAD^ HEAD -- podvoice; then echo "addon=false" >> "$GITHUB_OUTPUT"; else echo "addon=true" >> "$GITHUB_OUTPUT"; fi
       - name: Inspect immutable release version
         id: release
         shell: bash
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
-          ADDON_CHANGED: ${{ needs.scope.outputs.addon_changed }}
+          ADDON_CHANGED: ${{ steps.changed.outputs.addon }}
           RELEASE_EVENT: ${{ github.event_name }}
         run: |
           set -euo pipefail

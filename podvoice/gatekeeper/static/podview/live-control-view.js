@@ -47,7 +47,7 @@ export class LiveControlView{
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();
   const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!roomObservationCurrent(p,snapshot);this.musicButton.disabled=!!this.musicIntentPending;this.robotButton.hidden=!d?.live;this.robotButton.disabled=!!(this.pending||this.setupPending);const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
   if(d&&!d.stale){const activity=robotExperience(d).activity,key=JSON.stringify([d.id,d.status,activity]);this.robotObservedId=d.id;this.robotObservedState=key;this.robotObservedStatus=d.status;}const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard&&this.robotInline&&this.domain==='vacuum'&&this.target?.entityId!==d.id){this.opening++;this.task=null;this.robotSuggestion=null;this.target={entityId:d.id};this.buildOptions();}if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';this.robotEntry.append(this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
-  if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(device,{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotOverviewOperation?.action||null});this.robotPanel.disabled=!ready;const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
+  if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:null});this.robotPanel.disabled=!ready;const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
   if(this.robotInline&&d){this.robotButton.hidden=!!(this.robotPanel||this.task||this.setupPending);if(robotCard&&this.robotPanel){robotCard.hidden=true;robotCard.inert=true;robotCard.parentNode.hidden=true;}}
   if(this.refreshButton)this.refreshButton.disabled=!this.canRefreshRobot();
   this.renderReceipt();this.renderMusicControls();if(!this.suspending){this.prepareMusic();this.prepareVolume();}
@@ -64,6 +64,9 @@ export class LiveControlView{
   const visible=!!(row&&row.outcome!=='pending'),text=visible?`${row.label}: ${this.receiptText(row)}`:'',inline=this.domain==='vacuum'&&this.robotInline&&typeof this.robotPanel?.observed==='function';this.receiptNote.hidden=!visible||inline;this.receiptNote.textContent=inline?'':text;this.note.hidden=inline||!!(row?.domain==='vacuum');if(inline)this.robotPanel.observed(this.robotDevice(),{controlFeedback:visible?{text,state:row.outcome==='rejected'?'error':row.outcome}:null});if(this.domain==='vacuum')for(const button of this.robotPanel?.querySelectorAll?.('button')||[]){const busy=!!(row?.outcome==='pending'&&this.pending&&this.activeOperation?.key===row.key&&button.dataset.controlOptionId===row.optionId);const family=button.dataset.kit;if(button.dataset.controlOptionId&&['button','chip','tile','toggle'].includes(family))applyKitComponent(button,family,{feedback:'progress',loading:busy});}
  }
  invalidateMusic(message='Musikken er ændret · hent betjeningen igen.',render=true,preservePresentation=false){
+  const capabilities = this.host.liveSnapshot?.capabilities;
+  const access = JSON.stringify([capabilities?.musicRead, capabilities?.controlSetup?.includes('music')]);
+  if (!preservePresentation || this.musicQueued?.access !== access) this.musicQueued = null;
   if(!preservePresentation){clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;}
   if(this.musicDeferred&&!(preservePresentation&&this.musicDeferred.sameScope(false))){this.musicDeferred=null;this.host.showFeedback?.('Det ventende valg blev ikke sendt.',false,{source:'music-intent'});}
   // Music observations cannot revoke a different domain's task or async owner.
@@ -85,9 +88,10 @@ export class LiveControlView{
    if(operation){this.remember(operation,'unknown');this.robotOverviewFence={bootId:operation.bootId,roomId:operation.roomId,entityId:operation.target.entityId,outcome:'unknown'};}
    // In-flight custody stays held until its original await settles; a new
    // domain cannot start and then be cleared by the old operation's finally.
-   if(this.controlOpen())this.note.textContent=message;const device=this.robotDevice();this.robotPanel?.observed?.(device,{connected:!!this.host.liveTransport?.connected,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotOverviewOperation?.action||null});for(const el of this.body.querySelectorAll('button,input,select'))if(!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();return;
+   if(this.controlOpen())this.note.textContent=message;const device=this.robotDevice();this.robotPanel?.observed?.(this.robotView(device),{connected:!!this.host.liveTransport?.connected,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:null});for(const el of this.body.querySelectorAll('button,input,select'))if(!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();return;
   }
   if(this.musicDeferred){this.musicDeferred=null;this.host.showFeedback?.('Det ventende valg blev ikke sendt.',false,{source:'music-intent'});}
+  this.musicQueued = null;
   clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;clearTimeout(this.robotReadTimer);this.robotReadTimer=null;
   this.musicPresentationAuthority=null;this.musicPresentationTransport=null;this.clearRobotRefresh();clearTimeout(this.robotOverviewExpiry);clearTimeout(this.robotOverviewRenewal);this.robotOverviewOffer=null;this.robotOverviewRead=null;this.robotOverviewAttempt=null;if(this.robotOverviewOperation){this.remember(this.robotOverviewOperation,'unknown');this.robotOverviewFence={bootId:this.robotOverviewOperation.bootId,roomId:this.robotOverviewOperation.roomId,entityId:this.robotOverviewOperation.target.entityId,outcome:'unknown'};}this.musicGeneration=(this.musicGeneration||0)+1;this.generation++;this.opening++;this.body.setAttribute('aria-busy','false');this.task=null;this.robotControlOffer=null;this.robotSuggestion=null;this.musicOffer=null;this.musicIntentOffer=null;this.volumeIntentOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.musicRead=null;this.musicReadPending=false;this.volumeOffer=null;this.volumeAttempt=null;this.volumeRead=null;clearTimeout(this.volumeExpiryTimer);clearTimeout(this.musicExpiryTimer);clearTimeout(this.expiryTimer);
   if(this.musicIntentPending&&this.musicFence)this.musicFence={...this.musicFence,outcome:'unknown'};
@@ -104,7 +108,29 @@ export class LiveControlView{
   return {key,presentationKey,target,binding,pollSequence:p.poll_sequence,bootId:s.bootId,roomId:s.roomId,ownerEpoch:p.owner_epoch,recovery:recovery&&!this.allowed('music')};
  }
  moveUnknownApplies(context=this.musicContext()){const f=this.moveUnknownFence;return !!(f&&context&&f.bootId===context.bootId&&f.roomId===context.roomId&&f.accountId===context.target.accountId&&f.ownerEpoch===context.ownerEpoch&&!(this.host.liveMedia?.playback?.projectionVersion===3&&Number.isFinite(context.pollSequence)&&Number.isFinite(f.pollSequence)&&context.pollSequence>f.pollSequence));}
- musicUnknownBlocks(context=this.musicContext()){const f=this.musicFence;return !!(context&&f?.key===context.key&&f.outcome==='unknown'&&!(this.host.liveMedia?.playback?.projectionVersion===3&&Number.isFinite(context.pollSequence)&&Number.isFinite(f.pollSequence)&&context.pollSequence>f.pollSequence));}
+ // An unknown outcome is shown without locking ordinary controls. Every new tap
+ // is a distinct intent; next/previous are never automatically replayed.
+ musicUnknownBlocks(context=this.musicContext()){return false;}
+ // Optimistic presentation only: a pending/accepted pause or resume is shown at once
+ // and yields to the observed state on settlement or 6 s after acceptance.
+ optimisticPlaying(observed) {
+  const context = this.musicContext(), queue = this.musicQueued;
+  const desired = this.musicQueueCurrent(queue, context)
+   ? queue.intents.findLast(intent => ['pause', 'resume'].includes(intent.action))
+   : null;
+  if (desired) return desired.action === 'resume';
+  const fence = this.musicFence;
+  if (!fence || !['pause', 'resume'].includes(fence.action) || !['pending', 'accepted'].includes(fence.outcome)
+   || !Number.isFinite(fence.at) || fence.outcome === 'accepted' && Date.now() - fence.at > 6000
+   || fence.key !== context?.key) return observed;
+  return fence.action === 'resume';
+ }
+ musicQueueCurrent(queue, context = this.musicContext()) {
+  const capabilities = this.host.liveSnapshot?.capabilities;
+  return !!(queue && context && queue.presentationKey === context.presentationKey
+   && queue.transport === this.host.liveTransport && queue.generation === this.generation
+   && queue.access === JSON.stringify([capabilities?.musicRead, capabilities?.controlSetup?.includes('music')]));
+ }
  // Readonly service facts explain the controls; only fresh setup can execute.
  musicReadonlyControls(context=this.musicContext()){
   const p=this.host.liveMedia?.playback,c=p?.controls,permissions=p?.permissions;
@@ -169,10 +195,23 @@ export class LiveControlView{
  }
  endMusicIntent(token,outcome){
   if(!token||this.musicIntentOwner!==token)return;this.musicIntentOwner=null;this.musicIntentPending=false;
+  const queue = this.musicQueued;
+  // Each queued entry is a distinct tap. The settled request is never sent again.
+  if (this.musicQueueCurrent(queue)) {
+   while (queue.intents.length) {
+    const intent = queue.intents.shift();
+    if (!queue.intents.length) this.musicQueued = null;
+    void this.musicIntent(intent.action, {}, {...intent, previousToken: token}).catch(() => {});
+    if (this.musicIntentOwner) return;
+   }
+  }
+  this.musicQueued = null;
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
- pruneSpent(){for(const[id,expiry]of this.spent)if(expiry*1000<=Date.now())this.spent.delete(id);}
+ // An in-flight operation keeps its spent marker until it settles, even past offer expiry;
+ // otherwise any unrelated refresh (e.g. a music push) would turn a running Start into UNKNOWN.
+ pruneSpent(){const active=this.pending?this.activeOperation?.taskId:null;for(const[id,expiry]of this.spent)if(id!==active&&expiry*1000<=Date.now())this.spent.delete(id);}
  async prepareMusic(){
   this.pruneSpent();
   const context=this.musicContext();if(!context||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending)return;
@@ -227,8 +266,8 @@ export class LiveControlView{
   // It is never executable: every click still obtains a fresh server task below.
   const intentOffer=context&&this.musicIntentOffer?.context.presentationKey===context.presentationKey&&this.musicIntentOffer.transport===owner?this.musicIntentOffer:null;
   const options=intentOffer?.task.options??[],blocked=!context||this.musicUnknownBlocks(context);
-  const v3=this.host.liveMedia?.playback?.projectionVersion===3,readonly=v3?this.musicReadonlyControls(context):null,has=action=>v3?readonly?.actions.includes(action)===true:options.filter(option=>option.action===action).length===1,toggle=context&&this.host.liveMedia.playback.state==='playing'?'pause':'resume';
-  const playback=this.host.liveMedia?.playback,displayPlaying=roomObservationDisplay(playback,this.host.liveSnapshot,this.host.liveMedia?.account)&&playback.state==='playing';
+  const v3=this.host.liveMedia?.playback?.projectionVersion===3,readonly=v3?this.musicReadonlyControls(context):null,hasExact=action=>v3?readonly?.actions.includes(action)===true:options.filter(option=>option.action===action).length===1,optimisticToggle=!!context&&this.optimisticPlaying(this.host.liveMedia.playback.state==='playing')!==(this.host.liveMedia.playback.state==='playing'),has=action=>optimisticToggle&&['pause','resume'].includes(action)?hasExact('pause')||hasExact('resume'):hasExact(action),toggle=context&&this.optimisticPlaying(this.host.liveMedia.playback.state==='playing')?'pause':'resume';
+  const playback=this.host.liveMedia?.playback,displayPlaying=roomObservationDisplay(playback,this.host.liveSnapshot,this.host.liveMedia?.account)&&this.optimisticPlaying(playback.state==='playing');
   const transport=has(toggle)||has('next')||has('previous');
   const volumeOffer=this.currentVolumeOffer(context),volumeIntent=context&&this.volumeIntentOffer?.context.presentationKey===context.presentationKey&&this.volumeIntentOffer.transport===owner?this.volumeIntentOffer:intentOffer;
   const volumes=volumeIntent?.task.options.filter(option=>option.action==='volume')??[],volume=volumes.length===1?volumes[0]:null,actualVolume=this.musicVolumeMeasurement(context,volumeOffer??(offer?.task.options.some(option=>option.action==='volume')?offer:null));
@@ -292,36 +331,66 @@ export class LiveControlView{
   finally{this.host.playerView?.finishSourceFocus?.(focusTicket,this.musicFence?.outcome);if(this.musicOperation===operation)this.musicOperation=null;this.endMusicIntent(token,this.musicFence?.outcome);if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}}
  }
  // An explicit input gets one request identity and is never replayed.
- async musicIntent(action,input={}){
-  const transport=this.host.liveTransport,requestId=globalThis.crypto.randomUUID(),issuedAt=Date.now();
+ async musicIntent(action,input={},queuedIntent=null){
+  const transport = this.host.liveTransport;
+  const requestId = queuedIntent?.requestId ?? globalThis.crypto.randomUUID();
+  const issuedAt = queuedIntent?.issuedAt ?? Date.now();
   const diagnostic={domain:'music',action,requestId};
   transport?.recordDiagnostic?.('control_intent',{...diagnostic,code:'start'});
   const context=this.musicContext(),facts=this.musicReadonlyControls(context),playback=this.host.liveMedia?.playback;
   const reject=code=>{transport?.recordDiagnostic?.('control_intent',{...diagnostic,code});return false;};
   if(!['pause','resume','next','previous','volume'].includes(action))return reject('unsupported');
-  if(!context||!facts||!facts.actions.includes(action))return reject('capability_missing');
+  const observedPlaying = playback?.state === 'playing';
+  const toggle = action === 'pause' || action === 'resume';
+  const changingPhase = toggle && (queuedIntent || this.optimisticPlaying(observedPlaying) !== observedPlaying);
+  const capable = facts?.actions.includes(action)
+   || changingPhase && (facts?.actions.includes('pause') || facts?.actions.includes('resume'));
+  if(!context||!facts||!capable)return reject('capability_missing');
   if(this.musicUnknownBlocks(context))return reject('unknown_fence');
   if(action==='resume'&&this.host.liveOutputs?.pendingChoiceLabel?.())return reject('intent_pending');
-  if(action==='pause'&&playback.state!=='playing'||action==='resume'&&playback.state!=='paused')return reject('scope_changed');
   if(action==='volume'&&(!Number.isInteger(input.percent)||input.percent<0||input.percent>facts.maxVolume||!Number.isInteger(facts.volume)))return reject('invalid_dto');
   if(this.musicIntentPending){
    const active=this.musicOperation,token=this.musicIntentOwner;
-   if(action!=='volume'||!token||!active||!['pause','resume','next','previous'].includes(active.action)||active.presentationKey!==context.presentationKey)return reject('intent_pending');
+   if (action !== 'volume') {
+    if (!token || !active || active.presentationKey !== context.presentationKey
+     || active.receiptMusicGeneration !== (this.musicGeneration || 0)) return reject('intent_pending');
+    if (!this.musicQueueCurrent(this.musicQueued, context)) {
+     const capabilities = this.host.liveSnapshot?.capabilities;
+     this.musicQueued = {
+      presentationKey: context.presentationKey,
+      transport,
+      generation: this.generation,
+      access: JSON.stringify([capabilities?.musicRead, capabilities?.controlSetup?.includes('music')]),
+      intents: [],
+     };
+    }
+    this.musicQueued.intents.push({action, requestId, issuedAt});
+    this.renderMusicControls();
+    this.host.liveMedia?.render?.();
+    transport?.recordDiagnostic?.('control_intent', {...diagnostic, code: 'queued'});
+    return true;
+   }
+   if(!token||!active||!['pause','resume','next','previous'].includes(active.action)||active.presentationKey!==context.presentationKey)return reject('intent_pending');
    const generation=this.generation,transportGeneration=transport.generation,scope=JSON.stringify([this.host.liveSnapshot?.capabilities?.musicRead,this.host.liveSnapshot?.capabilities?.controlSetup?.includes('music')]);
-   const sameScope=fresh=>{const p=this.host.liveMedia?.playback,s=this.host.liveSnapshot,b=p?.roomBinding,actual=this.musicContext()?.presentationKey??(!fresh&&roomObservationBound(p,s,this.host.liveMedia?.account)&&['playing','paused'].includes(p?.state)?JSON.stringify([s.bootId,s.roomId,transportGeneration,p.config_entry_id,p.owner_epoch,p.target?.id,b.bindingId,b.nativeRoomId,b.nativeHomepodId,b.targetId]):null);return this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.generation===generation&&active.receiptMusicGeneration===(this.musicGeneration||0)&&actual===context.presentationKey&&JSON.stringify([s?.capabilities?.musicRead,s?.capabilities?.controlSetup?.includes('music')])===scope;};
-   this.musicDeferred={token,percent:input.percent,presentationKey:context.presentationKey,transport,generation,sameScope};this.renderMusicControls();return true;
+   const deferred={token,percent:input.percent,presentationKey:context.presentationKey,transport,generation,operation:active};
+   deferred.sameScope=fresh=>{const p=this.host.liveMedia?.playback,s=this.host.liveSnapshot,b=p?.roomBinding,actual=this.musicContext()?.presentationKey??(!fresh&&roomObservationBound(p,s,this.host.liveMedia?.account)&&['playing','paused'].includes(p?.state)?JSON.stringify([s.bootId,s.roomId,transportGeneration,p.config_entry_id,p.owner_epoch,p.target?.id,b.bindingId,b.nativeRoomId,b.nativeHomepodId,b.targetId]):null);return this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.generation===generation&&deferred.operation.receiptMusicGeneration===(this.musicGeneration||0)&&actual===context.presentationKey&&JSON.stringify([s?.capabilities?.musicRead,s?.capabilities?.controlSetup?.includes('music')])===scope;};
+   this.musicDeferred=deferred;this.renderMusicControls();return true;
   }
   const token=this.beginMusicIntent();if(!token)return reject('intent_pending');
   const generation=this.generation,musicGeneration=this.musicGeneration||0,transportGeneration=transport.generation,ownerScope=JSON.stringify([this.host.liveSnapshot?.capabilities?.musicRead,this.host.liveSnapshot?.capabilities?.controlSetup?.includes('music')]);
   const operation={key:context.bootId+':'+requestId,bootId:context.bootId,roomId:context.roomId,domain:'music',target:{...context.target},label:action,action,presentationKey:context.presentationKey,receiptMusicGeneration:musicGeneration};
-  this.musicOperation=operation;this.musicFence={...context,action,outcome:'pending',...(action==='volume'?{volumeDraft:Object.freeze({percent:input.percent,presentationKey:context.presentationKey,transport,generation})}:{})};
+  if (this.musicDeferred && this.musicDeferred.token === queuedIntent?.previousToken) {
+   this.musicDeferred.token = token;
+   this.musicDeferred.operation = operation;
+  }
+  this.musicOperation=operation;this.musicFence={...context,action,outcome:'pending',at:Date.now(),...(action==='volume'?{volumeDraft:Object.freeze({percent:input.percent,presentationKey:context.presentationKey,transport,generation})}:{})};
   this.remember(operation,'pending',requestId);this.renderMusicControls();
   const current=()=>{const p=this.host.liveMedia?.playback,s=this.host.liveSnapshot,b=p?.roomBinding,presentation=this.musicContext()?.presentationKey??(roomObservationBound(p,s,this.host.liveMedia?.account)&&['playing','paused'].includes(p?.state)?JSON.stringify([s.bootId,s.roomId,transportGeneration,p.config_entry_id,p.owner_epoch,p.target?.id,b.bindingId,b.nativeRoomId,b.nativeHomepodId,b.targetId]):null);return this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.generation===generation&&operation.receiptMusicGeneration===(this.musicGeneration||0)&&presentation===context.presentationKey&&JSON.stringify([s?.capabilities?.musicRead,s?.capabilities?.controlSetup?.includes('music')])===ownerScope;};
   let ownOutcome='unknown';try{
    const result=await transport.controlIntent({bootId:context.bootId,roomId:context.roomId,action,target:{...context.target},args:action==='volume'?{percent:input.percent}:{},requestId,issuedAt});
    this.remember(operation,result.outcome,requestId);
    if(!current()){transport.recordDiagnostic?.('control_action',{...diagnostic,code:'scope_changed',current:false});return true;}
-   ownOutcome=result.outcome;this.musicFence={...context,action,outcome:result.outcome,...(result.outcome==='accepted'&&this.musicFence?.volumeDraft?{volumeDraft:this.musicFence.volumeDraft}:{})};
+   ownOutcome=result.outcome;this.musicFence={...context,action,outcome:result.outcome,at:this.musicFence?.at??Date.now(),...(result.outcome==='accepted'&&this.musicFence?.volumeDraft?{volumeDraft:this.musicFence.volumeDraft}:{})};
    if(result.outcome==='accepted'){
     this.musicFence.settlementReceipt=Object.freeze({requestId,operationKey:operation.key,action,presentationKey:context.presentationKey,ownerEpoch:context.ownerEpoch,transport,transportGeneration,generation,ownerScope});
     this.scheduleMusicSettlementDeadline(this.musicFence.settlementReceipt);
@@ -434,8 +503,8 @@ export class LiveControlView{
   await this.open('vacuum',{entityId:d.id},opener);
  }
  async open(domain,target,opener,recipeId,refreshContext){if(domain==='vacuum'&&recipeId===undefined&&this.recipeId===undefined&&!refreshContext&&this.domain==='vacuum'&&JSON.stringify(this.target)===JSON.stringify(target)&&this.robotInline&&this.controlOpen()&&this.robotPanel&&this.task?.domain==='vacuum'&&this.robotControlOffer?.task===this.task&&this.robotControlCurrent(this.robotControlOffer.context)&&![...this.receipts.values()].some(row=>row.bootId===this.task.bootId&&row.roomId===this.task.roomId&&row.domain==='vacuum'&&row.target?.entityId===target?.entityId&&this.robotReceiptUnknown(row))&&this.task.expiresAt*1000>Date.now()&&!this.spent.has(this.task.taskId)&&!this.pending&&!this.setupPending&&!this.activeOperation&&!this.robotOverviewOperation){this.opener=opener;await this.renewRobotTask(this.task);return;}if(domain==='music'&&JSON.stringify(this.musicContext()?.target)!==JSON.stringify(target))return;if(this.pending||this.robotOverviewOperation||this.setupPending||!this.host.isConnected||!this.allowed(domain)||domain==='light'&&!this.lightContext?.current())return;const preOpenTask=this.task,preOpenPanel=this.robotPanel,preOpenDraft=domain==='vacuum'&&this.domain==='vacuum'&&JSON.stringify(this.target)===JSON.stringify(target)&&preOpenTask?.domain==='vacuum'&&preOpenTask.bootId===this.host.liveSnapshot?.bootId&&preOpenTask.roomId===this.host.liveSnapshot?.roomId&&!this.spent.has(preOpenTask.taskId)&&!this.activeOperation&&!this.robotOverviewOperation&&![...this.receipts.values()].some(row=>row.bootId===preOpenTask.bootId&&row.roomId===preOpenTask.roomId&&row.domain==='vacuum'&&row.target?.entityId===target?.entityId&&this.robotReceiptUnknown(row))&&preOpenPanel?.cleaningDirty&&preOpenPanel?.readCleaningDraft?{taskId:preOpenTask.taskId,revision:preOpenTask.revision,optionId:preOpenPanel.cleaningOptionId,...preOpenPanel.readCleaningDraft()}:null;this.render();for(const[id,expiry]of this.spent)if(expiry*1000<=Date.now())this.spent.delete(id);const retain=this.domain===domain&&JSON.stringify(this.target)===JSON.stringify(target);const reopenDraft=retain&&!refreshContext?preOpenDraft:null;if(reopenDraft&&!reopenDraft.settingChoices)reopenDraft.settingChoices=[];if(domain==='vacuum'&&retain&&this.task)this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_open_reset'});this.title.textContent=domain==='music'?'Betjen musik':domain==='light'?this.lightContext.title:'Rengøring';this.opener=opener;this.domain=domain;this.target=target;this.recipeId=recipeId;this.task=null;if(!retain)this.body.replaceChildren();for(const el of this.body.querySelectorAll('button,input,select'))if(domain!=='vacuum'||!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;this.body.setAttribute('aria-busy','true');this.note.textContent=domain==='light'?'Henter aktuel betjening…':'';if(domain==='vacuum'&&this.robotInline)this.mountRobotInline();else{this.robotInline=false;this.dialog.append(this.note,this.receiptNote,this.body);if(!this.dialog.open)this.dialog.showModal();}const opening=++this.opening,generation=this.generation,transport=this.host.liveTransport,transportGeneration=transport.generation,robotContext=domain==='vacuum'?this.robotControlContext(target):null;this.setupPending=true;if(domain==='vacuum'&&(!retain||!this.robotPanel))this.buildOptions();this.render();
-  try{const snap=this.host.liveSnapshot,draft=refreshContext?.draft??reopenDraft,value=await transport.controlSetup(domain,target,draft?undefined:recipeId,draft?{draft}:{});if(domain==='vacuum'&&(!!draft!==Object.hasOwn(value?.setup??{},'draft')))throw Error('draft_response_mismatch');if(this.host.liveTransport!==transport||transport.generation!==transportGeneration||opening!==this.opening||generation!==this.generation||!this.host.isConnected||!this.allowed(domain)||!this.controlOpen()||domain==='vacuum'&&this.robotInline&&this.host.state.focus!==target.entityId||this.host.liveSnapshot.bootId!==snap.bootId||this.host.liveSnapshot.roomId!==snap.roomId)return;if(domain==='vacuum'&&!this.robotControlCurrent(robotContext))return;if(refreshContext&&(this.expiredRobot!==refreshContext||this.pending||this.activeOperation||this.robotDevice()?.live!==true||this.robotDevice()?.stale||[...this.receipts.values()].some(row=>row.bootId===snap.bootId&&row.roomId===snap.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===refreshContext.target&&this.robotReceiptUnknown(row))))return;if(domain==='music'&&(JSON.stringify(this.musicContext()?.target)!==JSON.stringify(target)||value.expectedBindingId!==target.expectedBindingId))throw Error('music_binding_changed');const admitted=controlTask(value,this.host.liveSnapshot,domain);if(this.spent.has(admitted.taskId))throw Error('consumed_control_offer');if(domain==='light'&&!this.lightTaskCurrent(this.lightContext,admitted))throw Error('light_scope_changed');if(admitted.historyDraft&&(domain!=='vacuum'||typeof recipeId!=='string'||!recipeId))throw Error('unrequested_history_draft');this.task=admitted;if(domain==='vacuum')this.robotControlOffer={task:admitted,context:robotContext};this.robotSuggestion=domain==='vacuum'?value.setup?.robotSuggestion:null;this.note.textContent=domain==='vacuum'&&this.task.options.some(option=>option.action==='start'&&option.argsSchema.kind==='cleaning')?'':this.task.mapName||'Vælg en handling';this.buildOptions();if(draft&&(admitted.draft?.status==='not_restored'||admitted.draft?.status==='restored'&&refreshContext?.modeDrafts&&!this.robotPanel?.applyModeDrafts?.(refreshContext.modeDrafts)))this.robotPanel?.observed?.(this.robotDevice(),{controlFeedback:{text:'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.',state:'unknown'}});this.scheduleRobotTaskExpiry();}
-  catch(error){if(opening===this.opening&&generation===this.generation){this.note.textContent=error?.message==='draft_not_restored'?'Dine valg kunne ikke genskabes. Hent betjeningen og vælg igen.':'Betjeningen kunne ikke hentes. Adgangen eller status kan have ændret sig.';if(error?.message==='draft_not_restored')this.robotPanel?.observed?.(this.robotDevice(),{controlFeedback:{text:this.note.textContent,state:'unknown'}});}}
+  try{const snap=this.host.liveSnapshot,draft=refreshContext?.draft??reopenDraft,value=await transport.controlSetup(domain,target,draft?undefined:recipeId,draft?{draft}:{});if(domain==='vacuum'&&(!!draft!==Object.hasOwn(value?.setup??{},'draft')))throw Error('draft_response_mismatch');if(this.host.liveTransport!==transport||transport.generation!==transportGeneration||opening!==this.opening||generation!==this.generation||!this.host.isConnected||!this.allowed(domain)||!this.controlOpen()||domain==='vacuum'&&this.robotInline&&this.host.state.focus!==target.entityId||this.host.liveSnapshot.bootId!==snap.bootId||this.host.liveSnapshot.roomId!==snap.roomId)return;if(domain==='vacuum'&&!this.robotControlCurrent(robotContext))return;if(refreshContext&&(this.expiredRobot!==refreshContext||this.pending||this.activeOperation||this.robotDevice()?.live!==true||this.robotDevice()?.stale||[...this.receipts.values()].some(row=>row.bootId===snap.bootId&&row.roomId===snap.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===refreshContext.target&&this.robotReceiptUnknown(row))))return;if(domain==='music'&&(JSON.stringify(this.musicContext()?.target)!==JSON.stringify(target)||value.expectedBindingId!==target.expectedBindingId))throw Error('music_binding_changed');const admitted=controlTask(value,this.host.liveSnapshot,domain);if(this.spent.has(admitted.taskId))throw Error('consumed_control_offer');if(domain==='light'&&!this.lightTaskCurrent(this.lightContext,admitted))throw Error('light_scope_changed');if(admitted.historyDraft&&(domain!=='vacuum'||typeof recipeId!=='string'||!recipeId))throw Error('unrequested_history_draft');this.task=admitted;if(domain==='vacuum')this.robotControlOffer={task:admitted,context:robotContext};this.robotSuggestion=domain==='vacuum'?value.setup?.robotSuggestion:null;this.note.textContent=domain==='vacuum'&&this.task.options.some(option=>option.action==='start'&&option.argsSchema.kind==='cleaning')?'':this.task.mapName||'Vælg en handling';this.buildOptions();if(draft&&(admitted.draft?.status==='not_restored'||admitted.draft?.status==='restored'&&refreshContext?.modeDrafts&&!this.robotPanel?.applyModeDrafts?.(refreshContext.modeDrafts)))this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{controlFeedback:{text:'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.',state:'unknown'}});this.scheduleRobotTaskExpiry();}
+  catch(error){if(opening===this.opening&&generation===this.generation){this.note.textContent=error?.message==='draft_not_restored'?'Dine valg kunne ikke genskabes. Hent betjeningen og vælg igen.':'Betjeningen kunne ikke hentes. Adgangen eller status kan have ændret sig.';if(error?.message==='draft_not_restored')this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{controlFeedback:{text:this.note.textContent,state:'unknown'}});}}
   finally{if(opening===this.opening)this.body.setAttribute('aria-busy','false');this.setupPending=false;this.render();}
  }
  scheduleRobotTaskExpiry(){
@@ -455,7 +524,7 @@ export class LiveControlView{
    const latest=panel.cleaningDirty&&panel.readCleaningDraft?{taskId:task.taskId,revision:task.revision,optionId:panel.cleaningOptionId,...panel.readCleaningDraft()}:null;if(latest&&!latest.settingChoices)latest.settingChoices=[];if(JSON.stringify(latest)!==draftSignature){if(attempt===0&&task.expiresAt*1000-Date.now()>1250){clearTimeout(this.robotRenewalRetry);this.robotRenewalRetry=setTimeout(()=>{if(current())this.renewRobotTask(task,1);},250);}return;}
    const admitted=controlTask(raw,this.host.liveSnapshot,'vacuum');if(this.spent.has(admitted.taskId))return;
    if(admitted.rebind?.status==='not_restored'&&robotRebindReasons.has(raw.setup?.rebindReason))transport.recordDiagnostic?.('robot_renewal',{code:raw.setup.rebindReason});
-   const focused=globalThis.document?.activeElement,focusLabel=panel.contains?.(focused)?robotFocusLabel(focused):null;this.task=admitted;this.robotControlOffer={task:admitted,context};this.robotSuggestion=raw.setup?.robotSuggestion??null;this.buildOptions();if(focusLabel&&(!globalThis.document.activeElement||globalThis.document.activeElement===globalThis.document.body||globalThis.document.activeElement===focused)){const matches=[...panel.querySelectorAll('button,input,select')].filter(node=>!node.disabled&&robotFocusLabel(node)===focusLabel);if(matches.length===1)matches[0].focus?.({preventScroll:true});}if(draft&&admitted.draft?.status==='not_restored')this.robotPanel?.observed?.(this.robotDevice(),{controlFeedback:{text:'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.',state:'unknown'}});this.scheduleRobotTaskExpiry();this.render();
+   const focused=globalThis.document?.activeElement,focusLabel=panel.contains?.(focused)?robotFocusLabel(focused):null;this.task=admitted;this.robotControlOffer={task:admitted,context};this.robotSuggestion=raw.setup?.robotSuggestion??null;this.buildOptions();if(focusLabel&&(!globalThis.document.activeElement||globalThis.document.activeElement===globalThis.document.body||globalThis.document.activeElement===focused)){const matches=[...panel.querySelectorAll('button,input,select')].filter(node=>!node.disabled&&robotFocusLabel(node)===focusLabel);if(matches.length===1)matches[0].focus?.({preventScroll:true});}if(draft&&admitted.draft?.status==='not_restored')this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{controlFeedback:{text:'Dine tidligere valg kunne ikke genskabes. Vælg rum og indstillinger igen.',state:'unknown'}});this.scheduleRobotTaskExpiry();this.render();
   }catch{}finally{if(this.robotRenewalRead===read)this.robotRenewalRead=null;}
  }
  clearRobotRefresh(){clearTimeout(this.robotEarlyRenewal);clearTimeout(this.robotRenewalRetry);this.robotRenewalRead=null;this.expiredRobot=null;this.refreshButton?.remove();this.refreshButton=null;}
@@ -496,9 +565,14 @@ export class LiveControlView{
  robotDirectOffer(device){
   const snap=this.host.liveSnapshot,transport=this.host.liveTransport,homeScope=JSON.stringify([snap?.bootId,snap?.roomId]),state=({docking:'returning',stopped:'idle',fault:'error'})[device?.status]||device?.status;
   if(!this.host.isConnected||!transport?.connected||!this.allowed('vacuum')||this.host.state.homeScope!==homeScope||device?.live!==true||device.stale||device.presentationOnly||!this.host.state.devices.includes(device))return null;
-  return robotTransportOffer(device.transportActions,device.id,state);
+  const offer=robotTransportOffer(device.transportActions,device.id,state),view=this.robotView(device);
+  if(offer&&view!==device&&['cleaning','paused'].includes(view.status)){const swap={pause:'resume',resume:'pause'};offer.actions=offer.actions.map(action=>swap[action]??action);}
+  return offer;
  }
- robotDirectBlocked(device){
+ // Optimistic presentation of the robot's own tap until HA reports that status (max 10 s).
+ robotView(device){const o=this.robotOptimistic;if(!device||!o||o.entityId!==device.id)return device;if(device.status===o.status||Date.now()-o.at>10000){this.robotOptimistic=null;return device;}return {...device,status:o.status};}
+ // Robot transport is idempotent: a pending or unconfirmed tap never locks the controls.
+ robotDirectBlocked(device){return false;
   const s=this.host.liveSnapshot,f=this.robotOverviewFence;
   return !!(this.robotOverviewOperation||this.pending||device?.pending||f&&f.bootId===s?.bootId&&f.roomId===s?.roomId&&f.entityId===device?.id&&['accepted','unknown'].includes(f.outcome)&&!(Number.isFinite(device?.revision)&&device.revision>f.revision));
  }
@@ -513,11 +587,13 @@ export class LiveControlView{
   const device=this.host.state.devices.find(row=>row.id===entityId&&row.kind==='vacuum'),offer=this.robotDirectOffer(device),fence=this.robotOverviewFence;
   const reject=code=>{this.journalDevice(transport,'control_intent',{...diag,code});return false;};
   if(!['pause','resume','stop','return'].includes(action)||!offer?.actions.includes(action))return reject('capability_missing');
-  if(this.robotOverviewOperation||this.pending||device.pending)return reject('intent_pending');
-  if(fence?.bootId===snapshot.bootId&&fence.roomId===snapshot.roomId&&fence.entityId===entityId&&['accepted','unknown'].includes(fence.outcome)&&!(Number.isFinite(device.revision)&&device.revision>fence.revision))return reject('unknown_fence');
+  if(this.pending||device.pending)return reject('intent_pending');
+  this.robotOptimistic={entityId,status:({pause:'paused',resume:'cleaning',stop:'idle',return:'returning'})[action],at:Date.now()};
+  clearTimeout(this.robotOptimisticTimer);this.robotOptimisticTimer=setTimeout(()=>{this.robotOptimisticTimer=null;if(!this.host.isConnected)return;this.refreshRobotOverview();const d=this.robotDevice();if(d)this.robotPanel?.observed?.(this.robotView(d),{directActions:this.robotDirectOffer(d)?.actions||[],directPendingAction:null});},10050);
+  if(this.robotOverviewOperation){this.robotQueued={entityId,action};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
   const transportGeneration=transport.generation,current=()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===snapshot.bootId&&this.host.liveSnapshot?.roomId===snapshot.roomId&&this.allowed('vacuum');
   const operation={key:snapshot.bootId+':'+requestId,bootId:snapshot.bootId,roomId:snapshot.roomId,domain:'vacuum',direct:true,target:{entityId},label:({pause:'Pause',resume:'Fortsæt',stop:'Afslut rengøring',return:'Kør til basen'})[action],action,observedRevision:device.revision};
-  this.robotOverviewOperation=operation;this.remember(operation,'pending',requestId);this.refreshRobotOverview();this.robotPanel?.observed?.(device,{directPendingAction:action});
+  this.robotOverviewOperation=operation;this.remember(operation,'pending',requestId);this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});
   try{
    const result=await transport.controlIntent({bootId:snapshot.bootId,roomId:snapshot.roomId,domain:'vacuum',action,target:{entityId},args:{},requestId,issuedAt});
    this.remember(operation,result.outcome,requestId,result);
@@ -525,7 +601,7 @@ export class LiveControlView{
    if(current()){this.robotOverviewFence={bootId:snapshot.bootId,roomId:snapshot.roomId,entityId,revision:device.revision,outcome:result.outcome};if(result.outcome==='accepted'||result.outcome==='unknown')this.scheduleRobotObservation(transport,snapshot.bootId,snapshot.roomId,transportGeneration);}
    return true;
   }catch{this.remember(operation,'unknown',requestId);if(current())this.trackDeviceJournal('vacuum',operation,requestId,undefined,entityId,current);if(current()){this.robotOverviewFence={bootId:snapshot.bootId,roomId:snapshot.roomId,entityId,revision:device.revision,outcome:'unknown'};this.scheduleRobotObservation(transport,snapshot.bootId,snapshot.roomId,transportGeneration);}return true;}
-  finally{const owned=this.robotOverviewOperation===operation;if(owned)this.robotOverviewOperation=null;if(owned&&current()){this.robotPanel?.observed?.(this.robotDevice(),{directPendingAction:null});this.refreshRobotOverview();this.render();}}
+  finally{const owned=this.robotOverviewOperation===operation;if(owned)this.robotOverviewOperation=null;const queued=owned?this.robotQueued:null;if(owned)this.robotQueued=null;if(queued&&current()){void this.robotDirectIntent(queued.entityId,queued.action);}if(owned&&current()){this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{directPendingAction:null});this.refreshRobotOverview();this.render();}}
  }
  robotOverviewContext(device){
   const snapshot=this.host.liveSnapshot,transport=this.host.liveTransport;
@@ -534,22 +610,21 @@ export class LiveControlView{
  }
  robotOverviewCurrent(context){const device=this.host.state.devices.find(row=>row.id===context?.entityId);return !!context&&this.robotOverviewContext(device)?.key===context.key&&this.host.liveTransport===context.transport&&context.transport.generation===context.transportGeneration;}
  robotOverviewAction(device){
-  const context=this.robotOverviewContext(device),offer=this.robotDirectOffer(device),action=device?.status==='cleaning'?'pause':device?.status==='paused'?'resume':null,fence=this.robotOverviewFence;
+  const context=this.robotOverviewContext(device),offer=this.robotDirectOffer(device),view=this.robotView(device),action=view?.status==='cleaning'?'pause':view?.status==='paused'?'resume':null;
   if(!context||!action||!offer?.actions.includes(action))return null;
-  const blocked=!!(fence&&fence.bootId===context.bootId&&fence.roomId===context.roomId&&fence.entityId===device.id&&['accepted','unknown'].includes(fence.outcome)&&!(Number.isFinite(device.revision)&&device.revision>fence.revision));
-  return {id:action,label:action==='pause'?'Pause':'Fortsæt',resourceId:device.id,status:device.status,revision:device.revision,disabled:!!(this.robotOverviewOperation||this.pending||blocked)};
+  return {id:action,label:action==='pause'?'Pause':'Fortsæt',resourceId:device.id,status:view.status,revision:device.revision,disabled:false};
  }
  refreshRobotOverview(){for(const device of this.host.state.devices){const row=this.host.deviceRows?.get(device.id);if(row)this.host.renderOverviewAction?.(row,device);}}
  async prepareRobotOverview(){} // The native home observation owns this offer.
- async robotOverviewIntent(entityId,action){const device=this.host.state.devices.find(row=>row.id===entityId),choice=this.robotOverviewAction(device);if(!choice||choice.disabled||choice.id!==action)return false;return this.robotDirectIntent(entityId,action);}
+ async robotOverviewIntent(entityId,action){const device=this.host.state.devices.find(row=>row.id===entityId),choice=this.robotOverviewAction(device);if(!choice||choice.id!==action)return false;return this.robotDirectIntent(entityId,action);}
  currentRobotSetup(device){
   clearTimeout(this.robotSetupExpiry);this.robotSetupExpiry=null;
   const snapshot=this.host.liveSnapshot,scope=JSON.stringify([snapshot?.bootId,snapshot?.roomId]),setup=typeof snapshot?.bootId==='string'&&!!snapshot.bootId&&typeof snapshot?.roomId==='string'&&!!snapshot.roomId&&device?.live===true&&!device.stale&&['cleaning','paused'].includes(device.status)&&this.host.liveTransport?.connected===true&&this.host.state.homeScope===scope?robotCurrentSetup(device.currentSetup,device.id):null;
-  if(setup){const panel=this.robotPanel,target=device.id,expiry=setup.observedAt*1000+60001;this.robotSetupExpiry=setTimeout(()=>{if(this.robotPanel!==panel||this.robotDevice()?.id!==target)return;this.robotPanel?.observed?.(this.robotDevice(),{currentSetup:null});},Math.max(0,expiry-Date.now()));}
+  if(setup){const panel=this.robotPanel,target=device.id,expiry=setup.observedAt*1000+60001;this.robotSetupExpiry=setTimeout(()=>{if(this.robotPanel!==panel||this.robotDevice()?.id!==target)return;this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{currentSetup:null});},Math.max(0,expiry-Date.now()));}
   return setup;
  }
  robotDevice(){return this.host.state.devices.find(d=>d.kind==='vacuum'&&d.id===this.target?.entityId);}
- buildOptions(){if(this.task?.domain==='vacuum'||this.domain==='vacuum'){const device=this.robotDevice(),existing=this.robotPanel,panel=existing||document.createElement('pv-robot-control-panel'),scrollOwner=this.host.querySelector?.('#device-view'),scrollTop=scrollOwner?.scrollTop;panel.data={task:this.task,device,presentationScope:this.host.liveTransport?{bootId:this.host.liveSnapshot?.bootId,roomId:this.host.liveSnapshot?.roomId,transport:this.host.liveTransport,generation:this.host.liveTransport.generation,deviceId:device?.id}:null,currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,history:device?.history,readOnly:!this.allowed('vacuum')||device?.live!==true||!!device.stale,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotOverviewOperation?.action||null};if(!existing){panel.addEventListener('robot-control-action',event=>this.send(event.detail.optionId,event.detail.args));panel.addEventListener('robot-direct-action',event=>this.robotDirectIntent(this.target?.entityId,event.detail.action));panel.addEventListener('robot-control-recipe',event=>this.openRobot(this.opener,event.detail.recipeId));}this.robotPanel=panel;this.currentRobotSetup(device);panel.disabled=!this.task;if(panel.renewalDiagnostic){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:panel.renewalDiagnostic});panel.renewalDiagnostic=null;}if(this.body.children.length!==1||this.body.children[0]!==panel)this.body.replaceChildren(panel);if(scrollOwner)scrollOwner.scrollTop=scrollTop;return;}this.body.replaceChildren();this.robotPanel=null;for(const option of this.task.options){const section=make('section',undefined,'pv-content'),form=make('form',undefined,'pv-content'),schema=option.argsSchema;if(schema.kind!=='none'&&!(this.task.domain==='light'&&schema.kind==='percent'))form.append(make('h3',option.label));
+ buildOptions(){if(this.task?.domain==='vacuum'||this.domain==='vacuum'){const device=this.robotDevice(),existing=this.robotPanel,panel=existing||document.createElement('pv-robot-control-panel'),scrollOwner=this.host.querySelector?.('#device-view'),scrollTop=scrollOwner?.scrollTop;panel.data={task:this.task,device:this.robotView(device),presentationScope:this.host.liveTransport?{bootId:this.host.liveSnapshot?.bootId,roomId:this.host.liveSnapshot?.roomId,transport:this.host.liveTransport,generation:this.host.liveTransport.generation,deviceId:device?.id}:null,currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,history:device?.history,readOnly:!this.allowed('vacuum')||device?.live!==true||!!device.stale,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:null};if(!existing){panel.addEventListener('robot-control-action',event=>this.send(event.detail.optionId,event.detail.args));panel.addEventListener('robot-direct-action',event=>this.robotDirectIntent(this.target?.entityId,event.detail.action));panel.addEventListener('robot-control-recipe',event=>this.openRobot(this.opener,event.detail.recipeId));}this.robotPanel=panel;this.currentRobotSetup(device);panel.disabled=!this.task;if(panel.renewalDiagnostic){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:panel.renewalDiagnostic});panel.renewalDiagnostic=null;}if(this.body.children.length!==1||this.body.children[0]!==panel)this.body.replaceChildren(panel);if(scrollOwner)scrollOwner.scrollTop=scrollTop;return;}this.body.replaceChildren();this.robotPanel=null;for(const option of this.task.options){const section=make('section',undefined,'pv-content'),form=make('form',undefined,'pv-content'),schema=option.argsSchema;if(schema.kind!=='none'&&!(this.task.domain==='light'&&schema.kind==='percent'))form.append(make('h3',option.label));
    if(schema.kind==='choice'){const grid=make('div',undefined,'pv-actions');for(const c of schema.choices){const label=make('label'),input=make('input');input.type='radio';input.name='choiceId';input.value=c.id;input.required=true;if(this.task.domain==='light'&&option.action==='scene'&&schema.choices.length===1)input.checked=true;label.append(input,make('span',c.label));grid.append(label);}form.append(grid);}
    if(schema.kind==='cleaning'){const grid=make('div',undefined,'pv-actions');for(const area of schema.areas){const label=make('label'),input=make('input');input.type='checkbox';input.name='areaIds';input.value=area.id;label.append(input,make('span',area.label));grid.append(label);}const repeat=make('select');repeat.name='repeat';repeat.setAttribute('aria-label','Antal rengøringer');for(let n=1;n<=3;n++){const o=make('option',n===1?'1 gang':n+' gange');o.value=String(n);repeat.append(o);}form.append(grid,repeat);}
    if(schema.kind==='percent'){const label=make('label',this.task.domain==='light'?'Lysstyrke':'Vælg lydstyrke'),input=make('input'),value=make('output');input.type='range';input.name='percent';input.min='0';input.max=String(this.task.domain==='music'?100:schema.max);input.step='1';const observedPercent=this.task.domain==='light'?this.lightContext?.brightnessPercent??null:this.task.volume;input.value=String(observedPercent===null?50:Math.min(schema.max,observedPercent));value.textContent=observedPercent===null?(this.task.domain==='light'?'Vælg lysstyrke': 'Vælg på skyderen'):input.value+' %';input.setAttribute('aria-label',this.task.domain==='light'?'Lysstyrke':'Vælg lydstyrke');applyKitComponent(input,'slider');input.addEventListener('input',()=>{const attempted=Number(input.value),limited=this.task?.domain==='music'&&Number.isInteger(attempted)&&attempted>schema.max;if(limited){input.value=String(schema.max);syncKitSlider(input);}value.textContent=input.value+' %'+(limited?' · Højst '+schema.max+' %':'');form.querySelector('[type=submit]').disabled=false;});label.append(input,value);form.append(label);}

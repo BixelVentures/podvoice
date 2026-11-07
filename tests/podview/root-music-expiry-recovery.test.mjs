@@ -41,7 +41,30 @@ test('owner replacement after warm prefetch causes a fresh read and cannot reuse
 });
 test('one expired click revalidates then dispatches exact card once without confirmation',async()=>{const f=renewalFixture();try{const cards=f.entry.cards;const pending=f.view.chooseCard(cards[1]);await f.view.chooseCard(cards[2]);assert.equal(f.reads(),1);assert.equal(f.setups.length,0);f.release();await pending;assert.equal(f.setups.length,1);assert.equal(f.sent.length,1);assert.equal(f.view.dialog.open,false);assert.equal(f.sent[0].optionId,'1'.padStart(24,'c'));assert.strictEqual(f.entry.cards,cards);}finally{f.cleanup();}});
 for(const change of ['room','account','focus','entry','card','invalidate','keyboard'])test('renew continuation discarded on '+change,async()=>{const f=renewalFixture();const oldDoc=globalThis.document;globalThis.document={activeElement:{},body:{}};try{const pending=f.view.chooseCard(f.entry.cards[0]);if(change==='room')f.host.liveSnapshot.roomId='new';if(change==='account')f.view.account='other';if(change==='focus')f.host.state.focus='home';if(change==='entry')f.host.liveCatalogue.entries.clear();if(change==='card')f.entry.cards[0]={...f.entry.cards[0]};if(change==='invalidate')f.view.invalidate();if(change==='keyboard')globalThis.document.activeElement={};f.release();await pending;assert.equal(f.setups.length,0);assert.equal(f.sent.length,0);assert.equal(f.view.dialog.open,false);}finally{globalThis.document=oldDoc;f.cleanup();}});
-test('unknown dispatch remains durable through invalidation and later expiry',async()=>{const f=selectionFixture();try{await f.view.chooseCard(f.entry.cards[0]);await f.view.send();assert.equal(f.entry.actionDispatched,true);f.view.invalidate();f.entry.source.expiresAt=Date.now()-1;let reads=0;f.host.liveCatalogue.canRenewEntry=()=>true;f.host.liveCatalogue.renewForCard=()=>{reads++;};await f.view.chooseCard(f.entry.cards[0]);assert.equal(reads,0);assert.equal(f.sent.length,1);}finally{f.cleanup();}});
+test('unknown dispatch survives invalidation and expiry without replaying its old authority', async () => {
+ const f = selectionFixture();
+ try {
+  const catalogue = f.host.liveCatalogue;
+  f.entry.renewalScope = catalogue.renewalScope();
+  await f.view.chooseCard(f.entry.cards[0]);
+  await f.view.send();
+  assert.equal(f.entry.actionDispatched, true);
+  f.view.invalidate();
+  f.entry.source.expiresAt = Date.now() - 1;
+  catalogue.renewRetained({owner: {}, generation: 1});
+  assert.equal(catalogue.pendingRead, null);
+  assert.equal(f.sent.length, 1);
+
+  const next = f.view.chooseCard(f.entry.cards[0]);
+  assert.equal(catalogue.pendingRead?.reason, 'choice');
+  catalogue.tracks('top', body(), 'account');
+  await next;
+  assert.equal(f.sent.length, 1, 'the original candidate cannot be used even for a new explicit touch');
+  assert.equal(f.entry.dispatchHistory.length, 1);
+ } finally {
+  f.cleanup();
+ }
+});
 test('benign attached source expiry records expiry without dispatched disposition',()=>{const f=selectionFixture();try{f.view.collectionEntry=f.entry;f.view.expireCollection(f.entry);assert.equal(f.entry.selectionExpired,true);assert.notEqual(f.entry.actionDispatched,true);}finally{f.cleanup();}});
 for(const expiry of ['source','offer'])test('composed real catalogue '+expiry+' renewal dispatches once without confirmation',async()=>{const f=selectionFixture();try{const c=f.host.liveCatalogue;f.entry.renewalScope=c.renewalScope();if(expiry==='source')f.entry.source.expiresAt=Date.now()-1;else{f.entry.selectionSpent=true;f.entry.selectionExpired=true;}const cards=f.entry.cards;const pending=f.view.chooseCard(cards[2]);assert.equal(c.pendingRead.reason,'renew');await f.view.chooseCard(cards[1]);assert.equal(f.setups.length,0);c.tracks('top',body(),'account');await pending;assert.equal(f.setups.length,1);assert.equal(f.sent.length,1);assert.equal(f.view.dialog.open,false);assert.equal(f.sent[0].optionId,'2'.padStart(24,'c'));assert.strictEqual(f.entry.cards,cards);assert.equal(f.entry.selectionExpired,false);assert.equal(c.cardRenewal,null);}finally{f.cleanup();}});
 test('snapshot before offer timer classifies only benign time expiry and recovers',async()=>{const f=selectionFixture();f.view.openConfirm=()=>{};try{const c=f.host.liveCatalogue;f.entry.renewalScope=c.renewalScope();await f.view.chooseCard(f.entry.cards[0]);f.view.offer.expiresAt=Date.now()-1;f.view.onSnapshot();assert.equal(f.entry.selectionExpired,true);assert.equal(f.entry.selectionSpent,true);const pending=f.view.chooseCard(f.entry.cards[1]);assert.equal(c.pendingRead.reason,'renew');c.tracks('top',body(),'account');await pending;assert.equal(f.setups.length,2);assert.equal(f.sent.length,0);assert.equal(f.view.offer.options[1].label,'Actual 1');}finally{f.cleanup();}});

@@ -28,7 +28,7 @@ class HAEvents:
         await socket.send_json({"type": "auth_required"})
         self.auth.append(await socket.receive_json())
         await socket.send_json({"type": "auth_ok"})
-        for identifier in range(1, 5):
+        for identifier in range(1, 6):
             command = await socket.receive_json()
             self.subscriptions.append(command)
             assert command["id"] == identifier and command["type"] == "subscribe_events"
@@ -127,7 +127,7 @@ async def test_external_ha_event_wakes_sse_refreshes_real_home_and_reconnects(of
         assert all(
             row == {"type": "auth", "access_token": bridge.tools._token} for row in events.auth
         )
-        assert len(events.subscriptions) == 8
+        assert len(events.subscriptions) == 10
 
 
 async def test_dirty_burst_does_not_starve_or_fence_a_held_home_read(offline_direct, monkeypatch):

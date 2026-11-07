@@ -47,9 +47,15 @@ export class LiveMediaView{
  async loadQueue({automatic=false,afterPlayback=false}={}){
   const host=this.host,p=this.playback,queue=this.queueControls,feedback=host.liveSelection?.feedback;
   if(queue.pending||host.liveControls?.musicIntentPending)return;
-  if(automatic&&(host.state?.focus!=='player'||queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed(this.account,p)))return;
+  if(automatic&&(queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed?.(this.account,p)))return;
   const snapshot=host.liveSnapshot,key=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.account,p?.roomBinding?.bindingId,p?.owner_epoch,p?.target?.id,p?.item?.uri??null,]);
   const transport=host.liveTransport,generation=this.generation,transportGeneration=transport?.generation,retry=this.queueReadRetry,sameRead=this.queueReadKey===key&&this.queueReadTransport===transport;
+  // Prefetch: a new song's queue is read on every page so the player opens with it at once.
+  // Re-reads of the same song only happen while the player is open.
+  if(automatic&&sameRead&&host.state?.focus!=='player')return;
+  // Opening the player reuses a fresh prefetched queue instead of reading it again.
+  if(!automatic&&sameRead&&this.queuePrefetched===key&&queue.offer&&Number.isFinite(queue.offer.expiresAt)&&queue.offer.expiresAt>Date.now()+1000){this.queuePrefetched=null;this.renderQueue();return;}
+  this.queuePrefetched=automatic&&host.state?.focus!=='player'?key:null;
   const recovering=automatic&&sameRead&&afterPlayback&&retry?.key===key&&retry.transport===transport&&retry.transportGeneration===transportGeneration&&retry.generation===generation&&!retry.used;
   // Existing playback observations may refresh expired display custody. Expiry
   // alone schedules no read and never renews an action/occurrence authority.
@@ -101,7 +107,7 @@ export class LiveMediaView{
   // not turn a previous UNKNOWN request into success or restore its action.
   const observed=Date.parse(p?.observedAt),currentStatus=feedback?.outcome==='unknown'&&!feedback.pending&&this.readState==='ready'&&this.host.liveTransport?.connected===true&&roomObservationCurrent(p,this.host.liveSnapshot)&&['playing','paused'].includes(p?.state)&&/^spotify:(track|episode):[A-Za-z0-9]{22}$/.test(p.item?.uri||'')&&p.config_entry_id===feedback.accountId&&p.target?.id===feedback.targetId&&(feedback.nativeDestination?this.host.liveSelection?.destinationObserved?.(p,feedback.nativeDestination)===true:!feedback.destination||this.host.liveOutputs?.observedDestination?.(feedback.destination.speakerId)===true)&&Number.isFinite(observed)&&Number.isFinite(feedback.requestedAt)&&observed>=feedback.requestedAt&&/^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/.test(feedback.uri||'')&&(!/^spotify:(track|episode):/.test(feedback.uri)||p.item?.uri===feedback.uri);
   if(currentStatus){if(this.selectionReceiptFeedback!==feedback){this.selectionReceiptFeedback=feedback;if(!this.host.feedbackMessage||this.host.feedbackMessage===feedback.message)this.host.showFeedback?.(feedback.message,false);}}else if(this.selectionReceiptFeedback!==feedback)this.selectionReceiptFeedback=null;
-  const selection=this.host.liveSelection,playerFeedback=selection?.playerFeedback?.()??feedback,selected=selection?.pendingPlayer?.(playerFeedback),model=this.observedPlayerModel();
+  const selection=this.host.liveSelection,playerFeedback=selection?.playerFeedback?.()??feedback,selected=selection?.pendingPlayer?.(playerFeedback),model=this.observedPlayerModel();if(model.active&&typeof model.playing==='boolean'&&this.host.liveControls?.optimisticPlaying)model.playing=this.host.liveControls.optimisticPlaying(model.playing);
   const controls=this.host.liveControls,readFailure=controls?.musicFence,controlStatus=!selected&&model.active?(controls?.musicInlineStatus||(readFailure?.readFailure===true&&readFailure.outcome==='unavailable'&&readFailure.key===controls.musicContext()?.key?'Betjeningen kunne ikke hentes':'')):'';
   const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()||'';
   this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{selectedTarget:pendingChoice}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:false,fresh:false,loading:true,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:false,feedback:{...feedback,message:'Starter afspilning…',pending:true}}:{})});
