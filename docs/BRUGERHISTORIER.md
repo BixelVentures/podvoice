@@ -28,7 +28,7 @@ Daily Mix er valgfri. En historie giver ikke tilladelse til at opfinde nyt layou
 | # | Historie | Test |
 |---|---|---|
 | G1 | Jeg åbner PodView i HA på Mac eller iPad → eksisterende HA-login giver den aftalte betjening uden ekstra skærmregistrering eller manuelt refresh | ⬜ |
-| G2 | iPad går i dvale, appen sættes i baggrunden eller nettet forsvinder → ved genåbning gendannes forbindelse og aktuelle data automatisk, uden at miste lokale valg | ⬜ |
+| G2 | iPad går i dvale, appen sættes i baggrunden eller nettet forsvinder → ved genåbning gendannes forbindelse og aktuelle data automatisk, uden at miste lokale valg | delvis ✅ recipe: rigtig lokal browser offline→online genforbinder automatisk med nyere HA-ingress-læsning; samme host, opskrift, trin 2/7, ingrediensvalg 1/11, accordion og scroll bevares uden reload, tilmelding eller produktkommandoer. Ægte iPad-dvale/baggrund er ikke prøvet |
 | G3 | Jeg bruger »gendan funktioner« → forbindelsen genoprettes uden at nulstille valg, starte musik eller gentage tidligere handlinger | ⬜ |
 | G4 | Jeg skifter side og vender tilbage under opdatering → indhold og placering bevares; ingen skeleton/empty-state-flash | ⬜ |
 | G5 | Et ældre svar ankommer efter et nyere svar eller efter skift af konto/output → det overskriver ikke nyere tilstand og sender ingen handling til det gamle mål | ⬜ |
@@ -109,7 +109,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | R2 | Jeg trykker stop → radioen stopper < 1 s | område: radio |
 | R3 | Radio er korrekt konfigureret i HA/PodConnect → kanaler kan vælges; ingen generisk »ikke tilgængelig via HA« ved almindelig opdatering | ⬜ |
 | R4 | Station eller stream fejler → kort konkret fejl på valget; en anden station kan vælges, og musik/radio-skift efterlader ikke låst afspiller | ⬜ |
-| R5 | Jeg vælger P3 og åbner radio igen → faktisk valgt station har den godkendte kantmarkering, navn og logo; refresh ændrer ikke valget | ⬜ |
+| R5 | Jeg vælger P3 og åbner radio igen → faktisk valgt station har den godkendte kantmarkering, navn og logo; refresh ændrer ikke valget | delvis ✅ radio: pakket browser med inert NativeRadio HTTP bevarer P3 som aria-pressed ved genåbning og samme DOM-knap ved uændret repaint; ingen ny startkommando. Visuelt reference-match og rigtig radiostream ikke prøvet |
 | R6 | Radiokonfiguration mangler eller tokens passer ikke sammen → præcis opsætningsfejl; samme radio_transport_token i Speakers og podconnect_radio_token i PodVoice håndteres uden at vise/logge værdien | ⬜ |
 
 ## Robotstøvsuger
@@ -167,7 +167,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | T2 | Jeg navigerer væk, genåbner eller mister netværket → timerens slutpunkt bevares; ingen ny timer eller dobbelt alarm fra refresh | ⬜ |
 | V2 | Prognosen mangler eller har ukendt vejrikon → neutral fallback i samme ikonplads; dato, temperaturer og søjlekolonner forskydes ikke | delvis ✅ WEATHER_RETENTION_TEST: faktisk pakket browser ved 1280×800 og 768×1024, inert HA Assist/WS; kendt/manglende/ukendt ikon giver cloud/dash/dash, fem uændrede kolonner, samme temperaturer/bjælke. Kildeevent genopretter ikon på samme DOM-noder uden forskydning. Ingen fysisk iPad-prøve |
 | V3 | Vejrkilden fejler ved åbning → vis reelle sidst kendte værdier og tidspunkt; uden historik vises ærlig tom tilstand. For gamle data mærkes, aldrig som friske | ⬜ |
-| B2 | Tesla-data ændres i HA → PodView viser de nyeste relevante entitetsværdier og deres faktiske opdateringstid; ingen ældre samlet cache overskriver friskere felter | ⬜ |
+| B2 | Tesla-data ændres i HA → PodView viser de nyeste relevante entitetsværdier og deres faktiske opdateringstid; ingen ældre samlet cache overskriver friskere felter | delvis ✅ kausale ejerregressioner: nyere scoped HA-lås/bagagerum/klima vinder pr. felt; uændret genudsendelse fornyer ikke observationstid. Ændring under ventende cachelæsning prøvet; fysisk Tesla ikke prøvet |
 | B3 | Bilen sover → bevar hver kendt status med tidspunkt; dvale angives kun med kildegrundlag. Åbning af PodView vækker ikke bilen eller starter ekstra polling | ⬜ |
 | B4 | Bilen vågner eller en handling udføres → nye HA-observationer opdaterer status; accepteret kommando er ikke bevis for åbent bagagerum eller tændt klima | ⬜ |
 | B5 | Bagagerumsstatus er kendt → handling og bekræftelse siger entydigt Åbn eller Luk. Ukendt status gættes ikke; følg HA-kilden og vis konkret begrænsning | ⬜ |
@@ -177,7 +177,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | Q2 | Jeg åbner tidligere svar og modtager et nyt → historikken bevares, og opdatering flytter ikke utilsigtet mit læsepunkt | ⬜ |
 | B9 | Afrimningsstatus mangler → ingen to modsatrettede afrimningsknapper; behold godkendt enkelt betjening med ærlig status. Ukendt er ikke automatisk Slukket | ⬜ |
 | B10 | Jeg åbner Tesla-handlingens bekræftelse → korte præcise tekster og knaplayout matcher godkendt dialog; ingen ekstra accordion med dubletter af hovedknapper | ⬜ |
-| B11 | HA viser frisk lås-, bagagerums- eller klimastatus → PodView viser samme kildeværdi; et manglende felt erstatter ikke øvrige kendte data eller fortolkes som Åbent | ⬜ |
+| B11 | HA viser frisk lås-, bagagerums- eller klimastatus → PodView viser samme kildeværdi; et manglende felt erstatter ikke øvrige kendte data eller fortolkes som Åbent | delvis ✅ ejerregressioner + lokal HTTP: manglende/null/ugyldig rt bliver ikke Åbent; kendte søskendefelter bevares med originale tider. Bagagerumstilbud og sidste afsendelse kræver matchende lokal HA-kilde; gyldig 12 timer gammel rå status bevarer betjening og mærkes stale med oprindeligt tidspunkt; gammel komponent uden kontrakt afviser handling. Ingen fysisk bilprøve |
 | V4 | Jeg går fra forsiden til vejrdetaljer → temperatur, tilstand og tidspunkt er konsistente; manglende ikon påvirker hverken temperaturspænd eller søjlens bredde | delvis ✅ WEATHER_RETENTION_TEST: overblik/detalje har samme temperatur og hentetid; manglende/ukendt ikon og efterfølgende HA-event ændrer ikke temperaturspænd eller bjælkens geometri ved begge browserbredder. Rigtig vejrtjeneste/fysisk skærm ikke prøvet |
 
 ## Samlede forløb og svære tilfælde

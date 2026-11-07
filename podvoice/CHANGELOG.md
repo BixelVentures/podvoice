@@ -1,3 +1,7 @@
+## 2.0.146
+
+- Keep the newest scoped HA Tesla status per field with its real observation time, preserve omitted known fields, and require corroborated current trunk direction before offering or sending a command. Requires HA component 0.1.17 for trunk controls; opening PodView does not wake the car.
+
 ## 2.0.145
 
 - Keep explicit queue choices through in-flight commands and refresh, including fresh surviving rows when newly exposed metadata is missing. Exact occurrence continuity is supplied by Speakers 0.26.68; no URI/index guessing or replay after unknown outcomes. A new deliberate choice can recover in the same view without waiting for a poll or reloading.
