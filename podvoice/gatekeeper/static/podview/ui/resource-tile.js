@@ -108,9 +108,11 @@ export function resourceOverviewAction(resource,{connected=false,live=false,acti
  // S cards keep one whole-tile navigation target. Only the existing M Robot
  // can expose its already admitted Pause/Continue command in the overview.
  if(!resource||resource.kind!=='vacuum'||size==='s'||!connected||!canControl||resource.presentationOnly||resource.stale)return null;
- const id=({cleaning:'pause',paused:'resume'})[resource.status];if(!id)return null;
  const isLive=live||resource.live;
- const admitted=isLive?(liveAction?.id===id&&liveAction.resourceId===resource.id&&liveAction.status===resource.status&&liveAction.revision===resource.revision?liveAction:null):id&&actions.find(action=>action.id===id);if(!admitted)return null;
+ // Live: the controller's status includes the user's own pending tap (optimistic).
+ const status=isLive&&liveAction?.resourceId===resource.id?liveAction.status:resource.status;
+ const id=({cleaning:'pause',paused:'resume'})[status];if(!id)return null;
+ const admitted=isLive?(liveAction?.id===id&&liveAction.resourceId===resource.id&&liveAction.revision===resource.revision?liveAction:null):id&&actions.find(action=>action.id===id);if(!admitted)return null;
  const label=({pause:'Pause',resume:'Fortsæt',turn_on:'Tænd',turn_off:'Sluk'})[id];
  return {id,label,ariaLabel:admitted.label||label,disabled:!!resource.pending||!!admitted.disabled};
 }

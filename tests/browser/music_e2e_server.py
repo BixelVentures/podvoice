@@ -54,6 +54,7 @@ service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
+robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
 if robot is not None:
     robot.states[ROBOT]["state"] = (
         "docked" if os.environ.get("ROBOT_DRAFT_TEST") == "1" or robot_slow_start else "cleaning"
@@ -92,7 +93,9 @@ if robot is not None:
                 await asyncio.sleep(4)
             post["completedAt"] = time.time()
         else:
-            await asyncio.sleep(0.15)
+            await asyncio.sleep(robot_lab["effectDelayMs"] / 1000)
+        if robot_lab["ignoreCommands"]:
+            return  # The robot accepted the call but never changes state.
         if path.endswith("/pause"):
             robot.states[ROBOT]["state"] = "paused"
         elif path.endswith("/start") or (
@@ -419,6 +422,10 @@ async def lab_state(request):
                 robot.states[MOP]["state"] = args["robotMop"]
             if "robotState" in args:
                 robot.states[ROBOT]["state"] = args["robotState"]
+            if "robotEffectDelayMs" in args:
+                robot_lab["effectDelayMs"] = int(args["robotEffectDelayMs"])
+            if "robotIgnoreCommands" in args:
+                robot_lab["ignoreCommands"] = bool(args["robotIgnoreCommands"])
     value = copy.deepcopy(state)
     value["serviceReads"] = copy.deepcopy(service_reads)
     if robot is not None:

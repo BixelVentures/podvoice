@@ -859,6 +859,7 @@
           "method:moveUnknownApplies": 1,
           "method:musicUnknownBlocks": 1,
           "method:optimisticPlaying": 1,
+          "method:robotView": 1,
           "arrow:make": 1,
           "class:LiveControlView": 1,
           "method:allowed": 1,
