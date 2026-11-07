@@ -1,6 +1,7 @@
 import {applyKitTextRole,applyKitComponent,applyKitTemplate} from './ui/kit.js';
 import {discoveryPeriod,resultsFor} from './widget-model.js';
 import {MUSIC_THEMES,MUSIC_FEELINGS} from './music-selection-model.js';
+import {MUSIC_DISCOVERY_LIST_STEP} from './music-recommendation-model.js';
 import {spotifyArtwork,generatedMoodArtwork,spotifyItemUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
 
 export const MUSIC_TABS=[['mood','Stemning'],['feeling','Humør'],['top','For dig'],['recent','Senest']];
@@ -137,7 +138,21 @@ export class MusicResults{
    reveal?.();
    if(card.group&&(index===0||cards[index-1].group!==card.group)){let heading=this.groupHeadings.get(card.group);if(!heading){heading=make(this.doc,'h2','music-group-heading');heading.textContent=card.group;this.groupHeadings.set(card.group,heading);}if(this.list.children[position]!==heading)this.list.insertBefore(heading,this.list.children[position]||null);position++;}if(this.list.children[position]!==row)this.list.insertBefore(row,this.list.children[position]||null);position++;
   });
-  if(showPlaceholders){this.placeholders??=Array.from({length:3},()=>{const row=this.create('');delete row.dataset.optionId;row.disabled=true;row.dataset.empty='true';row.setAttribute('aria-hidden','true');row.children[0].alt='';for(const child of [row.children[2],row.children[3]])child.style.visibility='hidden';return row;});this.placeholders.forEach((row,index)=>{this.layoutRow(row,collection,index,discoveryLayout||accountLibrary);if(row.dataset.contentState!=='pending')row.dataset.contentState='pending';if(this.list.children[index]!==row)this.list.insertBefore(row,this.list.children[index]||null);});}
+  if(showPlaceholders){
+   const count=this.host.live&&(collection==='recent'||accountLibrary)?MUSIC_DISCOVERY_LIST_STEP:3;
+   this.placeholders??=Array.from({length:MUSIC_DISCOVERY_LIST_STEP},()=>{
+    const row=this.create('');delete row.dataset.optionId;row.disabled=true;row.dataset.empty='true';
+    row.setAttribute('aria-hidden','true');row.children[0].alt='';
+    for(const child of [row.children[2],row.children[3]])child.style.visibility='hidden';
+    return row;
+   });
+   for(const [index,row] of this.placeholders.entries()){
+    if(index>=count){if(row.parentNode===this.list)row.remove();continue;}
+    this.layoutRow(row,collection,index,discoveryLayout||accountLibrary);
+    if(row.dataset.contentState!=='pending')row.dataset.contentState='pending';
+    if(this.list.children[index]!==row)this.list.insertBefore(row,this.list.children[index]||null);
+   }
+  }
   if(this.title.textContent!=='Find musik')this.title.textContent='Find musik';if(!busy){const collectionLabel={mood:'Stemning',feeling:'Humør',top:'For dig',recent:'Senest'}[collection]||'',context=collectionLabel,count=[context,status===undefined?`${cards.length} forslag`:text(status)].filter(Boolean).join(' · ');if(this.count.textContent!==count)this.count.textContent=count;}else if(!cards.length&&this.count.textContent)this.count.textContent='';
   const localOutcome=this.host.live?null:this.host.state.music?.refreshStatus,refreshOutcome=localOutcome==='error'||localOutcome==='empty'?localOutcome:/kunne ikke (?:opdatere|opdateres|hentes|hente)/i.test(status||'')?'error':/ingen nye forslag/i.test(status||'')?'empty':null,refreshMessage=refreshOutcome==='error'?(cards.length?'Kunne ikke hente nye forslag. De viste forslag er bevaret.':'Kunne ikke hente forslag. Prøv igen.'):refreshOutcome==='empty'?'Ingen nye forslag i denne opdatering.':'';if(this.empty.dataset.refreshOutcome!==(refreshOutcome||''))this.empty.dataset.refreshOutcome=refreshOutcome||'';const sourceMessage=text(sourceSummary,512),emptyMessage=refreshMessage||sourceMessage||text(empty);if(this.empty.textContent!==emptyMessage)this.empty.textContent=emptyMessage;const emptyHidden=busy||!refreshMessage&&!sourceMessage&&(cards.length>0||(!!text(status)&&text(status)===this.empty.textContent));if(this.empty.hidden!==emptyHidden)this.empty.hidden=emptyHidden;
   const refreshBusy=busy&&connected&&canRefresh&&!pendingId&&!this.host.liveSelection?.pending;if(this.refresh.dataset.refreshState!==(refreshBusy?'pending':'idle'))this.refresh.dataset.refreshState=refreshBusy?'pending':'idle';for(const [node,value]of [[this.list,busy],[this.refresh,refreshBusy]])if(node.getAttribute('aria-busy')!==String(value))node.setAttribute('aria-busy',String(value));const refreshDisabled=!connected||!canRefresh||!!pendingId;if(this.refresh.disabled!==refreshDisabled)this.refresh.disabled=refreshDisabled;const refreshUnavailable=String(refreshDisabled||refreshBusy);if(this.refresh.getAttribute('aria-disabled')!==refreshUnavailable)this.refresh.setAttribute('aria-disabled',refreshUnavailable);
