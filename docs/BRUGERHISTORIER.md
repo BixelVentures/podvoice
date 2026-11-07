@@ -23,7 +23,7 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 
 | # | Historie | Test |
 |---|---|---|
-| K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | ⬜ |
+| K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | delvis ✅ enhedstest: køen hentes ved sangskift på alle sider og vises som klar, når afspilleren åbnes; tid i browser ikke målt (testserveren har ingen kø) |
 | K2 | Sangen skifter → køen rykker op uden at listen blinker | ⬜ |
 | K3 | Jeg trykker på en sang i køen → den spiller < 1,5 s | område: music |
 

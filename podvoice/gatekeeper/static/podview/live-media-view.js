@@ -47,9 +47,15 @@ export class LiveMediaView{
  async loadQueue({automatic=false,afterPlayback=false}={}){
   const host=this.host,p=this.playback,queue=this.queueControls,feedback=host.liveSelection?.feedback;
   if(queue.pending||host.liveControls?.musicIntentPending)return;
-  if(automatic&&(host.state?.focus!=='player'||queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed(this.account,p)))return;
+  if(automatic&&(queue.consumed||feedback?.pending||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed?.(this.account,p)))return;
   const snapshot=host.liveSnapshot,key=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.account,p?.roomBinding?.bindingId,p?.owner_epoch,p?.target?.id,p?.item?.uri??null,]);
   const transport=host.liveTransport,generation=this.generation,transportGeneration=transport?.generation,retry=this.queueReadRetry,sameRead=this.queueReadKey===key&&this.queueReadTransport===transport;
+  // Prefetch: a new song's queue is read on every page so the player opens with it at once.
+  // Re-reads of the same song only happen while the player is open.
+  if(automatic&&sameRead&&host.state?.focus!=='player')return;
+  // Opening the player reuses a fresh prefetched queue instead of reading it again.
+  if(!automatic&&sameRead&&this.queuePrefetched===key&&queue.offer&&Number.isFinite(queue.offer.expiresAt)&&queue.offer.expiresAt>Date.now()+1000){this.queuePrefetched=null;this.renderQueue();return;}
+  this.queuePrefetched=automatic&&host.state?.focus!=='player'?key:null;
   const recovering=automatic&&sameRead&&afterPlayback&&retry?.key===key&&retry.transport===transport&&retry.transportGeneration===transportGeneration&&retry.generation===generation&&!retry.used;
   // Existing playback observations may refresh expired display custody. Expiry
   // alone schedules no read and never renews an action/occurrence authority.
