@@ -2518,7 +2518,8 @@ async def test_tool_call_is_not_released_when_repeated_context_exceeds_followup_
 
 
 async def test_tool_effect_gate_uses_top_total_not_smaller_detail_sum():
-    ledger = ProviderBudgetCoordinator()
+    # Frozen clock: real elapsed time on a slow runner must not refill the bucket.
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: 1000.0)
     owner = ledger.diagnostic_started("secret")
     lease = ledger.reserve_eval(
         "secret", "model", tokens=15_000, production_headroom=0, diagnostic_lease=owner
