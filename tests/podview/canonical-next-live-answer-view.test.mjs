@@ -360,3 +360,20 @@ test('superseded same-task reads and source completions cannot republish after r
   assert.equal(f.view.dialog.open,false);assert.equal(f.view.body.children.length,0);
  }finally{f.restore();}
 });
+
+
+test('new receipt stays available without auto-presenting over historical reading', async () => {
+  const f = fixture({ focus: 'historical-answer' });
+  try {
+    f.host.historyBrowse = { id: 'historical-answer' };
+    await f.read();
+    assert.equal(f.host.state.focus, 'historical-answer');
+    assert.deepEqual(f.host.events, []);
+    assert.equal(f.host.state.answers[0].receiptId, receiptId);
+    assert.equal(f.view.presented.has(`receipt:${receiptId}`), false);
+    f.host.historyBrowse = null;
+    f.view.lastRead = 0;
+    await f.view.refresh();
+    assert.deepEqual(f.host.events, [{ type: 'present-answer', id: `receipt:${receiptId}` }]);
+  } finally { f.restore(); }
+});

@@ -74,7 +74,47 @@ export class LiveAnswerView{
   finally{if(serial===this.historySerial)this.historyPending=false;}
  }
  async refresh(retry=false){this.pruneExpired();const host=this.host,s=host.liveSnapshot;if(Number.isSafeInteger(s?.answerHistoryRevision)){const history=this.refreshHistory();if(!answerReadContext(s)){await history;return;}}if(s?.capabilities.answerRead!==true){this.invalidate(true,false);return;}if(this.pending||Date.now()-this.lastRead<5000)return;this.pending=true;this.lastRead=Date.now();const readKey=answerReadContext(s);if(retry){this.setReadStatus('pending');host.render();}const transport=host.liveTransport,transportGeneration=transport.generation,generation=this.generation,boot=s.bootId,room=s.roomId,session=s.voice.sessionId,context=JSON.stringify(s.answers);const current=()=>generation===this.generation&&host.isConnected&&host.liveTransport===transport&&transport.generation===transportGeneration&&host.liveTransport.connected&&host.liveSnapshot.answerHistoryRevision===s.answerHistoryRevision&&host.liveSnapshot.answerHistoryRemovalRevision===s.answerHistoryRemovalRevision&&host.liveSnapshot.bootId===boot&&host.liveSnapshot.roomId===room&&JSON.stringify(host.liveSnapshot.answers)===context&&host.liveSnapshot.voice.sessionId===session&&host.liveSnapshot.capabilities.answerRead===true;
-  try{const value=await host.liveTransport.answers();if(!current())return;const result=ownedAnswers(value,host.liveSnapshot,this.revision);this.revision=result.revision;const old=host.state.answers;const liveItems=result.items.filter(a=>!Array.isArray(host.liveSnapshot.answerHistoryReceiptIds)||host.liveSnapshot.answerHistoryReceiptIds.includes(a.receiptId)).map(a=>({...a,readContext:readKey,readConnected:true,hidden:old.find(x=>x.id===a.id)?.hidden||false}));if(this.initialReceiptsUnknown){for(const answer of liveItems)this.initialReceiptIds.add(answer.receiptId);this.initialReceiptsUnknown=false;}this.remember(liveItems);const items=this.retained(liveItems);const removed=old.some(a=>a.id===host.state.focus)&&!items.some(a=>a.id===host.state.focus);host.state={...host.state,answers:items,focus:removed?'now':host.state.focus};const suggestion=items.find(a=>!a.historical&&a.displaySuggested&&!a.hidden&&!this.presented.has(a.id)&&!this.initialReceiptIds?.has(a.receiptId));if(suggestion&&Date.now()-(host.lastInteractionAt||0)>1000&&document.hidden!==true&&document.visibilityState!=='hidden'&&!host.screenLifecycle?.pointers?.size&&host.dataset.edgeDrag!=='true'&&(host.suspendForAnswer?.()??!document.querySelector('dialog[open]'))){this.presented.add(suggestion.id);const previousFocus=document.activeElement;host.dispatch({type:'present-answer',id:suggestion.id});if(previousFocus&&host.contains(previousFocus)&&!previousFocus.getClientRects().length)host.focusHeading();}else host.render();this.pruneExpired();if(this.dialog.open){if(!this.currentAnswer(this.sourceId)){this.dialog.close();this.body.replaceChildren();}else if(this.sourceContext!==readKey){void this.showSource(this.sourceId,this.opener);}}}
+  try {
+   const value=await host.liveTransport.answers();
+   if(!current())return;
+   const result=ownedAnswers(value,host.liveSnapshot,this.revision);
+   this.revision=result.revision;
+   const old=host.state.answers;
+   const liveItems=result.items.filter(answer=>
+    !Array.isArray(host.liveSnapshot.answerHistoryReceiptIds)||
+    host.liveSnapshot.answerHistoryReceiptIds.includes(answer.receiptId)
+   ).map(answer=>({...answer,readContext:readKey,readConnected:true,
+    hidden:old.find(item=>item.id===answer.id)?.hidden||false}));
+   if(this.initialReceiptsUnknown){
+    for(const answer of liveItems)this.initialReceiptIds.add(answer.receiptId);
+    this.initialReceiptsUnknown=false;
+   }
+   this.remember(liveItems);
+   const items=this.retained(liveItems);
+   const removed=old.some(answer=>answer.id===host.state.focus)&&
+    !items.some(answer=>answer.id===host.state.focus);
+   host.state={...host.state,answers:items,focus:removed?'now':host.state.focus};
+   const suggestion=!host.historyBrowse&&items.find(answer=>
+    !answer.historical&&answer.displaySuggested&&!answer.hidden&&!this.presented.has(answer.id)&&
+    !this.initialReceiptIds?.has(answer.receiptId));
+   if(suggestion&&Date.now()-(host.lastInteractionAt||0)>1000&&
+    document.hidden!==true&&document.visibilityState!=='hidden'&&!host.screenLifecycle?.pointers?.size&&
+    host.dataset.edgeDrag!=='true'&&(host.suspendForAnswer?.()??!document.querySelector('dialog[open]'))){
+    this.presented.add(suggestion.id);
+    const previousFocus=document.activeElement;
+    host.dispatch({type:'present-answer',id:suggestion.id});
+    if(previousFocus&&host.contains(previousFocus)&&!previousFocus.getClientRects().length)host.focusHeading();
+   }else host.render();
+   this.pruneExpired();
+   if(this.dialog.open){
+    if(!this.currentAnswer(this.sourceId)){
+     this.dialog.close();
+     this.body.replaceChildren();
+    }else if(this.sourceContext!==readKey){
+     void this.showSource(this.sourceId,this.opener);
+    }
+   }
+  }
   catch(error){if(error?.code==='read_access_denied'&&host.isConnected&&host.liveTransport===transport&&transport.generation===transportGeneration&&host.liveSnapshot.bootId===boot&&host.liveSnapshot.roomId===room){this.invalidate(true,true);host.render();return;}if(current()){this.setReadStatus('error');host.render();if(this.dialog.open)this.note.textContent='Grundlaget kunne ikke opdateres · tidligere indhold er bevaret.';}}finally{if(generation===this.generation)this.pending=false;}
  }
  async showSource(id,opener){const host=this.host;if(!host.liveTransport.connected||!this.currentAnswer(id))return;const serial=++this.sourceSerial;this.opener=opener;const sourceContext=answerReadContext(host.liveSnapshot);if(this.sourceId!==id||this.sourceContext!==sourceContext)this.body.replaceChildren();this.sourceId=id;this.sourceContext=sourceContext;this.note.textContent='';this.body.setAttribute('aria-busy','true');if(!this.dialog.open)this.dialog.showModal();const generation=this.generation,transport=host.liveTransport,transportGeneration=transport.generation,boot=host.liveSnapshot.bootId,room=host.liveSnapshot.roomId;

@@ -531,7 +531,7 @@
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "dadfb7ac6c0076d4bf43c62c3a30c8201ff7158aa3b92a133aa83ecf3bac27e8"
+      "sha256": "389a39c15585a48397733955e8144f77794b17c1a3b6cfde2b53e35ee796d785"
     },
     {
       "path": "live-control-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "cd65292570457833815aa0ada3aeff21bbab4eaadc083517615cd25ea64ad5a4"
+      "sha256": "84daa219ca8783bc5505146a779382adfa1b2fcd7879ab04bba7f3b1254b35d2"
     },
     {
       "path": "podview.css",
