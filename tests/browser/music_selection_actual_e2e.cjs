@@ -6,6 +6,7 @@ const {spawn}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os'),assert=require('node:assert/strict');
 const holdPlayback=process.env.MUSIC_HOLD_PLAYBACK==='1';
+const loseSelectionReceipt = process.env.MUSIC_UNKNOWN_AFTER_COMMIT === '1';
 const cold=process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
@@ -154,6 +155,39 @@ const state=()=>fetch(base+'/lab/state').then(r=>r.json());
  await page.locator('[data-collection="top"]').tap();
  const rows=page.locator('#result-list button.result');
  await rows.filter({hasText:'Katalogsang 11'}).waitFor({state:'visible',timeout:15000});
+ if (loseSelectionReceipt) {
+  const endpoint = '**/view/api/music/selection/actions';
+  await page.route(endpoint, async route => {
+   const committed = await route.fetch();
+   assert.equal((await committed.json()).outcome, 'accepted');
+   assert.equal((await state()).song, 11, 'the inert owner acted before the receipt was lost');
+   await route.fulfill({status: 502, json: {error: 'fixture_receipt_lost'}});
+  }, {times: 1});
+
+  await rows.filter({hasText: 'Katalogsang 11'}).tap();
+  await page.waitForFunction(() => {
+   const selection = document.querySelector('pv-widget-host')?.liveSelection;
+   return selection?.feedback?.outcome === 'unknown' && !selection.pending && !selection.pendingPlayer();
+  }, undefined, {timeout: 12000});
+  await page.locator('#track-name').filter({hasText: 'Isoleret sang 11'}).waitFor({state: 'visible', timeout: 15000});
+  assert.equal((await state()).selections.length, 1, 'passive observation does not repeat the unknown command');
+  assert.equal(actions.filter(action => action.url.endsWith('/selection/actions')).length, 1);
+
+  await rows.filter({hasText: 'Katalogsang 12'}).tap();
+  await page.locator('#track-name').filter({hasText: 'Isoleret sang 12'}).waitFor({state: 'visible', timeout: 15000});
+  const observed = await state();
+  assert.deepEqual(observed.selections.map(row => Number(row.uri.split(':').pop())), [11, 12]);
+  const setups = actions.filter(action => action.url.endsWith('/selection/setup'));
+  const sent = actions.filter(action => action.url.endsWith('/selection/actions'));
+  assert.equal(setups.length, 2);
+  assert.equal(sent.length, 2);
+  assert.notEqual(setups[0].body.candidateSetId, setups[1].body.candidateSetId);
+  assert.notEqual(sent[0].body.taskId, sent[1].body.taskId);
+  assert.notEqual(sent[0].body.requestId, sent[1].body.requestId);
+  assert.deepEqual(errors, []);
+  console.log(JSON.stringify({outcome: 'PASS', bundleSHA, unknownAfterCommit: true, explicitChoiceEffects: [11, 12]}));
+  return;
+ }
  // Passive bounded CI evidence only: no method wrapping, synthetic events or upload.
  await page.evaluate(()=>{const ids=new WeakMap(),scopes=new Map(),events=[],mutations=[];let serial=0;const id=node=>{if(!node)return null;if(!ids.has(node))ids.set(node,++serial);return ids.get(node);},scope=h=>{const s=h?.liveSnapshot,key=JSON.stringify([s?.bootId,s?.roomId,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,s?.mediaRoomBindings]);if(!scopes.has(key))scopes.set(key,scopes.size+1);return scopes.get(key);},save=(list,row)=>{list.push(row);if(list.length>100)list.shift();};for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','click'])document.addEventListener(type,event=>{const h=document.querySelector('pv-widget-host'),v=h?.liveSelection,c=h?.liveCatalogue,e=c?.entries?.get(c.key()),point=event.changedTouches?.[0]||event,b=event.target.closest?.('#result-list button.result');save(events,{type,at:performance.now(),target:id(event.target),button:id(b),x:point.clientX??null,y:point.clientY??null,disabled:b?.disabled??null,connected:b?.isConnected??null,scope:scope(h),focus:h?.state?.focus,pending:v?.pending,used:v?.used,musicPending:!!h?.liveControls?.musicIntentPending,settlement:v?.feedback?.settlementStatus,selectionSpent:e?.selectionSpent,selectionConfirmed:e?.selectionConfirmed});},true);new MutationObserver(records=>{for(const record of records)if(record.type==='childList')save(mutations,{at:performance.now(),parent:id(record.target),added:[...record.addedNodes].map(id),removed:[...record.removedNodes].map(id)});else if(record.type==='attributes')save(mutations,{at:performance.now(),target:id(record.target),attribute:record.attributeName,oldValue:record.oldValue,value:record.target.getAttribute(record.attributeName)});}).observe(document.querySelector('#result-list'),{childList:true,subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled','hidden','inert','aria-disabled']});window.selectionCiEvidence={events,mutations};});
  for(const song of [11,12,11]){

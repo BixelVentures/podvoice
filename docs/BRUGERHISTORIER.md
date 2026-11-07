@@ -46,13 +46,13 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | A2 | Musik er sat på pause → jeg trykker afspil → samme som A1 omvendt | område: music |
 | A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | delvis ✅ music: tre hurtige browsertryk giver tre simulerede ejerkommandoer, titel efter sidste tryk 695 ms; fysisk afspilning ikke målt |
 | A4 | Jeg trækker i lydstyrken → slideren følger fingeren uden at hoppe tilbage, lyden ændres < 1 s | område: music |
-| A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ |
+| A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ livefunktion mangler: player-view begrænser seek til lokal eksempelvisning; PodVoice musikhandlinger har endnu ingen seek-kontrakt |
 | A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | delvis: music_push måler ~30 ms efter HA-hændelse; hele < 1,5 s fra Spotify er ikke bevist med 3 s polling |
 | A7 | Netværket falder ud og kommer igen → sidst kendte sang bliver stående, knapperne virker igen uden genindlæsning | område: home_events |
-| A8 | Jeg starter musik i Spotify på hjemmets højttaler → PodView viser titel, cover og output og kan pause/fortsætte uden først at starte musikken selv | ⬜ |
+| A8 | Jeg starter musik i Spotify på hjemmets højttaler → PodView viser titel, cover og output og kan pause/fortsætte uden først at starte musikken selv | delvis ✅ music_push: ny browser modtager simuleret ekstern start, viser sang/Køkkenalrum og sender præcis én pause og fortsæt via Python-broker uden lokal start; rigtig Spotify, cover og fysisk effekt ikke prøvet |
 | A9 | Jeg trykker pause, fortsæt og pause under et langsomt svar → trykkene håndteres i rækkefølge, sidste intention respekteres, ingen knap låses af polling | delvis ✅ music: tre browsertryk giver pause/resume/pause hos simuleret ejer, korrekt sidste label, ingen disabled-blink; fysisk lyd ikke prøvet |
-| A10 | Musik har spillet i 10 minutter med løbende refresh → pause, næste og lydstyrke virker stadig; ingen udløbet kontroladgang | ⬜ |
-| A11 | En start fejler eller ender ukendt → skærmen hænger ikke permanent på det ønskede nummer og hævder ikke bekræftet afspilning; ny eksplicit handling er mulig | ⬜ |
+| A10 | Musik har spillet i 10 minutter med løbende refresh → pause, næste og lydstyrke virker stadig; ingen udløbet kontroladgang | delvis ✅ MUSIC_LONG_SESSION: 600 s reel tid, 263 simulerede ejerlæsninger, ingen automatiske effekter; pause/næste/volumen/fortsæt når ejer efter ventetid. Genåbning og rigtig service/fysisk lyd endnu ikke bevist |
+| A11 | En start fejler eller ender ukendt → skærmen hænger ikke permanent på det ønskede nummer og hævder ikke bekræftet afspilning; ny eksplicit handling er mulig | delvis ✅ collection-selection: direkte UNKNOWN, korreleret UNKNOWN efter accept og svar under disconnect tillader nyt eksplicit valg med ny kandidat/opgave/request; gammel effekt gensendes ikke passivt. Browser med mistet accepteret svar prøvet; fysisk effekt ikke prøvet |
 | A12 | Stemme starter musik → PodView viser samme konto/output; jeg vælger i køen og pauser med touch → hele forløbet styrer samme session | ⬜ |
 | A13 | Pause/fortsæt, næste/forrige og volumenkontrol bruges efter adgangsfornyelse → ingen venten på »observeret musik« før visuel feedback; korrekt effekt følger de respektive tidsmål | ⬜ |
 | A14 | En musikstart afbrydes midt i klargøring → gammel session ryddes korrekt op, og en senere eksplicit start kan gennemføres uden at genstarte HA | ⬜ |
@@ -61,7 +61,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 
 | # | Historie | Test |
 |---|---|---|
-| K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | delvis ✅ enhedstest: køen hentes ved sangskift på alle sider og vises som klar, når afspilleren åbnes; tid i browser ikke målt (testserveren har ingen kø) |
+| K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | delvis ✅ enhedstest: køen hentes ved sangskift på alle sider og vises som klar, når afspilleren åbnes; tid i browser ikke målt; music_selection har separat simuleret køkilde |
 | K2 | Sangen skifter → køen rykker op uden at listen blinker | ⬜ |
 | K3 | Jeg trykker på en sang i køen → den spiller < 1,5 s | delvis: music_selection vælger præcis anden forekomst via rigtig Python-broker og simuleret ejer, også efter uvedkommende stemmesnapshot; tidsmål/fysisk effekt ikke målt |
 | K4 | Auto-fortsæt spiller videre → vis kommende sange, når kilden leverer dem; opfind ikke fremtidige sange og forveksl ikke manglende kødata med stoppet musik | ⬜ |
