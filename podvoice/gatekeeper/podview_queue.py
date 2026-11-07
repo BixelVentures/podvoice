@@ -42,15 +42,20 @@ def _trace_action(body, phase, trace, outcome):
             if isinstance(request_id, str) and 1 <= len(request_id) <= 160
             else "none"
         )
+        detail = trace["detail"]
+        suffix = (
+            f" detail={detail}" if phase == "receipt" and outcome == "rejected" and detail else ""
+        )
         _LOGGER.info(
             "queue_command phase=%s action=play_queue_occurrence request_ref=%s "
-            "stage=%s dispatched=%s outcome=%s kind=%s physical_result_verified=false",
+            "stage=%s dispatched=%s outcome=%s kind=%s physical_result_verified=false%s",
             phase,
             request_ref,
             trace["stage"],
             str(trace["dispatched"]).lower(),
             outcome if outcome in {"accepted", "rejected", "unknown", "pending"} else "unknown",
             trace["kind"],
+            suffix,
         )
     except Exception:
         pass
@@ -397,7 +402,7 @@ class QueueBroker:
             return {"ok": False, "error": "queue_offer_unavailable", "retryAllowed": False}
 
     async def action(self, body, token):
-        trace = {"stage": "validation", "dispatched": False, "kind": "none"}
+        trace = {"stage": "validation", "dispatched": False, "kind": "none", "detail": ""}
         outcome = "unknown"
         _trace_action(body, "request", trace, "pending")
         try:
@@ -495,6 +500,17 @@ class QueueBroker:
                 if not self.presented_current(task, token) or not resolved["current"]():
                     raise ValueError("queue owner changed during resolution")
                 trace["stage"] = "validate_queue"
+                trace["detail"] = "projection_rejected"
+                if (
+                    isinstance(value, dict)
+                    and set(value)
+                    == {"ok", "error_kind", "retry_allowed", "physical_result_verified"}
+                    and value.get("ok") is False
+                    and value.get("error_kind") == "room_queue_unavailable"
+                    and value.get("retry_allowed") is False
+                    and value.get("physical_result_verified") is False
+                ):
+                    trace["detail"] = "owner_unavailable"
                 source = project(
                     value,
                     rule["accountId"],
@@ -505,19 +521,32 @@ class QueueBroker:
                 selected = next(
                     (r for r in source["items"] if r["option_id"] == body["optionId"]), None
                 )
-                if (
-                    selected is None
-                    or source["queue"]["queue_revision"] != old_source["queue"]["queue_revision"]
-                    or source["native"] != old_source["native"]
-                    or source["route"] != old_source["route"]
-                    or source["owner_epoch"] != old_source["owner_epoch"]
-                    or source["poll_sequence"] < old_source["poll_sequence"]
-                    or source["queue"]["observation_id"] == old_source["queue"]["observation_id"]
-                    or selected["index"] != shown["index"]
-                    or selected["uri"] != shown["uri"]
-                    or ACTION not in source["actions"]
-                    or source["deadline_ms"] <= 0
-                ):
+                trace["detail"] = ""
+                detail = ""
+                if selected is None:
+                    detail = "occurrence_missing"
+                elif source["queue"]["queue_revision"] != old_source["queue"]["queue_revision"]:
+                    detail = "revision_changed"
+                elif source["native"] != old_source["native"]:
+                    detail = "native_changed"
+                elif source["route"] != old_source["route"]:
+                    detail = "route_changed"
+                elif source["owner_epoch"] != old_source["owner_epoch"]:
+                    detail = "owner_epoch_changed"
+                elif source["poll_sequence"] < old_source["poll_sequence"]:
+                    detail = "poll_regressed"
+                elif source["queue"]["observation_id"] == old_source["queue"]["observation_id"]:
+                    detail = "observation_reused"
+                elif selected["index"] != shown["index"]:
+                    detail = "index_changed"
+                elif selected["uri"] != shown["uri"]:
+                    detail = "track_changed"
+                elif ACTION not in source["actions"]:
+                    detail = "action_unavailable"
+                elif source["deadline_ms"] <= 0:
+                    detail = "deadline_elapsed"
+                if detail:
+                    trace["detail"] = detail
                     raise ValueError("shown queue occurrence no longer current")
                 # Fresh authority is transient. Never renew the shown reference's
                 # ID/deadline/source or map a URI/index to a different opaque ID.

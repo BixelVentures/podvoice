@@ -445,20 +445,21 @@ async def test_expired_shown_reference_gets_fresh_authority_without_renewal(rig)
 
 
 @pytest.mark.parametrize(
-    "change",
+    ("change", "detail"),
     [
-        "id",
-        "revision",
-        "native",
-        "route",
-        "epoch",
-        "poll",
-        "readonly",
-        "same-observation",
-        "expiry",
+        ("id", "occurrence_missing"),
+        ("revision", "revision_changed"),
+        ("native", "native_changed"),
+        ("route", "route_changed"),
+        ("epoch", "owner_epoch_changed"),
+        ("poll", "poll_regressed"),
+        ("readonly", "action_unavailable"),
+        ("same-observation", "observation_reused"),
+        ("expiry", "projection_rejected"),
+        ("unavailable", "owner_unavailable"),
     ],
 )
-async def test_fresh_queue_cannot_remap_or_revive_shown_duplicate(rig, change):
+async def test_fresh_queue_cannot_remap_or_revive_shown_duplicate(rig, caplog, change, detail):
     bridge, request = prepare(rig)
     offer = await bridge.queue.offer(request, "grant")
     original = bridge.queue.tasks[offer["taskId"]]["source"]
@@ -481,6 +482,13 @@ async def test_fresh_queue_cannot_remap_or_revive_shown_duplicate(rig, change):
         fresh["actions"] = []
     elif change == "same-observation":
         fresh["queue"]["observation_id"] = original["queue"]["observation_id"]
+    elif change == "unavailable":
+        fresh = {
+            "ok": False,
+            "error_kind": "room_queue_unavailable",
+            "retry_allowed": False,
+            "physical_result_verified": False,
+        }
     else:
         fresh["valid_until"] = time.time() - 1
 
@@ -492,7 +500,14 @@ async def test_fresh_queue_cannot_remap_or_revive_shown_duplicate(rig, change):
 
     bridge.controls.music._read.side_effect = read
     body = action(offer)
-    assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
+    with caplog.at_level("INFO", logger="gatekeeper.podview_queue"):
+        assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
+    assert any(
+        "phase=receipt" in message
+        and "stage=validate_queue dispatched=false outcome=rejected" in message
+        and message.endswith(f"detail={detail}")
+        for message in caplog.messages
+    )
     assert (await bridge.queue.action(body, "grant"))["outcome"] == "rejected"
     assert bridge.controls.music._read.await_count == 2
     assert not bridge.controls.busy

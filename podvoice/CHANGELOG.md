@@ -1,3 +1,7 @@
+## 2.0.141
+
+- Distinguish an unavailable queue read, an invalid response and the first failed comparison in rejected queue selection receipts. Keep existing checks and playback behavior.
+
 ## 2.0.140
 
 - Keep an admitted floor selector reachable when the active robot map has no configured HA areas, including a single offered alternate.
