@@ -731,7 +731,7 @@ async def test_response_start_rate_reservation_does_not_kill_session_readiness(m
 async def test_duplicate_done_with_top_residual_debits_usage_exactly_once(
     monkeypatch,
 ):
-    ledger = ProviderBudgetCoordinator()
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: 1000.0)
     ledger.update_rate_limits(
         "secret",
         "model",
@@ -3296,7 +3296,7 @@ async def test_unsolicited_late_rate_event_cannot_refill_a_future_response():
 
 
 async def test_response_rate_event_after_created_prevents_completed_usage_double_debit():
-    ledger = ProviderBudgetCoordinator()
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: 1000.0)
     diagnostic = ledger.diagnostic_started("secret")
     lease = ledger.reserve_eval(
         "secret",
@@ -3358,7 +3358,7 @@ async def test_response_rate_event_after_created_prevents_completed_usage_double
 
 
 async def test_malformed_current_rate_event_cannot_cover_completed_response_usage():
-    ledger = ProviderBudgetCoordinator()
+    ledger = ProviderBudgetCoordinator(monotonic=lambda: 1000.0)
     diagnostic = ledger.diagnostic_started("secret")
     lease = ledger.reserve_eval(
         "secret",
