@@ -272,3 +272,190 @@ test('only the chosen queue occurrence stays busy until the command settles',asy
   assert.equal(model().items.some(item=>item.pending),false);
  }finally{f.close();}
 });
+
+for (const continuity of ['survives', 'cold-tail', 'unverifiable', 'missing', 'unknown', 'access']) {
+ test(`a second explicit queue choice waits for fresh exact occurrence authority: ${continuity}`, async () => {
+  const f=fixture();
+  let first,reply;
+  try {
+   const originalRead=f.host.liveTransport.queueOffer;
+   const stable='b'.repeat(24), other='c'.repeat(24), sent=[],paints=[];
+   f.host.liveMedia.renderQueue=()=>{
+    const model=f.view.model('account',f.host.liveMedia.playback);
+    paints.push(model?.items.filter(row=>row.pending).map(row=>row.id));
+   };
+   f.host.liveTransport.queueOffer=async()=>{
+    const value=await originalRead();
+    const a=value.items[0], b={...a,id:stable,order:2,title:'Other occurrence of the same track'};
+    if(f.reads.length===1)return {...value,items:[a,b]};
+    if(continuity==='missing')return {...value,items:[]};
+    const survivor={...b,id:continuity==='unverifiable'?other:stable,order:1};
+    const cold={id:'d'.repeat(24),order:2,uri:'spotify:track:'+'9'.repeat(22),title:'',artist:'',
+     artwork:null,metadataKnown:false};
+    const metadataPending=['cold-tail','unverifiable'].includes(continuity);
+    return {...value,items:metadataPending?[survivor,cold]:[survivor]};
+   };
+   f.host.liveTransport.queueAction=(task,id)=>{
+    sent.push({taskId:task.taskId,id});
+    if(sent.length===1)return new Promise(resolve=>{reply=resolve;});
+    return Promise.resolve({outcome:'accepted'});
+   };
+   const playback=f.host.liveMedia.playback;
+   await f.view.load('account',playback);
+   const originalTask=f.view.offer.taskId;
+   const originalItems=f.view.model('account',playback).items;
+   first=f.view.choose(originalItems[0]);
+   const during=f.view.model('account',playback).items;
+   assert.deepEqual(during.filter(row=>row.pending).map(row=>row.id),[originalItems[0].id]);
+   assert.equal(during[1].selectable,true,'pending command does not suppress a different explicit row touch');
+   await f.view.choose(during[1]);
+   assert.equal(sent.length,1,'no overlapping or early effect');
+
+   if(continuity==='access'){
+    f.host.liveSnapshot.capabilities.queueSelection=false;
+    f.view.model('account',playback);
+    f.host.liveSnapshot.capabilities.queueSelection=true;
+   }
+   reply({outcome:continuity==='unknown'?'unknown':'accepted'});
+   await first;
+   if(['survives','cold-tail'].includes(continuity)){
+    assert.equal(sent.length,2);
+    assert.equal(sent[1].id,stable);
+    assert.notEqual(sent[1].taskId,originalTask,'second touch dispatches from a fresh offer');
+   }else{
+    assert.equal(sent.length,1);
+    if(continuity==='missing')assert.match(f.notifications.current.message,/ikke længere i køen/);
+    if(continuity==='unverifiable'){
+     assert.match(f.notifications.current.message,/kunne ikke bekræftes/);
+     assert.deepEqual(paints.at(-1),[],'last rendered spinner clears when no fresh exact match exists');
+    }
+    if(continuity==='unknown')assert.equal(f.reads.length,1,'UNKNOWN never triggers a passive replay or renewal');
+   }
+  } finally {reply?.({outcome:'unknown'});await first;f.close();}
+ });
+}
+
+test('a second explicit touch is collected after acceptance while the replacement offer is held', async () => {
+ const f=fixture();
+ let first,release,entered;
+ const refreshStarted=new Promise(resolve=>{entered=resolve;});
+ try {
+  const original=f.host.liveTransport.queueOffer;
+  const firstId='a'.repeat(24), secondId='b'.repeat(24);
+  const playback=f.host.liveMedia.playback;
+  playback.item={uri:'spotify:track:'+'1'.repeat(22)};
+  f.host.liveTransport.queueOffer=async()=>{
+   const value=await original();
+   const row={...value.items[0],id:secondId,uri:'spotify:track:'+'3'.repeat(22)};
+   if(f.reads.length===1)return {...value,items:[{...value.items[0],id:firstId},{...row,order:2}]};
+   if(f.reads.length===2){await new Promise(resolve=>{release=resolve;entered();});}
+   return {...value,items:[row]};
+  };
+  f.host.liveMedia.refresh=async()=>{playback.item={uri:'spotify:track:'+'2'.repeat(22)};};
+  f.host.liveTransport.queueAction=async(offer,id)=>{
+   f.actions.push({taskId:offer.taskId,id});
+   return {outcome:'accepted'};
+  };
+  await f.view.load('account',playback);
+  const firstOffer=f.view.offer;
+  first=f.view.choose(f.view.model('account',playback).items[0]);
+  await refreshStarted;
+  assert.equal(f.view.status,'loading');
+  const waiting=f.view.model('account',playback).items.find(row=>row.id===secondId);
+  assert.equal(waiting.selectable,true,'same-owner refresh must still collect touch');
+  await f.view.choose(waiting);
+  assert.deepEqual(f.actions,[{taskId:firstOffer.taskId,id:firstId}]);
+  release();
+  await first;
+  assert.equal(f.actions.length,2);
+  assert.equal(f.actions[1].id,secondId);
+  assert.notEqual(f.actions[1].taskId,firstOffer.taskId);
+ } finally {release?.();await first;f.close();}
+});
+
+test('a cold new row keeps exact known survivors tappable while unmatched displayed rows stay inert', async () => {
+ const f=fixture();
+ try {
+  const original=f.host.liveTransport.queueOffer;
+  const survivor='b'.repeat(24), removed='a'.repeat(24);
+  f.host.liveTransport.queueOffer=async()=>{
+   const value=await original();
+   const known={...value.items[0],id:survivor,order:2,title:'Known surviving occurrence'};
+   if(f.reads.length===1)return {...value,items:[{...value.items[0],id:removed},known]};
+   return {...value,items:[{...known,order:1},{
+    id:'c'.repeat(24),order:2,uri:'spotify:track:'+'9'.repeat(22),title:'',artist:'',
+    artwork:null,metadataKnown:false,
+   }]};
+  };
+  const playback=f.host.liveMedia.playback;
+  await f.view.load('account',playback);
+  await f.view.load('account',playback);
+  const offer=f.view.retained.shownOffer;
+  const model=f.view.model('account',playback);
+  assert.equal(model.metadataPending,true);
+  assert.deepEqual(model.items.map(({id,selectable})=>[id,selectable]),[[removed,false],[survivor,true]]);
+  await f.view.choose(model.items[0]);
+  assert.equal(f.actions.length,0);
+  await f.view.choose(model.items[1]);
+  assert.deepEqual(f.actions,[{taskId:offer.taskId,id:survivor}]);
+ } finally {f.close();}
+});
+
+test('a new explicit queue tap immediately paints only its spinner while the first action waits', async () => {
+ const f=fixture();
+ let first,reply;
+ try {
+  const original=f.host.liveTransport.queueOffer,paints=[];
+  f.host.liveTransport.queueOffer=async()=>{
+   const value=await original();
+   return {...value,items:[value.items[0],{...value.items[0],id:'b'.repeat(24),order:2}]};
+  };
+  f.host.liveTransport.queueAction=()=>new Promise(resolve=>{reply=resolve;});
+  const playback=f.host.liveMedia.playback;
+  f.host.liveMedia.renderQueue=()=>{
+   paints.push(f.view.model('account',playback)?.items.filter(row=>row.pending).map(row=>row.id));
+  };
+  await f.view.load('account',playback);
+  const [a,b]=f.view.model('account',playback).items;
+  first=f.view.choose(a);
+  assert.deepEqual(paints.at(-1),[a.id]);
+  const queued=f.view.choose(b);
+  assert.deepEqual(paints.at(-1),[b.id],'tap redraws only the new selection synchronously');
+  await queued;
+  reply({outcome:'unknown'});
+  await first;
+  assert.deepEqual(paints.at(-1),[],'terminal uncertainty removes all spinners');
+ } finally {reply?.({outcome:'unknown'});await first;f.close();}
+});
+
+
+test('a deliberate same-row touch after UNKNOWN renews authority without waiting for another poll', async () => {
+ const f=fixture();
+ try {
+  const original=f.host.liveTransport.queueOffer;
+  const stable='a'.repeat(24), writes=[];
+  f.host.liveTransport.queueOffer=async()=>{
+   const value=await original();
+   return {...value,items:[{...value.items[0],id:stable}]};
+  };
+  f.host.liveTransport.queueAction=async(task,id)=>{
+   writes.push({taskId:task.taskId,id});
+   return {outcome:'unknown'};
+  };
+  const playback=f.host.liveMedia.playback,seq=playback.poll_sequence;
+  await f.view.load('account',playback);
+  const originalTask=f.view.offer.taskId,stale=f.view.model('account',playback).items[0];
+  await f.view.choose(stale);
+  await f.view.choose(stale);
+  assert.equal(f.reads.length,1);
+  assert.equal(writes.length,1);
+  const deliberate=f.view.model('account',playback).items[0];
+  assert.equal(deliberate.renewUnknown,true);
+  await f.view.choose(deliberate);
+  assert.equal(playback.poll_sequence,seq);
+  assert.equal(f.reads.length,2);
+  assert.equal(writes.length,2);
+  assert.equal(writes[1].id,stable);
+  assert.notEqual(writes[1].taskId,originalTask);
+ } finally {f.close();}
+});

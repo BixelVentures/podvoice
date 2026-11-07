@@ -184,10 +184,48 @@ for(const outcome of ['accepted','unknown','rejected'])test(`playback changes be
   f.host.liveTransport.queueAction=()=>{effects++;return new Promise(resolve=>reply=resolve);};
   await f.refresh();const q=f.media.queueControls,old=q.model('account',f.media.playback).items[0],oldTask=q.offer.taskId,choosing=q.choose(old);await tick();song=selectedUri;await f.refresh();assert.equal(q.model('account',f.media.playback).items[0].selectable,false);assert.equal(f.reads.length,1);reply({outcome});await choosing;
   assert.equal(effects,1);assert.equal(f.reads.length,outcome==='accepted'?2:1);const model=q.model('account',f.media.playback);assert.equal(model.items[0].title,old.title);
-  if(outcome==='accepted'){assert.equal(model.items[0].selectable,true);assert.notEqual(q.offer.taskId,oldTask);}else{assert.equal(q.consumed,true);assert.equal(model.items[0].selectable,false);await q.choose(old);await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,1);}
+  if(outcome==='accepted'){assert.equal(model.items[0].selectable,true);assert.notEqual(q.offer.taskId,oldTask);}else{assert.equal(q.consumed,true);assert.equal(model.items[0].selectable,outcome==='unknown');await q.choose(old);await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,1);}
  }finally{reply?.({outcome:'unknown'});f.close();}
 });
 
 test('player opens with the prefetched queue ready (no loading paint), without hiding real denial',async()=>{const f=rig();try{f.host.state.focus='now';await f.refresh();const models=[];f.host.playerView.renderQueue=(items,options)=>models.push({items,options});f.host.state.focus='player';f.media.renderQueue();assert.equal(models.at(-1).options.status,'ready');assert.equal(models.at(-1).options.empty,'Ingen sange i køen.');f.host.liveSnapshot.capabilities.queueSelection=false;f.media.renderQueue();assert.notEqual(models.at(-1).options.status,'loading');assert.ok(models.at(-1).items.every(item=>!item.selectable),'denied selection keeps rows read-only');f.host.liveSnapshot.capabilities.musicRead=['playback'];f.media.renderQueue();assert.equal(models.at(-1).options.status,'unavailable','denied queue read hides the queue');}finally{f.close();}});
 
 test('selected track presentation retains an already observed inert queue without granting a new action',async()=>{const f=rig();try{const original=f.host.liveTransport.queueOffer;f.host.liveTransport.queueOffer=async(...args)=>{const result=await original(...args);result.items=[{id:'a'.repeat(24),order:1,title:'Kendt køsang',artist:'Artist',uri:'spotify:track:0123456789ABCDEFGHIJKL',artwork:null}];return result;};await f.refresh();assert.equal(f.media.queueControls.retained.items.length,1);f.media.queueControls.invalidate(false);const calls=[];f.host.playerView.renderQueue=(items,options)=>calls.push({items,options});f.host.liveSelection.feedback={pending:true};f.host.liveSelection.pendingPlayer=()=>({title:'Valgt sang',uri:'spotify:track:ABCDEFGHIJKL0123456789'});f.media.render();assert.equal(calls.at(-1).items[0].title,'Kendt køsang');assert.equal(calls.at(-1).items[0].selectable,false);assert.equal(f.reads.length,1);}finally{f.close();}});
+
+test('UNKNOWN renews the open queue on a newer same-track owner observation, only for new input',async()=>{
+ const f=rig();
+ try{
+  const source=f.host.liveTransport.queueOffer, writes=[];
+  let poll=2;
+  f.host.liveTransport.music=async()=>{
+   const body=f.wire();
+   body.data.poll_sequence=poll;
+   return body;
+  };
+  f.host.liveTransport.queueOffer=async(...args)=>{
+   const value=await source(...args);
+   const uri='spotify:track:'+'9'.repeat(22);
+   return {...value,pollSequence:poll,items:[
+    {id:'a'.repeat(24),order:1,title:'First choice',artist:'Artist',uri,artwork:null},
+    {id:'b'.repeat(24),order:2,title:'New explicit choice',artist:'Artist',uri,artwork:null},
+   ]};
+  };
+  f.host.liveTransport.queueAction=async(task,id)=>{
+   writes.push({taskId:task.taskId,id});
+   return {outcome:writes.length===1?'unknown':'accepted'};
+  };
+  await f.refresh();
+  const queue=f.media.queueControls,oldTask=queue.offer.taskId;
+  await queue.choose(queue.model('account',f.media.playback).items[0]);
+  await f.refresh();
+  assert.equal(f.reads.length,1,'same poll cannot renew a spent offer');
+  poll++;
+  await f.refresh();
+  assert.equal(f.reads.length,2,'new owner observation restores a fresh read without leaving queue');
+  assert.deepEqual(writes,[{taskId:oldTask,id:'a'.repeat(24)}]);
+  const freshTask=queue.offer.taskId;
+  assert.notEqual(freshTask,oldTask);
+  await queue.choose(queue.model('account',f.media.playback).items[1]);
+  assert.deepEqual(writes,[{taskId:oldTask,id:'a'.repeat(24)},{taskId:freshTask,id:'b'.repeat(24)}]);
+ }finally{f.close();}
+});

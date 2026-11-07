@@ -24,7 +24,8 @@ from gatekeeper.web import create_app
 
 port = int(os.environ.get("HOME_EVENT_TEST_PORT", "18978"))
 offline_mode = os.environ.get("OFFLINE_FEEDBACK_TEST") == "1"
-weather_mode = os.environ.get("WEATHER_RETENTION_TEST") == "1" or offline_mode
+weather_retention_mode = os.environ.get("WEATHER_RETENTION_TEST") == "1"
+weather_mode = weather_retention_mode or offline_mode
 transport_blocked = False
 hold_snapshot = False
 snapshot_started = asyncio.Event()
@@ -47,15 +48,16 @@ if weather_mode:
     weather_owner.names = ("HassGetWeather",)
 
 
-def reset_weather(*, temperature=15.1, remaining=None):
+def reset_weather(*, temperature=15.1, remaining=None, keep_daily_dates=False):
     if weather_owner is None:
         return
     now = datetime.now(UTC)
-    for payload in weather_owner.forecast_payloads.values():
+    for kind, payload in weather_owner.forecast_payloads.items():
         result = payload["data"]["result"]
-        shift = now - datetime.fromisoformat(result["retrieved_at"])
-        for row in result["forecast"]:
-            row["datetime"] = (datetime.fromisoformat(row["datetime"]) + shift).isoformat()
+        if kind != "daily" or not keep_daily_dates:
+            shift = now - datetime.fromisoformat(result["retrieved_at"])
+            for row in result["forecast"]:
+                row["datetime"] = (datetime.fromisoformat(row["datetime"]) + shift).isoformat()
         result.update(
             entity_id=weather_entity,
             location="Inert vejrsted",
@@ -70,6 +72,13 @@ def reset_weather(*, temperature=15.1, remaining=None):
 
 
 reset_weather()
+if weather_retention_mode:
+    daily_forecast = weather_owner.forecast_payloads["daily"]["data"]["result"]["forecast"]
+    for day in daily_forecast[:3]:
+        day.update(temperature=9, templow=3)
+    daily_forecast[0]["condition"] = "cloudy"
+    daily_forecast[1].pop("condition", None)
+    daily_forecast[2]["condition"] = "unknown-provider-condition"
 robot = Rig()
 original_client = robot.client
 robot.states[ROBOT]["state"] = "cleaning"
@@ -262,7 +271,10 @@ async def lab(request):
                     payload["data"]["success"] = not weather_failed
             if body.get("weatherRecover"):
                 weather_failed = False
-                reset_weather(temperature=19.6)
+                reset_weather(temperature=19.6, keep_daily_dates=weather_retention_mode)
+                if weather_retention_mode:
+                    daily_forecast[1]["condition"] = "sunny"
+                    daily_forecast[2]["condition"] = "rainy"
             if "weatherNearExpirySeconds" in body:
                 seconds = body["weatherNearExpirySeconds"]
                 assert type(seconds) is int and 5 <= seconds <= 30
