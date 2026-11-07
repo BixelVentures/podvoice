@@ -41,8 +41,8 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 | # | Historie | Test |
 |---|---|---|
 | H1 | Jeg vælger en anden højttaler → musikken flytter < 3 s, valget står med det samme | område: music |
-| H2 | Sofie spiller fra sin konto på Køkken → skærmen viser "Spiller fra en anden konto" og tilbyder "Spil her" | ⬜ (funktion mangler) |
-| H3 | Jeg trykker "Spil her" → min musik spiller på Køkken < 3 s; aldrig uden mit tryk | ⬜ (funktion mangler) |
+| H2 | Sofie spiller fra sin konto på Køkken → skærmen viser "Spiller fra en anden konto" og tilbyder "Spil her" | ⬜ afventer fysisk prøve (docs/FYSISK-PROEVE.md punkt 6–9) — Spotify-overtagelse kan ikke simuleres |
+| H3 | Jeg trykker "Spil her" → min musik spiller på Køkken < 3 s; aldrig uden mit tryk | ⬜ afventer fysisk prøve (punkt 6–9) |
 
 ## Radio
 
