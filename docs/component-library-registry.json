@@ -1318,7 +1318,8 @@
         "dist/spotify-artwork.js",
         "dist/widget-model.js",
         "dist/ui/kit.js",
-        "dist/music-selection-model.js"
+        "dist/music-selection-model.js",
+        "dist/music-recommendation-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
