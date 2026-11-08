@@ -1,3 +1,7 @@
+## 2.0.149
+
+- Preserve admitted robot Start receipts through transient stale observations and keep confirmed speaker rows stable during roster refresh. Extend external-output, cancelled-start and recipe-completion software evidence.
+
 ## 2.0.148
 
 - Open authorized weather details after an initial source failure, recover in place, and preserve explicit access denial. Verify decoded local cover fallback without image generation.
