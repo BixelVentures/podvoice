@@ -103,6 +103,35 @@ async function recentSessionJourney(){
  const rowArt=row.locator('img.result-art[src="'+coverUrl+'"]:not([data-content-transition])');
  await rowArt.waitFor({state:'visible',timeout:15000});
  await rowArt.evaluate(image=>image.decode());
+ const list=page.locator('#result-list'),feed=page.locator('#music-response');
+ const visibleRows=()=>list.locator('button[data-content-state=ready] h2').allTextContents();
+ const scrollTop=()=>feed.evaluate(node=>node.scrollTop);
+ const initialRows=await visibleRows();
+ assert.equal(initialRows.length,5);
+ await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+ await list.getByText('Katalogsang 20',{exact:true}).waitFor();
+ const expandedRows=await visibleRows();
+ assert.equal(expandedRows.length,10);
+ assert.deepEqual(expandedRows.slice(0,5),initialRows);
+ await env.touchScroll(page,feed,{dy:320});
+ const retainedScroll=await scrollTop();
+ assert.ok(retainedScroll>30,`touch scroll must move the expanded list (${retainedScroll})`);
+ await page.waitForResponse(response=>{
+  const url=new URL(response.url());
+  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
+ },{timeout:10000});
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveMedia?.pending);
+ assert.equal(await scrollTop(),retainedScroll,'passive playback read preserves the expanded scroll position');
+ assert.deepEqual(await visibleRows(),expandedRows);
+ for(const [tab,title] of [['top','Coming Home'],['recent','Katalogsang 20']]){
+  await page.locator('[data-collection='+tab+']').evaluate(button=>button.focus({preventScroll:true}));
+  await page.keyboard.press('Enter');
+  await list.getByText(title,{exact:true}).waitFor();
+ }
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveCatalogue?.pendingRead);
+ assert.deepEqual(await visibleRows(),expandedRows,'returning to Hør igen retains the expanded list');
+ assert.equal(await scrollTop(),retainedScroll,'returning to Hør igen restores its scroll position');
+ await row.scrollIntoViewIfNeeded();
  let release,markHeld;
  const gate=new Promise(resolve=>{release=resolve;});
  const held=new Promise(resolve=>{markHeld=resolve;});
@@ -142,6 +171,12 @@ async function recentSessionJourney(){
   assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
   assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
   assert.match(await page.locator('#player-state').textContent(),/Starter afspilning/);
+  assert.equal(await row.getAttribute('aria-busy'),'true');
+  assert.equal(await list.locator('button[aria-busy="true"]').count(),1,'only the selected row shows pending');
+  assert.equal(await list.getAttribute('aria-busy'),'false','selection does not make the catalogue busy');
+  assert.deepEqual(await list.locator('button .result-play').evaluateAll(plays=>plays.flatMap(play=>
+   getComputedStyle(play,'::before').content==='none'?[]:[play.closest('button').querySelector('h2').textContent])),[title]);
+  assert.deepEqual(await visibleRows(),expandedRows,'held selection preserves every displayed row');
   await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-pending-player.png')});
  }finally{release();}
  const observed=(surface,phase,after=0)=>surface.waitForFunction(({uri,title,phase,after})=>{
@@ -198,7 +233,8 @@ async function recentSessionJourney(){
  assert.equal(final.volume,55);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',stories:['F10','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
+ const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
+  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,
   previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
   touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});

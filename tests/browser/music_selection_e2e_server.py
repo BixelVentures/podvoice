@@ -47,7 +47,9 @@ if cold and repeat_mood:
     content.value["actions"].append("play_track")
 tracks = [
     {"name": f"Katalogsang {i}", "artist": "Inert kunstner", "uri": f"spotify:track:{i:022d}"}
-    for i in (range(11, 18) if discovery_loading else (11, 12, 13))
+    for i in (
+        range(11, 23) if recent_session else range(11, 18) if discovery_loading else (11, 12, 13)
+    )
 ]
 base.state.update(
     state="playing" if base.output_transfer else "paused",
