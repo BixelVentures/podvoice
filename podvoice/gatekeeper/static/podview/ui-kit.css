@@ -2707,6 +2707,17 @@ pv-widget-host #music-response[data-discovery-preview]>.music-refresh-message {g
   align-self:start;
  }
  #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero:first-child>.result-copy>h2 {font:var(--pv-t-title);max-height:calc(2 * var(--pv-leading-focus))}
+ /* Reserve the desktop Hero's two headline lines and secondary text in its loading copy slot. */
+ pv-widget-host #music-response[data-discovery-collection=mood]
+ #result-list>.result.pv-hero[data-content-state=pending]>.result-copy>h2 {
+  block-size:calc(2 * var(--pv-leading-focus));
+ }
+ pv-widget-host #music-response[data-discovery-collection=mood]
+ #result-list>.result.pv-hero[data-content-state=pending]>.result-copy>p {
+  block-size:var(--pv-leading-body);
+ }
+ pv-widget-host #music-response[data-discovery-collection=mood]
+ #result-list>.result.pv-hero[data-content-state=pending]>.result-copy>p::after {display:none}
  #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child) {
   grid-template-columns:calc(2 * var(--pv-hit)) minmax(0,1fr);
   grid-template-rows:minmax(0,1fr) var(--pv-hit);
@@ -2719,6 +2730,7 @@ pv-widget-host #music-response[data-discovery-preview]>.music-refresh-message {g
   width:100%;
   height:auto;
   aspect-ratio:1;
+  align-self:center;
   justify-self:start;
  }
  #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child)>.result-copy {grid-area:1 / 2;align-self:end}
