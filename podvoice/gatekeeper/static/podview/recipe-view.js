@@ -194,10 +194,13 @@ export class RecipeView {
  }
 
  catalog(refresh = true) {
-  this.page('Opskrifter','',this.back);
+  const entries = element('div');
+  this.page('Opskrifter','',()=>{
+   this.catalogScroll = entries.scrollTop;
+   this.back();
+  });
   const layout = element('div');
   layout.dataset.recipeLayout = 'catalog';
-  const entries = element('div');
   this.catalogEntries = entries;
   entries.tabIndex = 0;
   const index = element('nav');
