@@ -140,6 +140,7 @@ async function recentSessionJourney(){
   assert.equal(await page.locator('#track-name').textContent(),title);
   assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
   assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
+  assert.match(await page.locator('#player-state').textContent(),/Starter afspilning/);
   await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-pending-player.png')});
  }finally{release();}
  const observed=(surface,phase,after=0)=>surface.waitForFunction(({uri,title,phase,after})=>{
