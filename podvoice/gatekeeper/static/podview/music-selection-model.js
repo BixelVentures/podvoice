@@ -5,10 +5,18 @@ const PLAYLIST=/^spotify:playlist:[A-Za-z0-9]{22}$/;
 const THEMES={morning_acoustic:['En rolig morgen','assets/morning-acoustic.webp'],evening_jazz:['Rolig aften','assets/lake.webp'],cooking:['Musik til madlavningen','assets/kitchen.webp'],italian:['En italiensk aften','assets/italian.webp'],indie:['Indie i baggrunden','assets/indie.webp'],calm:['En rolig stund','assets/lake.webp']};
 // One shared canonical owner for backend-authored mood illustration defaults.
 export {THEMES as MUSIC_THEMES};
-const FEELINGS={energy:['Mere energi','assets/indie.webp'],calm:['Helt ned i tempo','assets/lake.webp'],familiar:['Noget velkendt','assets/italian.webp'],sing:['Syng med','assets/indie.webp'],soft:['Bløde toner','assets/lake.webp'],bright:['Et lyst øjeblik','assets/kitchen.webp']};
+const FEELINGS={
+ jazz_lounge:['Jazz & lounge','assets/lake.webp'],hiphop_rnb:['Hiphop & R&B','assets/indie.webp'],pop_dance:['Pop & dance','assets/kitchen.webp'],
+ relaxed_pop:['Afslappet pop','assets/morning-acoustic.webp'],deep_house:['Deep house','assets/indie.webp'],jazz_classics:['Jazzklassikere','assets/italian.webp'],
+ lounge:['Lounge','assets/lake.webp'],nineties_techno:['90’er-techno','assets/indie.webp'],party:['Festmusik','assets/kitchen.webp'],
+ // Compatibility with the previous catalogue response.
+ energy:['Mere energi','assets/indie.webp'],calm:['Helt ned i tempo','assets/lake.webp'],familiar:['Noget velkendt','assets/italian.webp'],
+ sing:['Syng med','assets/indie.webp'],soft:['Bløde toner','assets/lake.webp'],bright:['Et lyst øjeblik','assets/kitchen.webp'],
+};
 // The feeling collection shares this existing closed static-art owner.
 export {FEELINGS as MUSIC_FEELINGS};
 const playlistKind=kind=>['mood','feeling'].includes(kind);
+const hasVibePagination=(body,kind)=>kind==='feeling'&&Object.hasOwn(body||{},'refreshAvailable');
 const themesFor=kind=>kind==='feeling'?FEELINGS:THEMES;
 const HEX64=/^[a-f0-9]{64}$/;
 const OPTION=/^[a-f0-9]{24}$/;
@@ -50,11 +58,13 @@ export function accountPlaylistsSample(body,account,snapshot,requestedAt=Date.no
 // Collection occurrence IDs are opaque source references, never play authority.
 export function collectionSample(body,account,kind,snapshot,requestedAt=Date.now()){
  const data=body?.data,context=body?.candidateSet,selection=body?.selection,themes=themesFor(kind),playlist=playlistKind(kind);
+ const vibePagination=hasVibePagination(body,kind);
+ if(vibePagination&&typeof body.refreshAvailable!=='boolean')return null;
  if(!['top','recent','liked','mood','feeling'].includes(kind)||body?.ok!==true||data?.config_entry_id!==account||!Array.isArray(data.tracks)||data.tracks.length<1||data.tracks.length>50||!selection||!['requested_limit','source_sample_count','returned_count'].every(key=>integer(selection[key],0,50))||selection.returned_count!==data.tracks.length||typeof selection.more_in_sample!=='boolean'||typeof selection.size_limited!=='boolean')return null;
  const tracks=[];for(const row of data.tracks){if(!text(row?.name,256)||!text(row?.artist,512)||!(playlist?PLAYLIST:TRACK).test(row?.uri))return null;if(playlist&&(!themes[row.themeId]||row.themeTitle!==themes[row.themeId][0]||!([themes[row.themeId][1],themes[row.themeId][1].replace(/\.webp$/,'.png')].includes(row.themeArt)||kind==='mood'&&generatedMoodArtwork(row.themeArt,row.themeId))||row.artist!==row.themeTitle))return null;tracks.push({name:row.name,artist:row.artist,uri:row.uri,artwork:spotifyArtwork(row.artwork,row.uri),...(playlist?{themeId:row.themeId,themeTitle:row.themeTitle,themeArt:row.themeArt}:{})});}if(playlist&&(tracks.length!==3||new Set(tracks.map(row=>row.uri)).size!==3||new Set(tracks.map(row=>row.themeId)).size!==3))return null;
  if(context?.schema!=='podview.music-search-context.v1'||!HEX64.test(context.candidateSetId)||context.bootId!==snapshot?.bootId||context.roomId!==snapshot?.roomId||context.configEntryId!==account||context.source!=='spotify_web_api'||context.query!==`${kind}:collection`||context.sourceKind!==kind||!['music_selection','answer_task'].includes(context.revisionScope)||!integer(context.revision,0,Number.MAX_SAFE_INTEGER)||!integer(context.inputRevision,0,Number.MAX_SAFE_INTEGER)||['sessionId','turnId','taskId'].some(key=>!text(context[key],1024))||!Array.isArray(context.items)||context.items.length!==tracks.length||!Number.isFinite(requestedAt)||requestedAt>Date.now()||requestedAt+60000<=Date.now())return null;
  const ids=new Set(),indices=new Set(),items=[];for(const row of context.items){if(!row||Object.keys(row).sort().join(',')!=='id,index'||!OPTION.test(row.id)||ids.has(row.id)||!integer(row.index,0,tracks.length-1)||indices.has(row.index))return null;ids.add(row.id);indices.add(row.index);items.push({id:row.id,index:row.index});}
- return {tracks,context:{schema:context.schema,bootId:context.bootId,roomId:context.roomId,configEntryId:account,source:context.source,query:context.query,revisionScope:context.revisionScope,sessionId:context.sessionId,turnId:context.turnId,taskId:context.taskId,inputRevision:context.inputRevision,revision:context.revision,candidateSetId:context.candidateSetId},items,sourceKind:kind,expiresAt:requestedAt+60000};
+ return {tracks,context:{schema:context.schema,bootId:context.bootId,roomId:context.roomId,configEntryId:account,source:context.source,query:context.query,revisionScope:context.revisionScope,sessionId:context.sessionId,turnId:context.turnId,taskId:context.taskId,inputRevision:context.inputRevision,revision:context.revision,candidateSetId:context.candidateSetId},items,sourceKind:kind,expiresAt:requestedAt+60000,...(vibePagination?{refreshAvailable:body.refreshAvailable}:{})};
 }
 export function collectionCurrent(source,snapshot,account){
  const c=source?.context,accountPlaylists=source?.sourceKind==='account_playlists';if(!c||!(['top','recent','liked','mood','feeling'].includes(source.sourceKind)||accountPlaylists)||!Number.isFinite(source.expiresAt)||source.expiresAt<=Date.now()||c.bootId!==snapshot?.bootId||c.roomId!==snapshot?.roomId||c.configEntryId!==account||snapshot?.capabilities?.musicSelection!==true||!snapshot.capabilities.musicRead?.includes(source.sourceKind))return false;
@@ -106,8 +116,10 @@ export function selectionCurrent(offer,snapshot,account,source){
 // Read-only preview is source data, never a MusicSelection task or candidate set.
 export function moodPreview(body,account,snapshot,requestedAt=Date.now(),kind='mood'){
  const p=body?.preview,d=body?.data,now=Date.now(),themes=themesFor(kind);
- if(!playlistKind(kind)||body?.ok!==true||body.schema!==`podview.${kind}-preview.v1`||Object.keys(body).sort().join(',')!=='data,ok,preview,schema'||!p||Object.keys(p).sort().join(',')!=='bootId,configEntryId,expiresIn,ownerEpoch,readOnly,roomId,source,voiceSessionId,voiceTurnId'||p.readOnly!==true||p.bootId!==snapshot?.bootId||p.roomId!==snapshot?.roomId||p.configEntryId!==account||p.source!=='spotify_web_api'||!text(p.ownerEpoch,128)||p.expiresIn!==60||!snapshot?.capabilities?.musicRead?.includes(kind)||(p.voiceSessionId??null)!==(snapshot?.voice?.sessionId??null)||(p.voiceTurnId??null)!==(snapshot?.voice?.turnId??null)||![p.voiceSessionId,p.voiceTurnId].every(v=>v===null||text(v,1024))||!Number.isFinite(requestedAt)||requestedAt>now||requestedAt+60000<=now||!d||Object.keys(d).sort().join(',')!=='config_entry_id,owner_epoch,source,tracks'||d.config_entry_id!==account||d.owner_epoch!==p.ownerEpoch||d.source!=='spotify_web_api'||!Array.isArray(d.tracks)||d.tracks.length!==3)return null;
+ const vibePagination=hasVibePagination(body,kind),bodyKeys=vibePagination?'data,ok,preview,refreshAvailable,schema':'data,ok,preview,schema';
+ if(vibePagination&&typeof body.refreshAvailable!=='boolean')return null;
+ if(!playlistKind(kind)||body?.ok!==true||body.schema!==`podview.${kind}-preview.v1`||Object.keys(body).sort().join(',')!==bodyKeys||!p||Object.keys(p).sort().join(',')!=='bootId,configEntryId,expiresIn,ownerEpoch,readOnly,roomId,source,voiceSessionId,voiceTurnId'||p.readOnly!==true||p.bootId!==snapshot?.bootId||p.roomId!==snapshot?.roomId||p.configEntryId!==account||p.source!=='spotify_web_api'||!text(p.ownerEpoch,128)||p.expiresIn!==60||!snapshot?.capabilities?.musicRead?.includes(kind)||(p.voiceSessionId??null)!==(snapshot?.voice?.sessionId??null)||(p.voiceTurnId??null)!==(snapshot?.voice?.turnId??null)||![p.voiceSessionId,p.voiceTurnId].every(v=>v===null||text(v,1024))||!Number.isFinite(requestedAt)||requestedAt>now||requestedAt+60000<=now||!d||Object.keys(d).sort().join(',')!=='config_entry_id,owner_epoch,source,tracks'||d.config_entry_id!==account||d.owner_epoch!==p.ownerEpoch||d.source!=='spotify_web_api'||!Array.isArray(d.tracks)||d.tracks.length!==3)return null;
  const tracks=[];for(const row of d.tracks){if(!row||Object.keys(row).filter(key=>key!=='artwork').sort().join(',')!=='artist,name,themeArt,themeId,themeTitle,uri'||!text(row.name,256)||!PLAYLIST.test(row.uri)||!themes[row.themeId]||row.themeTitle!==themes[row.themeId][0]||row.artist!==row.themeTitle||!([themes[row.themeId][1],themes[row.themeId][1].replace(/\.webp$/,'.png')].includes(row.themeArt)||kind==='mood'&&generatedMoodArtwork(row.themeArt,row.themeId)))return null;tracks.push({...row,artwork:spotifyArtwork(row.artwork,row.uri)});}
  if(new Set(tracks.map(row=>row.uri)).size!==3||new Set(tracks.map(row=>row.themeId)).size!==3)return null;
- return {tracks,readOnly:true,expiresAt:requestedAt+60000};
+ return {tracks,readOnly:true,expiresAt:requestedAt+60000,...(vibePagination?{refreshAvailable:body.refreshAvailable}:{})};
 }

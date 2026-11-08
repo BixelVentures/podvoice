@@ -4,6 +4,7 @@
 import asyncio
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -13,7 +14,7 @@ from integration.test_podview_music_selection import rig  # noqa: F401
 from multidict import MultiDict
 
 from gatekeeper.podview import BRIDGE, _music
-from gatekeeper.podview_feeling import THEMES, choose
+from gatekeeper.podview_feeling import THEMES
 
 
 @pytest.fixture
@@ -105,16 +106,101 @@ async def test_actual_subjective_playlists_work_without_ai_selector_and_change_o
     first = await read(rig)
     assert first["ok"] and first["candidateSet"]["sourceKind"] == "feeling"
     rows = first["data"]["tracks"]
-    assert [row["themeId"] for row in rows] == choose()
+    assert [row["themeId"] for row in rows] == ["jazz_lounge", "hiphop_rnb", "pop_dance"]
     assert all(row["uri"].startswith("spotify:playlist:") for row in rows)
     assert all(row["themeArt"] == THEMES[row["themeId"]]["image"] for row in rows)
     again, renewed = await read(rig), await read(rig, renew=True)
     assert again["data"]["tracks"] == renewed["data"]["tracks"] == rows
     refreshed = await read(rig, refresh=True)
     assert refreshed["ok"] and refreshed["data"]["tracks"] != rows
-    assert [row["themeId"] for row in refreshed["data"]["tracks"]] == choose({"rows": rows})
+    assert [row["themeId"] for row in refreshed["data"]["tracks"]] == [
+        "relaxed_pop",
+        "deep_house",
+        "jazz_classics",
+    ]
     assert selector.select.await_count == rig.router.podview_mood_context.await_count == 0
     assert rig.app[BRIDGE].controls.music.execute_context.await_count == 0
+
+
+@pytest.mark.parametrize(
+    ("hour", "order"),
+    [
+        (0, [0, 1, 2]),
+        (10, [0, 1, 2]),
+        (11, [1, 2, 0]),
+        (16, [1, 2, 0]),
+        (17, [2, 0, 1]),
+        (23, [2, 0, 1]),
+    ],
+)
+async def test_local_time_starts_three_distinct_sets_without_ai(
+    feeling_rig, monkeypatch, hour, order
+):
+    rig = feeling_rig
+    selector = rig.router.podview_mood_selector
+    rig.router.podview_mood_selector = None
+    clock = AsyncMock(return_value={"structuredContent": {"time": f"{hour:02}:00"}})
+    monkeypatch.setattr(rig.router, "_mcp", SimpleNamespace(call_tool=clock, initialized=False))
+    monkeypatch.setattr(rig.router, "declarations", lambda: [{"name": "GetDateTime"}])
+    first = await read(rig)
+    clock.return_value = {"structuredContent": {"time": "12:00"}}
+    renewed = await read(rig, renew=True)
+    assert renewed["data"]["tracks"] == first["data"]["tracks"]
+    assert renewed["refreshAvailable"] is True
+    second = await read(rig, refresh=True)
+    third = await read(rig, refresh=True)
+    groups = [
+        ["jazz_lounge", "hiphop_rnb", "pop_dance"],
+        ["relaxed_pop", "deep_house", "jazz_classics"],
+        ["lounge", "nineties_techno", "party"],
+    ]
+    all_uris = set()
+    for index, page in enumerate((first, second, third)):
+        assert page["ok"] and page["candidateSet"]["sourceKind"] == "feeling"
+        rows = page["data"]["tracks"]
+        assert [row["themeId"] for row in rows] == groups[order[index]]
+        assert not all_uris.intersection(row["uri"] for row in rows)
+        all_uris.update(row["uri"] for row in rows)
+        assert page["refreshAvailable"] is (index < 2)
+    bridge = rig.app[BRIDGE]
+    retained = bridge._feeling_retained
+    calls = rig.calls.copy()
+    active_source = bridge.music_selection.sources.copy()
+    assert (await read(rig, refresh=True))["error"] == "feeling_exhausted"
+    assert rig.calls == calls
+    assert bridge._feeling_retained is retained
+    assert bridge.music_selection.sources == active_source
+    renewed = await read(rig, renew=True)
+    assert renewed["data"]["tracks"] == third["data"]["tracks"]
+    assert renewed["refreshAvailable"] is False
+    clock.assert_awaited_once()
+    assert clock.await_args.args == ("GetDateTime", {})
+    assert selector.select.await_count == rig.router.podview_mood_context.await_count == 0
+    assert bridge.controls.music.execute_context.await_count == 0
+
+
+@pytest.mark.parametrize("replaced", ["binding", "owner_epoch"])
+async def test_same_daypart_initial_reuses_rows_but_new_owner_can_browse_again(
+    feeling_rig, replaced
+):
+    rig = feeling_rig
+    await read(rig)
+    await read(rig, refresh=True)
+    final = await read(rig, refresh=True)
+    assert final["refreshAvailable"] is False
+    parallel_open = await read(rig)
+    assert parallel_open["data"]["tracks"] == final["data"]["tracks"]
+    assert parallel_open["refreshAvailable"] is False
+    if replaced == "binding":
+        rig.router._services_epoch += 1
+    else:
+        rig.playlist_epoch = "b" * 32
+    renewed = await read(rig, renew=True)
+    assert renewed["data"]["tracks"] == final["data"]["tracks"]
+    assert renewed["refreshAvailable"] is True
+    next_page = await read(rig, refresh=True)
+    assert next_page["ok"] is True
+    assert next_page["data"]["tracks"] != final["data"]["tracks"]
 
 
 async def test_contextual_and_subjective_retained_caches_are_separate(feeling_rig):

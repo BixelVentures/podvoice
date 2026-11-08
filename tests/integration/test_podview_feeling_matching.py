@@ -10,7 +10,7 @@ from integration.test_podview_music_selection import rig  # noqa: F401
 
 from gatekeeper.podview import BRIDGE
 
-QUERIES = ["funk", "peaceful acoustic", "sing along classics"]
+QUERIES = ["jazz lounge", "hip hop r&b", "dance pop"]
 
 
 def empty_broader(account, epoch):
@@ -68,7 +68,11 @@ async def test_existing_candidates_require_complete_distinct_assignment(
         assert [x["uri"] for x in body["data"]["tracks"]] == [
             "spotify:playlist:" + x * 22 for x in expect
         ]
-        assert [x["themeId"] for x in body["data"]["tracks"]] == ["energy", "calm", "familiar"]
+        assert [x["themeId"] for x in body["data"]["tracks"]] == [
+            "jazz_lounge",
+            "hiphop_rnb",
+            "pop_dance",
+        ]
         # Exact frozen rows stay unchanged on renew, even where another full assignment exists.
         again = await read(r, renew=True)
         assert again["data"]["tracks"] == body["data"]["tracks"]

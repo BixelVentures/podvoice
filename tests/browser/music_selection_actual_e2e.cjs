@@ -315,6 +315,54 @@ async function discoveryCardHeight(){
   assert.ok(hero.right<first.left,'the Hero is left of the alternatives');
  }
 }
+async function discoveryVibeJourney(){
+ const expected=[['Jazz & lounge','Hiphop & R&B','Pop & dance'],['Afslappet pop','Deep house','Jazzklassikere'],['Lounge','90’er-techno','Festmusik']];
+ const rows=page.locator('#result-list button[data-kit=card][data-content-state=ready]');
+ const refresh=page.getByRole('button',{name:'Flere vibes',exact:true});
+ const track=await page.locator('#track-name').textContent();
+ const snapshot=()=>rows.evaluateAll(cards=>cards.map(card=>({
+  direction:card.querySelector('h2').textContent,playlist:card.querySelector('p').textContent,
+  uri:card.musicCard.uri,height:card.getBoundingClientRect().height,
+ })));
+ const seen=new Set();
+ for(const [index,directions] of expected.entries()){
+  await rows.locator('h2').filter({hasText:directions[0]}).waitFor();
+  const current=await snapshot();
+  assert.deepEqual(current.map(card=>card.direction),directions);
+  for(const card of current){
+   assert.match(card.playlist,/^Kold jazz [a-f0-9]{4}$/,'card names the actual inert source playlist');
+   assert.match(card.uri,/^spotify:playlist:[a-f0-9]{22}$/);
+   assert.ok(!seen.has(card.uri),'an earlier Vibe page cannot repeat a playlist');
+   seen.add(card.uri);
+  }
+  if(index===expected.length-1)break;
+  let markHeld,releaseRead;
+  const held=new Promise(resolve=>{markHeld=resolve;}),gate=new Promise(resolve=>{releaseRead=resolve;});
+  const isRefresh=url=>url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='feeling'&&url.searchParams.get('refresh')==='1';
+  await page.route(isRefresh,async route=>{
+   const response=await route.fetch();
+   markHeld();
+   await gate;
+   await route.fulfill({response}).catch(error=>{if(index!==1)throw error;});
+  },{times:1});
+  try{
+   await refresh.tap();
+   await Promise.race([held,sleep(10000).then(()=>{throw Error('Vibe refresh not held');})]);
+   assert.deepEqual(await snapshot(),current,'current Vibe cards and height survive a held refresh');
+   assert.equal(await page.locator('#result-list [data-content-transition]').count(),0,'reduced motion has no content overlay');
+   if(index===1)await page.locator('[data-collection=top]').tap();
+  }finally{releaseRead();}
+  if(index===1){
+   await page.locator('#result-list button[data-content-state=ready]').filter({hasText:'Katalogsang 11'}).waitFor();
+   await page.locator('[data-collection=feeling]').tap();
+  }
+ }
+ assert.equal(seen.size,9);
+ assert.equal(await refresh.isDisabled(),true,'three pages exhaust the existing refresh control');
+ assert.equal(await page.locator('#track-name').textContent(),track,'the player is retained while browsing Vibe');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vibe-third-set.png')});
+ console.log('PASS Vibe: three ordered sets, nine unique playlists, stable pending cards, interrupted final page recovery and exhausted refresh');
+}
 async function discoveryCoverJourney(){
  const coverUrl='https://i.scdn.co/image/InertRecentCover';
  const failedCoverUrl='https://i.scdn.co/image/InertFailedMoodCover';
@@ -372,6 +420,7 @@ async function discoveryCoverJourney(){
  }
  await page.screenshot({path:path.join(env.artifactDir(),'podview-discovery-local-illustrations.png')});
  await discoveryCardHeight();
+ await discoveryVibeJourney();
  await page.locator('[data-collection=recent]').tap();
  const list=page.locator('#result-list'),row=list.locator('button.result').filter({hasText:'Katalogsang 11'});
  const image=row.locator('img.result-art:not([data-content-transition])');

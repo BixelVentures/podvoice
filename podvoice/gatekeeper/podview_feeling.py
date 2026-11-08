@@ -5,25 +5,51 @@ from __future__ import annotations
 from typing import Any
 
 THEMES = {
-    "energy": {"title": "Mere energi", "query": "funk", "image": "assets/indie.png"},
-    "calm": {"title": "Helt ned i tempo", "query": "peaceful acoustic", "image": "assets/lake.png"},
-    "familiar": {
-        "title": "Noget velkendt",
-        "query": "sing along classics",
+    "jazz_lounge": {"title": "Jazz & lounge", "query": "jazz lounge", "image": "assets/lake.png"},
+    "hiphop_rnb": {"title": "Hiphop & R&B", "query": "hip hop r&b", "image": "assets/indie.png"},
+    "pop_dance": {"title": "Pop & dance", "query": "dance pop", "image": "assets/kitchen.png"},
+    "relaxed_pop": {
+        "title": "Afslappet pop",
+        "query": "chill pop",
+        "image": "assets/morning-acoustic.png",
+    },
+    "deep_house": {"title": "Deep house", "query": "deep house", "image": "assets/indie.png"},
+    "jazz_classics": {
+        "title": "Jazzklassikere",
+        "query": "jazz classics",
         "image": "assets/italian.png",
     },
-    "sing": {"title": "Syng med", "query": "sing along pop", "image": "assets/indie.png"},
-    "soft": {"title": "Bløde toner", "query": "soft acoustic", "image": "assets/lake.png"},
-    "bright": {"title": "Et lyst øjeblik", "query": "happy indie", "image": "assets/kitchen.png"},
+    "lounge": {"title": "Lounge", "query": "lounge music", "image": "assets/lake.png"},
+    "nineties_techno": {
+        "title": "90\u2019er-techno",
+        "query": "90s techno",
+        "image": "assets/indie.png",
+    },
+    "party": {"title": "Festmusik", "query": "festmusik", "image": "assets/kitchen.png"},
 }
+BROADER_QUERIES = {
+    "jazz_lounge": "background jazz",
+    "hiphop_rnb": "hip hop",
+    "pop_dance": "dance hits",
+    "relaxed_pop": "soft pop",
+    "deep_house": "house music",
+    "jazz_classics": "classic jazz",
+    "lounge": "lounge",
+    "nineties_techno": "90s dance",
+    "party": "fest hits",
+}
+SETS = (
+    ("jazz_lounge", "hiphop_rnb", "pop_dance"),
+    ("relaxed_pop", "deep_house", "jazz_classics"),
+    ("lounge", "nineties_techno", "party"),
+)
 
 
-def choose(previous: dict | None = None) -> list[str]:
-    """Called only for first admission or explicit refresh; input is retained server data."""
-    first = ["energy", "calm", "familiar"]
-    second = ["sing", "soft", "bright"]
-    old = [row.get("themeId") for row in previous.get("rows", [])] if previous else []
-    return second if old == first else first
+def start_page(hour: int | None) -> int:
+    """Match the discovery reference's local-time cutoffs."""
+    if hour is None or hour < 11:
+        return 0
+    return 1 if hour < 17 else 2
 
 
 def assign_playlists(
