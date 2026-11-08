@@ -941,7 +941,11 @@
           "method:seekPositionObserved": 1,
           "arrow:observationCurrent": 1,
           "arrow:presentationCurrent": 1,
-          "arrow:waitForObservation": 1
+          "arrow:waitForObservation": 1,
+          "method:connectionLost": 1,
+          "method:restoreOfflineRobotDraft": 1,
+          "method:robotOfflineDraftCurrent": 1,
+          "method:setRobotRefresh": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
