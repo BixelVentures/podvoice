@@ -18,6 +18,8 @@ for(const journey of only.length?only:journeys){
  runJourney(journey);
  if(journey==='music_push_actual_e2e.cjs')runJourney(journey,{MUSIC_PUSH_OVERLAP_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'push-overlap')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_RENEWED_CONTROLS_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'renewed-controls')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_EXTERNAL_OUTPUT_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'external-output')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_SPEAKER_REFRESH_TEST:'1',
@@ -41,6 +43,8 @@ for(const journey of only.length?only:journeys){
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`queue-${scenario}`)});
   }
  }
+ if(journey==='vehicle_actual_e2e.cjs')runJourney(journey,{VEHICLE_RECOVERY_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'vehicle-recovery')});
  if(journey==='vehicle_actual_e2e.cjs')runJourney(journey,{VEHICLE_LIFECYCLE_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'vehicle-lifecycle')});
  if(journey==='radio_actual_e2e.cjs'){
@@ -50,6 +54,10 @@ for(const journey of only.length?only:journeys){
   }
  }
  if(journey==='robot_actual_e2e.cjs'){
+  runJourney(journey,{ROBOT_OBSERVATION_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-observation')});
+  runJourney(journey,{ROBOT_DOCK_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-dock')});
   runJourney(journey,{ROBOT_DRAFT_TEST:'1'});
   runJourney(journey,{ROBOT_SLOW_START_TEST:'1'});
  }
