@@ -467,7 +467,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "7e675ff27bb6d3ad73b9ca31417ffbdae1eef626b49e60ddc05d1eccf3e3ffe9"
+      "sha256": "2f3f092c4d6955bb3ac1e433b2e20dfac73401ec8dd85b246ac68cb1ce9805a6"
     },
     {
       "path": "example-sources.html",
@@ -491,7 +491,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "0cb4e4f0d6f24fde764f87e5ab104ed43ece2eb9c2f99818c9d3468cbf42b995"
+      "sha256": "ee8bbc41dfae29f494a73d3b3352d5ee9a6d50c7a3d042dfc2fb9f3079d6757e"
     },
     {
       "path": "ingress-kiosk.js",
@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "1d4c39af318681106119d96d147e9c98462041531bf2a8df0507985c60e00fb3"
+      "sha256": "e41b4b6390509d63d06e915a1d4222e3464159f20096330d29f7ba5f6b4262c7"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "f79c260b9cb6b8830c369a4ec19ca77b42361be9a5efc05402287c48e718171a"
+      "sha256": "591789d56a2187833fb6ad96b6bb1968a98794379c8ab8e3942d44921e93b078"
     },
     {
       "path": "podview.css",

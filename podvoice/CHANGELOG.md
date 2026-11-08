@@ -1,3 +1,7 @@
+## 2.0.151
+
+- Keep robot cleaning choices during temporary loss of current water status and require a fresh observation before Start.
+
 ## 2.0.150
 
 - Restore approved music discovery and stable controls across refresh, expiry and room changes; preserve robot drafts and feedback, correct weather freshness and answer history, explain radio configuration errors, and restore balanced Tesla confirmation controls.
