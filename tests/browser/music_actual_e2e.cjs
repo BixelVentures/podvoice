@@ -9,11 +9,12 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const root=testEnv.root,port=Number(process.env.MUSIC_TEST_PORT||18973),base=`http://127.0.0.1:${port}`;
 const runtimeRoot=testEnv.runtimeRoot;
+const renewedControlsMode=process.env.MUSIC_RENEWED_CONTROLS_TEST==='1';
 const seekMode=process.env.MUSIC_SEEK_TEST==='1';
 const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
 const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||seekMode||externalOutputMode||speakerRefreshMode||outputTransferMode){
+if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||externalOutputMode||speakerRefreshMode||outputTransferMode){
  process.env.MUSIC_EXTENDED='1';
 }
 let server,browser,data,servedBundleSHA,serverSuspended=false;
@@ -401,6 +402,114 @@ async function seekJourney(page,errors){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-seek-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function renewedControlsJourney(page,errors){
+ const host=page.locator('pv-widget-host');
+ const original=await host.evaluate(h=>h.liveMedia.playback.roomBinding);
+ const initial=await state();
+ assert(original.validUntil*1000>Date.now(),'capture a still-current original lease');
+ await page.waitForFunction(original=>{
+  const h=document.querySelector('pv-widget-host'),binding=h?.liveMedia?.playback?.roomBinding;
+  return Date.now()>=original.validUntil*1000&&binding?.bindingId===original.bindingId
+   &&binding.validUntil*1000>Date.now()
+   &&['play-pause','next','previous','volume'].every(id=>!document.getElementById(id)?.disabled);
+ },original,{timeout:20000});
+ assert.deepEqual((await state()).writes,initial.writes,'lease renewal never sends a control action');
+ const effects=[];
+ const cases=[
+  {action:'pause',id:'play-pause',label:'Fortsæt musikken',observed:'paused'},
+  {action:'resume',id:'play-pause',label:'Sæt musik på pause',observed:'playing'},
+  {action:'next',id:'next',song:initial.song+1},
+  {action:'previous',id:'previous',song:initial.song},
+  {action:'volume',id:'volume',percent:57},
+ ];
+ for(const expected of cases){
+  const {action,id,percent}=expected;
+  const control=page.locator('#'+id);
+  await control.evaluate((node,{label,percent})=>{
+   window.controlRenewalPaint=null;
+   const type=percent===undefined?'click':'change';
+   document.addEventListener(type,function measure(event){
+    if(!event.isTrusted||!node.contains(event.target))return;
+    document.removeEventListener(type,measure,true);
+    const start=performance.now();
+    const frame=()=>{
+     const elapsedMs=performance.now()-start;
+     const pending=label?node.closest('.transport')?.getAttribute('aria-busy'):node.getAttribute('aria-busy');
+     if(pending==='true'&&(!label||node.getAttribute('aria-label')===label)
+       &&(percent===undefined||(Number(node.value)===percent&&document.getElementById('volume-value').textContent===percent+' %'))){
+      window.controlRenewalPaint={elapsedMs,start};
+     }else if(elapsedMs<2000)requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+   },true);
+  },expected);
+  const before=await state();
+  const beforeRead=await host.evaluate(h=>{
+   const p=h.liveMedia.playback;
+   return {state:p.state,uri:p.item.uri,volume:p.controls.volume.base_percent};
+  });
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const endpoint='**/view/api/control/actions';
+  const matches=request=>new URL(request.url()).pathname==='/view/api/control/actions'
+   &&request.method()==='POST'&&request.postDataJSON()?.action===action;
+  const handler=async route=>{
+   if(matches(route.request()))await gate;
+   await route.continue();
+  };
+  await page.route(endpoint,handler);
+  const sent=page.waitForRequest(matches,{timeout:5000});
+  try{
+   if(percent===undefined)await control.tap();
+   else await testEnv.touchRange(page,control,percent,{beforeRelease:async()=>{
+    assert.equal(Number(await control.inputValue()),percent,'volume follows trusted touch before release');
+    assert.equal((await state()).writes.length,before.writes.length);
+   }});
+   await sent;
+   await page.waitForFunction(()=>window.controlRenewalPaint!==null,undefined,{timeout:2000});
+   const paintMs=await page.evaluate(()=>window.controlRenewalPaint.elapsedMs);
+   assert(paintMs<100,`${action} feedback took ${paintMs} ms after trusted input`);
+   assert.deepEqual((await state()).writes,before.writes,'feedback paints before the effect request reaches the owner');
+   assert.deepEqual(await host.evaluate(h=>{
+    const p=h.liveMedia.playback;
+    return {state:p.state,uri:p.item.uri,volume:p.controls.volume.base_percent};
+   }),beforeRead,'feedback paints while the player still has the previous owner observation');
+   if(expected.song!==undefined){
+    assert.equal(await page.locator('#track-name').textContent(),`Isoleret sang ${before.song}`);
+   }
+
+   const replied=page.waitForResponse(response=>matches(response.request()),{timeout:5000});
+   release();
+   const response=await replied;
+   const receiptMs=await page.evaluate(()=>performance.now()-window.controlRenewalPaint.start);
+   assert.equal((await response.json()).outcome,'accepted');
+   assert(receiptMs<(expected.song===undefined?1000:1500),`${action} inert receipt took ${receiptMs} ms`);
+   await page.waitForFunction(({observed,song,percent})=>{
+    const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
+    return !h?.liveControls?.musicIntentPending
+     &&(observed===undefined||p?.state===observed)
+     &&(song===undefined||document.getElementById('track-name').textContent===`Isoleret sang ${song}`)
+     &&(percent===undefined||p?.controls?.volume?.base_percent===percent);
+   },expected,{timeout:10000});
+   const observedMs=await page.evaluate(()=>performance.now()-window.controlRenewalPaint.start);
+   if(expected.song!==undefined)assert(observedMs<1500,`${action} title took ${observedMs} ms`);
+   const writes=(await state()).writes.slice(before.writes.length);
+   assert.deepEqual(writes.map(({action,room,homepod})=>({action,room,homepod})),
+    [{action,room:original.nativeRoomId,homepod:original.nativeHomepodId}]);
+   effects.push({action,paintMs,receiptMs,observedMs});
+  }finally{
+   release();
+   await page.unroute(endpoint,handler);
+   await sent.catch(()=>{});
+  }
+ }
+ assert.deepEqual(requests.filter(row=>row.url.endsWith('/control/actions')).map(row=>row.body.action),
+  cases.map(row=>row.action),'exactly one browser command per trusted input');
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',story:'A13',servedBundleSHA,realLeaseExpiry:true,
+  effects,inertFinalService:true,physicalAudioVerified:false}));
+}
 // Opt-in real elapsed-time coverage: both browser and Python use their real clocks.
 // This proves local lease renewal and browser recovery, not ten minutes of Spotify or hardware.
 async function longSession(page,errors){
@@ -496,6 +605,8 @@ async function longSession(page,errors){
    diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')});
   }
  });
+ if(renewedControlsMode)await page.route('**/*',route=>
+  new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
@@ -515,6 +626,7 @@ async function longSession(page,errors){
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
+ if(renewedControlsMode){await renewedControlsJourney(page,errors);return;}
  if(seekMode){await seekJourney(page,errors);return;}
  if(speakerRefreshMode){await speakerRefreshJourney(page,errors);return;}
  if(outputTransferMode){await outputTransferJourney(page,errors);return;}
