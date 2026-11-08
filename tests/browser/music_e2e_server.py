@@ -43,6 +43,7 @@ retry_transport_blocked = False
 output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
 multi_screen = os.environ.get("MUSIC_MULTI_SCREEN_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
+volume_drag = os.environ.get("MUSIC_VOLUME_DRAG_TEST") == "1"
 external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
 original_client = music.client
 state = {
@@ -693,6 +694,12 @@ async def lab_state(request):
             if args["externalPlaybackState"] not in {"playing", "paused"}:
                 raise web.HTTPBadRequest()
             state["state"] = args["externalPlaybackState"]
+        if volume_drag and "externalVolume" in args:
+            percent = args["externalVolume"]
+            if type(percent) is not int or not 0 <= percent <= 100:
+                raise web.HTTPBadRequest()
+            state["volume"] = percent
+            state["volumeRevision"] += 1
         if "externalSong" in args:
             state["song"] = int(args["externalSong"])
             if seek_test:
@@ -719,7 +726,7 @@ async def lab_state(request):
             "externalSong",
             "externalOutput",
             "externalAuthority",
-        }:
+        } or (volume_drag and "externalVolume" in args):
             await emit_playback_changed()
         if robot is not None:
             if "robotBattery" in args:
