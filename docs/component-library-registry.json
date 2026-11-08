@@ -853,6 +853,8 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "method:canQueueLightInput": 1,
+          "method:submitLightInput": 1,
           "arrow:has": 1,
           "arrow:hasExact": 1,
           "arrow:robotFocusLabel": 1,
@@ -2697,6 +2699,8 @@
           "updateResourceTile": 2
         },
         "definitions": {
+          "arrow:currentObservation": 1,
+          "arrow:observedArea": 1,
           "arrow:$": 1,
           "arrow:cancel": 1,
           "arrow:commit": 1,
@@ -3079,6 +3083,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:blocked": 1,
           "arrow:addClasses": 1,
           "arrow:attribute": 1,
           "arrow:data": 1,
@@ -3202,6 +3207,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "method:matchesQueuedBrightness": 1,
           "class:LightLampView": 1,
           "method:cleanup": 1,
           "method:commit": 1,

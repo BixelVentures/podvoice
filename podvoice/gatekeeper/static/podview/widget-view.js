@@ -477,7 +477,9 @@ class WidgetHost extends HTMLElement {
  }
  lightAreaContext(){
   const s=this.liveSnapshot,areas=this.state.lightAreas,placement=this.state.lightPlacement;
-  if(!this.live||!this.isConnected||!this.liveTransport?.connected||!s?.capabilities.homeRead?.includes('light')||areas?.status!=='observed'||placement?.status!=='bound')return null;
+  if(!this.live||!this.isConnected||this.browserOffline||!this.liveTransport?.connected
+   ||this.liveTransport.recoveryBlocked||!s?.capabilities.homeRead?.includes('light')
+   ||areas?.status!=='observed'||placement?.status!=='bound')return null;
   return {transport:this.liveTransport,key:JSON.stringify([s.bootId,s.roomId,areas.sourceEpoch,areas.bindingId,areas.placementRevision,areas.ownAreaId,placement,areas.items]),boot:s.bootId,room:s.roomId,areas};
  }
  currentLightDevice(){
@@ -539,7 +541,15 @@ class WidgetHost extends HTMLElement {
   const light=this.currentLightDevice(),context=this.lightAreaContext(),observation=light&&!light.stale&&scopedLightsObservation(light.lightObservation);
   if(!this.live||!context||this.lightAreaPending||observation?.status!=='observed')return;
   const exact={areaId:observation.scope.areaId,...target};if(exact.areaId!==observation.scope.areaId)return;
-  return this.liveControls?.actLight(exact,observation,action,args,()=>{const now=this.lightAreaContext(),current=this.currentLightDevice();return now?.key===context.key&&now.transport===context.transport&&!current?.stale&&!this.lightAreaPending?current?.lightObservation:null;});
+  const currentObservation=()=>{
+   const now=this.lightAreaContext(),current=this.currentLightDevice();
+   return now?.key===context.key&&now.transport===context.transport&&!current?.stale&&!this.lightAreaPending
+    ?current?.lightObservation:null;
+  };
+  if(action==='toggle'||action==='brightness'&&exact.entityId){
+   return this.liveControls?.submitLightInput(exact,observation,action,args,currentObservation);
+  }
+  return this.liveControls?.actLight(exact,observation,action,args,currentObservation);
  }
  renderLightScenes(light){
   this.renderLightStatus(light);

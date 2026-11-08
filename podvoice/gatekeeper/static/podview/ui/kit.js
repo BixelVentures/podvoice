@@ -162,19 +162,20 @@ export function createKitSliderField({document=globalThis.document,id,label,iden
  input.min=String(min);input.max=String(max);input.step=String(step);
  node.className='pv-kit-slider-field';heading.id=id+'-label';heading.htmlFor=id;heading.textContent=label;applyKitTextRole(heading,'field-label');applyKitTextRole(output,'control-value');applyKitTextRole(description,'meta');description.id=id+'-scope';input.id=id;output.htmlFor=id;input.setAttribute('aria-labelledby',heading.id);input.setAttribute('aria-describedby',description.id);node.append(heading,output,description,input);
  let model={value:null,scope:'',disabled:false,pending:false,mixed:false},draft=null,context,editing=false,aborted=false;
+ const blocked=()=>model.disabled||model.pending&&!model.editableWhilePending;
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
  const paint=()=>{
   const known=Number.isFinite(model.value),value=draft??(known?model.value:min),state=draft!==null?'draft':model.pending?'pending':known?'known':model.mixed?'mixed':'unknown',formatted=format(value),message=draft!==null?formatted:model.valueText||(known?formatted:model.mixed?'Forskellige niveauer':'Niveau ukendt');
-  applyKitTextRole(output,(draft!==null||known)&&message===formatted?'control-value':'meta');data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!(model.disabled||model.pending));if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
+  applyKitTextRole(output,(draft!==null||known)&&message===formatted?'control-value':'meta');data(node,'fieldState',state);data(input,'valueKnown',draft!==null||known);attribute(node,'aria-busy',!!model.pending);attribute(input,'aria-disabled',!!blocked());if(input.disabled!==!!model.disabled)input.disabled=!!model.disabled;
   if(input.value!==String(value))input.value=String(value);syncKitSlider(input);text(output,message);text(description,model.scope||'');if(description.hidden!==!model.scope)description.hidden=!model.scope;attribute(input,'aria-valuetext',unit==='%'?message.replace(/ %$/,' procent'):message);
  };
  const cancelDraft=()=>{draft=null;context=undefined;editing=false;aborted=true;paint();};
- const begin=()=>{if(model.disabled||model.pending)return false;if(!editing){context=getContext?.();editing=true;}aborted=false;return true;};
+ const begin=()=>{if(blocked())return false;if(!editing){context=getContext?.();editing=true;}aborted=false;return true;};
  input.addEventListener('pointerdown',begin);
  input.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();cancelDraft();}else if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End','PageUp','PageDown'].includes(event.key))begin();});
- input.addEventListener('input',()=>{if(model.disabled||model.pending||aborted){paint();return;}if(!editing)begin();const raw=Number(input.value);if(!Number.isFinite(raw)){draft=null;paint();return;}const bounded=Math.max(min,Math.min(max,raw));draft=sourceBounds?Number((min+Math.min(gridEnd,Math.max(0,Math.round((bounded-min)/step+1e-9)))*step).toPrecision(15)):bounded;paint();});
- input.addEventListener('change',()=>{if(model.disabled||model.pending||aborted||draft===null){paint();return;}const value=draft,binding=context;draft=null;context=undefined;editing=false;paint();onCommit?.(value,binding);});
+ input.addEventListener('input',()=>{if(blocked()||aborted){paint();return;}if(!editing)begin();const raw=Number(input.value);if(!Number.isFinite(raw)){draft=null;paint();return;}const bounded=Math.max(min,Math.min(max,raw));draft=sourceBounds?Number((min+Math.min(gridEnd,Math.max(0,Math.round((bounded-min)/step+1e-9)))*step).toPrecision(15)):bounded;paint();});
+ input.addEventListener('change',()=>{if(blocked()||aborted||draft===null){paint();return;}const value=draft,binding=context;draft=null;context=undefined;editing=false;paint();onCommit?.(value,binding);});
  for(const event of ['pointercancel','blur'])input.addEventListener(event,cancelDraft);
- const setModel=value=>{const next={value:null,scope:'',disabled:false,pending:false,mixed:false,...value},ticks=(next.value-min)/step;if(!Number.isFinite(next.value)||next.value<min||next.value>max||sourceBounds&&Math.abs(ticks-Math.round(ticks))>1e-8*Math.max(1,Math.abs(ticks)))next.value=null;if(next.scope!==model.scope||next.disabled||next.pending){draft=null;context=undefined;editing=false;aborted=true;}model=next;paint();};
+ const setModel=value=>{const next={value:null,scope:'',disabled:false,pending:false,mixed:false,...value},ticks=(next.value-min)/step;if(!Number.isFinite(next.value)||next.value<min||next.value>max||sourceBounds&&Math.abs(ticks-Math.round(ticks))>1e-8*Math.max(1,Math.abs(ticks)))next.value=null;if(next.scope!==model.scope||next.disabled||next.pending&&!next.editableWhilePending){draft=null;context=undefined;editing=false;aborted=true;}model=next;paint();};
  paint();return {node,label:heading,description,input,output,setModel,cancelDraft};
 }

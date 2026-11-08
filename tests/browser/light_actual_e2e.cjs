@@ -34,11 +34,19 @@ let server,browser;
  const roomFeedbackMs=await page.evaluate(()=>window.lightFeedbackMs);
  assert(roomFeedbackMs>=0&&roomFeedbackMs<100,`room button responds during the held HA command: ${roomFeedbackMs} ms`);
  assert.equal(await row.getAttribute('aria-pressed'),'true','pending feedback is distinct from observed room power');
- assert.equal((await state()).writes.length,1);await update({voice:true,voiceSession:'s3'});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='s3',undefined,{timeout:2000});await update({releaseIntent:true});
- await page.waitForFunction(()=>{const b=document.querySelector('.light-room-power');return b&&!b.disabled&&b.getAttribute('aria-label')==='Tænd alle lys i Køkkenet'},undefined,{timeout:5000});
- assert.equal((await state()).writes.length,1);assert.equal((await state()).writes[0].name,'HassTurnOff');assert.equal((await state()).light.state,'off');
- await row.tap();await page.waitForFunction(()=>{const b=document.querySelector('.light-room-power');return b&&!b.disabled&&b.getAttribute('aria-label')==='Sluk alle lys i Køkkenet'},undefined,{timeout:5000});
- assert.equal((await state()).writes.length,2);assert.equal((await state()).writes[1].name,'HassTurnOn');assert.equal((await state()).light.state,'on');
+ assert.equal(await row.isEnabled(),true,'same-room power remains available for a second touch');
+ await row.tap();
+ assert.equal((await state()).writes.length,1,'the second touch waits for the first observation');
+ await update({voice:true,voiceSession:'s3'});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='s3',
+  undefined,{timeout:2000});
+ await update({releaseIntent:true});
+ await page.waitForFunction(()=>{
+  const controls=document.querySelector('pv-widget-host')?.liveControls;
+  return !controls?.lightInputQueue&&!controls?.lightActionOperation;
+ },undefined,{timeout:5000});
+ assert.deepEqual((await state()).writes.map(write=>write.name),['HassTurnOff','HassTurnOn']);
+ assert.equal((await state()).light.state,'on');
  console.log('afterOn',await page.locator('#device-view').innerText());
  await page.locator('#light-lamps-trigger').tap();console.log('lamps',await page.locator('#device-view').innerText());
  const slider=page.locator('input[type=range]:visible').first();await slider.waitFor({timeout:5000});
@@ -49,9 +57,20 @@ let server,browser;
  for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('brightness intent not held');await sleep(25)}
  assert.equal(await slider.inputValue(),'49','released slider keeps selected brightness during the held response');
  assert.equal(await slider.locator('..').getAttribute('data-field-state'),'pending');
+ assert.equal(await slider.isEnabled(),true,'the pending dimmer accepts another drag');
+ await env.touchRange(page,slider,62,{thumbSize:32});
+ assert.equal(await slider.inputValue(),'62','shows the newly queued absolute choice');
+ await env.touchRange(page,slider,37,{thumbSize:32});
+ assert.equal(await slider.inputValue(),'37','latest absolute choice supersedes the older queued choice');
+ assert.equal((await state()).writes.length,3);
  await update({releaseIntent:true});
- for(let n=0;(await state()).writes.length<3;n++){if(n>100)throw Error('brightness command not sent');await sleep(100)}
- assert.equal((await state()).writes.length,3);assert.equal((await state()).writes[2].name,'HassLightSet');assert.equal((await state()).writes[2].args.brightness,49);await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),v=h?.currentLightDevice()?.observedLights?.[0];return v?.brightness===125},undefined,{timeout:5000});assert.deepEqual((await state()).writes.map(w=>w.args.name),['light.kitchen_ceiling','light.kitchen_ceiling','light.kitchen_ceiling']);
+ await page.waitForFunction(()=>{
+  const host=document.querySelector('pv-widget-host');
+  return !host?.liveControls?.lightInputQueue&&host?.currentLightDevice()?.observedLights?.[0]?.brightness===94;
+ },undefined,{timeout:5000});
+ assert.deepEqual((await state()).writes.slice(2).map(write=>[write.name,write.args.brightness]),
+  [['HassLightSet',49],['HassLightSet',37]]);
+ assert((await state()).writes.every(write=>write.args.name==='light.kitchen_ceiling'));
  for(let n=0;!(await state()).sourceConnected;n++){
   if(n>100)throw Error('inert HA event subscription not connected');
   await sleep(25);
@@ -87,9 +106,38 @@ let server,browser;
   await page.locator('#light-lamps-trigger').tap();
  }
  assert.equal(await slider.inputValue(),'60','reopened scope displays the latest observed brightness');
- assert.equal((await state()).writes.length,3,'passive reads, outage, reconnect and reopening never send an effect');
- assert.deepEqual(errors,[]);
+ assert.equal((await state()).writes.length,4,'passive reads, outage, reconnect and reopening never send an effect');
  await page.screenshot({path:path.join(env.artifactDir(),'podview-light-success.png')});
+ await update({holdIntent:true,unknownIntent:true});
+ await row.tap();
+ for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('unknown intent not held');await sleep(25)}
+ await row.tap();
+ assert.equal((await state()).writes.length,5);
+ await update({releaseIntent:true});
+ await page.waitForFunction(()=>{
+  const controls=document.querySelector('pv-widget-host')?.liveControls;
+  return controls?.lightActionState?.outcome==='unknown'&&!controls.lightInputQueue;
+ },undefined,{timeout:5000});
+ await update({externalLight:{state:'off'}});
+ await page.waitForFunction(()=>document.querySelector('.light-room-power')?.getAttribute('aria-pressed')==='false');
+ assert.equal((await state()).writes.length,5,'UNKNOWN discards the queued tap even after a fresh observation');
+ await update({externalLight:{state:'on'}});
+ await page.waitForFunction(()=>document.querySelector('.light-room-power')?.getAttribute('aria-pressed')==='true');
+ await update({holdIntent:true});
+ await row.tap();
+ for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('intent not held before read failure');await sleep(25)}
+ await row.tap();
+ await update({externalLight:{state:'off'}});
+ await page.waitForFunction(()=>document.querySelector('.light-room-power')?.getAttribute('aria-pressed')==='false');
+ await page.route('**/view/api/home?*',route=>new URL(route.request().url()).searchParams.has('lightArea')
+  ?route.fulfill({status:503,contentType:'application/json',body:'{}'}):route.continue());
+ await update({releaseIntent:true});
+ await page.waitForFunction(()=>{
+  const controls=document.querySelector('pv-widget-host')?.liveControls;
+  return controls?.lightActionState?.outcome==='accepted'&&!controls.lightInputQueue;
+ },undefined,{timeout:5000});
+ assert.equal((await state()).writes.length,6,'a prior matching push cannot replace the failed post-action read');
+ assert.deepEqual(errors,[]);
  const servedBundle=await fetch(base+'/view/podview.bundle.js').then(r=>r.arrayBuffer()),servedBundleSha256=crypto.createHash('sha256').update(Buffer.from(servedBundle)).digest('hex');
  console.log(JSON.stringify({servedBundleSha256,roomFeedbackMs,externalChangeMs,voiceDuringHeldIntent:true,outcome:'PASS',actualPackagedPodView:true,actualBridgeAndToolRouter:true,inertHABoundary:true,musicUnconfigured:true,navigationEffects:0,intents:(await state()).writes,voiceDuringHeldRead:true}));
  }catch(error){const page=browser?.contexts()[0]?.pages()[0];if(page){await page.screenshot({path:path.join(env.artifactDir(),'podview-light-failure.png')});console.log('failureState',JSON.stringify({server:await state(),ui:await page.locator('body').innerText(),host:await page.locator('pv-widget-host').evaluate(h=>({light:h.currentLightDevice(),areas:h.state.lightAreas,problem:h.lightReadProblem?.text,feedback:h.liveControls?.lightActionState}))}));}throw error}

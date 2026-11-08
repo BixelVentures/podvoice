@@ -24,6 +24,7 @@ hold = False
 started = asyncio.Event()
 release = asyncio.Event()
 intent_hold = False
+intent_unknown = False
 intent_started = asyncio.Event()
 intent_release = asyncio.Event()
 subscribers = {}
@@ -93,7 +94,7 @@ tools.declarations = declarations
 
 
 async def dispatch(name, args, *, execution_guard, execution_preflight, **kwargs):
-    global intent_hold
+    global intent_hold, intent_unknown
     if not execution_guard() or not await execution_preflight():
         return {"ok": False}
     assert args["name"] == entity
@@ -107,8 +108,11 @@ async def dispatch(name, args, *, execution_guard, execution_preflight, **kwargs
         light["state"] = "on" if args["brightness"] else "off"
     if intent_hold:
         intent_hold = False
+        unknown, intent_unknown = intent_unknown, False
         intent_started.set()
         await asyncio.wait_for(intent_release.wait(), 6)
+        if unknown:
+            return {"ok": False}
     return {"ok": True}
 
 
@@ -170,7 +174,7 @@ async def ha_websocket(request):
 
 
 async def lab(request):
-    global hold, intent_hold
+    global hold, intent_hold, intent_unknown
     if request.method == "POST":
         body = await request.json()
         if body.get("holdRead"):
@@ -179,6 +183,7 @@ async def lab(request):
             release.clear()
         if body.get("holdIntent"):
             intent_hold = True
+            intent_unknown = body.get("unknownIntent") is True
             intent_started.clear()
             intent_release.clear()
         if body.get("releaseIntent"):
