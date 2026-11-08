@@ -70,6 +70,8 @@ async function feedbackJourney(page,card,errors,commands){
  const root=page.locator('#vehicle-view'),dialog=root.locator('dialog.vehicle-confirmation');
  const access=root.locator('section.vehicle-disclosure:has(.vehicle-lock-controls)');
  const status=access.locator('.vehicle-section-heading small');
+ const trunk=access.getByRole('button',{name:'Åbn bagagerum',exact:true});
+ const climate=root.getByRole('switch',{name:'Klima',exact:true});
  const host=page.locator('pv-widget-host');
  const actionResponse=()=>page.waitForResponse(response=>
   new URL(response.url()).pathname==='/view/api/control/actions'&&response.request().method()==='POST');
@@ -111,6 +113,8 @@ async function feedbackJourney(page,card,errors,commands){
   await sleep(20);
  }
  const whileSending=await pending();
+ assert(await trunk.isDisabled(),'the Tesla owner still serializes before ACK');
+ assert(await climate.isDisabled());
  await host.evaluate(h=>h.loadLiveHome());
  assert.deepEqual(await pending(),whileSending);
  await page.evaluate(async()=>{
@@ -119,24 +123,42 @@ async function feedbackJourney(page,card,errors,commands){
    .map(animation=>animation.finished.catch(()=>{})));
  });
  await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-unlock-pending.png')});
- const sentAt=await host.evaluate(h=>h.vehicleView.liveVehicleCommand.sentAt);
+ const sentAt=await host.evaluate(h=>(h.vehicleView.liveVehicleCommands?.get('lock')??h.vehicleView.liveVehicleCommand).sentAt);
  await update({release:true});
  assert.equal((await (await accepted).json()).outcome,'accepted');
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.vehicleView.liveVehicleCommand?.phase==='observing');
+ await page.waitForFunction(()=>{
+  const view=document.querySelector('pv-widget-host')?.vehicleView;
+  return (view?.liveVehicleCommands?.get('lock')??view?.liveVehicleCommand)?.phase==='observing';
+ });
  assert.deepEqual(await pending(),whileSending);
  assert.equal(commands.length,1);
+ assert(await trunk.isEnabled(),'independent trunk becomes available after lock ACK');
+ await open('Åbn bagagerum');
+ assert.equal(commands.length,1,'opening a fresh trunk offer sends no action');
+ assert.equal((await confirm('Åbn bagagerum')).outcome,'accepted');
+ const pendingTrunk=access.getByRole('button',{name:'Åbner bagagerum…',exact:true});
+ await pendingTrunk.waitFor({state:'visible'});
+ assert.deepEqual(await pending(),whileSending);
+ assert.equal(commands.length,2);
+ await climate.tap();
+ await dialog.getByRole('heading',{name:'Tænd klima?',exact:true}).waitFor({state:'visible'});
+ assert.equal(commands.length,2,'independent climate also requires explicit confirmation');
+ await dialog.getByRole('button',{name:'Annuller',exact:true}).tap();
+ await dialog.waitFor({state:'hidden'});
+ assert(await pendingTrunk.isDisabled());
  await sleep(5200);
  await update({phase:'unlocked',observationAt:sentAt-0.05});
  await host.evaluate(h=>h.loadLiveHome());
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.locked===false);
  assert(await access.getByRole('button',{name:'Låser op…',exact:true}).isDisabled());
- assert.equal(await access.getByText('Bilens nye status er observeret.',{exact:true}).count(),0);
+ assert.equal(await access.getByText('Bilen er låst op.',{exact:true}).count(),0);
  await sleep(5200);
  await update({phase:'unlocked'});
  await host.evaluate(h=>h.loadLiveHome());
- await access.getByText('Bilens nye status er observeret.',{exact:true}).waitFor({state:'visible'});
+ await access.getByText('Bilen er låst op.',{exact:true}).waitFor({state:'visible'});
  assert.equal(await status.innerText(),'Ulåst');
  assert(await access.getByRole('button',{name:'Lås bilen',exact:true}).isEnabled());
+ assert(await pendingTrunk.isDisabled(),'lock observation leaves the independent trunk pending');
 
  // A changed preflight state rejects without dispatch. A timed-out native call
  // remains unknown and cannot be retried without a new explicit confirmation.
@@ -144,7 +166,7 @@ async function feedbackJourney(page,card,errors,commands){
  await update({lockStateOverride:'unavailable'});
  assert.equal((await confirm('Lås bilen')).outcome,'rejected');
  await access.getByText('Handlingen blev afvist.',{exact:true}).waitFor({state:'visible'});
- assert.equal((await state()).writes.length,1);
+ assert.equal((await state()).writes.length,2);
  assert.equal(await status.innerText(),'Ulåst');
  await update({lockStateOverride:null,lockSendTimeout:true});
  await open('Lås bilen');
@@ -156,16 +178,31 @@ async function feedbackJourney(page,card,errors,commands){
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next');
  assert(await access.getByText('Udfald ukendt · kontrollér bilen.',{exact:true}).isVisible());
  assert.equal(await status.innerText(),'Ulåst');
- assert.equal(commands.length,3);
+ assert.equal(commands.length,4);
+ assert(await pendingTrunk.isDisabled(),'a lock timeout leaves the independent trunk pending');
+ await sleep(5200);
+ await update({phase:'changed'});
+ await host.evaluate(h=>h.loadLiveHome());
+ await access.getByRole('button',{name:'Luk bagagerum',exact:true}).waitFor({state:'visible'});
+ assert(await access.getByRole('button',{name:'Luk bagagerum',exact:true}).isEnabled());
+ assert(await access.getByText('Udfald ukendt · kontrollér bilen.',{exact:true}).isVisible(),
+  'an observed trunk success cannot erase an independent lock warning');
+ await open('Luk bagagerum');
+ await update({trunkControlState:'closed'});
+ assert.equal((await confirm('Luk bagagerum')).outcome,'rejected');
+ await access.getByText('Lås: Udfald ukendt · kontrollér bilen. Bagagerum: Handlingen blev afvist.',
+  {exact:true}).waitFor({state:'visible'});
+ await update({trunkControlState:null});
  await open('Lås bilen');
  await dialog.getByRole('button',{name:'Annuller',exact:true}).tap();
- assert.equal(commands.length,3);
+ assert.equal(commands.length,5);
  assert.deepEqual((await state()).writes,[
-  {service:'unlock',body:{entity_id:'lock.car'}},{service:'lock',body:{entity_id:'lock.car'}},
+  {service:'unlock',body:{entity_id:'lock.car'}},{service:'open_cover',body:{entity_id:'cover.trunk'}},
+  {service:'lock',body:{entity_id:'lock.car'}},
  ]);
  assert.deepEqual(errors,[]);
  const bundle=await fetch(base+'/view/podview.bundle.js').then(response=>response.arrayBuffer());
- console.log(JSON.stringify({outcome:'PASS',story:'Tesla live feedback',whileSending,acceptedStillPending:true,
+ console.log(JSON.stringify({outcome:'PASS',story:'Tesla live feedback',whileSending,acceptedStillPending:true,independentTrunkAndClimateAfterAck:true,independentAccessWarningsRetained:true,
   observedUnlock:true,preSendObservationDidNotSettle:true,explicitRejectedWithoutWrite:true,nativeTimeoutUnknownWithoutReplay:true,
   freshExplicitConfirmationAfterUnknown:true,inertHA:true,
   bundleSHA:crypto.createHash('sha256').update(Buffer.from(bundle)).digest('hex')}));

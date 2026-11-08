@@ -49,6 +49,7 @@ writes = []
 snapshot_reads = []
 phase = "known"
 lock_state_override = None
+trunk_control_state = None
 lock_send_timeout = False
 phase_observed = time.time() - 0.2
 hold = False
@@ -74,7 +75,10 @@ def lifecycle_snapshot(body):
     snapshot_reads.append({"phase": phase, "trunkOnly": not full})
     opened = phase == "changed"
     stamp = phase_observed
-    data = {} if full and phase == "partial" else {"trunk": "open" if opened else "closed"}
+    trunk = (
+        trunk_control_state if not full and trunk_control_state else "open" if opened else "closed"
+    )
+    data = {} if full and phase == "partial" else {"trunk": trunk}
     stamps = {"vehicle_state": stamp}
     if full:
         data.update(
@@ -204,10 +208,11 @@ async def ha(request):
                 "attributes": {"supported_features": 3},
             },
         )
-    if lifecycle and path == "/core/api/services/cover/close_cover":
+    if lifecycle and path.startswith("/core/api/services/cover/"):
+        service = path.rsplit("/", 1)[1]
         data = json.loads(request.content)
-        assert data == {"entity_id": "cover.trunk"}
-        writes.append({"service": "close_cover", "body": data})
+        assert service in {"open_cover", "close_cover"} and data == {"entity_id": "cover.trunk"}
+        writes.append({"service": service, "body": data})
         return httpx.Response(200, json=[])
     if path == "/core/api/config":
         return httpx.Response(200, json={"unit_system": {"temperature": "°C"}})
@@ -353,7 +358,7 @@ app.middlewares.insert(0, ingress)
 
 async def lab(request):
     global hold, read_hold, followup_hold, phase, phase_observed, fail_next_snapshot
-    global lock_state_override, lock_send_timeout
+    global lock_state_override, lock_send_timeout, trunk_control_state
     if request.method == "POST":
         body = await request.json()
         if recovery and "controlAvailable" in body:
@@ -370,6 +375,8 @@ async def lab(request):
             lock_state_override = body["lockStateOverride"]
         if lifecycle and "lockSendTimeout" in body:
             lock_send_timeout = body["lockSendTimeout"]
+        if lifecycle and "trunkControlState" in body:
+            trunk_control_state = body["trunkControlState"]
         if lifecycle and "phase" in body:
             phase = body["phase"]
             assert phase in {"historical", "partial", "changed", "closed", "unlocked"}
