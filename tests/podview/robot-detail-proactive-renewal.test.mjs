@@ -35,6 +35,33 @@ async function open(f){await f.view.open('vacuum',target,new Node('button'));}
 function expire(f){f.view.task.expiresAt=Date.now()/1000-1;f.view.render();}
 
 function inline(f){f.host.state.focus=target.entityId;f.view.robotInline=true;f.view.robotEntry=new Node('section');f.view.robotEntry.hidden=false;}
+test('pending Start tolerates stale robot state while read and command authority stay distinct', async () => {
+ const f = fixture(), response = deferred();
+ let calls = 0;
+ f.host.liveTransport.controlAction = () => { calls++; return response.promise; };
+ try {
+  await open(f);
+  inline(f);
+  const args = {areaIds: ['old-area'], repeat: 1};
+  const start = f.view.send('old-start', args);
+  const receipt = () => [...f.view.receipts.values()].at(-1);
+  assert.equal(calls, 1);
+  f.host.state.devices[0].stale = true;
+  expire(f);
+  assert.equal(receipt()?.outcome, 'pending');
+  assert.equal(f.view.robotControlContext(), null, 'stale state grants no action authority');
+  await f.view.send('old-start', args);
+  assert.equal(calls, 1);
+
+  f.host.liveSnapshot.capabilities.controlSetup = [];
+  f.view.render();
+  assert.equal(receipt()?.outcome, 'unknown', 'explicit capability revocation still invalidates custody');
+  response.resolve({ok: false, outcome: 'unknown'});
+  await start;
+ } finally {
+  f.view.cleanup();
+ }
+});
 test('renewal preserves live task and panel until validated atomic replacement',async()=>{const f=fixture();try{await open(f);inline(f);const old=f.view.task,panel=f.view.robotPanel,reading=f.view.renewRobotTask(old);assert.equal(f.view.task,old);assert.equal(panel.disabled,false);assert.equal(f.view.robotPanel,panel);assert.equal(f.reads(),2);f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.view.task.taskId,'fresh');assert.equal(f.view.robotPanel,panel);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
 for(const changed of ['expired','operation','context','unknown'])test('renewal discards response on '+changed,async()=>{const f=fixture();try{await open(f);inline(f);const old=f.view.task,reading=f.view.renewRobotTask(old);if(changed==='expired')old.expiresAt=Date.now()/1000-1;else if(changed==='operation')f.view.pending=true;else if(changed==='context')f.host.liveSnapshot.bootId='new';else f.view.receipts.set('x',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.view.task,old);assert.equal(f.writes(),0);if(changed==='expired'){await f.view.send('old-start',{areaIds:['old-area'],repeat:1});assert.equal(f.writes(),0);}}finally{f.view.cleanup();}});
 test('dirty draft is remapped by owner only and late user changes reject response',async()=>{const f=fixture();try{await open(f);inline(f);const panel=f.view.robotPanel,old=f.view.task;let repeat=1;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat,settingChoices:[]});let request;f.host.liveTransport.controlSetup=(domain,target,recipe,options)=>{request=options;return f.next.promise};const reading=f.view.renewRobotTask(old);assert.equal(request.draft.repeat,1);repeat=2;const next=f.offer('fresh');next.setup.draft={status:'restored',optionId:'fresh-start',areaIds:['fresh-area'],repeat:1,settingChoices:[]};f.next.resolve(next);await reading;assert.equal(f.view.task,old);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});

@@ -34,10 +34,81 @@ async function openCatalog(page){
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
  await page.locator('#recipe-view [data-recipe]').first().waitFor({state:'visible'});
 }
+async function finishRecipeWithTimer(page,widget,bundleSHA){
+ const back=page.locator('#header-title-action');
+ const recipe=page.locator('#recipe-view');
+ const catalog=recipe.locator('[data-recipe-layout=catalog]');
+ const recipeRow=catalog.locator('[data-recipe="Nem chokoladekage i bradepande"]');
+ const timerState=()=>fetch(base+'/lab/timers').then(response=>response.json());
+ const timerPosts=[];
+ page.on('request',request=>{
+  if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/actions'){
+   timerPosts.push(request.postDataJSON()?.action);
+  }
+ });
+ await back.tap();
+ await catalog.waitFor({state:'visible'});
+ assert.equal(await recipeRow.getAttribute('aria-current'),'true');
+ await back.tap();
+ await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ await page.locator('#open-timers').tap();
+ await page.getByRole('form',{name:'Ny timer'}).getByRole('button',{name:'Start timer'}).tap();
+ const activeTimer=page.locator('#now-view .timer-active-list .timer-finish');
+ await activeTimer.waitFor({state:'visible',timeout:15000});
+ const started=await timerState();
+ assert.equal(started.running.length,1);
+ assert.equal(started.starts,1);
+ assert.deepEqual(started.commands,['start']);
+ await widget.tap();
+ await recipe.locator('[data-recipe-layout=reading]').waitFor({state:'visible'});
+ const remaining=recipe.locator('ol li button[aria-pressed=false]');
+ const remainingCount=await remaining.count();
+ assert.ok(remainingCount>0);
+ for(let index=0;index<remainingCount;index++)await remaining.first().tap();
+ await recipe.getByText('Alle trin færdige',{exact:true}).waitFor({state:'visible'});
+ await recipe.getByRole('button',{name:'Afslut madlavning',exact:true}).tap();
+ await catalog.waitFor({state:'visible'});
+ assert.equal(await recipeRow.count(),1);
+ assert.equal(await catalog.locator('[data-recipe][aria-current=true]').count(),0);
+ assert.notEqual(await recipeRow.getAttribute('data-kit-variant'),'resume');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),null);
+ await back.tap();
+ await widget.getByText('Se katalog',{exact:true}).waitFor({state:'visible'});
+ assert.equal(await widget.getByText('I gang',{exact:true}).count(),0);
+ assert.equal(await widget.locator('.resource-value').isVisible(),false);
+ await activeTimer.waitFor({state:'visible'});
+ assert.deepEqual(await timerState(),started,'recipe finish leaves the same running timer with its owner');
+ assert.deepEqual(timerPosts,['timer.start'],'recipe finish sends no timer command');
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-finished-timer-running.png`)});
+ await activeTimer.tap();
+ await activeTimer.waitFor({state:'hidden',timeout:15000});
+ assert.deepEqual(await timerState(),{running:[],starts:1,commands:['start','cancel']});
+ assert.deepEqual(timerPosts,['timer.start','timer.cancel']);
+ await widget.tap();
+ await catalog.waitFor({state:'visible'});
+ await recipeRow.tap();
+ const history=recipe.getByRole('button',{name:/Om opskriften/});
+ await history.tap();
+ await recipe.getByText('Senest gennemført',{exact:true}).waitFor({state:'visible'});
+ await recipe.getByRole('button',{name:'Start opskrift',exact:true}).tap();
+ assert.equal(await page.evaluate(()=>window.recipeTimerAudioCalls),0);
+ const proof={outcome:'PASS',story:'O7',bundleSHA,activeCatalogueMarkerCleared:true,widgetReturnedToCatalogue:true,
+  completionHistoryVisible:true,sameIndependentTimerRetained:true,ownerCommands:['start','cancel'],
+  recipeFinishTimerCommands:0,browserAudioCalls:0,inertFinalTimerOwner:true};
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-completion-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 (async()=>{try{
  dir=await mkdtemp(path.join(os.tmpdir(),'podview-recipe-browser-'));await start();
  browser=await chromium.launch(testEnv.browserOptions());
  let page=await browser.newPage({hasTouch:true,viewport:{width,height}}); const errors=[];
+ await page.addInitScript(()=>{
+  window.recipeTimerAudioCalls=0;
+  window.Audio=class {
+   play(){window.recipeTimerAudioCalls++;return Promise.resolve();}
+   pause(){}
+  };
+ });
  page.on('pageerror',e=>errors.push(e.message));
  await openCatalog(page);
  const entries=page.locator('#recipe-view [data-recipe-layout=catalog] > div').first();
@@ -151,11 +222,14 @@ async function openCatalog(page){
  assert.deepEqual(lifecycleWrites,[],'resume cannot enroll a screen or send a product effect');
  page.off('request',observeWrite);
  const lifecycleBundle=await fetch(base+'/view/podview.bundle.js').then(response=>response.arrayBuffer());
+ const bundleSHA=createHash('sha256').update(Buffer.from(lifecycleBundle)).digest('hex');
+ if(process.env.RECIPE_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RECIPE_EXPECTED_BUNDLE);
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-lifecycle.json'),JSON.stringify({
   outcome:'PASS',beforeLifecycle,afterLifecycle,lifecycleWrites,inertHA:true,physicalIPadSleepVerified:false,
-  bundleSHA:createHash('sha256').update(Buffer.from(lifecycleBundle)).digest('hex'),
+  bundleSHA,
  },null,2));
- // Reset removes the persisted session, keeping all original import assertions.
+ await finishRecipeWithTimer(page,widget,bundleSHA);
+ // Reset the new session, keeping all original import assertions.
  await page.getByRole('button',{name:'Nulstil opskrift',exact:true}).tap();
  await page.getByRole('button',{name:'Nulstil',exact:true}).tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor();

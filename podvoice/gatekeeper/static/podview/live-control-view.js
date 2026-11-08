@@ -38,7 +38,13 @@ export class LiveControlView{
   const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected]),robotAuthority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.host.liveTransport?.generation,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
   if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
   else if(this.domain==='vacuum'&&this.robotAuthority!==undefined&&(this.robotAuthority!==robotAuthority||this.robotAuthorityTransport!==this.host.liveTransport)){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_authority_changed'});this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);}
-  this.robotAuthority=robotAuthority;this.robotAuthorityTransport=this.host.liveTransport;if(this.task?.domain==='vacuum'&&(this.robotControlOffer?.task!==this.task||!this.robotControlCurrent(this.robotControlOffer?.context))){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_offer_invalid'});this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);}
+  this.robotAuthority=robotAuthority;this.robotAuthorityTransport=this.host.liveTransport;
+  if (this.task?.domain === 'vacuum'
+   && (this.robotControlOffer?.task !== this.task || !this.robotControlCurrent(this.robotControlOffer.context))
+   && !this.robotStartReceiptCurrent()) {
+   this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_offer_invalid'});
+   this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);
+  }
   this.authority=authority;const musicContext=this.musicContext(),musicAuthority=musicContext?.key??null,presentationAuthority=musicContext?.presentationKey??null;
   const pendingPlayback=this.host.liveMedia?.playback,pendingBinding=pendingPlayback?.roomBinding,pendingPresentation=roomObservationBound(pendingPlayback,snapshot,this.host.liveMedia?.account)&&['playing','paused'].includes(pendingPlayback?.state)?JSON.stringify([snapshot.bootId,snapshot.roomId,this.host.liveTransport?.generation??null,pendingPlayback.config_entry_id,pendingPlayback.owner_epoch,pendingPlayback.target?.id,pendingBinding.bindingId,pendingBinding.nativeRoomId,pendingBinding.nativeHomepodId,pendingBinding.targetId]):null;
   const samePresentation=(!!musicContext&&this.musicPresentationAuthority===presentationAuthority||!!this.musicSettlementReceipt(true)||this.musicIntentPending&&this.musicOperation?.domain==='music'&&['pause','resume','next','previous','volume','seek'].includes(this.musicOperation.action)&&this.musicOperation.presentationKey===pendingPresentation||this.musicIntentPending&&this.musicOperation?.action==='move_existing_session'&&this.musicOperation.receiptTransport===this.host.liveTransport&&this.musicOperation.receiptTransportGeneration===this.host.liveTransport?.generation&&this.musicOperation.receiptGeneration===this.generation&&this.musicOperation.receiptMusicGeneration===(this.musicGeneration||0)&&this.musicOperation.receiptOwnerScope===JSON.stringify([snapshot?.capabilities?.musicRead,snapshot?.capabilities?.controlSetup?.includes('music')])&&roomObservationBound(pendingPlayback,snapshot,this.host.liveMedia?.account)&&pendingPlayback.config_entry_id===this.musicOperation.destination.accountId&&pendingBinding?.nativeRoomId===this.musicOperation.destination.nativeRoomId&&pendingBinding?.nativeHomepodId===this.musicOperation.destination.nativeHomepodId)&&this.musicPresentationTransport===this.host.liveTransport;
@@ -625,12 +631,24 @@ export class LiveControlView{
   const context=this.expiredRobot,s=this.host.liveSnapshot,device=this.robotDevice();
   return !!context&&!this.spent.has(context.taskId)&&context.transport===this.host.liveTransport&&context.transportGeneration===this.host.liveTransport?.generation&&context.generation===this.generation&&context.opening===this.opening&&this.controlOpen()&&this.host.isConnected&&this.allowed('vacuum')&&this.domain==='vacuum'&&s?.bootId===context.bootId&&s?.roomId===context.roomId&&JSON.stringify(this.target)===context.target&&device?.live===true&&!device.stale&&!this.pending&&!this.setupPending&&!this.activeOperation&&![...this.receipts.values()].some(row=>row.bootId===context.bootId&&row.roomId===context.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===context.target&&this.robotReceiptUnknown(row));
  }
+ robotStartReceiptCurrent() {
+  const task = this.task, operation = this.activeOperation;
+  const transport = this.host.liveTransport, snapshot = this.host.liveSnapshot;
+  const option = task?.options?.find(row => row.id === operation?.optionId);
+  // The spent offer cannot admit another Start. A stale observation does not revoke its pending reply.
+  return task?.domain === 'vacuum' && this.pending === true && operation?.domain === 'vacuum'
+   && operation.receiptTask === task && operation.taskId === task.taskId
+   && operation.bootId === task.bootId && operation.roomId === task.roomId
+   && option?.action === 'start' && option.argsSchema?.kind === 'cleaning' && this.spent.has(task.taskId)
+   && this.host.isConnected && transport?.connected && transport === operation.receiptTransport
+   && transport.generation === operation.receiptTransportGeneration
+   && snapshot?.bootId === task.bootId && snapshot?.roomId === task.roomId
+   && JSON.stringify(this.target) === JSON.stringify(operation.target)
+   && this.robotControlOffer?.task === task
+   && this.robotControlCurrent(this.robotControlOffer.context, {allowStale: true});
+ }
  expireTask(){
-  const task=this.task;if(!task)return;
-  // Offer expiry cannot cancel receipt custody for an already dispatched Start.
-  // The original task remains spent and expired; it grants no further action.
-  const operation=this.activeOperation,option=task.options?.find(row=>row.id===operation?.optionId);
-  if(task.domain==='vacuum'&&this.pending===true&&operation?.domain==='vacuum'&&operation.receiptTask===task&&operation.taskId===task.taskId&&operation.bootId===task.bootId&&operation.roomId===task.roomId&&option?.action==='start'&&option.argsSchema?.kind==='cleaning'&&this.spent.has(task.taskId)&&this.host.isConnected&&this.host.liveTransport?.connected&&this.host.liveTransport===operation.receiptTransport&&this.host.liveTransport.generation===operation.receiptTransportGeneration&&this.host.liveSnapshot?.bootId===task.bootId&&this.host.liveSnapshot?.roomId===task.roomId&&JSON.stringify(this.target)===JSON.stringify(operation.target)&&this.robotControlOffer?.task===task&&this.robotControlCurrent(this.robotControlOffer.context))return;
+  const task=this.task;if(!task||this.robotStartReceiptCurrent())return;
   const draft=task.domain==='vacuum'&&this.robotPanel?.cleaningDirty&&this.robotPanel?.readCleaningDraft?{taskId:task.taskId,revision:task.revision,optionId:this.robotPanel.cleaningOptionId,...this.robotPanel.readCleaningDraft()}:null,modeDrafts=draft?this.robotPanel?.readModeDrafts?.()??null:null; if(draft&&!draft.settingChoices)draft.settingChoices=[];const previousEntryKey=this.robotEntryKey;const eligible=task.domain==='vacuum'&&!this.pending&&!this.setupPending&&!this.activeOperation&&!this.spent.has(task.taskId)&&![...this.receipts.values()].some(row=>row.bootId===task.bootId&&row.roomId===task.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===JSON.stringify(this.target)&&this.robotReceiptUnknown(row));
   this.invalidate('Betjeningen er udløbet · hent den igen.',false,task.domain==='vacuum');
   if(!eligible)return;this.robotEntryKey=previousEntryKey;
@@ -647,8 +665,19 @@ export class LiveControlView{
    if(restoreFocus&&focusUnclaimed())this.robotPanel?.querySelector('input,select,button')?.focus();
   }else if(this.expiredRobot===context){button.hidden=false;context.opening=this.opening;this.render();if(restoreFocus&&focusUnclaimed()&&this.canRefreshRobot())button.focus();}
  }
- robotControlContext(target=this.target){const snapshot=this.host.liveSnapshot,transport=this.host.liveTransport,device=this.host.state.devices.find(row=>row.id===target?.entityId&&row.kind==='vacuum');if(!this.host.isConnected||!this.allowed('vacuum')||device?.live!==true||device.stale)return null;return {key:JSON.stringify([snapshot.bootId,snapshot.roomId,target.entityId,device.status]),transport,generation:transport.generation};}
- robotControlCurrent(context){return !!context&&this.robotControlContext()?.key===context.key&&this.host.liveTransport===context.transport&&context.transport.generation===context.generation;}
+ robotControlContext(target = this.target, {allowStale = false} = {}) {
+  const snapshot = this.host.liveSnapshot, transport = this.host.liveTransport;
+  const device = this.host.state.devices.find(row => row.id === target?.entityId && row.kind === 'vacuum');
+  if (!this.host.isConnected || !this.allowed('vacuum') || device?.live !== true || !allowStale && device.stale) {
+   return null;
+  }
+  return {key: JSON.stringify([snapshot.bootId, snapshot.roomId, target.entityId, device.status]),
+   transport, generation: transport.generation};
+ }
+ robotControlCurrent(context, options) {
+  return !!context && this.robotControlContext(this.target, options)?.key === context.key
+   && this.host.liveTransport === context.transport && context.transport.generation === context.generation;
+ }
  // The overview owns a separate bounded offer; it never borrows the open music/dialog task.
  robotReceiptUnknown(row){
   if(row.outcome!=='unknown')return false;
