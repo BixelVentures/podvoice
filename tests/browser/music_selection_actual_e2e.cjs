@@ -171,8 +171,28 @@ async function discoveryRevisitJourney(){
 }
 async function discoveryCoverJourney(){
  const coverUrl='https://i.scdn.co/image/InertRecentCover';
- await page.route(coverUrl,route=>route.fulfill({contentType:'image/svg+xml',
-  body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'}));
+ const failedCoverUrl='https://i.scdn.co/image/InertFailedMoodCover';
+ const externalRequests=[],themeArtRequests=[],themeArtResponses=[];
+ await page.route('https://**/*',route=>{
+  const url=route.request().url();
+  externalRequests.push(url);
+  if(url===failedCoverUrl)return route.fulfill({status:503});
+  if(url!==coverUrl)return route.abort();
+  return route.fulfill({contentType:'image/svg+xml',
+   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'});
+ });
+ await page.route('**/view/theme-art/**',route=>{
+  themeArtRequests.push(new URL(route.request().url()).pathname);
+  return route.fulfill({status:503});
+ });
+ page.on('response',response=>{
+  const {pathname}=new URL(response.url());
+  if(pathname.startsWith('/view/theme-art/'))themeArtResponses.push({pathname,status:response.status()});
+ });
+ const moodResponse=page.waitForResponse(response=>{
+  const url=new URL(response.url());
+  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='mood';
+ });
  let reads=0,releaseRefresh,markHeld;
  const gate=new Promise(resolve=>{releaseRefresh=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
  await page.route('**/view/api/music?**',async route=>{
@@ -185,6 +205,26 @@ async function discoveryCoverJourney(){
   await route.fulfill({response});
  });
  await page.locator('#home-music').tap();
+ const mood=await (await moodResponse).json();
+ assert.equal(mood.ok,true);
+ const themes=Object.fromEntries(mood.data.tracks.map(track=>[track.themeId,track]));
+ assert.equal(themes.cooking.artwork?.url,failedCoverUrl);
+ assert.match(themes.cooking.themeArt,/^theme-art\/cooking\/[a-f0-9]{64}\.webp$/);
+ assert.equal(themes.italian.themeArt,'assets/italian.png','legacy-policy art is excluded');
+ assert.equal(themes.calm.themeArt,'assets/lake.png','exhausted budget leaves the canonical local asset');
+ const localIllustrations={
+  'Musik til madlavningen':'assets/kitchen.webp',
+  'En italiensk aften':'assets/italian.webp',
+  'En rolig stund':'assets/lake.webp',
+ };
+ for(const [title,src] of Object.entries(localIllustrations)){
+  const art=page.locator('#result-list button.result').filter({hasText:title})
+   .locator(`img.result-art[src="${src}"]:not([data-content-transition])`);
+  await art.waitFor({state:'visible',timeout:15000});
+  await art.evaluate(img=>img.decode());
+  assert.ok(await art.evaluate(img=>img.naturalWidth>0));
+ }
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-discovery-local-illustrations.png')});
  await page.locator('[data-collection=recent]').tap();
  const list=page.locator('#result-list'),row=list.locator('button.result').filter({hasText:'Katalogsang 11'});
  const image=row.locator('img.result-art:not([data-content-transition])');
@@ -218,6 +258,20 @@ async function discoveryCoverJourney(){
  const proof={outcome:'PASS',story:'F9',bundleSHA,retainedCover:true,retainedWithoutCrossfade:true,recentExpanded:7,inertNativeService:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
+ const service=await state();
+ assert.deepEqual(externalRequests,[failedCoverUrl,coverUrl]);
+ assert.deepEqual(themeArtRequests,['/view/'+themes.cooking.themeArt]);
+ assert.deepEqual(themeArtResponses,[{pathname:'/view/'+themes.cooking.themeArt,status:503}]);
+ assert.ok(service.retiredThemeArt);
+ assert(!themeArtRequests.includes('/view/'+service.retiredThemeArt));
+ assert.deepEqual(service.imageProviderCalls,[]);
+ const fallbackProof={outcome:'PASS',story:'F12',bundleSHA,localIllustrations,
+  spotifyFailureRequests:1,cachedGraphicRetrievalFailures:themeArtRequests.length,
+  retiredPolicyRequests:0,imageProviderDispatches:service.imageProviderCalls.length,
+  retainedCover:proof.retainedCover,inertCatalogue:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-fallback-proof.json'),
+  JSON.stringify(fallbackProof,null,2));
+ console.log(JSON.stringify(fallbackProof));
 }
 async function queuePersistenceJourney(){
  const queue=page.locator('#queue');
