@@ -187,6 +187,21 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  assert.equal(await catalog.locator('[data-recipe][aria-current=true]').count(),0);
  assert.notEqual(await recipeRow.getAttribute('data-kit-variant'),'resume');
  assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),null);
+ const catalogueHistory=catalog.locator('#recipe-history-trigger');
+ const completedRow=catalog.locator('#recipe-history-panel [data-kit-variant=read-only]')
+  .filter({hasText:'Nem chokoladekage i bradepande'});
+ assert.equal(await catalogueHistory.getAttribute('aria-expanded'),'false');
+ await catalogueHistory.tap();
+ await completedRow.waitFor({state:'visible'});
+ assert.equal(await completedRow.count(),1);
+ const completedAt=await completedRow.locator('time').getAttribute('datetime');
+ assert(Number.isFinite(Date.parse(completedAt)));
+ const checkCatalogueHistory=async()=>{
+  assert.equal(await catalogueHistory.getAttribute('aria-expanded'),'true');
+  assert(await completedRow.isVisible());
+  assert.equal(await completedRow.locator('time').getAttribute('datetime'),completedAt);
+ };
+ await checkCatalogueHistory();
  await back.tap();
  await widget.getByText('Se katalog',{exact:true}).waitFor({state:'visible'});
  assert.equal(await widget.getByText('I gang',{exact:true}).count(),0);
@@ -199,8 +214,16 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  await activeTimer.waitFor({state:'hidden',timeout:15000});
  assert.deepEqual(await timerState(),{running:[],starts:1,commands:['start','cancel']});
  assert.deepEqual(timerPosts,['timer.start','timer.cancel']);
+ await page.bringToFront();
+ const catalogRefresh=page.waitForResponse(response=>
+  new URL(response.url()).pathname==='/view/api/recipes'&&response.request().method()==='GET'&&response.ok());
  await widget.tap();
  await catalog.waitFor({state:'visible'});
+ await catalogRefresh;
+ await checkCatalogueHistory();
+ await completedRow.scrollIntoViewIfNeeded();
+ const catalogueHistoryScreenshot=path.join(testEnv.artifactDir(),`podview-recipe-${shot}-catalog-completion-history.png`);
+ await page.screenshot({animations:'disabled',path:catalogueHistoryScreenshot});
  await recipeRow.tap();
  const history=recipe.getByRole('button',{name:/Om opskriften/});
  await history.tap();
@@ -208,7 +231,9 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  await recipe.getByRole('button',{name:'Start opskrift',exact:true}).tap();
  assert.equal(await page.evaluate(()=>window.recipeTimerAudioCalls),0);
  const proof={outcome:'PASS',story:'O7',bundleSHA,activeCatalogueMarkerCleared:true,widgetReturnedToCatalogue:true,
-  completionHistoryVisible:true,sameIndependentTimerRetained:true,ownerCommands:['start','cancel'],
+  completionHistoryVisible:true,catalogueHistoryOpenAcrossRefreshAndNavigation:true,
+  catalogueCompletionTimestamp:completedAt,catalogueHistoryScreenshot,
+  sameIndependentTimerRetained:true,ownerCommands:['start','cancel'],
   recipeFinishTimerCommands:0,browserAudioCalls:0,inertFinalTimerOwner:true};
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-completion-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
