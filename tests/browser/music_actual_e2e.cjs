@@ -196,7 +196,13 @@ async function outputTransferJourney(page,errors){
    pendingFeedback.nativeRequestId=owner.heldMoveRequestId;
   }finally{assert((await change({holdMove:false})).ok);}
  };
- const effects=[];
+ const effects=[],destinationRenewals=[];
+ const readDestination=()=>page.locator('pv-widget-host').evaluate(host=>{
+  const playback=host.liveMedia.playback;
+  const binding=playback.roomBinding;
+  return {epoch:playback.owner_epoch,bindingId:binding.bindingId,room:binding.nativeRoomId,
+   homepod:binding.nativeHomepodId,validUntil:binding.validUntil,observedAt:playback.observedAt};
+ });
  for(const [target,percent,song] of [[bedroom,25,22],[kitchen,31,23]]){
   const before=await state();
   const first=target===bedroom;
@@ -205,12 +211,38 @@ async function outputTransferJourney(page,errors){
   if(first)assert.equal(receipt.requestId,pendingFeedback.browserRequestId);
   await observed(target,before.song);
   assert.doesNotMatch(await output.getAttribute('aria-label'),/Afventer bekræftelse/);
-  await nextPassiveRead();
+  const original=await readDestination();
+  const beforeRenewal=await state();
+  const postsBeforeRenewal=requests.filter(row=>row.url.endsWith('/control/actions')).length;
+  assert(original.validUntil*1000>Date.now(),'capture an unexpired destination binding');
   if(target===kitchen){
    await page.reload({waitUntil:'domcontentloaded'});
    await testEnv.openOverview(page);
   }
   await observed(target,before.song);
+  await page.waitForFunction(original=>{
+   const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+   const binding=playback?.roomBinding;
+   return Date.now()>=original.validUntil*1000&&binding?.bindingId===original.bindingId
+    &&binding.nativeRoomId===original.room&&binding.nativeHomepodId===original.homepod
+    &&playback.owner_epoch===original.epoch&&Date.parse(playback.observedAt)>Date.parse(original.observedAt)
+    &&binding.validUntil*1000>Date.now()&&binding.validUntil>original.validUntil;
+  },original,{timeout:20000});
+  const renewed=await readDestination(),afterRenewal=await state();
+  assert(playbackReads(afterRenewal)>playbackReads(beforeRenewal),'the inert owner served a new playback read');
+  assert.deepEqual(afterRenewal.writes,beforeRenewal.writes,'passive renewal has no effects');
+  assert.equal(requests.filter(row=>row.url.endsWith('/control/actions')).length,postsBeforeRenewal,
+   'passive renewal issues no command');
+  destinationRenewals.push({original,renewed,checkedAt:Date.now(),reloaded:target===kitchen});
+  const transport=page.locator('#play-pause');
+  for(const [label,state] of [['Sæt musik på pause','paused'],['Fortsæt musikken','playing']]){
+   await page.getByRole('button',{name:label,exact:true}).tap();
+   await page.waitForFunction(state=>{
+    const host=document.querySelector('pv-widget-host');
+    return host?.liveMedia?.playback?.state===state&&!host.liveControls?.musicIntentPending;
+   },state,{timeout:15000});
+  }
+  assert.equal(await transport.getAttribute('aria-label'),'Sæt musik på pause');
   await page.waitForFunction(()=>!document.querySelector('#volume')?.disabled,undefined,{timeout:15000});
   await testEnv.touchRange(page,volume,percent);
   await page.waitForFunction(value=>document.querySelector('pv-widget-host')?.liveControls?.musicMeasurement?.volume
@@ -219,13 +251,12 @@ async function outputTransferJourney(page,errors){
   await rows.filter({hasText:`Køsang ${song}`}).tap();
   await observed(target,song);
   const added=(await state()).writes.slice(before.writes.length);
-  assert.deepEqual(added.map(row=>row.action),['move_existing_session','volume','play_queue_occurrence']);
+  assert.deepEqual(added.map(row=>row.action),['move_existing_session','pause','resume','volume','play_queue_occurrence']);
   assert.equal(added[0].room,target.room);
   if(first)assert.equal(added[0].requestId,pendingFeedback.nativeRequestId);
-  assert.deepEqual(added.slice(1).map(row=>[row.room,row.homepod]),
-   [[target.room,target.homepod],[target.room,target.homepod]]);
-  assert.equal(added[1].percent,percent);
-  assert.equal(added[2].song,song);
+  for(const row of added.slice(1))assert.deepEqual([row.room,row.homepod],[target.room,target.homepod]);
+  assert.equal(added[3].percent,percent);
+  assert.equal(added[4].song,song);
   effects.push(added);
  }
 
@@ -259,7 +290,7 @@ async function outputTransferJourney(page,errors){
  assert.deepEqual(errors,[]);
  assert(servedBundleSHA);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',stories:['H1','H5','H8'],servedBundleSHA,pendingFeedback,effects,failures,
+ const proof={outcome:'PASS',stories:['H1','H5','H8'],servedBundleSHA,pendingFeedback,destinationRenewals,effects,failures,
   inertFinalService:true};
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-output-transfer.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
