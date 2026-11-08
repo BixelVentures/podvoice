@@ -19,6 +19,7 @@ const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
+const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
@@ -239,6 +240,65 @@ async function recentSessionJourney(){
   touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
  await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
+async function voiceQueueJourney(){
+ const step=async step=>{
+  const response=await page.request.post(base+'/lab/voice-journey',{data:{step}});
+  assert.equal(response.status(),200,await response.text());
+  return response.json();
+ };
+ const observe=async(song,phase)=>(await page.waitForFunction(({song,phase})=>{
+  const host=document.querySelector('pv-widget-host'),value=host.liveMedia?.playback;
+  return value?.state===phase&&document.querySelector('#track-name')?.textContent===`Isoleret sang ${song}`
+   &&value.config_entry_id==='account'&&value.roomBinding?.nativeRoomId==='native-room'
+   &&value.roomBinding?.nativeHomepodId==='42'&&value.target?.id==='device'&&value.roomBinding.bindingId;
+ },{song,phase},{timeout:12000})).jsonValue();
+ await observe(1,'paused');
+ assert.equal((await step('wake')).active,true);
+ const source=await (await page.request.get(base+'/view/api/music?room=kitchen&kind=recent&account=account')).json();
+ assert.equal(source.ok,true,JSON.stringify(source));
+ const candidate=source.candidateSet;
+ assert(candidate);
+ const offer=await (await page.request.post(base+'/view/api/music/selection/setup',{
+  headers:{'X-PodView-Request':'1'},data:{bootId:candidate.bootId,roomId:'kitchen',candidateSetId:candidate.candidateSetId,
+   candidateIds:candidate.items.map(row=>row.id),
+   target:{accountId:'account',kind:'spotify_device',targetId:'device'}},
+ })).json();
+ assert.equal(offer.ok,true,JSON.stringify(offer));
+ assert.equal((await step('choose')).accepted,true);
+ assert.equal(await page.locator('#track-name').textContent(),'Isoleret sang 1','accepted voice start cannot publish playback by itself');
+ const {session}=await step('observe');
+ const startedBinding=await observe(11,'playing');
+ await page.locator('#player-detail').tap();
+ const repeated=page.locator('#queue button.queue-track[data-current="false"]').filter({hasText:'Køsang 22'});
+ await repeated.nth(1).waitFor();
+ assert.equal(await repeated.count(),2);
+ await repeated.nth(1).tap();
+ const queuedBinding=await observe(22,'playing');
+ assert.notEqual(queuedBinding,startedBinding,'queue advances the observed route within the native session');
+ await page.locator('#play-pause').tap();
+ assert.equal(await observe(22,'paused'),queuedBinding);
+ await page.locator('#play-pause').tap();
+ assert.equal(await observe(22,'playing'),queuedBinding);
+ const final=await state();
+ assert.equal(final.observedNativeSession,session);
+ assert.equal(final.queueSelections.length,1);
+ assert.equal(final.queueSelections[0].index,1);
+ assert.deepEqual(final.writes.map(row=>row.action),['play_track','play_queue_occurrence','pause','resume']);
+ const effects=final.nativeCalls.filter(row=>['start_room_selected_content','control_room_queue','control_room_playback'].includes(row.service));
+ assert.deepEqual(effects.map(row=>row.args.command_sequence),[3,4,5,6]);
+ assert.ok(effects.every(({args})=>args.config_entry_id==='account'&&args.target_id==='device'
+  &&args.room_id==='native-room'&&args.homepod_id==='42'&&args.owner_epoch===effects[0].args.owner_epoch));
+ assert.ok(effects.slice(1).every(({args})=>args.native.session_id===session
+  &&args.route.session_epoch===effects[1].args.route.session_epoch));
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',story:'A12',bundleSHA,session,actualThinAndToolRouter:true,
+  independentVoiceObservation:true,selectedSecondRepeatedOccurrence:true,freshBindingAfterQueue:true,
+  touchPauseResume:true,inertNativeService:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-voice-queue-proof.json'),JSON.stringify(proof,null,2));
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-voice-queue-proof.png')});
  console.log(JSON.stringify(proof));
 }
 async function discoveryLoadingJourney(){
@@ -1024,6 +1084,7 @@ async function queuePersistenceJourney(){
   console.log(JSON.stringify({outcome:'PASS',coldContext:true,rejectSetup,prepares:prepares.length,commits:commits.length,pageErrors:errors}));return;
  }
  await env.openOverview(page);
+ if(voiceJourney){await voiceQueueJourney();return;}
  if(queueIdentity){await queueIdentityJourney();return;}
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}

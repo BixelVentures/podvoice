@@ -894,6 +894,8 @@
           "method:send": 1,
           "arrow:current": 5,
           "arrow:unknown": 1,
+          "method:readRobotDraft": 1,
+          "method:showRobotDraft": 1,
           "method:renewRobotTask": 1,
           "method:scheduleRobotTaskExpiry": 1,
           "method:currentVolumeOffer": 1,

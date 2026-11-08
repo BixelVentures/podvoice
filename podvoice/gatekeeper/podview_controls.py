@@ -2192,20 +2192,38 @@ class TouchControls:
                 if len(matches) != 1:
                     return not_restored
                 remapped_areas.append(matches[0])
+            awaiting_water = False
             for selected in selections:
                 setting = old["settings"][selected["settingId"]]
                 value = setting["choices"][selected["choiceId"]]
-                matches = [
-                    (sid, cid)
+                matching_settings = [
+                    (sid, row)
                     for sid, row in fresh["settings"].items()
                     if all(row[key] == setting[key] for key in ("entity", "role", "service"))
-                    for cid, choice in row["choices"].items()
-                    if choice == value
                 ]
-                if len(matches) != 1:
+                if len(matching_settings) != 1:
                     return not_restored
-                sid, cid = matches[0]
-                remapped_settings.append({"settingId": sid, "choiceId": cid})
+                sid, row = matching_settings[0]
+                choices = [cid for cid, choice in row["choices"].items() if choice == value]
+                if (
+                    not choices
+                    and value == "extreme"
+                    and setting.get("synthetic_extreme") is True
+                    and "custom_water_flow" in row["choices"].values()
+                ):
+                    # The same device still advertises custom water, but no current
+                    # observation grants Extreme. Keep only the original draft source.
+                    awaiting_water = True
+                elif len(choices) != 1:
+                    return not_restored
+                else:
+                    remapped_settings.append({"settingId": sid, "choiceId": choices[0]})
+            if awaiting_water:
+                # These offers may still describe independent actions, but neither
+                # can admit a cleaning Start while this exact draft is unresolved.
+                source["draft_awaiting_water"] = True
+                task["draft_awaiting_water"] = True
+                return {"status": "awaiting_water"}
             return {
                 "status": "restored",
                 "optionId": oid,
@@ -2520,6 +2538,13 @@ class TouchControls:
         # caller labels/targets never do. Direct command's nested dispatch is
         # already traced by command(), so it must not emit a second pair.
         option = task["options"].get(body["optionId"])
+        if (
+            task.get("draft_awaiting_water")
+            and option is not None
+            and option["action"] == "start"
+            and option["schema"]["kind"] == "cleaning"
+        ):
+            return failure("draft_awaiting_water")
         if _reservation is not None or option is None:
             return await self._action_authorized(body, token, task, _reservation=_reservation)
         diagnostic = {

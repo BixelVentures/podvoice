@@ -32,7 +32,7 @@ const assertRobotObservation=async(page,requests,action)=>{
 (async()=>{try{
  const testNonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-robot-e2e-'));
- server=spawn(testEnv.python,[path.join(__dirname,'music_e2e_server.py')],{cwd:testEnv.runtimeRoot,env:testEnv.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,ROBOT_TEST:'1',ROBOT_SLOW_START_TEST:process.env.ROBOT_SLOW_START_TEST||'0',ROBOT_DRAFT_TEST:process.env.ROBOT_DRAFT_TEST||'0',PODVIEW_TEST_NONCE:testNonce}),stdio:['ignore','pipe','pipe']});
+ server=spawn(testEnv.python,[path.join(__dirname,'music_e2e_server.py')],{cwd:testEnv.runtimeRoot,env:testEnv.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,ROBOT_TEST:'1',ROBOT_SLOW_START_TEST:process.env.ROBOT_SLOW_START_TEST||'0',ROBOT_DRAFT_TEST:process.env.ROBOT_DRAFT_TEST||'0',ROBOT_LONG_SESSION_TEST:process.env.ROBOT_LONG_SESSION_TEST||'0',PODVIEW_TEST_NONCE:testNonce}),stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
@@ -218,66 +218,126 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert(await extreme.isChecked());
   await both.tap();
   for(const option of [extreme,max,fast,twice])await option.tap();
+  const chosenOptions=[both,extreme,max,fast,twice];
+  for(const option of chosenOptions)assert(await option.isChecked());
+  const waterRecovery=process.env.ROBOT_WATER_RECOVERY_TEST==='1';
+  const longSession=process.env.ROBOT_LONG_SESSION_TEST==='1';
+  assert(!(waterRecovery&&longSession),'select the water recovery or 600 s journey');
   const before=await host.evaluate(h=>({task:h.liveControls.task?.taskId,
    expiresAt:h.liveControls.task?.expiresAt,now:Date.now()/1000,
-   draft:h.liveControls.robotPanel?.readCleaningDraft?.()}));
+   bootId:h.liveControls.task?.bootId,roomId:h.liveControls.task?.roomId,
+   optionId:h.liveControls.robotPanel?.cleaningOptionId,
+   draft:h.liveControls.robotPanel?.readCleaningDraft?.(),documentStartedAt:performance.timeOrigin}));
   assert(before.task&&before.expiresAt>before.now&&before.expiresAt-before.now<=8.5);
   assert.equal(before.draft.areaIds.length,1);
   assert.equal(before.draft.repeat,2);
   assert.deepEqual((await state()).robot.writes,[]);
 
-  await page.locator('#header-title-action').tap();
-  await page.locator('#show-photo').tap();
-  await page.locator('#photo-view').waitFor({state:'visible'});
-  for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
-   if(n>120)throw Error('server-issued task did not expire');
-   await sleep(100);
+  const waitingSince=performance.now();
+  if(longSession){
+   console.log('S4: waiting 600 s with the original robot Start settings');
+   while(performance.now()-waitingSince<600000){
+    await sleep(Math.ceil(600000-(performance.now()-waitingSince)));
+   }
+   await page.locator('#photo-view').waitFor({state:'visible'});
+  }else{
+   await page.locator('#header-title-action').tap();
+   await page.locator('#show-photo').tap();
+   await page.locator('#photo-view').waitFor({state:'visible'});
+   if(!waterRecovery){
+    for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
+     if(n>120)throw Error('server-issued task did not expire');
+     await sleep(100);
+    }
+   }
   }
+  const reportWater=kind=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({robotWaterReport:kind})}).then(response=>response.json());
+  if(waterRecovery)await reportWater('stale');
   await testEnv.openOverview(page);
   await card.waitFor({timeout:15000});
   await card.tap();
   await room.waitFor({state:'visible',timeout:15000});
+  if(waterRecovery){
+   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.task?.draft?.status==='awaiting_water');
+   assert(await panel.getByText('Dine valg er bevaret. Start afventer en aktuel vandstatus.').isVisible());
+   assert(await extreme.isChecked());
+   assert(await extreme.isDisabled());
+   assert.equal(await room.getAttribute('aria-pressed'),'true');
+   assert(await twice.isChecked());
+   const start=panel.getByRole('button',{name:'Start i Køkkenalrum',exact:true});
+   assert(await start.isDisabled());
+   const posts=()=>requests.filter(item=>new URL(item.url).pathname==='/view/api/control/actions');
+   const deferred=await host.evaluate(async h=>{
+    const task=h.liveControls.task;
+    const start=task.options.find(option=>option.action==='start');
+    const schema=start.argsSchema;
+    const args={areaIds:[schema.areas[0].id],repeat:2,
+     settingChoices:schema.settings.map(setting=>({settingId:setting.id,
+      choiceId:setting.current||setting.choices[0].id}))};
+    await h.liveControls.send(start.id,args);
+    return {bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,optionId:start.id,args};
+   });
+   assert.deepEqual(posts(),[]);
+   const original={bootId:before.bootId,roomId:before.roomId,taskId:before.task,optionId:before.optionId,
+    args:{areaIds:before.draft.areaIds,repeat:before.draft.repeat,settingChoices:[]}};
+   const refusals=await page.evaluate(async offers=>Promise.all(offers.map(async offer=>{
+    const response=await fetch('/view/api/control/actions',{method:'POST',credentials:'same-origin',
+     headers:{'Content-Type':'application/json','X-PodView-Request':'1'},
+     body:JSON.stringify({...offer,revision:1,requestId:crypto.randomUUID()})});
+    return response.json();
+   })),[original,deferred]);
+   for(const refusal of refusals)assert.deepEqual(refusal,{ok:false,error:'draft_awaiting_water',retryAllowed:false});
+   assert.equal(posts().length,2);
+   assert.deepEqual((await state()).robot.writes,[]);
+   await reportWater('fresh');
+  }
   await page.waitForFunction(old=>{
    const task=document.querySelector('pv-widget-host')?.liveControls?.task;
    return task?.taskId&&task.taskId!==old&&task.draft?.status==='restored';
   },before.task,{timeout:15000});
   assert.equal(await room.getAttribute('aria-pressed'),'true','fresh server remap retains the selected room');
-  for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
-  const lastRead=await host.evaluate(h=>({task:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt,
-   observedAt:h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt}));
-  const readPath=url=>url.pathname==='/view/api/home';
-  await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_robot_read_transient'}}),{times:1});
-  const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
-  await host.evaluate(h=>h.loadLiveHome());
-  assert.deepEqual(await (await failedRead).json(),{error:'inert_robot_read_transient'});
-  assert(await host.evaluate(h=>h.liveTransport.connected&&h.state.devices.find(d=>d.id==='vacuum.qrevo')?.stale));
-  assert.equal(await room.count(),1,'same-owner read failure keeps the dirty room controls mounted');
-  assert.equal(await room.getAttribute('aria-pressed'),'true');
-  assert.equal(await room.isDisabled(),true,'retained draft has no authority while robot observation is stale');
-  const staleAt=await host.evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt);
-  assert.equal(staleAt,lastRead.observedAt);
-  const expectedClock=await page.evaluate(at=>new Date(at*1000)
-   .toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),staleAt);
-  assert(await panel.getByText(`Sidst opdateret kl. ${expectedClock}`,{exact:false}).isVisible());
-  for(const [index,{x,y}] of (await geometry()).entries()){
-   assert(Math.abs(x-positions.both[index].x)<0.5&&Math.abs(y-positions.both[index].y)<0.5);
+  for(const option of chosenOptions)assert(await option.isChecked());
+  let lastRead;
+  if(longSession){
+   assert.equal(await page.evaluate(()=>performance.timeOrigin),before.documentStartedAt);
+  }else if(!waterRecovery){
+   lastRead=await host.evaluate(h=>({task:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt,
+    observedAt:h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt}));
+   const readPath=url=>url.pathname==='/view/api/home';
+   await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_robot_read_transient'}}),{times:1});
+   const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
+   await host.evaluate(h=>h.loadLiveHome());
+   assert.deepEqual(await (await failedRead).json(),{error:'inert_robot_read_transient'});
+   assert(await host.evaluate(h=>h.liveTransport.connected&&h.state.devices.find(d=>d.id==='vacuum.qrevo')?.stale));
+   assert.equal(await room.count(),1,'same-owner read failure keeps the dirty room controls mounted');
+   assert.equal(await room.getAttribute('aria-pressed'),'true');
+   assert.equal(await room.isDisabled(),true,'retained draft has no authority while robot observation is stale');
+   const staleAt=await host.evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt);
+   assert.equal(staleAt,lastRead.observedAt);
+   const expectedClock=await page.evaluate(at=>new Date(at*1000)
+    .toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),staleAt);
+   assert(await panel.getByText(`Sidst opdateret kl. ${expectedClock}`,{exact:false}).isVisible());
+   for(const [index,{x,y}] of (await geometry()).entries()){
+    assert(Math.abs(x-positions.both[index].x)<0.5&&Math.abs(y-positions.both[index].y)<0.5);
+   }
+   assert.deepEqual((await state()).robot.writes,[]);
+   // The ordinary next home poll restores the draft even when its old offer has expired.
+   await page.waitForFunction(old=>{
+    const h=document.querySelector('pv-widget-host');
+    const device=h?.state.devices.find(d=>d.id==='vacuum.qrevo');
+    const start=h?.liveControls.robotPanel?.cleaningSubmit;
+    const task=h?.liveControls.task;
+    return device?.live&&!device.stale&&start&&!start.disabled&&task?.taskId!==old.task
+     &&task?.draft?.status==='restored'&&Date.now()>=old.expiresAt*1000;
+   },lastRead,{timeout:25000});
+   assert.equal(await room.getAttribute('aria-pressed'),'true','recovery retains the unsent draft without reload');
+   for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+   await mop.tap();
+   assert(await extreme.isChecked(),'the other mode draft remains independently retained');
+   await both.tap();
+   for(const option of [extreme,max,fast,twice])assert(await option.isChecked());
   }
-  assert.deepEqual((await state()).robot.writes,[]);
-  // The ordinary next home poll restores the draft even when its old offer has expired.
-  await page.waitForFunction(old=>{
-   const h=document.querySelector('pv-widget-host');
-   const device=h?.state.devices.find(d=>d.id==='vacuum.qrevo');
-   const start=h?.liveControls.robotPanel?.cleaningSubmit;
-   const task=h?.liveControls.task;
-   return device?.live&&!device.stale&&start&&!start.disabled&&task?.taskId!==old.task
-    &&task?.draft?.status==='restored'&&Date.now()>=old.expiresAt*1000;
-  },lastRead,{timeout:25000});
-  assert.equal(await room.getAttribute('aria-pressed'),'true','recovery retains the unsent draft without reload');
-  for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
-  await mop.tap();
-  assert(await extreme.isChecked(),'the other mode draft remains independently retained');
-  await both.tap();
-  for(const option of [extreme,max,fast,twice])assert(await option.isChecked());
   assert.deepEqual((await state()).robot.writes,[]);
 
   const response=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
@@ -299,10 +359,16 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert.equal(final.state,'cleaning');
   assert.deepEqual(errors,[]);
   assert(loadedBundleSha256&&loadedCssSha256);
-  const proof={outcome:'PASS',actualServerTaskExpiry:true,hiddenThenReopened:true,serverRemapped:true,
-   modeNames,positions,retainedThroughStaleRead:true,recoveredOnPassivePoll:true,lastRead,receipt,
-   inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
-  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-draft-start-proof.json'),JSON.stringify(proof,null,2));
+  const proof={outcome:'PASS',actualServerTaskExpiry:!waterRecovery,hiddenThenReopened:true,serverRemapped:true,
+   modeNames,positions,receipt,inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
+  if(longSession)Object.assign(proof,{story:'S4',realElapsedMs:Math.floor(performance.now()-waitingSince),
+   wokeFromRoInSameDocument:true,originalSelection:{room:'Køkkenalrum',mode:modeNames[0],water:'Extreme',
+    suction:'Maks.',route:'Hurtig',repeat:before.draft.repeat}});
+  else if(waterRecovery)Object.assign(proof,{retainedWhileWaterUnavailable:true,
+   freshIndependentWaterObservation:true,directOwnerRefusals:2,automaticWrites:0});
+  else Object.assign(proof,{retainedThroughStaleRead:true,recoveredOnPassivePoll:true,lastRead});
+  const proofFile=longSession?'podview-robot-long-session-start.json':'podview-robot-draft-start-proof.json';
+  await fs.writeFile(path.join(testEnv.artifactDir(),proofFile),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));
   return;
  }

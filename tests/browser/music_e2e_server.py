@@ -37,7 +37,11 @@ logging.basicConfig(level=logging.WARNING)
 music = Rig()
 room_owner(music)
 extended = os.environ.get("MUSIC_EXTENDED") == "1"
+manual_retry = os.environ.get("MUSIC_MANUAL_RETRY_TEST") == "1"
+retry_events_transport = None
+retry_transport_blocked = False
 output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
+multi_screen = os.environ.get("MUSIC_MULTI_SCREEN_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
 external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
 original_client = music.client
@@ -59,6 +63,7 @@ receipts = {}
 service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
 robot_draft = os.environ.get("ROBOT_DRAFT_TEST") == "1"
+robot_long_session = os.environ.get("ROBOT_LONG_SESSION_TEST") == "1"
 robot_observation = os.environ.get("ROBOT_OBSERVATION_TEST") == "1"
 robot_dock = os.environ.get("ROBOT_DOCK_TEST") == "1"
 robot_slow_posts = []
@@ -108,6 +113,10 @@ if robot is not None:
                 "unique_id": ROBOT,
                 "model": "roborock.vacuum.a75",
             }
+            now = time.time()
+            if robot_long_session and now - water["statusObservedAt"] >= 20:
+                # Model routine native status reports without changing settings or sending a command.
+                water.update(statusObservedAt=now, messageSequence=water["messageSequence"] + 1)
             return httpx.Response(
                 200,
                 json={
@@ -252,19 +261,20 @@ def observation(args):
     value = project_owner("playback", raw, "account")["data"]
     if not args.get("include_output"):
         return value
-    if external:
+    if external or state.get("externalAuthority") == "occupied":
+        reason = "route_unavailable" if external else "ambiguous_output"
         # PodConnect room_transport.playback_output preserves account playback
         # but returns no room authority when its native output is unavailable.
         value.update(
             schema="podconnect.playback.v3"
             if args.get("include_controls")
             else "podconnect.playback.v2",
-            output={"status": "unavailable", "reason": "route_unavailable", "binding": None},
+            output={"status": "unavailable", "reason": reason, "binding": None},
         )
         if args.get("include_controls"):
             value["controls"] = {
                 "status": "unavailable",
-                "reason": "route_unavailable",
+                "reason": reason,
                 "binding_id": None,
                 "valid_until": None,
                 "supported_actions": [],
@@ -352,8 +362,10 @@ async def native_service(request):
             },
         )
     if path.endswith("get_playback_snapshot"):
+        if state.get("externalAuthority") == "unknown":
+            return httpx.Response(503)
         return httpx.Response(200, json={"service_response": observation(args)})
-    if state.get("externalDevice"):
+    if state.get("externalDevice") or state.get("externalAuthority"):
         return httpx.Response(
             200,
             json={"service_response": {"ok": False, "error_kind": "room_transport_unavailable"}},
@@ -426,6 +438,8 @@ async def native_service(request):
         }
         value = move_receipt(args)
         value["session_volume_percent"] = state["volume"]
+        if multi_screen:
+            await emit_playback_changed()
         return httpx.Response(200, json={"service_response": value})
     if extended and path.endswith("get_room_volume_controls"):
         value = copy.deepcopy(music.value)
@@ -510,9 +524,15 @@ music.tools._discovery = replace(
     target_contracts=(("podconnect_get_targets", "a" * 64),),
     room_playback_seek=seek_test,
 )
-session, _ = owner()
-session._active = False
-session.sm.state = State.IDLE
+voice_journey = os.environ.get("MUSIC_VOICE_JOURNEY_TEST") == "1"
+if voice_journey:
+    from integration.test_thin_live import CaptureDevice, build
+
+    session, voice_sdk, _, _, _ = build(device=CaptureDevice())
+else:
+    session, _ = owner()
+    session._active = False
+    session.sm.state = State.IDLE
 session.tools = music.tools
 ha_clients = {}
 
@@ -632,6 +652,11 @@ if robot_draft:
 
 @web.middleware
 async def test_ingress(request, handler):
+    global retry_events_transport
+    if manual_retry and request.path == "/view/api/events":
+        retry_events_transport = request.transport
+    if manual_retry and retry_transport_blocked and request.path == "/view/api/snapshot":
+        return web.json_response({"error": "inert_transport_unavailable"}, status=503)
     if request.path.startswith("/view/"):
         headers = CIMultiDict(request.headers)
         headers["X-Remote-User-Id"] = "a" * 32
@@ -643,8 +668,14 @@ app.middlewares.insert(0, test_ingress)
 
 
 async def lab_state(request):
+    global retry_transport_blocked
     if request.method == "POST":
         args = await request.json()
+        if manual_retry and "blockRetryTransport" in args:
+            retry_transport_blocked = args["blockRetryTransport"]
+            if retry_transport_blocked:
+                assert retry_events_transport is not None
+                retry_events_transport.close()
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])
@@ -677,12 +708,28 @@ async def lab_state(request):
                 state["homepod"] = outputs[output]
             else:
                 raise web.HTTPBadRequest()
+        if multi_screen and "externalAuthority" in args:
+            authority = args["externalAuthority"]
+            if authority not in {"occupied", "unknown", None}:
+                raise web.HTTPBadRequest()
+            state["externalAuthority"] = authority
         state["sequence"] += 1
-        if args.keys() & {"externalPlaybackState", "externalSong", "externalOutput"}:
+        if args.keys() & {
+            "externalPlaybackState",
+            "externalSong",
+            "externalOutput",
+            "externalAuthority",
+        }:
             await emit_playback_changed()
         if robot is not None:
             if "robotBattery" in args:
                 robot.states[ROBOT]["attributes"]["battery_level"] = int(args["robotBattery"])
+            if robot_draft and "robotWaterReport" in args:
+                age = 75 if args["robotWaterReport"] == "stale" else 0
+                water.update(
+                    statusObservedAt=time.time() - age,
+                    messageSequence=water["messageSequence"] + 1,
+                )
             if "robotMop" in args:
                 robot.states[MOP]["state"] = args["robotMop"]
             if "robotState" in args:

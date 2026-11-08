@@ -26,7 +26,13 @@ for(const journey of only.length?only:journeys){
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'speaker-refresh')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_OUTPUT_TRANSFER_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'output-transfer')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_MULTI_SCREEN_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'multi-screen')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_MANUAL_RETRY_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'manual-retry')});
  if(journey==='music_selection_actual_e2e.cjs'){
+  runJourney(journey,{MUSIC_VOICE_JOURNEY_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'voice-queue')});
   runJourney(journey,{MUSIC_QUEUE_IDENTITY_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'queue-identity')});
   runJourney(journey,{MUSIC_RECENT_SESSION_TEST:'1',
@@ -67,6 +73,8 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{ROBOT_DOCK_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-dock')});
   runJourney(journey,{ROBOT_DRAFT_TEST:'1'});
+  runJourney(journey,{ROBOT_DRAFT_TEST:'1',ROBOT_WATER_RECOVERY_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-water-recovery')});
   runJourney(journey,{ROBOT_SLOW_START_TEST:'1'});
  }
  if(journey==='home_events_actual_e2e.cjs'){
