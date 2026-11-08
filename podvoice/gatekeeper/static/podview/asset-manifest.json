@@ -487,7 +487,7 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "24c414bc45a0d653fa8a64feef6a9421092e903908ed40e26572fb5b393a3f6d"
+      "sha256": "c49967ae2299d714195ce7086e7408b55b9b51363b77929dd07b0cd1a8a70eac"
     },
     {
       "path": "index.html",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "01311acd58a19648c190b2a39168d3c6e11edebcf52cc1cda1dc9fe52a5e7847"
+      "sha256": "d65a1aab48744a74201e2a49001958310127cc9d5c0b76054c809591866dfe0c"
     },
     {
       "path": "library.css",
@@ -523,7 +523,7 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "8a2b24d06a861ff8716e4a7c26b2f9fd22e04b9f34b05ceb7acb879535484a72"
+      "sha256": "667f653f3e8bcc171d257226f714fda9a4f2b3e68cbb04ecb483ad096f094f7f"
     },
     {
       "path": "light-room-view.js",
@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "9cb4a49d5e2b768b646cef8e4cff29605b29d29b7d4fe108ec3c3abcd37a6bb6"
+      "sha256": "a0644a81bf1c863448df5e9a30fe04312db6bbd6f0df5923908b24087b42c3b9"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "f7d2407c0573f9db322f7b87ad2f04e20488d1299eb0758d6ce89dedb2924507"
+      "sha256": "cac4be373cc954deea62c1d41b3bf3abe905da70d02e24490a57dffafdba2004"
     },
     {
       "path": "podview.css",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "3a94fc91b419bebf27a38930ebae791f6133ae8bd1524f3b568866c102736947"
+      "sha256": "3aa976a671328ce73dbd728f7db4f01f3f8bbcfc0ca3321e03a5f4fc169dc5b0"
     },
     {
       "path": "workshop.css",
