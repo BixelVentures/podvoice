@@ -88,6 +88,138 @@ async def test_sleeping_startup_real_cached_closed_reaches_addon_with_source_tim
     assert rig.vehicle.coordinator.data == {"state": "asleep"}
 
 
+@pytest.fixture
+def charging_rig(rig):
+    for role in ("charging", "powerKw", "endsAt"):
+        eid = f"sensor.{role.lower()}"
+        rig.entities[role] = eid
+        rig.rows[eid] = NS(
+            id=role,
+            platform="tesla_fleet",
+            config_entry_id="fleet",
+            device_id="car",
+            disabled_by=None,
+            translation_key=snapshot.ROLES[role][1],
+        )
+    rig.frame["charge_state"].update(
+        charging_state="Charging", charger_power=11, minutes_to_full_charge=45
+    )
+    rig.vehicle.coordinator.data = {
+        f"{block}_{key}": value for block, row in rig.frame.items() for key, value in row.items()
+    }
+    rig.call.data = {**rig.request, "include_charge_eta": True}
+    return rig
+
+
+async def test_fresh_charging_eta_uses_original_fleet_time_and_never_enters_history(
+    charging_rig, monkeypatch
+):
+    rig = charging_rig
+    store = NS(async_load=AsyncMock(return_value={}), async_save=AsyncMock())
+    monkeypatch.setattr(snapshot, "_history_store", lambda _: store)
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+
+    async def service_read(_):
+        return await rig.owner.async_read(rig.call)
+
+    first = await addon.read_snapshot(scope, service_read=service_read, current=lambda: True)
+    assert first["data"]["charging"] == {
+        "status": "charging",
+        "powerKw": 11,
+        "endsAt": rig.now - 30 + 45 * 60,
+    }
+    assert first["fieldObservedAt"]["charging.endsAt"] == rig.now - 30
+    assert "charging.endsAt" not in json.dumps(store.async_save.await_args.args)
+    store.async_load.return_value = store.async_save.await_args.args[0]
+
+    monkeypatch.setattr(snapshot, "time", NS(time=lambda: rig.now + 40))
+    second = await addon.read_snapshot(
+        scope, service_read=service_read, current=lambda: True, now=lambda: rig.now + 40
+    )
+    assert second["data"]["charging"] == first["data"]["charging"]
+    assert rig.read.await_count == 0
+
+    rig.vehicle.coordinator.data.pop("charge_state_minutes_to_full_charge")
+    third = await addon.read_snapshot(scope, service_read=service_read, current=lambda: True)
+    assert third["data"]["charging"] == {"status": "charging", "powerKw": 11}
+    assert "charging.endsAt" not in third["fieldObservedAt"]
+    assert "charging.endsAt" not in third["historicalFields"]
+    assert rig.read.await_count == 0
+
+
+async def test_legacy_snapshot_request_keeps_legacy_shape(charging_rig):
+    rig = charging_rig
+    rig.call.data = rig.request
+    value = await rig.owner.async_read(rig.call)
+    assert value["status"] == "observed"
+    assert value["data"]["charging"] == {"status": "charging", "powerKw": 11}
+    assert "charging.endsAt" not in value["fieldObservedAt"]
+
+
+@pytest.mark.parametrize(
+    ("minutes", "age", "status"),
+    [
+        (0, 30, "Charging"),
+        (-1, 30, "Charging"),
+        (True, 30, "Charging"),
+        ("45", 30, "Charging"),
+        (float("nan"), 30, "Charging"),
+        (float("inf"), 30, "Charging"),
+        (10081, 30, "Charging"),
+        (1, 90, "Charging"),
+        (45, 901, "Charging"),
+        (45, 30, "Stopped"),
+    ],
+)
+async def test_invalid_expired_or_noncharging_eta_does_not_erase_other_facts(
+    charging_rig, minutes, age, status
+):
+    rig = charging_rig
+    rig.vehicle.coordinator.data.update(
+        charge_state_minutes_to_full_charge=minutes,
+        charge_state_timestamp=(rig.now - age) * 1000,
+        charge_state_charging_state=status,
+    )
+    result = await rig.owner.async_read(rig.call)
+    assert result["data"]["charging"]["powerKw"] == 11
+    assert "endsAt" not in result["data"]["charging"]
+
+
+@pytest.mark.parametrize(
+    "fault", ["unscoped", "no_stamp", "wrong_stamp", "invalid_stamp", "history", "expired"]
+)
+async def test_snapshot_eta_admission_drops_only_optional_field(charging_rig, fault):
+    rig = charging_rig
+    value = await rig.owner.async_read(rig.call)
+    assert "endsAt" in value["data"]["charging"]
+    if fault == "unscoped":
+        rig.entities.pop("endsAt")
+        value["entities"].pop("endsAt")
+    elif fault == "no_stamp":
+        value["fieldObservedAt"].pop("charging.endsAt")
+    elif fault == "wrong_stamp":
+        value["fieldObservedAt"]["charging.endsAt"] -= 1
+    elif fault == "invalid_stamp":
+        value["fieldObservedAt"]["charging.endsAt"] = "invalid"
+    elif fault == "history":
+        value["historicalFields"].append("charging.endsAt")
+    elif fault == "expired":
+        value["data"]["charging"]["endsAt"] = rig.now - 1
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+    result = await addon.read_snapshot(
+        scope, service_read=AsyncMock(return_value=value), current=lambda: True
+    )
+    assert result["status"] == "observed"
+    assert result["data"]["charging"] == {"status": "charging", "powerKw": 11}
+    assert result["data"]["batteryPercent"] == 95
+    assert "charging.endsAt" not in result["fieldObservedAt"]
+    assert "charging.endsAt" not in result["historicalFields"]
+
+
 @pytest.mark.parametrize(
     "raw",
     [

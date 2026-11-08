@@ -30,6 +30,7 @@ ROLES = {
 }
 BLOCKS = ("charge_state", "climate_state", "vehicle_state")
 TTL = 900
+MAX_CHARGE_ETA_MINUTES = 7 * 24 * 60
 CACHE_SECONDS = 300
 ERROR_SECONDS = 60
 MAX_BYTES = 65536
@@ -187,6 +188,29 @@ def _project_coordinator(coordinator, entities):
         return project(frame, entities, now=time.time())
     except (ValueError, TypeError, OverflowError):
         return {}, {}
+
+
+def _charging_eta(coordinator, entities, fields, historical, now):
+    if "endsAt" not in entities or "charging.status" in historical:
+        return None
+    raw = coordinator.data
+    if type(raw) is not dict or raw.get("charge_state_charging_state") != "Charging":
+        return None
+    stamp = raw.get("charge_state_timestamp")
+    minutes = raw.get("charge_state_minutes_to_full_charge")
+    if not _number(stamp, (now - TTL) * 1000, now * 1000) or not _number(
+        minutes, 0, MAX_CHARGE_ETA_MINUTES
+    ):
+        return None
+    observed = stamp / 1000
+    # The provider countdown belongs to the original charge observation, never this read.
+    ends_at = observed + minutes * 60
+    if ends_at <= now or fields.get("charging.status") != {
+        "value": "charging",
+        "observedAt": observed,
+    }:
+        return None
+    return {"value": ends_at, "observedAt": observed}
 
 
 def _field_block(path):
@@ -358,8 +382,9 @@ class VehicleSnapshot:
             raise ValueError("authenticated Supervisor required")
         request = dict(call.data)
         trunk_control = request.pop("trunk_control", False)
-        if type(trunk_control) is not bool:
-            raise ValueError("invalid trunk control read")
+        include_charge_eta = request.pop("include_charge_eta", False)
+        if type(trunk_control) is not bool or type(include_charge_eta) is not bool:
+            raise ValueError("invalid snapshot read options")
         owner = self._resolve(request)
         entry, _runtime, vehicle, _api, coordinator, identity = owner
         entities = dict(request["entities"])
@@ -580,7 +605,6 @@ class VehicleSnapshot:
                 result["historicalFields"] = sorted(historical)
             except (OSError, ValueError, TypeError, ImportError):
                 result["historicalFields"] = []
-        result["fieldObservedAt"] = {path: row["observedAt"] for path, row in fields.items()}
         if (
             "trunk" in fields
             and "trunk" not in coordinator_fields
@@ -589,6 +613,14 @@ class VehicleSnapshot:
         ):
             # A cached trunk value is display history if current evidence is missing.
             result["historicalFields"] = sorted([*result["historicalFields"], "trunk"])
+        if include_charge_eta:
+            eta = _charging_eta(
+                coordinator, entities, fields, result["historicalFields"], time.time()
+            )
+            if eta is not None:
+                # This estimate stays out of Store history and the API read cache.
+                fields = {**fields, "charging.endsAt": eta}
+        result["fieldObservedAt"] = {path: row["observedAt"] for path, row in fields.items()}
         data, stamps = _assemble_vehicle(fields)
         if not current():
             return {

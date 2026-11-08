@@ -28,6 +28,7 @@ lifecycle_roles = {
     "rangeKm": ("sensor.range", "charge_state_battery_range"),
     "charging": ("sensor.charging", "charge_state_charging_state"),
     "powerKw": ("sensor.power", "charge_state_charger_power"),
+    "endsAt": ("sensor.charge_end", "charge_state_minutes_to_full_charge"),
     "locked": ("lock.car", "vehicle_state_locked"),
     "trunk": ("cover.trunk", "vehicle_state_rt"),
 }
@@ -42,7 +43,7 @@ if lifecycle:
 control_fields = {
     ("lock" if role == "locked" else role): eid
     for role, eid in fields.items()
-    if not lifecycle or role not in {"batteryPercent", "rangeKm", "charging", "powerKw"}
+    if not lifecycle or role not in {"batteryPercent", "rangeKm", "charging", "powerKw", "endsAt"}
 }
 state = {"climate": "off", "temperature": 20.0}
 writes = []
@@ -52,6 +53,7 @@ lock_state_override = None
 trunk_control_state = None
 lock_send_timeout = False
 phase_observed = time.time() - 0.2
+charging_ends_at = None
 hold = False
 started = asyncio.Event()
 release = asyncio.Event()
@@ -70,7 +72,7 @@ def lifecycle_snapshot(body):
         "config_entry_id": "entry-a",
         "device_id": "device-a",
         "entities": scoped,
-        **({} if full else {"trunk_control": True}),
+        **({"include_charge_eta": True} if full else {"trunk_control": True}),
     }
     snapshot_reads.append({"phase": phase, "trunkOnly": not full})
     opened = phase == "changed"
@@ -100,6 +102,8 @@ def lifecycle_snapshot(body):
                 "temperatureStepC": 0.5,
             },
         )
+        if opened and charging_ends_at is not None:
+            data["charging"]["endsAt"] = charging_ends_at
         if phase in {"known", "historical", "closed"}:
             data["climate"]["defrost"] = False
         stamps.update(charge_state=stamp, climate_state=stamp)
@@ -130,6 +134,18 @@ async def ha(request):
     global hold, read_hold, followup_hold
     assert request.headers["Authorization"] == "Bearer test-token"
     path = request.url.path
+    if lifecycle and path == "/core/api/services":
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "domain": "podvoice",
+                    "services": {
+                        "vehicle_snapshot": {"fields": {"include_charge_eta": {"required": False}}}
+                    },
+                }
+            ],
+        )
     if path == "/core/api/services/podvoice/vehicle_snapshot":
         body = json.loads(request.content)
         if lifecycle:
@@ -357,7 +373,14 @@ app.middlewares.insert(0, ingress)
 
 
 async def lab(request):
-    global hold, read_hold, followup_hold, phase, phase_observed, fail_next_snapshot
+    global \
+        hold, \
+        read_hold, \
+        followup_hold, \
+        phase, \
+        phase_observed, \
+        fail_next_snapshot, \
+        charging_ends_at
     global lock_state_override, lock_send_timeout, trunk_control_state
     if request.method == "POST":
         body = await request.json()
@@ -382,6 +405,8 @@ async def lab(request):
             assert phase in {"historical", "partial", "changed", "closed", "unlocked"}
             if phase != "historical":
                 phase_observed = body.get("observationAt", time.time() - 0.01)
+            charging_ends_at = body.get("endsAt") if phase == "changed" else None
+            assert charging_ends_at is None or type(charging_ends_at) is int
             state["climate"] = "heat_cool" if phase == "changed" else "off"
         if body.get("hold"):
             hold = True
@@ -425,5 +450,11 @@ async def cleanup(_app):
     await client.aclose()
 
 
+async def discover_services(_app):
+    await tools._refresh_podconnect_services()
+
+
+if lifecycle:
+    app.on_startup.insert(0, discover_services)
 app.on_cleanup.append(cleanup)
 web.run_app(app, host="127.0.0.1", port=port, print=None)

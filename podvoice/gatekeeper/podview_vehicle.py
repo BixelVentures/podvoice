@@ -18,6 +18,7 @@ from datetime import datetime
 from typing import Any
 
 SOURCE_TTL = 900.0
+MAX_CHARGE_ETA_SECONDS = 7 * 24 * 60 * 60
 READ_TIMEOUT = 6.0
 MAX_BYTES = 64 * 1024
 ROLES = {
@@ -523,8 +524,8 @@ async def read_snapshot(
                 elif key == "charging":
                     if (
                         type(item) is not dict
-                        or not item
-                        or not item.keys() <= {"status", "powerKw"}
+                        or not item.keys() & {"status", "powerKw"}
+                        or not item.keys() <= {"status", "powerKw", "endsAt"}
                     ):
                         return unavailable
                     for field, n in item.items():
@@ -601,9 +602,33 @@ async def read_snapshot(
                 or type(field_times) is not dict
                 or len(field_times) > 20
                 or type(historical) is not list
+                or any(type(path) is not str for path in historical)
                 or len(set(historical)) != len(historical)
-                or any(type(path) is not str or path not in field_times for path in historical)
             ):
+                return unavailable
+            charging = data.get("charging", {})
+            if "endsAt" in charging:
+                eta_stamp = field_times.get("charging.endsAt")
+                charge_stamp = field_times.get("charging.status")
+                if (
+                    "endsAt" not in fields
+                    or charging.get("status") != "charging"
+                    or value["status"] != "observed"
+                    or "charging.endsAt" in historical
+                    or "charging.status" in historical
+                    or not number(eta_stamp, clock - SOURCE_TTL, clock)
+                    or eta_stamp != charge_stamp
+                    or eta_stamp != stamps.get("charge_state")
+                    or not number(charging["endsAt"], clock, eta_stamp + MAX_CHARGE_ETA_SECONDS)
+                    or charging["endsAt"] <= clock
+                ):
+                    data = {
+                        **data,
+                        "charging": {k: n for k, n in charging.items() if k != "endsAt"},
+                    }
+                    field_times = {k: t for k, t in field_times.items() if k != "charging.endsAt"}
+                    historical = [k for k in historical if k != "charging.endsAt"]
+            if any(path not in field_times for path in historical):
                 return unavailable
             if trunk_control and (
                 value["sourceIdentity"] not in {"coordinator", "coordinator_and_ha_state"}

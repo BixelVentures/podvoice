@@ -69,6 +69,64 @@ async def test_exact_passive_snapshot_service_preserves_source_time_and_false_ze
 
 
 @pytest.mark.parametrize(
+    "companion", ["legacy", "current", "rolled_back", "new_token", "unauthorized", "owner_error"]
+)
+async def test_charge_eta_opt_in_uses_existing_discovery_and_legacy_read(companion):
+    value = snapshot()
+    stamp = value["observedAt"]
+    entities = {**ENTITIES, "charging": "sensor.charging", "endsAt": "sensor.finish"}
+    value["entities"] = entities
+    value["data"]["charging"] = {"status": "charging"}
+    requests, owner_reads = [], []
+
+    def handler(request):
+        if request.method == "GET":
+            assert request.url.path == "/core/api/services"
+            fields = {} if companion == "legacy" else {"include_charge_eta": {"required": False}}
+            return httpx.Response(
+                200,
+                json=[{"domain": "podvoice", "services": {"vehicle_snapshot": {"fields": fields}}}],
+            )
+        assert request.url.path == "/core/api/services/podvoice/vehicle_snapshot"
+        opt_in = json.loads(request.content).get("include_charge_eta", False)
+        requests.append(opt_in)
+        if opt_in and companion in {"rolled_back", "unauthorized", "owner_error"}:
+            return httpx.Response(
+                {"rolled_back": 400, "unauthorized": 401, "owner_error": 500}[companion]
+            )
+        owner_reads.append(opt_in)
+        reply = copy.deepcopy(value)
+        if opt_in:
+            reply["data"]["charging"]["endsAt"] = stamp + 2700
+            reply["fieldObservedAt"] = {"charging.status": stamp, "charging.endsAt": stamp}
+            reply["historicalFields"] = []
+        return httpx.Response(200, json={"service_response": reply})
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        router = ToolRouter(None, client=client, supervisor_token="inert-token")
+        router._device_control._ws_read = AsyncMock(return_value=[])
+        router.configure_podview_vehicle_read(
+            json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": entities})
+        )
+        await router._refresh_podconnect_services()
+        if companion == "new_token":
+            router._token = router._device_control._token = "rotated-inert-token"
+        for _ in range(2):
+            result = await router.podview_vehicle_read()
+            if companion in {"unauthorized", "owner_error"}:
+                assert result["status"] == "unavailable"
+                continue
+            assert result["status"] == "observed"
+            assert result["data"]["batteryPercent"] == 0
+            assert ("endsAt" in result["data"]["charging"]) == (companion == "current")
+    if companion in {"unauthorized", "owner_error"}:
+        assert requests == [True, True] and owner_reads == []
+    else:
+        assert owner_reads == [companion == "current"] * 2
+        assert requests == ([True, False, False] if companion == "rolled_back" else owner_reads)
+
+
+@pytest.mark.parametrize(
     "case",
     [
         "wrong_entry",
