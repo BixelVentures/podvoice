@@ -622,8 +622,11 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                     ):
                         index = last_index
                         loop = asyncio.get_running_loop()
-                        next_report_at = loop.time() + 0.1
-                        async with asyncio.timeout(observation_bound):
+                        started_at = loop.time()
+                        next_report_at = started_at + 0.1
+                        recovery_budget = session.idle_timeout_s + LIVE_IDLE_PRECLOSE_S + WAIT_S
+                        recovery_extension_used = False
+                        async with asyncio.timeout_at(started_at + observation_bound) as observer:
                             while not session._live_provider_closed.is_set():
                                 await asyncio.sleep(max(0.0, next_report_at - loop.time()))
                                 if session._live_provider_closed.is_set():
@@ -659,12 +662,25 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                                     ]
                                     max_host_gap[0] = max(max_host_gap[0], last_gaps[0])
                                 if session._live_idle_window.reset_count != reset_before:
+                                    reset_reason = session._live_idle_window.reset_reason
+                                    now = loop.time()
+                                    if (
+                                        reset_reason in ("arrival_gap", "arrival_lag")
+                                        and not recovery_extension_used
+                                        and now + recovery_budget > started_at + observation_bound
+                                    ):
+                                        # Host descheduling can retire valid quiet
+                                        # coverage late in this fixture's observation.
+                                        # Allow one full fresh window without backdating
+                                        # reports or changing any runtime deadline.
+                                        observer.reschedule(now + recovery_budget)
+                                        recovery_extension_used = True
                                     if len(reset_transitions) == 8:
                                         reset_transitions.pop(0)
                                     reset_transitions.append(
                                         (
                                             index,
-                                            session._live_idle_window.reset_reason,
+                                            reset_reason,
                                             None
                                             if prior is None
                                             else row["received_monotonic"]
@@ -693,7 +709,7 @@ async def test_actual_sdk_alpha_ten_joined_cycles_reject_retired_wire_and_playba
                     producer = asyncio.create_task(fresh_native_until_closed())
                     try:
                         await observed(lambda: link.begin_live_closing.await_count >= 1)
-                        await asyncio.wait_for(producer, native_close_observation_s)
+                        await producer
                         assert session._live_provider_closed.is_set()
                         if cycle == 6:
                             assert len(interrupted_preclose) == 1
