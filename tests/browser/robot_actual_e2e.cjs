@@ -146,15 +146,24 @@ const assertRobotObservation=async(page,requests,action)=>{
    await sleep(50);
   }
   const readPath=url=>url.pathname==='/view/api/home';
-  const unavailable=route=>route.fulfill({status:503,json:{error:'inert_home_read_transient'}});
+  let releaseFailedRead;
+  const freshBaseline=new Promise(resolve=>{releaseFailedRead=resolve;});
+  const unavailable=async route=>{
+   // A passive Home read can arrive before the explicit probe. Sample the UI before either can fail.
+   await freshBaseline;
+   await route.fulfill({status:503,json:{error:'inert_home_read_transient'}});
+  };
   await page.route(readPath,unavailable);
   const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
   const readScope=()=>page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),
    bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
    connected:h.liveTransport.connected,stale:h.state.devices.find(row=>row.id==='vacuum.qrevo')?.stale===true}));
-  const scopeBefore=await readScope();
+  const scopeBefore=await readScope().finally(releaseFailedRead);
   await page.locator('pv-widget-host').evaluate(h=>h.loadLiveHome());
-  const failedResponse=await failedRead,scopeAfter=await readScope();
+  const failedResponse=await failedRead;
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.devices
+   .some(row=>row.id==='vacuum.qrevo'&&row.stale===true),undefined,{timeout:5000});
+  const scopeAfter=await readScope();
   const transientRead={status:failedResponse.status(),body:await failedResponse.json(),scopeBefore,scopeAfter,
    receipt:await capture()};
   assert.equal(scopeBefore.stale,false);
