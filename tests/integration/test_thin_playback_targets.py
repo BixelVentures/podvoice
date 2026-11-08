@@ -13,6 +13,7 @@ from unit.test_openai_live import call, created, terminal
 from gatekeeper.live_prompt import live_instructions
 from gatekeeper.mcp_client import HomeAssistantMCP
 from gatekeeper.prompt import SYSTEM_PROMPT_DA
+from gatekeeper.provider_budget import ProviderBudgetCoordinator
 from gatekeeper.talk import run_talk
 from gatekeeper.tools import ToolRouter
 
@@ -132,6 +133,18 @@ async def test_synthetic_thin_music_routing_receipts_and_external_playback_obser
         else:
             session, sdk, _, _, link = build()
         session.tools = router
+
+        def capacity_clock():
+            return 0.0
+
+        async def unexpected_refill(_delay):
+            raise AssertionError("routing fixture must admit each batch without a refill")
+
+        # This route test supplies no rate pressure. Keep its real admission
+        # checks while decoupling the synthetic provider clock from CI scheduling.
+        session.live_brain.provider_budget = ProviderBudgetCoordinator(monotonic=capacity_clock)
+        session.live_brain.capacity_monotonic = capacity_clock
+        session.live_brain.capacity_sleep = unexpected_refill
         try:
             if browser:
                 task = asyncio.create_task(run_talk(wire, session, link))
