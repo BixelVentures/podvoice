@@ -50,6 +50,26 @@ async function openCatalog(page){
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
  await page.locator('#recipe-view [data-recipe]').first().waitFor({state:'visible'});
 }
+async function checkHistoryOnlyRefresh(page){
+ assert.equal(sourceMode,'inert-fixture');
+ const history=page.locator('#recipe-upload-history-trigger');
+ const panel=page.locator('#recipe-upload-history-panel');
+ await history.scrollIntoViewIfNeeded();
+ await history.tap();
+ await panel.getByText('Der er ingen uploads endnu.',{exact:true}).waitFor();
+ await history.focus();
+ const url='https://example.com/podview-invalid';
+ const result=await page.evaluate(async url=>{
+  const response=await fetch('/api/podvoice/recipe-submissions',{method:'POST',
+   headers:{'Content-Type':'application/json',Authorization:'Bearer '+'x'.repeat(32)},body:JSON.stringify({url})});
+  return response.json();
+ },url);
+ assert.equal(result.status,'rejected');
+ await panel.getByText(url,{exact:true}).waitFor({state:'visible',timeout:16000});
+ assert.equal(await history.getAttribute('aria-expanded'),'true');
+ assert.equal(await history.evaluate(node=>document.activeElement===node),true);
+ console.log(JSON.stringify({outcome:'PASS',historyOnlyRefresh:true,disclosureFocusPreserved:true,sourceMode}));
+}
 async function readAndResumeBurgerboller(page){
  const recipe=page.locator('#recipe-view');
  const catalog=recipe.locator('[data-recipe-layout=catalog]');
@@ -206,6 +226,11 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  });
  page.on('pageerror',e=>errors.push(e.message));
  await openCatalog(page);
+ if(process.env.RECIPE_HISTORY_REFRESH_TEST==='1'){
+  await checkHistoryOnlyRefresh(page);
+  assert.deepEqual(errors,[]);
+  return;
+ }
  await readAndResumeBurgerboller(page);
  const entries=page.locator('#recipe-view [data-recipe-layout=catalog] > div').first();
  const all=page.locator('#recipe-view input[type=radio][value=""]');await all.locator('..').tap();
