@@ -319,8 +319,15 @@ test('typed current choice drives direct setting despite unrelated labels and ob
 test('all room shortcut explicitly selects offered areas and never emits native whole-home clean',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device,connected:true};const shortcut=panel.querySelectorAll('button').find(row=>row.textContent==='Vælg alle rum');emit(shortcut,'click');assert.deepEqual(actions,[]);assert.deepEqual(panel.readCleaningDraft(),{areaIds:['area-k','area-s'],repeat:1});emit(cleaningForm(panel),'submit');assert.equal(actions[0].optionId,'start-option');assert.deepEqual(actions[0].args.areaIds,['area-k','area-s']);emit(shortcut,'click');assert.deepEqual(panel.readCleaningDraft().areaIds,[]);
 });
-test('source-bound fault remains in the status Hero without a duplicate recovery panel',()=>{
- const panel=new RobotControlPanel(),now=Date.now()/1000;panel.data={task:{domain:'vacuum',options:[]},device:{...device,status:'fault',telemetry:{status:'observed',items:[{key:'vacuum_error',value:'main_brush_jammed',updatedAt:now}]}},connected:true};assert.equal(panel.observation.data.text,'Hovedbørsten sidder fast');assert.equal(panel.recovery.hidden,true);assert.equal(panel.recovery.children.length,0);assert.equal(panel.transportControls.parentNode,panel.observation);panel.observed(device);assert.equal(panel.recovery.hidden,true);
+test('source-bound fault stays in the Hero with its code behind closed details',()=>{
+ const panel=new RobotControlPanel(),now=Date.now()/1000;panel.data={task:{domain:'vacuum',options:[]},device:{...device,status:'fault',telemetry:{status:'observed',items:[{key:'vacuum_error',value:'main_brush_jammed',updatedAt:now}]}},connected:true};assert.equal(panel.observation.data.text,'Hovedbørsten sidder fast');
+ const details=panel.recovery.querySelector('details');
+ assert.equal(details.open,false);
+ assert.equal(details.querySelector('p').textContent,'Robot · main_brush_jammed');
+ assert.equal(panel.recovery.children.length,1);
+ assert.equal(panel.transportControls.parentNode,panel.observation);
+ panel.observed(device);
+ assert.equal(panel.recovery.hidden,true);
 });
 
 test('bound selected recipe summary remains distinct from observed settings beside status Hero Start',()=>{

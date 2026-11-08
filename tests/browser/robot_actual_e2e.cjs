@@ -99,23 +99,34 @@ const assertRobotObservation=async(page,requests,action)=>{
   const filter=panel.getByRole('button',{name:'Filter',exact:true});
   await filter.tap();
   assert(await panel.getByText(/vedligeholdelsesintervallet er nået/).isVisible());
-  await panel.getByRole('button',{name:'Skjul vedligeholdelse i dag',exact:true}).tap();
+  const dismiss=panel.getByRole('button',{name:'Skjul vedligeholdelse i dag',exact:true});
+  assert.equal(await dismiss.getAttribute('data-kit-variant'),'secondary');
+  await dismiss.tap();
   const snoozed=panel.getByText('Vedligeholdelse skjult i dag',{exact:true});
   assert(await snoozed.isVisible());
+  const counter=await page.locator('pv-widget-host').evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo')
+   ?.telemetry?.items.find(row=>row.key==='filter_time_left')?.value);
+  assert.equal(counter,-2,'the local snooze does not change the observed counter');
   await update({robotTelemetry:{filter_time_left:'-3',dock_error:'water_empty',
    clean_box_empty:'on',clean_percent:'unavailable'}});
   await warning.waitFor({state:'visible',timeout:22000});
   assert.equal(await panel.getByText('Rent vand mangler',{exact:true}).count(),1);
   assert(await snoozed.isVisible());
+  const technical=panel.locator('details.robot-error-code');
+  const rawCode=technical.getByText('Base · water_empty',{exact:true});
+  await technical.locator('summary').waitFor({state:'visible',timeout:2000});
+  assert.equal(await rawCode.isVisible(),false);
+  await technical.locator('summary').tap();
+  assert(await rawCode.isVisible());
   assert.equal(await progress.isVisible(),false);
   assert.equal(await panel.locator('progress:visible').count(),0,'missing progress never synthesizes a percentage');
   const writes=(await state()).robot.writes.filter(([service])=>!service.startsWith('services/podvoice/'));
   assert.deepEqual(writes,[],'maintenance and telemetry changes never operate the robot');
   assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-observation-fault.png')});
-  const proof={outcome:'PASS',stories:['S1','S9','S10','S11'],loadedBundleSha256,
+  const proof={outcome:'PASS',stories:['S1','S9','S10','S11','S15','S16'],loadedBundleSha256,
    battery:78,currentRoom:'Køkkenalrum',knownProgress:42,missingProgressHidden:true,
-   cleanWaterWarningCount:1,maintenanceSnoozeRetained:true,nativeEffects:0};
+   cleanWaterWarningCount:1,maintenanceSnoozeRetained:true,technicalCodeInDisclosure:true,nativeEffects:0};
   await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-observation-proof.json'),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));
   return;
