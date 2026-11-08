@@ -66,11 +66,16 @@ test('live read-only player and radio routes open without granting local media o
  assert.equal(liveTimerRequest(snapshot,true,{type:'timer',id:timer.id,action:'cancel'}),null,'opening either route cannot manufacture a native action capability');
 });
 
-test('live weather access permits empty detail but a revoked capability overrides cached display data',()=>{
- const event={type:'show',id:'weather'},scene={...initialScene(),liveWeather:null};
- assert.equal(liveLocalEvent(event,scene,{homeRead:['weather']}),true);
- assert.equal(liveLocalEvent(event,scene,{homeRead:['vehicle']}),false);
- assert.equal(liveLocalEvent(event,{...scene,liveWeather:{current:{temperature:12}}},{homeRead:[]}),false);
+test('live weather access permits empty detail and requires a current capability', () => {
+ const event = {type: 'show', id: 'weather'};
+ const scene = {...initialScene(), liveWeather: null};
+ const snapshot = {bootId: 'boot', roomId: 'room', capabilities: {homeRead: ['weather']}};
+ assert.equal(liveLocalEvent(event, scene, snapshot), true);
+ const staleDenial = {...scene, homeReadStatus: {scope: '["old-boot","room"]', weather: 'denied'}};
+ assert.equal(liveLocalEvent(event, staleDenial, snapshot), true);
+ const cached = {...scene, liveWeather: {current: {temperature: 12}}};
+ assert.equal(liveLocalEvent(event, cached, {capabilities: {homeRead: ['vehicle']}}), false);
+ assert.equal(liveLocalEvent(event, cached), false);
 });
 
 test('native adjust requires exact current revision and native duration without history fallback',()=>{
