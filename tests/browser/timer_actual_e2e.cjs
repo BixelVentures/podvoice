@@ -31,7 +31,9 @@ async function timerReloadJourney(page,errors,actions){
  await page.locator('#open-timers').tap();
  await page.getByRole('form',{name:'Ny timer'}).getByRole('button',{name:'Start timer'}).tap();
  const started=await waitOwner(s=>s.timers.length===1);
- const id=started.timers[0].id,deadline=started.deadlines[id],epoch=started.epoch;
+ const id=started.timers[0].id,epoch=started.epoch;
+ const originalDeadline=started.deadlines[id];
+ let deadline=originalDeadline;
  assert(deadline>started.ownerNow);
  const timer=page.locator(`#now-view [data-timer-id="${id}"] .timer-count`);
  const sameNativeTimer=async()=>{
@@ -61,6 +63,31 @@ async function timerReloadJourney(page,errors,actions){
   return {display,seconds,sourceSeconds:observed.secondsLeft,nativeNow:current.ownerNow};
  };
  const first=await renderedTimer();
+ await page.waitForFunction(({id,first})=>{
+  const timer=document.querySelector(`#now-view [data-timer-id="${id}"] .timer-count`);
+  if(!timer)return false;
+  const [minutes,seconds]=timer.textContent.trim().split(':').map(Number);
+  return minutes*60+seconds<first;
+ },{id,first:first.seconds},{timeout:3000});
+ await page.locator('#now-view .timer-open').tap();
+ const detail=page.locator(`#timers-view [data-timer-id="${id}"]`);
+ for(const [name,delta] of [['1 minut mere',60],['1 minut mindre',-60]]){
+  await detail.getByRole('button',{name,exact:true}).tap();
+  deadline+=delta;
+  const adjusted=await waitOwner(s=>s.deadlines[id]===deadline);
+  const seconds=adjusted.native.timers.find(item=>item.id===id).duration_seconds;
+  await page.waitForFunction(({id,seconds})=>{
+   const host=document.querySelector('pv-widget-host');
+   const item=host?.liveSnapshot?.timers?.items?.find(t=>t.id===id);
+   return item?.durationSeconds===seconds&&!host.liveTimerAction;
+  },{id,seconds});
+  const [minutes,remainder]=(await detail.locator('.timer-count').innerText()).split(':').map(Number);
+  assert(Math.abs(minutes*60+remainder-Math.ceil(deadline-(await state()).ownerNow))<=2);
+  await sameNativeTimer();
+ }
+ assert.equal(deadline,originalDeadline);
+ await page.locator('#header-title-action').tap();
+ await timer.waitFor({state:'visible'});
  assert.equal(await audioCalls(),0);
  await page.reload({waitUntil:'domcontentloaded'});
  await env.openOverview(page);
@@ -108,8 +135,10 @@ async function timerReloadJourney(page,errors,actions){
  assert.deepEqual(final.finished,[]);
  assert.equal(final.starts,1);
  assert.deepEqual(final.finishedCallbacks,[id]);
- assert.deepEqual(final.commands.map(c=>c.action),['start','cancel','acknowledge_finished']);
- assert.deepEqual(actions.map(c=>c.action),['timer.start','timer.cancel']);
+ assert.deepEqual(final.commands.map(c=>c.action),['start','adjust','adjust','cancel','acknowledge_finished']);
+ assert.deepEqual(actions.map(c=>c.action),['timer.start','timer.adjust','timer.adjust','timer.cancel']);
+ assert.deepEqual(actions.filter(c=>c.action==='timer.adjust').map(c=>c.args.delta_seconds),[60,-60]);
+ assert.equal(final.nativeEffects.filter(c=>c.method==='add_time').length,2);
  assert.equal(await audioCalls(),0);
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',mode:'timer-reload',id,epoch,deadline,first,reloaded,reconnected,starts:final.starts,finishedCallbacks:final.finishedCallbacks,actions:actions.map(c=>c.action),audio:false,inertOwner:true}));

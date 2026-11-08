@@ -7,6 +7,9 @@ const {createHash}=require('node:crypto');
 const fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict');
 const port=Number(process.env.RADIO_TEST_PORT||18982),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+const configMode=process.env.RADIO_CONFIG_TEST;
+const privateFixtureTokens=configMode?[require('node:crypto').randomUUID(),require('node:crypto').randomUUID()]:[];
+const timingMode=process.env.RADIO_TIMING_TEST==='1';
 const stationOrderMode=process.env.RADIO_STATION_ORDER_TEST;
 const orderedStations=['1','unknown','rejected'].includes(stationOrderMode);
 // Read every bounded persisted page; a healthy trace may exceed the first64 rows.
@@ -14,6 +17,128 @@ const readJournal=async page=>{let result,after=0;const records=[];for(let count
 const radio=()=>fetch(base+'/lab/radio').then(r=>r.json());
 const settleMotion=()=>page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})))});
 let server,browser,page,bundleSHA,serverLog='';const actions=[],responses=[],errors=[];
+async function radioConfigJourney(stations){
+ const mismatch=configMode==='mismatch';
+ const expected=mismatch?'radio_native_auth_rejected':'radio_native_not_configured';
+ const model=await page.locator('pv-widget-host').evaluate(async host=>{
+  await host.liveRadio.refresh({immediate:true});
+  return host.liveRadio.value;
+ });
+ const snapshot=await state();
+ assert.equal(snapshot.radioReads,0,'no authenticated native read');
+ assert.equal(snapshot.radioDeniedReads>0,mismatch,'only configured client reaches native authentication');
+ assert.deepEqual(snapshot.radioWrites,[]);
+ assert.equal(actions.length,0);
+ assert.equal(await stations.locator('button:enabled').count(),0);
+ assert.equal(model.enabled,false);
+ assert.equal(model.actions.length,0);
+ const browserText=await page.locator('#radio-view').innerText();
+ const persisted=await readJournal(page);
+ for(const token of privateFixtureTokens){
+  const surfaces=[browserText,JSON.stringify(model),JSON.stringify(responses),JSON.stringify(persisted),serverLog];
+  assert(surfaces.every(value=>!value.includes(token)),'a fixture credential escaped the native boundary');
+ }
+ assert(model.blockedReasons.length===1&&model.blockedReasons[0]===expected,'precise radio configuration reason');
+ assert.match(browserText,mismatch?/PodConnect afviste radiotokenet/:/Radio mangler opsætning/);
+ assert.deepEqual(errors,[]);
+ if(process.env.RADIO_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RADIO_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',bundleSHA,radioConfig:configMode,safeReason:expected,
+  noCredentialExposure:true,actionPosts:0,nativeWrites:0,inertFinalService:true}));
+}
+async function radioConfigRecoveryJourney(stations){
+ const p3=stations.getByRole('button',{name:/P3/}),host=page.locator('pv-widget-host');
+ const read=()=>host.evaluate(async h=>{
+  await h.liveRadio.refresh({immediate:true});
+  return {revision:h.liveRadio.value.revision,playing:h.liveRadio.value.state.status==='playing',
+   active:h.liveRadio.current(),issue:h.liveRadio.setupIssue()};
+ });
+ const fault=async fault=>assert((await page.request.post(base+'/lab/radio',{data:{fault}})).ok());
+ await p3.tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='playing');
+ const healthy=await read();
+ assert(healthy.active&&healthy.playing);
+ await fault('reject');
+ const denied=await read();
+ assert.deepEqual(denied,{...healthy,active:false,issue:'radio_native_auth_rejected'});
+ assert.equal(await p3.isEnabled(),false);
+ assert.match(await page.locator('#radio-view').innerText(),/PodConnect afviste radiotokenet/);
+ await fault('unavailable');
+ const unavailable=await read();
+ assert.deepEqual(unavailable,{...healthy,active:false,issue:null});
+ assert.equal(await p3.isEnabled(),false);
+ await fault(null);
+ assert.deepEqual(await read(),healthy);
+ assert.equal(await p3.isEnabled(),true);
+ assert.equal(actions.filter(row=>row.url.endsWith('/radio/actions')).length,1);
+ assert.equal((await state()).radioWrites.length,1);
+ for(const token of privateFixtureTokens){
+  const surfaces=[await page.locator('body').innerText(),JSON.stringify(responses),JSON.stringify(await readJournal(page)),serverLog];
+  assert(surfaces.every(value=>!value.includes(token)),'a fixture credential escaped the native boundary');
+ }
+ assert.deepEqual(errors,[]);
+ if(process.env.RADIO_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RADIO_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',bundleSHA,radioConfig:'rotate',
+  noCredentialExposure:true,healthyRejectedUnavailableRecovered:true,revisionFloorRetained:true,noReplay:true}));
+}
+async function radioTimingJourney(stations){
+ const results=[];
+ for(const {action,control,expectedState,limit} of [
+  {action:'start',control:stations.getByRole('button',{name:/P3/}),expectedState:'playing',limit:3000},
+  {action:'stop',control:page.locator('#play-pause'),expectedState:'stopped',limit:1000},
+ ]){
+  await control.evaluate((node,action)=>{
+   window.radioInputPaint=null;
+   node.addEventListener('click',event=>{
+    if(!event.isTrusted)return;
+    const start=performance.now();
+    const frame=()=>{
+     const elapsedMs=performance.now()-start,cover=document.querySelector('#cover');
+     const identityReady=action==='stop'||document.querySelector('#track-name')?.textContent==='P3'
+      &&cover?.getAttribute('src')==='assets/radio-p3.svg'&&cover.naturalWidth>0;
+     if(node.getAttribute('aria-busy')==='true'&&identityReady){
+      window.radioInputPaint={start,elapsedMs};
+     }else if(elapsedMs<2000)requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+   },{capture:true,once:true});
+  },action);
+  const before=await state();
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  await page.route('**/view/api/radio/actions',async route=>{
+   await gate;
+   await route.continue();
+  },{times:1});
+  try{
+   await control.tap();
+   await page.waitForFunction(()=>window.radioInputPaint!==null,undefined,{timeout:3000});
+   const paintMs=await page.evaluate(()=>window.radioInputPaint.elapsedMs);
+   assert(paintMs<100,`${action} feedback took ${paintMs} ms`);
+   assert.deepEqual((await state()).radioWrites,before.radioWrites);
+   assert.equal((await radio()).state,action==='start'?'stopped':'playing');
+   release();
+   await page.waitForFunction(status=>{
+    const radio=document.querySelector('pv-widget-host')?.liveRadio;
+    const button=document.getElementById('play-pause');
+    return !radio?.pending&&radio.value?.state?.status===status
+     &&button?.getAttribute('aria-label')===(status==='playing'?'Stop radio':'Start radio ved livepunkt');
+   },expectedState,{timeout:10000});
+   const observedMs=await page.evaluate(()=>performance.now()-window.radioInputPaint.start);
+   assert(observedMs<limit,`${action} inert observed result took ${observedMs} ms`);
+   const after=await state();
+   assert.deepEqual(after.radioWrites.slice(before.radioWrites.length).map(row=>row.action),[action]);
+   results.push({action,paintMs,observedMs});
+  }finally{release();}
+ }
+ const writes=(await state()).radioWrites;
+ assert.equal(writes[0].station_id,'p3');
+ assert.equal(writes[0].target_id,'42');
+ assert.equal(actions.filter(row=>row.url.endsWith('/radio/actions')).length,2);
+ assert.deepEqual(errors,[]);
+ if(process.env.RADIO_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RADIO_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',bundleSHA,stories:['R1','R2'],results,
+  actualNativeRadioHTTP:true,inertFinalService:true,physicalAudioVerified:false}));
+}
 async function stationOrderJourney(stations){
  const station=name=>stations.getByRole('button',{name:new RegExp(name)});
  const p3=station('P3'),p1=station('P1'),p6=station('P6 Beat');
@@ -96,17 +221,23 @@ async function stationOrderJourney(stations){
 (async()=>{try{
  const testNonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-radio-'));
- server=spawn(env.python,[path.join(__dirname,'radio_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({RADIO_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:'1',PODVIEW_TEST_NONCE:testNonce}),stdio:['ignore','pipe','pipe']});
- server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
+ server=spawn(env.python,[path.join(__dirname,'radio_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({RADIO_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:'1',PODVIEW_TEST_NONCE:testNonce,
+  ...(configMode?{RADIO_FIXTURE_OWNER_TOKEN:privateFixtureTokens[0],RADIO_FIXTURE_CLIENT_TOKEN:privateFixtureTokens[1]}:{})}),stdio:['ignore','pipe','pipe']});
+ server.stderr.on('data',b=>{serverLog+=b.toString();if(!configMode)process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>300)throw Error('server startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  browser=await chromium.launch(env.browserOptions());page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
+ if(configMode||timingMode)await page.route('**/*',route=>
+  new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(/\/api\/(radio|music\/selection)/.test(r.url()))responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(radio|music\/selection)/.test(r.url()))actions.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
  const stations=page.locator('#radio-view pv-choice-list');
  await stations.getByRole('button',{name:/P3/}).waitFor({state:'visible',timeout:15000});
  assert.deepEqual((await state()).radioWrites,[],'navigation and passive state reads have no effects');
+ if(configMode==='rotate'){await radioConfigRecoveryJourney(stations);return;}
+ if(configMode){await radioConfigJourney(stations);return;}
+ if(timingMode){await radioTimingJourney(stations);return;}
  if(orderedStations){await stationOrderJourney(stations);return;}
  await stations.getByRole('button',{name:/P3/}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='playing'&&!h.liveRadio.pending&&h.liveRadio.value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});
@@ -178,7 +309,7 @@ async function stationOrderJourney(stations){
  await fs.writeFile(path.join(env.artifactDir(),'podview-radio-server-trace.json'),JSON.stringify(serverProof,null,2));
  await fs.writeFile(path.join(env.artifactDir(),'podview-radio-trace.json'),JSON.stringify({bundleSHA,service:final,radio:await radio(),actions,responses},null,2));
  console.log(JSON.stringify({outcome:'PASS',bundleSHA,actualPackagedPodView:true,actualNativeRadioHTTP:true,inertFinalService:true,stationStart:true,authoritativeOutput:'42',radioVolume:{gesture:'touch-drag',passivePaintDuringTouch:true,observedPercent:31,effects:1},stop:true,radioToSpotifyCatalogue:true,persistedValueTargetTrace:true,oneEffectPerExplicitInput:true,pageErrors:errors}));
- }catch(error){if(page){console.log('failureState',JSON.stringify({service:await state(),radio:await radio(),ui:await page.locator('body').innerText(),actions,responses:responses.slice(-5)}));await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-failure.png')})}throw error;
+ }catch(error){if(page&&!configMode){console.log('failureState',JSON.stringify({service:await state(),radio:await radio(),ui:await page.locator('body').innerText(),actions,responses:responses.slice(-5)}));await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-failure.png')})}throw error;
  }finally{
   try{
    // Let in-flight response body reads finish before closing their browser.

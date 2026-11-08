@@ -26,8 +26,8 @@ logging.basicConfig(level=logging.WARNING)
 port = int(os.environ.get("TIMER_TEST_PORT", "18981"))
 data = Path(os.environ["TIMER_TEST_DATA"])
 manager, ha_bridge, client, tools, calls, _ = build()
-adjust_mode = os.environ.get("TIMER_ADJUST_TEST") == "1"
 reload_mode = os.environ.get("TIMER_RELOAD_TEST") == "1"
+adjust_mode = reload_mode or os.environ.get("TIMER_ADJUST_TEST") == "1"
 adjust_controls = {}
 service_calls, native_effects = [], []
 timer_deadlines, finished_callbacks = {}, []
@@ -40,13 +40,19 @@ def owner_clock():
 
 if reload_mode:
     start_timer = manager.start_timer
+    add_time = manager.add_time
 
     def start_countdown(device, hours, minutes, seconds, language, name=None):
         timer_id = start_timer(device, hours, minutes, seconds, language, name)
         timer_deadlines[timer_id] = owner_clock() + seconds
         return timer_id
 
+    def adjust_countdown(timer_id, seconds):
+        add_time(timer_id, seconds)
+        timer_deadlines[timer_id] += seconds
+
     manager.start_timer = start_countdown
+    manager.add_time = adjust_countdown
 
 
 if adjust_mode:

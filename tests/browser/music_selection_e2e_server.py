@@ -31,9 +31,11 @@ cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
+queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
 discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
+recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -45,16 +47,38 @@ if cold and repeat_mood:
     content.value["actions"].append("play_track")
 tracks = [
     {"name": f"Katalogsang {i}", "artist": "Inert kunstner", "uri": f"spotify:track:{i:022d}"}
-    for i in (range(11, 18) if discovery_loading else (11, 12, 13))
+    for i in (
+        range(11, 23) if recent_session else range(11, 18) if discovery_loading else (11, 12, 13)
+    )
 ]
 base.state.update(
-    state="paused",
+    state="playing" if base.output_transfer else "paused",
     song=1,
-    queue=[21, 22, 23, 24] if queue_journey else [21, 22],
+    queue=[21, 22, 23, 24] if queue_journey or base.output_transfer else [21, 22],
     selections=[],
     queueSelections=[],
     nativeCalls=[],
 )
+if recent_session:
+    tracks[0].update(
+        name="Coming Home",
+        artwork={
+            "provider": "spotify",
+            "kind": "album_cover",
+            "url": "https://i.scdn.co/image/InertComingHome",
+        },
+    )
+    original_recent_observation = base.observation
+
+    def recent_observation(args):
+        observed = original_recent_observation(args)
+        if base.state["song"] == 11:
+            observed["playback"]["item"].update(
+                name=tracks[0]["name"], artwork=tracks[0]["artwork"]
+            )
+        return observed
+
+    base.observation = recent_observation
 if cold:
     # Both existing inerts describe one native owner; alias/content incarnation
     # must agree exactly, just as the real setup route requires.
@@ -153,14 +177,19 @@ async def native(request):
     args = json.loads(request.content)
     service = request.url.path.rsplit("/", 1)[-1]
     base.state["nativeCalls"].append({"service": service, "args": args})
-    if cold and service == "get_targets" and args.get("config_entry_id"):
+    if (cold or recent_session) and service == "get_targets" and args.get("config_entry_id"):
         response = await base.native_service(request)
         value = response.json()["service_response"]
-        value["targets"] = [row for row in value["targets"] if row["kind"] != "spotify_device"]
-        if base.state["state"] == "no_active_playback":
+        if cold:
+            value["targets"] = [row for row in value["targets"] if row["kind"] != "spotify_device"]
+            if base.state["state"] == "no_active_playback":
+                for row in value["targets"]:
+                    if row["kind"] == "observed_output":
+                        row["selected"] = False
+        else:
             for row in value["targets"]:
-                if row["kind"] == "observed_output":
-                    row["selected"] = False
+                if row["kind"] == "spotify_device" and row["target_id"] == "device":
+                    row["name"] = "Køkkenalrum HomePod"
         return httpx.Response(200, json={"service_response": value})
     if (cold or discovery_cover) and service == "search_playlists":
         suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
@@ -281,12 +310,22 @@ async def native(request):
         value["queue"]["observation_id"] = secrets.token_hex(16)
         value["native"].update(target_id="device", homepod_id="42")
         value["route"]["device_id"] = "42"
+        if base.output_transfer:
+            assert (args["room_id"], args["homepod_id"]) == (
+                base.state["room"],
+                base.state["homepod"],
+            )
+            value["native"].update(room_id=base.state["room"], homepod_id=base.state["homepod"])
+            value["route"]["device_id"] = base.state["homepod"]
+        if queue_identity and base.state["room"] == "bedroom":
+            value["native"]["session_id"] = value["queue"]["session_id"] = "bedroom-session"
+            value["route"]["session_epoch"] = "2"
         value["items"] = [
             {
                 "option_id": f"{i:024x}",
                 "index": index,
-                "uri": f"spotify:track:{i:022d}",
-                "name": f"Køsang {i}",
+                "uri": f"spotify:track:{(22 if queue_identity and i == 21 else i):022d}",
+                "name": f"Køsang {22 if queue_identity and i == 21 else i}",
                 "artist": "Inert kunstner",
                 "artwork": None,
                 **(
@@ -302,11 +341,15 @@ async def native(request):
     if service == "prepare_room_queue":
         return httpx.Response(200, json={"service_response": staged(args)})
     if service == "control_room_queue":
+        scope = {}
+        if base.output_transfer:
+            scope = {"room": args["room_id"], "homepod": args["homepod_id"]}
+            assert scope == {"room": base.state["room"], "homepod": base.state["homepod"]}
         song = int(args["args"]["occurrence_id"], 16)
         assert song in base.state["queue"]
         index = base.state["queue"].index(song)
         base.state.update(song=song, state="playing")
-        if queue_journey:
+        if queue_journey or base.output_transfer:
             base.state["queue"] = base.state["queue"][index + 1 :]
             if queue_cold_tail and song == 22:
                 base.state["queue"].append(25)
@@ -315,7 +358,12 @@ async def native(request):
             {"index": index, "song": song, "requestId": args["request_id"]}
         )
         base.state["writes"].append(
-            {"action": "play_queue_occurrence", "song": song, "requestId": args["request_id"]}
+            {
+                "action": "play_queue_occurrence",
+                "song": song,
+                "requestId": args["request_id"],
+                **scope,
+            }
         )
         base.music.value["next_command_sequence"] += 1
         settle(args)
@@ -347,6 +395,8 @@ base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
     if cold
     else ["play_track", "play_queue_occurrence"]
 )
+if base.output_transfer:
+    base.app[BRIDGE].controls.policy["music"][1]["actions"].append("play_queue_occurrence")
 
 
 async def cleanup(_):
@@ -360,6 +410,21 @@ if queue_journey:
 
     async def queue_state(request):
         condition = (await request.json()).get("condition")
+        if queue_identity and condition in {
+            "replace-session",
+            "autoplay-no-queue",
+            "autoplay-with-queue",
+        }:
+            if condition == "replace-session":
+                base.state.update(room="bedroom", homepod="43", song=30, queue=[31, 32])
+            elif condition == "autoplay-no-queue":
+                base.state.update(song=32, queue=[])
+            else:
+                base.state.update(song=33, queue=[34, 35])
+            base.state["queueReadFailure"] = condition == "autoplay-no-queue"
+            base.state["sequence"] += 1
+            await base.emit_playback_changed()
+            return web.json_response({"condition": condition})
         if condition not in {"failed", "empty"}:
             raise web.HTTPBadRequest()
         base.state["queueReadFailure"] = condition == "failed"

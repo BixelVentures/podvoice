@@ -467,7 +467,7 @@
     },
     {
       "path": "control-model.js",
-      "sha256": "5ee212272573d23535f01f42d2af9af886c5d287a3e832b4871892b592f518b3"
+      "sha256": "7e675ff27bb6d3ad73b9ca31417ffbdae1eef626b49e60ddc05d1eccf3e3ffe9"
     },
     {
       "path": "example-sources.html",
@@ -487,11 +487,11 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "24c414bc45a0d653fa8a64feef6a9421092e903908ed40e26572fb5b393a3f6d"
+      "sha256": "c49967ae2299d714195ce7086e7408b55b9b51363b77929dd07b0cd1a8a70eac"
     },
     {
       "path": "index.html",
-      "sha256": "a3db627a126c944e443c6643c5cf58d124590ef7a9bf06e0c1335948aaba6058"
+      "sha256": "0cb4e4f0d6f24fde764f87e5ab104ed43ece2eb9c2f99818c9d3468cbf42b995"
     },
     {
       "path": "ingress-kiosk.js",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "f994b8b3da8e8b2f293045f2a7b9da0999cc0385675dc9016a67a7f63641e220"
+      "sha256": "3a99dbd76f035991e9854805448ccfac2230e53ca6b674fff287833e21ecd57e"
     },
     {
       "path": "library.css",
@@ -523,19 +523,19 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "8a2b24d06a861ff8716e4a7c26b2f9fd22e04b9f34b05ceb7acb879535484a72"
+      "sha256": "a0004c36fd5e366c604fec145e0cd011603aeb1fd36d5dad3fb12a90a18b5044"
     },
     {
       "path": "light-room-view.js",
-      "sha256": "17e0b9b3e6a5e87cc283f2c16e62677a6093d2805ce9841a15b2f8e001a9f199"
+      "sha256": "94da27585ca73f99588af793d1ce28316a0ada6633d339d2f88bd643c161638d"
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "389a39c15585a48397733955e8144f77794b17c1a3b6cfde2b53e35ee796d785"
+      "sha256": "038a02c8d5ac9c41d62b544973c175e14e14b14dd37d9c286cd1d9a60a50af6f"
     },
     {
       "path": "live-control-view.js",
-      "sha256": "776af3ae41051a643a0d84e69ca1ab30cb9ea4dce8cc07f489491752105705e1"
+      "sha256": "1d4c39af318681106119d96d147e9c98462041531bf2a8df0507985c60e00fb3"
     },
     {
       "path": "live-home-view.js",
@@ -543,7 +543,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "d4c646142c795fc2a67e5b298feffee94a8b98a987ff86356a5f7462ed9da048"
+      "sha256": "66e30099a0c55091179652c0c1248be5a4322f177330bd4d5c62550dc321d435"
     },
     {
       "path": "live-music-selection-view.js",
@@ -551,7 +551,7 @@
     },
     {
       "path": "live-music-view.js",
-      "sha256": "cf4cc7b20eaa028bc2675b9b8c3415a3b1833f847bcd0f8d629461565a3fb4a9"
+      "sha256": "856c1a5f3251ff000c8ed63614a8ad8c7dc9db0a9696626caa76a20c80bd695a"
     },
     {
       "path": "live-music.css",
@@ -563,7 +563,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "291a16babdc0b201cbcd6be0c468ed7628361a5dbfdac38ad4c8ab67bad1e173"
+      "sha256": "6c00b73f296fcb136538be07ae17fc658e958e728661f832f49f4cb580da6795"
     },
     {
       "path": "local-robot-view.js",
@@ -595,7 +595,7 @@
     },
     {
       "path": "music-selection-model.js",
-      "sha256": "97af6f45b0daed966b5bb14898b899db6afcc871e473c257ec5608eb0fa8e8f0"
+      "sha256": "7082e5f575411f08121c04497cc90a9b89b67b0bed9c419da972f6245fbaa80f"
     },
     {
       "path": "ordbog.css",
@@ -615,7 +615,7 @@
     },
     {
       "path": "owner-answers.js",
-      "sha256": "4515b3f5cb5a6cb8abaa56d8c384047bb28dacea878ea7d3e04aa1a6f839183d"
+      "sha256": "c14bee802f56c1feebe5717bdb628773382ab2552e81b7e3679b8b4f4007af67"
     },
     {
       "path": "patterns.css",
@@ -635,11 +635,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "694eae840b447720962700ccb31b8613da31512464bf204ec00b34d35165b0af"
+      "sha256": "f79c260b9cb6b8830c369a4ec19ca77b42361be9a5efc05402287c48e718171a"
     },
     {
       "path": "podview.css",
-      "sha256": "f2102e4d80008a94bd234c36243d29f416d5ceca8aa1b8b9423357ab1c20a6e6"
+      "sha256": "abf17be83b261b024dc20f05e964d1494b4dbdea08fdf8450ac8bc32cc8ebe8b"
     },
     {
       "path": "podvoice-transport.js",
@@ -659,7 +659,7 @@
     },
     {
       "path": "radio-view.js",
-      "sha256": "88a2b8aca721c0000b1961e9343bab53113894b9ddad786315562de386303164"
+      "sha256": "dcefd9cf89a8d6ea6a40a24f99a529ff307e8f0acd7059fda9fedbe04612d820"
     },
     {
       "path": "recipe-view.js",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "d544951bbf8364fff469fa5c9bb238c363773f903d73e5aed9acb19ed79e101b"
+      "sha256": "e351c7af5ea84589f213dbb1dbcd500088683add451685c3838c2bae996528fb"
     },
     {
       "path": "robot-observation.js",
@@ -687,7 +687,7 @@
     },
     {
       "path": "scene-model.js",
-      "sha256": "575cfe90caa71533104b6ebd5464bfc0192d32ca99fe96dd027a61479e413f77"
+      "sha256": "49ceef0ad04bf4f39f7ad345c70cdf3850d4490d81bfd4e5bd78c21c3e4ab784"
     },
     {
       "path": "scenes.css",
@@ -743,7 +743,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "8d93368014a86f2e61259b7d11f9f3371776526554ba36d0939c60e0083f43ac"
+      "sha256": "1acf21c60fc36562d89277674b485529d2e15403ccfcddd638e3888a851c9789"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -771,7 +771,7 @@
     },
     {
       "path": "ui/kit.js",
-      "sha256": "7afae5d37447ff795008097d1b752be51acc1b6ff80d0e99d5ec94f5bb9e985b"
+      "sha256": "8e45606eea6e0f7f60df5338b44ea4d4cb35e6605bdad16c0277332dcdb88211"
     },
     {
       "path": "ui/legacy-components.css",
@@ -871,11 +871,11 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "8f70f3d1295a3921318e80d944f11bc9d67c6417e32ca80fe972518449ec184b"
+      "sha256": "32837ca8b430fe9cd5a549e2a27070e25a324913ccdea72c9c35ee6175fe511f"
     },
     {
       "path": "weather-view.js",
-      "sha256": "acf46709493af83b957e5283a944c91891785d6fd5191eb9683b155337043474"
+      "sha256": "895f91ffc5e903bc191cd144496512ae0d2c5bd8521c755cb638efa711e75c58"
     },
     {
       "path": "widget-model.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "3a94fc91b419bebf27a38930ebae791f6133ae8bd1524f3b568866c102736947"
+      "sha256": "c6f5cf5163cfa53f1ba2e7e7b0286504d14522f0ca46209d5a78e2676621e625"
     },
     {
       "path": "workshop.css",

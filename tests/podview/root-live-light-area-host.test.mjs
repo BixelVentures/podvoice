@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {validateHome,scopedLightDevice} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {applyHome,validateHome,scopedLightDevice} from '../../podvoice/gatekeeper/static/podview/home-model.js';
 import {lightAreasObservation,scopedLightsObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
 const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),body=source.slice(source.indexOf(' onLightActionStatus(state,operation){'),source.indexOf(' renderLightAdjustments(light){'));
 const Host=new Function('validateHome','scopedLightDevice','lightAreasObservation','scopedLightsObservation',`return class{${body}}`)(validateHome,scopedLightDevice,lightAreasObservation,scopedLightsObservation);
@@ -16,6 +16,107 @@ function fixture(){
 test('explicit area browse changes detail only and issues no control setup or other read',async()=>{const f=fixture();try{const before=f.host.state;await f.host.readLightArea('other');assert.deepEqual(f.calls,[{lightArea:'other'}]);assert.equal(f.host.currentLightDevice().lightScope.areaId,'other');for(const key of ['devices','music','timer','liveWeather','lightAreas','lightPlacement'])assert.equal(f.host.state[key],before[key],key);assert.equal(f.host.state.devices[0].lightScope.areaId,'own');assert.equal(f.host.lightAreaPending,false);}finally{f.cleanup();}});
 test('foreign choices are inert and late response after placement or transport replacement cannot adopt',async()=>{for(const change of ['placement','transport','boot','disconnect']){const f=fixture();try{await f.host.readLightArea('foreign');assert.equal(f.calls.length,0);let finish;f.host.liveTransport.home=()=>new Promise(resolve=>finish=resolve);const pending=f.host.readLightArea('other');if(change==='placement')f.host.state.lightPlacement={...f.host.state.lightPlacement,placementRevision:2};if(change==='transport')f.host.liveTransport={...f.host.liveTransport};if(change==='boot')f.host.liveSnapshot={...f.host.liveSnapshot,bootId:'other'};if(change==='disconnect')f.host.liveTransport.connected=false;f.host.syncLightArea();finish(f.response('other'));await pending;assert.equal(f.host.state.liveLightDetail,null);assert.equal(f.host.lightAreaPending,false);}finally{f.cleanup();}}});
 test('latest chosen area wins even if older read returns later',async()=>{const f=fixture();try{const finish=[];f.host.liveTransport.home=()=>new Promise(resolve=>finish.push(resolve));const first=f.host.readLightArea('other'),second=f.host.readLightArea('own');finish[1](f.response('own'));await second;finish[0](f.response('other'));await first;assert.equal(f.host.currentLightDevice().lightScope.areaId,'own');assert.equal(f.host.lightAreaPending,false);}finally{f.cleanup();}});
+test('fresh own-area push replaces older scoped detail and a late scoped read cannot undo it',async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  const initial=f.response('own');
+  initial.lights.observedAt--;initial.lights.validUntil--;
+  host.liveTransport.home=async()=>initial;
+  host.state=applyHome(host.state,validateHome(initial,'controller','boot'),['light']);
+  await host.readLightArea('own');
+  assert.equal(host.currentLightDevice().observedLights[0].state,'on');
+  let finish;
+  host.liveTransport.home=()=>new Promise(resolve=>finish=resolve);
+  const held=host.readLightArea('own');
+  const pushed=structuredClone(initial);
+  pushed.revision++;
+  pushed.lights.observedAt++;pushed.lights.validUntil++;
+  pushed.lights.items[0].state='off';
+  host.state=applyHome(host.state,validateHome(pushed,'controller','boot'),['light']);
+  assert.equal(host.state.liveLightDetail,null);
+  assert.equal(host.currentLightDevice().observedLights[0].state,'off');
+  finish(initial);
+  assert.equal(await held,false);
+  assert.equal(host.currentLightDevice().observedLights[0].state,'off');
+ }finally{f.cleanup();}
+});
+test('an own-area push preserves a separately browsed foreign area',async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  const own=validateHome(f.response('own'),'controller','boot');
+  host.state=applyHome(host.state,own,['light']);
+  await host.readLightArea('other');
+  const detail=host.currentLightDevice();
+  host.state=applyHome(host.state,own,['light']);
+  assert.equal(host.currentLightDevice(),detail);
+ }finally{f.cleanup();}
+});
+test('late passive foreign-room response cannot override a newly selected room',async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  await host.readLightArea('other');
+  let finish;
+  host.liveTransport.home=({lightArea})=>lightArea==='other'
+   ?new Promise(resolve=>finish=resolve):Promise.resolve(f.response(lightArea));
+  const passive=host.readLightArea('other',{preserveControls:true,passive:true});
+  assert.equal(host.lightAreaPending,false);
+  await host.readLightArea('own');
+  finish(f.response('other'));
+  assert.notEqual(await passive,true);
+  assert.equal(host.currentLightDevice().lightScope.areaId,'own');
+  assert.equal(host.lightReadAttempt,null);
+ }finally{f.cleanup();}
+});
+for(const [description,revision] of [['an older',1],['a malformed','2']])test(
+ `foreign navigation with ${description} revision keeps detail read-only until the deferred read settles`,async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  const resolve=[];
+  host.liveTransport.home=()=>new Promise(done=>resolve.push(done));
+  const navigation=host.readLightArea('other');
+  host.lightReadAttempt.afterHomeRevision={scope:'scope',revision:2};
+  const old=f.response('other');
+  old.sourceRevision={scope:'scope',revision};
+  old.lights.observedAt--;old.lights.validUntil--;
+  resolve[0](old);
+  await navigation;
+  assert.equal(host.currentLightDevice().lightScope.areaId,'other');
+  assert.equal(host.currentLightDevice().stale,true);
+  assert.equal(host.actCurrentLight('toggle'),undefined);
+  assert.equal(resolve.length,2);
+  const fresh=f.response('other');
+  fresh.sourceRevision={scope:'scope',revision:2};
+  resolve[1](fresh);
+  await Promise.resolve();
+  assert.notEqual(host.currentLightDevice().stale,true);
+ }finally{f.cleanup();}
+});
+for(const selectedArea of ['own','other'])test(`held own-area response cannot revive stale authority from ${selectedArea}`,async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  const initial=f.response('own');
+  initial.lights.observedAt--;initial.lights.validUntil--;
+  host.liveTransport.home=async({lightArea})=>lightArea==='own'?initial:f.response(lightArea);
+  host.state=applyHome(host.state,validateHome(initial,'controller','boot'),['light']);
+  await host.readLightArea(selectedArea);
+  let finish;
+  host.liveTransport.home=()=>new Promise(resolve=>finish=resolve);
+  const held=host.readLightArea('own');
+  const missing={...validateHome(initial,'controller','boot'),revision:3,lights:{status:'unavailable'}};
+  host.state=applyHome(host.state,missing,['light']);
+  const selected=host.currentLightDevice();
+  assert.equal(host.state.devices[0].stale,true);
+  assert.equal(selected.lightScope.areaId,selectedArea);
+  finish(initial);
+  assert.equal(await held,false);
+  assert.equal(host.currentLightDevice(),selected);
+  const recovered=structuredClone(initial);
+  recovered.lights.observedAt++;recovered.lights.validUntil++;
+  host.liveTransport.home=async()=>recovered;
+  assert.equal(await host.readLightArea('own'),true);
+  assert.notEqual(host.currentLightDevice().stale,true);
+ }finally{f.cleanup();}
+});
 test('explicit control click passes exact selected entity and fresh observation; expiry revokes callback',async()=>{const f=fixture();try{await f.host.readLightArea('other');let args;f.host.liveControls={openLight(...value){args=value;}};const opener={};f.host.openLiveLightControl('light.other',opener);assert.deepEqual(args[0],{areaId:'other',entityId:'light.other'});assert.equal(args[1].scope.areaId,'other');assert.equal(args[2],opener);assert.equal(args[3]().scope.areaId,'other');f.host.state.liveLightDetail={...f.host.state.liveLightDetail,stale:true};assert.equal(args[3](),null);args=null;f.host.openLiveLightControl('light.own',opener);assert.equal(args,null);}finally{f.cleanup();}});
 test('expired own-area data becomes stale offscreen and closes only light controls',()=>{const f=fixture();try{f.host.state.focus='now';f.host.state.devices[0]={...f.host.state.devices[0],validUntil:Date.now()/1000-1};const controls={domain:'light',invalidated:0,dialog:{close(){this.closed=true;}},invalidate(){this.invalidated++;}};f.host.liveControls=controls;f.host.syncLightArea();assert.equal(f.host.state.devices[0].stale,true);assert.equal(controls.invalidated,1);assert.equal(controls.dialog.closed,true);assert.deepEqual(f.calls,[]);}finally{f.cleanup();}});
 test('mismatched explicit-area response cannot replace retained selected detail',async()=>{const f=fixture();try{await f.host.readLightArea('other');const previous=f.host.state.liveLightDetail;f.host.liveTransport.home=async()=>f.response('own');await f.host.readLightArea('other');assert.equal(f.host.state.liveLightDetail,previous);assert.match(f.host.lightLocalFeedback(f.host.currentLightDevice()).text,/Lysstatus for Stue kunne ikke hentes/);assert.equal(f.host.feedback,'Hent lysstatus igen.');assert.equal(f.host.lightAreaPending,false);}finally{f.cleanup();}});

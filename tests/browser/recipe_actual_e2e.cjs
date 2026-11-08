@@ -24,15 +24,110 @@ async function start(){
  for(let n=0;n<100;n++){if(server.exitCode!==null)throw Error('server exited '+server.exitCode);try{if((await fetch(base+'/view/')).ok)return}catch{} await sleep(100)}throw Error('server not ready');
 }
 async function stop(){if(!server||server.exitCode!==null)return;const exited=new Promise(resolve=>server.once('exit',resolve));server.kill('SIGTERM');await exited;server=null}
+const widgetStyle=widget=>widget.evaluate(el=>{
+ const css=getComputedStyle(el);
+ return {background:css.backgroundColor,color:css.color,border:css.borderColor,variant:el.getAttribute('data-kit-variant')};
+});
+async function newRecipePage(browser){
+ const page=await browser.newPage({hasTouch:true,viewport:{width,height}});
+ if(sourceMode==='inert-fixture'){
+  await page.context().route(/^https?:\/\//,route=>{
+   if(new URL(route.request().url()).origin===base)return route.continue();
+   if(route.request().resourceType()!=='image')return route.abort();
+   return route.fulfill({contentType:'image/svg+xml',body:
+    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="tan"/></svg>'});
+  });
+ }
+ return page;
+}
 async function openCatalog(page){
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});
  await testEnv.openOverview(page);
  await page.locator('#home-recipes').waitFor({state:'visible'});
- homeBaseline ||= await page.locator('#home-recipes').evaluate(el=>{const css=getComputedStyle(el);return {background:css.backgroundColor,color:css.color,border:css.borderColor,variant:el.getAttribute('data-kit-variant')};});
+ homeBaseline ||= await widgetStyle(page.locator('#home-recipes'));
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  await page.locator('#home-recipes').tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
  await page.locator('#recipe-view [data-recipe]').first().waitFor({state:'visible'});
+}
+async function readAndResumeBurgerboller(page){
+ const recipe=page.locator('#recipe-view');
+ const catalog=recipe.locator('[data-recipe-layout=catalog]');
+ const row=catalog.locator('[data-recipe="Burgerboller"]');
+ const back=page.locator('#header-title-action');
+ const widget=page.locator('#home-recipes');
+ const steps=recipe.locator('[data-recipe-layout=reading] li');
+ const ingredients=recipe.locator('#recipe-ingredients-trigger');
+ const photo=row.locator('img');
+ await row.waitFor({state:'visible'});
+ await photo.evaluate(image=>image.decode());
+ assert.equal(await photo.getAttribute('data-recipe-fallback'),null,'catalogue displays the original photo slot');
+ await row.tap();
+ await ingredients.waitFor({state:'visible'});
+ assert.match(await recipe.locator('[data-recipe-layout=summary]').innerText(),/15 stk\./);
+ await recipe.getByRole('button',{name:'350 ml koldt vand',exact:true}).waitFor({state:'visible'});
+ assert.equal(await steps.count(),5);
+ assert.match(await steps.first().innerText(),/1\.\s*Æltning\s*Vælg én metode/);
+ const source=recipe.getByRole('button',{name:/Om opskriften/});
+ await source.tap();
+ await recipe.getByText('Udbytte',{exact:true}).waitFor({state:'visible'});
+ await source.tap();
+ assert.equal(await source.getAttribute('aria-expanded'),'false');
+ const gallery=page.getByRole('dialog',{name:'Billeder af Burgerboller'});
+ await recipe.locator('[data-recipe-layout=gallery-trigger]').tap();
+ await gallery.waitFor({state:'visible'});
+ const next=gallery.getByRole('button',{name:'Næste',exact:true});
+ const previous=gallery.getByRole('button',{name:'Forrige',exact:true});
+ const firstBox=await previous.boundingBox();
+ assert.equal(await gallery.getByRole('status').innerText(),'1 af 3');
+ await next.tap();
+ assert.equal(await gallery.getByRole('status').innerText(),'2 af 3');
+ assert.deepEqual(await previous.boundingBox(),firstBox,'gallery navigation stays anchored across images');
+ await gallery.getByRole('button',{name:'Luk',exact:true}).tap();
+ await gallery.waitFor({state:'hidden'});
+
+ await recipe.getByRole('button',{name:'Start opskrift',exact:true}).tap();
+ assert.equal(await steps.first().getAttribute('aria-current'),'step');
+ await steps.first().getByRole('button').tap();
+ assert.equal(await steps.nth(1).getAttribute('aria-current'),'step');
+ await ingredients.tap();
+ assert.equal(await ingredients.getAttribute('aria-expanded'),'false');
+ await back.tap();
+ await catalog.waitFor({state:'visible'});
+ await recipe.locator('input[type=radio][value="Aftensmad"]').locator('..').tap();
+ assert.equal(await catalog.locator('[data-recipe]').first().getAttribute('data-recipe'),'Burgerboller');
+ assert.equal(await row.getAttribute('aria-current'),'true');
+ assert.equal(await row.getAttribute('data-kit-variant'),'resume');
+ assert.match(await row.innerText(),/I gang\s+Burgerboller af Meyers\s+1 af 5 trin · Fortsæt/);
+ const activeGeometry=await row.evaluate(el=>{
+  const css=getComputedStyle(el),color=document.createElement('canvas').getContext('2d');
+  color.fillStyle=css.getPropertyValue('--pv-dark').trim();
+  const dark=color.fillStyle;
+  color.fillStyle=css.backgroundColor;
+  const photo=el.querySelector('img').getBoundingClientRect();
+  return {dark:color.fillStyle===dark,rowHeight:el.getBoundingClientRect().height,photoWidth:photo.width,
+   photoHeight:photo.height};
+ });
+ assert.equal(activeGeometry.dark,true,'active row uses the canonical dark ListRow color');
+ if(shot==='1280x800')assert.deepEqual(activeGeometry,{dark:true,rowHeight:128,photoWidth:96,photoHeight:96});
+ await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-burgerboller-active.png`)});
+ await row.tap();
+ assert.equal(await steps.nth(1).getAttribute('aria-current'),'step');
+ assert.equal(await steps.first().getByRole('button').getAttribute('aria-pressed'),'true');
+ assert.equal(await ingredients.getAttribute('aria-expanded'),'false');
+ await back.tap();
+ await catalog.waitFor({state:'visible'});
+ await back.tap();
+ await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ assert.match(await widget.innerText(),/Burgerboller/);
+ assert.deepEqual(await widgetStyle(widget),homeBaseline,'widget keeps its own style during cooking');
+ await widget.tap();
+ assert.equal(await steps.nth(1).getAttribute('aria-current'),'step');
+ await recipe.getByRole('button',{name:'Nulstil opskrift',exact:true}).tap();
+ await recipe.getByRole('button',{name:'Nulstil',exact:true}).tap();
+ await catalog.waitFor({state:'visible'});
+ assert.equal(await catalog.locator('[data-recipe][aria-current=true]').count(),0);
+ console.log('Burgerboller: photo, reading, current step, catalogue resume and widget resume',activeGeometry);
 }
 async function finishRecipeWithTimer(page,widget,bundleSHA){
  const back=page.locator('#header-title-action');
@@ -101,7 +196,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
 (async()=>{try{
  dir=await mkdtemp(path.join(os.tmpdir(),'podview-recipe-browser-'));await start();
  browser=await chromium.launch(testEnv.browserOptions());
- let page=await browser.newPage({hasTouch:true,viewport:{width,height}}); const errors=[];
+ let page=await newRecipePage(browser); const errors=[];
  await page.addInitScript(()=>{
   window.recipeTimerAudioCalls=0;
   window.Audio=class {
@@ -111,11 +206,22 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  });
  page.on('pageerror',e=>errors.push(e.message));
  await openCatalog(page);
+ await readAndResumeBurgerboller(page);
  const entries=page.locator('#recipe-view [data-recipe-layout=catalog] > div').first();
  const all=page.locator('#recipe-view input[type=radio][value=""]');await all.locator('..').tap();
  await testEnv.touchScroll(page,entries,{dy:80});const before=await entries.evaluate(e=>({scroll:e.scrollTop,maximum:e.scrollHeight-e.clientHeight}));
  assert(before.maximum>0&&before.scroll>0,'touch must move the real catalog scroll');
  const focusBefore=await page.evaluate(()=>({name:document.activeElement.name,value:document.activeElement.value}));
+ const rejectedToken='r'.repeat(32);
+ const denied=await page.evaluate(async ({source,rejectedToken})=>{
+  return Promise.all([{}, {Authorization:`Bearer ${rejectedToken}`}].map(async authorization=>{
+   const response=await fetch('/api/podvoice/recipe-submissions',{method:'POST',
+    headers:{'Content-Type':'application/json',...authorization},body:JSON.stringify({url:source})});
+   return {status:response.status,message:(await response.json()).message};
+  }));
+ },{source,rejectedToken});
+ assert.deepEqual(denied,[{status:401,message:'Adgang afvist'},{status:403,message:'Adgang afvist'}]);
+ assert.doesNotMatch(productLog,/stage=submit/,'denied phone upload never reaches the submission store');
  const saved=await page.evaluate(async ({base,source})=>{const r=await fetch(base+'/api/podvoice/recipe-submissions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+'x'.repeat(32)},body:JSON.stringify({url:source})});return {status:r.status,body:await r.json()}},{base,source});
  assert.equal(saved.status,200);assert.equal(saved.body.status,'saved');assert.match(saved.body.message,/^Gemt: /);
  await page.locator('#recipe-view [data-recipe="Nem chokoladekage i bradepande"]').waitFor({state:'attached',timeout:16000});
@@ -158,8 +264,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
  assert.match(await widget.innerText(),/Nem chokoladekage i bradepande/);
  assert.notEqual(await widget.getAttribute('data-kit-variant'),'resume');
- const homeStyle=await widget.evaluate(el=>{const css=getComputedStyle(el);return {background:css.backgroundColor,color:css.color,border:css.borderColor,variant:el.getAttribute('data-kit-variant')};});
- assert.deepEqual(homeStyle,homeBaseline,'active Home widget retains its approved visual styling');
+ assert.deepEqual(await widgetStyle(widget),homeBaseline,'active Home widget retains its approved visual styling');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-active-home.png`)});
  await widget.tap();
  await page.locator('#recipe-view [data-recipe-layout=reading]').waitFor({state:'visible',timeout:3000});
@@ -264,7 +369,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
   const seeded=await (await fetch(base+'/lab/seed-recovery',{method:'POST'})).json();assert.equal(seeded.status,'received');
  }
  await page.close(); await stop(); await start();
- page=await browser.newPage({hasTouch:true,viewport:{width,height}}); page.on('pageerror',e=>errors.push(e.message));
+ page=await newRecipePage(browser); page.on('pageerror',e=>errors.push(e.message));
  await openCatalog(page);
  assert.equal(await page.locator('#recipe-view [data-recipe="Nem chokoladekage i bradepande"]').count(),1);
  const recoveredReceipt=await page.evaluate(async ({base,id})=>{const r=await fetch(base+'/api/podvoice/recipe-status?id='+id,{headers:{'Authorization':'Bearer '+'x'.repeat(32)}});return r.json();},{base,id:saved.body.id});
@@ -283,5 +388,6 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
   assert(!productLog.includes('example.com')&&!productLog.includes('Nem chokoladekage'),'product journal contains no URL or title');
  }
  assert.deepEqual(errors,[]);
+ assert(!productLog.includes(rejectedToken)&&!productLog.includes('x'.repeat(32)),'journal never contains upload tokens');
  console.log(JSON.stringify({outcome:'PASS',sourceMode,receipt:saved.body.message,autoVisibleWithoutNavigation:true,category:'Alle',focusAndScrollPreserved:true,scroll:before.scroll,duplicate:'same receipt',serverRestart:'catalog retained',productJournalCorrelated:true,pageErrors:errors,viewport:shot,screenshot:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-saved.png`),testStore:dir}));
  }finally{if(browser)await browser.close();await stop();if(dir)await rm(dir,{recursive:true,force:true})}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -9,10 +9,12 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const root=testEnv.root,port=Number(process.env.MUSIC_TEST_PORT||18973),base=`http://127.0.0.1:${port}`;
 const runtimeRoot=testEnv.runtimeRoot;
+const renewedControlsMode=process.env.MUSIC_RENEWED_CONTROLS_TEST==='1';
 const seekMode=process.env.MUSIC_SEEK_TEST==='1';
 const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||seekMode||externalOutputMode||speakerRefreshMode){
+const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
+if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||externalOutputMode||speakerRefreshMode||outputTransferMode){
  process.env.MUSIC_EXTENDED='1';
 }
 let server,browser,data,servedBundleSHA,serverSuspended=false;
@@ -110,6 +112,94 @@ async function speakerRefreshJourney(page,errors){
   stableLayout:true,matchedRadioBorderAndSurface:true,retainedSelectedOutput:true,
   currentPlaybackStillConfirmed:true,controlPosts:0,inertFinalService:true};
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-speakers-refresh-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
+async function outputTransferJourney(page,errors){
+ const output=page.locator('#output'),dialog=page.locator('#rooms'),volume=page.locator('#volume');
+ const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current=false]');
+ const kitchen={name:'Køkkenalrum HomePod',room:'native-room',homepod:'42'};
+ const bedroom={name:'Soveværelse',room:'bedroom',homepod:'43'};
+ const observed=(target,song)=>page.waitForFunction(({name,room,homepod,song})=>{
+  const p=document.querySelector('pv-widget-host')?.liveMedia.playback;
+  const button=document.querySelector('#output');
+  return p?.roomBinding?.nativeRoomId===room&&p.roomBinding.nativeHomepodId===homepod
+   &&p.item?.name===`Isoleret sang ${song}`&&button?.textContent.includes(name)
+   &&button.getAttribute('aria-label')?.includes('Aktuelt output');
+ },{...target,song},{timeout:15000});
+ const nextPassiveRead=async()=>{
+  const after=playbackReads(await state());
+  for(let n=0;playbackReads(await state())<=after;n++){
+   if(n>=120)throw Error('no subsequent passive playback read');
+   await sleep(100);
+  }
+ };
+ const move=async({name})=>{
+  if(!await dialog.isVisible())await output.tap();
+  const row=dialog.locator('#room-options button').filter({hasText:name});
+  const reply=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')&&r.request().method()==='POST'
+   &&r.request().postDataJSON()?.action==='move_existing_session',{timeout:15000});
+  await row.tap();
+  return (await reply).json();
+ };
+ const effects=[];
+ for(const [target,percent,song] of [[bedroom,25,22],[kitchen,31,23]]){
+  const before=await state();
+  assert.equal((await move(target)).outcome,'accepted');
+  await observed(target,before.song);
+  await nextPassiveRead();
+  if(target===kitchen){
+   await page.reload({waitUntil:'domcontentloaded'});
+   await testEnv.openOverview(page);
+  }
+  await observed(target,before.song);
+  await page.waitForFunction(()=>!document.querySelector('#volume')?.disabled,undefined,{timeout:15000});
+  await testEnv.touchRange(page,volume,percent);
+  await page.waitForFunction(value=>document.querySelector('pv-widget-host')?.liveControls?.musicMeasurement?.volume
+   ===value,percent,{timeout:15000});
+  if(!await queue.isVisible())await page.locator('#track').tap();
+  await rows.filter({hasText:`Køsang ${song}`}).tap();
+  await observed(target,song);
+  const added=(await state()).writes.slice(before.writes.length);
+  assert.deepEqual(added.map(row=>row.action),['move_existing_session','volume','play_queue_occurrence']);
+  assert.equal(added[0].room,target.room);
+  assert.deepEqual(added.slice(1).map(row=>[row.room,row.homepod]),
+   [[target.room,target.homepod],[target.room,target.homepod]]);
+  assert.equal(added[1].percent,percent);
+  assert.equal(added[2].song,song);
+  effects.push(added);
+ }
+
+ const failures=[];
+ for(const outcome of ['rejected','unknown']){
+  const before=await state(),requestsBefore=requests.length;
+  assert((await change({nextMoveOutcome:outcome})).ok);
+  const receipt=await move(bedroom);
+  assert.equal(receipt.outcome,outcome,JSON.stringify(receipt));
+  assert.equal(receipt.retryAllowed,false);
+  await nextPassiveRead();
+  await observed(kitchen,before.song);
+  if(!await dialog.isVisible())await output.tap();
+  const target=dialog.locator('#room-options button').filter({hasText:bedroom.name});
+  await target.waitFor({state:'visible',timeout:10000});
+  assert.equal(await target.getAttribute('aria-pressed'),'false');
+  assert.doesNotMatch(await target.getAttribute('aria-label'),/Aktuelt output/);
+  if(outcome==='unknown'){
+   await page.keyboard.press('Escape');
+   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot
+    ?.capabilities?.queueSelection===false,undefined,{timeout:10000});
+   assert.equal(await rows.and(queue.locator('button:enabled')).count(),0,
+    'UNKNOWN transfer leaves no executable queue choice from the old session');
+  }
+  const after=await state();
+  assert.deepEqual(after.writes,before.writes,'failed transfer cannot replay or issue a queued effect');
+  assert.equal(after.failedMoveAttempts.length,(before.failedMoveAttempts?.length||0)+1);
+  assert.equal(requests.slice(requestsBefore).filter(row=>row.body?.action==='move_existing_session').length,1);
+  failures.push({outcome,receipt,attempt:after.failedMoveAttempts.at(-1)});
+ }
+ assert.deepEqual(errors,[]);
+ assert(servedBundleSHA);
+ const proof={outcome:'PASS',stories:['H5','H8'],servedBundleSHA,effects,failures,inertFinalService:true};
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-output-transfer.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 async function externalOutputJourney(page,errors){
@@ -312,6 +402,114 @@ async function seekJourney(page,errors){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-seek-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function renewedControlsJourney(page,errors){
+ const host=page.locator('pv-widget-host');
+ const original=await host.evaluate(h=>h.liveMedia.playback.roomBinding);
+ const initial=await state();
+ assert(original.validUntil*1000>Date.now(),'capture a still-current original lease');
+ await page.waitForFunction(original=>{
+  const h=document.querySelector('pv-widget-host'),binding=h?.liveMedia?.playback?.roomBinding;
+  return Date.now()>=original.validUntil*1000&&binding?.bindingId===original.bindingId
+   &&binding.validUntil*1000>Date.now()
+   &&['play-pause','next','previous','volume'].every(id=>!document.getElementById(id)?.disabled);
+ },original,{timeout:20000});
+ assert.deepEqual((await state()).writes,initial.writes,'lease renewal never sends a control action');
+ const effects=[];
+ const cases=[
+  {action:'pause',id:'play-pause',label:'Fortsæt musikken',observed:'paused'},
+  {action:'resume',id:'play-pause',label:'Sæt musik på pause',observed:'playing'},
+  {action:'next',id:'next',song:initial.song+1},
+  {action:'previous',id:'previous',song:initial.song},
+  {action:'volume',id:'volume',percent:57},
+ ];
+ for(const expected of cases){
+  const {action,id,percent}=expected;
+  const control=page.locator('#'+id);
+  await control.evaluate((node,{label,percent})=>{
+   window.controlRenewalPaint=null;
+   const type=percent===undefined?'click':'change';
+   document.addEventListener(type,function measure(event){
+    if(!event.isTrusted||!node.contains(event.target))return;
+    document.removeEventListener(type,measure,true);
+    const start=performance.now();
+    const frame=()=>{
+     const elapsedMs=performance.now()-start;
+     const pending=label?node.closest('.transport')?.getAttribute('aria-busy'):node.getAttribute('aria-busy');
+     if(pending==='true'&&(!label||node.getAttribute('aria-label')===label)
+       &&(percent===undefined||(Number(node.value)===percent&&document.getElementById('volume-value').textContent===percent+' %'))){
+      window.controlRenewalPaint={elapsedMs,start};
+     }else if(elapsedMs<2000)requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+   },true);
+  },expected);
+  const before=await state();
+  const beforeRead=await host.evaluate(h=>{
+   const p=h.liveMedia.playback;
+   return {state:p.state,uri:p.item.uri,volume:p.controls.volume.base_percent};
+  });
+  let release;
+  const gate=new Promise(resolve=>{release=resolve;});
+  const endpoint='**/view/api/control/actions';
+  const matches=request=>new URL(request.url()).pathname==='/view/api/control/actions'
+   &&request.method()==='POST'&&request.postDataJSON()?.action===action;
+  const handler=async route=>{
+   if(matches(route.request()))await gate;
+   await route.continue();
+  };
+  await page.route(endpoint,handler);
+  const sent=page.waitForRequest(matches,{timeout:5000});
+  try{
+   if(percent===undefined)await control.tap();
+   else await testEnv.touchRange(page,control,percent,{beforeRelease:async()=>{
+    assert.equal(Number(await control.inputValue()),percent,'volume follows trusted touch before release');
+    assert.equal((await state()).writes.length,before.writes.length);
+   }});
+   await sent;
+   await page.waitForFunction(()=>window.controlRenewalPaint!==null,undefined,{timeout:2000});
+   const paintMs=await page.evaluate(()=>window.controlRenewalPaint.elapsedMs);
+   assert(paintMs<100,`${action} feedback took ${paintMs} ms after trusted input`);
+   assert.deepEqual((await state()).writes,before.writes,'feedback paints before the effect request reaches the owner');
+   assert.deepEqual(await host.evaluate(h=>{
+    const p=h.liveMedia.playback;
+    return {state:p.state,uri:p.item.uri,volume:p.controls.volume.base_percent};
+   }),beforeRead,'feedback paints while the player still has the previous owner observation');
+   if(expected.song!==undefined){
+    assert.equal(await page.locator('#track-name').textContent(),`Isoleret sang ${before.song}`);
+   }
+
+   const replied=page.waitForResponse(response=>matches(response.request()),{timeout:5000});
+   release();
+   const response=await replied;
+   const receiptMs=await page.evaluate(()=>performance.now()-window.controlRenewalPaint.start);
+   assert.equal((await response.json()).outcome,'accepted');
+   assert(receiptMs<(expected.song===undefined?1000:1500),`${action} inert receipt took ${receiptMs} ms`);
+   await page.waitForFunction(({observed,song,percent})=>{
+    const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
+    return !h?.liveControls?.musicIntentPending
+     &&(observed===undefined||p?.state===observed)
+     &&(song===undefined||document.getElementById('track-name').textContent===`Isoleret sang ${song}`)
+     &&(percent===undefined||p?.controls?.volume?.base_percent===percent);
+   },expected,{timeout:10000});
+   const observedMs=await page.evaluate(()=>performance.now()-window.controlRenewalPaint.start);
+   if(expected.song!==undefined)assert(observedMs<1500,`${action} title took ${observedMs} ms`);
+   const writes=(await state()).writes.slice(before.writes.length);
+   assert.deepEqual(writes.map(({action,room,homepod})=>({action,room,homepod})),
+    [{action,room:original.nativeRoomId,homepod:original.nativeHomepodId}]);
+   effects.push({action,paintMs,receiptMs,observedMs});
+  }finally{
+   release();
+   await page.unroute(endpoint,handler);
+   await sent.catch(()=>{});
+  }
+ }
+ assert.deepEqual(requests.filter(row=>row.url.endsWith('/control/actions')).map(row=>row.body.action),
+  cases.map(row=>row.action),'exactly one browser command per trusted input');
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',story:'A13',servedBundleSHA,realLeaseExpiry:true,
+  effects,inertFinalService:true,physicalAudioVerified:false}));
+}
 // Opt-in real elapsed-time coverage: both browser and Python use their real clocks.
 // This proves local lease renewal and browser recovery, not ten minutes of Spotify or hardware.
 async function longSession(page,errors){
@@ -390,13 +588,25 @@ async function longSession(page,errors){
 (async()=>{try{
  const testNonce=require('node:crypto').randomUUID();
  data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-music-e2e-'));
- server=spawn(testEnv.python,[path.join(__dirname,'music_e2e_server.py')],{cwd:testEnv.runtimeRoot,env:testEnv.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,PODVIEW_TEST_NONCE:testNonce}),stdio:['ignore','pipe','pipe']});
+ const serverScript=outputTransferMode?'music_selection_e2e_server.py':'music_e2e_server.py';
+ server=spawn(testEnv.python,[path.join(__dirname,serverScript)],{cwd:testEnv.runtimeRoot,
+  env:testEnv.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,PODVIEW_TEST_NONCE:testNonce}),
+  stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  browser=await chromium.launch(testEnv.browserOptions());
  const page=await browser.newPage({viewport:{width:1280,height:800},hasTouch:true}),errors=[],diagnosticResponses=[];
- page.on('response',async response=>{if(response.url().endsWith('/podview.bundle.js'))servedBundleSHA=require('node:crypto').createHash('sha256').update(await response.body()).digest('hex');if(response.url().includes('/client-diagnostics')&&response.request().method()==='POST')diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')})});
+ page.on('response',async response=>{
+  if(!servedBundleSHA&&response.status()===200&&response.url().endsWith('/podview.bundle.js')){
+   servedBundleSHA=require('node:crypto').createHash('sha256').update(await response.body()).digest('hex');
+  }
+  if(response.url().includes('/client-diagnostics')&&response.request().method()==='POST'){
+   diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')});
+  }
+ });
+ if(renewedControlsMode)await page.route('**/*',route=>
+  new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
@@ -416,8 +626,10 @@ async function longSession(page,errors){
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
+ if(renewedControlsMode){await renewedControlsJourney(page,errors);return;}
  if(seekMode){await seekJourney(page,errors);return;}
  if(speakerRefreshMode){await speakerRefreshJourney(page,errors);return;}
+ if(outputTransferMode){await outputTransferJourney(page,errors);return;}
  if(externalOutputMode){await externalOutputJourney(page,errors);return;}
  if(process.env.MUSIC_LONG_SESSION==='1'){await longSession(page,errors);return;}
  // Measure from the actual trusted touch-generated click, not from a later screenshot.

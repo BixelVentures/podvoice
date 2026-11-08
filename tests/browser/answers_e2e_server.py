@@ -7,23 +7,32 @@ from contextlib import suppress
 from pathlib import Path
 
 from aiohttp import web
-from integration.test_ha_timer_flow import build
+from integration.test_ha_timer_flow import build as timer_fixture
 from integration.test_podview_bridge import owner
+from integration.test_presentation_live_pipeline import assistant_item
+from integration.test_thin_live import build as live_fixture
+from integration.test_thin_live import emit, until
 from multidict import CIMultiDict
+from unit.test_openai_live import created, terminal
 from unit.test_podview_presentation import context, message
 
 from gatekeeper.events import State
+from gatekeeper.history import History
 from gatekeeper.hub import StatusHub
 from gatekeeper.podview_receipts import VisualReceiptOwner
 from gatekeeper.web import create_app
 
 port = int(os.environ.get("ANSWERS_TEST_PORT", "18982"))
 data = Path(os.environ["ANSWERS_TEST_DATA"])
-manager, ha_bridge, client, tools, calls, _ = build()
-session, _ = owner()
-session._active = False
-session.sm.state = State.IDLE
-session.tools = tools
+manager, ha_bridge, client, timer_tools, calls, _ = timer_fixture()
+live_mode = os.environ.get("ANSWERS_LIVE_TEST") == "1"
+if live_mode:
+    session, sdk, _, tools, device = live_fixture()
+else:
+    session, _ = owner()
+    session._active = False
+    session.sm.state = State.IDLE
+    session.tools = tools = timer_tools
 sink = tools.podview_receipts = VisualReceiptOwner()
 history_release = asyncio.Event()
 history_held = asyncio.Event()
@@ -31,6 +40,7 @@ app = create_app(
     StatusHub(),
     {"kitchen": session},
     tools=tools,
+    history=History(data / "history.jsonl") if live_mode else None,
     locked=True,
     podview_client_diagnostics_store=data / "diagnostics.json",
 )
@@ -38,7 +48,11 @@ app = create_app(
 
 @web.middleware
 async def ingress(request, handler):
-    if request.path == "/view/api/answers" and request.query.get("history") == "1":
+    if (
+        not live_mode
+        and request.path == "/view/api/answers"
+        and request.query.get("history") == "1"
+    ):
         history_held.set()
         await asyncio.wait_for(history_release.wait(), timeout=30)
     if request.path.startswith("/view/"):
@@ -108,7 +122,26 @@ async def publish_current(request):
     return web.json_response({"accepted": True})
 
 
-app.router.add_post("/lab/publish-current", publish_current)
+async def submit_live_answer(_request):
+    await session.wake()
+    await session.submit_text("Hvordan folder jeg en papirflyver?", command_id="archive-input")
+    await emit(sdk, created(), assistant_item(json.dumps(message("steps"))), terminal())
+    await until(lambda: bool(sink.snapshot(session.room, session)["items"]))
+    return web.json_response({"inputSubmitted": sdk.response.create.await_count > 0})
+
+
+async def close_live_answer(_request):
+    await session.stop(reason="model-close")
+    return web.json_response(
+        {"sourceCalls": len(tools.calls), "playbackUrls": len(device.announced_urls)}
+    )
+
+
+if live_mode:
+    app.router.add_post("/lab/submit-live-answer", submit_live_answer)
+    app.router.add_post("/lab/close-live-answer", close_live_answer)
+else:
+    app.router.add_post("/lab/publish-current", publish_current)
 app.router.add_get("/lab/history", history_status)
 app.router.add_post("/lab/release", release_history)
 app.router.add_get("/lab/state", state)
@@ -123,6 +156,9 @@ async def refresh_loop():
 
 
 async def start(app):
+    if live_mode:
+        await session.start()
+        return
     for index in (1, 2):
         answer = message()
         answer["presentation"]["title"] = f"Afsluttet svar {index}"
@@ -163,9 +199,12 @@ async def start(app):
 
 async def stop(app):
     history_release.set()
-    app["timer_fixture_poll"].cancel()
-    with suppress(asyncio.CancelledError):
-        await app["timer_fixture_poll"]
+    if live_mode:
+        await session.aclose()
+    else:
+        app["timer_fixture_poll"].cancel()
+        with suppress(asyncio.CancelledError):
+            await app["timer_fixture_poll"]
     await client.aclose()
 
 

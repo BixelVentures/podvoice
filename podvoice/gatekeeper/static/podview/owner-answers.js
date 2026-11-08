@@ -88,9 +88,17 @@ export function transcriptHistory(value,snapshot){
 
 // History contains finished visual answers with an explicit owner session identity.
 // Transcript fragments and unbound legacy receipts remain stored but are not shown.
-export function groupAnswerHistory(items){
+export function groupAnswerHistory(items,view){
+ const snapshot=view?.host.liveSnapshot,revision=snapshot?.answerHistoryRevision;
+ const scope=JSON.stringify([snapshot?.bootId,snapshot?.roomId]);
+ // A completed receipt can still have a current read lease while its saved
+ // copy is browsable. Only a validated server archive can supply that copy.
+ const archive=snapshot?.answers?.readOnlyCompleted===true&&snapshot.capabilities?.answerRead===true&&
+  Number.isSafeInteger(revision)&&view.historyRevision===revision&&view.historyScope===scope?view.history:null;
  const groups=[],bySession=new Map();
- for(const item of items){
+ for(const answer of items){
+  const archived=snapshot?.answerHistoryReceiptIds?.includes(answer.receiptId)?archive?.get(answer.id):null;
+  const item=archived?{...archived,hidden:answer.hidden}:answer;
   if(item.hidden||item.transcriptSegment||item.presentation!==true||!item.historical||item.status!=='ready'||!item.sessionId||![...visualFamilies,...typedAnswerFamilies].includes(item.kind))continue;
   let group=bySession.get(item.sessionId);
   if(!group){group={sessionId:item.sessionId,items:[]};groups.push(group);bySession.set(item.sessionId,group);}

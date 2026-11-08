@@ -43,6 +43,94 @@ const assertRobotObservation=async(page,requests,action)=>{
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
  if(server.exitCode!==null)throw Error('own isolated server exited before navigation');
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(process.env.ROBOT_DOCK_TEST==='1'){
+  await testEnv.openOverview(page);
+  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+  await card.getByText('Batteri 78 %',{exact:true}).waitFor({state:'visible',timeout:10000});
+  await card.getByText('Robotstøvsuger',{exact:true}).tap();
+  const panel=page.locator('pv-robot-control-panel');
+  const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
+  const operations=panel.locator('button[data-dock-operation]');
+  const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  const sendDock=async operation=>{
+   const button=operations.and(panel.locator(`[data-dock-operation=${operation}]`));
+   const reply=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
+    &&r.request().method()==='POST',{timeout:10000});
+   await button.tap();
+   assert.equal((await (await reply).json()).outcome,'accepted');
+   await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveHomePending);
+   await page.locator('pv-widget-host').evaluate(h=>h.loadLiveHome());
+  };
+  const groups=['wash_start','empty_start','dry_start'];
+  for(const [start,stop] of [['wash_start','wash_stop'],['empty_start','empty_stop'],['dry_start','dry_stop']]){
+   await baseMenu.tap();
+   await operations.first().waitFor({state:'visible',timeout:10000});
+   assert.deepEqual(await operations.evaluateAll(rows=>rows.map(row=>row.dataset.dockOperation)),groups);
+   if(start==='wash_start')assert.deepEqual(await ownerWrites(),[],'opening Base sends no command');
+   await sendDock(start);
+   await sendDock(stop);
+  }
+  const writes=await ownerWrites();
+  assert.deepEqual(writes.map(([,body])=>[body.command,body.params??null]),[
+   ['app_start_wash',null],['app_stop_wash',null],['app_start_collect_dust',null],['app_stop_collect_dust',null],
+   ['app_set_dryer_status',{status:1}],['app_set_dryer_status',{status:0}],
+  ]);
+  assert.deepEqual(errors,[]);
+  const proof={outcome:'PASS',story:'S7',loadedBundleSha256,groups,writes,inertFinalService:true};
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-dock-proof.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+  return;
+ }
+ if(process.env.ROBOT_OBSERVATION_TEST==='1'){
+  await testEnv.openOverview(page);
+  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+  await card.getByText('Batteri 78 % · Køkkenalrum',{exact:true}).waitFor({state:'visible',timeout:10000});
+  await card.getByText('Robotstøvsuger',{exact:true}).tap();
+  const panel=page.locator('pv-robot-control-panel');
+  const room=panel.getByText('Rengør · Køkkenalrum',{exact:true});
+  const progress=panel.getByText('42 % færdig',{exact:true});
+  const care=panel.getByRole('button',{name:/^Vedligeholdelse/});
+  const warning=panel.getByText('Rent vand mangler',{exact:true});
+  await room.waitFor({state:'visible',timeout:10000});
+  assert(await panel.getByText('Batteri 78 %',{exact:true}).isVisible());
+  assert(await progress.isVisible());
+  assert.equal(await care.getAttribute('aria-expanded'),'false');
+  await care.tap();
+  const filter=panel.getByRole('button',{name:'Filter',exact:true});
+  await filter.tap();
+  assert(await panel.getByText(/vedligeholdelsesintervallet er nået/).isVisible());
+  const dismiss=panel.getByRole('button',{name:'Skjul vedligeholdelse i dag',exact:true});
+  assert.equal(await dismiss.getAttribute('data-kit-variant'),'secondary');
+  await dismiss.tap();
+  const snoozed=panel.getByText('Vedligeholdelse skjult i dag',{exact:true});
+  assert(await snoozed.isVisible());
+  const counter=await page.locator('pv-widget-host').evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo')
+   ?.telemetry?.items.find(row=>row.key==='filter_time_left')?.value);
+  assert.equal(counter,-2,'the local snooze does not change the observed counter');
+  await update({robotTelemetry:{filter_time_left:'-3',dock_error:'water_empty',
+   clean_box_empty:'on',clean_percent:'unavailable'}});
+  await warning.waitFor({state:'visible',timeout:22000});
+  assert.equal(await panel.getByText('Rent vand mangler',{exact:true}).count(),1);
+  assert(await snoozed.isVisible());
+  const technical=panel.locator('details.robot-error-code');
+  const rawCode=technical.getByText('Base · water_empty',{exact:true});
+  await technical.locator('summary').waitFor({state:'visible',timeout:2000});
+  assert.equal(await rawCode.isVisible(),false);
+  await technical.locator('summary').tap();
+  assert(await rawCode.isVisible());
+  assert.equal(await progress.isVisible(),false);
+  assert.equal(await panel.locator('progress:visible').count(),0,'missing progress never synthesizes a percentage');
+  const writes=(await state()).robot.writes.filter(([service])=>!service.startsWith('services/podvoice/'));
+  assert.deepEqual(writes,[],'maintenance and telemetry changes never operate the robot');
+  assert.deepEqual(errors,[]);
+  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-observation-fault.png')});
+  const proof={outcome:'PASS',stories:['S1','S9','S10','S11','S15','S16'],loadedBundleSha256,
+   battery:78,currentRoom:'Køkkenalrum',knownProgress:42,missingProgressHidden:true,
+   cleanWaterWarningCount:1,maintenanceSnoozeRetained:true,technicalCodeInDisclosure:true,nativeEffects:0};
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-observation-proof.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+  return;
+ }
  if(process.env.ROBOT_SLOW_START_TEST==='1'){
   for(let n=0;n<100&&(!loadedBundleSha256||!loadedCssSha256);n++)await sleep(10);assert(loadedBundleSha256,'hash the actual executed script response');if(process.env.ROBOT_EXPECTED_BUNDLE)assert.equal(loadedBundleSha256,process.env.ROBOT_EXPECTED_BUNDLE);assert(loadedCssSha256);if(process.env.ROBOT_EXPECTED_CSS)assert.equal(loadedCssSha256,process.env.ROBOT_EXPECTED_CSS);const observationReads=new Set(['services/podvoice/robot_snapshot','services/podvoice/robot_observation_snapshot','services/podvoice/robot_water_snapshot']),effectWrites=value=>value.robot.writes.filter(([path])=>!observationReads.has(path));
   await testEnv.openOverview(page);const card=page.locator('.resource-preview[data-kind="vacuum"][data-target="vacuum.qrevo"]:visible').first();await card.waitFor({timeout:15000});await card.tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.focus==='vacuum.qrevo',undefined,{timeout:5000});const panel=page.locator('pv-robot-control-panel');await panel.getByRole('button',{name:'Køkkenalrum',exact:true}).waitFor({state:'visible',timeout:15000});await panel.getByRole('button',{name:'Vælg alle rum',exact:true}).tap();
@@ -52,13 +140,14 @@ const assertRobotObservation=async(page,requests,action)=>{
   await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).scrollIntoViewIfNeeded();const normal=await capture();const requestFailures=[];page.on('requestfailed',r=>{if(r.url().includes('/view/api/control/actions')&&r.postDataJSON()?.taskId===before.taskId)requestFailures.push({at:Date.now(),body:r.postDataJSON(),error:r.failure()?.errorText})});
   // Outer fixture guard covers the server's 30s execution and client's 35s receipt wait.
   const responsePromise=page.waitForResponse(r=>r.url().includes('/view/api/control/actions')&&r.request().method()==='POST'&&r.request().postDataJSON()?.taskId===before.taskId,{timeout:40000}).catch(()=>null);const touchedAt=Date.now();await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).tap();const initialPending=await capture();
-  // The first inert settings POST holds an admitted Start while one scoped read fails.
+  // The first inert settings POST holds an admitted Start. Keep the same owner stale through its reply.
   for(let n=0;!(await state()).robot.slowStartPosts.length;n++){
    if(n>50)throw Error('admitted Start did not reach the inert owner');
    await sleep(50);
   }
   const readPath=url=>url.pathname==='/view/api/home';
-  await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_home_read_transient'}}),{times:1});
+  const unavailable=route=>route.fulfill({status:503,json:{error:'inert_home_read_transient'}});
+  await page.route(readPath,unavailable);
   const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
   const readScope=()=>page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),
    bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
@@ -79,6 +168,9 @@ const assertRobotObservation=async(page,requests,action)=>{
   while(Date.now()<before.expiresAt*1000+120)await sleep(100);
   const afterExpiry=await capture();await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-expired-pending.png')});
   for(let n=0;n<100;n++){const value=await state();if(value.robot.slowStartPosts.length===5&&value.robot.slowStartPosts.at(-1).completedAt)break;await sleep(100)}const response=requestFailures.length?null:await responsePromise,receipt=response?await response.json():null,receivedAt=Date.now();await sleep(100);const settled=await capture();await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-accepted.png')});
+  const settledScope=await readScope();
+  await page.unroute(readPath,unavailable);
+  assert.equal(settledScope.stale,true,'receipt settles while HA observation is still stale');
   const wire=requests.filter(r=>r.url.includes('/control/actions')),value=await state(),bundle=await(await page.request.get(base+'/view/podview.bundle.js')).body();const proof={servedBundleSha256:loadedBundleSha256,servedCssSha256:loadedCssSha256,bundleAtEndSha256:crypto.createHash('sha256').update(bundle).digest('hex'),before,touchedAt,receivedAt,normal,initialPending,afterExpiry,receipt,requestFailures,settled,wire,robot:value.robot,errors};await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-slow-start-expiry.json'),JSON.stringify(proof,null,2));console.log('slowStartExpiry',JSON.stringify(proof));
   assert(response,'admitted Start response must remain receivable beyond the12s normal request timeout');assert.equal(response.status(),200);assert.equal(receipt.outcome,'accepted');assert.equal(receipt.completedSteps,5);assert.equal(receipt.startSent,true);assert.equal(receipt.partial,false);assert.equal(wire.length,1,'expiry never creates any second browser action');assert.equal(wire[0].body.taskId,before.taskId);assert.equal(receipt.requestId,wire[0].body.requestId);assert(receivedAt>=before.expiresAt*1000,'accepted arrives after the original UI admission expiry');assert(receivedAt-touchedAt>=16000&&receivedAt-touchedAt<25000);
   const writes=effectWrites(value);assert.deepEqual(writes.map(row=>row[0]),['services/select/select_option','services/select/select_option','services/select/select_option','services/vacuum/set_fan_speed','services/vacuum/send_command']);assert.deepEqual(writes.at(-1)[1],{entity_id:'vacuum.qrevo',command:'app_segment_clean',params:[{segments:[16,17],repeat:1}]});assert.equal(value.robot.state,'cleaning');assert.equal(value.robot.slowStartPosts.length,5);for(const post of value.robot.slowStartPosts.slice(0,4))assert(post.completedAt-post.receivedAt>=4);
@@ -88,12 +180,131 @@ const assertRobotObservation=async(page,requests,action)=>{
   const observed=await page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),devices:h.state.devices.filter(d=>d.kind==='vacuum').map(d=>({id:d.id,status:d.status,stale:d.stale,telemetry:d.telemetry})),panelText:h.liveControls.robotPanel?.innerText??'',liveHomeAt:h.liveHomeAt}));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-observed.png')});await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-slow-start-observed.json'),JSON.stringify({receiptBoundary:'PASS',progressGeometry:'PASS',observedCleaning,observed},null,2));assert(observedCleaning,'ordinary existing home observation eventually shows the inert native cleaning state');assert.match(observed.panelText,/Rengør/);assert.deepEqual(errors,[]);console.log(JSON.stringify({outcome:'PASS',actualStartOutlivesOriginalLease:true,settingHttpDelays:4,settingDelayMs:4000,oneStart:true,observedCleaning:true,servedBundleSha256:proof.servedBundleSha256}));return;
  }
  if(process.env.ROBOT_DRAFT_TEST==='1'){
-  await testEnv.openOverview(page);const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();await card.waitFor({timeout:15000});await card.tap();const panel=page.locator('pv-robot-control-panel'),room=panel.getByRole('button',{name:'Køkkenalrum',exact:true});await room.waitFor({state:'visible',timeout:15000});await room.tap();assert.equal(await room.getAttribute('aria-pressed'),'true');const mop=panel.getByRole('radio',{name:'Vask',exact:true}),both=panel.getByRole('radio',{name:'Støvsug og vask',exact:true}),extreme=panel.getByRole('radio',{name:'Extreme',exact:true});await mop.tap();await extreme.tap();assert(await extreme.isChecked());await both.tap();
-  const before=await page.locator('pv-widget-host').evaluate(h=>({task:h.liveControls.task?.taskId,expiresAt:h.liveControls.task?.expiresAt,now:Date.now()/1000,draft:h.liveControls.robotPanel?.readCleaningDraft?.()}));console.log('draftInitial',JSON.stringify(before));assert(before.task&&before.expiresAt>before.now&&before.expiresAt-before.now<=8.5);assert.equal(before.draft.areaIds.length,1);assert.deepEqual((await state()).robot.writes,[]);
-  await page.locator('#header-title-action').tap();await page.locator('#show-photo').tap();await page.locator('#photo-view').waitFor({state:'visible'});for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){if(n>120)throw Error('server-issued task did not expire');await sleep(100)}
-  const hidden=await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,task:h.liveControls.task?.taskId??null,draft:h.liveControls.expiredRobot?.draft??null}));console.log('draftHidden',JSON.stringify({before,hidden}));
-  await testEnv.openOverview(page);await card.waitFor({timeout:15000});await card.tap();await room.waitFor({state:'visible',timeout:15000});await page.waitForFunction(old=>{const h=document.querySelector('pv-widget-host');return h?.liveControls?.task?.taskId&&h.liveControls.task.taskId!==old},before.task,{timeout:15000});
-  const after=await page.locator('pv-widget-host').evaluate(h=>({task:h.liveControls.task?.taskId,draft:h.liveControls.task?.draft??null,pressed:[...document.querySelectorAll('pv-robot-control-panel button[name=areaIds]')].map(b=>({name:b.innerText,pressed:b.getAttribute('aria-pressed')})),text:document.querySelector('pv-robot-control-panel')?.innerText}));console.log('draftReopened',JSON.stringify(after));assert.equal(await room.getAttribute('aria-pressed'),'true','fresh server remap retains the selected room');assert.equal(after.draft?.status,'restored');await mop.tap();console.log('reopenedMopExtreme',await extreme.isChecked());assert(await extreme.isChecked(),'the other mode draft remains independently retained');assert.deepEqual((await state()).robot.writes,[]);assert.deepEqual(errors,[]);console.log(JSON.stringify({outcome:'PASS',actualServerTaskExpiry:true,hiddenThenReopened:true,serverRemapped:true,serviceWrites:0}));return;
+  await testEnv.openOverview(page);
+  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+  await card.waitFor({timeout:15000});
+  await card.tap();
+  const host=page.locator('pv-widget-host'),panel=page.locator('pv-robot-control-panel');
+  const room=panel.getByRole('button',{name:'Køkkenalrum',exact:true});
+  const setting=key=>panel.locator(`[data-setting-concept=${key}]`);
+  const choice=(key,name)=>setting(key).getByRole('radio',{name,exact:true});
+  const modeNames=['Støvsug og vask','Støvsug','Vask'];
+  const both=choice('mode',modeNames[0]),vacuum=choice('mode',modeNames[1]),mop=choice('mode',modeNames[2]);
+  const extreme=choice('water','Extreme'),max=choice('suction','Maks.');
+  const fast=choice('mop_mode','Hurtig'),twice=choice('repeat','2×');
+  await room.waitFor({state:'visible',timeout:15000});
+  await room.tap();
+  assert.equal(await room.getAttribute('aria-pressed'),'true');
+  assert.deepEqual(await setting('mode').locator('label:visible').allTextContents(),modeNames);
+  assert.equal(await setting('repeat').getByRole('radio').count(),2);
+  assert.equal(await choice('repeat','3×').count(),0);
+  const geometry=()=>panel.locator('.robot-type-options').evaluate(group=>{
+   const {x,y}=group.getBoundingClientRect();
+   return ['mop_mode','repeat'].map(key=>{
+    const {left,top}=group.querySelector(`[data-setting-concept=${key}]`).getBoundingClientRect();
+    return {x:left-x,y:top-y};
+   });
+  });
+  const positions={both:await geometry()};
+  await vacuum.tap();
+  assert.equal(await setting('water').isVisible(),false);
+  positions.vacuum=await geometry();
+  await mop.tap();
+  assert.equal(await setting('suction').isVisible(),false);
+  positions.mop=await geometry();
+  assert.deepEqual(positions.vacuum,positions.both,'vacuum preserves route and repeat positions');
+  assert.deepEqual(positions.mop,positions.both,'mop preserves route and repeat positions');
+  await extreme.tap();
+  assert(await extreme.isChecked());
+  await both.tap();
+  for(const option of [extreme,max,fast,twice])await option.tap();
+  const before=await host.evaluate(h=>({task:h.liveControls.task?.taskId,
+   expiresAt:h.liveControls.task?.expiresAt,now:Date.now()/1000,
+   draft:h.liveControls.robotPanel?.readCleaningDraft?.()}));
+  assert(before.task&&before.expiresAt>before.now&&before.expiresAt-before.now<=8.5);
+  assert.equal(before.draft.areaIds.length,1);
+  assert.equal(before.draft.repeat,2);
+  assert.deepEqual((await state()).robot.writes,[]);
+
+  await page.locator('#header-title-action').tap();
+  await page.locator('#show-photo').tap();
+  await page.locator('#photo-view').waitFor({state:'visible'});
+  for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
+   if(n>120)throw Error('server-issued task did not expire');
+   await sleep(100);
+  }
+  await testEnv.openOverview(page);
+  await card.waitFor({timeout:15000});
+  await card.tap();
+  await room.waitFor({state:'visible',timeout:15000});
+  await page.waitForFunction(old=>{
+   const task=document.querySelector('pv-widget-host')?.liveControls?.task;
+   return task?.taskId&&task.taskId!==old&&task.draft?.status==='restored';
+  },before.task,{timeout:15000});
+  assert.equal(await room.getAttribute('aria-pressed'),'true','fresh server remap retains the selected room');
+  for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+  const lastRead=await host.evaluate(h=>({task:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt,
+   observedAt:h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt}));
+  const readPath=url=>url.pathname==='/view/api/home';
+  await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_robot_read_transient'}}),{times:1});
+  const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
+  await host.evaluate(h=>h.loadLiveHome());
+  assert.deepEqual(await (await failedRead).json(),{error:'inert_robot_read_transient'});
+  assert(await host.evaluate(h=>h.liveTransport.connected&&h.state.devices.find(d=>d.id==='vacuum.qrevo')?.stale));
+  assert.equal(await room.count(),1,'same-owner read failure keeps the dirty room controls mounted');
+  assert.equal(await room.getAttribute('aria-pressed'),'true');
+  assert.equal(await room.isDisabled(),true,'retained draft has no authority while robot observation is stale');
+  const staleAt=await host.evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt);
+  assert.equal(staleAt,lastRead.observedAt);
+  const expectedClock=await page.evaluate(at=>new Date(at*1000)
+   .toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),staleAt);
+  assert(await panel.getByText(`Sidst opdateret kl. ${expectedClock}`,{exact:false}).isVisible());
+  for(const [index,{x,y}] of (await geometry()).entries()){
+   assert(Math.abs(x-positions.both[index].x)<0.5&&Math.abs(y-positions.both[index].y)<0.5);
+  }
+  assert.deepEqual((await state()).robot.writes,[]);
+  // The ordinary next home poll restores the draft even when its old offer has expired.
+  await page.waitForFunction(old=>{
+   const h=document.querySelector('pv-widget-host');
+   const device=h?.state.devices.find(d=>d.id==='vacuum.qrevo');
+   const start=h?.liveControls.robotPanel?.cleaningSubmit;
+   const task=h?.liveControls.task;
+   return device?.live&&!device.stale&&start&&!start.disabled&&task?.taskId!==old.task
+    &&task?.draft?.status==='restored'&&Date.now()>=old.expiresAt*1000;
+  },lastRead,{timeout:25000});
+  assert.equal(await room.getAttribute('aria-pressed'),'true','recovery retains the unsent draft without reload');
+  for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+  await mop.tap();
+  assert(await extreme.isChecked(),'the other mode draft remains independently retained');
+  await both.tap();
+  for(const option of [extreme,max,fast,twice])assert(await option.isChecked());
+  assert.deepEqual((await state()).robot.writes,[]);
+
+  const response=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
+   &&r.request().method()==='POST',{timeout:15000});
+  await panel.getByRole('button',{name:'Start i Køkkenalrum',exact:true}).tap();
+  const receipt=await (await response).json();
+  assert.equal(receipt.outcome,'accepted',JSON.stringify(receipt));
+  const final=(await state()).robot;
+  assert.deepEqual(final.writes,[
+   ['services/select/select_option',{entity_id:'select.qrevo_mode',option:'vacuum_and_mop'}],
+   ['services/select/select_option',{entity_id:'select.qrevo_mop',option:'custom_water_flow'}],
+   ['services/vacuum/send_command',{entity_id:'vacuum.qrevo',command:'set_water_box_distance_off',
+    params:{distance_off:60}}],
+   ['services/select/select_option',{entity_id:'select.qrevo_mop_mode',option:'fast'}],
+   ['services/vacuum/set_fan_speed',{entity_id:'vacuum.qrevo',fan_speed:'max'}],
+   ['services/vacuum/send_command',{entity_id:'vacuum.qrevo',command:'app_segment_clean',
+    params:[{segments:[16],repeat:2}]}],
+  ]);
+  assert.equal(final.state,'cleaning');
+  assert.deepEqual(errors,[]);
+  assert(loadedBundleSha256&&loadedCssSha256);
+  const proof={outcome:'PASS',actualServerTaskExpiry:true,hiddenThenReopened:true,serverRemapped:true,
+   modeNames,positions,retainedThroughStaleRead:true,recoveredOnPassivePoll:true,lastRead,receipt,
+   inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-draft-start-proof.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+  return;
  }
  await testEnv.openOverview(page);
  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
@@ -128,7 +339,26 @@ const assertRobotObservation=async(page,requests,action)=>{
  const stop=panel.locator('[data-direct-robot="true"][data-action-id="stop"]').first();await stop.tap();const confirm=panel.locator('dialog.robot-action-confirm');await confirm.waitFor({state:'visible'});assert.match(await confirm.innerText(),/sendes ikke til basen/i);await confirm.getByRole('button',{name:'Afslut rengøring',exact:true}).tap();
  for(let n=0;(await state()).robot.state!=='idle';n++){if(n>60)throw Error('stop not observed');await sleep(100)}assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/stop').length,1);console.log('afterStop',JSON.stringify((await state()).robot));
  // A fresh external observation restores cleaning solely in the inert fixture; it is not a new robot start.
- await update({robotState:'cleaning'});await page.reload({waitUntil:'domcontentloaded'});await testEnv.openOverview(page);const nextCard=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();await nextCard.waitFor({timeout:15000});await nextCard.tap();const nextPanel=page.locator('pv-robot-control-panel');await nextPanel.locator('[id^=robot-base-][id$=-trigger]').waitFor({timeout:20000});await nextPanel.locator('[id^=robot-base-][id$=-trigger]').tap();await nextPanel.getByRole('button',{name:'Kør til basen',exact:true}).tap();const baseConfirm=nextPanel.locator('dialog.robot-action-confirm');await baseConfirm.waitFor({state:'visible'});await baseConfirm.getByRole('button',{name:'Kør til basen',exact:true}).tap();for(let n=0;(await state()).robot.state!=='returning';n++){if(n>60)throw Error('base return not observed');await sleep(100)}assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/return_to_base').length,1);
+ await update({robotState:'cleaning',robotEffectDelayMs:1300});
+ await page.reload({waitUntil:'domcontentloaded'});
+ await testEnv.openOverview(page);
+ const nextCard=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+ await nextCard.waitFor({timeout:15000});
+ await nextCard.tap();
+ const nextPanel=page.locator('pv-robot-control-panel');
+ await nextPanel.locator('[id^=robot-base-][id$=-trigger]').waitFor({timeout:20000});
+ await nextPanel.locator('[id^=robot-base-][id$=-trigger]').tap();
+ await nextPanel.getByRole('button',{name:'Kør til basen',exact:true}).tap();
+ const baseConfirm=nextPanel.locator('dialog.robot-action-confirm');
+ await baseConfirm.waitFor({state:'visible'});
+ await baseConfirm.getByRole('button',{name:'Kør til basen',exact:true}).tap();
+ await nextPanel.getByText('På vej til basen',{exact:true}).waitFor({state:'visible',timeout:300});
+ assert.equal((await state()).robot.state,'cleaning','status changes visibly before the held robot effect');
+ for(let n=0;(await state()).robot.state!=='returning';n++){
+  if(n>60)throw Error('base return not observed');
+  await sleep(100);
+ }
+ assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/return_to_base').length,1);
  assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/start').length,1,'external state change and settings never start a job');
  assert.equal(otherSettingReceipt.outcome,'accepted','unrelated mop telemetry must not reject valid suction choice');
 

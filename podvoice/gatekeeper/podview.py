@@ -3673,8 +3673,10 @@ async def _music(request: web.Request) -> web.Response:
 async def _mood_music(request, bridge, room, *, kind="mood"):
     """One aggregate source set, never three mutually replacing search tasks."""
     from . import mood_diagnostics as diagnostic_log
+    from .podview_feeling import BROADER_QUERIES as FEELING_BROADER_QUERIES
+    from .podview_feeling import SETS as FEELING_SETS
     from .podview_feeling import THEMES as FEELING_THEMES
-    from .podview_feeling import assign_playlists, choose
+    from .podview_feeling import assign_playlists, start_page
     from .podview_mood import THEMES as MOOD_THEMES
     from .podview_mood import day_part
 
@@ -3683,14 +3685,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     themes = FEELING_THEMES if kind == "feeling" else MOOD_THEMES
     retained_attribute = "_feeling_retained" if kind == "feeling" else "_mood_retained"
     broader_queries = (
-        {
-            "energy": "feel good",
-            "calm": "acoustic",
-            "familiar": "classics",
-            "sing": "pop",
-            "soft": "acoustic",
-            "bright": "indie",
-        }
+        FEELING_BROADER_QUERIES
         if kind == "feeling"
         else {
             "morning_acoustic": "acoustic",
@@ -3772,6 +3767,20 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     if bridge._music_busy:
         diagnostic_log.admission(kind, "read_busy", 429)
         return _error("music_busy", 429)
+    retained = getattr(bridge, retained_attribute, None)
+    same_collection = retained if retained and retained["key"][1:3] == (account, room) else None
+    refreshing = request.query.get("refresh") == "1"
+    renewing = request.query.get("renew") == "1"
+    same_vibe = (
+        same_collection
+        if kind == "feeling" and same_collection and same_collection["key"][0] == binding
+        else None
+    )
+    if refreshing and same_vibe:
+        if same_vibe.get("restart_allowed"):
+            same_vibe = None
+        elif same_vibe["vibe_step"] + 1 >= len(FEELING_SETS):
+            return _error("feeling_exhausted")
     writable = bridge.controls.selection_allowed(room, token, "play_context")
     preview_voice = bridge.snapshot(room).get("voice", {})
     generation = bridge._advance_music_source(token)
@@ -3819,7 +3828,6 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         async with asyncio.timeout(max(0, 10 - (time.monotonic() - started))) as total_deadline:
             if not current():
                 return failed(f"{kind}_owner_unavailable")
-            retained = getattr(bridge, retained_attribute, None)
             key = (binding, account, room, id(grant))
             expected = None
             ids: object = None
@@ -3841,19 +3849,44 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
 
             retained_day_part = retained.get("day_part") if retained else None
             mood_day_part = retained_day_part
-            if (
-                retained
-                and retained["key"][1:3] == (account, room)
-                and request.query.get("refresh") != "1"
-            ):
+            vibe_start = vibe_step = 0
+            vibe_seen: frozenset[str] = frozenset()
+            if kind == "feeling":
+                if same_vibe:
+                    vibe_start = same_vibe["vibe_start"]
+                    vibe_step = same_vibe["vibe_step"] + int(refreshing)
+                    vibe_seen = same_vibe["vibe_seen"]
+                if renewing and same_collection and not same_vibe:
+                    # Exact rows can be revalidated under a replaced binding. Treat those
+                    # visible rows as page one of the new binding's own suggestion cycle.
+                    vibe_start = (
+                        same_collection["vibe_start"] + same_collection["vibe_step"]
+                    ) % len(FEELING_SETS)
+                elif not renewing and not (refreshing and same_vibe):
+                    diagnostic.step("time_context")
+                    try:
+                        async with asyncio.timeout(2):
+                            hour = await tools.podview_local_hour(current)
+                    except TimeoutError:
+                        hour = None
+                        diagnostic_log.note("owner_timeout")
+                    except Exception:
+                        hour = None
+                        diagnostic_log.note("time_result_invalid")
+                    if hour is not None and start_page(hour) != vibe_start:
+                        vibe_start = start_page(hour)
+                        vibe_step = 0
+                        vibe_seen = frozenset()
+                        same_vibe = None
+            if same_collection and (renewing or (not refreshing and (kind == "mood" or same_vibe))):
                 # Every new authority set must revalidate the exact frozen playlist rows.
                 # No model call, theme change or extra allowance consumption.
-                expected = {row["themeId"]: row for row in retained["rows"]}
+                expected = {row["themeId"]: row for row in same_collection["rows"]}
                 ids = list(expected)
-            elif request.query.get("renew") == "1":
+            elif renewing:
                 return failed(f"{kind}_refresh_required")
             elif kind == "feeling":
-                ids = choose(retained)
+                ids = list(FEELING_SETS[(vibe_start + vibe_step) % len(FEELING_SETS)])
             else:
                 assert selector is not None
 
@@ -3996,16 +4029,19 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     [
                         (row, source_queries[theme_id])
                         for row in playlists
-                        if expected is None
-                        or all(row.get(key) == expected[theme_id][key] for key in ("uri", "name"))
+                        if (
+                            row["uri"] not in vibe_seen
+                            if expected is None
+                            else all(
+                                row.get(key) == expected[theme_id][key] for key in ("uri", "name")
+                            )
+                        )
                     ]
                 )
 
             prior_uris = (
                 frozenset(row["uri"] for row in retained["rows"])
-                if request.query.get("refresh") == "1"
-                and retained
-                and retained["key"][:3] == key[:3]
+                if kind == "mood" and refreshing and retained and retained["key"][:3] == key[:3]
                 else frozenset()
             )
             selected = assign_playlists(candidates, prior_uris)
@@ -4024,9 +4060,18 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                     playlists = admit(lookup.result())
                     if playlists is None:
                         return failed(f"{kind}_catalogue_unavailable")
-                    candidates[index].extend((row, broader_queries[theme_id]) for row in playlists)
+                    candidates[index].extend(
+                        (row, broader_queries[theme_id])
+                        for row in playlists
+                        if row["uri"] not in vibe_seen
+                    )
                 selected = assign_playlists(candidates, prior_uris)
             if selected is None:
+                if expected is not None and same_vibe and current():
+                    # All three exact queries were admitted, but a frozen row vanished.
+                    # A deliberate refresh can now start a fresh cycle.
+                    same_vibe["restart_allowed"] = True
+                    return failed("feeling_restart_available")
                 return failed(
                     f"{kind}_refresh_required"
                     if expected is not None
@@ -4055,21 +4100,33 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             if not current():
                 return failed(f"{kind}_owner_replaced")
             diagnostic.step("publish")
-            if not writable:
-                setattr(
-                    bridge,
-                    retained_attribute,
-                    {
-                        "key": key,
-                        "rows": copy.deepcopy(rows),
-                        "queries": chosen_queries,
-                        "day_part": mood_day_part,
-                    },
+            retained_result = {
+                "key": key,
+                "rows": copy.deepcopy(rows),
+                "queries": chosen_queries,
+                "day_part": mood_day_part,
+            }
+            discovery = {}
+            if kind == "feeling":
+                if same_vibe and same_vibe["owner_epoch"] != epoch:
+                    # A newly observed Spotify owner starts its own cycle at the accepted page.
+                    vibe_start = (vibe_start + vibe_step) % len(FEELING_SETS)
+                    vibe_step = 0
+                    vibe_seen = frozenset()
+                retained_result.update(
+                    owner_epoch=epoch,
+                    vibe_start=vibe_start,
+                    vibe_step=vibe_step,
+                    vibe_seen=vibe_seen.union(row["uri"] for row in rows),
                 )
+                discovery["refreshAvailable"] = vibe_step + 1 < len(FEELING_SETS)
+            if not writable:
+                setattr(bridge, retained_attribute, retained_result)
                 diagnostic.outcome = "success"
                 response = web.json_response(
                     {
                         "ok": True,
+                        **discovery,
                         "schema": f"podview.{kind}-preview.v1",
                         "preview": {
                             "readOnly": True,
@@ -4103,20 +4160,12 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             )
             if identifier is None:
                 return failed(f"{kind}_source_rejected")
-            setattr(
-                bridge,
-                retained_attribute,
-                {
-                    "key": key,
-                    "rows": copy.deepcopy(rows),
-                    "queries": chosen_queries,
-                    "day_part": mood_day_part,
-                },
-            )
+            setattr(bridge, retained_attribute, retained_result)
             diagnostic.outcome = "success"
             response = web.json_response(
                 {
                     "ok": True,
+                    **discovery,
                     "data": {
                         "config_entry_id": account,
                         "owner_epoch": epoch,

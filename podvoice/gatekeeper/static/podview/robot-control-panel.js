@@ -80,8 +80,18 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   if(hidden){this.maintenanceTimer=setTimeout(()=>{if(this.isConnected!==false)this.updateObservation();},Math.max(1,nextLocalMidnight(Date.now())-Date.now()+1));this.maintenanceTimer?.unref?.();}
   if(this.recovery&&this.recoverySignature!==recoverySignature){
    const sameRobot=this.recoveryDeviceId===d?.id,expanded=sameRobot&&this.maintenanceDisclosure?.trigger.getAttribute('aria-expanded')==='true',focusKey=sameRobot&&[...this.recovery.querySelectorAll('button,summary')].includes(document.activeElement)?document.activeElement.dataset.robotRecoveryFocus:null,expandedItems=new Set(sameRobot?(this.maintenanceItems||[]).filter(item=>item.trigger.getAttribute('aria-expanded')==='true').map(item=>item.key):[]);
-   this.recoverySignature=recoverySignature;this.recoveryDeviceId=d?.id;this.recovery.replaceChildren();this.maintenanceDisclosure=null;this.maintenanceItems=[];this.recovery.hidden=!experience.maintenance.length;
-   // Current faults stay in the existing status Hero; this section owns maintenance only.
+   const codes = experience.issues.flatMap(issue => issue.sources || []).filter(source =>
+    ['vacuum_error','dock_error'].includes(source.key) && typeof source.raw === 'string');
+   const codeSignature = JSON.stringify(codes);
+   const oldDetails = this.recovery.querySelector('.robot-error-code');
+   const codesOpen = sameRobot && oldDetails?.open === true && oldDetails.dataset.codes === codeSignature;
+   this.recoverySignature = recoverySignature;
+   this.recoveryDeviceId = d?.id;
+   this.recovery.replaceChildren();
+   this.maintenanceDisclosure = null;
+   this.maintenanceItems = [];
+   this.recovery.hidden = !experience.maintenance.length && !codes.length;
+   // The status Hero owns the warning. This section holds maintenance and technical details.
    if(experience.maintenance.length){
     const key=maintenanceKey(d),localButton=(label,handler,focusKey)=>{const button=make('button',label,'pv-button pv-ghost robot-maintenance-dismiss');button.type='button';button.dataset.localDraft='true';button.dataset.robotRecoveryFocus=focusKey;applyKitComponent(button,'button',{variant:'secondary'});button.addEventListener('click',handler);return button;};
     if(hidden){
@@ -96,6 +106,16 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
      if(key&&maintenanceStorage())disclosure.panel.append(localButton('Skjul vedligeholdelse i dag',()=>{try{globalThis.localStorage.setItem(key,String(nextLocalMidnight(Date.now())));}catch{}this.recoverySignature=null;this.updateObservation();},'dismiss'));
      this.recovery.append(disclosure.node);
     }
+   }
+   if (codes.length) {
+    const details = make('details', undefined, 'robot-error-code');
+    const summary = make('summary', 'Tekniske detaljer');
+    summary.dataset.robotRecoveryFocus = 'technical';
+    details.dataset.codes = codeSignature;
+    details.open = codesOpen;
+    details.append(summary, ...codes.map(({key,raw}) =>
+     make('p', `${key === 'dock_error' ? 'Base' : 'Robot'} · ${raw}`, 'pv-meta')));
+    this.recovery.append(details);
    }
    if(focusKey){const controls=[...this.recovery.querySelectorAll('button,summary')],target=controls.find(node=>node.dataset.robotRecoveryFocus===focusKey)||controls.find(node=>node.dataset.robotRecoveryFocus===(focusKey==='dismiss'?'restore':'maintenance'));target?.focus?.({preventScroll:true});}
   }

@@ -3017,11 +3017,20 @@ class ToolRouter:
         )
 
     async def podview_mood_context(self, current) -> dict | None:
-        """Coarse time from the existing HA GetDateTime owner, never a local clock."""
         from .mood_diagnostics import note
 
         selector = getattr(self, "podview_mood_selector", None)
-        if selector is None or self._mcp is None:
+        if selector is None:
+            note("time_owner_missing")
+            return None
+        hour = await self.podview_local_hour(current)
+        return {"hour": hour, "roomKind": selector.room_kind} if hour is not None else None
+
+    async def podview_local_hour(self, current) -> int | None:
+        """Read only the local hour from the existing HA GetDateTime owner."""
+        from .mood_diagnostics import note
+
+        if self._mcp is None:
             note("time_owner_missing")
             return None
         if not current():
@@ -3048,7 +3057,7 @@ class ToolRouter:
         match = re.fullmatch(r"([01][0-9]|2[0-3]):[0-5][0-9](?::[0-5][0-9](?:\.[0-9]+)?)?", value)
         if not match:
             note("time_format_invalid")
-        return {"hour": int(match[1]), "roomKind": selector.room_kind} if match else None
+        return int(match[1]) if match else None
 
     def podview_music_reads(self) -> list[str]:
         if not self._token or self._client is None or self._client.is_closed:

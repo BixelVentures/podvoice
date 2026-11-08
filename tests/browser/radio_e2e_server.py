@@ -22,6 +22,9 @@ logging.getLogger("podvoice.radio").setLevel(logging.INFO)
 
 base = selection.base
 port = int(os.environ.get("RADIO_TEST_PORT", "18982"))
+config_mode = os.environ.get("RADIO_CONFIG_TEST")
+owner_token = os.environ.get("RADIO_FIXTURE_OWNER_TOKEN", "inert-radio-owner-token")
+radio_fault = None
 radio = native_state()
 radio["targets"] = [
     {
@@ -40,7 +43,7 @@ radio["targets"] = [
     },
 ]
 radio.update(target_id="42", state="stopped", source_kind="none")
-base.state.update(radioWrites=[], radioReads=0, sourceTransitions=[])
+base.state.update(radioWrites=[], radioReads=0, radioDeniedReads=0, sourceTransitions=[])
 
 
 def radio_observation():
@@ -56,13 +59,18 @@ def radio_observation():
 
 
 async def radio_read(request):
-    assert request.headers.get("X-PodConnect-Token") == "inert-radio-owner-token"
+    if radio_fault == "unavailable":
+        return web.Response(status=503)
+    if radio_fault == "reject" or request.headers.get("X-PodConnect-Token") != owner_token:
+        base.state["radioDeniedReads"] += 1
+        return web.Response(status=401)
     base.state["radioReads"] += 1
     return web.json_response(radio_observation())
 
 
 async def radio_action(request):
-    assert request.headers.get("X-PodConnect-Token") == "inert-radio-owner-token"
+    if request.headers.get("X-PodConnect-Token") != owner_token:
+        return web.Response(status=401)
     body = await request.json()
     assert set(body) == {
         "action_id",
@@ -154,7 +162,14 @@ async def native_music(request):
 
 base.music.client = httpx.AsyncClient(transport=httpx.MockTransport(native_music))
 base.music.tools._client = base.music.client
-native_radio = NativeRadio(f"http://127.0.0.1:{port}", "inert-radio-owner-token")
+client_token = (
+    ""
+    if config_mode == "missing"
+    else os.environ["RADIO_FIXTURE_CLIENT_TOKEN"]
+    if config_mode == "mismatch"
+    else owner_token
+)
+native_radio = NativeRadio(f"http://127.0.0.1:{port}", client_token)
 base.music.tools.podview_radio_native = native_radio
 base.app[BRIDGE].radio.native = native_radio
 base.app.router.add_get("/api/radio/state", radio_read)
@@ -162,6 +177,11 @@ base.app.router.add_post("/api/radio/action", radio_action)
 
 
 async def lab_radio(request):
+    global radio_fault
+    if request.method == "POST":
+        radio_fault = (await request.json())["fault"]
+        assert radio_fault in {"reject", "unavailable", None}
+        return web.json_response({"ok": True})
     return web.json_response(radio_observation())
 
 
@@ -170,5 +190,7 @@ async def cleanup(_):
 
 
 base.app.router.add_get("/lab/radio", lab_radio)
+if config_mode == "rotate":
+    base.app.router.add_post("/lab/radio", lab_radio)
 base.app.on_cleanup.append(cleanup)
 web.run_app(base.app, host="127.0.0.1", port=port, print=None)

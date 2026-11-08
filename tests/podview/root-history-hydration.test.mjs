@@ -84,6 +84,52 @@ function historyFixture({empty=true}={}){const f=fixture({focus:'now'});Object.a
 
 test('reload hydrates original expired content with empty current owner and no source authority',async()=>{const f=historyFixture();try{f.responses.push(f.envelope());await f.view.refresh();assert.deepEqual(f.calls,['history']);const a=f.host.state.answers[0];assert.equal(a.historical,true);assert.equal(a.observedAt,1700000000);assert.equal(a.content.summary,'Bevaret måling');assert.equal(a.readContext,null);assert.deepEqual(a.allowedActions,[]);assert.equal(f.view.currentAnswer(receiptId),null);await f.view.showSource(receiptId,{});assert.deepEqual(f.calls,['history']);await f.view.refresh();assert.equal(f.calls.length,1);}finally{f.restore();}});
 
+test('completed current lease can join history only through the admitted server archive',async()=>{
+ const f=historyFixture({empty:false});
+ try{
+  const snapshot=f.host.liveSnapshot;
+  const historicalId='receipt:'+receiptId;
+  const row={...archived(),sessionId:'session-a'};
+  const archivedCopy=historicalAnswers(f.envelope([row]),snapshot).items[0];
+  const current={...archivedCopy,historical:false,readConnected:true,readContext:'current'};
+  f.host.state.answers=[current];
+  const revision=snapshot.answerHistoryRevision;
+  delete snapshot.answerHistoryRevision;
+  f.view.remember([current]);
+  assert.equal(f.view.history.size,1,'legacy page retention remains available');
+  assert.equal(f.view.retained([])[0].historical,true,'legacy retained display stays passive');
+  snapshot.voice={active:false,sessionId:null};
+  snapshot.answers.readOnlyCompleted=true;
+  assert.equal(f.view.historyPresentation().hidden,false,
+   'the legacy cache cannot expose a history row for the current lease');
+  assert.deepEqual(answerOwner.groupAnswerHistory([current],f.view),[]);
+  snapshot.answerHistoryRevision=revision;
+  assert.deepEqual(answerOwner.groupAnswerHistory([current],f.view),[],
+   'a server revision advertised in a snapshot does not validate the cache');
+  f.responses.push(f.envelope([row]));
+  await f.view.refreshHistory();
+  const group=answerOwner.groupAnswerHistory([current],f.view)[0];
+  assert.equal(group.items[0].id,historicalId);
+  assert.equal(group.items[0].readContext,null);
+  assert.deepEqual(group.items[0].allowedActions,[]);
+  assert.equal(current.readContext,'current');
+  assert.deepEqual(answerOwner.groupAnswerHistory([current],{
+   ...f.view,historyRevision:revision-1,
+  }),[]);
+  assert.deepEqual(answerOwner.groupAnswerHistory([current],{
+   ...f.view,historyScope:'["another-boot","room"]',
+  }),[]);
+  snapshot.answerHistoryReceiptIds=[];
+  assert.deepEqual(answerOwner.groupAnswerHistory([current],f.view),[]);
+  snapshot.answerHistoryReceiptIds=[receiptId];
+  delete snapshot.answerHistoryRevision;
+  f.view.remember([current]);
+  snapshot.answerHistoryRevision=revision;
+  assert.deepEqual(answerOwner.groupAnswerHistory([current],f.view),[],
+   'switching to legacy retention invalidates prior server provenance');
+ }finally{f.restore();}
+});
+
 test('history envelope rejects wrong scopes, revisions, unsupported provenance, content extras and source escape',()=>{const f=historyFixture();try{for(const mutate of [v=>v.bootId='other',v=>v.roomId='other',v=>v.revision=0,v=>v.removalRevision=2,v=>v.extra=true,v=>v.items.push(v.items[0]),v=>v.items[0].allowedActions=['play'],v=>v.items[0].observedAt=Date.now()/1000+6,v=>v.items[0].provenance.kind='verified',v=>v.items[0].provenance.receiptIds=[receiptId],v=>v.items[0].content.extra='html',v=>v.items[0].content.facts[0].extra='action',v=>v.items[0].content.sources[0].receiptId='b'.repeat(32)]){const v=f.envelope();mutate(v);assert.throws(()=>historicalAnswers(v,f.host.liveSnapshot));}const many=f.envelope(Array.from({length:21},(_,i)=>archived(i.toString(16).padStart(32,'0'))));assert.throws(()=>historicalAnswers(many,f.host.liveSnapshot));assert.throws(()=>historicalAnswers(f.envelope(),{...f.host.liveSnapshot,capabilities:{answerRead:false}}));}finally{f.restore();}});
 
 test('admission-only revision retains existing content during held hydration; removal clears immediately and old response cannot resurrect',async()=>{const f=historyFixture();try{f.responses.push(f.envelope());await f.view.refresh();const previous=f.host.state.answers[0];f.next(2);const old=deferred(),oldBody=f.envelope([archived(),archived('b'.repeat(32))]);f.responses.push(old.promise);const pending=f.view.refresh();assert.equal(f.host.state.answers[0].content.summary,previous.content.summary);f.next(3,1);assert.equal(f.host.state.answers.length,0);f.responses.push(f.envelope([]));await f.view.refresh();old.resolve(oldBody);await pending;assert.equal(f.host.state.answers.length,0);assert.equal(f.view.history.size,0);}finally{f.restore();}});

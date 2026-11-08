@@ -6,7 +6,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const path=require('node:path');
 const assert=require('node:assert/strict');
-const env=require('./podview_actual_env.cjs'),port=18982,base=`http://127.0.0.1:${port}`;
+const env=require('./podview_actual_env.cjs'),port=Number(process.env.ANSWERS_TEST_PORT||18982),base=`http://127.0.0.1:${port}`;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 let server,browser,data;
@@ -18,6 +18,44 @@ let server,browser,data;
  browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],writes=[];
  page.on('pageerror',error=>errors.push(error.message));page.on('request',r=>{if(r.method()!=='GET')writes.push({path:new URL(r.url()).pathname,body:r.postData()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
+ if(process.env.ANSWERS_LIVE_TEST==='1'){
+  const posted=await fetch(base+'/lab/submit-live-answer',{method:'POST'});
+  assert.equal(posted.status,200);
+  assert.equal((await posted.json()).inputSubmitted,true);
+  const step='Fold papiret på midten.';
+  const answerHost=page.locator('#answer-host');
+  await answerHost.getByText(step,{exact:true}).waitFor({state:'visible'});
+  assert.equal(await answerHost.locator('pv-answer:visible').count(),1);
+  const current=await page.request.get(base+'/view/api/answers?room=kitchen');
+  assert.equal(current.status(),200);
+  const currentId=(await current.json()).items[0].receiptId;
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-answer-live.png')});
+  const closed=await fetch(base+'/lab/close-live-answer',{method:'POST'});
+  assert.equal(closed.status,200);
+  assert.deepEqual(await closed.json(),{sourceCalls:0,playbackUrls:0});
+  const saved=await page.request.get(base+'/view/api/answers?room=kitchen&history=1');
+  assert.equal(saved.status(),200);
+  const archived=await saved.json();
+  assert.deepEqual(archived.receiptIds,[currentId]);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await env.openOverview(page);
+  await page.locator('#open-history').tap();
+  await page.locator('#retained .history-open:visible').getByText('En forklaring',{exact:true}).tap({timeout:5000});
+  await answerHost.getByText(step,{exact:true}).waitFor({state:'visible'});
+  assert.equal(await answerHost.getAttribute('data-history-group'),'true');
+  assert.equal(await answerHost.locator('pv-answer:visible details.sources').isVisible(),false);
+  const retainedCompletion=await page.request.get(base+'/view/api/answers?room=kitchen');
+  assert.equal((await retainedCompletion.json()).items[0].receiptId,currentId,
+   'history remains browsable during the existing read-only completion lease');
+  const history=await page.request.get(base+'/view/api/answers?room=kitchen&history=1');
+  assert.deepEqual((await history.json()).receiptIds,[currentId]);
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-answer-live-history.png')});
+  assert.deepEqual(errors,[]);
+  assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,0);
+  console.log(JSON.stringify({outcome:'PASS',mode:'live-answer-to-history',actualThin:true,
+   inertProvider:true,input:'typed',sameReceiptAfterReload:true,browserActionWrites:0,audio:false,pageErrors:errors}));
+  return;
+ }
  for(let n=0;!(await (await fetch(base+'/lab/history')).json()).held;n++){if(n>100)throw Error('history read not held');await sleep(100)}
  // Unrelated control remains usable while the actual history HTTP read is pending.
  await page.locator('#open-timers').tap();const form=page.getByRole('form',{name:'Ny timer'});await form.getByRole('button',{name:'Start timer'}).tap();

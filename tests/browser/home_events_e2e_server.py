@@ -48,7 +48,7 @@ if weather_mode:
     weather_owner.names = ("HassGetWeather",)
 
 
-def reset_weather(*, temperature=15.1, remaining=None, keep_daily_dates=False):
+def reset_weather(*, temperature=15.1, state_age_seconds=0, keep_daily_dates=False):
     if weather_owner is None:
         return
     now = datetime.now(UTC)
@@ -62,9 +62,7 @@ def reset_weather(*, temperature=15.1, remaining=None, keep_daily_dates=False):
             entity_id=weather_entity,
             location="Inert vejrsted",
             retrieved_at=now.isoformat(),
-            state_updated_at=(now - timedelta(seconds=7200 - remaining)).isoformat()
-            if remaining is not None
-            else now.isoformat(),
+            state_updated_at=(now - timedelta(seconds=state_age_seconds)).isoformat(),
             temperature=temperature,
             condition="rainy" if temperature > 18 else "partlycloudy",
         )
@@ -275,13 +273,23 @@ async def lab(request):
                 if weather_retention_mode:
                     daily_forecast[1]["condition"] = "sunny"
                     daily_forecast[2]["condition"] = "rainy"
+            if "weatherNearFreshnessSeconds" in body:
+                seconds = body["weatherNearFreshnessSeconds"]
+                assert type(seconds) is int and 5 <= seconds <= 30
+                reset_weather(temperature=22.1, state_age_seconds=1800 - seconds)
             if "weatherNearExpirySeconds" in body:
                 seconds = body["weatherNearExpirySeconds"]
                 assert type(seconds) is int and 5 <= seconds <= 30
                 weather_failed = False
-                reset_weather(temperature=21.1, remaining=seconds)
+                reset_weather(temperature=21.1, state_age_seconds=7200 - seconds)
             if any(
-                key in body for key in ("weatherFail", "weatherRecover", "weatherNearExpirySeconds")
+                key in body
+                for key in (
+                    "weatherFail",
+                    "weatherRecover",
+                    "weatherNearFreshnessSeconds",
+                    "weatherNearExpirySeconds",
+                )
             ):
                 await emit(
                     weather_entity,

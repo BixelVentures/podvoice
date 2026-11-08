@@ -65,6 +65,7 @@ _OUTCOMES = frozenset(
         "mood_unavailable",
         "feeling_owner_unavailable",
         "feeling_refresh_required",
+        "feeling_restart_available",
         "feeling_budget_unavailable",
         "feeling_selection_unavailable",
         "feeling_catalogue_unavailable",

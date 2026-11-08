@@ -19,4 +19,48 @@ test('generated mood artwork never crosses into the closed feeling owner schema'
  for(const kind of ['paired','preview']){const value=structuredClone(fixture[kind]);const row=value.data.tracks.find(row=>row.themeId==='calm');assert.ok(row);row.themeArt='theme-art/calm/'+'a'.repeat(64)+'.webp';assert.equal(kind==='paired'?collectionSample(value,'account-alpha','feeling',fixture.snapshot):moodPreview(value,'account-alpha',fixture.snapshot,Date.now(),'feeling'),null);}
 });
 
+test('Vibe pagination is validated on the owner response for both catalogue custody modes',()=>{
+ const {snapshot}=fixture,account='account-alpha',now=Date.now();
+ const page=[['lounge','Lounge','lake'],['nineties_techno','90’er-techno','indie'],['party','Festmusik','kitchen']];
+ for(const kind of ['paired','preview']){
+  const body=structuredClone(fixture[kind]);
+  const read=()=>kind==='paired'?collectionSample(body,account,'feeling',snapshot,now):moodPreview(body,account,snapshot,now,'feeling');
+  body.refreshAvailable=false;
+  for(const [index,[themeId,themeTitle,art]] of page.entries())Object.assign(body.data.tracks[index],{themeId,themeTitle,artist:themeTitle,themeArt:`assets/${art}.webp`});
+  assert.deepEqual(read().tracks.map(row=>row.themeTitle),page.map(([,title])=>title));
+  assert.equal(read().refreshAvailable,false);
+  body.refreshAvailable='false';
+  assert.equal(read(),null);
+ }
+});
+
+test('Vibe keeps owner order when the browser clock differs and stops requesting exhausted pages',()=>{
+ const reads=[],renders=[],host={state:{focus:'music'},liveSnapshot:fixture.snapshot,musicResults:{render:model=>renders.push(model)}};
+ const view=new LiveMusicCatalogueView(host,kind=>reads.push([kind,view.pendingRead.reason]));
+ const now=Date.now;
+ try{
+  Date.now=()=>Date.parse('2026-11-08T19:00:00Z');
+  view.updateCapabilities(true,fixture.snapshot.capabilities.musicRead);
+  view.resetAccount('account-alpha');
+  view.select('feeling');
+  view.tracks('feeling',{...fixture.paired,refreshAvailable:false},'account-alpha');
+  assert.deepEqual(view.cards.map(card=>card.name),fixture.paired.data.tracks.map(row=>row.themeTitle));
+  assert.equal(renders.at(-1).canRefresh,false);
+  view.refresh();
+  assert.deepEqual(reads,[['feeling','initial']]);
+  const retained=view.cards;
+  host.liveSnapshot={...host.liveSnapshot,providerGeneration:1};
+  view.render();
+  assert.equal(renders.at(-1).canRefresh,true,'new owner scope permits a fresh catalogue read');
+  assert.equal(renders.at(-1).canChoose,false,'old cards grant no choice during owner recovery');
+  view.refresh();
+  assert.deepEqual(reads.at(-1),['feeling','initial']);
+  assert.equal(view.cards,retained);
+  view.failure('feeling','feeling_restart_available');
+  assert.equal(renders.at(-1).canChoose,false);
+  view.refresh();
+  assert.deepEqual(reads.at(-1),['feeling','refresh'],'only explicit refresh starts a replacement cycle after verified source loss');
+ }finally{Date.now=now;clearTimeout(view.expiryTimer);}
+});
+
 test('For dig retains the top collection and describes the actual fallback without mix claims',()=>{const before=initialWidgetState(),after=step(before,{type:'collection',value:'top'});assert.equal(after.collection,'top');assert.equal(after.playback,before.playback);assert.equal(COLLECTIONS.top.title,'For dig');assert.equal(COLLECTIONS.top.description,'Dine topsange');assert.deepEqual(resultsFor(after),resultsFor({...before,collection:'top'}));assert.doesNotMatch(JSON.stringify(COLLECTIONS.top),/daylist|Discover Weekly|Mix/i);});

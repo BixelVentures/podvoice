@@ -21,10 +21,18 @@ export class LightRoomView{
   if(!light||light.kind!=='light')return null;
   const live=light.live===true;
   if(live){
-   const catalogue=this.host.state?.lightAreas,items=Array.isArray(catalogue?.items)?catalogue.items:[],source=!light.stale?scopedLightsObservation(light.lightObservation):null,connected=!!(this.host.live&&this.host.isConnected&&this.host.liveTransport?.connected),permitted=connected&&this.host.liveSnapshot?.capabilities?.controlSetup?.includes('light')&&!this.host.lightAreaPending&&!this.host.liveControls?.lightActionState?.pending;
+   const catalogue=this.host.state?.lightAreas,items=Array.isArray(catalogue?.items)?catalogue.items:[];
+   const source=!light.stale?scopedLightsObservation(light.lightObservation):null;
+   const transport=this.host.liveTransport;
+   const connected=!!(this.host.live&&this.host.isConnected&&transport?.connected
+    &&!transport.recoveryBlocked&&!this.host.browserOffline);
+   const permitted=connected&&this.host.liveSnapshot?.capabilities?.controlSetup?.includes('light')
+    &&!this.host.lightAreaPending;
+   const controls=this.host.liveControls,pending=controls?.lightActionState?.pending;
    const rows=items.filter(row=>typeof row.areaId==='string'&&typeof row.areaName==='string').map(row=>{
     const current=source?.status==='observed'&&source.scope.areaId===row.areaId,known=current&&source.items.length>0&&source.items.every(item=>['on','off'].includes(item.state)),on=known?source.items.filter(item=>item.state==='on').length:null;
-    return {id:row.areaId,name:row.areaName,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Sidst kendt':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!(permitted&&known),live:true};
+    const enabled=permitted&&known&&(!pending||controls.canQueueLightInput?.({areaId:row.areaId},'toggle'));
+    return {id:row.areaId,name:row.areaName,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Sidst kendt':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!enabled,live:true};
    });
    return {live:true,rows,placement:items.find(row=>row.areaId===catalogue?.ownAreaId)?.areaName||'',globalEnabled:false};
   }
@@ -41,7 +49,12 @@ export class LightRoomView{
  }
  createRow(id){
   const node=make('div','light-room-row'),copy=make('span','light-room-copy'),name=make('strong','light-room-name'),status=make('span','light-room-status'),power=make('button','light-room-power');applyKitTextRole(name,'group-title');applyKitTextRole(status,'body');power.type='button';applyKitComponent(power,'tile',{identity:'light',variant:'power'});power.dataset&&(power.dataset.pvPress='quiet');const icon=make('img','light-room-icon');icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');copy.append(name,status);power.append(icon,copy);node.append(power);
-  power.addEventListener('click',()=>{const d=this.current(),model=this.model(d),row=model?.rows.find(row=>row.id===id);if(!row?.enabled||!row.action)return;if(model.live)this.host.actCurrentLight?.(row.action,{}, {areaId:id});else this.host.dispatch({type:'light-room-power',...binding(this.host.state,d),roomId:id,action:row.action});});
+  power.addEventListener('click',()=>{
+   const d=this.current(),model=this.model(d),row=model?.rows.find(row=>row.id===id);
+   if(!row?.enabled||!row.action)return;
+   if(model.live)this.host.actCurrentLight?.('toggle',{}, {areaId:id});
+   else this.host.dispatch({type:'light-room-power',...binding(this.host.state,d),roomId:id,action:row.action});
+  });
   const entry={node,name,status,power};this.rows.set(id,entry);return entry;
  }
  revealSelection(id){

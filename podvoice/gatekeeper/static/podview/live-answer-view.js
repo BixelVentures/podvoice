@@ -9,6 +9,7 @@ export class LiveAnswerView{
  currentAnswer(id){const key=answerReadContext(this.host.liveSnapshot);return key&&this.host.state.answers.find(a=>a.live&&!a.historical&&a.receiptId===id&&a.readContext===key&&expiresAt(a)>Date.now());}
  remember(items){
   if(Number.isSafeInteger(this.host.liveSnapshot?.answerHistoryRevision))return;
+  this.historyRevision=undefined; // A legacy page cache does not attest the server archive.
   this.history??=new Map();const snapshot=this.host.liveSnapshot,scope=JSON.stringify([snapshot.bootId,snapshot.roomId]);if(this.historyScope!==scope){this.history.clear();this.historyScope=scope;}
   // Closed content: at most8 rows,4 sources,2048-char URLs and bounded text.
   // 64KiB covers UTF-8 expansion plus receipt metadata;20 whole records <=1.25MiB.
@@ -56,7 +57,7 @@ export class LiveAnswerView{
  }
  historyPresentation(){
   const host=this.host,s=host.liveSnapshot;
-  const retained=groupAnswerHistory(host.state.answers).length>0;
+  const retained=groupAnswerHistory(host.state.answers,this).length>0;
   if(!Number.isSafeInteger(s?.answerHistoryRevision))return {hidden:retained,data:{state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:'Når PodVoice viser et visuelt svar, kan du finde det her igen.'}};
   const scope=JSON.stringify([s.bootId,s.roomId]),ready=this.historyRevision===s.answerHistoryRevision&&this.historyScope===scope;
   const status=!host.liveTransport?.connected?'offline':s.capabilities?.answerRead!==true?'unsupported':this.historyReadScope===scope&&this.historyReadStatus==='error'?'error':this.historyPending||!ready?'loading':'empty';

@@ -62,8 +62,14 @@ test('own known-empty and partial unknown light sources stay observed with hones
  for(const mode of ['empty','unknown']){const value=home();if(mode==='empty')value.lights.items=[];else value.lights.items[1].state='unknown';const parsed=validateHome(value,'room','boot'),state=applyHome(initialScene(),parsed,['light']),device=state.devices.find(row=>row.id==='podview-ha-lights');assert.ok(device);assert.equal(device.lightObservation.status,'observed');assert.equal(device.lightObservation.complete,true);assert.equal(device.totalCount,mode==='empty'?0:2);assert.equal(device.status,mode);assert.equal(device.displayState,mode==='empty'?'Ingen lys i rummet':'1 af 2 bekræftet tændt · 1 ukendt');assert.equal(device.countUnit,'light_entities');}
 });
 test('only unavailable same exact own binding retains stale data; replacement/unbound/revocation clears device and detail',()=>{
- const parsed=validateHome(home(),'room','boot'),initial=applyHome(initialScene(),parsed,['light']),detail={lightScope:{...parsed.lights.scope},lightSourceEpoch:parsed.lights.sourceEpoch};initial.focus='podview-ha-lights';initial.liveLightDetail=detail;
- const unavailable={...parsed,lights:{...parsed.lights,status:'unavailable',observedAt:null,validUntil:null,scope:null,complete:false,items:[]}},retained=applyHome(initial,unavailable,['light']);assert.equal(retained.devices.find(row=>row.id==='podview-ha-lights').stale,true);assert.equal(retained.liveLightDetail,detail);
+ const parsed=validateHome(home(),'room','boot'),initial=applyHome(initialScene(),parsed,['light']);
+ const detail=initial.devices.find(row=>row.id==='podview-ha-lights');
+ initial.focus=detail.id;initial.liveLightDetail=detail;
+ const unavailable={...parsed,lights:{...parsed.lights,status:'unavailable',observedAt:null,validUntil:null,
+  scope:null,complete:false,items:[]}};
+ const retained=applyHome(initial,unavailable,['light']);
+ assert.equal(retained.devices.find(row=>row.id===detail.id).stale,true);
+ assert.deepEqual(retained.liveLightDetail,{...detail,stale:true});
  for(const change of [{bootId:'next'},{lightAreas:{...parsed.lightAreas,sourceEpoch:'c'.repeat(64)}},{lightPlacement:{...parsed.lightPlacement,bindingId:'d'.repeat(64)},lightAreas:{...parsed.lightAreas,bindingId:'d'.repeat(64)}},{lightPlacement:{...parsed.lightPlacement,placementRevision:3},lightAreas:{...parsed.lightAreas,placementRevision:3}},{lights:{...unavailable.lights,status:'unbound'},lightPlacement:{status:'unbound',areaId:null,areaName:null,bindingId:null,placementRevision:null},lightAreas:{status:'unbound',source:'home_assistant_area_registry',sourceEpoch:null,observedAt:null,validUntil:null,bindingId:null,placementRevision:null,ownAreaId:null,selectedAreaId:null,items:[]}}]){const state=applyHome(initial,{...unavailable,...change},['light']);assert.equal(state.devices.some(row=>row.id==='podview-ha-lights'),false,JSON.stringify(change));assert.equal(state.liveLightDetail,null);assert.equal(state.focus,'now');}
  const revoked=applyHome(initial,parsed,[]);assert.equal(revoked.devices.some(row=>row.id==='podview-ha-lights'),false);assert.equal(revoked.lightAreas,null);assert.equal(revoked.lightPlacement,null);assert.equal(revoked.liveLightDetail,null);
 });

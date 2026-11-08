@@ -12,11 +12,13 @@ const queueIntentDuringRefresh = process.env.MUSIC_QUEUE_INTENTS === 'refresh' |
 const queueUnknownUnchanged = process.env.MUSIC_QUEUE_INTENTS === 'unknown-unchanged';
 const queueUnknown = process.env.MUSIC_QUEUE_INTENTS === 'unknown' || queueUnknownUnchanged;
 const queueIntents = process.env.MUSIC_QUEUE_INTENTS === '1' || queueIntentDuringRefresh || queueUnknown;
-const queueJourney = process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
+const queueIdentity=process.env.MUSIC_QUEUE_IDENTITY_TEST==='1';
+const queueJourney = queueIdentity || process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
 const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
 const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
+const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
@@ -84,6 +86,159 @@ async function defaultSpeakerJourney(){
   controlPosts:controls.length,inertOwnerWrites:after.writes.length,inertNativeService:true,pageErrors:errors};
  await fs.writeFile(path.join(env.artifactDir(),'podview-speaker-default-proof.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(env.artifactDir(),'podview-speaker-existing-output.png')});
+ console.log(JSON.stringify(proof));
+}
+async function recentSessionJourney(){
+ const title='Coming Home',coverUrl='https://i.scdn.co/image/InertComingHome';
+ const uri='spotify:track:'+String(11).padStart(22,'0');
+ const coverRoutes=surface=>surface.route('https://**/*',route=>{
+  if(route.request().url()!==coverUrl)return route.abort();
+  return route.fulfill({contentType:'image/svg+xml',
+   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'});
+ });
+ await coverRoutes(page);
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="recent"]').tap();
+ const row=page.locator('#result-list button.result').filter({hasText:title});
+ const rowArt=row.locator('img.result-art[src="'+coverUrl+'"]:not([data-content-transition])');
+ await rowArt.waitFor({state:'visible',timeout:15000});
+ await rowArt.evaluate(image=>image.decode());
+ const list=page.locator('#result-list'),feed=page.locator('#music-response');
+ const visibleRows=()=>list.locator('button[data-content-state=ready] h2').allTextContents();
+ const scrollTop=()=>feed.evaluate(node=>node.scrollTop);
+ const initialRows=await visibleRows();
+ assert.equal(initialRows.length,5);
+ await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+ await list.getByText('Katalogsang 20',{exact:true}).waitFor();
+ const expandedRows=await visibleRows();
+ assert.equal(expandedRows.length,10);
+ assert.deepEqual(expandedRows.slice(0,5),initialRows);
+ await env.touchScroll(page,feed,{dy:320});
+ const retainedScroll=await scrollTop();
+ assert.ok(retainedScroll>30,`touch scroll must move the expanded list (${retainedScroll})`);
+ await page.waitForResponse(response=>{
+  const url=new URL(response.url());
+  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
+ },{timeout:10000});
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveMedia?.pending);
+ assert.equal(await scrollTop(),retainedScroll,'passive playback read preserves the expanded scroll position');
+ assert.deepEqual(await visibleRows(),expandedRows);
+ for(const [tab,title] of [['top','Coming Home'],['recent','Katalogsang 20']]){
+  await page.locator('[data-collection='+tab+']').evaluate(button=>button.focus({preventScroll:true}));
+  await page.keyboard.press('Enter');
+  await list.getByText(title,{exact:true}).waitFor();
+ }
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveCatalogue?.pendingRead);
+ assert.deepEqual(await visibleRows(),expandedRows,'returning to Hør igen retains the expanded list');
+ assert.equal(await scrollTop(),retainedScroll,'returning to Hør igen restores its scroll position');
+ await row.scrollIntoViewIfNeeded();
+ let release,markHeld;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const held=new Promise(resolve=>{markHeld=resolve;});
+ await page.route('**/view/api/music/selection/actions',async route=>{
+  markHeld();
+  await gate;
+  await route.continue();
+ },{times:1});
+ await row.evaluate((node,{title,coverUrl})=>{
+  node.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now(),probe=window.recentPaint={titleMs:null,coverMs:null};
+   const measure=()=>{
+    const now=performance.now()-start,cover=document.querySelector('#cover');
+    if(probe.titleMs===null&&document.querySelector('#track-name')?.textContent===title)probe.titleMs=now;
+    if(probe.coverMs===null&&cover?.getAttribute('src')===coverUrl&&cover.naturalWidth>0)probe.coverMs=now;
+    if(now<3000&&(probe.titleMs===null||probe.coverMs===null))requestAnimationFrame(measure);
+   };
+   requestAnimationFrame(measure);
+  },{once:true});
+ },{title,coverUrl});
+ let firstPaint;
+ try{
+  await row.tap();
+  await Promise.race([held,sleep(8000).then(()=>{throw Error('selection action was not held');})]);
+  await page.waitForFunction(()=>Number.isFinite(window.recentPaint?.titleMs)
+   &&Number.isFinite(window.recentPaint?.coverMs),undefined,{timeout:5000});
+  firstPaint=await page.evaluate(()=>window.recentPaint);
+  assert(firstPaint.titleMs<300&&firstPaint.coverMs<300,JSON.stringify(firstPaint));
+  const oldRead=await page.waitForResponse(response=>{
+   const url=new URL(response.url());
+   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
+  },{timeout:10000});
+  assert.notEqual((await oldRead.json()).data.playback.item.uri,uri);
+  assert.deepEqual((await state()).writes,[]);
+  assert.equal(await page.locator('#track-name').textContent(),title);
+  assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
+  assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
+  assert.match(await page.locator('#player-state').textContent(),/Starter afspilning/);
+  assert.equal(await row.getAttribute('aria-busy'),'true');
+  assert.equal(await list.locator('button[aria-busy="true"]').count(),1,'only the selected row shows pending');
+  assert.equal(await list.getAttribute('aria-busy'),'false','selection does not make the catalogue busy');
+  assert.deepEqual(await list.locator('button .result-play').evaluateAll(plays=>plays.flatMap(play=>
+   getComputedStyle(play,'::before').content==='none'?[]:[play.closest('button').querySelector('h2').textContent])),[title]);
+  assert.deepEqual(await visibleRows(),expandedRows,'held selection preserves every displayed row');
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-pending-player.png')});
+ }finally{release();}
+ const observed=(surface,phase,after=0)=>surface.waitForFunction(({uri,title,phase,after})=>{
+  const host=document.querySelector('pv-widget-host'),playback=host?.liveMedia?.playback;
+  const b=document.querySelector('#play-pause');
+  return Date.now()>=after&&playback?.roomBinding?.validUntil*1000>Date.now()
+   &&playback.roomBinding.nativeRoomId==='native-room'&&playback.roomBinding.nativeHomepodId==='42'
+   &&playback.item?.uri===uri&&playback.state===phase&&b&&!b.disabled&&!host.liveControls.musicIntentPending
+   &&!host.liveSelection.pending&&document.querySelector('#track-name')?.textContent===title;
+ },{uri,title,phase,after},{timeout:15000});
+ await observed(page,'playing');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')
+  ?.liveSelection?.feedback?.settlementStatus==='confirmed');
+ const initialDeadline=await page.locator('pv-widget-host').evaluate(host=>
+  host.liveMedia.playback.roomBinding.validUntil*1000);
+ const baseline=await state();
+ assert.deepEqual(baseline.writes.map(row=>row.action),['play_track']);
+ assert.equal(baseline.selections[0].uri,uri);
+ await observed(page,'playing',initialDeadline);
+ assert.deepEqual((await state()).writes,baseline.writes,'passive renewal does not replay the selection');
+ await page.request.post(base+'/lab/state',{data:{delayMs:600}});
+ const toggle=page.locator('#play-pause'),labels=[];
+ for(let index=0;index<3;index++){
+  await toggle.tap();
+  labels.push(await toggle.getAttribute('aria-label'));
+  assert.equal(await toggle.isEnabled(),true);
+ }
+ assert.deepEqual(labels,['Fortsæt musikken','Sæt musik på pause','Fortsæt musikken']);
+ await observed(page,'paused');
+ const afterBurst=await state();
+ assert.deepEqual(afterBurst.writes.map(row=>row.action),['play_track','pause','resume','pause']);
+ await page.request.post(base+'/lab/state',{data:{delayMs:0}});
+ const storageState=await page.context().storageState();
+ await page.close();
+ page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800},storageState});
+ page.on('pageerror',error=>errors.push(error.message));
+ await coverRoutes(page);
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await observed(page,'paused');
+ const reopenedCover=page.locator('#cover[src="'+coverUrl+'"]');
+ await reopenedCover.waitFor({state:'visible'});
+ await reopenedCover.evaluate(image=>image.decode());
+ assert.deepEqual((await state()).writes,afterBurst.writes,'reopening does not replay the selection or controls');
+ await page.locator('#play-pause').tap();
+ await observed(page,'playing');
+ const volume=page.locator('#volume');
+ await env.touchRange(page,volume,55);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.controls
+  ?.volume?.base_percent===55);
+ const final=await state();
+ assert.equal(final.selections.length,1);
+ assert.deepEqual(final.writes.map(row=>row.action),['play_track','pause','resume','pause','resume','volume']);
+ assert.equal(final.volume,55);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
+  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,
+  previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
+  touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
+ await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 async function discoveryLoadingJourney(){
@@ -169,6 +324,81 @@ async function discoveryRevisitJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-revisit-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function discoveryCardHeight(){
+ const sizes=[{width:1270,height:1060},{width:1280,height:800}];
+ const layout=()=>page.locator('#result-list').evaluate(list=>{
+  const group=list.getBoundingClientRect();
+  const cards=[...list.querySelectorAll('button[data-content-state=ready]')].map(card=>{
+   const {left,top,right,bottom,height}=card.getBoundingClientRect();
+   return {left,top,right,bottom,height};
+  });
+  return {height:group.height,bottom:group.bottom,cards};
+ });
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const mood=[];
+ for(const size of sizes){await page.setViewportSize(size);mood.push(await layout());}
+ await page.locator('[data-collection=feeling]').tap();
+ await page.locator('#result-list button[data-kit=card][data-content-state=ready]').first().waitFor();
+ for(const [index,size] of sizes.entries()){
+  await page.setViewportSize(size);
+  const {cards:[hero,first,second],bottom}=mood[index],vibe=await layout();
+  const near=(a,b,label)=>assert.ok(Math.abs(a-b)<1,`${size.width}×${size.height}: ${label} (${a} vs ${b})`);
+  near(hero.height,vibe.cards[0].height,'the day Hero and Vibe card have the same visible height');
+  near(hero.bottom,bottom,'the Hero fits the day result area');
+  near(first.height,second.height,'the two alternatives have equal height');
+  near(second.bottom,hero.bottom,'the two columns end together');
+  near(first.top,hero.top,'the two columns start together');
+  assert.ok(hero.right<first.left,'the Hero is left of the alternatives');
+ }
+}
+async function discoveryVibeJourney(){
+ const expected=[['Jazz & lounge','Hiphop & R&B','Pop & dance'],['Afslappet pop','Deep house','Jazzklassikere'],['Lounge','90’er-techno','Festmusik']];
+ const rows=page.locator('#result-list button[data-kit=card][data-content-state=ready]');
+ const refresh=page.getByRole('button',{name:'Flere vibes',exact:true});
+ const track=await page.locator('#track-name').textContent();
+ const snapshot=()=>rows.evaluateAll(cards=>cards.map(card=>({
+  direction:card.querySelector('h2').textContent,playlist:card.querySelector('p').textContent,
+  uri:card.musicCard.uri,height:card.getBoundingClientRect().height,
+ })));
+ const seen=new Set();
+ for(const [index,directions] of expected.entries()){
+  await rows.locator('h2').filter({hasText:directions[0]}).waitFor();
+  const current=await snapshot();
+  assert.deepEqual(current.map(card=>card.direction),directions);
+  for(const card of current){
+   assert.match(card.playlist,/^Kold jazz [a-f0-9]{4}$/,'card names the actual inert source playlist');
+   assert.match(card.uri,/^spotify:playlist:[a-f0-9]{22}$/);
+   assert.ok(!seen.has(card.uri),'an earlier Vibe page cannot repeat a playlist');
+   seen.add(card.uri);
+  }
+  if(index===expected.length-1)break;
+  let markHeld,releaseRead;
+  const held=new Promise(resolve=>{markHeld=resolve;}),gate=new Promise(resolve=>{releaseRead=resolve;});
+  const isRefresh=url=>url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='feeling'&&url.searchParams.get('refresh')==='1';
+  await page.route(isRefresh,async route=>{
+   const response=await route.fetch();
+   markHeld();
+   await gate;
+   await route.fulfill({response}).catch(error=>{if(index!==1)throw error;});
+  },{times:1});
+  try{
+   await refresh.tap();
+   await Promise.race([held,sleep(10000).then(()=>{throw Error('Vibe refresh not held');})]);
+   assert.deepEqual(await snapshot(),current,'current Vibe cards and height survive a held refresh');
+   assert.equal(await page.locator('#result-list [data-content-transition]').count(),0,'reduced motion has no content overlay');
+   if(index===1)await page.locator('[data-collection=top]').tap();
+  }finally{releaseRead();}
+  if(index===1){
+   await page.locator('#result-list button[data-content-state=ready]').filter({hasText:'Katalogsang 11'}).waitFor();
+   await page.locator('[data-collection=feeling]').tap();
+  }
+ }
+ assert.equal(seen.size,9);
+ assert.equal(await refresh.isDisabled(),true,'three pages exhaust the existing refresh control');
+ assert.equal(await page.locator('#track-name').textContent(),track,'the player is retained while browsing Vibe');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vibe-third-set.png')});
+ console.log('PASS Vibe: three ordered sets, nine unique playlists, stable pending cards, interrupted final page recovery and exhausted refresh');
+}
 async function discoveryCoverJourney(){
  const coverUrl='https://i.scdn.co/image/InertRecentCover';
  const failedCoverUrl='https://i.scdn.co/image/InertFailedMoodCover';
@@ -225,6 +455,8 @@ async function discoveryCoverJourney(){
   assert.ok(await art.evaluate(img=>img.naturalWidth>0));
  }
  await page.screenshot({path:path.join(env.artifactDir(),'podview-discovery-local-illustrations.png')});
+ await discoveryCardHeight();
+ await discoveryVibeJourney();
  await page.locator('[data-collection=recent]').tap();
  const list=page.locator('#result-list'),row=list.locator('button.result').filter({hasText:'Katalogsang 11'});
  const image=row.locator('img.result-art:not([data-content-transition])');
@@ -272,6 +504,104 @@ async function discoveryCoverJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-fallback-proof.json'),
   JSON.stringify(fallbackProof,null,2));
  console.log(JSON.stringify(fallbackProof));
+}
+async function queueIdentityJourney(){
+ const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current="false"]');
+ const track=page.locator('#track'),host=page.locator('pv-widget-host');
+ const endpoint='**/view/api/music/queue/offer';
+ const mutate=async condition=>assert((await page.request.post(base+'/lab/queue',{data:{condition}})).ok());
+ const status=expected=>page.waitForFunction(expected=>
+  document.querySelector('#queue').dataset.status===expected,expected,{timeout:12000});
+ const names=()=>rows.locator('.queue-copy strong').allTextContents();
+ const observed=(song,room,homepod)=>page.waitForFunction(({song,room,homepod})=>{
+  const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+  return playback?.roomBinding?.nativeRoomId===room&&playback.roomBinding.nativeHomepodId===homepod
+   &&playback.state==='playing'&&playback.item?.name===`Isoleret sang ${song}`
+   &&document.getElementById('track-name').textContent===playback.item.name;
+ },{song,room,homepod},{timeout:12000});
+
+ await track.tap();
+ await status('ready');
+ assert.deepEqual(await names(),['Køsang 22','Køsang 22','Køsang 23','Køsang 24']);
+ const oldBinding=await host.evaluate(h=>h.liveMedia.playback.roomBinding.bindingId);
+ const first=await host.evaluate(h=>h.liveMedia.queueControls.offer.items.slice(0,2));
+ assert.equal(first[0].uri,first[1].uri);
+ assert.notEqual(first[0].id,first[1].id);
+ await rows.nth(1).tap();
+ await observed(22,'native-room','42');
+ await status('ready');
+ assert.deepEqual(await names(),['Køsang 23','Køsang 24']);
+ const afterChoice=await state();
+ assert.deepEqual(afterChoice.queueSelections.map(({index,song})=>({index,song})),[{index:1,song:22}]);
+ const commits=afterChoice.nativeCalls.filter(row=>row.service==='control_room_queue');
+ assert.deepEqual(commits.map(({args})=>[args.args.occurrence_id,args.room_id,args.homepod_id]),
+  [[first[1].id,'native-room','42']]);
+
+ let release;
+ const gate=new Promise(resolve=>{release=resolve;});
+ let markHeld;
+ const held=new Promise(resolve=>{markHeld=resolve;});
+ const capture=async route=>{
+  const response=await route.fetch();
+  markHeld({body:await response.json(),receivedAt:Date.now()});
+  await gate;
+  await route.fulfill({response});
+ };
+ await page.route(endpoint,capture,{times:1});
+ let timeout;
+ try{
+  await page.locator('#header-title-action').tap();
+  await track.tap();
+  const {body:late,receivedAt}=await Promise.race([held,new Promise((_,reject)=>{
+   timeout=setTimeout(()=>reject(Error('old queue response not held')),10000);
+  })]);
+  assert.equal(late.ok,true);
+  assert.equal(late.expectedBindingId,oldBinding);
+  assert.deepEqual(late.items.map(item=>item.name??item.title),['Køsang 23','Køsang 24']);
+  await mutate('replace-session');
+  await observed(30,'bedroom','43');
+  await status('ready');
+  assert.deepEqual(await names(),['Køsang 31','Køsang 32']);
+  const current=await host.evaluate(h=>{
+   const media=h.liveMedia;
+   window.replacementQueue=media.queueControls.offer;
+   return {bindingId:media.playback.roomBinding.bindingId,
+    diagnosticSequence:h.liveTransport.diagnostics().records.at(-1)?.seq??0};
+  });
+  assert.notEqual(current.bindingId,oldBinding);
+  assert(Date.now()-receivedAt<late.expiresInMs,'old offer is delivered before its original lease expires');
+  release();
+  await page.waitForFunction(sequence=>document.querySelector('pv-widget-host')?.liveTransport
+   .diagnostics().records.some(row=>row.seq>sequence&&row.stage==='queue_read'&&row.code==='superseded'),
+   current.diagnosticSequence,{timeout:5000});
+  assert(await host.evaluate(h=>h.liveMedia.queueControls.offer===window.replacementQueue));
+  assert.deepEqual(await names(),['Køsang 31','Køsang 32']);
+  assert.deepEqual((await state()).writes,afterChoice.writes,'late old response cannot send a command');
+ }finally{clearTimeout(timeout);release();}
+
+ const queueUnavailable=page.waitForResponse(response=>
+  new URL(response.url()).pathname==='/view/api/music/queue/offer',{timeout:12000});
+ await mutate('autoplay-no-queue');
+ await observed(32,'bedroom','43');
+ assert.equal((await (await queueUnavailable).json()).error,'queue_offer_unavailable');
+ await status('stale');
+ assert.equal(await page.locator('#queue-title').innerText(),'Sidst kendte kø');
+ assert.deepEqual(await names(),['Køsang 31','Køsang 32'],'only previously known rows are retained');
+ assert.equal(await rows.and(queue.locator('button:enabled')).count(),0,'last-known rows grant no actions');
+ assert.equal(await queue.locator('button[data-current="true"] strong').innerText(),'Isoleret sang 32');
+ assert.match(await page.locator('#detail-toggle').getAttribute('aria-label'),/pause/i);
+ await mutate('autoplay-with-queue');
+ await observed(33,'bedroom','43');
+ await status('ready');
+ assert.deepEqual(await names(),['Køsang 34','Køsang 35']);
+ const final=await state();
+ assert.deepEqual(final.writes,afterChoice.writes,'owner autoplay and both queue reads send no new action');
+ assert.equal(actions.filter(row=>row.url.endsWith('/actions')).length,1);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',stories:['K6','K4'],bundleSHA,
+  sameTrackOccurrence:first[1].id,lateOldQueueDiscarded:true,noWrongTargetCommand:true,
+  ownerPlaybackContinuesWithoutQueue:true,ownerUpcomingRowsRestored:true,inertNativeService:true}));
 }
 async function queuePersistenceJourney(){
  const queue=page.locator('#queue');
@@ -548,12 +878,20 @@ async function queuePersistenceJourney(){
 (async()=>{try{
  const nonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-selection-'));
- server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:"1",MUSIC_COLD_CONTEXT:cold?"1":"0",MUSIC_COLD_REJECT:rejectSetup?"1":"0",MUSIC_REPEAT_MOOD:repeatMood?"1":"0",MUSIC_QUEUE_JOURNEY:queueJourney?"1":"0",MUSIC_QUEUE_COLD_TAIL:queueColdTail?"1":"0",PODVIEW_TEST_NONCE:nonce}),stdio:['ignore','pipe','pipe']});
+ server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:"1",MUSIC_COLD_CONTEXT:cold?"1":"0",MUSIC_COLD_REJECT:rejectSetup?"1":"0",MUSIC_REPEAT_MOOD:repeatMood?"1":"0",MUSIC_QUEUE_JOURNEY:queueJourney?"1":"0",MUSIC_QUEUE_COLD_TAIL:queueColdTail?"1":"0",...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1'}:{}),PODVIEW_TEST_NONCE:nonce}),stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  browser=await chromium.launch(env.browserOptions());
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
+ if(queueIdentity){
+  await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+  page.on('request',request=>{
+   if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
+    actions.push({url:request.url(),body:request.postDataJSON()});
+   }
+  });
+ }
  page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(r.url().includes('/music/selection/')||r.url().includes('/music/queue/')||cold&&r.url().includes('/music?')&&new URL(r.url()).searchParams.get('kind')==='mood')responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/music/'))actions.push({url:r.url(),body:r.postDataJSON(),traceHeader:r.headers()['x-podview-trace']});if(previewRenew&&r.method()==='GET'&&r.url().includes('/music?')){const url=new URL(r.url());if(url.searchParams.get('kind')==='mood'&&url.searchParams.get('renew')==='1')moodRenewals.push(r.headers()['x-podview-trace']);}});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
@@ -686,10 +1024,12 @@ async function queuePersistenceJourney(){
   console.log(JSON.stringify({outcome:'PASS',coldContext:true,rejectSetup,prepares:prepares.length,commits:commits.length,pageErrors:errors}));return;
  }
  await env.openOverview(page);
+ if(queueIdentity){await queueIdentityJourney();return;}
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}
  if(discoveryCover){await discoveryCoverJourney();return;}
+ if(recentSession){await recentSessionJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();
  const rows=page.locator('#result-list button.result');

@@ -39,11 +39,16 @@ export class LiveControlView{
   if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
   else if(this.domain==='vacuum'&&this.robotAuthority!==undefined&&(this.robotAuthority!==robotAuthority||this.robotAuthorityTransport!==this.host.liveTransport)){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_authority_changed'});this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);}
   this.robotAuthority=robotAuthority;this.robotAuthorityTransport=this.host.liveTransport;
-  if (this.task?.domain === 'vacuum'
-   && (this.robotControlOffer?.task !== this.task || !this.robotControlCurrent(this.robotControlOffer.context))
-   && !this.robotStartReceiptCurrent()) {
-   this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_offer_invalid'});
-   this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);
+  const robotTask = this.task?.domain === 'vacuum' ? this.task : null;
+  const robotContext = this.robotControlOffer?.task === robotTask ? this.robotControlOffer?.context : null;
+  if (robotTask && !this.robotControlCurrent(robotContext)) {
+   // Retain the same form for display only during a transient robot read failure.
+   const retainRobotForm = !this.pending && !this.setupPending && !this.activeOperation && !this.spent.has(robotTask.taskId)
+    && this.robotPanel && this.robotControlCurrent(robotContext, {allowStale: true});
+   if (!retainRobotForm && !this.robotStartReceiptCurrent()) {
+    this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_offer_invalid'});
+    this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);
+   }
   }
   this.authority=authority;const musicContext=this.musicContext(),musicAuthority=musicContext?.key??null,presentationAuthority=musicContext?.presentationKey??null;
   const pendingPlayback=this.host.liveMedia?.playback,pendingBinding=pendingPlayback?.roomBinding,pendingPresentation=roomObservationBound(pendingPlayback,snapshot,this.host.liveMedia?.account)&&['playing','paused'].includes(pendingPlayback?.state)?JSON.stringify([snapshot.bootId,snapshot.roomId,this.host.liveTransport?.generation??null,pendingPlayback.config_entry_id,pendingPlayback.owner_epoch,pendingPlayback.target?.id,pendingBinding.bindingId,pendingBinding.nativeRoomId,pendingBinding.nativeHomepodId,pendingBinding.targetId]):null;
@@ -556,9 +561,66 @@ export class LiveControlView{
  }
  updateLightAction(operation,phase,details={}){
   const state={target:{...operation.target},action:operation.action,phase,pending:['preparing','sending'].includes(phase),message:phase==='accepted'?'Anmodningen er modtaget.':phase==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':phase==='rejected'?'Handlingen kunne ikke udføres med den aktuelle adgang.':'',...details};
+  if(state.pending&&operation.action==='brightness'){
+   const queue=this.lightInputQueue;
+   const latest=queue?.kind==='brightness'&&this.canQueueLightInput(operation.target,'brightness')
+    ?queue.pending.at(-1):undefined;
+   state.requestedPercent=latest??operation.requestedPercent;
+  }
   this.lightActionFeedbackOperation=operation;this.lightActionState=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state,operation);this.host.render?.();}return state;
  }
  lightActionFeedbackCurrent(){const operation=this.lightActionFeedbackOperation;if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
+ canQueueLightInput(target,kind){
+  const queue=this.lightInputQueue,operation=this.lightActionOperation;
+  return !!queue&&!!operation&&!operation.revoked&&!this.suspending&&queue.kind===kind
+   &&queue.target.areaId===target.areaId&&queue.target.entityId===target.entityId&&queue.context.current();
+ }
+ async submitLightInput(target,observation,kind,input,currentObservation){
+  const brightness=kind==='brightness';
+  const percent=brightness?input?.percent:null;
+  if(brightness&&(!Number.isInteger(percent)||percent<0||percent>100))return;
+  const running=this.lightInputQueue;
+  if(running){
+   if(!this.canQueueLightInput(target,kind))return;
+   if(brightness){
+    running.pending[0]=percent;
+    this.updateLightAction(this.lightActionOperation,this.lightActionState.phase);
+   }else if(running.pending.length<32)running.pending.push(null);
+   return;
+  }
+  const context=this.lightActionContext(target,observation,currentObservation);
+  if(!context||brightness&&!context.brightness||this.lightActionOperation)return;
+  const queue={target:{...target},kind,context,pending:[percent]};
+  this.lightInputQueue=queue;
+  try{
+   while(queue.pending.length&&context.current()){
+    const wanted=queue.pending.shift();
+    const source=scopedLightsObservation(currentObservation());
+    const selected=source.items.filter(item=>context.ids.includes(item.entityId));
+    const action=brightness?'brightness':selected.some(item=>item.state==='on')?'turn_off':'turn_on';
+    const result=await this.actLight(target,source,action,brightness?{percent:wanted}:{},currentObservation);
+    if(result?.outcome!=='accepted'||result.late||!context.current()){
+     queue.blocked=true;
+     return result;
+    }
+    const refreshed=scopedLightsObservation(currentObservation());
+    const observed=refreshed.items.filter(item=>context.ids.includes(item.entityId));
+    const matches=observed.every(item=>{
+     if(!brightness)return item.state===(action==='turn_on'?'on':'off');
+     const value=item.state==='off'?0:item.brightness===null?null:Math.round(item.brightness/255*100);
+     return value===wanted;
+    });
+    if(!result.refreshed||refreshed.observedAt<=result.observedBeforeSend||!matches){
+     queue.blocked=true;
+     if(queue.pending.length)this.host.showFeedback?.('Hent aktuel lysstatus, før du prøver igen.',false);
+     return result;
+    }
+    if(!queue.pending.length||brightness&&queue.pending[0]===wanted)return result;
+   }
+  }finally{
+   if(this.lightInputQueue===queue)this.lightInputQueue=null;
+  }
+ }
  async actLight(target,observation,action,input={},currentObservation){
   const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false},t=this.host.liveTransport,requestedValue=action==='turn_on'?true:action==='turn_off'?false:action==='brightness'&&Number.isInteger(input?.percent)&&input.percent>=0&&input.percent<=100?input.percent:undefined;let diagnostic;
   try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}diagnostic={domain:'light',action,resourceId:target?.entityId||target?.sceneId||target?.areaId,...(requestedValue!==undefined?{requestedValue}:{})};this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
@@ -566,14 +628,18 @@ export class LiveControlView{
   const context=this.lightActionContext(target,observation,currentObservation);if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene){this.journalDevice(t,'control_intent',{...diagnostic,code:'stale_binding'});return unavailable;}
   const identity=JSON.stringify([target.areaId,target.entityId??null,target.sceneId??null]);this.pruneSpent();const unknowns=this.lightUnknowns||(this.lightUnknowns=new Map());for(const[key,fence]of unknowns)if(fence.until<=Date.now())unknowns.delete(key);const unknown=unknowns.get(identity);
   if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&context.sourceObservedAt<=unknown.observedAt){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});return {...unavailable,outcome:'unknown',phase:'unknown'};}unknowns.delete(identity);if(unknowns.size>=64){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});return unavailable;}
-  const operation={target:{...target},action,context,identity,sent:false,revoked:false};this.lightActionOperation=operation;this.updateLightAction(operation,'preparing');
+  const operation={target:{...target},action,context,identity,sent:false,revoked:false,
+   requestedPercent:action==='brightness'?requestedValue:undefined};
+  this.lightActionOperation=operation;this.updateLightAction(operation,'preparing');
   const current=()=>this.lightActionOperation===operation&&!operation.revoked&&!this.suspending&&context.current();let task,option,args,result;
   try{
    this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});const raw=await context.transport.controlSetup('light',operation.target);if(!current())throw Error('light_context_changed');task=controlTask(raw,this.host.liveSnapshot,'light');
    if(this.spent.has(task.taskId)||!this.lightTaskCurrent(context,task))throw Error('light_offer_changed');const candidates=task.options.filter(row=>row.action===action);if(candidates.length!==1)throw Error('light_action_not_offered');option=candidates[0];args=controlArgs(task,option.id,input);this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});
    if(!current()||!this.lightTaskCurrent(context,task))throw Error('light_context_changed');
    this.spent.set(task.taskId,task.expiresAt);operation.task=task;operation.optionId=option.id;operation.label=option.label;this.updateLightAction(operation,'sending');
-   if(!current())throw Error('light_context_changed');operation.sent=true;
+   if(!current())throw Error('light_context_changed');
+   operation.observedBeforeSend=scopedLightsObservation(context.observation()).observedAt;
+   operation.sent=true;
    result=await context.transport.controlAction(task,option.id,args);if(!['accepted','rejected','unknown'].includes(result?.outcome)||result.ok!==(result.outcome==='accepted'))result={ok:false,outcome:'unknown'};
   }catch{this.journalDevice(t,operation.sent?'control_action':'control_setup',{...diagnostic,code:operation.sent?'unknown':current()?'setup_unavailable':'superseded'});result={ok:false,outcome:operation.sent?'unknown':'rejected'};}
   const outcome=result.outcome;
@@ -582,14 +648,34 @@ export class LiveControlView{
   let refreshed=false;
   if(outcome==='accepted'&&current()&&typeof this.host.readLightArea==='function'){try{refreshed=await this.host.readLightArea(operation.target.areaId,{preserveControls:true})===true;}catch{refreshed=false;}}
   try{const snap=this.host.liveSnapshot;this.observeDeviceJournal({bootId:snap?.bootId,roomId:snap?.roomId,lights:scopedLightsObservation(context.observation())});}catch{}
-  const late=!current();this.lightActionOperation=null;const state=this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late});return state;
+  const late=!current();this.lightActionOperation=null;
+  return this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late,
+   observedBeforeSend:operation.observedBeforeSend});
  }
  openMusic(opener){const context=this.musicContext();if(!context)return;this.open('music',context.target,opener);}
  async openRobot(opener,recipeId){
   const d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum'),snapshot=this.host.liveSnapshot,unknown=[...this.receipts.values()].some(row=>row.bootId===snapshot?.bootId&&row.roomId===snapshot?.roomId&&row.domain==='vacuum'&&row.target?.entityId===d?.id&&this.robotReceiptUnknown(row));
   if(recipeId!==undefined&&d&&(['cleaning','paused'].includes(d.status)||robotExperience(d).jobActive===true))return;
   if(!d?.live||d.pending||this.pending||this.setupPending||this.robotOverviewOperation||this.activeOperation||unknown||!this.host.isConnected)return;
-  if(!this.allowed('vacuum')||d.stale){this.opening++;clearTimeout(this.expiryTimer);this.clearRobotRefresh();this.opener=opener;this.domain='vacuum';this.target={entityId:d.id};this.task=null;this.robotSuggestion=null;this.title.textContent='Robotstøvsuger';this.note.textContent='Kun status og pleje er tilgængelig.';this.buildOptions();this.body.setAttribute('aria-busy','false');this.mountRobotInline();return;}
+  if(!this.allowed('vacuum')||d.stale){
+   if (d.stale && this.allowed('vacuum') && this.robotInline && this.robotPanel
+    && d.id === this.target?.entityId && (this.task?.domain === 'vacuum' || this.expiredRobot)) return;
+   this.opening++;
+   clearTimeout(this.expiryTimer);
+   this.clearRobotRefresh();
+   this.opener=opener;
+   this.domain='vacuum';
+   this.target={entityId:d.id};
+   this.task=null;
+   this.robotSuggestion=null;
+   this.title.textContent='Robotstøvsuger';
+   this.note.textContent='Kun status og pleje er tilgængelig.';
+   this.buildOptions();
+   this.body.setAttribute('aria-busy','false');
+   this.mountRobotInline();
+   this.renderReceipt();
+   return;
+  }
   if(recipeId===undefined&&this.expiredRobot){if(d.id===this.target?.entityId&&this.expiredRobot.target===JSON.stringify({entityId:d.id})){this.robotInline=true;this.mountRobotInline();if(this.canRefreshRobot()){await this.refreshRobot();return;}}this.clearRobotRefresh();}
   // A journal ID only asks the existing source owner for a validated, editable offer.
   // No stored labels, service values or old opaque choice IDs become command authority.
@@ -710,7 +796,8 @@ export class LiveControlView{
   const reject=code=>{this.journalDevice(transport,'control_intent',{...diag,code});return false;};
   if(!['pause','resume','stop','return'].includes(action)||!offer?.actions.includes(action))return reject('capability_missing');
   if(this.pending||device.pending)return reject('intent_pending');
-  this.robotOptimistic={entityId,status:({pause:'paused',resume:'cleaning',stop:'idle',return:'returning'})[action],at:Date.now()};
+  this.robotOptimistic = {entityId,
+   status: {pause:'paused',resume:'cleaning',stop:'stopped',return:'docking'}[action], at:Date.now()};
   clearTimeout(this.robotOptimisticTimer);this.robotOptimisticTimer=setTimeout(()=>{this.robotOptimisticTimer=null;if(!this.host.isConnected)return;this.refreshRobotOverview();const d=this.robotDevice();if(d)this.robotPanel?.observed?.(this.robotView(d),{directActions:this.robotDirectOffer(d)?.actions||[],directPendingAction:null});},10050);
   if(this.robotOverviewOperation){this.robotQueued={entityId,action};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
   const transportGeneration=transport.generation,current=()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===snapshot.bootId&&this.host.liveSnapshot?.roomId===snapshot.roomId&&this.allowed('vacuum');

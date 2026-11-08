@@ -78,6 +78,13 @@ export function weatherFactObservation(value,{now=Date.now(),validUntil=null,sta
  return result;
 }
 
+// A recent retrieval of the same old HA state cannot renew freshness.
+export function weatherFreshUntil(weather){
+ const retrieved=Date.parse(weather.retrievedAt)+15*60*1000;
+ if(!weather.current||!Number.isFinite(weather.displayUntil))return retrieved;
+ return Math.min(retrieved,Date.parse(weather.stateUpdatedAt)+30*60*1000);
+}
+
 export function hourlyWeather(weather,now=Date.now()){
  const h=weather.forecastType==='hourly'?weather:weather.hourly;if(h&&Object.hasOwn(h,'displayUntil')&&(!Number.isFinite(h.displayUntil)||now>=h.displayUntil))return null;if(!h||h.forecastType!=='hourly'||h.source!==weather.source||h.location!==weather.location||['temperature','precipitation','windSpeed'].some(key=>h.units?.[key]!==weather.units?.[key]))return null;
  const retrieved=Date.parse(h.retrievedAt);return Number.isFinite(now)&&retrieved<=now&&now<retrieved+900000?h:null;
@@ -122,7 +129,7 @@ export function weatherAdviceCapability(value,weather,{bootId,roomId}={},now=Dat
  if(!value||typeof value!=='object'||Array.isArray(value)||Object.keys(value).length!==keys.length||keys.some(key=>!Object.hasOwn(value,key))||value.schema!=='podview.weather-advice-capability.v1'||value.bootId!==bootId||value.roomId!==roomId||!['bootId','roomId'].every(key=>typeof value[key]==='string'&&value[key].length>0&&value[key].length<=160)||!['available','unavailable'].includes(value.availability)||!['idle','pending','ready','unavailable','error'].includes(value.status))return null;
  if(value.availability==='unavailable')return ['unavailable','error'].includes(value.status)&&(value.weatherKey===null||typeof value.weatherKey==='string'&&/^[a-f0-9]{64}$/.test(value.weatherKey))&&(value.source===null||typeof value.source==='string'&&value.source.length>0&&value.source.length<=120)&&(value.sourceRetrievedAt===null||Number.isFinite(value.sourceRetrievedAt))&&(value.validUntil===null||Number.isFinite(value.validUntil))?{...value}:null;
  const retrieved=Date.parse(weather?.retrievedAt);
- if(!weather||weather.stale||Object.hasOwn(weather,'displayUntil')&&(!Number.isFinite(weather.displayUntil)||now>=weather.displayUntil)||!/^[a-f0-9]{64}$/.test(value.weatherKey||'')||value.source!==weather.source||!Number.isFinite(value.sourceRetrievedAt)||Math.abs(value.sourceRetrievedAt*1000-retrieved)>=1||!Number.isFinite(now)||retrieved>now||now>=retrieved+900000||!Number.isFinite(value.validUntil)||value.validUntil*1000<=now||Math.floor(value.validUntil*1000)>retrieved+900000)return null;
+ if(!weather||weather.stale||Object.hasOwn(weather,'displayUntil')&&(!Number.isFinite(weather.displayUntil)||now>=weather.displayUntil)||!/^[a-f0-9]{64}$/.test(value.weatherKey||'')||value.source!==weather.source||!Number.isFinite(value.sourceRetrievedAt)||Math.abs(value.sourceRetrievedAt*1000-retrieved)>=1||!Number.isFinite(now)||retrieved>now||!(now<weatherFreshUntil(weather))||!Number.isFinite(value.validUntil)||value.validUntil*1000<=now||Math.floor(value.validUntil*1000)>retrieved+900000)return null;
  return {...value};
 }
 export function weatherPassiveAdvice(value,weather,now=Date.now(),context=null,{allowUnadmitted=false}={}){

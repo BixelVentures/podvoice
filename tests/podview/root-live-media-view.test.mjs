@@ -369,3 +369,20 @@ test('passive recovery survives unrelated voice/task snapshot changes',async()=>
 test('passive recovery jitter is bounded and invalidate cancels timer',async()=>{const f=surface(),realSet=globalThis.setTimeout,realClear=globalThis.clearTimeout,realRandom=Math.random;let timer,cancelled=false;globalThis.setTimeout=(fn,delay)=>{timer={fn,delay};return 99};globalThis.clearTimeout=id=>{if(id===99)cancelled=true};try{f.view.account='first';let calls=0;f.host.liveTransport.music=async()=>{calls++;return {...v2Payload(),status:'unavailable',reason:'account_unavailable',binding:null,data:null};};Math.random=()=>0;await f.view.refresh({immediate:true});assert.equal(timer.delay,1700);f.view.invalidate();assert.equal(cancelled,true);timer.fn();await new Promise(resolve=>setImmediate(resolve));assert.equal(calls,1);f.view.account='first';Math.random=()=>1;await f.view.refresh({immediate:true});assert.equal(timer.delay,2300);f.view.invalidate();}finally{globalThis.setTimeout=realSet;globalThis.clearTimeout=realClear;Math.random=realRandom;f.restore();}});
 
  test('initial connection uses loading, failed connection honestly reports offline',()=>{const f=domSurface();try{f.host.liveSnapshot=null;f.host.liveTransport.connected=false;f.host.liveStatus='connecting';f.view.invalidate();assert.equal(f.nodes.get('player-empty').children[0].textContent,'Henter afspilningsstatus');f.host.liveStatus='connected';f.host.liveTransport.connected=true;f.view.render();assert.equal(f.nodes.get('player-empty').children[0].textContent,'Henter afspilningsstatus');f.host.liveTransport.connected=false;f.host.liveStatus='disconnected';f.view.invalidate();assert.equal(f.nodes.get('player-empty').children[0].textContent,'Afspilningen kan ikke hentes offline.');}finally{f.restore();}});
+
+test('new HA music revision supersedes an older read without late title rollback',async()=>{
+ const f=surface(),old=deferred(),fresh=deferred();try{
+  f.view.account='first';f.host.liveSnapshot.musicRevision=1;let reads=0;
+  f.host.liveTransport.music=()=>++reads===1?old.promise:fresh.promise;
+  const first=f.view.refresh({immediate:true});
+  f.host.liveSnapshot.musicRevision=2;
+  const second=f.view.refresh({immediate:true});
+  const joined=f.view.refresh({immediate:true});
+  assert.equal(reads,2,'new revision needs a new read; identical revision still coalesces');
+  const next=payload('first');next.data.playback.item.name='Fresh external song';
+  fresh.resolve(next);await Promise.all([second,joined]);
+  assert.equal(f.view.playback.item.name,'Fresh external song');
+  old.resolve(payload('first'));await first;
+  assert.equal(f.view.playback.item.name,'Fresh external song','older reply cannot roll back new state');
+ }finally{old.resolve(payload('first'));fresh.resolve(payload('first'));f.restore();}
+});

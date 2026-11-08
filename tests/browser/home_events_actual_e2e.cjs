@@ -184,8 +184,26 @@ async function offlineFeedbackJourney(page,errors){
   assert.deepEqual(positions(recoveredColumns),positions(fallbackColumns),'weather recovery keeps date, range and all column positions in place');
   await fs.writeFile(path.join(testEnv.artifactDir(),'weather-daily-columns-proof.json'),JSON.stringify({loadedBundle,loadedCss,fallbackColumns,recoveredColumns,retainedNodes:true},null,2));
   await page.locator('#header-title-action').tap();await page.locator('#home-weather').waitFor({state:'visible'});const recoveredHome=await save('weather-08-recovered-home');assert.match(recoveredHome.home.temperature,/20/);assert.equal(recoveredHome.home.stale,'false');
+  assert(reloadHome.home.detail.includes(expectedClock),'the front page shows the same original retrieval time');
+  await emit({weatherNearFreshnessSeconds:8});
+  await fresh(22.1);
+  const nearFresh=await capture();
+  const staleAt=Date.parse(nearFresh.weather.stateUpdatedAt)+30*60*1000;
+  assert(staleAt>nearFresh.at&&staleAt<=nearFresh.at+8100);
+  assert.equal(nearFresh.home.temperature,'22°');
+  assert.equal(nearFresh.home.stale,'false');
+  await page.waitForFunction(()=>document.querySelector('#home-weather')?.dataset.weatherStale==='true',
+   undefined,{timeout:12000});
+  const pastFresh=await save('weather-08b-source-over-30min');
+  assert(pastFresh.at>=staleAt);
+  assert.equal(pastFresh.weather.stateUpdatedAt,nearFresh.weather.stateUpdatedAt);
+  assert.equal(pastFresh.home.temperature,nearFresh.home.temperature);
+  assert.match(pastFresh.home.condition,/Sidst kendt/);
+  assert.match(pastFresh.home.detail,/Hentet/);
+  assert(await page.locator('#home-weather small').isVisible());
+  assert.equal(await page.locator('pv-widget-host').evaluate(host=>host.liveTransport.connected),true);
   await emit({weatherNearExpirySeconds:8});await fresh(21.1);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const near=await capture();assert(near.weather.displayUntil>near.at&&near.weather.displayUntil<=near.at+8100);const nearSource=near.weather.stateUpdatedAt;await page.context().setOffline(true);await save('weather-09-offline-retained');await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),w=h?.state.liveWeather;return w&&Date.now()>=w.displayUntil&&!h.querySelector('#weather-view .weather-current strong')?.textContent?.trim()},undefined,{timeout:12000});const expiredDetail=await save('weather-10-offline-expired-detail');assert.equal(expiredDetail.weather.stateUpdatedAt,nearSource);assert.equal(expiredDetail.detail.value,'');assert.equal(expiredDetail.detail.hours,0);await page.locator('#header-title-action').tap();const expiredHome=await save('weather-11-offline-expired-home');assert.equal(expiredHome.home.temperature,'');assert(!/[0-9]/.test(expiredHome.header.temperature),'expired source temperature cannot survive in the visible header');assert.equal(expiredHome.home.hourCount,0);assert(expiredHome.at>=near.weather.displayUntil);await page.context().setOffline(false);
-  const final=await state();assert.deepEqual(final.writes,[]);assert.deepEqual(errors,[]);await fs.writeFile(path.join(testEnv.artifactDir(),'weather-retention-proof.json'),JSON.stringify({loadedBundle,loadedCss,original,retained,expectedClock,goodHome,goodDetail,failed,reloadHome,reloadDetail,recoveredHome,recoveredDetail,near,expiredDetail,expiredHome,homeResponses,final,errors},null,2));console.log(JSON.stringify({outcome:'PASS',loadedBundle,loadedCss,actualHAWebSocketProtocol:true,actualAssistMCP:true,nativeWeatherReads:final.weather.reads.length,lastKnownAfterReload:true,originalRetrievalClockVisible:true,nativeFreshRecovery:true,dailyColumnsRecoverInPlace:true,offlineFixedSourceExpiry:true,sourceExpiryMs:near.weather.displayUntil,nativeEffects:final.writes.length,pageErrors:errors}));return;
+  const final=await state();assert.deepEqual(final.writes,[]);assert.deepEqual(errors,[]);await fs.writeFile(path.join(testEnv.artifactDir(),'weather-retention-proof.json'),JSON.stringify({loadedBundle,loadedCss,original,retained,expectedClock,goodHome,goodDetail,failed,reloadHome,reloadDetail,recoveredHome,recoveredDetail,near,expiredDetail,expiredHome,homeResponses,final,errors},null,2));console.log(JSON.stringify({outcome:'PASS',loadedBundle,loadedCss,actualHAWebSocketProtocol:true,actualAssistMCP:true,nativeWeatherReads:final.weather.reads.length,lastKnownAfterReload:true,originalRetrievalClockVisible:true,nativeFreshRecovery:true,dailyColumnsRecoverInPlace:true,sourceFreshness30Min:true,offlineFixedSourceExpiry:true,sourceExpiryMs:near.weather.displayUntil,nativeEffects:final.writes.length,pageErrors:errors}));return;
  }
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await page.evaluate(()=>{window.homeTestClicks=[];document.addEventListener('click',e=>window.homeTestClicks.push({target:e.target.outerHTML?.slice(0,200),focus:document.querySelector('pv-widget-host')?.state?.focus}),true)});

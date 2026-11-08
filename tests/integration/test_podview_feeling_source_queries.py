@@ -1,9 +1,4 @@
-"""Observed19Oct playlist rows replayed through the real route; all I/O inert.
-
-Source: normal HA podconnect.search_playlists reads, limit3, one account/epoch.
-Only the account/epoch are replaced by fixture aliases. Playlist URI/name rows
-are preserved. This proves software behavior on observed data, not live audio.
-"""
+"""Vibe uses exact query-specific rows projected through the normal inert owner transport."""
 
 # ruff: noqa: F811 - imported pytest fixtures intentionally shadowed
 import json
@@ -16,39 +11,20 @@ from integration.test_podview_music_selection import rig  # noqa: F401
 from gatekeeper import podview_feeling
 from gatekeeper.podview import BRIDGE
 
-OBSERVED_SOURCE_ROWS = {
-    "feel good funk": [],
-    "funk": [
-        {
-            "uri": "spotify:playlist:01ShyhH6iluuvP0fcMcwWz",
-            "name": "Top 100 Funk Songs of All Time",
-        },
+SOURCE_ROWS = {
+    "jazz lounge": [
+        {"uri": "spotify:playlist:" + "a" * 22, "name": "Playlist from the jazz query"},
     ],
-    "peaceful acoustic": [
-        {
-            "uri": "spotify:playlist:1llWqBMzdp3rKItC7cTtWY",
-            "name": "FEEL GOOD YOGA FLOW",
-        },
-        {"uri": "spotify:playlist:6bZZjVMaDsWcNJJt9onSeR", "name": "Calm Mornings"},
+    "hip hop r&b": [
+        {"uri": "spotify:playlist:" + "b" * 22, "name": "Playlist from the hip-hop query"},
     ],
-    "sing along classics": [
-        {
-            "uri": "spotify:playlist:2bcXAuCKRtXYslHVa1ZLhl",
-            "name": "SHOWER PLAYLIST 🚿 SONGS EVERYONE KNOWS",
-        },
-        {"uri": "spotify:playlist:4rMLB8C6Y6MW5434efUzIA", "name": "Syng med"},
+    "dance pop": [
+        {"uri": "spotify:playlist:" + "c" * 22, "name": "Playlist from the dance query"},
     ],
 }
 
 
-async def test_observed_energy_query_controls_complete_source_publication(feeling_rig):
-    assert podview_feeling.THEMES["energy"] == {
-        "title": "Mere energi",
-        "query": "funk",
-        "image": "assets/indie.png",
-    }
-    assert podview_feeling.THEMES["calm"]["query"] == "peaceful acoustic"
-    assert podview_feeling.THEMES["familiar"]["query"] == "sing along classics"
+async def test_vibe_queries_control_complete_source_publication(feeling_rig):
     themes = podview_feeling.THEMES
     calls = []
     original = feeling_rig.router._client
@@ -58,9 +34,9 @@ async def test_observed_energy_query_controls_complete_source_publication(feelin
         assert req.url.path.endswith("/services/podconnect/search_playlists")
         args = json.loads(req.content)
         assert args["config_entry_id"] == "account-alpha" and args["limit"] == 3
-        assert args["query"] in OBSERVED_SOURCE_ROWS
+        assert args["query"] in SOURCE_ROWS
         calls.append(args["query"])
-        rows = OBSERVED_SOURCE_ROWS[args["query"]]
+        rows = SOURCE_ROWS[args["query"]]
         return httpx.Response(
             200,
             json={
@@ -85,7 +61,7 @@ async def test_observed_energy_query_controls_complete_source_publication(feelin
     finally:
         feeling_rig.router._client = original
         await client.aclose()
-    assert sorted(calls) == sorted(["funk", "peaceful acoustic", "sing along classics"])
+    assert sorted(calls) == sorted(SOURCE_ROWS)
     assert result["ok"] is True
     bridge = feeling_rig.app[BRIDGE]
     assert feeling_rig.router.podview_mood_selector.select.await_count == 0
@@ -95,11 +71,9 @@ async def test_observed_energy_query_controls_complete_source_publication(feelin
     assert len(bridge.music_selection.sources) == 1
     assert not bridge.music_selection.tasks
     rows = result["data"]["tracks"]
-    assert [row["themeId"] for row in rows] == ["energy", "calm", "familiar"]
+    assert [row["themeId"] for row in rows] == ["jazz_lounge", "hiphop_rnb", "pop_dance"]
     assert len({row["uri"] for row in rows}) == 3
-    assert [row["uri"] for row in rows] == [
-        OBSERVED_SOURCE_ROWS[query][0]["uri"]
-        for query in ["funk", "peaceful acoustic", "sing along classics"]
-    ]
+    assert [row["uri"] for row in rows] == [SOURCE_ROWS[query][0]["uri"] for query in SOURCE_ROWS]
+    assert [row["name"] for row in rows] == [sample[0]["name"] for sample in SOURCE_ROWS.values()]
     assert all(row["themeTitle"] == themes[row["themeId"]]["title"] for row in rows)
     assert all(row["themeArt"] == themes[row["themeId"]]["image"] for row in rows)

@@ -1,3 +1,7 @@
+## 2.0.150
+
+- Restore approved music discovery and stable controls across refresh, expiry and room changes; preserve robot drafts and feedback, correct weather freshness and answer history, explain radio configuration errors, and restore balanced Tesla confirmation controls.
+
 ## 2.0.149
 
 - Preserve admitted robot Start receipts through transient stale observations and keep confirmed speaker rows stable during roster refresh. Extend external-output, cancelled-start and recipe-completion software evidence.

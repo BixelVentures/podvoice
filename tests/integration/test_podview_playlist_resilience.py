@@ -16,11 +16,11 @@ from integration.test_podview_music_selection import rig  # noqa: F401
 from gatekeeper.podview import BRIDGE
 
 PRIMARY = {
-    "feeling": ["funk", "peaceful acoustic", "sing along classics"],
+    "feeling": ["jazz lounge", "hip hop r&b", "dance pop"],
     "mood": ["cooking", "italian dinner", "calm acoustic"],
 }
 BROADER = {
-    "feeling": ["feel good", "acoustic", "classics"],
+    "feeling": ["background jazz", "hip hop", "dance hits"],
     "mood": ["dinner", "italian", "acoustic"],
 }
 
@@ -164,6 +164,9 @@ async def test_frozen_renewal_uses_chosen_query_and_never_substitutes(catalogue,
     assert first["ok"]
     bridge = c.rig.app[BRIDGE]
     retained = getattr(bridge, "_" + kind + "_retained")
+    # The binding key contains live owner handles, so preserve its identity in the snapshot.
+    binding_key = retained["key"]
+    expected_retained = copy.deepcopy(retained, {id(binding_key): binding_key})
     chosen = list(retained["queries"].values())
     assert sorted(chosen) == sorted(BROADER[kind])
     c.calls.clear()
@@ -174,7 +177,15 @@ async def test_frozen_renewal_uses_chosen_query_and_never_substitutes(catalogue,
     else:
         c.foreign.add(chosen[0])
     failed = await read(c.rig, kind=kind, renew=True)
-    assert failed["error"] == kind + "_refresh_required"
+    can_restart = kind == "feeling" and mutation in {"removed", "renamed"}
+    assert failed["ok"] is False
+    assert failed["error"] == (
+        "feeling_restart_available" if can_restart else f"{kind}_refresh_required"
+    )
+    if can_restart:
+        expected_retained["restart_allowed"] = True
+    assert retained == expected_retained
+    assert retained["key"] is binding_key
     assert sorted(c.calls) == sorted(chosen) and len(c.calls) == 3
     assert getattr(bridge, "_" + kind + "_retained") is retained
     assert retained["rows"] == first["data"]["tracks"]
@@ -189,7 +200,7 @@ async def test_failed_refresh_retains_read_metadata_without_stale_action_authori
     bridge = c.rig.app[BRIDGE]
     retained = getattr(bridge, "_" + kind + "_retained")
     c.http.update(
-        {query: 403 for query in PRIMARY[kind] + ["sing along pop", "soft acoustic", "happy indie"]}
+        {query: 403 for query in PRIMARY[kind] + ["chill pop", "deep house", "jazz classics"]}
     )
     failed = await read(c.rig, kind=kind, refresh=True)
     assert failed["ok"] is False
@@ -198,6 +209,76 @@ async def test_failed_refresh_retains_read_metadata_without_stale_action_authori
     assert not bridge.music_selection.sources and not bridge.music_selection.tasks
     assert c.rig.router.podview_mood_selector.select.await_count <= (2 if kind == "mood" else 0)
     assert bridge.controls.music.execute_context.await_count == 0
+
+
+@pytest.mark.parametrize("renew", [False, True])
+@pytest.mark.parametrize("step", [0, 2])
+@pytest.mark.parametrize("failure", ["removed", "renamed", "transient", "foreign_epoch"])
+async def test_vibe_can_restart_only_after_confirmed_exact_row_loss(
+    catalogue, failure, step, renew
+):
+    c = catalogue
+    first = active = await read(c.rig)
+    for _ in range(step):
+        active = await read(c.rig, refresh=True)
+    assert active["ok"] and active["refreshAvailable"] is (step == 0)
+    active_query = "jazz lounge" if step == 0 else "lounge music"
+    if failure == "removed":
+        c.empty.add(active_query)
+    elif failure == "renamed":
+        c.rows[active_query] = [dict(c.row(active_query), name="Changed playlist title")]
+    elif failure == "transient":
+        c.http[active_query] = 503
+    else:
+        c.foreign.add(active_query)
+
+    failed = await read(c.rig, renew=renew)
+    assert failed["ok"] is False
+    bridge = c.rig.app[BRIDGE]
+    confirmed = failure in {"removed", "renamed"}
+    assert (failed["error"] == "feeling_restart_available") is confirmed
+    assert bridge._feeling_retained.get("restart_allowed", False) is confirmed
+    assert bridge._feeling_retained["rows"] == active["data"]["tracks"]
+    assert not bridge.music_selection.sources
+    c.calls.clear()
+    if confirmed:
+        restart = await read(c.rig, refresh=True)
+        assert restart["ok"] and restart["refreshAvailable"] is True
+        rows = restart["data"]["tracks"]
+        assert [row["themeId"] for row in rows] == [
+            row["themeId"] for row in first["data"]["tracks"]
+        ]
+        assert set(c.calls).issuperset(PRIMARY["feeling"])
+        if step == 0:
+            assert rows[0] != active["data"]["tracks"][0]
+    elif step == 2:
+        assert (await read(c.rig, refresh=True))["error"] == "feeling_exhausted"
+        assert not c.calls
+    no_effects(c)
+
+
+async def test_vibe_never_repeats_an_earlier_page_to_fill_the_third(catalogue):
+    c = catalogue
+    first = await read(c.rig)
+    second = await read(c.rig, refresh=True)
+    assert first["ok"] and second["ok"]
+    used = first["data"]["tracks"][0]
+    overlap = {"uri": used["uri"], "name": used["name"]}
+    c.rows["lounge music"] = [overlap]
+    c.rows["lounge"] = [overlap]
+    failed = await read(c.rig, refresh=True)
+    assert failed["error"] == "feeling_catalogue_empty"
+    renewed = await read(c.rig, renew=True)
+    assert renewed["refreshAvailable"] is True
+    assert renewed["data"]["tracks"] == second["data"]["tracks"]
+    c.rows["lounge"] = [overlap, c.row("third-page exclusive lounge playlist")]
+    third = await read(c.rig, refresh=True)
+    assert third["ok"] and third["refreshAvailable"] is False
+    assert third["data"]["tracks"][0]["uri"] == c.rows["lounge"][1]["uri"]
+    assert (
+        len({row["uri"] for page in [first, second, third] for row in page["data"]["tracks"]}) == 9
+    )
+    no_effects(c)
 
 
 @pytest.mark.parametrize(
