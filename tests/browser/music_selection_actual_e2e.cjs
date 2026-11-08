@@ -21,6 +21,7 @@ const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
+const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
@@ -282,24 +283,63 @@ async function voiceQueueJourney(){
  assert.equal(await observe(22,'paused'),queuedBinding);
  await page.locator('#play-pause').tap();
  assert.equal(await observe(22,'playing'),queuedBinding);
+ let renewal;
+ if(voiceLongSession){
+  const baseline=await state(),documentStartedAt=await page.evaluate(()=>performance.timeOrigin);
+  const startedAt=performance.now(),samples=[];
+  const readCount=value=>value.serviceReads.filter(row=>row.path.endsWith('/get_playback_snapshot')).length;
+  const initialReads=readCount(baseline);
+  console.log('A12→A10: waiting 600 s with the same voice-started session');
+  for(let minute=1;minute<=10;minute++){
+   const target=minute*60000;
+   while(performance.now()-startedAt<target)await sleep(Math.ceil(target-(performance.now()-startedAt)));
+   const value=await state(),reads=readCount(value);
+   assert(reads>(samples.at(-1)?.reads??initialReads),`minute ${minute}: ordinary playback reads continue`);
+   assert.deepEqual(value.writes,baseline.writes,'background reads never send an effect');
+   assert.equal(value.observedNativeSession,session);
+   assert.equal(value.state,'playing');assert.equal(value.song,22);
+   samples.push({minute,elapsedMs:Math.floor(performance.now()-startedAt),reads});
+   console.log('voiceQueueRenewalMinute',JSON.stringify(samples.at(-1)));
+  }
+  const realElapsedMs=Math.floor(performance.now()-startedAt);
+  if(await page.locator('#photo-view').isVisible())await env.openOverview(page);
+  assert.equal(await page.evaluate(()=>performance.timeOrigin),documentStartedAt);
+  assert.equal(await observe(22,'playing'),queuedBinding);
+  await page.locator('#play-pause').tap();
+  assert.equal(await observe(22,'paused'),queuedBinding);
+  await page.locator('#next').tap();
+  await observe(23,'paused');
+  const volume=page.locator('#volume');
+  await env.touchRange(page,volume,55);
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.controls
+   ?.volume?.base_percent===55);
+  await page.locator('#play-pause').tap();
+  await observe(23,'playing');
+  assert.equal(await page.evaluate(()=>performance.timeOrigin),documentStartedAt);
+  renewal={realElapsedMs,initialReads,samples,sameDocument:true,touchAfterDwell:['pause','next','volume','resume']};
+ }
  const final=await state();
  assert.equal(final.observedNativeSession,session);
  assert.equal(final.queueSelections.length,1);
  assert.equal(final.queueSelections[0].index,1);
- assert.deepEqual(final.writes.map(row=>row.action),['play_track','play_queue_occurrence','pause','resume']);
- const effects=final.nativeCalls.filter(row=>['start_room_selected_content','control_room_queue','control_room_playback'].includes(row.service));
- assert.deepEqual(effects.map(row=>row.args.command_sequence),[3,4,5,6]);
+ const expectedActions=['play_track','play_queue_occurrence','pause','resume',...(renewal?.touchAfterDwell??[])];
+ assert.deepEqual(final.writes.map(row=>row.action),expectedActions);
+ const effects=final.nativeCalls.filter(row=>['start_room_selected_content','control_room_queue','control_room_playback','control_room_volume'].includes(row.service));
+ assert.deepEqual(effects.map(row=>row.args.command_sequence),expectedActions.map((_,index)=>index+3));
  assert.ok(effects.every(({args})=>args.config_entry_id==='account'&&args.target_id==='device'
   &&args.room_id==='native-room'&&args.homepod_id==='42'&&args.owner_epoch===effects[0].args.owner_epoch));
  assert.ok(effects.slice(1).every(({args})=>args.native.session_id===session
   &&args.route.session_epoch===effects[1].args.route.session_epoch));
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',story:'A12',bundleSHA,session,actualThinAndToolRouter:true,
+ const proof={outcome:'PASS',story:renewal?'A12→A10':'A12',bundleSHA,session,actualThinAndToolRouter:true,
   independentVoiceObservation:true,selectedSecondRepeatedOccurrence:true,freshBindingAfterQueue:true,
-  touchPauseResume:true,inertNativeService:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-voice-queue-proof.json'),JSON.stringify(proof,null,2));
- await page.screenshot({path:path.join(env.artifactDir(),'podview-voice-queue-proof.png')});
+  touchPauseResume:true,inertNativeService:true,...(renewal?{renewal,cssSHA,effects:effects.map(({service,args})=>({service,
+   action:args.action,sequence:args.command_sequence,account:args.config_entry_id,room:args.room_id,homepod:args.homepod_id,
+   ownerEpoch:args.owner_epoch,nativeSession:args.native?.session_id,sessionEpoch:args.route?.session_epoch}))}:{})};
+ const name=renewal?'podview-voice-queue-long-session-proof':'podview-voice-queue-proof';
+ await fs.writeFile(path.join(env.artifactDir(),name+'.json'),JSON.stringify(proof,null,2));
+ await page.screenshot({path:path.join(env.artifactDir(),name+'.png')});
  console.log(JSON.stringify(proof));
 }
 async function discoveryLoadingJourney(){
@@ -1289,10 +1329,10 @@ async function queuePersistenceJourney(){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||discoveryCover)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||discoveryCover||voiceLongSession)options.args=['--mute-audio'];
  browser=await chromium.launch(options);
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit){
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||voiceLongSession){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
@@ -1304,7 +1344,7 @@ async function queuePersistenceJourney(){
  page.on('response',async r=>{
   const url=r.url();
   if(url.endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');
-  if(discoveryLoading&&new URL(url).pathname.endsWith('/podview.css')){
+  if((discoveryLoading||voiceLongSession)&&new URL(url).pathname.endsWith('/podview.css')){
    cssSHA=createHash('sha256').update(await r.body()).digest('hex');
   }
   if(!accountRollover&&(url.includes('/music/selection/')||url.includes('/music/queue/')
