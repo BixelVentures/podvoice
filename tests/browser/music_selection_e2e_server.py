@@ -1,5 +1,6 @@
 """Extend the existing inert native service with actual catalogue/content/queue contracts."""
 
+import base64
 import copy
 import hashlib
 import json
@@ -146,8 +147,13 @@ if discovery_cover:
     store = ThemeArtStore(directory, policy)
     assert store.retired("italian")
     assert store.reserve("cooking")
-    # Project an admitted cache path. The browser harness faults its HTTP retrieval.
-    store.publish("cooking", webp())
+    # A synthetic lossless 1024x1024 illustration with actual image data.
+    # Keep the header-only helper above for the intentionally retired entry.
+    cooking_image = base64.b64decode(
+        "UklGRlwAAABXRUJQVlA4TFAAAAAv/8P/AA9wT9ProD+jaf7jAWTCEPqX9hNgEf2fg"
+        "PI///M///M///M//8/mnv/4j//4j//4j//4j//4j//4j//4j/84j//5n//5n//5n/+ZHw=="
+    )
+    store.publish("cooking", cooking_image)
     assert not store.reserve("calm")
 
     base.state["imageProviderCalls"] = []

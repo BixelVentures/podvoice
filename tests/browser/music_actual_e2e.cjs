@@ -117,7 +117,7 @@ async function speakerRefreshJourney(page,errors){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-speakers-refresh-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
-async function outputTransferJourney(page,errors){
+async function outputTransferJourney(page,errors,{composed=false}={}){
  const output=page.locator('#output'),dialog=page.locator('#rooms'),volume=page.locator('#volume');
  const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current=false]');
  const kitchen={name:'Køkkenalrum HomePod',room:'native-room',homepod:'42'};
@@ -215,7 +215,7 @@ async function outputTransferJourney(page,errors){
   const beforeRenewal=await state();
   const postsBeforeRenewal=requests.filter(row=>row.url.endsWith('/control/actions')).length;
   assert(original.validUntil*1000>Date.now(),'capture an unexpired destination binding');
-  if(target===kitchen){
+  if(target===kitchen&&!composed){
    await page.reload({waitUntil:'domcontentloaded'});
    await testEnv.openOverview(page);
   }
@@ -233,7 +233,7 @@ async function outputTransferJourney(page,errors){
   assert.deepEqual(afterRenewal.writes,beforeRenewal.writes,'passive renewal has no effects');
   assert.equal(requests.filter(row=>row.url.endsWith('/control/actions')).length,postsBeforeRenewal,
    'passive renewal issues no command');
-  destinationRenewals.push({original,renewed,checkedAt:Date.now(),reloaded:target===kitchen});
+  destinationRenewals.push({original,renewed,checkedAt:Date.now(),reloaded:target===kitchen&&!composed});
   const transport=page.locator('#play-pause');
   for(const [label,state] of [['Sæt musik på pause','paused'],['Fortsæt musikken','playing']]){
    await page.getByRole('button',{name:label,exact:true}).tap();
@@ -259,6 +259,7 @@ async function outputTransferJourney(page,errors){
   assert.equal(added[4].song,song);
   effects.push(added);
  }
+ if(composed)return {pendingFeedback,destinationRenewals,effects};
 
  const failures=[];
  for(const outcome of ['rejected','unknown']){
@@ -401,8 +402,25 @@ async function multiScreenJourney(first,errors){
  console.log(JSON.stringify(result));
 }
 
-async function externalOutputJourney(page,errors){
+async function externalOutputJourney(page,errors,{composed=false}={}){
+ const host=page.locator('pv-widget-host');
+ const readHomeQueue=async priorTask=>{
+  const witness=await page.waitForFunction(prior=>{
+   const {playback,queueControls}=document.querySelector('pv-widget-host')?.liveMedia??{};
+   const offer=queueControls?.offer,binding=playback?.roomBinding;
+   const item=offer?.items.find(row=>row.title==='Køsang 24');
+   if(queueControls?.status!=='ready'||!offer||offer.taskId===prior||offer.expiresAt<=Date.now()||
+    binding?.nativeRoomId!=='native-room'||binding.nativeHomepodId!=='42'||
+    offer.expectedBindingId!==binding.bindingId||offer.ownerEpoch!==playback.owner_epoch||
+    offer.accountId!==playback.config_entry_id||!item)return false;
+   return {taskId:offer.taskId,bindingId:binding.bindingId,ownerEpoch:offer.ownerEpoch,
+    accountId:offer.accountId,room:binding.nativeRoomId,homepod:binding.nativeHomepodId,item};
+  },priorTask,{timeout:15000});
+  return witness.jsonValue();
+ };
+ const oldQueue=composed?await readHomeQueue(null):null;
  const before=await state(),initialPosts=requests.length;
+ const queueCalls=snapshot=>(snapshot.nativeCalls??[]).filter(row=>['prepare_room_queue','control_room_queue'].includes(row.service));
  const control=page.locator('#play-pause');
  const track=page.locator('#track-name');
  const trackName=await track.innerText();
@@ -414,6 +432,7 @@ async function externalOutputJourney(page,errors){
   const current=await state();
   assert.deepEqual(roomRequests(current),roomRequests(before));
   assert.deepEqual(current.writes,before.writes);
+  if(composed)assert.deepEqual(queueCalls(current),queueCalls(before));
  };
  for(const [target,label] of [['tesla','Tesla'],['iphone','iPhone']]){
   const transferred=await change({externalOutput:target});
@@ -443,6 +462,10 @@ async function externalOutputJourney(page,errors){
   assert.equal(observed.data.playback.target.name,label);
   assert.equal(observed.binding,null);
   assert.equal((await state()).externalDevice,target);
+  if(composed){
+   assert.equal(await host.evaluate(h=>h.liveMedia.queueControls.offer),null,'external output revokes the old queue offer');
+   assert.equal(await page.locator('#queue button.queue-track[data-current=false]:enabled').count(),0);
+  }
   await assertNoTakeover();
  }
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
@@ -461,11 +484,40 @@ async function externalOutputJourney(page,errors){
   await control.tap();
   await waitForKitchen(phase);
  }
- const after=await state();
  assert.equal(await track.innerText(),trackName);
+ let renewedQueue;
+ if(composed){
+  const queue=page.locator('#queue');
+  if(!await queue.isVisible())await page.locator('#track').tap();
+  renewedQueue=await readHomeQueue(oldQueue.taskId);
+  assert.equal(renewedQueue.ownerEpoch,oldQueue.ownerEpoch);
+  assert.equal(renewedQueue.accountId,oldQueue.accountId);
+  const row=queue.locator('button.queue-track[data-current=false]').filter({hasText:'Køsang 24'});
+  const submit=page.waitForRequest(r=>r.url().endsWith('/music/queue/actions')&&r.method()==='POST');
+  await row.tap();
+  const body=(await submit).postDataJSON();
+  assert.equal(body.taskId,renewedQueue.taskId);
+  assert.equal(body.optionId,renewedQueue.item.id);
+  await page.waitForFunction(uri=>{
+   const p=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+   return p?.item?.uri===uri&&p.state==='playing'&&p.roomBinding?.nativeRoomId==='native-room'&&
+    p.roomBinding?.nativeHomepodId==='42'&&document.querySelector('#track-name')?.textContent==='Isoleret sang 24';
+  },renewedQueue.item.uri,{timeout:15000});
+ }
+ const after=await state();
  assert.deepEqual(after.writes.slice(before.writes.length).map(({action,room,homepod})=>[action,room,homepod]),
-  [['pause','native-room','42'],['resume','native-room','42']]);
+  [['pause','native-room','42'],['resume','native-room','42'],
+   ...(composed?[['play_queue_occurrence','native-room','42']]:[])]);
  assert.deepEqual(requests.slice(initialPosts).map(row=>row.body?.action),['pause','resume']);
+ if(composed){
+  const native=queueCalls(after).slice(queueCalls(before).length);
+  assert.deepEqual(native.map(({service,args})=>[service,args.room_id,args.homepod_id]),
+   [['prepare_room_queue','native-room','42'],['control_room_queue','native-room','42']]);
+  assert.equal(native[1].args.args.occurrence_id,renewedQueue.item.id);
+  assert.equal(after.song,24);
+  return {externalAccountOutputs:['Tesla','iPhone'],outsideRoomControlPosts:0,automaticTakeovers:0,
+   oldQueue,renewedQueue,effects:after.writes.slice(before.writes.length)};
+ }
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',story:'H7',servedBundleSHA,externalAccountOutputs:['Tesla','iPhone'],
@@ -1041,6 +1093,19 @@ async function longSession(page,errors){
  if(volumeDragMode){await volumeDragJourney(page,errors);return;}
  if(seekMode){await seekJourney(page,errors);return;}
  if(speakerRefreshMode){await speakerRefreshJourney(page,errors);return;}
+ if(outputTransferMode&&externalOutputMode){
+  const documentOrigin=await page.evaluate(()=>performance.timeOrigin);
+  const local=await outputTransferJourney(page,errors,{composed:true});
+  const external=await externalOutputJourney(page,errors,{composed:true});
+  assert.equal(await page.evaluate(()=>performance.timeOrigin),documentOrigin,'all transitions use one document');
+  assert.deepEqual(errors,[]);
+  assert(servedBundleSHA);
+  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+  const proof={outcome:'PASS',stories:['H5','H7'],servedBundleSHA,sameDocument:true,local,external,inertFinalService:true};
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-output-roundtrip.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+  return;
+ }
  if(outputTransferMode){await outputTransferJourney(page,errors);return;}
  if(multiScreenMode){await multiScreenJourney(page,errors);return;}
  if(externalOutputMode){await externalOutputJourney(page,errors);return;}
