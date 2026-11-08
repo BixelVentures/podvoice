@@ -3340,7 +3340,8 @@
           "method:clearSession": 1,
           "method:restoreSession": 1,
           "method:stopCatalogRefresh": 1,
-          "arrow:read": 1
+          "arrow:read": 1,
+          "arrow:retryUploadHistory": 1
         },
         "roots": [],
         "registrations": {},
