@@ -9,6 +9,7 @@ import pytest
 from aiohttp.test_utils import make_mocked_request
 from integration.test_podview_mood_playlists import mood_rig  # noqa:F401
 from integration.test_podview_music_selection import rig  # noqa:F401
+from multidict import CIMultiDict
 
 from gatekeeper.podview import BRIDGE, _mood_music
 from gatekeeper.podview_feeling import assign_playlists
@@ -18,7 +19,7 @@ async def direct(r, reason=""):
     request = make_mocked_request(
         "GET",
         "/view/api/music?kind=mood&account=account-alpha" + ("&" + reason + "=1" if reason else ""),
-        headers={"Cookie": "podview_control=grant"},
+        headers=CIMultiDict({"Cookie": "podview_control=grant"}),
         app=r.app,
     )
     return json.loads((await _mood_music(request, r.app[BRIDGE], "kitchen")).body)

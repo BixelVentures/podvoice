@@ -11,6 +11,7 @@ import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music_selection import rig  # noqa: F401
+from multidict import CIMultiDict
 
 from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_mood import configured_mood_selector
@@ -482,7 +483,7 @@ async def test_playlist_batch_enters_all_reads_before_release_and_fences_publica
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -555,7 +556,7 @@ async def test_playlist_batch_joins_child_cleanup_before_busy_fence_release(mood
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -588,7 +589,7 @@ async def test_mood_total_deadline_joins_reads_and_preserves_retained_content(
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     assert json.loads((await podview._mood_music(request, bridge, "kitchen")).body)["ok"]
     retained = bridge._mood_retained
@@ -670,7 +671,7 @@ async def test_mood_speculative_reads_overlap_model_and_publish_only_selected(mo
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     try:
@@ -720,7 +721,7 @@ async def test_mood_speculation_fences_owner_and_joins_cancelled_reads(mood_rig,
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     task = asyncio.create_task(_mood_music(request, bridge, "kitchen"))
     await asyncio.wait_for(started.wait(), 2)
@@ -769,7 +770,7 @@ async def test_mood_speculative_selected_failure_and_unselected_cancellation(moo
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     response = await asyncio.wait_for(_mood_music(request, bridge, "kitchen"), 2)
     body = json.loads(response.body)
@@ -789,7 +790,7 @@ async def test_mood_speculation_broadens_only_if_needed_with_nine_read_limit(moo
         app=mood_rig.app,
         query={"account": "account-alpha"},
         cookies={"podview_control": "grant"},
-        headers={},
+        headers=CIMultiDict(),
     )
     body = json.loads((await _mood_music(request, bridge, "kitchen")).body)
     assert not body["ok"] and body["error"] == "mood_catalogue_empty"

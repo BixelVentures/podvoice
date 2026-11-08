@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from integration.test_podview_mood_playlists import mood_rig  # noqa: F401
 from integration.test_podview_music_selection import rig  # noqa: F401
-from multidict import MultiDict
+from multidict import CIMultiDict, MultiDict
 
 from gatekeeper.podview import BRIDGE, _music
 
@@ -24,7 +24,7 @@ def request(rig, *, account="account-alpha", refresh=False, renew=False, cookie=
         query=query,
         cookies={"podview_control": cookie},
         remote=kwargs.get("remote", "127.0.0.1"),
-        headers=kwargs.get("headers", {}),
+        headers=CIMultiDict(kwargs.get("headers", {})),
         method="GET",
     )
 
@@ -167,7 +167,7 @@ async def test_preview_cannot_mint_play_offer_even_with_forged_id_and_cookie(moo
     req.method = "POST"
     req.content_length = 256
     req.content_type = "application/json"
-    req.headers = {"X-PodView-Request": "1"}
+    req.headers = CIMultiDict({"X-PodView-Request": "1"})
     req.json = AsyncMock(
         return_value={
             "bootId": bridge.boot_id,

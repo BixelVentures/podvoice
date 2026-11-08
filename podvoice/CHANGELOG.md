@@ -1,3 +1,7 @@
+## 2.0.158
+
+- PodView keeps music choices usable when another screen opens or refreshes its suggestions.
+
 ## 2.0.157
 
 - Bevar musikbetjening ved listeudvidelse, forny højttalerdata ved udløb, bevar robottens åbne Base under fornyelse, og vis den faktisk indlæste PodView-version.

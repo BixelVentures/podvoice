@@ -133,5 +133,32 @@ test('search result Play uses room binding without a confirmation and shows its 
 test('search direct intent is cancelled by navigation while setup is held even if focus stays put',async()=>{let release,sent=0;const view=heldView({musicSelectionSetup:()=>new Promise(resolve=>release=resolve),musicSelectionAction:async()=>{sent++;return {outcome:'accepted'};}});try{bindRoom(view.host.liveSnapshot,'account','direct-one');view.host.state={focus:'music'};view.active=true;view.source=searchSample(result(),'account','sang',view.host.liveSnapshot);view.searchScope=view.context();view.targets=[target];const pending=view.chooseCard({optionIndex:0});view.host.state.focus='home';release(offer());await pending;assert.equal(sent,0);assert.equal(view.dialog.open,false);assert.equal(view.feedback,null);}finally{clearTimeout(view.expiryTimer);}});
 
 test('selection trace header and action request share one explicit UUID without adding body fields',async()=>{const traceId='11111111-1111-4111-8111-111111111111',calls=[],t=new PodVoiceTransport({url:'https://home.example/view/',fetch:async(url,init)=>{calls.push({url:String(url),init});if(String(url).includes('/setup'))return {ok:true,json:async()=>offer()};const body=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true,outcome:'accepted',requestId:body.requestId,retryAllowed:false,physicalResultVerified:false})};}});t.connected=true;t.snapshot=snapshot();t.controller=new AbortController();await t.musicSelectionSetup('a'.repeat(64),target,undefined,{traceId});const selected=selectionOffer(offer(),searchSample(result(),'account','sang',snapshot()),target);await t.musicSelectionAction(selected,'c'.repeat(24),{requestId:traceId});assert.equal(calls[0].init.headers['X-PodView-Trace'],traceId);assert.equal(calls[1].init.headers['X-PodView-Trace'],traceId);assert.equal(JSON.parse(calls[1].init.body).requestId,traceId);assert.equal('traceId' in JSON.parse(calls[0].init.body),false);t.close();});
-test('explicit mood renewal forwards one trace header without changing query or passive reads',async()=>{const id='11111111-1111-4111-8111-111111111111',calls=[],t=new PodVoiceTransport({url:'https://home.example/view/',fetch:async(url,init)=>{calls.push({url:String(url),init});return {ok:true,status:200,json:async()=>({ok:true})};}});t.connected=true;t.closed=false;t.snapshot=snapshot();t.snapshot.capabilities.musicRead.push('mood');t.controller=new AbortController();await t.music('mood','account','renew',{traceId:id});await t.music('mood','account','renew');assert.equal(calls.length,2);assert.equal(calls[0].init.headers['X-PodView-Trace'],id);assert.equal(calls[1].init.headers,undefined);assert.equal(new URL(calls[0].url).searchParams.get('renew'),'1');assert.equal(new URL(calls[0].url).searchParams.has('traceId'),false);t.close();});
+test('explicit and passive mood renewal share the document, with a trace only on the explicit read',async()=>{
+ const id='11111111-1111-4111-8111-111111111111',calls=[];
+ const t=new PodVoiceTransport({
+  url:'https://home.example/view/',
+  fetch:async(url,init)=>{
+   calls.push({url:String(url),init});
+   return {ok:true,status:200,json:async()=>({ok:true})};
+  },
+ });
+ t.connected=true;
+ t.closed=false;
+ t.snapshot=snapshot();
+ t.snapshot.capabilities.musicRead.push('mood');
+ t.controller=new AbortController();
+ try{
+  await t.music('mood','account','renew',{traceId:id});
+  await t.music('mood','account','renew');
+  assert.equal(calls.length,2);
+  const documentHeader=calls[0].init.headers['X-PodView-Music-Document'];
+  assert.match(documentHeader,/^[a-f0-9]{32}$/);
+  assert.deepEqual(calls[0].init.headers,{'X-PodView-Music-Document':documentHeader,'X-PodView-Trace':id});
+  assert.deepEqual(calls[1].init.headers,{'X-PodView-Music-Document':documentHeader});
+  assert.equal(calls[0].url,calls[1].url);
+  const query=new URL(calls[0].url).searchParams;
+  assert.equal(query.get('renew'),'1');
+  assert.equal(query.has('traceId'),false);
+ }finally{t.close();}
+});
 test('late traced mood read cannot stamp old result into a changed diagnostic scope',async()=>{let release;const t=new PodVoiceTransport({url:'https://home.example/view/',fetch:()=>new Promise(resolve=>release=()=>resolve({ok:true,status:200,json:async()=>({ok:true})}))});t.connected=true;t.closed=false;t.generation=1;t.diagnosticScope='old';t.snapshot=snapshot();t.snapshot.capabilities.musicRead.push('mood');t.controller=new AbortController();const read=t.music('mood','account','renew',{traceId:'11111111-1111-4111-8111-111111111111'});await Promise.resolve();t.diagnosticScope='new';release();await read;const rows=t.diagnostics().records.filter(row=>row.stage==='request'&&row.endpoint==='music');assert.deepEqual(rows.map(row=>row.code),['start']);t.close();});

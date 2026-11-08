@@ -1,5 +1,6 @@
 """Exact retained START/MOVE receipts remain private until a current source read."""
 
+import asyncio
 import copy
 import hashlib
 import json
@@ -45,8 +46,9 @@ def control_settlement(identity, *, status="confirmed"):
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("document", [False, True])
 async def test_actual_selected_action_retains_exact_identity_without_public_operation_id(
-    rig,
+    rig, document
 ):
     bridge = rig.app[BRIDGE]
     identity = {"owner_epoch": "a" * 32, "command_sequence": 1, "request_id": "a" * 32 + ":1"}
@@ -63,11 +65,15 @@ async def test_actual_selected_action_retains_exact_identity_without_public_oper
         "start_operation_id": "c" * 32,
     }
     headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+    other = {**headers, "X-PodView-Music-Document": "2" * 32}
+    if document:
+        headers["X-PodView-Music-Document"] = "1" * 32
+    search = "/view/api/music?kind=search&account=account-alpha&query=jazz"
     async with TestClient(TestServer(rig.app)) as client:
         source = await (
             await client.get(
-                "/view/api/music?kind=search&account=account-alpha&query=jazz",
-                headers={"Cookie": "podview_control=grant"},
+                search,
+                headers=headers,
             )
         ).json()
         offer = await (
@@ -95,12 +101,42 @@ async def test_actual_selected_action_retains_exact_identity_without_public_oper
             "requestId": "selected-one",
             "confirmedVolumePercent": 35,
         }
-        first = await (
-            await client.post("/view/api/music/selection/actions", headers=headers, json=action)
-        ).json()
-        again = await (
-            await client.post("/view/api/music/selection/actions", headers=headers, json=action)
-        ).json()
+
+        async def send():
+            return await (
+                await client.post("/view/api/music/selection/actions", headers=headers, json=action)
+            ).json()
+
+        if document:
+            execute = bridge.controls.music.execute_track
+            entered, release = asyncio.Event(), asyncio.Event()
+
+            async def held(*args):
+                entered.set()
+                await release.wait()
+                return execute.return_value
+
+            execute.side_effect = held
+            pending = asyncio.create_task(send())
+            try:
+                await asyncio.wait_for(entered.wait(), 2)
+                async with client.get(search, headers=other) as response:
+                    assert response.status == 429
+                    assert (await response.json())["error"] == "music_busy"
+            finally:
+                release.set()
+                first = await pending
+            retained = bridge.music_selection.sources[offer["candidateSetId"]]
+            retained["deadline"] = time.monotonic() - 1
+            async with client.get(search, headers=other) as response:
+                assert response.status == 200
+                assert (await response.json())["candidateSet"]["candidateSetId"] != offer[
+                    "candidateSetId"
+                ]
+            assert bridge.music_selection.sources[offer["candidateSetId"]] is retained
+        else:
+            first = await send()
+        again = await send()
     assert first == again and first["outcome"] == "accepted"
     assert "start_operation_id" not in json.dumps(first)
     assert bridge.controls.music.execute_track.await_count == 1
