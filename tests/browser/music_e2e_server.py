@@ -37,6 +37,7 @@ music = Rig()
 room_owner(music)
 extended = os.environ.get("MUSIC_EXTENDED") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
+external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
 original_client = music.client
 state = {
     "state": "playing",
@@ -121,7 +122,11 @@ def observation(args):
     raw = payload("playback", "account")
     raw["poll_sequence"] = state["sequence"]
     raw["playback"]["state"] = state["state"]
+    external = external_devices.get(state.get("externalDevice"))
     raw["playback"]["target"]["target_id"] = "device"
+    if external:
+        target_id, name = external
+        raw["playback"]["target"].update(target_id=target_id, name=name)
     raw["playback"]["item"].update(
         uri="spotify:track:" + str(state["song"]).zfill(22),
         name="Isoleret sang " + str(state["song"]),
@@ -130,6 +135,27 @@ def observation(args):
         raw["playback"]["progress_ms"] = state["progressMs"]
     value = project_owner("playback", raw, "account")["data"]
     if not args.get("include_output"):
+        return value
+    if external:
+        # PodConnect room_transport.playback_output preserves account playback
+        # but returns no room authority when its native output is unavailable.
+        value.update(
+            schema="podconnect.playback.v3"
+            if args.get("include_controls")
+            else "podconnect.playback.v2",
+            output={"status": "unavailable", "reason": "route_unavailable", "binding": None},
+        )
+        if args.get("include_controls"):
+            value["controls"] = {
+                "status": "unavailable",
+                "reason": "route_unavailable",
+                "binding_id": None,
+                "valid_until": None,
+                "supported_actions": [],
+                "volume": None,
+            }
+            if args.get("request_id"):
+                value["settlement"] = None
         return value
     until = time.time() + 5
     value.update(
@@ -187,7 +213,19 @@ async def native_service(request):
                     row["target_id"] = "native-room" if row["homepod_id"] == "42" else "bedroom"
                     row["binding"]["room_id"] = state["room"]
                 elif row["kind"] == "observed_output":
-                    row["selected"] = row["target_id"] == state["homepod"]
+                    row["selected"] = (
+                        not state.get("externalDevice") and row["target_id"] == state["homepod"]
+                    )
+            if state.get("externalDevice"):
+                target_id, name = external_devices[state["externalDevice"]]
+                value["targets"].append(
+                    {
+                        "kind": "spotify_device",
+                        "target_id": target_id,
+                        "name": name,
+                        "restricted": False,
+                    }
+                )
             return httpx.Response(200, json={"service_response": value})
         return httpx.Response(
             200,
@@ -199,6 +237,11 @@ async def native_service(request):
         )
     if path.endswith("get_playback_snapshot"):
         return httpx.Response(200, json={"service_response": observation(args)})
+    if state.get("externalDevice"):
+        return httpx.Response(
+            200,
+            json={"service_response": {"ok": False, "error_kind": "room_transport_unavailable"}},
+        )
     music.value["actions"] = ["pause", "resume", "next", "previous"]
     if seek_test and args.get("include_seek") is True:
         music.value["actions"].append("seek")
@@ -490,10 +533,15 @@ async def lab_state(request):
                 state["progressMs"] = 1000
         if "externalOutput" in args:
             outputs = {"native-room": "42", "bedroom": "43"}
-            if args["externalOutput"] not in outputs:
+            output = args["externalOutput"]
+            if output in external_devices:
+                state["externalDevice"] = output
+            elif output in outputs:
+                state.pop("externalDevice", None)
+                state["room"] = output
+                state["homepod"] = outputs[output]
+            else:
                 raise web.HTTPBadRequest()
-            state["room"] = args["externalOutput"]
-            state["homepod"] = outputs[args["externalOutput"]]
         state["sequence"] += 1
         if args.keys() & {"externalPlaybackState", "externalSong", "externalOutput"}:
             await emit_playback_changed()

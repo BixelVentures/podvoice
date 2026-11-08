@@ -10,7 +10,8 @@ const os=require('node:os');
 const root=testEnv.root,port=Number(process.env.MUSIC_TEST_PORT||18973),base=`http://127.0.0.1:${port}`;
 const runtimeRoot=testEnv.runtimeRoot;
 const seekMode=process.env.MUSIC_SEEK_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||seekMode)process.env.MUSIC_EXTENDED='1';
+const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
+if(process.env.MUSIC_LONG_SESSION==='1'||seekMode||externalOutputMode)process.env.MUSIC_EXTENDED='1';
 let server,browser,data,servedBundleSHA,serverSuspended=false;
 const requests=[];
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
@@ -18,6 +19,80 @@ const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const playbackReads=s=>s.serviceReads.filter(row=>row.path.endsWith('/get_playback_snapshot')).length;
 const readJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 const change=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+async function externalOutputJourney(page,errors){
+ const before=await state(),initialPosts=requests.length;
+ const control=page.locator('#play-pause');
+ const track=page.locator('#track-name');
+ const trackName=await track.innerText();
+ const output=page.locator('#output');
+ const roomRequests=snapshot=>snapshot.serviceReads.filter(row=>
+  /\/(?:prepare_room_|control_room_|move_room_|start_room_)/.test(row.path));
+ const assertNoTakeover=async()=>{
+  assert.equal(requests.length,initialPosts);
+  const current=await state();
+  assert.deepEqual(roomRequests(current),roomRequests(before));
+  assert.deepEqual(current.writes,before.writes);
+ };
+ for(const [target,label] of [['tesla','Tesla'],['iphone','iPhone']]){
+  const transferred=await change({externalOutput:target});
+  assert.equal(transferred.ok,true);
+  await page.waitForFunction(name=>{
+   const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+   return playback?.observationStatus==='account_observed'&&playback.reason==='route_unavailable'
+    &&playback.target?.name===name&&playback.roomBinding===null
+    &&document.querySelector('#output')?.getAttribute('aria-label')?.includes(name)
+    &&document.querySelector('#play-pause')?.disabled===true;
+  },label,{timeout:15000});
+  assert.equal(await track.innerText(),trackName);
+  assert.equal((await output.locator('#player-room').innerText()).trim(),label);
+  assert.match(await output.getAttribute('aria-label'),/højttaler ikke bekræftet/);
+  const freshRead=page.waitForResponse(response=>{
+   const url=new URL(response.url());
+   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
+  },{timeout:10000});
+  for(const selector of ['#play-pause','#next','#previous','#volume']){
+   const button=page.locator(selector),box=await button.boundingBox();
+   assert.ok(box,selector);
+   assert.equal(await button.isDisabled(),true,selector);
+   await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
+  }
+  const observed=await (await freshRead).json();
+  assert.equal(observed.status,'account_observed');
+  assert.equal(observed.data.playback.target.name,label);
+  assert.equal(observed.binding,null);
+  assert.equal((await state()).externalDevice,target);
+  await assertNoTakeover();
+ }
+ await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
+ assert.equal((await change({externalOutput:'native-room'})).ok,true);
+ const waitForKitchen=phase=>page.waitForFunction(value=>{
+  const host=document.querySelector('pv-widget-host'),p=host?.liveMedia?.playback;
+  const button=document.querySelector('#play-pause'),output=document.querySelector('#output');
+  return p?.observationStatus==='observed'&&p.roomBinding?.nativeRoomId==='native-room'
+   &&p.roomBinding?.nativeHomepodId==='42'&&p.state===value&&button&&!button.disabled
+   &&!host.liveControls.musicIntentPending&&output?.textContent.includes('Køkkenalrum HomePod')
+   &&output.getAttribute('aria-label')?.includes('Aktuelt output');
+ },phase,{timeout:15000});
+ await waitForKitchen('playing');
+ await assertNoTakeover();
+ for(const phase of ['paused','playing']){
+  await control.tap();
+  await waitForKitchen(phase);
+ }
+ const after=await state();
+ assert.equal(await track.innerText(),trackName);
+ assert.deepEqual(after.writes.slice(before.writes.length).map(({action,room,homepod})=>[action,room,homepod]),
+  [['pause','native-room','42'],['resume','native-room','42']]);
+ assert.deepEqual(requests.slice(initialPosts).map(row=>row.body?.action),['pause','resume']);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',story:'H7',servedBundleSHA,externalAccountOutputs:['Tesla','iPhone'],
+  outsideRoomControlPosts:0,automaticTakeovers:0,returnedOutput:'Køkkenalrum HomePod',
+  confirmedTouchEffects:['pause','resume'],inertFinalService:true,pageErrors:errors};
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-external-output.json'),JSON.stringify(proof,null,2));
+ await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-return.png')});
+ console.log(JSON.stringify(proof));
+}
 async function seekJourney(page,errors){
  const slider=page.locator('#detail-seek');
  const player=page.locator('pv-widget-host');
@@ -249,6 +324,7 @@ async function longSession(page,errors){
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
  if(seekMode){await seekJourney(page,errors);return;}
+ if(externalOutputMode){await externalOutputJourney(page,errors);return;}
  if(process.env.MUSIC_LONG_SESSION==='1'){await longSession(page,errors);return;}
  // Measure from the actual trusted touch-generated click, not from a later screenshot.
  await page.evaluate(()=>{
