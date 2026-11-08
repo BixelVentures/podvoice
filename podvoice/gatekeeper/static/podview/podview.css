@@ -2969,7 +2969,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 6250a3b539de044c8c09af938cb019239efa3a0b3a3f29b31d3622e10a00b55c */
+/* Source: ui-kit.css · SHA256 1acf21c60fc36562d89277674b485529d2e15403ccfcddd638e3888a851c9789 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -3170,6 +3170,14 @@ pv-widget-host #radio-view .radio-station-tiles>button{min-height:177px;padding:
 .pv-kit-dialog .pv-dialog-description{font:var(--pv-t-body);line-height:var(--pv-leading-body);color:var(--pv-ink-2);margin:0;padding:0}
 .pv-kit-dialog .pv-dialog-content{display:grid;gap:var(--pv-s2);min-width:0;margin:0;padding:0}
 .pv-kit-dialog .pv-dialog-actions{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:var(--pv-s2);margin:0;padding:var(--pv-s2) 0 0}
+/* Balanced confirmations keep equal action slots and a compact text-only header. */
+.pv-kit-dialog[data-action-layout=balanced] .pv-dialog-header:not(:has(.pv-dialog-close)){min-height:0}
+.pv-kit-dialog[data-action-layout=balanced] .pv-dialog-actions{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;padding-top:0;
+}
+.pv-kit-dialog[data-action-layout=balanced] .pv-dialog-actions>.pv-kit-button{
+ width:100%;min-width:0;min-height:var(--pv-hit);
+}
 .pv-kit-dialog[data-kit-variant=toast]>.pv-dialog-content{display:block;font:var(--pv-t-body);margin:0;padding:0}
 /* Immediate speaker selection has no invented confirmation footer. */
 #room-options,.pv-kit-dialog .pv-dialog-content:has(>.pv-kit-listrow){display:grid;gap:var(--pv-s2);margin:0;padding:0}
