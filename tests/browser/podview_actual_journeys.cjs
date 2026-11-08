@@ -43,6 +43,8 @@ for(const journey of only.length?only:journeys){
  }
  if(journey==='home_events_actual_e2e.cjs'){
   runJourney(journey,{WEATHER_RETENTION_TEST:'1'});
+  runJourney(journey,{WEATHER_RETENTION_TEST:'1',WEATHER_COLD_OPEN_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'weather-cold-open')});
   runJourney(journey,{OFFLINE_FEEDBACK_TEST:'1',PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'offline-feedback')});
   runJourney(journey,{OFFLINE_FEEDBACK_TEST:'1',RO_LAYOUT_TEST:'1',PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'ro-layout')});
  }
