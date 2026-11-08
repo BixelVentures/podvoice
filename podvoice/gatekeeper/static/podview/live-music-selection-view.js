@@ -23,18 +23,51 @@ export class LiveMusicSelectionView{
  context(){const s=this.host.liveSnapshot;return this.host.isConnected&&this.host.liveTransport?.connected&&s&&typeof this.account==='string'&&!!this.account&&this.account===this.host.liveMedia?.account?{bootId:s.bootId,roomId:s.roomId,accountId:this.account}:null;}
  // Passive target discovery is short-lived request metadata, never a setup or play grant.
  targetReadScope(){const context=this.context(),s=this.host.liveSnapshot;return context&&this.host.state?.focus==='music'&&this.host.liveTransport?.recoveryBlocked!==true&&s.capabilities?.musicRead?.includes('targets')&&s.capabilities.musicSelection===true&&mediaRoomBinding(s,this.account)?JSON.stringify([context,s.mediaRoomBindings,s.providerGeneration,s.voice,s.sessionId,s.taskId,s.inputRevision,s.capabilities.musicRead,s.capabilities.musicSelection]):null;}
- async readTargets(passive=false){
+ async readTargets(passive=false,allowExpiredRetry=true){
   const scope=this.targetReadScope(),transport=this.host.liveTransport,account=this.account;
+  const transportGeneration=transport?.generation;
   if(!scope){this.targetRead=null;return null;}
+  const current=ticket=>this.targetRead===ticket&&this.targetReadScope()===scope
+   &&this.host.liveTransport===transport&&transport.generation===transportGeneration&&this.account===account;
+  const settle=async ticket=>{
+   const targets=await ticket.promise;
+   if(!current(ticket))return null;
+   if(!passive&&(ticket.expiredOnArrival||targets&&ticket.passive&&ticket.expiresAt<=Date.now())){
+    // Only replace an expired read. Never repeat setup or a playback effect.
+    if(!allowExpiredRetry)return null;
+    this.targetRead=null;
+    return this.readTargets(false,false);
+   }
+   return targets;
+  };
   const previous=this.targetRead;
-  if(previous?.scope===scope&&previous.transport===transport){
-   if(previous.pending){const targets=await previous.promise;if(this.targetRead!==previous||this.targetReadScope()!==scope||this.host.liveTransport!==transport)return null;if(!passive&&targets&&previous.passive&&previous.expiresAt<=Date.now()){this.targetRead=null;return this.readTargets();}return targets;}
+  if(previous?.scope===scope&&previous.transport===transport&&previous.transportGeneration===transportGeneration){
+   if(previous.pending)return settle(previous);
    if(passive)return previous.targets;
    if(previous.targets&&previous.expiresAt>Date.now())return previous.targets;
   }
-  const ticket={scope,transport,passive,pending:true,targets:null,expiresAt:0,requestedAt:Date.now()};this.targetRead=ticket;
-  ticket.promise=(async()=>{try{const body=await transport.music('targets',account);if(this.targetRead!==ticket||this.targetReadScope()!==scope||this.host.liveTransport!==transport)return null;const targets=selectionRequestTargets(body,account,this.host.liveSnapshot);if(!targets)return null;const observedAt=typeof body.observedAt==='number'?body.observedAt*1000:NaN;if(Object.hasOwn(body,'observedAt')&&(!Number.isFinite(observedAt)||observedAt>Date.now()+5000||observedAt+10000<=Date.now()))return null;ticket.expiresAt=Number.isFinite(observedAt)&&observedAt<=Date.now()+5000?Math.min(observedAt+10000,ticket.requestedAt+10000):0;ticket.targets=targets;return targets;}catch{return null;}finally{ticket.pending=false;}})();
-  const targets=await ticket.promise;if(this.targetRead!==ticket||this.targetReadScope()!==scope||this.host.liveTransport!==transport)return null;if(!passive&&targets&&ticket.passive&&ticket.expiresAt<=Date.now()){this.targetRead=null;return this.readTargets();}return targets;
+  const ticket={scope,transport,transportGeneration,passive,pending:true,targets:null,expiresAt:0,requestedAt:Date.now()};
+  this.targetRead=ticket;
+  ticket.promise=(async()=>{
+   try{
+    const body=await transport.music('targets',account);
+    if(!current(ticket))return null;
+    const targets=selectionRequestTargets(body,account,this.host.liveSnapshot);
+    if(!targets)return null;
+    const arrivedAt=Date.now(),observedAt=typeof body.observedAt==='number'?body.observedAt*1000:NaN;
+    if(Object.hasOwn(body,'observedAt')){
+     if(!Number.isFinite(observedAt)||observedAt>arrivedAt+5000)return null;
+     if(observedAt+10000<=arrivedAt){
+      ticket.expiredOnArrival=targets.length>0;
+      return null;
+     }
+    }
+    ticket.expiresAt=Number.isFinite(observedAt)?Math.min(observedAt+10000,ticket.requestedAt+10000):0;
+    ticket.targets=targets;
+    return targets;
+   }catch{return null;}finally{ticket.pending=false;}
+  })();
+  return settle(ticket);
  }
  prefetchTargets(){const scope=this.targetReadScope();if(!scope){this.targetRead=null;this.targetPrefetchPaused=null;return;}if(this.targetPrefetchPaused===scope)return;if(this.targetRead?.scope===scope&&this.targetRead.transport===this.host.liveTransport)return;this.targetRead=null;if(this.pending||this.active||this.collectionMode)return;void this.readTargets(true);}
  current(context,generation){const now=this.context(),s=this.host.liveSnapshot,r=this.recoveryContinuation,focus=globalThis.document?.activeElement,i=this.intent;if(i&&(this.host.state&&this.host.state.focus!=='music'||JSON.stringify(s?.mediaRoomBindings)!==i.binding||JSON.stringify([s?.providerGeneration,s?.voice,s?.sessionId,s?.taskId,s?.inputRevision])!==i.owner||focus&&focus!==i.focus&&focus!==globalThis.document?.body))return false;if(r&&(this.host.state?.focus!=='music'||this.host.liveCatalogue?.entries.get(this.host.liveCatalogue.key())!==r.entry||!r.entry.cards.includes(r.card)||r.entry.actionDispatched||JSON.stringify(s?.mediaRoomBindings)!==r.binding||JSON.stringify([s?.providerGeneration,s?.voice,s?.sessionId,s?.taskId,s?.inputRevision])!==r.owner||focus&&focus!==r.focus&&focus!==globalThis.document?.body&&focus!==this.targetSelect))return false;return !!now&&!!context&&generation===this.generation&&now.bootId===context.bootId&&now.roomId===context.roomId&&now.accountId===context.accountId&&s.capabilities.musicRead?.includes(this.collectionMode?this.source?.sourceKind:'search')&&(!this.collectionMode||this.host.liveCatalogue?.entries.get(this.host.liveCatalogue.key())===this.collectionEntry&&collectionCurrent(this.source,s,this.account));}

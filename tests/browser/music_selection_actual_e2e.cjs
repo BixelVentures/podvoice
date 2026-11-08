@@ -265,7 +265,20 @@ async function recentSessionJourney(){
  assert.equal(final.volume,55);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
  const expandedReadAges=[];
- let expandedRecentReads=0;
+ let expandedRecentReads=0,explicitTargetReads=0,expandedChoicePressed=false;
+ await page.route('**/view/api/music?**',async route=>{
+  const url=new URL(route.request().url());
+  if(!expandedChoicePressed||url.searchParams.get('kind')!=='targets'||!url.searchParams.has('account'))return route.fallback();
+  if(++explicitTargetReads!==1)return route.continue();
+  const response=await route.fetch(),body=await response.json();
+  assert.ok(response.ok()&&body.ok&&body.roomBinding);
+  // Only this fixture response crosses the boundary in transit.
+  const observedAtMs=Date.now()-9950;
+  body.observedAt=observedAtMs/1000;
+  await sleep(100);
+  assert.ok(Date.now()-observedAtMs>=10000);
+  await route.fulfill({response,json:body});
+ });
  page.on('response',async response=>{
   const url=new URL(response.url()),kind=url.searchParams.get('kind');
   if(url.pathname!=='/view/api/music'||!['targets','recent'].includes(kind)||!response.ok())return;
@@ -278,18 +291,21 @@ async function recentSessionJourney(){
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="recent"]').tap();
  await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+ expandedChoicePressed=true;
  await page.locator('#result-list button.result').filter({hasText:'Katalogsang 20'}).tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSelection?.feedback?.settlementStatus==='confirmed');
  const expandedChoice=await state();
  assert.deepEqual(expandedChoice.writes.slice(final.writes.length).map(row=>row.action),['play_track']);
  assert.equal(expandedChoice.selections.at(-1).uri,'spotify:track:'+String(20).padStart(22,'0'));
  assert.equal(expandedRecentReads,2,'initial sample and one exact choice renewal');
- assert.ok(expandedReadAges.length>0&&expandedReadAges.every(age=>age>=0&&age<10000),
-  `target reads must carry a usable original observation: ${expandedReadAges}`);
+ assert.equal(explicitTargetReads,2,'exactly one read-only refresh after the expired response');
+ assert.equal(expandedReadAges.filter(age=>age>=10000).length,1);
+ assert.ok(expandedReadAges.at(-1)>=0&&expandedReadAges.at(-1)<10000,
+  `last target read must carry a usable original observation: ${expandedReadAges}`);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
-  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,rowsEnabledDuringExpansion:true,expandedChoiceEffects:1,expandedRecentReads,expandedReadAges,
+  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,rowsEnabledDuringExpansion:true,expandedChoiceEffects:1,expandedRecentReads,expandedReadAges,explicitTargetReads,
   previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
   touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
