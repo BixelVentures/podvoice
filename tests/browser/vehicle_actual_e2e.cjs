@@ -2,7 +2,7 @@
 const {chromium}=require('playwright'),env=require('./podview_actual_env.cjs'),{spawn}=require('node:child_process'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const port=Number(process.env.VEHICLE_TEST_PORT||18980),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json()),update=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());let server,browser;
-const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1';
+const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1',recovery=process.env.VEHICLE_RECOVERY_TEST==='1';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 async function lifecycleJourney(page,card,errors,commands){
  const root=page.locator('#vehicle-view'),hero=root.getByRole('region',{name:'Bilens status'});
@@ -108,14 +108,105 @@ async function lifecycleJourney(page,card,errors,commands){
  await fs.writeFile(path.join(env.artifactDir(),'podview-vehicle-lifecycle-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function recoveryJourney(page,card,errors,requests){
+ const host=page.locator('pv-widget-host');
+ const toggle=page.locator('#vehicle-view [data-kit=toggle]:visible').first();
+ const dialog=page.locator('dialog.vehicle-confirmation');
+ const hasAuthority=allowed=>page.waitForFunction(allowed=>{
+  const h=document.querySelector('pv-widget-host'),s=h?.liveSnapshot;
+  return h?.liveTransport?.connected===true
+   && s?.admission?.kind==='ha_ingress' && s.admission.authenticated===true
+   && s.capabilities.homeRead.includes('vehicle')
+   && (s.capabilities.controlSetup?.includes('vehicle')===true)===allowed
+   && (s.capabilities.vehicleActions?.includes('climateOn')===true)===allowed;
+ },allowed,{timeout:15000});
+ const confirmWithoutSending=async()=>{
+  await toggle.tap();
+  await dialog.getByRole('button',{name:'Tænd klima',exact:true}).waitFor();
+  await dialog.getByRole('button',{name:'Annuller',exact:true}).tap();
+  await dialog.waitFor({state:'hidden'});
+ };
+
+ await hasAuthority(true);
+ await card.tap();
+ await confirmWithoutSending();
+ await update({controlAvailable:false});
+ await hasAuthority(false);
+ assert.equal(await toggle.count(),0,'read-only Tesla hides the climate toggle');
+ assert.match(await page.locator('#vehicle-view').innerText(),/Slukket/);
+ await page.locator('#header-title-action').tap();
+ await page.locator('#home-recipes').tap();
+ const recipe=page.locator('#recipe-view');
+ await recipe.locator('[data-recipe="Burgerboller"]').tap();
+ await recipe.getByRole('button',{name:'Start opskrift',exact:true}).tap();
+ await recipe.locator('[data-recipe-layout=reading] li button').first().tap();
+ const recipeBefore=await host.evaluate(h=>{
+  const view=h.recipeView,active=view.active,session=view.sessions.get(active);
+  window.recoveryRecipe={h,view,active,session};
+  return {title:active.title,steps:[...session.steps],focus:h.state.focus,readAt:h.liveTransport.acceptedReadAt};
+ });
+ assert.equal(recipeBefore.title,'Burgerboller');
+ assert.equal(recipeBefore.steps.length,1);
+
+ await page.context().setOffline(true);
+ await page.waitForFunction(()=>{
+  const h=document.querySelector('pv-widget-host');
+  return h?.browserOffline===true&&h.connectionNotice?.state==='offline';
+ });
+ const reconnectStatuses=[];
+ page.on('response',response=>{
+  if(new URL(response.url()).pathname==='/view/api/snapshot')reconnectStatuses.push(response.status());
+ });
+ await update({controlAvailable:true,interruptTransport:true});
+ await page.context().setOffline(false);
+ await hasAuthority(true);
+ assert.deepEqual(reconnectStatuses,[503,200],'automatic recovery must retry the failed reconnect read');
+ const recipeAfter=await host.evaluate(h=>{
+  const {h:priorHost,view,active,session}=window.recoveryRecipe;
+  return {sameOwners:h===priorHost&&h.recipeView===view&&view.active===active&&view.sessions.get(active)===session,
+   title:active.title,steps:[...session.steps],focus:h.state.focus,readAt:h.liveTransport.acceptedReadAt};
+ });
+ assert(recipeAfter.sameOwners);
+ assert.equal(recipeAfter.title,recipeBefore.title);
+ assert.deepEqual(recipeAfter.steps,recipeBefore.steps);
+ assert.equal(recipeAfter.focus,recipeBefore.focus);
+ assert(recipeAfter.readAt>recipeBefore.readAt);
+ assert(await recipe.locator('[data-recipe-layout=reading]').isVisible());
+ await page.locator('#header-title-action').tap();
+ await page.locator('#header-title-action').tap();
+ await card.tap();
+ await confirmWithoutSending();
+
+ assert.deepEqual(requests.filter(({path})=>/\/api\/(pair|controller\/)/.test(path)),[]);
+ assert.deepEqual(requests.filter(({method,path})=>method==='POST'&&/\/actions$/.test(path)),[]);
+ assert.equal(requests.filter(({method,path})=>method==='POST'&&path==='/view/api/control/setup').length,2,
+  'only the two deliberate confirmation opens request setup');
+ assert.deepEqual((await state()).writes,[]);
+ assert.deepEqual(errors,[]);
+ const bundle=await fetch(base+'/view/podview.bundle.js').then(response=>response.arrayBuffer());
+ const bundleSHA=crypto.createHash('sha256').update(Buffer.from(bundle)).digest('hex');
+ if(process.env.VEHICLE_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.VEHICLE_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',bundleSHA,haIngressWithoutRegistration:true,
+  vehicleAuthorityWithdrawnAndRestored:true,reconnectStatuses,
+  sameActiveRecipeAndProgress:true,noAutomaticControlSetup:true,noActionPosts:true,noNativeWrites:true}));
+}
 (async()=>{try{
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-vehicle-'));server=spawn(env.python,[path.join(__dirname,'vehicle_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({VEHICLE_TEST_PORT:String(port),VEHICLE_TEST_DATA:data}),stdio:['ignore','pipe','pipe']});server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],commands=[];page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/view/api/control/actions')commands.push(r.postDataJSON());});page.setDefaultTimeout(7000);page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(/\/view\/api\/(home|control)/.test(r.url()))console.log('API',r.status(),r.url(),await r.text().catch(()=>''));});
+ const requests=[];
+ if(recovery){
+  await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+  page.on('request',r=>requests.push({method:r.method(),path:new URL(r.url()).pathname}));
+ }
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await env.openOverview(page);
  const card=page.locator('#home-vehicle');
  await card.waitFor({timeout:15000});
+ if(recovery){
+  await recoveryJourney(page,card,errors,requests);
+  return;
+ }
  if(lifecycle){
   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.batteryPercent===72,
    undefined,{timeout:15000});

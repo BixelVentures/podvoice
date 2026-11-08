@@ -20,6 +20,9 @@ from gatekeeper.web import create_app
 port = int(os.getenv("VEHICLE_TEST_PORT", "18980"))
 entity = "climate.car"
 lifecycle = os.getenv("VEHICLE_LIFECYCLE_TEST") == "1"
+recovery = os.getenv("VEHICLE_RECOVERY_TEST") == "1"
+event_transport = None
+fail_next_snapshot = False
 lifecycle_roles = {
     "batteryPercent": ("sensor.battery", "charge_state_battery_level"),
     "rangeKm": ("sensor.range", "charge_state_battery_range"),
@@ -313,6 +316,12 @@ app[BRIDGE]._controller_registry.initialize()
 
 @web.middleware
 async def ingress(request, handler):
+    global event_transport, fail_next_snapshot
+    if recovery and request.path == "/view/api/events":
+        event_transport = request.transport
+    if recovery and request.path == "/view/api/snapshot" and fail_next_snapshot:
+        fail_next_snapshot = False
+        return web.json_response({"error": "unavailable"}, status=503)
     if not request.path.startswith("/lab/"):
         headers = CIMultiDict(request.headers)
         headers["X-Remote-User-Id"] = "a" * 32
@@ -324,9 +333,19 @@ app.middlewares.insert(0, ingress)
 
 
 async def lab(request):
-    global hold, read_hold, followup_hold, phase, phase_observed
+    global hold, read_hold, followup_hold, phase, phase_observed, fail_next_snapshot
     if request.method == "POST":
         body = await request.json()
+        if recovery and "controlAvailable" in body:
+            owner = app[BRIDGE]._vehicle_registry_owner
+            assert owner is not None
+            tools.bind_podview_vehicle_control_registry(owner if body["controlAvailable"] else None)
+        if recovery and body.get("interruptTransport"):
+            # Chromium can keep the existing loopback SSE socket alive while offline.
+            # Close that socket so the actual transport must reacquire via snapshot.
+            assert event_transport is not None
+            fail_next_snapshot = True
+            event_transport.close()
         if lifecycle and "phase" in body:
             phase = body["phase"]
             assert phase in {"historical", "partial", "changed", "closed"}
