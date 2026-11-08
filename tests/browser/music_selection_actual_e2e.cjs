@@ -287,6 +287,33 @@ async function discoveryRevisitJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-revisit-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function discoveryCardHeight(){
+ const sizes=[{width:1270,height:1060},{width:1280,height:800}];
+ const layout=()=>page.locator('#result-list').evaluate(list=>{
+  const group=list.getBoundingClientRect();
+  const cards=[...list.querySelectorAll('button[data-content-state=ready]')].map(card=>{
+   const {left,top,right,bottom,height}=card.getBoundingClientRect();
+   return {left,top,right,bottom,height};
+  });
+  return {height:group.height,bottom:group.bottom,cards};
+ });
+ await page.emulateMedia({reducedMotion:'reduce'});
+ const mood=[];
+ for(const size of sizes){await page.setViewportSize(size);mood.push(await layout());}
+ await page.locator('[data-collection=feeling]').tap();
+ await page.locator('#result-list button[data-kit=card][data-content-state=ready]').first().waitFor();
+ for(const [index,size] of sizes.entries()){
+  await page.setViewportSize(size);
+  const {cards:[hero,first,second],bottom}=mood[index],vibe=await layout();
+  const near=(a,b,label)=>assert.ok(Math.abs(a-b)<1,`${size.width}×${size.height}: ${label} (${a} vs ${b})`);
+  near(hero.height,vibe.cards[0].height,'the day Hero and Vibe card have the same visible height');
+  near(hero.bottom,bottom,'the Hero fits the day result area');
+  near(first.height,second.height,'the two alternatives have equal height');
+  near(second.bottom,hero.bottom,'the two columns end together');
+  near(first.top,hero.top,'the two columns start together');
+  assert.ok(hero.right<first.left,'the Hero is left of the alternatives');
+ }
+}
 async function discoveryCoverJourney(){
  const coverUrl='https://i.scdn.co/image/InertRecentCover';
  const failedCoverUrl='https://i.scdn.co/image/InertFailedMoodCover';
@@ -343,6 +370,7 @@ async function discoveryCoverJourney(){
   assert.ok(await art.evaluate(img=>img.naturalWidth>0));
  }
  await page.screenshot({path:path.join(env.artifactDir(),'podview-discovery-local-illustrations.png')});
+ await discoveryCardHeight();
  await page.locator('[data-collection=recent]').tap();
  const list=page.locator('#result-list'),row=list.locator('button.result').filter({hasText:'Katalogsang 11'});
  const image=row.locator('img.result-art:not([data-content-transition])');

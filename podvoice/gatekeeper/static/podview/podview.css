@@ -2969,7 +2969,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 8d93368014a86f2e61259b7d11f9f3371776526554ba36d0939c60e0083f43ac */
+/* Source: ui-kit.css · SHA256 6250a3b539de044c8c09af938cb019239efa3a0b3a3f29b31d3622e10a00b55c */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -5552,7 +5552,7 @@ dialog.pv-kit-dialog[data-recipe-layout=gallery] [role=status]:not([hidden]){
   /* Match Vibe's square artwork track, copy track, action and row gaps. */
   height:calc((100cqi - 2 * var(--pv-s2)) / 3 + var(--music-discovery-copy-height) + var(--pv-hit) + 2 * var(--pv-s2));
   grid-template-columns:repeat(2,minmax(0,1fr));
-  grid-template-rows:repeat(2,minmax(min-content,1fr));
+  grid-template-rows:repeat(2,minmax(0,1fr));
  }
  #music-response[data-discovery-collection=mood] #result-list>.result:first-child {grid-row:span 2}
  #music-response[data-discovery-collection=mood] #result-list>.result:first-child>.result-art {max-width:244px;justify-self:center}
