@@ -146,3 +146,42 @@ test('native timer revision pair is closed and adjustment receipts are correlate
  const s=snap();s.timers.items=[row];s.timers.epoch='epoch';s.capabilities.timerActions=['timer.adjust'];assert.equal(t.accept(s),true);t.connected=true;t.controller=new AbortController();let calls=0,change={};t.request=async()=>{calls++;return {ok:true,status:200,json:async()=>({ok:true,requestId:'request',outcome:'accepted',retryAllowed:false,timerId:'native',deltaSeconds:60,expectedSourceRevision:row.sourceRevision,sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90,status:'running',...change})};};const args={timer_id:'native',delta_seconds:60,expected_revision:row.sourceRevision};
  assert.equal((await t.action({action:'timer.adjust',args,requestId:'request'})).outcome,'accepted');for(const bad of [{timerId:'other'},{deltaSeconds:-60},{expectedSourceRevision:'1'},{sourceRevision:row.sourceRevision},{durationSeconds:0},{secondsLeft:0},{secondsLeft:161},{sourceRevision:'1'.repeat(25)},{status:'finished'}]){change=bad;assert.equal((await t.action({action:'timer.adjust',args,requestId:'request'})).outcome,'unknown');}const before=calls;await assert.rejects(t.action({action:'timer.adjust',args:{...args,expected_revision:'2'},requestId:'request'}));assert.equal(calls,before);t.close();
 });
+
+test('music selection document stays stable through reconnect and distinct across transports',async()=>{
+ const header='X-PodView-Music-Document';
+ const requests=[];
+ const create=value=>{
+  const transport=new PodVoiceTransport({
+   url:'https://ha.example/view/',
+   crypto:{getRandomValues:bytes=>bytes.fill(value)},
+   fetch:async(_url,init)=>{
+    requests.push(new Headers(init.headers).get(header));
+    const action=JSON.parse(init.body??'null');
+    return {ok:true,json:async()=>action?.requestId
+     ?{ok:true,requestId:action.requestId,outcome:'accepted',physicalResultVerified:false,retryAllowed:false}
+     :{ok:true}};
+   },
+  });
+  transport.closed=false;
+  transport.connected=true;
+  transport.controller=new AbortController();
+  transport.snapshot={...snap(),capabilities:{musicRead:['recent','targets'],musicSelection:true}};
+  return transport;
+ };
+ const first=create(1),second=create(2);
+ try{
+  await first.music('recent','account');
+  first.generation++;
+  await first.musicSelectionSetup('a'.repeat(64),{accountId:'account',kind:'spotify_device',targetId:'speaker'});
+  const action=await first.musicSelectionAction({
+   bootId:'test',roomId:'kitchen',taskId:'task',revision:1,expiresAt:Date.now()+10000,
+   options:[{id:'opaque'}],startVolumePercent:35,
+  },'opaque',{requestId:'00000000-0000-4000-8000-000000000001'});
+  assert.equal(action.outcome,'accepted');
+  await second.music('recent','account');
+  await second.music('targets','account');
+  assert.deepEqual(requests,[
+   '01'.repeat(16),'01'.repeat(16),'01'.repeat(16),'02'.repeat(16),null,
+  ]);
+ }finally{first.close();second.close();}
+});

@@ -58,6 +58,11 @@ export class PodVoiceTransport {
   try{this.diagnosticStorage=diagnosticStorage===undefined?globalThis.sessionStorage:diagnosticStorage;const saved=this.diagnosticStorage?.getItem('podview.client-diagnostics.v1');if(typeof saved==='string'&&saved.length<=65536){const value=JSON.parse(saved);if(value?.schema==='podview.client-diagnostics.v1'&&Array.isArray(value.records)&&value.records.length<=128){this.diagnosticRows=value.records.map(diagnosticRow).filter(row=>row&&Number.isSafeInteger(row.seq)&&Number.isSafeInteger(row.atMs)).map((row,index)=>Object.freeze({...row,seq:index+1,restored:true}));this.diagnosticSequence=Math.max(0,...this.diagnosticRows.map(row=>row.seq));}}this.diagnosticStorageAvailable=!!this.diagnosticStorage;}catch{this.diagnosticStorage=null;}
 
   this.locks=locks;this.BroadcastChannel=BroadcastChannel;this.crypto=crypto;this.readDiagnostics=new WeakMap();this.cookieScope=page.origin+prefix;this.requireLocalRenewal=/\/setup(?:\.html)?$/.test(page.pathname);this.peerSeen=new Map();this.peerSequence=0;this.coordinationMode=locks?.request?'serialized':'read-hints-only';
+  this.musicDocumentHeaders={};
+  try{
+   const bytes=crypto?.getRandomValues?.(new Uint8Array(16));
+   if(bytes)this.musicDocumentHeaders={'X-PodView-Music-Document':Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('')};
+  }catch{/* Older clients keep the shared presentation lane. */}
   this.screenEnrollment=screenEnrollment===true&&this.requireLocalRenewal;
   try{this.namedIntentStorage=namedIntentStorage===undefined?globalThis.localStorage:namedIntentStorage;}catch{this.namedIntentStorage=null;}
   this.namedIntentKey='podview.named-screen.intent.v1:'+this.cookieScope;
@@ -382,7 +387,10 @@ export class PodVoiceTransport {
   if(receiptRequestId!==null&&(!includeControls||typeof receiptRequestId!=='string'||Array.from(receiptRequestId).length<1||Array.from(receiptRequestId).length>120))throw new Error('invalid_music_receipt_selector');
   if (!this.connected || !this.snapshot.capabilities.musicRead?.includes(kind==='speakers'?'targets':kind)) throw new Error('music_unavailable');
   if(kind==='search'&&(typeof query!=='string'||query.trim()!==query||query.length<1||query.length>160))throw new Error('invalid_query');
-  const response = await this.request(this.endpoint('music', {kind,account,...(includeControls?{include_controls:'1'}:{}),...(receiptRequestId===null?{}:{receipt_request_id:receiptRequestId}),...(kind==='search'?{query}:['mood','feeling'].includes(kind)&&query==='refresh'?{refresh:'1'}:['mood','feeling'].includes(kind)&&query==='renew'?{renew:'1'}:{})}), {credentials:'same-origin',cache:'no-store',signal:this.controller.signal,...(['mood','feeling'].includes(kind)&&query==='renew'&&typeof traceId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(traceId)?{headers:{'X-PodView-Trace':traceId}}:{})},undefined,undefined,traceId,readDiagnostic);
+  const headers=['search','recent','top','liked','mood','feeling','account_playlists'].includes(kind)
+   ?{...this.musicDocumentHeaders}:undefined;
+  if(['mood','feeling'].includes(kind)&&query==='renew'&&typeof traceId==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(traceId))headers['X-PodView-Trace']=traceId;
+  const response = await this.request(this.endpoint('music', {kind,account,...(includeControls?{include_controls:'1'}:{}),...(receiptRequestId===null?{}:{receipt_request_id:receiptRequestId}),...(kind==='search'?{query}:['mood','feeling'].includes(kind)&&query==='refresh'?{refresh:'1'}:['mood','feeling'].includes(kind)&&query==='renew'?{renew:'1'}:{})}), {credentials:'same-origin',cache:'no-store',signal:this.controller.signal,...(headers?{headers}:{})},undefined,undefined,traceId,readDiagnostic);
   const body = await response.json(); if (!response.ok || !body.ok){const error=new Error(body.error || 'music_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}
   return body;
  }
@@ -394,14 +402,14 @@ export class PodVoiceTransport {
   if(target.speakerId!==undefined&&!/^[a-f0-9]{64}$/.test(target.speakerId))throw new Error('invalid_destination');
   if(candidateIds!==undefined&&(!Array.isArray(candidateIds)||candidateIds.length<1||candidateIds.length>3||new Set(candidateIds).size!==candidateIds.length||candidateIds.some(id=>typeof id!=='string'||!/^[a-f0-9]{24}$/.test(id))))throw new Error('invalid_candidates');
   const url=new URL('music/selection/setup',this.base);
-  const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1',...(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(traceId||'')?{'X-PodView-Trace':traceId}: {})},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,candidateSetId,target:{accountId:target.accountId,kind:'spotify_device',targetId:target.targetId,...(target.speakerId?{speakerId:target.speakerId}:{})},...(candidateIds===undefined?{}:{candidateIds:[...candidateIds]})})},undefined,undefined,traceId);
+  const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1',...this.musicDocumentHeaders,...(/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(traceId||'')?{'X-PodView-Trace':traceId}: {})},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,candidateSetId,target:{accountId:target.accountId,kind:'spotify_device',targetId:target.targetId,...(target.speakerId?{speakerId:target.speakerId}:{})},...(candidateIds===undefined?{}:{candidateIds:[...candidateIds]})})},undefined,undefined,traceId);
   const body=await response.json();if(!response.ok||body?.ok!==true)throw new Error(body?.error||'selection_unavailable');return body;
  }
  async musicSelectionAction(offer,optionId,{requestId:traceId}={}){
   const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};
   if(!this.connected||this.snapshot?.capabilities.musicSelection!==true||this.snapshot.bootId!==offer?.bootId||this.snapshot.roomId!==offer?.roomId||Date.now()>=offer?.expiresAt||!offer.options?.some(option=>option.id===optionId))return rejected;
   const requestId=/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(traceId||'')?traceId:crypto.randomUUID(),url=new URL('music/selection/actions',this.base);
-  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1','X-PodView-Trace':requestId},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,revision:offer.revision,requestId,optionId,confirmedVolumePercent:offer.startVolumePercent})},undefined,undefined,requestId);const body=await response.json();
+  try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1',...this.musicDocumentHeaders,'X-PodView-Trace':requestId},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,revision:offer.revision,requestId,optionId,confirmedVolumePercent:offer.startVolumePercent})},undefined,undefined,requestId);const body=await response.json();
    if(!response.ok||body?.requestId!==requestId||!['accepted','rejected','unknown'].includes(body.outcome)||body.retryAllowed!==false||body.physicalResultVerified!==false||body.ok!==(body.outcome==='accepted'))return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};
    return body;
   }catch{return {ok:false,requestId,outcome:'unknown',retryAllowed:false,physicalResultVerified:false};}

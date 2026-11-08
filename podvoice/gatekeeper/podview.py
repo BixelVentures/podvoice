@@ -147,6 +147,15 @@ def _request_token(request, room):
     return request.cookies.get(_PAIR_COOKIE, "")
 
 
+def _music_document(request: web.Request) -> str:
+    values = request.headers.getall("X-PodView-Music-Document", [])
+    if not values:
+        return ""
+    if len(values) != 1 or re.fullmatch(r"[a-f0-9]{32}", values[0]) is None:
+        raise ValueError("invalid music document")
+    return values[0]
+
+
 def _error(kind: str, status: int = 409) -> web.Response:
     return web.json_response({"ok": False, "error": kind, "retryAllowed": False}, status=status)
 
@@ -390,7 +399,7 @@ class PodViewBridge:
         self._music_busy = False
         self._targets_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
         self._music_source_generation = 0
-        self._music_profile_generation: dict[str, int] = {}
+        self._music_profile_generation: dict[str, object] = {}
         self._home_busy = False
         self._home_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
         self._home_cache: dict[str, tuple] = {}
@@ -590,27 +599,57 @@ class PodViewBridge:
             actor for token, actor in self._ha_actors.items() if self._grant_current(room, token)
         )
 
-    def _music_scope(self, token: str) -> str:
-        return hashlib.sha256(token.encode()).hexdigest() if token else ""
+    def _music_scope(self, token: str, document: str = "") -> str:
+        if not token:
+            return ""
+        actor = hashlib.sha256(token.encode()).hexdigest()
+        return f"{actor}:{document}" if document else actor
 
-    def _advance_music_source(self, token: str) -> int:
+    def _advance_music_source(self, token: str, document: str = "") -> object | None:
         if not token:
             self._music_source_generation += 1
             return self._music_source_generation
-        scope = self._music_scope(token)
-        generation = self._music_profile_generation.get(scope, 0) + 1
+        scope = self._music_scope(token, document)
+        if document and scope not in self._music_profile_generation:
+            self._prune_music_documents()
+            if sum(":" in key for key in self._music_profile_generation) >= 128:
+                return None
+        # A reclaimed scope cannot recreate a generation captured before an await.
+        generation = object()
         self._music_profile_generation[scope] = generation
         return generation
 
-    def _music_source_current(self, token: str, generation: int) -> bool:
+    def _prune_music_documents(self) -> None:
+        now = time.monotonic()
+        selection = self.music_selection
+        pinned = {task["candidateSetId"] for task in selection.tasks.values() if task["consumed"]}
+        stale = {
+            key
+            for key, source in selection.sources.items()
+            if ":" in source.get("scope", "") and source["deadline"] <= now and key not in pinned
+        }
+        for key in stale:
+            del selection.sources[key]
+        for key, task in list(selection.tasks.items()):
+            if task["candidateSetId"] in stale:
+                del selection.tasks[key]
+        retained = {source.get("scope", "") for source in selection.sources.values()}
+        for context_key in list(self._touch_music_contexts):
+            if ":" in context_key[-1] and context_key[-1] not in retained:
+                del self._touch_music_contexts[context_key]
+        for key in list(self._music_profile_generation):
+            if ":" in key and key not in retained:
+                del self._music_profile_generation[key]
+
+    def _music_source_current(self, token: str, generation: object, document: str = "") -> bool:
         return (
-            self._music_profile_generation.get(self._music_scope(token), 0) == generation
+            self._music_profile_generation.get(self._music_scope(token, document)) is generation
             if token
             else self._music_source_generation == generation
         )
 
-    def _retire_music_source(self, token: str) -> None:
-        scope = self._music_scope(token)
+    def _retire_music_source(self, token: str, document: str = "") -> None:
+        scope = self._music_scope(token, document)
         retired = {
             key
             for key, source in self.music_selection.sources.items()
@@ -3045,6 +3084,7 @@ def _music_search_context(
     token: str = "",
     *,
     mint_touch: bool = False,
+    document: str = "",
 ) -> dict:
     """Read the current owner context; mint touch ownership only at an admitted read."""
     snapshot = bridge.snapshot(room)
@@ -3063,7 +3103,7 @@ def _music_search_context(
         and type(answers.get("inputRevision")) is int
     )
     if not voice_task and bridge._grant_current(room, token):
-        key = (room, account, query, hashlib.sha256(token.encode()).hexdigest())
+        key = (room, account, query, bridge._music_scope(token, document))
         saved = bridge._touch_music_contexts.get(key)
         if (saved is None or saved[0] <= time.monotonic()) and mint_touch:
             touch = {
@@ -3114,7 +3154,13 @@ def _selection_binding_current(bridge: PodViewBridge, source: dict, room: str) -
 
 
 def _selection_source_current(
-    bridge: PodViewBridge, source: dict, room: str, token: str, *, fresh: bool = True
+    bridge: PodViewBridge,
+    source: dict,
+    room: str,
+    token: str,
+    *,
+    fresh: bool = True,
+    document: str = "",
 ) -> bool:
     context = source["context"]
     if (
@@ -3136,7 +3182,7 @@ def _selection_source_current(
             room,
             context["configEntryId"],
             context["query"],
-            hashlib.sha256(token.encode()).hexdigest(),
+            bridge._music_scope(token, document),
         )
         saved = bridge._touch_music_contexts.get(key)
         return bool(
@@ -3148,7 +3194,9 @@ def _selection_source_current(
             )
         )
     return (
-        _music_search_context(bridge, room, context["configEntryId"], context["query"], token)
+        _music_search_context(
+            bridge, room, context["configEntryId"], context["query"], token, document=document
+        )
         == context
     )
 
@@ -3517,10 +3565,14 @@ async def _music(request: web.Request) -> web.Response:
     )
     if selection_requested and bridge.music_selection.busy(room):
         return _error("music_busy", 429)
+    try:
+        document = _music_document(request) if kind in {"search", *library_kinds} else ""
+    except ValueError:
+        return _error("invalid_music_document", 400)
     selection_grant = bridge._grant_for_token(room, token) if selection_requested else None
     context_query = (query or "") if kind == "search" else f"{kind}:{query or 'collection'}"
     search_context = (
-        _music_search_context(bridge, room, account, context_query, token)
+        _music_search_context(bridge, room, account, context_query, token, document=document)
         if account is not None and (kind == "search" or selection_requested)
         else None
     )
@@ -3587,21 +3639,23 @@ async def _music(request: web.Request) -> web.Response:
         return _error("music_capacity", 429)
     if bridge._music_busy:
         return _error("music_busy", 429)
+    source_generation = None
+    if selection_requested:
+        source_generation = bridge._advance_music_source(token, document)
+        if source_generation is None:
+            return _error("music_capacity", 429)
+        # An admitted refresh replaces this document's pending intent before its first await.
+        bridge._retire_music_source(token, document)
     bridge._music_busy = True
     completion = asyncio.get_running_loop().create_future() if kind == "targets" else None
     if completion is not None:
         bridge._targets_inflight = (read_key, completion)
     try:
-        source_generation = None
-        if selection_requested:
-            source_generation = bridge._advance_music_source(token)
-            # An admitted refresh replaces pending intent before its first await.
-            bridge._retire_music_source(token)
         try:
             if selection_requested:
                 assert account is not None
                 search_context = _music_search_context(
-                    bridge, room, account, context_query, token, mint_touch=True
+                    bridge, room, account, context_query, token, mint_touch=True, document=document
                 )
             if kind == "search":
                 raw = await asyncio.wait_for(tools.podview_read(kind, account, query), timeout=10)
@@ -3624,7 +3678,12 @@ async def _music(request: web.Request) -> web.Response:
         if kind == "search" or selection_requested:
             assert account is not None
             current_context = _music_search_context(
-                bridge, room, account, context_query, _request_token(request, room)
+                bridge,
+                room,
+                account,
+                context_query,
+                _request_token(request, room),
+                document=document,
             )
             if current_context != search_context:
                 return _error("music_unavailable", 503)
@@ -3636,20 +3695,22 @@ async def _music(request: web.Request) -> web.Response:
                     else:
                         if (
                             source_generation is not None
-                            and bridge._music_source_current(token, source_generation)
+                            and bridge._music_source_current(token, source_generation, document)
                             and bridge._grant_for_token(room, token) is selection_grant
                             and bridge._grant_current(room, token)
                             and bridge.controls.selection_allowed(room, token, selection_action)
                             and binding == _music_binding(bridge, room)
                             and current_context
-                            == _music_search_context(bridge, room, account, context_query, token)
+                            == _music_search_context(
+                                bridge, room, account, context_query, token, document=document
+                            )
                         ):
                             identifier = bridge.music_selection.register(
                                 search_context,
                                 result["data"],
                                 binding,
                                 kind=kind,
-                                scope=bridge._music_scope(token),
+                                scope=bridge._music_scope(token, document),
                             )
                             if identifier is not None:
                                 result["candidateSet"] = (
@@ -3794,9 +3855,17 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             return _error("feeling_exhausted")
     writable = bridge.controls.selection_allowed(room, token, "play_context")
     preview_voice = bridge.snapshot(room).get("voice", {})
-    generation = bridge._advance_music_source(token)
+    try:
+        document = _music_document(request) if writable else ""
+    except ValueError:
+        return _error("invalid_music_document", 400)
+    generation = bridge._advance_music_source(token, document)
+    if generation is None:
+        return _error("music_capacity", 429)
     context = (
-        _music_search_context(bridge, room, account, f"{kind}:collection", token, mint_touch=True)
+        _music_search_context(
+            bridge, room, account, f"{kind}:collection", token, mint_touch=True, document=document
+        )
         if writable
         else None
     )
@@ -3805,7 +3874,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         return bool(
             bridge.tools is tools
             and binding == _music_binding(bridge, room)
-            and bridge._music_source_current(token, generation)
+            and bridge._music_source_current(token, generation, document)
             and kind in tools.podview_music_reads()
             and (writable or bridge.snapshot(room).get("voice", {}) == preview_voice)
             and (
@@ -3813,7 +3882,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 or (
                     bridge._grant_for_token(room, token) is grant
                     and bridge.controls.selection_allowed(room, token, "play_context")
-                    and _music_search_context(bridge, room, account, f"{kind}:collection", token)
+                    and _music_search_context(
+                        bridge, room, account, f"{kind}:collection", token, document=document
+                    )
                     == context
                 )
             )
@@ -3821,7 +3892,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
 
     bridge._music_busy = True
     if writable:
-        bridge._retire_music_source(token)
+        bridge._retire_music_source(token, document)
     diagnostic, diagnostic_token = diagnostic_log.begin(
         kind=kind,
         selection_allowed=writable,
@@ -4167,7 +4238,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 {"tracks": rows},
                 binding,
                 kind=kind,
-                scope=bridge._music_scope(token),
+                scope=bridge._music_scope(token, document),
             )
             if identifier is None:
                 return failed(f"{kind}_source_rejected")
@@ -4300,8 +4371,16 @@ async def _music_selection_impl(request: web.Request) -> web.Response:
     ) and (request.path.endswith("/setup") or body.get("requestId") == trace_id):
         request["selection_trace_ref"] = hashlib.sha256(trace_id.encode("ascii")).hexdigest()[:16]
 
+    try:
+        document = _music_document(request)
+    except ValueError:
+        return _error("invalid_music_document", 400)
+    presentation_scope = bridge._music_scope(token, document)
+
     def source_current(source: dict, *, fresh: bool = True) -> bool:
-        return _selection_source_current(bridge, source, room, token, fresh=fresh)
+        return source.get("scope") == presentation_scope and _selection_source_current(
+            bridge, source, room, token, fresh=fresh, document=document
+        )
 
     def exact_rule_current(
         account: str,

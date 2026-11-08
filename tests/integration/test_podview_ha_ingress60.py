@@ -6,9 +6,11 @@ No pairing cookie, Voice PE connection, provider or household is used.
 
 import asyncio
 import json
+import time
 from dataclasses import replace
 from types import SimpleNamespace
 
+import aiohttp
 import httpx
 import pytest
 from aiohttp import web
@@ -201,6 +203,120 @@ async def test_normal_ha_http_starts_robot_music_and_timer_once_without_cookies(
     assert await post(r, "/view/api/actions", command) == result
     assert r.manager.starts == 1
     assert not r.client.session.cookie_jar and module._HA_REQUEST.get() is None
+
+
+async def test_same_ha_actor_music_reads_keep_document_candidates_separate(ingress):
+    r = ingress
+    content_owner(r.music)
+    r.music.tools._discovery = replace(
+        r.music.tools._discovery,
+        podconnect_services=r.music.tools._discovery.podconnect_services | {"search_tracks"},
+    )
+    reader = MusicReadRig()
+    original = r.music.client
+
+    async def transport(request):
+        if request.url.path.endswith("/search_tracks"):
+            return await reader.request(request)
+        return await r.music.handle(request)
+
+    r.music.client = httpx.AsyncClient(transport=httpx.MockTransport(transport))
+    r.music.tools._client = r.music.client
+    path = "/view/api/music?kind=search&account=account&query=jazz"
+    setup = "/view/api/music/selection/setup"
+    header = "X-PodView-Music-Document"
+    first = {**HEADERS, header: "1" * 32}
+    second = {**HEADERS, header: "2" * 32}
+
+    def body(candidate):
+        return {
+            "bootId": r.bridge.boot_id,
+            "roomId": "kitchen",
+            "candidateSetId": candidate,
+            "target": {"accountId": "account", "kind": "spotify_device", "targetId": "device"},
+        }
+
+    async def read(client, url, headers):
+        async with client.get(url, headers=headers) as response:
+            assert response.status == 200
+            return (await response.json())["candidateSet"]["candidateSetId"]
+
+    try:
+        await snapshot(r)
+        async with aiohttp.ClientSession() as other:
+            first_candidate = await read(r.client, path, first)
+            first_offer = await post(r, setup, body(first_candidate), first)
+            assert first_offer["ok"], first_offer
+            async with other.get(
+                r.client.make_url("/view/api/snapshot?room=kitchen"), headers=second
+            ) as response:
+                assert response.status == 200
+            async with other.post(
+                r.client.make_url("/view/api/control/setup"),
+                headers=second,
+                json=setup_body(r.bridge),
+            ) as response:
+                assert (await response.json())["ok"]
+
+            second_candidate = await read(other, r.client.make_url(path), second)
+            assert first_candidate != second_candidate
+            assert first_offer["taskId"] in r.bridge.music_selection.tasks
+            assert (await post(r, setup, body(first_candidate), first))["ok"]
+            assert (await post(r, setup, body(first_candidate), second))[
+                "error"
+            ] == "stale_music_selection"
+            assert (await post(r, setup, body(first_candidate)))["error"] == "stale_music_selection"
+            assert (await post(r, setup, body(first_candidate), {**HEADERS, header: "bad"}))[
+                "error"
+            ] == "invalid_music_document"
+            duplicates = [*first.items(), (header, "3" * 32)]
+            assert (await post(r, setup, body(first_candidate), duplicates))[
+                "error"
+            ] == "invalid_music_document"
+
+            legacy_candidate = await read(r.client, path, HEADERS)
+            assert (await post(r, setup, body(legacy_candidate)))["ok"]
+            assert (await post(r, setup, body(legacy_candidate), first))[
+                "error"
+            ] == "stale_music_selection"
+            replacement = await read(r.client, path, first)
+            assert (await post(r, setup, body(first_candidate), first))[
+                "error"
+            ] == "stale_music_selection"
+            assert (await post(r, setup, body(replacement), first))["ok"]
+            second_offer = await post(r, setup, body(second_candidate), second)
+            assert second_offer["ok"], second_offer
+            assert list(r.bridge.music_selection.tasks) == [second_offer["taskId"]]
+            command = {
+                "bootId": r.bridge.boot_id,
+                "roomId": "kitchen",
+                "taskId": second_offer["taskId"],
+                "revision": second_offer["revision"],
+                "optionId": second_offer["options"][0]["id"],
+                "requestId": "wrong-document",
+                "confirmedVolumePercent": 35,
+            }
+            assert (await post(r, "/view/api/music/selection/actions", command, first))[
+                "error"
+            ] == "stale_music_selection"
+            r.bridge.music_selection.sources[replacement]["deadline"] = time.monotonic() - 1
+            assert (await post(r, setup, body(replacement), first))[
+                "error"
+            ] == "stale_music_selection"
+            await read(other, r.client.make_url(path), {**HEADERS, header: "3" * 32})
+            assert replacement not in r.bridge.music_selection.sources
+            assert second_candidate in r.bridge.music_selection.sources
+            r.session.tools = object()
+            assert (await post(r, setup, body(second_candidate), second))[
+                "error"
+            ] == "stale_music_selection"
+            assert not r.robot.writes
+            assert not [c for c in r.music.calls if c[1].endswith("start_room_selected_content")]
+    finally:
+        await r.music.client.aclose()
+        r.music.client = original
+        r.music.tools._client = original
+        await reader.client.aclose()
 
 
 async def test_timer_outage_keeps_ready_robot_and_selected_music_available(ingress):

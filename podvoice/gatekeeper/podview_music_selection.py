@@ -135,7 +135,7 @@ class MusicSelection:
             room,
             account,
             context.get("query"),
-            hashlib.sha256(token.encode()).hexdigest(),
+            source.get("scope") or bridge._music_scope(token),
         )
         saved_touch = bridge._touch_music_contexts.get(touch_key)
         source_current = bool(
@@ -420,12 +420,13 @@ class MusicSelection:
             "consumed": False,
             "destination": copy.deepcopy(destination),
         }
-        # A newer target/confirmation replaces the older pending offer.
+        # Documents share one confirmation per actor, including voice continuation.
+        actor_scope = source.get("scope", "").partition(":")[0]
         self.tasks = {
             key: row
             for key, row in self.tasks.items()
-            if self.sources.get(row["candidateSetId"], {}).get("scope", "")
-            != source.get("scope", "")
+            if self.sources.get(row["candidateSetId"], {}).get("scope", "").partition(":")[0]
+            != actor_scope
         }
         self.tasks[task_id] = task
         return {
