@@ -179,5 +179,20 @@ async function stationOrderJourney(stations){
  await fs.writeFile(path.join(env.artifactDir(),'podview-radio-trace.json'),JSON.stringify({bundleSHA,service:final,radio:await radio(),actions,responses},null,2));
  console.log(JSON.stringify({outcome:'PASS',bundleSHA,actualPackagedPodView:true,actualNativeRadioHTTP:true,inertFinalService:true,stationStart:true,authoritativeOutput:'42',radioVolume:{gesture:'touch-drag',passivePaintDuringTouch:true,observedPercent:31,effects:1},stop:true,radioToSpotifyCatalogue:true,persistedValueTargetTrace:true,oneEffectPerExplicitInput:true,pageErrors:errors}));
  }catch(error){if(page){console.log('failureState',JSON.stringify({service:await state(),radio:await radio(),ui:await page.locator('body').innerText(),actions,responses:responses.slice(-5)}));await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-failure.png')})}throw error;
- }finally{if(browser)await browser.close();if(server&&server.exitCode===null){const done=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await done;}}
+ }finally{
+  try{
+   // Let in-flight response body reads finish before closing their browser.
+   if(page)await page.removeAllListeners('response',{behavior:'wait'});
+  }finally{
+   try{
+    if(browser)await browser.close();
+   }finally{
+    if(server&&server.exitCode===null){
+     const done=new Promise(resolve=>server.once('exit',resolve));
+     server.kill('SIGTERM');
+     await done;
+    }
+   }
+  }
+ }
 })().catch(e=>{console.error(e);process.exitCode=1});
