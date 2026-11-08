@@ -510,9 +510,15 @@ music.tools._discovery = replace(
     target_contracts=(("podconnect_get_targets", "a" * 64),),
     room_playback_seek=seek_test,
 )
-session, _ = owner()
-session._active = False
-session.sm.state = State.IDLE
+voice_journey = os.environ.get("MUSIC_VOICE_JOURNEY_TEST") == "1"
+if voice_journey:
+    from integration.test_thin_live import CaptureDevice, build
+
+    session, voice_sdk, _, _, _ = build(device=CaptureDevice())
+else:
+    session, _ = owner()
+    session._active = False
+    session.sm.state = State.IDLE
 session.tools = music.tools
 ha_clients = {}
 

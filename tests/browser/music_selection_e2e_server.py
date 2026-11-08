@@ -30,7 +30,8 @@ from gatekeeper.podview_theme_art import _LEGACY_STYLE, ThemeArtOwner, ThemeArtP
 cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
-queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
+voice_journey = base.voice_journey
+queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey
 queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
@@ -254,7 +255,7 @@ async def native(request):
                 assert uri.startswith("spotify:playlist:")
             else:
                 assert uri in {row["uri"] for row in tracks}
-            base.state.update(
+            observation = dict(
                 song=(
                     12
                     if repeat_mood
@@ -268,7 +269,15 @@ async def native(request):
                 volume=args["start_offer"]["start_volume_percent"],
                 selected_at_ms=int(time.time() * 1000),
             )
-            base.state["sequence"] += 1
+            if voice_journey:
+                base.state["pendingVoiceObservation"] = observation
+                base.state["pendingVoiceReceipt"] = args
+                receipt = response.json()
+                receipt["service_response"]["start_operation_id"] = args["start_offer"]["offer_id"]
+                response = httpx.Response(response.status_code, json=receipt)
+            else:
+                base.state.update(observation)
+                base.state["sequence"] += 1
             base.state["selections"].append({"uri": uri, "requestId": args["request_id"]})
             base.state["writes"].append(
                 {
@@ -278,7 +287,8 @@ async def native(request):
                 }
             )
             base.music.value["next_command_sequence"] += 1
-            settle(args)
+            if not voice_journey:
+                settle(args)
         return response
     if service == "get_queue":
         value = base.payload("queue", "account")
@@ -310,6 +320,10 @@ async def native(request):
         value["queue"]["observation_id"] = secrets.token_hex(16)
         value["native"].update(target_id="device", homepod_id="42")
         value["route"]["device_id"] = "42"
+        if voice_journey:
+            value["native"] = copy.deepcopy(base.music.value["native"])
+            value["route"] = copy.deepcopy(base.music.value["route"])
+            value["queue"]["session_id"] = value["native"]["session_id"]
         if base.output_transfer:
             assert (args["room_id"], args["homepod_id"]) == (
                 base.state["room"],
@@ -324,8 +338,8 @@ async def native(request):
             {
                 "option_id": f"{i:024x}",
                 "index": index,
-                "uri": f"spotify:track:{(22 if queue_identity and i == 21 else i):022d}",
-                "name": f"Køsang {22 if queue_identity and i == 21 else i}",
+                "uri": f"spotify:track:{(22 if (queue_identity or voice_journey) and i == 21 else i):022d}",
+                "name": f"Køsang {22 if (queue_identity or voice_journey) and i == 21 else i}",
                 "artist": "Inert kunstner",
                 "artwork": None,
                 **(
@@ -339,8 +353,14 @@ async def native(request):
         value["returned_count"] = len(value["items"])
         return httpx.Response(200, json={"service_response": value})
     if service == "prepare_room_queue":
+        if voice_journey:
+            assert args["native"] == base.music.value["native"]
+            assert args["route"] == base.music.value["route"]
         return httpx.Response(200, json={"service_response": staged(args)})
     if service == "control_room_queue":
+        if voice_journey:
+            assert args["native"] == base.music.value["native"]
+            assert args["route"] == base.music.value["route"]
         scope = {}
         if base.output_transfer:
             scope = {"room": args["room_id"], "homepod": args["homepod_id"]}
@@ -349,6 +369,8 @@ async def native(request):
         assert song in base.state["queue"]
         index = base.state["queue"].index(song)
         base.state.update(song=song, state="playing")
+        if voice_journey:
+            base.music.value["route"].update(route_revision="4", input_item_id="7")
         if queue_journey or base.output_transfer:
             base.state["queue"] = base.state["queue"][index + 1 :]
             if queue_cold_tail and song == 22:
@@ -368,6 +390,9 @@ async def native(request):
         base.music.value["next_command_sequence"] += 1
         settle(args)
         return httpx.Response(200, json={"service_response": accepted(args)})
+    if voice_journey and service == "control_room_playback":
+        assert args["native"] == base.music.value["native"]
+        assert args["route"] == base.music.value["route"]
     return await base.native_service(request)
 
 
@@ -399,7 +424,101 @@ if base.output_transfer:
     base.app[BRIDGE].controls.policy["music"][1]["actions"].append("play_queue_occurrence")
 
 
+if voice_journey:
+    from integration.test_thin_live import approve_proposal, emit, fresh_confirmation_input, until
+    from unit.test_openai_live import call, created, terminal
+
+    from gatekeeper.live_prompt import live_instructions
+    from gatekeeper.prompt import SYSTEM_PROMPT_DA
+
+    voice = base.session
+    sdk = base.voice_sdk
+    voice.live_brain.instructions, voice.live_brain.backend_instructions = live_instructions(
+        SYSTEM_PROMPT_DA
+    )
+    base.music.value["native"]["alias_incarnation"] = "a" * 32
+    base.music.value["route"]["input_path_digest"] = "c" * 64
+    original_voice_observation = base.observation
+
+    def voice_observation(args):
+        result = original_voice_observation(args)
+        output = result.get("output", {}).get("binding")
+        if output:
+            fields = ("config_entry_id", "owner_epoch", "native", "route")
+            material = [base.music.value[field] for field in fields]
+            binding = hashlib.sha256(
+                json.dumps(
+                    material, sort_keys=True, separators=(",", ":"), allow_nan=False
+                ).encode()
+            ).hexdigest()
+            output["binding_id"] = binding
+            if "controls" in result:
+                result["controls"]["binding_id"] = binding
+        return result
+
+    base.observation = voice_observation
+
+    async def voice_tool(name, arguments):
+        previous = sdk.response.item.create.await_count
+        response_id = f"voice-journey-{previous}"
+        await emit(
+            sdk,
+            created(response_id),
+            call(response_id, name, json.dumps(arguments)),
+            terminal(response_id),
+        )
+        await until(lambda: sdk.response.item.create.await_count > previous)
+        return json.loads(sdk.response.item.create.await_args.kwargs["item"]["output"])
+
+    async def voice_journey_step(request):
+        step = (await request.json()).get("step")
+        if step == "wake":
+            await voice.start()
+            await voice.wake()
+            return web.json_response({"active": voice._active})
+        if step == "choose":
+            offered = await voice_tool("podview_music_options", {})
+            assert offered["ok"], offered
+            options = offered["data"]
+            choice = await voice_tool(
+                "podview_music_select_option",
+                {
+                    "taskId": options["taskId"],
+                    "revision": options["revision"],
+                    "optionId": options["options"][0]["id"],
+                    "confirmedVolumePercent": options["startVolumePercent"],
+                },
+            )
+            assert choice["needs_confirmation"], choice
+            await until(lambda: voice._live_confirmation is not None)
+            proposal = voice._live_confirmation
+            await emit(
+                sdk, created("voice-confirmation-prompt"), terminal("voice-confirmation-prompt")
+            )
+            await until(lambda: voice._live_confirmation_generation == 2)
+            await fresh_confirmation_input(voice, sdk)
+            before = sdk.response.item.create.await_count
+            await approve_proposal(sdk, proposal)
+            await until(lambda: sdk.response.item.create.await_count > before)
+            result = json.loads(sdk.response.item.create.await_args.kwargs["item"]["output"])
+            assert result["ok"] and result["data"]["outcome"] == "accepted", result
+            return web.json_response({"accepted": True, "nativeStart": base.state["selections"][0]})
+        if step == "observe":
+            base.state.update(base.state.pop("pendingVoiceObservation"))
+            base.state["sequence"] += 1
+            base.music.value["native"]["session_id"] = "voice-native-session"
+            base.state["observedNativeSession"] = base.music.value["native"]["session_id"]
+            settle(base.state.pop("pendingVoiceReceipt"))
+            await base.emit_playback_changed()
+            return web.json_response({"session": base.state["observedNativeSession"]})
+        raise web.HTTPBadRequest()
+
+    base.app.router.add_post("/lab/voice-journey", voice_journey_step)
+
+
 async def cleanup(_):
+    if voice_journey:
+        await base.session.aclose()
     await original_transport.aclose()
     await content.client.aclose()
     if discovery_cover:
