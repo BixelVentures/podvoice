@@ -120,15 +120,46 @@ let browser;
       throw e;
     });
     const expiresAt = await page.locator('pv-widget-host').evaluate(h => h.liveControls.task?.expiresAt ?? 0);
-    const waitMs = Math.min(150000, Math.max(0, expiresAt * 1000 - Date.now()) + 2000);
+    const expiryWait = Math.min(150000, Math.max(0, expiresAt * 1000 - Date.now()) + 2000);
+    const longSession = process.env.ROBOT_LONG_SESSION_TEST === '1';
+    const waitMs = longSession ? 600000 : expiryWait;
     console.log(`S4: waiting ${Math.round(waitMs / 1000)} s past the control offer expiry`);
+    const waitingSince = Date.now();
+    const documentStartedAt = await page.evaluate(() => performance.timeOrigin);
     await sleep(waitMs);
+    if (longSession) {
+      // The shared kiosk lifecycle intentionally returns to Ro during inactivity.
+      await page.locator('#photo-view').waitFor({state: 'visible'});
+      await testEnv.openOverview(page);
+      const robotCard = page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+      await robotCard.getByText('Robotstøvsuger', {exact: true}).tap();
+      assert.equal(await page.evaluate(() => performance.timeOrigin), documentStartedAt);
+    }
     await shot(page, 'detail-after-expiry');
     await watchDisabled(page, detail);
     const lateMs = await tapExpect(page, `${detail}[data-action-id="pause"]`, `${detail}[data-action-id="resume"]`, 300,
       'S4 detail pause after expiry');
     await waitForRobot('paused');
     assert.equal(await page.evaluate(() => window.__disabledFlips), 0, 'S4: detail buttons never grey out');
+    if (longSession) {
+      assert(Date.now() - waitingSince >= 600000);
+      await tapExpect(page, `${detail}[data-action-id="resume"]`, `${detail}[data-action-id="pause"]`, 300,
+        'S4 detail resume after ten minutes');
+      await waitForRobot('cleaning');
+      const panel = page.locator('pv-robot-control-panel');
+      await panel.getByRole('button', {name: 'Base', exact: true}).tap();
+      await panel.getByRole('button', {name: 'Kør til basen', exact: true}).tap();
+      const confirm = panel.locator('dialog.robot-action-confirm');
+      await confirm.getByRole('button', {name: 'Kør til basen', exact: true}).tap();
+      await waitForRobot('returning');
+      const actions = (await lab()).robot.writes.map(([url]) => url.split('/').at(-1));
+      assert.deepEqual(actions.slice(-3), ['pause', 'start', 'return_to_base']);
+      const proof = {outcome: 'PASS', story: 'S4', realElapsedMs: Date.now() - waitingSince,
+        wokeFromRoInSameDocument: true, lateEffects: actions.slice(-3), inertFinalService: true};
+      await fs.writeFile(path.join(testEnv.artifactDir(), 'podview-robot-long-session.json'),
+        JSON.stringify(proof, null, 2));
+      console.log(JSON.stringify(proof));
+    }
 
     assert.deepEqual(errors, []);
     console.log(`PASS robot UX: pause ${pauseMs} ms, resume ${resumeMs} ms, after expiry ${lateMs} ms`);

@@ -8,6 +8,7 @@ import os
 import time
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
@@ -58,6 +59,7 @@ receipts = {}
 service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
 robot_draft = os.environ.get("ROBOT_DRAFT_TEST") == "1"
+robot_observation = os.environ.get("ROBOT_OBSERVATION_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
@@ -123,6 +125,55 @@ if robot is not None:
 
         robot.router._device_control._ws_read = robot_ws_read
         robot.client._transport = httpx.MockTransport(robot_request)
+    if robot_observation:
+        robot.registry[ROBOT]["config_entry_id"] = "inert-robot-observation"
+        telemetry = {}
+        for key, domain, device, value, unit in (
+            ("current_room", "sensor", "robot-one", "Køkkenalrum", None),
+            ("clean_percent", "sensor", "robot-one", "42", "%"),
+            ("filter_time_left", "sensor", "robot-one", "-2", "h"),
+            ("dock_error", "sensor", "dock-one", "ok", None),
+            ("clean_box_empty", "binary_sensor", "dock-one", "off", None),
+        ):
+            entity = f"{domain}.fixture_{key}"
+            telemetry[key] = entity
+            robot.registry[entity] = {
+                "entity_id": entity,
+                "platform": "roborock",
+                "device_id": device,
+                "unique_id": entity,
+                "translation_key": key,
+                "config_entry_id": "inert-robot-observation",
+                "disabled_by": None,
+            }
+            robot.states[entity] = {
+                "state": value,
+                "attributes": {"unit_of_measurement": unit} if unit else {},
+                "last_reported": datetime.now(UTC).isoformat(),
+            }
+
+        async def telemetry_registry(command):
+            assert command["type"] == "config/entity_registry/get_entries"
+            return {key: copy.deepcopy(robot.registry[key]) for key in command["entity_ids"]}
+
+        robot.router._device_control._ws_read = telemetry_registry
+        robot.router._device_control.configure_robot_reads(
+            json.dumps(
+                {
+                    "version": 1,
+                    "bindings": [
+                        {
+                            "vacuumEntityId": ROBOT,
+                            "dockDeviceId": "dock-one",
+                            "fields": [
+                                {"key": key, "entityId": entity}
+                                for key, entity in telemetry.items()
+                            ],
+                        }
+                    ],
+                }
+            )
+        )
 
     async def robot_effect():
         path, data = robot.writes[-1]
@@ -622,6 +673,11 @@ async def lab_state(request):
                 robot_lab["effectDelayMs"] = int(args["robotEffectDelayMs"])
             if "robotIgnoreCommands" in args:
                 robot_lab["ignoreCommands"] = bool(args["robotIgnoreCommands"])
+            if robot_observation and "robotTelemetry" in args:
+                for key, value in args["robotTelemetry"].items():
+                    robot.states[telemetry[key]].update(
+                        state=value, last_reported=datetime.now(UTC).isoformat()
+                    )
     value = copy.deepcopy(state)
     value["serviceReads"] = copy.deepcopy(service_reads)
     value["playbackEventSubscribers"] = sum(

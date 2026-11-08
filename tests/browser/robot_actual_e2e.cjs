@@ -43,6 +43,45 @@ const assertRobotObservation=async(page,requests,action)=>{
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
  if(server.exitCode!==null)throw Error('own isolated server exited before navigation');
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(process.env.ROBOT_OBSERVATION_TEST==='1'){
+  await testEnv.openOverview(page);
+  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+  await card.getByText('Batteri 78 % · Køkkenalrum',{exact:true}).waitFor({state:'visible',timeout:10000});
+  await card.getByText('Robotstøvsuger',{exact:true}).tap();
+  const panel=page.locator('pv-robot-control-panel');
+  const room=panel.getByText('Rengør · Køkkenalrum',{exact:true});
+  const progress=panel.getByText('42 % færdig',{exact:true});
+  const care=panel.getByRole('button',{name:/^Vedligeholdelse/});
+  const warning=panel.getByText('Rent vand mangler',{exact:true});
+  await room.waitFor({state:'visible',timeout:10000});
+  assert(await panel.getByText('Batteri 78 %',{exact:true}).isVisible());
+  assert(await progress.isVisible());
+  assert.equal(await care.getAttribute('aria-expanded'),'false');
+  await care.tap();
+  const filter=panel.getByRole('button',{name:'Filter',exact:true});
+  await filter.tap();
+  assert(await panel.getByText(/vedligeholdelsesintervallet er nået/).isVisible());
+  await panel.getByRole('button',{name:'Skjul vedligeholdelse i dag',exact:true}).tap();
+  const snoozed=panel.getByText('Vedligeholdelse skjult i dag',{exact:true});
+  assert(await snoozed.isVisible());
+  await update({robotTelemetry:{filter_time_left:'-3',dock_error:'water_empty',
+   clean_box_empty:'on',clean_percent:'unavailable'}});
+  await warning.waitFor({state:'visible',timeout:22000});
+  assert.equal(await panel.getByText('Rent vand mangler',{exact:true}).count(),1);
+  assert(await snoozed.isVisible());
+  assert.equal(await progress.isVisible(),false);
+  assert.equal(await panel.locator('progress:visible').count(),0,'missing progress never synthesizes a percentage');
+  const writes=(await state()).robot.writes.filter(([service])=>!service.startsWith('services/podvoice/'));
+  assert.deepEqual(writes,[],'maintenance and telemetry changes never operate the robot');
+  assert.deepEqual(errors,[]);
+  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-observation-fault.png')});
+  const proof={outcome:'PASS',stories:['S1','S9','S10','S11'],loadedBundleSha256,
+   battery:78,currentRoom:'Køkkenalrum',knownProgress:42,missingProgressHidden:true,
+   cleanWaterWarningCount:1,maintenanceSnoozeRetained:true,nativeEffects:0};
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-observation-proof.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+  return;
+ }
  if(process.env.ROBOT_SLOW_START_TEST==='1'){
   for(let n=0;n<100&&(!loadedBundleSha256||!loadedCssSha256);n++)await sleep(10);assert(loadedBundleSha256,'hash the actual executed script response');if(process.env.ROBOT_EXPECTED_BUNDLE)assert.equal(loadedBundleSha256,process.env.ROBOT_EXPECTED_BUNDLE);assert(loadedCssSha256);if(process.env.ROBOT_EXPECTED_CSS)assert.equal(loadedCssSha256,process.env.ROBOT_EXPECTED_CSS);const observationReads=new Set(['services/podvoice/robot_snapshot','services/podvoice/robot_observation_snapshot','services/podvoice/robot_water_snapshot']),effectWrites=value=>value.robot.writes.filter(([path])=>!observationReads.has(path));
   await testEnv.openOverview(page);const card=page.locator('.resource-preview[data-kind="vacuum"][data-target="vacuum.qrevo"]:visible').first();await card.waitFor({timeout:15000});await card.tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.focus==='vacuum.qrevo',undefined,{timeout:5000});const panel=page.locator('pv-robot-control-panel');await panel.getByRole('button',{name:'Køkkenalrum',exact:true}).waitFor({state:'visible',timeout:15000});await panel.getByRole('button',{name:'Vælg alle rum',exact:true}).tap();
