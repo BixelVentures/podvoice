@@ -84,7 +84,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | F9 | Et cover opdateres eller fejler → bevar det viste cover; ellers Spotify-cover → grafisk AI-cover inden for eksisterende budget → lokal illustration. Cache må ikke genindføre forkert billedstil | delvis ✅ faktisk browser/inert katalog: samme afkodede cover og DOM bevares ved manglende/ugyldige billeddata under refresh og udvidelse til syv rækker, uden ny crossfade. Enhedstest afviser genbrug over URI/konto/boot/rum/row removal. AI-budget, ny billedgenerering og gammel billedpolitik-cache er ikke bevist her |
 | F10 | Jeg vælger fx Coming Home fra Hør igen → titel/cover vises straks i afspilleren; efter start forbliver betjeningen tilgængelig gennem efterfølgende refresh | ⬜ |
 | F11 | Jeg udvider en liste og skifter faner → godkendt udvidelse/scroll bevares under refresh; kun det valgte emne viser igangværende handling, ikke hele siden | ⬜ |
-| F12 | Coverkilden eller AI fejler, budgettet er brugt eller cache har gammel billedpolitik → lokal fallback virker uden blankt kort, ekstra ukontrollerede billedkald eller tab af eksisterende cover | ⬜ |
+| F12 | Coverkilden eller AI fejler, budgettet er brugt eller cache har gammel billedpolitik → lokal fallback virker uden blankt kort, ekstra ukontrollerede billedkald eller tab af eksisterende cover | delvis ✅ pakket Chromium/inert katalog: Spotify-503 → cachebillede-503 → synligt afkodet lokal illustration; udfaset billedpolitik og udtømt budget giver lokale billeder, nul generatorkald. Eksisterende cover bevares under refresh/udvidelse. Ét forsøg pr. kilde pr. indlæsning; eksplicit fanegenbesøg kan læse igen. Rigtig billedprovider ikke prøvet |
 
 ## Højttaler
 
