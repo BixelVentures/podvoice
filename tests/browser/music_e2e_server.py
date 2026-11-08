@@ -578,6 +578,11 @@ async def lab_state(request):
                 robot_lab["ignoreCommands"] = bool(args["robotIgnoreCommands"])
     value = copy.deepcopy(state)
     value["serviceReads"] = copy.deepcopy(service_reads)
+    value["playbackEventSubscribers"] = sum(
+        event_type == "podconnect_playback_changed"
+        for subscriptions in ha_clients.values()
+        for event_type in subscriptions.values()
+    )
     if robot is not None:
         value["robot"] = {
             "state": robot.states[ROBOT]["state"],

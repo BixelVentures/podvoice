@@ -23,6 +23,11 @@ const lab = body =>
 async function shownWithin(page, check, arg, ms, label) {
   const started = Date.now();
   await page.waitForFunction(check, arg, {timeout: ms}).catch(async () => {
+    console.log('pushFailureEvidence', JSON.stringify({owner: await ownerState(), browser: await page.locator('pv-widget-host').evaluate(h => ({
+      title: document.querySelector('#track-name')?.textContent, transportConnected: h.liveTransport?.connected,
+      playback: h.liveMedia?.playback, readState: h.liveMedia?.readState, pending: h.liveMedia?.pending,
+      intentPending: h.liveControls?.musicIntentPending, records: h.liveTransport?.diagnostics?.().records,
+    }))}));
     await page.screenshot({path: path.join(testEnv.artifactDir(), `podview-music-push-fail-${label}.png`)});
     throw new Error(`${label}: not shown within ${ms} ms`);
   });
@@ -83,6 +88,36 @@ let browser;
       assert.equal(observed.song, 7);
       assert.equal(observed.room, 'native-room');
       assert.deepEqual(observed.writes.map(row => row.action), effect === 'pause' ? ['pause'] : ['pause', 'resume']);
+    }
+
+    if (process.env.MUSIC_PUSH_OVERLAP_TEST === '1') {
+      let markHeld, releaseRead, markDelivered, armed = true;
+      const held = new Promise(resolve => {markHeld = resolve;});
+      const gate = new Promise(resolve => {releaseRead = resolve;});
+      const delivered = new Promise(resolve => {markDelivered = resolve;});
+      await page.route('**/view/api/music?**', async route => {
+        if (!armed || new URL(route.request().url()).searchParams.get('kind') !== 'playback') return route.continue();
+        armed = false;
+        const response = await route.fetch();
+        markHeld();
+        await gate;
+        await route.fulfill({response});
+        markDelivered();
+      });
+      try {
+        await Promise.race([held, sleep(10000).then(() => {throw Error('normal playback read not held');})]);
+        const revision = await page.locator('pv-widget-host').evaluate(h => h.liveSnapshot.musicRevision);
+        assert((await ownerState()).playbackEventSubscribers > 0, 'inert HA event subscription must exist');
+        await lab({externalSong: 8});
+        await page.waitForFunction(before => document.querySelector('pv-widget-host').liveSnapshot.musicRevision > before,
+          revision, {timeout: 5000});
+        await shownWithin(page, () => document.querySelector('#track-name')?.textContent === 'Isoleret sang 8',
+          undefined, 1500, 'event-before-old-read-completes');
+      } finally {releaseRead();}
+      await delivered;
+      await shownWithin(page, () => document.querySelector('#track-name')?.textContent === 'Isoleret sang 8',
+        undefined, 1500, 'event-during-existing-read');
+      console.log('PASS music event during older playback read: fresh title while older read is held; late response cannot roll back');
     }
 
     // Let the normal read settle so a lucky poll cannot pass for a push.

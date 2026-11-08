@@ -16,6 +16,8 @@ const only=process.argv.slice(2).map(name=>name.endsWith('_actual_e2e.cjs')?name
 for(const name of only)if(!journeys.includes(name))throw new Error(`Unknown journey: ${name}`);
 for(const journey of only.length?only:journeys){
  runJourney(journey);
+ if(journey==='music_push_actual_e2e.cjs')runJourney(journey,{MUSIC_PUSH_OVERLAP_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'push-overlap')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_EXTERNAL_OUTPUT_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'external-output')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_SPEAKER_REFRESH_TEST:'1',
