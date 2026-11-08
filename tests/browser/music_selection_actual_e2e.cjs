@@ -679,6 +679,85 @@ async function discoveryCoverJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-fallback-proof.json'),
   JSON.stringify(fallbackProof,null,2));
  console.log(JSON.stringify(fallbackProof));
+ await discoveryGeneratedCover(failedCoverUrl,themes.cooking.themeArt);
+}
+async function discoveryGeneratedCover(failedCoverUrl,asset){
+ const surface=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
+ const assetUrl=new URL('/view/'+asset,base).href;
+ const requests=[],receipts=[],actionPosts=[],pageErrors=[];
+ let releaseSpotify;
+ const spotifyGate=new Promise(resolve=>{releaseSpotify=resolve;});
+ try{
+  await surface.route('**/*',async route=>{
+   const url=route.request().url();
+   if(url===failedCoverUrl){
+    await spotifyGate;
+    return route.fulfill({status:503});
+   }
+   return new URL(url).origin===base?route.continue():route.abort();
+  });
+  surface.on('pageerror',error=>pageErrors.push(error.message));
+  surface.on('request',request=>{
+   const url=request.url(),pathname=new URL(url).pathname;
+   if(new URL(url).origin!==base||pathname.startsWith('/view/theme-art/'))requests.push(url);
+   if(request.method()==='POST'&&pathname.startsWith('/view/api/')
+    &&pathname!=='/view/api/music/queue/offer')actionPosts.push(pathname);
+  });
+  surface.on('response',response=>{
+   if(response.url()===failedCoverUrl||response.url()===assetUrl){
+    receipts.push({url:response.url(),status:response.status()});
+   }
+  });
+  await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+  const snapshot=await (await surface.request.get(base+'/view/api/snapshot')).json();
+  assert.equal(snapshot.admission.kind,'ha_ingress');
+  await env.openOverview(surface);
+  const spotifyRequest=surface.waitForRequest(request=>request.url()===failedCoverUrl);
+  const graphicResponse=surface.waitForResponse(response=>response.url()===assetUrl);
+  await surface.locator('#home-music').tap();
+  await spotifyRequest;
+  const row=surface.locator('#result-list button.result').filter({hasText:'Musik til madlavningen'});
+  const image=row.locator('img.result-art:not([data-content-transition])');
+  await image.waitFor();
+  const originalRow=await row.elementHandle(),originalImage=await image.elementHandle();
+  assert.deepEqual(requests,[failedCoverUrl],'generated art must wait for Spotify failure');
+  releaseSpotify();
+  const response=await graphicResponse;
+  assert.equal(response.status(),200);
+  assert.equal(response.headers()['content-type'],'image/webp');
+  assert.equal(response.headers()['x-podview-art-provenance'],'generated-theme-illustration');
+  const digest=createHash('sha256').update(await response.body()).digest('hex');
+  assert.equal(path.basename(asset,'.webp'),digest);
+  assert.equal(response.headers().etag,`"${digest}"`);
+  await surface.waitForFunction(url=>[...document.querySelectorAll('#result-list img.result-art')]
+    .some(image=>image.currentSrc===url&&image.naturalWidth>0
+    &&getComputedStyle(image).opacity==='1'
+    &&image.checkVisibility({opacityProperty:true,visibilityProperty:true})),assetUrl);
+  const decoded=await image.evaluate(async image=>{
+   await image.decode();
+   return {src:image.currentSrc,width:image.naturalWidth,height:image.naturalHeight,
+    visible:image.checkVisibility({opacityProperty:true,visibilityProperty:true})};
+  });
+  assert.deepEqual(decoded,{src:assetUrl,width:1024,height:1024,visible:true});
+  assert(await row.evaluate((current,previous)=>current===previous,originalRow));
+  assert(await image.evaluate((current,previous)=>current===previous,originalImage));
+  assert.deepEqual(requests,[failedCoverUrl,assetUrl]);
+  assert.deepEqual(receipts,[{url:failedCoverUrl,status:503},{url:assetUrl,status:200}]);
+  assert.deepEqual(actionPosts,[]);
+  assert.deepEqual(pageErrors,[]);
+  const service=await state();
+  assert.deepEqual(service.writes,[]);
+  assert.deepEqual(service.imageProviderCalls,[]);
+  const proof={outcome:'PASS',story:'F9',bundleSHA,artworkSHA:digest,
+   spotifyStatus:503,generatedAssetStatus:200,decoded:{width:decoded.width,height:decoded.height},
+   sameRowAndImage:true,imageProviderDispatches:0,actionPosts:0,inertCatalogue:true};
+  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-generated-cover-proof.json'),
+   JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+ }finally{
+  releaseSpotify();
+  await surface.close();
+ }
 }
 async function accountRolloverJourney(){
  const host=page.locator('pv-widget-host');
@@ -1210,7 +1289,7 @@ async function queuePersistenceJourney(){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||discoveryCover)options.args=['--mute-audio'];
  browser=await chromium.launch(options);
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
  if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit){
