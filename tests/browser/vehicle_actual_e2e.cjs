@@ -2,12 +2,127 @@
 const {chromium}=require('playwright'),env=require('./podview_actual_env.cjs'),{spawn}=require('node:child_process'),fs=require('node:fs/promises'),path=require('node:path'),os=require('node:os'),assert=require('node:assert/strict'),crypto=require('node:crypto');
 const port=Number(process.env.VEHICLE_TEST_PORT||18980),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json()),update=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());let server,browser;
+const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
+async function lifecycleJourney(page,card,errors,commands){
+ const root=page.locator('#vehicle-view'),hero=root.getByRole('region',{name:'Bilens status'});
+ const dialog=page.locator('dialog.vehicle-confirmation');
+ const fieldTimes=()=>page.locator('pv-widget-host').evaluate(host=>host.state.vehicle.fieldObservedAt);
+ const snapshotReady=condition=>page.waitForFunction(condition,undefined,{timeout:12000});
+ const before=await state();
+ await card.tap();
+ await hero.waitFor({state:'visible'});
+ assert.match(await hero.innerText(),/72/);
+ assert.match(await hero.innerText(),/312 km/);
+ const time=hero.locator('.vehicle-connection-note');
+ const firstTimestamp=await time.innerText();
+ assert.match(firstTimestamp,/^Ældste observation .+\d\d[.:]\d\d$/);
+ assert.doesNotMatch(await hero.innerText(),/kW/);
+ const trunk=name=>root.getByRole('button',{name,exact:true});
+ const up=root.getByRole('button',{name:'Hæv temperatur',exact:true});
+ await trunk('Åbn bagagerum').waitFor({state:'visible'});
+ assert(await trunk('Lås op').isEnabled());
+ assert(await up.isDisabled());
+ assert.deepEqual((await state()).snapshotReads,before.snapshotReads,'opening only uses current passive data');
+ const knownTimes=await fieldTimes();
+ assert(Number.isFinite(knownTimes.trunk)&&Number.isFinite(knownTimes['climate.status']));
+ const refresh=async phase=>{
+  await sleep(5200); // Let the real passive cache expire before reading changed fixture state.
+  await update({phase});
+  await page.locator('pv-widget-host').evaluate(host=>host.loadLiveHome());
+ };
+ await refresh('historical');
+ await snapshotReady(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.historicalFields?.includes('trunk'));
+ assert.deepEqual(await fieldTimes(),knownTimes,'historical re-emission preserves every field timestamp');
+ assert.match(await hero.innerText(),/Sidst kendt/);
+ assert.equal(await time.innerText(),firstTimestamp);
+ assert.match(await hero.innerText(),/312 km/);
+ assert.doesNotMatch(await hero.innerText(),/dvale/i,'unproven sleep is not labelled as observed');
+ assert(await trunk('Åbn bagagerum').isDisabled());
+ assert(await trunk('Lås op').isDisabled());
+ assert(await up.isDisabled());
+ assert.deepEqual((await state()).writes,[]);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-last-known.png')});
+
+ await refresh('partial');
+ await trunk('Bagagerum ukendt').waitFor({state:'visible'});
+ assert(await trunk('Bagagerum ukendt').isDisabled());
+ assert.equal(await trunk('Åbn bagagerum').count(),0);
+ assert.equal(await trunk('Luk bagagerum').count(),0);
+ assert(await trunk('Lås op').isEnabled());
+ assert.match(await hero.innerText(),/312 km/);
+ assert(await trunk('Afrimning ukendt').isDisabled());
+ assert.deepEqual((await state()).writes,[]);
+
+ await refresh('changed');
+ await snapshotReady(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.access?.rearTrunk==='open');
+ assert.match(await hero.innerText(),/Bilen lader/);
+ assert.match(await hero.innerText(),/11 kW/);
+ assert(await trunk('Luk bagagerum').isEnabled());
+ assert(await trunk('Lås bilen').isEnabled());
+ assert(await up.isEnabled());
+ assert(await root.locator('#vehicle-seat-heat-trigger').isEnabled());
+ assert.equal(await root.locator('.vehicle-climate-actions button:visible').count(),1);
+ assert(await trunk('Afrimning ukendt').isDisabled());
+ assert((await fieldTimes()).trunk>knownTimes.trunk);
+ assert((await fieldTimes())['climate.status']>knownTimes['climate.status']);
+ assert.deepEqual((await state()).writes,[]);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-external-charging.png')});
+ await page.setViewportSize({width:834,height:1194});
+ assert.equal(await root.locator('.vehicle-control-tiles > section:visible').count(),2);
+ assert.equal(await trunk('Luk bagagerum').count(),1);
+ assert.equal(await root.locator('.vehicle-climate-actions button:visible').count(),1);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-tablet-viewport.png')});
+
+ await trunk('Luk bagagerum').tap();
+ await dialog.waitFor({state:'visible'});
+ await dialog.getByRole('heading',{name:/Luk bagagerum/}).waitFor({state:'visible'});
+ assert.equal(await dialog.locator('.pv-dialog-actions button:visible').count(),2);
+ assert.deepEqual((await state()).writes,[]);
+ const accepted=page.waitForResponse(response=>
+  new URL(response.url()).pathname==='/view/api/control/actions'&&response.request().method()==='POST');
+ await dialog.getByRole('button',{name:'Luk bagagerum',exact:true}).tap();
+ assert.equal((await (await accepted).json()).outcome,'accepted');
+ assert.equal(await trunk('Åbn bagagerum').count(),0,'acceptance cannot render an unobserved closed trunk');
+ assert(await trunk('Luk bagagerum').isVisible());
+ assert.deepEqual((await state()).writes,[{service:'close_cover',body:{entity_id:'cover.trunk'}}]);
+
+ await refresh('closed');
+ await snapshotReady(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.access?.rearTrunk==='closed');
+ assert(await trunk('Åbn bagagerum').isEnabled());
+ assert(await trunk('Lås op').isEnabled());
+ assert(await up.isDisabled());
+ assert(await trunk('Afrim ruder').isDisabled());
+ assert.match(await hero.innerText(),/312 km/);
+ assert.doesNotMatch(await hero.innerText(),/kW/);
+ assert.equal(commands.length,1);
+ assert.deepEqual(errors,[]);
+ const bundle=await fetch(base+'/view/podview.bundle.js').then(response=>response.arrayBuffer());
+ const bundleSHA=crypto.createHash('sha256').update(Buffer.from(bundle)).digest('hex');
+ if(process.env.VEHICLE_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.VEHICLE_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',bundleSHA,knownToLastKnownToFresh:true,fieldTimestampsRetained:true,
+  noAdditionalNativeReadsOnOpen:true,noWakeCommand:true,missingDefrostSingleDisabledControl:true,
+  missingTrunkUnknownWithoutSiblingLoss:true,tabletSizedChromiumLayout:true,
+  scopedTrunkAcceptanceBeforeObservedClosure:true,externalLockAndClimateObserved:true,
+  chargingAndIdleReadFromSource:true,inertFinalHA:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-vehicle-lifecycle-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 (async()=>{try{
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-vehicle-'));server=spawn(env.python,[path.join(__dirname,'vehicle_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({VEHICLE_TEST_PORT:String(port),VEHICLE_TEST_DATA:data}),stdio:['ignore','pipe','pipe']});server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],commands=[];page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/view/api/control/actions')commands.push(r.postDataJSON());});page.setDefaultTimeout(7000);page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(/\/view\/api\/(home|control)/.test(r.url()))console.log('API',r.status(),r.url(),await r.text().catch(()=>''));});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);const card=page.locator('#home-vehicle');await card.waitFor({timeout:15000});await card.tap();
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ const card=page.locator('#home-vehicle');
+ await card.waitFor({timeout:15000});
+ if(lifecycle){
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.batteryPercent===72,
+   undefined,{timeout:15000});
+  await lifecycleJourney(page,card,errors,commands);
+  return;
+ }
+ await card.tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='off',undefined,{timeout:15000});assert.deepEqual((await state()).writes,[]);console.log('vehicle initial',await page.locator('body').innerText());
  const up=page.getByRole('button',{name:'Hæv temperatur'});assert(await up.isDisabled(),'dependent temperature disabled when climate off');
  const seats=page.locator('#vehicle-seat-heat-trigger');

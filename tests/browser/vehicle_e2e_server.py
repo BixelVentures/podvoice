@@ -19,14 +19,33 @@ from gatekeeper.web import create_app
 
 port = int(os.getenv("VEHICLE_TEST_PORT", "18980"))
 entity = "climate.car"
+lifecycle = os.getenv("VEHICLE_LIFECYCLE_TEST") == "1"
+lifecycle_roles = {
+    "batteryPercent": ("sensor.battery", "charge_state_battery_level"),
+    "rangeKm": ("sensor.range", "charge_state_battery_range"),
+    "charging": ("sensor.charging", "charge_state_charging_state"),
+    "powerKw": ("sensor.power", "charge_state_charger_power"),
+    "locked": ("lock.car", "vehicle_state_locked"),
+    "trunk": ("cover.trunk", "vehicle_state_rt"),
+}
 fields = {
     "climate": entity,
     "driverSeat": "select.left",
     "passengerSeat": "select.right",
     "defrost": "switch.defrost",
 }
+if lifecycle:
+    fields.update({role: mapping[0] for role, mapping in lifecycle_roles.items()})
+control_fields = {
+    ("lock" if role == "locked" else role): eid
+    for role, eid in fields.items()
+    if not lifecycle or role not in {"batteryPercent", "rangeKm", "charging", "powerKw"}
+}
 state = {"climate": "off", "temperature": 20.0}
 writes = []
+snapshot_reads = []
+phase = "known"
+phase_observed = time.time() - 0.2
 hold = False
 started = asyncio.Event()
 release = asyncio.Event()
@@ -38,12 +57,75 @@ followup_started = asyncio.Event()
 followup_release = asyncio.Event()
 
 
+def lifecycle_snapshot(body):
+    full = not body.get("trunk_control")
+    scoped = fields if full else {"trunk": fields["trunk"]}
+    assert body == {
+        "config_entry_id": "entry-a",
+        "device_id": "device-a",
+        "entities": scoped,
+        **({} if full else {"trunk_control": True}),
+    }
+    snapshot_reads.append({"phase": phase, "trunkOnly": not full})
+    opened = phase == "changed"
+    stamp = phase_observed
+    data = {} if full and phase == "partial" else {"trunk": "open" if opened else "closed"}
+    stamps = {"vehicle_state": stamp}
+    if full:
+        data.update(
+            locked=not opened,
+            batteryPercent=72,
+            rangeKm=312,
+            charging={
+                "status": "charging" if opened else "disconnected",
+                "powerKw": 11 if opened else 0,
+            },
+            climate={
+                "status": state["climate"],
+                "driverSeatHeat": "off",
+                "passengerSeatHeat": "low",
+                "temperatureC": 21,
+                "targetTemperatureC": state["temperature"],
+                "minTemperatureC": 15,
+                "maxTemperatureC": 28,
+                "temperatureStepC": 0.5,
+            },
+        )
+        if phase in {"known", "historical", "closed"}:
+            data["climate"]["defrost"] = False
+        stamps.update(charge_state=stamp, climate_state=stamp)
+    observed = {
+        field: stamp
+        for key, value in data.items()
+        for field in ([key] if not isinstance(value, dict) else [f"{key}.{part}" for part in value])
+    }
+    return {
+        "schema": "podvoice.vehicle_snapshot.v1",
+        "configEntryId": "entry-a",
+        "deviceId": "device-a",
+        "entities": scoped,
+        "source": "tesla_fleet",
+        "sourceIdentity": "cached"
+        if phase == "historical" and full
+        else "coordinator_and_ha_state",
+        "status": "observed",
+        "observedAt": stamp,
+        "timestamps": stamps,
+        "data": data,
+        "fieldObservedAt": observed,
+        "historicalFields": list(observed) if phase == "historical" and full else [],
+    }
+
+
 async def ha(request):
     global hold, read_hold, followup_hold
     assert request.headers["Authorization"] == "Bearer test-token"
     path = request.url.path
     if path == "/core/api/services/podvoice/vehicle_snapshot":
-        assert json.loads(request.content) == {
+        body = json.loads(request.content)
+        if lifecycle:
+            return httpx.Response(200, json={"service_response": lifecycle_snapshot(body)})
+        assert body == {
             "config_entry_id": "entry-a",
             "device_id": "device-a",
             "entities": fields,
@@ -82,6 +164,29 @@ async def ha(request):
             followup_started.set()
             await asyncio.wait_for(followup_release.wait(), 1.8)
         return httpx.Response(200, json={"service_response": snapshot})
+    if lifecycle and path == "/core/api/states/lock.car":
+        return httpx.Response(
+            200,
+            json={
+                "entity_id": "lock.car",
+                "state": "unlocked" if phase == "changed" else "locked",
+                "attributes": {},
+            },
+        )
+    if lifecycle and path == "/core/api/states/cover.trunk":
+        return httpx.Response(
+            200,
+            json={
+                "entity_id": "cover.trunk",
+                "state": "open" if phase == "changed" else "closed",
+                "attributes": {"supported_features": 3},
+            },
+        )
+    if lifecycle and path == "/core/api/services/cover/close_cover":
+        data = json.loads(request.content)
+        assert data == {"entity_id": "cover.trunk"}
+        writes.append({"service": "close_cover", "body": data})
+        return httpx.Response(200, json=[])
     if path == "/core/api/config":
         return httpx.Response(200, json={"unit_system": {"temperature": "°C"}})
     if path in ("/core/api/states/select.left", "/core/api/states/select.right"):
@@ -142,7 +247,7 @@ tools.configure_podview_vehicle_control(
             "roomId": "kitchen",
             "configEntryId": "entry-a",
             "deviceId": "device-a",
-            "entities": fields,
+            "entities": control_fields,
             "actions": [
                 "climateOn",
                 "climateOff",
@@ -151,6 +256,7 @@ tools.configure_podview_vehicle_control(
                 "passengerSeatHeat",
                 "defrostOn",
                 "defrostOff",
+                *(["lock", "unlock", "rearTrunkToggle"] if lifecycle else []),
             ],
         }
     )
@@ -174,9 +280,11 @@ async def registry(command):
                     "driverSeat": "climate_state_seat_heater_left",
                     "passengerSeat": "climate_state_seat_heater_right",
                     "defrost": "climate_state_defrost_mode",
+                    **{key: mapping[1] for key, mapping in lifecycle_roles.items()},
                 }[role],
             }
             for role, eid in fields.items()
+            if eid in command["entity_ids"]
         }
     raise AssertionError("unexpected registry command " + repr(command))
 
@@ -216,9 +324,15 @@ app.middlewares.insert(0, ingress)
 
 
 async def lab(request):
-    global hold, read_hold, followup_hold
+    global hold, read_hold, followup_hold, phase, phase_observed
     if request.method == "POST":
         body = await request.json()
+        if lifecycle and "phase" in body:
+            phase = body["phase"]
+            assert phase in {"historical", "partial", "changed", "closed"}
+            if phase != "historical":
+                phase_observed = time.time() - 0.01
+            state["climate"] = "heat_cool" if phase == "changed" else "off"
         if body.get("hold"):
             hold = True
             started.clear()
@@ -246,6 +360,7 @@ async def lab(request):
         {
             "state": state,
             "writes": writes,
+            "snapshotReads": snapshot_reads,
             "intentHeld": started.is_set() and not release.is_set(),
             "readHeld": read_started.is_set() and not read_release.is_set(),
             "followupHeld": followup_started.is_set() and not followup_release.is_set(),
