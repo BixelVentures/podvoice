@@ -8,15 +8,32 @@ In particular, accepting a command does not change the independent observation.
 
 import copy
 import json
+import secrets
 import time
 from dataclasses import replace
 
 import httpx
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_controls import action_body
 from integration.test_podview_music import Rig as ReadRig
 from integration.test_podview_music_control import Rig as ServiceRig
 from integration.test_podview_music_control import content_owner, controls, room_owner
+from integration.test_podview_queue_occurrence import (
+    ACTION as QUEUE_ACTION,
+)
+from integration.test_podview_queue_occurrence import (
+    accepted as queue_accepted,
+)
+from integration.test_podview_queue_occurrence import (
+    action as queue_action,
+)
+from integration.test_podview_queue_occurrence import (
+    bound_source as queue_source,
+)
+from integration.test_podview_queue_occurrence import (
+    staged as queue_staged,
+)
 
 from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.podview import BRIDGE
@@ -110,6 +127,23 @@ class InertMusicServices:
         args = json.loads(request.content)
         service = request.url.path.rsplit("/", 1)[-1]
         self.calls.append((service, args))
+        if service in {"get_room_queue_controls", "prepare_room_queue", "control_room_queue"}:
+            if service == "get_room_queue_controls":
+                value = queue_source()
+                value.update(next_command_sequence=self.sequence, poll_sequence=self.poll)
+                value["queue"]["observation_id"] = secrets.token_hex(16)
+                value["native"]["homepod_id"] = "42"
+                value["route"]["device_id"] = "42"
+            elif service == "prepare_room_queue":
+                value = queue_staged(args)
+            else:
+                assert args["command_sequence"] == self.sequence
+                value = queue_accepted(args)
+                self.accepted = {
+                    key: args[key] for key in ("request_id", "command_sequence", "owner_epoch")
+                }
+                self.sequence += 1
+            return httpx.Response(200, json={"service_response": value})
         if service == "search_tracks":
             return await self.read_rig.request(request)
         if service == "get_playback_snapshot":
@@ -128,7 +162,10 @@ class InertMusicServices:
         return response
 
 
-async def test_voice_selected_content_then_touch_pause_waits_for_independent_observation():
+@pytest.mark.parametrize("choose_queue", [False, True])
+async def test_voice_selected_content_then_touch_pause_waits_for_independent_observation(
+    choose_queue,
+):
     read_rig, service_rig = ReadRig(), ServiceRig()
     bridge = read_rig.app[BRIDGE]
     bridge.controls.policy = {
@@ -139,7 +176,7 @@ async def test_voice_selected_content_then_touch_pause_waits_for_independent_obs
                 "targetId": "device-one",
                 "nativeRoomId": "native-room",
                 "nativeHomepodId": "42",
-                "actions": ["play_track", "pause", "resume", "next", "previous"],
+                "actions": ["play_track", "pause", "resume", "next", "previous", QUEUE_ACTION],
                 "maxVolume": 40,
             }
         ],
@@ -158,6 +195,9 @@ async def test_voice_selected_content_then_touch_pause_waits_for_independent_obs
             "prepare_room_selected_content",
             "start_room_selected_content",
             "cancel_room_content_preparation",
+            "get_room_queue_controls",
+            "prepare_room_queue",
+            "control_room_queue",
             "get_room_playback_controls",
             "control_room_playback",
         },
@@ -239,6 +279,29 @@ async def test_voice_selected_content_then_touch_pause_waits_for_independent_obs
             assert observed["data"]["playback"]["state"] == "playing"
             assert observed["data"]["playback"]["item"]["uri"] == uri
             assert observed["data"]["physical_result_verified"] is False
+            start_uri = uri
+            if choose_queue:
+                queue_offer = await post(
+                    "/view/api/music/queue/offer",
+                    {
+                        "bootId": bridge.boot_id,
+                        "roomId": "kitchen",
+                        "accountId": "account-alpha",
+                        "targetId": "device-one",
+                        "expectedBindingId": "b" * 64,
+                    },
+                )
+                assert queue_offer["ok"], queue_offer
+                # Same URI occurs twice: select the second opaque occurrence.
+                assert queue_offer["items"][0]["uri"] == queue_offer["items"][1]["uri"]
+                queue_body = queue_action(queue_offer, index=1, request="voice-journey-queue")
+                queued = await post("/view/api/music/queue/actions", queue_body)
+                assert queued["outcome"] == "accepted", (queued, services.calls)
+                assert await post("/view/api/music/queue/actions", queue_body) == queued
+                assert (await playback())["data"]["playback"]["item"]["uri"] == start_uri
+                uri = queue_offer["items"][1]["uri"]
+                services.observe("playing", uri)
+                assert (await playback())["data"]["playback"]["item"]["uri"] == uri
             pause_offer = await post(
                 "/view/api/control/setup",
                 {
@@ -273,18 +336,28 @@ async def test_voice_selected_content_then_touch_pause_waits_for_independent_obs
                 (name, body)
                 for name, body in services.calls
                 if name
-                in {"start_room_selected_content", "control_room_playback", "control_playback"}
+                in {
+                    "start_room_selected_content",
+                    "control_room_queue",
+                    "control_room_playback",
+                    "control_playback",
+                }
             ]
             assert [name for name, _ in effects] == [
                 "start_room_selected_content",
+                *(["control_room_queue"] if choose_queue else []),
                 "control_room_playback",
             ]
-            start, pause = effects[0][1], effects[1][1]
+            start, pause = effects[0][1], effects[-1][1]
+            if choose_queue:
+                assert effects[1][1]["args"]["occurrence_id"] == "0" * 23 + "1"
             assert start["action"] == "play_track"
-            assert start["args"] == {"track_uri": uri, "max_volume": 40}
+            assert start["args"] == {"track_uri": start_uri, "max_volume": 40}
             assert pause["action"] == "pause" and pause["args"] == {}
             assert all(body["config_entry_id"] == "account-alpha" for _, body in effects)
-            assert [body["command_sequence"] for _, body in effects] == [1, 2]
+            assert [body["command_sequence"] for _, body in effects] == list(
+                range(1, len(effects) + 1)
+            )
             assert len({body["owner_epoch"] for _, body in effects}) == 1
             assert all(
                 body["target_id"] == "device-one"
