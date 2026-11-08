@@ -8,6 +8,12 @@ const freshChoiceAllowed = entry => ['rejected', 'superseded', 'unknown'].includ
 const canReplaceDispatchedSelection = (entry, card) => freshChoiceAllowed(entry)
  || entry.selectionConfirmed === true && (!card || card.id !== entry.dispatchedCardId);
 
+function listIndices(sample,libraryOrder,count){
+ const first=new Map();
+ for(const [index,row] of sample.entries())if(!first.has(row.uri))first.set(row.uri,index);
+ return libraryOrder?libraryOrder.slice(0,count).map(uri=>first.get(uri)):[...first.values()].slice(0,count);
+}
+
 export function projectMusicTracks(body,account){
  if(body?.ok!==true||!Array.isArray(body.data?.tracks)||body.data.tracks.length>MAX_MUSIC_SAMPLE||account!==undefined&&(typeof account!=='string'||!account||body.data.config_entry_id!==account))return null;
  const artistOf=track=>typeof track?.artist==='string'?track.artist:Array.isArray(track?.artists)&&track.artists.every(artist=>typeof artist==='string')?track.artists.join(', '):null;
@@ -85,7 +91,22 @@ export class LiveMusicCatalogueView{
  // page on reentry before advancing, and never turn exact card renewal into resync.
  needsVibeResync(entry){return entry?.kind==='feeling'&&entry.cards.length>0&&(entry.vibeResync||entry.renewalScope!==this.renewalScope());}
  get hasMoreVibes(){const entry=this.entries.get(this.key());return this.selected!=='feeling'||entry?.refreshAvailable!==false||this.needsVibeResync(entry);}
- refresh(){this.ensureContext();if(this.busy||!this.connected||!this.account||!this.supported()||!this.hasMoreVibes)return;const entry=this.entries.get(this.key());this.host.liveSelection?.leave();this.beginRead(this.selected,this.needsVibeResync(entry)&&!entry.vibeRestart?'initial':'refresh');}
+ refresh(){
+  this.ensureContext();
+  if(this.busy||!this.connected||!this.account||!this.supported()||!this.hasMoreVibes)return;
+  const entry=this.entries.get(this.key()),kind=this.readKind();
+  if(entry?.cards.length&&['recent','account_playlists'].includes(kind)){
+   if(this.host.liveSelection?.pending)return;
+   // Expand the admitted sample without replacing the source or renewing its authority.
+   const start=entry.cards.length,indices=listIndices(entry.sample,entry.libraryOrder,start+MUSIC_DISCOVERY_LIST_STEP);
+   if(indices.length===start)return;
+   entry.cards=entry.cards.concat(sourceMusicCards(indices.slice(start).map(index=>entry.sample[index]),kind));
+   if(kind==='recent')entry.status=`${entry.cards.length} sange`;
+   this.restore(entry);this.render();return;
+  }
+  this.host.liveSelection?.leave();
+  this.beginRead(this.selected,this.needsVibeResync(entry)&&!entry.vibeRestart?'initial':'refresh');
+ }
  setBusy(value){this.busy=value;this.render();}
  updateCapabilities(connected,capabilities=[]){this.ensureContext();const previousKind=this.readKind(),signature=JSON.stringify(capabilities);if(this.readAuthority!==undefined&&this.readAuthority!==signature){this.interrupt();this.invalidateAuthority();this.host.liveMusicGeneration=(this.host.liveMusicGeneration||0)+1;this.status=this.cards.length?'Viser dit tidligere udvalg.':'';}this.readAuthority=signature;this.connected=connected;this.capabilities=[...capabilities];if(previousKind!==this.readKind()){this.entries.clear();this.restore(null);}this.render();}
  loading(kind){if(this.pendingRead?.kind!==kind)return;this.busy=true;this.render();}
@@ -123,16 +144,7 @@ export class LiveMusicCatalogueView{
    libraryOrder=[...retained,...additions];
   }
   const visibleCount=(advance?before.cards.length:0)+MUSIC_DISCOVERY_LIST_STEP;
-  let indices=page.indices;
-  if(libraryOrder)indices=libraryOrder.slice(0,visibleCount).map(uri=>sourceIndices.get(uri));
-  if(kind==='recent'){
-   const seen=new Set();
-   indices=displaySource.flatMap((row,index)=>{
-    if(seen.has(row.uri))return [];
-    seen.add(row.uri);
-    return [index];
-   }).slice(0,visibleCount);
-  }
+  const indices=expanding?listIndices(displaySource,libraryOrder,visibleCount):page.indices;
   const cards=sourceMusicCards(indices.map(index=>displaySource[index]),request.sourceKind);
   if(Number.isSafeInteger(request.readGeneration)&&request.readGeneration>=0)for(const card of cards)card.artworkRetryGeneration=request.readGeneration;
   const status=accountPlaylists?(!valid.length?'Ingen playlister i dette udvalg.':fullSource.sourceHasMore?`Første side · ${valid.length} ejede eller fulgte playlister`:`${valid.length} ${valid.length===1?'playliste':'playlister'} · ejet eller fulgt`):playlist?(kind==='feeling'?'3 humørvalg':'3 stemninger'):!valid.length?'Ingen sange i dette udvalg.':unchanged&&page.total<=3?'Ingen andre sange i dette udvalg.':`${cards.length} ${cards.length===1?'sang':'sange'}`;
