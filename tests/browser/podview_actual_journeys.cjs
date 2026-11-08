@@ -50,6 +50,12 @@ for(const journey of only.length?only:journeys){
  if(journey==='vehicle_actual_e2e.cjs')runJourney(journey,{VEHICLE_LIFECYCLE_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'vehicle-lifecycle')});
  if(journey==='radio_actual_e2e.cjs'){
+  runJourney(journey,{RADIO_TIMING_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'radio-timing')});
+  for(const scenario of ['missing','mismatch','rotate']){
+   runJourney(journey,{RADIO_CONFIG_TEST:scenario,
+    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`radio-config-${scenario}`)});
+  }
   for(const scenario of ['1','rejected','unknown']){
    runJourney(journey,{RADIO_STATION_ORDER_TEST:scenario,
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`radio-${scenario}`)});
