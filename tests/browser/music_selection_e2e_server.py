@@ -8,6 +8,7 @@ import os
 import secrets
 import time
 from dataclasses import replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -15,6 +16,7 @@ import httpx
 from aiohttp import web
 from integration.test_podview_music_control import Rig, content_owner
 from integration.test_podview_queue_occurrence import accepted, bound_source, staged
+from unit.test_podview_theme_art import webp
 
 # Reuse the existing app, authentication, playback observation and shutdown.
 # Suppress only its CLI launcher: this file owns the isolated test server port.
@@ -22,6 +24,8 @@ with patch("aiohttp.web.run_app"):
     import music_e2e_server as base
 
 from gatekeeper.podview import BRIDGE
+from gatekeeper.podview_mood import THEMES
+from gatekeeper.podview_theme_art import _LEGACY_STYLE, ThemeArtOwner, ThemeArtPolicy, ThemeArtStore
 
 cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
@@ -95,6 +99,38 @@ if cold:
 
     base.music.tools.podview_mood_context = mood_context
 
+if discovery_cover:
+    base.music.tools.podview_mood_selector = SimpleNamespace(available=False)
+
+    async def no_mood_context(_current):
+        return None
+
+    base.music.tools.podview_mood_context = no_mood_context
+    directory = Path(os.environ["MUSIC_TEST_DATA"]) / "theme-art"
+    policy = ThemeArtPolicy("inert-browser-cover-proof", max_images=2)
+    store = ThemeArtStore(directory, policy)
+    assert store.reserve("italian")
+    store.publish("italian", webp())
+    base.state["retiredThemeArt"] = store.url("italian")
+    ledger = json.loads(store.ledger.read_bytes())
+    ledger["policy_sha256"] = policy._fingerprint(_LEGACY_STYLE)
+    store.ledger.write_text(json.dumps(ledger))
+    store = ThemeArtStore(directory, policy)
+    assert store.retired("italian")
+    assert store.reserve("cooking")
+    # Project an admitted cache path. The browser harness faults its HTTP retrieval.
+    store.publish("cooking", webp())
+    assert not store.reserve("calm")
+
+    base.state["imageProviderCalls"] = []
+
+    def image_provider(request):
+        base.state["imageProviderCalls"].append(str(request.url))
+        return httpx.Response(503)
+
+    image_client = httpx.AsyncClient(transport=httpx.MockTransport(image_provider))
+    base.music.tools.podview_theme_art = ThemeArtOwner(image_client, "inert-key", store)
+
 original_transport = base.music.client
 
 
@@ -126,8 +162,15 @@ async def native(request):
                 if row["kind"] == "observed_output":
                     row["selected"] = False
         return httpx.Response(200, json={"service_response": value})
-    if cold and service == "search_playlists":
+    if (cold or discovery_cover) and service == "search_playlists":
         suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
+        playlist = {"uri": "spotify:playlist:" + suffix, "name": "Kold jazz " + suffix[:4]}
+        if discovery_cover and args["query"] == THEMES["cooking"]["query"]:
+            playlist["artwork"] = {
+                "provider": "spotify",
+                "kind": "playlist_cover",
+                "url": "https://i.scdn.co/image/InertFailedMoodCover",
+            }
         return httpx.Response(
             200,
             json={
@@ -140,9 +183,7 @@ async def native(request):
                     "query": args["query"],
                     "limit": 3,
                     "returned_count": 1,
-                    "playlists": [
-                        {"uri": "spotify:playlist:" + suffix, "name": "Kold jazz " + suffix[:4]}
-                    ],
+                    "playlists": [playlist],
                 }
             },
         )
@@ -290,7 +331,7 @@ base.music.tools._discovery = replace(
     | {
         "get_queue",
         "top_tracks",
-        *({"search_playlists"} if cold else set()),
+        *({"search_playlists"} if cold or discovery_cover else set()),
         "recently_played",
         "get_room_content_controls",
         "prepare_room_selected_content",
@@ -311,6 +352,8 @@ base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
 async def cleanup(_):
     await original_transport.aclose()
     await content.client.aclose()
+    if discovery_cover:
+        await image_client.aclose()
 
 
 if queue_journey:

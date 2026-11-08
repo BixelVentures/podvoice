@@ -66,6 +66,18 @@ test('live read-only player and radio routes open without granting local media o
  assert.equal(liveTimerRequest(snapshot,true,{type:'timer',id:timer.id,action:'cancel'}),null,'opening either route cannot manufacture a native action capability');
 });
 
+test('live weather access permits empty detail and requires a current capability', () => {
+ const event = {type: 'show', id: 'weather'};
+ const scene = {...initialScene(), liveWeather: null};
+ const snapshot = {bootId: 'boot', roomId: 'room', capabilities: {homeRead: ['weather']}};
+ assert.equal(liveLocalEvent(event, scene, snapshot), true);
+ const staleDenial = {...scene, homeReadStatus: {scope: '["old-boot","room"]', weather: 'denied'}};
+ assert.equal(liveLocalEvent(event, staleDenial, snapshot), true);
+ const cached = {...scene, liveWeather: {current: {temperature: 12}}};
+ assert.equal(liveLocalEvent(event, cached, {capabilities: {homeRead: ['vehicle']}}), false);
+ assert.equal(liveLocalEvent(event, cached), false);
+});
+
 test('native adjust requires exact current revision and native duration without history fallback',()=>{
  const row={id:'native',name:'Te',secondsLeft:30,status:'running',durationSeconds:100,sourceRevision:'9007199254740993'},s={voice:{},timers:{status:'observed',items:[row]},capabilities:{timerActions:['timer.adjust']}};const event={type:'timer',action:'adjust',id:'native',deltaSeconds:60};
  assert.deepEqual(liveTimerRequest(s,true,event),{action:'timer.adjust',args:{timer_id:'native',delta_seconds:60,expected_revision:row.sourceRevision}});assert.equal(liveScene(initialScene(),s).timer.duration,100);

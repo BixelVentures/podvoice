@@ -22,6 +22,36 @@ test('domain-unavailable weather is a weather read error while an independently 
 test('actual weather read denial clears private data and names only weather access, never global HA failure',async()=>{
  const h=host();h.liveTransport.home=async()=>response();await load.call(h);h.liveTransport.home=async()=>{throw Object.assign(Error('denied'),{code:'read_access_denied'});};await load.call(h);assert.equal(h.state.liveWeather,null);assert.equal(h.state.homeReadStatus.weather,'denied');assert.equal(model(h).emptyTitle,'Adgang til vejret mangler');assert.equal(model(h).connectionReason,null);assert.equal(h.liveTransport.connected,true);
 });
+test('weather detail stays closed after explicit owner denial', async t => {
+ const oldElement = globalThis.HTMLElement, oldRegistry = globalThis.customElements;
+ const registry = new Map();
+ globalThis.HTMLElement = class {};
+ globalThis.customElements = {define: (name, type) => registry.set(name, type), get: name => registry.get(name)};
+ try {
+  await import('../../podvoice/gatekeeper/static/podview/widget-view.js');
+  const {initialScene} = await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+  const {dispatch} = registry.get('pv-widget-host').prototype;
+  for (const denial of ['home read denied', 'transport recovery blocked']) {
+   await t.test(denial, async () => {
+    const h = host();
+    h.live = true;
+    h.state = {...initialScene(), ...h.state, focus: 'now'};
+    h.scheduleDevices = h.scheduleTick = () => {};
+    if (denial === 'home read denied') {
+     h.liveTransport.home = async () => { throw Object.assign(Error('denied'), {code: 'read_access_denied'}); };
+     await load.call(h);
+    } else {
+     h.liveTransport = {connected: false, recoveryBlocked: true};
+    }
+    dispatch.call(h, {type: 'show', id: 'weather'});
+    assert.equal(h.state.focus, 'now');
+   });
+  }
+ } finally {
+  globalThis.HTMLElement = oldElement;
+  globalThis.customElements = oldRegistry;
+ }
+});
 test('old transport/boot/room/generation failures cannot attach read-error status to a replacement owner',async()=>{
  for(const boundary of ['transport','boot','room','generation']){const h=host();let reject;h.liveTransport.home=()=>new Promise((yes,no)=>{reject=no;});const pending=load.call(h);if(boundary==='transport')h.liveTransport={connected:true};else if(boundary==='generation')h.liveHomeGeneration++;else h.liveSnapshot={...h.liveSnapshot,[boundary==='boot'?'bootId':'roomId']:'replacement'};reject(Error('old failure'));await pending;assert.equal(h.state.homeReadStatus,undefined);assert.equal(h.renders,0);}
 });

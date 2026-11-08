@@ -1,3 +1,7 @@
+## 2.0.148
+
+- Open authorized weather details after an initial source failure, recover in place, and preserve explicit access denial. Verify decoded local cover fallback without image generation.
+
 ## 2.0.147
 
 - Keep station choices usable during radio transitions, recover interrupted Find Music tabs, preserve loading geometry and same-item covers, and retain historical answer reading position when new answers arrive.

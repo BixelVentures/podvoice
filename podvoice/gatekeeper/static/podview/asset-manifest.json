@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "1ce6a97db7f419053c61e31833e33629648d0b546081e4f24d0fc8a6dfb0b363"
+      "sha256": "b5df7efcb43aa062ca2faeb7dc76ad5b0ab41931b7e8b55e7ea8764516226f61"
     },
     {
       "path": "podview.css",
@@ -647,7 +647,7 @@
     },
     {
       "path": "podvoice-view.js",
-      "sha256": "7894b8371da71dcc75cd0d62538d4b4175635924563d2d021ed22a3c8752e97e"
+      "sha256": "5301959db45c119f554f74c86a2d26dd73113e38081d08102edc4e9a6d3f7193"
     },
     {
       "path": "preview-scenes.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "9321b223c0332e98e03b8935ee1ab657d38d69774f88e87efaa95652fbd56930"
+      "sha256": "3a94fc91b419bebf27a38930ebae791f6133ae8bd1524f3b568866c102736947"
     },
     {
       "path": "workshop.css",

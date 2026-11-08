@@ -114,7 +114,53 @@ async function offlineFeedbackJourney(page,errors){
   page.on('response',async response=>{const file=new URL(response.url()).pathname;if(file.endsWith('/podview.bundle.js')&&response.status()===200&&!loadedBundle)loadedBundle=require('node:crypto').createHash('sha256').update(await response.body()).digest('hex');if(file.endsWith('/podview.css')&&response.status()===200&&!loadedCss)loadedCss=require('node:crypto').createHash('sha256').update(await response.body()).digest('hex');if(file==='/view/api/home'&&response.ok())homeResponses.push({at:Date.now(),value:await response.json()});});
   const capture=()=>page.locator('pv-widget-host').evaluate(h=>{const get=selector=>h.querySelector(selector),txt=selector=>get(selector)?.textContent?.trim()||'',view=get('#weather-view'),w=h.state.liveWeather;return {at:Date.now(),focus:h.state.focus,weather:w?{retrievedAt:w.retrievedAt,stateUpdatedAt:w.stateUpdatedAt,displayUntil:w.displayUntil,stale:w.stale===true,current:w.current,hourCount:w.hourly?.forecast?.length??0}:null,header:{temperature:txt('#header-weather strong'),detail:txt('#header-weather small')},home:{temperature:txt('#home-weather .home-temperature'),condition:txt('#home-weather .home-condition'),detail:txt('#home-weather small'),hourCount:get('#home-weather .home-forecast')?.children.length??0,stale:get('#home-weather')?.getAttribute('data-weather-stale')},detail:{visible:!!view&&!view.hidden,value:txt('#weather-view .weather-current strong'),text:view?.innerText??'',hours:view?.querySelector('.weather-hours')?.children.length??0,metadata:[...(view?.querySelectorAll('.weather-metadata>div')||[])].map(row=>({label:row.querySelector('dt')?.textContent,value:row.querySelector('dd')?.textContent}))}}});
   const save=async(name)=>{await page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})))});await page.screenshot({path:path.join(testEnv.artifactDir(),name+'.png')});const value=await capture();await fs.writeFile(path.join(testEnv.artifactDir(),name+'.json'),JSON.stringify(value,null,2));return value;};
-  const fresh=temperature=>page.waitForFunction(value=>{const h=document.querySelector('pv-widget-host');return h?.state.liveWeather?.current?.temperature===value&&!h.state.liveWeather.stale},temperature,{timeout:12000});
+  const fresh=(temperature,timeout=12000)=>page.waitForFunction(value=>{const h=document.querySelector('pv-widget-host');return h?.state.liveWeather?.current?.temperature===value&&!h.state.liveWeather.stale},temperature,{timeout});
+  if(process.env.WEATHER_COLD_OPEN_TEST==='1'){
+   await emit({weatherFail:true});
+   await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+   await testEnv.openOverview(page);
+   for(let n=0;!homeResponses.some(row=>row.value.weather?.status==='unavailable');n++){
+    if(n>=150)throw Error('cold weather owner failure did not reach the browser');
+    await sleep(100);
+   }
+   const card=page.locator('#home-weather');
+   await card.getByText('Vejret kunne ikke hentes',{exact:true}).waitFor({state:'visible'});
+   const home=await save('weather-cold-empty-home');
+   assert.equal(home.weather,null);
+   assert.equal(home.home.temperature,'');
+   assert.equal(home.home.hourCount,0);
+   assert.equal(home.header.temperature,'—');
+   assert.equal(home.header.detail,'Vejr ukendt');
+   assert(!/Sidst kendt/.test(home.home.condition));
+   await card.tap();
+   await page.locator('#weather-view').waitFor({state:'visible'});
+   const detail=await save('weather-cold-empty-detail');
+   assert.equal(detail.detail.value,'');
+   assert.equal(detail.detail.hours,0);
+   assert.equal(await page.locator(dailyRowsSelector).count(),0);
+   assert.match(detail.detail.text,/Der er ingen aktuelle vejroplysninger at vise/);
+   assert(!detail.detail.metadata.some(row=>['Hentet','Status'].includes(row.label)));
+   assert(homeResponses.every(row=>row.value.weather?.status!=='observed'&&!row.value.weather?.lastKnown));
+   const failed=await state();
+   assert(failed.weather.reads.length>0&&failed.weather.reads.every(row=>row.failed));
+   await emit({weatherRecover:true});
+   // With no observed entity yet, the bridge can only rediscover weather on its next home poll.
+   await fresh(19.6,22000);
+   const recovered=await save('weather-cold-recovered-detail');
+   assert.equal(recovered.focus,'weather');
+   assert.equal(recovered.detail.value,'20°');
+   assert(recovered.detail.hours>0);
+   const final=await state();
+   assert(final.weather.reads.some(row=>!row.failed));
+   assert.deepEqual(final.writes,[]);
+   assert.deepEqual(errors,[]);
+   assert(loadedBundle&&loadedCss);
+   if(expectedBundle)assert.equal(loadedBundle,expectedBundle);
+   if(expectedCss)assert.equal(loadedCss,expectedCss);
+   await fs.writeFile(path.join(testEnv.artifactDir(),'weather-cold-open-proof.json'),JSON.stringify({loadedBundle,loadedCss,home,detail,recovered,homeResponses,final,errors},null,2));
+   console.log(JSON.stringify({outcome:'PASS',mode:'weather-cold-open',loadedBundle,loadedCss,nativeWeatherReads:final.weather.reads.length,initialOwnerFailureWithoutHistory:true,recoveredInPlace:true,nativeEffects:0,pageErrors:errors}));
+   return;
+  }
   await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await fresh(15.1);for(let n=0;n<100&&(!loadedBundle||!loadedCss||!homeResponses.length);n++)await sleep(20);assert(loadedBundle&&loadedCss);if(expectedBundle)assert.equal(loadedBundle,expectedBundle);if(expectedCss)assert.equal(loadedCss,expectedCss);await fs.writeFile(path.join(testEnv.artifactDir(),'weather-loaded-pins.json'),JSON.stringify({loadedBundle,loadedCss},null,2));
   for(let n=0;(await state()).subscriptions<4;n++){if(n>100)throw Error('HA subscription ACKs missing');await sleep(50)}
   const original=homeResponses.find(row=>row.value.weather?.status==='observed')?.value.weather.data;assert(original?.observationScope?.entityId==='weather.inert');assert(original.hourly?.forecast.length>0);const originalRetrieved=original.retrievedAt;
