@@ -164,6 +164,9 @@ async def test_frozen_renewal_uses_chosen_query_and_never_substitutes(catalogue,
     assert first["ok"]
     bridge = c.rig.app[BRIDGE]
     retained = getattr(bridge, "_" + kind + "_retained")
+    # The binding key contains live owner handles, so preserve its identity in the snapshot.
+    binding_key = retained["key"]
+    expected_retained = copy.deepcopy(retained, {id(binding_key): binding_key})
     chosen = list(retained["queries"].values())
     assert sorted(chosen) == sorted(BROADER[kind])
     c.calls.clear()
@@ -174,7 +177,15 @@ async def test_frozen_renewal_uses_chosen_query_and_never_substitutes(catalogue,
     else:
         c.foreign.add(chosen[0])
     failed = await read(c.rig, kind=kind, renew=True)
-    assert failed["error"] == kind + "_refresh_required"
+    can_restart = kind == "feeling" and mutation in {"removed", "renamed"}
+    assert failed["ok"] is False
+    assert failed["error"] == (
+        "feeling_restart_available" if can_restart else f"{kind}_refresh_required"
+    )
+    if can_restart:
+        expected_retained["restart_allowed"] = True
+    assert retained == expected_retained
+    assert retained["key"] is binding_key
     assert sorted(c.calls) == sorted(chosen) and len(c.calls) == 3
     assert getattr(bridge, "_" + kind + "_retained") is retained
     assert retained["rows"] == first["data"]["tracks"]
