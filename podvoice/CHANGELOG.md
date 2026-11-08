@@ -1,5 +1,7 @@
 ## 2.0.153
 
+- Bevar robotrum og rengøringsvalg synligt under netudfald; genvalidér betjeningen automatisk uden genindlæsning eller automatisk Start.
+
 - Opdatér opskrifters åbne uploadhistorik uden at miste fokus; Prøv igen genbruger samme læsesløjfe og bevarer den godkendte visning.
 
 ## 2.0.152

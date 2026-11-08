@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "8096b90f90b44ba03b13b031c0e217a807686f46c35208ffa192f16925ba25b7"
+      "sha256": "25dfb2642a29ee829a39c05f291ece068da278f4c7a8d6e0fa3caa2be0b73d04"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "fe5d5566039a94e64ca3904bb64d223c0a80837fa93a30ad28c45809570c4442"
+      "sha256": "e3b986ee00b2418c5aed960812ff8f5967cf83a978b37de8b2c4d32027027a90"
     },
     {
       "path": "podview.css",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "c6f5cf5163cfa53f1ba2e7e7b0286504d14522f0ca46209d5a78e2676621e625"
+      "sha256": "d884be239ee410afb189ea06c9196feedfe70822d49432b348e48f1a23c1a3b4"
     },
     {
       "path": "workshop.css",

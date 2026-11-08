@@ -12,11 +12,12 @@ const runtimeRoot=testEnv.runtimeRoot;
 const manualRetryMode=process.env.MUSIC_MANUAL_RETRY_TEST==='1';
 const renewedControlsMode=process.env.MUSIC_RENEWED_CONTROLS_TEST==='1';
 const seekMode=process.env.MUSIC_SEEK_TEST==='1';
+const volumeDragMode=process.env.MUSIC_VOLUME_DRAG_TEST==='1';
 const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
 const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
 const multiScreenMode=process.env.MUSIC_MULTI_SCREEN_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode){
+if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||volumeDragMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode){
  process.env.MUSIC_EXTENDED='1';
 }
 let server,browser,data,servedBundleSHA,serverSuspended=false;
@@ -615,6 +616,110 @@ async function manualRetryJourney(page,errors){
   trustedTouch:true,failedSnapshot503:true,manualSnapshotReads:1,sameRecipeProgressAndChoices:true,
   samePausedMusicBinding:true,automaticActionPosts:0,nativeWritesDuringRetry:0,inertFinalService:true}));
 }
+async function volumeDragJourney(page,errors){
+ const slider=page.locator('#volume'),host=page.locator('pv-widget-host');
+ const before=await state(),latePercent=23,desired=82;
+ const owner=()=>host.evaluate(h=>{
+  const p=h.liveMedia.playback,b=p.roomBinding;
+  return {epoch:p.owner_epoch,binding:b.bindingId,room:b.nativeRoomId,homepod:b.nativeHomepodId};
+ });
+ const initialOwner=await owner();
+ await page.waitForFunction(percent=>{
+  const input=document.getElementById('volume');
+  return !input.disabled&&Number(input.value)===percent;
+ },before.volume,{timeout:5000});
+ await slider.evaluate(input=>{
+  const read=()=>({value:Number(input.value),label:document.getElementById('volume-value').textContent,
+   progress:input.style.getPropertyValue('--pv-slider-progress'),enabled:!input.disabled});
+  const probe=window.volumeDragProbe={read,inputs:[],changes:[],lateFrames:[]};
+  input.addEventListener('input',event=>probe.inputs.push({trusted:event.isTrusted,...read()}));
+  input.addEventListener('change',event=>probe.changes.push({trusted:event.isTrusted,...read()}));
+ });
+ const actions=()=>requests.filter(row=>row.url.endsWith('/control/actions'));
+ const endpoint='**/view/api/music?**';
+ let release,markHeld,holdTimeout,holding=true;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const held=new Promise(resolve=>{markHeld=resolve;});
+ const handler=async route=>{
+  if(!holding||new URL(route.request().url()).searchParams.get('kind')!=='playback')return route.continue();
+  holding=false;
+  const response=await route.fetch();
+  markHeld();
+  await gate;
+  await route.fulfill({response});
+ };
+ await page.route(endpoint,handler);
+ let inputs,lateFrames;
+ try{
+  const changed=await change({externalVolume:latePercent});
+  assert(changed.ok);
+  const {sequence}=await changed.json();
+  await Promise.race([held,new Promise((_,reject)=>{
+   holdTimeout=setTimeout(()=>reject(Error('earlier owner response was not held')),4000);
+  })]);
+  clearTimeout(holdTimeout);
+  assert.equal(Number(await slider.inputValue()),before.volume,'browser still displays the prior owner volume');
+  await testEnv.touchRange(page,slider,desired,{beforeRelease:async()=>{
+   inputs=await page.evaluate(()=>window.volumeDragProbe.inputs);
+   assert.equal(inputs.length,5,'every native move produced one trusted volume sample');
+   for(const [index,sample] of inputs.entries()){
+    const expected=before.volume+(desired-before.volume)*(index+1)/inputs.length;
+    assert(Math.abs(sample.value-expected)<=1,'thumb follows the finger at this move');
+    assert(sample.trusted&&sample.enabled);
+    assert.equal(sample.label,sample.value+' %');
+    assert.equal(sample.progress,sample.value+'%');
+    if(index)assert(sample.value>inputs[index-1].value,'each trusted move advances the thumb');
+   }
+   assert.equal(inputs.at(-1).value,desired);
+   assert.deepEqual(actions(),[],'held gesture has sent no action');
+   assert.deepEqual((await state()).writes,before.writes);
+   assert.equal(await host.evaluate(h=>h.liveMedia.playback.controls.volume.base_percent),before.volume,
+    'earlier owner response is still in flight while the gesture is held');
+   await page.evaluate(()=>{
+    const probe=window.volumeDragProbe;
+    const sample=()=>{probe.lateFrames.push(probe.read());probe.frame=requestAnimationFrame(sample);};
+    sample();
+   });
+   release();
+   await page.waitForFunction(({sequence,latePercent})=>{
+    const p=document.querySelector('pv-widget-host').liveMedia.playback;
+    return p.poll_sequence===sequence&&p.controls.volume.base_percent===latePercent;
+   },{sequence,latePercent},{timeout:5000});
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   lateFrames=await page.evaluate(()=>{
+    const probe=window.volumeDragProbe;cancelAnimationFrame(probe.frame);return probe.lateFrames;
+   });
+   assert(lateFrames.length>=3);
+   for(const frame of lateFrames){
+    assert.deepEqual(frame,{value:desired,label:desired+' %',progress:desired+'%',enabled:true},
+     'earlier owner observation must not repaint a held thumb');
+   }
+   assert.deepEqual(await owner(),initialOwner);
+   assert.deepEqual(actions(),[],'late owner observation did not commit the gesture');
+  }});
+ }finally{
+  clearTimeout(holdTimeout);
+  release();
+  await page.unroute(endpoint,handler);
+ }
+ await page.waitForFunction(percent=>{
+  const h=document.querySelector('pv-widget-host'),p=h.liveMedia.playback;
+  return p.controls.volume.base_percent===percent&&!h.liveControls.musicIntentPending
+   &&h.liveControls.musicFence?.settlementStatus==='confirmed'&&Number(document.getElementById('volume').value)===percent;
+ },desired,{timeout:10000});
+ assert.deepEqual(await owner(),initialOwner);
+ assert.deepEqual(await page.evaluate(()=>window.volumeDragProbe.changes.map(({trusted,value})=>[trusted,value])),[[true,desired]]);
+ assert.deepEqual(actions().map(({body})=>[body.action,body.args.percent]),[['volume',desired]]);
+ const writes=(await state()).writes.slice(before.writes.length);
+ assert.deepEqual(writes.map(({action,room,homepod,percent})=>({action,room,homepod,percent})),
+  [{action:'volume',room:initialOwner.room,homepod:initialOwner.homepod,percent:desired}]);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',story:'A4',servedBundleSHA,inputs,latePercent,lateFrames,
+  owner:initialOwner,finalPercent:desired,nativeWrites:writes,inertFinalService:true,physicalAudioVerified:false};
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-volume-drag.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 async function renewedControlsJourney(page,errors){
  const host=page.locator('pv-widget-host');
  const original=await host.evaluate(h=>h.liveMedia.playback.roomBinding);
@@ -820,7 +925,7 @@ async function longSession(page,errors){
    diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')});
   }
  });
- if(renewedControlsMode||multiScreenMode||manualRetryMode)await page.route('**/*',route=>
+ if(renewedControlsMode||multiScreenMode||manualRetryMode||volumeDragMode)await page.route('**/*',route=>
   new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
@@ -843,6 +948,7 @@ async function longSession(page,errors){
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
  if(manualRetryMode){await manualRetryJourney(page,errors);return;}
  if(renewedControlsMode){await renewedControlsJourney(page,errors);return;}
+ if(volumeDragMode){await volumeDragJourney(page,errors);return;}
  if(seekMode){await seekJourney(page,errors);return;}
  if(speakerRefreshMode){await speakerRefreshJourney(page,errors);return;}
  if(outputTransferMode){await outputTransferJourney(page,errors);return;}

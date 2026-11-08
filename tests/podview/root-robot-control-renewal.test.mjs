@@ -48,3 +48,37 @@ test('dirty partial draft is sent only for renewal and rebound solely through ow
 test('not_restored requires fresh choices while permitting new offered authority',async()=>{const f=fixture();try{await open(f);const panel=f.view.robotPanel;panel.cleaningDirty=true;panel.cleaningOptionId='old-start';panel.readCleaningDraft=()=>({areaIds:[],repeat:1,settingChoices:[]});expire(f);const reading=f.view.refreshRobot(),response=f.offer('fresh');response.setup.draft={status:'not_restored'};f.next.resolve(response);await reading;assert.equal(f.view.robotPanel,panel);assert.equal(panel.disabled,false);assert.equal(f.view.task.taskId,'fresh');assert.equal(f.view.task.draft.status,'not_restored');assert.equal(f.writes(),0);assert.match(f.view.note.textContent,/kunne ikke genskabes/);await f.view.send('old-start',{areaIds:['old-area'],repeat:1});assert.equal(f.writes(),0);await f.view.send('fresh-start',{areaIds:['fresh-area'],repeat:1});assert.equal(f.writes(),1);}finally{f.view.cleanup();}});
 test('inline expiry automatically renews once without re-enabling expired controls or replaying action',async()=>{const f=fixture();try{await open(f);f.host.state.focus=target.entityId;f.view.robotInline=true;f.view.robotEntry=new Node('section');f.view.robotEntry.hidden=false;const panel=f.view.robotPanel;expire(f);assert.equal(panel.disabled,true);assert.equal(f.view.refreshButton.hidden,true);await Promise.resolve();assert.equal(f.reads(),2);assert.equal(f.writes(),0);f.next.resolve(f.offer('fresh'));await new Promise(resolve=>setTimeout(resolve,0));assert.equal(f.view.task.taskId,'fresh');assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
 test('inline automatic renewal cannot admit offer after unknown or navigation',async()=>{for(const changed of ['unknown','navigation']){const f=fixture();try{await open(f);f.host.state.focus=target.entityId;f.view.robotInline=true;f.view.robotEntry=new Node('section');f.view.robotEntry.hidden=false;expire(f);await Promise.resolve();if(changed==='unknown')f.view.receipts.set('x',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});else f.host.state.focus='other';f.next.resolve(f.offer('fresh'));await new Promise(resolve=>setTimeout(resolve,0));assert.equal(f.view.task,null);assert.equal(f.writes(),0);}finally{f.view.cleanup();}}});
+
+for(const changed of ['boot','room','target','transport','revoked','blocked','unknown']){
+ test(`offline draft loses presentation custody on ${changed}`,async()=>{
+  const f=fixture();
+  try{
+   await open(f);
+   const panel=f.view.robotPanel;
+   panel.cleaningDirty=true;
+   panel.cleaningOptionId='old-start';
+   panel.readCleaningDraft=()=>({areaIds:['old-area'],repeat:2,settingChoices:[]});
+   const transport=f.host.liveTransport;
+   transport.snapshot=f.host.liveSnapshot;
+   transport.connected=false;
+   f.view.connectionLost();
+   assert.equal(f.view.expiredRobot?.draft.repeat,2);
+   assert.equal(panel.disabled,true);
+   assert.equal(f.view.task,null);
+   if(changed==='boot'||changed==='room'){
+    const key=changed==='boot'?'bootId':'roomId';
+    transport.snapshot={...f.host.liveSnapshot,[key]:'changed'};
+   }
+   if(changed==='target')f.view.target={entityId:'vacuum.other'};
+   if(changed==='transport')f.host.liveTransport={...transport};
+   if(changed==='revoked')transport.snapshot={...f.host.liveSnapshot,capabilities:{controlSetup:[]}};
+   if(changed==='blocked')transport.recoveryBlocked=true;
+   if(changed==='unknown')f.view.receipts.set('unknown',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});
+   f.view.render();
+   assert.equal(f.view.expiredRobot,null);
+   assert.equal(f.view.canRefreshRobot(),false);
+   assert.equal(f.reads(),1);
+   assert.equal(f.writes(),0);
+  }finally{f.view.cleanup();}
+ });
+}

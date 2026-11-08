@@ -33,6 +33,7 @@ repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 voice_journey = base.voice_journey
 queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey
 queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
+account_rollover = os.environ.get("MUSIC_ACCOUNT_ROLLOVER_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
 discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
@@ -60,6 +61,8 @@ base.state.update(
     queueSelections=[],
     nativeCalls=[],
 )
+if account_rollover:
+    base.state.update(state="playing", song=30, queue=[31, 32])
 if recent_session:
     tracks[0].update(
         name="Coming Home",
@@ -178,6 +181,29 @@ async def native(request):
     args = json.loads(request.content)
     service = request.url.path.rsplit("/", 1)[-1]
     base.state["nativeCalls"].append({"service": service, "args": args})
+    if account_rollover and service == "get_targets" and not args.get("config_entry_id"):
+        return httpx.Response(
+            200,
+            json={
+                "service_response": {
+                    "accounts": [
+                        {"config_entry_id": "account", "title": "Testkonto A"},
+                        {"config_entry_id": "account-b", "title": "Testkonto B"},
+                    ]
+                }
+            },
+        )
+    if account_rollover and service == "get_playback_snapshot":
+        account = args["config_entry_id"]
+        value = base.observation(args)
+        if account == "account-b":
+            value.update(config_entry_id=account, owner_epoch="b" * 32)
+        else:
+            assert account == "account"
+            value["playback"]["item"].update(
+                uri=f"spotify:track:{10:022d}", name="Isoleret sang 10"
+            )
+        return httpx.Response(200, json={"service_response": value})
     if (cold or recent_session) and service == "get_targets" and args.get("config_entry_id"):
         response = await base.native_service(request)
         value = response.json()["service_response"]
@@ -334,6 +360,16 @@ async def native(request):
         if queue_identity and base.state["room"] == "bedroom":
             value["native"]["session_id"] = value["queue"]["session_id"] = "bedroom-session"
             value["route"]["session_epoch"] = "2"
+        queue = base.state["queue"]
+        if account_rollover:
+            account = args["config_entry_id"]
+            assert account in {"account", "account-b"}
+            if account == "account-b":
+                value.update(config_entry_id=account, owner_epoch="b" * 32)
+                value["native"].update(account_user_id="native-account-b", session_id="session-b")
+                value["queue"]["session_id"] = "session-b"
+            else:
+                queue = [11, 12]
         value["items"] = [
             {
                 "option_id": f"{i:024x}",
@@ -348,7 +384,7 @@ async def native(request):
                     else {}
                 ),
             }
-            for index, i in enumerate(base.state["queue"])
+            for index, i in enumerate(queue)
         ]
         value["returned_count"] = len(value["items"])
         return httpx.Response(200, json={"service_response": value})
@@ -373,7 +409,7 @@ async def native(request):
             base.state["queueEffectAtMs"] = time.time_ns() / 1_000_000
         if voice_journey:
             base.music.value["route"].update(route_revision="4", input_item_id="7")
-        if queue_journey or base.output_transfer:
+        if queue_journey or base.output_transfer or account_rollover:
             base.state["queue"] = base.state["queue"][index + 1 :]
             if queue_cold_tail and song == 22:
                 base.state["queue"].append(25)
@@ -424,6 +460,10 @@ base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
 )
 if base.output_transfer:
     base.app[BRIDGE].controls.policy["music"][1]["actions"].append("play_queue_occurrence")
+if account_rollover:
+    rule = copy.deepcopy(base.app[BRIDGE].controls.policy["music"][0])
+    rule.update(accountId="account-b", default=False)
+    base.app[BRIDGE].controls.policy["music"].append(rule)
 
 
 if voice_journey:

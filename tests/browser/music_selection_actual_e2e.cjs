@@ -13,6 +13,7 @@ const queueUnknownUnchanged = process.env.MUSIC_QUEUE_INTENTS === 'unknown-uncha
 const queueUnknown = process.env.MUSIC_QUEUE_INTENTS === 'unknown' || queueUnknownUnchanged;
 const queueIntents = process.env.MUSIC_QUEUE_INTENTS === '1' || queueIntentDuringRefresh || queueUnknown;
 const queueIdentity=process.env.MUSIC_QUEUE_IDENTITY_TEST==='1';
+const accountRollover=process.env.MUSIC_ACCOUNT_ROLLOVER_TEST==='1';
 const queueJourney = queueIdentity || process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
 const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
 const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
@@ -565,6 +566,96 @@ async function discoveryCoverJourney(){
   JSON.stringify(fallbackProof,null,2));
  console.log(JSON.stringify(fallbackProof));
 }
+async function accountRolloverJourney(){
+ const host=page.locator('pv-widget-host');
+ const accounts=page.locator('pv-choice-list[aria-label="Musikkonto"]');
+ const queue=page.locator('#queue');
+ const rows=queue.locator('button.queue-track[data-current="false"]');
+ const names=()=>rows.locator('.queue-copy strong').allTextContents();
+ const playback=()=>host.evaluate(h=>{
+  const {account,playback:p}=h.liveMedia;
+  return {account,observedAccount:p?.config_entry_id,owner:p?.owner_epoch,title:p?.item?.name,
+   room:p?.roomBinding?.nativeRoomId,homepod:p?.roomBinding?.nativeHomepodId,
+   binding:p?.roomBinding?.bindingId};
+ });
+ const endpoint='**/view/api/music/queue/offer';
+ let release,markHeld;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const held=new Promise(resolve=>{markHeld=resolve;});
+ const capture=async route=>{
+  if(route.request().postDataJSON()?.accountId!=='account')return route.continue();
+  const requestedAt=Date.now();
+  const response=await route.fetch();
+  markHeld({body:await response.json(),requestedAt});
+  await gate;
+  await route.fulfill({response});
+ };
+ await page.route(endpoint,capture);
+ let timeout,lateAgeMs,lateTTL;
+ try{
+  await page.locator('#home-music').tap();
+  await accounts.getByRole('button',{name:'Testkonto A',exact:true}).tap();
+  const {body:late,requestedAt}=await Promise.race([held,new Promise((_,reject)=>{
+   timeout=setTimeout(()=>reject(Error('Account A queue was never held')),10000);
+  })]);
+  const a=await playback();
+  assert.equal(a.account,'account');
+  assert.equal(a.observedAccount,'account');
+  assert.equal(a.title,'Isoleret sang 10');
+  assert.equal(late.ok,true);
+  assert.equal(late.accountId,'account');
+  assert.equal(late.expectedBindingId,a.binding);
+  assert.deepEqual(late.items.map(item=>item.title),['Køsang 11','Køsang 12']);
+
+  await accounts.getByRole('button',{name:'Testkonto B',exact:true}).tap();
+  await page.waitForFunction(()=>document.getElementById('track-name')?.textContent==='Isoleret sang 30');
+  await page.locator('#track').tap();
+  await rows.filter({hasText:'Køsang 31'}).waitFor({state:'visible'});
+  const b=await playback();
+  assert.equal(b.account,'account-b');
+  assert.equal(b.observedAccount,'account-b');
+  assert.notEqual(b.owner,a.owner);
+  assert.deepEqual([a.room,a.homepod,b.room,b.homepod],['native-room','42','native-room','42']);
+  assert.deepEqual(await names(),['Køsang 31','Køsang 32']);
+  const current=await host.evaluate(h=>{
+   window.g5CurrentOffer=h.liveMedia.queueControls.offer;
+   return {account:window.g5CurrentOffer.accountId,
+    seq:h.liveTransport.diagnostics().records.at(-1)?.seq??0};
+  });
+  assert.equal(current.account,'account-b');
+  lateTTL=late.expiresInMs;
+  release();
+  await page.waitForFunction(seq=>document.querySelector('pv-widget-host')?.liveTransport
+   .diagnostics().records.some(row=>row.seq>seq&&row.stage==='queue_read'
+    &&row.code==='superseded'&&row.current===false),
+  current.seq,{timeout:5000});
+  lateAgeMs=Date.now()-requestedAt;
+  assert(lateAgeMs<lateTTL,'Browser must discard A before the original offer expires');
+  assert.deepEqual(await playback(),b);
+  assert(await host.evaluate(h=>h.liveMedia.queueControls.offer===window.g5CurrentOffer));
+  assert.deepEqual(await names(),['Køsang 31','Køsang 32']);
+  assert.equal(await rows.and(queue.locator('button:enabled')).count(),2);
+  assert.deepEqual((await state()).writes,[]);
+  assert.deepEqual(actions.filter(row=>!row.url.endsWith('/queue/offer')),[]);
+ }finally{clearTimeout(timeout);release();await page.unroute(endpoint,capture);}
+
+ await rows.filter({hasText:'Køsang 31'}).tap();
+ await page.waitForFunction(()=>document.getElementById('track-name')?.textContent==='Isoleret sang 31');
+ const owner=await state();
+ const attempts=owner.nativeCalls.filter(row=>['prepare_room_queue','control_room_queue'].includes(row.service));
+ assert.deepEqual(attempts.map(({service,args})=>[service,args.config_entry_id,args.room_id,args.homepod_id]),[
+  ['prepare_room_queue','account-b','native-room','42'],
+  ['control_room_queue','account-b','native-room','42'],
+ ]);
+ assert.deepEqual(owner.writes.map(row=>row.song),[31]);
+ assert.equal(actions.filter(row=>row.url.endsWith('/queue/actions')).length,1);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',story:'G5',bundleSHA,lateAgeMs,lateTTL,oldQueueDiscarded:true,
+  fixedOutput:['native-room','42'],oldAccountEffects:0,newAccountEffects:1,inertNativeService:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-account-rollover-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 async function queueIdentityJourney(){
  const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current="false"]');
  const track=page.locator('#track'),host=page.locator('pv-widget-host');
@@ -995,10 +1086,10 @@ async function queuePersistenceJourney(){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover)options.args=['--mute-audio'];
  browser=await chromium.launch(options);
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
- if(queueIdentity){
+ if(queueIdentity||accountRollover){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
@@ -1006,7 +1097,15 @@ async function queuePersistenceJourney(){
    }
   });
  }
- page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(r.url().includes('/music/selection/')||r.url().includes('/music/queue/')||cold&&r.url().includes('/music?')&&new URL(r.url()).searchParams.get('kind')==='mood')responses.push({url:r.url(),status:r.status(),body:await r.text()})});
+ page.on('pageerror',e=>errors.push(e.message));
+ page.on('response',async r=>{
+  const url=r.url();
+  if(url.endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');
+  if(!accountRollover&&(url.includes('/music/selection/')||url.includes('/music/queue/')
+    ||cold&&url.includes('/music?')&&new URL(url).searchParams.get('kind')==='mood')){
+   responses.push({url,status:r.status(),body:await r.text()});
+  }
+ });
  page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/music/'))actions.push({url:r.url(),body:r.postDataJSON(),traceHeader:r.headers()['x-podview-trace']});if(previewRenew&&r.method()==='GET'&&r.url().includes('/music?')){const url=new URL(r.url());if(url.searchParams.get('kind')==='mood'&&url.searchParams.get('renew')==='1')moodRenewals.push(r.headers()['x-podview-trace']);}});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  if(defaultSpeakerProof){await defaultSpeakerJourney();return;}
@@ -1139,6 +1238,7 @@ async function queuePersistenceJourney(){
  }
  await env.openOverview(page);
  if(voiceJourney){await voiceQueueJourney();return;}
+ if(accountRollover){await accountRolloverJourney();return;}
  if(queueIdentity){await queueIdentityJourney();return;}
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}
