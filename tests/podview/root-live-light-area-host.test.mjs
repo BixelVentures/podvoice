@@ -51,24 +51,25 @@ test('an own-area push preserves a separately browsed foreign area',async()=>{
   assert.equal(host.currentLightDevice(),detail);
  }finally{f.cleanup();}
 });
-test('a held scoped cache hit cannot revive authority after an unavailable own-area response',async()=>{
+for(const selectedArea of ['own','other'])test(`held own-area response cannot revive stale authority from ${selectedArea}`,async()=>{
  const f=fixture(),{host}=f;
  try{
   const initial=f.response('own');
   initial.lights.observedAt--;initial.lights.validUntil--;
-  host.liveTransport.home=async()=>initial;
+  host.liveTransport.home=async({lightArea})=>lightArea==='own'?initial:f.response(lightArea);
   host.state=applyHome(host.state,validateHome(initial,'controller','boot'),['light']);
-  await host.readLightArea('own');
+  await host.readLightArea(selectedArea);
   let finish;
   host.liveTransport.home=()=>new Promise(resolve=>finish=resolve);
   const held=host.readLightArea('own');
   const missing={...validateHome(initial,'controller','boot'),revision:3,lights:{status:'unavailable'}};
   host.state=applyHome(host.state,missing,['light']);
-  const stale=host.currentLightDevice();
-  assert.equal(stale.stale,true);
+  const selected=host.currentLightDevice();
+  assert.equal(host.state.devices[0].stale,true);
+  assert.equal(selected.lightScope.areaId,selectedArea);
   finish(initial);
   assert.equal(await held,false);
-  assert.equal(host.currentLightDevice(),stale);
+  assert.equal(host.currentLightDevice(),selected);
   const recovered=structuredClone(initial);
   recovered.lights.observedAt++;recovered.lights.validUntil++;
   host.liveTransport.home=async()=>recovered;

@@ -494,15 +494,20 @@ class WidgetHost extends HTMLElement {
  }
  async readLightArea(areaId,{preserveControls=false}={}){
   const context=this.lightAreaContext();if(!context||!lightAreasObservation(context.areas)||!context.areas.items.some(row=>row.areaId===areaId))return;
-  const displayedAtStart=this.currentLightDevice();
+  const observedArea=()=>{
+   const displayed=this.currentLightDevice();
+   if(displayed?.lightScope?.areaId===areaId)return displayed;
+   return this.state.devices.find(device=>device.kind==='light'&&device.lightScope?.areaId===areaId);
+  };
+  const observedAtStart=observedArea();
   if(preserveControls&&this.currentLightDevice()?.lightScope?.areaId!==areaId)return false;const focus=this.state.focus;let adopted=false;const generation=this.lightAreaGeneration=(this.lightAreaGeneration||0)+1,attempt={context,focus,areaId,generation};this.lightReadAttempt=attempt;this.lightAreaScope=context;if(!preserveControls){this.lightAreaPending=true;this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Henter et andet lysområde.',false);this.liveControls.dialog.close();}}this.render();
   const current=()=>{const now=this.lightAreaContext();return generation===this.lightAreaGeneration&&this.state.focus===focus&&now?.key===context.key&&now.transport===context.transport&&(!preserveControls||this.currentLightDevice()?.lightScope?.areaId===areaId);};
   try{const body=await context.transport.home({lightArea:areaId});if(!current())return;const home=validateHome(body,context.room,context.boot),areas=home.lightAreas,device=scopedLightDevice(home.lights,home.revision);
    if(!device||device.lightScope.areaId!==areaId||!areas||areas.sourceEpoch!==context.areas.sourceEpoch||areas.bindingId!==context.areas.bindingId||areas.placementRevision!==context.areas.placementRevision||areas.ownAreaId!==context.areas.ownAreaId||JSON.stringify(areas.items)!==JSON.stringify(context.areas.items))throw Error('light_area_changed');
-   const displayed=this.currentLightDevice();
-   if(displayed?.lightScope?.areaId===areaId){
-    if(displayed.observedAt>device.observedAt)return false;
-    if(displayed.stale&&(displayed!==displayedAtStart||displayed.observedAt===device.observedAt))return false;
+   const observed=observedArea();
+   if(observed){
+    if(observed.observedAt>device.observedAt)return false;
+    if(observed.stale&&(observed!==observedAtStart||observed.observedAt===device.observedAt))return false;
    }
    // Browsing may only replace the light detail, never overview, weather or output.
    this.state={...this.state,liveLightDetail:device};adopted=true;try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
