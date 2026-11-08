@@ -21,7 +21,19 @@ let server,browser;
  await update({holdRead:true});await page.getByRole('button',{name:'Opdater lys'}).tap();for(let n=0;!(await state()).readHeld;n++){if(n>30)throw Error('light read not held');await sleep(25)}
  await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='s2',undefined,{timeout:1500});assert(await row.isVisible(),'light control remains visible during voice update and held read');await update({releaseRead:true});await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return !h.lightAreaPending&&!h.liveHomePending},undefined,{timeout:8000});
  assert(await row.isEnabled(),'light controls remain enabled after unrelated voice turn');assert.equal((await state()).writes.length,0);
+ await row.evaluate(element=>{
+  element.addEventListener('click',()=>{
+   const start=performance.now();
+   new MutationObserver((_,observer)=>{
+    if(element.getAttribute('aria-busy')!=='true')return;
+    window.lightFeedbackMs=performance.now()-start;observer.disconnect();
+   }).observe(element,{attributes:true,attributeFilter:['aria-busy']});
+  },{once:true,capture:true});
+ });
  await update({holdIntent:true});await row.tap();for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('intent not held');await sleep(25)}
+ const roomFeedbackMs=await page.evaluate(()=>window.lightFeedbackMs);
+ assert(roomFeedbackMs>=0&&roomFeedbackMs<100,`room button responds during the held HA command: ${roomFeedbackMs} ms`);
+ assert.equal(await row.getAttribute('aria-pressed'),'true','pending feedback is distinct from observed room power');
  assert.equal((await state()).writes.length,1);await update({voice:true,voiceSession:'s3'});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='s3',undefined,{timeout:2000});await update({releaseIntent:true});
  await page.waitForFunction(()=>{const b=document.querySelector('.light-room-power');return b&&!b.disabled&&b.getAttribute('aria-label')==='Tænd alle lys i Køkkenet'},undefined,{timeout:5000});
  assert.equal((await state()).writes.length,1);assert.equal((await state()).writes[0].name,'HassTurnOff');assert.equal((await state()).light.state,'off');
@@ -29,12 +41,57 @@ let server,browser;
  assert.equal((await state()).writes.length,2);assert.equal((await state()).writes[1].name,'HassTurnOn');assert.equal((await state()).light.state,'on');
  console.log('afterOn',await page.locator('#device-view').innerText());
  await page.locator('#light-lamps-trigger').tap();console.log('lamps',await page.locator('#device-view').innerText());
- const slider=page.locator('input[type=range]:visible').first();await slider.waitFor({timeout:5000});await env.touchRange(page,slider,49,{thumbSize:32});
+ const slider=page.locator('input[type=range]:visible').first();await slider.waitFor({timeout:5000});
+ await update({holdIntent:true});
+ await env.touchRange(page,slider,49,{thumbSize:32,beforeRelease:async()=>{
+  assert.equal(await slider.inputValue(),'49','active finger drag previews the selected level');
+ }});
+ for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('brightness intent not held');await sleep(25)}
+ assert.equal(await slider.inputValue(),'49','released slider keeps selected brightness during the held response');
+ assert.equal(await slider.locator('..').getAttribute('data-field-state'),'pending');
+ await update({releaseIntent:true});
  for(let n=0;(await state()).writes.length<3;n++){if(n>100)throw Error('brightness command not sent');await sleep(100)}
  assert.equal((await state()).writes.length,3);assert.equal((await state()).writes[2].name,'HassLightSet');assert.equal((await state()).writes[2].args.brightness,49);await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),v=h?.currentLightDevice()?.observedLights?.[0];return v?.brightness===125},undefined,{timeout:5000});assert.deepEqual((await state()).writes.map(w=>w.args.name),['light.kitchen_ceiling','light.kitchen_ceiling','light.kitchen_ceiling']);
- assert.equal((await state()).writes.length,3);assert.deepEqual(errors,[]);await page.screenshot({path:path.join(env.artifactDir(),'podview-light-success.png')});
+ for(let n=0;!(await state()).sourceConnected;n++){
+  if(n>100)throw Error('inert HA event subscription not connected');
+  await sleep(25);
+ }
+ const externalStarted=performance.now();
+ await update({externalLight:{state:'off'}});
+ await page.waitForFunction(()=>document.querySelector('.light-room-power')?.getAttribute('aria-pressed')==='false',
+  undefined,{timeout:1500});
+ const externalChangeMs=performance.now()-externalStarted;
+ assert(externalChangeMs<1500,`external source → room display took ${externalChangeMs} ms`);
+ assert.equal(await slider.inputValue(),'0');
+ await update({externalLight:{state:'unavailable',brightness:null}});
+ await page.waitForFunction(()=>document.querySelector('.light-lamp-state')?.textContent==='Ikke tilgængelig');
+ assert.equal(await row.isEnabled(),false,'unknown room state revokes room power authority');
+ assert.equal(await slider.isEnabled(),false,'missing lamp state revokes brightness authority');
+ await page.context().setOffline(true);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.browserOffline===true);
+ await update({externalLight:{state:'on',brightness:153}});
+ await page.context().setOffline(false);
+ await page.waitForFunction(()=>{
+  const host=document.querySelector('pv-widget-host');
+  return host?.liveTransport?.connected&&!host.browserOffline;
+ });
+ await page.locator('#header-title-action').tap();
+ await card.waitFor({state:'visible'});
+ await card.tap();
+ await row.waitFor({state:'visible'});
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('.light-room-power');
+  return button&&!button.disabled&&button.getAttribute('aria-pressed')==='true';
+ },undefined,{timeout:10000});
+ if(await page.locator('#light-lamps-trigger').getAttribute('aria-expanded')!=='true'){
+  await page.locator('#light-lamps-trigger').tap();
+ }
+ assert.equal(await slider.inputValue(),'60','reopened scope displays the latest observed brightness');
+ assert.equal((await state()).writes.length,3,'passive reads, outage, reconnect and reopening never send an effect');
+ assert.deepEqual(errors,[]);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-light-success.png')});
  const servedBundle=await fetch(base+'/view/podview.bundle.js').then(r=>r.arrayBuffer()),servedBundleSha256=crypto.createHash('sha256').update(Buffer.from(servedBundle)).digest('hex');
- console.log(JSON.stringify({servedBundleSha256,voiceDuringHeldIntent:true,outcome:'PASS',actualPackagedPodView:true,actualBridgeAndToolRouter:true,inertHABoundary:true,musicUnconfigured:true,navigationEffects:0,intents:(await state()).writes,voiceDuringHeldRead:true}));
+ console.log(JSON.stringify({servedBundleSha256,roomFeedbackMs,externalChangeMs,voiceDuringHeldIntent:true,outcome:'PASS',actualPackagedPodView:true,actualBridgeAndToolRouter:true,inertHABoundary:true,musicUnconfigured:true,navigationEffects:0,intents:(await state()).writes,voiceDuringHeldRead:true}));
  }catch(error){const page=browser?.contexts()[0]?.pages()[0];if(page){await page.screenshot({path:path.join(env.artifactDir(),'podview-light-failure.png')});console.log('failureState',JSON.stringify({server:await state(),ui:await page.locator('body').innerText(),host:await page.locator('pv-widget-host').evaluate(h=>({light:h.currentLightDevice(),areas:h.state.lightAreas,problem:h.lightReadProblem?.text,feedback:h.liveControls?.lightActionState}))}));}throw error}
  finally{if(browser)await browser.close();if(server&&server.exitCode===null){const done=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await done;}}
 })().catch(e=>{console.error(e);process.exitCode=1});

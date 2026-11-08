@@ -494,10 +494,16 @@ class WidgetHost extends HTMLElement {
  }
  async readLightArea(areaId,{preserveControls=false}={}){
   const context=this.lightAreaContext();if(!context||!lightAreasObservation(context.areas)||!context.areas.items.some(row=>row.areaId===areaId))return;
+  const displayedAtStart=this.currentLightDevice();
   if(preserveControls&&this.currentLightDevice()?.lightScope?.areaId!==areaId)return false;const focus=this.state.focus;let adopted=false;const generation=this.lightAreaGeneration=(this.lightAreaGeneration||0)+1,attempt={context,focus,areaId,generation};this.lightReadAttempt=attempt;this.lightAreaScope=context;if(!preserveControls){this.lightAreaPending=true;this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Henter et andet lysområde.',false);this.liveControls.dialog.close();}}this.render();
   const current=()=>{const now=this.lightAreaContext();return generation===this.lightAreaGeneration&&this.state.focus===focus&&now?.key===context.key&&now.transport===context.transport&&(!preserveControls||this.currentLightDevice()?.lightScope?.areaId===areaId);};
   try{const body=await context.transport.home({lightArea:areaId});if(!current())return;const home=validateHome(body,context.room,context.boot),areas=home.lightAreas,device=scopedLightDevice(home.lights,home.revision);
    if(!device||device.lightScope.areaId!==areaId||!areas||areas.sourceEpoch!==context.areas.sourceEpoch||areas.bindingId!==context.areas.bindingId||areas.placementRevision!==context.areas.placementRevision||areas.ownAreaId!==context.areas.ownAreaId||JSON.stringify(areas.items)!==JSON.stringify(context.areas.items))throw Error('light_area_changed');
+   const displayed=this.currentLightDevice();
+   if(displayed?.lightScope?.areaId===areaId){
+    if(displayed.observedAt>device.observedAt)return false;
+    if(displayed.stale&&(displayed!==displayedAtStart||displayed.observedAt===device.observedAt))return false;
+   }
    // Browsing may only replace the light detail, never overview, weather or output.
    this.state={...this.state,liveLightDetail:device};adopted=true;try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
    if(this.lightReadProblem?.areaId===areaId&&this.lightReadProblem.scopeKey===context.key&&this.lightReadProblem.transport===context.transport)this.lightReadProblem=null;
@@ -534,13 +540,20 @@ class WidgetHost extends HTMLElement {
   this.renderLightStatus(light);
   const local=!this.live&&light?.exampleOnly===true&&!light.live,selection=local?lightSelection(light):null,area=local?selection?.roomId:light?.lightScope?.areaId;
   const scenes=(light?.lightScenes||[]).filter(row=>!local||row.roomId===area),visible=!!(scenes.length&&(!local||selection?.kind==='room'));
+  const preview=local&&light.feedbackPreview?.revision===light.revision?light.feedbackPreview:null;
+  const receipt=this.live?this.liveControls?.lightActionState:preview;
+  const receiptCurrent=!!light&&!!receipt&&!receipt.late&&!light.stale&&receipt.target?.areaId===area
+   &&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.()===true);
+  const phase=receiptCurrent?receipt.phase:'';
+  this.lightCommandFeedback=['preparing','sending'].includes(phase)?receipt:null;
   if(!this.lightScenes){
    const section=document.createElement('section'),heading=document.createElement('h3'),choices=document.createElement('div'),status=this.lightSceneStatus;section.className='light-scenes';heading.textContent='Scener';applyKitTextRole(heading,'section-title');choices.className='light-scene-choices';status.setAttribute('aria-live','polite');
    const field=createKitSliderField({document,id:'light-scene-level',label:'Lysstyrke',identity:'light',getContext:()=>this.lightSceneBinding?{...this.lightSceneBinding}:null,onCommit:(value,binding)=>{if(!binding)return;const current=this.currentLightDevice();if(binding.sessionId!==this.state.sessionId||binding.taskId!==current?.id||binding.revision!==current.revision||binding.optionId!==this.lightSceneBinding?.optionId||binding.roomId!==this.lightSceneBinding?.roomId){field.cancelDraft();return;}if(this.live)void this.actCurrentLight('brightness',{percent:value},{sceneId:binding.optionId});else this.dispatch({type:'light-room-level',...binding,value});this.renderLightScenes(this.currentLightDevice());}});
    section.append(heading,choices,status,field.node);this.lightLamps.after(section);const disclosure=createKitDisclosure({document,id:'light-lamps',title:'Lamper',iconSrc:'assets/icons/chevron-down.svg',leadingIcon:'assets/icons/lightbulb.svg'});section.after(disclosure.node);this.lightScenes=section;this.lightSceneChoices=choices;this.lightSceneStatus=status;this.lightSceneLevel={...field,label:field.node};this.lightLampDisclosure=disclosure.node;this.lightLampDisclosurePanel=disclosure.panel;this.lightSceneButtons=new Map();
   }
   if(!visible){
-   this.lightCommandFeedback=null;if(this.lightScenes&&!this.lightScenes.hidden)this.lightScenes.hidden=true;if(!light&&this.lightLampDisclosure&&!this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=true;
+   if(this.lightScenes&&!this.lightScenes.hidden)this.lightScenes.hidden=true;
+   if(!light&&this.lightLampDisclosure&&!this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=true;
    // A legitimate empty scene catalogue must not detach or hide an existing error.
    const status=this.lightSceneStatus,anchor=this.lightRooms,room=this.lightRoomView?.node;
    if(status&&!status.hidden&&anchor?.parentNode&&status.parentNode!==anchor.parentNode&&!(status.parentNode===room&&!room.hidden))anchor.after(status);
@@ -548,9 +561,6 @@ class WidgetHost extends HTMLElement {
   }
   const sceneTitle='Scener';if(this.lightScenes.firstElementChild?.textContent!==sceneTitle&&this.lightScenes.firstElementChild)this.lightScenes.firstElementChild.textContent=sceneTitle;if(this.lightScenes.hidden)this.lightScenes.hidden=false;if(this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=false;
   const selected=local?light.lightSceneSelections?.[area]:this.lightSceneRecent?.area===area?this.lightSceneRecent:null,chosen=scenes.find(row=>row.id===selected?.id),connected=this.live?!!this.liveTransport?.connected:this.state.connected,pending=!!(light.pending||this.lightAreaPending||this.liveControls?.lightActionState?.pending),enabled=(local||this.live)&&connected&&!light.stale&&!pending&&['on','off','mixed'].includes(light.status)&&(!this.live||this.liveSnapshot?.capabilities.controlSetup?.includes('light'));
-  const preview=local&&light.feedbackPreview?.revision===light.revision?light.feedbackPreview:null,receipt=this.live?this.liveControls?.lightActionState:preview,receiptCurrent=!!receipt&&!receipt.late&&!light.stale&&receipt.target?.areaId===area&&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.()===true);
-  const phase=receiptCurrent?receipt.phase:'',feedbackState=['preparing','sending'].includes(phase)?'pending':phase==='rejected'?'error':phase==='unknown'?'unknown':'ready';
-  this.lightCommandFeedback=receiptCurrent&&feedbackState==='pending'?receipt:null;
   for(const scene of scenes){let button=this.lightSceneButtons.get(scene.id);if(!button){button=document.createElement('button');button.type='button';button.addEventListener('click',()=>{const binding=button.sceneBinding;if(button.disabled||!binding)return;if(this.live){const current=this.currentLightDevice(),area=current?.lightScope?.areaId;void Promise.resolve(this.actCurrentLight('scene',{choiceId:binding.optionId},{sceneId:binding.optionId})).then(result=>{if(result?.outcome==='accepted'&&this.currentLightDevice()?.lightScope?.areaId===area){this.lightSceneRecent={id:binding.optionId,area};this.renderLightScenes(this.currentLightDevice());}});}else this.dispatch({type:'light-scene-select',...binding});});this.lightSceneChoices.append(button);this.lightSceneButtons.set(scene.id,button);}if(button.hidden)button.hidden=false;button.sceneBinding={sessionId:this.state.sessionId,taskId:light.id,revision:light.revision,optionId:scene.id};const text=scene.name;if(button.textContent!==text)button.textContent=text;applyKitComponent(button,'chip',{identity:'light',variant:'command',selected:chosen?.id===scene.id,disabled:!enabled,feedback:'progress',loading:!!this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id});button.setAttribute('aria-description',this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id?phase==='preparing'?'Forbereder handling':'Afventer svar':chosen?.id===scene.id?'Valgt scene til lysstyrkejustering':'Vælg scene');}
   for(const[id,button]of this.lightSceneButtons)if(!scenes.some(row=>row.id===id)&&!button.hidden)button.hidden=true;
   const lamps=local?light.lights:light.observedLights?.map(row=>({id:row.entityId,on:row.state==='on'?true:row.state==='off'?false:null,brightness:Number.isFinite(row.brightness)?Math.round(row.brightness/255*100):null,dimmable:row.supportsBrightness===true}))||[],members=local?lamps.filter(row=>row.roomId===area):chosen?lamps.filter(row=>chosen.entityIds.includes(row.id)):[],levels=members.map(row=>row.on===false?0:row.on===true?row.brightness:null),complete=local?members.length>0:!!chosen&&members.length===chosen.entityIds.length,known=complete&&levels.length>0&&levels.every(Number.isInteger),uniform=known&&levels.every(value=>value===levels[0]),level=known?(local?Math.max(...levels):uniform?levels[0]:null):null;

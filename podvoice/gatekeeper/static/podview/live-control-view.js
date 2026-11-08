@@ -561,6 +561,7 @@ export class LiveControlView{
  }
  updateLightAction(operation,phase,details={}){
   const state={target:{...operation.target},action:operation.action,phase,pending:['preparing','sending'].includes(phase),message:phase==='accepted'?'Anmodningen er modtaget.':phase==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':phase==='rejected'?'Handlingen kunne ikke udføres med den aktuelle adgang.':'',...details};
+  if(state.pending&&operation.action==='brightness')state.requestedPercent=operation.requestedPercent;
   this.lightActionFeedbackOperation=operation;this.lightActionState=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state,operation);this.host.render?.();}return state;
  }
  lightActionFeedbackCurrent(){const operation=this.lightActionFeedbackOperation;if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
@@ -571,7 +572,9 @@ export class LiveControlView{
   const context=this.lightActionContext(target,observation,currentObservation);if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene){this.journalDevice(t,'control_intent',{...diagnostic,code:'stale_binding'});return unavailable;}
   const identity=JSON.stringify([target.areaId,target.entityId??null,target.sceneId??null]);this.pruneSpent();const unknowns=this.lightUnknowns||(this.lightUnknowns=new Map());for(const[key,fence]of unknowns)if(fence.until<=Date.now())unknowns.delete(key);const unknown=unknowns.get(identity);
   if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&context.sourceObservedAt<=unknown.observedAt){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});return {...unavailable,outcome:'unknown',phase:'unknown'};}unknowns.delete(identity);if(unknowns.size>=64){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});return unavailable;}
-  const operation={target:{...target},action,context,identity,sent:false,revoked:false};this.lightActionOperation=operation;this.updateLightAction(operation,'preparing');
+  const operation={target:{...target},action,context,identity,sent:false,revoked:false,
+   requestedPercent:action==='brightness'?requestedValue:undefined};
+  this.lightActionOperation=operation;this.updateLightAction(operation,'preparing');
   const current=()=>this.lightActionOperation===operation&&!operation.revoked&&!this.suspending&&context.current();let task,option,args,result;
   try{
    this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});const raw=await context.transport.controlSetup('light',operation.target);if(!current())throw Error('light_context_changed');task=controlTask(raw,this.host.liveSnapshot,'light');

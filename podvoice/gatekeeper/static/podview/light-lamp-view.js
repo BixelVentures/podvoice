@@ -60,7 +60,12 @@ export class LightLampView{
    if(entry.name.textContent!==row.name)entry.name.textContent=row.name;
    const status=row.on===null?(row.unavailable?'Ikke tilgængelig':'Status ukendt'):row.stale?`Sidst kendt · ${row.on?'tændt':'slukket'}`:row.on?'Tændt':'Slukket';if(entry.state.textContent!==status)entry.state.textContent=status;
    const command=this.host.lightCommandFeedback,busy=!!command&&command.target?.entityId===row.id&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.toggle,'toggle',{feedback:'progress',loading:busy,identity:'light',variant:'row',label:`Tænd/sluk ${row.name}`,disabled:!binding,...(row.on===null?{}:{selected:row.on})});if(row.on===null)entry.toggle.removeAttribute('aria-checked');
-   if(entry.field.node.hidden!==!row.dimmable)entry.field.node.hidden=!row.dimmable;entry.model={value:row.level,valueText:row.level===null?'Niveau ukendt':`${row.level} %`,scope:'',disabled:!binding||!row.dimmable||row.level===null,pending:!!command&&command.action==='brightness'&&command.target?.entityId===row.id};entry.field.setModel(entry.model);
+   if(entry.field.node.hidden!==!row.dimmable)entry.field.node.hidden=!row.dimmable;
+   const pending=command?.action==='brightness'&&command.target?.entityId===row.id;
+   const value=pending&&Number.isInteger(command.requestedPercent)?command.requestedPercent:row.level;
+   entry.model={value,valueText:value===null?'Niveau ukendt':`${value} %`,scope:'',
+    disabled:!binding||!row.dimmable||row.level===null,pending};
+   entry.field.setModel(entry.model);
   }
   for(const [id,entry]of this.rows)if(!visible.has(id)){if(!entry.node.hidden)entry.node.hidden=true;entry.binding=null;entry.toggle.disabled=true;entry.field.cancelDraft();entry.field.setModel({...entry.model,disabled:true});}
   return this.node;

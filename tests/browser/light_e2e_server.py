@@ -3,10 +3,11 @@
 import asyncio
 import json
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from aiohttp import web
+from aiohttp import ClientSession, WSMsgType, web
 from integration.test_podview_bridge import owner
 from multidict import CIMultiDict
 
@@ -25,6 +26,7 @@ release = asyncio.Event()
 intent_hold = False
 intent_started = asyncio.Event()
 intent_release = asyncio.Event()
+subscribers = {}
 
 
 async def template(request):
@@ -56,8 +58,17 @@ async def template(request):
     return httpx.Response(200, json=result)
 
 
+@asynccontextmanager
+async def connect_home_events():
+    async with ClientSession() as session:
+        async with session.ws_connect(f"http://127.0.0.1:{port}/lab/ha-websocket") as socket:
+            yield socket
+
+
 client = httpx.AsyncClient(transport=httpx.MockTransport(template))
-tools = ToolRouter(None, client=client, supervisor_token="test-token")
+tools = ToolRouter(
+    None, client=client, supervisor_token="test-token", home_event_connect=connect_home_events
+)
 
 
 def declarations():
@@ -135,6 +146,29 @@ async def ingress(request, handler):
 app.middlewares.insert(0, ingress)
 
 
+async def ha_websocket(request):
+    socket = web.WebSocketResponse()
+    await socket.prepare(request)
+    await socket.send_json({"type": "auth_required", "ha_version": "2026.10.2"})
+    assert await socket.receive_json() == {"type": "auth", "access_token": "test-token"}
+    await socket.send_json({"type": "auth_ok", "ha_version": "2026.10.2"})
+    try:
+        async for message in socket:
+            if message.type != WSMsgType.TEXT:
+                continue
+            command = json.loads(message.data)
+            if command["type"] == "subscribe_events":
+                if command["event_type"] == "state_changed":
+                    subscribers[socket] = command["id"]
+                await socket.send_json({"id": command["id"], "type": "result", "success": True})
+            else:
+                assert command["type"] == "ping"
+                await socket.send_json({"id": command["id"], "type": "pong"})
+    finally:
+        subscribers.pop(socket, None)
+    return socket
+
+
 async def lab(request):
     global hold, intent_hold
     if request.method == "POST":
@@ -156,17 +190,27 @@ async def lab(request):
             session.sm.state = State.LISTENING
         if body.get("releaseRead"):
             release.set()
+        if "externalLight" in body:
+            light.update(body["externalLight"])
+            event = {
+                "event_type": "state_changed",
+                "data": {"entity_id": entity, "new_state": {"entity_id": entity, **light}},
+            }
+            for socket, number in list(subscribers.items()):
+                await socket.send_json({"id": number, "type": "event", "event": event})
     return web.json_response(
         {
             "light": light,
             "writes": writes,
             "readHeld": started.is_set() and not release.is_set(),
             "intentHeld": intent_started.is_set() and not intent_release.is_set(),
+            "sourceConnected": bool(subscribers),
         }
     )
 
 
 app.router.add_route("*", "/lab/state", lab)
+app.router.add_get("/lab/ha-websocket", ha_websocket)
 
 
 async def cleanup(_app):
