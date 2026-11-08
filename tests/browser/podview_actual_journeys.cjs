@@ -20,7 +20,11 @@ for(const journey of only.length?only:journeys){
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'external-output')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_SPEAKER_REFRESH_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'speaker-refresh')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_OUTPUT_TRANSFER_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'output-transfer')});
  if(journey==='music_selection_actual_e2e.cjs'){
+  runJourney(journey,{MUSIC_RECENT_SESSION_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'recent-session')});
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'0'});
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'1'});
   runJourney(journey,{MUSIC_DEFAULT_SPEAKER_PROOF:'1',
