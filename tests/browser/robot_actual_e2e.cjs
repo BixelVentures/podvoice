@@ -32,7 +32,7 @@ const assertRobotObservation=async(page,requests,action)=>{
 (async()=>{try{
  const testNonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-robot-e2e-'));
- server=spawn(testEnv.python,[path.join(__dirname,'music_e2e_server.py')],{cwd:testEnv.runtimeRoot,env:testEnv.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,ROBOT_TEST:'1',ROBOT_SLOW_START_TEST:process.env.ROBOT_SLOW_START_TEST||'0',ROBOT_DRAFT_TEST:process.env.ROBOT_DRAFT_TEST||'0',PODVIEW_TEST_NONCE:testNonce}),stdio:['ignore','pipe','pipe']});
+ server=spawn(testEnv.python,[path.join(__dirname,'music_e2e_server.py')],{cwd:testEnv.runtimeRoot,env:testEnv.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,ROBOT_TEST:'1',ROBOT_SLOW_START_TEST:process.env.ROBOT_SLOW_START_TEST||'0',ROBOT_DRAFT_TEST:process.env.ROBOT_DRAFT_TEST||'0',ROBOT_LONG_SESSION_TEST:process.env.ROBOT_LONG_SESSION_TEST||'0',PODVIEW_TEST_NONCE:testNonce}),stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
@@ -218,24 +218,37 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert(await extreme.isChecked());
   await both.tap();
   for(const option of [extreme,max,fast,twice])await option.tap();
+  const chosenOptions=[both,extreme,max,fast,twice];
+  for(const option of chosenOptions)assert(await option.isChecked());
   const waterRecovery=process.env.ROBOT_WATER_RECOVERY_TEST==='1';
+  const longSession=process.env.ROBOT_LONG_SESSION_TEST==='1';
+  assert(!(waterRecovery&&longSession),'select the water recovery or 600 s journey');
   const before=await host.evaluate(h=>({task:h.liveControls.task?.taskId,
    expiresAt:h.liveControls.task?.expiresAt,now:Date.now()/1000,
    bootId:h.liveControls.task?.bootId,roomId:h.liveControls.task?.roomId,
    optionId:h.liveControls.robotPanel?.cleaningOptionId,
-   draft:h.liveControls.robotPanel?.readCleaningDraft?.()}));
+   draft:h.liveControls.robotPanel?.readCleaningDraft?.(),documentStartedAt:performance.timeOrigin}));
   assert(before.task&&before.expiresAt>before.now&&before.expiresAt-before.now<=8.5);
   assert.equal(before.draft.areaIds.length,1);
   assert.equal(before.draft.repeat,2);
   assert.deepEqual((await state()).robot.writes,[]);
 
-  await page.locator('#header-title-action').tap();
-  await page.locator('#show-photo').tap();
-  await page.locator('#photo-view').waitFor({state:'visible'});
-  if(!waterRecovery){
-   for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
-    if(n>120)throw Error('server-issued task did not expire');
-    await sleep(100);
+  const waitingSince=performance.now();
+  if(longSession){
+   console.log('S4: waiting 600 s with the original robot Start settings');
+   while(performance.now()-waitingSince<600000){
+    await sleep(Math.ceil(600000-(performance.now()-waitingSince)));
+   }
+   await page.locator('#photo-view').waitFor({state:'visible'});
+  }else{
+   await page.locator('#header-title-action').tap();
+   await page.locator('#show-photo').tap();
+   await page.locator('#photo-view').waitFor({state:'visible'});
+   if(!waterRecovery){
+    for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
+     if(n>120)throw Error('server-issued task did not expire');
+     await sleep(100);
+    }
    }
   }
   const reportWater=kind=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},
@@ -284,9 +297,11 @@ const assertRobotObservation=async(page,requests,action)=>{
    return task?.taskId&&task.taskId!==old&&task.draft?.status==='restored';
   },before.task,{timeout:15000});
   assert.equal(await room.getAttribute('aria-pressed'),'true','fresh server remap retains the selected room');
-  for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+  for(const option of chosenOptions)assert(await option.isChecked());
   let lastRead;
-  if(!waterRecovery){
+  if(longSession){
+   assert.equal(await page.evaluate(()=>performance.timeOrigin),before.documentStartedAt);
+  }else if(!waterRecovery){
    lastRead=await host.evaluate(h=>({task:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt,
     observedAt:h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt}));
    const readPath=url=>url.pathname==='/view/api/home';
@@ -345,11 +360,15 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert.deepEqual(errors,[]);
   assert(loadedBundleSha256&&loadedCssSha256);
   const proof={outcome:'PASS',actualServerTaskExpiry:!waterRecovery,hiddenThenReopened:true,serverRemapped:true,
-   modeNames,positions,...(waterRecovery?{retainedWhileWaterUnavailable:true,
-    freshIndependentWaterObservation:true,directOwnerRefusals:2,automaticWrites:0}:{retainedThroughStaleRead:true,
-    recoveredOnPassivePoll:true,lastRead}),receipt,
-   inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
-  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-draft-start-proof.json'),JSON.stringify(proof,null,2));
+   modeNames,positions,receipt,inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
+  if(longSession)Object.assign(proof,{story:'S4',realElapsedMs:Math.floor(performance.now()-waitingSince),
+   wokeFromRoInSameDocument:true,originalSelection:{room:'Køkkenalrum',mode:modeNames[0],water:'Extreme',
+    suction:'Maks.',route:'Hurtig',repeat:before.draft.repeat}});
+  else if(waterRecovery)Object.assign(proof,{retainedWhileWaterUnavailable:true,
+   freshIndependentWaterObservation:true,directOwnerRefusals:2,automaticWrites:0});
+  else Object.assign(proof,{retainedThroughStaleRead:true,recoveredOnPassivePoll:true,lastRead});
+  const proofFile=longSession?'podview-robot-long-session-start.json':'podview-robot-draft-start-proof.json';
+  await fs.writeFile(path.join(testEnv.artifactDir(),proofFile),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));
   return;
  }

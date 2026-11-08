@@ -63,6 +63,7 @@ receipts = {}
 service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
 robot_draft = os.environ.get("ROBOT_DRAFT_TEST") == "1"
+robot_long_session = os.environ.get("ROBOT_LONG_SESSION_TEST") == "1"
 robot_observation = os.environ.get("ROBOT_OBSERVATION_TEST") == "1"
 robot_dock = os.environ.get("ROBOT_DOCK_TEST") == "1"
 robot_slow_posts = []
@@ -112,6 +113,10 @@ if robot is not None:
                 "unique_id": ROBOT,
                 "model": "roborock.vacuum.a75",
             }
+            now = time.time()
+            if robot_long_session and now - water["statusObservedAt"] >= 20:
+                # Model routine native status reports without changing settings or sending a command.
+                water.update(statusObservedAt=now, messageSequence=water["messageSequence"] + 1)
             return httpx.Response(
                 200,
                 json={
