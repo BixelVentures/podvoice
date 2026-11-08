@@ -67,6 +67,29 @@ test('late passive foreign-room response cannot override a newly selected room',
   assert.equal(host.lightReadAttempt,null);
  }finally{f.cleanup();}
 });
+test('foreign navigation with an older response shows read-only detail until the deferred read settles',async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  const resolve=[];
+  host.liveTransport.home=()=>new Promise(done=>resolve.push(done));
+  const navigation=host.readLightArea('other');
+  host.lightReadAttempt.afterHomeRevision={scope:'scope',revision:2};
+  const old=f.response('other');
+  old.sourceRevision={scope:'scope',revision:1};
+  old.lights.observedAt--;old.lights.validUntil--;
+  resolve[0](old);
+  await navigation;
+  assert.equal(host.currentLightDevice().lightScope.areaId,'other');
+  assert.equal(host.currentLightDevice().stale,true);
+  assert.equal(host.actCurrentLight('toggle'),undefined);
+  assert.equal(resolve.length,2);
+  const fresh=f.response('other');
+  fresh.sourceRevision={scope:'scope',revision:2};
+  resolve[1](fresh);
+  await Promise.resolve();
+  assert.notEqual(host.currentLightDevice().stale,true);
+ }finally{f.cleanup();}
+});
 for(const selectedArea of ['own','other'])test(`held own-area response cannot revive stale authority from ${selectedArea}`,async()=>{
  const f=fixture(),{host}=f;
  try{

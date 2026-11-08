@@ -534,9 +534,11 @@ class WidgetHost extends HTMLElement {
     if(observed.stale&&(observed!==observedAtStart||observed.observedAt===device.observedAt))return false;
    }
    // Browsing may only replace the light detail, never overview, weather or output.
-   this.state={...this.state,liveLightDetail:device};adopted=true;try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
+   const detail=attempt.afterHomeRevision?{...device,stale:true}:device;
+   this.state={...this.state,liveLightDetail:detail};adopted=true;
+   if(!detail.stale)try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
    if(this.lightReadProblem?.areaId===areaId&&this.lightReadProblem.scopeKey===context.key&&this.lightReadProblem.transport===context.transport)this.lightReadProblem=null;
-   this.lightLocalFeedback(device);clearTimeout(this.lightAreaExpiry);this.lightAreaExpiry=setTimeout(()=>{if(current()){this.syncLightArea();this.render();}},Math.max(0,device.validUntil*1000-Date.now()));
+   this.lightLocalFeedback(detail);clearTimeout(this.lightAreaExpiry);this.lightAreaExpiry=setTimeout(()=>{if(current()){this.syncLightArea();this.render();}},Math.max(0,device.validUntil*1000-Date.now()));
   }catch{if(current()){
    const name=context.areas.items.find(row=>row.areaId===areaId)?.areaName||'området';
    this.lightReadProblem={scopeKey:context.key,transport:context.transport,focus,areaId,displayAreaId:this.currentLightDevice()?.lightScope?.areaId,text:`Lysstatus for ${name} kunne ikke hentes.`};
