@@ -587,11 +587,36 @@ async function queueIdentityJourney(){
  const first=await host.evaluate(h=>h.liveMedia.queueControls.offer.items.slice(0,2));
  assert.equal(first[0].uri,first[1].uri);
  assert.notEqual(first[0].id,first[1].id);
- await rows.nth(1).tap();
+ const chosen=rows.nth(1);
+ await chosen.evaluate(row=>row.addEventListener('click',event=>{
+  if(!event.isTrusted)return;
+  const start=performance.now();
+  const clickAtMs=performance.timeOrigin+start;
+  const sample=()=>{
+   const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+   const title=document.getElementById('track-name');
+   const elapsed=performance.now()-start;
+   if(playback?.state==='playing'&&playback.item?.name==='Isoleret sang 22'
+    &&playback.roomBinding?.nativeHomepodId==='42'
+    &&title?.checkVisibility({visibilityProperty:true,opacityProperty:true})
+    &&title.textContent==='Isoleret sang 22'){
+    window.queueSelectionTiming={clickAtMs,observedTitleMs:elapsed};
+   }else if(elapsed<2000)requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+ },{capture:true,once:true}));
+ await chosen.tap();
  await observed(22,'native-room','42');
+ await page.waitForFunction(()=>window.queueSelectionTiming,undefined,{timeout:3000});
  await status('ready');
  assert.deepEqual(await names(),['Køsang 23','Køsang 24']);
  const afterChoice=await state();
+ const selectionTiming=await page.evaluate(()=>window.queueSelectionTiming);
+ const ownerEffectMs=afterChoice.queueEffectAtMs-selectionTiming.clickAtMs;
+ assert(ownerEffectMs>=0&&ownerEffectMs<=selectionTiming.observedTitleMs,JSON.stringify({
+  ownerEffectMs,observedTitleMs:selectionTiming.observedTitleMs,
+ }));
+ assert(selectionTiming.observedTitleMs<1500,'K3 inert owner observation exceeded 1.5 s');
  assert.deepEqual(afterChoice.queueSelections.map(({index,song})=>({index,song})),[{index:1,song:22}]);
  const commits=afterChoice.nativeCalls.filter(row=>row.service==='control_room_queue');
  assert.deepEqual(commits.map(({args})=>[args.args.occurrence_id,args.room_id,args.homepod_id]),
@@ -608,9 +633,27 @@ async function queueIdentityJourney(){
   await route.fulfill({response});
  };
  await page.route(endpoint,capture,{times:1});
- let timeout;
+ let timeout,knownQueueTiming;
  try{
   await page.locator('#header-title-action').tap();
+  await track.evaluate(button=>button.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now();
+   let frames=0;
+   const visibility={visibilityProperty:true,opacityProperty:true};
+   const sample=()=>{
+    frames++;
+    const queue=document.getElementById('queue');
+    const elapsed=performance.now()-start;
+    if(queue?.checkVisibility(visibility)){
+     const rows=[...queue.querySelectorAll('button.queue-track[data-current="false"]')]
+      .filter(row=>row.checkVisibility(visibility)).map(row=>row.querySelector('.queue-copy strong').textContent);
+     const placeholder=!!queue.querySelector('.queue-empty')?.checkVisibility(visibility);
+     window.knownQueueTiming={firstVisibleFrameMs:elapsed,frames,rows,placeholder};
+    }else if(elapsed<1500)requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+  },{capture:true,once:true}));
   await track.tap();
   const {body:late,receivedAt}=await Promise.race([held,new Promise((_,reject)=>{
    timeout=setTimeout(()=>reject(Error('old queue response not held')),10000);
@@ -618,6 +661,11 @@ async function queueIdentityJourney(){
   assert.equal(late.ok,true);
   assert.equal(late.expectedBindingId,oldBinding);
   assert.deepEqual(late.items.map(item=>item.name??item.title),['Køsang 23','Køsang 24']);
+  await page.waitForFunction(()=>window.knownQueueTiming,undefined,{timeout:3000});
+  knownQueueTiming=await page.evaluate(()=>window.knownQueueTiming);
+  assert.deepEqual(knownQueueTiming.rows,['Køsang 23','Køsang 24'],'K1 first visible frame uses retained rows');
+  assert.equal(knownQueueTiming.placeholder,false);
+  assert(knownQueueTiming.firstVisibleFrameMs<300,'K1 known queue did not appear within 300 ms');
   await mutate('replace-session');
   await observed(30,'bedroom','43');
   await status('ready');
@@ -659,9 +707,13 @@ async function queueIdentityJourney(){
  assert.equal(actions.filter(row=>row.url.endsWith('/actions')).length,1);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- console.log(JSON.stringify({outcome:'PASS',stories:['K6','K4'],bundleSHA,
+ const proof={outcome:'PASS',stories:['K1','K3','K6','K4'],bundleSHA,
+  knownQueue:{...knownQueueTiming,responseHeld:true},
+  queueSelection:{ownerEffectMs,observedTitleMs:selectionTiming.observedTitleMs,occurrenceIndex:1},
   sameTrackOccurrence:first[1].id,lateOldQueueDiscarded:true,noWrongTargetCommand:true,
-  ownerPlaybackContinuesWithoutQueue:true,ownerUpcomingRowsRestored:true,inertNativeService:true}));
+  ownerPlaybackContinuesWithoutQueue:true,ownerUpcomingRowsRestored:true,inertNativeService:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-queue-identity-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
 }
 async function queuePersistenceJourney(){
  const queue=page.locator('#queue');
@@ -942,7 +994,9 @@ async function queuePersistenceJourney(){
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
- browser=await chromium.launch(env.browserOptions());
+ const options=env.browserOptions();
+ if(queueIdentity)options.args=['--mute-audio'];
+ browser=await chromium.launch(options);
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
  if(queueIdentity){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());

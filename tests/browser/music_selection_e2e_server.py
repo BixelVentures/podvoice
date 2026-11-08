@@ -369,6 +369,8 @@ async def native(request):
         assert song in base.state["queue"]
         index = base.state["queue"].index(song)
         base.state.update(song=song, state="playing")
+        if queue_identity:
+            base.state["queueEffectAtMs"] = time.time_ns() / 1_000_000
         if voice_journey:
             base.music.value["route"].update(route_revision="4", input_item_id="7")
         if queue_journey or base.output_transfer:
