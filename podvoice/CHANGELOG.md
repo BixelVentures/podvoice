@@ -1,3 +1,7 @@
+## 2.0.156
+
+- Bevar covernes plads ved første indlæsning i Find musik. Tid på dagen bruger samme billedplacering under loading og ved manglende cover.
+
 ## 2.0.155
 
 - Bevar opskriftskatalogets scrollposition ved turen via forsiden, også mens nye katalogdata indlæses.

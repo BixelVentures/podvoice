@@ -2969,7 +2969,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 4769926faaa1b9f318d2cbd1ddaecd45b6b873f01398987e1b8e19b8f68a0e64 */
+/* Source: ui-kit.css · SHA256 61812117ef2ce88b751f368c15b21b9653387e3921069cad8d7490f9264df7ce */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -5679,6 +5679,17 @@ pv-widget-host #music-response[data-discovery-preview]>.music-refresh-message {g
   align-self:start;
  }
  #music-response[data-discovery-collection=mood] #result-list>.result.pv-hero:first-child>.result-copy>h2 {font:var(--pv-t-title);max-height:calc(2 * var(--pv-leading-focus))}
+ /* Reserve the desktop Hero's two headline lines and secondary text in its loading copy slot. */
+ pv-widget-host #music-response[data-discovery-collection=mood]
+ #result-list>.result.pv-hero[data-content-state=pending]>.result-copy>h2 {
+  block-size:calc(2 * var(--pv-leading-focus));
+ }
+ pv-widget-host #music-response[data-discovery-collection=mood]
+ #result-list>.result.pv-hero[data-content-state=pending]>.result-copy>p {
+  block-size:var(--pv-leading-body);
+ }
+ pv-widget-host #music-response[data-discovery-collection=mood]
+ #result-list>.result.pv-hero[data-content-state=pending]>.result-copy>p::after {display:none}
  #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child) {
   grid-template-columns:calc(2 * var(--pv-hit)) minmax(0,1fr);
   grid-template-rows:minmax(0,1fr) var(--pv-hit);
@@ -5691,6 +5702,7 @@ pv-widget-host #music-response[data-discovery-preview]>.music-refresh-message {g
   width:100%;
   height:auto;
   aspect-ratio:1;
+  align-self:center;
   justify-self:start;
  }
  #music-response[data-discovery-collection=mood] #result-list>.result.pv-row[data-artwork-role]:not(:first-child)>.result-copy {grid-area:1 / 2;align-self:end}

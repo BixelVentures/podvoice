@@ -642,7 +642,9 @@ if robot_slow_start or robot_dock:
     # transaction must retain custody through four real4s setting HTTP calls.
     from integration.test_podview_dock_commands import command_catalog
 
-    command_catalog(robot, app[BRIDGE], state="docked", status="charging", error="ok")
+    _, dock_fields, _ = command_catalog(
+        robot, app[BRIDGE], state="docked", status="charging", error="ok"
+    )
     app[BRIDGE].controls.policy["vacuum"][0]["actions"] = ["settings", "start", "dock"]
 
 if robot_draft:
@@ -682,6 +684,7 @@ app.middlewares.insert(0, test_ingress)
 
 async def lab_state(request):
     global retry_transport_blocked
+    dock_report = None
     if request.method == "POST":
         args = await request.json()
         if manual_retry and "blockRetryTransport" in args:
@@ -770,6 +773,15 @@ async def lab_state(request):
                     robot.states[telemetry[key]].update(
                         state=value, last_reported=datetime.now(UTC).isoformat()
                     )
+            if robot_dock and args.get("robotDockReport") is True:
+                # The inert coordinator reports unchanged values, independent of reads.
+                reported_at = datetime.now(UTC).isoformat()
+                reported_values = {}
+                for field in dock_fields:
+                    row = robot.states[field["entityId"]]
+                    row["last_reported"] = reported_at
+                    reported_values[field["key"]] = row["state"]
+                dock_report = {"lastReported": reported_at, "values": reported_values}
     value = copy.deepcopy(state)
     value["serviceReads"] = copy.deepcopy(service_reads)
     value["playbackEventSubscribers"] = sum(
@@ -784,6 +796,7 @@ async def lab_state(request):
             "mop": robot.states[MOP]["state"],
             "battery": robot.states[ROBOT]["attributes"]["battery_level"],
             "writes": copy.deepcopy(robot.writes),
+            **({"dockReport": dock_report} if dock_report else {}),
             **(
                 {
                     "slowStartPosts": copy.deepcopy(robot_slow_posts),

@@ -13,6 +13,12 @@ let server,browser,serverLog='',serverSuspended=false;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const update=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+async function waitForIdleRo(page,waitingSince){
+ while(performance.now()-waitingSince<600000){
+  await sleep(Math.ceil(600000-(performance.now()-waitingSince)));
+ }
+ await page.locator('#photo-view').waitFor({state:'visible'});
+}
 // Read every bounded persisted page; a healthy trace may exceed the first64 rows.
 const readJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 // This passive journal wait adds no command or home read; the existing owner read must supply the witness.
@@ -44,6 +50,7 @@ const assertRobotObservation=async(page,requests,action)=>{
  if(server.exitCode!==null)throw Error('own isolated server exited before navigation');
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  if(process.env.ROBOT_DOCK_TEST==='1'){
+  const longSession=process.env.ROBOT_LONG_SESSION_TEST==='1';
   await testEnv.openOverview(page);
   const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
   await card.getByText('Batteri 78 %',{exact:true}).waitFor({state:'visible',timeout:10000});
@@ -52,6 +59,34 @@ const assertRobotObservation=async(page,requests,action)=>{
   const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  let idleProof;
+  if(longSession){
+   const host=page.locator('pv-widget-host');
+   await page.waitForFunction(()=>!!document.querySelector('pv-widget-host')?.liveControls?.task?.taskId);
+   const before=await host.evaluate(h=>({documentStartedAt:performance.timeOrigin,
+    taskId:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt,bootId:h.liveControls.task.bootId}));
+   assert.deepEqual(await ownerWrites(),[]);
+   const waitingSince=performance.now();
+   console.log('S4: waiting 600 s before reopening Base in the same document');
+   await waitForIdleRo(page,waitingSince);
+   const realIdleMs=Math.floor(performance.now()-waitingSince);
+   assert(realIdleMs>=600000);
+   assert.equal(await page.evaluate(()=>performance.timeOrigin),before.documentStartedAt);
+   assert.deepEqual(await ownerWrites(),[],'idle session sends no dock command');
+   const {robot:{dockReport}}=await update({robotDockReport:true});
+   assert.deepEqual(dockReport.values,{status:'charging',dock_error:'ok',mop_drying_status:'off'});
+   const reportAge=Date.now()-Date.parse(dockReport.lastReported);
+   assert(reportAge>=0&&reportAge<5000,'the inert owner must report before the browser wakes');
+   await testEnv.openOverview(page);
+   await card.getByText('Robotstøvsuger',{exact:true}).tap();
+   await page.waitForFunction(before=>{
+    const task=document.querySelector('pv-widget-host')?.liveControls?.task;
+    return task?.taskId&&task.taskId!==before.taskId&&task.bootId===before.bootId
+     &&Date.now()/1000>=before.expiresAt&&Date.now()/1000<task.expiresAt;
+   },before,{timeout:15000});
+   assert.equal(await page.evaluate(()=>performance.timeOrigin),before.documentStartedAt);
+   idleProof={realIdleMs,wokeFromRoInSameDocument:true,originalOfferExpired:true,freshSameBootOffer:true,dockReport};
+  }
   const sendDock=async operation=>{
    const button=operations.and(panel.locator(`[data-dock-operation=${operation}]`));
    const reply=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
@@ -76,8 +111,13 @@ const assertRobotObservation=async(page,requests,action)=>{
    ['app_set_dryer_status',{status:1}],['app_set_dryer_status',{status:0}],
   ]);
   assert.deepEqual(errors,[]);
-  const proof={outcome:'PASS',story:'S7',loadedBundleSha256,groups,writes,inertFinalService:true};
-  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-dock-proof.json'),JSON.stringify(proof,null,2));
+  assert(loadedBundleSha256&&loadedCssSha256);
+  if(process.env.ROBOT_EXPECTED_BUNDLE)assert.equal(loadedBundleSha256,process.env.ROBOT_EXPECTED_BUNDLE);
+  if(process.env.ROBOT_EXPECTED_CSS)assert.equal(loadedCssSha256,process.env.ROBOT_EXPECTED_CSS);
+  const proof={outcome:'PASS',story:longSession?'S4':'S7',loadedBundleSha256,loadedCssSha256,
+   groups,writes,inertFinalService:true,...idleProof};
+  const file=longSession?'podview-robot-long-session-dock-proof.json':'podview-robot-dock-proof.json';
+  await fs.writeFile(path.join(testEnv.artifactDir(),file),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));
   return;
  }
@@ -254,10 +294,7 @@ const assertRobotObservation=async(page,requests,action)=>{
   const waitingSince=performance.now();
   if(longSession){
    console.log('S4: waiting 600 s with the original robot Start settings');
-   while(performance.now()-waitingSince<600000){
-    await sleep(Math.ceil(600000-(performance.now()-waitingSince)));
-   }
-   await page.locator('#photo-view').waitFor({state:'visible'});
+   await waitForIdleRo(page,waitingSince);
   }else{
    await page.locator('#header-title-action').tap();
    await page.locator('#show-photo').tap();

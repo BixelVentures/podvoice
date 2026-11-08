@@ -23,7 +23,7 @@ const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
+let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 async function defaultSpeakerJourney(){
  const viewport={width:1194,height:834},controls=[];
@@ -303,46 +303,119 @@ async function voiceQueueJourney(){
  console.log(JSON.stringify(proof));
 }
 async function discoveryLoadingJourney(){
- const rows=page.locator('#result-list > button.result'),recent=page.locator('[data-collection=recent]');
- let releaseResponse,markHeld;
- const gate=new Promise(resolve=>{releaseResponse=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
- await page.route('**/view/api/music?**',async route=>{
-  const url=new URL(route.request().url());
-  if(url.searchParams.get('kind')!=='recent')return route.continue();
-  const response=await route.fetch(),body=await response.json();
-  assert.equal(body.ok,true);
-  assert.equal(body.data.tracks.length,7);
-  markHeld();
-  await gate;
-  await route.fulfill({response});
- });
- const layout=()=>rows.evaluateAll(nodes=>{
-  const list=nodes[0].parentElement,origin=list.getBoundingClientRect();
-  return nodes.map(row=>{
-   const box=row.getBoundingClientRect(),cover=row.querySelector('.result-art').getBoundingClientRect();
-   return {x:Math.round(box.left-origin.left),y:Math.round(box.top-origin.top),
-    width:Math.round(box.width),height:Math.round(box.height),
-    coverWidth:Math.round(cover.width),coverHeight:Math.round(cover.height)};
-  });
- });
- await page.locator('#home-music').tap();
- await recent.tap();
- let loading;
- try{
-  await Promise.race([held,sleep(10000).then(()=>{throw Error('recent read not held');})]);
-  await page.locator('#result-list[aria-busy="true"]').waitFor();
-  await rows.first().waitFor();
-  loading=await layout();
- }finally{releaseResponse();}
- await rows.filter({hasText:'Katalogsang 15'}).waitFor({timeout:15000});
- const ready=await layout();
- assert.equal(ready.length,5,'five recent songs fill the initial page');
- assert.deepEqual(loading,ready,'recent loading reserves exactly the geometry of the first five songs');
+ const endpoint='**/view/api/music?**';
+ const tabs=[
+  {kind:'mood',entry:'#home-music',kits:['hero','listrow','listrow']},
+  {kind:'feeling',kits:['card','card','card']},
+  {kind:'top',kits:['listrow','listrow','listrow'],title:'Katalogsang 11'},
+  {kind:'recent',kits:Array(5).fill('listrow'),title:'Katalogsang 15'}
+ ];
+ const results=[];
+ for(const {kind,entry,kits,title} of tabs){
+  const button=page.locator(entry||`[data-collection=${kind}]`);
+  let release,markHeld;
+  const gate=new Promise(resolve=>{release=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
+  let reads=0;
+  const hold=async route=>{
+   const url=new URL(route.request().url());
+   if(url.searchParams.get('kind')!==kind||++reads!==1)return route.continue();
+   try{
+    const response=await route.fetch();
+    markHeld({status:response.status(),body:await response.json()});
+    await gate;
+    await route.fulfill({response});
+   }catch(error){markHeld({error});throw error;}
+  };
+  await page.route(endpoint,hold);
+  try{
+   await button.evaluate((target,kind)=>{
+    target.addEventListener('click',event=>{
+     if(!event.isTrusted)return;
+     const started=performance.now(),frames=[];
+     window.f5Frames=frames;
+     const visible=node=>node?.checkVisibility({visibilityProperty:true,opacityProperty:true})===true;
+     const geometry=(node,origin)=>{
+      const {x,y,width,height}=node.getBoundingClientRect(),parent=origin.getBoundingClientRect();
+      return [x-parent.x,y-parent.y,width,height].map(Math.round);
+     };
+     let readyFrames=0;
+     function sample(){
+      const scene=document.getElementById('music-response'),list=document.getElementById('result-list');
+      if(visible(scene)&&document.querySelector('#music-refinements [aria-pressed=true]')?.dataset.collection===kind){
+       const rows=[...list.querySelectorAll(':scope > button.result')].filter(visible).map(row=>({
+        state:row.dataset.contentState,kit:row.dataset.kit,rect:geometry(row,list),
+        cover:geometry(row.querySelector('.result-art'),row),title:row.querySelector('h2').textContent,
+        hidden:row.getAttribute('aria-hidden')==='true',disabled:row.disabled,
+        fallback:row.querySelector('.result-art').classList.contains('live-art-fallback'),
+        titleLines:Math.round(row.querySelector('h2').getBoundingClientRect().height
+         /parseFloat(getComputedStyle(row.querySelector('h2')).lineHeight))
+       }));
+       const busy=list.getAttribute('aria-busy')==='true';
+       frames.push({ms:performance.now()-started,busy,empty:visible(document.getElementById('empty')),
+        list:geometry(list,scene),rows});
+       if(!busy&&rows.length&&rows.every(row=>row.state==='ready'))readyFrames++;
+      }
+      if(readyFrames<4&&performance.now()-started<10000)requestAnimationFrame(sample);
+     }
+     requestAnimationFrame(sample);
+    },{capture:true,once:true});
+   },kind);
+   await button.tap();
+   const source=await Promise.race([held,sleep(10000).then(()=>{throw Error(`${kind} read not held`);})]);
+   if(source.error)throw source.error;
+   assert.equal(source.status,200,kind);
+   assert.equal(source.body.ok,true,kind);
+   assert.ok(source.body.data.tracks.length>=kits.length,kind);
+   if(kind==='recent')assert.equal(source.body.data.tracks.length,7);
+   await page.waitForFunction(()=>window.f5Frames?.length>=3,undefined,{timeout:3500});
+   const before=await page.evaluate(()=>window.f5Frames.length);
+   release();
+   await page.waitForFunction(()=>window.f5Frames?.filter(frame=>!frame.busy&&frame.rows.length
+    &&frame.rows.every(row=>row.state==='ready')).length>=4,undefined,{timeout:5000});
+   const frames=await page.evaluate(()=>window.f5Frames);
+   const loading=frames[0],ready=frames.find(frame=>!frame.busy);
+   assert(loading.busy,`${kind}: first visible frame is the cold loading layout`);
+   assert(ready,`${kind}: never rendered the actual response`);
+   const shape=frame=>({list:frame.list,rows:frame.rows.map(({kit,rect,cover})=>({kit,rect,cover}))});
+   assert.deepEqual(loading.rows.map(row=>row.kit),kits,kind);
+   assert(ready.rows.every(row=>row.title.trim()),`${kind}: ready rows show actual titles`);
+   if(title)assert(ready.rows.some(row=>row.title===title),kind);
+   const titles=ready.rows.map(row=>row.title);
+   assert.deepEqual(titles,source.body.data.tracks.slice(0,kits.length)
+    .map(track=>track.themeTitle||track.name),kind);
+   if(kind==='mood'){
+    assert.equal(ready.rows[0].titleLines,2,'exercise the approved two-line Hero title');
+    assert(ready.rows.slice(1).some(row=>row.fallback),'exercise a real alternative without a decoded cover');
+   }
+   let completed=false;
+   for(const [index,frame] of frames.entries()){
+    assert(!frame.empty,`${kind}: empty state flashed in frame ${index}`);
+    assert.deepEqual(shape(frame),shape(ready),`${kind}: geometry changed in frame ${index}`);
+    if(frame.busy){
+     assert(!completed,`${kind}: loading returned after ready`);
+     assert(frame.rows.every(row=>row.state==='pending'&&row.hidden&&row.disabled&&!row.title),
+      `${kind}: loading rows must be neutral, inaccessible and inert`);
+    }else{
+     assert(index>=before,`${kind}: ready before source release`);
+     completed=true;
+     assert(frame.rows.every(row=>row.state==='ready'&&!row.hidden),`${kind}: loading row survived ready`);
+     assert.deepEqual(frame.rows.map(row=>row.title),titles,kind);
+    }
+   }
+   assert.equal(reads,1,`${kind}: exactly one cold catalogue read`);
+   results.push({kind,reads,frameCount:frames.length,heldFrames:before,loading,ready});
+  }finally{
+   release();
+   await page.unroute(endpoint,hold);
+  }
+ }
  assert.deepEqual((await state()).writes,[]);
  assert.deepEqual(actions.filter(action=>!action.url.endsWith('/queue/offer')),[]);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',story:'F5',bundleSHA,loading,ready,inertNativeService:true};
+ assert(cssSHA,'hash the stylesheet actually served during the cold journey');
+ if(process.env.MUSIC_EXPECTED_CSS)assert.equal(cssSHA,process.env.MUSIC_EXPECTED_CSS);
+ const proof={outcome:'PASS',story:'F5',bundleSHA,cssSHA,results,inertNativeService:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-loading-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
@@ -1122,15 +1195,25 @@ async function queuePersistenceJourney(){
 (async()=>{try{
  const nonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-selection-'));
- server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:"1",MUSIC_COLD_CONTEXT:cold?"1":"0",MUSIC_COLD_REJECT:rejectSetup?"1":"0",MUSIC_REPEAT_MOOD:repeatMood?"1":"0",MUSIC_QUEUE_JOURNEY:queueJourney?"1":"0",MUSIC_QUEUE_COLD_TAIL:queueColdTail?"1":"0",...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1'}:{}),PODVIEW_TEST_NONCE:nonce}),stdio:['ignore','pipe','pipe']});
+ const fixtureEnv=env.pythonEnv({
+  MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:'1',
+  MUSIC_COLD_CONTEXT:cold?'1':'0',MUSIC_COLD_REJECT:rejectSetup?'1':'0',
+  MUSIC_REPEAT_MOOD:repeatMood?'1':'0',MUSIC_QUEUE_JOURNEY:queueJourney?'1':'0',
+  MUSIC_QUEUE_COLD_TAIL:queueColdTail?'1':'0',PODVIEW_TEST_NONCE:nonce,
+  ...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1'}:{}),
+  // Reuse the existing isolated catalogue search and cover fixtures for all four reads.
+  ...(discoveryLoading?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{})
+ });
+ server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],
+  {cwd:env.runtimeRoot,env:fixtureEnv,stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover||discoveryRevisit)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit)options.args=['--mute-audio'];
  browser=await chromium.launch(options);
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
- if(queueIdentity||accountRollover||discoveryRevisit){
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
@@ -1142,6 +1225,9 @@ async function queuePersistenceJourney(){
  page.on('response',async r=>{
   const url=r.url();
   if(url.endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');
+  if(discoveryLoading&&new URL(url).pathname.endsWith('/podview.css')){
+   cssSHA=createHash('sha256').update(await r.body()).digest('hex');
+  }
   if(!accountRollover&&(url.includes('/music/selection/')||url.includes('/music/queue/')
     ||cold&&url.includes('/music?')&&new URL(url).searchParams.get('kind')==='mood')){
    responses.push({url,status:r.status(),body:await r.text()});
