@@ -1,12 +1,15 @@
+import asyncio
 import importlib.util
 import json
 import logging
 import os
 import sys
 import types
+from contextlib import suppress
 from pathlib import Path
 
 from aiohttp import ClientSession, web
+from integration.test_ha_timer_flow import build as build_timers
 from integration.test_podview_bridge import owner
 from multidict import CIMultiDict
 
@@ -33,6 +36,7 @@ proxy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(proxy)
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("aiohttp.access").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
 port = int(os.environ.get("RECIPE_TEST_PORT", "18971"))
 
 # Test-only source boundary. All routing, source parsing and durable publication
@@ -81,6 +85,8 @@ app = web.Application(middlewares=[ingress_test_scope])
 session, _ = owner()
 session._active = False
 session.sm.state = State.IDLE
+timer_manager, _, timer_client, timer_tools, timer_calls, _ = build_timers()
+session.tools = timer_tools
 mount(
     app,
     {"kitchen": session},
@@ -104,13 +110,39 @@ async def seed_recovery(_request):
 app.router.add_post("/lab/seed-recovery", seed_recovery)
 
 
+async def timer_state(_request):
+    return web.json_response(
+        {
+            "running": [timer.id for timer in timer_manager.timers.values() if timer.is_active],
+            "starts": timer_manager.starts,
+            "commands": [call["action"] for call in timer_calls if "action" in call],
+        }
+    )
+
+
+app.router.add_get("/lab/timers", timer_state)
+
+
+async def refresh_timers():
+    # Like the isolated timer harness, Thin's refresh loop reads the inert Core owner.
+    while True:
+        await timer_tools.timers.refresh("kitchen")
+        await asyncio.sleep(0.25)
+
+
 async def start(_):
+    await timer_tools.timers.refresh("kitchen")
+    app["recipe_timer_poll"] = asyncio.create_task(refresh_timers())
     app["proxy_session"] = ClientSession()
     proxy._ADDON = f"http://127.0.0.1:{port}/internal/recipes"
     proxy.async_get_clientsession = lambda _: app["proxy_session"]
 
 
 async def stop(_):
+    app["recipe_timer_poll"].cancel()
+    with suppress(asyncio.CancelledError):
+        await app["recipe_timer_poll"]
+    await timer_client.aclose()
     await app["proxy_session"].close()
 
 
