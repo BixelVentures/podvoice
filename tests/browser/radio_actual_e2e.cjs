@@ -229,7 +229,7 @@ async function stationOrderJourney(stations){
  browser=await chromium.launch(env.browserOptions());page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
  if(configMode||timingMode)await page.route('**/*',route=>
   new URL(route.request().url()).origin===base?route.continue():route.abort());
- page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(/\/api\/(radio|music\/selection)/.test(r.url()))responses.push({url:r.url(),status:r.status(),body:await r.text()})});
+ page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.status()>=300&&r.status()<400)return;if(r.url().endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');if(/\/api\/(radio|music\/selection)/.test(r.url()))responses.push({url:r.url(),status:r.status(),body:await r.text()})});
  page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(radio|music\/selection)/.test(r.url()))actions.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
  const stations=page.locator('#radio-view pv-choice-list');
@@ -257,6 +257,51 @@ async function stationOrderJourney(stations){
  assert.equal((await state()).radioWrites.length,1,'repaint and reopen do not restart the station');
 
  await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-playing.png')});
+ const p3Presentation=()=>p3.evaluate(button=>{
+  const style=getComputedStyle(button),logo=button.querySelector('img');
+  return {
+   name:button.querySelector('strong')?.textContent,
+   logo:logo?.getAttribute('src'),logoLoaded:logo?.complete&&logo.naturalWidth>0,
+   borderWidth:style.borderTopWidth,borderColor:style.borderTopColor,borderStyle:style.borderTopStyle,
+   background:style.backgroundColor,shadow:style.boxShadow,
+  };
+ });
+ const selectedBefore=await p3Presentation();
+ assert.equal(selectedBefore.name,'P3');
+ assert.match(selectedBefore.logo,/(?:^|\/)assets\/radio-p3\.svg$/);
+ assert.equal(selectedBefore.logoLoaded,true);
+ assert.equal(selectedBefore.borderWidth,'2px');
+ assert.equal(selectedBefore.borderStyle,'solid');
+ assert.equal(selectedBefore.shadow,'none','the approved selected tile has a single edge');
+ const beforeReload=await page.evaluate(()=>performance.timeOrigin);
+ const refreshedOwner=page.waitForResponse(response=>
+  new URL(response.url()).pathname==='/view/api/radio'&&response.request().method()==='GET'&&response.ok());
+ await page.reload({waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await page.locator('#home-radio').tap();
+ await refreshedOwner;
+ await page.waitForFunction(()=>{
+  const host=document.querySelector('pv-widget-host');
+  return host?.liveRadio?.current()&&host.liveRadio.value.state.stationId==='p3'&&
+   host.liveRadio.value.state.status==='playing'&&document.querySelector('#track-name')?.textContent?.trim()==='P3';
+ });
+ await p3.getByText(/Valgt/).waitFor({state:'visible'});
+ await p3.locator('img').evaluate(image=>image.decode());
+ assert.notEqual(await page.evaluate(()=>performance.timeOrigin),beforeReload,'reload uses a new document');
+ assert.equal(await p3.getAttribute('aria-pressed'),'true');
+ assert.deepEqual(await p3Presentation(),selectedBefore,'selected P3 retains name, logo and edge after reload');
+ const logoBytes=await fetch(new URL(selectedBefore.logo,base+'/view/')).then(response=>response.arrayBuffer());
+ assert.equal(createHash('sha256').update(Buffer.from(logoBytes)).digest('hex'),
+  'e9782d842cceb388a7be45cf2f1e271cb583e14c6f95379a1bc7175fcf494547','approved official P3 asset');
+ assert.equal(actions.filter(row=>row.url.endsWith('/radio/actions')).length,1,'reload sends no new action');
+ assert.equal((await state()).radioWrites.length,1,'reload sends no new native Start');
+ const reloadScreenshot=path.join(env.artifactDir(),'podview-radio-p3-reloaded.png');
+ await settleMotion();
+ await page.screenshot({path:reloadScreenshot});
+ const reloadProof={outcome:'PASS',story:'R5',bundleSHA,hardReload:true,selectedStation:'P3',
+  approvedSelection:selectedBefore,actionPosts:1,nativeStarts:1,inertFinalService:true,screenshot:reloadScreenshot};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-radio-p3-reloaded.json'),JSON.stringify(reloadProof,null,2));
+ console.log(JSON.stringify(reloadProof));
  const volume=page.locator('#volume');
  assert.equal(await volume.getAttribute('max'),'100');
  await page.waitForFunction(()=>{const input=document.querySelector('#volume');return input&&!input.disabled&&input.value==='30'},undefined,{timeout:5000});
