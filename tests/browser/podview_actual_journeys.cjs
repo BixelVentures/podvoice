@@ -73,6 +73,8 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{ROBOT_DOCK_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-dock')});
   runJourney(journey,{ROBOT_DRAFT_TEST:'1'});
+  runJourney(journey,{ROBOT_DRAFT_TEST:'1',ROBOT_WATER_RECOVERY_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-water-recovery')});
   runJourney(journey,{ROBOT_SLOW_START_TEST:'1'});
  }
  if(journey==='home_events_actual_e2e.cjs'){
