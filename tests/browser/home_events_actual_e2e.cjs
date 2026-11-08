@@ -5,6 +5,7 @@ const {spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
 const path=require('node:path');
 const os=require('node:os');
+const crypto=require('node:crypto');
 const assert=require('node:assert/strict');
 const weatherMode=process.env.WEATHER_RETENTION_TEST==='1',offlineMode=process.env.OFFLINE_FEEDBACK_TEST==='1';
 const root=testEnv.root,port=Number(process.env.HOME_EVENT_TEST_PORT||18978),base=`http://127.0.0.1:${port}`;
@@ -12,6 +13,65 @@ let server,browser,offlineEvidence;
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const emit=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
+async function observeRobotButtonRefresh(page,selector,action,robotState){
+ const actionSelector=`${selector}[data-action-id="${action}"]`;
+ const button=page.locator(actionSelector);
+ await button.waitFor({state:'visible'});
+ await page.waitForFunction(selector=>{
+  const host=document.querySelector('pv-widget-host'),button=document.querySelector(selector);
+  if(!host?.liveHomeApplied||host.liveHomePending||!button||button.disabled)return false;
+  for(let node=button;node;node=node.parentElement){
+   if(node.getAnimations().some(a=>(a.pending||a.playState==='running')&&a.effect?.getTiming().iterations!==Infinity))return false;
+  }
+  return true;
+ },actionSelector);
+ const before=await page.evaluate(selector=>{
+  const host=document.querySelector('pv-widget-host'),original=document.querySelector(selector);
+  const read=()=>{
+   const button=document.querySelector(selector);
+   if(!button)return {missing:true};
+   const {x,y,width,height}=button.getBoundingClientRect(),style=getComputedStyle(button);
+   return {sameNode:button===original,visible:button.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}),
+    disabled:button.matches(':disabled')||button.getAttribute('aria-disabled')==='true',x,y,width,height,
+    foreground:style.color,background:style.backgroundColor,opacity:style.opacity,action:button.dataset.actionId,
+    label:button.getAttribute('aria-label')||button.textContent.trim(),icon:button.querySelector('img')?.getAttribute('src')};
+  };
+  const frames=[],disabledMutations=[],baseline=read();let frame;
+  const watcher=new MutationObserver(records=>disabledMutations.push(...records.filter(record=>
+   record.attributeName==='disabled'||record.oldValue==='true'||original.getAttribute('aria-disabled')==='true').map(record=>record.attributeName)));
+  watcher.observe(original,{attributes:true,attributeOldValue:true,attributeFilter:['disabled','aria-disabled']});
+  const sample=()=>{frames.push({phase:window.s12RobotFrames.phase,...read()});frame=requestAnimationFrame(sample);};
+  window.s12RobotFrames={phase:'before',stop(){cancelAnimationFrame(frame);watcher.disconnect();return {baseline,frames,disabledMutations};}};
+  frame=requestAnimationFrame(sample);
+  return host.liveHomeApplied.revision;
+ },actionSelector);
+ await emit({holdRead:true,state:robotState});
+ try{
+  for(let n=0;!(await state()).readHeld;n++){if(n>60)throw Error('same-state robot owner read was not held');await sleep(50)}
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveHomePending===true);
+  await page.evaluate(async()=>{
+   window.s12RobotFrames.phase='held';
+   for(let n=0;n<8;n++)await new Promise(resolve=>requestAnimationFrame(resolve));
+   window.s12RobotFrames.phase='released';
+  });
+  assert((await state()).readHeld,'the owner read spans the sampled frames');
+ }finally{await emit({releaseRead:true});}
+ await page.waitForFunction(before=>{const host=document.querySelector('pv-widget-host');
+  return !host?.liveHomePending&&host?.liveHomeApplied?.revision>before;
+ },before,{timeout:5000});
+ const proof=await page.evaluate(async()=>{
+  for(let n=0;n<4;n++)await new Promise(resolve=>requestAnimationFrame(resolve));
+  return window.s12RobotFrames.stop();
+ });
+ assert(proof.baseline.visible&&!proof.baseline.disabled);
+ assert.equal(proof.baseline.action,action);
+ assert(proof.frames.filter(frame=>frame.phase==='held').length>=8);
+ assert(proof.frames.filter(frame=>frame.phase==='released').length>=4);
+ assert.deepEqual(proof.disabledMutations,[],'no disabled transition between sampled frames');
+ for(const {phase,...frame} of proof.frames)assert.deepEqual(frame,proof.baseline,`${action} changed during ${phase}`);
+ return {selector,action,robotState,baseline:proof.baseline,frames:proof.frames.length,
+  heldFrames:proof.frames.filter(frame=>frame.phase==='held').length,disabledMutations:0};
+}
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 const dailyRowsSelector='#weather-view .weather-days > div';
 async function dailyWeatherColumns(page,icons,stage){
@@ -205,9 +265,21 @@ async function offlineFeedbackJourney(page,errors){
   await emit({weatherNearExpirySeconds:8});await fresh(21.1);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const near=await capture();assert(near.weather.displayUntil>near.at&&near.weather.displayUntil<=near.at+8100);const nearSource=near.weather.stateUpdatedAt;await page.context().setOffline(true);await save('weather-09-offline-retained');await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),w=h?.state.liveWeather;return w&&Date.now()>=w.displayUntil&&!h.querySelector('#weather-view .weather-current strong')?.textContent?.trim()},undefined,{timeout:12000});const expiredDetail=await save('weather-10-offline-expired-detail');assert.equal(expiredDetail.weather.stateUpdatedAt,nearSource);assert.equal(expiredDetail.detail.value,'');assert.equal(expiredDetail.detail.hours,0);await page.locator('#header-title-action').tap();const expiredHome=await save('weather-11-offline-expired-home');assert.equal(expiredHome.home.temperature,'');assert(!/[0-9]/.test(expiredHome.header.temperature),'expired source temperature cannot survive in the visible header');assert.equal(expiredHome.home.hourCount,0);assert(expiredHome.at>=near.weather.displayUntil);await page.context().setOffline(false);
   const final=await state();assert.deepEqual(final.writes,[]);assert.deepEqual(errors,[]);await fs.writeFile(path.join(testEnv.artifactDir(),'weather-retention-proof.json'),JSON.stringify({loadedBundle,loadedCss,original,retained,expectedClock,goodHome,goodDetail,failed,reloadHome,reloadDetail,recoveredHome,recoveredDetail,near,expiredDetail,expiredHome,homeResponses,final,errors},null,2));console.log(JSON.stringify({outcome:'PASS',loadedBundle,loadedCss,actualHAWebSocketProtocol:true,actualAssistMCP:true,nativeWeatherReads:final.weather.reads.length,lastKnownAfterReload:true,originalRetrievalClockVisible:true,nativeFreshRecovery:true,dailyColumnsRecoverInPlace:true,sourceFreshness30Min:true,offlineFixedSourceExpiry:true,sourceExpiryMs:near.weather.displayUntil,nativeEffects:final.writes.length,pageErrors:errors}));return;
  }
+ let loadedBundle,loadedCss;
+ page.on('response',async response=>{
+  const file=new URL(response.url()).pathname;
+  if(!response.ok()||!file.endsWith('/podview.bundle.js')&&!file.endsWith('/podview.css'))return;
+  const hash=crypto.createHash('sha256').update(await response.body()).digest('hex');
+  if(file.endsWith('/podview.bundle.js'))loadedBundle=hash;else loadedCss=hash;
+ });
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await page.evaluate(()=>{window.homeTestClicks=[];document.addEventListener('click',e=>window.homeTestClicks.push({target:e.target.outerHTML?.slice(0,200),focus:document.querySelector('pv-widget-host')?.state?.focus}),true)});
  await testEnv.openOverview(page);
+ const overviewAction='.resource-card[data-kind="vacuum"] .resource-direct-action';
+ const detailAction='pv-robot-control-panel [data-direct-robot="true"]';
+ const robotRefresh=[];
+ for(let n=0;(await state()).subscriptions<4;n++){if(n>100)throw Error('HA subscription ACKs missing');await sleep(100)}
+ robotRefresh.push(await observeRobotButtonRefresh(page,overviewAction,'pause','cleaning'));
  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
  await card.waitFor({state:'visible',timeout:15000});console.log('beforeCard',await card.evaluate(b=>({button:b.outerHTML,focus:document.querySelector('pv-widget-host')?.state?.focus})));await card.tap();await sleep(100);console.log('afterCard',await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,status:h.liveStatus,pending:h.liveHomePending,devices:h.state.devices.map(d=>({id:d.id,live:d.live,status:d.status}))})));
  const panel=page.locator('pv-robot-control-panel');await panel.waitFor({state:'visible'});
@@ -224,6 +296,7 @@ async function offlineFeedbackJourney(page,errors){
  assert(await baseButton.evaluate(b=>b.ownerDocument.activeElement===b),'focus survives first setup completion');
  assert.equal(await baseButton.getAttribute('aria-expanded'),'true','touch-open Base survives first setup completion');
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-base-first-setup-retained.png')});
+ robotRefresh.push(await observeRobotButtonRefresh(page,detailAction,'pause','cleaning'));
  await baseButton.tap();await baseButton.focus();const beforeGeometry=await baseButton.boundingBox();
  await baseButton.evaluate(b=>{b.dataset.testContinuity='retained'});
  const before=await page.locator('pv-widget-host').evaluate(h=>h.liveSnapshot.homeRevision);
@@ -242,6 +315,7 @@ async function offlineFeedbackJourney(page,errors){
  const afterGeometry=await baseButton.boundingBox();for(const k of ['x','y','width','height'])assert(Math.abs(afterGeometry[k]-beforeGeometry[k])<2,'control geometry remains stable: '+k);
  assert.deepEqual((await state()).writes,[],'external observation has no service write');
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-home-push-paused.png')});
+ robotRefresh.push(await observeRobotButtonRefresh(page,detailAction,'resume','paused'));
  // One old read may complete; a burst schedules one follow-up, without starvation.
  await emit({holdRead:true});await emit({state:'cleaning'});
  for(let n=0;!(await state()).readHeld;n++){if(n>60)throw Error('controlled old read was not reached');await sleep(50)}
@@ -253,6 +327,13 @@ async function offlineFeedbackJourney(page,errors){
  for(let n=0;(await state()).connections<=connections;n++){if(n>100)throw Error('HA read stream did not reconnect');await sleep(100)}
  await emit({state:'paused'});
  await page.waitForFunction(()=>document.querySelector('pv-robot-control-panel')?.textContent.includes('Rengøring på pause'),undefined,{timeout:4000});
+ await page.locator('#header-title-action').tap();
+ robotRefresh.push(await observeRobotButtonRefresh(page,overviewAction,'resume','paused'));
+ assert(loadedBundle&&loadedCss,'hash the bundle and stylesheet served to Chromium');
+ assert.deepEqual((await state()).writes,[],'same-state reads and navigation never command the robot');
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-button-refresh-proof.json'),JSON.stringify({
+  outcome:'PASS',loadedBundle,loadedCss,actualHAWebSocketProtocol:true,inertOwner:true,nativeEffects:0,robotRefresh,
+ },null,2));
  // The real root/view documents run inside a Supervisor-shaped opaque prefix.
  // Only the outer HA properties/navigation protocol is an inert fixture.
  const shell=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
