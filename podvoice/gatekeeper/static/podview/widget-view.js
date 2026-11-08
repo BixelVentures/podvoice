@@ -336,7 +336,20 @@ class WidgetHost extends HTMLElement {
    received=true;if(source&&this.liveHomeApplied?.scope===source.scope&&source.revision<this.liveHomeApplied.revision){journal('superseded',{current:false});return;}
    const home=validateHome(body,room,boot),homeReadStatus={scope:JSON.stringify([boot,room])};
    for(const kind of this.liveSnapshot.capabilities.homeRead)homeReadStatus[kind]=kind==='weather'?(home.weather?'ready':body.weather?'error':'empty'):kind==='vacuum'?(home.vacuum.status==='observed'?'ready':'error'):kind==='light'?(home.lights?.status==='observed'?'ready':body.lights?'error':'empty'):'empty';
-   this.state={...applyHome(this.state,home,this.liveSnapshot.capabilities.homeRead),homeReadStatus};if(source)this.liveHomeApplied={...source};this.render();try{this.liveControls?.observeDeviceJournal?.(home);}catch{}journal(read.diagnosticRecovery?'recovered':'ok',{current:true});
+   const previous=this.liveHomeApplied;
+   this.state={...applyHome(this.state,home,this.liveSnapshot.capabilities.homeRead),homeReadStatus};
+   if(source)this.liveHomeApplied={...source};
+   this.render();
+   try{this.liveControls?.observeDeviceJournal?.(home);}catch{}
+   journal(read.diagnosticRecovery?'recovered':'ok',{current:true});
+   // The normal Home read observes its assigned room. Keep an explicitly
+   // browsed room fresh through the same read-only area owner.
+   const detail=this.state.liveLightDetail,selected=detail?.lightScope;
+   if(source&&previous?.scope===source.scope&&source.revision>previous.revision&&selected?.isOwnArea===false
+    &&detail.id===this.state.focus
+    &&(!this.lightReadAttempt||this.lightReadAttempt.passive)){
+    void this.readLightArea(selected.areaId,{preserveControls:true,passive:true});
+   }
   }catch(error){
    const superseded=!current()||read.vehicleFollowup&&error?.code!=='read_access_denied';journal(superseded?'superseded':error?.code==='read_access_denied'?'http_denied':error?.code==='read_transient'?'http_transient':'failure',{current:!superseded});
    if(error?.code==='read_access_denied')read.vehicleFollowup=false;
@@ -494,7 +507,7 @@ class WidgetHost extends HTMLElement {
   }
   if(context&&!this.lightAreaScope)this.lightAreaScope=context;const light=this.currentLightDevice()||this.state.devices.find(d=>d.kind==='light'&&d.live);if(light?.live&&light.validUntil*1000<=Date.now()&&!light.stale){if(this.state.liveLightDetail===light)this.state={...this.state,liveLightDetail:{...light,stale:true}};else this.state={...this.state,devices:this.state.devices.map(d=>d===light?{...d,stale:true}:d)};this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Lysstatus er udløbet · hent den igen.',false);this.liveControls.dialog.close();}}
  }
- async readLightArea(areaId,{preserveControls=false}={}){
+ async readLightArea(areaId,{preserveControls=false,passive=false}={}){
   const context=this.lightAreaContext();if(!context||!lightAreasObservation(context.areas)||!context.areas.items.some(row=>row.areaId===areaId))return;
   const observedArea=()=>{
    const displayed=this.currentLightDevice();
@@ -502,7 +515,7 @@ class WidgetHost extends HTMLElement {
    return this.state.devices.find(device=>device.kind==='light'&&device.lightScope?.areaId===areaId);
   };
   const observedAtStart=observedArea();
-  if(preserveControls&&this.currentLightDevice()?.lightScope?.areaId!==areaId)return false;const focus=this.state.focus;let adopted=false;const generation=this.lightAreaGeneration=(this.lightAreaGeneration||0)+1,attempt={context,focus,areaId,generation};this.lightReadAttempt=attempt;this.lightAreaScope=context;if(!preserveControls){this.lightAreaPending=true;this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Henter et andet lysområde.',false);this.liveControls.dialog.close();}}this.render();
+  if(preserveControls&&this.currentLightDevice()?.lightScope?.areaId!==areaId)return false;const focus=this.state.focus;let adopted=false;const generation=this.lightAreaGeneration=(this.lightAreaGeneration||0)+1,attempt={context,focus,areaId,generation,passive};this.lightReadAttempt=attempt;this.lightAreaScope=context;if(!preserveControls){this.lightAreaPending=true;this.closeLightDetail(false);if(this.liveControls?.domain==='light'){this.liveControls.invalidate('Henter et andet lysområde.',false);this.liveControls.dialog.close();}}if(!passive)this.render();
   const current=()=>{const now=this.lightAreaContext();return generation===this.lightAreaGeneration&&this.state.focus===focus&&now?.key===context.key&&now.transport===context.transport&&(!preserveControls||this.currentLightDevice()?.lightScope?.areaId===areaId);};
   try{const body=await context.transport.home({lightArea:areaId});if(!current())return;const home=validateHome(body,context.room,context.boot),areas=home.lightAreas,device=scopedLightDevice(home.lights,home.revision);
    if(!device||device.lightScope.areaId!==areaId||!areas||areas.sourceEpoch!==context.areas.sourceEpoch||areas.bindingId!==context.areas.bindingId||areas.placementRevision!==context.areas.placementRevision||areas.ownAreaId!==context.areas.ownAreaId||JSON.stringify(areas.items)!==JSON.stringify(context.areas.items))throw Error('light_area_changed');
@@ -518,9 +531,17 @@ class WidgetHost extends HTMLElement {
   }catch{if(current()){
    const name=context.areas.items.find(row=>row.areaId===areaId)?.areaName||'området';
    this.lightReadProblem={scopeKey:context.key,transport:context.transport,focus,areaId,displayAreaId:this.currentLightDevice()?.lightScope?.areaId,text:`Lysstatus for ${name} kunne ikke hentes.`};
-   this.showFeedback?.('Hent lysstatus igen.',false,{source:'light-read',eventId:attempt});
+   if(passive){
+    const detail=this.state.liveLightDetail;
+    if(detail?.lightScope?.areaId===areaId&&!detail.stale){
+     this.state={...this.state,liveLightDetail:{...detail,stale:true}};
+    }
+   }else this.showFeedback?.('Hent lysstatus igen.',false,{source:'light-read',eventId:attempt});
   }}
-  finally{if(generation===this.lightAreaGeneration){this.lightAreaPending=false;if(current())this.render();}}
+  finally{
+   if(this.lightReadAttempt===attempt)this.lightReadAttempt=null;
+   if(generation===this.lightAreaGeneration){this.lightAreaPending=false;if(current())this.render();}
+  }
   return adopted;
  }
  openLiveLightControl(entityId,opener){

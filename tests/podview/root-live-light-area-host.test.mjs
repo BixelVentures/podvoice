@@ -51,6 +51,22 @@ test('an own-area push preserves a separately browsed foreign area',async()=>{
   assert.equal(host.currentLightDevice(),detail);
  }finally{f.cleanup();}
 });
+test('late passive foreign-room response cannot override a newly selected room',async()=>{
+ const f=fixture(),{host}=f;
+ try{
+  await host.readLightArea('other');
+  let finish;
+  host.liveTransport.home=({lightArea})=>lightArea==='other'
+   ?new Promise(resolve=>finish=resolve):Promise.resolve(f.response(lightArea));
+  const passive=host.readLightArea('other',{preserveControls:true,passive:true});
+  assert.equal(host.lightAreaPending,false);
+  await host.readLightArea('own');
+  finish(f.response('other'));
+  assert.notEqual(await passive,true);
+  assert.equal(host.currentLightDevice().lightScope.areaId,'own');
+  assert.equal(host.lightReadAttempt,null);
+ }finally{f.cleanup();}
+});
 for(const selectedArea of ['own','other'])test(`held own-area response cannot revive stale authority from ${selectedArea}`,async()=>{
  const f=fixture(),{host}=f;
  try{

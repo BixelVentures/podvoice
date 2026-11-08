@@ -137,9 +137,20 @@ let server,browser;
   return controls?.lightActionState?.outcome==='accepted'&&!controls.lightInputQueue;
  },undefined,{timeout:5000});
  assert.equal((await state()).writes.length,6,'a prior matching push cannot replace the failed post-action read');
+ await page.unroute('**/view/api/home?*');
+ await page.locator('input[type=radio][name=light-room][value=living-id]').locator('..').tap();
+ const living=page.locator('.light-lamp-row[data-lamp-id="light.living_floor"]');
+ await living.getByText('Tændt',{exact:true}).waitFor({state:'visible'});
+ const foreignStarted=performance.now();
+ await update({area:'living-id',externalLight:{state:'off'}});
+ await living.getByText('Slukket',{exact:true}).waitFor({state:'visible',timeout:1500});
+ const foreignChangeMs=performance.now()-foreignStarted;
+ assert(foreignChangeMs<1500,`foreign source → selected light detail took ${foreignChangeMs} ms`);
+ assert.equal(await page.locator('#light-room-panel-title').innerText(),'Stuen');
+ assert.equal((await state()).writes.length,6,'foreign source observation is read only');
  assert.deepEqual(errors,[]);
  const servedBundle=await fetch(base+'/view/podview.bundle.js').then(r=>r.arrayBuffer()),servedBundleSha256=crypto.createHash('sha256').update(Buffer.from(servedBundle)).digest('hex');
- console.log(JSON.stringify({servedBundleSha256,roomFeedbackMs,externalChangeMs,voiceDuringHeldIntent:true,outcome:'PASS',actualPackagedPodView:true,actualBridgeAndToolRouter:true,inertHABoundary:true,musicUnconfigured:true,navigationEffects:0,intents:(await state()).writes,voiceDuringHeldRead:true}));
+ console.log(JSON.stringify({servedBundleSha256,roomFeedbackMs,externalChangeMs,foreignChangeMs,voiceDuringHeldIntent:true,outcome:'PASS',actualPackagedPodView:true,actualBridgeAndToolRouter:true,inertHABoundary:true,musicUnconfigured:true,navigationEffects:0,intents:(await state()).writes,voiceDuringHeldRead:true}));
  }catch(error){const page=browser?.contexts()[0]?.pages()[0];if(page){await page.screenshot({path:path.join(env.artifactDir(),'podview-light-failure.png')});console.log('failureState',JSON.stringify({server:await state(),ui:await page.locator('body').innerText(),host:await page.locator('pv-widget-host').evaluate(h=>({light:h.currentLightDevice(),areas:h.state.lightAreas,problem:h.lightReadProblem?.text,feedback:h.liveControls?.lightActionState}))}));}throw error}
  finally{if(browser)await browser.close();if(server&&server.exitCode===null){const done=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await done;}}
 })().catch(e=>{console.error(e);process.exitCode=1});

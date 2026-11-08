@@ -19,6 +19,9 @@ from gatekeeper.web import create_app
 port = int(os.environ.get("LIGHT_TEST_PORT", "18979"))
 entity = "light.kitchen_ceiling"
 light = {"state": "on", "brightness": 128}
+living_entity = "light.living_floor"
+living_light = {"state": "on", "brightness": 102}
+areas = {"kitchen-id": ("Køkkenet", entity), "living-id": ("Stuen", living_entity)}
 writes = []
 hold = False
 started = asyncio.Event()
@@ -39,17 +42,24 @@ async def template(request):
             hold = False
             started.set()
             await asyncio.wait_for(release.wait(), 1.8)
-        result = [{"areaId": "kitchen-id", "areaName": "Køkkenet"}]
+        result = [{"areaId": area_id, "areaName": name} for area_id, (name, _) in areas.items()]
     elif value.startswith("{% set a="):
-        result = {"areaId": "kitchen-id", "areaName": "Køkkenet", "entityIds": [entity]}
+        area_id = json.loads(value.split(" %}", 1)[0].removeprefix("{% set a="))
+        name, area_entity = areas[area_id]
+        result = {"areaId": area_id, "areaName": name, "entityIds": [area_entity]}
     elif "for eid in " in value:
+        area_entity, state, name = (
+            (living_entity, living_light, "Gulvlampe")
+            if living_entity in value
+            else (entity, light, "Loft")
+        )
         result = [
             {
-                "entity_id": entity,
-                "state": light["state"],
+                "entity_id": area_entity,
+                "state": state["state"],
                 "attributes": {
-                    "friendly_name": "Loft",
-                    "brightness": light["brightness"],
+                    "friendly_name": name,
+                    "brightness": state["brightness"],
                     "supported_color_modes": ["brightness"],
                 },
             }
@@ -196,10 +206,18 @@ async def lab(request):
         if body.get("releaseRead"):
             release.set()
         if "externalLight" in body:
-            light.update(body["externalLight"])
+            changed_entity, changed_light = (
+                (living_entity, living_light)
+                if body.get("area") == "living-id"
+                else (entity, light)
+            )
+            changed_light.update(body["externalLight"])
             event = {
                 "event_type": "state_changed",
-                "data": {"entity_id": entity, "new_state": {"entity_id": entity, **light}},
+                "data": {
+                    "entity_id": changed_entity,
+                    "new_state": {"entity_id": changed_entity, **changed_light},
+                },
             }
             for socket, number in list(subscribers.items()):
                 await socket.send_json({"id": number, "type": "event", "event": event})
