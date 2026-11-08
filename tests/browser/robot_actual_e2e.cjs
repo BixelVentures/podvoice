@@ -52,6 +52,30 @@ const assertRobotObservation=async(page,requests,action)=>{
   await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).scrollIntoViewIfNeeded();const normal=await capture();const requestFailures=[];page.on('requestfailed',r=>{if(r.url().includes('/view/api/control/actions')&&r.postDataJSON()?.taskId===before.taskId)requestFailures.push({at:Date.now(),body:r.postDataJSON(),error:r.failure()?.errorText})});
   // Outer fixture guard covers the server's 30s execution and client's 35s receipt wait.
   const responsePromise=page.waitForResponse(r=>r.url().includes('/view/api/control/actions')&&r.request().method()==='POST'&&r.request().postDataJSON()?.taskId===before.taskId,{timeout:40000}).catch(()=>null);const touchedAt=Date.now();await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).tap();const initialPending=await capture();
+  // The first inert settings POST holds an admitted Start while one scoped read fails.
+  for(let n=0;!(await state()).robot.slowStartPosts.length;n++){
+   if(n>50)throw Error('admitted Start did not reach the inert owner');
+   await sleep(50);
+  }
+  const readPath=url=>url.pathname==='/view/api/home';
+  await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_home_read_transient'}}),{times:1});
+  const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
+  const readScope=()=>page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),
+   bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
+   connected:h.liveTransport.connected,stale:h.state.devices.find(row=>row.id==='vacuum.qrevo')?.stale===true}));
+  const scopeBefore=await readScope();
+  await page.locator('pv-widget-host').evaluate(h=>h.loadLiveHome());
+  const failedResponse=await failedRead,scopeAfter=await readScope();
+  const transientRead={status:failedResponse.status(),body:await failedResponse.json(),scopeBefore,scopeAfter,
+   receipt:await capture()};
+  assert.equal(scopeBefore.stale,false);
+  assert.equal(scopeAfter.stale,true);
+  for(const key of ['bootId','roomId','generation','connected'])assert.equal(scopeAfter[key],scopeBefore[key]);
+  assert(scopeAfter.at<before.expiresAt*1000,'transient read fails before the original offer expires');
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-start-transient-read.json'),
+   JSON.stringify(transientRead,null,2));
+  console.log('slowStartTransientRead',JSON.stringify(transientRead));
+  assert.equal(transientRead.receipt.receipt?.outcome,'pending','a transient read cannot discard Start custody');
   while(Date.now()<before.expiresAt*1000+120)await sleep(100);
   const afterExpiry=await capture();await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-expired-pending.png')});
   for(let n=0;n<100;n++){const value=await state();if(value.robot.slowStartPosts.length===5&&value.robot.slowStartPosts.at(-1).completedAt)break;await sleep(100)}const response=requestFailures.length?null:await responsePromise,receipt=response?await response.json():null,receivedAt=Date.now();await sleep(100);const settled=await capture();await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-accepted.png')});

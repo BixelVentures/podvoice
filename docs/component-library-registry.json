@@ -904,6 +904,7 @@
           "method:refreshRobotOverview": 1,
           "method:robotControlContext": 1,
           "method:robotControlCurrent": 1,
+          "method:robotStartReceiptCurrent": 1,
           "method:currentRobotSetup": 1,
           "method:robotOverviewAction": 1,
           "method:robotOverviewContext": 1,
