@@ -15,7 +15,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 SOURCE_TTL = 900.0
 MAX_CHARGE_ETA_SECONDS = 7 * 24 * 60 * 60
@@ -619,7 +619,9 @@ async def read_snapshot(
                     or not number(eta_stamp, clock - SOURCE_TTL, clock)
                     or eta_stamp != charge_stamp
                     or eta_stamp != stamps.get("charge_state")
-                    or not number(charging["endsAt"], clock, eta_stamp + MAX_CHARGE_ETA_SECONDS)
+                    or not number(
+                        charging["endsAt"], clock, cast(float, eta_stamp) + MAX_CHARGE_ETA_SECONDS
+                    )
                     or charging["endsAt"] <= clock
                 ):
                     data = {
