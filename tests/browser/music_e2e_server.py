@@ -719,6 +719,12 @@ async def lab_state(request):
         if robot is not None:
             if "robotBattery" in args:
                 robot.states[ROBOT]["attributes"]["battery_level"] = int(args["robotBattery"])
+            if robot_draft and "robotWaterReport" in args:
+                age = 75 if args["robotWaterReport"] == "stale" else 0
+                water.update(
+                    statusObservedAt=time.time() - age,
+                    messageSequence=water["messageSequence"] + 1,
+                )
             if "robotMop" in args:
                 robot.states[MOP]["state"] = args["robotMop"]
             if "robotState" in args:

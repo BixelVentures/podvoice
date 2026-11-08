@@ -54,7 +54,10 @@ export function controlTask(raw,snapshot,domain,now=Date.now()){
  if(Object.hasOwn(raw.setup??{},'draft')){
   const draft=raw.setup.draft,starts=options.filter(o=>o.action==='start'&&o.argsSchema.kind==='cleaning');
   if(domain!=='vacuum'||!draft||typeof draft!=='object'||Array.isArray(draft))fail();
-  if(draft.status==='not_restored'){if(!exactKeys(draft,['status']))fail();task.draft={status:'not_restored'};}
+  if(['not_restored','awaiting_water'].includes(draft.status)){
+   if(!exactKeys(draft,['status'])||draft.status==='awaiting_water'&&starts.length!==1)fail();
+   task.draft={status:draft.status};
+  }
   else {if(!exactKeys(draft,['status','optionId','areaIds','repeat','settingChoices'])||draft.status!=='restored'||starts.length!==1||draft.optionId!==starts[0].id||!Array.isArray(draft.areaIds)||draft.areaIds.length>32||new Set(draft.areaIds).size!==draft.areaIds.length||draft.areaIds.some(id=>!starts[0].argsSchema.areas.some(row=>row.id===id))||!Number.isInteger(draft.repeat)||draft.repeat<starts[0].argsSchema.repeat.min||draft.repeat>starts[0].argsSchema.repeat.max||!Array.isArray(draft.settingChoices)||draft.settingChoices.length>16)fail();
    const settings=starts[0].argsSchema.settings||[],seen=new Set();for(const choice of draft.settingChoices){const setting=settings.find(s=>s.id===choice?.settingId);if(!exactKeys(choice,['settingId','choiceId'])||!setting||seen.has(choice.settingId)||!setting.choices.some(c=>c.id===choice.choiceId))fail();seen.add(choice.settingId);}task.draft={status:'restored',optionId:draft.optionId,areaIds:[...draft.areaIds],repeat:draft.repeat,settingChoices:draft.settingChoices.map(c=>({...c}))};}
  }
