@@ -252,9 +252,9 @@ async function lifecycleJourney(page,card,errors,commands){
  assert.deepEqual((await state()).writes,[]);
  const knownTimes=await fieldTimes();
  assert(Number.isFinite(knownTimes.trunk)&&Number.isFinite(knownTimes['climate.status']));
- const refresh=async phase=>{
+ const refresh=async (phase,extra={})=>{
   await sleep(5200); // Let the real passive cache expire before reading changed fixture state.
-  await update({phase});
+  await update({phase,...extra});
   await page.locator('pv-widget-host').evaluate(host=>host.loadLiveHome());
  };
  await refresh('historical');
@@ -280,8 +280,45 @@ async function lifecycleJourney(page,card,errors,commands){
  assert(await trunk('Afrimning ukendt').isDisabled());
  assert.deepEqual((await state()).writes,[]);
 
+ const endsAt=Math.floor(Date.now()/1000)+2700;
+ await refresh('changed',{endsAt});
+ await page.waitForFunction(endsAt=>{
+  const vehicle=document.querySelector('pv-widget-host')?.state?.vehicle;
+  return vehicle?.access?.rearTrunk==='open'&&vehicle?.charging?.endsAt===endsAt;
+ },endsAt,{timeout:12000});
+ const chargingFacts=await hero.evaluate((node,endsAt)=>{
+  const metrics=[...node.querySelectorAll('.vehicle-metric:not([hidden])')].map(metric=>{
+   const label=metric.querySelector('dt'),value=metric.querySelector('dd'),rect=metric.getBoundingClientRect();
+   return {label:label.textContent,value:value.textContent,x:rect.x,right:rect.right,
+    labelY:label.getBoundingClientRect().y,valueY:value.getBoundingClientRect().y};
+  });
+  return {width:window.innerWidth,metrics,artworkWidth:node.querySelector('.vehicle-artwork').getBoundingClientRect().width,
+   expectedEta:new Date(endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})};
+ },endsAt);
+ assert.equal(chargingFacts.width,1280);
+ assert.deepEqual(chargingFacts.metrics.map(({label,value})=>[label,value]),[
+  ['Batteri','72 %'],['Rækkevidde','312 km'],['Ladeeffekt','11 kW'],['Forventet færdig',chargingFacts.expectedEta],
+ ]);
+ assert.equal(chargingFacts.artworkWidth,256,'newer canonical artwork slot');
+ for(const [index,metric] of chargingFacts.metrics.entries()){
+  assert.equal(metric.labelY,chargingFacts.metrics[0].labelY);
+  assert(metric.valueY>metric.labelY);
+  if(index)assert(metric.x>=chargingFacts.metrics[index-1].right);
+ }
+ const chargingFields=await fieldTimes();
+ for(const field of ['batteryPercent','rangeKm','charging.powerKw','charging.endsAt']){
+  assert(Number.isFinite(chargingFields[field])&&chargingFields[field]>knownTimes.batteryPercent);
+ }
+ assert(await page.locator('pv-widget-host').evaluate(h=>!(h.state.vehicle.historicalFields||[])
+  .some(field=>['batteryPercent','rangeKm','charging.powerKw','charging.endsAt'].includes(field))));
+ const fourFactsScreenshot=path.join(env.artifactDir(),'podview-vehicle-charging-four-fresh-facts.png');
+ await page.screenshot({animations:'disabled',path:fourFactsScreenshot});
+
  await refresh('changed');
- await snapshotReady(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.access?.rearTrunk==='open');
+ await snapshotReady(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.charging?.status==='charging'
+  &&!Number.isFinite(document.querySelector('pv-widget-host').state.vehicle.charging.endsAt)
+  &&document.querySelector('.vehicle-metrics > .vehicle-metric:last-child')?.hidden===true);
+ assert.doesNotMatch(await hero.innerText(),/Forventet færdig/);
  assert.match(await hero.innerText(),/Bilen lader/);
  assert.match(await hero.innerText(),/11 kW/);
  assert(await trunk('Luk bagagerum').isEnabled());
@@ -333,7 +370,8 @@ async function lifecycleJourney(page,card,errors,commands){
   noAdditionalNativeReadsOnOpen:true,noWakeCommand:true,missingDefrostSingleDisabledControl:true,
   missingTrunkUnknownWithoutSiblingLoss:true,tabletSizedChromiumLayout:true,
   scopedTrunkAcceptanceBeforeObservedClosure:true,externalLockAndClimateObserved:true,
-  chargingAndIdleReadFromSource:true,inertFinalHA:true};
+  chargingAndIdleReadFromSource:true,chargingFacts,chargingFields,fourFactsScreenshot,
+  chargingEtaHiddenWithoutSource:true,inertFinalHA:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-vehicle-lifecycle-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }

@@ -1,3 +1,7 @@
+## 2.0.154
+
+- Vis forventet færdigopladning fra Teslas oprindelige ladeobservation; manglende eller for gammel sluttid skjules alene, og blandede HA-/PodVoice-versioner bevarer øvrige bildata.
+
 ## 2.0.153
 
 - Bevar robotrum og rengøringsvalg synligt under netudfald; genvalidér betjeningen automatisk uden genindlæsning eller automatisk Start.

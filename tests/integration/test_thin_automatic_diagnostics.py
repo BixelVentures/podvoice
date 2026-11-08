@@ -96,6 +96,8 @@ async def test_live_output_transcript_marker_is_bounded_to_current_conversation(
 
     device = HistoricalWavBrowserLink(send_json, send_bytes) if browser else None
     session, _, _, _, _ = build(device=device) if browser else build()
+    # Allow the inert SDK close to finish under runner load so the marker can be inspected.
+    session.live_brain.timeout_s = 2.0
     recorder = AudioTraceRecorder(tmp_path, automatic=True)
     if browser:
         session._private_contract_recorder = recorder
@@ -122,9 +124,13 @@ async def test_live_output_transcript_marker_is_bounded_to_current_conversation(
                 for item in recorder.diagnostics()
                 if item["session_hash"] == hashlib.sha256(owner.encode()).hexdigest()
             )
-            assert next(e for e in record["events"] if e["event"] == "teardown_complete")[
-                "live_output_transcript_seen"
-            ] is (generation == 2)
+            teardown = next(
+                (e for e in record["events"] if e["event"] == "teardown_complete"), None
+            )
+            assert teardown is not None, (
+                f"fixture teardown did not finish for generation {generation}"
+            )
+            assert teardown["live_output_transcript_seen"] is (generation == 2)
     finally:
         await session.aclose()
         await recorder.shutdown(timeout_s=3.0)

@@ -426,6 +426,7 @@ class ToolRouter:
         self._recovery_wakeup = asyncio.Event()
         self._mcp_epoch = 0
         self._services_epoch = 0
+        self._vehicle_eta_service: tuple[httpx.AsyncClient, str] | None = None
         self._services_retry: tuple[str, int, float] | None = None
         self._entity_index: dict[str, tuple[_CanonicalEntity, ...]] = {}
         self._entity_index_at = 0.0
@@ -622,15 +623,16 @@ class ToolRouter:
         recently_played/top_tracks/liked as REST-callable AI data services, so bridge
         exactly those names — and only advertise ones HA says are installed.
         """
-        if not self._token or self._client is None:
+        client, token = self._client, self._token
+        if not token or client is None:
             return
         self._services_epoch += 1
         epoch = self._services_epoch
         try:
             async with asyncio.timeout(C.TOOL_TIMEOUT_S):
-                response = await self._client.get(
+                response = await client.get(
                     f"{C.SUPERVISOR_CORE_API}/services",
-                    headers={"Authorization": f"Bearer {self._token}"},
+                    headers={"Authorization": f"Bearer {token}"},
                 )
             response.raise_for_status()
             domains = response.json()
@@ -685,10 +687,31 @@ class ToolRouter:
                             seek_reads.add(name)
                 room_playback_seek = len(seek_reads) == 2
                 break
+            vehicle_services = next(
+                (row.get("services") for row in domains if row.get("domain") == "podvoice"), None
+            )
+            vehicle_service = (
+                vehicle_services.get("vehicle_snapshot")
+                if isinstance(vehicle_services, dict)
+                else None
+            )
+            vehicle_fields = (
+                vehicle_service.get("fields") if isinstance(vehicle_service, dict) else None
+            )
+            vehicle_eta = (
+                vehicle_fields.get("include_charge_eta")
+                if isinstance(vehicle_fields, dict)
+                else None
+            )
             # Only the latest service read may publish either domain. A cancelled
             # or delayed older read cannot restore contracts after a newer failure.
             if epoch != self._services_epoch:
                 return
+            self._vehicle_eta_service = (
+                (client, token)
+                if isinstance(vehicle_eta, dict) and vehicle_eta.get("required") is False
+                else None
+            )
             self.timers.discover(domains)
             self._services_retry = None
             snap = self._discovery
@@ -720,6 +743,7 @@ class ToolRouter:
         except Exception as e:
             if epoch != self._services_epoch:
                 return
+            self._vehicle_eta_service = None
             attempt = self._services_retry[1] + 1 if self._services_retry else 1
             delay = _RECOVERY_BACKOFF_S[min(attempt - 1, len(_RECOVERY_BACKOFF_S) - 1)]
             self._services_retry = (
@@ -2684,7 +2708,7 @@ class ToolRouter:
     async def _read_podview_vehicle_snapshot(
         self, scope, *, client, token, current, trunk_control=False
     ):
-        async def service_read(data):
+        async def request_snapshot(data):
             if not current():
                 raise ValueError("vehicle source changed")
             payload = bytearray()
@@ -2707,6 +2731,24 @@ class ToolRouter:
             ):
                 raise ValueError("vehicle snapshot response unavailable")
             return wrapper["service_response"]
+
+        async def service_read(data):
+            eta_service = self._vehicle_eta_service
+            if (
+                not trunk_control
+                and "endsAt" in data["entities"]
+                and eta_service == (client, token)
+            ):
+                try:
+                    return await request_snapshot({**data, "include_charge_eta": True})
+                except httpx.HTTPStatusError as error:
+                    if error.response.status_code != 400:
+                        raise
+                    # A companion rollback can retire the advertised option before the next probe.
+                    # HA rejects the unknown field before the vehicle owner performs a read.
+                    if self._vehicle_eta_service is eta_service:
+                        self._vehicle_eta_service = None
+            return await request_snapshot(data)
 
         return await podview_vehicle.read_snapshot(
             scope, service_read=service_read, current=current, trunk_control=trunk_control

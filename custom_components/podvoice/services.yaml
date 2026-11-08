@@ -273,3 +273,8 @@ vehicle_snapshot:
       description: Read only the current native evidence for the configured rear trunk.
       selector:
         boolean:
+    include_charge_eta:
+      description: Include a current charging estimate from the configured Tesla Fleet source when available.
+      required: false
+      selector:
+        boolean:
