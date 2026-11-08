@@ -36,6 +36,7 @@ logging.basicConfig(level=logging.WARNING)
 music = Rig()
 room_owner(music)
 extended = os.environ.get("MUSIC_EXTENDED") == "1"
+output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
 external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
 original_client = music.client
@@ -271,6 +272,21 @@ async def native_service(request):
     if extended and path.endswith("prepare_room_move_playback"):
         return httpx.Response(200, json={"service_response": move_preparation(args)})
     if extended and path.endswith("move_room_playback"):
+        outcome = state.pop("nextMoveOutcome", None) if output_transfer else None
+        if outcome:
+            state.setdefault("failedMoveAttempts", []).append(
+                {"outcome": outcome, "requestId": args["request_id"], "room": args["room_id"]}
+            )
+            music.value["next_command_sequence"] += 1
+            value = move_receipt(args)
+            value.update(
+                ok=False,
+                outcome=outcome,
+                accepted_room_move=False,
+                move_operation_id=None,
+                session_volume_percent=None,
+            )
+            return httpx.Response(200, json={"service_response": value})
         state["room"], state["homepod"] = args["room_id"], args["homepod_id"]
         state["sequence"] += 1
         state["writes"].append(
@@ -517,6 +533,10 @@ async def lab_state(request):
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])
+        if output_transfer and "nextMoveOutcome" in args:
+            if args["nextMoveOutcome"] not in {"rejected", "unknown"}:
+                raise web.HTTPBadRequest()
+            state["nextMoveOutcome"] = args["nextMoveOutcome"]
         # An unrelated voice turn changes the UI snapshot, not the music owner.
         if "unrelatedVoiceTurn" in args:
             turn = str(args["unrelatedVoiceTurn"])

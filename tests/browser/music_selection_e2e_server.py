@@ -49,9 +49,9 @@ tracks = [
     for i in (range(11, 18) if discovery_loading else (11, 12, 13))
 ]
 base.state.update(
-    state="paused",
+    state="playing" if base.output_transfer else "paused",
     song=1,
-    queue=[21, 22, 23, 24] if queue_journey else [21, 22],
+    queue=[21, 22, 23, 24] if queue_journey or base.output_transfer else [21, 22],
     selections=[],
     queueSelections=[],
     nativeCalls=[],
@@ -307,6 +307,13 @@ async def native(request):
         value["queue"]["observation_id"] = secrets.token_hex(16)
         value["native"].update(target_id="device", homepod_id="42")
         value["route"]["device_id"] = "42"
+        if base.output_transfer:
+            assert (args["room_id"], args["homepod_id"]) == (
+                base.state["room"],
+                base.state["homepod"],
+            )
+            value["native"].update(room_id=base.state["room"], homepod_id=base.state["homepod"])
+            value["route"]["device_id"] = base.state["homepod"]
         value["items"] = [
             {
                 "option_id": f"{i:024x}",
@@ -328,11 +335,15 @@ async def native(request):
     if service == "prepare_room_queue":
         return httpx.Response(200, json={"service_response": staged(args)})
     if service == "control_room_queue":
+        scope = {}
+        if base.output_transfer:
+            scope = {"room": args["room_id"], "homepod": args["homepod_id"]}
+            assert scope == {"room": base.state["room"], "homepod": base.state["homepod"]}
         song = int(args["args"]["occurrence_id"], 16)
         assert song in base.state["queue"]
         index = base.state["queue"].index(song)
         base.state.update(song=song, state="playing")
-        if queue_journey:
+        if queue_journey or base.output_transfer:
             base.state["queue"] = base.state["queue"][index + 1 :]
             if queue_cold_tail and song == 22:
                 base.state["queue"].append(25)
@@ -341,7 +352,12 @@ async def native(request):
             {"index": index, "song": song, "requestId": args["request_id"]}
         )
         base.state["writes"].append(
-            {"action": "play_queue_occurrence", "song": song, "requestId": args["request_id"]}
+            {
+                "action": "play_queue_occurrence",
+                "song": song,
+                "requestId": args["request_id"],
+                **scope,
+            }
         )
         base.music.value["next_command_sequence"] += 1
         settle(args)
@@ -373,6 +389,8 @@ base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
     if cold
     else ["play_track", "play_queue_occurrence"]
 )
+if base.output_transfer:
+    base.app[BRIDGE].controls.policy["music"][1]["actions"].append("play_queue_occurrence")
 
 
 async def cleanup(_):
