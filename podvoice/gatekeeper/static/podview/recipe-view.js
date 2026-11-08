@@ -181,6 +181,7 @@ export class RecipeView {
    if (!response.ok) throw new Error('Uploadhistorikken kunne ikke hentes');
    const {uploads} = await response.json();
    if (!Array.isArray(uploads)) throw new Error('Ugyldig uploadhistorik');
+   if (signal?.aborted) return false;
    this.uploads = uploads.filter(upload=>upload && typeof upload.id === 'string'
     && typeof upload.status === 'string' && typeof upload.message === 'string')
     .sort((a,b)=>(new Date(b.updatedAt || b.receivedAt).getTime() || 0)-(new Date(a.updatedAt || a.receivedAt).getTime() || 0)).slice(0,50);
@@ -227,8 +228,9 @@ export class RecipeView {
    }
    if (this.uploadHistoryStatus === 'unavailable') {
     uploads.setDescription('Kunne ikke opdateres');
-    uploads.panel.append(meta('Uploadhistorikken kunne ikke hentes. De viste oplysninger kan være ældre.'),
-     action('Prøv igen',async()=>{await this.refreshUploadHistory();if(layout.isConnected) renderUploads();}));
+    const retry = action('Prøv igen',()=>retryUploadHistory());
+    retry.id = 'recipe-upload-history-retry';
+    uploads.panel.append(meta('Uploadhistorikken kunne ikke hentes. De viste oplysninger kan være ældre.'),retry);
    } else {
     uploads.setDescription(this.uploads.length ? this.uploads.length+' seneste uploads' : '');
     if (this.uploadHistoryStatus === 'ready' && !this.uploads.length) uploads.panel.append(meta('Der er ingen uploads endnu.'));
@@ -366,7 +368,8 @@ export class RecipeView {
   entries.scrollTop = this.active ? 0 : this.catalogScroll || 0;
   // A single bounded refresh loop belongs to this mounted catalog, not the widget host.
   const abort = new AbortController();
-  let timer, inFlight = false, queued = false, historyPending = false;
+  let timer, inFlight = false, queued = false, historyPending = false, retryHistory = false;
+  const retryUploadHistory = () => { retryHistory = true; void run(); };
   const active = () => layout.isConnected && !this.root.hidden && !document.hidden;
   const schedule = () => { clearTimeout(timer); if (active()) timer = setTimeout(run, 10000); };
   const run = async () => {
@@ -374,6 +377,8 @@ export class RecipeView {
    if (inFlight) { queued = true; return; }
    clearTimeout(timer);
    inFlight = true;
+   const retryRequested = retryHistory;
+   retryHistory = false;
    const [historyChanged, changed] = await Promise.all([
     this.refreshUploadHistory(abort.signal), this.refreshPublishedCatalog(abort.signal),
    ]);
@@ -392,20 +397,29 @@ export class RecipeView {
      const restored = focusedChoice ? [...this.root.querySelectorAll('input[type=radio]')].find(node=>node.name === focusedChoice.name && node.value === focusedChoice.value)
       : focusedId ? [...this.root.querySelectorAll('[id]')].find(node=>node.id === focusedId)
       : focusedRecipe ? [...this.root.querySelectorAll('[data-recipe]')].find(node=>node.dataset.recipe === focusedRecipe) : null;
-     (restored || this.catalogEntries).focus({preventScroll:true});
+     const retryFallback = focusedId === 'recipe-upload-history-retry'
+      ? this.root.querySelector('#recipe-upload-history-trigger') : null;
+     (restored || retryFallback || this.catalogEntries).focus({preventScroll:true});
     }
+    if (retryHistory) this.catalogRefresh?.retryUploadHistory();
     return;
    }
-   // Do not replace the disclosure while a user is interacting inside it.
-   historyPending ||= historyChanged;
-   if (historyPending && !uploads.node.contains(document.activeElement)) { renderUploads(); historyPending = false; }
+   // The trigger is stable. Protect focus only in the panel being replaced.
+   historyPending ||= historyChanged || retryRequested;
+   const panelFocused = uploads.panel.contains(document.activeElement);
+   if (historyPending && (retryRequested || !panelFocused)) {
+    renderUploads();
+    historyPending = false;
+    if (panelFocused) (uploads.panel.querySelector('#recipe-upload-history-retry') || uploads.trigger)
+     .focus({preventScroll:true});
+   }
    if (queued) { queued = false; run(); } else schedule();
   };
   const visibility = () => { clearTimeout(timer); if (active()) run(); };
   const observer = new MutationObserver(visibility);
   observer.observe(this.root,{attributes:true,attributeFilter:['hidden']});
   document.addEventListener('visibilitychange',visibility);
-  this.catalogRefresh = {dispose:()=>{
+  this.catalogRefresh = {retryUploadHistory,dispose:()=>{
    clearTimeout(timer); abort.abort(); observer.disconnect();
    document.removeEventListener('visibilitychange',visibility);
   }};

@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "2e35884d14313e30d07522d73c37181023c7ab48697d5a9793241556ff9c68b2"
+      "sha256": "fe5d5566039a94e64ca3904bb64d223c0a80837fa93a30ad28c45809570c4442"
     },
     {
       "path": "podview.css",
@@ -663,7 +663,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "c554dff5e0abdb9b7cff065c1021abdea673c8e288c1202225df840387bd363b"
+      "sha256": "e625e0a29447f28f835378e581fa67e23631e803bd81eeded65a8661d18f1f46"
     },
     {
       "path": "references.json",

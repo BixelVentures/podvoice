@@ -1,3 +1,7 @@
+## 2.0.153
+
+- Opdatér opskrifters åbne uploadhistorik uden at miste fokus; Prøv igen genbruger samme læsesløjfe og bevarer den godkendte visning.
+
 ## 2.0.152
 
 - Tesla-handlinger viser neutral fremdrift frem til frisk HA-status; uafhængige funktioner forbliver tilgængelige efter kvittering, og samtidige fejl bevares.
