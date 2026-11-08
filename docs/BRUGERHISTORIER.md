@@ -55,7 +55,7 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 | A11 | En start fejler eller ender ukendt → skærmen hænger ikke permanent på det ønskede nummer og hævder ikke bekræftet afspilning; ny eksplicit handling er mulig | delvis ✅ collection-selection: direkte UNKNOWN, korreleret UNKNOWN efter accept og svar under disconnect tillader nyt eksplicit valg med ny kandidat/opgave/request; gammel effekt gensendes ikke passivt. Browser med mistet accepteret svar prøvet; fysisk effekt ikke prøvet |
 | A12 | Stemme starter musik → PodView viser samme konto/output; jeg vælger i køen og pauser med touch → hele forløbet styrer samme session | ⬜ |
 | A13 | Pause/fortsæt, næste/forrige og volumenkontrol bruges efter adgangsfornyelse → ingen venten på »observeret musik« før visuel feedback; korrekt effekt følger de respektive tidsmål | ⬜ |
-| A14 | En musikstart afbrydes midt i klargøring → gammel session ryddes korrekt op, og en senere eksplicit start kan gennemføres uden at genstarte HA | ⬜ |
+| A14 | En musikstart afbrydes midt i klargøring → gammel session ryddes korrekt op, og en senere eksplicit start kan gennemføres uden at genstarte HA | delvis ✅ PodConnect PR112 officiel HA-framework-CI: samme Control-ejer annullerer præcis det holdte tilbud, afviser gammel commit og accepterer et nyt eksplicit nummer med frisk sekvens/tilbud én gang; identisk kvitteringsopslag gentager ikke commit. PodVoice-cancel og Speakers-terminal/FIFO har separate regressioner; samlet native oprydning og fysisk afspilning er ikke bevist af HA-testens inerte Speakers |
 
 ## Kø
 
