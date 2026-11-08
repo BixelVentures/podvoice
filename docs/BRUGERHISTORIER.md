@@ -44,6 +44,8 @@ Daily Mix er valgfri. En historie giver ikke tilladelse til at opfinde nyt layou
 
 **Vejr på Green · 8. november, 18.07 CET.** Header og åbnet detalje viser samme 7°/Skyet. Den faktiske Met.no-visning indeholder 12 timepunkter og seks dagsrækker med skyet, let skyet og solrigt-ikoner samt temperaturer. Dette beviser normal liveindlæsning og konsistens i dette forløb, ikke kildeudfald, ikonfallback, præcis datalder eller fysisk iPad. Versionsrettelse er nu PR #334, head8327c489, reviewet og fokuseret testet; ikke merged/udgivet.
 
+**Robotvisning på Green · 8. november, 18.09–18.10 CET.** Faktisk installeret 2.0.156 viser Oplader/98 %, seks tidligere valgte rum, Støvsug og vask/Støvsug/Vask uden Tilpasset type, valgt Maks./Extreme/Standard/2× samt kun 1×/2×. Ingen indstilling eller enhedshandling ændret. Vedligeholdelse åbnes fra én lukket række til fire kompakte navne; Sidebørste åbner konkret intervalbaseret vejledning. Begge accordions lukket igen; ingen påmindelse afvist eller vedligeholdelse nulstillet. Basebetjening var ikke synlig i den aflæste visning og er derfor ikke livebevist. Første adgang viste Henter aktuel betjening, hvorefter kontrolpanelet kom frem; dette er ikke et bevis for opstartstidsmål eller fravær af alle flashes. Fysisk robot og iPad stadig åbne.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
