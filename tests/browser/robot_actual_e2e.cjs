@@ -159,8 +159,17 @@ const assertRobotObservation=async(page,requests,action)=>{
    bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
    connected:h.liveTransport.connected,stale:h.state.devices.find(row=>row.id==='vacuum.qrevo')?.stale===true}));
   const scopeBefore=await readScope().finally(releaseFailedRead);
-  await page.locator('pv-widget-host').evaluate(h=>h.loadLiveHome());
-  const failedResponse=await failedRead;
+  const probeRead=async()=>{
+   // A Home read sent before interception may still be in flight. Let it settle before probing.
+   await page.waitForFunction(()=>{
+    const h=document.querySelector('pv-widget-host');
+    return h&&(!h.liveHomePending||h.state.devices.some(row=>row.id==='vacuum.qrevo'&&row.stale===true));
+   },undefined,{timeout:5000});
+   await page.locator('pv-widget-host').evaluate(h=>{
+    if(!h.state.devices.some(row=>row.id==='vacuum.qrevo'&&row.stale===true))return h.loadLiveHome();
+   });
+  };
+  const [failedResponse]=await Promise.all([failedRead,probeRead()]);
   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.devices
    .some(row=>row.id==='vacuum.qrevo'&&row.stale===true),undefined,{timeout:5000});
   const scopeAfter=await readScope();
