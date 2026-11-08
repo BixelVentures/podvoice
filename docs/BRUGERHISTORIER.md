@@ -15,7 +15,7 @@ Der sættes ikke en confidence-procent på en historie uden et dokumenteret bere
 Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 Udvidelsen 7. november samler tidligere brugerfeedback til fælles gennemgang. Nye rækker er krav,
 ikke implementerings- eller testresultater. Eksisterende delvise resultater bevares med deres begrænsninger.
-F3 og H2–H3 er Claudes eksisterende forslag; konkret søge-/konto-UI skal afklares mod godkendt design.
+F3 og H2–H3 er Claudes eksisterende forslag. Musiksøgning, konto-overtagelse (Spil her), portionsændring (O2/O9) og timer direkte fra opskriftstrin (O3) har ingen dokumenteret brugergodkendelse. Brugeren bad 8. november om at få dem oplistet og betvivlede deres ophav. De bevares synligt til afklaring, men implementeres ikke og er ikke udgivelseskrav uden godkendelse; de øvrige allerede aftalte dele af O2/O3 bevares.
 Daily Mix er valgfri. En historie giver ikke tilladelse til at opfinde nyt layout eller enhedsfunktioner.
 
 ## Fælles tilstande og overgangsregler
