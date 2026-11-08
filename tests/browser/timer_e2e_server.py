@@ -4,6 +4,7 @@ import asyncio
 import copy
 import json
 import logging
+import math
 import os
 import time
 from contextlib import suppress
@@ -26,8 +27,28 @@ port = int(os.environ.get("TIMER_TEST_PORT", "18981"))
 data = Path(os.environ["TIMER_TEST_DATA"])
 manager, ha_bridge, client, tools, calls, _ = build()
 adjust_mode = os.environ.get("TIMER_ADJUST_TEST") == "1"
+reload_mode = os.environ.get("TIMER_RELOAD_TEST") == "1"
 adjust_controls = {}
 service_calls, native_effects = [], []
+timer_deadlines, finished_callbacks = {}, []
+clock_offset = 0.0
+
+
+def owner_clock():
+    return time.monotonic() + clock_offset
+
+
+if reload_mode:
+    start_timer = manager.start_timer
+
+    def start_countdown(device, hours, minutes, seconds, language, name=None):
+        timer_id = start_timer(device, hours, minutes, seconds, language, name)
+        timer_deadlines[timer_id] = owner_clock() + seconds
+        return timer_id
+
+    manager.start_timer = start_countdown
+
+
 if adjust_mode:
     # Reuse the admitted native-v2 integration-test descriptor. It mirrors the
     # registered service fields/selectors without adding a YAML dependency.
@@ -121,6 +142,16 @@ async def state(_request):
             "finished": ha_bridge.snapshot("kitchen")["finished"],
             **(
                 {
+                    "epoch": ha_bridge.epoch,
+                    "ownerNow": owner_clock(),
+                    "deadlines": timer_deadlines,
+                    "finishedCallbacks": finished_callbacks,
+                }
+                if reload_mode
+                else {}
+            ),
+            **(
+                {
                     "native": ha_bridge.snapshot("kitchen"),
                     "serviceCalls": service_calls,
                     "nativeEffects": native_effects,
@@ -144,9 +175,16 @@ async def finish(request):
 
 
 async def timer_control(request):
-    if not adjust_mode:
+    if not (adjust_mode or reload_mode):
         raise web.HTTPNotFound()
     payload = await request.json()
+    if reload_mode:
+        global clock_offset
+        timer_id = payload.get("expireTimerId")
+        if timer_id not in manager.timers:
+            raise web.HTTPNotFound()
+        clock_offset += max(0, timer_deadlines[timer_id] - owner_clock())
+        return await state(request)
     if payload.get("holdNext"):
         adjust_controls["hold_next"] = asyncio.Event()
         adjust_controls["release"] = adjust_controls["hold_next"]
@@ -186,6 +224,13 @@ app.router.add_post("/lab/timer-control", timer_control)
 async def refresh_loop():
     # Thin normally refreshes this same owner; fixture provides an inert clock.
     while True:
+        if reload_mode:
+            now = owner_clock()
+            for timer_id, timer in list(manager.timers.items()):
+                timer.seconds_left = max(0, math.ceil(timer_deadlines[timer_id] - now))
+                if timer.seconds_left == 0:
+                    manager.finish(timer_id)
+                    finished_callbacks.append(timer_id)
         await tools.timers.refresh("kitchen")
         await asyncio.sleep(0.25)
 

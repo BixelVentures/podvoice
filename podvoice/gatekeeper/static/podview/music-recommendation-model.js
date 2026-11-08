@@ -1,3 +1,5 @@
+export const MUSIC_DISCOVERY_LIST_STEP=5;
+
 // Presentation-only ordering of one already admitted source. No profile, network,
 // new recommendations or command authority; returned indices address that source.
 export function musicSourcePage(tracks,kind,offset=0){

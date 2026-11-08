@@ -531,7 +531,7 @@
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "dadfb7ac6c0076d4bf43c62c3a30c8201ff7158aa3b92a133aa83ecf3bac27e8"
+      "sha256": "389a39c15585a48397733955e8144f77794b17c1a3b6cfde2b53e35ee796d785"
     },
     {
       "path": "live-control-view.js",
@@ -551,7 +551,7 @@
     },
     {
       "path": "live-music-view.js",
-      "sha256": "9eed9b9cf9620da0c8294467bbf70442922813ca1178e6911b63a87b5ab00cd8"
+      "sha256": "cf4cc7b20eaa028bc2675b9b8c3415a3b1833f847bcd0f8d629461565a3fb4a9"
     },
     {
       "path": "live-music.css",
@@ -563,7 +563,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "a5e8d94db44a1cbc9bc66886d0a7b5f516d2e5686c4cdfd23f51d9a49afdf762"
+      "sha256": "291a16babdc0b201cbcd6be0c468ed7628361a5dbfdac38ad4c8ab67bad1e173"
     },
     {
       "path": "local-robot-view.js",
@@ -587,11 +587,11 @@
     },
     {
       "path": "music-recommendation-model.js",
-      "sha256": "6d256254e060a3150710992855d92f3ea8e23bec60192c75396ecdf4f3a03509"
+      "sha256": "b19ff9874821017ad3031a8ff831d3ae4d0dcfbe748d3af087b5cd0fe839e5de"
     },
     {
       "path": "music-results.js",
-      "sha256": "0a6b26b772c62eb0d1bf90f4e7db91efe151a06d081b6a7d18bed188c1ca16fb"
+      "sha256": "bdb9ffe4b3bd06557eb1073aab6c91d5dd997232af105f0a84e29653d71173c4"
     },
     {
       "path": "music-selection-model.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "cd65292570457833815aa0ada3aeff21bbab4eaadc083517615cd25ea64ad5a4"
+      "sha256": "1ce6a97db7f419053c61e31833e33629648d0b546081e4f24d0fc8a6dfb0b363"
     },
     {
       "path": "podview.css",
@@ -659,7 +659,7 @@
     },
     {
       "path": "radio-view.js",
-      "sha256": "cf44e56d7b9f984ab2717ee2959dffdb323218a297367c7946d57f96bcf7cd77"
+      "sha256": "88a2b8aca721c0000b1961e9343bab53113894b9ddad786315562de386303164"
     },
     {
       "path": "recipe-view.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "fdf6d90025fc27f62326a27c22eca29a6dff4c55bcc07fb1a21a408cef628cbb"
+      "sha256": "9321b223c0332e98e03b8935ee1ab657d38d69774f88e87efaa95652fbd56930"
     },
     {
       "path": "workshop.css",

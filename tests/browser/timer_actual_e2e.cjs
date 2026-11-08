@@ -8,11 +8,112 @@ const path=require('node:path');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
 const env=require('./podview_actual_env.cjs');
-const port=18981,base=`http://127.0.0.1:${port}`;
+const port=Number(process.env.TIMER_TEST_PORT||18981),base=`http://127.0.0.1:${port}`;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 let server,browser,data,adjustmentEvidence,serverLog='';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
+async function timerReloadJourney(page,errors,actions){
+ const url=base+'/view/?room=kitchen';
+ const waitOwner=async predicate=>{
+  let value;
+  for(let n=0;n<150;n++){value=await state();if(predicate(value))return value;await sleep(100);}
+  throw Error('native timer condition not met: '+JSON.stringify(value));
+ };
+ const waitOnline=()=>page.waitForFunction(()=>{
+  const host=document.querySelector('pv-widget-host');
+  return host?.browserOffline!==true&&host?.liveTransport?.connected===true;
+ });
+ const waitOffline=()=>page.waitForFunction(()=>document.querySelector('pv-widget-host')?.browserOffline===true);
+ const audioCalls=()=>page.evaluate(()=>window.timerTestAudioCalls);
+ await page.goto(url,{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await page.locator('#open-timers').tap();
+ await page.getByRole('form',{name:'Ny timer'}).getByRole('button',{name:'Start timer'}).tap();
+ const started=await waitOwner(s=>s.timers.length===1);
+ const id=started.timers[0].id,deadline=started.deadlines[id],epoch=started.epoch;
+ assert(deadline>started.ownerNow);
+ const timer=page.locator(`#now-view [data-timer-id="${id}"] .timer-count`);
+ const sameNativeTimer=async()=>{
+  const current=await state();
+  assert.deepEqual(current.timers.map(t=>t.id),[id]);
+  assert.equal(current.epoch,epoch);
+  assert.equal(current.deadlines[id],deadline);
+  assert.equal(current.starts,1);
+  return current;
+ };
+ const renderedTimer=async()=>{
+  const row=await page.waitForFunction(id=>{
+   const host=document.querySelector('pv-widget-host');
+   if(host?.liveSnapshot?.timers?.status!=='observed')return false;
+   return host.liveSnapshot.timers.items.find(item=>item.id===id&&item.status==='running');
+  },id);
+  const observed=await row.jsonValue();
+  await timer.waitFor({state:'visible'});
+  const display=await timer.innerText();
+  const parts=display.split(':').map(Number);
+  assert.equal(parts.length,2);
+  const seconds=parts[0]*60+parts[1];
+  const current=await sameNativeTimer();
+  const remaining=Math.ceil(deadline-current.ownerNow);
+  assert(Math.abs(seconds-remaining)<=2,`display ${display}, native remaining ${remaining}`);
+  assert(Math.abs(observed.secondsLeft-remaining)<=2,`snapshot ${observed.secondsLeft}, native remaining ${remaining}`);
+  return {display,seconds,sourceSeconds:observed.secondsLeft,nativeNow:current.ownerNow};
+ };
+ const first=await renderedTimer();
+ assert.equal(await audioCalls(),0);
+ await page.reload({waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ const reloaded=await renderedTimer();
+ await page.context().setOffline(true);
+ await waitOffline();
+ await timer.waitFor({state:'visible'});
+ const beforeLoss=await sameNativeTimer();
+ await waitOwner(s=>s.timers[0].seconds<=beforeLoss.timers[0].seconds-3);
+ await timer.waitFor({state:'visible'});
+ await sameNativeTimer();
+ await page.context().setOffline(false);
+ await waitOnline();
+ const reconnected=await renderedTimer();
+ assert(reconnected.seconds<reloaded.seconds,'reconnection recovers current owner remaining time');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-timer-reconnected.png')});
+
+ // Expire at the same fixed deadline on the inert native owner clock while the client is offline.
+ await page.context().setOffline(true);
+ await waitOffline();
+ const expire=await fetch(base+'/lab/timer-control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expireTimerId:id})});
+ assert(expire.ok);
+ const expired=await waitOwner(s=>s.finishedCallbacks.length===1);
+ assert.equal(expired.deadlines[id],deadline);
+ assert.deepEqual(expired.timers,[]);
+ assert.deepEqual(expired.finished.map(t=>t.id),[id]);
+ const alert=page.locator('#timer-alert');
+ await page.context().setOffline(false);
+ await waitOnline();
+ await alert.waitFor({state:'visible'});
+ assert.equal(await audioCalls(),0);
+ await page.reload({waitUntil:'domcontentloaded'});
+ await alert.waitFor({state:'visible'});
+ assert.equal(await alert.count(),1);
+ assert.equal(await audioCalls(),0);
+ assert.deepEqual((await state()).finished.map(t=>t.id),[id]);
+ await page.locator('#timer-alert-dismiss').tap();
+ await waitOwner(s=>s.finished.length===0);
+ await alert.waitFor({state:'hidden'});
+ await page.reload({waitUntil:'domcontentloaded'});
+ await waitOnline();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.timers?.status==='observed');
+ assert.equal(await alert.isVisible(),false);
+ const final=await state();
+ assert.deepEqual(final.finished,[]);
+ assert.equal(final.starts,1);
+ assert.deepEqual(final.finishedCallbacks,[id]);
+ assert.deepEqual(final.commands.map(c=>c.action),['start','cancel','acknowledge_finished']);
+ assert.deepEqual(actions.map(c=>c.action),['timer.start','timer.cancel']);
+ assert.equal(await audioCalls(),0);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'timer-reload',id,epoch,deadline,first,reloaded,reconnected,starts:final.starts,finishedCallbacks:final.finishedCallbacks,actions:actions.map(c=>c.action),audio:false,inertOwner:true}));
+}
 async function timerAdjustmentJourney(page,errors,actions){
  const receipts=[],pins={},proof={};adjustmentEvidence={receipts,pins,proof,actions};
  const command=body=>fetch(base+'/lab/timer-control',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>{assert(r.ok);return r.json()});
@@ -65,6 +166,7 @@ async function timerAdjustmentJourney(page,errors,actions){
  page.on('pageerror',error=>errors.push(error.message));
  page.on('request',request=>{if(new URL(request.url()).pathname==='/view/api/actions')actions.push(request.postDataJSON())});
  if(process.env.TIMER_ADJUST_TEST==='1'){await timerAdjustmentJourney(page,errors,actions);return;}
+ if(process.env.TIMER_RELOAD_TEST==='1'){await timerReloadJourney(page,errors,actions);return;}
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await env.openOverview(page);
  await page.locator('#open-timers').tap();

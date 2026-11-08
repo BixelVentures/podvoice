@@ -17,7 +17,7 @@ export class RadioView{
    event.stopPropagation();
    if(!this.state.selectable)return;
    const station=radioStation(event.detail.option_id);
-   if(!station||station.id===this.state.stationId&&(!this.state.live||this.state.playing===true))return;
+   if(!station||station.id===this.state.stationId&&(!this.state.live||this.state.playing===true&&!this.state.pending))return;
    if(!this.state.live)this.render({...this.state,stationId:station.id,playing:null});
    this.onSelect(station.id,station);
   };
@@ -41,7 +41,7 @@ export class RadioView{
   const selected=(!live||enabled)?radioStation(stationId)?.id??null:null,playback=selected&&typeof playing==='boolean'?playing:null;
   const signature=JSON.stringify([live,connected,blocked,selected,playback,enabled,canStart,pending,pendingStationId,feedback,status]);
   if(this.renderSignature===signature)return this;
-  this.renderSignature=signature;this.feedback.hidden=!feedback?.message;this.feedback.textContent=feedback?.message||'';this.feedback.dataset.state=feedback?.state||'';this.state={live,connected,blocked,stationId:selected,playing:playback,enabled,canStart,pending,status,selectable:connected===true&&!blocked&&!pending&&(live===false||enabled&&canStart)};
+  this.renderSignature=signature;this.feedback.hidden=!feedback?.message;this.feedback.textContent=feedback?.message||'';this.feedback.dataset.state=feedback?.state||'';this.state={live,connected,blocked,stationId:selected,playing:playback,enabled,canStart,pending,status,selectable:connected===true&&!blocked&&(live===false?!pending:enabled&&canStart)};
   const selectable=this.state.selectable,available=connected===true&&!blocked&&(live===false||enabled);
   this.subtitle.textContent=available?'Vælg eller skift station nedenfor.':blocked?'Adgang afvist. Dine stationer er bevaret. Kontrollér adgangen i Home Assistant.':!connected?'Ikke forbundet. Dine stationer er bevaret. Kontrollér forbindelsen i Home Assistant.':'Radioafspilning er endnu ikke tilgængelig via Home Assistant.';
   // Station identity belongs to the selected Tile and retained PlayerView.

@@ -113,3 +113,75 @@ test('radio logging failures never alter an accepted command or send extra effec
  const {radio,host}=fixture(value({state:{...value().state,status:'stopped'}}));let writes=0;host.liveTransport.recordDiagnostic=()=>{throw Error('inert sink failed');};host.liveTransport.radioOffer=async()=>({...snapshot,taskId:'task',optionId:'option',expiresAt:Date.now()/1000+5});host.liveTransport.radioAction=async()=>{writes++;return {status:'accepted'};};host.liveTransport.radio=async()=>value({revision:2,state:{...value().state,generation:2}});
  try{await radio.choose('p3');assert.equal(writes,1);assert.equal(radio.value.state.status,'playing');assert.equal(radio.pending,false);}finally{clearTimeout(radio.expiry);}
 });
+
+for(const result of ['accepted','preparing','rejected','unknown','owner-change','foreign-source']){
+ test(`new station touches wait for scoped radio admission after ${result}`,async()=>{
+  const {radio,host}=fixture(value({ownerProcessId:'old'})),first=held(),sent=[],offers=[];
+  let revision=1,stationId='p3',queuedOffer;
+  try{
+   host.liveTransport.radioOffer=async body=>{
+    offers.push(body);
+    queuedOffer={...snapshot,taskId:`task-${offers.length}`,optionId:`choice-${offers.length}`,
+     expiresAt:Date.now()/1000+5};
+    return queuedOffer;
+   };
+   host.liveTransport.radioAction=async offer=>{
+    const station=offers.at(-1).stationId;
+    sent.push({station,taskId:offer.taskId});
+    if(sent.length===1){
+     const receipt=await first.promise;
+     if(receipt.status!=='accepted')return receipt;
+    }
+    revision++;
+    stationId=station;
+    return {status:'accepted'};
+   };
+   host.liveTransport.radio=async()=>value({
+    ownerProcessId:result==='owner-change'?'new':'old',revision,
+    state:{...value().state,generation:revision,ownerGeneration:revision,stationId,
+     ...(result==='foreign-source'?{status:'idle',sourceKind:'spotify'}:{})},
+   });
+   const choosing=radio.choose('p1');
+   await Promise.resolve();
+   assert.equal(radio.pendingStart()?.stationId,'p1');
+   assert.equal(radio.can('start'),false,'pending never grants native write authority');
+   if(result==='preparing'){
+    radio.lastConfirmed={...radio.value.state};
+    radio.value={...radio.value,actions:[],
+     state:{...radio.value.state,status:'preparing',stationId:'p1'}};
+    assert.equal(radio.observedStationId(),'p3');
+   }
+   assert.equal(radio.canChooseStation(),true);
+   await radio.choose('p6-beat');
+   assert.equal(radio.pendingStationChoice(),'p6-beat');
+   assert.equal(radio.observedStationId(),'p3');
+   assert.equal(offers.length,1);
+   if(['owner-change','foreign-source'].includes(result))await radio.refresh({immediate:true});
+   const status=['owner-change','preparing'].includes(result)?'accepted':result;
+   first.resolve({status:result==='foreign-source'?'rejected':status});
+   await choosing;
+   if(['accepted','preparing','rejected'].includes(result)){
+    assert.deepEqual(sent,[{station:'p1',taskId:'task-1'},{station:'p6-beat',taskId:'task-2'}]);
+    assert.equal(radio.value.state.stationId,'p6-beat');
+   }else{
+    assert.deepEqual(sent,[{station:'p1',taskId:'task-1'}]);
+    assert.equal(radio.stationChoices.length,0);
+   }
+  }finally{
+   first.resolve({status:'unknown'});
+   clearTimeout(radio.expiry);
+  }
+ });
+}
+
+
+test('a preparatory station does not replace the observed radio selection',()=>{
+ const {radio}=fixture();
+ radio.lastConfirmed={...radio.value.state};
+ radio.value.state={...radio.value.state,status:'preparing',stationId:'p1'};
+ assert.equal(radio.observedStationId(),'p3');
+ radio.value.state={...radio.value.state,status:'playing'};
+ assert.equal(radio.observedStationId(),'p1');
+ radio.value.state={...radio.value.state,status:'idle',sourceKind:'spotify'};
+ assert.equal(radio.observedStationId(),null);
+});

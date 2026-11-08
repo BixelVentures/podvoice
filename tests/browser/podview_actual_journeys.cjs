@@ -21,10 +21,20 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'1'});
   runJourney(journey,{MUSIC_DEFAULT_SPEAKER_PROOF:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'default-speaker')});
+  for(const scenario of ['1','revisit','cover']){
+   runJourney(journey,{MUSIC_DISCOVERY_LOADING_TEST:scenario,
+    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`discovery-${scenario}`)});
+  }
   for(const scenario of ['cold-tail','unknown','unknown-unchanged']){
    console.log(`Queue recovery scenario: ${scenario}`);
    runJourney(journey,{MUSIC_QUEUE_INTENTS:scenario,
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`queue-${scenario}`)});
+  }
+ }
+ if(journey==='radio_actual_e2e.cjs'){
+  for(const scenario of ['1','rejected','unknown']){
+   runJourney(journey,{RADIO_STATION_ORDER_TEST:scenario,
+    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`radio-${scenario}`)});
   }
  }
  if(journey==='robot_actual_e2e.cjs'){
@@ -36,6 +46,9 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{OFFLINE_FEEDBACK_TEST:'1',PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'offline-feedback')});
   runJourney(journey,{OFFLINE_FEEDBACK_TEST:'1',RO_LAYOUT_TEST:'1',PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'ro-layout')});
  }
- if(journey==='timer_actual_e2e.cjs')runJourney(journey,{TIMER_ADJUST_TEST:'1'});
+ if(journey==='timer_actual_e2e.cjs'){
+  runJourney(journey,{TIMER_ADJUST_TEST:'1'});
+  runJourney(journey,{TIMER_RELOAD_TEST:'1'});
+ }
 }
 console.log(`Actual PodView journey artifacts: ${env.PODVIEW_TEST_ARTIFACT_DIR}`);

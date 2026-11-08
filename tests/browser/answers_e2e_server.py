@@ -84,21 +84,22 @@ async def history_status(_request):
     return web.json_response({"held": history_held.is_set(), "released": history_release.is_set()})
 
 
-async def publish_current(_request):
+async def publish_current(request):
+    suffix = "reading" if request.query.get("reading") == "1" else "current"
     session._active = True
-    session._history_session = "current-session"
-    session._external_turn_id = lambda: "current-turn"
+    session._history_session = f"{suffix}-session"
+    session._external_turn_id = lambda: f"{suffix}-turn"
     answer = message()
     answer["presentation"]["title"] = "Aktuelt svar"
     answer["presentation"]["summary"] = "Aktuelt kildegrundlag"
     accepted = sink.offer_completed_answer(
         **context(
             session,
-            session_id="current-session",
-            turn_id="current-turn",
-            task_id="answer:current",
-            delegation_id="current",
-            response_id="current-response",
+            session_id=f"{suffix}-session",
+            turn_id=f"{suffix}-turn",
+            task_id=f"answer:{suffix}",
+            delegation_id=suffix,
+            response_id=f"{suffix}-response",
             message=json.dumps(answer),
         )
     )
@@ -125,7 +126,10 @@ async def start(app):
     for index in (1, 2):
         answer = message()
         answer["presentation"]["title"] = f"Afsluttet svar {index}"
-        answer["presentation"]["summary"] = f"Faktisk svarindhold {index}"
+        answer["presentation"]["summary"] = (
+            f"Faktisk svarindhold {index}. "
+            + "Her er en længere forklaring, som kan læses roligt i historikken. " * 4
+        )
         delegation = f"delegation-{index}"
         admitted = sink.offer_completed_answer(
             **context(

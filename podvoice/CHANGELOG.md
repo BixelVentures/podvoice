@@ -1,3 +1,7 @@
+## 2.0.147
+
+- Keep station choices usable during radio transitions, recover interrupted Find Music tabs, preserve loading geometry and same-item covers, and retain historical answer reading position when new answers arrive.
+
 ## 2.0.146
 
 - Keep the newest scoped HA Tesla status per field with its real observation time, preserve omitted known fields, and require corroborated current trunk direction before offering or sending a command. Requires HA component 0.1.17 for trunk controls; opening PodView does not wake the car.

@@ -28,6 +28,8 @@ reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
+discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
+discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -39,7 +41,7 @@ if cold and repeat_mood:
     content.value["actions"].append("play_track")
 tracks = [
     {"name": f"Katalogsang {i}", "artist": "Inert kunstner", "uri": f"spotify:track:{i:022d}"}
-    for i in (11, 12, 13)
+    for i in (range(11, 18) if discovery_loading else (11, 12, 13))
 ]
 base.state.update(
     state="paused",
@@ -147,11 +149,21 @@ async def native(request):
     if cold and reject_setup and service == "get_room_content_controls":
         return httpx.Response(503, json={"error": "inert_setup_unavailable"})
     if service in {"top_tracks", "recently_played"}:
+        rows = copy.deepcopy(tracks)
+        if discovery_cover and service == "recently_played":
+            calls = sum(row["service"] == service for row in base.state["nativeCalls"])
+            rows[0]["artwork"] = {
+                "provider": "spotify",
+                "kind": "album_cover",
+                "url": (
+                    "https://i.scdn.co/image/InertRecentCover"
+                    if calls == 1
+                    else "https://invalid.example/not-a-cover"
+                ),
+            }
         return httpx.Response(
             200,
-            json={
-                "service_response": {"config_entry_id": "account", "tracks": copy.deepcopy(tracks)}
-            },
+            json={"service_response": {"config_entry_id": "account", "tracks": rows}},
         )
     if service in {
         "get_room_content_controls",

@@ -35,6 +35,35 @@ let server,browser,data;
  assert.equal(sourceResult.status,200);assert.equal(sourceResult.body.provenance.kind,'ai_explanation');
  await page.evaluate(()=>Promise.all(document.getAnimations().filter(a=>a.playState==='running'&&a.effect?.getComputedTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));
  await page.screenshot({path:path.join(env.artifactDir(),'podview-answer-group.png')});
+ // Q2: a new authoritative receipt must not replace the historical reading position.
+ const readingArea=page.locator('.frame > .responses');
+ await env.touchScroll(page,readingArea,{dy:150});
+ const readingBefore=await readingArea.evaluate(element=>{
+  const host=document.querySelector('pv-widget-host');
+  window.answerReadingNode=document.querySelector('#answer-host pv-answer:not([hidden])');
+  window.answerReadingFocus=document.activeElement;
+  return {scroll:element.scrollTop,focus:host.state.focus,history:!!host.historyBrowse,
+   ids:host.state.answers.map(answer=>answer.id)};
+ });
+ assert(readingBefore.scroll>0,'history reading point must really be scrolled');
+ await page.waitForFunction(()=>Date.now()-document.querySelector('pv-widget-host').lastInteractionAt>1100);
+ assert.equal((await fetch(base+'/lab/publish-current?reading=1',{method:'POST'})).status,200);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host').state.answers.some(
+  answer=>answer.content?.summary==='Aktuelt kildegrundlag'),null,{timeout:15000});
+ const readingAfter=await readingArea.evaluate(element=>{
+  const host=document.querySelector('pv-widget-host');
+  return {scroll:element.scrollTop,focus:host.state.focus,history:!!host.historyBrowse,
+   ids:host.state.answers.map(answer=>answer.id),
+   sameNode:window.answerReadingNode===document.querySelector('#answer-host pv-answer:not([hidden])'),
+   sameFocus:window.answerReadingFocus===document.activeElement};
+ });
+ assert.equal(readingAfter.scroll,readingBefore.scroll,'new answer preserves historical reading offset');
+ assert.equal(readingAfter.focus,readingBefore.focus,'new answer cannot hijack historical focus');
+ assert.equal(readingAfter.history,true);
+ assert(readingAfter.sameNode&&readingAfter.sameFocus,'reading DOM and keyboard focus stay stable');
+ assert(readingBefore.ids.every(id=>readingAfter.ids.includes(id)),'previous receipts stay retained');
+ console.log('historyReading',JSON.stringify({before:readingBefore,after:readingAfter}));
+
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  await page.locator('#open-history').tap();await page.locator('#retained .history-open:visible').first().waitFor();
