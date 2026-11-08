@@ -2219,6 +2219,10 @@ class TouchControls:
                 else:
                     remapped_settings.append({"settingId": sid, "choiceId": choices[0]})
             if awaiting_water:
+                # These offers may still describe independent actions, but neither
+                # can admit a cleaning Start while this exact draft is unresolved.
+                source["draft_awaiting_water"] = True
+                task["draft_awaiting_water"] = True
                 return {"status": "awaiting_water"}
             return {
                 "status": "restored",
@@ -2534,6 +2538,13 @@ class TouchControls:
         # caller labels/targets never do. Direct command's nested dispatch is
         # already traced by command(), so it must not emit a second pair.
         option = task["options"].get(body["optionId"])
+        if (
+            task.get("draft_awaiting_water")
+            and option is not None
+            and option["action"] == "start"
+            and option["schema"]["kind"] == "cleaning"
+        ):
+            return failure("draft_awaiting_water")
         if _reservation is not None or option is None:
             return await self._action_authorized(body, token, task, _reservation=_reservation)
         diagnostic = {

@@ -218,8 +218,11 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert(await extreme.isChecked());
   await both.tap();
   for(const option of [extreme,max,fast,twice])await option.tap();
+  const waterRecovery=process.env.ROBOT_WATER_RECOVERY_TEST==='1';
   const before=await host.evaluate(h=>({task:h.liveControls.task?.taskId,
    expiresAt:h.liveControls.task?.expiresAt,now:Date.now()/1000,
+   bootId:h.liveControls.task?.bootId,roomId:h.liveControls.task?.roomId,
+   optionId:h.liveControls.robotPanel?.cleaningOptionId,
    draft:h.liveControls.robotPanel?.readCleaningDraft?.()}));
   assert(before.task&&before.expiresAt>before.now&&before.expiresAt-before.now<=8.5);
   assert.equal(before.draft.areaIds.length,1);
@@ -229,11 +232,12 @@ const assertRobotObservation=async(page,requests,action)=>{
   await page.locator('#header-title-action').tap();
   await page.locator('#show-photo').tap();
   await page.locator('#photo-view').waitFor({state:'visible'});
-  for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
-   if(n>120)throw Error('server-issued task did not expire');
-   await sleep(100);
+  if(!waterRecovery){
+   for(let n=0;Date.now()/1000<=before.expiresAt+0.25;n++){
+    if(n>120)throw Error('server-issued task did not expire');
+    await sleep(100);
+   }
   }
-  const waterRecovery=process.env.ROBOT_WATER_RECOVERY_TEST==='1';
   const reportWater=kind=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},
    body:JSON.stringify({robotWaterReport:kind})}).then(response=>response.json());
   if(waterRecovery)await reportWater('stale');
@@ -251,15 +255,27 @@ const assertRobotObservation=async(page,requests,action)=>{
    const start=panel.getByRole('button',{name:'Start i Køkkenalrum',exact:true});
    assert(await start.isDisabled());
    const posts=()=>requests.filter(item=>new URL(item.url).pathname==='/view/api/control/actions');
-   await host.evaluate(h=>{
+   const deferred=await host.evaluate(async h=>{
     const task=h.liveControls.task;
     const start=task.options.find(option=>option.action==='start');
     const schema=start.argsSchema;
-    return h.liveControls.send(start.id,{areaIds:[schema.areas[0].id],repeat:2,
+    const args={areaIds:[schema.areas[0].id],repeat:2,
      settingChoices:schema.settings.map(setting=>({settingId:setting.id,
-      choiceId:setting.current||setting.choices[0].id}))});
+      choiceId:setting.current||setting.choices[0].id}))};
+    await h.liveControls.send(start.id,args);
+    return {bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,optionId:start.id,args};
    });
    assert.deepEqual(posts(),[]);
+   const original={bootId:before.bootId,roomId:before.roomId,taskId:before.task,optionId:before.optionId,
+    args:{areaIds:before.draft.areaIds,repeat:before.draft.repeat,settingChoices:[]}};
+   const refusals=await page.evaluate(async offers=>Promise.all(offers.map(async offer=>{
+    const response=await fetch('/view/api/control/actions',{method:'POST',credentials:'same-origin',
+     headers:{'Content-Type':'application/json','X-PodView-Request':'1'},
+     body:JSON.stringify({...offer,revision:1,requestId:crypto.randomUUID()})});
+    return response.json();
+   })),[original,deferred]);
+   for(const refusal of refusals)assert.deepEqual(refusal,{ok:false,error:'draft_awaiting_water',retryAllowed:false});
+   assert.equal(posts().length,2);
    assert.deepEqual((await state()).robot.writes,[]);
    await reportWater('fresh');
   }
@@ -328,9 +344,9 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert.equal(final.state,'cleaning');
   assert.deepEqual(errors,[]);
   assert(loadedBundleSha256&&loadedCssSha256);
-  const proof={outcome:'PASS',actualServerTaskExpiry:true,hiddenThenReopened:true,serverRemapped:true,
+  const proof={outcome:'PASS',actualServerTaskExpiry:!waterRecovery,hiddenThenReopened:true,serverRemapped:true,
    modeNames,positions,...(waterRecovery?{retainedWhileWaterUnavailable:true,
-    freshIndependentWaterObservation:true,automaticWrites:0}:{retainedThroughStaleRead:true,
+    freshIndependentWaterObservation:true,directOwnerRefusals:2,automaticWrites:0}:{retainedThroughStaleRead:true,
     recoveredOnPassivePoll:true,lastRead}),receipt,
    inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
   await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-draft-start-proof.json'),JSON.stringify(proof,null,2));
