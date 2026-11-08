@@ -60,11 +60,14 @@ service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
 robot_draft = os.environ.get("ROBOT_DRAFT_TEST") == "1"
 robot_observation = os.environ.get("ROBOT_OBSERVATION_TEST") == "1"
+robot_dock = os.environ.get("ROBOT_DOCK_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
 if robot is not None:
-    robot.states[ROBOT]["state"] = "docked" if robot_draft or robot_slow_start else "cleaning"
+    robot.states[ROBOT]["state"] = (
+        "docked" if robot_draft or robot_slow_start or robot_dock else "cleaning"
+    )
     robot.states[ROBOT]["attributes"].update(
         supported_features=32 | 4 | 8 | 16 | 8192, battery_level=78
     )
@@ -198,6 +201,21 @@ if robot is not None:
                 messageSequence=water["messageSequence"] + 1,
                 statusObservedAt=time.time(),
             )
+        if robot_dock and path == "services/vacuum/send_command":
+            command = data["command"]
+            status = {
+                "app_start_wash": "washing_the_mop",
+                "app_stop_wash": "charging",
+                "app_start_collect_dust": "emptying_the_bin",
+                "app_stop_collect_dust": "charging",
+            }.get(command)
+            at = datetime.now(UTC).isoformat()
+            if status:
+                robot.states["sensor.fixture_status"].update(state=status, last_reported=at)
+            if command == "app_set_dryer_status":
+                robot.states["binary_sensor.fixture_mop_drying_status"].update(
+                    state="on" if data["params"]["status"] else "off", last_reported=at
+                )
         if path.endswith("/pause"):
             robot.states[ROBOT]["state"] = "paused"
         elif path.endswith("/start") or (
@@ -586,7 +604,7 @@ app = create_app(
     locked=True,
 )
 
-if robot_slow_start:
+if robot_slow_start or robot_dock:
     # The existing dock owner issues the genuine15s admission lease. The Start
     # transaction must retain custody through four real4s setting HTTP calls.
     from integration.test_podview_dock_commands import command_catalog

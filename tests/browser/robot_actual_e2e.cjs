@@ -43,6 +43,44 @@ const assertRobotObservation=async(page,requests,action)=>{
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
  if(server.exitCode!==null)throw Error('own isolated server exited before navigation');
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(process.env.ROBOT_DOCK_TEST==='1'){
+  await testEnv.openOverview(page);
+  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+  await card.getByText('Batteri 78 %',{exact:true}).waitFor({state:'visible',timeout:10000});
+  await card.getByText('Robotstøvsuger',{exact:true}).tap();
+  const panel=page.locator('pv-robot-control-panel');
+  const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
+  const operations=panel.locator('button[data-dock-operation]');
+  const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  const sendDock=async operation=>{
+   const button=operations.and(panel.locator(`[data-dock-operation=${operation}]`));
+   const reply=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
+    &&r.request().method()==='POST',{timeout:10000});
+   await button.tap();
+   assert.equal((await (await reply).json()).outcome,'accepted');
+   await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveHomePending);
+   await page.locator('pv-widget-host').evaluate(h=>h.loadLiveHome());
+  };
+  const groups=['wash_start','empty_start','dry_start'];
+  for(const [start,stop] of [['wash_start','wash_stop'],['empty_start','empty_stop'],['dry_start','dry_stop']]){
+   await baseMenu.tap();
+   await operations.first().waitFor({state:'visible',timeout:10000});
+   assert.deepEqual(await operations.evaluateAll(rows=>rows.map(row=>row.dataset.dockOperation)),groups);
+   if(start==='wash_start')assert.deepEqual(await ownerWrites(),[],'opening Base sends no command');
+   await sendDock(start);
+   await sendDock(stop);
+  }
+  const writes=await ownerWrites();
+  assert.deepEqual(writes.map(([,body])=>[body.command,body.params??null]),[
+   ['app_start_wash',null],['app_stop_wash',null],['app_start_collect_dust',null],['app_stop_collect_dust',null],
+   ['app_set_dryer_status',{status:1}],['app_set_dryer_status',{status:0}],
+  ]);
+  assert.deepEqual(errors,[]);
+  const proof={outcome:'PASS',story:'S7',loadedBundleSha256,groups,writes,inertFinalService:true};
+  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-dock-proof.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+  return;
+ }
  if(process.env.ROBOT_OBSERVATION_TEST==='1'){
   await testEnv.openOverview(page);
   const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
