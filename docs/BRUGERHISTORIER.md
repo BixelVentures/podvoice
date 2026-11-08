@@ -143,9 +143,9 @@ Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilla
 
 | # | Historie | Bevis og rester |
 |---|---|---|
-| L1 | Jeg trykker på et rum → lyset tænder/slukker, knappen skifter < 100 ms | Delvist bevist — light_actual_e2e på kandidat 3d80dbd3: rumtryk viser afventende valg efter 5,5 ms og når inert HA én gang; rumstatus observeres separat. Gentagne hurtige tryk afventer særskilt rettelse/bevis. Rigtig kontakt og fysisk lys ikke prøvet. |
-| L2 | Jeg trækker i lysstyrke → lyset følger, slideren hopper ikke | Delvist bevist — light_actual_e2e på kandidat 3d80dbd3: slider fastholder ønskede 49 % under holdt HTTP-svar og afstemmes efter accept uden hop tilbage til gammel værdi. Frisk utilgængelighed, offline/genforbindelse/genåbning viser korrekt observerede 60 %. Fysisk lys og kontinuerlig hurtig inputserie ikke bevist. |
-| L3 | Lyset ændres fra en kontakt → skærmen viser det < 1,5 s | Delvist bevist — light_actual_e2e: inert HA WebSocket-hændelse fra eget rum når pakket UI på 13,7 ms. 806ad2a3 afviser forsinket gammel læsning, også når et andet rum vises; gammel cache genopliver ikke utilgængelig betjening. Kildens fysiske kontakt→HA og passive ændringer i et andet åbent rum er ikke bevist. |
+| L1 | Jeg trykker på et rum → lyset tænder/slukker, knappen skifter < 100 ms | Delvist bevist — pakket Chromium, faktisk bridge og inert HA. Ventestatus efter 5,2 ms. To hurtige tryk under holdt svar giver præcis Sluk → Tænd efter frisk observation. Et ukendt udfald eller en fejlet efterlæsning stopper køen uden genafsendelse. Fysisk lys og Green ikke prøvet. |
+| L2 | Jeg trækker i lysstyrke → lyset følger, slideren hopper ikke | Delvist bevist — pakket Chromium viser 49 % gennem holdt svar. Efterfølgende touchvalg 62 → 37 % erstatter det ventende absolutte valg, så ejeren modtager 49 % og derefter 37 %. Utilgængelig lampe blokerer styring, og genåbning efter offline → online viser observerede 60 %. Fysisk lys og iPad ikke prøvet. |
+| L3 | Lyset ændres fra en kontakt → skærmen viser det < 1,5 s | Delvist bevist — i pakket Chromium når inert HA WebSocket-hændelse eget rum efter 14,8 ms og et andet åbent rum efter 30,9 ms uden servicekald eller skift af valgt rum. Forsinket cache kan ikke genaktivere utilgængelig betjening. Fysisk kontakt → HA og Green ikke prøvet. |
 
 ## Opskrifter
 
