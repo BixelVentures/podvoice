@@ -1,3 +1,7 @@
+## 2.0.155
+
+- Bevar opskriftskatalogets scrollposition ved turen via forsiden, også mens nye katalogdata indlæses.
+
 ## 2.0.154
 
 - Vis forventet færdigopladning fra Teslas oprindelige ladeobservation; manglende eller for gammel sluttid skjules alene, og blandede HA-/PodVoice-versioner bevarer øvrige bildata.

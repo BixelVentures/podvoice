@@ -136,19 +136,75 @@ async function outputTransferJourney(page,errors){
    await sleep(100);
   }
  };
- const move=async({name})=>{
+ const move=async({name},beforeReply)=>{
   if(!await dialog.isVisible())await output.tap();
   const row=dialog.locator('#room-options button').filter({hasText:name});
   const reply=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')&&r.request().method()==='POST'
    &&r.request().postDataJSON()?.action==='move_existing_session',{timeout:15000});
-  await row.tap();
+  if(beforeReply)await beforeReply(row);
+  else await row.tap();
   return (await reply).json();
+ };
+ let pendingFeedback;
+ const measureFirstMove=async row=>{
+  const before=await state();
+  const requestCount=requests.length;
+  await row.evaluate((button,name)=>{
+   button.addEventListener('click',event=>{
+    if(!event.isTrusted)return;
+    const startedAt=performance.now();
+    const sample=()=>{
+     const output=document.getElementById('output');
+     const status=document.getElementById('player-state');
+     const room=document.getElementById('player-room');
+     const binding=document.querySelector('pv-widget-host')?.liveMedia?.playback?.roomBinding;
+     const label=output?.getAttribute('aria-label');
+     const elapsedMs=performance.now()-startedAt;
+     const visible={visibilityProperty:true,opacityProperty:true};
+     if(output?.checkVisibility(visible)&&status?.checkVisibility(visible)&&room?.checkVisibility(visible)
+       &&status.textContent==='Skifter til'&&room.textContent===name){
+      window.h1PendingFeedback={elapsedMs,label,room:binding?.nativeRoomId,homepod:binding?.nativeHomepodId};
+     }else if(elapsedMs<1000)requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+   },{capture:true,once:true});
+  },bedroom.name);
+  assert((await change({holdMove:true})).ok);
+  try{
+   await row.tap();
+   await page.waitForFunction(()=>window.h1PendingFeedback,undefined,{timeout:2500});
+   pendingFeedback=await page.evaluate(()=>window.h1PendingFeedback);
+   assert(pendingFeedback.elapsedMs<100,`H1 first visible pending feedback took ${pendingFeedback.elapsedMs} ms`);
+   assert.match(pendingFeedback.label,/Valgt: Soveværelse · skifter højttaler · Afventer bekræftelse/);
+   assert.doesNotMatch(pendingFeedback.label,/Aktuelt output/);
+   assert.deepEqual([pendingFeedback.room,pendingFeedback.homepod],[kitchen.room,kitchen.homepod]);
+   let owner;
+   for(let n=0;;n++){
+    owner=await state();
+    if(owner.heldMoveRequestId)break;
+    if(n>=60)throw Error('move did not reach the held inert owner');
+    await sleep(25);
+   }
+   assert.deepEqual([owner.room,owner.homepod,owner.song],[kitchen.room,kitchen.homepod,before.song]);
+   assert.deepEqual(owner.writes,before.writes,'pending feedback is visible before any owner effect');
+   assert.equal(await page.locator('#player-state').innerText(),'Skifter til');
+   assert.equal(await page.locator('#player-room').innerText(),bedroom.name);
+   assert.equal(await output.getAttribute('aria-label'),pendingFeedback.label);
+   const movePosts=requests.slice(requestCount).filter(({body})=>body.action==='move_existing_session');
+   assert.equal(movePosts.length,1);
+   pendingFeedback.browserRequestId=movePosts[0].body.requestId;
+   pendingFeedback.nativeRequestId=owner.heldMoveRequestId;
+  }finally{assert((await change({holdMove:false})).ok);}
  };
  const effects=[];
  for(const [target,percent,song] of [[bedroom,25,22],[kitchen,31,23]]){
   const before=await state();
-  assert.equal((await move(target)).outcome,'accepted');
+  const first=target===bedroom;
+  const receipt=await move(target,first?measureFirstMove:undefined);
+  assert.equal(receipt.outcome,'accepted');
+  if(first)assert.equal(receipt.requestId,pendingFeedback.browserRequestId);
   await observed(target,before.song);
+  assert.doesNotMatch(await output.getAttribute('aria-label'),/Afventer bekræftelse/);
   await nextPassiveRead();
   if(target===kitchen){
    await page.reload({waitUntil:'domcontentloaded'});
@@ -165,6 +221,7 @@ async function outputTransferJourney(page,errors){
   const added=(await state()).writes.slice(before.writes.length);
   assert.deepEqual(added.map(row=>row.action),['move_existing_session','volume','play_queue_occurrence']);
   assert.equal(added[0].room,target.room);
+  if(first)assert.equal(added[0].requestId,pendingFeedback.nativeRequestId);
   assert.deepEqual(added.slice(1).map(row=>[row.room,row.homepod]),
    [[target.room,target.homepod],[target.room,target.homepod]]);
   assert.equal(added[1].percent,percent);
@@ -201,7 +258,9 @@ async function outputTransferJourney(page,errors){
  }
  assert.deepEqual(errors,[]);
  assert(servedBundleSHA);
- const proof={outcome:'PASS',stories:['H5','H8'],servedBundleSHA,effects,failures,inertFinalService:true};
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',stories:['H1','H5','H8'],servedBundleSHA,pendingFeedback,effects,failures,
+  inertFinalService:true};
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-output-transfer.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
@@ -914,7 +973,7 @@ async function longSession(page,errors){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  const browserOptions=testEnv.browserOptions();
- if(multiScreenMode)browserOptions.args=['--mute-audio'];
+ if(multiScreenMode||outputTransferMode)browserOptions.args=['--mute-audio'];
  browser=await chromium.launch(browserOptions);
  const page=await browser.newPage({viewport:{width:1280,height:800},hasTouch:true}),errors=[],diagnosticResponses=[];
  page.on('response',async response=>{
@@ -925,7 +984,7 @@ async function longSession(page,errors){
    diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')});
   }
  });
- if(renewedControlsMode||multiScreenMode||manualRetryMode||volumeDragMode)await page.route('**/*',route=>
+ if(renewedControlsMode||multiScreenMode||manualRetryMode||volumeDragMode||outputTransferMode)await page.route('**/*',route=>
   new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});

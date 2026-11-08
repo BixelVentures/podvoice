@@ -202,6 +202,30 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
   assert.equal(await completedRow.locator('time').getAttribute('datetime'),completedAt);
  };
  await checkCatalogueHistory();
+ const entries=catalog.locator(':scope > div').first();
+ await testEnv.touchScroll(page,entries,{dy:80});
+ await page.evaluate(()=>{
+  window.readRecipeCatalogue=()=>{
+   const layout=document.querySelector('#recipe-view [data-recipe-layout=catalog]');
+   const visible=node=>node?.checkVisibility({visibilityProperty:true,opacityProperty:true})===true;
+   if(!visible(layout))return null;
+   const entries=layout.querySelector(':scope > div');
+   const history=layout.querySelector('#recipe-history-trigger');
+   const historyPanel=layout.querySelector('#recipe-history-panel');
+   return {rows:[...entries.querySelectorAll('[data-recipe]')].map(row=>row.dataset.recipe),
+    scroll:entries.scrollTop,historyOpen:history?.getAttribute('aria-expanded')==='true',
+    historyVisible:visible(historyPanel),completedAt:historyPanel?.querySelector('time')?.dateTime??null,
+    substitute:[...entries.querySelectorAll('p')].some(node=>visible(node)
+     &&/Henter opskrifter|Der er ingen opskrifter endnu/.test(node.textContent))};
+  };
+ });
+ const catalogueBefore=await page.evaluate(()=>window.readRecipeCatalogue());
+ assert(catalogueBefore.scroll>0,'touch moved the real catalogue scroll before leaving');
+ assert(catalogueBefore.rows.length>1);
+ assert.equal(catalogueBefore.historyOpen,true);
+ assert.equal(catalogueBefore.historyVisible,true);
+ assert.equal(catalogueBefore.completedAt,completedAt);
+ assert.equal(catalogueBefore.substitute,false);
  await back.tap();
  await widget.getByText('Se katalog',{exact:true}).waitFor({state:'visible'});
  assert.equal(await widget.getByText('I gang',{exact:true}).count(),0);
@@ -215,11 +239,57 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  assert.deepEqual(await timerState(),{running:[],starts:1,commands:['start','cancel']});
  assert.deepEqual(timerPosts,['timer.start','timer.cancel']);
  await page.bringToFront();
- const catalogRefresh=page.waitForResponse(response=>
-  new URL(response.url()).pathname==='/view/api/recipes'&&response.request().method()==='GET'&&response.ok());
- await widget.tap();
- await catalog.waitFor({state:'visible'});
- await catalogRefresh;
+ const catalogPath=url=>url.pathname==='/view/api/recipes';
+ let releaseRefresh,markHeld;
+ const refreshGate=new Promise(resolve=>{releaseRefresh=resolve;});
+ const heldRefresh=new Promise(resolve=>{markHeld=resolve;});
+ const hold=async route=>{
+  const response=await route.fetch();
+  markHeld(response.status());
+  await refreshGate;
+  await route.fulfill({response});
+ };
+ await page.route(catalogPath,hold,{times:1});
+ await widget.evaluate(button=>button.addEventListener('click',event=>{
+  if(!event.isTrusted)return;
+  const startedAt=performance.now();
+  const sample=()=>{
+   const state=window.readRecipeCatalogue();
+   if(state)window.recipeCatalogueFirstFrame={state,elapsedMs:performance.now()-startedAt};
+   else if(performance.now()-startedAt<2000)requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+ },{capture:true,once:true}));
+ let firstFrame,whileHeld;
+ try{
+  const catalogRefresh=page.waitForResponse(response=>catalogPath(new URL(response.url()))
+   &&response.request().method()==='GET'&&response.ok(),{timeout:10000});
+  await widget.tap();
+  let timeout;
+  try{
+   assert.equal(await Promise.race([heldRefresh,new Promise((_,reject)=>{
+    timeout=setTimeout(()=>reject(Error('real catalogue refresh was not held')),8000);
+   })]),200);
+  }finally{clearTimeout(timeout);}
+  await page.waitForFunction(()=>window.recipeCatalogueFirstFrame,undefined,{timeout:2500});
+  firstFrame=await page.evaluate(()=>window.recipeCatalogueFirstFrame);
+  whileHeld=await page.evaluate(()=>window.readRecipeCatalogue());
+  assert(await page.evaluate(()=>Boolean(document.querySelector('pv-widget-host').recipeView.publishedCatalogRead)));
+  releaseRefresh();
+  assert.equal(await (await catalogRefresh).finished(),null);
+ }finally{releaseRefresh();}
+ await page.waitForFunction(()=>{
+  const view=document.querySelector('pv-widget-host')?.recipeView;
+  return view?.catalogStatus==='ready'&&!view.publishedCatalogRead;
+ },undefined,{timeout:5000});
+ await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+ const catalogueAfter=await page.evaluate(()=>window.readRecipeCatalogue());
+ assert.deepEqual(firstFrame.state,catalogueBefore,'first visible catalogue frame retains prior rows and position');
+ assert.deepEqual(whileHeld,catalogueBefore,'held refresh does not reset the catalogue');
+ assert.deepEqual(catalogueAfter,catalogueBefore,'completed refresh does not reset the catalogue');
+ const reopenEvidence={outcome:'PASS',story:'G4',bundleSHA,catalogueBefore,firstFrame,whileHeld,catalogueAfter};
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-catalogue-reopen-proof.json'),
+  JSON.stringify(reopenEvidence,null,2));
  await checkCatalogueHistory();
  await completedRow.scrollIntoViewIfNeeded();
  const catalogueHistoryScreenshot=path.join(testEnv.artifactDir(),`podview-recipe-${shot}-catalog-completion-history.png`);

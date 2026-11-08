@@ -41,6 +41,8 @@ manual_retry = os.environ.get("MUSIC_MANUAL_RETRY_TEST") == "1"
 retry_events_transport = None
 retry_transport_blocked = False
 output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
+move_release = asyncio.Event()
+move_release.set()
 multi_screen = os.environ.get("MUSIC_MULTI_SCREEN_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
 volume_drag = os.environ.get("MUSIC_VOLUME_DRAG_TEST") == "1"
@@ -400,6 +402,9 @@ async def native_service(request):
     if extended and path.endswith("prepare_room_move_playback"):
         return httpx.Response(200, json={"service_response": move_preparation(args)})
     if extended and path.endswith("move_room_playback"):
+        if output_transfer and not move_release.is_set():
+            state["heldMoveRequestId"] = args["request_id"]
+            await move_release.wait()
         outcome = state.pop("nextMoveOutcome", None) if output_transfer else None
         if outcome:
             state.setdefault("failedMoveAttempts", []).append(
@@ -684,6 +689,14 @@ async def lab_state(request):
             if args["nextMoveOutcome"] not in {"rejected", "unknown"}:
                 raise web.HTTPBadRequest()
             state["nextMoveOutcome"] = args["nextMoveOutcome"]
+        if output_transfer and "holdMove" in args:
+            if args["holdMove"] is True:
+                state.pop("heldMoveRequestId", None)
+                move_release.clear()
+            elif args["holdMove"] is False:
+                move_release.set()
+            else:
+                raise web.HTTPBadRequest()
         # An unrelated voice turn changes the UI snapshot, not the music owner.
         if "unrelatedVoiceTurn" in args:
             turn = str(args["unrelatedVoiceTurn"])
