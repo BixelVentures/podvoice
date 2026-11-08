@@ -596,7 +596,7 @@ class RadioService:
             raise ValueError("radio unavailable")
         return validate_native(await asyncio.wait_for(self.native.read(), timeout=5))
 
-    def _wire(self, room, raw=None):
+    def _wire(self, room, raw=None, *, unavailable="radio_native_unavailable"):
         observed = bool(raw and raw["valid_until"] is not None)
         enabled = bool(raw and raw["enabled"] and observed and not self.unknown)
         return {
@@ -615,7 +615,7 @@ class RadioService:
                 else raw["blocked_reasons"]
             )
             if raw
-            else ["radio_native_unavailable"],
+            else [unavailable],
             "retrievedAt": raw["retrieved_at"] if raw else None,
             "validUntil": raw["valid_until"] if raw else None,
             "stations": [{"id": i, "name": name} for i, name in STATIONS],
@@ -654,14 +654,20 @@ class RadioService:
             self.native,
             self.bridge.boot_id,
         )
+        if native is None or (isinstance(native, NativeRadio) and not native.configured):
+            return self._wire(room, unavailable="radio_native_not_configured")
+
+        def current():
+            return (
+                self.bridge.sessions.get(room) is session
+                and self.bridge.tools is tools
+                and self.native is native
+                and self.bridge.boot_id == boot
+            )
+
         try:
             raw = await self._read()
-            if (
-                self.bridge.sessions.get(room) is not session
-                or self.bridge.tools is not tools
-                or self.native is not native
-                or self.bridge.boot_id != boot
-            ):
+            if not current():
                 raise ValueError("radio owner changed")
             proof = self.unknown_proof
             if (
@@ -708,6 +714,10 @@ class RadioService:
                         self.unknown_proof = None
                         raw = fresh
             return self._wire(room, raw)
+        except httpx.HTTPStatusError as exc:
+            if current() and exc.response.status_code in (401, 403):
+                return self._wire(room, unavailable="radio_native_auth_rejected")
+            return self._wire(room)
         except (TimeoutError, ValueError, TypeError, KeyError, httpx.HTTPError):
             return self._wire(room)
 

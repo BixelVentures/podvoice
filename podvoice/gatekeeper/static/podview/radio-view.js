@@ -36,14 +36,19 @@ export class RadioView{
   const hero=createKitComponent('hero',{document:doc,tag:'section',className:'radio-hero pv-hero',identity:'neutral',variant:'message',label:'Radio'});hero.dataset.detailZone='hero';hero.dataset.kitDensity='compact';this.stationArt=doc.createElement('img');this.stationArt.className='radio-hero-art';this.stationArt.dataset.kitSlot='icon';this.stationArt.alt='';this.stationArt.width=96;this.stationArt.height=96;this.stationTitle=doc.createElement('h2');this.stationTitle.dataset.kitSlot='title';this.stationStatus=doc.createElement('p');this.stationStatus.className='pv-meta';this.stationStatus.dataset.kitSlot='body';const stationCopy=doc.createElement('div');stationCopy.dataset.kitSlot='copy';stationCopy.append(this.stationTitle,this.stationStatus,this.feedback);hero.append(this.stationArt,stationCopy);this.hero=hero;this.playerButton=createKitComponent('listrow',{document:doc,tag:'button',className:'radio-open-player pv-button',label:'Se afspiller'});this.playerButton.textContent='Se afspiller';this.playerButton.type='button';this.playerButton.hidden=true;this.openPlayer=()=>{if(this.playerButton.hidden||!this.state.stationId)return;this.onOpenPlayer();};this.playerButton.addEventListener('click',this.openPlayer);this.root.replaceChildren(header,hero,list,this.playerButton);
   this.header=header;this.subtitle=subtitle;this.list=list;
  }
- render({live=true,connected=false,blocked=false,stationId=null,playing=null,enabled=false,canStart=enabled,pending=false,pendingStationId=null,feedback=null,status='idle'}={}){
+ render({live=true,connected=false,blocked=false,stationId=null,playing=null,enabled=false,canStart=enabled,pending=false,pendingStationId=null,feedback=null,status='idle',setupIssue=null}={}){
   if(!this.list)this.build();
   const selected=(!live||enabled)?radioStation(stationId)?.id??null:null,playback=selected&&typeof playing==='boolean'?playing:null;
-  const signature=JSON.stringify([live,connected,blocked,selected,playback,enabled,canStart,pending,pendingStationId,feedback,status]);
+  const signature=JSON.stringify([live,connected,blocked,selected,playback,enabled,canStart,pending,pendingStationId,feedback,status,setupIssue]);
   if(this.renderSignature===signature)return this;
   this.renderSignature=signature;this.feedback.hidden=!feedback?.message;this.feedback.textContent=feedback?.message||'';this.feedback.dataset.state=feedback?.state||'';this.state={live,connected,blocked,stationId:selected,playing:playback,enabled,canStart,pending,status,selectable:connected===true&&!blocked&&(live===false?!pending:enabled&&canStart)};
   const selectable=this.state.selectable,available=connected===true&&!blocked&&(live===false||enabled);
-  this.subtitle.textContent=available?'Vælg eller skift station nedenfor.':blocked?'Adgang afvist. Dine stationer er bevaret. Kontrollér adgangen i Home Assistant.':!connected?'Ikke forbundet. Dine stationer er bevaret. Kontrollér forbindelsen i Home Assistant.':'Radioafspilning er endnu ikke tilgængelig via Home Assistant.';
+  const setupMessage=setupIssue==='radio_native_not_configured'
+   ?'Radio mangler opsætning. Kontrollér PodConnect-adressen og radiotokenet i PodVoice.'
+   :setupIssue==='radio_native_auth_rejected'
+    ?'PodConnect afviste radiotokenet. Kontrollér, at Speakers og PodVoice bruger samme radiotoken.'
+    :null;
+  this.subtitle.textContent=available?'Vælg eller skift station nedenfor.':blocked?'Adgang afvist. Dine stationer er bevaret. Kontrollér adgangen i Home Assistant.':!connected?'Ikke forbundet. Dine stationer er bevaret. Kontrollér forbindelsen i Home Assistant.':setupMessage||'Radioafspilning er endnu ikke tilgængelig via Home Assistant.';
   // Station identity belongs to the selected Tile and retained PlayerView.
   // This Hero remains the same introduction before and after a local choice.
   this.hero.dataset.kitState=available?'ready':'empty';this.stationArt.src='assets/icons/boombox.svg';this.stationTitle.textContent=available?'Vælg radiostation':'Radio';this.stationStatus.textContent=available?'Vælg eller skift station nedenfor.':this.subtitle.textContent;this.playerButton.hidden=true;this.list.data={
