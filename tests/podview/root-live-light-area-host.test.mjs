@@ -67,7 +67,8 @@ test('late passive foreign-room response cannot override a newly selected room',
   assert.equal(host.lightReadAttempt,null);
  }finally{f.cleanup();}
 });
-test('foreign navigation with an older response shows read-only detail until the deferred read settles',async()=>{
+for(const [description,revision] of [['an older',1],['a malformed','2']])test(
+ `foreign navigation with ${description} revision keeps detail read-only until the deferred read settles`,async()=>{
  const f=fixture(),{host}=f;
  try{
   const resolve=[];
@@ -75,7 +76,7 @@ test('foreign navigation with an older response shows read-only detail until the
   const navigation=host.readLightArea('other');
   host.lightReadAttempt.afterHomeRevision={scope:'scope',revision:2};
   const old=f.response('other');
-  old.sourceRevision={scope:'scope',revision:1};
+  old.sourceRevision={scope:'scope',revision};
   old.lights.observedAt--;old.lights.validUntil--;
   resolve[0](old);
   await navigation;

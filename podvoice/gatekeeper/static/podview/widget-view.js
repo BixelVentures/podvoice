@@ -526,7 +526,9 @@ class WidgetHost extends HTMLElement {
   try{const body=await context.transport.home({lightArea:areaId});if(!current())return;const home=validateHome(body,context.room,context.boot),areas=home.lightAreas,device=scopedLightDevice(home.lights,home.revision);
    if(!device||device.lightScope.areaId!==areaId||!areas||areas.sourceEpoch!==context.areas.sourceEpoch||areas.bindingId!==context.areas.bindingId||areas.placementRevision!==context.areas.placementRevision||areas.ownAreaId!==context.areas.ownAreaId||JSON.stringify(areas.items)!==JSON.stringify(context.areas.items))throw Error('light_area_changed');
    const after=attempt.afterHomeRevision,source=body.sourceRevision;
-   if(after&&source?.scope===after.scope&&source.revision>=after.revision)attempt.afterHomeRevision=null;
+   if(after&&source?.scope===after.scope&&Number.isSafeInteger(source.revision)&&source.revision>=after.revision){
+    attempt.afterHomeRevision=null;
+   }
    if(preserveControls&&attempt.afterHomeRevision)return false;
    const observed=observedArea();
    if(observed){
