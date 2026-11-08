@@ -320,6 +320,24 @@ test('vehicle actions follow fresh observed state and server capability without 
  view.render(observe(null,null),{vehicleActions:['lock','climateOn']});assert.equal(view.liveVehicleButtons.lock.hidden,false);assert.equal(view.liveVehicleButtons.unlock.hidden,true);assert.equal(view.liveVehicleButtons.climateOn.hidden,false);assert.equal(view.liveVehicleButtons.climateOff.hidden,true);
 });
 
+test('a later contrary observation removes the confirmed action text',async()=>{
+ const {root}=fixture();
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['lock','unlock'],feedbackScope:'same-car'};
+ const report=(locked,stamp)=>vehicleObservation({status:'observed',source:'home_assistant_state',
+  observedAt:stamp,fieldObservedAt:{locked:stamp},entityIds:['sensor.car'],
+  data:{locked,charging:{},climate:{}}});
+ const now=Date.now()/1000;
+ view.render(report(true,now-1),options);
+ await view.finishVehicle({confirmation:{action:'unlock'},operation:{
+  presentationCurrent:()=>true,observationCurrent:()=>true,
+ }},view.liveVehicleButtons.unlock);
+ const sentAt=view.liveVehicleCommands.get('lock').sentAt;
+ view.render(report(false,sentAt+1),options);
+ assert.equal(view.accessFeedback.textContent,'Bilen er låst op.');
+ view.render(report(true,sentAt+2),options);
+ assert.equal(view.accessFeedback.textContent,'');
+});
 test('live unknown feedback survives same scope snapshot and clears when scope changes',async()=>{
  const {root}=fixture();let sends=0;const view=new VehicleView(root,{onVehicleSend:async()=>{sends++;return {status:'unknown'};}});const data=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car'],data:{charging:{},climate:{}}});const options={vehicleActions:['lock'],feedbackScope:'scope-a'};view.render(data,options);await view.finishVehicle({confirmation:{action:'lock'},operation:{}},view.liveVehicleButtons.lock);assert.match(view.accessFeedback.textContent,/Udfald ukendt/);view.render(data,options);assert.match(view.accessFeedback.textContent,/Udfald ukendt/);assert.equal(view.accessFeedback.hidden,false);assert.equal(sends,1);view.render(data,{...options,feedbackScope:'scope-b'});assert.equal(view.accessFeedback.textContent,'');view.cleanup();
 });

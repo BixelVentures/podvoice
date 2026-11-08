@@ -538,7 +538,20 @@ export class LiveControlView{
   if(!owner||h.vehicleView!==owner||!['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'].includes(action)||h.state?.focus!=='vehicle'||!h.isConnected||!this.allowed('vehicle')||!s?.capabilities?.vehicleActions?.includes(action)||this.vehicleOperation){this.journalDevice(t,'control_intent',{...diagnostic,code:this.vehicleOperation?'intent_pending':'capability_missing'});return null;}
   this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
   const generation=t.generation,scope=JSON.stringify([s.bootId,s.roomId,s.capabilities?.homeRead?.includes('vehicle')]),current=()=>h.isConnected&&h.liveTransport===t&&t.connected&&t.generation===generation&&this.allowed('vehicle')&&h.liveSnapshot?.capabilities?.vehicleActions?.includes(action)&&JSON.stringify([h.liveSnapshot.bootId,h.liveSnapshot.roomId,h.liveSnapshot.capabilities?.homeRead?.includes('vehicle')])===scope;
-  const operation={action,diagnostic,diagnosticTransport:t,requestedValue,resourceId,current:()=>!owner.disposed&&h.vehicleView===owner&&h.state?.focus==='vehicle'&&current()};this.vehicleOperation=operation;
+  const presentationCurrent=()=>!owner.disposed&&h.vehicleView===owner&&
+   h.liveSnapshot?.bootId===s.bootId&&h.liveSnapshot?.roomId===s.roomId&&
+   (!h.state?.vehicleBinding||h.state.vehicleBinding===resourceId);
+  const receiptCurrent=()=>presentationCurrent()&&current();
+  const observationCurrent=()=>receiptCurrent()&&s.capabilities?.homeRead?.includes('vehicle')===true&&
+   h.liveSnapshot?.capabilities?.homeRead?.includes('vehicle')===true&&
+   typeof resourceId==='string'&&h.state.vehicleBinding===resourceId;
+  const waitForObservation=callback=>{
+   const timer=setTimeout(callback,30000);
+   return ()=>clearTimeout(timer);
+  };
+  const operation={action,diagnostic,diagnosticTransport:t,requestedValue,resourceId,
+   presentationCurrent,receiptCurrent,observationCurrent,waitForObservation,current:()=>receiptCurrent()&&h.state?.focus==='vehicle'};
+  this.vehicleOperation=operation;
   this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});
   try{const raw=await t.controlSetup('vehicle',{action,args});if(this.vehicleOperation!==operation||!operation.current())throw Error('changed');const task=controlTask(raw,h.liveSnapshot,'vehicle');if(task.options[0].action!==action||JSON.stringify(task.confirmation.args??{})!==JSON.stringify(args)||this.spent.has(task.taskId))throw Error('invalid');operation.task=task;this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});return {confirmation:task.confirmation,operation};}catch{this.journalDevice(t,'control_setup',{...diagnostic,code:operation.current()?'setup_unavailable':'superseded'});if(this.vehicleOperation===operation)this.vehicleOperation=null;return null;}
  }
@@ -546,7 +559,7 @@ export class LiveControlView{
  async sendVehicle(operation){
   if(this.vehicleOperation!==operation||!operation?.current()||!operation.task||this.spent.has(operation.task.taskId)){this.journalDevice(operation?.diagnosticTransport,'control_intent',{...operation?.diagnostic,code:'scope_changed'});if(this.vehicleOperation===operation)this.vehicleOperation=null;return {status:'failed'};}
   const task=operation.task,option=task.options[0];let args;try{args=controlArgs(task,option.id,task.confirmation.requiresOverride?{acknowledgePriorUnresolved:true}:{});}catch{this.journalDevice(operation.diagnosticTransport,'control_intent',{...operation.diagnostic,code:'invalid_dto'});this.vehicleOperation=null;return {status:'failed'};}
-  this.spent.set(task.taskId,task.expiresAt);let sent=false;try{if(!operation.current())throw Error('changed');sent=true;const response=await this.host.liveTransport.controlAction(task,option.id,args),status=response?.outcome==='accepted'&&response.ok===true?'accepted':response?.outcome==='rejected'&&response.ok===false?'failed':'unknown',late=this.vehicleOperation!==operation||!operation.current();if(!late&&status!=='failed'){this.trackDeviceJournal('vehicle',operation,response?.requestId,operation.requestedValue,operation.resourceId,operation.current);void this.host.loadLiveHome?.({afterCurrent:true});}return {status,late};}catch{const late=this.vehicleOperation!==operation||!operation.current();if(!late&&sent)void this.host.loadLiveHome?.({afterCurrent:true});return {status:sent?'unknown':'failed',late};}finally{if(this.vehicleOperation===operation)this.vehicleOperation=null;}
+  this.spent.set(task.taskId,task.expiresAt);let sent=false;try{if(!operation.current())throw Error('changed');sent=true;const response=await this.host.liveTransport.controlAction(task,option.id,args),status=response?.outcome==='accepted'&&response.ok===true?'accepted':response?.outcome==='rejected'&&response.ok===false?'failed':'unknown',late=this.vehicleOperation!==operation||!operation.receiptCurrent();if(!late&&status!=='failed'){this.trackDeviceJournal('vehicle',operation,response?.requestId,operation.requestedValue,operation.resourceId,operation.receiptCurrent);void this.host.loadLiveHome?.({afterCurrent:true});}return {status,late};}catch{const late=this.vehicleOperation!==operation||!operation.receiptCurrent();if(!late&&sent)void this.host.loadLiveHome?.({afterCurrent:true});return {status:sent?'unknown':'failed',late};}finally{if(this.vehicleOperation===operation)this.vehicleOperation=null;}
  }
  lightActionContext(target,observation,currentObservation){
   if(!this.allowed('light')||!this.host.isConnected||typeof currentObservation!=='function'||!target||Object.keys(target).sort().join(',')!==(Object.hasOwn(target,'sceneId')?'areaId,sceneId':Object.hasOwn(target,'entityId')?'areaId,entityId':'areaId'))return false;

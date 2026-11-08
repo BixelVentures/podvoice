@@ -2969,7 +2969,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
 
-/* Source: ui-kit.css · SHA256 1acf21c60fc36562d89277674b485529d2e15403ccfcddd638e3888a851c9789 */
+/* Source: ui-kit.css · SHA256 4769926faaa1b9f318d2cbd1ddaecd45b6b873f01398987e1b8e19b8f68a0e64 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -3471,6 +3471,11 @@ pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-progress{he
 pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-thumb{width:var(--pv-icon-s);height:var(--pv-icon-s);border:0;border-radius:var(--pv-r-pill);background:var(--pv-tesla-ink)}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{padding:var(--pv-s3);min-width:0;min-height:0}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-section-heading{flex-direction:row;align-items:baseline;justify-content:space-between;gap:var(--pv-s2)}
+pv-widget-host #vehicle-view .vehicle-disclosure[data-vehicle-section=access]>.vehicle-section-heading{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:var(--pv-s2)
+}
+pv-widget-host #vehicle-view .vehicle-disclosure[data-vehicle-section=access]>.vehicle-section-heading>small{justify-self:end;text-align:end}
+pv-widget-host #vehicle-view .vehicle-disclosure[data-vehicle-section=access]>.vehicle-section-heading>[data-kit-slot=status]{grid-column:1/-1}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-detail-values{display:flex;flex-wrap:wrap;gap:var(--pv-s2) var(--pv-s4);margin:var(--pv-s2) 0 0}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-detail-values>.vehicle-fact-row{flex:1 1 auto;justify-content:flex-start;gap:var(--pv-s1)}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-charge-limit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--pv-s1) var(--pv-s2);padding:var(--pv-s2) 0 0;margin:var(--pv-s2) 0 0;border-top:1px solid var(--pv-line)}
