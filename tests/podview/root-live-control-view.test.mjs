@@ -8,10 +8,21 @@ class Node extends EventTarget {
  constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.textContent='';this.dataset={};}
  append(...nodes){for(const node of nodes){if(node.parentNode){const index=node.parentNode.children.indexOf(node);if(index>=0)node.parentNode.children.splice(index,1);}this.children.push(node);node.parentNode=this;}}
  after(node){this.sibling=node;if(this.parentNode){const index=this.parentNode.children.indexOf(this);this.parentNode.children.splice(index+1,0,node);node.parentNode=this.parentNode;}}
- remove(){this.isConnected=false;}
+ remove(){
+  if(this.parentNode){
+   const siblings=this.parentNode.children,index=siblings.indexOf(this);
+   if(index>=0)siblings.splice(index,1);
+   this.parentNode=null;
+  }
+  this.isConnected=false;
+ }
  setAttribute(name,value){this[name]=String(value);}
  getAttribute(name){return this[name]??null;}
- replaceChildren(...nodes){this.children=nodes;}
+ replaceChildren(...nodes){
+  for(const child of this.children)child.parentNode=null;
+  this.children=[];
+  this.append(...nodes);
+ }
  focus(){}
  showModal(){this.open=true;}
  close(){this.open=false;this.dispatchEvent(new Event('close'));}
@@ -157,7 +168,28 @@ test('light command dialog preserves actual selected lamp context and labels bri
 test('whole-area light dialog keeps actual area title while offering the same closed controls',async()=>{const f=lightFixture();try{const opening=f.view.openLight({areaId:'kitchen'},f.observation(),new Node('button'),f.observation);f.setup.resolve(f.lightOffer());await opening;assert.equal(f.view.title.textContent,'Lys · Køkken');assert.ok(f.view.task);assert.equal(f.calls(),0);}finally{f.view.cleanup();}});
 
 test('unchanged robot refresh keeps its existing panel attached',async()=>{
- const f=fixture();try{await open(f);const panel=f.view.robotPanel,body=f.view.body,replace=body.replaceChildren.bind(body);let count=0;body.replaceChildren=(...args)=>{count++;return replace(...args);};f.view.buildOptions();assert.equal(f.view.robotPanel,panel);assert.equal(count,0);assert.equal(body.children[0],panel);f.host.liveSnapshot.capabilities.controlSetup=[];f.view.render();assert.equal(panel.disabled,true);await f.view.send('pause',{});assert.equal(f.calls(),0);}finally{f.view.cleanup();}
+ const f=fixture();try{
+  await open(f);
+  const panel=f.view.robotPanel,body=f.view.body,replace=body.replaceChildren.bind(body);
+  let count=0;
+  body.replaceChildren=(...args)=>{count++;return replace(...args);};
+  f.view.buildOptions();
+  assert.equal(f.view.robotPanel,panel);
+  assert.equal(count,0);
+  assert.deepEqual(body.children,[panel]);
+  const refresh=new Node('button');
+  body.append(refresh);
+  f.view.buildOptions();
+  assert.equal(count,0,'removing the refresh helper must not detach the panel');
+  assert.deepEqual(body.children,[panel]);
+  assert.equal(panel.parentNode,body);
+  assert.equal(refresh.parentNode,null);
+  f.host.liveSnapshot.capabilities.controlSetup=[];
+  f.view.render();
+  assert.equal(panel.disabled,true);
+  await f.view.send('pause',{});
+  assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
 });
 
 for(const outcome of ['accepted','rejected','unknown'])test(`active robot setting ${outcome} schedules observation only after acceptance`,async()=>{
