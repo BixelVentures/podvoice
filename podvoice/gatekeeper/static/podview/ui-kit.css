@@ -499,6 +499,11 @@ pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-progress{he
 pv-widget-host #vehicle-view .vehicle-charge-limit input::-moz-range-thumb{width:var(--pv-icon-s);height:var(--pv-icon-s);border:0;border-radius:var(--pv-r-pill);background:var(--pv-tesla-ink)}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{padding:var(--pv-s3);min-width:0;min-height:0}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-section-heading{flex-direction:row;align-items:baseline;justify-content:space-between;gap:var(--pv-s2)}
+pv-widget-host #vehicle-view .vehicle-disclosure[data-vehicle-section=access]>.vehicle-section-heading{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;column-gap:var(--pv-s2)
+}
+pv-widget-host #vehicle-view .vehicle-disclosure[data-vehicle-section=access]>.vehicle-section-heading>small{justify-self:end;text-align:end}
+pv-widget-host #vehicle-view .vehicle-disclosure[data-vehicle-section=access]>.vehicle-section-heading>[data-kit-slot=status]{grid-column:1/-1}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-detail-values{display:flex;flex-wrap:wrap;gap:var(--pv-s2) var(--pv-s4);margin:var(--pv-s2) 0 0}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-detail-values>.vehicle-fact-row{flex:1 1 auto;justify-content:flex-start;gap:var(--pv-s1)}
 pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure>.vehicle-charge-limit{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--pv-s1) var(--pv-s2);padding:var(--pv-s2) 0 0;margin:var(--pv-s2) 0 0;border-top:1px solid var(--pv-line)}

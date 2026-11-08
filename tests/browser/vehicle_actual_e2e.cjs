@@ -3,6 +3,7 @@ const {chromium}=require('playwright'),env=require('./podview_actual_env.cjs'),{
 const port=Number(process.env.VEHICLE_TEST_PORT||18980),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json()),update=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());let server,browser;
 const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1',recovery=process.env.VEHICLE_RECOVERY_TEST==='1';
+const feedback=process.env.VEHICLE_FEEDBACK_TEST==='1';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
 async function assertBalancedConfirmation(dialog){
  const geometry = await dialog.evaluate(node=>{
@@ -34,6 +35,141 @@ async function assertBalancedConfirmation(dialog){
  assert(Math.abs(cancel.left-geometry.footer.left)<1);
  assert(Math.abs(confirm.right-geometry.footer.right)<1);
 }
+async function assertAccessPresentation(root, lockName, statusText, danger){
+ const access=root.locator('section.vehicle-disclosure:has(.vehicle-lock-controls)');
+ const heading=access.locator('.vehicle-section-heading');
+ const status=heading.locator('small');
+ assert.equal(await status.innerText(),statusText);
+ const lock=access.getByRole('button',{name:lockName,exact:true});
+ const trunk=access.getByRole('button',{name:/^(Åbn|Luk) bagagerum$/});
+ const rendered=await lock.evaluate(button=>{
+  const heading=button.closest('section').querySelector('.vehicle-section-heading');
+  const [title,status]=heading.children;
+  const probe=document.createElement('span');
+  probe.style.color='var(--pv-danger)';
+  button.append(probe);
+  const danger=getComputedStyle(probe).color;
+  probe.remove();
+  return {
+   fill:getComputedStyle(button).backgroundColor,danger,
+   title: title.getBoundingClientRect().toJSON(),status: status.getBoundingClientRect().toJSON(),
+   heading: heading.getBoundingClientRect().toJSON(),
+  };
+ });
+ console.log('Tesla access presentation',JSON.stringify(rendered));
+ if(danger)assert.equal(rendered.fill,rendered.danger,'unlock uses the canonical danger fill');
+ else assert.notEqual(rendered.fill,rendered.danger,'locking uses a neutral fill');
+ assert(rendered.status.left>rendered.title.right);
+ assert(Math.abs(rendered.status.right-rendered.heading.right)<1);
+ assert(rendered.status.top<rendered.title.bottom);
+ const icon=trunk.locator('[data-kit=icon][aria-hidden=true]');
+ assert(await icon.isVisible());
+ assert.match(await icon.getAttribute('style'),/assets\/icons\/car-front\.svg/);
+}
+async function feedbackJourney(page,card,errors,commands){
+ const root=page.locator('#vehicle-view'),dialog=root.locator('dialog.vehicle-confirmation');
+ const access=root.locator('section.vehicle-disclosure:has(.vehicle-lock-controls)');
+ const status=access.locator('.vehicle-section-heading small');
+ const host=page.locator('pv-widget-host');
+ const actionResponse=()=>page.waitForResponse(response=>
+  new URL(response.url()).pathname==='/view/api/control/actions'&&response.request().method()==='POST');
+ const open=async name=>{
+  await access.getByRole('button',{name,exact:true}).tap();
+  await dialog.waitFor({state:'visible'});
+ };
+ const confirm=async name=>{
+  const reply=actionResponse();
+  await dialog.getByRole('button',{name,exact:true}).tap();
+  return (await reply).json();
+ };
+ const pending=async()=>{
+  const button=access.getByRole('button',{name:'Låser op…',exact:true});
+  await button.waitFor({state:'visible'});
+  assert(await button.isDisabled());
+  const visual=await button.evaluate(node=>({
+   tone:node.dataset.tone,variant:node.dataset.kitVariant,fill:getComputedStyle(node).backgroundColor,
+   busy:node.getAttribute('aria-busy'),animation:getComputedStyle(node,'::after').animationName,
+  }));
+  assert.equal(visual.tone,'neutral');
+  assert.equal(visual.variant,'secondary');
+  assert.equal(visual.busy,'true');
+  assert.equal(visual.animation,'pv-control-pending');
+  assert.notEqual(visual.fill,'rgb(198, 40, 40)');
+  assert.equal(await status.innerText(),'Låst');
+  return visual;
+ };
+
+ await card.tap();
+ await open('Lås op');
+ assert.equal(commands.length,0);
+ assert.deepEqual((await state()).writes,[]);
+ await update({hold:true});
+ const accepted=actionResponse();
+ await dialog.getByRole('button',{name:'Lås op',exact:true}).tap();
+ for(let n=0;!(await state()).intentHeld;n++){
+  if(n>100)throw Error('inert unlock was not held');
+  await sleep(20);
+ }
+ const whileSending=await pending();
+ await host.evaluate(h=>h.loadLiveHome());
+ assert.deepEqual(await pending(),whileSending);
+ await page.evaluate(async()=>{
+  await Promise.all(document.getAnimations({subtree:true})
+   .filter(animation=>animation.effect?.getTiming().iterations!==Infinity)
+   .map(animation=>animation.finished.catch(()=>{})));
+ });
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-unlock-pending.png')});
+ const sentAt=await host.evaluate(h=>h.vehicleView.liveVehicleCommand.sentAt);
+ await update({release:true});
+ assert.equal((await (await accepted).json()).outcome,'accepted');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.vehicleView.liveVehicleCommand?.phase==='observing');
+ assert.deepEqual(await pending(),whileSending);
+ assert.equal(commands.length,1);
+ await sleep(5200);
+ await update({phase:'unlocked',observationAt:sentAt-0.05});
+ await host.evaluate(h=>h.loadLiveHome());
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.locked===false);
+ assert(await access.getByRole('button',{name:'Låser op…',exact:true}).isDisabled());
+ assert.equal(await access.getByText('Bilens nye status er observeret.',{exact:true}).count(),0);
+ await sleep(5200);
+ await update({phase:'unlocked'});
+ await host.evaluate(h=>h.loadLiveHome());
+ await access.getByText('Bilens nye status er observeret.',{exact:true}).waitFor({state:'visible'});
+ assert.equal(await status.innerText(),'Ulåst');
+ assert(await access.getByRole('button',{name:'Lås bilen',exact:true}).isEnabled());
+
+ // A changed preflight state rejects without dispatch. A timed-out native call
+ // remains unknown and cannot be retried without a new explicit confirmation.
+ await open('Lås bilen');
+ await update({lockStateOverride:'unavailable'});
+ assert.equal((await confirm('Lås bilen')).outcome,'rejected');
+ await access.getByText('Handlingen blev afvist.',{exact:true}).waitFor({state:'visible'});
+ assert.equal((await state()).writes.length,1);
+ assert.equal(await status.innerText(),'Ulåst');
+ await update({lockStateOverride:null,lockSendTimeout:true});
+ await open('Lås bilen');
+ assert.equal((await confirm('Lås bilen')).outcome,'unknown');
+ await access.getByText('Udfald ukendt · kontrollér bilen.',{exact:true}).waitFor({state:'visible'});
+ await host.evaluate(h=>h.loadLiveHome());
+ assert(await access.getByText('Udfald ukendt · kontrollér bilen.',{exact:true}).isVisible());
+ await update({voice:true});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next');
+ assert(await access.getByText('Udfald ukendt · kontrollér bilen.',{exact:true}).isVisible());
+ assert.equal(await status.innerText(),'Ulåst');
+ assert.equal(commands.length,3);
+ await open('Lås bilen');
+ await dialog.getByRole('button',{name:'Annuller',exact:true}).tap();
+ assert.equal(commands.length,3);
+ assert.deepEqual((await state()).writes,[
+  {service:'unlock',body:{entity_id:'lock.car'}},{service:'lock',body:{entity_id:'lock.car'}},
+ ]);
+ assert.deepEqual(errors,[]);
+ const bundle=await fetch(base+'/view/podview.bundle.js').then(response=>response.arrayBuffer());
+ console.log(JSON.stringify({outcome:'PASS',story:'Tesla live feedback',whileSending,acceptedStillPending:true,
+  observedUnlock:true,preSendObservationDidNotSettle:true,explicitRejectedWithoutWrite:true,nativeTimeoutUnknownWithoutReplay:true,
+  freshExplicitConfirmationAfterUnknown:true,inertHA:true,
+  bundleSHA:crypto.createHash('sha256').update(Buffer.from(bundle)).digest('hex')}));
+}
 async function lifecycleJourney(page,card,errors,commands){
  const root=page.locator('#vehicle-view'),hero=root.getByRole('region',{name:'Bilens status'});
  const dialog=page.locator('dialog.vehicle-confirmation');
@@ -54,6 +190,29 @@ async function lifecycleJourney(page,card,errors,commands){
  assert(await trunk('Lås op').isEnabled());
  assert(await up.isDisabled());
  assert.deepEqual((await state()).snapshotReads,before.snapshotReads,'opening only uses current passive data');
+ await assertAccessPresentation(root,'Lås op','Låst',true);
+ await page.screenshot({animations:'disabled',path:path.join(env.artifactDir(),'podview-vehicle-access-layout.png')});
+ await trunk('Lås op').tap();
+ await dialog.getByRole('heading',{name:'Lås bilen op?',exact:true}).waitFor({state:'visible'});
+ await assertBalancedConfirmation(dialog);
+ const unlock=dialog.getByRole('button',{name:'Lås op',exact:true});
+ const unlockFill=await unlock.evaluate(button=>{
+  const danger=getComputedStyle(button).getPropertyValue('--pv-danger');
+  const probe=document.createElement('span');
+  probe.style.color=danger;
+  button.append(probe);
+  const colors=[getComputedStyle(button).backgroundColor,getComputedStyle(probe).color];
+  probe.remove();
+  return colors;
+ });
+ assert.equal(unlockFill[0],unlockFill[1]);
+ assert.match(await dialog.locator('.pv-dialog-description').innerText(),
+  /Bilen låses op\. Den låses ikke automatisk igen herfra\. Handlingen kan vække bilen\./);
+ await page.screenshot({animations:'disabled',path:path.join(env.artifactDir(),'podview-vehicle-unlock-confirmation.png')});
+ await dialog.getByRole('button',{name:'Annuller',exact:true}).tap();
+ await dialog.waitFor({state:'hidden'});
+ assert.equal(commands.length,0);
+ assert.deepEqual((await state()).writes,[]);
  const knownTimes=await fieldTimes();
  assert(Number.isFinite(knownTimes.trunk)&&Number.isFinite(knownTimes['climate.status']));
  const refresh=async phase=>{
@@ -99,6 +258,7 @@ async function lifecycleJourney(page,card,errors,commands){
  assert.deepEqual((await state()).writes,[]);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-external-charging.png')});
  await page.setViewportSize({width:834,height:1194});
+ await assertAccessPresentation(root,'Lås bilen','Ulåst',false);
  assert.equal(await root.locator('.vehicle-control-tiles > section:visible').count(),2);
  assert.equal(await trunk('Luk bagagerum').count(),1);
  assert.equal(await root.locator('.vehicle-climate-actions button:visible').count(),1);
@@ -108,13 +268,15 @@ async function lifecycleJourney(page,card,errors,commands){
  await dialog.waitFor({state:'visible'});
  await dialog.getByRole('heading',{name:/Luk bagagerum/}).waitFor({state:'visible'});
  assert.equal(await dialog.locator('.pv-dialog-actions button:visible').count(),2);
+ await page.screenshot({animations:'disabled',path:path.join(env.artifactDir(),'podview-vehicle-tablet-confirmation.png')});
+ assert.equal(await dialog.getByRole('button',{name:'Luk bagagerum',exact:true}).getAttribute('data-tone'),'neutral');
  assert.deepEqual((await state()).writes,[]);
  const accepted=page.waitForResponse(response=>
   new URL(response.url()).pathname==='/view/api/control/actions'&&response.request().method()==='POST');
  await dialog.getByRole('button',{name:'Luk bagagerum',exact:true}).tap();
  assert.equal((await (await accepted).json()).outcome,'accepted');
  assert.equal(await trunk('Åbn bagagerum').count(),0,'acceptance cannot render an unobserved closed trunk');
- assert(await trunk('Luk bagagerum').isVisible());
+ assert(await trunk('Lukker bagagerum…').isDisabled());
  assert.deepEqual((await state()).writes,[{service:'close_cover',body:{entity_id:'cover.trunk'}}]);
 
  await refresh('closed');
@@ -240,7 +402,8 @@ async function recoveryJourney(page,card,errors,requests){
  if(lifecycle){
   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.batteryPercent===72,
    undefined,{timeout:15000});
-  await lifecycleJourney(page,card,errors,commands);
+  if(feedback)await feedbackJourney(page,card,errors,commands);
+  else await lifecycleJourney(page,card,errors,commands);
   return;
  }
  await card.tap();
@@ -270,7 +433,11 @@ async function recoveryJourney(page,card,errors,requests){
  const toggle=page.locator('#vehicle-view [data-kit=toggle]:visible').first();await toggle.tap();const dialog=page.locator('dialog.vehicle-confirmation');await dialog.waitFor({state:'visible'});assert.deepEqual((await state()).writes,[],'setup and confirmation have no effects');
  await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-balanced-confirmation.png')});
  await assertBalancedConfirmation(dialog);
- await update({hold:true});await dialog.getByRole('button',{name:'Tænd klima',exact:true}).tap();for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('vehicle intent not held');await sleep(25)}await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next',undefined,{timeout:2500});await update({release:true});
+ await update({hold:true});await dialog.getByRole('button',{name:'Tænd klima',exact:true}).tap();for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('vehicle intent not held');await sleep(25)}
+ assert.equal(await toggle.getAttribute('aria-busy'),'true');
+ assert.equal(await toggle.getAttribute('aria-checked'),'false','unobserved climate command keeps its previous switch state');
+ assert.match(await toggle.innerText(),/Tænder…/);
+ await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next',undefined,{timeout:2500});await update({release:true});
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='heat_cool',undefined,{timeout:5000});assert.equal((await state()).writes.length,1);assert.deepEqual((await state()).writes[0],{service:'turn_on',body:{entity_id:'climate.car'}});
  assert(await up.isEnabled());
  assert(await seats.isEnabled());assert(await defrost.isEnabled());

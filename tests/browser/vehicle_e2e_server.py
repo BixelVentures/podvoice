@@ -48,6 +48,8 @@ state = {"climate": "off", "temperature": 20.0}
 writes = []
 snapshot_reads = []
 phase = "known"
+lock_state_override = None
+lock_send_timeout = False
 phase_observed = time.time() - 0.2
 hold = False
 started = asyncio.Event()
@@ -76,7 +78,7 @@ def lifecycle_snapshot(body):
     stamps = {"vehicle_state": stamp}
     if full:
         data.update(
-            locked=not opened,
+            locked=not (opened or phase == "unlocked"),
             batteryPercent=72,
             rangeKm=312,
             charging={
@@ -133,7 +135,7 @@ async def ha(request):
             "device_id": "device-a",
             "entities": fields,
         }
-        stamp = time.time() - 0.1
+        stamp = time.time()
         snapshot = {
             "schema": "podvoice.vehicle_snapshot.v1",
             "configEntryId": "entry-a",
@@ -158,6 +160,10 @@ async def ha(request):
                 }
             },
         }
+        snapshot["fieldObservedAt"] = {
+            f"climate.{field}": stamp for field in snapshot["data"]["climate"]
+        }
+        snapshot["historicalFields"] = []
         if read_hold:
             read_hold = False
             read_started.set()
@@ -172,10 +178,23 @@ async def ha(request):
             200,
             json={
                 "entity_id": "lock.car",
-                "state": "unlocked" if phase == "changed" else "locked",
+                "state": lock_state_override
+                or ("unlocked" if phase in {"changed", "unlocked"} else "locked"),
                 "attributes": {},
             },
         )
+    if lifecycle and path.startswith("/core/api/services/lock/"):
+        service = path.rsplit("/", 1)[1]
+        data = json.loads(request.content)
+        assert service in {"lock", "unlock"} and data == {"entity_id": "lock.car"}
+        writes.append({"service": service, "body": data})
+        if hold:
+            hold = False
+            started.set()
+            await asyncio.wait_for(release.wait(), 6)
+        if lock_send_timeout:
+            raise httpx.ReadTimeout("inert native lock acknowledgement timed out", request=request)
+        return httpx.Response(200, json=[])
     if lifecycle and path == "/core/api/states/cover.trunk":
         return httpx.Response(
             200,
@@ -334,6 +353,7 @@ app.middlewares.insert(0, ingress)
 
 async def lab(request):
     global hold, read_hold, followup_hold, phase, phase_observed, fail_next_snapshot
+    global lock_state_override, lock_send_timeout
     if request.method == "POST":
         body = await request.json()
         if recovery and "controlAvailable" in body:
@@ -346,11 +366,15 @@ async def lab(request):
             assert event_transport is not None
             fail_next_snapshot = True
             event_transport.close()
+        if lifecycle and "lockStateOverride" in body:
+            lock_state_override = body["lockStateOverride"]
+        if lifecycle and "lockSendTimeout" in body:
+            lock_send_timeout = body["lockSendTimeout"]
         if lifecycle and "phase" in body:
             phase = body["phase"]
-            assert phase in {"historical", "partial", "changed", "closed"}
+            assert phase in {"historical", "partial", "changed", "closed", "unlocked"}
             if phase != "historical":
-                phase_observed = time.time() - 0.01
+                phase_observed = body.get("observationAt", time.time() - 0.01)
             state["climate"] = "heat_cool" if phase == "changed" else "off"
         if body.get("hold"):
             hold = True
