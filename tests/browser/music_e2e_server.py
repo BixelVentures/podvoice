@@ -17,7 +17,7 @@ from integration.test_podview_bridge import owner
 from integration.test_podview_music import payload, timestamp
 from integration.test_podview_music_control import Rig, room_owner
 from multidict import CIMultiDict
-from unit.test_device_control import MOP, ROBOT
+from unit.test_device_control import MODE, MOP, ROBOT
 from unit.test_device_control import Rig as RobotRig
 from unit.test_podview_room_move import prep as move_preparation
 from unit.test_podview_room_move import receipt as move_receipt
@@ -57,17 +57,16 @@ state = {
 receipts = {}
 service_reads = []
 robot_slow_start = os.environ.get("ROBOT_SLOW_START_TEST") == "1"
+robot_draft = os.environ.get("ROBOT_DRAFT_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
 if robot is not None:
-    robot.states[ROBOT]["state"] = (
-        "docked" if os.environ.get("ROBOT_DRAFT_TEST") == "1" or robot_slow_start else "cleaning"
-    )
+    robot.states[ROBOT]["state"] = "docked" if robot_draft or robot_slow_start else "cleaning"
     robot.states[ROBOT]["attributes"].update(
         supported_features=32 | 4 | 8 | 16 | 8192, battery_level=78
     )
-    if robot_slow_start:
+    if robot_draft or robot_slow_start:
         mop_mode = "select.qrevo_mop_mode"
         robot.registry[mop_mode] = {
             "entity_id": mop_mode,
@@ -79,10 +78,51 @@ if robot is not None:
         }
         robot.states[mop_mode] = {
             "state": "standard",
-            "attributes": {"options": ["standard", "deep"]},
+            "attributes": {
+                "options": ["standard", "fast"] if robot_draft else ["standard", "deep"]
+            },
         }
-        robot.configure()
     bind(robot, Path(os.environ["MUSIC_TEST_DATA"]) / "cleaning.json")
+    if robot_draft:
+        robot.states[MODE]["attributes"]["options"] = ["vacuum_and_mop", "vacuum", "mop", "custom"]
+        robot.states[MOP]["attributes"]["options"] = ["medium", "custom_water_flow"]
+        robot.registry[ROBOT]["config_entry_id"] = "inert-roborock-entry"
+        water = {"distanceOff": 85, "messageSequence": 100, "statusObservedAt": time.time()}
+
+        async def robot_ws_read(command):
+            assert command == {"type": "config/device_registry/list"}
+            return [{"id": "robot-one", "model": "roborock.vacuum.a75", "manufacturer": "Roborock"}]
+
+        async def robot_request(request):
+            if request.url.path != "/core/api/services/podvoice/robot_water_snapshot":
+                return await robot.request(request)
+            assert json.loads(request.content) == {
+                "entity_id": ROBOT,
+                "config_entry_id": "inert-roborock-entry",
+                "device_id": "robot-one",
+                "unique_id": ROBOT,
+                "model": "roborock.vacuum.a75",
+            }
+            return httpx.Response(
+                200,
+                json={
+                    "service_response": {
+                        "schema": "podview.robot_water.v1",
+                        "status": "observed",
+                        "source": "home_assistant_roborock_cache",
+                        "vacuumEntityId": ROBOT,
+                        "model": "roborock.vacuum.a75",
+                        "customDistanceSupported": True,
+                        "waterBoxMode": 207
+                        if robot.states[MOP]["state"] == "custom_water_flow"
+                        else 202,
+                        **water,
+                    }
+                },
+            )
+
+        robot.router._device_control._ws_read = robot_ws_read
+        robot.client._transport = httpx.MockTransport(robot_request)
 
     async def robot_effect():
         path, data = robot.writes[-1]
@@ -101,10 +141,16 @@ if robot is not None:
             await asyncio.sleep(robot_lab["effectDelayMs"] / 1000)
         if robot_lab["ignoreCommands"]:
             return  # The robot accepted the call but never changes state.
+        if robot_draft and data.get("command") == "set_water_box_distance_off":
+            water.update(
+                distanceOff=data["params"]["distance_off"],
+                messageSequence=water["messageSequence"] + 1,
+                statusObservedAt=time.time(),
+            )
         if path.endswith("/pause"):
             robot.states[ROBOT]["state"] = "paused"
         elif path.endswith("/start") or (
-            robot_slow_start
+            (robot_draft or robot_slow_start)
             and path == "services/vacuum/send_command"
             and data.get("command") == "app_segment_clean"
         ):
@@ -497,7 +543,7 @@ if robot_slow_start:
     command_catalog(robot, app[BRIDGE], state="docked", status="charging", error="ok")
     app[BRIDGE].controls.policy["vacuum"][0]["actions"] = ["settings", "start", "dock"]
 
-if os.environ.get("ROBOT_DRAFT_TEST") == "1":
+if robot_draft:
     # Keep the actual server-issued task and deadline in agreement, but make
     # this fixture's real offer short enough to exercise natural timer expiry.
     controls = app[BRIDGE].controls
