@@ -40,13 +40,104 @@ async function newRecipePage(browser){
  }
  return page;
 }
-async function openCatalog(page){
+async function observeColdCatalog(page,widget,bundleSHA){
+ const catalogPath=url=>url.pathname==='/view/api/recipes';
+ let releaseRead;
+ const readGate=new Promise(resolve=>{releaseRead=resolve;});
+ await page.route(catalogPath,async route=>{await readGate;await route.continue();},{times:1});
+ await widget.evaluate(button=>button.addEventListener('click',event=>{
+  if(!event.isTrusted)return;
+  const clickedAt=performance.now(),frames=window.coldRecipeFrames=[];
+  const visible=node=>node?.checkVisibility({visibilityProperty:true,opacityProperty:true})===true;
+  const sample=()=>{
+   const host=document.querySelector('pv-widget-host');
+   const recipe=host.querySelector('#recipe-view');
+   if(visible(recipe)){
+    const layout=recipe.querySelector('[data-recipe-layout=catalog]');
+    const entries=visible(layout)?layout.firstElementChild:null,clip=entries?.getBoundingClientRect();
+    const rows=[...(entries?.querySelectorAll('[data-recipe]')??[])].filter(visible);
+    const covers=rows.flatMap(row=>{
+     const box=row.getBoundingClientRect();
+     if(box.top<Math.max(clip.top,0)||box.bottom>Math.min(clip.bottom,innerHeight))return [];
+     const image=row.querySelector('img');
+     const rect=image?.getBoundingClientRect();
+     const onScreen=visible(image)&&Math.min(rect.bottom,clip.bottom,innerHeight)>Math.max(rect.top,clip.top,0)
+      &&Math.min(rect.right,clip.right,innerWidth)>Math.max(rect.left,clip.left,0);
+     return [{title:row.dataset.recipe,loaded:onScreen&&image.complete&&image.naturalWidth>0,
+      fallback:image?.hasAttribute('data-recipe-fallback')??false,src:image?.currentSrc??null}];
+    });
+    const status=host.recipeView.catalogStatus??null;
+    const messages=[...(entries?.querySelectorAll('p')??[])].filter(visible).map(node=>node.textContent.trim());
+    const state={status,rows:rows.map(row=>row.dataset.recipe),covers,messages};
+    const previous=frames.at(-1);
+    if(!previous||JSON.stringify(previous.state)!==JSON.stringify(state)){
+     frames.push({elapsedMs:performance.now()-clickedAt,state});
+    }
+   }
+   if(!window.stopColdRecipeFrames)requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+ },{capture:true,once:true}));
+ const request=page.waitForRequest(req=>req.method()==='GET'&&catalogPath(new URL(req.url())));
+ const response=page.waitForResponse(res=>res.request().method()==='GET'&&catalogPath(new URL(res.url())));
+ try{
+  await widget.tap();
+  await request;
+  await page.waitForFunction(()=>window.coldRecipeFrames?.length>0);
+  const first=await page.evaluate(()=>window.coldRecipeFrames[0].state);
+  assert.deepEqual(first.rows,[],'cold view has not received the held catalogue');
+  assert.deepEqual(first.messages,['Henter opskrifter …'],'first visible frame explicitly loads');
+  assert.notEqual(first.status,'ready');
+ }finally{releaseRead();}
+ const published=await response;
+ assert.equal(published.status(),200);
+ const recipes=(await published.json()).recipes;
+ const titles=recipes.map(recipe=>recipe.title).sort();
+ assert(titles.includes('Burgerboller')&&titles.length>1,'fixture catalogue contains known recipes');
+ await page.waitForFunction(()=>{
+  const state=window.coldRecipeFrames?.at(-1)?.state;
+  return state?.status==='ready'&&state.covers.length>0
+   &&state.covers.every(cover=>cover.loaded&&!cover.fallback);
+ });
+ const frames=await page.evaluate(async()=>{
+  const covers=window.coldRecipeFrames.at(-1).state.covers;
+  const images=[...document.querySelectorAll('#recipe-view [data-recipe]')];
+  await Promise.all(covers.map(cover=>images.find(row=>row.dataset.recipe===cover.title).querySelector('img').decode()));
+  await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+  window.stopColdRecipeFrames=true;
+  return window.coldRecipeFrames;
+ });
+ assert(frames.every(({state})=>!state.messages.includes('Der er ingen opskrifter endnu.')
+  &&(state.rows.length>0||state.messages.includes('Henter opskrifter …'))),
+  'known content never appears empty or blank');
+ const ready=frames.filter(({state})=>state.status==='ready');
+ for(const {state} of ready){
+  assert.deepEqual([...state.rows].sort(),titles,'every observed ready frame contains the catalogue');
+  assert.deepEqual(state.messages,[],'ready catalogue never shows a substitute message');
+ }
+ const covers=ready.at(-1).state.covers;
+ assert(covers.some(cover=>cover.title==='Burgerboller')&&covers.every(cover=>cover.loaded&&!cover.fallback));
+ assert(covers.every(cover=>cover.src===recipes.find(recipe=>recipe.title===cover.title).image),
+  'visible images use the corresponding catalogue source slots');
+ const screenshot=path.join(testEnv.artifactDir(),`podview-recipe-${shot}-cold-catalogue.png`);
+ await page.screenshot({path:screenshot});
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-cold-catalogue-proof.json'),
+  JSON.stringify({outcome:'PASS',story:'O1',sourceMode,bundleSHA,heldFirstRead:true,viewport:shot,frames,screenshot},null,2));
+}
+async function openCatalog(page,{observeCold=false}={}){
+ const bundle=observeCold?page.waitForResponse(response=>
+  new URL(response.url()).pathname==='/view/podview.bundle.js'&&response.ok()):null;
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});
  await testEnv.openOverview(page);
- await page.locator('#home-recipes').waitFor({state:'visible'});
- homeBaseline ||= await widgetStyle(page.locator('#home-recipes'));
+ const widget=page.locator('#home-recipes');
+ await widget.waitFor({state:'visible'});
+ homeBaseline ||= await widgetStyle(widget);
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
- await page.locator('#home-recipes').tap();
+ if(bundle){
+  const bundleSHA=createHash('sha256').update(await (await bundle).body()).digest('hex');
+  if(process.env.RECIPE_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RECIPE_EXPECTED_BUNDLE);
+  await observeColdCatalog(page,widget,bundleSHA);
+ }else await widget.tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
  await page.locator('#recipe-view [data-recipe]').first().waitFor({state:'visible'});
 }
@@ -320,7 +411,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
   };
  });
  page.on('pageerror',e=>errors.push(e.message));
- await openCatalog(page);
+ await openCatalog(page,{observeCold:sourceMode==='inert-fixture'&&process.env.RECIPE_HISTORY_REFRESH_TEST!=='1'});
  if(process.env.RECIPE_HISTORY_REFRESH_TEST==='1'){
   await checkHistoryOnlyRefresh(page);
   assert.deepEqual(errors,[]);

@@ -349,6 +349,9 @@ async function discoveryLoadingJourney(){
 async function discoveryRevisitJourney(){
  const recent=page.locator('[data-collection=recent]'),top=page.locator('[data-collection=top]');
  const ready=page.locator('#result-list > button.result[data-option-id]');
+ const entry=page.locator('#home-music');
+ const cardIdentity=nodes=>nodes.map(row=>({id:row.dataset.optionId,title:row.querySelector('h2').textContent}));
+ let warmHomeEntry;
  let reads=0,releaseFirst,markHeld;
  const gate=new Promise(resolve=>{releaseFirst=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
  await page.route('**/view/api/music?**',async route=>{
@@ -360,7 +363,7 @@ async function discoveryRevisitJourney(){
   await gate;
   await route.fulfill({response}).catch(()=>{}); // An abandoned browser fetch may already be cancelled.
  });
- await page.locator('#home-music').tap();
+ await entry.tap();
  await recent.tap();
  try{
   await Promise.race([held,sleep(10000).then(()=>{throw Error('first recent read not held');})]);
@@ -376,6 +379,40 @@ async function discoveryRevisitJourney(){
   await top.tap();
   assert.equal(await ready.count(),3,'returning to a populated tab retains its rows');
   assert.equal(await page.locator('#result-list [data-empty=true]').count(),0);
+
+  const known=await ready.evaluateAll(cardIdentity);
+  await page.locator('#header-title-action').tap();
+  await entry.waitFor({state:'visible'});
+  await entry.evaluate(button=>button.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const started=performance.now();
+   const visible=node=>node?.checkVisibility({visibilityProperty:true,opacityProperty:true})===true;
+   const sample=()=>{
+    const scene=document.getElementById('music-response');
+    const elapsedMs=performance.now()-started;
+    if(visible(scene)){
+     const list=document.getElementById('result-list');
+     const rows=[...list.querySelectorAll('button.result[data-option-id]')].filter(visible)
+      .map(row=>({id:row.dataset.optionId,title:row.querySelector('h2').textContent}));
+     window.f1HomeEntry={elapsedMs,rows,
+      tab:document.querySelector('#music-refinements [aria-pressed=true]')?.dataset.collection,
+      loading:list.getAttribute('aria-busy')==='true'
+       ||[...list.querySelectorAll('[data-empty=true],[data-content-state=pending]')].some(visible),
+      spinner:visible(document.querySelector('#music-refresh[data-refresh-state=pending]'))
+       ||[...list.querySelectorAll('button[aria-busy=true]')].some(visible),
+      empty:visible(document.getElementById('empty'))};
+    }else if(elapsedMs<2000)requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+  },{capture:true,once:true}));
+  await entry.tap();
+  await page.waitForFunction(()=>window.f1HomeEntry,undefined,{timeout:2500});
+  warmHomeEntry=await page.evaluate(()=>window.f1HomeEntry);
+  assert(warmHomeEntry.elapsedMs<300,`known Find musik entry took ${warmHomeEntry.elapsedMs} ms`);
+  assert.deepEqual(warmHomeEntry.rows,known,'first visible frame must contain the same known suggestions');
+  assert.equal(warmHomeEntry.tab,'top');
+  assert.equal(warmHomeEntry.loading||warmHomeEntry.spinner||warmHomeEntry.empty,false);
+  assert.equal(reads,2,'reopening the known tab does not restart the abandoned recent read');
  }finally{releaseFirst();}
  assert.deepEqual((await state()).writes,[]);
  assert.deepEqual(actions.filter(action=>!action.url.endsWith('/queue/offer')),[]);
@@ -384,6 +421,10 @@ async function discoveryRevisitJourney(){
  const proof={outcome:'PASS',story:'F5',bundleSHA,revisitedAbandonedFirstRead:true,reads,inertNativeService:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-revisit-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
+ const entryProof={outcome:'PASS',story:'F1',bundleSHA,warmHomeEntry,inertNativeService:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-home-entry-proof.json'),
+  JSON.stringify(entryProof,null,2));
+ console.log(JSON.stringify(entryProof));
 }
 async function discoveryCardHeight(){
  const sizes=[{width:1270,height:1060},{width:1280,height:800}];
@@ -1086,10 +1127,10 @@ async function queuePersistenceJourney(){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover||discoveryRevisit)options.args=['--mute-audio'];
  browser=await chromium.launch(options);
  page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
- if(queueIdentity||accountRollover){
+ if(queueIdentity||accountRollover||discoveryRevisit){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
