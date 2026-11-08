@@ -18,6 +18,10 @@ let server,browser;
  console.log('initial',await page.locator('#device-view').innerText());
  assert.deepEqual((await state()).writes,[],'navigation has no HA effects');
  await page.waitForFunction(()=>{const b=document.querySelector('.light-room-power');return b&&!b.disabled},undefined,{timeout:15000});
+ await page.waitForFunction(()=>{
+  const host=document.querySelector('pv-widget-host');
+  return host?.liveHomeApplied?.revision>0&&!host.liveHomePending;
+ },undefined,{timeout:5000});
  await update({holdRead:true});await page.getByRole('button',{name:'Opdater lys'}).tap();for(let n=0;!(await state()).readHeld;n++){if(n>30)throw Error('light read not held');await sleep(25)}
  await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='s2',undefined,{timeout:1500});assert(await row.isVisible(),'light control remains visible during voice update and held read');await update({releaseRead:true});await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return !h.lightAreaPending&&!h.liveHomePending},undefined,{timeout:8000});
  assert(await row.isEnabled(),'light controls remain enabled after unrelated voice turn');assert.equal((await state()).writes.length,0);
@@ -147,6 +151,28 @@ let server,browser;
  const foreignChangeMs=performance.now()-foreignStarted;
  assert(foreignChangeMs<1500,`foreign source → selected light detail took ${foreignChangeMs} ms`);
  assert.equal(await page.locator('#light-room-panel-title').innerText(),'Stuen');
+ let intercepted=false,captured=false,releaseScoped;
+ const release=new Promise(resolve=>{releaseScoped=resolve;});
+ await page.route('**/view/api/home?*',async route=>{
+  if(intercepted||!new URL(route.request().url()).searchParams.has('lightArea'))return route.continue();
+  intercepted=true;
+  const response=await route.fetch();
+  captured=true;
+  await release;
+  await route.fulfill({response});
+ });
+ try{
+  await page.getByRole('button',{name:'Opdater lys'}).tap();
+  for(let n=0;!captured;n++){
+   if(n>100)throw Error('foreign scoped read was not captured');
+   await sleep(25);
+  }
+  const previous=await page.locator('pv-widget-host').evaluate(host=>host.liveHomeApplied.revision);
+  await update({area:'living-id',externalLight:{state:'on'}});
+  await page.waitForFunction(revision=>document.querySelector('pv-widget-host')?.liveHomeApplied?.revision>revision,
+   previous,{timeout:1500});
+ }finally{releaseScoped();}
+ await living.getByText('Tændt',{exact:true}).waitFor({state:'visible',timeout:1500});
  assert.equal((await state()).writes.length,6,'foreign source observation is read only');
  assert.deepEqual(errors,[]);
  const servedBundle=await fetch(base+'/view/podview.bundle.js').then(r=>r.arrayBuffer()),servedBundleSha256=crypto.createHash('sha256').update(Buffer.from(servedBundle)).digest('hex');

@@ -345,10 +345,16 @@ class WidgetHost extends HTMLElement {
    // The normal Home read observes its assigned room. Keep an explicitly
    // browsed room fresh through the same read-only area owner.
    const detail=this.state.liveLightDetail,selected=detail?.lightScope;
-   if(source&&previous?.scope===source.scope&&source.revision>previous.revision&&selected?.isOwnArea===false
-    &&detail.id===this.state.focus
-    &&(!this.lightReadAttempt||this.lightReadAttempt.passive)){
-    void this.readLightArea(selected.areaId,{preserveControls:true,passive:true});
+   if(source&&previous?.scope===source.scope&&source.revision>previous.revision){
+    const areaRead=this.lightReadAttempt;
+    if(areaRead&&!areaRead.passive){
+     // An explicit read keeps priority, but an older reply must not consume the newer event.
+     if(areaRead.focus===this.state.focus&&areaRead.areaId!==this.state.lightPlacement?.areaId){
+      areaRead.afterHomeRevision=source;
+     }
+    }else if(selected?.isOwnArea===false&&detail.id===this.state.focus){
+     void this.readLightArea(selected.areaId,{preserveControls:true,passive:true});
+    }
    }
   }catch(error){
    const superseded=!current()||read.vehicleFollowup&&error?.code!=='read_access_denied';journal(superseded?'superseded':error?.code==='read_access_denied'?'http_denied':error?.code==='read_transient'?'http_transient':'failure',{current:!superseded});
@@ -519,6 +525,9 @@ class WidgetHost extends HTMLElement {
   const current=()=>{const now=this.lightAreaContext();return generation===this.lightAreaGeneration&&this.state.focus===focus&&now?.key===context.key&&now.transport===context.transport&&(!preserveControls||this.currentLightDevice()?.lightScope?.areaId===areaId);};
   try{const body=await context.transport.home({lightArea:areaId});if(!current())return;const home=validateHome(body,context.room,context.boot),areas=home.lightAreas,device=scopedLightDevice(home.lights,home.revision);
    if(!device||device.lightScope.areaId!==areaId||!areas||areas.sourceEpoch!==context.areas.sourceEpoch||areas.bindingId!==context.areas.bindingId||areas.placementRevision!==context.areas.placementRevision||areas.ownAreaId!==context.areas.ownAreaId||JSON.stringify(areas.items)!==JSON.stringify(context.areas.items))throw Error('light_area_changed');
+   const after=attempt.afterHomeRevision,source=body.sourceRevision;
+   if(after&&source?.scope===after.scope&&source.revision>=after.revision)attempt.afterHomeRevision=null;
+   if(preserveControls&&attempt.afterHomeRevision)return false;
    const observed=observedArea();
    if(observed){
     if(observed.observedAt>device.observedAt)return false;
@@ -540,7 +549,15 @@ class WidgetHost extends HTMLElement {
   }}
   finally{
    if(this.lightReadAttempt===attempt)this.lightReadAttempt=null;
-   if(generation===this.lightAreaGeneration){this.lightAreaPending=false;if(current())this.render();}
+   if(generation===this.lightAreaGeneration){
+    this.lightAreaPending=false;
+    if(current()){
+     this.render();
+     if(attempt.afterHomeRevision&&current()&&this.currentLightDevice()?.lightScope?.areaId===areaId){
+      void this.readLightArea(areaId,{preserveControls:true,passive:true});
+     }
+    }
+   }
   }
   return adopted;
  }
