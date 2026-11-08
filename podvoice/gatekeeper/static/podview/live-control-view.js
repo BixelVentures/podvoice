@@ -39,11 +39,16 @@ export class LiveControlView{
   if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
   else if(this.domain==='vacuum'&&this.robotAuthority!==undefined&&(this.robotAuthority!==robotAuthority||this.robotAuthorityTransport!==this.host.liveTransport)){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_authority_changed'});this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);}
   this.robotAuthority=robotAuthority;this.robotAuthorityTransport=this.host.liveTransport;
-  if (this.task?.domain === 'vacuum'
-   && (this.robotControlOffer?.task !== this.task || !this.robotControlCurrent(this.robotControlOffer.context))
-   && !this.robotStartReceiptCurrent()) {
-   this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_offer_invalid'});
-   this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);
+  const robotTask = this.task?.domain === 'vacuum' ? this.task : null;
+  const robotContext = this.robotControlOffer?.task === robotTask ? this.robotControlOffer?.context : null;
+  if (robotTask && !this.robotControlCurrent(robotContext)) {
+   // Retain the same form for display only during a transient robot read failure.
+   const retainRobotForm = !this.pending && !this.setupPending && !this.activeOperation && !this.spent.has(robotTask.taskId)
+    && this.robotPanel && this.robotControlCurrent(robotContext, {allowStale: true});
+   if (!retainRobotForm && !this.robotStartReceiptCurrent()) {
+    this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_offer_invalid'});
+    this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);
+   }
   }
   this.authority=authority;const musicContext=this.musicContext(),musicAuthority=musicContext?.key??null,presentationAuthority=musicContext?.presentationKey??null;
   const pendingPlayback=this.host.liveMedia?.playback,pendingBinding=pendingPlayback?.roomBinding,pendingPresentation=roomObservationBound(pendingPlayback,snapshot,this.host.liveMedia?.account)&&['playing','paused'].includes(pendingPlayback?.state)?JSON.stringify([snapshot.bootId,snapshot.roomId,this.host.liveTransport?.generation??null,pendingPlayback.config_entry_id,pendingPlayback.owner_epoch,pendingPlayback.target?.id,pendingBinding.bindingId,pendingBinding.nativeRoomId,pendingBinding.nativeHomepodId,pendingBinding.targetId]):null;
@@ -589,7 +594,25 @@ export class LiveControlView{
   const d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum'),snapshot=this.host.liveSnapshot,unknown=[...this.receipts.values()].some(row=>row.bootId===snapshot?.bootId&&row.roomId===snapshot?.roomId&&row.domain==='vacuum'&&row.target?.entityId===d?.id&&this.robotReceiptUnknown(row));
   if(recipeId!==undefined&&d&&(['cleaning','paused'].includes(d.status)||robotExperience(d).jobActive===true))return;
   if(!d?.live||d.pending||this.pending||this.setupPending||this.robotOverviewOperation||this.activeOperation||unknown||!this.host.isConnected)return;
-  if(!this.allowed('vacuum')||d.stale){this.opening++;clearTimeout(this.expiryTimer);this.clearRobotRefresh();this.opener=opener;this.domain='vacuum';this.target={entityId:d.id};this.task=null;this.robotSuggestion=null;this.title.textContent='Robotstøvsuger';this.note.textContent='Kun status og pleje er tilgængelig.';this.buildOptions();this.body.setAttribute('aria-busy','false');this.mountRobotInline();return;}
+  if(!this.allowed('vacuum')||d.stale){
+   if (d.stale && this.allowed('vacuum') && this.robotInline && this.robotPanel
+    && d.id === this.target?.entityId && (this.task?.domain === 'vacuum' || this.expiredRobot)) return;
+   this.opening++;
+   clearTimeout(this.expiryTimer);
+   this.clearRobotRefresh();
+   this.opener=opener;
+   this.domain='vacuum';
+   this.target={entityId:d.id};
+   this.task=null;
+   this.robotSuggestion=null;
+   this.title.textContent='Robotstøvsuger';
+   this.note.textContent='Kun status og pleje er tilgængelig.';
+   this.buildOptions();
+   this.body.setAttribute('aria-busy','false');
+   this.mountRobotInline();
+   this.renderReceipt();
+   return;
+  }
   if(recipeId===undefined&&this.expiredRobot){if(d.id===this.target?.entityId&&this.expiredRobot.target===JSON.stringify({entityId:d.id})){this.robotInline=true;this.mountRobotInline();if(this.canRefreshRobot()){await this.refreshRobot();return;}}this.clearRobotRefresh();}
   // A journal ID only asks the existing source owner for a validated, editable offer.
   // No stored labels, service values or old opaque choice IDs become command authority.

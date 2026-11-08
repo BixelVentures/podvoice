@@ -178,7 +178,14 @@ export function deviceOverviewFacts(d,now=Date.now()/1000){
 // One factual metadata role for the Robot Hero in panel and detail.
 export function robotDetailMetadata(device,now=Date.now()/1000){
  const facts=deviceOverviewFacts({...device,kind:'vacuum'},now).facts,format=row=>`${row.value}${row.stale?' · sidst kendt':''}`,battery=facts.find(row=>row.id==='battery'),measurements=['cleaning_area','cleaning_time'].map(id=>facts.find(row=>row.id===id)).filter(Boolean).map(format).join(' · '),active=['cleaning','paused'].includes(device?.status);
- return [battery?`Batteri ${format(battery)}`:'',measurements&&(!robotExperience(device||{}).jobActive&&!(device?.live!==true&&device?.localJob?.active===true)||active)?`${active?'':'Senest: '}${measurements}`:''].filter(Boolean).join(' · ');
+ const at = device?.observedAt;
+ const lastRead = device?.live === true && device.stale === true && Number.isFinite(at) && at > 0 && at <= now + 1
+  ? `Sidst opdateret kl. ${new Date(at * 1000).toLocaleTimeString('da-DK', {hour:'2-digit',minute:'2-digit'})}` : '';
+ const wasIdle = !robotExperience(device || {}).jobActive
+  && !(device?.live !== true && device?.localJob?.active === true);
+ return [battery ? `Batteri ${format(battery)}` : '',
+  measurements && (wasIdle || active) ? `${active ? '' : 'Senest: '}${measurements}` : '', lastRead]
+  .filter(Boolean).join(' · ');
 }
 export function devicePresentation(d,{connected=true}={}){
  const stale=d.stale===true||connected===false||(d.kind==='light'&&d.live===true&&d.scope==='ha_area'&&Number.isFinite(d.validUntil)&&Date.now()>=d.validUntil*1000),observed=stale&&!d.stale?{...d,stale:true}:d;

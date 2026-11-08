@@ -52,13 +52,14 @@ const assertRobotObservation=async(page,requests,action)=>{
   await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).scrollIntoViewIfNeeded();const normal=await capture();const requestFailures=[];page.on('requestfailed',r=>{if(r.url().includes('/view/api/control/actions')&&r.postDataJSON()?.taskId===before.taskId)requestFailures.push({at:Date.now(),body:r.postDataJSON(),error:r.failure()?.errorText})});
   // Outer fixture guard covers the server's 30s execution and client's 35s receipt wait.
   const responsePromise=page.waitForResponse(r=>r.url().includes('/view/api/control/actions')&&r.request().method()==='POST'&&r.request().postDataJSON()?.taskId===before.taskId,{timeout:40000}).catch(()=>null);const touchedAt=Date.now();await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).tap();const initialPending=await capture();
-  // The first inert settings POST holds an admitted Start while one scoped read fails.
+  // The first inert settings POST holds an admitted Start. Keep the same owner stale through its reply.
   for(let n=0;!(await state()).robot.slowStartPosts.length;n++){
    if(n>50)throw Error('admitted Start did not reach the inert owner');
    await sleep(50);
   }
   const readPath=url=>url.pathname==='/view/api/home';
-  await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_home_read_transient'}}),{times:1});
+  const unavailable=route=>route.fulfill({status:503,json:{error:'inert_home_read_transient'}});
+  await page.route(readPath,unavailable);
   const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
   const readScope=()=>page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),
    bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
@@ -79,6 +80,9 @@ const assertRobotObservation=async(page,requests,action)=>{
   while(Date.now()<before.expiresAt*1000+120)await sleep(100);
   const afterExpiry=await capture();await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-expired-pending.png')});
   for(let n=0;n<100;n++){const value=await state();if(value.robot.slowStartPosts.length===5&&value.robot.slowStartPosts.at(-1).completedAt)break;await sleep(100)}const response=requestFailures.length?null:await responsePromise,receipt=response?await response.json():null,receivedAt=Date.now();await sleep(100);const settled=await capture();await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-accepted.png')});
+  const settledScope=await readScope();
+  await page.unroute(readPath,unavailable);
+  assert.equal(settledScope.stale,true,'receipt settles while HA observation is still stale');
   const wire=requests.filter(r=>r.url.includes('/control/actions')),value=await state(),bundle=await(await page.request.get(base+'/view/podview.bundle.js')).body();const proof={servedBundleSha256:loadedBundleSha256,servedCssSha256:loadedCssSha256,bundleAtEndSha256:crypto.createHash('sha256').update(bundle).digest('hex'),before,touchedAt,receivedAt,normal,initialPending,afterExpiry,receipt,requestFailures,settled,wire,robot:value.robot,errors};await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-slow-start-expiry.json'),JSON.stringify(proof,null,2));console.log('slowStartExpiry',JSON.stringify(proof));
   assert(response,'admitted Start response must remain receivable beyond the12s normal request timeout');assert.equal(response.status(),200);assert.equal(receipt.outcome,'accepted');assert.equal(receipt.completedSteps,5);assert.equal(receipt.startSent,true);assert.equal(receipt.partial,false);assert.equal(wire.length,1,'expiry never creates any second browser action');assert.equal(wire[0].body.taskId,before.taskId);assert.equal(receipt.requestId,wire[0].body.requestId);assert(receivedAt>=before.expiresAt*1000,'accepted arrives after the original UI admission expiry');assert(receivedAt-touchedAt>=16000&&receivedAt-touchedAt<25000);
   const writes=effectWrites(value);assert.deepEqual(writes.map(row=>row[0]),['services/select/select_option','services/select/select_option','services/select/select_option','services/vacuum/set_fan_speed','services/vacuum/send_command']);assert.deepEqual(writes.at(-1)[1],{entity_id:'vacuum.qrevo',command:'app_segment_clean',params:[{segments:[16,17],repeat:1}]});assert.equal(value.robot.state,'cleaning');assert.equal(value.robot.slowStartPosts.length,5);for(const post of value.robot.slowStartPosts.slice(0,4))assert(post.completedAt-post.receivedAt>=4);
@@ -151,6 +155,37 @@ const assertRobotObservation=async(page,requests,action)=>{
   },before.task,{timeout:15000});
   assert.equal(await room.getAttribute('aria-pressed'),'true','fresh server remap retains the selected room');
   for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+  const lastRead=await host.evaluate(h=>({task:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt,
+   observedAt:h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt}));
+  const readPath=url=>url.pathname==='/view/api/home';
+  await page.route(readPath,route=>route.fulfill({status:503,json:{error:'inert_robot_read_transient'}}),{times:1});
+  const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
+  await host.evaluate(h=>h.loadLiveHome());
+  assert.deepEqual(await (await failedRead).json(),{error:'inert_robot_read_transient'});
+  assert(await host.evaluate(h=>h.liveTransport.connected&&h.state.devices.find(d=>d.id==='vacuum.qrevo')?.stale));
+  assert.equal(await room.count(),1,'same-owner read failure keeps the dirty room controls mounted');
+  assert.equal(await room.getAttribute('aria-pressed'),'true');
+  assert.equal(await room.isDisabled(),true,'retained draft has no authority while robot observation is stale');
+  const staleAt=await host.evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt);
+  assert.equal(staleAt,lastRead.observedAt);
+  const expectedClock=await page.evaluate(at=>new Date(at*1000)
+   .toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),staleAt);
+  assert(await panel.getByText(`Sidst opdateret kl. ${expectedClock}`,{exact:false}).isVisible());
+  for(const [index,{x,y}] of (await geometry()).entries()){
+   assert(Math.abs(x-positions.both[index].x)<0.5&&Math.abs(y-positions.both[index].y)<0.5);
+  }
+  assert.deepEqual((await state()).robot.writes,[]);
+  // The ordinary next home poll restores the draft even when its old offer has expired.
+  await page.waitForFunction(old=>{
+   const h=document.querySelector('pv-widget-host');
+   const device=h?.state.devices.find(d=>d.id==='vacuum.qrevo');
+   const start=h?.liveControls.robotPanel?.cleaningSubmit;
+   const task=h?.liveControls.task;
+   return device?.live&&!device.stale&&start&&!start.disabled&&task?.taskId!==old.task
+    &&task?.draft?.status==='restored'&&Date.now()>=old.expiresAt*1000;
+  },lastRead,{timeout:25000});
+  assert.equal(await room.getAttribute('aria-pressed'),'true','recovery retains the unsent draft without reload');
+  for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
   await mop.tap();
   assert(await extreme.isChecked(),'the other mode draft remains independently retained');
   await both.tap();
@@ -177,7 +212,8 @@ const assertRobotObservation=async(page,requests,action)=>{
   assert.deepEqual(errors,[]);
   assert(loadedBundleSha256&&loadedCssSha256);
   const proof={outcome:'PASS',actualServerTaskExpiry:true,hiddenThenReopened:true,serverRemapped:true,
-   modeNames,positions,receipt,inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
+   modeNames,positions,retainedThroughStaleRead:true,recoveredOnPassivePoll:true,lastRead,receipt,
+   inertHAWrites:final.writes,loadedBundleSha256,loadedCssSha256};
   await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-draft-start-proof.json'),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));
   return;

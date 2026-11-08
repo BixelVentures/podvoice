@@ -180,7 +180,9 @@ test('an authorized taskless read retains the real observation without terminal 
 test('robot control keeps canonical status identity and connection while observations retain edited form',()=>{
  const panel=new RobotControlPanel();panel.data={task:task(),device:{...device,live:true,status:'cleaning',pending:true,battery:76},connected:true};
  const form=cleaningForm(panel);assert.equal(panel.observation.data.title,'Robotstøvsuger');assert.equal(panel.observation.data.resourceStatus,'cleaning');assert.equal(panel.observation.data.state,'pending');assert.equal(panel.observation.data.quietStatus,true);assert.equal(panel.observation.data.connected,true);assert.equal(panel.observation.data.text,'Rengør');
- panel.observed({...device,live:true,status:'stopped',stale:true,battery:130},{connected:false});assert.equal(cleaningForm(panel),form);assert.equal(panel.observation.data.resourceStatus,'stopped');assert.equal(panel.observation.data.state,'ready');assert.equal(panel.observation.data.connected,false);assert.equal(panel.observation.data.text,'Sidst kendt: Ingen aktiv rengøring');assert.equal(panel.observation.data.detail,'');
+ panel.observed({...device,live:true,status:'stopped',stale:true,battery:130},{connected:false});assert.equal(cleaningForm(panel),form);assert.equal(panel.observation.data.resourceStatus,'stopped');assert.equal(panel.observation.data.state,'ready');assert.equal(panel.observation.data.connected,false);assert.equal(panel.observation.data.text,'Sidst kendt: Ingen aktiv rengøring');
+ const time=new Date(device.observedAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+ assert.equal(panel.observation.data.detail,`Sidst opdateret kl. ${time}`);
 });
 
 

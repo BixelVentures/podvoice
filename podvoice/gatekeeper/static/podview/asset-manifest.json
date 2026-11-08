@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "f994b8b3da8e8b2f293045f2a7b9da0999cc0385675dc9016a67a7f63641e220"
+      "sha256": "01311acd58a19648c190b2a39168d3c6e11edebcf52cc1cda1dc9fe52a5e7847"
     },
     {
       "path": "library.css",
@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "776af3ae41051a643a0d84e69ca1ab30cb9ea4dce8cc07f489491752105705e1"
+      "sha256": "9cb4a49d5e2b768b646cef8e4cff29605b29d29b7d4fe108ec3c3abcd37a6bb6"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "bd9a25b28dc102c5b4fa3950f65922d297390d553632900c3939a6d98fd3ca2e"
+      "sha256": "f7d2407c0573f9db322f7b87ad2f04e20488d1299eb0758d6ce89dedb2924507"
     },
     {
       "path": "podview.css",
@@ -687,7 +687,7 @@
     },
     {
       "path": "scene-model.js",
-      "sha256": "575cfe90caa71533104b6ebd5464bfc0192d32ca99fe96dd027a61479e413f77"
+      "sha256": "49ceef0ad04bf4f39f7ad345c70cdf3850d4490d81bfd4e5bd78c21c3e4ab784"
     },
     {
       "path": "scenes.css",
