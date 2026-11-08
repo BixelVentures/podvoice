@@ -59,6 +59,49 @@ const assertRobotObservation=async(page,requests,action)=>{
   const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  let refreshProof;
+  if(!longSession){
+   await baseMenu.waitFor({state:'visible'});
+   const host=page.locator('pv-widget-host');
+   const first=await host.evaluate(h=>({id:h.liveControls.task.taskId,expiresAt:h.liveControls.task.expiresAt}));
+   const oldOptions=await operations.evaluateAll(rows=>rows.map(row=>row.dataset.controlOptionId));
+   let releaseRefresh;
+   const held=new Promise(resolve=>{releaseRefresh=resolve;});
+   const setup='**/view/api/control/setup';
+   const gate=async route=>{
+    const body=route.request().postDataJSON();
+    if(body.domain==='vacuum'&&body.renewTaskId===first.id)return route.abort();
+    if(body.domain==='vacuum'&&!body.renewTaskId)await held;
+    return route.continue();
+   };
+   await page.route(setup,gate);
+   try{
+    await baseMenu.tap();
+    assert.equal(await baseMenu.getAttribute('aria-expanded'),'true');
+    await page.waitForFunction(first=>{
+     const view=document.querySelector('pv-widget-host')?.liveControls;
+     return view?.setupPending&&!view.task&&Date.now()/1000>=first.expiresAt;
+    },first,{timeout:25000});
+    assert.equal(await baseMenu.getAttribute('aria-expanded'),'true','expired offer must not collapse Base');
+    assert.equal(await operations.count(),3);
+    assert.deepEqual(await operations.evaluateAll(rows=>rows.map(row=>row.disabled)),[true,true,true]);
+   }finally{
+    releaseRefresh();
+    await page.unrouteAll({behavior:'wait'});
+   }
+   await page.waitForFunction(id=>{
+    const task=document.querySelector('pv-widget-host')?.liveControls?.task;
+    return task?.taskId&&task.taskId!==id;
+   },first.id);
+   await operations.first().waitFor({state:'visible'});
+   assert.equal(await baseMenu.getAttribute('aria-expanded'),'true','fresh offer preserves the open disclosure');
+   assert.deepEqual(await operations.evaluateAll(rows=>rows.map(row=>row.disabled)),[false,false,false]);
+   const freshOptions=await operations.evaluateAll(rows=>rows.map(row=>row.dataset.controlOptionId));
+   assert(freshOptions.every(id=>!oldOptions.includes(id)),'only new dock option IDs are enabled');
+   assert.deepEqual(await ownerWrites(),[],'offer renewal sends no dock command');
+   refreshProof={expiredOfferDisabled:true,freshOptions:true,baseStayedOpen:true};
+   await baseMenu.tap();
+  }
   let idleProof;
   if(longSession){
    const host=page.locator('pv-widget-host');
@@ -115,7 +158,7 @@ const assertRobotObservation=async(page,requests,action)=>{
   if(process.env.ROBOT_EXPECTED_BUNDLE)assert.equal(loadedBundleSha256,process.env.ROBOT_EXPECTED_BUNDLE);
   if(process.env.ROBOT_EXPECTED_CSS)assert.equal(loadedCssSha256,process.env.ROBOT_EXPECTED_CSS);
   const proof={outcome:'PASS',story:longSession?'S4':'S7',loadedBundleSha256,loadedCssSha256,
-   groups,writes,inertFinalService:true,...idleProof};
+   groups,writes,inertFinalService:true,...idleProof,...refreshProof};
   const file=longSession?'podview-robot-long-session-dock-proof.json':'podview-robot-dock-proof.json';
   await fs.writeFile(path.join(testEnv.artifactDir(),file),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));

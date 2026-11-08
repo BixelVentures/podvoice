@@ -100,6 +100,11 @@ async function recentSessionJourney(){
    body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'});
  });
  await coverRoutes(page);
+ let recentReads=0;
+ page.on('request',request=>{
+  const url=new URL(request.url());
+  if(url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='recent')recentReads++;
+ });
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="recent"]').tap();
  const row=page.locator('#result-list button.result').filter({hasText:title});
@@ -111,8 +116,32 @@ async function recentSessionJourney(){
  const scrollTop=()=>feed.evaluate(node=>node.scrollTop);
  const initialRows=await visibleRows();
  assert.equal(initialRows.length,5);
- await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
- await list.getByText('Katalogsang 20',{exact:true}).waitFor();
+ const priorButtons=list.locator('button[data-content-state=ready]');
+ assert.ok(await priorButtons.evaluateAll(buttons=>buttons.every(button=>!button.disabled)));
+ await list.evaluate(node=>{
+  const prior=new Set(node.querySelectorAll('button[data-content-state=ready]'));
+  node.expansionDisabledWrites=0;
+  new MutationObserver(changes=>{
+   node.expansionDisabledWrites+=changes.filter(change=>prior.has(change.target)).length;
+  }).observe(node,{subtree:true,attributes:true,attributeFilter:['disabled']});
+ });
+ let releasePlayback,markPlaybackHeld;
+ const playbackGate=new Promise(resolve=>{releasePlayback=resolve;});
+ const playbackHeld=new Promise(resolve=>{markPlaybackHeld=resolve;});
+ const playbackRoute=async route=>{
+  if(new URL(route.request().url()).searchParams.get('kind')!=='playback')return route.fallback();
+  markPlaybackHeld();await playbackGate;await route.continue();
+ };
+ await page.route('**/view/api/music?**',playbackRoute);
+ try{
+  await page.locator('pv-widget-host').evaluate(host=>{void host.liveMedia.refresh({immediate:true});});
+  await Promise.race([playbackHeld,sleep(10000).then(()=>{throw Error('background playback read was not held');})]);
+  await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+  await list.getByText('Katalogsang 20',{exact:true}).waitFor();
+  assert.equal(recentReads,1,'expansion reuses the admitted source');
+  assert.equal(await list.evaluate(node=>node.expansionDisabledWrites),0,'the existing five rows stay enabled throughout expansion');
+  assert.ok(await priorButtons.evaluateAll(buttons=>buttons.every(button=>!button.disabled)));
+ }finally{releasePlayback();await page.unroute('**/view/api/music?**',playbackRoute);}
  const expandedRows=await visibleRows();
  assert.equal(expandedRows.length,10);
  assert.deepEqual(expandedRows.slice(0,5),initialRows);
@@ -234,13 +263,51 @@ async function recentSessionJourney(){
  assert.equal(final.selections.length,1);
  assert.deepEqual(final.writes.map(row=>row.action),['play_track','pause','resume','pause','resume','volume']);
  assert.equal(final.volume,55);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
+ const expandedReadAges=[];
+ let expandedRecentReads=0,explicitTargetReads=0,expandedChoicePressed=false;
+ await page.route('**/view/api/music?**',async route=>{
+  const url=new URL(route.request().url());
+  if(!expandedChoicePressed||url.searchParams.get('kind')!=='targets'||!url.searchParams.has('account'))return route.fallback();
+  if(++explicitTargetReads!==1)return route.continue();
+  const response=await route.fetch(),body=await response.json();
+  assert.ok(response.ok()&&body.ok&&body.roomBinding);
+  // Only this fixture response crosses the boundary in transit.
+  const observedAtMs=Date.now()-9950;
+  body.observedAt=observedAtMs/1000;
+  await sleep(100);
+  assert.ok(Date.now()-observedAtMs>=10000);
+  await route.fulfill({response,json:body});
+ });
+ page.on('response',async response=>{
+  const url=new URL(response.url()),kind=url.searchParams.get('kind');
+  if(url.pathname!=='/view/api/music'||!['targets','recent'].includes(kind)||!response.ok())return;
+  const body=await response.json();
+  if(kind==='targets'&&body.coverage==='account_targets'&&Number.isFinite(body.observedAt)){
+   expandedReadAges.push(Date.now()-body.observedAt*1000);
+  }
+  if(kind==='recent'&&body.candidateSet)expandedRecentReads++;
+ });
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="recent"]').tap();
+ await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+ expandedChoicePressed=true;
+ await page.locator('#result-list button.result').filter({hasText:'Katalogsang 20'}).tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSelection?.feedback?.settlementStatus==='confirmed');
+ const expandedChoice=await state();
+ assert.deepEqual(expandedChoice.writes.slice(final.writes.length).map(row=>row.action),['play_track']);
+ assert.equal(expandedChoice.selections.at(-1).uri,'spotify:track:'+String(20).padStart(22,'0'));
+ assert.equal(expandedRecentReads,2,'initial sample and one exact choice renewal');
+ assert.equal(explicitTargetReads,2,'exactly one read-only refresh after the expired response');
+ assert.equal(expandedReadAges.filter(age=>age>=10000).length,1);
+ assert.ok(expandedReadAges.at(-1)>=0&&expandedReadAges.at(-1)<10000,
+  `last target read must carry a usable original observation: ${expandedReadAges}`);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
-  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,
+  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,rowsEnabledDuringExpansion:true,expandedChoiceEffects:1,expandedRecentReads,expandedReadAges,explicitTargetReads,
   previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
   touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
- await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
  await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
@@ -688,11 +755,15 @@ async function discoveryCoverJourney(){
  });
  assert.equal(await image.getAttribute('src'),coverUrl);
  await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
+ await list.locator('button.result').filter({hasText:'Katalogsang 17'}).waitFor({timeout:15000});
+ assert.equal(reads,1,'expanded cards already belong to the admitted sample');
+ // Exercise the existing explicit source read separately from local expansion.
+ await page.locator('pv-widget-host').evaluate(host=>host.liveCatalogue.beginRead('recent','refresh'));
  try{
   await Promise.race([held,sleep(10000).then(()=>{throw Error('cover refresh not held');})]);
   assert.equal(await image.getAttribute('src'),coverUrl);
  }finally{releaseRefresh();}
- await list.locator('button.result').filter({hasText:'Katalogsang 17'}).waitFor({timeout:15000});
+ await page.waitForFunction(()=>document.querySelector('#result-list')?.getAttribute('aria-busy')==='false');
  assert.equal(await row.evaluate((current,original)=>current===original,initial),true);
  assert.equal(await image.getAttribute('src'),coverUrl,'missing metadata never resets the accepted cover');
  assert.equal(await image.evaluate(img=>img.naturalWidth),64);

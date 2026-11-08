@@ -3376,6 +3376,17 @@ async def _observed_queue_offer(request: web.Request) -> web.Response:
     return await observe_read(request, queue_http, "queue")
 
 
+def _music_cache_fresh(key, value):
+    if time.monotonic() - value[0] >= value[3]:
+        return False
+    if key[1] == "targets" and key[2] is not None and value[2].get("ok") is True:
+        # Selection accepts a room-bound observation for ten seconds from its
+        # original read, not from when a cached response is sent again.
+        observed_at = value[2].get("observedAt")
+        return type(observed_at) in {int, float} and 0 <= time.time() - observed_at < 10
+    return True
+
+
 async def _music(request: web.Request) -> web.Response:
     from . import mood_diagnostics as diagnostic_log
 
@@ -3526,7 +3537,7 @@ async def _music(request: web.Request) -> web.Response:
     bridge._music_cache = {
         key: value
         for key, value in bridge._music_cache.items()
-        if time.monotonic() - value[0] < value[3]
+        if _music_cache_fresh(key, value)
         and key[0] in bridge.sessions
         and value[1] == _music_binding(bridge, key[0])
         and key[1] in tools.podview_music_reads()
@@ -3554,7 +3565,7 @@ async def _music(request: web.Request) -> web.Response:
             ):
                 return _error("music_unavailable", 503)
             cached = bridge._music_cache.get(cache_key)
-            if cached is None or cached[1] != binding or time.monotonic() - cached[0] >= cached[3]:
+            if cached is None or cached[1] != binding or not _music_cache_fresh(cache_key, cached):
                 return _error("music_unavailable", 503)
     if cached:
         result = (

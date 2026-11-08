@@ -131,6 +131,30 @@ async def test_same_key_two_clients_share_one_read_and_original_cache(monkeypatc
         assert not r.bridge._home_busy and not r.bridge._music_busy
 
 
+async def test_room_target_cache_expires_at_the_original_observation_bound(monkeypatch):
+    clock = SimpleNamespace(now=1000.0)
+    monkeypatch.setattr(
+        podview, "time", SimpleNamespace(time=lambda: clock.now, monotonic=lambda: clock.now)
+    )
+    async with rig("targets", monkeypatch) as r:
+        r.release.set()
+        original = await r.begin("first")
+        assert original.status == 200
+        assert (await original.json())["observedAt"] == 1000.0
+
+        clock.now = 1009.999
+        current = await r.begin("second")
+        assert current.status == 200
+        assert (await current.json())["observedAt"] == 1000.0
+        assert r.read.await_count == 1
+
+        clock.now = 1010.0
+        replacement = await r.begin("second")
+        assert replacement.status == 200
+        assert (await replacement.json())["observedAt"] == 1010.0
+        assert r.read.await_count == 2
+
+
 @pytest.mark.parametrize("domain", ["home", "targets"])
 @pytest.mark.parametrize("replacement", ["session", "source", "boot", "bridge", "auth"])
 async def test_waiter_rechecks_current_owner_and_auth(monkeypatch, domain, replacement):
@@ -329,7 +353,7 @@ async def test_targets_capacity_keeps_existing_429_without_a_read(monkeypatch):
             r.bridge._music_cache[("kitchen", "targets", f"other-{index}", None, None)] = (
                 time.monotonic(),
                 binding,
-                {"ok": True, "data": {"targets": []}},
+                {"ok": True, "data": {"targets": []}, "observedAt": time.time()},
                 15,
             )
         response = await r.begin("second")

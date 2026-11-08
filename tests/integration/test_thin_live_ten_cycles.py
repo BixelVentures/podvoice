@@ -853,14 +853,20 @@ async def test_fixture_cleanup_observer_interruption_joins_actual_shielded_close
     session.live_brain.client_factory = sdk.factory
     observers, stop_caller = [], None
     with monkeypatch.context() as patch:
+        # The borrowed unit fixture's 200ms provider budget can expire before the
+        # installed SDK completes startup under CI load. This test interrupts
+        # the cleanup observer after a successful wake, not the provider itself.
+        patch.setattr(session.live_brain, "timeout_s", 2.0)
         retain_aclose_observers(session, observers, patch)
         try:
             await session.start()
             playback_owner = session.playback._task
             assert playback_owner is not None and not playback_owner.done()
             await asyncio.wait_for(session.wake(), WAIT_S)
+            assert session.live_brain.provider_session_started and session._active
+            assert session._close_task is None and not sdk.exit_entered.is_set()
             stop_caller = asyncio.create_task(session.stop())
-            await observed(sdk.exit_entered.is_set)
+            await asyncio.wait_for(sdk.exit_entered.wait(), WAIT_S)
             owner = session._close_task
             assert owner is not None and not owner.done()
             entered = asyncio.Event()

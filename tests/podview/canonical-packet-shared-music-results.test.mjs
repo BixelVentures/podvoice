@@ -17,7 +17,34 @@ test('valid empty search never falls back to catalogue fixtures or old source ca
 test('read capability revocation and restoration advance generation so a held sample cannot revive',()=>{const f=catalogue();const before=f.host.liveMusicGeneration||0;f.view.updateCapabilities(true,['recent']);f.view.updateCapabilities(true,['recent','top','recent']);assert.ok(f.host.liveMusicGeneration>=before+2);});
 const sampleBody=count=>({ok:true,data:{config_entry_id:'account',tracks:Array.from({length:count},(_,index)=>({name:`Actual source ${index}`,artist:'Actual artist',uri:`spotify:track:${String(index).padStart(22,'0')}`}))}});
 test('stable full provider sample advances three actual source items only after a successful reread',()=>{const f=catalogue(),body=sampleBody(7);f.view.select('top');f.view.tracks('top',body,'account');assert.equal(f.view.sample.length,7);assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 0','Actual source 1','Actual source 2']);const first=f.view.cards;f.view.refresh();assert.equal(f.view.cards,first);assert.equal(f.view.busy,true);f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 3','Actual source 4','Actual source 5']);assert.equal(f.view.offset,3);const second=f.view.cards,sample=f.view.sample;f.view.refresh();f.view.failure('top');assert.equal(f.view.cards,second);assert.equal(f.view.sample,sample);assert.equal(f.view.offset,3);f.view.refresh();f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 6']);f.view.refresh();f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),['Actual source 0','Actual source 1','Actual source 2']);assert.deepEqual(f.reads,['top','top','top','top','top']);assert.equal(f.renders.at(-1).canChoose,false);});
-test('unchanged three-song source admits no fake extra suggestions and account reset clears sample page',()=>{const f=catalogue(),body=sampleBody(3);f.view.select('recent');f.view.tracks('recent',body,'account');const names=f.view.cards.map(card=>card.name);f.view.refresh();f.view.tracks('recent',body,'account');assert.deepEqual(f.view.cards.map(card=>card.name),names);assert.match(f.view.status,/Ingen andre sange/);f.view.resetAccount('other');assert.deepEqual(f.view.sample,[]);assert.equal(f.view.offset,0);});
+test('expanding the admitted recent sample retains live row authority without a catalogue read',()=>{
+ const f=catalogue(),body=sampleBody(7),capabilities={musicRead:['recent','targets'],musicSelection:true};
+ f.host.liveSnapshot={bootId:'boot',roomId:'room',capabilities};
+ f.view.updateCapabilities(true,capabilities.musicRead);
+ Object.assign(body,{selection:{requested_limit:25,source_sample_count:7,returned_count:7,more_in_sample:false,size_limited:false},candidateSet:{
+  schema:'podview.music-search-context.v1',candidateSetId:'a'.repeat(64),bootId:'boot',roomId:'room',
+  configEntryId:'account',source:'spotify_web_api',query:'recent:collection',sourceKind:'recent',
+  revisionScope:'music_selection',sessionId:'session',turnId:'turn',taskId:'task',revision:0,inputRevision:0,
+  items:body.data.tracks.map((_,index)=>({id:String(index).padStart(24,'0'),index})),
+ }});
+ f.view.select('recent');f.view.tracks('recent',body,'account');
+ const entry=f.view.entries.get(f.view.key()),source=entry.source,original=[...f.view.cards];
+ try{
+  assert.equal(original.length,5);
+  assert.equal(f.renders.at(-1).canChoose,true);
+  f.view.refresh();
+  assert.deepEqual(f.reads,['recent']);
+  assert.equal(f.view.cards.length,7);
+  assert.equal(f.renders.at(-1).canChoose,true);
+  assert.equal(f.renders.at(-1).canRefresh,false);
+  assert.equal(entry.source,source);
+  assert.ok(original.every((card,index)=>f.view.cards[index]===card));
+  f.view.refresh();assert.deepEqual(f.reads,['recent']);
+  source.expiresAt=Date.now()-1;
+  f.view.render();assert.equal(f.renders.at(-1).canChoose,false);
+ }finally{clearTimeout(f.view.expiryTimer);}
+});
+test('unchanged three-song source admits no fake extra suggestions and account reset clears sample page',()=>{const f=catalogue(),body=sampleBody(3);f.view.select('recent');f.view.tracks('recent',body,'account');const names=f.view.cards.map(card=>card.name);f.view.refresh();assert.deepEqual(f.reads,['recent']);assert.deepEqual(f.view.cards.map(card=>card.name),names);assert.equal(f.renders.at(-1).canRefresh,false);f.view.resetAccount('other');assert.deepEqual(f.view.sample,[]);assert.equal(f.view.offset,0);});
 test('switching collection clears previous membership during loading and failure while same-collection refresh retains it',()=>{const f=catalogue(),body=sampleBody(7);f.view.select('top');f.view.tracks('top',body,'account');f.view.refresh();f.view.tracks('top',body,'account');assert.equal(f.view.offset,3);assert.equal(f.view.cards.length,3);f.view.select('recent');assert.equal(f.view.busy,true);assert.deepEqual(f.view.cards,[]);assert.deepEqual(f.view.sample,[]);assert.equal(f.view.offset,0);assert.equal(f.view.renderedKind,null);assert.equal(f.renders.at(-1).collection,'recent');assert.deepEqual(f.renders.at(-1).cards,[]);f.view.failure('recent');assert.equal(f.view.busy,false);assert.deepEqual(f.renders.at(-1).cards,[]);assert.match(f.renders.at(-1).status,/kunne ikke hentes/);f.view.tracks('top',body,'account');assert.deepEqual(f.view.cards,[]);f.view.select('recent');f.view.tracks('recent',body,'account');const likedCards=f.view.cards;f.view.refresh();assert.equal(f.view.cards,likedCards);f.view.failure('recent');assert.equal(f.view.cards,likedCards);});
 
 

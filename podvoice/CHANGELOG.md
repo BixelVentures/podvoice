@@ -1,3 +1,7 @@
+## 2.0.157
+
+- Bevar musikbetjening ved listeudvidelse, forny højttalerdata ved udløb, bevar robottens åbne Base under fornyelse, og vis den faktisk indlæste PodView-version.
+
 ## 2.0.156
 
 - Bevar covernes plads ved første indlæsning i Find musik. Tid på dagen bruger samme billedplacering under loading og ved manglende cover.

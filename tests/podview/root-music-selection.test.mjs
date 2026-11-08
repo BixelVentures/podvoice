@@ -142,6 +142,37 @@ test('song search empty exact discovery remains inert until explicit Play reques
 test('song search empty exact discovery can request setup but unavailable native owner never grants an action',async()=>{const f=searchDiscoveryView();try{f.view.host.liveTransport.musicSelectionSetup=async(...args)=>{f.setupCalls.push(args);throw Error('native unavailable');};await f.view.search();await f.view.chooseCard({optionIndex:0});assert.equal(f.setupCalls.length,1);assert.equal(f.sent.length,0);assert.equal(f.view.offer,null);assert.match(f.view.feedback.message,/rummet/);}finally{f.cleanup();}});
 test('song search retains exact empty-discovery denial boundaries without substitute targets or effects',async()=>{for(const cause of ['no-echo','foreign-binding','room','boot','foreign-row','restricted','readOnly','alias','observed-output','ok-false','data-error','envelope-error','unavailable','bad-stamp','failed-read']){const f=searchDiscoveryView();try{const response=emptySearchTargets(f.view),row={...target,restricted:false,readOnly:false};if(cause==='no-echo')delete response.roomBinding;if(cause==='foreign-binding')response.roomBinding.bindingId='b'.repeat(64);if(cause==='room')response.roomId='foreign';if(cause==='boot')response.bootId='foreign';if(cause==='foreign-row')response.data.targets=[{...row,targetId:'foreign'}];if(cause==='restricted')response.data.targets=[{...row,restricted:true}];if(cause==='readOnly')response.data.targets=[{...row,readOnly:true}];if(cause==='alias')response.data.targets=[{...row,kind:'configured_alias'}];if(cause==='observed-output')response.data.targets=[{...row,kind:'observed_output'}];if(cause==='ok-false')response.ok=false;if(cause==='data-error')response.data.error='unavailable';if(cause==='envelope-error')response.errors=['unavailable'];if(cause==='unavailable')response.status='unavailable';if(cause==='bad-stamp')response.observedAt='invalid';f.view.host.liveTransport.music=async kind=>{if(kind==='search')return result();if(cause==='failed-read')throw Error('read_access_denied');return response;};await f.view.search();await f.view.chooseCard({optionIndex:0});assert.equal(f.setupCalls.length,0,cause);assert.equal(f.sent.length,0,cause);assert.notEqual(f.view.dialog.open,true,cause);}finally{f.cleanup();}}});
 
+test('one explicit target read refreshes a valid observation that expires while its body is pending',async t=>{
+ let clock=20000;t.mock.method(Date,'now',()=>clock);
+ for(const boundary of ['fresh','join-passive','still-old','scope','generation','malformed','denied','busy','passive']){
+  const f=searchDiscoveryView(),transport=f.view.host.liveTransport;
+  let release,reads=0;
+  try{
+   const old={...emptySearchTargets(f.view),observedAt:(clock-9999)/1000};
+   if(boundary==='malformed')old.roomBinding.bindingId='b'.repeat(64);
+   if(boundary==='denied')old.data.targets=[{...target,restricted:true,readOnly:false}];
+   transport.generation=1;
+   transport.music=async()=>{
+    reads++;
+    if(reads===1)return new Promise((resolve,reject)=>{release=()=>boundary==='busy'?reject(Error('music_busy')):resolve(old);});
+    return {...emptySearchTargets(f.view),observedAt:boundary==='still-old'?old.observedAt:clock/1000};
+   };
+   const passive=['join-passive','passive'].includes(boundary)?f.view.readTargets(true):null;
+   const result=boundary==='passive'?passive:f.view.readTargets();
+   assert.equal(reads,1,boundary);
+   if(boundary==='scope')f.view.host.liveSnapshot.providerGeneration=2;
+   if(boundary==='generation')transport.generation++;
+   clock+=2;release();
+   const targets=await result;
+   if(boundary==='join-passive')assert.equal(await passive,null);
+   assert.equal(reads,['fresh','join-passive','still-old'].includes(boundary)?2:1,boundary);
+   if(['fresh','join-passive'].includes(boundary))assert.equal(targets[0].targetId,'direct-one');
+   else assert.equal(targets,null,boundary);
+   assert.equal(f.setupCalls.length,0);
+   assert.equal(f.sent.length,0);
+  }finally{f.cleanup();}
+ }
+});
 test('shared setup-request resolver preserves empty discovery truth and creates no action authority',()=>{const f=searchDiscoveryView();try{const body=emptySearchTargets(f.view);assert.deepEqual(directTargets(body,'account',f.view.host.liveSnapshot),[]);const request=selectionRequestTargets(body,'account',f.view.host.liveSnapshot);assert.deepEqual(request,[{accountId:'account',kind:'spotify_device',targetId:'direct-one',name:'Rummets højttaler'}]);assert.equal('options' in request[0],false);assert.equal('taskId' in request[0],false);assert.equal(f.setupCalls.length,0);assert.equal(f.sent.length,0);assert.equal(selectionRequestTargets(body,'foreign',f.view.host.liveSnapshot),null);}finally{f.cleanup();}});
 test('held empty song-search discovery cannot survive room, boot, account, permission, binding or navigation replacement',async()=>{for(const boundary of ['room','boot','account','permission','binding','leave']){const f=searchDiscoveryView();try{f.view.onSnapshot();const body=emptySearchTargets(f.view);let release,entered;const ready=new Promise(resolve=>entered=resolve);f.view.host.liveTransport.music=async kind=>{if(kind==='search')return result();entered();return new Promise(resolve=>release=()=>resolve(body));};const pending=f.view.search();await ready;if(boundary==='room')f.view.host.liveSnapshot.roomId='foreign';if(boundary==='boot')f.view.host.liveSnapshot.bootId='foreign';if(boundary==='account')f.view.ownerChanged('foreign');if(boundary==='permission')f.view.host.liveSnapshot.capabilities.musicSelection=false;if(boundary==='binding')f.view.host.liveSnapshot.mediaRoomBindings[0].bindingId='b'.repeat(64);if(boundary==='leave')f.view.leave();f.view.onSnapshot();release();await pending;await f.view.chooseCard({optionIndex:0});assert.equal(f.setupCalls.length,0,boundary);assert.equal(f.sent.length,0,boundary);assert.equal(f.view.offer,null,boundary);}finally{f.cleanup();}}});
 test('held native setup from empty song-search discovery retains intent and authority fences',async()=>{for(const boundary of ['room','boot','account','provider','permission','binding','source','focus','leave']){const f=searchDiscoveryView(),previous=globalThis.document,focus={};globalThis.document={activeElement:focus,body:{}};try{f.view.onSnapshot();await f.view.search();let release,entered;const ready=new Promise(resolve=>entered=resolve),original=f.view.host.liveTransport.musicSelectionSetup;f.view.host.liveTransport.musicSelectionSetup=async(...args)=>{const response=await original(...args);entered();return new Promise(resolve=>release=()=>resolve(response));};const pending=f.view.chooseCard({optionIndex:0});await ready;if(boundary==='room')f.view.host.liveSnapshot.roomId='foreign';if(boundary==='boot')f.view.host.liveSnapshot.bootId='foreign';if(boundary==='account')f.view.ownerChanged('foreign');if(boundary==='provider')f.view.host.liveSnapshot.providerGeneration=8;if(boundary==='permission')f.view.host.liveSnapshot.capabilities.musicSelection=false;if(boundary==='binding')f.view.host.liveSnapshot.mediaRoomBindings[0].bindingId='b'.repeat(64);if(boundary==='source')f.view.source.context.candidateSetId='d'.repeat(64);if(boundary==='focus')globalThis.document.activeElement={};if(boundary==='leave')f.view.leave();f.view.onSnapshot();release();await pending;assert.equal(f.sent.length,0,boundary);assert.equal(f.view.offer,null,boundary);assert.equal(f.setupCalls.length,1,boundary);}finally{globalThis.document=previous;f.cleanup();}}});

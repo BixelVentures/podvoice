@@ -29,7 +29,7 @@ test('renewal maps frozen diversified cards back to fresh occurrences without re
  }finally{f.close();}
 });
 test('read-only deduplicated catalogue stays read-only and small unique source never promises extra suggestions',()=>{
- const f=catalogue();try{const body=wire('recent',[track(0,'A'),track(0,'A'),track(0,'A'),track(0,'A')]);delete body.candidateSet;f.view.select('recent');f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.equal(f.renders.at(-1).canChoose,false);f.view.refresh();f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.match(f.view.status,/Ingen andre sange/);assert.equal(f.view.entries.get(f.view.key()).source,null);
+ const f=catalogue();try{const body=wire('recent',[track(0,'A'),track(0,'A'),track(0,'A'),track(0,'A')]);delete body.candidateSet;f.view.select('recent');f.view.tracks('recent',body,'account');assert.equal(f.view.cards.length,1);assert.equal(f.renders.at(-1).canChoose,false);f.view.refresh();assert.equal(f.view.pendingRead,null);assert.equal(f.view.cards.length,1);assert.equal(f.renders.at(-1).canRefresh,false);assert.equal(f.view.entries.get(f.view.key()).source,null);
  }finally{f.close();}
 });
 

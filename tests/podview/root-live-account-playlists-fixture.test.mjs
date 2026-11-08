@@ -39,7 +39,7 @@ test('read failure crosses the actual catalogue failure path and retains cards, 
  const f=await setup('account-playlists-fail'),renders=[],host={liveSnapshot:f.snap,liveTransport:f.transport,liveStatus:'connected',state:{focus:'music'},musicResults:{render:value=>renders.push(value)}};
  const view=new LiveMusicCatalogueView(host,()=>{});try{
   view.resetAccount(f.account);view.updateCapabilities(true,f.snap.capabilities.musicRead);view.select('top');view.tracks('top',await f.transport.music('account_playlists',f.account),f.account);const cards=view.cards,sample=view.sample;assert.equal(cards.length,5);assert.equal(renders.at(-1).canChoose,true);
-  view.refresh();await assert.rejects(f.transport.music('account_playlists',f.account),error=>error.code==='read_transient');view.failure('top');assert.equal(view.cards,cards);assert.equal(view.sample,sample);assert.match(view.status,/viser seneste udvalg/);assert.equal(renders.at(-1).canChoose,false);assert.equal(view.busy,false);
+  view.beginRead('top','refresh');await assert.rejects(f.transport.music('account_playlists',f.account),error=>error.code==='read_transient');view.failure('top');assert.equal(view.cards,cards);assert.equal(view.sample,sample);assert.match(view.status,/viser seneste udvalg/);assert.equal(renders.at(-1).canChoose,false);assert.equal(view.busy,false);
   const after=roomPlaybackObservation(await f.transport.music('playback',f.account),f.account,f.snap);assert.equal(after.item.uri,f.playback.item.uri);assert.equal(after.progressMs,84000);
  }finally{clearTimeout(view.expiryTimer);f.transport.close();}
 });
