@@ -44,6 +44,7 @@ output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
 move_release = asyncio.Event()
 move_release.set()
 multi_screen = os.environ.get("MUSIC_MULTI_SCREEN_TEST") == "1"
+push_cover = os.environ.get("MUSIC_PUSH_COVER_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
 volume_drag = os.environ.get("MUSIC_VOLUME_DRAG_TEST") == "1"
 external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
@@ -259,6 +260,12 @@ def observation(args):
         uri="spotify:track:" + str(state["song"]).zfill(22),
         name="Isoleret sang " + str(state["song"]),
     )
+    if push_cover and state["song"] == 7:
+        raw["playback"]["item"]["artwork"] = {
+            "kind": "album_cover",
+            "provider": "spotify",
+            "url": "https://i.scdn.co/image/InertExternalStartCover",
+        }
     if seek_test:
         raw["playback"]["progress_ms"] = state["progressMs"]
     value = project_owner("playback", raw, "account")["data"]
