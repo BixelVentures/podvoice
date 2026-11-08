@@ -88,9 +88,13 @@ export function transcriptHistory(value,snapshot){
 
 // History contains finished visual answers with an explicit owner session identity.
 // Transcript fragments and unbound legacy receipts remain stored but are not shown.
-export function groupAnswerHistory(items){
+export function groupAnswerHistory(items,completedArchive){
  const groups=[],bySession=new Map();
- for(const item of items){
+ for(const answer of items){
+  // A completed receipt can still have a current read lease while its saved
+  // copy is browsable. Group the validated archive without changing the card.
+  const archived=completedArchive?.get(answer.id);
+  const item=archived?{...archived,hidden:answer.hidden}:answer;
   if(item.hidden||item.transcriptSegment||item.presentation!==true||!item.historical||item.status!=='ready'||!item.sessionId||![...visualFamilies,...typedAnswerFamilies].includes(item.kind))continue;
   let group=bySession.get(item.sessionId);
   if(!group){group={sessionId:item.sessionId,items:[]};groups.push(group);bySession.set(item.sessionId,group);}

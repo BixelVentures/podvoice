@@ -67,10 +67,19 @@ test('fresh scoped weather expires offline via the existing model deadline, with
  const after=liveWeatherModel(facts,{now:deadline,connected:false});assert.equal(after.current,null);assert.deepEqual(after.days,[]);assert.deepEqual(after.hours,[]);assert.equal(after.summary,'');
 });
 
-test('expired bounded source cannot retain passive advice capability while its raw snapshot remains in memory',()=>{
- const now=Date.now(),raw=retainedFacts(now);raw.stateUpdatedAt=new Date(now-7199000).toISOString();const facts=weatherFactObservation(raw,{now}),scope={bootId:'boot',roomId:'room'},cap={schema:'podview.weather-advice-capability.v1',...scope,weatherKey:'b'.repeat(64),source:raw.source,sourceRetrievedAt:Date.parse(raw.retrievedAt)/1000,availability:'available',status:'idle',validUntil:(now+60000)/1000};
- assert.ok(weatherAdviceCapability(cap,facts,scope,now));
- assert.equal(weatherAdviceCapability(cap,facts,scope,facts.displayUntil),null);
+test('passive advice closes at source freshness expiry while historical facts stay bounded',()=>{
+ const now=Date.now(),raw=retainedFacts(now);
+ raw.stateUpdatedAt=new Date(now-30*60*1000+1000).toISOString();
+ const facts=weatherFactObservation(raw,{now}),scope={bootId:'boot',roomId:'room'};
+ const cap={schema:'podview.weather-advice-capability.v1',...scope,weatherKey:'b'.repeat(64),source:raw.source,
+  sourceRetrievedAt:Date.parse(raw.retrievedAt)/1000,availability:'available',status:'idle',validUntil:(now+60000)/1000};
+ assert.ok(weatherAdviceCapability(cap,facts,scope,now+999));
+ assert.equal(weatherAdviceCapability(cap,facts,scope,now+1000),null);
+ assert.equal(liveWeatherModel(facts,{now:now+1000}).sourceStale,true);
+ assert.equal(liveWeatherModel(facts,{now:now+1000}).current.temperature,'10°');
+ const shortBound=weatherFactObservation(raw,{now,validUntil:(now+500)/1000});
+ assert.ok(weatherAdviceCapability(cap,shortBound,scope,now+499));
+ assert.equal(weatherAdviceCapability(cap,shortBound,scope,now+500),null);
 });
 
 test('explicit legacy current-only weather is bounded, never retained, and never inferred from absent scope',()=>{

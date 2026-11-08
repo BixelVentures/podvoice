@@ -56,7 +56,8 @@ export class LiveAnswerView{
  }
  historyPresentation(){
   const host=this.host,s=host.liveSnapshot;
-  const retained=groupAnswerHistory(host.state.answers).length>0;
+  const archive=s?.answers?.readOnlyCompleted?this.history:null;
+  const retained=groupAnswerHistory(host.state.answers,archive).length>0;
   if(!Number.isSafeInteger(s?.answerHistoryRevision))return {hidden:retained,data:{state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:'Når PodVoice viser et visuelt svar, kan du finde det her igen.'}};
   const scope=JSON.stringify([s.bootId,s.roomId]),ready=this.historyRevision===s.answerHistoryRevision&&this.historyScope===scope;
   const status=!host.liveTransport?.connected?'offline':s.capabilities?.answerRead!==true?'unsupported':this.historyReadScope===scope&&this.historyReadStatus==='error'?'error':this.historyPending||!ready?'loading':'empty';
