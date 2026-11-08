@@ -85,7 +85,9 @@ async function timerReloadJourney(page,errors,actions){
   assert(Math.abs(minutes*60+remainder-Math.ceil(deadline-(await state()).ownerNow))<=2);
   await sameNativeTimer();
  }
- assert.equal(deadline,originalDeadline);
+ // Adding then subtracting 60 can round a monotonic floating-point deadline by one ULP.
+ assert(Math.abs(deadline-originalDeadline)<=Number.EPSILON*Math.max(1,Math.abs(originalDeadline))*4,
+  'opposite timer adjustments must preserve the deadline within floating-point precision');
  await page.locator('#header-title-action').tap();
  await timer.waitFor({state:'visible'});
  assert.equal(await audioCalls(),0);
