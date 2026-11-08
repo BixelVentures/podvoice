@@ -251,7 +251,26 @@ const assertRobotObservation=async(page,requests,action)=>{
  const stop=panel.locator('[data-direct-robot="true"][data-action-id="stop"]').first();await stop.tap();const confirm=panel.locator('dialog.robot-action-confirm');await confirm.waitFor({state:'visible'});assert.match(await confirm.innerText(),/sendes ikke til basen/i);await confirm.getByRole('button',{name:'Afslut rengøring',exact:true}).tap();
  for(let n=0;(await state()).robot.state!=='idle';n++){if(n>60)throw Error('stop not observed');await sleep(100)}assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/stop').length,1);console.log('afterStop',JSON.stringify((await state()).robot));
  // A fresh external observation restores cleaning solely in the inert fixture; it is not a new robot start.
- await update({robotState:'cleaning'});await page.reload({waitUntil:'domcontentloaded'});await testEnv.openOverview(page);const nextCard=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();await nextCard.waitFor({timeout:15000});await nextCard.tap();const nextPanel=page.locator('pv-robot-control-panel');await nextPanel.locator('[id^=robot-base-][id$=-trigger]').waitFor({timeout:20000});await nextPanel.locator('[id^=robot-base-][id$=-trigger]').tap();await nextPanel.getByRole('button',{name:'Kør til basen',exact:true}).tap();const baseConfirm=nextPanel.locator('dialog.robot-action-confirm');await baseConfirm.waitFor({state:'visible'});await baseConfirm.getByRole('button',{name:'Kør til basen',exact:true}).tap();for(let n=0;(await state()).robot.state!=='returning';n++){if(n>60)throw Error('base return not observed');await sleep(100)}assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/return_to_base').length,1);
+ await update({robotState:'cleaning',robotEffectDelayMs:1300});
+ await page.reload({waitUntil:'domcontentloaded'});
+ await testEnv.openOverview(page);
+ const nextCard=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+ await nextCard.waitFor({timeout:15000});
+ await nextCard.tap();
+ const nextPanel=page.locator('pv-robot-control-panel');
+ await nextPanel.locator('[id^=robot-base-][id$=-trigger]').waitFor({timeout:20000});
+ await nextPanel.locator('[id^=robot-base-][id$=-trigger]').tap();
+ await nextPanel.getByRole('button',{name:'Kør til basen',exact:true}).tap();
+ const baseConfirm=nextPanel.locator('dialog.robot-action-confirm');
+ await baseConfirm.waitFor({state:'visible'});
+ await baseConfirm.getByRole('button',{name:'Kør til basen',exact:true}).tap();
+ await nextPanel.getByText('På vej til basen',{exact:true}).waitFor({state:'visible',timeout:300});
+ assert.equal((await state()).robot.state,'cleaning','status changes visibly before the held robot effect');
+ for(let n=0;(await state()).robot.state!=='returning';n++){
+  if(n>60)throw Error('base return not observed');
+  await sleep(100);
+ }
+ assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/return_to_base').length,1);
  assert.equal((await state()).robot.writes.filter(x=>x[0]==='services/vacuum/start').length,1,'external state change and settings never start a job');
  assert.equal(otherSettingReceipt.outcome,'accepted','unrelated mop telemetry must not reject valid suction choice');
 

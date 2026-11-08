@@ -733,7 +733,8 @@ export class LiveControlView{
   const reject=code=>{this.journalDevice(transport,'control_intent',{...diag,code});return false;};
   if(!['pause','resume','stop','return'].includes(action)||!offer?.actions.includes(action))return reject('capability_missing');
   if(this.pending||device.pending)return reject('intent_pending');
-  this.robotOptimistic={entityId,status:({pause:'paused',resume:'cleaning',stop:'idle',return:'returning'})[action],at:Date.now()};
+  this.robotOptimistic = {entityId,
+   status: {pause:'paused',resume:'cleaning',stop:'stopped',return:'docking'}[action], at:Date.now()};
   clearTimeout(this.robotOptimisticTimer);this.robotOptimisticTimer=setTimeout(()=>{this.robotOptimisticTimer=null;if(!this.host.isConnected)return;this.refreshRobotOverview();const d=this.robotDevice();if(d)this.robotPanel?.observed?.(this.robotView(d),{directActions:this.robotDirectOffer(d)?.actions||[],directPendingAction:null});},10050);
   if(this.robotOverviewOperation){this.robotQueued={entityId,action};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
   const transportGeneration=transport.generation,current=()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===snapshot.bootId&&this.host.liveSnapshot?.roomId===snapshot.roomId&&this.allowed('vacuum');
