@@ -31,6 +31,7 @@ cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
+queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
 discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
@@ -314,12 +315,15 @@ async def native(request):
             )
             value["native"].update(room_id=base.state["room"], homepod_id=base.state["homepod"])
             value["route"]["device_id"] = base.state["homepod"]
+        if queue_identity and base.state["room"] == "bedroom":
+            value["native"]["session_id"] = value["queue"]["session_id"] = "bedroom-session"
+            value["route"]["session_epoch"] = "2"
         value["items"] = [
             {
                 "option_id": f"{i:024x}",
                 "index": index,
-                "uri": f"spotify:track:{i:022d}",
-                "name": f"Køsang {i}",
+                "uri": f"spotify:track:{(22 if queue_identity and i == 21 else i):022d}",
+                "name": f"Køsang {22 if queue_identity and i == 21 else i}",
                 "artist": "Inert kunstner",
                 "artwork": None,
                 **(
@@ -404,6 +408,21 @@ if queue_journey:
 
     async def queue_state(request):
         condition = (await request.json()).get("condition")
+        if queue_identity and condition in {
+            "replace-session",
+            "autoplay-no-queue",
+            "autoplay-with-queue",
+        }:
+            if condition == "replace-session":
+                base.state.update(room="bedroom", homepod="43", song=30, queue=[31, 32])
+            elif condition == "autoplay-no-queue":
+                base.state.update(song=32, queue=[])
+            else:
+                base.state.update(song=33, queue=[34, 35])
+            base.state["queueReadFailure"] = condition == "autoplay-no-queue"
+            base.state["sequence"] += 1
+            await base.emit_playback_changed()
+            return web.json_response({"condition": condition})
         if condition not in {"failed", "empty"}:
             raise web.HTTPBadRequest()
         base.state["queueReadFailure"] = condition == "failed"
