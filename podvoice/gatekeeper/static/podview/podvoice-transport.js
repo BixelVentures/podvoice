@@ -47,7 +47,13 @@ export class PodVoiceTransport {
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
   this.base = new URL(`${prefix}api/`, page.origin);
   this.room = room; this.fetch = fetch; this.EventSource = EventSource;
-  this.diagnosticBuild=diagnosticBuild===undefined?globalThis.document?.querySelector?.('meta[name="podview-build"]')?.content:diagnosticBuild;this.diagnosticScopes=new WeakMap();this.diagnosticResources=new WeakMap();this.diagnosticUploadAcked=new Set();this.diagnosticUploadAt=-Infinity;this.diagnosticUploadEpoch=0;
+  this.diagnosticBuild=diagnosticBuild===undefined&&typeof __PODVIEW_BUILD__==='string'
+   ?__PODVIEW_BUILD__:diagnosticBuild;
+  this.diagnosticScopes=new WeakMap();
+  this.diagnosticResources=new WeakMap();
+  this.diagnosticUploadAcked=new Set();
+  this.diagnosticUploadAt=-Infinity;
+  this.diagnosticUploadEpoch=0;
   this.diagnosticRows=[];this.diagnosticSequence=0;this.diagnosticDropped=0;this.diagnosticRequestSequence=0;this.diagnosticStorageAvailable=false;this.diagnosticPersistAt=-Infinity;this.diagnosticDirty=false;this.diagnosticPersistPending=false;
   try{this.diagnosticStorage=diagnosticStorage===undefined?globalThis.sessionStorage:diagnosticStorage;const saved=this.diagnosticStorage?.getItem('podview.client-diagnostics.v1');if(typeof saved==='string'&&saved.length<=65536){const value=JSON.parse(saved);if(value?.schema==='podview.client-diagnostics.v1'&&Array.isArray(value.records)&&value.records.length<=128){this.diagnosticRows=value.records.map(diagnosticRow).filter(row=>row&&Number.isSafeInteger(row.seq)&&Number.isSafeInteger(row.atMs)).map((row,index)=>Object.freeze({...row,seq:index+1,restored:true}));this.diagnosticSequence=Math.max(0,...this.diagnosticRows.map(row=>row.seq));}}this.diagnosticStorageAvailable=!!this.diagnosticStorage;}catch{this.diagnosticStorage=null;}
 

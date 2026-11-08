@@ -10,9 +10,33 @@ export const scriptBundles=[{file:'dist/podview.bundle.js',html:'dist/index.html
 export function composeScriptBundle(root,bundle){
  root=fs.realpathSync(root);
  if(version!=='0.28.2')throw Error(`Expected pinned esbuild 0.28.2; got ${version}`);
- const base=path.dirname(bundle.html),html=fs.readFileSync(path.join(root,base,'index.html'),'utf8'),matches=[...html.matchAll(/<meta\s+name="podview-build"\s+content="([^"]+)"\s*\/?>/g)];
- if(matches.length!==1||!/^\d+\.\d+\.\d+$/.test(matches[0][1]))throw Error('Missing or invalid PodView build');
- const result=buildSync({define:{__PODVIEW_BUILD__:JSON.stringify(matches[0][1])},absWorkingDir:root,stdin:{contents:bundle.sources.map(source=>`import ${JSON.stringify('./'+source)};`).join('\n'),resolveDir:path.join(root,base),sourcefile:'delivery-entry.js'},bundle:true,format:'esm',platform:'browser',target:'esnext',write:false,metafile:true,minify:true,treeShaking:true,keepNames:true,charset:'utf8',legalComments:'inline',logLevel:'silent'});
+ const base=path.dirname(bundle.html);
+ const config=fs.readFileSync(path.join(root,'podvoice/config.yaml'),'utf8');
+ const declarations=config.match(/^version:[^\r\n]*/gm)||[];
+ // The publisher also reads the quoted top-level add-on version.
+ const build=declarations.length===1&&/^version: "(\d+\.\d+\.\d+)"$/.exec(declarations[0])?.[1];
+ if(!build)throw Error('Missing or invalid PodView build version in podvoice/config.yaml');
+ const result=buildSync({
+  define:{__PODVIEW_BUILD__:JSON.stringify(build)},
+  absWorkingDir:root,
+  stdin:{
+   contents:bundle.sources.map(source=>`import ${JSON.stringify('./'+source)};`).join('\n'),
+   resolveDir:path.join(root,base),
+   sourcefile:'delivery-entry.js',
+  },
+  bundle:true,
+  format:'esm',
+  platform:'browser',
+  target:'esnext',
+  write:false,
+  metafile:true,
+  minify:true,
+  treeShaking:true,
+  keepNames:true,
+  charset:'utf8',
+  legalComments:'inline',
+  logLevel:'silent',
+ });
  const inputs=Object.keys(result.metafile.inputs).filter(input=>input!==path.posix.join(base,'delivery-entry.js')).sort();
  for(const input of inputs)if(!input.startsWith('dist/')||input.includes('node_modules'))throw Error(`Unexpected bundled dependency: ${input}`);
  const pins=inputs.map(input=>`${input} ${createHash('sha256').update(fs.readFileSync(path.join(root,input))).digest('hex')}`);
