@@ -264,6 +264,17 @@ async function recentSessionJourney(){
  assert.deepEqual(final.writes.map(row=>row.action),['play_track','pause','resume','pause','resume','volume']);
  assert.equal(final.volume,55);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
+ const expandedReadAges=[];
+ let expandedRecentReads=0;
+ page.on('response',async response=>{
+  const url=new URL(response.url()),kind=url.searchParams.get('kind');
+  if(url.pathname!=='/view/api/music'||!['targets','recent'].includes(kind)||!response.ok())return;
+  const body=await response.json();
+  if(kind==='targets'&&body.coverage==='account_targets'&&Number.isFinite(body.observedAt)){
+   expandedReadAges.push(Date.now()-body.observedAt*1000);
+  }
+  if(kind==='recent'&&body.candidateSet)expandedRecentReads++;
+ });
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="recent"]').tap();
  await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
@@ -272,10 +283,13 @@ async function recentSessionJourney(){
  const expandedChoice=await state();
  assert.deepEqual(expandedChoice.writes.slice(final.writes.length).map(row=>row.action),['play_track']);
  assert.equal(expandedChoice.selections.at(-1).uri,'spotify:track:'+String(20).padStart(22,'0'));
+ assert.equal(expandedRecentReads,2,'initial sample and one exact choice renewal');
+ assert.ok(expandedReadAges.length>0&&expandedReadAges.every(age=>age>=0&&age<10000),
+  `target reads must carry a usable original observation: ${expandedReadAges}`);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
-  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,rowsEnabledDuringExpansion:true,expandedChoiceEffects:1,
+  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,rowsEnabledDuringExpansion:true,expandedChoiceEffects:1,expandedRecentReads,expandedReadAges,
   previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
   touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
  await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
