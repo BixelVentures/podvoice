@@ -37,6 +37,9 @@ logging.basicConfig(level=logging.WARNING)
 music = Rig()
 room_owner(music)
 extended = os.environ.get("MUSIC_EXTENDED") == "1"
+manual_retry = os.environ.get("MUSIC_MANUAL_RETRY_TEST") == "1"
+retry_events_transport = None
+retry_transport_blocked = False
 output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
 multi_screen = os.environ.get("MUSIC_MULTI_SCREEN_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
@@ -644,6 +647,11 @@ if robot_draft:
 
 @web.middleware
 async def test_ingress(request, handler):
+    global retry_events_transport
+    if manual_retry and request.path == "/view/api/events":
+        retry_events_transport = request.transport
+    if manual_retry and retry_transport_blocked and request.path == "/view/api/snapshot":
+        return web.json_response({"error": "inert_transport_unavailable"}, status=503)
     if request.path.startswith("/view/"):
         headers = CIMultiDict(request.headers)
         headers["X-Remote-User-Id"] = "a" * 32
@@ -655,8 +663,14 @@ app.middlewares.insert(0, test_ingress)
 
 
 async def lab_state(request):
+    global retry_transport_blocked
     if request.method == "POST":
         args = await request.json()
+        if manual_retry and "blockRetryTransport" in args:
+            retry_transport_blocked = args["blockRetryTransport"]
+            if retry_transport_blocked:
+                assert retry_events_transport is not None
+                retry_events_transport.close()
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])

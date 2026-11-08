@@ -9,6 +9,7 @@ const fs=require('node:fs/promises');
 const os=require('node:os');
 const root=testEnv.root,port=Number(process.env.MUSIC_TEST_PORT||18973),base=`http://127.0.0.1:${port}`;
 const runtimeRoot=testEnv.runtimeRoot;
+const manualRetryMode=process.env.MUSIC_MANUAL_RETRY_TEST==='1';
 const renewedControlsMode=process.env.MUSIC_RENEWED_CONTROLS_TEST==='1';
 const seekMode=process.env.MUSIC_SEEK_TEST==='1';
 const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
@@ -509,6 +510,111 @@ async function seekJourney(page,errors){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-seek-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function manualRetryJourney(page,errors){
+ const host=page.locator('pv-widget-host'),recipe=page.locator('#recipe-view');
+ const pause=page.locator('#play-pause'),posts=[],snapshots=[];
+ page.on('request',request=>{
+  const path=new URL(request.url()).pathname;
+  if(request.method()==='POST'&&path.endsWith('/actions'))posts.push(path);
+  if(path==='/view/api/snapshot')snapshots.push(request);
+ });
+ const playback=()=>host.evaluate(h=>{
+  const p=h.liveMedia.playback,b=p?.roomBinding;
+  return {account:h.liveMedia.account,state:p?.state,uri:p?.item?.uri,bindingId:b?.bindingId,
+   room:b?.nativeRoomId,homepod:b?.nativeHomepodId};
+ });
+ await pause.tap();
+ await page.waitForFunction(()=>{
+  const h=document.querySelector('pv-widget-host');
+  return h?.liveMedia?.playback?.state==='paused'&&!h.liveControls.musicIntentPending;
+ });
+ const beforePlayback=await playback();
+ assert.equal(beforePlayback.state,'paused');
+ assert.equal(beforePlayback.homepod,'42');
+ assert(beforePlayback.bindingId&&beforePlayback.uri);
+ const beforeWrites=(await state()).writes;
+ assert.deepEqual(beforeWrites.map(row=>row.action),['pause']);
+ assert.equal(posts.length,1);
+
+ await page.locator('#home-recipes').tap();
+ await recipe.locator('[data-recipe="Burgerboller"]').tap();
+ await recipe.getByRole('button',{name:'Start opskrift',exact:true}).tap();
+ await recipe.locator('[data-recipe-layout=ingredients] pv-checklist button').first().tap();
+ await recipe.locator('[data-recipe-layout=reading] li button').first().tap();
+ await recipe.locator('#recipe-ingredients-trigger').tap();
+ const cooking=record=>host.evaluate((h,record)=>{
+  const view=h.recipeView,active=view.active,session=view.sessions.get(active);
+  if(record)window.retryRecipe={host:h,view,active,session};
+  const prior=window.retryRecipe;
+  return {sameOwners:prior.host===h&&prior.view===view&&prior.active===active&&prior.session===session,
+   title:active.title,steps:[...session.steps],ingredients:[...session.ingredients],
+   expanded:session.ingredientsExpanded,focus:h.state.focus};
+ },record);
+ const beforeRecipe=await cooking(true);
+ assert.equal(beforeRecipe.steps.length,1);
+ assert.equal(beforeRecipe.ingredients.length,1);
+ assert.equal(beforeRecipe.expanded,false);
+
+ const retry=page.locator('#quick-sheet').getByRole('button',{name:'Prøv igen',exact:true});
+ await page.locator('#header-ro').tap();
+ await page.locator('#screen-device-more-summary').tap();
+ const outage=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/snapshot'
+  &&r.status()===503,{timeout:15000});
+ assert((await change({blockRetryTransport:true})).ok);
+ await outage;
+ await retry.waitFor({state:'visible'});
+ assert(await retry.isEnabled());
+ const beforeRead=await host.evaluate(h=>({generation:h.liveTransport.generation,
+  playbackDeadline:h.liveMedia.playback?.roomBinding?.validUntil??0}));
+ await retry.evaluate(button=>button.addEventListener('click',event=>{
+  window.trustedManualRetry={trusted:event.isTrusted,online:navigator.onLine};
+ },{once:true,capture:true}));
+ const endpoint='**/view/api/snapshot?*';
+ let release;
+ const gate=new Promise(resolve=>{release=resolve;});
+ let markHeld,timeout;
+ const entered=new Promise(resolve=>{markHeld=resolve;});
+ await page.route(endpoint,async route=>{
+  const manual=await page.evaluate(()=>window.trustedManualRetry?.trusted===true
+   &&document.querySelector('pv-widget-host')?.connectionRetryPending===true);
+  if(manual){markHeld();await gate;}
+  await route.continue();
+ });
+ try{
+  const mark=snapshots.length;
+  await retry.tap();
+  await Promise.race([entered,new Promise((_,reject)=>{
+   timeout=setTimeout(()=>reject(Error('manual Retry did not request a snapshot')),5000);
+  })]);
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.connectionRetryPending===true);
+  assert.deepEqual(await page.evaluate(()=>window.trustedManualRetry),{trusted:true,online:true});
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.connectionRetry?.getAttribute('aria-busy')==='true');
+  assert.deepEqual(await cooking(false),beforeRecipe);
+  const success=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/snapshot'&&r.ok(),{timeout:10000});
+  assert((await change({blockRetryTransport:false})).ok);
+  release();
+  await success;
+  await page.waitForFunction(({generation,playbackDeadline})=>{
+   const h=document.querySelector('pv-widget-host');
+   return h?.liveTransport?.connected&&h.liveTransport.generation>generation&&!h.connectionRetryPending
+    &&h.liveMedia?.playback?.roomBinding?.validUntil>Math.max(Date.now()/1000,playbackDeadline)
+    &&!document.getElementById('play-pause').disabled;
+  },beforeRead,{timeout:15000});
+  assert.equal(snapshots.length-mark,1,'one Retry starts one snapshot read');
+ }finally{clearTimeout(timeout);release();}
+ await page.locator('#quick-sheet').getByRole('button',{name:'Luk Skærm og enhed'}).tap();
+ assert(await recipe.locator('[data-recipe-layout=reading]').isVisible());
+ assert.deepEqual(await cooking(false),beforeRecipe);
+ assert.deepEqual(await playback(),beforePlayback);
+ assert.match(await pause.getAttribute('aria-label'),/Fortsæt/);
+ assert.deepEqual((await state()).writes,beforeWrites);
+ assert.equal(posts.length,1,'only the earlier explicit Pause was sent');
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ console.log(JSON.stringify({outcome:'PASS',story:'G3',servedBundleSHA,control:'Prøv igen',
+  trustedTouch:true,failedSnapshot503:true,manualSnapshotReads:1,sameRecipeProgressAndChoices:true,
+  samePausedMusicBinding:true,automaticActionPosts:0,nativeWritesDuringRetry:0,inertFinalService:true}));
+}
 async function renewedControlsJourney(page,errors){
  const host=page.locator('pv-widget-host');
  const original=await host.evaluate(h=>h.liveMedia.playback.roomBinding);
@@ -714,7 +820,7 @@ async function longSession(page,errors){
    diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')});
   }
  });
- if(renewedControlsMode||multiScreenMode)await page.route('**/*',route=>
+ if(renewedControlsMode||multiScreenMode||manualRetryMode)await page.route('**/*',route=>
   new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
@@ -735,6 +841,7 @@ async function longSession(page,errors){
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
+ if(manualRetryMode){await manualRetryJourney(page,errors);return;}
  if(renewedControlsMode){await renewedControlsJourney(page,errors);return;}
  if(seekMode){await seekJourney(page,errors);return;}
  if(speakerRefreshMode){await speakerRefreshJourney(page,errors);return;}
