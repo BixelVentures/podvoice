@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "d65a1aab48744a74201e2a49001958310127cc9d5c0b76054c809591866dfe0c"
+      "sha256": "489617272e70457510b8a49bcc8cf32cbc43b681c95f00bcf355ed799fe2cfb5"
     },
     {
       "path": "library.css",
@@ -531,7 +531,7 @@
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "389a39c15585a48397733955e8144f77794b17c1a3b6cfde2b53e35ee796d785"
+      "sha256": "6757b9c6e7e64fd3f1063c5db28449983e34467a1510c6b365451c6139b73640"
     },
     {
       "path": "live-control-view.js",
@@ -615,7 +615,7 @@
     },
     {
       "path": "owner-answers.js",
-      "sha256": "4515b3f5cb5a6cb8abaa56d8c384047bb28dacea878ea7d3e04aa1a6f839183d"
+      "sha256": "06304233cb164d17a92a29f7f661c60ff20f6fb32f0e766ed426cf79717c049a"
     },
     {
       "path": "patterns.css",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "cac4be373cc954deea62c1d41b3bf3abe905da70d02e24490a57dffafdba2004"
+      "sha256": "bdc9090556c20ca36410d162deb45514b74228cf9982eb53122443ff0e4a6a63"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "d544951bbf8364fff469fa5c9bb238c363773f903d73e5aed9acb19ed79e101b"
+      "sha256": "e351c7af5ea84589f213dbb1dbcd500088683add451685c3838c2bae996528fb"
     },
     {
       "path": "robot-observation.js",
@@ -871,11 +871,11 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "8f70f3d1295a3921318e80d944f11bc9d67c6417e32ca80fe972518449ec184b"
+      "sha256": "32837ca8b430fe9cd5a549e2a27070e25a324913ccdea72c9c35ee6175fe511f"
     },
     {
       "path": "weather-view.js",
-      "sha256": "acf46709493af83b957e5283a944c91891785d6fd5191eb9683b155337043474"
+      "sha256": "895f91ffc5e903bc191cd144496512ae0d2c5bd8521c755cb638efa711e75c58"
     },
     {
       "path": "widget-model.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "3aa976a671328ce73dbd728f7db4f01f3f8bbcfc0ca3321e03a5f4fc169dc5b0"
+      "sha256": "268fe3fb56154abaaa68b82a79180fd854224f814137dfd5eeef5eb25df296b5"
     },
     {
       "path": "workshop.css",
