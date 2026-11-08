@@ -720,6 +720,28 @@ test('Base focus and expansion are not carried to a different robot scope',()=>{
  panel.data={task,device,connected:true,directActions:['return'],directBlocked:false};panel.disabled=false;const prior=panel.baseDisclosure.trigger;emit(prior,'click');prior.focus();panel.data={task:{...task,roomId:'different',taskId:'new',options:[{...option,id:'new'}]},device:{...device,status:'paused'},connected:true,directActions:['return'],directBlocked:false};assert.notEqual(document.activeElement,panel.baseDisclosure.trigger);assert.equal(panel.baseDisclosure.trigger.getAttribute('aria-expanded'),'false');
 });
 
+test('Base remembers local expansion across a missing offer until the panel is detached',()=>{
+ const panel=new RobotControlPanel(),transport={};
+ const robot={id:'vacuum.actual',kind:'vacuum',live:true,status:'docked'};
+ const scope={bootId:'boot',roomId:'room',deviceId:robot.id,transport,generation:1};
+ const offer=id=>({bootId:'boot',roomId:'room',taskId:id,domain:'vacuum',options:[{
+  id,action:'dock',label:'Vask',argsSchema:{kind:'dock',operation:'wash_start'},
+ }]});
+ const present=task=>{panel.data={task,device:robot,connected:true,presentationScope:scope};};
+ present(offer('initial'));
+ emit(panel.baseDisclosure.trigger,'click');
+ present(null);
+ assert.equal(panel.baseDisclosure,null);
+ present(offer('renewed'));
+ assert.equal(panel.baseDisclosure.trigger.getAttribute('aria-expanded'),'true');
+ assert.deepEqual(panel.baseDisclosure.panel.querySelectorAll('button').map(row=>row.dataset.controlOptionId),
+  ['renewed']);
+ present(null);
+ panel.disconnectedCallback();
+ present(offer('after-navigation'));
+ assert.equal(panel.baseDisclosure.trigger.getAttribute('aria-expanded'),'false');
+});
+
 test('inactive mode drafts rebind only unambiguous fresh offered values without old ids or effects',()=>{
  const settings=(prefix,missing=false,duplicate=false)=>[
   {id:prefix+'mode',key:'cleaning_mode',label:'Mode',current:prefix+'both',choices:[{id:prefix+'both',label:'vacuum_and_mop'},{id:prefix+'mop',label:'mop'},{id:prefix+'vac',label:'vacuum'}]},
