@@ -35,6 +35,8 @@ for(const journey of only.length?only:journeys){
  if(journey==='music_selection_actual_e2e.cjs'){
   runJourney(journey,{MUSIC_ACCOUNT_ROLLOVER_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'account-rollover')});
+  runJourney(journey,{MUSIC_DOCUMENT_SCOPE_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'document-scope')});
   runJourney(journey,{MUSIC_VOICE_JOURNEY_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'voice-queue')});
   runJourney(journey,{MUSIC_QUEUE_IDENTITY_TEST:'1',

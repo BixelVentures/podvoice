@@ -126,7 +126,8 @@ async function documentScopeJourney(){
   assert.deepEqual((await state()).writes,[],'both reads leave the inert owner untouched');
 
   const setupReply=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/music/selection/setup');
-  const actionReply=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/music/selection/actions').catch(error=>error);
+  const actionReply=page.waitForResponse(r=>
+   new URL(r.url()).pathname==='/view/api/music/selection/actions').catch(error=>error);
   await page.bringToFront();
   await row.tap();
   const setup=await setupReply;
@@ -1474,7 +1475,10 @@ async function queuePersistenceJourney(){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||discoveryCover||voiceLongSession||documentScope)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
+  ||discoveryCover||voiceLongSession||documentScope){
+  options.args=['--mute-audio'];
+ }
  browser=await chromium.launch(options);
  const surfaceOptions={hasTouch:true,viewport:{width:1280,height:800}};
  page=documentScope?await (await browser.newContext(surfaceOptions)).newPage():await browser.newPage(surfaceOptions);
