@@ -46,6 +46,9 @@ from .recipe_submissions import RecipeRejectedError, RecipeSubmissions
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
+# Renewing an expired selection can still revalidate the exact displayed rows.
+_PLAYLIST_DOCUMENT_RETENTION_SECONDS = 30 * 60
+_PLAYLIST_DOCUMENT_RETENTION_LIMIT = 256
 _REVIEWED_MOVE_POLICY_REVISION: str | None = (
     "a674d94e377e8ba2b51ca4ea5f541370bd9dd7f2ecc6fabb2cf3e2f50cbdb5b4"
 )
@@ -400,6 +403,7 @@ class PodViewBridge:
         self._targets_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
         self._music_source_generation = 0
         self._music_profile_generation: dict[str, object] = {}
+        self._music_playlist_documents: dict[tuple[str, str], tuple[float, dict]] = {}
         self._home_busy = False
         self._home_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
         self._home_cache: dict[str, tuple] = {}
@@ -3839,7 +3843,25 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     if bridge._music_busy:
         diagnostic_log.admission(kind, "read_busy", 429)
         return _error("music_busy", 429)
-    retained = getattr(bridge, retained_attribute, None)
+    try:
+        document = _music_document(request)
+    except ValueError:
+        return _error("invalid_music_document", 400)
+    writable = bridge.controls.selection_allowed(room, token, "play_context")
+    playlist_scope = (kind, bridge._music_scope(token, document)) if document and grant else None
+    if playlist_scope is None:
+        retained = getattr(bridge, retained_attribute, None)
+    else:
+        now = time.monotonic()
+        bridge._music_playlist_documents = {
+            key: value for key, value in bridge._music_playlist_documents.items() if value[0] > now
+        }
+        document_retained = bridge._music_playlist_documents.get(playlist_scope)
+        if document_retained is None and (
+            len(bridge._music_playlist_documents) >= _PLAYLIST_DOCUMENT_RETENTION_LIMIT
+        ):
+            return _error("music_capacity", 429)
+        retained = document_retained[1] if document_retained is not None else None
     same_collection = retained if retained and retained["key"][1:3] == (account, room) else None
     refreshing = request.query.get("refresh") == "1"
     renewing = request.query.get("renew") == "1"
@@ -3853,12 +3875,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             same_vibe = None
         elif same_vibe["vibe_step"] + 1 >= len(FEELING_SETS):
             return _error("feeling_exhausted")
-    writable = bridge.controls.selection_allowed(room, token, "play_context")
     preview_voice = bridge.snapshot(room).get("voice", {})
-    try:
-        document = _music_document(request) if writable else ""
-    except ValueError:
-        return _error("invalid_music_document", 400)
+    if not writable:
+        document = ""
     generation = bridge._advance_music_source(token, document)
     if generation is None:
         return _error("music_capacity", 429)
@@ -3900,6 +3919,15 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         trace_ref=diagnostic_log.request_trace(request.headers),
     )
     total_deadline = None
+
+    def retain_rows(rows: dict) -> None:
+        if playlist_scope is None:
+            setattr(bridge, retained_attribute, rows)
+        else:
+            bridge._music_playlist_documents[playlist_scope] = (
+                time.monotonic() + _PLAYLIST_DOCUMENT_RETENTION_SECONDS,
+                rows,
+            )
 
     def failed(error):
         diagnostic.outcome = error
@@ -4203,7 +4231,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
                 )
                 discovery["refreshAvailable"] = vibe_step + 1 < len(FEELING_SETS)
             if not writable:
-                setattr(bridge, retained_attribute, retained_result)
+                retain_rows(retained_result)
                 diagnostic.outcome = "success"
                 response = web.json_response(
                     {
@@ -4242,7 +4270,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
             )
             if identifier is None:
                 return failed(f"{kind}_source_rejected")
-            setattr(bridge, retained_attribute, retained_result)
+            retain_rows(retained_result)
             diagnostic.outcome = "success"
             response = web.json_response(
                 {

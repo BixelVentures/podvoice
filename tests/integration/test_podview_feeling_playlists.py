@@ -3,6 +3,7 @@
 # ruff: noqa: F811 - imported pytest fixtures intentionally shadowed
 import asyncio
 import json
+import time
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -11,7 +12,7 @@ import pytest
 from integration import test_podview_mood_playlists as existing
 from integration.test_podview_mood_playlists import mood_rig  # noqa: F401
 from integration.test_podview_music_selection import rig  # noqa: F401
-from multidict import MultiDict
+from multidict import CIMultiDict, MultiDict
 
 from gatekeeper.podview import BRIDGE, _music
 from gatekeeper.podview_feeling import THEMES
@@ -75,7 +76,7 @@ async def feeling_rig(mood_rig):
     await old.aclose()
 
 
-def req(rig, *, kind="feeling", refresh=False, renew=False, cookie="grant"):
+def req(rig, *, kind="feeling", refresh=False, renew=False, cookie="grant", document=None):
     query = MultiDict(kind=kind, account="account-alpha")
     if refresh:
         query["refresh"] = "1"
@@ -86,7 +87,7 @@ def req(rig, *, kind="feeling", refresh=False, renew=False, cookie="grant"):
         query=query,
         cookies={"podview_control": cookie},
         remote="127.0.0.1",
-        headers={},
+        headers=CIMultiDict({"X-PodView-Music-Document": document} if document else {}),
         method="GET",
     )
 
@@ -318,3 +319,55 @@ async def test_actual_route_export_for_shared_ui_contract(feeling_rig):
     path = os.environ.get("PODVIEW_FEELING_TEST_ARTIFACT")
     if path:
         await asyncio.to_thread(Path(path).write_text, json.dumps(fixture))
+
+
+@pytest.mark.parametrize("kind", ["feeling", "mood"])
+async def test_other_document_refresh_cannot_replace_rows_for_expired_selection_renewal(
+    feeling_rig, kind
+):
+    rig = feeling_rig
+    bridge = rig.app[BRIDGE]
+    first, other = "1" * 32, "2" * 32
+    original = await read(rig, kind=kind, document=first)
+    assert original["ok"], original
+    rows = original["data"]["tracks"]
+    other_initial = await read(rig, kind=kind, document=other)
+    assert other_initial["ok"], other_initial
+    assert other_initial["data"]["tracks"] == rows
+
+    if kind == "mood":
+        rig.router.podview_mood_selector.select.return_value = ["morning_acoustic", "indie", "calm"]
+    refreshed = await read(rig, kind=kind, document=other, refresh=True)
+    assert refreshed["ok"], refreshed
+    assert refreshed["data"]["tracks"] != rows
+    other_id = refreshed["candidateSet"]["candidateSetId"]
+    first_id = original["candidateSet"]["candidateSetId"]
+    bridge.music_selection.sources[first_id]["deadline"] = time.monotonic() - 1
+    renewed = await read(rig, kind=kind, document=first, renew=True)
+    assert renewed["ok"], renewed
+    assert renewed["data"]["tracks"] == rows
+    assert renewed["candidateSet"]["candidateSetId"] != first_id
+    assert other_id in bridge.music_selection.sources
+    assert bridge.controls.music.execute_context.await_count == 0
+
+
+async def test_retained_playlist_document_capacity_preserves_unexpired_rows(
+    feeling_rig, monkeypatch
+):
+    from gatekeeper import podview
+
+    rig = feeling_rig
+    bridge = rig.app[BRIDGE]
+    monkeypatch.setattr(podview, "_PLAYLIST_DOCUMENT_RETENTION_LIMIT", 1)
+    first, other = "1" * 32, "2" * 32
+    initial = await read(rig, document=first)
+    calls = len(rig.calls)
+    assert (await read(rig, document=other))["error"] == "music_capacity"
+    assert len(rig.calls) == calls
+    assert (await read(rig, document=first, renew=True))["data"]["tracks"] == initial["data"][
+        "tracks"
+    ]
+    ((key, (_, retained)),) = bridge._music_playlist_documents.items()
+    bridge._music_playlist_documents[key] = (time.monotonic() - 1, retained)
+    assert (await read(rig, document=other))["ok"]
+    assert key not in bridge._music_playlist_documents
