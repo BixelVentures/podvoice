@@ -1,3 +1,7 @@
+## 2.0.152
+
+- Tesla-handlinger viser neutral fremdrift frem til frisk HA-status; uafhængige funktioner forbliver tilgængelige efter kvittering, og samtidige fejl bevares.
+
 ## 2.0.151
 
 - Keep robot cleaning choices during temporary loss of current water status and require a fresh observation before Start.

@@ -938,7 +938,10 @@
           "method:musicSeekCurrent": 1,
           "method:musicSeekState": 1,
           "method:musicSeekWitness": 1,
-          "method:seekPositionObserved": 1
+          "method:seekPositionObserved": 1,
+          "arrow:observationCurrent": 1,
+          "arrow:presentationCurrent": 1,
+          "arrow:waitForObservation": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -2402,7 +2405,17 @@
           "method:feedbackScopeFor": 1,
           "method:finishVehicle": 1,
           "arrow:liveClimateActive": 1,
-          "arrow:historicalField": 1
+          "arrow:historicalField": 1,
+          "arrow:vehicleActionFamily": 1,
+          "method:clearLiveVehicleCommand": 1,
+          "method:finishVehicleFeedback": 1,
+          "method:liveVehicleObservationMatches": 1,
+          "method:reconcileLiveVehicleCommand": 1,
+          "method:reconcileLiveVehicleCommands": 1,
+          "method:renderLiveVehicleCommand": 1,
+          "method:renderLiveVehicleCommands": 1,
+          "method:renderLiveVehicleFeedback": 1,
+          "method:vehicleActionBlocked": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
