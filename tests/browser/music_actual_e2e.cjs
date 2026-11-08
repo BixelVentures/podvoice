@@ -14,7 +14,8 @@ const seekMode=process.env.MUSIC_SEEK_TEST==='1';
 const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
 const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||externalOutputMode||speakerRefreshMode||outputTransferMode){
+const multiScreenMode=process.env.MUSIC_MULTI_SCREEN_TEST==='1';
+if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode){
  process.env.MUSIC_EXTENDED='1';
 }
 let server,browser,data,servedBundleSHA,serverSuspended=false;
@@ -202,6 +203,112 @@ async function outputTransferJourney(page,errors){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-output-transfer.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+async function multiScreenJourney(first,errors){
+ const url=base+'/view/?room=kitchen';
+ const secondContext=await browser.newContext({hasTouch:true,viewport:{width:768,height:1024}});
+ await secondContext.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+ const openSecond=async()=>{
+  const page=await secondContext.newPage();
+  page.on('pageerror',error=>errors.push(error.message));
+  page.on('request',request=>{
+   if(request.url().includes('/control/'))requests.push({url:request.url(),body:request.postDataJSON()});
+  });
+  await page.goto(url,{waitUntil:'domcontentloaded'});
+  await testEnv.openOverview(page);
+  return page;
+ };
+ let second=await openSecond();
+ assert.notEqual(first.context(),second.context());
+ const confirmed=async(page,room,homepod,name,song)=>{
+  const result=await page.waitForFunction(({room,homepod,name,song})=>{
+   const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+   const output=document.querySelector('#output');
+   if(playback?.observationStatus!=='observed'||playback.roomBinding?.nativeRoomId!==room||
+    playback.roomBinding?.nativeHomepodId!==homepod||playback.item?.name!==song||
+    !output?.textContent.includes(name)||!output.getAttribute('aria-label')?.includes('Aktuelt output'))return false;
+   return {account:playback.config_entry_id,epoch:playback.owner_epoch,uri:playback.item.uri,room,homepod,song};
+  },{room,homepod,name,song},{timeout:15000});
+  return result.jsonValue();
+ };
+ const both=async(room,homepod,name,song)=>{
+  const [left,right]=await Promise.all([first,second].map(page=>confirmed(page,room,homepod,name,song)));
+  assert.deepEqual(left,right,'independent clients agree on the same source observation');
+  return left;
+ };
+ const start=await both('native-room','42','Køkkenalrum HomePod','Isoleret sang 1');
+ await first.locator('#output').tap();
+ const reply=first.waitForResponse(response=>response.url().endsWith('/view/api/control/actions')
+  &&response.request().method()==='POST'&&response.request().postDataJSON()?.action==='move_existing_session');
+ await first.locator('#room-options button').filter({hasText:'Soveværelse'}).tap();
+ assert.equal((await (await reply).json()).outcome,'accepted');
+ const moved=await both('bedroom','43','Soveværelse','Isoleret sang 1');
+ assert.equal(moved.uri,start.uri);
+ assert.equal(moved.epoch,start.epoch);
+ const target=await state();
+ assert.deepEqual(target.writes.map(row=>row.action),['move_existing_session']);
+ assert((await change({externalSong:7,externalOutput:'native-room'})).ok);
+ const returned=await both('native-room','42','Køkkenalrum HomePod','Isoleret sang 7');
+ assert.equal(returned.account,start.account);
+ assert.equal(returned.epoch,start.epoch);
+
+ const roomEffects=value=>value.serviceReads.filter(row=>
+  /\/(?:prepare_room_|control_room_|move_room_|start_room_)/.test(row.path));
+ const baseline=await state(),postsAtBaseline=requests.length;
+ const readOnly=async(page,scenario)=>{
+  const status=scenario==='occupied'?'account_observed':'unavailable';
+  const reason=scenario==='occupied'?'ambiguous_output':'account_unavailable';
+  const reply=await page.waitForResponse(async response=>{
+   const request=new URL(response.url());
+   if(request.pathname!=='/view/api/music'||request.searchParams.get('kind')!=='playback'||!response.ok()){
+    return false;
+   }
+   const body=await response.json();
+   return body.status===status&&body.reason===reason;
+  },{timeout:15000});
+  assert.equal((await reply.json()).binding,null);
+  await page.waitForFunction(()=>{
+   const host=document.querySelector('pv-widget-host');
+   return !host?.liveMedia?.playback?.roomBinding&&
+    ['#play-pause','#next','#previous','#volume'].every(selector=>document.querySelector(selector)?.disabled);
+  },undefined,{timeout:15000});
+  assert.doesNotMatch(await page.locator('#output').getAttribute('aria-label')||'',/Aktuelt output/);
+  assert.doesNotMatch(await page.locator('body').innerText(),/Spiller fra en anden konto|Spil her|Sofie/);
+ };
+ const proof={start,moved,returned,blocked:[]};
+ for(const scenario of ['occupied','unknown']){
+  const reading=Promise.all([readOnly(first,scenario),readOnly(second,scenario)]);
+  assert((await change({externalAuthority:scenario})).ok);
+  await reading;
+  const refreshing=readOnly(first,scenario);
+  await first.reload({waitUntil:'domcontentloaded'});
+  await testEnv.openOverview(first);
+  await refreshing;
+  await second.close();
+  // New page in the independent context must not inherit local output custody.
+  const reopening=secondContext.waitForEvent('page').then(page=>readOnly(page,scenario));
+  second=await openSecond();
+  await reopening;
+  const current=await state();
+  assert.deepEqual(current.writes,baseline.writes);
+  assert.deepEqual(roomEffects(current),roomEffects(baseline));
+  assert.equal(requests.length,postsAtBaseline);
+  proof.blocked.push(scenario);
+  await first.screenshot({path:path.join(testEnv.artifactDir(),`podview-two-screens-${scenario}.png`)});
+ }
+ assert((await change({externalAuthority:null})).ok);
+ assert.deepEqual(await both('native-room','42','Køkkenalrum HomePod','Isoleret sang 7'),returned);
+ assert.deepEqual((await state()).writes,baseline.writes);
+ assert.deepEqual(roomEffects(await state()),roomEffects(baseline));
+ assert.equal(requests.length,postsAtBaseline);
+ assert.deepEqual(errors,[]);
+ const bundle=await fs.readFile(path.join(runtimeRoot,'podvoice/gatekeeper/static/podview/podview.bundle.js'));
+ assert.equal(servedBundleSHA,require('node:crypto').createHash('sha256').update(bundle).digest('hex'));
+ const result={outcome:'PASS',stories:['H9','H10'],servedBundleSHA,independentContexts:2,
+  ...proof,automaticTakeovers:0,ownerEffects:baseline.writes,pageErrors:errors};
+ await fs.writeFile(path.join(testEnv.artifactDir(),'podview-two-screens.json'),JSON.stringify(result,null,2));
+ console.log(JSON.stringify(result));
+}
+
 async function externalOutputJourney(page,errors){
  const before=await state(),initialPosts=requests.length;
  const control=page.locator('#play-pause');
@@ -595,7 +702,9 @@ async function longSession(page,errors){
  server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
- browser=await chromium.launch(testEnv.browserOptions());
+ const browserOptions=testEnv.browserOptions();
+ if(multiScreenMode)browserOptions.args=['--mute-audio'];
+ browser=await chromium.launch(browserOptions);
  const page=await browser.newPage({viewport:{width:1280,height:800},hasTouch:true}),errors=[],diagnosticResponses=[];
  page.on('response',async response=>{
   if(!servedBundleSHA&&response.status()===200&&response.url().endsWith('/podview.bundle.js')){
@@ -605,7 +714,7 @@ async function longSession(page,errors){
    diagnosticResponses.push({status:response.status(),body:await response.text().catch(()=>'<unreadable>')});
   }
  });
- if(renewedControlsMode)await page.route('**/*',route=>
+ if(renewedControlsMode||multiScreenMode)await page.route('**/*',route=>
   new URL(route.request().url()).origin===base?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
@@ -630,6 +739,7 @@ async function longSession(page,errors){
  if(seekMode){await seekJourney(page,errors);return;}
  if(speakerRefreshMode){await speakerRefreshJourney(page,errors);return;}
  if(outputTransferMode){await outputTransferJourney(page,errors);return;}
+ if(multiScreenMode){await multiScreenJourney(page,errors);return;}
  if(externalOutputMode){await externalOutputJourney(page,errors);return;}
  if(process.env.MUSIC_LONG_SESSION==='1'){await longSession(page,errors);return;}
  // Measure from the actual trusted touch-generated click, not from a later screenshot.

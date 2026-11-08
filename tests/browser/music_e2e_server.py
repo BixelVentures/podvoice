@@ -38,6 +38,7 @@ music = Rig()
 room_owner(music)
 extended = os.environ.get("MUSIC_EXTENDED") == "1"
 output_transfer = os.environ.get("MUSIC_OUTPUT_TRANSFER_TEST") == "1"
+multi_screen = os.environ.get("MUSIC_MULTI_SCREEN_TEST") == "1"
 seek_test = os.environ.get("MUSIC_SEEK_TEST") == "1"
 external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
 original_client = music.client
@@ -252,19 +253,20 @@ def observation(args):
     value = project_owner("playback", raw, "account")["data"]
     if not args.get("include_output"):
         return value
-    if external:
+    if external or state.get("externalAuthority") == "occupied":
+        reason = "route_unavailable" if external else "ambiguous_output"
         # PodConnect room_transport.playback_output preserves account playback
         # but returns no room authority when its native output is unavailable.
         value.update(
             schema="podconnect.playback.v3"
             if args.get("include_controls")
             else "podconnect.playback.v2",
-            output={"status": "unavailable", "reason": "route_unavailable", "binding": None},
+            output={"status": "unavailable", "reason": reason, "binding": None},
         )
         if args.get("include_controls"):
             value["controls"] = {
                 "status": "unavailable",
-                "reason": "route_unavailable",
+                "reason": reason,
                 "binding_id": None,
                 "valid_until": None,
                 "supported_actions": [],
@@ -352,8 +354,10 @@ async def native_service(request):
             },
         )
     if path.endswith("get_playback_snapshot"):
+        if state.get("externalAuthority") == "unknown":
+            return httpx.Response(503)
         return httpx.Response(200, json={"service_response": observation(args)})
-    if state.get("externalDevice"):
+    if state.get("externalDevice") or state.get("externalAuthority"):
         return httpx.Response(
             200,
             json={"service_response": {"ok": False, "error_kind": "room_transport_unavailable"}},
@@ -426,6 +430,8 @@ async def native_service(request):
         }
         value = move_receipt(args)
         value["session_volume_percent"] = state["volume"]
+        if multi_screen:
+            await emit_playback_changed()
         return httpx.Response(200, json={"service_response": value})
     if extended and path.endswith("get_room_volume_controls"):
         value = copy.deepcopy(music.value)
@@ -683,8 +689,18 @@ async def lab_state(request):
                 state["homepod"] = outputs[output]
             else:
                 raise web.HTTPBadRequest()
+        if multi_screen and "externalAuthority" in args:
+            authority = args["externalAuthority"]
+            if authority not in {"occupied", "unknown", None}:
+                raise web.HTTPBadRequest()
+            state["externalAuthority"] = authority
         state["sequence"] += 1
-        if args.keys() & {"externalPlaybackState", "externalSong", "externalOutput"}:
+        if args.keys() & {
+            "externalPlaybackState",
+            "externalSong",
+            "externalOutput",
+            "externalAuthority",
+        }:
             await emit_playback_changed()
         if robot is not None:
             if "robotBattery" in args:
