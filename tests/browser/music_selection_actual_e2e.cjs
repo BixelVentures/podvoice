@@ -17,6 +17,7 @@ const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
 const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
+const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA;
@@ -84,6 +85,122 @@ async function defaultSpeakerJourney(){
   controlPosts:controls.length,inertOwnerWrites:after.writes.length,inertNativeService:true,pageErrors:errors};
  await fs.writeFile(path.join(env.artifactDir(),'podview-speaker-default-proof.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(env.artifactDir(),'podview-speaker-existing-output.png')});
+ console.log(JSON.stringify(proof));
+}
+async function recentSessionJourney(){
+ const title='Coming Home',coverUrl='https://i.scdn.co/image/InertComingHome';
+ const uri='spotify:track:'+String(11).padStart(22,'0');
+ const coverRoutes=surface=>surface.route('https://**/*',route=>{
+  if(route.request().url()!==coverUrl)return route.abort();
+  return route.fulfill({contentType:'image/svg+xml',
+   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'});
+ });
+ await coverRoutes(page);
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="recent"]').tap();
+ const row=page.locator('#result-list button.result').filter({hasText:title});
+ const rowArt=row.locator('img.result-art[src="'+coverUrl+'"]:not([data-content-transition])');
+ await rowArt.waitFor({state:'visible',timeout:15000});
+ await rowArt.evaluate(image=>image.decode());
+ let release,markHeld;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const held=new Promise(resolve=>{markHeld=resolve;});
+ await page.route('**/view/api/music/selection/actions',async route=>{
+  markHeld();
+  await gate;
+  await route.continue();
+ },{times:1});
+ await row.evaluate((node,{title,coverUrl})=>{
+  node.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now(),probe=window.recentPaint={titleMs:null,coverMs:null};
+   const measure=()=>{
+    const now=performance.now()-start,cover=document.querySelector('#cover');
+    if(probe.titleMs===null&&document.querySelector('#track-name')?.textContent===title)probe.titleMs=now;
+    if(probe.coverMs===null&&cover?.getAttribute('src')===coverUrl&&cover.naturalWidth>0)probe.coverMs=now;
+    if(now<3000&&(probe.titleMs===null||probe.coverMs===null))requestAnimationFrame(measure);
+   };
+   requestAnimationFrame(measure);
+  },{once:true});
+ },{title,coverUrl});
+ let firstPaint;
+ try{
+  await row.tap();
+  await Promise.race([held,sleep(8000).then(()=>{throw Error('selection action was not held');})]);
+  await page.waitForFunction(()=>Number.isFinite(window.recentPaint?.titleMs)
+   &&Number.isFinite(window.recentPaint?.coverMs),undefined,{timeout:5000});
+  firstPaint=await page.evaluate(()=>window.recentPaint);
+  assert(firstPaint.titleMs<300&&firstPaint.coverMs<300,JSON.stringify(firstPaint));
+  const oldRead=await page.waitForResponse(response=>{
+   const url=new URL(response.url());
+   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
+  },{timeout:10000});
+  assert.notEqual((await oldRead.json()).data.playback.item.uri,uri);
+  assert.deepEqual((await state()).writes,[]);
+  assert.equal(await page.locator('#track-name').textContent(),title);
+  assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
+  assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-pending-player.png')});
+ }finally{release();}
+ const observed=(surface,phase,after=0)=>surface.waitForFunction(({uri,title,phase,after})=>{
+  const host=document.querySelector('pv-widget-host'),playback=host?.liveMedia?.playback;
+  const b=document.querySelector('#play-pause');
+  return Date.now()>=after&&playback?.roomBinding?.validUntil*1000>Date.now()
+   &&playback.roomBinding.nativeRoomId==='native-room'&&playback.roomBinding.nativeHomepodId==='42'
+   &&playback.item?.uri===uri&&playback.state===phase&&b&&!b.disabled&&!host.liveControls.musicIntentPending
+   &&!host.liveSelection.pending&&document.querySelector('#track-name')?.textContent===title;
+ },{uri,title,phase,after},{timeout:15000});
+ await observed(page,'playing');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')
+  ?.liveSelection?.feedback?.settlementStatus==='confirmed');
+ const initialDeadline=await page.locator('pv-widget-host').evaluate(host=>
+  host.liveMedia.playback.roomBinding.validUntil*1000);
+ const baseline=await state();
+ assert.deepEqual(baseline.writes.map(row=>row.action),['play_track']);
+ assert.equal(baseline.selections[0].uri,uri);
+ await observed(page,'playing',initialDeadline);
+ assert.deepEqual((await state()).writes,baseline.writes,'passive renewal does not replay the selection');
+ await page.request.post(base+'/lab/state',{data:{delayMs:600}});
+ const toggle=page.locator('#play-pause'),labels=[];
+ for(let index=0;index<3;index++){
+  await toggle.tap();
+  labels.push(await toggle.getAttribute('aria-label'));
+  assert.equal(await toggle.isEnabled(),true);
+ }
+ assert.deepEqual(labels,['Fortsæt musikken','Sæt musik på pause','Fortsæt musikken']);
+ await observed(page,'paused');
+ const afterBurst=await state();
+ assert.deepEqual(afterBurst.writes.map(row=>row.action),['play_track','pause','resume','pause']);
+ await page.request.post(base+'/lab/state',{data:{delayMs:0}});
+ const storageState=await page.context().storageState();
+ await page.close();
+ page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800},storageState});
+ page.on('pageerror',error=>errors.push(error.message));
+ await coverRoutes(page);
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await observed(page,'paused');
+ const reopenedCover=page.locator('#cover[src="'+coverUrl+'"]');
+ await reopenedCover.waitFor({state:'visible'});
+ await reopenedCover.evaluate(image=>image.decode());
+ assert.deepEqual((await state()).writes,afterBurst.writes,'reopening does not replay the selection or controls');
+ await page.locator('#play-pause').tap();
+ await observed(page,'playing');
+ const volume=page.locator('#volume');
+ await env.touchRange(page,volume,55);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.controls
+  ?.volume?.base_percent===55);
+ const final=await state();
+ assert.equal(final.selections.length,1);
+ assert.deepEqual(final.writes.map(row=>row.action),['play_track','pause','resume','pause','resume','volume']);
+ assert.equal(final.volume,55);
+ assert.deepEqual(errors,[]);
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',stories:['F10','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
+  previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
+  touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
+ await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 async function discoveryLoadingJourney(){
@@ -690,6 +807,7 @@ async function queuePersistenceJourney(){
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}
  if(discoveryCover){await discoveryCoverJourney();return;}
+ if(recentSession){await recentSessionJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();
  const rows=page.locator('#result-list button.result');

@@ -34,6 +34,7 @@ queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
 discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
+recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -55,6 +56,26 @@ base.state.update(
     queueSelections=[],
     nativeCalls=[],
 )
+if recent_session:
+    tracks[0].update(
+        name="Coming Home",
+        artwork={
+            "provider": "spotify",
+            "kind": "album_cover",
+            "url": "https://i.scdn.co/image/InertComingHome",
+        },
+    )
+    original_recent_observation = base.observation
+
+    def recent_observation(args):
+        observed = original_recent_observation(args)
+        if base.state["song"] == 11:
+            observed["playback"]["item"].update(
+                name=tracks[0]["name"], artwork=tracks[0]["artwork"]
+            )
+        return observed
+
+    base.observation = recent_observation
 if cold:
     # Both existing inerts describe one native owner; alias/content incarnation
     # must agree exactly, just as the real setup route requires.
@@ -153,14 +174,19 @@ async def native(request):
     args = json.loads(request.content)
     service = request.url.path.rsplit("/", 1)[-1]
     base.state["nativeCalls"].append({"service": service, "args": args})
-    if cold and service == "get_targets" and args.get("config_entry_id"):
+    if (cold or recent_session) and service == "get_targets" and args.get("config_entry_id"):
         response = await base.native_service(request)
         value = response.json()["service_response"]
-        value["targets"] = [row for row in value["targets"] if row["kind"] != "spotify_device"]
-        if base.state["state"] == "no_active_playback":
+        if cold:
+            value["targets"] = [row for row in value["targets"] if row["kind"] != "spotify_device"]
+            if base.state["state"] == "no_active_playback":
+                for row in value["targets"]:
+                    if row["kind"] == "observed_output":
+                        row["selected"] = False
+        else:
             for row in value["targets"]:
-                if row["kind"] == "observed_output":
-                    row["selected"] = False
+                if row["kind"] == "spotify_device" and row["target_id"] == "device":
+                    row["name"] = "Køkkenalrum HomePod"
         return httpx.Response(200, json={"service_response": value})
     if (cold or discovery_cover) and service == "search_playlists":
         suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
