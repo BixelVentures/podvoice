@@ -4,6 +4,36 @@ const port=Number(process.env.VEHICLE_TEST_PORT||18980),base=`http://127.0.0.1:$
 const state=()=>fetch(base+'/lab/state').then(r=>r.json()),update=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());let server,browser;
 const lifecycle=process.env.VEHICLE_LIFECYCLE_TEST==='1',recovery=process.env.VEHICLE_RECOVERY_TEST==='1';
 const readOwnerJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
+async function assertBalancedConfirmation(dialog){
+ const geometry = await dialog.evaluate(node=>{
+  const header = node.querySelector('.pv-dialog-header');
+  const actions = node.querySelector('.pv-dialog-actions');
+  const style = getComputedStyle(actions);
+  const rect = element=>element.getBoundingClientRect().toJSON();
+  return {
+   display:style.display,
+   gap:parseFloat(style.columnGap),
+   topPadding:parseFloat(style.paddingTop),
+   headerHeight:rect(header).height,
+   titleHeight:rect(header.querySelector('h2')).height,
+   footer:rect(actions),
+   buttons:[...actions.querySelectorAll('button')].map(rect),
+  };
+ });
+ console.log('Tesla confirmation geometry',JSON.stringify(geometry));
+ assert.equal(geometry.display,'grid','confirmation uses the balanced kit action grid');
+ assert.equal(geometry.buttons.length,2);
+ const [cancel,confirm] = geometry.buttons;
+ assert.equal(geometry.gap,16);
+ assert.equal(geometry.topPadding,0);
+ assert.equal(geometry.headerHeight,geometry.titleHeight);
+ assert.equal(cancel.height,64);
+ assert.equal(confirm.height,64);
+ assert.equal(cancel.top,confirm.top);
+ assert(Math.abs(cancel.width-confirm.width)<1);
+ assert(Math.abs(cancel.left-geometry.footer.left)<1);
+ assert(Math.abs(confirm.right-geometry.footer.right)<1);
+}
 async function lifecycleJourney(page,card,errors,commands){
  const root=page.locator('#vehicle-view'),hero=root.getByRole('region',{name:'Bilens status'});
  const dialog=page.locator('dialog.vehicle-confirmation');
@@ -238,6 +268,8 @@ async function recoveryJourney(page,card,errors,requests){
  };
  await assertDependentsOff();
  const toggle=page.locator('#vehicle-view [data-kit=toggle]:visible').first();await toggle.tap();const dialog=page.locator('dialog.vehicle-confirmation');await dialog.waitFor({state:'visible'});assert.deepEqual((await state()).writes,[],'setup and confirmation have no effects');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-balanced-confirmation.png')});
+ await assertBalancedConfirmation(dialog);
  await update({hold:true});await dialog.getByRole('button',{name:'Tænd klima',exact:true}).tap();for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('vehicle intent not held');await sleep(25)}await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next',undefined,{timeout:2500});await update({release:true});
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='heat_cool',undefined,{timeout:5000});assert.equal((await state()).writes.length,1);assert.deepEqual((await state()).writes[0],{service:'turn_on',body:{entity_id:'climate.car'}});
  assert(await up.isEnabled());

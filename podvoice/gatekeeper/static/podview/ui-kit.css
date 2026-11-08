@@ -198,6 +198,14 @@ pv-widget-host #radio-view .radio-station-tiles>button{min-height:177px;padding:
 .pv-kit-dialog .pv-dialog-description{font:var(--pv-t-body);line-height:var(--pv-leading-body);color:var(--pv-ink-2);margin:0;padding:0}
 .pv-kit-dialog .pv-dialog-content{display:grid;gap:var(--pv-s2);min-width:0;margin:0;padding:0}
 .pv-kit-dialog .pv-dialog-actions{display:flex;justify-content:flex-end;align-items:center;flex-wrap:wrap;gap:var(--pv-s2);margin:0;padding:var(--pv-s2) 0 0}
+/* Balanced confirmations keep equal action slots and a compact text-only header. */
+.pv-kit-dialog[data-action-layout=balanced] .pv-dialog-header:not(:has(.pv-dialog-close)){min-height:0}
+.pv-kit-dialog[data-action-layout=balanced] .pv-dialog-actions{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;padding-top:0;
+}
+.pv-kit-dialog[data-action-layout=balanced] .pv-dialog-actions>.pv-kit-button{
+ width:100%;min-width:0;min-height:var(--pv-hit);
+}
 .pv-kit-dialog[data-kit-variant=toast]>.pv-dialog-content{display:block;font:var(--pv-t-body);margin:0;padding:0}
 /* Immediate speaker selection has no invented confirmation footer. */
 #room-options,.pv-kit-dialog .pv-dialog-content:has(>.pv-kit-listrow){display:grid;gap:var(--pv-s2);margin:0;padding:0}
