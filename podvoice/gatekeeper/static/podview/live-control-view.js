@@ -36,8 +36,10 @@ export class LiveControlView{
   if(this.lightActionFeedbackOperation&&!this.lightActionFeedbackOperation.context.current())this.lightActionFeedbackOperation.revoked=true;
   if(this.domain==='light'&&this.lightContext&&!this.lightContext.current()){this.lightContext=null;this.invalidate('Lysenes adgang eller område er ændret · hent betjeningen igen.',false);}
   const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected]),robotAuthority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.host.liveTransport?.generation,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
-  if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false);
-  else if(this.domain==='vacuum'&&this.robotAuthority!==undefined&&(this.robotAuthority!==robotAuthority||this.robotAuthorityTransport!==this.host.liveTransport)){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_authority_changed'});this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true);}
+  const offlineDraft=this.robotOfflineDraftCurrent(this.expiredRobot)?this.expiredRobot:null;
+  if(this.expiredRobot?.offline&&!offlineDraft)this.clearRobotRefresh();
+  if(this.domain!=='light'&&this.authority!==undefined&&this.authority!==authority)this.invalidate('Adgangen eller forbindelsen er ændret · hent betjeningen igen.',false,false,offlineDraft);
+  else if(this.domain==='vacuum'&&this.robotAuthority!==undefined&&(this.robotAuthority!==robotAuthority||this.robotAuthorityTransport!==this.host.liveTransport)){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:'robot_authority_changed'});this.invalidate('Robotbetjeningen er ændret · hent den igen.',false,true,offlineDraft);}
   this.robotAuthority=robotAuthority;this.robotAuthorityTransport=this.host.liveTransport;
   const robotTask = this.task?.domain === 'vacuum' ? this.task : null;
   const robotContext = this.robotControlOffer?.task === robotTask ? this.robotControlOffer?.context : null;
@@ -57,7 +59,7 @@ export class LiveControlView{
   this.musicAuthority=musicAuthority;this.musicPresentationAuthority=presentationAuthority;this.musicPresentationTransport=this.host.liveTransport;
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();
   const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!roomObservationCurrent(p,snapshot);this.musicButton.disabled=!!this.musicIntentPending;this.robotButton.hidden=!d?.live;this.robotButton.disabled=!!(this.pending||this.setupPending);const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
-  if(d&&!d.stale){const activity=robotExperience(d).activity,key=JSON.stringify([d.id,d.status,activity]);this.robotObservedId=d.id;this.robotObservedState=key;this.robotObservedStatus=d.status;}const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard&&this.robotInline&&this.domain==='vacuum'&&this.target?.entityId!==d.id){this.opening++;this.robotDeferredDraft=null;this.task=null;this.robotSuggestion=null;this.target={entityId:d.id};this.buildOptions();}if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';this.robotEntry.append(this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
+  if(d&&!d.stale){const activity=robotExperience(d).activity,key=JSON.stringify([d.id,d.status,activity]);this.robotObservedId=d.id;this.robotObservedState=key;this.robotObservedStatus=d.status;}const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard&&this.robotInline&&this.domain==='vacuum'&&this.target?.entityId!==d.id){this.opening++;if(this.expiredRobot?.offline)this.clearRobotRefresh();this.robotDeferredDraft=null;this.task=null;this.robotSuggestion=null;this.target={entityId:d.id};this.buildOptions();}if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';this.robotEntry.append(this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
   if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&this.task.draft?.status!=='awaiting_water'&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:null});this.robotPanel.disabled=!ready;const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
   if(this.robotInline&&d){this.robotButton.hidden=!!(this.robotPanel||this.task||this.setupPending);if(robotCard&&this.robotPanel){robotCard.hidden=true;robotCard.inert=true;robotCard.parentNode.hidden=true;}}
   if(this.refreshButton)this.refreshButton.disabled=!this.canRefreshRobot();
@@ -100,7 +102,36 @@ export class LiveControlView{
   if(this.task?.domain==='music'||(!this.task&&this.dialog.open&&this.domain==='music'&&!this.musicIntentPending))this.invalidate(message,false);
   if(render)this.render();
  }
- invalidate(message='Forbindelsen mangler · hent betjeningen igen.',render=true,robotOnly=false){
+ robotOfflineDraftCurrent(context){
+  const {liveSnapshot:snapshot,liveTransport:transport}=this.host;
+  const current=transport?.snapshot??snapshot;
+  return context?.offline===true&&!!transport&&context.transport===transport&&!transport.recoveryBlocked&&
+   this.domain==='vacuum'&&JSON.stringify(this.target)===context.target&&this.robotDevice()?.live===true&&
+   [snapshot,current].every(s=>s?.bootId===context.bootId&&s.roomId===context.roomId&&
+    s.capabilities?.controlSetup?.includes('vacuum'))&&
+   !this.pending&&!this.activeOperation&&!this.robotOverviewOperation&&
+   !this.spent.has(context.taskId)&&!this.spent.has(context.draft.taskId)&&
+   ![...this.receipts.values()].some(row=>row.bootId===context.bootId&&row.roomId===context.roomId&&
+    row.domain==='vacuum'&&JSON.stringify(row.target)===context.target&&this.robotReceiptUnknown(row));
+ }
+ connectionLost(){
+  const task=this.task,expired=this.expiredRobot;
+  let context=expired?.draft?{...expired,offline:true}:null;
+  if(task?.domain==='vacuum'&&this.robotControlOffer?.task===task){
+   const draft=this.readRobotDraft(task,this.robotPanel);
+   if(draft)context={offline:true,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,
+    target:JSON.stringify(this.target),transport:this.robotControlOffer.context?.transport,
+    draft,modeDrafts:this.robotPanel?.readModeDrafts?.()??null};
+  }
+  this.invalidate(undefined,true,false,this.robotOfflineDraftCurrent(context)?context:null);
+ }
+ restoreOfflineRobotDraft(context){
+  if(this.robotOfflineDraftCurrent(context))this.setRobotRefresh({
+   ...context,generation:this.generation,opening:this.opening,
+   transportGeneration:this.host.liveTransport.generation,
+  });
+ }
+ invalidate(message='Forbindelsen mangler · hent betjeningen igen.',render=true,robotOnly=false,offlineDraft=null){
    this.robotDeferredDraft=null;
   if(robotOnly){
    this.clearRobotRefresh();clearTimeout(this.robotOverviewExpiry);clearTimeout(this.robotOverviewRenewal);clearTimeout(this.expiryTimer);this.robotOverviewOffer=null;this.robotOverviewRead=null;this.robotOverviewAttempt=null;this.robotEntryKey=null;this.robotAwait=null;this.opening++;this.task=null;this.robotControlOffer=null;this.robotSuggestion=null;this.body.setAttribute('aria-busy','false');
@@ -108,7 +139,7 @@ export class LiveControlView{
    if(operation){this.remember(operation,'unknown');this.robotOverviewFence={bootId:operation.bootId,roomId:operation.roomId,entityId:operation.target.entityId,outcome:'unknown'};}
    // In-flight custody stays held until its original await settles; a new
    // domain cannot start and then be cleared by the old operation's finally.
-   if(this.controlOpen())this.note.textContent=message;const device=this.robotDevice();this.robotPanel?.observed?.(this.robotView(device),{connected:!!this.host.liveTransport?.connected,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:null});for(const el of this.body.querySelectorAll('button,input,select'))if(!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();return;
+   if(this.controlOpen())this.note.textContent=message;const device=this.robotDevice();this.robotPanel?.observed?.(this.robotView(device),{connected:!!this.host.liveTransport?.connected,directActions:this.robotDirectOffer(device)?.actions||[],directBlocked:this.robotDirectBlocked(device),directPendingAction:null});for(const el of this.body.querySelectorAll('button,input,select'))if(!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;this.restoreOfflineRobotDraft(offlineDraft);if(render)this.render();return;
   }
   if(this.musicDeferred){this.musicDeferred=null;this.host.showFeedback?.('Det ventende valg blev ikke sendt.',false,{source:'music-intent'});}
   this.musicQueued = null;
@@ -116,7 +147,7 @@ export class LiveControlView{
   this.musicPresentationAuthority=null;this.musicPresentationTransport=null;this.clearRobotRefresh();clearTimeout(this.robotOverviewExpiry);clearTimeout(this.robotOverviewRenewal);this.robotOverviewOffer=null;this.robotOverviewRead=null;this.robotOverviewAttempt=null;if(this.robotOverviewOperation){this.remember(this.robotOverviewOperation,'unknown');this.robotOverviewFence={bootId:this.robotOverviewOperation.bootId,roomId:this.robotOverviewOperation.roomId,entityId:this.robotOverviewOperation.target.entityId,outcome:'unknown'};}this.musicGeneration=(this.musicGeneration||0)+1;this.generation++;this.opening++;this.body.setAttribute('aria-busy','false');this.task=null;this.robotControlOffer=null;this.robotSuggestion=null;this.musicOffer=null;this.musicIntentOffer=null;this.volumeIntentOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;this.musicRead=null;this.musicReadPending=false;this.volumeOffer=null;this.volumeAttempt=null;this.volumeRead=null;clearTimeout(this.volumeExpiryTimer);clearTimeout(this.musicExpiryTimer);clearTimeout(this.expiryTimer);
   if(this.musicIntentPending&&this.musicFence)this.musicFence={...this.musicFence,outcome:'unknown'};
   if(this.pending&&this.activeOperation){this.remember(this.activeOperation,'unknown');this.note.textContent='Forbindelsen blev afbrudt · handlingen gentages ikke.';}else if(this.controlOpen())this.note.textContent=message;
-  for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;if(render)this.render();
+  for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;this.restoreOfflineRobotDraft(offlineDraft);if(render)this.render();
  }
  musicContext(recovery=false){
   const p=this.host.liveMedia?.playback,s=this.host.liveSnapshot;
@@ -677,6 +708,7 @@ export class LiveControlView{
   if(recipeId!==undefined&&d&&(['cleaning','paused'].includes(d.status)||robotExperience(d).jobActive===true))return;
   if(!d?.live||d.pending||this.pending||this.setupPending||this.robotOverviewOperation||this.activeOperation||unknown||!this.host.isConnected)return;
   if(!this.allowed('vacuum')||d.stale){
+   if(d.id===this.target?.entityId&&this.robotOfflineDraftCurrent(this.expiredRobot))return;
    if (d.stale && this.allowed('vacuum') && this.robotInline && this.robotPanel
     && d.id === this.target?.entityId && (this.task?.domain === 'vacuum' || this.expiredRobot)) return;
    this.opening++;
@@ -695,7 +727,7 @@ export class LiveControlView{
    this.renderReceipt();
    return;
   }
-  if(recipeId===undefined&&this.expiredRobot){if(d.id===this.target?.entityId&&this.expiredRobot.target===JSON.stringify({entityId:d.id})){this.robotInline=true;this.mountRobotInline();if(this.canRefreshRobot()){await this.refreshRobot();return;}}this.clearRobotRefresh();}
+  if(recipeId===undefined&&this.expiredRobot){if(d.id===this.target?.entityId&&this.expiredRobot.target===JSON.stringify({entityId:d.id})){this.robotInline=true;this.mountRobotInline();if(this.canRefreshRobot()){await this.refreshRobot();return;}if(this.robotOfflineDraftCurrent(this.expiredRobot))return;}this.clearRobotRefresh();}
   // A journal ID only asks the existing source owner for a validated, editable offer.
   // No stored labels, service values or old opaque choice IDs become command authority.
   const now=Date.now()/1000,experience=robotExperience(d),idle=experience.jobActive!==true&&!experience.issues.length&&(experience.activity===null||['Oplader','Opladet'].includes(experience.activity)),fresh=Number.isFinite(d.observedAt)&&d.observedAt<=now&&now-d.observedAt<=300,existing=this.target?.entityId===d.id?this.robotPanel:null;
@@ -749,9 +781,20 @@ export class LiveControlView{
   }catch{}finally{if(this.robotRenewalRead===read)this.robotRenewalRead=null;}
  }
  clearRobotRefresh(){clearTimeout(this.robotEarlyRenewal);clearTimeout(this.robotRenewalRetry);this.robotRenewalRead=null;this.expiredRobot=null;this.refreshButton?.remove();this.refreshButton=null;}
+ setRobotRefresh(context){
+  this.expiredRobot=context;
+  const refresh=make('button','Hent aktuel betjening','pv-button pv-ghost');
+  refresh.type='button';
+  refresh.addEventListener('click',()=>this.refreshRobot());
+  this.refreshButton=refresh;
+  this.body.append(refresh);
+  if(this.robotInline)refresh.hidden=true;
+ }
  canRefreshRobot(){
   const context=this.expiredRobot,s=this.host.liveSnapshot,device=this.robotDevice();
-  return !!context&&!this.spent.has(context.taskId)&&context.transport===this.host.liveTransport&&context.transportGeneration===this.host.liveTransport?.generation&&context.generation===this.generation&&context.opening===this.opening&&this.controlOpen()&&this.host.isConnected&&this.allowed('vacuum')&&this.domain==='vacuum'&&s?.bootId===context.bootId&&s?.roomId===context.roomId&&JSON.stringify(this.target)===context.target&&device?.live===true&&!device.stale&&!this.pending&&!this.setupPending&&!this.activeOperation&&![...this.receipts.values()].some(row=>row.bootId===context.bootId&&row.roomId===context.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===context.target&&this.robotReceiptUnknown(row));
+  const recovered=!context?.offline||this.robotOfflineDraftCurrent(context)&&
+   this.host.liveTransport.snapshot===s&&this.host.state.homeScope===JSON.stringify([s.bootId,s.roomId]);
+  return !!context&&recovered&&!this.spent.has(context.taskId)&&context.transport===this.host.liveTransport&&context.transportGeneration===this.host.liveTransport?.generation&&context.generation===this.generation&&context.opening===this.opening&&this.controlOpen()&&this.host.isConnected&&this.allowed('vacuum')&&this.domain==='vacuum'&&s?.bootId===context.bootId&&s?.roomId===context.roomId&&JSON.stringify(this.target)===context.target&&device?.live===true&&!device.stale&&!this.pending&&!this.setupPending&&!this.activeOperation&&![...this.receipts.values()].some(row=>row.bootId===context.bootId&&row.roomId===context.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===context.target&&this.robotReceiptUnknown(row));
  }
  robotStartReceiptCurrent() {
   const task = this.task, operation = this.activeOperation;
@@ -774,8 +817,8 @@ export class LiveControlView{
   const draft=task.domain==='vacuum'?this.readRobotDraft(task,this.robotPanel):null,modeDrafts=draft?this.robotPanel?.readModeDrafts?.()??null:null;const previousEntryKey=this.robotEntryKey;const eligible=task.domain==='vacuum'&&!this.pending&&!this.setupPending&&!this.activeOperation&&!this.spent.has(task.taskId)&&![...this.receipts.values()].some(row=>row.bootId===task.bootId&&row.roomId===task.roomId&&row.domain==='vacuum'&&JSON.stringify(row.target)===JSON.stringify(this.target)&&this.robotReceiptUnknown(row));
   this.invalidate('Betjeningen er udløbet · hent den igen.',false,task.domain==='vacuum');
   if(!eligible)return;this.robotEntryKey=previousEntryKey;
-  this.expiredRobot={generation:this.generation,opening:this.opening,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,target:JSON.stringify(this.target),transport:this.host.liveTransport,transportGeneration:this.host.liveTransport?.generation,draft,modeDrafts};
-  const refresh=make('button','Hent aktuel betjening','pv-button pv-ghost');refresh.type='button';refresh.addEventListener('click',()=>this.refreshRobot());this.refreshButton=refresh;this.body.append(refresh);if(this.robotInline){refresh.hidden=true;if(this.canRefreshRobot())queueMicrotask(()=>{if(this.canRefreshRobot())this.refreshRobot();});}
+  this.setRobotRefresh({generation:this.generation,opening:this.opening,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,target:JSON.stringify(this.target),transport:this.host.liveTransport,transportGeneration:this.host.liveTransport?.generation,draft,modeDrafts});
+  if(this.robotInline&&this.canRefreshRobot())queueMicrotask(()=>{if(this.canRefreshRobot())this.refreshRobot();});
  }
  async refreshRobot(){
   if(!this.canRefreshRobot())return;

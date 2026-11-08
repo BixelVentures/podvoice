@@ -9,7 +9,7 @@ const crypto=require('node:crypto');
 const fs=require('node:fs/promises');
 const os=require('node:os');
 const root=testEnv.root,port=Number(process.env.ROBOT_TEST_PORT||18975),base=`http://127.0.0.1:${port}`;
-let server,browser,serverLog='';
+let server,browser,serverLog='',serverSuspended=false;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const update=body=>fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}).then(r=>r.json());
@@ -355,6 +355,33 @@ const assertRobotObservation=async(page,requests,action)=>{
    assert(await extreme.isChecked(),'the other mode draft remains independently retained');
    await both.tap();
    for(const option of [extreme,max,fast,twice])assert(await option.isChecked());
+   const beforeOffline=await host.evaluate(h=>({task:h.liveControls.task.taskId,
+    observedAt:h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt,
+    documentStartedAt:performance.timeOrigin}));
+   await page.context().setOffline(true);
+   assert.equal(server.kill('SIGSTOP'),true,'suspend only the spawned inert server');
+   serverSuspended=true;
+   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveTransport?.connected===false,
+    undefined,{timeout:15000});
+   assert.equal(await room.getAttribute('aria-pressed'),'true','offline retains selected room');
+   for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+   assert(await room.isDisabled(),'offline draft grants no control authority');
+   assert.equal(await host.evaluate(h=>h.state.devices.find(d=>d.id==='vacuum.qrevo').observedAt),
+    beforeOffline.observedAt,'disconnect preserves actual observation time');
+   assert.equal(server.kill('SIGCONT'),true);
+   serverSuspended=false;
+   assert.deepEqual((await state()).robot.writes,[]);
+   await page.context().setOffline(false);
+   await page.waitForFunction(old=>{
+    const h=document.querySelector('pv-widget-host'),task=h?.liveControls?.task;
+    const device=h?.state.devices.find(d=>d.id==='vacuum.qrevo');
+    return h?.liveTransport?.connected&&device?.live&&!device.stale&&task?.taskId!==old.task
+     &&task?.draft?.status==='restored'&&!h.liveControls.robotPanel.cleaningSubmit.disabled;
+   },beforeOffline,{timeout:30000});
+   assert.equal(await page.evaluate(()=>performance.timeOrigin),beforeOffline.documentStartedAt);
+   assert.equal(await room.getAttribute('aria-pressed'),'true','reconnect retains room in same document');
+   for(const option of [both,extreme,max,fast,twice])assert(await option.isChecked());
+   assert.deepEqual((await state()).robot.writes,[],'reconnect never starts the retained draft');
   }
   assert.deepEqual((await state()).robot.writes,[]);
 
@@ -384,7 +411,8 @@ const assertRobotObservation=async(page,requests,action)=>{
     suction:'Maks.',route:'Hurtig',repeat:before.draft.repeat}});
   else if(waterRecovery)Object.assign(proof,{retainedWhileWaterUnavailable:true,
    freshIndependentWaterObservation:true,directOwnerRefusals:2,automaticWrites:0});
-  else Object.assign(proof,{retainedThroughStaleRead:true,recoveredOnPassivePoll:true,lastRead});
+  else Object.assign(proof,{retainedThroughStaleRead:true,recoveredOnPassivePoll:true,
+   offlineDraftRetainedDisabled:true,sameDocumentOfflineRecovery:true,noWritesBeforeExplicitStart:true,lastRead});
   const proofFile=longSession?'podview-robot-long-session-start.json':'podview-robot-draft-start-proof.json';
   await fs.writeFile(path.join(testEnv.artifactDir(),proofFile),JSON.stringify(proof,null,2));
   console.log(JSON.stringify(proof));
@@ -486,5 +514,5 @@ const assertRobotObservation=async(page,requests,action)=>{
  assert.deepEqual(errors,[]);
  const bundle=await fetch(base+'/view/podview.bundle.js').then(r=>r.arrayBuffer());console.log(JSON.stringify({servedBundleSha256:crypto.createHash('sha256').update(Buffer.from(bundle)).digest('hex'),outcome:'PASS',actualPackagedPodView:true,inertFinalServices:true,pauseWhileMusicPending:true,detailResume:true,cleaningHeaderPause:true,serverOwnedStopReturnTrace:true,persistedReturnClientJournal:true,robotWrites:value.robot.writes,pageErrors:errors}));
  }catch(error){if(browser){const pages=browser.contexts().flatMap(c=>c.pages());if(pages[0]){await pages[0].screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-failure.png')});console.log('visibleUI',await pages[0].locator('body').innerText())}}throw error;
- }finally{if(browser)await browser.close();if(server&&server.exitCode===null){const closed=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await closed;}}
+ }finally{if(serverSuspended)server.kill('SIGCONT');if(browser)await browser.close();if(server&&server.exitCode===null){const closed=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await closed;}}
 })().catch(e=>{console.error(e);process.exitCode=1});
