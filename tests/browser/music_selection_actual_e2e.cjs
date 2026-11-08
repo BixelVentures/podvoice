@@ -20,6 +20,7 @@ const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
+const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
 const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
@@ -90,6 +91,79 @@ async function defaultSpeakerJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-speaker-default-proof.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(env.artifactDir(),'podview-speaker-existing-output.png')});
  console.log(JSON.stringify(proof));
+}
+async function documentScopeJourney(){
+ const peer=await page.context().newPage();
+ const localOnly=surface=>surface.route('**/*',route=>
+  new URL(route.request().url()).origin===base?route.continue():route.abort());
+ const discovery=async(surface,kind)=>{
+  const reply=surface.waitForResponse(response=>{
+   const url=new URL(response.url());
+   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')===kind&&response.ok();
+  });
+  await surface.locator('[data-collection="'+kind+'"]').tap();
+  const response=await reply, body=await response.json();
+  assert.equal(body.candidateSet.sourceKind,kind);
+  return {source:body.candidateSet,document:response.request().headers()['x-podview-music-document']};
+ };
+ await localOnly(peer);
+ peer.on('pageerror',error=>errors.push(error.message));
+ try{
+  await peer.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+  await env.openOverview(peer);
+  const snapshots=await Promise.all([page,peer].map(async surface=>
+   (await surface.request.get(base+'/view/api/snapshot?room=kitchen')).json()));
+  assert.deepEqual(snapshots.map(s=>[s.bootId,s.roomId,s.admission.kind]),[
+   [snapshots[0].bootId,'kitchen','ha_ingress'],[snapshots[0].bootId,'kitchen','ha_ingress'],
+  ]);
+  await page.locator('#home-music').tap();
+  const first=await discovery(page,'recent');
+  const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});
+  await row.waitFor({state:'visible'});
+  await peer.locator('#home-music').tap();
+  const other=await discovery(peer,'recent');
+  assert.notEqual(first.source.candidateSetId,other.source.candidateSetId);
+  assert.deepEqual((await state()).writes,[],'both reads leave the inert owner untouched');
+
+  const setupReply=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/music/selection/setup');
+  const actionReply=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/music/selection/actions').catch(error=>error);
+  await page.bringToFront();
+  await row.tap();
+  const setup=await setupReply;
+  assert.equal(setup.request().postDataJSON().candidateSetId,first.source.candidateSetId,
+   'A uses its original candidate after B reads');
+  assert.equal(setup.request().headers()['x-podview-music-document'],first.document);
+  assert.equal(setup.status(),200,await setup.text());
+  assert.match(first.document,/^[a-f0-9]{32}$/);
+  assert.match(other.document,/^[a-f0-9]{32}$/);
+  assert.notEqual(first.document,other.document);
+  const action=await actionReply;
+  if(action instanceof Error)throw action;
+  assert.equal(action.request().headers()['x-podview-music-document'],first.document);
+  assert.equal((await action.json()).outcome,'accepted');
+  await page.locator('#track-name').filter({hasText:'Katalogsang 11'}).waitFor({state:'visible'});
+  assert.deepEqual((await state()).writes.map(row=>row.action),['play_track']);
+
+  const replacement=await discovery(page,'top');
+  assert.equal(replacement.document,first.document);
+  assert.notEqual(replacement.source.candidateSetId,first.source.candidateSetId);
+  const stale=await page.request.post(setup.url(),{
+   headers:{'X-PodView-Request':'1','X-PodView-Music-Document':first.document},
+   data:setup.request().postDataJSON(),
+  });
+  assert.equal(stale.status(),409);
+  assert.equal((await stale.json()).error,'stale_music_selection');
+  assert.equal(actions.filter(action=>action.url.endsWith('/music/selection/actions')).length,1);
+  assert.deepEqual((await state()).writes.map(row=>row.action),['play_track']);
+  assert.deepEqual(errors,[]);
+  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+  assert.match(cssSHA,/^[a-f0-9]{64}$/);
+  const proof={outcome:'PASS',bundleSHA,cssSHA,sharedHAIngress:true,documents:2,
+   firstCandidateSurvivesSecondRead:true,sameDocumentReplacementRejectsOldSetup:true,
+   inertPlaybackEffects:1,inertNativeService:true,pageErrors:errors};
+  await fs.writeFile(path.join(env.artifactDir(),'podview-music-document-scope.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+ }finally{await peer.close();}
 }
 async function recentSessionJourney(){
  const title='Coming Home',coverUrl='https://i.scdn.co/image/InertComingHome';
@@ -1400,10 +1474,11 @@ async function queuePersistenceJourney(){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||discoveryCover||voiceLongSession)options.args=['--mute-audio'];
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||discoveryCover||voiceLongSession||documentScope)options.args=['--mute-audio'];
  browser=await chromium.launch(options);
- page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||voiceLongSession){
+ const surfaceOptions={hasTouch:true,viewport:{width:1280,height:800}};
+ page=documentScope?await (await browser.newContext(surfaceOptions)).newPage():await browser.newPage(surfaceOptions);
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||voiceLongSession||documentScope){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
@@ -1415,7 +1490,7 @@ async function queuePersistenceJourney(){
  page.on('response',async r=>{
   const url=r.url();
   if(url.endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');
-  if((discoveryLoading||voiceLongSession)&&new URL(url).pathname.endsWith('/podview.css')){
+  if((discoveryLoading||voiceLongSession||documentScope)&&new URL(url).pathname.endsWith('/podview.css')){
    cssSHA=createHash('sha256').update(await r.body()).digest('hex');
   }
   if(!accountRollover&&(url.includes('/music/selection/')||url.includes('/music/queue/')
@@ -1562,6 +1637,7 @@ async function queuePersistenceJourney(){
  if(discoveryRevisit){await discoveryRevisitJourney();return;}
  if(discoveryCover){await discoveryCoverJourney();return;}
  if(recentSession){await recentSessionJourney();return;}
+ if(documentScope){await documentScopeJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();
  const rows=page.locator('#result-list button.result');
