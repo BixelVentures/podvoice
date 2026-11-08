@@ -41,6 +41,8 @@ for(const journey of only.length?only:journeys){
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`queue-${scenario}`)});
   }
  }
+ if(journey==='vehicle_actual_e2e.cjs')runJourney(journey,{VEHICLE_LIFECYCLE_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'vehicle-lifecycle')});
  if(journey==='radio_actual_e2e.cjs'){
   for(const scenario of ['1','rejected','unknown']){
    runJourney(journey,{RADIO_STATION_ORDER_TEST:scenario,
