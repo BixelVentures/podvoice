@@ -54,6 +54,39 @@ Daily Mix er valgfri. En historie giver ikke tilladelse til at opfinde nyt layou
 
 **Aktiv musikårsag · 8. november efter 18.17 CET.** Brugeren kunne ikke starte musik i 2.0.156. Green loggede gentagne `stage=setup outcome=stale_source` fra 18.17.06.999 til 18.17.16.834. Browserjournalen viser to andre afvisninger efter HTTP 200 fra targets, uden setup-rækker og med andre korrelationshashes (`559cec2630c6bb21`, `b7b230c4f0c6753b`). Den konkrete årsag til det rapporterede forsøg står åben. Et særskilt reproduceret problem i 2.0.157: to lokale HTTP-klienter med samme autentificerede HA-bruger og rum deler kildeomfang. B’s snapshot og robot-setup ændrer ikke A’s kandidat; B’s godkendte musiklæsning pensionerer A’s kandidat, hvorefter A får 409 `stale_music_selection`. Begge klienter kan klargøre det aktuelle valg; ingen musik- eller robotkommando blev sendt. actual_close_evidence ejer næste afgrænsede rettelse: adskil dokumenternes valgkilder, bevar fælles effekt-/adgangsejer og samme dokuments kildeudskiftning, og bevis begge overgange på eksisterende HA-ingressfixture. Lokal regression fejler på 2.0.157, hvor B’s læsning fjerner A’s udstedte tilbud. På næste kildekandidat kan A stadig klargøre efter B’s læsning; A’s egen nye læsning erstatter stadig A’s gamle kandidat. Udløbet valg, forkert dokument, ugyldigt headerfelt og ændret ejer afvises. Ved én tilbageholdt inert start afvises B’s læsning som busy; efter kvittering kan B læse uden at fjerne A’s præcise kvittering. Efter B’s opdatering af Vibe eller Tid på dagen genvaliderer A nu sine egne synlige rækker, også efter at afspilningsvalget er udløbet. Lokal regression beviser begge forløb med inerte katalogejere. Rækker til genvalidering holdes højst 30 minutter efter sidste vellykkede læsning, inden for 256 dokument-/visningsposter. Ingen ændring i 2.0.157-leverancen og ingen rigtig afspilning.
 
+**Claude-gennemgang · 9. november 2026.** Brug `BixelVentures/podvoice` og `BixelVentures/podconnect`
+på main-commits nedenfor. Det historiske Documents-checkout har lokale ændringer og er ikke
+kandidatens kilde. Gennemgangen af radio starter ved den konkrete fejl nedenfor.
+
+- **PodVoice 2.0.158** er udgivet fra `ab5928ece98885f36e7e8a44a6c9707105546d11`.
+  ARM64-imageindeks er `sha256:5384522bea04be40235ef17b72758f5ba6d2aa708621f2eda178177a254b4275`.
+  Supervisor viste 2.0.158 installeret og opdateret på Green efter en opdatering med backup aktiveret.
+  Admin bekræftede samme runtime-commit og build
+  `a40a72d890e87c7e3ce6732d436c2cc8b5f2238c7775fd35dc01c955d82cb1dd`.
+  PodConnect og Hjemmestyring var verificeret, Voice PE stod offline, og »Ekstra hjemmefunktioner
+  afventer godkendelse« stod stadig i admin. Advarslen er uafklaret.
+  Pakket Chromium beviste med to samtidige dokumenter, at en læsning på skærm B ikke udløber A’s
+  musikvalg. A’s eget næste opslag udløber stadig det gamle valg. Prøven brugte inert musikejer.
+  [PR #335](https://github.com/BixelVentures/podvoice/pull/335) · [Main-CI](https://github.com/BixelVentures/podvoice/actions/runs/42510834616) · [Stabil udgivelse](https://github.com/BixelVentures/podvoice/releases/tag/2.0.158)
+- **Speakers 0.26.76** er merged på `4093bcb49724a73da5ee7b8d3b84c88d995e0aba`, og ARM64- og
+  AMD64-publiceringsjobbene bestod. Det aflæste ARM64-manifest er
+  `sha256:e72195afd16e83ca22130f23f51d74c92e5308f5b3eb65ce9b64b64bd03e23b5`.
+  Green viste fortsat 0.26.75 ved kontrollen. Den manuelle installation af 0.26.76 blev holdt tilbage
+  efter den røde prøve. Supervisor havde automatisk opdatering slået til for Speakers.
+  [PR #120](https://github.com/BixelVentures/podconnect/pull/120) · [Publicering](https://github.com/BixelVentures/podconnect/actions/runs/42506924481)
+- **Åben radioovergang.** Efter merge fejlede P3-start gennem Manager → Native HTTP → C i
+  `selected-start-clock`. Native kvitterede reserve og klargøring og gav `pending` på Start.
+  OwnTone sendte den gamle Spotify-sessions TEARDOWN, lukkede på `finalize_writer_custody`, og
+  `result/start` svarede HTTP 409. Manager beholdt UNKNOWN ved `start-attempted`, og prøven
+  observerede intet radio-RTP. Claude skal gennemgå, om den eksakte Native-writer endnu var åben,
+  eller om den positive optælling af lukkede writers manglede efter TEARDOWN. Det eksisterende
+  signal skelner ikke de to årsager. Kilden er OwnTones `start_all_writers_closed(...) == 1`-krav
+  i `radio-primary-owntone.patch`. Green-radio og fysisk lyd blev ikke prøvet i dette forløb.
+  [Fejlet main-CI, konkret job](https://github.com/BixelVentures/podconnect/actions/runs/42506924541/job/128812501780)
+- **Control 0.10.38** er den separate stabile GitHub-udgivelse fra
+  `0aa8f1caeb45b9fcfb45473895904c3fd0a75d1a`. Ved overdragelsen stod de to main-grene på
+  produktcommits ovenfor uden en nyere åben PR. [Control-udgivelse](https://github.com/BixelVentures/podconnect/releases/tag/0.10.38)
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
