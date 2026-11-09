@@ -214,7 +214,9 @@ Den aktuelle radiovisning var deaktiveret med seks årsagslabels. Speakers 0.26.
 HTTP 409 med `start_busy` ved passiv klargøring hos den primære radioejer. En frisk backup viste
 en gyldig afsluttet MOVE-journalpost med `retired_known`. Klargøringen efter genstart krævede en
 START-post og afviste derfor MOVE, før den kunne kontrollere den gamle ejer. R3 er fortsat åben.
-Radioejeren afprøver rettelsen til Speakers 0.26.80 i `podconnect-pc80-retired-move-20261109`.
+Speakers 0.26.80-kandidaten `6afca3eb` bestod Native-, OwnTone- og overgangskontrollen.
+Kandidatens imagebyg er i gang. Green afventer fortsat radioprøven.
+[Speakers PR #125](https://github.com/BixelVentures/podconnect/pull/125)
 [PodVoice PR #340](https://github.com/BixelVentures/podvoice/pull/340)
 
 **Robot på Green 2.0.160 · 9. november 2026, 14.15–14.19 CET.** Én støvsugetur i Gang med
@@ -223,9 +225,16 @@ stadig til rådighed. Et tryk på »Fortsæt« gav en ny HA-observation af reng�
 På 2.0.160 var der ét Base-panel i både pausestatus og rengøring. Bekræftet »Kør til basen«
 gav »På vej til basen« kl. 14.18 og »Oplader« med 100 % kl. 14.19. Detaljen viste seneste
 afsluttede tur kl. 14.18 med 0,2 m² og 1,1 min. Den særskilte Stop-handling afventer.
-En automatisk fornyelse lukkede en åben bekræftelsesdialog. Rettelsen er under arbejde. En
-uafsendt kladde nulstilles ved skift af proces efter den eksisterende ejergrænse. Spørgsmålet om
+En automatisk fornyelse lukkede en åben bekræftelsesdialog. Den reviewede rettelse `0eda24d7`
+bevarer dialogen ved fornyelse for samme robot og samme aktuelle handling. Den afventer levering.
+En uafsendt kladde nulstilles ved skift af proces efter den eksisterende ejergrænse. Spørgsmålet om
 bevarelse af kladden på tværs af genstart står fortsat åbent.
+
+**Køvalg på Green 2.0.160 · 9. november 2026, 14.23 CET.** Valg af playlisten BRYLLUP startede
+»Fast Car«. Køen viste 20 rækker sammen med en læsefejl. Ét eksplicit tryk på »Unlonely« blev
+vist som afvist, og betjeningen blev derefter skrivebeskyttet. Et senere tryk på Pause gav
+bekræftet `playing=false` hos Speakers. K3/K5 står åbne. Årsagen kræver det oprindelige svar
+for køvalget og den tilhørende ejerobservation.
 
 Efter opdateringen åbnede den aktive Burgerboller-widget direkte på trin 2 af 5 med én af ti
 ingredienser markeret og 15 stk. Galleriet gik fra 1/3 til 2/3 og lukkede tilbage til opskriften.
