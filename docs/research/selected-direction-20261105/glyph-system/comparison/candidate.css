@@ -192,28 +192,7 @@
     color: var(--pv-ink);
   }
 
-  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden]))
-  .player.pv-card {
-    --pv-type-player: 22px;
-    gap: var(--pv-s1);
-    grid-template-rows: var(--pv-hit) minmax(0, 202px) 64px 56px 72px var(--pv-hit);
-    height:auto;
-    min-height:0;
-    background: var(--pv-surface);
-  }
 
-  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden]))
-  .player.pv-card > .cover-button {
-    height: min(100%, 100cqi, 202px);
-    max-width: min(100%, 202px);
-    max-height: 202px;
-    border-radius: var(--pv-screen-radius-art);
-  }
-
-  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden]))
-  .player.pv-card > .track {
-    height: auto;
-  }
 }
 
 /* The review composition uses the four existing grid columns and one

@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-const owner=new URL('../../../../../podvoice/gatekeeper/static/podview/vehicle-model.js', import.meta.url).href;
+import {pathToFileURL} from 'node:url';
+const owner=pathToFileURL('/Users/madsbachandersen/Developer/podvoice/podvoice/gatekeeper/static/podview/vehicle-model.js').href;
 const {vehicleFixture}=await import(owner);
 const source=(await readFile(new URL('./vehicle-material-motion.js',import.meta.url),'utf8')).replace("'/vehicle-model.js'",JSON.stringify(owner));
 const {installVehicleMaterial}=await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);

@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Opskrift</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease, background .2s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.dt{position:absolute;border-radius:50%}
+.lbl{font:500 12px 'IBM Plex Mono', ui-monospace, monospace;letter-spacing:.08em;text-transform:uppercase;color:#7A4A22}
+.num{transition:color .3s ease}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Burgerboller" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; width: 1232px; height: 696px; display: flex; flex-direction: column; gap: 16px">
+
+    <div class="cd" style="height: 148px; flex: none; background: #F2E4D3; padding: 20px 24px; box-sizing: border-box; display: grid; grid-template-columns: 108px 1fr auto; align-items: center; gap: 22px">
+      <div style="position: relative; width: 108px; height: 108px; border-radius: 16px; background: #E8CBA6; overflow: hidden" role="img" aria-label="Foto af burgerboller fra opskriften">
+        <sc-for list="{{buns}}" as="d" hint-placeholder-count="80">
+          <i class="dt" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: #A8622C"></i>
+        </sc-for>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+        <span class="lbl">Trin {{cur}} af 5 · af Meyers</span>
+        <span style="font-size: 38px; line-height: 1.05; font-weight: 800; letter-spacing: -0.025em">Burgerboller</span>
+        <span style="font-size: 16px; color: #6B4A2E">12–15 min. bagetid · 2–3 timer hævning · bløde sesamboller</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 14px">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 4px">
+          <div style="display: grid; grid-template-columns: 56px 92px 56px; align-items: center; padding: 4px; border-radius: 18px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(122,74,34,.18)">
+            <button class="btn" onClick="{{less}}" aria-label="Færre boller" style="height: 56px; border-radius: 999px; background: #ECDCC6; font: 500 26px 'IBM Plex Mono', monospace; color: #17171A">−</button>
+            <span style="text-align: center; font: 500 34px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.05em">{{n}}</span>
+            <button class="btn" onClick="{{more}}" aria-label="Flere boller" style="height: 56px; border-radius: 999px; background: #ECDCC6; font: 500 26px 'IBM Plex Mono', monospace; color: #17171A">+</button>
+          </div>
+          <span style="font-size: 13px; color: #6B4A2E">stk.</span>
+        </div>
+        <button class="btn" onClick="{{reset}}" style="height: 56px; padding: 0 18px; border-radius: 999px; background: transparent; font: 600 15px 'Schibsted Grotesk', sans-serif; color: #7A4A22">Nulstil opskrift</button>
+      </div>
+    </div>
+
+    <div style="flex: 1; display: grid; grid-template-columns: 400px 1fr; gap: 16px; min-height: 0">
+      <div class="cd" style="padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <span style="font-size: 20px; font-weight: 800">Ingredienser</span>
+          <span style="font-size: 14px; color: #5F5E5A">{{foundLabel}}</span>
+        </div>
+        <sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+          <span class="lbl" style="margin-top: 10px; color: #6B6A66">{{g.name}}</span>
+          <sc-for list="{{g.items}}" as="i" hint-placeholder-count="8">
+            <button class="btn" onClick="{{i.pick}}" aria-pressed="{{i.on}}" style="height: 44px; padding: 0 6px; border-radius: 999px; background: transparent; display: grid; grid-template-columns: 26px 84px 1fr; align-items: center; gap: 8px; text-align: left; font: 500 17px 'Schibsted Grotesk', sans-serif; color: {{i.fg}}">
+              <i style="width: 20px; height: 20px; border-radius: 6px; box-shadow: inset 0 0 0 1.8px {{i.box}}; background: {{i.fill}}; display: block"></i>
+              <span class="num" style="font: 500 16px 'IBM Plex Mono', ui-monospace, monospace; color: {{i.qc}}">{{i.q}}</span>
+              <span style="text-decoration: {{i.td}}">{{i.t}}</span>
+            </button>
+          </sc-for>
+        </sc-for>
+      </div>
+
+      <div class="cd" style="padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+        <span style="font-size: 20px; font-weight: 800">Sådan gør du</span>
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+          <div style="display: grid; grid-template-columns: 36px 1fr auto; align-items: start; gap: 14px; padding: {{s.pad}}; border-radius: 18px; background: {{s.bg}}; box-shadow: {{s.ring}}">
+            <span style="width: 32px; height: 32px; border-radius: 50%; background: {{s.dotBg}}; color: {{s.dotFg}}; display: flex; align-items: center; justify-content: center; font: 600 14px 'IBM Plex Mono', monospace">{{s.mark}}</span>
+            <div style="display: flex; flex-direction: column; gap: 3px">
+              <span style="font-size: {{s.hSize}}; font-weight: 800; color: {{s.fg}}">{{s.h}}</span>
+              <span style="font-size: {{s.tSize}}; line-height: 1.4; color: {{s.tc}}">{{s.t}}</span>
+            </div>
+            <sc-if value="{{s.timer}}" hint-placeholder-val="{{ false }}">
+              <button class="btn" onClick="{{s.start}}" style="height: {{s.tH}}; padding: 0 16px; border-radius: 999px; background: {{s.tBg}}; color: {{s.tFg}}; display: flex; align-items: center; gap: 8px; font: 600 15px 'Schibsted Grotesk', sans-serif; white-space: nowrap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{s.tFg}}" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg>
+                {{s.tLabel}}
+              </button>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    // Som på Green 9. nov.: trin 2 af 5, 1 af 10 ingredienser fundet frem, 15 stk.
+    this.state = { n: 15, found: { 0: 1 }, timer: null };
+  }
+  fmt(v, unit) {
+    if (unit === 'stk') {
+      const h = Math.round(v * 2) / 2;
+      const whole = Math.floor(h);
+      return (whole ? whole : '') + (h % 1 ? '½' : '') || '½';
+    }
+    const r = v >= 100 ? Math.round(v / 5) * 5 : Math.round(v);
+    return r + ' ' + unit;
+  }
+  renderVals() {
+    const n = this.state.n;
+    const f = n / 15;
+    // O2/O9: mængder skalerer med antal boller; valgt antal og aktuelt trin bevares ved navigation.
+    const base = [
+      { g: 'Dej', v: 350, u: 'ml', t: 'koldt vand' }, { g: 'Dej', v: 15, u: 'g', t: 'gær' }, { g: 'Dej', v: 2, u: 'stk', t: 'æg' },
+      { g: 'Dej', v: 630, u: 'g', t: 'hvedemel' }, { g: 'Dej', v: 70, u: 'g', t: 'fuldkorns ølandshvedemel' }, { g: 'Dej', v: 55, u: 'g', t: 'sukker' },
+      { g: 'Dej', v: 10, u: 'g', t: 'salt' }, { g: 'Dej', v: 90, u: 'g', t: 'blødt smør' },
+      { g: 'Pensling og drys', v: 1, u: 'stk', t: 'æg' }, { g: 'Pensling og drys', v: 0, u: '', t: 'sesamfrø' }
+    ];
+    const changed = n !== 15;
+    const items = base.map((b, idx) => {
+      const on = !!this.state.found[idx];
+      return {
+        g: b.g, t: b.t, q: b.v ? this.fmt(b.v * f, b.u) : '—', on: on ? 'true' : 'false',
+        fg: on ? '#8C8A85' : '#17171A', td: on ? 'line-through' : 'none', qc: changed && b.v ? '#A8622C' : (on ? '#8C8A85' : '#17171A'),
+        box: on ? '#7A4A22' : 'rgba(23,23,26,.35)', fill: on ? '#7A4A22' : 'transparent',
+        pick: () => this.setState({ found: { ...this.state.found, [idx]: on ? 0 : 1 } })
+      };
+    });
+    const groups = ['Dej', 'Pensling og drys'].map((name) => ({ name, items: items.filter((i) => i.g === name) }));
+    const foundCount = Object.values(this.state.found).filter(Boolean).length;
+    const cur = 2;
+    // O3: timeren startes direkte fra trinnet; varigheden kommer fra trinnets tekst.
+    const defs = [
+      { h: 'Ælting', t: 'Ælt dejen i hånden eller på maskine, til den er glat og slipper skålen. Tilsæt smørret til sidst.' },
+      { h: 'Hvile og hævning', t: 'Dæk dejen til, og lad den hvile 30–60 min. på bordet eller natten over på køl.', min: 30 },
+      { h: 'Form bollerne', t: 'Del dejen i ' + n + ' stykker, tril boller, og pres dem flade under en bageplade.' },
+      { h: 'Efterhævning', t: 'Dæk bollerne til, og lad dem hæve 2–3 timer, til de er næsten dobbelt så store.', min: 120 },
+      { h: 'Bagning', t: 'Pensl med æg, drys med sesam, og bag ved 220 °C i 12–15 min.', min: 12 }
+    ];
+    const steps = defs.map((d, i) => {
+      const no = i + 1, done = no < cur, isCur = no === cur;
+      const running = this.state.timer === no;
+      const label = d.min >= 60 ? (d.min / 60) + ' t' : d.min + ' min';
+      return {
+        h: d.h, t: d.t, mark: done ? '✓' : String(no),
+        bg: isCur ? '#F2E4D3' : 'transparent', ring: isCur ? 'inset 0 0 0 2px #A8622C' : 'none', pad: isCur ? '16px 16px' : '6px 16px',
+        dotBg: done ? '#7A4A22' : isCur ? '#17171A' : '#ECEAE5', dotFg: done || isCur ? '#F7F6F3' : '#5F5E5A',
+        fg: done ? '#8C8A85' : '#17171A', tc: done ? '#A9A7A1' : isCur ? '#2B2B2E' : '#5F5E5A',
+        hSize: isCur ? '22px' : '17px', tSize: isCur ? '19px' : '15px',
+        timer: !!d.min && !done,
+        tLabel: running ? 'Timer kører · ' + label : (isCur ? 'Start timer · ' : '') + label,
+        tH: isCur ? '56px' : '40px',
+        tBg: running ? '#17171A' : isCur ? '#17171A' : '#ECEAE5', tFg: running || isCur ? '#F7F6F3' : '#17171A',
+        tSh: isCur || running ? '0 3px 0 #000' : 'none',
+        start: () => this.setState({ timer: no })
+      };
+    });
+    return {
+      n, cur, groups, steps, foundLabel: foundCount + ' af 10 fundet frem',
+      buns: (() => {
+        const out = [];
+        const centers = [[30, 34], [76, 30], [52, 76], [92, 80], [18, 86]];
+        for (let y = 4; y < 108; y += 8) for (let x = 4; x < 108; x += 8) {
+          const d = Math.min(...centers.map(([a, b]) => Math.hypot(x - a, y - b)));
+          if (d < 20) out.push({ x: x - 2.5, y: y - 2.5, w: d < 12 ? 5.5 : 4 });
+        }
+        return out;
+      })(),
+      less: () => this.setState({ n: Math.max(5, this.state.n - 5) }),
+      more: () => this.setState({ n: Math.min(40, this.state.n + 5) }),
+      reset: () => this.setState({ n: 15, found: {}, timer: null })
+    };
+  }
+}
+</script>
+</body>
+</html>

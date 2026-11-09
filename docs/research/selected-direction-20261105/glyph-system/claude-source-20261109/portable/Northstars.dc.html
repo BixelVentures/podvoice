@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Northstars</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 36px 40px; background: #E7E5E0; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: grid; grid-template-columns: 1fr 372px; gap: 28px">
+  <div style="display: flex; flex-direction: column; gap: 16px; min-width: 0">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: #5F5E5A">Northstars · anden iteration</span>
+      <span style="font-size: 28px; font-weight: 700; letter-spacing: -0.025em">Hvad hver reference gav, og hvor den trak forkert</span>
+    </div>
+    <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+      <sc-for list="{{refs}}" as="r" hint-placeholder-count="15">
+        <div style="display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 16px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)">
+          <div style="display: flex; align-items: center; gap: 8px">
+            <span style="font-size: 15px; font-weight: 700; flex: 1; min-width: 0">{{r.name}}</span>
+            <span style="height: 22px; padding: 0 9px; border-radius: 11px; background: {{r.chipBg}}; color: {{r.chipFg}}; font: 500 11px/22px 'IBM Plex Mono', ui-monospace, monospace">{{r.verdict}}</span>
+          </div>
+          <span style="font-size: 12px; line-height: 1.35; color: #3F3E3B"><b style="font-weight: 600">Gav:&#160;</b>{{r.gave}}</span>
+          <span style="font-size: 12px; line-height: 1.35; color: #3F3E3B"><b style="font-weight: 600">{{r.turnLabel}}</b> {{r.turn}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="display: flex; flex-direction: column; gap: 12px; padding: 22px; border-radius: 22px; background: #17171A; color: #F7F6F3">
+    <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: .08em; text-transform: uppercase; color: #A9A7A1">Seks principper, udledt</span>
+    <sc-for list="{{rules}}" as="u" hint-placeholder-count="6">
+      <div style="display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding-bottom: 10px; border-bottom: 1px solid #2E2E33">
+        <span style="font: 500 13px 'IBM Plex Mono', ui-monospace, monospace; color: #FF7A5C">{{u.n}}</span>
+        <div style="display: flex; flex-direction: column; gap: 2px">
+          <span style="font-size: 15px; font-weight: 700">{{u.h}}</span>
+          <span style="font-size: 12.5px; line-height: 1.4; color: #C9C7C1">{{u.b}}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const chip = {
+      Beholdt: ['#DDE7DF', '#24563B'], Justeret: ['#F6E3C4', '#7A4A05'],
+      Ny: ['#D6E1FC', '#1A3FB8'], Fravalgt: ['#E2E0DB', '#5F5E5A']
+    };
+    const raw = [
+      ['Apple Widgets · S/M/L', 'Ny', 'Faste formater, der kan genkendes overalt; indholdet tilpasser sig formatet, ikke omvendt.', 'Bliver: ', 'Tre størrelser og faste pladser på overblikket.'],
+      ['Apple Music · coverfarver', 'Ny', 'Baggrunden udledes af coveret og bevæger sig langsomt med musikken.', 'Bliver: ', 'Afspillerens stemning. Stopper ved pause.'],
+      ['Tesla-appen · bilen som tilstand', 'Ny', 'Bilens billede viser åbne døre, ladeport og klima.', 'Bliver: ', 'Karrosseriet er batteriet; kabinen gløder ved klima.'],
+      ['Voice Memos · byjwxn', 'Ny', 'Rolige bjælker, rød playhead, bløde runde taster.', 'Bliver: ', 'Radio som fast skala med rød nål, kun når den spiller.'],
+      ['Dieter Rams · less, but better', 'Beholdt', 'Så lidt design som muligt; alt tilbageværende har et formål.', 'Bliver: ', 'Én flade, én blæk, fire tekststørrelser, én knapfamilie.'],
+      ['Frameo 10,1″', 'Ny', 'Den faktiske skærm: 1280×800 på væggen, set fra køkkenet.', 'Bliver: ', 'Læseafstand styrer typografi og tal.'],
+      ['Halftone-grillen', 'Beholdt', 'En prikmatrix med fire rytmer, der passer til de rigtige samtalefaser.', 'Bliver: ', 'Stemmens eget materiale. Helt stille i hvile.'],
+      ['Højttalergrillen', 'Beholdt', 'Perforering som fælles materiale for felterne.', 'Bliver: ', 'Grammatikken i vejr-, robot-, lys- og Tesla-felter.'],
+      ['Apple Live Activities', 'Ny', 'Status får plads og farve, mens noget foregår, og trækker sig, når det slutter.', 'Bliver: ', 'Farvereglen. Domænefladen tændes kun af levende tilstand.'],
+      ['Nest Hub · ambient', 'Ny', 'En skærm i hjemmet skal kunne være rolig hele dagen.', 'Bliver: ', 'Et roligt hjem ser roligt ud. Bevægelse kun ved faktisk aktivitet.'],
+      ['Teenage Engineering', 'Justeret', 'Taster med dybde og mono-tal.', 'Trak forkert: ', 'Taster overalt blev maskinelt. Nu kun på handlinger; kort trykkes blødt.'],
+      ['Braun / Dieter Rams', 'Justeret', 'Præcision og én signalfarve.', 'Trak forkert: ', 'Neutraliserede domænerne, så overblikket blev gråt. Rams styrer nu kun kontroller.'],
+      ['Spotify', 'Justeret', 'Coveret leder hierarkiet; rund play; stille ikoner.', 'Trak forkert: ', 'Mørk Spotify-krop overtog skærmen. Nu toner coveret kun kortets top.'],
+      ['Velum · Nothing Glyph', 'Fravalgt', 'Levende tegn- og LED-felter (retning B og C).', 'Hvorfor: ', 'Mættede flader og prikfonte larmer på en vægskærm. Lever kun videre i materialefelter.'],
+      ['gradient.supply', 'Fravalgt', 'Kornede overgange.', 'Hvorfor: ', 'Fandt ingen rolle i kort og kontroller. Kandidat til Foto-Ro, ikke til kittet.']
+    ];
+    const refs = raw.map(([name, verdict, gave, turnLabel, turn]) => ({
+      name, verdict, gave, turnLabel, turn, chipBg: chip[verdict][0], chipFg: chip[verdict][1]
+    }));
+    const rules = [
+      { n: '1', h: 'Farve er identitet, intensitet er tilstand', b: 'Vejr, robot, lys og Tesla har altid deres toning. Live er stærkere og bevæger sig; sidst kendt og ikke forbundet dæmpes. Timer er det mørke instrument. Genveje er neutrale.' },
+      { n: '2', h: 'Ét materiale, aldrig pynt', b: 'Samme prikmotor overalt; hvert domæne har sin form. Bevægelse = noget kører, stille = hviler, grå = sidst kendt. Intet felt uden en fakta bag.' },
+      { n: '3', h: 'Faste pladser, tre størrelser', b: 'Small, Medium, Large. Hver widget bliver, hvor den er, og skifter udtryk på stedet. Sidst kendt og ikke tilgængelig designes lige så omhyggeligt. Foto-Ro bærer roen.' },
+      { n: '4', h: 'Musikken er altid fuld', b: 'Fuld afspiller overalt undtagen Foto-Ro og Opskrifter. Coverets farver giver stemningen; kontrollerne er PodViews egne.' },
+      { n: '5', h: 'Tryk kan mærkes', b: 'Handlinger trykkes ned på 120 ms. Kort giver efter. Feedback kommer før enheden svarer.' },
+      { n: '6', h: 'Stemmen er en grille', b: 'Fire rytmer til fire faser. Ingen equalizer, ingen lydstyrke, ingen procent.' }
+    ];
+    return { refs, rules };
+  }
+}
+</script>
+</body>
+</html>

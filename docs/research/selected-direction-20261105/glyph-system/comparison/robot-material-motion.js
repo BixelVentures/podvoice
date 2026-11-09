@@ -63,7 +63,7 @@ export class RobotMaterialMotion extends RobotMotion {
                 if (onScreen && !reduced && !device.pending && phase !== 'none') {
                     const frames = phase === 'paused'
                         ? [{ opacity: .85 }, { opacity: .6 }]
-                        : [{ opacity: .15, clipPath: 'inset(0 0 0 90%)' }, { opacity: .72, clipPath: 'inset(0 0 0 0%)' }];
+                        : [{ opacity: .55 }, { opacity: 1 }];
                     const reveal = layer.animate(frames, { duration: phase === 'paused' ? 240 : 620, easing: 'cubic-bezier(.2,.75,.2,1)' });
                     reveal.id = 'pv-robot-material-phase';
                     this.transitions.set(surface, reveal);

@@ -1,0 +1,653 @@
+<!doctype html>
+<script>
+(function () {
+  /* WebRTC is an egress channel the CSP cannot close, and Frame's runtime
+   * removes its constructors in the ARTIFACT realm only; this nested realm
+   * gets the same treatment so an artboard starts from the platform's
+   * baseline. (A page that goes looking can still find a constructor in a
+   * fresh child realm - the residual Frame accepts for every artifact.) */
+  try { delete window.RTCPeerConnection; } catch (e) {}
+  try { delete window.webkitRTCPeerConnection; } catch (e) {}
+  try { window.RTCPeerConnection = undefined; } catch (e) {}
+  try { window.webkitRTCPeerConnection = undefined; } catch (e) {}
+  var P = window.parent;
+  if (!P || P === window) return;
+  /* Liveness handshake (previewGuard.ts): mint a channel, keep one end
+   * in this closure, hand the other to the host before any authored
+   * byte runs. The port is a capability, not text - it cannot be read
+   * out of the document or serialized into a data:/blob: replacement,
+   * and it dies with this realm - so a pong is proof the document the
+   * HOST assembled is the one alive in the frame. The host binds the
+   * first hello per generation; nothing authored runs earlier, so this
+   * one always wins that race. */
+  try {
+    /* The pong path is UNCURRIED at t=0: every native it touches is
+     * captured as a value before any authored byte runs, and invoked
+     * through a captured Reflect.apply - authored prototype poisoning
+     * of MessagePort.prototype.postMessage or a trapping
+     * MessageEvent.prototype.data getter must never see this port or
+     * steal a send path. And every pong ECHOES the ping's nonce: a pong
+     * is only proof of life for the ping that asked, so stale pongs
+     * queued before a navigation prove nothing about the document that
+     * replaced this one. */
+    var applyH = Reflect.apply;
+    var getData = Object.getOwnPropertyDescriptor(MessageEvent.prototype, 'data').get;
+    var hasOwnH = Object.prototype.hasOwnProperty;
+    var ch = new MessageChannel();
+    var portPost = MessagePort.prototype.postMessage.bind(ch.port1);
+    ch.port1.onmessage = function (ev) {
+      var d = null;
+      try { d = applyH(getData, ev, []); } catch (e) { return; }
+      if (d == null || typeof d !== 'object') return;
+      if (!applyH(hasOwnH, d, ['__om_ping'])) return;
+      try { portPost({ __om_pong: d.__om_ping }); } catch (e) {}
+    };
+    P.postMessage({ __om_hello: 1 }, '*', [ch.port2]);
+  } catch (e) {}
+  /* Self-navigation tripwire: pagehide fires while THIS document is
+   * being torn down. The message is DELIVERED after the document is
+   * destroyed, so it arrives with e.source === null - the host accepts
+   * exactly that shape (a live-source forgery of it only blanks the
+   * forger's own preview). It is one tripwire, not the verdict: the
+   * port probe above is what decides, on every load. The listener is
+   * an unreachable closure - authored code has no reference to remove
+   * it, and P is captured at t=0 before anything authored runs. */
+  try {
+    window.addEventListener('pagehide', function () {
+      try { P.postMessage({ __om_nav_away: 1 }, '*'); } catch (e) {}
+    });
+  } catch (e) {}
+  /* Escape relay (np): while an artboard plays (full-window or in place) keyboard focus lives in HERE, so the host cannot hear
+   * Esc - relay it, in the capture phase so authored handlers that stopPropagation still let it through. Advisory only: the host
+   * at most stops following a person, or else leaves Play and takes the keyboard back from this frame (App.tsx's Esc effects). */
+  try {
+    window.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Escape' || ev.repeat) return;
+      try { P.postMessage({ __om_escape: 1 }, '*'); } catch (e) {}
+    }, true);
+  } catch (e) {}
+  /* Copy-link relay: the host's Alt+Cmd+L / Ctrl+Alt+L (the kit's isCopyLinkKey, spelt out), which it cannot hear in here, editing or playing. Cancelled, so the
+   * browser does not act on the chord too. The host decides: it copies a link to its own view, for a live gesture from the focused frame only. */
+  try {
+    window.addEventListener('keydown', function (ev) {
+      if (!ev.altKey || ev.shiftKey || !(ev.metaKey ? ev.code === 'KeyL' : ev.ctrlKey && (ev.key === 'l' || ev.key === 'L'))) return;
+      ev.preventDefault();
+      if (ev.repeat || !ev.isTrusted) return;
+      try { P.postMessage({ __om_copy_link: 1 }, '*'); } catch (e) {}
+    }, true);
+  } catch (e) {}
+  /* Step relay: ArrowLeft / ArrowRight for the host's full-window Previous / Next, which cannot hear keys pressed in here. Not sent: a chord,
+   * a repeat, a script's event, a key for a field, arrow-key control or sideways-scrolling page, or one the design cancelled. */
+  try {
+    var ARROW_OWNER = "input,textarea,select,video,audio,canvas,[role=application],[role=scrollbar],[aria-roledescription=carousel],[aria-roledescription=slide],[role=textbox],[role=searchbox],[role=combobox],[role=spinbutton],[role=slider],[role=radiogroup],[role=radio],[role=tablist],[role=tab],[role=toolbar],[role=menu],[role=menubar],[role=menuitem],[role=menuitemradio],[role=menuitemcheckbox],[role=listbox],[role=option],[role=tree],[role=treegrid],[role=grid]";
+    var afterDispatch = window.setTimeout.bind(window);
+    var styleOf = window.getComputedStyle.bind(window);
+    /* the page itself scrolls sideways (by more than a stray scrollbar's width) and is not clipped there */
+    var pageScrollsSideways = function () {
+      var se = document.scrollingElement;
+      if (!se || se.scrollWidth - se.clientWidth <= 24) return false;
+      var clip = /hidden|clip/;
+      var hx = styleOf(document.documentElement).overflowX;
+      if (clip.test(hx)) return false;
+      return /auto|scroll/.test(hx) || !(document.body && clip.test(styleOf(document.body).overflowX));
+    };
+    /* a clicked box that scrolls sideways takes the arrows without having focus: remember where the last press landed */
+    var lastPress = null;
+    window.addEventListener('pointerdown', function (ev) { lastPress = (ev.composedPath && ev.composedPath()[0]) || ev.target; }, true);
+    var ownsArrows = function (ev) {
+      var path = ev.composedPath ? ev.composedPath() : [ev.target];
+      if (ev.target === document.body || ev.target === document.documentElement) {
+        for (var p = lastPress; p && p.nodeType === 1 && p.isConnected; p = p.parentElement || (p.parentNode && p.parentNode.host) || null) path.push(p);
+      }
+      for (var i = 0; i < path.length; i += 1) {
+        var n = path[i];
+        if (!n || n.nodeType !== 1) continue;
+        if (n.isContentEditable || (n.matches && n.matches(ARROW_OWNER))) return true;
+        /* a box in the design that scrolls sideways keeps its arrows too */
+        if (n.scrollWidth - n.clientWidth > 24 && /auto|scroll/.test(styleOf(n).overflowX)) return true;
+      }
+      return false;
+    };
+    window.addEventListener('keydown', function (ev) {
+      if ((ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') || ev.repeat || !ev.isTrusted) return;
+      if (ev.metaKey || ev.ctrlKey || ev.altKey || ev.shiftKey || ownsArrows(ev)) return;
+      if (pageScrollsSideways()) return;
+      var dir = ev.key === 'ArrowRight' ? 1 : -1;
+      afterDispatch(function () {
+        if (ev.defaultPrevented) return;
+        try { P.postMessage({ __om_step: dir }, '*'); } catch (e) {}
+      }, 0);
+    }, false);
+  } catch (e) {}
+  /* Link relay (advisory, not hardened). Any navigation here (even "#x", resolved off <base>) trips the
+   * host's guard, so every anchor click is cancelled at capture - invisibly: the design (and the edit picker)
+   * still read defaultPrevented as false, and their own preventDefault() means hands off. Otherwise, once the
+   * click has dispatched: "#id" scrolls the frame to its target, external http(s) is handed to the host, and a
+   * project path (href="Deck.dc.html") is offered to the host, which opens it only if it names an artboard. */
+  try {
+    var compatPage = window.__omEditor === 1; /* a migrated page at its own URL (buildCompatDoc): links name pages by their project path, as its shim does */
+    /* the project root (/_f/{ver}/project/) the runner stamped ahead of this script: a link is named relative to IT, so deck/a.html's
+     * "b.html" reads deck/b.html and its "../index.html" reads index.html; read once, here, before anything authored runs */
+    var projectRoot = compatPage && typeof window.__omProjectRoot === 'string' ? window.__omProjectRoot : null;
+    var LINK_SEL = 'a[*|href],area[href]'; /* *| also catches SVG xlink:href */
+    try { document.createElement('a').matches(LINK_SEL); } catch (e) { LINK_SEL = 'a[href],area[href]'; }
+    /* A native control between the click and the link owns the click: in current engines these act without the link navigating... */
+    var CONTROL_KEEPS_CLICK = 'input[type=checkbox],input[type=radio],input[type=file],input[type=color],summary,label,video[controls],audio[controls]';
+    /* ...while these (buttons, text/number/date/range inputs, selects) would still navigate it, so the navigation is cancelled but nothing opens. */
+    var CONTROL_SEL = CONTROL_KEEPS_CLICK + ',button,input,select,textarea';
+    /* a label counts only when it labels something, a summary only as its details' first summary: otherwise the link still navigates */
+    var ownsClick = function (n) {
+      if (n.localName === 'label') return !!n.control;
+      if (n.localName !== 'summary') return true;
+      var p = n.parentNode;
+      return !!p && p.localName === 'details' && p.querySelector(':scope > summary') === n;
+    };
+    var hit = function (ev) {
+      var path = ev.composedPath ? ev.composedPath() : [ev.target];
+      var control = null;
+      for (var i = 0; i < path.length; i += 1) {
+        var n = path[i];
+        if (!n || n.nodeType !== 1 || !n.matches) continue;
+        if (n.matches(LINK_SEL)) return { a: n, control: control };
+        if (control == null && n.matches(CONTROL_SEL) && ownsClick(n)) control = n;
+      }
+      return null;
+    };
+    var follow = function (a, aux) {
+      var raw = String(a.getAttribute('href') || '').trim();
+      if (raw === '') return; /* SVG xlink-only anchors, empty href: cancelled above, inert here */
+      if (raw.charAt(0) === '#') {
+        if (aux || raw === '#') return; /* a middle click never scrolls; a bare "#" is the "script owns it" idiom: inert */
+        var id = raw.slice(1);
+        try { id = decodeURIComponent(id); } catch (e) {}
+        var t = document.getElementById(id) || document.getElementsByName(id)[0];
+        /* in-frame scroll only: a fragment navigation or scrollIntoView can also scroll the host's containers */
+        try {
+          if (t) window.scrollBy(0, t.getBoundingClientRect().top);
+          else if (id.toLowerCase() === 'top') window.scrollTo(0, 0);
+        } catch (e) {}
+        return;
+      }
+      var url = null;
+      try { url = new URL(raw, document.baseURI); } catch (e) { return; }
+      var own = false;
+      try { var base = new URL(document.baseURI); own = base.origin !== 'null' && url.protocol === base.protocol && url.origin === base.origin; } catch (e) {}
+      if (!own && url.protocol !== 'http:' && url.protocol !== 'https:') return;
+      if (own) {
+        if (aux || a.hasAttribute('download')) return; /* a same-origin download names no artboard (in compat mode the page shim saves it) */
+        var dir = compatPage ? (projectRoot !== null ? projectRoot : new URL('.', document.baseURI).pathname) : null;
+        if (dir !== null && url.pathname.indexOf(dir) !== 0) return; /* out of the project: not a page of it */
+        var rel = dir !== null ? url.pathname.slice(dir.length) : url.pathname.indexOf('/appifact/') === 0 ? url.pathname.slice(10) : url.pathname.slice(1);
+        try { rel = decodeURIComponent(rel); } catch (e) {}
+        try { P.postMessage(compatPage && /^#[0-9]{1,4}$/.test(url.hash) ? { __om_open: rel, __om_hash: url.hash } : { __om_open: rel }, '*'); } catch (e) {}
+        return;
+      }
+      try { P.postMessage({ __om_link: url.href }, '*'); } catch (e) {}
+    };
+    var onLink = function (ev) {
+      var aux = ev.type === 'auxclick';
+      if (aux && ev.button !== 1) return;
+      var h = hit(ev);
+      if (h == null) return;
+      var a = h.a;
+      /* text being edited around the click (asked of the nearest HTML element: SVG nodes have no isContentEditable) */
+      var host = ev.target;
+      while (host && host.isContentEditable === undefined) host = host.parentNode;
+      var editing = !!(host && host.isContentEditable);
+      /* untouched: a control that keeps its click (any control, for a middle click), and a middle click in text being edited (paste) */
+      if ((h.control != null && (aux || h.control.matches(CONTROL_KEEPS_CLICK))) || (aux && editing)) return;
+      var handled = false;
+      var cancel = ev.preventDefault;
+      var claim = function () { handled = true; cancel.call(ev); };
+      try {
+        Object.defineProperty(ev, 'preventDefault', { value: claim, writable: true, configurable: true });
+        Object.defineProperty(ev, 'defaultPrevented', { get: function () { return handled; }, configurable: true });
+        Object.defineProperty(ev, 'returnValue', { get: function () { return !handled; }, set: function (v) { if (v === false) claim(); }, configurable: true });
+      } catch (e) {}
+      cancel.call(ev);
+      /* cancelled, nothing opens: a control the link would navigate past, a link in text being edited,
+       * and a middle button arriving as 'click' (auxclick carries the one relay for it) */
+      if (h.control != null || editing || (!aux && ev.button === 1)) return;
+      setTimeout(function () { if (!handled) follow(a, aux); }, 0);
+    };
+    window.addEventListener('click', onLink, true);
+    window.addEventListener('auxclick', onLink, true);
+  } catch (e) {}
+  var serialise = function (v) {
+    try { return JSON.stringify(v); } catch (e) { return JSON.stringify(String(v)); }
+  };
+  window.addEventListener('message', function (e) {
+    if (e.source !== P) return;
+    var d = e.data;
+    if (!d || d.__om_eval !== 1) return;
+    var reply = function (p) {
+      p.__om_eval_r = 1;
+      p.id = d.id;
+      e.source.postMessage(p, '*');
+    };
+    try {
+      var r = (0, eval)(d.code);
+      if (r && typeof r.then === 'function') {
+        r.then(
+          function (v) { reply({ ok: 1, v: serialise(v) }); },
+          function (err) { reply({ ok: 0, e: String(err) }); }
+        );
+      } else {
+        reply({ ok: 1, v: serialise(r) });
+      }
+    } catch (err) {
+      reply({ ok: 0, e: String(err) });
+    }
+  });
+})();
+</script><script>
+(function () {
+  /* Viewport guard */
+  var doc = document;
+  var align = function (lo, hi, cLo, cHi, mode) {
+    if (mode === 'start') return lo - cLo;
+    if (mode === 'end') return hi - cHi;
+    if (mode === 'center') return (lo + hi) / 2 - (cLo + cHi) / 2;
+    if ((lo >= cLo && hi <= cHi) || (lo < cLo && hi > cHi)) return 0; /* fully visible, or covering */
+    /* center-if-needed centres only a fully hidden target; a partly visible one moves to the nearest edge */
+    if (mode === 'center-if-needed' && (hi <= cLo || lo >= cHi)) return (lo + hi) / 2 - (cLo + cHi) / 2;
+    var fits = hi - lo <= cHi - cLo;
+    if (lo < cLo) return fits ? lo - cLo : hi - cHi;
+    return fits ? hi - cHi : lo - cLo;
+  };
+  var styleOf = function (n) {
+    try { return getComputedStyle(n); } catch (e) { return null; }
+  };
+  var set = function (v) { return !!v && v !== 'none' && v !== 'auto'; };
+  /* transform-like properties make a box the containing block of its absolute AND fixed descendants */
+  var containsFixed = function (cs) {
+    return set(cs.transform) || set(cs.translate) || set(cs.rotate) || set(cs.scale) || set(cs.perspective) || set(cs.filter) ||
+      set(cs.backdropFilter) || cs.transformStyle === 'preserve-3d' || /layout|paint|strict|content/.test(cs.contain || '') ||
+      /(^|,)\s*(transform|translate|rotate|scale|perspective|filter|backdrop-filter)\s*(,|$)/.test(cs.willChange || '');
+  };
+  var scrolls = function (n, cs) {
+    var v = cs.overflow + ' ' + cs.overflowX + ' ' + cs.overflowY;
+    return /auto|scroll|hidden/.test(v) && (n.scrollHeight > n.clientHeight || n.scrollWidth > n.clientWidth);
+  };
+  var up = function (n) {
+    if (n.assignedSlot) return n.assignedSlot;
+    var p = n.parentNode;
+    return p && p.nodeType === 11 && p.host ? p.host : p;
+  };
+  /* Reveal el inside this document only: each scrolling ancestor, then the frame's own viewport. Never the parent's. */
+  var reveal = function (el, block, inline, smooth) {
+    if (!el || typeof el.getClientRects !== 'function' || el.getClientRects().length === 0) return; /* no box: nothing to reveal */
+    var d = el.ownerDocument || doc;
+    var root = d.scrollingElement || d.documentElement;
+    /* Only boxes in el's containing-block chain can move it: an absolute box skips static ancestors up to a positioned or
+     * transform-like one; a fixed box skips everything up to a transform-like one (none: not even the viewport moves it). */
+    var es = styleOf(el);
+    var pos = (es && es.position) || 'static';
+    var seekAbs = pos === 'absolute', seekFixed = pos === 'fixed';
+    for (var n = up(el); n && n !== root && n.nodeType === 1; n = up(n)) {
+      var cs = styleOf(n);
+      if (!cs) continue;
+      pos = cs.position || 'static';
+      if (seekFixed ? !containsFixed(cs) : seekAbs && pos === 'static' && !containsFixed(cs)) continue;
+      seekAbs = pos === 'absolute';
+      seekFixed = pos === 'fixed';
+      if (!scrolls(n, cs)) continue;
+      var r = el.getBoundingClientRect();
+      var c = n.getBoundingClientRect();
+      var cTop = c.top + n.clientTop, cLeft = c.left + n.clientLeft;
+      var dy = align(r.top, r.bottom, cTop, cTop + n.clientHeight, block);
+      var dx = align(r.left, r.right, cLeft, cLeft + n.clientWidth, inline);
+      if (!dx && !dy) continue;
+      /* instant even under CSS scroll-behavior:smooth: the next step must read the settled position ('smooth' applies to the viewport step) */
+      if (typeof n.scrollTo === 'function') n.scrollTo({ left: n.scrollLeft + dx, top: n.scrollTop + dy, behavior: 'instant' });
+      else { n.scrollTop += dy; n.scrollLeft += dx; }
+    }
+    if (seekFixed) return;
+    var rr = el.getBoundingClientRect();
+    var vw = (root && root.clientWidth) || window.innerWidth, vh = (root && root.clientHeight) || window.innerHeight;
+    var wy = align(rr.top, rr.bottom, 0, vh, block);
+    var wx = align(rr.left, rr.right, 0, vw, inline);
+    if (wx || wy) window.scrollBy({ left: wx, top: wy, behavior: smooth ? 'smooth' : 'auto' });
+  };
+  var deepActive = function (el, d) {
+    var r = el.getRootNode ? el.getRootNode() : d; /* el's own (possibly closed) shadow root sees its activeElement */
+    var a = (r && 'activeElement' in r ? r : d).activeElement;
+    while (a && a.shadowRoot && a.shadowRoot.activeElement) a = a.shadowRoot.activeElement;
+    return a;
+  };
+  var within = function (a, el) {
+    for (var n = a; n; n = up(n)) if (n === el) return true;
+    return false;
+  };
+  var guardFocus = function (proto) {
+    if (!proto || typeof proto.focus !== 'function') return;
+    var native = proto.focus;
+    /* reveal only what actually took focus (el, or its delegate inside it), and only if focus moved - as the native does */
+    proto.focus = function focus(o) {
+      var d = this.ownerDocument || doc;
+      var before = deepActive(this, d);
+      native.call(this, o && o.focusVisible !== undefined ? { preventScroll: true, focusVisible: o.focusVisible } : { preventScroll: true });
+      if (o && o.preventScroll) return;
+      try { var a = deepActive(this, d); if (a && a !== before && within(a, this)) reveal(a, 'center-if-needed', 'center-if-needed', false); } catch (e) {}
+    };
+  };
+  guardFocus(window.HTMLElement && window.HTMLElement.prototype);
+  guardFocus(window.SVGElement && window.SVGElement.prototype);
+  guardFocus(window.MathMLElement && window.MathMLElement.prototype);
+  var E = window.Element;
+  if (E) {
+    E.prototype.scrollIntoView = function scrollIntoView(arg) {
+      var dict = arg == null || typeof arg === 'object';
+      var o = (dict && arg) || {};
+      var block = dict ? o.block || 'start' : arg ? 'start' : 'end';
+      try { reveal(this, block, o.inline || 'nearest', o.behavior === 'smooth'); } catch (e) {}
+    };
+    E.prototype.scrollIntoViewIfNeeded = function scrollIntoViewIfNeeded(center) {
+      var mode = center === undefined || center ? 'center-if-needed' : 'nearest';
+      try { reveal(this, mode, mode, false); } catch (e) {}
+    };
+  }
+})();
+</script><script>
+(function () {
+  var PREFIX = 'page:';
+  var memory = function () {
+    var m = Object.create(null);
+    return {
+      getItem: function (k) { return k in m ? m[k] : null; },
+      setItem: function (k, v) { m[k] = String(v); },
+      removeItem: function (k) { delete m[k]; },
+      key: function (i) { var ks = Object.keys(m); i = Math.floor(Number(i)) || 0; return i >= 0 && i < ks.length ? ks[i] : null; },
+      get length() { return Object.keys(m).length; }
+    };
+  };
+  var scope = function (real) {
+    var keys = function () {
+      var out = [];
+      for (var i = 0, n = real.length; i < n; i++) { var k = real.key(i); if (k !== null && k.indexOf(PREFIX) === 0) out.push(k.slice(PREFIX.length)); }
+      return out;
+    };
+    var api = {
+      getItem: function (k) { return real.getItem(PREFIX + String(k)); },
+      setItem: function (k, v) { real.setItem(PREFIX + String(k), String(v)); },
+      removeItem: function (k) { real.removeItem(PREFIX + String(k)); },
+      clear: function () { keys().forEach(function (k) { real.removeItem(PREFIX + k); }); },
+      key: function (i) { var ks = keys(); i = Math.floor(Number(i)) || 0; return i >= 0 && i < ks.length ? ks[i] : null; },
+      get length() { return keys().length; }
+    };
+    if (typeof Proxy !== 'function') return api;
+    var own = function (p) { return typeof p === 'string' && !(p in api) && p !== 'length'; };
+    return new Proxy(api, {
+      get: function (t, p) { if (p === 'length') return keys().length; if (p in api) return api[p]; if (!own(p)) return undefined; var v = real.getItem(PREFIX + p); return v === null ? undefined : v; },
+      set: function (t, p, v) { if (own(p)) real.setItem(PREFIX + p, String(v)); return true; },
+      deleteProperty: function (t, p) { if (own(p)) real.removeItem(PREFIX + p); return true; },
+      has: function (t, p) { return p in api || p === 'length' || (own(p) && real.getItem(PREFIX + p) !== null); },
+      ownKeys: function () { return keys(); },
+      getOwnPropertyDescriptor: function (t, p) { if (!own(p)) return undefined; var v = real.getItem(PREFIX + p); return v === null ? undefined : { value: v, writable: true, enumerable: true, configurable: true }; }
+    });
+  };
+  var natives = {};
+  var views = {};
+  ['localStorage', 'sessionStorage'].forEach(function (n) {
+    var real = null;
+    try { real = window[n]; } catch (e) { real = null; }
+    if (!real || typeof real.getItem !== 'function') real = memory();
+    natives[n] = real;
+    views[n] = scope(real);
+    try { Object.defineProperty(window, n, { value: views[n], configurable: true }); } catch (e) {}
+  });
+  /* 'storage' events, the same view: a write to the namespace (another artboard, another tab) reaches the page's listeners
+   * with its own key and the scoped store as storageArea; anything else on this origin (the editor's stash and prefs, a key
+   * outside the namespace) is not the page's and does not reach them. Registered first and capturing, so it runs before any
+   * listener the page adds, onstorage included. */
+  try {
+    window.addEventListener('storage', function (e) {
+      if (!e.isTrusted) return; /* one the page dispatched itself (a same-window sync idiom): its own traffic, already in its own terms */
+      var k = e.key;
+      var area = e.storageArea === natives.localStorage ? views.localStorage : e.storageArea === natives.sessionStorage ? views.sessionStorage : null;
+      if (k === null || (typeof k === 'string' && k.indexOf(PREFIX) === 0)) { /* a namespace key, or a whole-store clear (null): the page's, in its terms */
+        try { Object.defineProperties(e, { key: { value: k === null ? null : k.slice(PREFIX.length), configurable: true }, storageArea: { value: area, configurable: true } }); } catch (x) { e.stopImmediatePropagation(); }
+        return;
+      }
+      e.stopImmediatePropagation();
+    }, true);
+  } catch (e) {}
+})();
+</script>
+<html lang="da">
+<head><meta charset="utf-8"><title>Tesla · lader</title><base href="/appifact/Tesla-Lader.dc.html">
+<script>window.__dcFiles = {"Tesla-Lader.dc.html":"\u003c!doctype html>\n\u003chtml lang=\"da\">\n\u003chead>\u003cmeta charset=\"utf-8\">\u003ctitle>Tesla · lader\u003c/title>\u003cscript src=\"./support.js\">\u003c/script>\u003c/head>\n\u003cbody>\n\u003cx-dc>\n\u003chelmet>\u003cstyle>body{margin:0}\u003c/style>\u003c/helmet>\n\u003cdiv style=\"width: 1280px; height: 800px\">\u003cdc-import name=\"A-Tesla\" state=\"lader\" hint-size=\"1280px,800px\">\u003c/dc-import>\u003c/div>\n\u003c/x-dc>\n\u003cscript type=\"text/x-dc\" data-dc-script data-props='{\"$preview\":{\"width\":1280,\"height\":800}}'>\nclass Component extends DCLogic { renderVals() { return {}; } }\n\u003c/script>\n\u003c/body>\n\u003c/html>\n"}; window.__dcRootPath = "Tesla-Lader.dc.html";</script>
+<script src="blob:https://e493a491-a96a-48a6-bbc5-69d360150aeb.frame.claudeusercontent.com/56277a3f-8b7d-4b7d-add7-146ceff6eb2f"></script>
+<script src="blob:https://e493a491-a96a-48a6-bbc5-69d360150aeb.frame.claudeusercontent.com/cfd8afec-0451-462d-9c68-88a670a2c668"></script>
+<script src="blob:https://e493a491-a96a-48a6-bbc5-69d360150aeb.frame.claudeusercontent.com/dba91c0d-a367-46e9-84d6-144f22927af4"></script>
+<script>(function (k, f) { for (var i = 0; i < k.length; i += 1) { if (!Object.prototype.hasOwnProperty.call(f, k[i])) { try { window.parent.postMessage({ __dc_boot_failed: 1, e: "the artboard runtime did not load" }, '*'); } catch (e) {} return; } } })(["A-Tesla.dc.html","A-Player.dc.html","A-Topbar.dc.html"], window.__dcFiles || {});</script>
+<script>
+(function () {
+  var real = window.fetch.bind(window);
+  var ROOT = typeof window.__dcProjectRoot === 'string' ? window.__dcProjectRoot : null;
+  var IMAGE_MIME = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif', bmp: 'image/bmp', svg: 'image/svg+xml' };
+  var TEXT_MIME = { html: 'text/html', css: 'text/css', js: 'text/javascript', mjs: 'text/javascript', json: 'application/json' };
+  /* The requested URL as a project key: relative to the root file's folder ('../x' too, and the
+   * runtime's encoded '..%2FName.dc.html'), or absolute under <base> (/appifact/...) - resolveRef in preview.ts. */
+  var norm = function (u) {
+    if (u && typeof u === 'object' && typeof u.url === 'string') u = u.url;
+    u = String(u).split('#')[0].split('?')[0];
+    // dc-runtime boot() re-fetches location.href to re-adopt its own raw
+    // bytes (camelCase attr repair). In a srcdoc document that URL is
+    // about:srcdoc, which fetch() can't load - serve the root source from
+    // the map instead, keeping the fidelity pass working.
+    if (u === 'about:srcdoc' || u === String(location.href)) {
+      return window.__dcRootPath || u;
+    }
+    var dir = String(window.__dcRootPath || '').replace(/[^/]*$/, '');
+    /* an absolute URL counts only on this document's own base origin, under /appifact/ or under the stamped project folder */
+    if (/^[a-z][a-z0-9+.-]*:/i.test(u) || u.slice(0, 2) === '//') {
+      try { var abs = new URL(u, document.baseURI), base = new URL(document.baseURI); if (abs.origin !== base.origin || (abs.pathname.indexOf('/appifact/') !== 0 && (ROOT === null || abs.pathname.indexOf(ROOT) !== 0))) return null; u = abs.pathname; } catch (e) { return null; }
+    }
+    /* with the published base, a path under the project folder is read as the same path under /appifact/ */
+    if (ROOT !== null && u.indexOf(ROOT) === 0) u = '/appifact/' + u.slice(ROOT.length);
+    if (u.indexOf('/appifact/') === 0) { u = u.slice(10); dir = ''; }
+    else if (u.charAt(0) === '/') dir = '';
+    try { u = decodeURIComponent(u); } catch (e) {}
+    var out = [];
+    var segs = (dir + u).split('/');
+    for (var s = 0; s < segs.length; s += 1) {
+      if (segs[s] === '' || segs[s] === '.') continue;
+      if (segs[s] === '..') out.pop(); else out.push(segs[s]);
+    }
+    return out.join('/');
+  };
+  /* the stored file a URL names, read live from the map: {key, mime, text, bytes (images)} or null */
+  var lookup = function (url) {
+    var key = norm(url);
+    var files = window.__dcFiles || {};
+    if (key === null || !Object.prototype.hasOwnProperty.call(files, key)) return null;
+    var ext = key.slice(key.lastIndexOf('.') + 1).toLowerCase();
+    var img = IMAGE_MIME[ext];
+    var text = String(files[key]);
+    var bytes = null;
+    if (img) { try { var bin = atob(text); bytes = new Uint8Array(bin.length); for (var b = 0; b < bin.length; b += 1) bytes[b] = bin.charCodeAt(b); } catch (e) { img = ''; bytes = null; } }
+    return { key: key, mime: img || TEXT_MIME[ext] || 'text/plain', text: text, bytes: bytes };
+  };
+  window.__dcLookup = lookup;
+  window.fetch = function (url, opts) {
+    var f = lookup(url);
+    if (f) return Promise.resolve(new Response(f.bytes || f.text, { status: 200, headers: { 'Content-Type': f.mime } }));
+    if (ROOT === null) return real(url, opts);
+    /* a document with the published base reports to the editor a file under the project folder that was answered 403, 404 or 410 (ADDRESS_REFUSED) */
+    return real(url, opts).then(function (r) { if (r && (r.status === 403 || r.status === 404 || r.status === 410) && String(r.url).indexOf(window.origin + ROOT) === 0) { try { window.parent.postMessage({ __dc_address_refused: 1, u: r.url }, '*'); } catch (e) {} } return r; });
+  };
+})();
+
+(function () {
+  var X = window.XMLHttpRequest, lookup = window.__dcLookup;
+  if (!X || !X.prototype || typeof lookup !== 'function') return;
+  var P = X.prototype, realOpen = P.open, realSend = P.send, realHeader = P.setRequestHeader, realMime = P.overrideMimeType, realAbort = P.abort;
+  var SHADOWED = ['readyState', 'status', 'statusText', 'response', 'responseText', 'responseXML', 'responseURL', 'getResponseHeader', 'getAllResponseHeaders'];
+  var set = function (x, k, v) { try { Object.defineProperty(x, k, { value: v, configurable: true, writable: true }); } catch (e) {} };
+  /* a reused object gets its native accessors back before each open */
+  var clear = function (x) { for (var i = 0; i < SHADOWED.length; i += 1) { try { delete x[SHADOWED[i]]; } catch (e) {} } };
+  var fire = function (x, type) { try { x.dispatchEvent(new Event(type)); } catch (e) {} };
+  P.open = function (method, url) {
+    clear(this);
+    var f = /^get$/i.test(String(method)) ? lookup(url) : null;
+    if (!f) { this.__dcHit = null; return realOpen.apply(this, arguments); }
+    /* a reused object: quiesce any native request still in flight, as a native open would */
+    if (this.__dcHit === null) { try { realAbort.apply(this); } catch (e) {} }
+    this.__dcHit = { f: f, async: arguments.length < 3 || !!arguments[2] };
+    set(this, 'readyState', 1);
+    set(this, 'status', 0);
+    fire(this, 'readystatechange');
+  };
+  P.setRequestHeader = function () { if (!this.__dcHit) return realHeader.apply(this, arguments); };
+  if (realMime) P.overrideMimeType = function () { if (!this.__dcHit) return realMime.apply(this, arguments); };
+  P.abort = function () {
+    var hit = this.__dcHit;
+    if (!hit) return realAbort.apply(this, arguments);
+    this.__dcHit = null;
+    if (hit.sent && !hit.done) { set(this, 'readyState', 4); fire(this, 'readystatechange'); fire(this, 'abort'); fire(this, 'loadend'); }
+    clear(this);
+  };
+  P.send = function () {
+    var hit = this.__dcHit;
+    if (!hit) return realSend.apply(this, arguments);
+    if (hit.sent) return;
+    hit.sent = true;
+    var x = this, f = hit.f, rt = '';
+    try { rt = String(x.responseType || ''); } catch (e) {}
+    var done = function () {
+      if (x.__dcHit !== hit) return; /* aborted or re-opened */
+      /* as text: the file's characters (an image's bytes decoded, as fetch().text() gives), never the map's base64 */
+      var text = f.bytes ? new TextDecoder().decode(f.bytes) : f.text;
+      var body = text;
+      try {
+        if (rt === 'arraybuffer') body = f.bytes ? f.bytes.buffer.slice(0) : new TextEncoder().encode(f.text).buffer;
+        else if (rt === 'blob') body = new Blob([f.bytes || f.text], { type: f.mime });
+        else if (rt === 'json') body = JSON.parse(text);
+        else if (rt === 'document') body = new DOMParser().parseFromString(text, f.mime === 'text/html' ? 'text/html' : f.mime === 'image/svg+xml' ? 'image/svg+xml' : 'application/xml');
+      } catch (e) { body = null; }
+      set(x, 'status', 200);
+      set(x, 'statusText', 'OK');
+      try { set(x, 'responseURL', String(new URL('/appifact/' + f.key.split('/').map(encodeURIComponent).join('/'), document.baseURI))); } catch (e) {}
+      set(x, 'response', body);
+      if (rt === '' || rt === 'text') set(x, 'responseText', text);
+      if (rt === 'document') set(x, 'responseXML', body);
+      x.getResponseHeader = function (n) { return /^content-type$/i.test(String(n)) ? f.mime : null; };
+      x.getAllResponseHeaders = function () { return 'content-type: ' + f.mime + '\r\n'; };
+      set(x, 'readyState', 4);
+      hit.done = true;
+      fire(x, 'readystatechange');
+      fire(x, 'load');
+      fire(x, 'loadend');
+    };
+    if (hit.async) setTimeout(done, 0); else done();
+  };
+})();
+
+window.__dcRun = (function () {
+  var has = Object.prototype.hasOwnProperty;
+  var fail = function (key) { try { window.parent.postMessage({ __dc_boot_failed: 1, e: 'a script of this design did not load: ' + key }, '*'); } catch (e) {} };
+  /* a blob: URL that did not load: a file whose text the frame has still runs (inline, at that point); only a URL-only part fails the boot */
+  var recover = function (key, attrs) { var files = window.__dcFiles || {}; if (!has.call(files, key)) return fail(key); var s = document.createElement('script'); for (var a in attrs) { if (has.call(attrs, a) && !/^(async|defer|integrity|crossorigin)$/i.test(a)) { try { s.setAttribute(a, String(attrs[a])); } catch (e) {} } } s.text = String(files[key]) + '\n//# sourceURL=/appifact/' + encodeURI(key); (document.head || document.documentElement).appendChild(s); };
+  /* the parser's tip: a script the parser itself is executing right now (no node follows it anywhere up the tree) -
+   * the only place a document.write lands in place rather than re-opening the document */
+  var atTip = function (el) { for (var n = el; n; n = n.parentNode) { if (n.nextSibling) return false; } return true; };
+  return function (key, attrs) {
+    var files = window.__dcFiles || {}, urls = window.__dcPartUrls || {};
+    var url = has.call(urls, key) ? urls[key] : null;
+    if (url === null && !has.call(files, key)) return;
+    attrs = attrs || {};
+    /* defer/async: after the parse, in document order (as every deferred script here has always run) */
+    var later = has.call(attrs, 'defer') || has.call(attrs, 'async');
+    var cur = document.currentScript;
+    if (document.readyState === 'loading' && cur && atTip(cur)) {
+      /* written where the tag stood, this IS the tag the page wrote: parser-blocking (or natively deferred), same
+       * attributes; a part loads by the page URL every artboard shares (one compile), any other file by a URL of its own */
+      if (url === null && later) { try { url = URL.createObjectURL(new Blob([String(files[key]), '\n//# sourceURL=/appifact/' + encodeURI(key)], { type: 'text/javascript' })); } catch (e) { url = null; } }
+      if (url !== null) {
+        var h = '<' + 'script src="' + url + '"' + (later ? ' defer' : '');
+        for (var n in attrs) { if (has.call(attrs, n) && /^[\w:.-]+$/.test(n) && !/^(async|defer|integrity|crossorigin)$/i.test(n)) h += ' ' + n + '="' + String(attrs[n]).replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '"'; }
+        try {
+          document.write(h + '></' + 'script>');
+          var w = document.scripts[document.scripts.length - 1]; /* the tag just written (the parser inserts it before write returns) */
+          if (w && w !== cur && w.getAttribute('src') === url) { w.addEventListener('error', function () { recover(key, attrs); }); return; }
+          /* the write did not land (a Trusted Types default policy rewrote it, say): load it the other way rather than not at all */
+        } catch (e) {}
+      }
+    }
+    var run = function () {
+      var s = document.createElement('script');
+      for (var a in attrs) { if (has.call(attrs, a) && (url === null || !/^(async|defer|integrity|crossorigin)$/i.test(a))) { try { s.setAttribute(a, String(attrs[a])); } catch (e) {} } }
+      if (has.call(files, key)) s.text = String(files[key]) + '\n//# sourceURL=/appifact/' + encodeURI(key);
+      else { s.async = false; s.src = url; s.addEventListener('error', function () { recover(key, attrs); }); } /* no text on hand (not expected: the bootloader hands every part's text): by URL, in insertion order */
+      /* where the tag stood (document.currentScript keeps its position and data- attributes), else the head */
+      var c = document.currentScript;
+      if (c && c.parentNode) c.parentNode.insertBefore(s, c); else (document.head || document.documentElement).appendChild(s);
+      /* an external script fires 'load' once it has run; the inline stand-in has run by now, so fire it for onload= handlers */
+      if (has.call(files, key)) { try { s.dispatchEvent(new Event('load')); } catch (e) {} }
+    };
+    if (later && document.readyState === 'loading') document.addEventListener('readystatechange', function g() { document.removeEventListener('readystatechange', g); run(); });
+    else run();
+  };
+})();
+
+(function () {
+  var files = window.__dcFiles || {};
+  var blobs = window.__dcPartBlobs || {}, urls = window.__dcPartUrls || {}; /* two-phase boot: a part keeps the page's URL (shared), else its Blob */
+  var imports = {}, has = Object.prototype.hasOwnProperty;
+  var n = 0;
+  for (var k in files) {
+    if (!has.call(files, k) || !/\.m?js$/i.test(k) || /(^|\/)support\.js$/.test(k)) continue;
+    var url;
+    if (has.call(urls, k)) url = urls[k];
+    else { try { url = URL.createObjectURL(blobs[k] instanceof Blob ? blobs[k] : new Blob([String(files[k])], { type: 'text/javascript' })); } catch (e) { continue; } }
+    imports['/appifact/' + k.split('/').map(encodeURIComponent).join('/')] = url;
+    imports[k] = url;
+    n += 1;
+  }
+  if (n === 0) return;
+  var s = document.createElement('script');
+  s.type = 'importmap';
+  s.textContent = JSON.stringify({ imports: imports });
+  (document.head || document.documentElement).appendChild(s);
+})();
+</script>
+<script>
+(function (variants) {
+  var seen = Object.create(null);
+  var add = function (href) {
+    variants(href).forEach(function (v) {
+      if (seen[v]) return;
+      seen[v] = 1;
+      var l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = v;
+      l.setAttribute('data-font-variant', '');
+      l.onerror = function () { l.remove(); };
+      document.head.appendChild(l);
+    });
+  };
+  /* a complete statement only: url(...) closed, or a whole quoted string - a helmet <style> streams in mid-URL */
+  var IMPORT = /@import\s+(?:url\(\s*(?:"([^"]*)"|'([^']*)'|([^"')\s]+))\s*\)|"([^"]*)"|'([^']*)')/g;
+  var scan = function (n) {
+    if (n.tagName === 'LINK' && !n.hasAttribute('data-font-variant') && /\bstylesheet\b/i.test(n.rel)) { seen[n.href] = 1; add(n.href); }
+    else if (n.tagName === 'STYLE') { var css = (n.textContent || '').replace(/\/\*[\s\S]*?\*\//g, ''), m; while ((m = IMPORT.exec(css))) add((m[1] || m[2] || m[3] || m[4] || m[5] || '').trim()); }
+  };
+  var rescan = function () { Array.prototype.forEach.call(document.head.children, scan); };
+  /* head children as they arrive, and a mounted <style> whose text is replaced in place (the helmet runtime streams it) */
+  new MutationObserver(function (rs) { rs.forEach(function (r) { var t = r.target.nodeType === 3 ? r.target.parentNode : r.target; if (t && t.tagName === 'STYLE') scan(t); else if (t === document.head) r.addedNodes.forEach(scan); }); }).observe(document.head, { childList: true, subtree: true, characterData: true });
+  document.addEventListener('DOMContentLoaded', rescan);
+  rescan();
+})(function (h) { return (function X5t(e,t){let n="https://fonts.googleapis.com/css2?";if(typeof e!="string"||e.length>1024||e.slice(0,n.length)!==n)return[];let o=e.slice(n.length).split("&");if(o.some(s=>s.slice(0,5)==="text="))return[];let r=[];for(let s of o){if(s.slice(0,7)!=="family=")continue;let i=r.length+16,a=s.slice(7).replace(/%20| /g,"+"),l=a.indexOf(":"),d=l<0?a:a.slice(0,l);if(!/^[A-Za-z0-9][A-Za-z0-9+._-]{0,99}$/.test(d))continue;let c=[["0","400"]];if(l>=0){let h=a.indexOf("@",l),g=a.slice(l+1,h<0?l:h).split(","),m=g.indexOf("ital"),b=g.indexOf("wght");if(h<0||g.some(w=>w!=="ital"&&w!=="wght"))continue;c=[];for(let w of a.slice(h+1).split(";")){let v=w.split(","),x=[m<0?"0":v[m]??"",b<0?"400":v[b]??""];if(v.length!==g.length||!/^[01]$/.test(x[0])||!/^[1-9]\d{0,3}(?:\.\.[1-9]\d{0,3})?$/.test(x[1])){c=[];break}c.push(x)}if(c.length===0)continue}let u=c.map(h=>h[0]+","+h[1]),f=t!==void 0&&Object.prototype.hasOwnProperty.call(t,d.replace(/\+/g," ").toLowerCase())?t[d.replace(/\+/g," ").toLowerCase()]:void 0,p;if(f!==void 0){let h=(g,m)=>c.some(b=>b[0]===g&&m>=Number(b[1].split("..")[0])&&m<=Number(b[1].split("..").pop()));p=[];for(let g of f.italic?["0","1"]:["0"]){if(f.wght===void 0){for(let b of f.statics??[])h(g,b)||p.push(g+","+String(b));continue}let m=0;for(let b=f.wght[0];b<=f.wght[1]+100;b+=100){let w=b<=f.wght[1]&&!h(g,b);w&&m===0&&(m=b),!w&&m!==0&&(p.push(g+","+String(m)+(b-100>m?".."+String(b-100):"")),m=0)}}}else{let h=m=>Number(m[1].split("..").pop())>=600,g=c.filter(m=>m[0]==="0");p=g.map(m=>"1,"+m[1]).concat(g.some(h)?[]:["0,700"],c.some(h)?[]:["1,700"])}for(let h of p){let g=n+"family="+d+":ital,wght@"+h+"&display=swap";u.indexOf(h)<0&&r.indexOf(g)<0&&r.length<i&&r.push(g)}}return r})(h, {"inter":{"wght":[100,900],"italic":true},"roboto":{"wght":[100,900],"italic":true},"open sans":{"wght":[300,800],"italic":true},"lato":{"statics":[100,300,400,700,900],"italic":true},"montserrat":{"wght":[100,900],"italic":true},"poppins":{"statics":[100,200,300,400,500,600,700,800,900],"italic":true},"raleway":{"wght":[100,900],"italic":true},"nunito":{"wght":[200,1000],"italic":true},"playfair display":{"wght":[400,900],"italic":true},"merriweather":{"wght":[300,900],"italic":true},"work sans":{"wght":[100,900],"italic":true},"dm sans":{"wght":[100,1000],"italic":true},"manrope":{"wght":[200,800],"italic":false},"space grotesk":{"wght":[300,700],"italic":false},"lora":{"wght":[400,700],"italic":true},"bebas neue":{"statics":[400],"italic":false},"caveat":{"wght":[400,700],"italic":false}}); });</script>
+<script src="/_f/1794218200-0e68/artifact-type/dc-runtime.js"></script>
+<script>(function (s) { if (!window.React || !window.ReactDOM || typeof window.__dcUpdate !== 'function') { try { s = s && s.previousElementSibling; window.parent.postMessage({ __dc_boot_failed: 1, e: 'the artboard runtime did not load', u: s && s.getAttribute('src') }, '*'); } catch (e) {} } })(document.currentScript);</script></head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div style="width: 1280px; height: 800px"><dc-import name="A-Tesla" state="lader" hint-size="1280px,800px"></dc-import></div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

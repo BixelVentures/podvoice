@@ -14,7 +14,7 @@ from urllib.parse import parse_qs, unquote, urlsplit
 HERE = Path(__file__).resolve().parent
 RENDERER = 'podvoice/gatekeeper/static/podview'
 BASELINE = '5cf897a4'
-DEFAULT_REPO = next(parent for parent in HERE.parents if (parent / '.git').exists())
+DEFAULT_REPO = Path.home() / 'Developer/podvoice'
 PREVIEW_PAGES = {'/index.html', '/library.html', '/setup.html'}
 CSP = (
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
@@ -67,6 +67,8 @@ def handler_for(source, revision):
                 if candidate:
                     additions += '<link rel="stylesheet" href="/comparison/candidate.css">'
                     additions += '<link rel="stylesheet" href="/comparison/component-parity.css">'
+                    additions += '<link rel="stylesheet" href="/comparison/claude-overview-player.css">'
+                    additions += '<link rel="stylesheet" href="/comparison/claude-controls-details.css">'
                     page = page.replace('<html lang="da">', '<html lang="da" data-design="candidate">', 1)
                 page = page.replace('</head>', additions + '</head>', 1)
                 return self.send_bytes(page.encode(), 'text/html; charset=utf-8')

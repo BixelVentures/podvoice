@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Tesla</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease, background .2s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.dt{position:absolute;border-radius:50%}
+.lbl{font:500 12px 'IBM Plex Mono', ui-monospace, monospace;letter-spacing:.08em;text-transform:uppercase;color:#6B6A66}
+.an-flow{animation:flow 2.2s linear infinite}
+.an-warm{animation:warm 2.6s ease-in-out infinite}
+@keyframes flow{0%{opacity:1}14%{opacity:.35}28%,100%{opacity:1}}
+@keyframes warm{0%,100%{transform:scale(.5);opacity:.4}50%{transform:scale(1.1);opacity:1}}
+.knob{transition:transform .28s cubic-bezier(.3,1.4,.5,1)}
+@media (prefers-reduced-motion: reduce){.an-flow,.an-warm{animation:none}.knob{transition:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Tesla" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; display: flex; flex-direction: column; gap: 16px">
+      <div class="cd" style="height: 372px; flex: none; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; background: {{s.surface}}">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <span class="lbl">{{s.mode}}</span>
+          <span class="lbl">Model Y</span>
+        </div>
+        <div style="margin-top: 8px; display: flex; align-items: flex-start; justify-content: space-between">
+          <div style="display: flex; flex-direction: column">
+            <span style="font-size: 40px; line-height: 1.05; font-weight: 800; letter-spacing: -0.03em; color: {{s.titleC}}">{{s.title}}</span>
+            <span style="margin-top: 6px; font-size: 17px; font-weight: 600; color: #3F3E3B">{{s.sub}}</span>
+          </div>
+          <span style="font: 500 84px/0.85 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.07em; color: {{s.bigC}}">{{s.big}}<span style="font-size: 36px"> %</span></span>
+        </div>
+        <div style="position: relative; margin: 18px auto 0; width: 600px; height: 186px" role="img" aria-label="{{s.carLabel}}">
+          <sc-for list="{{car}}" as="d" hint-placeholder-count="600">
+            <i class="dt {{d.cls}}" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{d.c}}; animation-delay: {{d.dl}}ms"></i>
+          </sc-for>
+        </div>
+        <sc-if value="{{s.notice}}" hint-placeholder-val="{{ false }}">
+          <span style="margin-top: auto; align-self: flex-start; padding: 7px 11px; border-radius: 10px; background: rgba(23,23,26,.07); font-size: 14px; font-weight: 600; color: #3F3E3B">{{s.notice}}</span>
+        </sc-if>
+        <sc-if value="{{s.metricsOn}}" hint-placeholder-val="{{ true }}">
+          <div style="margin-top: auto; display: flex; gap: 36px">
+            <sc-for list="{{s.metrics}}" as="m" hint-placeholder-count="3">
+              <div style="display: flex; align-items: baseline; gap: 8px">
+                <span style="font: 500 22px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.04em">{{m.v}}</span>
+                <span style="font-size: 13px; color: #5F5E5A">{{m.k}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: 308px; flex: none">
+        <div class="cd" style="padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 18px; font-weight: 700">Adgang</span><span style="font-size: 14px; font-weight: 600; color: #3F3E3B">{{s.lock}}</span></div>
+          <svg width="64" height="64" viewBox="0 0 56 56" fill="none" aria-hidden="true" style="margin: 6px 0"><rect x="10" y="24" width="36" height="26" rx="6" fill="#17171A"/><path d="M18 24v-6a10 10 0 0 1 20 0v6" stroke="#17171A" stroke-width="4"/><circle cx="28" cy="36" r="3" fill="#F7F6F3"/></svg>
+          <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
+            <button class="btn" style="height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; font: 600 16px 'Schibsted Grotesk', system-ui, sans-serif">Lås op</button>
+            <button class="btn" style="height: 56px; border-radius: 999px; background: #EFEDE8; color: #17171A; font: 600 16px 'Schibsted Grotesk', system-ui, sans-serif">Åbn bagagerum</button>
+          </div>
+        </div>
+        <div class="cd" style="padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; justify-content: space-between; align-items: center">
+            <div style="display: flex; flex-direction: column"><span style="font-size: 18px; font-weight: 700">Klima</span><span style="font-size: 13px; color: #5F5E5A">{{climateLabel}}</span></div>
+            <button class="btn" role="switch" aria-checked="{{climateAria}}" aria-label="Klima" onClick="{{toggle}}" style="position: relative; width: 80px; height: 44px; border-radius: 999px; background: {{swBg}}">
+              <span class="knob" style="position: absolute; left: 4px; top: 4px; width: 34px; height: 34px; border-radius: 10px; background: #F7F6F3; box-shadow: 0 3px 0 rgba(23,23,26,.25); transform: translateX({{knobX}}px)"></span>
+            </button>
+          </div>
+          <div style="display: grid; grid-template-columns: 48px 1fr 48px; align-items: center; gap: 6px; padding: 3px; border-radius: 15px; background: #E9E7E2">
+            <button class="btn" aria-label="Sænk temperatur" onClick="{{down}}" style="height: 44px; border-radius: 999px; background: #F7F6F3; font: 500 20px 'IBM Plex Mono', monospace">−</button>
+            <span style="text-align: center; font: 500 24px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.04em; color: {{tempC}}">{{temp}} °C</span>
+            <button class="btn" aria-label="Hæv temperatur" onClick="{{up}}" style="height: 44px; border-radius: 999px; background: #F7F6F3; font: 500 20px 'IBM Plex Mono', monospace">+</button>
+          </div>
+          <sc-for list="{{seats}}" as="r" hint-placeholder-count="2">
+            <div style="display: grid; grid-template-columns: 76px 1fr; align-items: center; gap: 8px">
+              <span style="font-size: 13px; color: #5F5E5A">{{r.k}}</span>
+              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 12px; background: #E9E7E2">
+                <sc-for list="{{r.opts}}" as="o" hint-placeholder-count="4">
+                  <button class="btn" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 44px; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; font: 600 13px 'Schibsted Grotesk', sans-serif">{{o.l}}</button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+          <button class="btn" style="margin-top: auto; height: 44px; border-radius: 999px; background: #EFEDE8; color: #17171A; font: 600 15px 'Schibsted Grotesk', system-ui, sans-serif">Afrim ruder</button>
+        </div>
+      </div>
+    </div>
+    <dc-import name="A-Player" idle="{{ true }}" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"ukendt","options":["ukendt","lader","parkeret","klima"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const st = props.state || 'ukendt';
+    this.state = { climate: st === 'klima', temp: 21, seat: { f: st === 'klima' ? 3 : 0, p: 0 } };
+  }
+  inPoly(x, y, P) {
+    let c = false;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      if ((P[i][1] > y) !== (P[j][1] > y) && x < ((P[j][0] - P[i][0]) * (y - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+    }
+    return c;
+  }
+  renderVals() {
+    const st = this.props.state || 'ukendt';
+    // Roller fra Green-bilmodellen: batteryPercent, rangeKm, charging, powerKw, endsAt, locked, climate,
+    // temperatureC, defrost, driverSeat, passengerSeat, trunk. Modellen vækker aldrig bilen.
+    const S = {
+      ukendt: {
+        surface: '#E7EEE9', mode: 'Ældste observation 8. nov. · 17.09', title: 'Sidst kendt: Låst', titleC: '#3F3E3B', sub: '365 km rækkevidde · kabine 12,2 °C', big: '94',
+        bigC: '#5F5E5A', level: 0.94, fill: '#8C918D', empty: 'rgba(23,23,26,.08)', flow: false, warm: false,
+        lock: 'Sidst kendt: Låst', carLabel: 'Bil sidst kendt 94 procent', notice: 'Bilen sover. PodView vækker den aldrig, så værdierne er sidst kendte.', metrics: []
+      },
+      lader: {
+        surface: '#CDE8D8', mode: 'Tilsluttet', title: 'Lader', titleC: '#17442F', sub: '312 km rækkevidde', big: '72',
+        bigC: '#17442F', level: 0.72, fill: '#2F7A55', empty: 'rgba(23,23,26,.12)', flow: true, warm: false,
+        lock: 'Låst', carLabel: 'Bil fyldt 72 procent, lader',
+        metrics: [{ v: '11 kW', k: 'ladeeffekt' }, { v: '20.43', k: 'forventet færdig' }]
+      },
+      parkeret: {
+        surface: '#E4EFE8', mode: 'Ikke tilsluttet', title: 'Parkeret', titleC: '#17171A', sub: '286 km rækkevidde', big: '64',
+        bigC: '#17171A', level: 0.64, fill: '#5E6B63', empty: 'rgba(23,23,26,.10)', flow: false, warm: false,
+        lock: 'Låst', carLabel: 'Bil fyldt 64 procent, parkeret',
+        metrics: [{ v: 'Låst', k: 'adgang' }, { v: 'Slukket', k: 'klima' }]
+      },
+      klima: {
+        surface: '#CDE8D8', mode: 'Ikke tilsluttet', title: 'Klimaet kører', titleC: '#17442F', sub: 'Varmer kabinen til 21 °C', big: '64',
+        bigC: '#17442F', level: 0.64, fill: '#2F7A55', empty: 'rgba(23,23,26,.12)', flow: false, warm: true,
+        lock: 'Låst', carLabel: 'Bil fyldt 64 procent, klima kører',
+        metrics: [{ v: '14 °C', k: 'inde nu' }, { v: '21 °C', k: 'mål' }, { v: 'Høj', k: 'førersæde' }]
+      }
+    };
+    const s = { notice: '', ...(S[st] || S.ukendt) };
+    s.metricsOn = !s.notice;
+    // Bilen som prikfelt: karrosseriet fyldes op til det kendte batteriniveau; kabinen lever, når klimaet kører.
+    const k = 0.6;
+    const body = [[30, 300], [44, 236], [128, 208], [300, 124], [430, 92], [612, 90], [738, 122], [878, 190], [958, 212], [988, 258], [982, 300]];
+    const cabin = [[330, 136], [440, 108], [600, 106], [702, 134], [740, 186], [318, 186]];
+    const wheels = [[236, 300], [804, 300]];
+    const car = [];
+    for (let y = 80; y < 362; y += 15) {
+      for (let x = 20; x < 1000; x += 15) {
+        const near = wheels.some(([wx, wy]) => Math.hypot(x - wx, y - wy) < 70);
+        const tire = wheels.some(([wx, wy]) => { const r = Math.hypot(x - wx, y - wy); return r > 40 && r < 62; });
+        const inBody = this.inPoly(x, y, body) && !near;
+        const inCabin = this.inPoly(x, y, cabin);
+        let c = null, w = 6.5, cls = '', dl = 0;
+        if (tire) { c = '#17171A'; w = 6.5; }
+        else if (inCabin) {
+          if (s.warm) { c = '#FF7A5C'; cls = 'an-warm'; w = 6; dl = Math.round(-((x + y) % 300) * 8); }
+          else { c = 'rgba(23,23,26,.16)'; w = 3.5; }
+        } else if (inBody) {
+          const filled = (x - 30) / 958 <= s.level;
+          c = filled ? s.fill : s.empty;
+          w = filled ? 7 : 5.5;
+          if (filled && s.flow) { cls = 'an-flow'; dl = Math.round(x * 2.2); }
+        }
+        if (c) car.push({ x: ((x - 20) * k - w / 2).toFixed(1), y: ((y - 80) * k * 1.1 - w / 2).toFixed(1), w, c, cls, dl });
+      }
+    }
+    const on = this.state.climate;
+    const lv = ['Fra', 'Lav', 'Mellem', 'Høj'];
+    const seat = (key, label) => ({
+      k: label,
+      opts: lv.map((l, i) => {
+        const sel = this.state.seat[key] === i;
+        return { l, on: sel ? 'true' : 'false', bg: sel ? '#17171A' : 'transparent', fg: sel ? '#F7F6F3' : '#17171A',
+          pick: () => this.setState({ seat: { ...this.state.seat, [key]: i } }) };
+      })
+    });
+    return {
+      s, car,
+      climateLabel: on ? 'Tændt · ' + this.state.temp + ' °C' : (st === 'ukendt' ? 'Sidst kendt: Slukket' : 'Slukket'),
+      climateAria: on ? 'true' : 'false', swBg: on ? '#2F7A55' : '#D6D3CC', knobX: on ? 38 : 0,
+      temp: this.state.temp, tempC: on ? '#17171A' : '#8C8A85',
+      seats: [seat('f', 'Førersæde'), seat('p', 'Passager')],
+      toggle: () => this.setState({ climate: !this.state.climate }),
+      down: () => this.setState({ temp: Math.max(15, this.state.temp - 1) }),
+      up: () => this.setState({ temp: Math.min(28, this.state.temp + 1) })
+    };
+  }
+}
+</script>
+</body>
+</html>

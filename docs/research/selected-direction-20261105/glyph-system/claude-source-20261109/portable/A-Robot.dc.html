@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Robot</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease, background .2s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.dt{position:absolute;border-radius:50%}
+.lbl{font:500 12px 'IBM Plex Mono', ui-monospace, monospace;letter-spacing:.08em;text-transform:uppercase;color:#6B6A66}
+.an-in{animation:inward 2.4s ease-in-out infinite}
+@keyframes inward{0%,100%{transform:scale(.45);opacity:.45}50%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){.an-in{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Robotstøvsuger" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+
+    <div style="width: 844px; display: flex; flex-direction: column; gap: 16px">
+      <div class="cd" style="height: 232px; flex: none; padding: 24px 28px; box-sizing: border-box; display: flex; flex-direction: column; background: {{s.surface}}">
+        <div style="position: absolute; right: 0; top: 0; width: 380px; height: 232px; opacity: {{s.ringOp}}" aria-hidden="true">
+          <sc-for list="{{rings}}" as="d" hint-placeholder-count="300">
+            <i class="sq {{s.anim}}" style="position: absolute; border-radius: 1px; left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{s.ring}}; animation-delay: {{d.dl}}ms"></i>
+          </sc-for>
+          <span style="position: absolute; left: 150px; top: 54px; font: 500 15px/1 'IBM Plex Mono', monospace; color: {{s.ring}}">+</span>
+          <span style="position: absolute; left: 88px; top: 170px; font: 500 15px/1 'IBM Plex Mono', monospace; color: {{s.ring}}">+</span>
+        </div>
+        <span class="lbl" style="position: relative">{{s.mode}}</span>
+        <span style="position: relative; margin-top: 6px; font-size: 44px; line-height: 1; font-weight: 800; letter-spacing: -0.03em; color: {{s.titleC}}">{{s.title}}</span>
+        <span style="position: relative; margin-top: 8px; font-size: 17px; font-weight: 600; color: #3F3E3B">{{s.sub}}</span>
+        <sc-if value="{{s.notice}}" hint-placeholder-val="{{ false }}">
+          <span style="position: relative; margin-top: 8px; align-self: flex-start; padding: 6px 10px; border-radius: 10px; background: {{s.noticeBg}}; color: {{s.noticeC}}; font-size: 14px; font-weight: 600">{{s.notice}}</span>
+        </sc-if>
+        <div style="position: relative; margin-top: auto; display: flex; align-items: center; gap: 12px">
+          <sc-for list="{{s.actions}}" as="a" hint-placeholder-count="2">
+            <button class="btn" style="height: 56px; padding: 0 22px; border-radius: 999px; background: {{a.bg}}; color: {{a.fg}}; font: 600 16px 'Schibsted Grotesk', system-ui, sans-serif">{{a.label}}</button>
+          </sc-for>
+          <sc-if value="{{s.progress}}" hint-placeholder-val="{{ false }}">
+            <div style="display: flex; align-items: center; gap: 10px; margin-left: 8px">
+              <div style="width: 200px; display: grid; grid-template-columns: repeat(25, minmax(0, 1fr)); gap: 2px" role="img" aria-label="{{s.progress}}">
+                <sc-for list="{{s.seg}}" as="c" hint-placeholder-count="25"><i style="height: 8px; border-radius: 2px; background: {{c}}; display: block"></i></sc-for>
+              </div>
+              <span style="font: 500 13px 'IBM Plex Mono', ui-monospace, monospace">{{s.progress}}</span>
+            </div>
+          </sc-if>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; height: 448px; flex: none">
+        <div class="cd" style="padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline">
+            <div style="display: flex; flex-direction: column"><span style="font-size: 18px; font-weight: 700">Rum</span><span style="font-size: 13px; color: #5F5E5A">Stueplan (2025) · {{roomCount}} valgt</span></div>
+            <button class="btn" onClick="{{all}}" style="height: 44px; padding: 0 12px; border-radius: 999px; background: #EFEDE8; font: 600 14px 'Schibsted Grotesk', sans-serif; color: #17171A">Vælg alle</button>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+            <sc-for list="{{rooms}}" as="r" hint-placeholder-count="8">
+              <button class="btn" aria-pressed="{{r.on}}" onClick="{{r.pick}}" style="height: 56px; padding: 0 14px; border-radius: 999px; background: {{r.bg}}; color: {{r.fg}}; display: flex; align-items: center; gap: 8px; font: 600 15px 'Schibsted Grotesk', sans-serif; text-align: left">
+                <i style="width: 8px; height: 8px; border-radius: 4px; background: {{r.dot}}; display: block; flex: none"></i>{{r.label}}
+              </button>
+            </sc-for>
+          </div>
+        </div>
+        <div class="cd" style="padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <span style="font-size: 18px; font-weight: 700">Rengøringsvalg</span>
+          <sc-for list="{{opts}}" as="g" hint-placeholder-count="5">
+            <div style="display: flex; flex-direction: column; gap: 5px">
+              <span style="font-size: 13px; color: #5F5E5A">{{g.k}}</span>
+              <div style="display: grid; grid-template-columns: {{g.cols}}; gap: 3px; padding: 3px; border-radius: 13px; background: #E9E7E2">
+                <sc-for list="{{g.o}}" as="o" hint-placeholder-count="4">
+                  <button class="btn" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 44px; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; font: 600 13px 'Schibsted Grotesk', sans-serif">{{o.l}}</button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <sc-if value="{{full}}" hint-placeholder-val="{{ false }}">
+        <div class="cd" style="flex: none; padding: 18px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 18px; font-weight: 700">Seneste hændelser</span><span style="font-size: 14px; color: #5F5E5A">Vedligeholdelse · 4 påmindelser</span></div>
+          <sc-for list="{{events}}" as="e" hint-placeholder-count="3">
+            <div style="display: grid; grid-template-columns: 120px 1fr auto; align-items: center; gap: 12px">
+              <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; color: #6B6A66">{{e.t}}</span>
+              <span style="font-size: 15px"><b style="font-weight: 700">{{e.h}}</b> · {{e.d}}</span>
+              <sc-if value="{{e.again}}" hint-placeholder-val="{{ false }}"><button class="btn" style="height: 44px; padding: 0 12px; border-radius: 999px; background: #EFEDE8; font: 600 14px 'Schibsted Grotesk', sans-serif; color: #17171A">Vælg igen</button></sc-if>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{mini}}" hint-placeholder-val="{{ true }}">
+      <div style="width: 372px; height: 696px; display: flex; flex-direction: column; gap: 16px">
+        <div class="cd" style="flex: 1; padding: 20px 22px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+          <span style="font-size: 18px; font-weight: 700">Seneste hændelser</span>
+          <sc-for list="{{events}}" as="e" hint-placeholder-count="3">
+            <div style="display: flex; align-items: center; gap: 10px; padding-bottom: 12px; border-bottom: 1px solid rgba(23,23,26,.07)">
+              <div style="flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0">
+                <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; color: #6B6A66">{{e.t}}</span>
+                <span style="font-size: 15px; font-weight: 600">{{e.h}}</span>
+                <span style="font-size: 13px; color: #5F5E5A">{{e.d}}</span>
+              </div>
+              <sc-if value="{{e.again}}" hint-placeholder-val="{{ false }}">
+                <button class="btn" style="height: 44px; padding: 0 12px; border-radius: 999px; background: #EFEDE8; font: 600 14px 'Schibsted Grotesk', sans-serif; color: #17171A">Vælg igen</button>
+              </sc-if>
+            </div>
+          </sc-for>
+          <button class="btn" style="margin-top: auto; height: 56px; padding: 0 16px; border-radius: 999px; background: #EFEDE8; display: flex; align-items: center; justify-content: space-between; font: 600 15px 'Schibsted Grotesk', sans-serif; color: #17171A">
+            <span>Vedligeholdelse</span><span style="display: flex; align-items: center; gap: 8px"><span style="height: 24px; padding: 0 8px; border-radius: 12px; background: #17171A; color: #F7F6F3; font: 600 12px/24px 'Schibsted Grotesk', sans-serif">4</span>▾</span>
+          </button>
+        </div>
+        <dc-import name="A-MiniPlayer" hint-size="372px,112px"></dc-import>
+      </div>
+    </sc-if>
+    <sc-if value="{{full}}" hint-placeholder-val="{{ false }}">
+      <dc-import name="A-Player" idle="{{ true }}" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"oplader","options":["oplader","rengoer","pause","tilbasen","fejl","ukendt"]},"player":{"editor":"enum","default":"full","options":["full","mini"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    // Rum og valg som på Green 9. nov.: 6 af 8 rum, Støvsug og vask, Maks., Extreme, Standard, 2×.
+    this.state = {
+      rooms: { 'Køkkenalrum': 1, "Frida's Værelse": 0, 'Entré': 1, 'Gang': 1, 'Soveværelse': 1, "Svend's Værelse": 0, 'Bryggers': 1, 'Badeværelse': 1 },
+      o: { type: 0, suc: 3, vand: 3, rute: 0, gange: 1 }
+    };
+  }
+  renderVals() {
+    const st = this.props.state || 'oplader';
+    const n = Object.values(this.state.rooms).filter(Boolean).length;
+    const dark = { bg: '#17171A', fg: '#F7F6F3', sh: '0 4px 0 #000' };
+    const light = { bg: '#F7F6F3', fg: '#17171A', sh: '0 4px 0 rgba(23,23,26,.14)' };
+    const danger = { bg: 'transparent', fg: '#B0262A', sh: 'inset 0 0 0 1.5px rgba(176,38,42,.45)' };
+    const segs = (p) => Array.from({ length: 25 }, (_, i) => (i < Math.round(p / 4) ? '#7E2242' : 'rgba(126,34,66,.16)'));
+    const S = {
+      oplader: { surface: '#F6E6EA', ring: '#B23A62', core: '#F7F6F3', anim: '', ringOp: 0.55, mode: 'Ved basen', title: 'Oplader', titleC: '#8A2A4C',
+        sub: 'Batteri 100 % · senest 45,1 m² · 54,1 min', actions: [{ ...dark, label: 'Start · ' + n + ' rum' }] },
+      rengoer: { surface: '#F6D3DE', ring: '#B23A62', core: '#B23A62', anim: 'an-in', ringOp: 1, mode: 'Støvsug og vask · 2 gange', title: 'Rengør', titleC: '#7E2242',
+        sub: 'Køkkenalrum · batteri 76 % · 12,5 m² · 10 min', progress: '38 % færdig', seg: segs(38),
+        actions: [{ ...dark, label: 'Pause' }, { ...danger, label: 'Afslut' }] },
+      pause: { surface: '#F6D3DE', ring: '#B23A62', core: '#B23A62', anim: '', ringOp: 0.7, mode: 'Støvsug og vask · 2 gange', title: 'På pause', titleC: '#7E2242',
+        sub: 'Gang · batteri 71 % · 9,0 m² · 8 min', notice: 'Vandtanken er tom', noticeBg: '#FBE7B9', noticeC: '#6B4806', progress: '27 % færdig', seg: segs(27),
+        actions: [{ ...dark, label: 'Fortsæt' }, { ...danger, label: 'Afslut' }] },
+      tilbasen: { surface: '#F6D3DE', ring: '#B23A62', core: '#17171A', anim: 'an-in', ringOp: 0.8, mode: 'Turen er slut', title: 'Kører til basen', titleC: '#7E2242',
+        sub: 'Fra badeværelset · 45,1 m² · 54,1 min', actions: [{ ...dark, label: 'Pause' }] },
+      fejl: { surface: '#F6E6EA', ring: '#8C8A85', core: '#B0262A', anim: '', ringOp: 0.45, broken: true, mode: 'Står i entréen', title: 'Kører ikke', titleC: '#B0262A',
+        sub: 'Hovedbørsten sidder fast', notice: 'Rens hovedbørsten, og fortsæt', noticeBg: '#F8DCDC', noticeC: '#8E1F22',
+        actions: [{ ...dark, label: 'Fortsæt' }, { ...light, label: 'Send til basen' }] },
+      ukendt: { surface: '#EEE7E9', ring: '#8C8A85', core: '#8C8A85', anim: '', ringOp: 0.35, mode: 'Sidst set 08.12', title: 'Status ukendt', titleC: '#5F5E5A',
+        sub: 'Sidst kendt: ved basen · batteri 100 %', notice: 'Effekten af en kommando kan ikke bekræftes, før robotten svarer', noticeBg: '#E2E0DB', noticeC: '#3F3E3B',
+        actions: [{ ...light, label: 'Start · ' + n + ' rum' }] }
+    };
+    const s = { notice: '', progress: '', seg: [], broken: false, ...(S[st] || S.oplader) };
+    // Samme hjørnebuer som på overblikket: bånd af kvadratiske celler, der stråler fra nederste højre hjørne.
+    // Ved fejl er buerne brudt; i ro står de stille.
+    const rings = [];
+    for (let y = 4.5; y < 232; y += 9) {
+      for (let x = 4.5; x < 380; x += 9) {
+        const rr = Math.hypot(x - 400, y - 262);
+        if (rr < 30 || rr > 420) continue;
+        const ph = (rr % 24) / 24;
+        if (ph > 0.55) continue;
+        if (s.broken && Math.sin(Math.atan2(y - 262, x - 400) * 7 + rr * 0.05) > 0.45) continue;
+        const w = (7 - rr * 0.012) * Math.min(1, x / 150) * Math.min(1, (y + 30) / 60) * (1 - Math.abs(ph - 0.27) * 1.4);
+        if (w > 0.9) rings.push({ x: (x - w / 2).toFixed(1), y: (y - w / 2).toFixed(1), w: w.toFixed(1), dl: Math.round(-(rr / 420) * 2400) });
+      }
+    }
+    const rooms = Object.entries(this.state.rooms).map(([label, on]) => ({
+      label, on: on ? 'true' : 'false',
+      bg: on ? '#F6D3DE' : '#EFEDE8', fg: '#17171A', sh: on ? 'inset 0 0 0 1.5px #B23A62' : 'none', dot: on ? '#B23A62' : 'rgba(23,23,26,.2)',
+      pick: () => this.setState({ rooms: { ...this.state.rooms, [label]: on ? 0 : 1 } })
+    }));
+    const groups = [
+      ['type', 'Type', ['Støvsug og vask', 'Støvsug', 'Vask'], '1.6fr 1fr 1fr'],
+      ['suc', 'Sugeevne', ['Stille', 'Balanceret', 'Turbo', 'Maks.'], 'repeat(4, minmax(0, 1fr))'],
+      ['vand', 'Vandmængde', ['Lav', 'Mellem', 'Høj', 'Extreme'], 'repeat(4, minmax(0, 1fr))'],
+      ['rute', 'Rute', ['Standard', 'Hurtig', 'Tilpasset'], 'repeat(3, minmax(0, 1fr))'],
+      ['gange', 'Antal gange', ['1×', '2×'], 'repeat(2, minmax(0, 1fr))']
+    ];
+    const opts = groups.map(([key, k, labels, cols]) => ({
+      k, cols,
+      o: labels.map((l, i) => {
+        const on = this.state.o[key] === i;
+        return { l, on: on ? 'true' : 'false', bg: on ? '#17171A' : 'transparent', fg: on ? '#F7F6F3' : '#17171A', sh: on ? '0 2px 0 #000' : 'none',
+          pick: () => this.setState({ o: { ...this.state.o, [key]: i } }) };
+      })
+    }));
+    const events = [
+      { t: '8. nov. · 12.33', h: 'Senest afsluttet', d: '45,1 m² · 54,1 min', again: false },
+      { t: '8. nov. · 11.22', h: 'Start anmodet', d: 'Stueplan (2025) · 6 områder · 2 gange', again: true },
+      { t: '8. nov. · 11.22', h: 'Senest startet', d: 'Robotten bekræftede start', again: false }
+    ];
+    const full = this.props.player !== 'mini';
+    return {
+      s, rings, rooms, roomCount: n, opts, events, full, mini: !full,
+      all: () => this.setState({ rooms: Object.fromEntries(Object.keys(this.state.rooms).map((k) => [k, 1])) })
+    };
+  }
+}
+</script>
+</body>
+</html>

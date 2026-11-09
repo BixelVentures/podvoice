@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { pathToFileURL } from 'node:url';
 
-const owner = new URL('../../../../../podvoice/gatekeeper/static/podview/ui/robot-motion.js', import.meta.url).href;
+const owner = pathToFileURL('/Users/madsbachandersen/Developer/podvoice/podvoice/gatekeeper/static/podview/ui/robot-motion.js').href;
 const candidate = (await readFile(new URL('./robot-material-motion.js', import.meta.url), 'utf8'))
     .replace("'/ui/robot-motion.js'", JSON.stringify(owner));
 const { RobotMaterialMotion } = await import(`data:text/javascript;base64,${Buffer.from(candidate + '\n//# sourceURL=robot-material-motion-review.js').toString('base64')}`);

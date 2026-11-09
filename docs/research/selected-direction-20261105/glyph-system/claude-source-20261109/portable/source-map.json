@@ -1,0 +1,228 @@
+{
+  "source": "Claude rendered srcdoc; authored __dcFiles entries only",
+  "boards": [
+    {
+      "file": "A-Musik.dc.html",
+      "capturedSha256": "8415a292438737a896425ccaeb7ad76df6ed12ad8778354587efef3ec418dc38",
+      "authoredSha256": "5eee2c38e8d3d929cbe0b159d216bafe54ac9e5ed51167ed603e5eec0ba5e530",
+      "portableSha256": "7ff6e501ca342e08441f5ce25ca2ba0b9fd862cc38fd883be39273a52cd44c58",
+      "imports": [
+        "A-Player.dc.html",
+        "A-Topbar.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "A-Opskrift.dc.html",
+      "capturedSha256": "75ef5aaf5d62d2fed73d612bc3a011ceaa93848788c77be7cbdd314cf45d26c1",
+      "authoredSha256": "b66c0b45acb2395710d4b23c84a1f62f5238e667e8c2d7c34947a4011baa85fa",
+      "portableSha256": "9252b854fcdc8f4349e2d3f655a79f2bdda43cd784c92f632a4aa279186f8d43",
+      "imports": [
+        "A-Topbar.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "A-Player.dc.html",
+      "capturedSha256": "711840b8b34a35b810e948090f4b8a7f7222177e828e340ef25a931022e27ea0",
+      "authoredSha256": "699e9bbfa16bf17fb693c2361ce42217b79a94691827f86f739ed49e763ff5a0",
+      "portableSha256": "8fadd141f57a6dafd8c68aa1c847bf8f1b60712dcfc2dbdcb98cba7c8074d7d7",
+      "imports": [],
+      "officialExportExactMatch": true
+    },
+    {
+      "file": "A-Robot.dc.html",
+      "capturedSha256": "27614802ecd20b454444f47ff7d57b16a082be12d62801fb85854047609547ee",
+      "authoredSha256": "40960e7ce909f0e9871d722c9aa3fe25d61f5379e28ba950aa3c8aa3ec29bb17",
+      "portableSha256": "a1cf5d68b4e1688af9eb23c0493d4b4f2719cb71d927a2ad1491e5e669645127",
+      "imports": [
+        "A-MiniPlayer.dc.html",
+        "A-Player.dc.html",
+        "A-Topbar.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "A-Stemme.dc.html",
+      "capturedSha256": "b066b08d32ba02a87e956e227d79294f6155795adc5236ca64378b9fe577950c",
+      "authoredSha256": "bc095a2f66cc6a427beb4b22523f716465ffa7d0ed63fc9e9c30904b0a48d72f",
+      "portableSha256": "0a9f5299b5204d2c81f8d46dcbc59362b33d9617fe058f1d53e09e28863a0040",
+      "imports": [],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "A-Tesla.dc.html",
+      "capturedSha256": "970d934bbf1df4fbfdc2d4e21521ca0a9978858dba878d8243e849a224d631e6",
+      "authoredSha256": "cf849c637235196270472e468c725d2a23794bfa9fb55c15625d12d96a2da760",
+      "portableSha256": "d79455b9e6f8c4f1d96030f7fb2479b7b5fe8a74d447ee4e2e48ceb41dd32517",
+      "imports": [
+        "A-Player.dc.html",
+        "A-Topbar.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "A-Topbar.dc.html",
+      "capturedSha256": "ac9d3643ce22bca9819734103ccdbbd398a49be0d331c271ed5766e7894139db",
+      "authoredSha256": "9b464d14d0e44efca4c8a5981a3eed99187549c5e8e8db5fda3cf9e0ce972950",
+      "portableSha256": "60217a2fcd5775ccde4e5e233864e860f73eeb0502360dc1c386672b4b270d9b",
+      "imports": [],
+      "officialExportExactMatch": true
+    },
+    {
+      "file": "Main.dc.html",
+      "capturedSha256": "0031b114665b503c349a5e1b69f5319a79dbef652bfb9a0f2a389c78f2b6b026",
+      "authoredSha256": "b5b40744dacec21ecdfd7d80464c8fa21228cf8b559b3a770c5a3695227df145",
+      "portableSha256": "24fc7ca92e3687dd5589ae73c09f8796958c8496bf28afcaf1b26ad37b64bc53",
+      "imports": [
+        "A-Player.dc.html",
+        "A-Topbar.dc.html"
+      ],
+      "officialExportExactMatch": true
+    },
+    {
+      "file": "Musik-Soeg.dc.html",
+      "capturedSha256": "593e3e1f601d191246bdc3cc1fdf2dffbb1eec8b7979ac0f4bb205686e525085",
+      "authoredSha256": "45f0aa454137ec1ec3e656831e5db9b7dd481c4ac97f745468d41c06670f392e",
+      "portableSha256": "51ecd5a1d4177aa524483e3415ee02ff10185133444f8ecb93e84f9eed7871c6",
+      "imports": [
+        "A-Musik.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Northstars.dc.html",
+      "capturedSha256": "dee7886b08c6a4be2d28c636c62d2f446f604403892580c02ece9c7910fa9453",
+      "authoredSha256": "0dc014e5bfe405fffe5b977403806e9cd6a2a24b2de5dff66211e310b486e726",
+      "portableSha256": "ab9ebd6fa58727c95f092c46154d29e6104b74a5a99eb7a06c21bd4f39d0fa79",
+      "imports": [],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Overblik-Aktiv.dc.html",
+      "capturedSha256": "8700536d85352ec8613d0c100bae709609abaedd955c0f8a4abe4efe9b8e42f6",
+      "authoredSha256": "39ce28a9c18927dccd8d344fdb3a91bfa4caf7ea0c78d40b3f55146c539da40f",
+      "portableSha256": "ebf4e7385ebe3f23f8963719dd15a930d3d5fa2d63be8a1fc7a63f779c001a97",
+      "imports": [
+        "Main.dc.html"
+      ],
+      "officialExportExactMatch": true
+    },
+    {
+      "file": "Player-AndenKonto.dc.html",
+      "capturedSha256": "968c8d5a7b9c62b089dd3a30eef388a2187d9c962236f6fdddb53839586cbcea",
+      "authoredSha256": "a066b4d16f212c5e56da95e96688d6e5800a0890ef9d8dee6335f5510171938c",
+      "portableSha256": "1de83073cdd22c4342f0178e8d5863f17239858c82a0cbe4debbeb2254c206ea",
+      "imports": [
+        "A-Player.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Player-Tom.dc.html",
+      "capturedSha256": "af0092bd13a7d4ed7452aa1115134e133838b418f13048753bbef436e1cc66fc",
+      "authoredSha256": "b4cf9d0917f9075f2cef2a0231a5bdffd27f1599ab3b8871f3676cf2f28725af",
+      "portableSha256": "9e9983643fa174e6a5dffb4b92128dcdb0352e1c4aff93331758881cbfc47453",
+      "imports": [
+        "A-Player.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Robot-Fejl.dc.html",
+      "capturedSha256": "bf43bc12735b403dfa4c0611f6a0bf003c6c3bccee1b7da14dd54346ec259f84",
+      "authoredSha256": "f031e0654b0f272871e5328658dfe27e3fcd2ec9294bfdea35abc3770e37f477",
+      "portableSha256": "f9dc06e9eff8354c8050c60db20e01cf9070a91b417619414dd8917a7cae264e",
+      "imports": [
+        "A-Robot.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Robot-Pause.dc.html",
+      "capturedSha256": "85f09e6e817a94e5525f958d9d041537b71cfb312ddfeebb05421a9889e218a3",
+      "authoredSha256": "3868ed49850e859f60e119909e462bb5626f1dc6cb5de4c7ddcf15d645e24350",
+      "portableSha256": "b0aee365197d04bc3666dde394dc1e674967fceac233afdbdfab522c426d5c9b",
+      "imports": [
+        "A-Robot.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Robot-Rengoer.dc.html",
+      "capturedSha256": "afca50ccca2c763ae488fcf08b22abaa699cd95fc0d918abf1dfccd7d0cbe32d",
+      "authoredSha256": "332e93c4d5b24977be8e592c90409168c70e5a1f7ed477aab43390c55e582aee",
+      "portableSha256": "37025dee38b8122847cce77177fbdffb029020f17fba5f38a733f41cfdc389b5",
+      "imports": [
+        "A-Robot.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Robot-TilBasen.dc.html",
+      "capturedSha256": "6996e58fd6aa997990b6e40804235cf72bb76be3a1288e37998893f7cd6a7615",
+      "authoredSha256": "613753fe9ed0457d67f11cdf1fc38b971df31369ec8a6f5ed7d4b11fdd898a0d",
+      "portableSha256": "ffa6e60cc8ddd83fb186e6fcf418618f96f432978fc1ce28bfc58bf3f099e9dc",
+      "imports": [
+        "A-Robot.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Robot-Ukendt.dc.html",
+      "capturedSha256": "14ea1a2932c529aa7251e94bddc6d925bb60d0d8106141a127ac317e677e2756",
+      "authoredSha256": "81d1772e9ff43d3086e2756c4371ba52f912b23e200f8a9a0cae8b1d1b2c6778",
+      "portableSha256": "2d77c36d2c4345a1596fc9ca5a845f6f32fe9b9369919ee441c2e69af8a48ebf",
+      "imports": [
+        "A-Robot.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "System.dc.html",
+      "capturedSha256": "8d2d2b57529556e4692bbf0519b5025af6d1c13c77a36242a068c7f66dc48044",
+      "authoredSha256": "e281dd6edf8dd39ce921e64228b8fcb7614618403eb4b391ede7b2939182c028",
+      "portableSha256": "528176e3bf24f29a69eac55c17436e5cdeefc56b4044df0af27e5e80be637fd5",
+      "imports": [],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Tesla-Klima.dc.html",
+      "capturedSha256": "1bd4bbc90d51248197d71dc1036bc2de20fa804bfa84bc2f398a0994c49ad7c2",
+      "authoredSha256": "76c1b2bb4e9441dce3d2b462b4adc45650c5b02a7a18fa8e916f627db72ceb40",
+      "portableSha256": "3ab7193ddbe05699b77b213803f53d5a03a82b865424b8aa12c7bb6e2f64f378",
+      "imports": [
+        "A-Tesla.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Tesla-Lader.dc.html",
+      "capturedSha256": "882ab9a24ecb4102cd24923efd6277c558656edd58e9ac82c9c78d6f8a5b95ac",
+      "authoredSha256": "0aa95fdf30b461b03b12e6c8edfab5bf567fd4f938e39fa0e819cbc38823d85d",
+      "portableSha256": "06641e78d17250e321414974522ce41553f2a88b5ffc57053faace916b7978ed",
+      "imports": [
+        "A-Tesla.dc.html"
+      ],
+      "officialExportExactMatch": null
+    },
+    {
+      "file": "Tesla-Parkeret.dc.html",
+      "capturedSha256": "b4bcb6af3e246f27a2118abc6fd123a8ed836c2407ed667dbbbc320d68ccdb12",
+      "authoredSha256": "c13d6ae42cfdd148504654a9ebe9fa20583ef94e7523b7496e0a5a552d4cc08d",
+      "portableSha256": "388b4a61586e0b84f2f87041fd49157444e0e0bbc5f1218e1e02509e64a92fbc",
+      "imports": [
+        "A-Tesla.dc.html"
+      ],
+      "officialExportExactMatch": null
+    }
+  ],
+  "runtime": {
+    "support.js": "85c4831871e1b2b26b96206a45514a2d25a7e6591d51014317f57031a4e258f2",
+    "vendor/react.js": "d949f1c3687aedadcedac85261865f29b17cd273997e7f6b2bfc53b2f9d4c4dd",
+    "vendor/react-dom.js": "35f4f974f4b2bcd44da73963347f8952e341f83909e4498227d4e26b98f66f0d"
+  },
+  "missingDependencies": [
+    "A-MiniPlayer.dc.html"
+  ]
+}

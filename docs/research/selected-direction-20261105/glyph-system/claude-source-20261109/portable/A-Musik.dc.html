@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Find musik</title>
+<script src="./vendor/react.js"></script>
+<script src="./vendor/react-dom.js"></script>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:22px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);transition:transform .14s ease}
+.cd:active{transform:scale(.985)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease, background .2s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible,.q:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.q{border:0;outline:none;background:transparent;font:600 20px 'Schibsted Grotesk', system-ui, sans-serif;color:#17171A;width:100%}
+.q::placeholder{color:#8C8A85;font-weight:500}
+.cv{position:absolute;border-radius:50%}
+.pend{animation:pend .9s ease-in-out infinite}
+@keyframes pend{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){.pend{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Find musik" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; height: 696px; display: flex; flex-direction: column; gap: 14px">
+      <label for="musik-soeg" style="height: 60px; flex: none; padding: 0 18px; border-radius: 20px; background: #F7F6F3; box-shadow: inset 0 0 0 {{qRing}}; display: flex; align-items: center; gap: 12px">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>
+        <input id="musik-soeg" class="q" type="search" placeholder="Søg efter kunstner, sang eller playliste" value="{{q}}" onInput="{{onQ}}" aria-label="Søg i musik">
+        <sc-if value="{{hasQ}}" hint-placeholder-val="{{ false }}">
+          <button class="btn" onClick="{{clear}}" aria-label="Ryd søgning" style="width: 40px; height: 44px; border-radius: 999px; background: #ECEAE5; font: 600 16px 'Schibsted Grotesk', sans-serif">×</button>
+        </sc-if>
+      </label>
+
+      <sc-if value="{{hasQ}}" hint-placeholder-val="{{ false }}">
+        <div class="cd" style="flex: 1; padding: 18px 20px; box-sizing: border-box; display: flex; flex-direction: column; gap: 4px; cursor: default">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; padding-bottom: 8px">
+            <span style="font-size: 15px; color: #5F5E5A">{{resultLabel}}</span>
+            <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; color: #6B6A66">Opdateres mens du skriver</span>
+          </div>
+          <sc-for list="{{results}}" as="r" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: 56px 1fr auto 56px; align-items: center; gap: 14px; padding: 8px 0; border-top: 1px solid rgba(23,23,26,.07)">
+              <i style="width: 56px; height: 56px; border-radius: {{r.radius}}; background: {{r.bg}}; display: block; background-image: radial-gradient({{r.fg}} 30%, transparent 34%); background-size: 9px 9px"></i>
+              <div style="display: flex; flex-direction: column; min-width: 0">
+                <span style="font-size: 18px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.title}}</span>
+                <span style="font-size: 14px; color: #5F5E5A">{{r.sub}}</span>
+              </div>
+              <span style="font: 500 11px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: .06em; text-transform: uppercase; color: #6B6A66">{{r.kind}}</span>
+              <button class="btn" aria-label="Afspil {{r.title}}" style="width: 56px; height: 56px; border-radius: 999px; background: #ECEAE5; display: flex; align-items: center; justify-content: center">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
+              </button>
+            </div>
+          </sc-for>
+          <sc-if value="{{noHits}}" hint-placeholder-val="{{ false }}">
+            <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px">
+              <span style="font-size: 20px; font-weight: 700">Ingen resultater for »{{q}}«</span>
+              <span style="font-size: 15px; color: #5F5E5A">Prøv en anden stavemåde eller kun ét ord.</span>
+            </div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{browse}}" hint-placeholder-val="{{ true }}">
+        <div role="tablist" aria-label="Kategori" style="flex: none; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 18px; background: #DCDAD4">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+            <button class="btn" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 44px; border-radius: 999px; background: {{t.bg}}; color: {{t.fg}}; font: 600 16px 'Schibsted Grotesk', system-ui, sans-serif">{{t.label}}</button>
+          </sc-for>
+        </div>
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 14px">
+          <sc-for list="{{lists}}" as="p" hint-placeholder-count="6">
+            <div class="cd" style="padding: 12px; box-sizing: border-box; display: flex; flex-direction: column">
+              <div style="position: relative; flex: 1; border-radius: 14px; background: {{p.bg}}; overflow: hidden" aria-hidden="true">
+                <sc-for list="{{p.dots}}" as="d" hint-placeholder-count="80">
+                  <i class="cv" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{p.fg}}"></i>
+                </sc-for>
+                <button class="btn" aria-label="Afspil {{p.title}}" onClick="{{p.play}}" style="position: absolute; right: 10px; bottom: 10px; width: 52px; height: 56px; border-radius: 999px; background: {{p.keyBg}}; display: flex; align-items: center; justify-content: center">
+                  <sc-if value="{{p.idle}}" hint-placeholder-val="{{ true }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg></sc-if>
+                  <sc-if value="{{p.pending}}" hint-placeholder-val="{{ false }}"><span style="display: grid; grid-template-columns: repeat(3, 5px); gap: 3px"><i class="pend" style="width: 5px; height: 5px; border-radius: 50%; background: #F7F6F3"></i><i class="pend" style="width: 5px; height: 5px; border-radius: 50%; background: #F7F6F3; animation-delay: 150ms"></i><i class="pend" style="width: 5px; height: 5px; border-radius: 50%; background: #F7F6F3; animation-delay: 300ms"></i></span></sc-if>
+                  <sc-if value="{{p.playing}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F7F6F3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></sc-if>
+                </button>
+              </div>
+              <span style="margin-top: 10px; font-size: 16px; font-weight: 700; line-height: 1.2">{{p.title}}</span>
+              <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; color: #5F5E5A">{{p.state}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+    </div>
+    <dc-import name="A-Player" mode="mine" art="#7C3A35" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"query":{"editor":"text","default":""},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'din', started: {}, q: props.query || '' }; }
+  componentWillUnmount() { (this.timers || []).forEach(clearTimeout); }
+  cover(kind) {
+    const out = [];
+    for (let j = 0; j < 16; j++) {
+      for (let i = 0; i < 26; i++) {
+        const x = i * 10 + 5, y = j * 10 + 5;
+        let v = 0;
+        if (kind === 'rings') v = 0.5 + 0.5 * Math.sin(Math.hypot(x - 200, y - 140) * 0.11);
+        if (kind === 'diag') v = (x + y) % 60 < 30 ? 1 - ((x + y) % 30) / 40 : 0.15;
+        if (kind === 'hill') v = y > 110 - 40 * Math.sin(x / 70) ? 0.95 : Math.max(0, 0.7 - Math.hypot(x - 180, y - 40) / 70);
+        if (kind === 'wave') v = 0.5 + 0.5 * Math.sin(x * 0.05 + Math.sin(y * 0.08) * 2);
+        if (kind === 'sun') v = Math.max(0, 1 - Math.hypot(x - 120, y - 80) / 90);
+        if (kind === 'grid') v = (Math.floor(x / 40) + Math.floor(y / 40)) % 2 ? 0.8 : 0.25;
+        const w = v * 7.5;
+        if (w > 0.8) out.push({ x: (x - w / 2).toFixed(1), y: (y - w / 2).toFixed(1), w: w.toFixed(1) });
+      }
+    }
+    return out;
+  }
+  play(id) {
+    this.setState({ started: { [id]: 'pending' } });
+    this.timers = this.timers || [];
+    this.timers.push(setTimeout(() => this.setState({ started: { [id]: 'playing' } }), 1100));
+  }
+  renderVals() {
+    const tabDefs = [['tid', 'Tid på dagen'], ['vibe', 'Vibe'], ['din', 'Din musik'], ['igen', 'Hør igen']];
+    const tabs = tabDefs.map(([id, label]) => {
+      const on = this.state.tab === id;
+      return { label, on: on ? 'true' : 'false', bg: on ? '#17171A' : '#F7F6F3', fg: on ? '#F7F6F3' : '#17171A',
+        sh: on ? '0 3px 0 #000' : '0 2px 0 rgba(23,23,26,.10)', pick: () => this.setState({ tab: id }) };
+    });
+    const defs = [
+      { id: 'dh', title: 'Deep House 2026', kind: 'rings', bg: '#232655', fg: '#8E95F2' },
+      { id: 't90', title: 'Techno 90s (Top 100)', kind: 'diag', bg: '#3A1B31', fg: '#F07A4A' },
+      { id: 'bb', title: 'Bedste Børnehits', kind: 'sun', bg: '#F2C14E', fg: '#B5461F' },
+      { id: 'kw', title: 'Kanye West Mix', kind: 'hill', bg: '#1E4A38', fg: '#D9E7B0' },
+      { id: 'jz', title: 'Jazz in the Background', kind: 'wave', bg: '#4A2B1F', fg: '#E8B46A' },
+      { id: 'nr', title: 'Hør igen', kind: 'grid', bg: '#E3DED3', fg: '#17171A' }
+    ];
+    const lists = defs.map((d) => {
+      const st = this.state.started[d.id] || 'idle';
+      return { ...d, dots: this.cover(d.kind), idle: st === 'idle', pending: st === 'pending', playing: st === 'playing',
+        state: st === 'pending' ? 'Starter…' : st === 'playing' ? 'Spiller nu' : 'Playliste',
+        keyBg: st === 'idle' ? '#F7F6F3' : '#17171A', play: () => this.play(d.id) };
+    });
+    // F3: søgning mens man skriver over kunstnere, sange og playlister (fixturens katalog).
+    const catalog = [
+      { title: 'The Dave Brubeck Quartet', sub: 'Kunstner', kind: 'Kunstner', bg: '#26324F', fg: '#E9C46A', radius: '50%' },
+      { title: 'Take Five', sub: 'The Dave Brubeck Quartet', kind: 'Sang', bg: '#26324F', fg: '#E9C46A', radius: '10px' },
+      { title: 'Jazz in the Background', sub: 'Din playliste', kind: 'Playliste', bg: '#4A2B1F', fg: '#E8B46A', radius: '10px' },
+      { title: 'Via con me', sub: 'Paolo Conte', kind: 'Sang', bg: '#2F4A3A', fg: '#E8D9A8', radius: '10px' },
+      { title: 'Heartless', sub: 'Kanye West', kind: 'Sang', bg: '#8E9EA6', fg: '#C2475E', radius: '10px' },
+      { title: 'Kanye West', sub: 'Kunstner', kind: 'Kunstner', bg: '#1E4A38', fg: '#D9E7B0', radius: '50%' },
+      { title: 'Kanye West Mix', sub: 'Din playliste', kind: 'Playliste', bg: '#1E4A38', fg: '#D9E7B0', radius: '10px' },
+      { title: 'Flowers', sub: 'Miley Cyrus', kind: 'Sang', bg: '#F1D8D2', fg: '#C2475E', radius: '10px' },
+      { title: 'Cruel Summer', sub: 'Taylor Swift', kind: 'Sang', bg: '#F3C9DC', fg: '#4A6FD1', radius: '10px' },
+      { title: 'Get Lucky', sub: 'Daft Punk, Pharrell Williams, Nile Rodgers', kind: 'Sang', bg: '#1B1B2E', fg: '#E9C46A', radius: '10px' },
+      { title: 'End of Beginning', sub: 'Djo', kind: 'Sang', bg: '#3E5A78', fg: '#F2D4A0', radius: '10px' },
+      { title: 'Lost', sub: 'Frank Ocean', kind: 'Sang', bg: '#E8B46A', fg: '#3A1B31', radius: '10px' },
+      { title: 'Without Me', sub: 'Eminem', kind: 'Sang', bg: '#2B2B30', fg: '#F07A4A', radius: '10px' }
+    ];
+    const q = (this.state.q || '').trim().toLowerCase();
+    const results = q ? catalog.filter((c) => (c.title + ' ' + c.sub).toLowerCase().includes(q)).slice(0, 7) : [];
+    return {
+      tabs, lists, q: this.state.q, hasQ: !!q, browse: !q, results, noHits: !!q && results.length === 0,
+      resultLabel: results.length === 1 ? '1 resultat' : results.length + ' resultater',
+      qRing: q ? '2px #17171A' : '1px rgba(23,23,26,.08)',
+      onQ: (e) => this.setState({ q: e.target.value }),
+      clear: () => this.setState({ q: '' })
+    };
+  }
+}
+</script>
+</body>
+</html>

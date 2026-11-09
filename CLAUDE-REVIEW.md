@@ -1,29 +1,33 @@
-# PodView glyph design candidate · review only
+# PodView · Claude-based comparison review · 9 November 2026
 
-This branch packages the local comparison candidate on renderer baseline `5cf897a4d766e1be48a8cf1df3456c6051aa570f` (PodView 2.0.140). It is for Claude review, not merge, deployment, installation, live integration or physical acceptance. Canonical renderer files and existing status documents remain unchanged.
+Review-only branch. Do not merge, deploy or install. Left is the existing PodView 2.0.140 renderer `5cf897a4`; right builds on the actual Claude export and user-selected Grille references. This is still a local presentation overlay, not canonical product integration.
 
 ## Run
 
-From the repository root, with Python 3.12 and Node:
+From this repository root:
 
 ```sh
-python3.12 docs/research/selected-direction-20261105/glyph-system/comparison/serve.py
+python3.12 docs/research/selected-direction-20261105/glyph-system/comparison/serve.py --repo . --port 4394
 node --test docs/research/selected-direction-20261105/glyph-system/comparison/*.test.mjs
 ```
 
-Open http://127.0.0.1:4392/comparison/. The server extracts the pinned renderer from Git and overlays the candidate only in the right column. The left column retains the baseline. Same-origin fixtures are inert; network effects and playback are blocked. Primary viewport: **1280×800 landscape**. Mobile access was requested for the library, not a separate mobile product redesign.
+Open http://127.0.0.1:4394/comparison/#overblik. Primary product viewport: 1280×800 landscape. Local fixtures have no household effects. Actual Claude portable boards are alongside comparison in `claude-source-20261109/portable/`.
 
-## Review anchors
+## Changes in this round
 
-- `comparison/references/01-overview.png` and `02-lights.png`, `03-robot-active.png`, `04-component-states.png` are the user-selected visual anchors.
-- `COMPONENT-RULES-v1.md` documents the existing component roles. Its latest direct user rule wins over earlier studies: **neutral dark primary / light secondary; inverse on dark instruments. Domain colors belong to identity, material and status; danger/error remain semantic exceptions.**
-- `comparison/references/` contains current screen captures, six final Small pairs and recorded motion examples. GIFs loop the capture, not the underlying user action.
-- `comparison/candidate-pin-20261109.json` identifies the portable review source and materials. The retained `candidate-pin-20261108.json` is historical and superseded; it does not cover the final edits.
+- Actual Claude geometry/fonts/material and player composition; neutral command system, meaningful domain tint, shared Small geometry.
+- Tesla: compact defrost action and default detail without incidental vertical overflow in the inspected 1280×800 state.
+- Recipes: full width with player hidden; stable Opskrifter header and complete page title; wrapping ingredient/recipe/action labels.
+- Robot room/settings and music results can wrap; overview music label aligns left.
+- Timer detail separates status copy from ring; bounded 56px finish control and 56px action height.
+- Player metadata wrapping; explanatory empty-state copy uses body styling.
 
-The implementation uses existing anatomy, observation owners and controls. Candidate modules add presentation and narrow fixes for retained recipe identity, overview ordering and review navigation. No service owner or device permission is added. Unknown/stale data must not imply activity; lamp brightness must never be averaged into a fictional percentage.
+## Evidence and remaining work
 
-## Handoff status
+23 focused comparison tests and inert.js syntax pass. Final overview, long recipe and active timer were rendered and visually inspected. The final completed timer and all long/empty/error player combinations have NOT been fully re-rendered. Earlier Astra, Product Design and Impeccable findings informed this round; do not treat that as exhaustive acceptance. Latest screenshots: comparison/references/final-review-*-20261109.png. Other captures can predate later changes.
 
-Final visual edits synced: Timer's Slutter text is removed only for fresh running overview timers (`data-status=running`, `data-stale=false`); Light's negative-space bulb is restored; material fields are edge-anchored with reserved text padding. Latest capture: `comparison/references/overview-edge-bulb-20261109.jpg`. Focused candidate checks passed 23/23. Baseline npm test passed the component gate and 4751 tests; four localhost-listen tests were initially blocked by the environment and all four passed in a focused rerun with local-listen permission. This baseline suite does not cover the comparison overlay. Python 3.12 AST check passed for the portable server. Final paired visual review passed all three targeted changes. Typography, padding and neutral actions remain unchanged; the negative-space bulb is restored; edge material fields are clipped to their surfaces. Review caught an overly broad timer selector, now narrowed so paused/stale/done states retain their existing content. Latest paired review evidence is `comparison/references/overview-edge-bulb-20261109.jpg`. Main agent owns branch push and verification; no merge or deployment is authorized.
+The user still finds the overall interface cramped. Challenge spacing, hierarchy, typography, sizes and component composition within the approved direction. Preserve actual native capabilities and state owners. Explain an active other recipe clearly; currently its Continue action can be mistaken for this recipe's action. Review all screens and states for clipping, alignment and motion coherence.
 
-Earlier evidence is retained for context; do not infer every old screenshot represents the final candidate. Review the actual running right column against the selected references. Product adoption belongs in a later coordinated change to canonical owners, not automatic merge of this overlay.
+The candidate still uses synthetic fixtures. Real Green source routes were identified, but no fresh read was made: authenticated same-origin GET view/api/snapshot, view/api/home, view/api/music?kind=playback with the existing configured room/account. Next: capture sanitized actual observations and replay using native applyHome/state owners, preserving timestamps; no fake freshness, command grants or LAN proxy. Keep credentials/private payloads out of Git. This is an explicit open item, not live-data acceptance.
+
+No canonical runtime changes, merge, release, installation or physical acceptance in this handoff. The old candidate-pin JSON files predate this round and are historical, not final manifests. Git commit is the review source identity.

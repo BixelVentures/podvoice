@@ -99,6 +99,16 @@ window.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    // The combined comparison fixture has known local artwork in both columns.
+    // Explicit missing-art scenarios keep their native fallback.
+    if (params.get('stage') === 'activities-combined') {
+        const { TRACKS } = await import('/widget-model.js');
+        host.state = {...host.state, music: {...host.state.music,
+            previewTracks: TRACKS.map(track => track.id === 'heartless'
+                ? {...track, art: 'review-heartless.jpg'} : track)}};
+        host.render();
+    }
+
     if (document.documentElement.dataset.design === 'candidate') {
         const desktop = matchMedia('(min-width: 760px) and (min-height: 700px)');
         const alignOverview = host.alignOverview.bind(host);
@@ -145,6 +155,29 @@ window.addEventListener('DOMContentLoaded', async () => {
         const updateComposition = () => { host.render(); };
         updateComposition();
         desktop.addEventListener('change', updateComposition);
+        const sourceTopbar = host.renderTopbar.bind(host);
+        host.renderTopbar = (...args) => {
+            const result = sourceTopbar(...args);
+            if (host.state.focus === 'recipes' && !document.querySelector('#history')?.open) {
+                host.renderHeaderTitle?.('Opskrifter', true);
+            }
+            return result;
+        };
+        const sourceRender = host.render.bind(host);
+        host.render = (...args) => {
+            const result = sourceRender(...args);
+            const batteryLabel = document.querySelector('#home-vehicle > span > .resource-value');
+            const percent = batteryLabel?.textContent?.match(/^(\d+)\s*%$/);
+            if (percent && !batteryLabel.querySelector('.claude-unit')) {
+                const unit = document.createElement('span');
+                unit.className = 'claude-unit'; unit.textContent = ' %';
+                batteryLabel.replaceChildren(document.createTextNode(percent[1]), unit);
+            }
+            const musicLabel = document.querySelector('#home-music')?.querySelector(':scope > span > strong');
+            if (musicLabel && musicLabel.textContent !== 'Find musik') musicLabel.textContent = 'Find musik';
+            return result;
+        };
+        host.render();
         window.addEventListener('pagehide', () => desktop.removeEventListener('change', updateComposition), { once: true });
     }
 
