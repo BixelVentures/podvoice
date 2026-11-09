@@ -401,6 +401,28 @@ test('confirmation closes on task replacement or disconnection and cannot replay
  const stop={id:'stop-dialog',action:'stop',label:'Stop',argsSchema:{kind:'none'}},panel=new RobotControlPanel(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:{domain:'vacuum',options:[stop]},device:{...device,status:'cleaning'},connected:true};emit(panel.transportControls.querySelector('button'),'click');const old=panel.confirmation,oldAccept=old.querySelectorAll('button')[1];panel.data={task:{domain:'vacuum',taskId:'replacement',options:[]},device:{...device,status:'cleaning'},connected:true};assert.equal(old.open,false);emit(oldAccept,'click');assert.deepEqual(effects,[]);panel.data={task:{domain:'vacuum',options:[stop]},device:{...device,status:'cleaning'},connected:true};emit(panel.transportControls.querySelector('button'),'click');const dialog=panel.confirmation,accept=dialog.querySelectorAll('button')[1];emit(accept,'click');emit(accept,'click');assert.deepEqual(effects,[{optionId:stop.id,args:{}}]);emit(panel.transportControls.querySelector('button'),'click');panel.disconnectedCallback();assert.equal(panel.confirmation.open,false);
 });
 
+test('a direct return confirmation cannot outlive its robot scope, status or action',()=>{
+ const robot={...device,id:'vacuum.actual',status:'paused'},transport={};
+ const presentationScope={bootId:'boot',roomId:'room',deviceId:robot.id,transport,generation:1};
+ for(const revoke of [
+  panel=>{panel.data={...panel.value,presentationScope:{...presentationScope,generation:2}};},
+  panel=>panel.observed({...robot,status:'cleaning'}),
+  panel=>panel.observed({...robot,stale:true}),
+  panel=>panel.observed(robot,{directActions:['resume']}),
+ ]){
+  const panel=new RobotControlPanel(),effects=[];
+  panel.addEventListener('robot-direct-action',event=>effects.push(event.detail));
+  panel.data={task:{...task(),taskId:'first'},device:robot,connected:true,presentationScope,directActions:['return']};
+  emit(panel.baseDisclosure.panel.querySelector('[data-action-id=return]'),'click');
+  const dialog=panel.confirmation,accept=dialog.querySelectorAll('button')[1];
+  assert.equal(dialog.open,true);
+  revoke(panel);
+  assert.equal(dialog.open,false);
+  emit(accept,'click');
+  assert.deepEqual(effects,[]);
+ }
+});
+
 test('all four transport actions retain decorative kit icons and consequential return uses separate modal copy',()=>{
  const panel=new RobotControlPanel(),rows=[['pause','pause-fill','Pause'],['resume','play-fill','Fortsæt'],['return','arrow-u-down-left','Til basen'],['stop','x-lg','Afslut rengøring']],options=rows.map(([action,,label])=>({id:`opaque-${action}`,action,label,argsSchema:{kind:'none'}}));panel.data={task:{domain:'vacuum',options},device:{...device,status:'cleaning'},connected:true};for(const [action,asset,label]of rows){const button=panel.transportControls.querySelectorAll('button').find(button=>button.dataset.actionId===action),icon=button.querySelector('.pv-kit-icon');assert.equal(button.textContent,label);assert.equal(icon.src,`assets/icons/${asset}.svg`);assert.equal(icon.alt,'');assert.equal(icon.getAttribute('data-kit'),'icon');assert.equal(icon.width,24);assert.equal(icon.height,24);}const home=panel.transportControls.querySelectorAll('button').find(button=>button.dataset.actionId==='return');emit(home,'click');assert.equal(panel.confirmation.querySelector('h2').textContent,'Kør til basen?');assert.match(panel.confirmation.querySelector('p').textContent,/sendes til basen/);assert.equal(panel.confirmation.querySelectorAll('button')[1].textContent,'Kør til basen');
 });

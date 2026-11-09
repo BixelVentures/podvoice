@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "a31228c0d5cd7303a7f153b3c1b47ff2ada07ba62990a2f18434f075e369848f"
+      "sha256": "56e778cee0553baefe465aaf9ae9fa0d6b272f926667ddfc9c38fd18185e6496"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "62d23f5a23c0983eae5c10d834c4f1db73c7860744368d969952400eace71a3c"
+      "sha256": "f78e632f66a6ac21c716b37418214968a0d2d34701ca7a80b49e8b3a51adb8c2"
     },
     {
       "path": "robot-observation.js",
