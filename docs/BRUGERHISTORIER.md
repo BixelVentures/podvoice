@@ -250,6 +250,20 @@ afspilning på Køkkenalrum. Pause dér gav ukendt udfald. Næste Spotify-aflæs
 viste `NONE`. Pakke 3 står åben. Musikagenten følger den konkrete kvittering gennem den native
 ejer og læsevejen for at forklare de modstridende observationer.
 
+**Anden køprøve på Green · 9. november 2026, 15.05–15.06 CET.** Før valg af »Unlonely« viste
+Speakers »Fast Car« på pause med lydstyrke 35. Køkkenalrum var valgt, rute 3, sessionsepoch 3.
+Efter køvalget var samme proces, rute 3 og valgt Køkkenalrum bevaret. Sessionsepoch var 4, mens
+`playing` fortsat var `false`, titlen var tom, og lydstyrken var `-1`. Native-sundhedskontrollen
+fejlede kl. 15.05.24 og 15.05.54, henholdsvis forsøg 1 af 3 og 2 af 3. Musikagenten undersøger
+sammenhængen. Spotify Pause under oprydningen gav ukendt udfald, og næste aflæsning viste `NONE`.
+Lokale aflæsninger er `pc80-pause-owner-1505.json`, `pc80-queue-owner-lost-1505.json` og
+`pc80-health-after-queue-1506.txt`.
+
+**Timer og lys på Green 2.0.160.** Ny timer kunne sættes fra 5:00 til 6:00 og tilbage før start.
+Efter start viste overblikket 4:58 og detaljen 4:55. Den aktive detalje viste kun »Annuller«.
+Annullering ved 4:53 fjernede timeren fra overblikket før udløb. Lysvisningen meldte Hue ikke
+forbundet. Et faktisk lysforløb afventer forbindelse.
+
 Efter opdateringen åbnede den aktive Burgerboller-widget direkte på trin 2 af 5 med én af ti
 ingredienser markeret og 15 stk. Galleriet gik fra 1/3 til 2/3 og lukkede tilbage til opskriften.
 Ingredienser kunne lukkes, »Om opskriften« viste Meyers, og retur fra Arla-opskriften bevarede
@@ -269,12 +283,12 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 |---|---|---|
 | 1 · Adgang og navigation (G1–G6) | Åben. Eksisterende HA-login gav adgang. Den eksisterende fane genforbandt efter add-on-genstart. | Kold åbning og genoptagelse på iPad, genoprettelse efter fejl, navigation under opdatering og sammenligning af de aftalte flader. |
 | 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. Fire faner og listeudvidelse bevarede forslagene. På Køkkenalrum bekræftede Speakers pause efter afspilning. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
-| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Ét køvalg blev afvist. Det næste blev accepteret, men efterlod ubekræftet højttaler og deaktiveret betjening. | Følg kvittering `dd7a459a0f110e50` til native ejer og læsevej. Gentag det berørte køforløb efter rettelse. Højttalerskift afventer tilgængelig modtager. Frida var slukket. |
+| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Accepteret køvalg efterlod ubekræftet højttaler og deaktiveret betjening. Ved anden prøve forblev Køkkenalrum valgt, mens ejerens titel og volumen forsvandt. | Følg kvittering `dd7a459a0f110e50`, ændringen af sessionsepoch og native-sundhedskontrollen. Gentag køforløbet efter rettelse. Højttalerskift afventer tilgængelig modtager. Frida var slukket. |
 | 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. 0.26.80 blev installeret på Green kl. 14.58. | Aflæs klart tilbud på 0.26.80 før stationsvalg, skift, Stop og tilbagevenden til Spotify. |
 | 5 · Opskrifter (O1, O4–O8, O10) | Åben. Kataloget viste syv faktiske billeder. Bevarelse, afslutning med aktiv timer og upload er dokumenteret ovenfor. | Visningens opstart og resterende undersider mod referencen samt iPhone-genvejens konkrete HTTP-kvittering. |
 | 6 · Robot (S1–S16) | Åben. Navigation bevarede Base og kladden Gang, Støvsug, Stille og 1×. Start, Pause, Fortsæt og retur til opladning er observeret. | Den mergede dialogrettelse i PR #342 afventer installation og målrettet prøve. Stop, tidsmål, Base-kommandoer og øvrige tilstandsgrene afventer. |
 | 7 · Tesla (B1–B11) | Åben. Frisk observation kl. 14.34 viste 81 % og 311 km. Tændt klima viste de relevante kontroller. En bekræftelse for Lås op blev ikke observeret ved denne prøve. | Aflæs den konkrete handlingstilstand for Lås op. Opladning og dvale afventer kildegrundlag, og bekræftede bileffekter afventer prøve. |
-| 8 · Lys, timere, vejr og svar (L1–L3, T1–T2, V1–V4, Q1–Q2) | Åben. Green har vist fortsat nedtælling, Met.no og bevaret svarhistorik. | Faktisk lysbetjening, timerens udløb og Stop, relevante vejrafvigelser samt en ny besked under historiklæsning. Voice PE stod offline ved seneste aflæsning. |
+| 8 · Lys, timere, vejr og svar (L1–L3, T1–T2, V1–V4, Q1–Q2) | Åben. Green har vist nedtælling og annullering, Met.no og bevaret svarhistorik. Hue meldte ikke forbundet. | Lys afventer Hue-forbindelse. Timerens udløb og Stop, relevante vejrafvigelser og en ny besked under historiklæsning afventer. Voice PE stod offline ved seneste aflæsning. |
 
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
 dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
