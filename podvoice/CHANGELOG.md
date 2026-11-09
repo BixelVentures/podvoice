@@ -1,3 +1,7 @@
+## 2.0.160
+
+- Forny radiostatus før udløb, bevar senest kendt musik ved et forsinket svar, og vis én Base-handling under robotpause.
+
 ## 2.0.159
 
 - Base forbliver tilgængelig, når robotvisningen automatisk gendanner den seneste rengøring.
