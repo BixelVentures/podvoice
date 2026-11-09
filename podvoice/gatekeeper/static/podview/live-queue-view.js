@@ -213,7 +213,7 @@ export class LiveQueueView{
    return;
   }
   const waiting=this.waitingChoices;
-  const token=controls?.beginMusicIntent?.();
+  const token=controls?.beginMusicIntent?.({queuesTransport:true});
   if(controls&&!token)return;
   if(!controls)this.invalidate();
   this.waitingChoices=waiting;

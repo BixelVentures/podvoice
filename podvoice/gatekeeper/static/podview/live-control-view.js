@@ -275,8 +275,11 @@ export class LiveControlView{
   },30000);this.musicSettlementTimer.unref?.();
  }
  musicCurrent(context){return !!context&&this.musicContext(context.recovery===true)?.key===context.key;}
- beginMusicIntent(){
+ // A queue choice holds the lane without being a transport operation. It opts in,
+ // so transport taps made meanwhile are queued instead of dropped (K3, A9).
+ beginMusicIntent({queuesTransport=false}={}){
   if(this.musicIntentPending)return null;
+  this.musicIntentQueuesTransport=queuesTransport===true;
   clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;
   if(this.musicFence?.outcome==='accepted')this.musicFence=null;
   if(this.host.liveSelection?.feedback?.settlementReceipt)this.host.liveSelection.feedback={...this.host.liveSelection.feedback,settlementReceipt:null,awaitingObservation:false};
@@ -288,6 +291,7 @@ export class LiveControlView{
  }
  endMusicIntent(token,outcome,skippedTrackUri=null){
   if(!token||this.musicIntentOwner!==token)return;this.musicIntentOwner=null;this.musicIntentPending=false;
+  this.musicIntentQueuesTransport=false;
   const queue = this.musicQueued;
   if(queue&&skippedTrackUri&&outcome!=='rejected'){
    // A skip can change the actual item before its new observation reaches PodView.
@@ -465,8 +469,10 @@ export class LiveControlView{
   if(this.musicIntentPending){
    const active=this.musicOperation,token=this.musicIntentOwner;
    if (action !== 'volume') {
-    if (!token || !active || active.presentationKey !== context.presentationKey
-     || active.receiptMusicGeneration !== (this.musicGeneration || 0)) return reject('intent_pending');
+    const sameOperation = !!active && active.presentationKey === context.presentationKey
+     && active.receiptMusicGeneration === (this.musicGeneration || 0);
+    const queueChoice = !active && this.musicIntentQueuesTransport === true;
+    if (!token || !(sameOperation || queueChoice)) return reject('intent_pending');
     if (!this.musicQueueCurrent(this.musicQueued, context)) {
      const capabilities = this.host.liveSnapshot?.capabilities;
      this.musicQueued = {
