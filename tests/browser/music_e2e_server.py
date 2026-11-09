@@ -100,6 +100,7 @@ if robot is not None:
         }
     bind(robot, Path(os.environ["MUSIC_TEST_DATA"]) / "cleaning.json")
     if robot_draft:
+        robot.states[ROBOT]["attributes"]["fan_speed_list"].append("quiet")
         robot.states[MODE]["attributes"]["options"] = ["vacuum_and_mop", "vacuum", "mop", "custom"]
         robot.states[MOP]["attributes"]["options"] = ["medium", "custom_water_flow"]
         robot.registry[ROBOT]["config_entry_id"] = "inert-roborock-entry"
