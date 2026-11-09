@@ -1717,6 +1717,7 @@
           "arrow:valid": 1,
           "class:RobotControlPanel": 1,
           "function:robotControlGroups": 1,
+          "method:baseActions": 1,
           "method:build": 1,
           "method:buildCleaning": 1,
           "method:buildSetting": 1,
