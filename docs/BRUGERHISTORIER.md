@@ -71,8 +71,10 @@ kandidatens kilde. Gennemgangen af radio starter ved den konkrete fejl nedenfor.
 - **Speakers 0.26.76** er merged på `4093bcb49724a73da5ee7b8d3b84c88d995e0aba`, og ARM64- og
   AMD64-publiceringsjobbene bestod. Det aflæste ARM64-manifest er
   `sha256:e72195afd16e83ca22130f23f51d74c92e5308f5b3eb65ce9b64b64bd03e23b5`.
-  Green viste fortsat 0.26.75 ved kontrollen. Den manuelle installation af 0.26.76 blev holdt tilbage
-  efter den røde prøve. Supervisor havde automatisk opdatering slået til for Speakers.
+  Efter brugerens udtrykkelige valg om at installere seneste version viste Green Supervisor
+  0.26.76 som installeret og opdateret. Supervisor havde automatisk opdatering slået til for Speakers.
+  Den tidligere installationspause er ophævet. Den røde radioprøve er fortsat åben, og installationen
+  blev gennemført uden lydprøve.
   [PR #120](https://github.com/BixelVentures/podconnect/pull/120) · [Publicering](https://github.com/BixelVentures/podconnect/actions/runs/42506924481)
 - **Åben radioovergang.** Efter merge fejlede P3-start gennem Manager → Native HTTP → C i
   `selected-start-clock`. Native kvitterede reserve og klargøring og gav `pending` på Start.
