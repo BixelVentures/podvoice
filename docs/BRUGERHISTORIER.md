@@ -589,6 +589,19 @@ automatisk. Gang, Standard og 1× var bevaret, og robotten viste Oplader. Ingen
 robotkommando blev sendt. Green-prøven viste typeskiftet. Den præcise fornyelse med
 ny formular er bevist i Chromium med inert ejer.
 
+**G3 og main-CI.** PR #347 bestod CI 42664388828. Efter merge fejlede kun
+musikjourney-jobbet i main-CI 42665247165. `manualRetryJourney` stoppede på linje 670
+under den indledende Pause, før G3's fejl og manuelle genoprettelse. Ved fejlen stod
+musikken som playing, og begge lister for forespørgsler og writes var tomme. Årsagen
+til den manglende indledende Pause er uafklaret. Det separate A1-forløb med faktisk
+Pause i Chromium er bevaret.
+
+G3-fixturen starter nu med en allerede observeret pause hos den inerte ejer. Den
+fokuserede prøve på uændret 2.0.164-bundle `02da7206` bestod med 503, et betroet tryk
+på Prøv igen, præcis én manuel snapshotlæsning og bevaret opskriftsforløb og
+pausebinding. Prøven sendte ingen handlings-POST eller native writes under recovery.
+Log: `podvoice-g3-fixture-hardened-20261109.log`. Produktkode og acceptstatus er uændret.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
