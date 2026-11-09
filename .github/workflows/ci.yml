@@ -54,6 +54,45 @@ jobs:
       - name: PodView unit and component tests
         run: node --test tests/podview/*.test.mjs
 
+  radio-contract:
+    # Speakers' Go radio serializers and PodVoice's parser and UI must agree.
+    # Runs against PodConnect main so drift in either repository is caught.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: BixelVentures/podconnect
+          path: podconnect-sibling
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            podvoice/requirements.txt
+            podvoice/requirements-dev.txt
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: podconnect-sibling/podconnect/manager/go.mod
+          cache: false # The manager is stdlib-only and has no go.sum.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.19.0"
+          cache: npm
+      - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
+      - run: npm ci --ignore-scripts && npm run build:assets
+      - name: Go, Python and PodView radio contract without skips
+        env:
+          PODVIEW_RADIO_GO_ROOT: ${{ github.workspace }}/podconnect-sibling
+          PODVIEW_CANONICAL_ROOT: ${{ github.workspace }}
+        run: |
+          python -m pytest -o addopts="" -q -rs tests/integration/test_podview_radio.py | tee radio-contract.log
+          if grep -q SKIPPED radio-contract.log; then
+            echo "::error::Radio contract tests were skipped"
+            exit 1
+          fi
+
   journeys:
     # Real-browser user journeys, one per job so they run in parallel.
     runs-on: ubuntu-latest
