@@ -1,3 +1,8 @@
+## 2.0.161
+
+- Vis +1 og −1 på en aktiv timer, når Home Assistant tilbyder justering.
+- Bevar robottens åbne bekræftelse ved fornyelse for samme robot og handling.
+
 ## 2.0.160
 
 - Forny radiostatus før udløb, bevar senest kendt musik ved et forsinket svar, og vis én Base-handling under robotpause.
