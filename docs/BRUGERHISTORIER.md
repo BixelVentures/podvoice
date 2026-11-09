@@ -332,6 +332,20 @@ indlæste de reelle tilbud. Ingen gentaget installationskommando ved ukendt udfa
 Timer- og robotrettelser afventer nu målrettet Green-gentest. Speakers indeholder kun den aftalte
 kødiagnostik; musik/kø og radio er ikke erklæret rettet.
 
+**Målrettet Green-gentest på 2.0.161 · 9. november, 15.39–15.42 CET.** Root startede en femminutters
+timer, åbnede detaljer med 4:48 og observerede aktive −1/+1. +1 gav 5:41 efter den fortsatte
+nedtælling, −1 gav 4:30. Annuller ved ca.4:25 fjernede timeren; Ny timer/Senest brugt var tilbage.
+`/private/tmp/green161-timer-adjusted.png` dokumenterer de aktive knapper. Dette beviser den
+rettede aktive justering på Green; alarmudløb og fysisk iPad er stadig ikke prøvet.
+
+Robotprøven havde en testfejl: root bad agenten åbne en forventet startbekræftelse uden effekt,
+men Start er tilsigtet direkte. Ét tryk Start i Gang startede rengøring, observeret Rengør/Bathroom1.
+Agenten satte straks på pause, afsluttede rengøringen og bekræftede retur til basen. Root godkendte
+oprydningen, og Green viste til sidst Oplader/100 %. Ingen yderligere robothandling. Kilden
+`robot-control-panel.js` tilbyder kun bekræftelse ved Stop og retur, ikke Start. Dette må ikke
+behandles som runtimefejl eller som bestået fornyelsesprøve. Den planlagte bekræftelsesbevarelse
+er stadig ikke gentestet på Green; softwarebeviset består. Root ejer fejlen i testinstruksen.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
