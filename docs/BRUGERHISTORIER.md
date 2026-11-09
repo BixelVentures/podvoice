@@ -506,11 +506,15 @@ reference og iPad står fortsat åbne for O6. Ingen enhedskommando blev sendt.
 En efterfølgende prøve i det fulde katalog »Alle« rullede til K med Scones og Uploadhistorik
 synlige. Scones → Tilbage bevarede »Alle«, men nulstillede læsepositionen til toppen ved aktiv
 Burgerboller og C. G4 står derfor åben for retur fra detaljen til kataloget. Den eksisterende
-browserprøve dækker retur via Forside under holdt kataloglæsning. Årsagen til denne overgang afventer.
+browserprøve dækker retur via Forside under holdt kataloglæsning. `cover_fallback_sol` undersøger
+denne PodVoice-overgang særskilt fra Speakers 0.26.84.
 
 Kl. 17.38 blev der oprettet en krypteret lokal Green-backup på 520 KB kun af Speakers 0.26.83
 med navnet »Custom backup 2026.8.2«, mens add-onen stod stoppet. Backupen indeholder ingen HA-data
-eller andre add-ons. Download og læsning af journalen afventer.
+eller andre add-ons. Download lykkedes til `/Users/madsbachandersen/Downloads/custom_backup_2026_8_2.tar`.
+Radioejeren verificerede i den stoppede 0.26.83-backup `START.v1`, fase 10, retirement `none`,
+`cancelled=false` og `writer_pending=false`. Migreringen skal omfatte denne afgrænsede historiske
+post før installation. De øvrige krav til uafhængigt boot-, layout- og writerbevis gælder fortsat.
 
 ## Fælles tilstande og overgangsregler
 
