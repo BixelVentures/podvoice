@@ -59,6 +59,48 @@ const assertRobotObservation=async(page,requests,action)=>{
   const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  if(process.env.ROBOT_ACTIVE_BASE_TEST==='1'){
+   const host=page.locator('pv-widget-host');
+   const pause=panel.getByRole('button',{name:'Pause',exact:true});
+   await pause.waitFor({state:'visible'});
+   await operations.first().waitFor({state:'attached'});
+   const initialTask=await host.evaluate(h=>h.liveControls.task.taskId);
+   const intent=action=>page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
+    &&r.request().method()==='POST'&&r.request().postDataJSON()?.action===action);
+   const paused=intent('pause');
+   await pause.tap();
+   assert.equal((await (await paused).json()).outcome,'accepted');
+   await page.waitForFunction(id=>{
+    const host=document.querySelector('pv-widget-host'),view=host.liveControls;
+    const device=host.state.devices.find(row=>row.id==='vacuum.qrevo');
+    return device?.status==='paused'&&device.transportActions?.actions.includes('resume')
+     &&view.task?.taskId!==id&&view.task?.options.some(option=>option.argsSchema.operation==='wash_start');
+   },initialTask);
+   assert.equal(await baseMenu.count(),1,'only one Base after authoritative Pause and fresh dock offer');
+   await baseMenu.tap();
+   const goHome=panel.getByRole('button',{name:'Kør til basen',exact:true});
+   assert(await goHome.isVisible());
+   assert(await panel.getByRole('button',{name:'Vask moppe',exact:true}).isEnabled());
+   await goHome.tap();
+   await panel.getByRole('button',{name:'Behold turen',exact:true}).tap();
+   assert.deepEqual(await ownerWrites(),[],'opening Base and canceling return sends no dock command');
+   const resume=panel.getByRole('button',{name:'Fortsæt',exact:true});
+   const resumed=intent('resume');
+   await resume.tap();
+   assert.equal((await (await resumed).json()).outcome,'accepted');
+   const writes=(await state()).robot.writes.filter(([service])=>service.startsWith('services/vacuum/'));
+   assert.deepEqual(writes.map(([service])=>service),['services/vacuum/pause','services/vacuum/start']);
+   assert.deepEqual(errors,[]);
+   assert(loadedBundleSha256&&loadedCssSha256);
+   if(process.env.ROBOT_EXPECTED_BUNDLE)assert.equal(loadedBundleSha256,process.env.ROBOT_EXPECTED_BUNDLE);
+   if(process.env.ROBOT_EXPECTED_CSS)assert.equal(loadedCssSha256,process.env.ROBOT_EXPECTED_CSS);
+   const proof={outcome:'PASS',loadedBundleSha256,loadedCssSha256,
+    oneBaseAfterObservedPause:true,returnCanceled:true,observedResumeOffered:true,writes,inertFinalService:true};
+   await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-active-base-proof.json'),
+    JSON.stringify(proof,null,2));
+   console.log(JSON.stringify(proof));
+   return;
+  }
   if(process.env.ROBOT_HISTORY_DOCK_TEST==='1'){
    const host=page.locator('pv-widget-host');
    await page.waitForFunction(()=>!!document.querySelector('pv-widget-host')?.liveControls?.task?.historyDraft);

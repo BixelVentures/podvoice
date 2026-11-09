@@ -276,14 +276,28 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
  buildDock(options){
   const stops=options.filter(option=>option.argsSchema.operation.endsWith('_stop')),starts=options.filter(option=>!option.argsSchema.operation.endsWith('_stop'));
   const buttonFor=option=>{const label=({wash_start:'Vask',empty_start:'Tøm støv',dry_start:'Tør'})[option.argsSchema.operation]||option.label,button=make('button',label,'pv-button');button.type='button';button.dataset.kitShape='pill';button.dataset.controlOptionId=option.id;button.dataset.dockOperation=option.argsSchema.operation;const fullLabel=({wash_start:'Vask moppe',empty_start:'Tøm støvbeholder',dry_start:'Tør moppe'})[option.argsSchema.operation];if(fullLabel)button.setAttribute('aria-label',fullLabel);const icon=createKitComponent('icon',{document,tag:'img',className:'--24'});icon.src=`assets/icons/${option.argsSchema.operation.endsWith('_stop')?'stop':option.argsSchema.operation.startsWith('wash')?'drop':option.argsSchema.operation.startsWith('empty')?'vacuum':'wind'}.svg`;icon.alt='';icon.width=24;icon.height=24;button.prepend(icon);button.addEventListener('click',()=>{if(!button.disabled)this.action(option);});return button;};
-  for(const option of stops)this.transportControls.prepend(buttonFor(option));if(starts.length){const disclosure=createKitDisclosure({document,id:`robot-base-${++cleaningSerial}`,title:'Base',leadingIcon:'assets/icons/house.svg'});this.baseDisclosure=disclosure;disclosure.node.classList.add('robot-dock-actions');disclosure.node.dataset.kitLayout='header-more';disclosure.trigger.dataset.kitShape='pill';const actions=make('div',undefined,'pv-actions');for(const option of starts)actions.append(buttonFor(option));disclosure.panel.append(actions);this.transportControls.append(disclosure.node);}
+  for(const option of stops)this.transportControls.prepend(buttonFor(option));
+  if(starts.length)this.baseActions().append(...starts.map(buttonFor));
+ }
+ baseActions(){
+  if(this.baseDisclosure)return this.baseDisclosure.panel.querySelector('.pv-actions');
+  const disclosure=createKitDisclosure({document,id:`robot-base-${++cleaningSerial}`,title:'Base',
+   leadingIcon:'assets/icons/house.svg'});
+  this.baseDisclosure=disclosure;
+  disclosure.node.classList.add('robot-dock-actions');
+  disclosure.node.dataset.kitLayout='header-more';
+  disclosure.trigger.dataset.kitShape='pill';
+  const actions=make('div',undefined,'pv-actions');
+  disclosure.panel.append(actions);
+  this.transportControls.append(disclosure.node);
+  return actions;
  }
  compactActiveActions(){
   if(!['cleaning','paused'].includes(this.value?.device?.status))return;
   const home=[...this.transportControls.children].find(node=>node.tagName==='BUTTON'&&node.dataset.actionId==='return');
   if(!home)return;
-  if(!this.baseDisclosure){const disclosure=createKitDisclosure({document,id:`robot-base-${++cleaningSerial}`,title:'Base',leadingIcon:'assets/icons/house.svg'});this.baseDisclosure=disclosure;disclosure.node.classList.add('robot-dock-actions');disclosure.node.dataset.kitLayout='header-more';disclosure.trigger.dataset.kitShape='pill';disclosure.panel.append(make('div',undefined,'pv-actions'));this.transportControls.append(disclosure.node);}
-  const actions=this.baseDisclosure.panel.querySelector('.pv-actions');if(actions){home.remove();actions.prepend(home);}
+  home.remove();
+  this.baseActions().prepend(home);
  }
 
  buildMapSelector(parent,mapName){const option=robotControlGroups(this.value?.task).settings.find(option=>option.argsSchema.kind==='choice'&&option.argsSchema.choices.length>0&&(['map','map_id','active_map','selected_map'].includes(option.settingKey)||/^(Kort|Etage)$/.test(option.label)));if(!option){if(mapName||activeJob(this.value?.device)){const label=make('p',mapName||'','pv-meta robot-map-meta');label.hidden=!mapName;if(activeJob(this.value?.device))this.currentMap=label;parent.append(label);}return;}const select=make('select',undefined,'robot-map-select'),placeholder=make('option',mapName||'Vælg etage');placeholder.value='';placeholder.disabled=true;select.append(placeholder);select.dataset.choiceVariant='navigation';select.setAttribute('aria-label',option.label);select.dataset.controlOptionId=option.id;for(const choice of option.argsSchema.choices){const row=make('option',choice.label);row.value=choice.id;select.append(row);}const paint=()=>{const current=settingCurrent(this.value,option),matches=option.argsSchema.choices.filter(choice=>choice.label===mapName),selected=option.argsSchema.choices.some(choice=>choice.id===current)?current:matches.length===1?matches[0].id:'';if(select.value!==selected)select.value=selected;};select.addEventListener('change',()=>{const chosen=select.value;paint();if(!select.disabled&&option.argsSchema.choices.some(choice=>choice.id===chosen))this.action(option,{choiceId:chosen});});this.mapControl={option,select,paint};paint();parent.append(select);}

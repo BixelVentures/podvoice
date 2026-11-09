@@ -713,6 +713,10 @@ test('same robot passive status change retains Base focus and disclosure through
  panel.data={task:oldTask,device:cleaning,connected:true,directActions:['pause','return'],directBlocked:false};panel.disabled=false;
  const previous=panel.baseDisclosure.trigger;emit(previous,'click');previous.focus();assert.equal(previous.getAttribute('aria-expanded'),'true');
  panel.observed(paused,{directActions:['resume','return'],directBlocked:false});panel.disabled=true;assert.equal(document.activeElement,previous);assert.equal(previous.disabled,false);
+ const wash=panel.baseDisclosure.panel.querySelector('[data-dock-operation=wash_start]');
+ assert.equal(wash.disabled,true,'the unavailable task cannot lend dock command authority');
+ const returnButtons=panel.baseDisclosure.panel.querySelectorAll('[data-action-id=return]');
+ assert(returnButtons.length&&returnButtons.every(button=>!button.disabled));
  panel.data={task:newTask,device:paused,connected:true,directActions:['resume','return'],directBlocked:false};assert.notEqual(panel.baseDisclosure.trigger,previous);assert.equal(document.activeElement,panel.baseDisclosure.trigger);assert.equal(panel.baseDisclosure.trigger.getAttribute('aria-expanded'),'true');assert.deepEqual(effects,[]);
 });
 test('Base focus and expansion are not carried to a different robot scope',()=>{

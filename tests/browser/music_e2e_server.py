@@ -71,6 +71,7 @@ robot_long_session = os.environ.get("ROBOT_LONG_SESSION_TEST") == "1"
 robot_observation = os.environ.get("ROBOT_OBSERVATION_TEST") == "1"
 robot_dock = os.environ.get("ROBOT_DOCK_TEST") == "1"
 robot_history_dock = robot_dock and os.environ.get("ROBOT_HISTORY_DOCK_TEST") == "1"
+robot_active_base = robot_dock and os.environ.get("ROBOT_ACTIVE_BASE_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
@@ -232,6 +233,10 @@ if robot is not None:
                 )
         if path.endswith("/pause"):
             robot.states[ROBOT]["state"] = "paused"
+            if robot_active_base:
+                robot.states["sensor.fixture_status"].update(
+                    state="paused", last_reported=datetime.now(UTC).isoformat()
+                )
         elif path.endswith("/start") or (
             (robot_draft or robot_slow_start)
             and path == "services/vacuum/send_command"
@@ -643,12 +648,19 @@ if robot_slow_start or robot_dock:
     # transaction must retain custody through four real4s setting HTTP calls.
     from integration.test_podview_dock_commands import command_catalog
 
+    initial_state, initial_status = (
+        ("cleaning", "segment_cleaning") if robot_active_base else ("docked", "charging")
+    )
     _, dock_fields, _ = command_catalog(
-        robot, app[BRIDGE], state="docked", status="charging", error="ok"
+        robot, app[BRIDGE], state=initial_state, status=initial_status, error="ok"
     )
     app[BRIDGE].controls.policy["vacuum"][0]["actions"] = ["settings", "start", "dock"]
     if robot_history_dock:
         app[BRIDGE].controls.policy["vacuum"][0]["actions"].append("reuse")
+    if robot_active_base:
+        app[BRIDGE].controls.policy["vacuum"][0]["actions"].extend(
+            ["pause", "resume", "stop", "return"]
+        )
 
 if robot_draft:
     # Keep the actual server-issued task and deadline in agreement, but make
