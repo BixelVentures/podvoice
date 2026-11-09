@@ -116,3 +116,13 @@ export function roomPlaybackObservation(body,account,snapshot,previous,{receiptR
  if(!['playing','paused'].includes(observed.state)||observed.target?.id!==bound.targetId||!Number.isFinite(until)||until*1000<=Date.now())throw Error('unbound_room_playback');
  return {...observed,expiresAt:Math.min(observed.expiresAt,until*1000),roomBound:true,bootId:body.bootId,roomId:body.roomId,roomBinding:{...bound}};
 }
+
+// The music lane admits one action at a time. A queue, Find musik or speaker choice made while
+// another music action runs waits here for its turn (K3, F2, A9, H1). Only the latest choice
+// waits: an earlier one resolves 'replaced'. When the running action ends UNKNOWN the waiting
+// choice resolves 'unknown' and is not sent; otherwise it resolves 'free'.
+export function waitForMusicLane(controls) {
+ if (!controls?.musicIntentPending) return Promise.resolve('free');
+ controls.musicLaneWaiter?.('replaced');
+ return new Promise(resolve => { controls.musicLaneWaiter = resolve; });
+}

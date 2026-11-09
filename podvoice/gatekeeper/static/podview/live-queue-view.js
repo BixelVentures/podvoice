@@ -1,4 +1,4 @@
-import {roomObservationCurrent,playbackBinding} from './media-observation.js';
+import {roomObservationCurrent,playbackBinding,waitForMusicLane} from './media-observation.js';
 import {spotifyArtwork} from './spotify-artwork.js';
 const text=(v,n=160)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const int=(v,min=0,max=Number.MAX_SAFE_INTEGER)=>Number.isInteger(v)&&v>=min&&v<=max;
@@ -208,8 +208,22 @@ export class LiveQueueView{
  }
  async sendChoice(selected,shownOffer,choiceScope){
   const media=this.host.liveMedia,controls=this.host.liveControls;
-  if(controls?.musicIntentPending){
-   this.host.showFeedback?.('Afvent den igangværende handling.',false,{source:'queue'});
+  if (controls?.musicIntentPending) {
+   // The latest choice waits for the running music action and is then sent from a fresh offer.
+   const input = {scope: choiceScope, id: selected.id, uri: selected.uri};
+   this.waitingChoices = [input];
+   this.redraw();
+   const turn = await waitForMusicLane(controls);
+   if (turn === 'free') {
+    this.waitingChoices = [input];
+    return this.renewChoices(media, shownOffer.taskId, null);
+   }
+   if (this.waitingChoices.at(-1) === input) this.waitingChoices = [];
+   if (turn === 'unknown') {
+    const message = 'Den forrige handling kunne ikke bekræftes · dit køvalg blev ikke sendt.';
+    this.host.showFeedback?.(message, false, {source: 'queue'});
+   }
+   this.redraw();
    return;
   }
   const waiting=this.waitingChoices;

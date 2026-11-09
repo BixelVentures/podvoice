@@ -307,6 +307,10 @@ export class LiveControlView{
    }
   }
   this.musicQueued = null;
+  // A choice waiting in waitForMusicLane gets its turn; after UNKNOWN it is not sent.
+  const laneWaiter = this.musicLaneWaiter;
+  this.musicLaneWaiter = null;
+  laneWaiter?.(outcome === 'unknown' ? 'unknown' : 'free');
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
