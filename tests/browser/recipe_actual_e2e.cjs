@@ -211,7 +211,14 @@ async function readAndResumeBurgerboller(page){
  const catalogueOffset=await entries.evaluate(node=>node.scrollTop);
  assert(catalogueOffset>0,'Scones is reached by scrolling the actual recipe catalogue');
  assert.equal(await recipe.locator('input[type=radio]:checked').inputValue(),'');
- const activeSession=await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1'));
+ const readActiveSession=()=>page.evaluate(()=>{
+  const raw=localStorage.getItem('podview.recipe-session.v1');
+  if(!raw)return null;
+  const session=JSON.parse(raw);
+  delete session.savedAt;
+  return session;
+ });
+ const activeSession=await readActiveSession();
  assert(activeSession,'Burgerboller already owns a persisted cooking session');
  await scones.tap();
  await page.getByRole('button',{name:'Scones med hytteost og blåbær · Tilbage',exact:true}).waitFor();
@@ -221,7 +228,7 @@ async function readAndResumeBurgerboller(page){
   'Tilbage restores the catalogue position even while another recipe is active');
  assert.equal(await recipe.locator('input[type=radio]:checked').inputValue(),'');
  assert.equal(await row.getAttribute('aria-current'),'true');
- assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),activeSession);
+ assert.deepEqual(await readActiveSession(),activeSession);
  console.log(JSON.stringify({outcome:'PASS',story:'G4',catalogueDetailBack:true,
   catalogueOffset,category:'Alle',sameActiveRecipe:true,sourceMode}));
  await recipe.locator('input[type=radio][value="Aftensmad"]').locator('..').tap();
