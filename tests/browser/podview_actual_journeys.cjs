@@ -47,7 +47,7 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'1'});
   runJourney(journey,{MUSIC_DEFAULT_SPEAKER_PROOF:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'default-speaker')});
-  for(const scenario of ['1','revisit','cover']){
+  for(const scenario of ['1','revisit','cover','personal-cover']){
    runJourney(journey,{MUSIC_DISCOVERY_LOADING_TEST:scenario,
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`discovery-${scenario}`)});
   }

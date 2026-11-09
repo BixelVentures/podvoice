@@ -19,6 +19,7 @@ const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
 const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
+const discoveryPersonalCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='personal-cover';
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
@@ -947,6 +948,67 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
   await surface.close();
  }
 }
+async function personalPlaylistCoverJourney(asset){
+ const spotify='https://i.scdn.co/image/InertFailedPersonalCover';
+ const decoded={};
+ for(const cachedFailure of [false,true]){
+  const surface=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
+  const spotifyRequests=[],cachedResponses=[],effects=[];
+  try{
+   await surface.route('**/*',route=>{
+    const url=new URL(route.request().url());
+    if(url.href===spotify){
+     spotifyRequests.push(url.href);
+     return route.fulfill({status:503});
+    }
+    if(url.origin!==base)return route.abort();
+    if(cachedFailure&&url.pathname.startsWith('/view/theme-art/'))return route.fulfill({status:503});
+    return route.continue();
+   });
+   surface.on('response',response=>{
+    if(new URL(response.url()).pathname==='/view/'+asset)cachedResponses.push(response.status());
+   });
+   surface.on('request',request=>{
+    const pathname=new URL(request.url()).pathname;
+    if(request.method()==='POST'&&pathname.startsWith('/view/api/')
+     &&pathname!=='/view/api/music/queue/offer')effects.push(pathname);
+   });
+   await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+   await env.openOverview(surface);
+   await surface.locator('#home-music').tap();
+   const libraryRead=surface.waitForResponse(response=>{
+    const url=new URL(response.url());
+    return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='account_playlists';
+   });
+   await surface.locator('[data-collection=top]').tap();
+   const library=await (await libraryRead).json();
+   assert.deepEqual(library.playlistArtwork,[asset],'retired legacy art never enters the library pool');
+   const prefix=cachedFailure?'assets/music-editorial-':asset;
+   const art=surface.locator('#result-list img.result-art[src^="'+prefix+'"]:not([data-content-transition])');
+   await surface.waitForFunction(expected=>[...document.querySelectorAll('#result-list img.result-art')]
+    .filter(image=>image.getAttribute('src')?.startsWith(expected)&&image.naturalWidth>0).length===2,prefix);
+   const images=await art.evaluateAll(images=>Promise.all(images.map(async image=>{
+    await image.decode();
+    return {src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight};
+   })));
+   assert.equal(images.length,2);
+   assert.deepEqual(spotifyRequests,[spotify]);
+   assert.ok(cachedResponses.length>=1&&cachedResponses.every(status=>status===(cachedFailure?503:200)));
+   assert.deepEqual(effects,[]);
+   if(cachedFailure)assert.equal(new Set(images.map(image=>image.src)).size,2);
+   else assert.ok(images.every(image=>image.width===1024&&image.height===1024));
+   decoded[cachedFailure?'local':'cached']=images;
+  }finally{await surface.close();}
+ }
+ const service=await state();
+ assert.deepEqual(service.writes,[]);
+ assert.deepEqual(service.imageProviderCalls,[]);
+ const proof={outcome:'PASS',stories:['F9','F12'],bundleSHA,decoded,imageProviderDispatches:0,
+  actionPosts:0,inertCatalogue:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-personal-playlist-cover-proof.json'),
+  JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
+}
 async function accountRolloverJourney(){
  const host=page.locator('pv-widget-host');
  const accounts=page.locator('pv-choice-list[aria-label="Musikkonto"]');
@@ -1469,7 +1531,8 @@ async function queuePersistenceJourney(){
   MUSIC_QUEUE_COLD_TAIL:queueColdTail?'1':'0',PODVIEW_TEST_NONCE:nonce,
   ...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1'}:{}),
   // Reuse the existing isolated catalogue search and cover fixtures for all four reads.
-  ...(discoveryLoading?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{})
+  ...(discoveryLoading||discoveryPersonalCover?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{}),
+  ...(discoveryPersonalCover?{MUSIC_PERSONAL_PLAYLIST_COVER:'1'}:{})
  });
  server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],
   {cwd:env.runtimeRoot,env:fixtureEnv,stdio:['ignore','pipe','pipe']});
@@ -1642,6 +1705,7 @@ async function queuePersistenceJourney(){
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}
  if(discoveryCover){await discoveryCoverJourney();return;}
+ if(discoveryPersonalCover){await personalPlaylistCoverJourney((await state()).personalPlaylistCache);return;}
  if(recentSession){await recentSessionJourney();return;}
  if(documentScope){await documentScopeJourney();return;}
  await page.locator('#home-music').tap();

@@ -38,6 +38,7 @@ account_rollover = os.environ.get("MUSIC_ACCOUNT_ROLLOVER_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
 discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
+personal_playlist_cover = os.environ.get("MUSIC_PERSONAL_PLAYLIST_COVER") == "1"
 recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
@@ -154,6 +155,8 @@ if discovery_cover:
         "PI///M///M///M//8/mnv/4j//4j//4j//4j//4j//4j//4j/84j//5n//5n//5n/+ZHw=="
     )
     store.publish("cooking", cooking_image)
+    if personal_playlist_cover:
+        base.state["personalPlaylistCache"] = store.url("cooking")
     assert not store.reserve("calm")
 
     base.state["imageProviderCalls"] = []
@@ -224,6 +227,38 @@ async def native(request):
                 if row["kind"] == "spotify_device" and row["target_id"] == "device":
                     row["name"] = "Køkkenalrum HomePod"
         return httpx.Response(200, json={"service_response": value})
+    if personal_playlist_cover and service == "get_user_playlists":
+        assert args == {"config_entry_id": "account", "limit": 20}
+        first = {
+            "uri": "spotify:playlist:" + "A" * 22,
+            "name": "Personlig testplayliste A",
+            "artwork": {
+                "provider": "spotify",
+                "kind": "playlist_cover",
+                "url": "https://i.scdn.co/image/InertFailedPersonalCover",
+            },
+        }
+        second = {
+            "uri": "spotify:playlist:" + "A" * 21 + "B",
+            "name": "Personlig testplayliste B",
+        }
+        return httpx.Response(
+            200,
+            json={
+                "service_response": {
+                    "ok": True,
+                    "schema": "podconnect.user_playlists.v1",
+                    "config_entry_id": "account",
+                    "owner_epoch": "a" * 32,
+                    "source": "spotify_web_api",
+                    "coverage": "first_page",
+                    "limit": 20,
+                    "returned_count": 2,
+                    "source_has_more": False,
+                    "playlists": [first, second],
+                }
+            },
+        )
     if (cold or discovery_cover) and service == "search_playlists":
         suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
         playlist = {"uri": "spotify:playlist:" + suffix, "name": "Kold jazz " + suffix[:4]}
@@ -448,6 +483,7 @@ base.music.tools._discovery = replace(
     | {
         "get_queue",
         "top_tracks",
+        *({"get_user_playlists"} if personal_playlist_cover else set()),
         *({"search_playlists"} if cold or discovery_cover else set()),
         "recently_played",
         "get_room_content_controls",
