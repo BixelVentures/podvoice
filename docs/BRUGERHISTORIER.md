@@ -516,6 +516,15 @@ Radioejeren verificerede i den stoppede 0.26.83-backup `START.v1`, fase 10, reti
 `cancelled=false` og `writer_pending=false`. Migreringen skal omfatte denne afgrænsede historiske
 post før installation. De øvrige krav til uafhængigt boot-, layout- og writerbevis gælder fortsat.
 
+**Læsende Tesla-sammenligning · 9. november, 17.42–17.43 CET.** Green 2.0.163 viste
+sidst kendt kl. 16.59, låst bil, 66 % og 253 km. HA viste låst bil, lukket bagagerum,
+66 % og 252,86 km. Klima var slukket med mål 20 °C. PodViews 17,3 °C matchede den
+separate kabinetemperatursensor. Klimaentiteten viste 17,5 °C i sit eget felt.
+Temperatur, afrimning og sædevarme forblev deaktiveret efter retur og genåbning.
+HA viste ladekabel frakoblet og 0 kW. Forbindelsessensoren stod OFF, og HA viste
+ikke et særskilt tidspunkt for denne observation. Dvale er derfor stadig uafklaret.
+Ingen bilkommando blev sendt. B1, B3, B7 og B11 forbliver åbne. B6 var allerede bestået.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
