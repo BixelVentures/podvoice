@@ -302,7 +302,7 @@ class ThemeArtStore:
 
     def cached_playlist_artwork(self) -> list[str]:
         """Reuse the current graphic cache without taking an image-budget lease."""
-        by_digest = {}
+        by_digest: dict[str, str] = {}
         for theme in THEMES:
             if url := self.url(theme):
                 by_digest.setdefault(url.rsplit("/", 1)[-1], url)
