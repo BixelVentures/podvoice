@@ -317,6 +317,21 @@ at den var væk. Ingen bilkommando eller vækning blev bekræftet. Evidens:
 `/private/tmp/green160-tesla-unlock-dialog-1524.png`. Dette forløb kræver ingen spekulativ
 Tesla-rettelse; det fastslår ikke årsagen til enhver tidligere manglende observation eller et tidsmål.
 
+**Samlet installation · 9. november, ca. 15.38–15.40 CET.** PodVoice 2.0.161 er normalmerged
+fra PR343 til `0ff3c92f45246e15f903581bc79fd804463ed57f`; officiel kandidat- og main-CI består.
+Stabilt tag/release og ARM-image `sha256:5fa5506e12eaafcc293852d93f7075c2d0343e329e9266a1f91f244af2ea271d`
+er verificeret. Speakers 0.26.81 er normalmerged fra PR126 til `e8aa656b35e74c74049ed1fe41726524ed6ac499`;
+fire kandidatchecks og publicering42635766401 består. Begge arkitekturer genbrugte det reviewede
+produkttræ `358969c4b53176cd5fb4180c4bdc1edd225fcf2d`; ARM-image
+`sha256:2ec5732123091cce66a505a935b5bbaa93ca764c80f59578b62e75c8f9d7f1ed`.
+Root installerede begge via Supervisor med backup. Begge opdateringsdialoger viste installeret
+og seneste henholdsvis 2.0.161 og 0.26.81. Bevis: `/private/tmp/green-podvoice-161-installed.png`
+og `/private/tmp/green-speakers-081-installed.png`. Spotify viste NONE før installation.
+Supervisors butikssøgning timed out i HA, men gennemførte senere; fornyelse af de to update-entiteter
+indlæste de reelle tilbud. Ingen gentaget installationskommando ved ukendt udfald.
+Timer- og robotrettelser afventer nu målrettet Green-gentest. Speakers indeholder kun den aftalte
+kødiagnostik; musik/kø og radio er ikke erklæret rettet.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
