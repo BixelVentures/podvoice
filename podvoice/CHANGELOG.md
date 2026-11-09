@@ -1,3 +1,7 @@
+## 2.0.163
+
+- Vis grafik fra den eksisterende billedcache eller en lokal illustration, når Spotify-omslaget mangler på en personlig playliste.
+
 ## 2.0.162
 
 - Gør den senest valgte playliste tilgængelig igen, når musikkilden har bekræftet, at der ikke længere afspilles.
