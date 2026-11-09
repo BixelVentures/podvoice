@@ -204,10 +204,11 @@ deres fulde accept.
 
 **Levering til Claude-gennemgang · 9. november 2026.** PodVoice 2.0.160 er merged fra PR #340
 på `ce37b41cb513dc6ea87bd61afecd15aa2e3b0d46`, og ARM-imageindekset er publiceret som
-`sha256:46c5c6f6ce0bb59fc6d66d91a3bb6c62a4120ca659f1cbdc8a4263724caa018b`. Ved seneste Green-
-aflæsning var Speakers 0.26.79 installeret. HA's opdateringsentitet viste stadig PodVoice
-2.0.159 som seneste, mens Supervisor tilbød 2.0.160. Installation og runtime-aflæsning af
-2.0.160 afventer. [PodVoice PR #340](https://github.com/BixelVentures/podvoice/pull/340)
+`sha256:46c5c6f6ce0bb59fc6d66d91a3bb6c62a4120ca659f1cbdc8a4263724caa018b`. Green installerede
+2.0.160 via HA's `update.install` med backup. Add-onens infoside viste 2.0.160 og »Kører«.
+Speakers 0.26.79 var allerede installeret. Lokal visning er `green-podvoice-160-installed.png`.
+Admin-aflæsning og de relevante liveforløb efter opdateringen afventer.
+[PodVoice PR #340](https://github.com/BixelVentures/podvoice/pull/340)
 
 ## Fælles tilstande og overgangsregler
 
