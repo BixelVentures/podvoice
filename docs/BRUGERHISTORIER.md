@@ -297,7 +297,7 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 |---|---|---|
 | 1 · Adgang og navigation (G1–G6) | Åben. Eksisterende HA-login gav adgang. Den eksisterende fane genforbandt efter add-on-genstart. | Kold åbning og genoptagelse på iPad, genoprettelse efter fejl, navigation under opdatering og sammenligning af de aftalte flader. |
 | 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. Fire faner og listeudvidelse bevarede forslagene. Efter installation af Speakers 0.26.82 startede Ludlow, og Spotify bekræftede pause på Køkkenalrum. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
-| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Native-låsen blev lokaliseret på 0.26.81. Rettelsen er installeret i 0.26.82. Gentesten standsede før køvalg, da HA's rumlæsning manglede metadata, som kontolæsningen viste. Efter indlæsning af Control 0.10.39 viste Green 20 navngivne køposter. Første række blev senere accepteret og spillede på Køkkenalrum, hvorefter PodView mistede bekræftet output, kø og betjening. | Linux-prøven gengav TEARDOWN efter gyldig køkvittering og forsinket STOP. Kausalgentest af rettelsen kører. Speakers er stoppet af hensyn til stilhed. Lead genoptager efter rettelse. Højttalerskift kræver tilgængelig modtager. Frida var slukket. |
+| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Native-låsen blev lokaliseret på 0.26.81. Rettelsen er installeret i 0.26.82. Gentesten standsede før køvalg, da HA's rumlæsning manglede metadata, som kontolæsningen viste. Efter indlæsning af Control 0.10.39 viste Green 20 navngivne køposter. Første række blev senere accepteret og spillede på Køkkenalrum, hvorefter PodView mistede bekræftet output, kø og betjening. | Linux-prøven gengav TEARDOWN efter gyldig køkvittering og forsinket STOP. Rettelsen bestod den målrettede Linux-prøve. Green-gentest afventer. Speakers er stoppet af hensyn til stilhed. Lead genoptager efter rettelse. Højttalerskift kræver tilgængelig modtager. Frida var slukket. |
 | 4 · Radio (R1–R6) | Åben. På 0.26.80 gav passiv klargøring `start_source_owned` med START-ejerskab i C og fravær af primær strøm i Native. 0.26.83 er installeret. Første kolde afvisning er writer_census_incomplete i fifo_before_reader. | Skeln ufuldstændig procesaflæsning fra aktiv writer i én Linux-prøve. Stationsvalg, skift, Stop og Spotify-retur kræver klart tilbud. |
 | 5 · Opskrifter (O1, O4–O8, O10) | Åben. Kataloget viste syv faktiske billeder. Bevarelse, afslutning med aktiv timer og upload er dokumenteret ovenfor. | Brød og bagværk bevarede kategori og fem rækker efter Scones. Opstart, resterende referencetilstande og iPhone-genvejens HTTP-kvittering afventer. |
 | 6 · Robot (S1–S16) | Åben. Navigation bevarede Base og kladden Gang, Støvsug, Stille og 1×. Start, Pause og Fortsæt er observeret. Oprydning på 2.0.161 observerede Afslut rengøring og retur til Oplader/100 %. | Den installerede dialogrettelse afventer et målrettet forløb med fornyelse, mens Stop- eller returbekræftelsen er åben. Tidsmål, fysiske Base-kommandoer og øvrige tilstandsgrene afventer. |
@@ -490,8 +490,11 @@ Radio 0.26.84 i PR #129 gennemgår CI parallelt. Imagebyg afventer den samlede k
 mens den forsinkede STOP-callback stadig kunne køre. Da prøven udløste callbacken før ny PCM,
 sendte C TEARDOWN og mistede den samme AirPlay-session og epoch. Det reproducerer en konkret
 årsag til kontroltab efter accepteret køvalg. Lokalt logbevis er `pc83-paused-queue-wire-red.log`.
-Kandidaten fører pausebevarelsen videre ved køvalg på præcis samme ejer og rute efter sidste
-writer-, udløbs- og ejerskabskontrol. Den afsluttende Linux-prøve kører. Green-gentest afventer.
+Kandidaten `6fdf186f` fører pausebevarelsen videre ved køvalg på præcis samme ejer og rute efter
+sidste writer-, udløbs- og ejerskabskontrol. Uafhængigt review og Linux-prøven med inert AirPlay-
+modtager bestod. Samme writer leverede fortsat RTP, 15 friske ejerlæsninger bestod, og et nyt
+eksplicit Pause-tryk virkede. Lokalt logbevis er `pc83-paused-queue-wire-green-final.log`.
+Integration i Speakers 0.26.84, levering og Green-gentest afventer.
 
 **Læsende Green-navigation · 9. november, 17.36 CET.** Efter en frisk HA-login åbnede den
 eksisterende Burgerboller-widget trin 2 af 5 med én af ti ingredienser markeret. Tilbage i
