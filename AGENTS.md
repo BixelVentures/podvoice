@@ -35,16 +35,20 @@ samme undersøgelse; skift tilgang eller skriv præcist, hvad du mangler.
 
 ## Krav til oplevelsen (gælder alle features)
 
-- Tryk giver synlig reaktion med det samme; korrekt tilstand < 300 ms ved egen handling,
-  < 1,5 s når noget ændres udefra (fx en anden app).
+- Tryk giver synlig reaktion < 100 ms og visning af eget valg < 300 ms. Bekræftet enhedseffekt
+  måles separat efter historien; eksterne ændringer måles fra kildeappen (< 1,5 s), ikke fra HA-event.
 - Knapper låses aldrig, fordi en kommando er undervejs. Et tryk under en igangværende
   kommando sættes i kø.
 - Ingen blink: indhold, der ikke har ændret sig, tegnes ikke om; ingen tomme mellemtilstande.
-- Pause, afspil, næste, forrige, spol, lydstyrke, lys til/fra, robot pause/retur er
-  *idempotente*: de må sendes igen og kræver ikke frisk observation. Kun handlinger, der
-  starter nyt indhold eller flytter noget til et andet rum, bekræftes mod aktuel tilstand.
-- Et ukendt udfald vises ærligt, men gensendes aldrig automatisk og låser intet.
+- Almindelig betjening venter ikke på et nyt poll. Næste/forrige og toggle er ikke idempotente:
+  hvert eksplicit tryk er en handling, aldrig automatisk replay. Absolutte værdier (fx lydstyrke)
+  afstemmes med seneste brugerønske. Nyt indhold/output bekræftes mod aktuel tilstand.
+- Et ukendt udfald vises ærligt og gensendes aldrig automatisk. Reel manglende adgang, offline
+  eller aftalte produktregler (fx klima slukket) er noget andet end en midlertidig opdatering.
 - Tomme tilstande og fejl forklarer, hvad brugeren kan gøre.
+
+- Ingen lydprøver kl. 18–08 Europe/Copenhagen eller genstarter/installationer, der kan genoptage lyd.
+  Dokumentarbejde genoptager ikke produktarbejde. Stop testmusik efter tilladte prøver.
 
 ## Regler for koden
 

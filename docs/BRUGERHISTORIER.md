@@ -1,40 +1,90 @@
 # PodView — brugerhistorier (acceptgrundlag)
 
 Hver linje er én historie: **Givet** situation → **Når** jeg gør noget → **Så** sker der dette.
-Tider er målt fra tryk til korrekt skærm. Hver historie skal have en automatisk browsertest
+Skærmrespons måles fra brugerens tryk; enhedseffekt måles separat fra samme tryk. Eksterne ændringer
+måles fra ændringen i kildeappen, ikke først fra modtaget HA-event. Hver historie skal have en automatisk browsertest
 (`tests/browser/*_actual_e2e.cjs`), der tjekker præcis historien og tiden.
 **Dækning:** "område: X" = der findes en browserrejse X for området, men den præcise historie
 og tid er endnu ikke kontrolleret. ✅ = historie og tid er kontrolleret i testen. ⬜ = intet.
 Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
+Udvidelsen 7. november samler tidligere brugerfeedback til fælles gennemgang. Nye rækker er krav,
+ikke implementerings- eller testresultater. Eksisterende delvise resultater bevares med deres begrænsninger.
+F3 og H2–H3 er Claudes eksisterende forslag; konkret søge-/konto-UI skal afklares mod godkendt design.
+Daily Mix er valgfri. En historie giver ikke tilladelse til at opfinde nyt layout eller enhedsfunktioner.
+
+## Fælles tilstande og overgangsregler
+
+| Tilstand | Forventet adfærd |
+|---|---|
+| Første åbning, ingen data | Stabil plads til det godkendte indhold; neutral loading. Ingen opdigtede værdier eller tomme kø-rækker. |
+| Kendte data, opdatering i baggrunden | Bevar indhold, covers, scroll, valg og åbne accordions; ingen blink eller midlertidig låsning. |
+| Eget tryk afventer svar | Vis valget straks. Skeln brugerens ønskede tilstand fra bekræftet effekt; ingen global ventelås. |
+| Bekræftet effekt | Afstem med den autoritative kilde uden at gammelt svar ruller et nyere valg tilbage. |
+| Afvist eller fejlet handling | Kort konkret feedback; bevar seneste bekræftede data og mulighed for et nyt relevant tryk. |
+| Ukendt udfald / timeout | Ingen automatisk gentagelse. Et nyt eksplicit tryk er en ny handling; almindelig opdatering fortsætter. |
+| Forbindelsen mistes | Bevar sidst kendte data med tidspunkt; forbind automatisk igen. Foregiv ikke succes eller gem offline-tryk til senere afvikling. |
+| Kilden bekræfter tomt indhold | Vis den relevante tomme tilstand; timeout, manglende felt og transportfejl er ikke en tom liste. |
+| Reel manglende adgang eller funktion | Forklar konkret hvorfor netop handlingen er utilgængelig. Baggrundsrefresh er ikke manglende adgang. |
+| # | Historie | Test |
+|---|---|---|
+| G1 | Jeg åbner PodView i HA på Mac eller iPad → eksisterende HA-login giver den aftalte betjening uden ekstra skærmregistrering eller manuelt refresh | ⬜ |
+| G2 | iPad går i dvale, appen sættes i baggrunden eller nettet forsvinder → ved genåbning gendannes forbindelse og aktuelle data automatisk, uden at miste lokale valg | ⬜ |
+| G3 | Jeg bruger »gendan funktioner« → forbindelsen genoprettes uden at nulstille valg, starte musik eller gentage tidligere handlinger | ⬜ |
+| G4 | Jeg skifter side og vender tilbage under opdatering → indhold og placering bevares; ingen skeleton/empty-state-flash | ⬜ |
+| G5 | Et ældre svar ankommer efter et nyere svar eller efter skift af konto/output → det overskriver ikke nyere tilstand og sender ingen handling til det gamle mål | ⬜ |
+| G6 | UI sammenlignes i bibliotek, produkt, Mac og HA-appens iPad-webview → samme godkendte komponenter, layout, fokus, touchmål og tilstande; tastaturfokus bevares | ⬜ |
+
+Ingen lydprøver mellem 18–08 Europe/Copenhagen; heller ingen installation/genstart, der kan genoptage lyd.
+Softwareprøver bruger isolerede adaptere uden fysiske sideeffekter. Efter tilladte lydprøver stoppes testmusikken.
+
 
 ## Afspiller
 
 | # | Historie | Test |
 |---|---|---|
-| A1 | Musik spiller → jeg trykker pause → knappen viser "Fortsæt" < 100 ms, musikken stopper < 1 s, knappen bliver aldrig grå | delvis ✅ music: knap < 500 ms og aldrig grå; stoptid ikke målt |
+| A1 | Musik spiller → jeg trykker pause → knappen viser "Fortsæt" < 100 ms, musikken stopper < 1 s, knappen bliver aldrig grå | delvis ✅ music: ægte browsertryk → knap < 100 ms (målt 7,7–15,8 ms), ingen grå knap under forsinket svar/refresh; fysisk stoptid ikke målt |
 | A2 | Musik er sat på pause → jeg trykker afspil → samme som A1 omvendt | område: music |
-| A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | delvis ✅ enhedstest: 3 hurtige tryk giver 3 næste i rækkefølge, aldrig grå; tid i browser ikke målt |
+| A3 | Musik spiller → jeg trykker næste 3 gange hurtigt → der springes 3 sange frem, skærmen viser den nye sang < 1,5 s efter sidste tryk | delvis ✅ music: tre hurtige browsertryk giver tre simulerede ejerkommandoer, titel efter sidste tryk 695 ms; fysisk afspilning ikke målt |
 | A4 | Jeg trækker i lydstyrken → slideren følger fingeren uden at hoppe tilbage, lyden ændres < 1 s | område: music |
-| A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ |
-| A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | ✅ music_push (< 1,5 s; målt ~30 ms efter HA-hændelse; PodConnect læser Spotify hvert 3. s under afspilning) |
+| A5 | Jeg trækker i tidslinjen → sangen spoler, tiden springer ikke tilbage | ⬜ livefunktion mangler: player-view begrænser seek til lokal eksempelvisning; PodVoice musikhandlinger har endnu ingen seek-kontrakt |
+| A6 | Nogen ændrer musikken fra Spotify-appen → skærmen viser det < 1,5 s | delvis: music_push måler ~30 ms efter HA-hændelse; hele < 1,5 s fra Spotify er ikke bevist med 3 s polling |
 | A7 | Netværket falder ud og kommer igen → sidst kendte sang bliver stående, knapperne virker igen uden genindlæsning | område: home_events |
+| A8 | Jeg starter musik i Spotify på hjemmets højttaler → PodView viser titel, cover og output og kan pause/fortsætte uden først at starte musikken selv | delvis ✅ music_push: ny browser modtager simuleret ekstern start, viser sang/Køkkenalrum og sender præcis én pause og fortsæt via Python-broker uden lokal start; rigtig Spotify, cover og fysisk effekt ikke prøvet |
+| A9 | Jeg trykker pause, fortsæt og pause under et langsomt svar → trykkene håndteres i rækkefølge, sidste intention respekteres, ingen knap låses af polling | delvis ✅ music: tre browsertryk giver pause/resume/pause hos simuleret ejer, korrekt sidste label, ingen disabled-blink; fysisk lyd ikke prøvet |
+| A10 | Musik har spillet i 10 minutter med løbende refresh → pause, næste og lydstyrke virker stadig; ingen udløbet kontroladgang | delvis ✅ MUSIC_LONG_SESSION: 600 s reel tid, 263 simulerede ejerlæsninger, ingen automatiske effekter; pause/næste/volumen/fortsæt når ejer én gang både efter ventetid og luk/genåbn browser. Rigtig Spotify og fysisk lyd ikke prøvet |
+| A11 | En start fejler eller ender ukendt → skærmen hænger ikke permanent på det ønskede nummer og hævder ikke bekræftet afspilning; ny eksplicit handling er mulig | delvis ✅ collection-selection: direkte UNKNOWN, korreleret UNKNOWN efter accept og svar under disconnect tillader nyt eksplicit valg med ny kandidat/opgave/request; gammel effekt gensendes ikke passivt. Browser med mistet accepteret svar prøvet; fysisk effekt ikke prøvet |
+| A12 | Stemme starter musik → PodView viser samme konto/output; jeg vælger i køen og pauser med touch → hele forløbet styrer samme session | ⬜ |
+| A13 | Pause/fortsæt, næste/forrige og volumenkontrol bruges efter adgangsfornyelse → ingen venten på »observeret musik« før visuel feedback; korrekt effekt følger de respektive tidsmål | ⬜ |
+| A14 | En musikstart afbrydes midt i klargøring → gammel session ryddes korrekt op, og en senere eksplicit start kan gennemføres uden at genstarte HA | ⬜ |
 
 ## Kø
 
 | # | Historie | Test |
 |---|---|---|
-| K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | delvis ✅ enhedstest: køen hentes ved sangskift på alle sider og vises som klar, når afspilleren åbnes; tid i browser ikke målt (testserveren har ingen kø) |
+| K1 | Jeg åbner afspilleren → kommende sange vises straks (kendte) og opdateres i baggrunden; aldrig tom liste mens den henter | delvis ✅ enhedstest: køen hentes ved sangskift på alle sider og vises som klar, når afspilleren åbnes; tid i browser ikke målt; music_selection har separat simuleret køkilde |
 | K2 | Sangen skifter → køen rykker op uden at listen blinker | ⬜ |
-| K3 | Jeg trykker på en sang i køen → den spiller < 1,5 s | område: music |
+| K3 | Jeg trykker på en sang i køen → den spiller < 1,5 s | delvis: music_selection vælger præcis anden forekomst via rigtig Python-broker og simuleret ejer, også efter uvedkommende stemmesnapshot; tidsmål/fysisk effekt ikke målt |
+| K4 | Auto-fortsæt spiller videre → vis kommende sange, når kilden leverer dem; opfind ikke fremtidige sange og forveksl ikke manglende kødata med stoppet musik | ⬜ |
+| K5 | Jeg vælger en kø-række → kun denne række viser spinner; køen forsvinder ikke under start, sangskift eller fejlet opdatering | ⬜ |
+| K6 | Køen indeholder samme sang flere gange → valg rammer den valgte forekomst; et sent svar fra forrige session erstatter ikke den aktuelle kø | ⬜ |
+| K7 | Jeg forlader køen og åbner den igen under samme afspilning → kendt kø genbruges og opdateres i baggrunden; refresh, tomt svar og fejl behandles forskelligt | ⬜ |
 
 ## Find musik
 
 | # | Historie | Test |
 |---|---|---|
-| F1 | Jeg åbner Find musik → forslag (Stemning/Humør/For dig/Senest) vises < 300 ms fra sidst kendte, uden spinner | område: music_selection |
+| F1 | Jeg åbner Find musik → forslag (Tid på dagen/Vibe/Din musik/Hør igen) vises < 300 ms fra sidst kendte, uden spinner | område: music_selection |
 | F2 | Jeg trykker afspil på et forslag → afspilleren viser valget med det samme og musikken starter < 3 s | område: music_selection |
 | F3 | Jeg søger efter en kunstner, sang eller playliste → resultater vises mens jeg skriver | ⬜ (funktion mangler) |
 | F4 | Jeg trykker "Andre forslag" → nye forslag uden at siden hopper | område: music_selection |
+| F5 | Første åbning og skift mellem alle fire faner → loading matcher slutlayoutets plads; kendt indhold bliver stående uden hop, komprimerede rækker eller flash | ⬜ |
+| F6 | Din musik og Hør igen vises → større covers, læsbar tekst, afstande og udvidelse af lister matcher den godkendte lokale visning | ⬜ |
+| F7 | Tid på dagen vises morgen, eftermiddag og aften → tidspunktet påvirker hvilke playlister der vælges, også uden AI-valg; ikke blot sorteringen | ⬜ |
+| F8 | Tid på dagen åbnes → hovedkort og to mindre kort har den godkendte komposition; Vibe bevarer godkendt titel-/fanehierarki | ⬜ |
+| F9 | Et cover opdateres eller fejler → bevar det viste cover; ellers Spotify-cover → grafisk AI-cover inden for eksisterende budget → lokal illustration. Cache må ikke genindføre forkert billedstil | ⬜ |
+| F10 | Jeg vælger fx Coming Home fra Hør igen → titel/cover vises straks i afspilleren; efter start forbliver betjeningen tilgængelig gennem efterfølgende refresh | ⬜ |
+| F11 | Jeg udvider en liste og skifter faner → godkendt udvidelse/scroll bevares under refresh; kun det valgte emne viser igangværende handling, ikke hele siden | ⬜ |
+| F12 | Coverkilden eller AI fejler, budgettet er brugt eller cache har gammel billedpolitik → lokal fallback virker uden blankt kort, ekstra ukontrollerede billedkald eller tab af eksisterende cover | ⬜ |
 
 ## Højttaler
 
@@ -43,6 +93,13 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 | H1 | Jeg vælger en anden højttaler → musikken flytter < 3 s, valget står med det samme | område: music |
 | H2 | Sofie spiller fra sin konto på Køkken → skærmen viser "Spiller fra en anden konto" og tilbyder "Spil her" | ⬜ afventer fysisk prøve (docs/FYSISK-PROEVE.md punkt 6–9) — Spotify-overtagelse kan ikke simuleres |
 | H3 | Jeg trykker "Spil her" → min musik spiller på Køkken < 3 s; aldrig uden mit tryk | ⬜ afventer fysisk prøve (punkt 6–9) |
+| H4 | Jeg åbner på iPad uden aktiv afspilning → Køkkenalrum er valgt som standard. Aktiv faktisk afspilning på et andet output overtages ikke automatisk | ⬜ |
+| H5 | Jeg flytter Køkkenalrum → Svend → Køkkenalrum → musikken og styringen følger hver gang; pause, lydstyrke og kø virker også efter ventetid | ⬜ |
+| H6 | Højttalerdialogen er åben under refresh → listen udløber ikke synligt, valgt output har samme kantmarkering som valgt radiokanal; stabilt navn og layout | ⬜ |
+| H7 | Spotify flyttes til Tesla/iPhone og senere tilbage til Køkkenalrum → PodView følger faktisk output, tager ikke kontoen tilbage automatisk og genvinder betjening ved hjemkomst | ⬜ |
+| H8 | Flytning afvises eller får ukendt udfald → ønsket højttaler vises ikke som bekræftet output; ingen automatisk gentagelse, og gammel sessions kø/kommandoer flyttes ikke blindt | ⬜ |
+| H9 | En anden PodView-skærm eller Spotify ændrer afspilningen → Mac og iPad viser samme bekræftede session/output; lokal standardhøjttaler bliver ikke en ny sessionsejer | ⬜ |
+| H10 | Output er optaget eller kontoen er ukendt → ingen påstand om en bestemt anden konto uden kildegrundlag; ingen automatisk overtagelse ved refresh eller genåbning | ⬜ |
 
 ## Radio
 
@@ -50,6 +107,10 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 |---|---|---|
 | R1 | Jeg vælger en station → den spiller < 3 s, logo og navn vises med det samme | område: radio |
 | R2 | Jeg trykker stop → radioen stopper < 1 s | område: radio |
+| R3 | Radio er korrekt konfigureret i HA/PodConnect → kanaler kan vælges; ingen generisk »ikke tilgængelig via HA« ved almindelig opdatering | ⬜ |
+| R4 | Station eller stream fejler → kort konkret fejl på valget; en anden station kan vælges, og musik/radio-skift efterlader ikke låst afspiller | ⬜ |
+| R5 | Jeg vælger P3 og åbner radio igen → faktisk valgt station har den godkendte kantmarkering, navn og logo; refresh ændrer ikke valget | ⬜ |
+| R6 | Radiokonfiguration mangler eller tokens passer ikke sammen → præcis opsætningsfejl; samme radio_transport_token i Speakers og podconnect_radio_token i PodVoice håndteres uden at vise/logge værdien | ⬜ |
 
 ## Robotstøvsuger
 
@@ -59,6 +120,18 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 | S2 | Jeg vælger rum og trykker Start → robotten starter; knappen bliver ikke grå undervejs | område: robot |
 | S3 | Robotten kører → jeg trykker pause / fortsæt / til base → knappen skifter < 300 ms og bliver aldrig grå; robotten følger < 2 s | delvis ✅ robot_ux: pause/fortsæt < 300 ms, 0 grå, langsom og tavs robot; til base ikke målt |
 | S4 | Jeg lader skærmen stå åben i 10 min → alle knapper virker stadig uden genindlæsning | delvis ✅ robot_ux: pause virker efter serverens tilbud er udløbet; 10 min og Start ikke målt |
+| S5 | Jeg skifter rengøringstype → kun toppen ændres; rute og antal gange beholder placering. Typer er Støvsug og vask, Støvsug, Vask; ingen Tilpasset-type eller opdigtede 3 runder | ⬜ |
+| S6 | Jeg vælger Extreme vand for Støvsug og vask → den eksisterende HA/API-kobling sætter faktisk custom niveau 30; valget overlever opdatering | ⬜ |
+| S7 | Jeg åbner basefunktioner → godkendt rækkefølge og vask/støv først bevares; vask/stop, tømning og tørring/stop bruger reelle understøttede HA-handlinger | ⬜ |
+| S8 | Robot/HA bliver midlertidigt utilgængelig → sidst kendte status med tidspunkt og rumvalg bevares; genforbindelse kræver ikke refresh | ⬜ |
+| S9 | Rent vand mangler → én kompakt besked for samme bekræftede fejl. Vedligeholdelse er neutral, lukket som standard og har korte rækker med detaljer ved behov | ⬜ |
+| S10 | Jeg skjuler vedligeholdelse i dag → baggrundsopdatering genåbner den ikke; en ny aktuel fejl skjules ikke. Driftstællere omtales som påmindelser, ikke bevis på slitage | ⬜ |
+| S11 | Robot rengør → vis fremdrift fra tilgængelige reelle data. Et estimat mærkes som estimat; uden grundlag vises ingen opdigtet procent | ⬜ |
+| S12 | Forside og robotdetaljer opdateres → relevant hovedknap vises stabilt med kendt status; ingen forsinket indflyvning eller flash | ⬜ |
+| S13 | Jeg ændrer rum, rute, antal gange eller suge-/vandniveau → næste Start bruger netop de valgte værdier og eksisterende HA/API-funktioner; refresh ændrer dem ikke | ⬜ |
+| S14 | Robotdata mangler kortvarigt → åbne indstillingsfelter, hovedknap og rumvalg beholder layout; opdateringen opfinder ikke en ny rengøring eller afsluttet tur | ⬜ |
+| S15 | Jeg åbner vedligeholdelsesdetaljer → teknisk fejlkode ligger diskret under detaljer, aldrig som stor normal betjening. »Skjul vedligeholdelse i dag« er en diskret handling, ikke en stor primær knap | ⬜ |
+| S16 | Jeg håndterer en vedligeholdelsespåmindelse → skjul nulstiller ikke robottenes tællere. En eventuel understøttet nulstilling er separat og sker kun efter brugerhandling | ⬜ |
 
 ## Lys
 
@@ -75,6 +148,13 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 | O1 | Jeg åbner opskrifter → kataloget vises straks med billeder | område: recipe |
 | O2 | Jeg vælger en opskrift → ingredienser og trin kan læses på afstand; antal personer kan ændres | område: recipe |
 | O3 | Jeg følger trin → det aktuelle trin er tydeligt, og jeg kan starte en timer fra trinnet | ⬜ |
+| O4 | Jeg starter burgerboller og går tilbage til kataloget → den godkendte bjælke for igangværende opskrift vises i oversigten; widget bruger sit eget godkendte design, ikke en ny sort bjælke | ⬜ |
+| O5 | Jeg åbner den aktive opskrift fra oversigt/widget eller genåbner appen → samme opskrift, trin og portioner bevares; ingen ny start eller erstatning med forkert »Fortsæt«-flow | ⬜ |
+| O6 | Jeg åbner alle undersider og accordions → komponenter, numre, typografi og tilstande matcher godkendt opskrifts-UI; ingen parallel reduceret produktvisning | ⬜ |
+| O7 | Jeg afslutter opskriften → aktiv markering fjernes konsistent fra oversigt og widget; allerede startede timere følger deres aftalte selvstændige adfærd | ⬜ |
+| O8 | Jeg uploader via genvejen → gyldig opskrift bliver tilgængelig; ugyldigt input/afvist adgang giver forståelig besked og korrekt afvisningslog uden tokens. Gentaget indsendelse må ikke give skjulte dubletter | ⬜ |
+| O9 | Jeg ændrer antal portioner → ingrediensmængder følger med; navigation og accordion-opdateringer ændrer ikke valgt portionstal eller aktuelt trin | ⬜ |
+| O10 | Upload fra iPhone-genvejen lykkes/afvises → POST /api/podvoice/recipe-submissions med JSON-url og Bearer-uploadkode giver et forståeligt message-svar. Uploadkode er adskilt fra radiokode og må ikke lækkes i log | ⬜ |
 
 ## Timere, vejr, bil, svar
 
@@ -82,5 +162,53 @@ Ejeren (produktdesigneren) godkender teksten; agenten skriver testene.
 |---|---|---|
 | T1 | Jeg starter en timer → den tæller ned straks; +1/−1 min virker; alarm kan stoppes med ét tryk | område: timer |
 | V1 | Vejret vises på forsiden og er højst 30 min gammelt; fejl viser sidst kendte med tidspunkt | område: home_events |
-| B1 | Bilens batteri/rækkevidde vises; handlinger kræver bekræftelse | område: vehicle |
+| B1 | Bilens batteri/rækkevidde vises; handlinger følger de godkendte bekræftelsesregler | område: vehicle |
 | Q1 | Jeg spørger stemmeassistenten → svaret vises som kort på skærmen og kan læses senere i historik | område: answers |
+| T2 | Jeg navigerer væk, genåbner eller mister netværket → timerens slutpunkt bevares; ingen ny timer eller dobbelt alarm fra refresh | ⬜ |
+| V2 | Prognosen mangler eller har ukendt vejrikon → neutral fallback i samme ikonplads; dato, temperaturer og søjlekolonner forskydes ikke | ⬜ |
+| V3 | Vejrkilden fejler ved åbning → vis reelle sidst kendte værdier og tidspunkt; uden historik vises ærlig tom tilstand. For gamle data mærkes, aldrig som friske | ⬜ |
+| B2 | Tesla-data ændres i HA → PodView viser de nyeste relevante entitetsværdier og deres faktiske opdateringstid; ingen ældre samlet cache overskriver friskere felter | ⬜ |
+| B3 | Bilen sover → bevar hver kendt status med tidspunkt; dvale angives kun med kildegrundlag. Åbning af PodView vækker ikke bilen eller starter ekstra polling | ⬜ |
+| B4 | Bilen vågner eller en handling udføres → nye HA-observationer opdaterer status; accepteret kommando er ikke bevis for åbent bagagerum eller tændt klima | ⬜ |
+| B5 | Bagagerumsstatus er kendt → handling og bekræftelse siger entydigt Åbn eller Luk. Ukendt status gættes ikke; følg HA-kilden og vis konkret begrænsning | ⬜ |
+| B6 | Klima er slukket → temperaturbetjening, sædevarme og afrimning er utilgængelige som aftalt; ved bekræftet tændt klima aktiveres understøttede funktioner. Ingen ekstra modsatrettede knapper | ⬜ |
+| B7 | Bilen lader ikke → rent batteri/rækkevidde-kort uden 0 kW. Når den lader → det godkendte ladekort med reelle ladedata | ⬜ |
+| B8 | Adgangs- og klimakort vises på Mac/iPad → samme godkendte layout og betjening; fejl i hentning af funktioner genoprettes automatisk uden ekstra registrering | ⬜ |
+| Q2 | Jeg åbner tidligere svar og modtager et nyt → historikken bevares, og opdatering flytter ikke utilsigtet mit læsepunkt | ⬜ |
+| B9 | Afrimningsstatus mangler → ingen to modsatrettede afrimningsknapper; behold godkendt enkelt betjening med ærlig status. Ukendt er ikke automatisk Slukket | ⬜ |
+| B10 | Jeg åbner Tesla-handlingens bekræftelse → korte præcise tekster og knaplayout matcher godkendt dialog; ingen ekstra accordion med dubletter af hovedknapper | ⬜ |
+| B11 | HA viser frisk lås-, bagagerums- eller klimastatus → PodView viser samme kildeværdi; et manglende felt erstatter ikke øvrige kendte data eller fortolkes som Åbent | ⬜ |
+| V4 | Jeg går fra forsiden til vejrdetaljer → temperatur, tilstand og tidspunkt er konsistente; manglende ikon påvirker hverken temperaturspænd eller søjlens bredde | ⬜ |
+
+## Samlede forløb og svære tilfælde
+
+Kør de relevante historier som sammenhængende forløb, ikke kun som isolerede første tryk:
+
+- Musik: stemme eller Spotify-start → korrekt titel/output → køvalg → pause/fortsæt → 10 min refresh → stadig kontrol.
+- Output: Køkkenalrum → andet rum → tilbage → Spotify på iPhone/bil → tilbage → stadig kontrol og korrekt kø.
+- HA-app: første åbning → navigation → dvale → genåbning → netudfald → automatisk recovery på Mac og iPad.
+- Robot: vælg rum/type/vand/rute → start → pause/fortsæt/base → statusopdatering → bevar relevante valg.
+- Opskrift: widget → katalog → start → trin/timer → tilbage til katalog → genåbning → afslutning.
+- Tesla: kendt HA-status → dvale → egne handlinger eller ekstern ændring → frisk HA-status og korrekte klimaregler.
+
+For berørte historier dækkes langsomt svar, afvisning, timeout med ukendt udfald, tabt svar,
+dobbelte/ombyttede events, hurtige brugertryk, delvise data og reelt tomt resultat. Et sent svar
+må ikke genoplive en gammel sang, højttaler, opskrift eller valgt tilstand. Næste/forrige tæller
+hvert eksplicit tryk; slideropdateringer skal ende på brugerens seneste værdi uden tilbagespring.
+
+## Åbne produktdetaljer til gennemgangen
+
+- Link/revision til den senest godkendte visuelle reference for hver flade skal være konkret ved UI-arbejde;
+  manglende reference må ikke udfyldes med et nyt design. Historierne ovenfor bevarer kendte aftaler.
+- Tesla-betjening når bilen er væk hjemmefra blev spurgt til, men hjemmestedslåsning er ikke besluttet her.
+- Kilden og den præcise præsentation af robotfremdrift skal afklares; procent må ikke opfindes.
+- Nye søge-/konto-overtagelsesflader (F3, H2–H3) samt eksisterende timers adfærd ved opskriftsafslutning
+  afklares før nyt UI implementeres. De er ikke stiltiende godkendt af denne dokumentopdatering.
+
+Tests beviser kun det, de måler: fixture/browser, rigtig HA/service og fysisk effekt angives særskilt.
+Ved UI-sammenligning dækkes hele vejen fra widget til undersider, dialoger og accordions samt loading,
+valgt, igangværende, fejlet og tom tilstand. Samme kanoniske komponent bruges i eksempel og produkt;
+korrekt komponentnavn alene beviser ikke korrekt layout. Et dokumenteret fokusomrids fjernes ikke for
+at få et screenshot til at ligne referencebilledet.
+
+En historie med delvis dækning bliver ikke fuldt ✅ på baggrund af et grønt områdesuite eller en release.

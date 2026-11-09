@@ -455,6 +455,11 @@ async def lab_state(request):
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])
+        # An unrelated voice turn changes the UI snapshot, not the music owner.
+        if "unrelatedVoiceTurn" in args:
+            turn = str(args["unrelatedVoiceTurn"])
+            session._active = True
+            session._external_turn_id = lambda: turn
         # External native-owner changes do not create a PodView command or receipt.
         if "externalPlaybackState" in args:
             if args["externalPlaybackState"] not in {"playing", "paused"}:

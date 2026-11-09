@@ -114,8 +114,111 @@ test('accepted observed first choice permits explicit different retained card on
  const f=selectionFixture({knownTarget:false});try{const c=f.host.liveCatalogue,cards=f.entry.cards;f.entry.renewalScope=c.renewalScope();const originalSetup=f.host.liveTransport.musicSelectionSetup;f.host.liveTransport.musicSelectionSetup=async(...args)=>{const offered=await originalSetup(...args);if(args[0]!=='a'.repeat(64)){offered.taskId='music-selection:'+'e'.repeat(32);offered.options=offered.options.map((row,index)=>({...row,id:String(index).padStart(24,'e')}));}return offered;};f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{f.sent.push({offer,optionId});return {outcome:'accepted',requestId:'selected'};};await f.view.chooseCard(cards[0]);const old=f.sent[0],feedback=f.view.feedback;f.view.observePlayback(boundPlayback(f.host.liveSnapshot,{state:'playing',observedAt:new Date(feedback.requestedAt+1).toISOString(),expiresAt:Date.now()+10000,item:{uri:feedback.uri}},'account'));assert.equal(f.entry.selectionConfirmed,false);sourceSettlement(f);assert.equal(f.entry.selectionConfirmed,true);assert.equal(f.reads.length,1,'initial catalogue read only; confirmation does not renew');await f.view.chooseCard(cards[0]);assert.equal(f.sent.length,1);const next=f.view.chooseCard(cards[1]);assert.equal(c.pendingRead.reason,'choice');assert.equal(f.sent.length,1);assert.equal(f.view.pendingPlayer()?.title,'Actual 1');f.view.onSnapshot();assert.equal(f.view.pendingPlayer()?.title,'Actual 1');assert.equal(f.sent.length,1);const fresh=body();fresh.candidateSet.candidateSetId='d'.repeat(64);c.tracks('top',fresh,'account');await next;assert.equal(f.sent.length,2);assert.notEqual(f.sent[1].offer.candidateSetId,old.offer.candidateSetId);assert.notEqual(f.sent[1].offer.taskId,old.offer.taskId);assert.equal(f.sent[1].optionId,'1'.padStart(24,'e'));assert.equal(f.entry.cards,cards);assert.equal(f.entry.dispatchHistory.length,2);assert.equal(f.entry.dispatchHistory[0].candidateSetId,'a'.repeat(64));assert.equal(Object.isFrozen(f.entry.dispatchHistory[0]),true);}finally{f.cleanup();}
 });
 
+for (const choice of ['same', 'different']) test(
+ `an unknown start keeps prior playback and allows a fresh explicit ${choice}-card choice (A11)`,
+ async () => {
+ const f = selectionFixture({knownTarget: false});
+ try {
+  const catalogue = f.host.liveCatalogue, cards = f.entry.cards;
+  f.entry.renewalScope = catalogue.renewalScope();
+  const old = boundPlayback(f.host.liveSnapshot, {
+   state: 'playing', item: {uri: 'spotify:track:' + 'Z'.repeat(22)},
+  }, 'account');
+  f.host.liveMedia.playback = old;
+  let id = 0;
+  f.host.liveTransport.crypto = {randomUUID: () => `11111111-1111-4111-8111-${String(++id).padStart(12, '0')}`};
+  const setup = f.host.liveTransport.musicSelectionSetup;
+  f.host.liveTransport.musicSelectionSetup = async (...args) => {
+   const offer = await setup(...args);
+   if (args[0] === 'd'.repeat(64)) offer.taskId = 'music-selection:' + 'e'.repeat(32);
+   return offer;
+  };
+  f.host.liveTransport.musicSelectionAction = async (offer, optionId, {requestId}) => {
+   f.sent.push({offer, optionId, requestId});
+   return {outcome: f.sent.length === 1 ? 'unknown' : 'accepted', requestId};
+  };
+  await f.view.chooseCard(cards[0]);
+  assert.equal(f.view.feedback.outcome, 'unknown');
+  assert.equal(f.view.pendingPlayer(), null);
+  assert.equal(f.host.liveMedia.playback, old);
+  assert.equal(f.renders.at(-1).canRenew, true);
+  assert.equal(cards[0].selectable, true);
+  assert.equal(cards[1].selectable, true);
+  catalogue.renewRetained({owner: {}, generation: 1});
+  assert.equal(catalogue.pendingRead, null);
+  assert.equal(f.sent.length, 1);
+
+  const next = f.view.chooseCard(cards[choice === 'same' ? 0 : 1]);
+  assert.equal(catalogue.pendingRead?.reason, 'choice');
+  assert.equal(f.sent.length, 1);
+  const fresh = body();
+  fresh.candidateSet.candidateSetId = 'd'.repeat(64);
+  catalogue.tracks('top', fresh, 'account');
+  await next;
+
+  assert.equal(f.sent.length, 2);
+  assert.notEqual(f.sent[1].offer.candidateSetId, f.sent[0].offer.candidateSetId);
+  assert.notEqual(f.sent[1].offer.taskId, f.sent[0].offer.taskId);
+  assert.notEqual(f.sent[1].requestId, f.sent[0].requestId);
+  assert.equal(f.entry.cards, cards);
+ } finally {
+  f.cleanup();
+ }
+});
+
+test('only a correlated unknown settlement permits a fresh explicit choice (A11)', async () => {
+ const f = selectionFixture({knownTarget: false});
+ try {
+  const catalogue = f.host.liveCatalogue;
+  f.host.liveSnapshot.capabilities.musicRead.push('playback');
+  f.entry.renewalScope = catalogue.renewalScope();
+  f.host.liveTransport.musicSelectionAction = async () => ({outcome: 'accepted', requestId: 'selected'});
+  await f.view.chooseCard(f.entry.cards[0]);
+  sourceSettlement(f, 'pending');
+  assert.equal(catalogue.canRenewEntry(f.entry, f.entry.cards[1]), false);
+  sourceSettlement(f, 'unknown');
+  assert.equal(f.view.feedback.settlementStatus, 'unknown');
+  assert.equal(catalogue.canRenewEntry(f.entry, f.entry.cards[1]), true);
+  catalogue.renewRetained({owner: {}, generation: 1});
+  assert.equal(catalogue.pendingRead, null);
+  assert.equal(f.setups.length, 1);
+ } finally {
+  f.cleanup();
+ }
+});
+
+test('lost receipt during disconnect does not strand the retained catalogue after reconnect (A11)', async () => {
+ const f = selectionFixture({knownTarget: false});
+ try {
+  const catalogue = f.host.liveCatalogue, transport = f.host.liveTransport;
+  f.entry.renewalScope = catalogue.renewalScope();
+  let started, release;
+  const committed = new Promise(resolve => { started = resolve; });
+  transport.musicSelectionAction = () => {
+   started();
+   return new Promise(resolve => { release = resolve; });
+  };
+  const selecting = f.view.chooseCard(f.entry.cards[0]);
+  await committed;
+  transport.connected = false;
+  transport.generation = (transport.generation || 0) + 1;
+  catalogue.offline();
+  release({outcome: 'unknown', requestId: 'selected'});
+  await selecting;
+  transport.connected = true;
+  catalogue.updateCapabilities(true, catalogue.capabilities);
+  assert.equal(f.view.feedback, null, 'late result cannot restore stale player feedback');
+  assert.equal(catalogue.canRenewEntry(f.entry, f.entry.cards[1]), true);
+  assert.equal(f.setups.length, 1);
+  f.host.liveSnapshot.providerGeneration = 'other-provider';
+  assert.equal(catalogue.canRenewEntry(f.entry, f.entry.cards[1]), false);
+ } finally {
+  f.cleanup();
+ }
+});
+
 for(const failure of ['same-candidate','changed-card','provider','unknown'])test('new explicit choice never reuses authority across '+failure,async()=>{
- const f=selectionFixture({knownTarget:false});try{const c=f.host.liveCatalogue,cards=f.entry.cards;f.entry.renewalScope=c.renewalScope();f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{f.sent.push({offer,optionId});return {outcome:failure==='unknown'?'unknown':'accepted'};};await f.view.chooseCard(cards[0]);const feedback=f.view.feedback;f.view.observePlayback(boundPlayback(f.host.liveSnapshot,{state:'playing',observedAt:new Date(feedback.requestedAt+1).toISOString(),expiresAt:Date.now()+10000,item:{uri:feedback.uri}},'account'));if(failure!=='unknown')sourceSettlement(f);const next=f.view.chooseCard(cards[1]);if(failure==='unknown'){await next;assert.equal(c.pendingRead,null);}else{const fresh=body();if(failure!=='same-candidate')fresh.candidateSet.candidateSetId='d'.repeat(64);if(failure==='changed-card')fresh.data.tracks[1].uri='spotify:track:'+'Z'.repeat(22);if(failure==='provider')f.host.liveSnapshot.providerGeneration='replacement';c.tracks('top',fresh,'account');await next;}assert.equal(f.sent.length,1);assert.equal(f.entry.actionDispatched,true);assert.equal(f.entry.cards,cards);assert.equal(f.entry.dispatchHistory.length,1);}finally{f.cleanup();}
+ const f=selectionFixture({knownTarget:false});try{const c=f.host.liveCatalogue,cards=f.entry.cards;f.entry.renewalScope=c.renewalScope();f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{f.sent.push({offer,optionId});return {outcome:failure==='unknown'?'unknown':'accepted'};};await f.view.chooseCard(cards[0]);const feedback=f.view.feedback;f.view.observePlayback(boundPlayback(f.host.liveSnapshot,{state:'playing',observedAt:new Date(feedback.requestedAt+1).toISOString(),expiresAt:Date.now()+10000,item:{uri:feedback.uri}},'account'));if(failure!=='unknown')sourceSettlement(f);const next=f.view.chooseCard(cards[failure==='unknown'?0:1]);const fresh=body();if(!['same-candidate','unknown'].includes(failure))fresh.candidateSet.candidateSetId='d'.repeat(64);if(failure==='changed-card')fresh.data.tracks[1].uri='spotify:track:'+'Z'.repeat(22);if(failure==='provider')f.host.liveSnapshot.providerGeneration='replacement';c.tracks('top',fresh,'account');await next;assert.equal(f.sent.length,1);assert.equal(f.entry.actionDispatched,true);assert.equal(f.entry.cards,cards);assert.equal(f.entry.dispatchHistory.length,1);}finally{f.cleanup();}
 });
 
 test('actual catalogue exposes all fifty supplied rows and exact opaque occurrences in seventeen trios then wraps',()=>{

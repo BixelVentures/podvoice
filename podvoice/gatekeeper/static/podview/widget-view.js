@@ -140,7 +140,11 @@ class WidgetHost extends HTMLElement {
    if(event.type==='collection'){this.liveSelection?.leave();this.liveCatalogue?.select(event.value);return;}
    if(event.type==='refresh'){this.liveCatalogue?.refresh();return;}
    const state=this.liveMedia?.playback?.state;
-   const action=event.type==='toggle'?(state==='playing'?'pause':state==='paused'?'resume':null):event.type==='skip'?(event.delta===-1?'previous':'next'):event.type==='volume'?'volume':null;
+   const knownPlayback = state === 'playing' || state === 'paused';
+   const playing = this.liveControls?.optimisticPlaying(state === 'playing') ?? (state === 'playing');
+   const action = event.type === 'toggle' ? (knownPlayback ? (playing ? 'pause' : 'resume') : null)
+    : event.type === 'skip' ? (event.delta === -1 ? 'previous' : 'next')
+    : event.type === 'volume' ? 'volume' : null;
    if(action)this.liveControls?.musicIntent(action,action==='volume'?{percent:Number(event.value)}:{});
    return;
   }

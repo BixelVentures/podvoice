@@ -333,6 +333,142 @@ test('three fast Next taps skip three songs in order, one at a time (A3)',async(
   await first;assert.deepEqual(f.effects.map(e=>e.action),['next','next','next']);assert.equal(new Set(f.effects.map(e=>e.requestId)).size,3);
  }finally{for(const release of releases)release();f.close();}
 });
+test('held pause then two explicit toggles keep Pause, Resume, Pause in FIFO order (A9)', async () => {
+ const f = fixture(), releases = [];
+ let first;
+ try {
+  f.adopt({supported: ['pause', 'next', 'previous', 'volume']});
+  f.host.liveTransport.controlIntent = intent => {
+   f.effects.push(intent);
+   return new Promise(resolve => releases.push(() => resolve({outcome: 'accepted', requestId: intent.requestId})));
+  };
+  const toggle = () => f.view.musicIntent(
+   f.view.optimisticPlaying(f.host.liveMedia.playback.state === 'playing') ? 'pause' : 'resume',
+  );
+  f.view.render();
+  first = toggle();
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+  assert.equal(await toggle(), true);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Sæt musik på pause');
+  assert.equal(await toggle(), true);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+  assert.equal(f.nodes.get('play-pause').disabled, false);
+  assert.deepEqual(f.effects.map(intent => intent.action), ['pause']);
+
+  f.adopt({state: 'paused', supported: ['resume', 'next', 'previous', 'volume']});
+  releases[0]();
+  await first;
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['pause', 'resume']);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+
+  f.adopt({supported: ['pause', 'next', 'previous', 'volume']});
+  releases[1]();
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['pause', 'resume', 'pause']);
+  f.adopt({state: 'paused', supported: ['resume', 'next', 'previous', 'volume']});
+  releases[2]();
+  await tick();
+  assert.equal(new Set(f.effects.map(intent => intent.requestId)).size, 3);
+  assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'), 'Fortsæt musikken');
+ } finally {
+  for (const release of releases) release();
+  await first;
+  f.close();
+ }
+});
+
+for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
+ test(`queued explicit skips never replay UNKNOWN after ${boundary}`, async () => {
+  const f = fixture();
+  let finish, first;
+  try {
+   f.host.liveTransport.controlIntent = intent => {
+    f.effects.push(intent);
+    const receipt = {outcome: 'accepted', requestId: intent.requestId};
+    return f.effects.length === 1
+     ? new Promise(resolve => { finish = () => resolve({...receipt, outcome: 'unknown'}); })
+     : Promise.resolve(receipt);
+   };
+   first = f.view.musicIntent('next');
+   assert.equal(await f.view.musicIntent('previous'), true);
+   assert.equal(await f.view.musicIntent('next'), true);
+   if (boundary === 'binding') f.adopt({binding: 'b'.repeat(64)});
+   if (boundary === 'transport') f.host.liveTransport = {...f.host.liveTransport};
+   if (boundary === 'access') f.host.liveSnapshot.capabilities.controlSetup = [];
+   finish();
+   await first;
+   await tick();
+   const expected = boundary === 'same-owner' ? ['next', 'previous', 'next'] : ['next'];
+   assert.deepEqual(f.effects.map(intent => intent.action), expected);
+   assert.equal(new Set(f.effects.map(intent => intent.requestId)).size, expected.length);
+  } finally {
+   finish?.();
+   await first;
+   f.close();
+  }
+ });
+}
+
+test('revoking and restoring music access cannot resurrect a queued tap', async () => {
+ const f = fixture();
+ let finish, first;
+ try {
+  f.host.liveTransport.controlIntent = intent => {
+   f.effects.push(intent);
+   const receipt = {outcome: 'accepted', requestId: intent.requestId};
+   return f.effects.length === 1
+    ? new Promise(resolve => { finish = () => resolve(receipt); })
+    : Promise.resolve(receipt);
+  };
+  first = f.view.musicIntent('next');
+  assert.equal(await f.view.musicIntent('previous'), true);
+  f.host.liveSnapshot.capabilities.controlSetup = [];
+  f.view.invalidateMusic(undefined, false, true);
+  f.host.liveSnapshot.capabilities.controlSetup = ['music'];
+  finish();
+  await first;
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next']);
+  assert.equal(await f.view.musicIntent('previous'), true);
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next', 'previous']);
+ } finally {
+  finish?.();
+  await first;
+  f.close();
+ }
+});
+
+test('the latest explicit volume survives queued skips on the same output', async () => {
+ const f = fixture(), releases = [];
+ let first;
+ try {
+  f.adopt({base: 35, effective: 35, ceiling: 100});
+  f.host.liveTransport.controlIntent = intent => {
+   f.effects.push(intent);
+   return new Promise(resolve => releases.push(() => resolve({outcome: 'accepted', requestId: intent.requestId})));
+  };
+  first = f.view.musicIntent('next');
+  assert.equal(await f.view.musicIntent('volume', {percent: 50}), true);
+  assert.equal(await f.view.musicIntent('previous'), true);
+  assert.equal(await f.view.musicIntent('volume', {percent: 60}), true);
+  releases[0]();
+  await first;
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next', 'previous']);
+  assert.equal(f.nodes.get('volume').value, '60');
+  releases[1]();
+  await tick();
+  assert.deepEqual(f.effects.map(intent => intent.action), ['next', 'previous', 'volume']);
+  assert.deepEqual(f.effects.at(-1).args, {percent: 60});
+  releases[2]();
+  await tick();
+ } finally {
+  for (const release of releases) release();
+  await first;
+  f.close();
+ }
+});
+
 test('a tap during an in-flight intent is queued and sent next, never dropped or disabled',async()=>{
  const f=fixture();let release;try{f.view.render();
   f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return f.effects.length===1?new Promise(resolve=>release=()=>resolve({outcome:'accepted',requestId:intent.requestId})):Promise.resolve({outcome:'accepted',requestId:intent.requestId});};
