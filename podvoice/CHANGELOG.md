@@ -1,3 +1,7 @@
+## 2.0.162
+
+- Gør den senest valgte playliste tilgængelig igen, når musikkilden har bekræftet, at der ikke længere afspilles.
+
 ## 2.0.161
 
 - Vis +1 og −1 på en aktiv timer, når Home Assistant tilbyder justering.
