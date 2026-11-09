@@ -357,6 +357,13 @@ er stadig ikke gentestet på Green; softwarebeviset består. Root ejer fejlen i 
 
 Terra gennemgik alle fire faner i separat Chrome uden afspilningshandlinger: Tid på dagen viste tre billedkort, Vibe tre kort, Din musik udvidede 5→10 og Hør igen 5→7. Ved tilbagevenden til Din musik blev alle ti rækker bevaret, og Tid på dagen viste de tre kort direkte. Intet tomt mellemtrin blev observeret i disse snapshots; det er ikke frame-for-frame bevis for fravær af alle flashes. Syv af første ti Din musik-poster viste Omslag ikke tilgængeligt; tre havde billede. Coverkilden undersøges særskilt. Fysisk iPad og komplet godkendt reference-sammenligning står fortsat åbne.
 
+### 9. november — kørettelse 0.26.82 og radioens næste årsagsobservation
+
+- Kørettelsen er uafhængigt reviewet: 899ef8b oven på e8aa656, produkttræ 4e759f76d62aae4949a4bbf9cacfa842a3b70041. PR127 officielle Native/OwnTone/clock-checks og begge imagebygninger består. Normal merge er sendt; installation og faktisk køgentest afventer. Runtimepatch er byte-identisk med reviewet 858b2e8.
+- Den downloadede Speakers-backup fra kl.15.37 indeholder afsluttet START phase10/retirement none og matchende FIFO-identitet. Den er taget før shutdown og kan ikke bevise, hvilken efterfølgende kold-start-kontrol der afviser posten. Nuværende kolde proof-funktioner logger ikke første afvisning. Logeksport med 10000 linjer blev prøvet af root IAB og Terra Chrome: dialog lukker, ingen fil/download-event.
+- Afgrænset diagnostikbeslutning: næste nødvendige radioobservation er én endelig kategori for første fejlede eksisterende kolde proof-trin samt journaltype/phase/outcome. Brug samme reads/rækkefølge; ingen nye probes, IDs, paths, tokens, ændret adgang eller automatisk afspilning. Den skelner tidligere proces stadig levende, ikke-idle output, FIFO-identitetsmismatch, aktiv writer vs ufuldstændig census, resterende PCM/reader samt journalpersistens. Observationen skal afgøre en konkret årsagsrettelse; diagnostik er ikke en radiofix eller accept. Forberedes separat fra den frosne kørettelse og følger næste nødvendige samlede levering.
+- Covers: Terra bekræftede to manglende playlistcovers som faktisk indlæst lokal node-SVG (150×150), ikke ødelagt billede. AI-grafik til personlige playlister er ikke implementeret af den nuværende temabundne fallback og må ikke påstås bevist af F9/F12's temaprøver.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
