@@ -300,6 +300,14 @@ class ThemeArtStore:
             pass
         return None
 
+    def cached_playlist_artwork(self) -> list[str]:
+        """Reuse the current graphic cache without taking an image-budget lease."""
+        by_digest = {}
+        for theme in THEMES:
+            if url := self.url(theme):
+                by_digest.setdefault(url.rsplit("/", 1)[-1], url)
+        return list(by_digest.values())
+
     def read(self, theme: str, digest: str) -> bytes | None:
         if theme not in THEMES or not _DIGEST.fullmatch(digest):
             return None

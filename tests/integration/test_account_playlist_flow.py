@@ -8,6 +8,7 @@ import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration import test_podview_music_selection as selection_cases
+from unit.test_podview_theme_art import owner, webp
 
 from gatekeeper.podview import BRIDGE
 
@@ -121,6 +122,41 @@ async def test_library_to_fresh_context_once(account_rig):
             == catalogue()["playlists"][0]["uri"]
         )
         bridge.controls.music.execute_track.assert_not_awaited()
+
+
+async def test_library_only_projects_current_cached_graphics(account_rig, tmp_path):
+    rig = account_rig
+    provider_calls = []
+
+    def provider_request(request):
+        provider_calls.append(request)
+        return httpx.Response(500)
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(provider_request)) as provider:
+        art = owner(tmp_path, provider)
+        rig.router.podview_theme_art = art
+        art.store.reserve("calm")
+        art.store.publish("calm", webp())
+        cached = art.store.url("calm")
+        assert cached is not None
+        ledger = art.store.ledger.read_bytes()
+        async with TestClient(TestServer(rig.app)) as client:
+            library = await (await client.get(URL, headers=HEADERS)).json()
+            assert library["playlistArtwork"] == [cached]
+            assert library["data"] == catalogue()
+            assert library["candidateSet"]["sourceKind"] == "account_playlists"
+            assert "playlistArtwork" not in library["candidateSet"]
+            image = await client.get("/view/" + cached, headers=HEADERS)
+            assert image.status == 200 and await image.read() == webp()
+            assert image.headers["X-PodView-Art-Provenance"] == "generated-theme-illustration"
+            digest = cached.rsplit("/", 1)[1][:-5]
+            (art.store.directory / f"calm-{digest}.webp").unlink()
+            cold = await (await client.get(URL, headers=HEADERS)).json()
+            assert cold["ok"] and "playlistArtwork" not in cold
+            assert cold["data"] == catalogue()
+        assert art.store.ledger.read_bytes() == ledger
+        assert provider_calls == []
+        rig.app[BRIDGE].controls.music.execute_context.assert_not_awaited()
 
 
 async def test_old_catalogue_epoch_never_gets_new_context_authority(account_rig):

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {sourceMusicCards,localMusicCards,localDiscoveryCards,fixtureArtwork,MUSIC_TABS,MusicResults} from '../../podvoice/gatekeeper/static/podview/music-results.js';
+import {accountPlaylistsSample} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
 import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
 import {initialWidgetState,resultsFor,widgetTransition} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
@@ -57,6 +58,75 @@ test('unchanged empty-busy music retains the same three placeholders without det
 test('shared music removal and cleanup cancel owned probes without changing retained cards',()=>{
  const f=retainedResultSurface(),cards=resultCards();f.view.render({cards});const rows=[...f.nodes.get('result-list').children],removed=[],requests=rows.map(row=>{const request={cancelled:false,probe:{onload:()=>{},onerror:()=>{},removeAttribute:name=>removed.push(name)}};row.children[0].artworkRequest=request;row.children[0].dataset.artworkPending='true';return request;});
  f.view.render({cards:[cards[1]]});assert.equal(requests[0].cancelled,true);assert.equal(requests[0].probe.onload,null);assert.equal(requests[1].cancelled,false);assert.equal(f.nodes.get('result-list').children[0],rows[1]);f.view.cleanup();assert.equal(requests[1].cancelled,true);assert.equal(requests[1].probe.onerror,null);assert.deepEqual(removed,['src','src']);
+});
+
+test('personal playlists decode Spotify, then cached graphic, then approved local art', async () => {
+ const f = retainedResultSurface(), probes = [];
+ class Probe {
+  constructor() { probes.push(this); }
+  decode() { return Promise.resolve(); }
+  removeAttribute() {}
+ }
+ const decode = async probe => {
+  probe.onload();
+  for (let tick = 0; tick < 5; tick++) await Promise.resolve();
+ };
+ f.host.live = true;
+ f.host.liveCatalogue = {account:'account'};
+ f.host.liveSnapshot = {bootId:'boot',roomId:'room',capabilities:{musicRead:['account_playlists']}};
+ f.host.ownerDocument.defaultView = {Image:Probe};
+ const cooking = 'theme-art/cooking/' + 'a'.repeat(64) + '.webp';
+ const calm = 'theme-art/calm/' + 'b'.repeat(64) + '.webp';
+ const spotify = {kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/actual'};
+ const playlists = [
+  {uri:'spotify:playlist:'+'A'.repeat(22),name:'Eksempel 1',artwork:spotify},
+  {uri:'spotify:playlist:'+'A'.repeat(21)+'B',name:'Eksempel 2'},
+ ];
+ const render = (rows, playlistArtwork = [cooking,calm]) => {
+  const data = {ok:true,schema:'podconnect.user_playlists.v1',config_entry_id:'account',
+   owner_epoch:'current',source:'spotify_web_api',coverage:'first_page',limit:20,
+   returned_count:rows.length,source_has_more:false,playlists:rows};
+  const source = accountPlaylistsSample({ok:true,data,playlistArtwork},'account',f.host.liveSnapshot);
+  const cards = sourceMusicCards(source.tracks,'account_playlists');
+  f.view.render({cards,collection:'top',discovery:true,accountLibrary:true});
+  return cards.map(card => f.view.rows.get(card.id).children[0]);
+ };
+ const [first,second] = render(playlists);
+ assert.equal(probes[0].src,spotify.url);
+ assert.ok([cooking,calm].includes(probes[1]?.src),'missing Spotify cover starts cached graphic');
+ const secondCache = probes[1].src;
+ await decode(probes[1]);
+ probes[0].onerror();
+ assert.ok([cooking,calm].includes(probes[2]?.src));
+ assert.notEqual(probes[2].src,secondCache,'the two stable playlist identities get varied art');
+ probes[2].onerror();
+ assert.match(probes[3].src,/^assets\/music-editorial-[123]\.svg$/);
+ await decode(probes[3]);
+ assert.equal(first.src,probes[3].src);
+ assert.equal(second.src,secondCache);
+ const count = probes.length;
+ assert.deepEqual(render([...playlists].reverse()),[second,first]);
+ assert.equal(probes.length,count,'reordering neither changes identities nor refetches images');
+
+ const restored = {...playlists[0],artwork:{...spotify,url:'https://i.scdn.co/image/recovered'}};
+ render([restored,playlists[1]]);
+ assert.equal(first.src,probes[3].src,'keep decoded fallback while the replacement is loading');
+ await decode(probes.at(-1));
+ assert.equal(first.src,restored.artwork.url);
+ const afterRecovery = probes.length;
+ const unsupported = [null,{split:'unsupported'},'https://unsafe.invalid/theme-art/calm/photo.webp'];
+ const [,sameFirst] = render([playlists[1],{uri:restored.uri,name:restored.name}],unsupported);
+ assert.equal(sameFirst,first);
+ assert.equal(first.src,restored.artwork.url,'same row keeps a decoded cover when its source drops out');
+ assert.equal(probes.length,afterRecovery+1,'only the other row attempts a local asset');
+ assert.match(probes.at(-1).src,/^assets\/music-editorial-[123]\.svg$/);
+ probes.at(-1).onerror();
+ const third = {...playlists[1],uri:'spotify:playlist:'+'A'.repeat(21)+'C'};
+ const thirdImage = render([third],[])[0];
+ assert.match(probes.at(-1).src,/^assets\/music-editorial-[123]\.svg$/);
+ probes.at(-1).onerror();
+ assert.equal(thirdImage.src,'assets/icons/music-note-beamed.svg','final fallback never leaves a blank card');
+ f.view.cleanup();
 });
 
 test('canonical result nodes prefer actual source playlist art over illustration and retain identical source cover without DOM writes',()=>{const f=retainedResultSurface(),uri='spotify:playlist:0123456789ABCDEFGHIJKL',artwork={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/sourceplaylist'},card={id:'source:0:'+uri,uri,name:'En rolig stund',sourceName:'Actual playlist name',description:'Actual playlist name',fixtureArt:'assets/lake.webp',artwork};f.view.render({cards:[card]});const row=f.nodes.get('result-list').children[0];assert.equal(row.children[0].src,artwork.url);assert.equal(row.children[0].alt,'Playlisteomslag til Actual playlist name');assert.equal(row.children[0].classList.contains('spotify-artwork'),true);f.clear();f.view.render({cards:[{...card,artwork:{...artwork}}]});assert.deepEqual(f.writes,[]);assert.equal(f.nodes.get('result-list').children[0],row);f.view.cleanup();});
