@@ -666,18 +666,19 @@ async function manualRetryJourney(page,errors){
   return {account:h.liveMedia.account,state:p?.state,uri:p?.item?.uri,bindingId:b?.bindingId,
    room:b?.nativeRoomId,homepod:b?.nativeHomepodId};
  });
- await pause.tap();
  await page.waitForFunction(()=>{
-  const h=document.querySelector('pv-widget-host');
-  return h?.liveMedia?.playback?.state==='paused'&&!h.liveControls.musicIntentPending;
- });
+  const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
+  const button=document.getElementById('play-pause');
+  return p?.state==='paused'&&p.roomBinding?.bindingId
+   &&p.roomBinding.validUntil>Date.now()/1000&&!h.liveControls.musicIntentPending
+   &&button&&!button.disabled&&/Fortsæt/.test(button.getAttribute('aria-label')||'');
+ },undefined,{timeout:15000});
  const beforePlayback=await playback();
  assert.equal(beforePlayback.state,'paused');
  assert.equal(beforePlayback.homepod,'42');
  assert(beforePlayback.bindingId&&beforePlayback.uri);
- const beforeWrites=(await state()).writes;
- assert.deepEqual(beforeWrites.map(row=>row.action),['pause']);
- assert.equal(posts.length,1);
+ assert.deepEqual((await state()).writes,[]);
+ assert.deepEqual(posts,[]);
 
  await page.locator('#home-recipes').tap();
  await recipe.locator('[data-recipe="Burgerboller"]').tap();
@@ -750,8 +751,8 @@ async function manualRetryJourney(page,errors){
  assert.deepEqual(await cooking(false),beforeRecipe);
  assert.deepEqual(await playback(),beforePlayback);
  assert.match(await pause.getAttribute('aria-label'),/Fortsæt/);
- assert.deepEqual((await state()).writes,beforeWrites);
- assert.equal(posts.length,1,'only the earlier explicit Pause was sent');
+ assert.deepEqual((await state()).writes,[],'G3 requires no music effect, including setup');
+ assert.deepEqual(posts,[],'no action POST throughout G3');
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  console.log(JSON.stringify({outcome:'PASS',story:'G3',servedBundleSHA,control:'Prøv igen',
@@ -1089,7 +1090,10 @@ async function longSession(page,errors){
   throw error;
  });
  await control.waitFor({state:'attached'});
- await page.waitForFunction(()=>{const b=document.getElementById('play-pause');return b&&!b.disabled&&/pause/i.test(b.getAttribute('aria-label')||'')},undefined,{timeout:15000}).catch(async error=>{
+ await page.waitForFunction(manualRetry=>{
+  const b=document.getElementById('play-pause'),label=b?.getAttribute('aria-label')||'';
+  return b&&!b.disabled&&(manualRetry?/Fortsæt/:/pause/i).test(label);
+ },manualRetryMode,{timeout:15000}).catch(async error=>{
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-failure.png')});
   console.log('control',await control.evaluate(e=>e.outerHTML));
   console.log('visibleUI',await page.locator('body').innerText());
