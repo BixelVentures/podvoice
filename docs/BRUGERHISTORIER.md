@@ -298,15 +298,24 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 | 1 · Adgang og navigation (G1–G6) | Åben. Eksisterende HA-login gav adgang. Den eksisterende fane genforbandt efter add-on-genstart. | Kold åbning og genoptagelse på iPad, genoprettelse efter fejl, navigation under opdatering og sammenligning af de aftalte flader. |
 | 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. Fire faner og listeudvidelse bevarede forslagene. På Køkkenalrum bekræftede Speakers pause efter afspilning. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
 | 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Accepteret køvalg efterlod ubekræftet højttaler og deaktiveret betjening. Ved anden prøve forblev Køkkenalrum valgt, mens ejerens titel og volumen forsvandt. | Afgræns den første Native-fejl og årsagen til sessionsfjernelse. Fysisk gentagelse afventer den aftalte diagnostik. Højttalerskift afventer tilgængelig modtager. Frida var slukket. |
-| 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. 0.26.80 blev installeret på Green kl. 14.58. | Aflæs klart tilbud på 0.26.80 før stationsvalg, skift, Stop og tilbagevenden til Spotify. |
+| 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. 0.26.80 blev installeret på Green kl. 14.58 og afviste derefter passiv klargøring med `start_source_owned`; Native havde ingen primær strøm, mens C stadig beholdt START-ejerskab. | Afklar ejerskabet sammen med den dokumenterede køfejl; stationsvalg, skift, Stop og tilbagevenden til Spotify kræver et reelt klart tilbud. |
 | 5 · Opskrifter (O1, O4–O8, O10) | Åben. Kataloget viste syv faktiske billeder. Bevarelse, afslutning med aktiv timer og upload er dokumenteret ovenfor. | Visningens opstart og resterende undersider mod referencen samt iPhone-genvejens konkrete HTTP-kvittering. |
 | 6 · Robot (S1–S16) | Åben. Navigation bevarede Base og kladden Gang, Støvsug, Stille og 1×. Start, Pause, Fortsæt og retur til opladning er observeret. | Den mergede dialogrettelse i PR #342 afventer installation og målrettet prøve. Stop, tidsmål, Base-kommandoer og øvrige tilstandsgrene afventer. |
-| 7 · Tesla (B1–B11) | Åben. Frisk observation kl. 14.34 viste 81 % og 311 km. Tændt klima viste de relevante kontroller. En bekræftelse for Lås op blev ikke observeret ved denne prøve. | Aflæs den konkrete handlingstilstand for Lås op. Opladning og dvale afventer kildegrundlag, og bekræftede bileffekter afventer prøve. |
+| 7 · Tesla (B1–B11) | Åben. Frisk observation kl. 14.34 viste 81 % og 311 km. Tændt klima viste de relevante kontroller. Ved ny prøve kl. 15.24 åbnede ét Lås op-tryk bekræftelsen; Annuller lukkede den uden bilhandling. Klima var slukket og alle afhængige kontroller disabled. | Den tidligere umiddelbare AX-aflæsning beviste ikke en manglende dialog; faktisk DOM og screenshot viste den ved den nye prøve. Opladning og dvale afventer kildegrundlag, og bekræftede bileffekter afventer prøve. |
 | 8 · Lys, timere, vejr og svar (L1–L3, T1–T2, V1–V4, Q1–Q2) | Åben. Green har vist nedtælling og annullering, Met.no og bevaret svarhistorik. Hue meldte ikke forbundet. | Lys afventer Hue-forbindelse. Timerens udløb og Stop, relevante vejrafvigelser og en ny besked under historiklæsning afventer. Voice PE stod offline ved seneste aflæsning. |
 
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
 dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
 [Speakers PR #125](https://github.com/BixelVentures/podconnect/pull/125)
+
+**Supplerende læsende Green-kontrol · 9. november, 15.22–15.25 CET.** HA viste kortvarigt
+forbindelsesafbrydelse og genforbandt uden genindlæsning af PodView. Tesla viste 78 %/299 km,
+ældste observation 15.24, slukket klima og deaktiveret temperatur, afrimning og sædevarme.
+Ét tryk på Lås op efterfulgt af umiddelbar AX-aflæsning viste endnu ikke dialogen; efterfølgende
+faktisk DOM og screenshot viste »Lås bilen op?«. Annuller lukkede dialogen, og DOM bekræftede,
+at den var væk. Ingen bilkommando eller vækning blev bekræftet. Evidens:
+`/private/tmp/green160-tesla-unlock-dialog-1524.png`. Dette forløb kræver ingen spekulativ
+Tesla-rettelse; det fastslår ikke årsagen til enhver tidligere manglende observation eller et tidsmål.
 
 ## Fælles tilstande og overgangsregler
 
