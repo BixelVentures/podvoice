@@ -50,7 +50,7 @@ volume_drag = os.environ.get("MUSIC_VOLUME_DRAG_TEST") == "1"
 external_devices = {"tesla": ("d" * 40, "Tesla"), "iphone": ("e" * 40, "iPhone")}
 original_client = music.client
 state = {
-    "state": "playing",
+    "state": "paused" if manual_retry else "playing",
     "song": 1,
     "sequence": 7,
     "progressMs": 1000,
