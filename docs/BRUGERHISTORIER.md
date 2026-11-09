@@ -236,6 +236,20 @@ vist som afvist, og betjeningen blev derefter skrivebeskyttet. Et senere tryk p�
 bekræftet `playing=false` hos Speakers. K3/K5 står åbne. Årsagen kræver det oprindelige svar
 for køvalget og den tilhørende ejerobservation.
 
+**Køvalg og installation på Green · 9. november 2026, 14.58–15.01 CET.** Green installerede Speakers
+0.26.80 med backup, efter at HA's opdateringsentitet viste versionen. På PodVoice 2.0.160 blev alle
+fire Find musik-faner gennemgået. Faneskift og listeudvidelse bevarede forslagene.
+
+Musikvalget Rachel/Peter startede »Ordinary Things« på Køkkenalrum. Kølæsningen kl. 14.58.46
+viste fejl med HTTP 200 og `reason=other`. Efter pause viste køen 20 rækker. Ét tryk kl. 14.59.21
+på »What Is Hip – Live«, række 2, gav accepteret kvittering kl. 14.59.22 med
+`stage=validate_receipt`, `dispatched=true` og reference `dd7a459a0f110e50`. Titlen skiftede i
+PodView, hvorefter betjeningen blev deaktiveret, og højttaleren stod ubekræftet. Speakers viste
+Køkkenalrum `main` idle. Native Stop blev ikke bekræftet. En separat Spotify-aflæsning viste
+afspilning på Køkkenalrum. Pause dér gav ukendt udfald. Næste Spotify-aflæsning omkring kl. 15.01
+viste `NONE`. Pakke 3 står åben. Musikagenten følger den konkrete kvittering gennem den native
+ejer og læsevejen for at forklare de modstridende observationer.
+
 Efter opdateringen åbnede den aktive Burgerboller-widget direkte på trin 2 af 5 med én af ti
 ingredienser markeret og 15 stk. Galleriet gik fra 1/3 til 2/3 og lukkede tilbage til opskriften.
 Ingredienser kunne lukkes, »Om opskriften« viste Meyers, og retur fra Arla-opskriften bevarede
@@ -254,9 +268,9 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 | Pakke og historier | Green-observation | Næste åbne forløb |
 |---|---|---|
 | 1 · Adgang og navigation (G1–G6) | Åben. Eksisterende HA-login gav adgang. Den eksisterende fane genforbandt efter add-on-genstart. | Kold åbning og genoptagelse på iPad, genoprettelse efter fejl, navigation under opdatering og sammenligning af de aftalte flader. |
-| 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. På Køkkenalrum bekræftede Speakers pause efter afspilning. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
-| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. BRYLLUP gav 20 kø-rækker med læsefejl. Valg af Unlonely blev vist som afvist. Køkkenalrum var aktuelt output. | Det oprindelige svar på køvalget og ejerobservationen. Genoptag køprøven og prøv flytning, når modtageren er tilgængelig. Frida var slukket. |
-| 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. | 0.26.80 er publiceret fra `a1e75c77`. Aflæs installeret version og klart tilbud før stationsvalg, skift, Stop og tilbagevenden til Spotify. |
+| 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. Fire faner og listeudvidelse bevarede forslagene. På Køkkenalrum bekræftede Speakers pause efter afspilning. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
+| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Ét køvalg blev afvist. Det næste blev accepteret, men efterlod ubekræftet højttaler og deaktiveret betjening. | Følg kvittering `dd7a459a0f110e50` til native ejer og læsevej. Gentag det berørte køforløb efter rettelse. Højttalerskift afventer tilgængelig modtager. Frida var slukket. |
+| 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. 0.26.80 blev installeret på Green kl. 14.58. | Aflæs klart tilbud på 0.26.80 før stationsvalg, skift, Stop og tilbagevenden til Spotify. |
 | 5 · Opskrifter (O1, O4–O8, O10) | Åben. Kataloget viste syv faktiske billeder. Bevarelse, afslutning med aktiv timer og upload er dokumenteret ovenfor. | Visningens opstart og resterende undersider mod referencen samt iPhone-genvejens konkrete HTTP-kvittering. |
 | 6 · Robot (S1–S16) | Åben. Navigation bevarede Base og kladden Gang, Støvsug, Stille og 1×. Start, Pause, Fortsæt og retur til opladning er observeret. | Den mergede dialogrettelse i PR #342 afventer installation og målrettet prøve. Stop, tidsmål, Base-kommandoer og øvrige tilstandsgrene afventer. |
 | 7 · Tesla (B1–B11) | Åben. Frisk observation kl. 14.34 viste 81 % og 311 km. Tændt klima viste de relevante kontroller. En bekræftelse for Lås op blev ikke observeret ved denne prøve. | Aflæs den konkrete handlingstilstand for Lås op. Opladning og dvale afventer kildegrundlag, og bekræftede bileffekter afventer prøve. |
