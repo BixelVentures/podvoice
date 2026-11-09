@@ -563,7 +563,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "6c00b73f296fcb136538be07ae17fc658e958e728661f832f49f4cb580da6795"
+      "sha256": "bf8616ac48ff22349d7bb012c6ff367eebc0a00f30316ab1fb9eced8a2719f7b"
     },
     {
       "path": "local-robot-view.js",
@@ -571,7 +571,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "ab818be3839c1e8042775f8b2ca15bd8149d4b1bdbb280f466cf43e3e4f6da81"
+      "sha256": "76bdea3c6b6833072ec8973b42c733748167c3fceec312a84bc326b4e337e2e3"
     },
     {
       "path": "model.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "fb8b67c74bbe762ed09c833221ac8a6ca1999691ab84c734ee120f9cadee0441"
+      "sha256": "a31228c0d5cd7303a7f153b3c1b47ff2ada07ba62990a2f18434f075e369848f"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "fe5e11b54c12df3e1e1efed87b6d3c042286782d349aca9a040131bb7a712b56"
+      "sha256": "62d23f5a23c0983eae5c10d834c4f1db73c7860744368d969952400eace71a3c"
     },
     {
       "path": "robot-observation.js",
