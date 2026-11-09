@@ -364,6 +364,14 @@ Terra gennemgik alle fire faner i separat Chrome uden afspilningshandlinger: Tid
 - Afgrænset diagnostikbeslutning: næste nødvendige radioobservation er én endelig kategori for første fejlede eksisterende kolde proof-trin samt journaltype/phase/outcome. Brug samme reads/rækkefølge; ingen nye probes, IDs, paths, tokens, ændret adgang eller automatisk afspilning. Den skelner tidligere proces stadig levende, ikke-idle output, FIFO-identitetsmismatch, aktiv writer vs ufuldstændig census, resterende PCM/reader samt journalpersistens. Observationen skal afgøre en konkret årsagsrettelse; diagnostik er ikke en radiofix eller accept. Forberedes separat fra den frosne kørettelse og følger næste nødvendige samlede levering.
 - Covers: Terra bekræftede to manglende playlistcovers som faktisk indlæst lokal node-SVG (150×150), ikke ødelagt billede. AI-grafik til personlige playlister er ikke implementeret af den nuværende temabundne fallback og må ikke påstås bevist af F9/F12's temaprøver.
 
+### Green 9. november kl.16.05–16.15 — 0.26.82 installeret, faktisk kømetadatafejl afgrænset
+
+- PR127 merged normalt som ded9b131. Officiel PR-CI og to imagebygninger bestod; main-publisher42640536285 genbrugte præcis produkttræ4e759f76d62aae4949a4bbf9cacfa842a3b70041. ARM64 digest3817e9dd10f0332c533f06d48db9db14ceb497e33be8bf5abd056efd952f3ff9, AMD64 digest648a379de436073df37168bc77ac0dd7820519343a37abfbe924c5864f91184a.
+- Green viste Installeret/Nyeste0.26.82 efter normal backup-opdatering; proof `/private/tmp/green-speakers-082-installed.png`. Gammel PodView-fane vågnede og genforbandt uden reload. Jazz in the Background startede Ludlow i Køkkenalrum; touch-pause virkede og Spotify bekræftede PAUSED ved20sek. Testmusikken er på pause.
+- Køgentest kan endnu ikke markeres bestået: PodView viser Ingen bekræftet kø at vise, selv om Spotify-read har32 kommende forekomster. Authentificeret PodView-snapshot har queueSelection=true og queue i musicRead. HA get_room_queue_controls returnerer ok/fresh20forekomster, alle metadata_known=false; HA get_queue på samme konfigurationspost returnerer20rigtige navne. Efterfølgende rumlæsning forbliver metadatafalse. Ingen køhandling blev sendt i denne prøve.
+- Private læsebeviser: `/private/tmp/pc82-ha-room-queue-full-1614.yaml`, `/private/tmp/pc82-ha-account-queue-1614.yaml`, `/private/tmp/pc82-ha-room-queue-warm-1615.yaml`; UI `/private/tmp/green-pc82-paused-empty-queue.png`. Ejer actual_close_evidence følger URI-/metadataforbindelsen i Control, med bevarede forekomst- og adgangschecks. Det er ikke bevis for, at kølåsningens Green-regression er afsluttet.
+- Radioens afgrænsede første-fejl-diagnostik772cd928 er lokalt reviewet og kompileret/prøvet med faktiske LinuxFIFO/proc; ikke publiceret/installeret. Ingen radiopolicy eller afspilningshandling ændres.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
