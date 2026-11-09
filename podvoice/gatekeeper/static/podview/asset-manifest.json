@@ -563,7 +563,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "ed388b47c086b020c0f44b55eecbfc15cd79fb56130a04d6f29bce343b8ba35c"
+      "sha256": "d507aab7993a2f791716bee85a1b180d7005315d6b38b5c6afa67b506c664194"
     },
     {
       "path": "local-robot-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "1bc93da2a57b24e13a995b6a74cc61ee6ee6af3cbef44cf579512c6cf6ff576b"
+      "sha256": "b652d466caae53ce7efc295861a780d09c46c770f4827aa7a54fcb93b0448fb2"
     },
     {
       "path": "podview.css",
