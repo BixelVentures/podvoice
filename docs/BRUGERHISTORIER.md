@@ -554,12 +554,10 @@ oprettet igen, mistede det de øvrige typers kladde. Tilbage i Støvsug stod der
 Balanceret. Reproduktionen gav ingen writes. Den eksisterende browserprøve fejler på den gamle
 2.0.163-bundle, fordi den genskabte formular viser Balanceret. Log: `podvoice-robot-mode-regression-red-20261109.log`.
 
-Beslutning for den endnu ikke mergede PodVoice 2.0.164: `ack_cause_audit` retter kun
-bevarelsen af robotpanelets synlige, ikke afsendte kladder for samme enhed og rum.
-Fornyelsen må ikke genskabe gammel handlingsautoritet, bekræftelser eller afsendelser.
-Regressionen skal bevise Støvsug/Stille → Vask → faktisk tidlig fornyelse efter
-kildeopdatering → Støvsug/Stille og nul writes. `cover_fallback_sol` integrerer
-rettelsen med G4. Nyt softwarebevis og Green-gentest afventer.
+Rettelsen `88d9d2e9` bevarer de synlige, uafsendte kladder for samme enhed og rum.
+Pakket Chromium med inert robot bekræftede Støvsug/Stille → Vask → tidlig fornyelse
+efter kildeopdatering → Støvsug/Stille. Fornyelsen beholdt kladden, og delprøven sendte
+ingen robotkommando. Rettelsen indgår sammen med G4 i 2.0.164. Green-gentest afventer.
 
 ## Fælles tilstande og overgangsregler
 

@@ -1,6 +1,7 @@
 ## 2.0.164
 
 - Bevar opskriftskatalogets rulleposition, når du går tilbage fra en opskrift.
+- Bevar robotkladden for hver rengøringstype, når panelet fornyes.
 
 ## 2.0.163
 
