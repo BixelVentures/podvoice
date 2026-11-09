@@ -486,3 +486,18 @@ for(const mode of ['same owner','changed owner','changed route','malformed contr
   assert.equal(f.view.playback.roomBinding.validUntil,Date.now()/1000+1);
  }finally{f.view.invalidate(true);f.restore();context.mock.timers.reset();}
 });
+
+// K5/A11: a same-scope answer that only has an unexpected shape is not a new owner.
+// The known song stays on screen as last-known; it must never blank the player.
+test('a same-scope playback answer with an unexpected field keeps the known song as last-known',async()=>{
+ for(const mutate of [body=>{body.data.playback.context=null;},body=>{body.data.playback.item.name='';},body=>{body.data.playback.item.type='ad';}]){
+  const f=surface();try{
+   f.view.account='first';f.host.liveTransport.music=async()=>v2Payload();
+   await f.view.refresh({immediate:true});
+   const known=f.view.playback?.item?.name;assert.equal(typeof known,'string');assert.equal(f.view.readState,'ready');
+   const body=v2Payload();body.data.poll_sequence+=1;mutate(body);f.host.liveTransport.music=async()=>body;
+   await f.view.refresh({immediate:true});
+   assert.equal(f.view.playback?.item?.name,known);assert.equal(f.view.playback.stale,true);assert.equal(f.view.readState,'error');
+  }finally{clearTimeout(f.view.freshnessTimer);clearTimeout(f.view.recoveryTimer);f.restore();}
+ }
+});
