@@ -82,20 +82,43 @@ const assertRobotObservation=async(page,requests,action)=>{
    assert(await goHome.isVisible());
    assert(await panel.getByRole('button',{name:'Vask moppe',exact:true}).isEnabled());
    await goHome.tap();
+   const confirm=panel.getByRole('dialog',{name:'Kør til basen?'});
+   await confirm.waitFor({state:'visible'});
+   const dialog=await confirm.elementHandle();
+   const originalOffer=await host.evaluate(h=>h.liveControls.task.taskId);
+   await host.evaluate(h=>h.liveControls.renewRobotTask(h.liveControls.task));
+   await page.waitForFunction(id=>{const current=document.querySelector('pv-widget-host').liveControls.task?.taskId;return current&&current!==id;},originalOffer);
+   assert(await dialog.evaluate(node=>node.isConnected&&node.open),'background renewal keeps the same return confirmation open');
+   assert.deepEqual((await state()).robot.writes.filter(([service])=>service.startsWith('services/vacuum/'))
+    .map(([service])=>service),['services/vacuum/pause'],'renewal never confirms return');
    await panel.getByRole('button',{name:'Behold turen',exact:true}).tap();
    assert.deepEqual(await ownerWrites(),[],'opening Base and canceling return sends no dock command');
    const resume=panel.getByRole('button',{name:'Fortsæt',exact:true});
    const resumed=intent('resume');
    await resume.tap();
    assert.equal((await (await resumed).json()).outcome,'accepted');
+   await page.waitForFunction(()=>{
+    const h=document.querySelector('pv-widget-host');
+    return h.state.devices.find(row=>row.id==='vacuum.qrevo')?.status==='cleaning'&&h.liveControls.task;
+   });
+   if(!await goHome.isVisible())await baseMenu.tap();
+   await goHome.tap();
+   const returnOffer=await host.evaluate(h=>h.liveControls.task.taskId);
+   await host.evaluate(h=>h.liveControls.renewRobotTask(h.liveControls.task));
+   await page.waitForFunction(id=>{const current=document.querySelector('pv-widget-host').liveControls.task?.taskId;return current&&current!==id;},returnOffer);
+   const returned=intent('return');
+   await confirm.getByRole('button',{name:'Kør til basen',exact:true}).tap();
+   assert.equal((await (await returned).json()).outcome,'accepted');
+   await confirm.waitFor({state:'hidden'});
    const writes=(await state()).robot.writes.filter(([service])=>service.startsWith('services/vacuum/'));
-   assert.deepEqual(writes.map(([service])=>service),['services/vacuum/pause','services/vacuum/start']);
+   assert.deepEqual(writes.map(([service])=>service),['services/vacuum/pause','services/vacuum/start','services/vacuum/return_to_base']);
    assert.deepEqual(errors,[]);
    assert(loadedBundleSha256&&loadedCssSha256);
    if(process.env.ROBOT_EXPECTED_BUNDLE)assert.equal(loadedBundleSha256,process.env.ROBOT_EXPECTED_BUNDLE);
    if(process.env.ROBOT_EXPECTED_CSS)assert.equal(loadedCssSha256,process.env.ROBOT_EXPECTED_CSS);
    const proof={outcome:'PASS',loadedBundleSha256,loadedCssSha256,
-    oneBaseAfterObservedPause:true,returnCanceled:true,observedResumeOffered:true,writes,inertFinalService:true};
+    oneBaseAfterObservedPause:true,confirmationSurvivedRenewal:true,returnCanceled:true,
+    observedResumeOffered:true,explicitReturnAfterRenewal:true,writes,inertFinalService:true};
    await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-active-base-proof.json'),
     JSON.stringify(proof,null,2));
    console.log(JSON.stringify(proof));
