@@ -56,8 +56,8 @@ if reload_mode:
 
 
 if adjust_mode:
-    # Reuse the admitted native-v2 integration-test descriptor. It mirrors the
-    # registered service fields/selectors without adding a YAML dependency.
+    # Reuse the native-v2 descriptor with Home Assistant's REST selector
+    # defaults, which differ from the raw services.yaml declarations.
     from unit.test_tools_mcp import _rest_recovery_services
 
     metadata = copy.deepcopy(
@@ -67,14 +67,18 @@ if adjust_mode:
     fields = metadata["timer_command_v2"]["fields"]
     for key in fields:
         if key != "action":
-            fields[key]["selector"] = {"text": None}
+            fields[key]["selector"] = {"text": {"multiline": False, "multiple": False}}
     fields["action"]["selector"]["select"]["options"].append("adjust")
     for key in ("endpoint", "epoch", "request_id", "action"):
         fields[key]["required"] = True
-    fields["seconds"] = {"selector": {"number": {"min": 1, "max": 86400, "mode": "box"}}}
-    fields["delta_seconds"] = {"selector": {"number": {"min": -86400, "max": 86400, "mode": "box"}}}
-    fields["expected_revision"] = {"selector": {"text": None}}
-    fields["lookup_only"] = {"selector": {"boolean": None}}
+    fields["seconds"] = {
+        "selector": {"number": {"min": 1.0, "max": 86400.0, "mode": "box", "step": 1}}
+    }
+    fields["delta_seconds"] = {
+        "selector": {"number": {"min": -86400.0, "max": 86400.0, "mode": "box", "step": 1}}
+    }
+    fields["expected_revision"] = {"selector": {"text": {"multiline": False, "multiple": False}}}
+    fields["lookup_only"] = {"selector": {"boolean": {}}}
     tools.timers.discover([{"domain": "podvoice", "services": metadata}])
     for method_name in ("start_timer", "add_time", "cancel_timer", "pause_timer"):
         original = getattr(manager, method_name)
