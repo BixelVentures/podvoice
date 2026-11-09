@@ -382,3 +382,34 @@ test('a new voice turn and provider generation do not cancel same-output Pause',
   assert.equal(f.effects.length,1);assert.equal(f.view.musicFence.outcome,'accepted');
  }finally{finish?.();f.close();}
 });
+// H1: a speaker chosen while Pause is in flight stays chosen and moves once Pause has settled.
+test('a speaker tapped while Pause is pending stays chosen and is moved once after Pause settles',async()=>{
+ const h=lifecycle(),{f,g,output}=h;let release;try{
+  await g.media.refresh({immediate:true});await output.open();f.view.render();
+  const plain=f.host.liveTransport.controlIntent;
+  f.host.liveTransport.controlIntent=intent=>{
+   if(intent.action!=='pause')return plain(intent);
+   f.effects.push(intent);return new Promise(resolve=>release=()=>resolve({ok:true,outcome:'accepted',requestId:intent.requestId}));
+  };
+  const pausing=f.view.musicIntent('pause');await tick();assert.equal(f.view.musicIntentPending,true);
+  output.sync();const row=[...output.rows.children].find(b=>b.speakerRow.name==='Svend');assert.equal(row.disabled,false,'the speaker row is not locked');
+  row.dispatchEvent(new Event('click'));await tick();
+  assert.equal(output.pendingChoiceLabel(),'Svend','the chosen speaker is shown at once');
+  assert.deepEqual(f.effects.map(e=>e.action),['pause'],'the move waits for Pause');
+  release();await pausing;for(let i=0;i<6;i++)await tick();
+  assert.deepEqual(f.effects.map(e=>e.action),['pause','move_existing_session'],'the move is sent exactly once');
+  assert.equal(f.effects[1].target.speakerId,'2'.repeat(64));
+ }finally{release?.();h.close();}
+});
+test('a speaker tapped while Pause is pending is not moved when Pause ends UNKNOWN, and the user is told',async()=>{
+ const h=lifecycle(),{f,g,output}=h;let release;try{
+  await g.media.refresh({immediate:true});await output.open();f.view.render();
+  f.host.liveTransport.controlIntent=intent=>{f.effects.push(intent);return new Promise(resolve=>release=()=>resolve({ok:true,outcome:'unknown',requestId:intent.requestId}));};
+  const pausing=f.view.musicIntent('pause');await tick();output.sync();
+  [...output.rows.children].find(b=>b.speakerRow.name==='Svend').dispatchEvent(new Event('click'));await tick();
+  release();await pausing;for(let i=0;i<6;i++)await tick();
+  assert.deepEqual(f.effects.map(e=>e.action),['pause'],'nothing is sent after UNKNOWN');
+  assert.ok(f.feedback.some(text=>/ikke skiftet/.test(text)),'the user gets a concrete message');
+  assert.equal(output.pendingChoiceLabel(),'','the waiting choice is cleared');
+ }finally{release?.();h.close();}
+});

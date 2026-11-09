@@ -120,9 +120,14 @@ export function roomPlaybackObservation(body,account,snapshot,previous,{receiptR
 // The music lane admits one action at a time. A queue, Find musik or speaker choice made while
 // another music action runs waits here for its turn (K3, F2, A9, H1). Only the latest choice
 // waits: an earlier one resolves 'replaced'. When the running action ends UNKNOWN the waiting
-// choice resolves 'unknown' and is not sent; otherwise it resolves 'free'.
-export function waitForMusicLane(controls) {
- if (!controls?.musicIntentPending) return Promise.resolve('free');
+// choice resolves 'unknown' and is not sent; otherwise it resolves 'free' and checks again.
+export function waitForMusicLane(controls, busy = !!controls?.musicIntentPending) {
+ if (!busy) return Promise.resolve('free');
  controls.musicLaneWaiter?.('replaced');
  return new Promise(resolve => { controls.musicLaneWaiter = resolve; });
+}
+export function releaseMusicLane(controls, turn) {
+ const waiter = controls.musicLaneWaiter;
+ controls.musicLaneWaiter = null;
+ waiter?.(turn);
 }

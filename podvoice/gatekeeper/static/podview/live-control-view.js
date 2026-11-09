@@ -4,7 +4,8 @@ import {scopedLightsObservation} from './ha-home-observation.js';
 import {applyKitComponent,applyKitDialog,syncKitSlider} from './ui/kit.js';
 import {renderPlayerControls} from './player-view.js';
 import {controlTask,controlArgs} from './control-model.js';
-import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding} from './media-observation.js';
+import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding,
+ waitForMusicLane,releaseMusicLane} from './media-observation.js';
 import './robot-control-panel.js';
 const robotRebindReasons=new Set(['robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
 const setupDiagnosticCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable','invalid_dto','stale_binding']);
@@ -251,7 +252,9 @@ export class LiveControlView{
    domain:'music',action:receipt.action,requestId:receipt.requestId,code,
   });
   this.receipts.set(receipt.operationKey,{...row,settlementStatus:status,settlementOwnerEpoch:settlement.owner_epoch,settlementRequestId:settlement.request_id,settlementCommandSequence:settlement.command_sequence,settlementEffect:settlement.effect?{...settlement.effect}:null});
-  const fence={...this.musicFence,settlementStatus:status};if(['confirmed','rejected','superseded'].includes(status)){delete fence.volumeDraft;clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;}this.musicFence=fence;if(receipt.kind==='move'&&['rejected','superseded'].includes(status)&&receipt.choice&&this.host.liveOutputs?.pendingChoice===receipt.choice)this.host.liveOutputs.pendingChoice=null;this.renderReceipt();return true;
+  const fence={...this.musicFence,settlementStatus:status};if(['confirmed','rejected','superseded'].includes(status)){delete fence.volumeDraft;clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;}this.musicFence=fence;
+  if(['confirmed','rejected','superseded'].includes(status))releaseMusicLane(this,'free');
+  if(receipt.kind==='move'&&['rejected','superseded'].includes(status)&&receipt.choice&&this.host.liveOutputs?.pendingChoice===receipt.choice)this.host.liveOutputs.pendingChoice=null;this.renderReceipt();return true;
  }
  seekPositionObserved(playback,receipt){
   const {positionMs,witness}=receipt.seekInput;
@@ -269,6 +272,7 @@ export class LiveControlView{
    if(this.musicFence?.settlementReceipt!==receipt||this.musicFence.outcome!=='accepted'||['confirmed','rejected','superseded','unknown'].includes(this.musicFence.settlementStatus))return;
    const row=this.receipts.get(receipt.operationKey);if(row)this.receipts.set(receipt.operationKey,{...row,settlementStatus:'unknown'});
    this.musicFence={...this.musicFence,outcome:'unknown',settlementStatus:'unknown'};delete this.musicFence.volumeDraft;
+   releaseMusicLane(this, 'unknown');
    if(receipt.kind==='move'&&receipt.choice&&this.host.liveOutputs?.pendingChoice===receipt.choice)this.host.liveOutputs.pendingChoice=null;
    this.host.liveTransport?.recordDiagnostic?.('control_action',{domain:'music',action:receipt.action,requestId:receipt.requestId,code:'unknown'});
    if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
@@ -308,9 +312,7 @@ export class LiveControlView{
   }
   this.musicQueued = null;
   // A choice waiting in waitForMusicLane gets its turn; after UNKNOWN it is not sent.
-  const laneWaiter = this.musicLaneWaiter;
-  this.musicLaneWaiter = null;
-  laneWaiter?.(outcome === 'unknown' ? 'unknown' : 'free');
+  releaseMusicLane(this, outcome === 'unknown' ? 'unknown' : 'free');
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
@@ -321,7 +323,10 @@ export class LiveControlView{
   this.pruneSpent();
   const context=this.musicContext();if(!context||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending)return;
   if(this.musicUnknownBlocks(context))return;
-  if(this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&!this.musicSettlementReceipt(true)&&context.pollSequence>this.musicFence.pollSequence){this.musicFence=null;this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;if(this.host.liveMedia?.playback?.projectionVersion===3)this.renderMusicControls();}
+  if(this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&!this.musicSettlementReceipt(true)&&context.pollSequence>this.musicFence.pollSequence){
+   this.musicFence=null;
+   releaseMusicLane(this,'free');
+   this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;if(this.host.liveMedia?.playback?.projectionVersion===3)this.renderMusicControls();}
   if(this.host.liveMedia?.playback?.projectionVersion===3)return;
   if(this.musicOffer?.context.key===context.key&&this.musicOffer.task.expiresAt*1000>Date.now())return;
   if(this.musicAttempt===context.key&&this.musicAttemptPoll===context.pollSequence)return; // One read per fresh source observation; intent fences keep the stable context.
@@ -430,7 +435,21 @@ export class LiveControlView{
   const reject=code=>{transport?.recordDiagnostic?.('control_intent',{...diagnostic,code});return false;};
   const context=this.musicContext(true),snapshot=this.host.liveSnapshot,binding=context?.binding;
   if(!context||!binding||!catalogueCurrent()||this.moveUnknownApplies(context)||this.musicUnknownBlocks(context))return reject('scope_changed');
-  if(this.musicIntentPending||this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&!['confirmed','rejected','superseded'].includes(this.musicFence.settlementStatus))return reject('intent_pending');
+  
+  // A move chosen while another music action runs, or before its effect is settled, waits for it (H1).
+  const fence = this.musicFence;
+  const unsettled = fence?.key === context.key && fence.outcome === 'accepted'
+   && !['confirmed', 'rejected', 'superseded'].includes(fence.settlementStatus);
+  if (this.musicIntentPending || unsettled) {
+   const turn = await waitForMusicLane(this, true);
+   if (turn === 'free') return this.moveSpeaker(speaker, catalogueCurrent, choice);
+   if (turn === 'unknown') {
+    const message = 'Den forrige handling kunne ikke bekræftes · højttaleren blev ikke skiftet.';
+    this.host.showFeedback?.(message, false, {source: 'music-intent'});
+   }
+   return reject('intent_pending');
+  }
+  
   if(speaker?.kind!=='configured_alias'||speaker.accountId!==context.target.accountId||!/^[a-f0-9]{64}$/.test(speaker.speakerId)||speaker.selectable!==true||speaker.availability!=='available'||typeof speaker.nativeRoomId!=='string'||!speaker.nativeRoomId||typeof speaker.homepodId!=='string'||!/^[1-9][0-9]{0,19}$/.test(speaker.homepodId)||speaker.nativeRoomId===binding.nativeRoomId&&speaker.homepodId===binding.nativeHomepodId)return reject('invalid_target');
   const token=this.beginMusicIntent();if(!token)return reject('intent_pending');
   const destination=Object.freeze({accountId:speaker.accountId,nativeRoomId:speaker.nativeRoomId,nativeHomepodId:speaker.homepodId}),ownerScope=JSON.stringify([snapshot?.capabilities?.musicRead,snapshot?.capabilities?.controlSetup?.includes('music')]),generation=this.generation,musicGeneration=this.musicGeneration||0,transportGeneration=transport.generation;
