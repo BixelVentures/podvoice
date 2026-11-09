@@ -246,6 +246,26 @@ Green viste kl. 14.08 samme 8° og Skyet på fotovisning, forside og vejrdetalje
 detaljen viste samme temperaturspænd og fælles timer kl. 15–19. Detaljen viste 12 timer og seks
 dagsrækker fra Met.no. Den tidligere aflæsning kl. 13.39 viste »Sidst kendt« med tidspunkt.
 
+**Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
+rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
+Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
+en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i deres egen pakke.
+
+| Pakke og historier | Green-observation | Næste åbne forløb |
+|---|---|---|
+| 1 · Adgang og navigation (G1–G6) | Åben. Eksisterende HA-login gav adgang. Den eksisterende fane genforbandt efter add-on-genstart. | Kold åbning og genoptagelse på iPad, genoprettelse efter fejl, navigation under opdatering og sammenligning af de aftalte flader. |
+| 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. På Køkkenalrum bekræftede Speakers pause efter afspilning. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
+| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. BRYLLUP gav 20 kø-rækker med læsefejl. Valg af Unlonely blev vist som afvist. Køkkenalrum var aktuelt output. | Det oprindelige svar på køvalget og ejerobservationen. Genoptag køprøven og prøv flytning, når modtageren er tilgængelig. Frida var slukket. |
+| 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. | 0.26.80 er publiceret fra `a1e75c77`. Aflæs installeret version og klart tilbud før stationsvalg, skift, Stop og tilbagevenden til Spotify. |
+| 5 · Opskrifter (O1, O4–O8, O10) | Åben. Kataloget viste syv faktiske billeder. Bevarelse, afslutning med aktiv timer og upload er dokumenteret ovenfor. | Visningens opstart og resterende undersider mod referencen samt iPhone-genvejens konkrete HTTP-kvittering. |
+| 6 · Robot (S1–S16) | Åben. Navigation bevarede Base og kladden Gang, Støvsug, Stille og 1×. Start, Pause, Fortsæt og retur til opladning er observeret. | Den mergede dialogrettelse i PR #342 afventer installation og målrettet prøve. Stop, tidsmål, Base-kommandoer og øvrige tilstandsgrene afventer. |
+| 7 · Tesla (B1–B11) | Åben. Frisk observation kl. 14.34 viste 81 % og 311 km. Tændt klima viste de relevante kontroller. En bekræftelse for Lås op blev ikke observeret ved denne prøve. | Aflæs den konkrete handlingstilstand for Lås op. Opladning og dvale afventer kildegrundlag, og bekræftede bileffekter afventer prøve. |
+| 8 · Lys, timere, vejr og svar (L1–L3, T1–T2, V1–V4, Q1–Q2) | Åben. Green har vist fortsat nedtælling, Met.no og bevaret svarhistorik. | Faktisk lysbetjening, timerens udløb og Stop, relevante vejrafvigelser samt en ny besked under historiklæsning. Voice PE stod offline ved seneste aflæsning. |
+
+De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
+dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
+[Speakers PR #125](https://github.com/BixelVentures/podconnect/pull/125)
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
