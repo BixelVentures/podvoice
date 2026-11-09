@@ -205,6 +205,32 @@ async function readAndResumeBurgerboller(page){
  assert.equal(await ingredients.getAttribute('aria-expanded'),'false');
  await back.tap();
  await catalog.waitFor({state:'visible'});
+ const entries=catalog.locator(':scope > div').first();
+ const scones=catalog.locator('[data-recipe="Scones med hytteost og blåbær"]');
+ await scones.scrollIntoViewIfNeeded();
+ const catalogueOffset=await entries.evaluate(node=>node.scrollTop);
+ assert(catalogueOffset>0,'Scones is reached by scrolling the actual recipe catalogue');
+ assert.equal(await recipe.locator('input[type=radio]:checked').inputValue(),'');
+ const readActiveSession=()=>page.evaluate(()=>{
+  const raw=localStorage.getItem('podview.recipe-session.v1');
+  if(!raw)return null;
+  const session=JSON.parse(raw);
+  delete session.savedAt;
+  return session;
+ });
+ const activeSession=await readActiveSession();
+ assert(activeSession,'Burgerboller already owns a persisted cooking session');
+ await scones.tap();
+ await page.getByRole('button',{name:'Scones med hytteost og blåbær · Tilbage',exact:true}).waitFor();
+ await back.tap();
+ await catalog.waitFor({state:'visible'});
+ assert.equal(await entries.evaluate(node=>node.scrollTop),catalogueOffset,
+  'Tilbage restores the catalogue position even while another recipe is active');
+ assert.equal(await recipe.locator('input[type=radio]:checked').inputValue(),'');
+ assert.equal(await row.getAttribute('aria-current'),'true');
+ assert.deepEqual(await readActiveSession(),activeSession);
+ console.log(JSON.stringify({outcome:'PASS',story:'G4',catalogueDetailBack:true,
+  catalogueOffset,category:'Alle',sameActiveRecipe:true,sourceMode}));
  await recipe.locator('input[type=radio][value="Aftensmad"]').locator('..').tap();
  assert.equal(await catalog.locator('[data-recipe]').first().getAttribute('data-recipe'),'Burgerboller');
  assert.equal(await row.getAttribute('aria-current'),'true');

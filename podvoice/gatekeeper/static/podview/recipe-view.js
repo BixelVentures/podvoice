@@ -193,7 +193,7 @@ export class RecipeView {
   return status !== this.uploadHistoryStatus || before !== JSON.stringify(this.uploads);
  }
 
- catalog(refresh = true) {
+ catalog(refresh = true, {restoreScroll = !this.active} = {}) {
   const entries = element('div');
   this.page('Opskrifter','',()=>{
    this.catalogScroll = entries.scrollTop;
@@ -368,7 +368,7 @@ export class RecipeView {
   updateIndex();
   this.catalogResize = new ResizeObserver(updateIndex);
   this.catalogResize.observe(entries);
-  entries.scrollTop = this.active ? 0 : this.catalogScroll || 0;
+  entries.scrollTop = restoreScroll ? this.catalogScroll || 0 : 0;
   // A single bounded refresh loop belongs to this mounted catalog, not the widget host.
   const abort = new AbortController();
   let timer, inFlight = false, queued = false, historyPending = false, retryHistory = false;
@@ -479,7 +479,7 @@ export class RecipeView {
    if (groups.length === 1) card.firstChild.hidden = true;
    ingredients.panel.append(card);
   }
-  this.page(recipe.title,'',()=>this.catalog());
+  this.page(recipe.title,'',()=>this.catalog(true,{restoreScroll:true}));
   const reading = element('div');
   reading.dataset.recipeLayout = 'reading';
   const progress = meta('');

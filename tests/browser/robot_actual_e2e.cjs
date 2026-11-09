@@ -408,6 +408,40 @@ const assertRobotObservation=async(page,requests,action)=>{
     return {x:left-x,y:top-y};
    });
   });
+  if(process.env.ROBOT_WATER_RECOVERY_TEST!=='1'&&process.env.ROBOT_LONG_SESSION_TEST!=='1'){
+   const quiet=choice('suction','Stille');
+   await vacuum.tap();await quiet.tap();await both.tap();await mop.tap();
+   const previous=await host.evaluate(h=>{
+    const panel=h.liveControls.robotPanel;
+    window.robotModeBeforeRenewal=panel.cleaningSubmit;
+    return panel.value.task.taskId;
+   });
+   const renewed=page.waitForResponse(response=>{
+    const request=response.request();
+    return response.ok()&&new URL(request.url()).pathname==='/view/api/control/setup'
+     &&request.postDataJSON()?.renewTaskId===previous;
+   },{timeout:15000});
+   // Change the inert owner's raw state while the panel displays the same robot.
+   // The active draft can still be restored, but the old form cannot rebind.
+   await update({robotState:'idle'});
+   await host.evaluate(h=>h.loadLiveHome());
+   const setup=(await (await renewed).json()).setup;
+   assert.equal(setup.rebind?.status,'not_restored');
+   assert.equal(setup.draft?.status,'restored');
+   await page.waitForFunction(old=>{
+    const panel=document.querySelector('pv-widget-host')?.liveControls?.robotPanel;
+    return panel?.value?.task?.taskId&&panel.value.task.taskId!==old
+     &&panel.cleaningSubmit!==window.robotModeBeforeRenewal;
+   },previous);
+   assert(await mop.isChecked(),'the rebuilt form retains the current mode');
+   await vacuum.tap();
+   assert(await quiet.isChecked(),'the rebuilt form restores Stille for the earlier vacuum mode');
+   assert.equal(await room.getAttribute('aria-pressed'),'true');
+   assert.deepEqual((await state()).robot.writes,[]);
+   assert.equal(requests.filter(r=>new URL(r.url).pathname==='/view/api/control/actions').length,0);
+   await update({robotState:'docked'});
+   await both.tap();
+  }
   const positions={both:await geometry()};
   await vacuum.tap();
   assert.equal(await setting('water').isVisible(),false);
