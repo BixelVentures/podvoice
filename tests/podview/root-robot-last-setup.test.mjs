@@ -27,15 +27,80 @@ function fixture(handler){
  const card=new Node('card');card.parentNode={parentNode:host,after(){}};host.deviceNodes=new Map([[target.entityId,card]]);host.querySelector=()=>null;host.state={focus:target.entityId,devices:[device]};host.liveSnapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:['vacuum']}};
  const calls=[];let writes=0;
  const offer=(recipe,id='setup')=>({ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'room',domain:'vacuum',taskId:id,revision:1,expiresAt:Date.now()/1000+15,options:[{id:id+'-start',action:'start',label:'Start',argsSchema:{kind:'cleaning',areas:[{id:'current-area',label:'Køkken'}],repeat:{min:1,max:3}}},...(recipe?[{id:id+'-reuse',action:'reuse',label:'Brug igen',argsSchema:{kind:'none'}}]:[])],setup:{mapName:'Stueplan',...(recipe?{historyDraft:{source:'accepted_start_history',optionId:id+'-start',areaIds:['current-area'],repeat:2}}:{})}});
- host.liveTransport={connected:true,generation:1,controlSetup:async(domain,nextTarget,recipe)=>{calls.push({domain,target:nextTarget,recipe});return handler?handler(recipe,calls.length,offer):offer(recipe)},controlAction:async()=>{writes++;return {ok:true,outcome:'accepted'}}};
+ host.liveTransport={
+  connected:true,generation:1,
+  controlSetup:async(domain,nextTarget,recipe,options)=>{
+   calls.push({domain,target:nextTarget,recipe,options});
+   const historyId=recipe??options.restoreHistoryId;
+   return handler?handler(historyId,calls.length,offer):offer(historyId);
+  },
+  controlAction:async()=>{writes++;return {ok:true,outcome:'accepted'};},
+ };
  const view=new LiveControlView(host);view.suspending=true;return {host,device,view,calls,offer,writes:()=>writes};
 }
 const open=f=>f.view.openRobot(new Node('button'));
-test('default idle opening requests latest accepted complete recipe through source setup with zero effects',async()=>{const f=fixture();try{await open(f);assert.deepEqual(f.calls,[{domain:'vacuum',target,recipe:recipeId}]);assert.equal(f.view.task.historyDraft.repeat,2);assert.equal(f.view.recipeId,recipeId);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
-for(const failure of ['denied','throw','malformed','reuse-only'])test(`automatic remembered setup falls back to one ordinary source read: ${failure}`,async()=>{const f=fixture((recipe,n,offer)=>{if(n>1)return offer(null,'ordinary');if(failure==='throw')throw Error('unavailable');if(failure==='denied')return {ok:false};if(failure==='malformed')return {ok:true};const result=offer(null,'reuse-only');result.options=[{id:'reuse',label:'Brug igen',action:'reuse',argsSchema:{kind:'none'}}];return result;});try{await open(f);assert.deepEqual(f.calls.map(row=>row.recipe),[recipeId,undefined]);assert.equal(f.view.task.taskId,'ordinary');assert.equal(f.view.recipeId,undefined);assert.equal(f.view.task.historyDraft,undefined);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
+const ordinaryRead={domain:'vacuum',target,recipe:undefined,options:{}};
+const historyRead={...ordinaryRead,options:{restoreHistoryId:recipeId}};
+test('default idle opening restores latest accepted complete recipe through source setup with zero effects',async()=>{
+ const f=fixture();
+ try{
+  await open(f);
+  assert.deepEqual(f.calls,[historyRead]);
+  assert.equal(f.view.task.historyDraft.repeat,2);
+  assert.equal(f.view.recipeId,undefined);
+  assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();}
+});
+for(const failure of ['denied','throw','malformed','reuse-only']){
+ test(`automatic remembered setup falls back to one ordinary source read: ${failure}`,async()=>{
+  const f=fixture((_historyId,n,offer)=>{
+   if(n>1)return offer(null,'ordinary');
+   if(failure==='throw')throw Error('unavailable');
+   if(failure==='denied')return {ok:false};
+   if(failure==='malformed')return {ok:true};
+   const result=offer(null,'reuse-only');
+   result.options=[{id:'reuse',label:'Brug igen',action:'reuse',argsSchema:{kind:'none'}}];
+   return result;
+  });
+  try{
+   await open(f);
+   const fallback=failure==='reuse-only'?{...ordinaryRead,options:{renewTaskId:'reuse-only'}}:ordinaryRead;
+   assert.deepEqual(f.calls,[historyRead,fallback]);
+   assert.equal(f.view.task.taskId,'ordinary');
+   assert.equal(f.view.recipeId,undefined);
+   assert.equal(f.view.task.historyDraft,undefined);
+   assert.equal(f.writes(),0);
+  }finally{f.view.cleanup();}
+ });
+}
 test('ordinary fallback failure is terminal for this open, without another read or action',async()=>{const f=fixture(()=>{throw Error('unavailable');});try{await open(f);assert.equal(f.calls.length,2);assert.equal(f.view.task,null);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
-test('manual explicit historical selection remains exact and never falls back',async()=>{const f=fixture(()=>({ok:false}));try{await f.view.openRobot(new Node('button'),olderId);assert.deepEqual(f.calls.map(row=>row.recipe),[olderId]);assert.equal(f.view.task,null);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
-for(const condition of ['edited','explicit-room','preserved-history-draft','active','charging-active','washing','stale-history','stale-observation','future-observation','missing-observation','unknown-history','invalid-id','future-record'])test(`does not substitute latest recipe over ${condition}`,async()=>{const f=fixture();try{if(condition==='edited'||condition==='explicit-room'){f.view.target=target;f.view.robotPanel=new Node('pv-robot-control-panel');if(condition==='edited')f.view.robotPanel.cleaningDirty=true;else f.view.robotPanel.value={selectedAreaId:'room'};}else if(condition==='preserved-history-draft'){f.view.target=target;f.view.robotPanel=new Node('pv-robot-control-panel');f.view.robotPanel.value={task:{historyDraft:{areaIds:['a']}}};}else if(condition==='active')f.device.status='cleaning';else if(condition==='charging-active'||condition==='washing'){const now=Date.now()/1000;f.device.telemetry={status:'observed',items:condition==='charging-active'?[{key:'in_cleaning',value:true,updatedAt:now},{key:'battery_charging',value:true,updatedAt:now}]:[{key:'mop_washing',value:true,updatedAt:now}]};}else if(condition==='stale-history')f.device.history.status='unavailable';else if(condition==='stale-observation')f.device.observedAt-=301;else if(condition==='future-observation')f.device.observedAt+=100;else if(condition==='missing-observation')delete f.device.observedAt;else if(condition==='unknown-history')f.device.history.items.forEach(row=>row.outcome='unknown');else if(condition==='invalid-id')f.device.history.items.forEach(row=>row.id='unbounded');else f.device.history.items.forEach(row=>row.recordedAt=Date.now()/1000+100);await open(f);assert.deepEqual(f.calls.map(row=>row.recipe),[undefined]);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
+test('manual explicit historical selection remains exact and never falls back',async()=>{
+ const f=fixture(()=>({ok:false}));
+ try{
+  await f.view.openRobot(new Node('button'),olderId);
+  assert.deepEqual(f.calls,[{...ordinaryRead,recipe:olderId}]);
+  assert.equal(f.view.task,null);
+  assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();}
+});
+for(const condition of ['edited','explicit-room','preserved-history-draft','active','charging-active','washing','stale-history','stale-observation','future-observation','missing-observation','unknown-history','invalid-id','future-record'])test(`does not substitute latest recipe over ${condition}`,async()=>{const f=fixture();try{if(condition==='edited'||condition==='explicit-room'){f.view.target=target;f.view.robotPanel=new Node('pv-robot-control-panel');if(condition==='edited')f.view.robotPanel.cleaningDirty=true;else f.view.robotPanel.value={selectedAreaId:'room'};}else if(condition==='preserved-history-draft'){f.view.target=target;f.view.robotPanel=new Node('pv-robot-control-panel');f.view.robotPanel.value={task:{historyDraft:{areaIds:['a']}}};}else if(condition==='active')f.device.status='cleaning';else if(condition==='charging-active'||condition==='washing'){const now=Date.now()/1000;f.device.telemetry={status:'observed',items:condition==='charging-active'?[{key:'in_cleaning',value:true,updatedAt:now},{key:'battery_charging',value:true,updatedAt:now}]:[{key:'mop_washing',value:true,updatedAt:now}]};}else if(condition==='stale-history')f.device.history.status='unavailable';else if(condition==='stale-observation')f.device.observedAt-=301;else if(condition==='future-observation')f.device.observedAt+=100;else if(condition==='missing-observation')delete f.device.observedAt;else if(condition==='unknown-history')f.device.history.items.forEach(row=>row.outcome='unknown');else if(condition==='invalid-id')f.device.history.items.forEach(row=>row.id='unbounded');else f.device.history.items.forEach(row=>row.recordedAt=Date.now()/1000+100);await open(f);
+ assert.deepEqual(f.calls,[ordinaryRead]);
+ assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();}
+});
 for(const condition of ['pending','device-pending','unknown','overview-pending','active-operation'])test(`${condition} fences all automatic recipe reads`,async()=>{const f=fixture();try{if(condition==='pending')f.view.pending=true;else if(condition==='device-pending')f.device.pending={action:'start'};else if(condition==='unknown')f.view.receipts.set('prior',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});else if(condition==='overview-pending')f.view.robotOverviewOperation={target,bootId:'boot',roomId:'room'};else f.view.activeOperation={};await open(f);assert.equal(f.calls.length,0);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
-test('conversation change does not block safe recipe-read fallback',async()=>{const next=deferred(),f=fixture(()=>next.promise);try{const reading=open(f);assert.equal(f.calls.length,1);f.host.liveSnapshot.sessionId='changed';f.host.liveSnapshot.taskId='next-conversation';f.host.liveSnapshot.inputRevision=2;next.reject(Error('unavailable'));await reading;assert.deepEqual(f.calls.map(row=>row.recipe),[recipeId,undefined]);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});
+test('conversation change does not block safe recipe-read fallback',async()=>{
+ const next=deferred(),f=fixture(()=>next.promise);
+ try{
+  const reading=open(f);
+  assert.equal(f.calls.length,1);
+  f.host.liveSnapshot.sessionId='changed';
+  f.host.liveSnapshot.taskId='next-conversation';
+  f.host.liveSnapshot.inputRevision=2;
+  next.reject(Error('unavailable'));
+  await reading;
+  assert.deepEqual(f.calls,[historyRead,ordinaryRead]);
+  assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();}
+});
 for(const condition of ['unknown','focus','transport','generation','boot','room','access','closed','stale'])test(`recipe read failure cannot fallback across ${condition} change`,async()=>{const next=deferred(),f=fixture(()=>next.promise);try{const reading=open(f);assert.equal(f.calls.length,1);if(condition==='unknown')f.view.receipts.set('prior',{bootId:'boot',roomId:'room',domain:'vacuum',target,outcome:'unknown'});else if(condition==='focus')f.host.state.focus='other';else if(condition==='transport')f.host.liveTransport={...f.host.liveTransport};else if(condition==='generation')f.host.liveTransport.generation++;else if(condition==='boot')f.host.liveSnapshot.bootId='other';else if(condition==='room')f.host.liveSnapshot.roomId='other';else if(condition==='access')f.host.liveSnapshot.capabilities.controlSetup=[];else if(condition==='closed'){f.view.robotEntry.hidden=true;f.view.opening++;}else f.device.stale=true;next.reject(Error('unavailable'));await reading;assert.equal(f.calls.length,1);assert.equal(f.writes(),0);}finally{f.view.cleanup();}});

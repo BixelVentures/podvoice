@@ -96,7 +96,9 @@ trin uden lydprøve eller måling af svartider.
 [Speakers 0.26.77](https://github.com/BixelVentures/podconnect/pull/122)
 
 - **F1/F9/F11 og H4.** Musiklisterne indlæste med coverbilleder, inklusive fallback for Boogie.
-  Hør igen udvidede fra fem til syv og beholdt de eksisterende rækker. Højttalerdialogen viste
+  Vibe indlæste tre kort med coverbilleder og lokal illustration som fallback. Der blev ikke
+  sammenlignet med en pixelreference. Hør igen udvidede fra fem til syv og beholdt de eksisterende
+  rækker. Højttalerdialogen viste
   Køkkenalrum som valgt og Svend som ikke valgt. Frida var deaktiveret med »Status ukendt« og
   manglede i ejerens aktuelle højttalerliste. Brugeren bekræftede, at højttaleren var slukket.
   Det forklarer, at Frida ikke var tilgængelig. Ingen sang eller overførsel blev startet.
@@ -105,8 +107,10 @@ trin uden lydprøve eller måling af svartider.
   Rettelsen af genoprettelsen er under arbejde. Green har endnu ikke bekræftet en valgbar station.
 - **S5/S7/S13.** Robotvisningen viste Extreme, 2× og seks rum. Base var ikke synlig. En separat
   lokal regression gengav, at `recipeId` fra den almindelige automatisk gendannede historik
-  skjulte Base. Rettelsen skal skelne historikgendannelse fra et eksplicit opskriftsvalg.
-  Der blev ikke startet rengøring eller basebetjening.
+  skjulte Base. Den nye softwareprøve `ROBOT_HISTORY_DOCK_TEST` skelner historikgendannelse fra
+  et eksplicit opskriftsvalg. Den gendannede kladde og den åbne Base bliver stående gennem
+  fornyelse. Først et eksplicit tryk sender én vaskekommando til inert HA.
+  Der blev ikke startet rengøring eller basebetjening på Green. Livekontrol af rettelsen afventer.
 - **V1/V4 og B1/B6.** Met.no-visningen viste 8° mærket »Sidst kendt«, timeprognose og seks
   dagsrækker med ikoner. Tesla viste en frisk aflæsning kl. 11.27 CET på 89 % og 343 km, efter
   en tidligere aflæsning på 92 %. Klima stod tændt og sædevarme på mellem. »Lås op« åbnede

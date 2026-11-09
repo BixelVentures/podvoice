@@ -1,3 +1,7 @@
+## 2.0.159
+
+- Base forbliver tilgængelig, når robotvisningen automatisk gendanner den seneste rengøring.
+
 ## 2.0.158
 
 - PodView keeps music choices usable when another screen opens or refreshes its suggestions.
