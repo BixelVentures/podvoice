@@ -6,6 +6,7 @@ import {bindRoom,boundPlayback} from './room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
+import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
 import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
 import {roomPlaybackObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
 import {LiveQueueView} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
@@ -322,6 +323,53 @@ function confirmationClock(){
 }
 const selectionExpectation=()=>({kind:'selection',accountId:'first',targetId:'external',uri:'spotify:track:0123456789ABCDEFGHIJKL',requestedAt:Date.now(),destination:{accountId:'first',nativeRoomId:'actual-room',nativeHomepodId:'actual-speaker'}});
 const idleV2=()=>{const body=v2Payload();body.status='idle';body.binding=null;body.data.playback={state:'no_active_playback',target:null,item:null};return body;};
+test('authoritative idle allows a confirmed catalogue row to request a new choice', async () => {
+ const f = domSurface();
+ const discovery = [], rendered = [];
+ const catalogue = f.host.liveCatalogue = new LiveMusicCatalogueView(f.host, kind => discovery.push(kind));
+ f.host.state = {focus:'music'};
+ f.host.musicResults = {render:model => rendered.push(model)};
+ f.host.liveSnapshot.capabilities.musicSelection = true;
+ f.view.account = catalogue.account = 'first';
+ catalogue.capabilities = ['targets','mood'];
+ catalogue.connected = true;
+ const card = {id:'confirmed-playlist'};
+ const dispatchHistory = [{candidateSetId:'old-candidate',cardId:card.id}];
+ const entry = {kind:'mood',cards:[card],renewalScope:catalogue.renewalScope(),actionDispatched:true,
+  selectionSpent:true,selectionConfirmed:true,dispatchedCardId:card.id,dispatchHistory};
+ catalogue.entries.set(catalogue.key(),entry);
+ catalogue.restore(entry);
+ const unconfirmed = {...entry,kind:'top',selectionConfirmed:false};
+ catalogue.entries.set(catalogue.key('top'),unconfirmed);
+ const oldScope = {...entry,kind:'recent',renewalScope:'retired-owner'};
+ catalogue.entries.set(catalogue.key('recent'),oldScope);
+ try {
+  f.host.liveTransport.music = async () => ({...idleV2(),status:'unavailable',reason:'stale_observation',data:null});
+  await f.view.refresh({immediate:true});
+  assert.equal(card.selectable,false,'unavailable playback cannot release a confirmed row');
+  f.host.liveTransport.music = async () => idleV2();
+  await f.view.refresh({immediate:true});
+  assert.equal(f.view.readState,'idle');
+  assert.equal(card.selectable,true,'the original row can be deliberately picked again');
+  assert.equal(catalogue.canRenewEntry(entry,card),true);
+  assert.equal(unconfirmed.dispatchedCardId,card.id,'idle never settles an unconfirmed command');
+  assert.equal(oldScope.dispatchedCardId,card.id,'idle cannot release a row from another scope');
+  assert.equal(rendered.at(-1).canChoose,false,'old candidate does not regain write authority');
+  assert.equal(entry.actionDispatched,true);
+  assert.equal(entry.selectionSpent,true);
+  assert.equal(entry.dispatchHistory,dispatchHistory);
+  assert.deepEqual(discovery,[],'idle does not automatically request a new choice');
+  const renewed = catalogue.renewForCard(card);
+  assert.equal(catalogue.pendingRead.reason,'choice');
+  assert.deepEqual(discovery,['mood']);
+  catalogue.interrupt();
+  assert.equal(await renewed,false);
+ } finally {
+  catalogue.interrupt();
+  f.restore();
+ }
+});
+
 test('ordinary idle then actual playback requires separate source reads and never starts a confirmation timer',async()=>{
  const clock=confirmationClock(),f=surface();try{f.view.account='first';let reads=0;const observed=[];f.host.liveSelection={observePlayback:p=>observed.push(p)};f.host.liveTransport.music=async()=>++reads===1?idleV2():v2Payload();await f.view.refresh({immediate:true});assert.equal(reads,1);assert.equal(f.view.playback,null);assert.equal(f.view.readState,'idle');await clock.advance(10000);assert.equal(reads,1);assert.equal(clock.jobs.size,0);await f.view.refresh({immediate:true});assert.equal(reads,2);assert.equal(f.view.playback.state,'playing');assert.equal(observed.at(-1),f.view.playback);assert.equal(clock.jobs.size,0);}finally{f.restore();clock.restore();}
 });

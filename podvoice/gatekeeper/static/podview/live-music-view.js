@@ -58,6 +58,16 @@ export class LiveMusicCatalogueView{
  }
  drainRenewal(request){const deferred=this.deferredRenewal;this.deferredRenewal=null;if(!deferred||deferred.request!==request||!deferred.current()||this.pendingRead||this.busy)return;const entry=this.entries.get(this.key());if(entry?.cards?.length&&!entry.actionDispatched&&entry.renewalScope===this.renewalScope()&&!collectionCurrent(entry.source,this.host.liveSnapshot,this.account))this.beginRead(this.selected,'renew');}
  renewalScope(){const s=this.host.liveSnapshot;return JSON.stringify([this.scope(),this.account,s?.providerGeneration,s?.mediaRoomBindings]);}
+ observeIdlePlayback(account) {
+  if (account !== this.account) return;
+  const scope = this.renewalScope();
+  // Release the row lock only. Its dispatched candidate remains spent.
+  for (const entry of this.entries.values()) {
+   if (entry.renewalScope === scope && entry.actionDispatched && entry.selectionConfirmed === true) {
+    delete entry.dispatchedCardId;
+   }
+  }
+ }
  canRenewEntry(entry, card = null, {presentation = false} = {}) {
   if (!entry) return false;
   const retryable = freshChoiceAllowed(entry);
