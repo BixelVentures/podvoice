@@ -1212,6 +1212,7 @@
           "method:updateCapabilities": 1,
           "method:drainRenewal": 1,
           "method:renewalScope": 1,
+          "method:observeIdlePlayback": 1,
           "method:canRenewEntry": 1,
           "method:renewForCard": 1,
           "method:finishCardRenewal": 1,

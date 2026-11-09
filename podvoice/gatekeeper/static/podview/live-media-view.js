@@ -35,7 +35,20 @@ export class LiveMediaView{
     else if(this.playback&&(roomObservationBound(this.playback,snap,account)||accountObservationBound(this.playback,snap,account))){this.playback={...this.playback,stale:true,displayRetained:true};this.queueControls.invalidate(false);this.host.liveControls?.invalidateMusic(undefined,false);}
     this.readState='unavailable';this.render();if(['owner_changed','account_unavailable'].includes(next.reason))this.scheduleRecovery();return;
    }
-   if([2,3].includes(next.projectionVersion)&&next.observationStatus==='idle'){record({code:'empty',durationMs:Date.now()-diagnosticAt});if(next.projectionVersion===3&&readJob.settlementReceipt?.kind==='selection'&&Number.isFinite(readJob.settlementReceipt.fastReadUntil)&&readJob.settlementReceipt.fastReadUntil>Date.now()&&host.liveSelection?.settlementReceipt?.()===readJob.settlementReceipt)this.refreshInterval=1000;this.clearRoom();this.establishedReadScope=JSON.stringify([bindingScope,this.account]);this.readState='idle';this.render();return;}
+   if ([2,3].includes(next.projectionVersion) && next.observationStatus === 'idle') {
+    record({code:'empty',durationMs:Date.now()-diagnosticAt});
+    const receipt = readJob.settlementReceipt;
+    if (next.projectionVersion === 3 && receipt?.kind === 'selection' && Number.isFinite(receipt.fastReadUntil)
+     && receipt.fastReadUntil > Date.now() && host.liveSelection?.settlementReceipt?.() === receipt) {
+     this.refreshInterval = 1000;
+    }
+    this.clearRoom();
+    this.establishedReadScope = JSON.stringify([bindingScope,this.account]);
+    this.readState = 'idle';
+    host.liveCatalogue?.observeIdlePlayback?.(account);
+    this.render();
+    return;
+   }
    const previousBinding=playbackBinding(this.playback,snap,account),nextBinding=playbackBinding(next,snap,account),ownerChanged=this.playback&&next.owner_epoch!==this.playback.owner_epoch;
    const pendingMove=host.liveControls?.musicIntentPending&&host.liveControls.musicOperation?.action==='move_existing_session'?host.liveControls.musicOperation:null,pendingSelection=host.liveSelection?.feedback?.pending?host.liveSelection.feedback.settlementReceipt:null,pendingDestination=pendingMove?.destination??pendingSelection?.destination,pendingTransition=!!pendingDestination&&next.projectionVersion===3&&roomObservationCurrent(next,snap)&&next.config_entry_id===pendingDestination.accountId&&nextBinding?.nativeRoomId===pendingDestination.nativeRoomId&&nextBinding?.nativeHomepodId===pendingDestination.nativeHomepodId&&(pendingMove?pendingMove.receiptTransport===transport&&pendingMove.receiptTransportGeneration===transport.generation&&pendingMove.receiptGeneration===host.liveControls.generation&&pendingMove.receiptMusicGeneration===(host.liveControls.musicGeneration||0)&&pendingMove.receiptOwnerScope===JSON.stringify([snap?.capabilities?.musicRead,snap?.capabilities?.controlSetup?.includes('music')]):pendingSelection.transport===transport&&pendingSelection.transportGeneration===transport.generation&&host.liveSelection.resultCurrent(pendingSelection.ticket));
    const receipt=readJob.settlementReceipt,destination=receipt?.destination,pinnedOwner=receipt?.kind==='move'?host.liveControls?.receipts?.get(receipt.operationKey)?.settlementOwnerEpoch:receipt?.kind==='selection'?host.liveSelection?.feedback?.settlementTuple?.owner_epoch:null,expectedTransition=(!pinnedOwner||next.owner_epoch===pinnedOwner)&&!!destination&&next.projectionVersion===3&&roomObservationCurrent(next,snap)&&next.config_entry_id===destination.accountId&&nextBinding?.nativeRoomId===destination.nativeRoomId&&nextBinding?.nativeHomepodId===destination.nativeHomepodId&&(receipt.kind==='move'?host.liveControls?.musicSettlementReceipt?.()===receipt:receipt.kind==='selection'&&host.liveSelection?.settlementReceipt?.()===receipt);if(expectedTransition){if(receipt.kind==='move')host.liveControls?.observeMusicSettlement?.(next,receipt,true);else host.liveSelection?.observePlayback?.(next,receipt);}
