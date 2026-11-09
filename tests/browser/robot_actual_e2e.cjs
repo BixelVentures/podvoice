@@ -301,6 +301,21 @@ const assertRobotObservation=async(page,requests,action)=>{
   const before=await page.locator('pv-widget-host').evaluate(h=>{const c=h.liveControls;return {taskId:c.task?.taskId,expiresAt:c.task?.expiresAt,now:Date.now()/1000,draft:c.robotPanel.readCleaningDraft(),optionId:c.robotPanel.cleaningOptionId}});assert(before.taskId);assert(before.expiresAt>before.now+3&&before.expiresAt<=before.now+15.1,'genuine short dock offer is still fresh at touch');assert.equal(before.draft.areaIds.length,2);assert.equal(before.draft.settingChoices.length,4);assert.deepEqual(effectWrites(await state()),[]);
   const capture=()=>page.locator('pv-widget-host').evaluate((h,taskId)=>{const c=h.liveControls,p=c.robotPanel;return {at:Date.now(),taskId:c.task?.taskId??null,pending:c.pending,operation:c.activeOperation?{taskId:c.activeOperation.taskId,optionId:c.activeOperation.optionId}:null,opening:c.opening,receipt:(()=>{const r=[...c.receipts.values()].find(r=>r.taskId===taskId);return r?Object.fromEntries(['outcome','requestId','taskId','optionId','domain','label'].map(key=>[key,r[key]])):null})(),panelText:p?.innerText??'',busy:p?[...p.querySelectorAll('[aria-busy=true]')].map(b=>b.innerText):[],visibleStart:p?[...p.querySelectorAll('button')].filter(b=>b.getClientRects().length&&/Start/.test(b.innerText)).map(b=>{const r=b.getBoundingClientRect(),label=b.querySelector('span'),l=label?.getBoundingClientRect(),s=getComputedStyle(b),p=getComputedStyle(b,'::after'),rect=x=>x?{x:x.x,y:x.y,width:x.width,height:x.height}:null,w=parseFloat(p.width),h=parseFloat(p.height),right=parseFloat(p.right);return {text:b.innerText,disabled:b.disabled,busy:b.getAttribute('aria-busy'),rect:rect(r),labelRect:rect(l),paddingLeft:s.paddingLeft,paddingRight:s.paddingRight,feedback:b.dataset.feedback,progressGap:parseFloat(s.getPropertyValue('--pv-progress-gap')),iconVisibility:b.querySelector('img')?getComputedStyle(b.querySelector('img')).visibility:null,pseudo:{content:p.content,width:p.width,height:p.height,left:p.left,right:p.right,top:p.top,translate:p.translate},pseudoRect:p.content!=='none'&&Number.isFinite(right)&&Number.isFinite(w)?{x:r.right-right-w,y:r.y+r.height/2-h/2,width:w,height:h}:null}}):[]}},before.taskId);
   await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).scrollIntoViewIfNeeded();const normal=await capture();const requestFailures=[];page.on('requestfailed',r=>{if(r.url().includes('/view/api/control/actions')&&r.postDataJSON()?.taskId===before.taskId)requestFailures.push({at:Date.now(),body:r.postDataJSON(),error:r.failure()?.errorText})});
+  const readPath=url=>url.pathname==='/view/api/home';
+  let releaseFailedRead, injectedFailure=false;
+  const startAdmitted=new Promise(resolve=>{releaseFailedRead=resolve;});
+  const unavailable=async route=>{
+   await startAdmitted;
+   injectedFailure=true;
+   await route.fulfill({status:503,json:{error:'inert_home_read_transient'}});
+  };
+  const readScope=()=>page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),
+   bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
+   connected:h.liveTransport.connected,stale:h.state.devices.find(row=>row.id==='vacuum.qrevo')?.stale===true}));
+  // Arm before touching Start so a passive read cannot cross the admission boundary unobserved.
+  await page.route(readPath,unavailable);
+  const scopeBefore=await readScope();
+  assert.equal(scopeBefore.stale,false,'the fixture starts with a fresh HA observation');
   // Outer fixture guard covers the server's 30s execution and client's 35s receipt wait.
   const responsePromise=page.waitForResponse(r=>r.url().includes('/view/api/control/actions')&&r.request().method()==='POST'&&r.request().postDataJSON()?.taskId===before.taskId,{timeout:40000}).catch(()=>null);const touchedAt=Date.now();await panel.getByRole('button',{name:'Start · 2 rum',exact:true}).tap();const initialPending=await capture();
   // The first inert settings POST holds an admitted Start. Keep the same owner stale through its reply.
@@ -308,29 +323,14 @@ const assertRobotObservation=async(page,requests,action)=>{
    if(n>50)throw Error('admitted Start did not reach the inert owner');
    await sleep(50);
   }
-  const readPath=url=>url.pathname==='/view/api/home';
-  let releaseFailedRead;
-  const freshBaseline=new Promise(resolve=>{releaseFailedRead=resolve;});
-  const unavailable=async route=>{
-   // A passive Home read can arrive before the explicit probe. Sample the UI before either can fail.
-   await freshBaseline;
-   await route.fulfill({status:503,json:{error:'inert_home_read_transient'}});
-  };
-  await page.route(readPath,unavailable);
   const failedRead=page.waitForResponse(r=>readPath(new URL(r.url()))&&r.status()===503,{timeout:5000});
-  const readScope=()=>page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),
-   bootId:h.liveSnapshot.bootId,roomId:h.liveSnapshot.roomId,generation:h.liveTransport.generation,
-   connected:h.liveTransport.connected,stale:h.state.devices.find(row=>row.id==='vacuum.qrevo')?.stale===true}));
-  const scopeBefore=await readScope().finally(releaseFailedRead);
+  releaseFailedRead();
   const probeRead=async()=>{
-   // A Home read sent before interception may still be in flight. Let it settle before probing.
-   await page.waitForFunction(()=>{
-    const h=document.querySelector('pv-widget-host');
-    return h&&(!h.liveHomePending||h.state.devices.some(row=>row.id==='vacuum.qrevo'&&row.stale===true));
-   },undefined,{timeout:5000});
-   await page.locator('pv-widget-host').evaluate(h=>{
-    if(!h.state.devices.some(row=>row.id==='vacuum.qrevo'&&row.stale===true))return h.loadLiveHome();
-   });
+   // A read already intercepted will supply the 503. Wait for older reads to settle
+   // before probing, and use the response itself to stop, rather than the stale flag.
+   await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveHomePending,
+    undefined,{timeout:5000});
+   if(!injectedFailure)await page.locator('pv-widget-host').evaluate(h=>h.loadLiveHome());
   };
   const [failedResponse]=await Promise.all([failedRead,probeRead()]);
   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.devices
@@ -338,7 +338,6 @@ const assertRobotObservation=async(page,requests,action)=>{
   const scopeAfter=await readScope();
   const transientRead={status:failedResponse.status(),body:await failedResponse.json(),scopeBefore,scopeAfter,
    receipt:await capture()};
-  assert.equal(scopeBefore.stale,false);
   assert.equal(scopeAfter.stale,true);
   for(const key of ['bootId','roomId','generation','connected'])assert.equal(scopeAfter[key],scopeBefore[key]);
   assert(scopeAfter.at<before.expiresAt*1000,'transient read fails before the original offer expires');
