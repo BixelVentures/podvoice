@@ -89,6 +89,37 @@ kandidatens kilde. Gennemgangen af radio starter ved den konkrete fejl nedenfor.
   `0aa8f1caeb45b9fcfb45473895904c3fd0a75d1a`. Ved overdragelsen stod de to main-grene på
   produktcommits ovenfor uden en nyere åben PR. [Control-udgivelse](https://github.com/BixelVentures/podconnect/releases/tag/0.10.38)
 
+**Liveforløb på Green · 9. november 2026.** De følgende observationer er fra installeret PodVoice
+2.0.158 og Speakers 0.26.77 (`999a983beb4e6039397cebfc8a5ae252915e531f`). De dækker de anførte
+trin uden lydprøve eller måling af svartider.
+[PodVoice 2.0.158](https://github.com/BixelVentures/podvoice/releases/tag/2.0.158) ·
+[Speakers 0.26.77](https://github.com/BixelVentures/podconnect/pull/122)
+
+- **F1/F9/F11 og H4.** Musiklisterne indlæste med coverbilleder, inklusive fallback for Boogie.
+  Hør igen udvidede fra fem til syv og beholdt de eksisterende rækker. Højttalerdialogen viste
+  Køkkenalrum som valgt og Svend som ikke valgt. Frida var deaktiveret med »Status ukendt« og
+  manglede i ejerens aktuelle højttalerliste. Brugeren bekræftede, at højttaleren var slukket.
+  Det forklarer, at Frida ikke var tilgængelig. Ingen sang eller overførsel blev startet.
+- **R3.** Radiokanaler var deaktiverede, og ejerens svar havde `targets: []`. Den bevarede journal
+  viste fase 10, afsluttet START uden registreret retirement, som blokerede efter genstart.
+  Rettelsen af genoprettelsen er under arbejde. Green har endnu ikke bekræftet en valgbar station.
+- **S5/S7/S13.** Robotvisningen viste Extreme, 2× og seks rum. Base var ikke synlig. En separat
+  lokal regression gengav, at `recipeId` fra den almindelige automatisk gendannede historik
+  skjulte Base. Rettelsen skal skelne historikgendannelse fra et eksplicit opskriftsvalg.
+  Der blev ikke startet rengøring eller basebetjening.
+- **V1/V4 og B1/B6.** Met.no-visningen viste 8° mærket »Sidst kendt«, timeprognose og seks
+  dagsrækker med ikoner. Tesla viste en frisk aflæsning kl. 11.27 CET på 89 % og 343 km, efter
+  en tidligere aflæsning på 92 %. Klima stod tændt og sædevarme på mellem. »Lås op« åbnede
+  bekræftelsen, og »Annuller« lukkede den uden at udføre handlingen.
+- **O1/O4/O5.** Start af Burgerboller gav »I gang« i kataloget og i widgetten på forsiden.
+  Widgetten genåbnede den aktive opskrift. Efter bekræftet »Nulstil« kom det oprindelige
+  katalog tilbage uden en aktiv opskrift.
+- **T1/T2 og G2.** En timer på fem minutter kvitterede, viste 4:55 i overblikket og 4:48 i
+  detaljen. »Annuller« fjernede den aktive timer før udløb, og »Senest brugt« viste 5:00.
+  Under livekontrollen forsvandt en midlertidig HA-forbindelsesbesked automatisk uden reload.
+- **Q2.** Det gemte svar om El Clásico kunne åbnes med samme svartekst, tidsstempel og
+  AI-forklaring. Der blev ikke stillet et nyt spørgsmål med stemmen.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
