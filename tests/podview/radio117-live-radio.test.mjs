@@ -185,3 +185,38 @@ test('a preparatory station does not replace the observed radio selection',()=>{
  radio.value.state={...radio.value.state,status:'idle',sourceKind:'spotify'};
  assert.equal(radio.observedStationId(),null);
 });
+
+test('short radio authority renews passively before expiry and a held read cannot extend it',async context=>{
+ context.mock.timers.enable({apis:['Date','setTimeout'],now:now});
+ const {radio,host}=fixture();
+ let reads=0,actions=0,release;
+ const live=()=>value({retrievedAt:Date.now()/1000,validUntil:Date.now()/1000+3,
+  state:{...value().state,status:'idle',sourceKind:'spotify',stationId:null,observedAt:Date.now()/1000}});
+ host.liveTransport.radio=async()=>{
+  if(++reads===3)return new Promise(resolve=>{release=resolve;});
+  return live();
+ };
+ host.liveTransport.radioOffer=async()=>{actions++;};
+ host.liveTransport.radioAction=async()=>{actions++;};
+ try{
+  await radio.refresh({immediate:true});
+  context.mock.timers.tick(2000);
+  await radio.read;
+  assert.equal(reads,2);
+  assert.equal(radio.can('start'),true);
+  context.mock.timers.tick(2000);
+  const held=radio.read;
+  assert.equal(reads,3);
+  context.mock.timers.tick(1000);
+  assert.equal(radio.can('start'),false);
+  await radio.choose('p3');
+  assert.equal(actions,0);
+  release(live());
+  await held;
+  assert.equal(radio.can('start'),true);
+  radio.invalidate(true);
+  context.mock.timers.tick(5000);
+  assert.equal(reads,3);
+  assert.equal(actions,0);
+ }finally{radio.invalidate(true);context.mock.timers.reset();}
+});

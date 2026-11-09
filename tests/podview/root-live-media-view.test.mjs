@@ -386,3 +386,55 @@ test('new HA music revision supersedes an older read without late title rollback
   assert.equal(f.view.playback.item.name,'Fresh external song','older reply cannot roll back new state');
  }finally{old.resolve(payload('first'));fresh.resolve(payload('first'));f.restore();}
 });
+
+for(const mode of ['same owner','changed owner','changed route','malformed controls'])test(`expired paused playback from ${mode} respects display custody`,async context=>{
+ context.mock.timers.enable({apis:['Date'],now:Date.now()});
+ const f=domSurface(),pending=deferred();
+ const response=()=>{
+  const data=rawPayload('first').data;
+  data.playback={...data.playback,state:'paused',progress_ms:10,provider_changed_at_ms:null,shuffle:null,repeat:null};
+  data.playback.item.artwork={kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/retained'};
+  const binding={...f.host.liveSnapshot.mediaRoomBindings[0],validUntil:Date.now()/1000+1};
+  return {ok:true,schema:'podview.room-playback.v3',bootId:'boot',roomId:'r0',configEntryId:'first',
+   status:'observed',reason:null,binding,data,
+   controls:{status:'observed',reason:null,binding_id:binding.bindingId,valid_until:binding.validUntil,
+    supported_actions:['resume'],volume:{base_percent:30,effective_percent:30}},
+   permissions:{actions:['resume'],maxVolume:null}};
+ };
+ try{
+  f.view.account='first';
+  f.host.liveTransport.music=async()=>response();
+  await f.view.refresh({immediate:true});
+  assert.equal(f.nodes.get('track-name').textContent,'Actual song');
+  const original=f.view.playback,cover=f.nodes.get('cover');
+  const late=response();
+  late.data.poll_sequence++;
+  late.data.playback.item.name='Unadmitted replacement';
+  late.data.playback.item.artwork.url='https://i.scdn.co/image/replacement';
+  if(mode==='changed owner')late.data.owner_epoch='other';
+  if(mode==='changed route')late.binding.nativeHomepodId='other';
+  if(mode==='malformed controls')late.controls.volume.effective_percent=101;
+  f.host.liveTransport.music=()=>pending.promise;
+  const refresh=f.view.refresh({immediate:true});
+  context.mock.timers.tick(1001);
+  pending.resolve(late);
+  await refresh;
+  assert.equal(f.nodes.get('play-pause').disabled,true);
+  if(mode!=='same owner'){
+   assert.equal(f.view.playback,null);
+   assert.equal(f.nodes.get('track-name').textContent,'');
+   return;
+  }
+  assert.equal(f.nodes.get('track-name').textContent,'Actual song');
+  assert.match(f.nodes.get('player-state').textContent,/^Sidst kendt · på pause/);
+  assert.equal(f.nodes.get('cover'),cover);
+  assert.deepEqual(f.view.playback.item.artwork,original.item.artwork);
+  assert.equal(f.view.playback.observedAt,original.observedAt);
+  assert.equal(f.view.playback.poll_sequence,original.poll_sequence);
+  assert.equal(f.view.playback.roomBinding.validUntil,original.roomBinding.validUntil);
+  f.host.liveTransport.music=async()=>response();
+  await f.view.refresh({immediate:true});
+  assert.equal(f.view.playback.stale,undefined);
+  assert.equal(f.view.playback.roomBinding.validUntil,Date.now()/1000+1);
+ }finally{f.view.invalidate(true);f.restore();context.mock.timers.reset();}
+});

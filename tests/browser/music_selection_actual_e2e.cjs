@@ -142,8 +142,10 @@ async function documentScopeJourney(){
   if(action instanceof Error)throw action;
   assert.equal(action.request().headers()['x-podview-music-document'],first.document);
   assert.equal((await action.json()).outcome,'accepted');
-  await page.locator('#track-name').filter({hasText:'Katalogsang 11'}).waitFor({state:'visible'});
-  assert.deepEqual((await state()).writes.map(row=>row.action),['play_track']);
+  await page.locator('#track-name').filter({hasText:'Isoleret sang 11'}).waitFor({state:'visible'});
+  assert.deepEqual((await state()).writes.map(({action,uri})=>[action,uri]),[
+   ['play_track','spotify:track:0000000000000000000011'],
+  ]);
 
   const replacement=await discovery(page,'top');
   assert.equal(replacement.document,first.document);
