@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PodView · Designbibliotek</title>
+  <link rel="stylesheet" href="./review.css">
+  <script type="module" src="./review.js"></script>
+</head>
+<body>
+  <header class="masthead">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>PodView <span class="brand-divider">/</span> Designbibliotek</div>
+    <nav id="catalog" aria-label="Gå til afsnit">
+      <a href="#overblik">Overblik</a>
+      <a href="#widgets">Small-widgets</a>
+      <a href="#komponenter">Komponenter</a>
+      <a href="#skabeloner">Skabeloner</a>
+      <a href="#skaerme">Skærme</a>
+      <a href="#regler">Regler</a>
+    </nav>
+  </header>
+  <main>
+    <section id="overblik" aria-labelledby="overview-title">
+      <h1 id="overview-title">Det godkendte overblik</h1>
+      <p class="intro-copy">Designreferencen fra den valgte PodView-iteration. Lige nedenunder kan du prøve overblikket i kode.</p>
+      <figure class="reference">
+        <a href="references/01-overview.png" target="_blank" rel="noopener">
+          <img src="references/01-overview.png" width="1586" height="992" alt="Det godkendte PodView-overblik med Vejr, Robot, seks Small-widgets og fast player.">
+        </a>
+        <figcaption>Godkendt designreference · tryk for at se billedet i fuld størrelse</figcaption>
+      </figure>
+      <div id="overview-preview"></div>
+      <details class="reference-details">
+        <summary>Se de øvrige valgte designreferencer</summary>
+        <div id="references"></div>
+      </details>
+    </section>
+    <section id="widgets" class="collection" aria-labelledby="widgets-title">
+      <h2 id="widgets-title">Seks Small-widgets · samme størrelse</h2>
+      <div class="entries"></div>
+    </section>
+    <section id="komponenter" class="collection" aria-labelledby="components-title">
+      <h2 id="components-title">Komponenter</h2>
+      <div class="entries"></div>
+    </section>
+    <section id="skabeloner" class="collection" aria-labelledby="templates-title">
+      <h2 id="templates-title">Skabeloner</h2>
+      <div class="entries"></div>
+    </section>
+    <section id="skaerme" class="collection" aria-labelledby="screens-title">
+      <h2 id="screens-title">Skærme og svar</h2>
+      <div class="entries"></div>
+    </section>
+    <section id="regler" class="collection" aria-labelledby="rules-title">
+      <h2 id="rules-title">Nye dele og regler</h2>
+      <div class="entries"></div>
+    </section>
+  </main>
+  <template id="pair-template">
+    <article class="entry">
+      <header class="entry-heading"><h3></h3><p class="description"></p></header>
+      <div class="toolbar">
+        <label class="state-field">Tilstand <select class="state"></select></label>
+        <label class="width-field" hidden>Skærmbredde
+          <select class="width">
+            <option value="1280">1280 × 800</option>
+            <option value="1200">1200 × 800</option>
+            <option value="980">980 × 800</option>
+          </select>
+        </label>
+        <label>Bevægelse <select class="motion"><option value="normal">Normal</option><option value="reduced">Reduceret</option></select></label>
+        <button class="reset" type="button">Nulstil begge</button>
+      </div>
+      <div class="comparison">
+        <section class="side">
+          <div class="side-header"><div><h4>Nuværende</h4><p>PodView 2.0.140</p></div><a class="open" target="_blank" rel="noopener" hidden>Åbn separat ↗</a></div>
+          <div class="preview"><iframe data-version="current"></iframe></div>
+        </section>
+        <section class="side candidate">
+          <div class="side-header"><div><h4>Ny retning</h4><p>Kodet kandidat</p></div><a class="open" target="_blank" rel="noopener" hidden>Åbn separat ↗</a></div>
+          <div class="preview"><iframe data-version="candidate"></iframe></div>
+        </section>
+      </div>
+      <p class="status" role="status"></p>
+      <div class="notes" hidden></div>
+    </article>
+  </template>
+</body>
+</html>

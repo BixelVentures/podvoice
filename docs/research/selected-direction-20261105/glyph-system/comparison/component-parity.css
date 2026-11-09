@@ -1,0 +1,120 @@
+/* Candidate presentation for explicit S specimens of the existing overview
+   owners. S/M/L dimensions and permitted actions remain in the pinned kit.
+   This extends the product's Small typography/inset to authored library sizes;
+   it does not turn Medium/Large into Small or render replacement widgets. */
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> :is(#home-music, #home-radio, #home-recipes, #home-vehicle, #timer-card, .resource-card[data-kind="light"])[data-kit-size="s"] {
+  --pv-s3:20px;
+  --pv-s2:12px;
+  --pv-type-card-title:20px;
+  --pv-type-card-value:17px;
+  --pv-t-label:600 20px/26px var(--pv-font);
+  --pv-t-body:400 17px/24px var(--pv-font);
+}
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> :is(#home-music, #home-radio, #home-recipes, #home-vehicle)[data-kit-size="s"] > :is(img:first-child, .resource-visual),
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> .resource-card[data-kind="light"][data-kit-size="s"] > .resource-preview > .resource-visual,
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> #timer-card[data-kit-size="s"] > .timer-shortcut > img:first-child {top:24px;}
+
+/* Compact media exposes the same primary status slot as the product Small.
+   Larger variants retain the canonical fact budget and artwork roles. */
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> :is(#home-music, #home-radio)[data-kit-size="s"][data-media-layout="compact"] > :is(.resource-facts, .resource-context) {display:none !important;}
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> :is(#home-music, #home-radio)[data-kit-size="s"][data-media-layout="compact"]
+> span:not(.resource-facts, .resource-context) > strong {
+  display:block;
+  width:auto;
+  max-width:none;
+  text-align:start;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  overflow:hidden;
+}
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view
+> :is(#home-music, #home-radio)[data-kit-size="s"][data-media-layout="compact"]
+> span:not(.resource-facts, .resource-context) > small:not([hidden]) {
+  inset:var(--pv-card-primary-y) var(--pv-s3) auto !important;
+  height:auto !important;
+  max-height:48px !important;
+  text-align:start;
+}
+
+/* Existing neutral shortcut surfaces stay neutral; no invented Music/Recipe
+   identity colour or continuous activity. Light uses only its observed on state. */
+:root[data-design="candidate"] pv-widget-host #now-view
+> :is(#home-music, #home-radio)[data-kit-size="s"][data-media-layout="compact"],
+:root[data-design="candidate"] pv-widget-host #now-view > #home-recipes[data-kit-size="s"] {
+  --overview-card-surface:var(--pv-surface);
+  background-color:var(--pv-surface);
+}
+:root[data-design="candidate"] pv-widget-host #now-view
+> .resource-card[data-kind="light"][data-kit-size="s"]:not(:has(> .resource-direct-action:not([hidden])))
+> .resource-preview[data-resource-status="on"][data-kit-state="ready"] {
+  background-image:var(--pv-candidate-light) !important;
+  background-repeat:no-repeat !important;
+  background-position:right 7px bottom 8px !important;
+  background-size:min(69%,135px) auto !important;
+}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] pv-widget-host #now-view
+  > .resource-card[data-kind="light"][data-kit-size="s"] > .resource-preview {background-image:none !important;}
+}
+
+/* Direct comparison crops use the native library's authored-size attributes.
+   Unlike its 1280px iframe crop, this standalone viewport is only 320×217.
+   Remove shell geometry, not component anatomy; these rules apply equally to
+   current and candidate only while an explicit widgetSpecimen is at overview. */
+:root[data-widget-specimen] body {margin:0 !important; padding:0 !important; min-width:0; overflow:auto;}
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] {
+  display:block !important;
+  box-sizing:border-box;
+  width:100% !important;
+  height:auto !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  padding:20px !important;
+  margin:0 !important;
+}
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] > :not(.frame),
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] > .frame > :not(.responses),
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] .responses > :not(#now-view) {display:none !important;}
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] > .frame,
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] .responses {
+  display:block !important;
+  width:100% !important;
+  height:auto !important;
+  min-width:0 !important;
+  min-height:0 !important;
+  max-height:none !important;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:visible !important;
+  transform:none !important;
+  mask:none !important;
+  clip-path:none !important;
+}
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] #now-view:not([hidden]) {
+  display:block !important;
+  width:max-content !important;
+  height:auto !important;
+  min-height:0 !important;
+  padding:0 !important;
+  margin:0 !important;
+  overflow:visible !important;
+  transform:none !important;
+}
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] #now-view#now-view:not([hidden])
+> :is(#home-vehicle, #home-music, #home-radio, #home-recipes, #timer-card, #home-weather, .resource-card, .resource-preview):not([data-library-widget-preview="true"]) {display:none !important;}
+:root[data-widget-specimen] pv-widget-host[data-view="active"][data-library-widget-sizes="true"] #now-view:not([hidden])
+> [data-library-widget-preview="true"] {
+  grid-area:auto !important;
+  position:relative !important;
+  inset:auto !important;
+  margin:0 !important;
+  flex:none !important;
+  order:0 !important;
+  transform:none !important;
+}

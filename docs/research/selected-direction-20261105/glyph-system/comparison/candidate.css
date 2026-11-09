@@ -1,0 +1,1534 @@
+/* Review overlay for the retained 2.0.140 component and product renders. */
+:root[data-design="candidate"] {
+  --pv-bg: #eeebe5;
+  --pv-surface: #fdfbf8;
+  --pv-surface-2: #f1ece5;
+  --pv-line: #cec7be;
+  --pv-ink: #202320;
+  --pv-ink-2: #494641;
+  --pv-ink-3: #646059;
+  --pv-dark: #292a28;
+  --pv-on-dark: #faf7f0;
+  --pv-focus-ring: #2d79df;
+  --pv-danger: #a5202a;
+  --pv-danger-tint: #f9e5e6;
+  --pv-button-disabled-bg: #eae5de;
+  --pv-button-disabled-ink: #68625b;
+  --pv-screen-selection: #e8e2d9;
+  --pv-action-secondary-edge: var(--pv-line);
+  --pv-card-edge-mix: 21%;
+  --pv-elevation-short: 0 1px 2px rgb(43 35 25 / .03);
+
+  --pv-weather: #e4eef8;
+  --pv-weather-strong: #cfdfed;
+  --pv-weather-ink: #244f74;
+  --pv-robot: #f8e5e9;
+  --pv-robot-strong: #efccd5;
+  --pv-robot-ink: #83364f;
+  --pv-light: #fcf0d6;
+  --pv-light-strong: #f2e0ae;
+  --pv-light-ink: #77530e;
+  --pv-tesla: #e3eee7;
+  --pv-tesla-strong: #d1e2d7;
+  --pv-tesla-ink: #305c49;
+  --pv-timer-idle-surface: #30312e;
+  --pv-candidate-timer-arc: #ff8b73;
+
+  /* Text and section rhythm retain the canonical 48/64px hit areas. */
+  --pv-type-card-value: 16px;
+  --pv-type-card-title: 19px;
+  --pv-type-title: 26px;
+  --pv-type-player: 24px;
+  --pv-leading-player: 32px;
+  --pv-t-body: 400 16px/24px var(--pv-font);
+  --pv-t-label: 600 19px/26px var(--pv-font);
+  --pv-t-title: 600 26px/34px var(--pv-font);
+  --pv-topbar-action-label: 600 19px/24px var(--pv-font);
+  --pv-control-row-gap: 14px;
+  --pv-control-panel-gap: 20px;
+  --pv-control-section-gap: 28px;
+}
+
+:root[data-design="candidate"] ::selection {
+  background: #cddff6;
+  color: var(--pv-ink);
+}
+
+/* Secondary controls have their own edge without changing their border box. */
+:root[data-design="candidate"] [data-kit="button"]:not([data-tone="danger"],[data-state="error"],[aria-invalid="true"]) {
+  --pv-action-primary-bg:var(--pv-dark);
+  --pv-action-primary-ink:var(--pv-on-dark);
+  --pv-action-secondary-bg:var(--pv-surface-2);
+  --pv-action-secondary-ink:var(--pv-ink);
+}
+:root[data-design="candidate"] [data-kit-tone="dark"] [data-kit="button"]:not([data-tone="danger"],[data-state="error"],[aria-invalid="true"]) {
+  --pv-action-primary-bg:var(--pv-on-dark);
+  --pv-action-primary-ink:var(--pv-dark);
+  --pv-action-secondary-bg:var(--pv-ink-2);
+  --pv-action-secondary-ink:var(--pv-on-dark);
+}
+:root[data-design="candidate"] .pv-kit.pv-kit-button[data-kit-variant="secondary"]:where(
+  :not([data-tone="danger"], [data-state="error"], [aria-invalid="true"], .stop)
+) {
+  box-shadow: inset 0 0 0 1px var(--pv-action-secondary-edge);
+}
+
+:root[data-design="candidate"] :is(.pv-kit-hero, .pv-kit-card)[data-kit-tone="tinted"] {
+  --pv-action-secondary-bg: var(--pv-surface);
+  --pv-action-secondary-edge: var(--pv-line);
+}
+
+:root[data-design="candidate"] :is(.pv-kit-hero, .pv-kit-card)[data-kit-tone="dark"] {
+  --pv-action-secondary-edge: var(--pv-ink-3);
+}
+
+/* Selected choices use the shared dark fill. Power and navigation remain
+   distinct through their existing switch, Tile, and ListRow variants. */
+:root[data-design="candidate"] :is(
+  .pv-kit.pv-kit-chip[aria-pressed="true"],
+  .pv-kit.pv-kit-segmented > [aria-pressed="true"],
+  .pv-kit-choice-label:has(input:checked)
+):where(:not([data-state="error"], [aria-invalid="true"], [aria-busy="true"])) {
+  background-color: var(--pv-ink);
+  color: var(--pv-on-dark);
+}
+
+:root[data-design="candidate"] :is(
+  .pv-kit:where(button, a[href], input, select, textarea, summary),
+  .pv-kit-dialog :where(button, a[href], input, select, textarea, summary),
+  .view-nav :where(button, a[href]),
+  .player :where(button, input)
+):focus-visible,
+:root[data-design="candidate"] .pv-kit-choice-label:has(input:focus-visible) {
+  outline: 2px solid var(--pv-focus-ring);
+  outline-offset: 3px;
+}
+
+:root[data-design="candidate"] :is(input, textarea) {
+  caret-color: var(--pv-ink);
+}
+
+/* Bind the stronger edge where the source card does not apply a Kit shadow. */
+:root[data-design="candidate"] pv-widget-host[data-view="active"] :is(.player, #player-empty) {
+  background-color: var(--pv-surface);
+  box-shadow: inset 0 0 0 1px var(--pv-line), var(--pv-elevation-short);
+}
+
+:root[data-design="candidate"] pv-widget-host .view-nav #open-history.header-history {
+  --pv-history-surface: var(--pv-surface);
+}
+
+/* Current answer/history keeps the native selected dark surface with its
+   light foreground. The neutral candidate fill is only the resting state. */
+:root[data-design="candidate"] pv-widget-host .view-nav #open-history.header-history:is([data-active="true"], [aria-expanded="true"]) {
+  --pv-history-surface: var(--pv-dark);
+}
+
+:root[data-design="candidate"] pv-widget-host:not([data-voice-phase]) .view-nav #open-history.header-history {
+  box-shadow: inset 0 0 0 1px var(--pv-line);
+}
+
+/* Coral belongs to the existing deadline-driven arc. The resting shortcut has
+   no progress cue. Source rules still control visibility and reduced motion. */
+:root[data-design="candidate"] pv-widget-host :is(#timer-card, #timers-view) .timer-panel .timer-progress,
+:root[data-design="candidate"] .pv-component[data-component="timer-widget"] .pv-dial-progress {
+  stroke: var(--pv-candidate-timer-arc);
+}
+
+/* Material masks for the existing overview surfaces. They are static fills,
+   bounded by the free right-hand zones and original card backgrounds. */
+@media (min-width: 1100px) and (min-height: 700px) {
+  :root[data-design="candidate"] :is(.pv-kit-overview, pv-widget-host[data-view="active"] #now-view) :is(
+    #home-weather:where(:not([data-kit-size="s"], [data-kit-size="m"])),
+    .resource-preview[data-kind="vacuum"]:where(:not([data-kit-size="s"]))
+  ) {
+    background-repeat: no-repeat;
+  }
+
+  :root[data-design="candidate"] :is(.pv-kit-overview, pv-widget-host[data-view="active"] #now-view)
+  #home-weather:is([data-weather-tone="partlycloudy"], [data-weather-tone="cloudy"]):not(
+    [data-weather-stale="true"], [data-kit-size="s"], [data-kit-size="m"]
+  ) {
+    background-image: var(--pv-candidate-cloud);
+    background-position: right 12px top 24px;
+    background-size: min(61%, 248px) auto;
+  }
+
+  :root[data-design="candidate"] pv-widget-host #weather-view
+  .weather-current[data-weather-state="current"]:is([data-weather-tone="partlycloudy"], [data-weather-tone="cloudy"]) {
+    background-image: var(--pv-candidate-cloud);
+    background-repeat: no-repeat;
+    background-position: right 24px top 20px;
+    background-size: min(26%, 184px) auto;
+  }
+
+  :root[data-design="candidate"] :is(.pv-kit-overview, pv-widget-host[data-view="active"] #now-view)
+  .resource-card:where(:not(:has(> .resource-direct-action:not([hidden]))))
+  > .resource-preview[data-kind="light"][data-resource-status="on"][data-kit-state="ready"]:not([data-light-material]) {
+    background-image: var(--pv-candidate-light) !important;
+    background-repeat: no-repeat !important;
+    background-position: right 7px bottom 8px !important;
+    background-size: min(69%, 135px) auto !important;
+  }
+}
+
+/* The approved overview keeps the media controls and status in the existing
+   player grid, with a smaller square cover and a quieter neutral panel. */
+@media (min-width: 1100px) and (min-height: 700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden])) {
+    --pv-type-card-title: 20px;
+    --pv-type-card-value: 17px;
+    --pv-t-body: 400 17px/24px var(--pv-font);
+    --pv-topbar-action-label: 650 20px/24px var(--pv-font);
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"][data-level="home"]
+  .view-nav #show-photo[data-navigation="rest"] {
+    background: transparent;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]
+  #now-view:not([hidden]) #home-weather .home-temperature {
+    color: var(--pv-ink);
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden]))
+  .player.pv-card {
+    --pv-type-player: 22px;
+    gap: var(--pv-s1);
+    grid-template-rows: var(--pv-hit) minmax(0, 202px) 64px 56px 72px var(--pv-hit);
+    height:auto;
+    min-height:0;
+    background: var(--pv-surface);
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden]))
+  .player.pv-card > .cover-button {
+    height: min(100%, 100cqi, 202px);
+    max-width: min(100%, 202px);
+    max-height: 202px;
+    border-radius: var(--pv-screen-radius-art);
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]):has(#now-view:not([hidden]))
+  .player.pv-card > .track {
+    height: auto;
+  }
+}
+
+/* The review composition uses the four existing grid columns and one
+   common Small height. Explicit S/M/L specimen crops retain their layout. */
+@media (min-width: 760px) and (min-height: 700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) {
+    grid-template-rows: repeat(3, var(--pv-card-row-height));
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden])
+  > :is(#home-music, #home-radio, #home-recipes, #timer-card):not([data-kit-size]) {
+    grid-row: 3;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: var(--pv-card-row-height);
+  }
+
+  /* Space for the label comes from the shared inner inset and gap. The card
+     and its focus/press targets still fill the source grid cell. */
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) > :is(
+    #home-music, #home-radio, #home-recipes, #home-vehicle, #timer-card, .resource-card[data-kind="light"]
+  ):not([data-kit-size]) {
+    --pv-s3: 20px;
+    --pv-s2: 12px;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) > :is(
+    #home-music, #home-radio, #home-recipes, #home-vehicle, #timer-card > .timer-shortcut,
+    .resource-card[data-kind="light"] > .resource-preview
+  ):not([data-kit-size]) > :is(img:first-child, .resource-visual) {
+    top: 24px;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) > #home-music:not([data-kit-size]) {
+    grid-column: 1 !important;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) > #home-radio:not([data-kit-size]) {
+    grid-column: 2;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) > #home-recipes:not([data-kit-size]) {
+    grid-column: 3;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden]) > #timer-card:not([data-kit-size]) {
+    grid-column: 4;
+  }
+
+  /* Compact Music/Radio share the identity and source-status slots. Keep
+     track facts in the larger variants and position in the persistent player. */
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden])
+  > :is(#home-music, #home-radio)[data-overview-size="s"][data-media-layout="compact"]:not([data-kit-size])
+  > :is(.resource-facts, .resource-context) {
+    display: none !important;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden])
+  > :is(#home-music, #home-radio)[data-overview-size="s"][data-media-layout="compact"]:not([data-kit-size])
+  > span:not(.resource-facts, .resource-context) > strong {
+    display: block;
+    width: auto;
+    max-width: none;
+    text-align: start;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes])
+  #now-view:not([hidden])
+  > :is(#home-music, #home-radio)[data-overview-size="s"][data-media-layout="compact"]:not([data-kit-size])
+  > span:not(.resource-facts, .resource-context) > small:not([hidden]) {
+    inset: var(--pv-card-primary-y) var(--pv-s3) auto !important;
+    height: auto !important;
+    max-height: 48px !important;
+    text-align: start;
+  }
+}
+
+:root[data-design="candidate"] :is(.pv-kit-overview, pv-widget-host[data-view="active"] #now-view)
+:is(#home-music[data-media-layout="compact"], #home-radio[data-media-layout="compact"], #home-recipes) {
+  --overview-card-surface: var(--pv-surface);
+  background-color: var(--pv-surface);
+}
+
+/* Deterministic cell fields, encoded SVG geometry. Keep the material bundled
+   with this review sheet so a framed specimen loads the same vectors. */
+:root[data-design="candidate"] {
+  --pv-candidate-cloud: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20220%20170%22%3E%3Cpath%20fill%3D%22%23256ee8%22%20opacity%3D%221%22%20d%3D%22M136.2%203.1h0.7v0.7h-0.7zM143.2%203.1h0.7v0.7h-0.7zM150.1%203.1h0.8v0.8h-0.8zM157.1%203.1h0.8v0.8h-0.8zM164.1%203h0.9v0.9h-0.9zM171.1%203h0.9v0.9h-0.9zM178.1%203h0.9v0.9h-0.9zM185.1%203h0.9v0.9h-0.9zM192.1%203h0.9v0.9h-0.9zM199.1%203h0.9v0.9h-0.9zM206.1%203.1h0.8v0.8h-0.8zM213.1%203.1h0.8v0.8h-0.8zM108.2%2010.2h0.7v0.7h-0.7zM115.1%2010.1h0.8v0.8h-0.8zM122%2010.1h0.9v0.9h-0.9zM128.9%209.9h1.1v1.1h-1.1zM135.9%209.9h1.2v1.2h-1.2zM142.8%209.8h1.3v1.3h-1.3zM149.8%209.8h1.3v1.3h-1.3zM156.8%209.8h1.4v1.4h-1.4zM163.8%209.8h1.4v1.4h-1.4zM170.8%209.8h1.5v1.5h-1.5zM177.8%209.8h1.5v1.5h-1.5zM184.8%209.8h1.5v1.5h-1.5zM191.8%209.8h1.5v1.5h-1.5zM198.8%209.8h1.4v1.4h-1.4zM205.8%209.8h1.4v1.4h-1.4zM212.8%209.8h1.4v1.4h-1.4zM87.2%2017.1h0.7v0.7h-0.7zM94.1%2017.1h0.8v0.8h-0.8zM101%2017h1v1h-1zM108%2016.9h1.1v1.1h-1.1zM114.8%2016.9h1.3v1.3h-1.3zM121.8%2016.8h1.4v1.4h-1.4zM128.8%2016.8h1.5v1.5h-1.5zM135.7%2016.7h1.6v1.6h-1.6zM142.7%2016.6h1.7v1.7h-1.7zM149.6%2016.6h1.8v1.8h-1.8zM156.6%2016.6h1.9v1.9h-1.9zM163.6%2016.6h1.9v1.9h-1.9zM170.6%2016.6h1.9v1.9h-1.9zM177.5%2016.5h2v2h-2zM184.5%2016.5h2v2h-2zM191.6%2016.6h1.9v1.9h-1.9zM198.6%2016.6h1.9v1.9h-1.9zM205.6%2016.6h1.9v1.9h-1.9zM212.6%2016.6h1.8v1.8h-1.8zM73.2%2024.1h0.7v0.7h-0.7zM80.1%2024.1h0.8v0.8h-0.8zM87%2024h1v1h-1zM93.9%2023.9h1.2v1.2h-1.2zM100.8%2023.8h1.4v1.4h-1.4zM107.7%2023.7h1.6v1.6h-1.6zM114.7%2023.6h1.7v1.7h-1.7zM121.5%2023.6h1.9v1.9h-1.9zM128.5%2023.5h2v2h-2zM135.4%2023.4h2.1v2.1h-2.1zM142.4%2023.4h2.2v2.2h-2.2zM149.4%2023.4h2.2v2.2h-2.2zM156.3%2023.4h2.3v2.3h-2.3zM163.3%2023.4h2.3v2.3h-2.3zM170.3%2023.3h2.4v2.4h-2.4zM177.3%2023.3h2.4v2.4h-2.4zM184.3%2023.3h2.4v2.4h-2.4zM191.3%2023.3h2.4v2.4h-2.4zM198.3%2023.3h2.4v2.4h-2.4zM205.3%2023.4h2.3v2.3h-2.3zM212.3%2023.4h2.3v2.3h-2.3zM66.2%2031.1h0.7v0.7h-0.7zM73%2031h1v1h-1zM79.9%2030.9h1.2v1.2h-1.2zM86.8%2030.8h1.4v1.4h-1.4zM93.7%2030.7h1.6v1.6h-1.6zM100.6%2030.6h1.8v1.8h-1.8zM107.5%2030.5h2v2h-2zM114.5%2030.4h2.1v2.1h-2.1zM121.4%2030.4h2.2v2.2h-2.2zM128.3%2030.4h2.3v2.3h-2.3zM135.3%2030.3h2.5v2.5h-2.5zM142.3%2030.3h2.5v2.5h-2.5zM149.2%2030.2h2.6v2.6h-2.6zM156.2%2030.1h2.7v2.7h-2.7zM163.2%2030.1h2.7v2.7h-2.7zM170.1%2030.1h2.8v2.8h-2.8zM177.1%2030.1h2.8v2.8h-2.8zM184.1%2030.1h2.8v2.8h-2.8zM191.1%2030.1h2.8v2.8h-2.8zM198.2%2030.1h2.7v2.7h-2.7zM205.2%2030.1h2.7v2.7h-2.7zM212.2%2030.2h2.6v2.6h-2.6zM52.1%2038.1h0.7v0.7h-0.7zM59.1%2038.1h0.8v0.8h-0.8zM66%2038h1.1v1.1h-1.1zM72.8%2037.9h1.3v1.3h-1.3zM79.7%2037.7h1.6v1.6h-1.6zM86.6%2037.6h1.8v1.8h-1.8zM93.5%2037.5h2v2h-2zM100.5%2037.5h2.1v2.1h-2.1zM107.3%2037.4h2.3v2.3h-2.3zM114.3%2037.3h2.4v2.4h-2.4zM121.2%2037.2h2.6v2.6h-2.6zM128.2%2037.1h2.7v2.7h-2.7zM135.1%2037.1h2.8v2.8h-2.8zM142.1%2037h2.9v2.9h-2.9zM149%2037h3v3h-3zM176.9%2036.9h3.2v3.2h-3.2zM183.9%2036.9h3.2v3.2h-3.2zM190.9%2037h3.1v3.1h-3.1zM197.9%2037h3.1v3.1h-3.1zM204.9%2037h3.1v3.1h-3.1zM212%2037h3v3h-3zM45.1%2045.1h0.7v0.7h-0.7zM52%2045h0.9v0.9h-0.9zM59%2045h1.1v1.1h-1.1zM65.8%2044.8h1.4v1.4h-1.4zM72.7%2044.7h1.6v1.6h-1.6zM79.6%2044.6h1.8v1.8h-1.8zM86.5%2044.5h2v2h-2zM93.4%2044.4h2.2v2.2h-2.2zM100.3%2044.3h2.4v2.4h-2.4zM107.2%2044.2h2.6v2.6h-2.6zM114.2%2044.1h2.7v2.7h-2.7zM121%2044h2.9v2.9h-2.9zM128%2044h3v3h-3zM134.9%2044h3.1v3.1h-3.1zM190.8%2043.8h3.5v3.5h-3.5zM197.8%2043.8h3.5v3.5h-3.5zM204.8%2043.8h3.4v3.4h-3.4zM211.8%2043.9h3.3v3.3h-3.3zM45.1%2052.1h0.8v0.8h-0.8zM52%2052h1.1v1.1h-1.1zM58.8%2051.8h1.4v1.4h-1.4zM65.7%2051.7h1.6v1.6h-1.6zM72.5%2051.5h1.9v1.9h-1.9zM79.5%2051.5h2.1v2.1h-2.1zM86.3%2051.4h2.3v2.3h-2.3zM93.3%2051.3h2.5v2.5h-2.5zM100.2%2051.2h2.6v2.6h-2.6zM107.1%2051.1h2.8v2.8h-2.8zM114%2051h3v3h-3zM197.6%2050.6h3.8v3.8h-3.8zM204.7%2050.6h3.7v3.7h-3.7zM211.7%2050.6h3.7v3.7h-3.7zM38.1%2059.1h0.7v0.7h-0.7zM45%2059h1v1h-1zM51.9%2058.9h1.3v1.3h-1.3zM58.7%2058.7h1.6v1.6h-1.6zM65.6%2058.6h1.8v1.8h-1.8zM72.5%2058.5h2v2h-2zM79.3%2058.4h2.3v2.3h-2.3zM86.3%2058.3h2.5v2.5h-2.5zM93.2%2058.1h2.7v2.7h-2.7zM100.1%2058.1h2.8v2.8h-2.8zM197.4%2057.5h4.1v4.1h-4.1zM204.5%2057.5h4v4h-4zM211.6%2057.5h3.9v3.9h-3.9zM38.1%2066.1h0.8v0.8h-0.8zM44.9%2065.9h1.2v1.2h-1.2zM51.8%2065.8h1.4v1.4h-1.4zM58.6%2065.7h1.7v1.7h-1.7zM65.5%2065.5h1.9v1.9h-1.9zM72.4%2065.4h2.2v2.2h-2.2zM79.3%2065.3h2.4v2.4h-2.4zM86.2%2065.2h2.6v2.6h-2.6zM93.1%2065.1h2.8v2.8h-2.8zM197.3%2064.3h4.4v4.4h-4.4zM204.3%2064.3h4.3v4.3h-4.3zM211.4%2064.4h4.2v4.2h-4.2zM31.1%2073.2h0.7v0.7h-0.7zM38%2073h0.9v0.9h-0.9zM44.9%2072.9h1.2v1.2h-1.2zM51.8%2072.8h1.5v1.5h-1.5zM58.6%2072.6h1.8v1.8h-1.8zM65.5%2072.5h2v2h-2zM72.3%2072.3h2.3v2.3h-2.3zM79.3%2072.3h2.5v2.5h-2.5zM86.2%2072.2h2.7v2.7h-2.7zM93%2072h2.9v2.9h-2.9zM211.3%2071.3h4.4v4.4h-4.4zM31.1%2080.2h0.7v0.7h-0.7zM38%2080h1v1h-1zM44.9%2079.8h1.3v1.3h-1.3zM51.7%2079.7h1.6v1.6h-1.6zM58.6%2079.6h1.8v1.8h-1.8zM65.5%2079.5h2.1v2.1h-2.1zM72.3%2079.3h2.3v2.3h-2.3zM31.1%2087.2h0.7v0.7h-0.7zM38%2087h1v1h-1zM44.9%2086.8h1.3v1.3h-1.3zM51.8%2086.8h1.5v1.5h-1.5zM58.6%2086.6h1.8v1.8h-1.8zM65.5%2086.5h2v2h-2zM72.3%2086.3h2.3v2.3h-2.3zM31.1%2094.2h0.7v0.7h-0.7zM38%2094h0.9v0.9h-0.9zM44.9%2093.9h1.2v1.2h-1.2zM51.8%2093.8h1.5v1.5h-1.5zM58.6%2093.7h1.7v1.7h-1.7zM65.5%2093.5h2v2h-2zM38.1%20101.1h0.8v0.8h-0.8zM45%20101h1.1v1.1h-1.1zM51.8%20100.8h1.4v1.4h-1.4zM58.7%20100.7h1.6v1.6h-1.6zM65.5%20100.5h1.9v1.9h-1.9zM72.5%20100.5h2.1v2.1h-2.1zM38.1%20108.2h0.7v0.7h-0.7zM45%20108h0.9v0.9h-0.9zM51.9%20107.9h1.2v1.2h-1.2zM58.8%20107.8h1.5v1.5h-1.5zM65.7%20107.7h1.7v1.7h-1.7zM72.5%20107.5h1.9v1.9h-1.9zM211.6%20106.6h3.8v3.8h-3.8zM45.1%20115.2h0.7v0.7h-0.7zM52%20115h1v1h-1zM58.9%20114.9h1.2v1.2h-1.2zM65.8%20114.8h1.5v1.5h-1.5zM72.7%20114.7h1.7v1.7h-1.7zM79.5%20114.5h1.9v1.9h-1.9zM86.5%20114.5h2.1v2.1h-2.1zM93.3%20114.3h2.3v2.3h-2.3zM100.3%20114.3h2.5v2.5h-2.5zM107.2%20114.2h2.7v2.7h-2.7zM114.1%20114.1h2.8v2.8h-2.8zM121%20114h3v3h-3zM128%20114h3.1v3.1h-3.1zM134.9%20113.9h3.2v3.2h-3.2zM141.8%20113.8h3.4v3.4h-3.4zM148.8%20113.8h3.5v3.5h-3.5zM155.8%20113.8h3.5v3.5h-3.5zM162.7%20113.7h3.6v3.6h-3.6zM169.7%20113.7h3.6v3.6h-3.6zM176.7%20113.7h3.7v3.7h-3.7zM183.7%20113.7h3.7v3.7h-3.7zM190.7%20113.7h3.6v3.6h-3.6zM197.7%20113.7h3.6v3.6h-3.6zM204.7%20113.7h3.6v3.6h-3.6zM211.8%20113.8h3.5v3.5h-3.5zM52.1%20122.2h0.7v0.7h-0.7zM59%20122h1v1h-1zM65.9%20121.9h1.2v1.2h-1.2zM72.8%20121.8h1.5v1.5h-1.5zM79.7%20121.7h1.7v1.7h-1.7zM86.5%20121.5h1.9v1.9h-1.9zM93.5%20121.5h2.1v2.1h-2.1zM100.3%20121.3h2.3v2.3h-2.3zM107.3%20121.3h2.4v2.4h-2.4zM114.2%20121.2h2.6v2.6h-2.6zM121.2%20121.2h2.7v2.7h-2.7zM128.1%20121.1h2.8v2.8h-2.8zM135.1%20121h2.9v2.9h-2.9zM142%20121h3v3h-3zM148.9%20121h3.1v3.1h-3.1zM155.9%20120.9h3.2v3.2h-3.2zM162.8%20120.8h3.3v3.3h-3.3zM169.8%20120.8h3.3v3.3h-3.3zM176.8%20120.8h3.3v3.3h-3.3zM183.8%20120.8h3.3v3.3h-3.3zM190.8%20120.8h3.3v3.3h-3.3zM197.8%20120.8h3.3v3.3h-3.3zM204.9%20120.9h3.2v3.2h-3.2zM211.9%20120.9h3.2v3.2h-3.2zM59.1%20129.2h0.7v0.7h-0.7zM66%20129.1h0.9v0.9h-0.9zM72.9%20128.9h1.2v1.2h-1.2zM79.8%20128.8h1.4v1.4h-1.4zM86.7%20128.7h1.6v1.6h-1.6zM93.6%20128.6h1.8v1.8h-1.8zM100.5%20128.6h1.9v1.9h-1.9zM107.5%20128.4h2.1v2.1h-2.1zM114.4%20128.4h2.2v2.2h-2.2zM121.3%20128.3h2.4v2.4h-2.4zM128.3%20128.3h2.5v2.5h-2.5zM135.2%20128.2h2.6v2.6h-2.6zM142.2%20128.2h2.7v2.7h-2.7zM149.1%20128.1h2.8v2.8h-2.8zM156.1%20128.1h2.8v2.8h-2.8zM163.1%20128.1h2.9v2.9h-2.9zM170.1%20128.1h2.9v2.9h-2.9zM177.1%20128.1h2.9v2.9h-2.9zM184%20128h3v3h-3zM191.1%20128.1h2.9v2.9h-2.9zM198.1%20128.1h2.9v2.9h-2.9zM205.1%20128.1h2.9v2.9h-2.9zM212.1%20128.1h2.8v2.8h-2.8zM73.1%20136.1h0.8v0.8h-0.8zM80%20136h1v1h-1zM86.9%20135.9h1.2v1.2h-1.2zM93.8%20135.8h1.4v1.4h-1.4zM100.7%20135.7h1.6v1.6h-1.6zM107.7%20135.7h1.7v1.7h-1.7zM114.5%20135.6h1.9v1.9h-1.9zM121.5%20135.5h2v2h-2zM128.4%20135.4h2.1v2.1h-2.1zM135.4%20135.4h2.2v2.2h-2.2zM142.3%20135.3h2.3v2.3h-2.3zM149.3%20135.3h2.4v2.4h-2.4zM156.3%20135.3h2.5v2.5h-2.5zM163.3%20135.3h2.5v2.5h-2.5zM170.3%20135.3h2.5v2.5h-2.5zM177.2%20135.2h2.6v2.6h-2.6zM184.2%20135.2h2.6v2.6h-2.6zM191.2%20135.2h2.6v2.6h-2.6zM198.3%20135.3h2.5v2.5h-2.5zM205.3%20135.3h2.5v2.5h-2.5zM212.3%20135.3h2.4v2.4h-2.4zM80.2%20143.2h0.7v0.7h-0.7zM87.1%20143.1h0.8v0.8h-0.8zM94%20143h1v1h-1zM100.9%20142.9h1.2v1.2h-1.2zM107.8%20142.8h1.3v1.3h-1.3zM114.8%20142.8h1.5v1.5h-1.5zM121.7%20142.7h1.6v1.6h-1.6zM128.7%20142.7h1.7v1.7h-1.7zM135.6%20142.6h1.8v1.8h-1.8zM142.6%20142.6h1.9v1.9h-1.9zM149.5%20142.5h2v2h-2zM156.4%20142.4h2.1v2.1h-2.1zM163.4%20142.4h2.1v2.1h-2.1zM170.4%20142.4h2.1v2.1h-2.1zM177.4%20142.4h2.1v2.1h-2.1zM184.4%20142.4h2.1v2.1h-2.1zM191.4%20142.4h2.1v2.1h-2.1zM198.4%20142.4h2.1v2.1h-2.1zM205.4%20142.4h2.1v2.1h-2.1zM212.5%20142.5h2v2h-2zM101.2%20150.2h0.7v0.7h-0.7zM108%20150.1h0.9v0.9h-0.9zM115%20150h1v1h-1zM121.9%20149.9h1.2v1.2h-1.2zM128.8%20149.8h1.3v1.3h-1.3zM135.8%20149.8h1.4v1.4h-1.4zM142.8%20149.8h1.5v1.5h-1.5zM149.8%20149.8h1.5v1.5h-1.5zM156.7%20149.7h1.6v1.6h-1.6zM163.7%20149.7h1.6v1.6h-1.6zM170.7%20149.7h1.7v1.7h-1.7zM177.7%20149.7h1.7v1.7h-1.7zM184.7%20149.7h1.7v1.7h-1.7zM191.7%20149.7h1.7v1.7h-1.7zM198.7%20149.7h1.7v1.7h-1.7zM205.7%20149.7h1.6v1.6h-1.6zM212.7%20149.7h1.6v1.6h-1.6zM122.2%20157.2h0.7v0.7h-0.7zM129.2%20157.2h0.7v0.7h-0.7zM136.1%20157.1h0.8v0.8h-0.8zM143.1%20157.1h0.9v0.9h-0.9zM150%20157h1v1h-1zM156.9%20156.9h1.1v1.1h-1.1zM163.9%20156.9h1.1v1.1h-1.1zM170.9%20156.9h1.2v1.2h-1.2zM177.9%20156.9h1.2v1.2h-1.2zM184.9%20156.9h1.2v1.2h-1.2zM191.9%20156.9h1.2v1.2h-1.2zM198.9%20156.9h1.1v1.1h-1.1zM205.9%20156.9h1.1v1.1h-1.1zM213%20157h1v1h-1zM164.2%20164.2h0.7v0.7h-0.7zM171.2%20164.2h0.7v0.7h-0.7zM178.2%20164.2h0.7v0.7h-0.7zM185.2%20164.2h0.7v0.7h-0.7zM192.2%20164.2h0.7v0.7h-0.7zM199.2%20164.2h0.7v0.7h-0.7z%22%2F%3E%3C%2Fsvg%3E");
+  --pv-candidate-dock: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20152%20102%22%3E%3Cpath%20fill%3D%22%23a74260%22%20opacity%3D%22.84%22%20d%3D%22M86.7%202.6h0.7v0.7h-0.7zM92.7%202.6h0.7v0.7h-0.7zM98.7%202.6h0.7v0.7h-0.7zM104.6%202.6h0.8v0.8h-0.8zM110.5%202.5h0.9v0.9h-0.9zM116.5%202.5h0.9v0.9h-0.9zM122.5%202.5h1v1h-1zM128.5%202.5h1v1h-1zM134.5%202.5h1v1h-1zM140.4%202.5h1.1v1.1h-1.1zM146.4%202.5h1.1v1.1h-1.1zM68.7%208.7h0.7v0.7h-0.7zM74.7%208.7h0.7v0.7h-0.7zM80.7%208.7h0.7v0.7h-0.7zM86.6%208.6h0.8v0.8h-0.8zM92.5%208.6h0.9v0.9h-0.9zM98.5%208.5h1v1h-1zM104.5%208.4h1.1v1.1h-1.1zM110.5%208.4h1.1v1.1h-1.1zM116.4%208.4h1.2v1.2h-1.2zM122.3%208.3h1.3v1.3h-1.3zM128.3%208.3h1.3v1.3h-1.3zM134.3%208.3h1.3v1.3h-1.3zM140.3%208.3h1.4v1.4h-1.4zM146.3%208.3h1.4v1.4h-1.4zM56.6%2014.7h0.7v0.7h-0.7zM62.6%2014.7h0.7v0.7h-0.7zM68.7%2014.7h0.7v0.7h-0.7zM74.5%2014.6h0.9v0.9h-0.9zM80.5%2014.5h1v1h-1zM86.5%2014.4h1.1v1.1h-1.1zM92.4%2014.4h1.2v1.2h-1.2zM98.3%2014.3h1.3v1.3h-1.3zM104.3%2014.3h1.4v1.4h-1.4zM110.3%2014.3h1.4v1.4h-1.4zM116.3%2014.3h1.5v1.5h-1.5zM122.3%2014.3h1.5v1.5h-1.5zM128.2%2014.2h1.6v1.6h-1.6zM134.2%2014.2h1.6v1.6h-1.6zM140.2%2014.2h1.6v1.6h-1.6zM146.2%2014.2h1.6v1.6h-1.6zM50.6%2020.6h0.7v0.7h-0.7zM56.6%2020.6h0.7v0.7h-0.7zM62.5%2020.6h0.9v0.9h-0.9zM68.5%2020.5h1v1h-1zM74.5%2020.4h1.1v1.1h-1.1zM80.4%2020.4h1.2v1.2h-1.2zM86.3%2020.4h1.3v1.3h-1.3zM92.3%2020.3h1.4v1.4h-1.4zM98.3%2020.3h1.5v1.5h-1.5zM104.2%2020.2h1.6v1.6h-1.6zM110.2%2020.1h1.7v1.7h-1.7zM116.2%2020.1h1.7v1.7h-1.7zM122.1%2020.1h1.8v1.8h-1.8zM128.1%2020.1h1.8v1.8h-1.8zM134.1%2020.1h1.9v1.9h-1.9zM140.1%2020.1h1.9v1.9h-1.9zM146.1%2020.1h1.9v1.9h-1.9zM38.6%2026.6h0.7v0.7h-0.7zM44.6%2026.6h0.7v0.7h-0.7zM50.6%2026.6h0.8v0.8h-0.8zM56.5%2026.6h0.9v0.9h-0.9zM62.5%2026.4h1.1v1.1h-1.1zM68.4%2026.4h1.2v1.2h-1.2zM74.3%2026.4h1.3v1.3h-1.3zM80.3%2026.3h1.5v1.5h-1.5zM86.2%2026.2h1.6v1.6h-1.6zM92.2%2026.1h1.7v1.7h-1.7zM98.1%2026.1h1.8v1.8h-1.8zM104%2026.1h1.9v1.9h-1.9zM110%2026.1h1.9v1.9h-1.9zM116%2026h2v2h-2zM122%2026h2v2h-2zM128%2025.9h2.1v2.1h-2.1zM133.9%2025.9h2.1v2.1h-2.1zM139.9%2025.9h2.2v2.2h-2.2zM145.9%2025.9h2.2v2.2h-2.2zM32.6%2032.6h0.7v0.7h-0.7zM38.6%2032.6h0.7v0.7h-0.7zM44.6%2032.6h0.8v0.8h-0.8zM50.5%2032.5h1v1h-1zM56.5%2032.5h1.1v1.1h-1.1zM62.4%2032.4h1.3v1.3h-1.3zM68.3%2032.3h1.4v1.4h-1.4zM74.2%2032.2h1.6v1.6h-1.6zM80.2%2032.1h1.7v1.7h-1.7zM86.1%2032.1h1.8v1.8h-1.8zM92%2032h1.9v1.9h-1.9zM98%2032h2v2h-2zM104%2031.9h2.1v2.1h-2.1zM109.9%2031.9h2.2v2.2h-2.2zM115.9%2031.9h2.2v2.2h-2.2zM121.8%2031.9h2.3v2.3h-2.3zM127.8%2031.9h2.3v2.3h-2.3zM133.8%2031.8h2.4v2.4h-2.4zM139.8%2031.8h2.4v2.4h-2.4zM145.8%2031.8h2.4v2.4h-2.4zM26.6%2038.6h0.7v0.7h-0.7zM32.6%2038.6h0.7v0.7h-0.7zM38.6%2038.6h0.8v0.8h-0.8zM44.5%2038.5h1v1h-1zM50.4%2038.4h1.2v1.2h-1.2zM56.4%2038.4h1.3v1.3h-1.3zM62.3%2038.3h1.5v1.5h-1.5zM68.2%2038.2h1.6v1.6h-1.6zM74.2%2038.1h1.7v1.7h-1.7zM80%2038h1.9v1.9h-1.9zM86%2038h2v2h-2zM92%2038h2.1v2.1h-2.1zM97.9%2037.9h2.2v2.2h-2.2zM103.8%2037.9h2.3v2.3h-2.3zM109.8%2037.8h2.4v2.4h-2.4zM115.8%2037.8h2.5v2.5h-2.5zM121.8%2037.8h2.5v2.5h-2.5zM127.7%2037.7h2.6v2.6h-2.6zM133.7%2037.7h2.6v2.6h-2.6zM139.7%2037.7h2.6v2.6h-2.6zM145.7%2037.6h2.7v2.7h-2.7zM20.6%2044.6h0.7v0.7h-0.7zM26.6%2044.6h0.7v0.7h-0.7zM32.6%2044.6h0.8v0.8h-0.8zM38.5%2044.5h1v1h-1zM44.4%2044.4h1.2v1.2h-1.2zM50.4%2044.4h1.3v1.3h-1.3zM56.3%2044.3h1.5v1.5h-1.5zM62.2%2044.2h1.6v1.6h-1.6zM68.1%2044.1h1.8v1.8h-1.8zM74%2044h1.9v1.9h-1.9zM80%2044h2.1v2.1h-2.1zM85.9%2043.9h2.2v2.2h-2.2zM91.8%2043.9h2.3v2.3h-2.3zM97.8%2043.8h2.4v2.4h-2.4zM103.8%2043.8h2.5v2.5h-2.5zM109.7%2043.7h2.6v2.6h-2.6zM115.7%2043.6h2.7v2.7h-2.7zM121.7%2043.6h2.7v2.7h-2.7zM127.6%2043.6h2.8v2.8h-2.8zM133.6%2043.5h2.9v2.9h-2.9zM139.6%2043.5h2.9v2.9h-2.9zM145.6%2043.5h2.9v2.9h-2.9zM20.6%2050.6h0.7v0.7h-0.7zM26.6%2050.6h0.8v0.8h-0.8zM32.5%2050.5h1v1h-1zM38.5%2050.5h1.1v1.1h-1.1zM44.4%2050.4h1.3v1.3h-1.3zM50.3%2050.3h1.5v1.5h-1.5zM56.2%2050.2h1.6v1.6h-1.6zM62.1%2050.1h1.8v1.8h-1.8zM68%2050h1.9v1.9h-1.9zM74%2050h2.1v2.1h-2.1zM79.9%2049.9h2.2v2.2h-2.2zM85.8%2049.9h2.3v2.3h-2.3zM91.8%2049.8h2.5v2.5h-2.5zM97.7%2049.7h2.6v2.6h-2.6zM103.7%2049.6h2.7v2.7h-2.7zM109.6%2049.6h2.8v2.8h-2.8zM115.5%2049.5h2.9v2.9h-2.9zM121.5%2049.5h3v3h-3zM127.5%2049.5h3v3h-3zM133.4%2049.5h3.1v3.1h-3.1zM139.4%2049.5h3.1v3.1h-3.1zM145.4%2049.5h3.1v3.1h-3.1zM14.7%2056.6h0.7v0.7h-0.7zM20.6%2056.6h0.7v0.7h-0.7zM26.6%2056.5h0.9v0.9h-0.9zM32.5%2056.5h1.1v1.1h-1.1zM38.4%2056.4h1.3v1.3h-1.3zM44.3%2056.3h1.4v1.4h-1.4zM50.2%2056.2h1.6v1.6h-1.6zM56.1%2056.1h1.8v1.8h-1.8zM62%2056h1.9v1.9h-1.9zM68%2056h2.1v2.1h-2.1zM73.9%2055.9h2.2v2.2h-2.2zM79.8%2055.8h2.4v2.4h-2.4zM85.8%2055.8h2.5v2.5h-2.5zM91.7%2055.7h2.6v2.6h-2.6zM97.7%2055.6h2.7v2.7h-2.7zM103.5%2055.5h2.9v2.9h-2.9zM109.5%2055.5h3v3h-3zM115.5%2055.5h3.1v3.1h-3.1zM121.4%2055.4h3.2v3.2h-3.2zM127.4%2055.4h3.2v3.2h-3.2zM14.7%2062.6h0.7v0.7h-0.7zM20.6%2062.6h0.8v0.8h-0.8zM26.5%2062.5h1v1h-1zM32.4%2062.4h1.2v1.2h-1.2zM38.3%2062.3h1.4v1.4h-1.4zM44.3%2062.3h1.5v1.5h-1.5zM50.1%2062.1h1.7v1.7h-1.7zM56%2062h1.9v1.9h-1.9zM62%2062h2v2h-2zM67.9%2061.9h2.2v2.2h-2.2zM73.8%2061.9h2.3v2.3h-2.3zM79.8%2061.8h2.5v2.5h-2.5zM85.7%2061.7h2.6v2.6h-2.6zM91.6%2061.6h2.8v2.8h-2.8zM97.5%2061.5h2.9v2.9h-2.9zM103.5%2061.5h3v3h-3zM109.5%2061.5h3.1v3.1h-3.1zM115.4%2061.4h3.2v3.2h-3.2zM139.2%2061.2h3.6v3.6h-3.6zM145.2%2061.2h3.6v3.6h-3.6zM8.7%2068.7h0.7v0.7h-0.7zM14.7%2068.7h0.7v0.7h-0.7zM20.6%2068.5h0.9v0.9h-0.9zM26.4%2068.5h1.1v1.1h-1.1zM32.4%2068.4h1.2v1.2h-1.2zM38.3%2068.3h1.4v1.4h-1.4zM44.2%2068.2h1.6v1.6h-1.6zM50.1%2068.1h1.8v1.8h-1.8zM56%2068h1.9v1.9h-1.9zM62%2068h2.1v2.1h-2.1zM67.8%2067.8h2.3v2.3h-2.3zM73.8%2067.8h2.4v2.4h-2.4zM79.7%2067.7h2.6v2.6h-2.6zM85.7%2067.7h2.7v2.7h-2.7zM91.5%2067.5h2.9v2.9h-2.9zM97.5%2067.5h3v3h-3zM103.5%2067.5h3.1v3.1h-3.1zM109.3%2067.3h3.3v3.3h-3.3zM127.2%2067.2h3.6v3.6h-3.6zM133.2%2067.2h3.7v3.7h-3.7zM139.1%2067.1h3.8v3.8h-3.8zM145.1%2067.1h3.8v3.8h-3.8zM8.7%2074.7h0.7v0.7h-0.7zM14.7%2074.7h0.7v0.7h-0.7zM20.6%2074.5h0.9v0.9h-0.9zM26.4%2074.5h1.1v1.1h-1.1zM32.4%2074.3h1.3v1.3h-1.3zM38.3%2074.3h1.5v1.5h-1.5zM44.1%2074.2h1.7v1.7h-1.7zM50.1%2074.1h1.8v1.8h-1.8zM56%2074h2v2h-2zM61.9%2073.9h2.2v2.2h-2.2zM67.8%2073.8h2.3v2.3h-2.3zM73.8%2073.8h2.5v2.5h-2.5zM79.7%2073.7h2.6v2.6h-2.6zM85.6%2073.6h2.8v2.8h-2.8zM91.5%2073.5h2.9v2.9h-2.9zM97.5%2073.5h3.1v3.1h-3.1zM103.4%2073.4h3.2v3.2h-3.2zM121.2%2073.2h3.6v3.6h-3.6zM127.1%2073.1h3.8v3.8h-3.8zM133.1%2073h3.9v3.9h-3.9zM139%2073h4v4h-4zM8.7%2080.7h0.7v0.7h-0.7zM14.7%2080.7h0.7v0.7h-0.7zM20.6%2080.5h0.9v0.9h-0.9zM26.4%2080.5h1.1v1.1h-1.1zM32.4%2080.3h1.3v1.3h-1.3zM38.3%2080.3h1.5v1.5h-1.5zM44.1%2080.2h1.7v1.7h-1.7zM50%2080h1.9v1.9h-1.9zM56%2080h2v2h-2zM61.9%2079.9h2.2v2.2h-2.2zM67.8%2079.8h2.4v2.4h-2.4zM73.8%2079.8h2.5v2.5h-2.5zM79.7%2079.7h2.7v2.7h-2.7zM85.6%2079.6h2.8v2.8h-2.8zM91.5%2079.5h3v3h-3zM97.5%2079.5h3.1v3.1h-3.1zM115.2%2079.2h3.6v3.6h-3.6zM121.2%2079.2h3.7v3.7h-3.7zM127%2079h3.9v3.9h-3.9zM8.7%2086.7h0.7v0.7h-0.7zM14.7%2086.7h0.7v0.7h-0.7zM20.6%2086.5h0.9v0.9h-0.9zM26.4%2086.5h1.1v1.1h-1.1zM32.4%2086.3h1.3v1.3h-1.3zM38.3%2086.3h1.5v1.5h-1.5zM44.1%2086.2h1.7v1.7h-1.7zM50%2086h1.9v1.9h-1.9zM56%2086h2v2h-2zM61.9%2085.9h2.2v2.2h-2.2zM67.8%2085.8h2.4v2.4h-2.4zM73.8%2085.8h2.5v2.5h-2.5zM79.7%2085.7h2.7v2.7h-2.7zM85.5%2085.5h2.9v2.9h-2.9zM91.5%2085.5h3v3h-3zM97.4%2085.4h3.2v3.2h-3.2zM109.3%2085.3h3.5v3.5h-3.5zM115.2%2085.2h3.6v3.6h-3.6zM121.1%2085.1h3.8v3.8h-3.8zM138.9%2084.9h4.2v4.2h-4.2zM144.8%2084.8h4.3v4.3h-4.3zM8.7%2092.7h0.7v0.7h-0.7zM14.7%2092.7h0.7v0.7h-0.7zM20.6%2092.5h0.9v0.9h-0.9zM26.4%2092.5h1.1v1.1h-1.1zM32.4%2092.3h1.3v1.3h-1.3zM38.3%2092.3h1.5v1.5h-1.5zM44.1%2092.2h1.7v1.7h-1.7zM50%2092h1.9v1.9h-1.9zM56%2092h2v2h-2zM61.9%2091.9h2.2v2.2h-2.2zM67.8%2091.8h2.4v2.4h-2.4zM73.8%2091.8h2.5v2.5h-2.5zM79.7%2091.7h2.7v2.7h-2.7zM85.6%2091.6h2.8v2.8h-2.8zM91.5%2091.5h3v3h-3zM103.3%2091.3h3.3v3.3h-3.3zM109.3%2091.3h3.4v3.4h-3.4zM115.2%2091.2h3.6v3.6h-3.6zM133%2091h4v4h-4zM138.9%2091h4.1v4.1h-4.1zM144.9%2090.9h4.2v4.2h-4.2zM8.7%2098.7h0.7v0.7h-0.7zM14.7%2098.7h0.7v0.7h-0.7zM20.6%2098.5h0.9v0.9h-0.9zM26.4%2098.5h1.1v1.1h-1.1zM32.4%2098.3h1.3v1.3h-1.3zM38.3%2098.3h1.5v1.5h-1.5zM44.2%2098.2h1.6v1.6h-1.6zM50.1%2098.1h1.8v1.8h-1.8zM56%2098h2v2h-2zM61.9%2097.9h2.2v2.2h-2.2zM67.8%2097.8h2.3v2.3h-2.3zM73.8%2097.8h2.5v2.5h-2.5zM79.7%2097.7h2.6v2.6h-2.6zM85.6%2097.6h2.8v2.8h-2.8zM91.5%2097.5h2.9v2.9h-2.9zM103.4%2097.4h3.2v3.2h-3.2zM109.3%2097.3h3.3v3.3h-3.3zM115.3%2097.3h3.5v3.5h-3.5zM127.2%2097.2h3.7v3.7h-3.7zM133.1%2097.1h3.8v3.8h-3.8zM139.1%2097h3.9v3.9h-3.9zM145%2097h4v4h-4z%22%2F%3E%3C%2Fsvg%3E");
+  --pv-candidate-light: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2092%2075%22%3E%3Cpath%20fill%3D%22%23a87618%22%20opacity%3D%22.84%22%20d%3D%22M62.1%2012.2h0.7v0.7h-0.7zM67.2%2012.2h0.7v0.7h-0.7zM72.2%2012.2h0.7v0.7h-0.7zM77.2%2012.2h0.7v0.7h-0.7zM82.2%2012.2h0.7v0.7h-0.7zM87.2%2012.2h0.7v0.7h-0.7zM47.1%2017.1h0.7v0.7h-0.7zM52.1%2017.1h0.7v0.7h-0.7zM57.1%2017.1h0.7v0.7h-0.7zM62.1%2017.1h0.7v0.7h-0.7zM67.2%2017.1h0.7v0.7h-0.7zM72.2%2017.1h0.7v0.7h-0.7zM77.1%2017.1h0.8v0.8h-0.8zM82.1%2017.1h0.8v0.8h-0.8zM87.1%2017.1h0.8v0.8h-0.8zM37.1%2022.1h0.7v0.7h-0.7zM42.1%2022.1h0.7v0.7h-0.7zM47.1%2022.1h0.7v0.7h-0.7zM52.1%2022.1h0.7v0.7h-0.7zM57.1%2022.1h0.8v0.8h-0.8zM62%2022.1h0.9v0.9h-0.9zM67%2022.1h0.9v0.9h-0.9zM72%2022h1v1h-1zM77%2022h1v1h-1zM82%2021.9h1.1v1.1h-1.1zM87%2021.9h1.1v1.1h-1.1zM32.1%2027.1h0.7v0.7h-0.7zM37.1%2027.1h0.7v0.7h-0.7zM42.1%2027.1h0.7v0.7h-0.7zM47.1%2027.1h0.8v0.8h-0.8zM52%2027.1h0.9v0.9h-0.9zM57%2027h1v1h-1zM62%2026.9h1.1v1.1h-1.1zM66.9%2026.9h1.2v1.2h-1.2zM71.8%2026.9h1.3v1.3h-1.3zM76.8%2026.9h1.3v1.3h-1.3zM81.8%2026.8h1.4v1.4h-1.4zM86.8%2026.8h1.4v1.4h-1.4zM27.1%2032.1h0.7v0.7h-0.7zM32.1%2032.1h0.7v0.7h-0.7zM37.1%2032.1h0.7v0.7h-0.7zM42%2032h0.9v0.9h-0.9zM47%2032h1v1h-1zM52%2031.9h1.1v1.1h-1.1zM56.9%2031.9h1.3v1.3h-1.3zM61.8%2031.8h1.4v1.4h-1.4zM66.8%2031.8h1.5v1.5h-1.5zM71.8%2031.8h1.5v1.5h-1.5zM76.7%2031.7h1.6v1.6h-1.6zM81.7%2031.7h1.6v1.6h-1.6zM86.7%2031.6h1.7v1.7h-1.7zM22.1%2037.1h0.7v0.7h-0.7zM27.1%2037.1h0.7v0.7h-0.7zM32.1%2037.1h0.7v0.7h-0.7zM37%2037h0.9v0.9h-0.9zM42%2037h1.1v1.1h-1.1zM46.9%2036.9h1.2v1.2h-1.2zM51.8%2036.8h1.4v1.4h-1.4zM56.8%2036.8h1.5v1.5h-1.5zM61.7%2036.7h1.6v1.6h-1.6zM66.7%2036.6h1.7v1.7h-1.7zM71.6%2036.6h1.8v1.8h-1.8zM76.5%2036.5h1.9v1.9h-1.9zM81.5%2036.5h1.9v1.9h-1.9zM86.5%2036.5h2v2h-2zM17.1%2042.1h0.7v0.7h-0.7zM22.1%2042.1h0.7v0.7h-0.7zM27.1%2042.1h0.7v0.7h-0.7zM32%2042h0.9v0.9h-0.9zM37%2042h1.1v1.1h-1.1zM41.9%2041.9h1.2v1.2h-1.2zM46.8%2041.8h1.4v1.4h-1.4zM51.7%2041.7h1.6v1.6h-1.6zM56.6%2041.6h1.7v1.7h-1.7zM61.5%2041.5h1.9v1.9h-1.9zM66.5%2041.5h2v2h-2zM71.5%2041.5h2.1v2.1h-2.1zM76.4%2041.4h2.2v2.2h-2.2zM81.4%2041.4h2.2v2.2h-2.2zM86.3%2041.4h2.3v2.3h-2.3zM17.1%2047.1h0.7v0.7h-0.7zM22.1%2047.1h0.7v0.7h-0.7zM27.1%2047.1h0.8v0.8h-0.8zM32%2047h1v1h-1zM36.9%2046.9h1.2v1.2h-1.2zM41.8%2046.8h1.4v1.4h-1.4zM46.7%2046.7h1.6v1.6h-1.6zM51.6%2046.6h1.7v1.7h-1.7zM56.5%2046.5h1.9v1.9h-1.9zM61.5%2046.5h2.1v2.1h-2.1zM66.4%2046.4h2.2v2.2h-2.2zM71.3%2046.3h2.4v2.4h-2.4zM76.3%2046.3h2.5v2.5h-2.5zM81.3%2046.3h2.5v2.5h-2.5zM86.2%2046.2h2.6v2.6h-2.6zM12.2%2052.1h0.7v0.7h-0.7zM17.1%2052.1h0.7v0.7h-0.7zM22.1%2052.1h0.7v0.7h-0.7zM27.1%2052h0.9v0.9h-0.9zM31.9%2052h1.1v1.1h-1.1zM36.9%2051.9h1.3v1.3h-1.3zM41.8%2051.8h1.5v1.5h-1.5zM46.6%2051.6h1.7v1.7h-1.7zM51.5%2051.5h1.9v1.9h-1.9zM56.5%2051.5h2.1v2.1h-2.1zM61.4%2051.4h2.3v2.3h-2.3zM66.3%2051.3h2.4v2.4h-2.4zM71.2%2051.2h2.6v2.6h-2.6zM76.2%2051.1h2.7v2.7h-2.7zM12.2%2057.1h0.7v0.7h-0.7zM17.1%2057.1h0.7v0.7h-0.7zM22.1%2057.1h0.8v0.8h-0.8zM27%2057h1v1h-1zM31.9%2056.9h1.2v1.2h-1.2zM36.8%2056.8h1.4v1.4h-1.4zM41.7%2056.7h1.6v1.6h-1.6zM46.6%2056.6h1.8v1.8h-1.8zM51.5%2056.5h2v2h-2zM56.4%2056.4h2.2v2.2h-2.2zM61.3%2056.3h2.4v2.4h-2.4zM66.2%2056.2h2.6v2.6h-2.6zM12.2%2062.1h0.7v0.7h-0.7zM17.1%2062.1h0.7v0.7h-0.7zM22.1%2062.1h0.8v0.8h-0.8zM27%2062h1v1h-1zM31.9%2061.9h1.2v1.2h-1.2zM36.8%2061.8h1.4v1.4h-1.4zM41.7%2061.7h1.6v1.6h-1.6zM46.6%2061.6h1.8v1.8h-1.8zM51.5%2061.5h2v2h-2zM56.4%2061.4h2.3v2.3h-2.3zM76%2061h3.1v3.1h-3.1zM80.8%2060.8h3.4v3.4h-3.4zM85.8%2060.8h3.5v3.5h-3.5zM12.2%2067.2h0.7v0.7h-0.7zM17.1%2067.2h0.7v0.7h-0.7zM22.1%2067.1h0.8v0.8h-0.8zM27%2067h1v1h-1zM31.9%2066.9h1.2v1.2h-1.2zM36.8%2066.8h1.4v1.4h-1.4zM41.7%2066.7h1.6v1.6h-1.6zM46.6%2066.6h1.8v1.8h-1.8zM66.2%2066.2h2.7v2.7h-2.7zM71%2066h2.9v2.9h-2.9zM76%2066h3.1v3.1h-3.1zM80.8%2065.8h3.4v3.4h-3.4zM85.8%2065.8h3.5v3.5h-3.5zM12.2%2072.2h0.7v0.7h-0.7zM17.1%2072.2h0.7v0.7h-0.7zM22.1%2072.1h0.8v0.8h-0.8zM27%2072h1v1h-1zM31.9%2071.9h1.2v1.2h-1.2zM36.8%2071.8h1.4v1.4h-1.4zM56.4%2071.4h2.2v2.2h-2.2zM61.3%2071.3h2.4v2.4h-2.4zM66.2%2071.2h2.6v2.6h-2.6zM71.1%2071.1h2.8v2.8h-2.8zM76%2071h3v3h-3zM81%2071h3.1v3.1h-3.1zM85.9%2070.9h3.2v3.2h-3.2z%22%2F%3E%3C%2Fsvg%3E");
+}
+
+@media (forced-colors: active) {
+  :root[data-design="candidate"] {
+    --pv-focus-ring: Highlight;
+    --pv-candidate-cloud: none;
+    --pv-candidate-dock: none;
+    --pv-candidate-light: none;
+  }
+}
+
+/* The detail column can be narrower than the three intrinsic action widths. */
+:root[data-design="candidate"] pv-widget-host #device-view
+pv-vacuum-widget.pv-kit-hero > .pv-actions.transport:has(.pv-kit-disclosure[data-kit-layout="header-more"]) {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+:root[data-design="candidate"] pv-widget-host #device-view
+pv-vacuum-widget.pv-kit-hero > .pv-actions.transport .pv-kit-disclosure[data-kit-layout="header-more"] > div:not([hidden]) {
+  flex-basis: 100%;
+}
+
+
+/* Robot material study: source-owned observed state, independent of progress.
+   Shared by canonical overview and detail markup in this comparison candidate. */
+:root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget) {
+  --pv-robot-material: none;
+  background-image: var(--pv-robot-material) !important;
+  background-repeat: no-repeat !important;
+  background-position: right 12px top 8px !important;
+  background-size: min(38%, 210px) auto !important;
+}
+:root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget)[data-resource-status="docked"] {
+  /* A settled curved band; only the existing motion owner signifies work. */
+  --pv-robot-material: url("/comparison/references/robot-band.svg");
+}
+:root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget):is([data-resource-status="cleaning"], [data-resource-status="returning"], [data-resource-status="docking"]) {
+  --pv-robot-material: url("/comparison/references/robot-band.svg");
+}
+:root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget)[data-resource-status="paused"] {
+  --pv-robot-material: url("/comparison/references/robot-band.svg");
+}
+:root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget):is([data-kit-state="stale"], [data-kit-state="unavailable"], [data-state="offline"], [data-state="error"]) {
+  --pv-robot-material: none;
+}
+:root[data-design="candidate"] pv-widget-host :is(#device-view #device-detail > pv-vacuum-widget, pv-robot-control-panel pv-vacuum-widget).pv-kit-hero[data-component][data-kit-density="compact"]:is([data-resource-status="cleaning"], [data-resource-status="paused"]) {
+  min-height: 246px !important;
+}
+:root[data-design="candidate"] .robot-control-panel pv-vacuum-widget > .pv-content {
+  max-width: 72%;
+}
+@media (max-width: 1099px) {
+  :root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget) {
+    background-size: min(28%, 150px) auto !important;
+  }
+}
+@media (forced-colors: active) {
+  :root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget) {
+    background-image: none !important;
+  }
+}
+
+
+/* Tesla owns sage throughout its flow. Player remains its own neutral domain. */
+:root[data-design="candidate"] pv-widget-host #vehicle-view {
+  --pv-screen-accent: var(--pv-tesla-ink);
+  --pv-screen-selection: var(--pv-tesla-strong);
+  --pv-screen-action-ink: var(--pv-tesla-ink);
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-hero {
+  background-color: var(--pv-tesla);
+  color: var(--pv-tesla-ink);
+  padding: 24px;
+  gap: 12px;
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view[data-vehicle-mode="fixture"] .vehicle-hero[data-charging="true"] {
+  background-image: url("/comparison/references/tesla-energy.svg");
+  background-repeat: no-repeat;
+  background-size: 210px 88px;
+  background-position: right 20px top 14px;
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-battery-meter {
+  accent-color: var(--pv-tesla-ink);
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-battery-meter::-webkit-meter-optimum-value {
+  background: var(--pv-tesla-ink);
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-battery-meter::-moz-meter-bar {
+  background: var(--pv-tesla-ink);
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-disclosure[data-kit-identity="tesla"] {
+  background: var(--pv-surface);
+  --pv-screen-selection: var(--pv-tesla-strong);
+  --pv-action-secondary-edge: color-mix(in srgb, var(--pv-tesla-ink) 24%, var(--pv-surface));
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-section-heading > span[data-kit-text="section-title"],
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-temperature-controls output {
+  color: var(--pv-tesla-ink);
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-temperature-controls {
+  background: color-mix(in srgb, var(--pv-tesla) 60%, var(--pv-surface));
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-lock-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-lock-controls > .pv-kit.pv-kit-button[data-tone="danger"]:not(
+  :disabled, [aria-disabled="true"], [aria-busy="true"], [data-state="error"], [aria-invalid="true"]
+) {
+  --pv-action-primary-bg:var(--pv-danger-tint);
+  --pv-action-primary-ink:var(--pv-danger);
+  --pv-action-secondary-bg:var(--pv-danger-tint);
+  --pv-action-secondary-ink:var(--pv-danger);
+  background: var(--pv-danger-tint) !important;
+  color: var(--pv-danger) !important;
+  box-shadow: inset 0 0 0 1px var(--pv-danger);
+}
+@media (max-width: 1099px) {
+  :root[data-design="candidate"] pv-widget-host #vehicle-view[data-vehicle-mode="fixture"] .vehicle-hero[data-charging="true"] {
+    background-size: 140px 58px;
+  }
+}
+@media (forced-colors: active) {
+  :root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-hero {
+    background-image: none !important;
+  }
+}
+
+/* Keep Tesla's status and metrics close; reserve illustration space without
+   making the car image determine the height of the entire status panel. */
+@media (min-width: 1200px) {
+  :root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-hero.pv-kit-hero[data-kit-state="ready"] {
+    padding: 24px;
+    gap: 12px;
+  }
+  :root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-artwork {
+    min-height: 120px;
+    grid-template-rows: 112px auto;
+    gap: 4px;
+  }
+  :root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-artwork > .vehicle-image {
+    max-height: 112px;
+  }
+  :root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-hero[data-charging="true"] .vehicle-metric > dt {
+    min-height: 40px;
+  }
+}
+
+/* Small navigation uses one quiet corner cue, independent of live command
+   controls. It is decorative: the existing whole-card button owns navigation. */
+:root[data-design="candidate"] pv-widget-host #now-view :is(#home-music,#home-radio,#home-recipes,#home-vehicle):not([data-kit-size="m"]):not([data-kit-size="l"]):not([aria-busy="true"])::after,
+:root[data-design="candidate"] pv-widget-host #now-view #timer-card:not([data-activity-kind="timer"]):not([data-kit-size="m"]):not([data-kit-size="l"]) > #open-timers::after {
+  content:"";
+  position:absolute;
+  right:20px;
+  bottom:20px;
+  width:24px;
+  height:24px;
+  background:currentColor;
+  mask:url('/assets/icons/chevron-right.svg') center / contain no-repeat;
+  pointer-events:none;
+  opacity:1;
+}
+:root[data-design="candidate"] pv-widget-host #now-view :is(#home-music,#home-radio):not([data-kit-size="m"]):not([data-kit-size="l"]) > img[src$="chevron-right.svg"],
+:root[data-design="candidate"] pv-widget-host #now-view #timer-card:not([data-activity-kind="timer"]):not([data-kit-size="m"]):not([data-kit-size="l"]) > #open-timers > img[src$="chevron-right.svg"] {
+  display:none !important;
+}
+
+/* A dark timer keeps the same readable instrument in every composition. */
+:root[data-design="candidate"] pv-widget-host .timer-panel[data-kit-tone="dark"] .timer-icon {
+  filter:brightness(0) invert(1);
+}
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host .view-nav {display:flex;gap:8px;}
+  :root[data-design="candidate"] pv-widget-host .view-nav .header-left {display:flex;flex:1;min-width:0;gap:8px;}
+  :root[data-design="candidate"] pv-widget-host .view-nav .header-activity {position:static;transform:none;flex:0 0 48px;}
+  :root[data-design="candidate"] pv-widget-host .view-nav #open-history.header-history {width:48px;min-width:48px;}
+  :root[data-design="candidate"] pv-widget-host .view-nav .header-context {gap:8px;flex:0 0 auto;}
+  :root[data-design="candidate"] pv-widget-host .view-nav #header-weather {width:48px;min-width:48px;}
+  :root[data-design="candidate"] pv-widget-host .view-nav #header-ro {width:64px;min-width:64px;}
+  :root[data-design="candidate"] pv-widget-host .view-nav .header-date-line {display:none;}
+  :root[data-design="candidate"] pv-widget-host .view-nav #header-title-action {font-size:20px;gap:8px;}
+}
+
+/* Native dialogs share one finite entrance. Existing showModal/close owners
+   still control focus, interruption and the full-viewport overlay. */
+:root[data-design="candidate"] dialog[open] {
+  animation:pv-dialog-enter 220ms cubic-bezier(.16,1,.3,1) both;
+}
+:root[data-design="candidate"] dialog[open]::backdrop {
+  animation:pv-dialog-backdrop 180ms ease-out both;
+}
+@keyframes pv-dialog-enter {
+  from {opacity:0;scale:.975;}
+  to {opacity:1;scale:1;}
+}
+@keyframes pv-dialog-backdrop {
+  from {opacity:0;}
+  to {opacity:1;}
+}
+@media (prefers-reduced-motion:reduce) {
+  :root[data-design="candidate"] dialog[open],
+  :root[data-design="candidate"] dialog[open]::backdrop {animation:none;}
+}
+:root[data-design="candidate"][data-motion="reduced"] dialog[open],
+:root[data-design="candidate"][data-motion="reduced"] dialog[open]::backdrop,
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] dialog[open],
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] dialog[open]::backdrop {animation:none;}
+
+/* Rest is a photographic canvas, matching the selected full-bleed reference.
+   Existing resource/player owners retain their inset and interaction roles. */
+:root[data-design="candidate"] body:has(> pv-widget-host[data-view="rest"]) {
+  padding:0;
+}
+:root[data-design="candidate"] pv-widget-host[data-view="rest"] #photo-view {
+  border-radius:0;
+  border:0;
+}
+
+/* Missing artwork is an honest data state, not an empty illustration column. */
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-content:has(> .vehicle-artwork[hidden]) {
+  grid-template-columns: minmax(0, 1fr);
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view .vehicle-content:has(> .vehicle-artwork[hidden]) > .vehicle-measurements {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+/* Music: editorial imagery leads. The domain colour belongs to choices and
+   receipts, while the existing music owner keeps artwork transitions. */
+:root[data-design="candidate"] {
+  --pv-music-surface: #eee8f3;
+  --pv-music-ink: #57416f;
+  --pv-music-edge: #b9a9ca;
+}
+:root[data-design="candidate"] pv-widget-host #music-response {
+  --pv-screen-selection: var(--pv-music-surface);
+  --pv-screen-accent: var(--pv-music-ink);
+}
+:root[data-design="candidate"] pv-widget-host #music-refinements [data-collection][aria-pressed="true"] {
+  background: var(--pv-dark) !important;
+  color: var(--pv-on-dark);
+  border-color: var(--pv-dark);
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result[data-option-id] {
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result[data-option-id] > .result-play {
+  background: var(--pv-surface-2) !important;
+  border: 1px solid var(--pv-line);
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result[data-pending="true"] {
+  background-color: var(--pv-music-surface);
+  border-color: var(--pv-music-ink);
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result > .result-feedback {
+  color: var(--pv-music-ink);
+}
+:root[data-design="candidate"] pv-widget-host #music-refresh {
+  color: var(--pv-ink);
+  border-color: var(--pv-line);
+}
+:root[data-design="candidate"] pv-widget-host #music-refinements [data-collection],
+:root[data-design="candidate"] pv-widget-host #music-refresh {
+  transition: background-color 140ms ease, border-color 140ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result:not([aria-disabled="true"]):active,
+:root[data-design="candidate"] pv-widget-host #music-refresh:not([aria-disabled="true"]):active {
+  background-color: var(--pv-music-surface);
+  border-color: var(--pv-music-ink);
+}
+@media (min-width: 1100px) {
+  :root[data-design="candidate"] pv-widget-host #music-response:not([data-discovery-preview]) #result-list > .result[data-option-id] {
+    gap: 12px;
+    grid-template-rows: auto minmax(88px, 1fr) 56px;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response:not([data-discovery-preview]) #result-list > .result > .result-art {
+    max-height: 196px;
+    width: min(100%, 196px);
+    height: 196px;
+    aspect-ratio: 1;
+    justify-self: center;
+    object-fit: cover;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response:not([data-discovery-preview]) #result-list > .result > .result-copy {
+    min-height: 88px;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response:not([data-discovery-preview]) #result-list > .result > .result-play {
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="candidate"] pv-widget-host :is(#result-list > .result, #music-refinements [data-collection], #music-refresh) {
+    transition: none;
+  }
+}
+/* Recipes: clay is the domain identity; checks express explicit user choices.
+   The canonical RecipeView remains the owner of cooking and reading progress. */
+:root[data-design="candidate"] {
+  --pv-recipe-surface: #f4e5d8;
+  --pv-recipe-ink: #76462d;
+  --pv-recipe-edge: #c8aa94;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view {
+  --pv-screen-accent: var(--pv-recipe-ink);
+  --pv-screen-selection: var(--pv-recipe-surface);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="intro"] {
+  background-color: var(--pv-recipe-surface) !important;
+  border-color: var(--pv-recipe-edge);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="summary"] > [data-kit-text="section-title"] {
+  color: var(--pv-recipe-ink);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="controls"] > [data-kit-variant="primary"],
+:root[data-design="candidate"] pv-widget-host #recipe-view .pv-kit-choice-label:has(input:checked) {
+  --pv-action-primary-bg:var(--pv-dark);
+  --pv-action-primary-ink:var(--pv-on-dark);
+  background: var(--pv-dark) !important;
+  color: var(--pv-on-dark);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="catalog"] [data-recipe] {
+  background: var(--pv-surface);
+  border: 1px solid var(--pv-line);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="catalog"] [data-recipe][aria-current="true"] {
+  background: var(--pv-recipe-surface);
+  border-color: var(--pv-recipe-edge);
+  color: var(--pv-recipe-ink);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="catalog"] [data-recipe][aria-current="true"] [data-kit-text] {
+  color: inherit;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view pv-checklist button[aria-pressed="true"] {
+  background-color: var(--pv-recipe-surface) !important;
+  color: var(--pv-recipe-ink) !important;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view :is(pv-checklist button, [data-recipe-layout="catalog"] [data-recipe]) {
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="catalog"] [data-recipe]:active {
+  background: var(--pv-recipe-surface);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="candidate"] pv-widget-host #recipe-view :is(pv-checklist button, [data-recipe-layout="catalog"] [data-recipe]) {
+    transition: none;
+  }
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view ol > li[aria-current="step"] {
+  background-color: var(--pv-recipe-surface);
+  border-color: var(--pv-recipe-edge);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view ol > li[data-completed="true"] > button {
+  background-color: var(--pv-surface-2) !important;
+  color: var(--pv-ink-2);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view ol > li[aria-current="step"] > [data-recipe-step-number] {
+  color: var(--pv-recipe-ink);
+}
+
+
+/* The recipe's existing current-step marker is an instrument, not decoration.
+   All steps reserve the same number slot; only actual state changes its weight. */
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li {
+  grid-template-columns: 32px minmax(0, 1fr);
+  column-gap: 12px;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li > [data-recipe-step-number] {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  min-height: 32px;
+  border: 1px solid var(--pv-line);
+  border-radius: var(--pv-r-s);
+  font-variant-numeric: tabular-nums;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li[aria-current="step"] > [data-recipe-step-number] {
+  background: var(--pv-recipe-ink);
+  border-color: var(--pv-recipe-ink);
+  color: var(--pv-on-dark);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li[data-completed="true"] > [data-recipe-step-number] {
+  border-color: transparent;
+  color: var(--pv-ink-3);
+}
+/* Keep the completed receipt inside the same reserved marker. The semantic
+   step number remains in the source; the existing decorative check replaces it visually. */
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li[data-completed="true"] > [data-recipe-step-number] {
+  color: transparent;
+  background: var(--pv-surface-2);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li[data-completed="true"] > [data-recipe-step-number]::after {
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  color: var(--pv-ink-3);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-step-number] {
+    transition: none;
+  }
+}
+/* The review switch uses the renderer's existing reduced-motion contract. */
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] *,
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] *::before,
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] *::after {
+  transition-duration: 0s !important;
+  animation-duration: 0s !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* Header detail follows the actual VoiceSurface phase. Its existing owner
+   keeps motion, deduplication, interruption, visibility and reduced motion. */
+:root[data-design="candidate"] pv-widget-host .voice-surface:is([data-phase="listening"], [data-phase="thinking"]) .voice-mark {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: 24px 24px;
+}
+:root[data-design="candidate"] pv-widget-host .voice-surface[data-phase="listening"] .voice-mark {
+  background-image: url("/comparison/references/voice-mic.svg");
+}
+:root[data-design="candidate"] pv-widget-host .voice-surface[data-phase="thinking"] .voice-mark {
+  background-image: url("/comparison/references/voice-chat-circle.svg");
+}
+:root[data-design="candidate"] pv-widget-host .voice-surface:is([data-phase="listening"], [data-phase="thinking"]) .voice-mark > img {
+  visibility: hidden;
+}
+@media (forced-colors: active) {
+  :root[data-design="candidate"] pv-widget-host .voice-surface .voice-mark {background-image:none !important;}
+  :root[data-design="candidate"] pv-widget-host .voice-surface .voice-mark > img {visibility:visible;}
+}
+
+/* Stable overview slots in the selected desktop composition, including an
+   active timer. The same existing nodes and TimerView actions are retained. */
+@media (min-width: 760px) and (min-height: 700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-weather {grid-column:1 / 3; grid-row:1 / 3;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > .resource-card[data-kind="vacuum"] {grid-column:3 / 5; grid-row:1;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > .resource-card[data-kind="light"] {grid-column:3; grid-row:2;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-vehicle {grid-column:4; grid-row:2;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-radio:not([data-kit-size]) {grid-column:2 !important; grid-row:3;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero {
+    height:var(--pv-card-row-height); min-height:0; box-sizing:border-box;
+    padding:16px; display:grid; grid-template-columns:minmax(0,1fr) 48px;
+    grid-template-rows:24px 40px 16px 48px; gap:4px 8px;
+  }
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-copy {display:contents;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-copy > strong {grid-column:1; grid-row:1; font:var(--pv-t-label);}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-copy > .timer-count {grid-column:1 / -1; grid-row:2; font:600 32px/40px var(--pv-font); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-copy > .timer-state {grid-column:1 / -1; grid-row:3; font:400 12px/16px var(--pv-font);}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-instrument {grid-column:2; grid-row:1; width:28px; height:28px; justify-self:end; align-self:start;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-instrument > .timer-icon {width:16px; height:16px;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-finish {grid-column:1; grid-row:4; width:100%; min-width:0; min-height:48px; height:48px; padding:0 8px; font:400 14px/20px var(--pv-font);}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero > .timer-open {grid-column:2; grid-row:4; min-width:48px; width:48px; min-height:48px; height:48px;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #timer-card .timer-panel.pv-hero[data-status="done"] > .timer-copy > .timer-count {font:600 20px/26px var(--pv-font); white-space:normal; grid-row:1 / 3; padding-right:28px;}
+}
+
+/* A material plane within the existing robot surface, owned by RobotMotion.
+   Text, icon and controls never move with the cell sweep. */
+:root[data-design="candidate"] :is(.resource-preview[data-kind="vacuum"], pv-vacuum-widget)[data-material-owner="robot-motion"] {
+  position: relative;
+  isolation: isolate;
+  background-image: none !important;
+}
+:root[data-design="candidate"] [data-material-owner="robot-motion"] > .pv-robot-material {
+  display: block !important;
+  position: absolute;
+  pointer-events: none;
+  right: 12px;
+  top: 8px;
+  width: min(38%, 210px);
+  aspect-ratio: 245 / 147;
+  mask: var(--pv-robot-material) center / contain no-repeat;
+  background: var(--pv-robot-ink);
+  opacity: .72;
+  z-index: 0;
+}
+:root[data-design="candidate"] [data-material-owner="robot-motion"] > .pv-robot-material[data-phase="none"] {display:none !important;}
+/* One curved identity across known states. Only the motion owner signifies
+   activity; shape and footprint stay stable when cleaning is paused. */
+:root[data-design="candidate"] .resource-preview[data-kind="vacuum"][data-resource-status][data-material-owner="robot-motion"] > .pv-robot-material {
+  width:min(55%,245px);
+  top:auto;
+  bottom:16px;
+  right:16px;
+  opacity:1;
+}
+:root[data-design="candidate"] .pv-robot-material[data-motion="cleaning"] {
+  background: linear-gradient(110deg, #83364f 30%, #bd5578 43%, #f1b6c8 50%, #bd5578 57%, #83364f 70%);
+  background-size: 250% 100%;
+}
+@media (max-width:1099px) {
+  :root[data-design="candidate"] .pv-robot-material {width:min(28%,150px);}
+}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] [data-material-owner="robot-motion"] > .pv-robot-material {display:none !important;}
+}
+
+/* Tesla uses directional energy lanes, distinct from Robot's mechanical arc.
+   The existing numeric battery value remains the only progress measurement. */
+:root[data-design="candidate"] pv-widget-host :is(#home-vehicle, #vehicle-view .vehicle-hero)[data-energy] {
+  position:relative;
+  isolation:isolate;
+  background-image:none !important;
+}
+:root[data-design="candidate"] pv-widget-host [data-energy] > .pv-vehicle-energy {
+  display:block !important;
+  position:absolute;
+  pointer-events:none;
+  right:16px;
+  bottom:16px;
+  top:auto !important;
+  left:auto !important;
+  width:min(60%, 120px);
+  height:auto;
+  aspect-ratio:210 / 88;
+  mask:url('/comparison/references/tesla-energy.svg') center / contain no-repeat;
+  background:linear-gradient(105deg,#305c49 20%,#6bab86 42%,#c7e6d1 50%,#6bab86 58%,#305c49 80%);
+  background-size:250% 100%;
+  opacity:.8;
+}
+:root[data-design="candidate"] pv-widget-host #vehicle-view [data-energy] > .pv-vehicle-energy {
+  top:14px !important;
+  bottom:auto;
+  right:20px;
+  width:252px;
+  height:105px;
+}
+:root[data-design="candidate"] pv-widget-host [data-energy="charging"] > .pv-vehicle-energy {
+  animation:pv-energy-flow 3200ms linear infinite;
+}
+:root[data-design="candidate"] pv-widget-host [data-energy="none"] > .pv-vehicle-energy {display:none !important;}
+@keyframes pv-energy-flow {from {background-position:150% 0;} to {background-position:-150% 0;}}
+@media (prefers-reduced-motion:reduce) {
+  :root[data-design="candidate"] pv-widget-host [data-energy] > .pv-vehicle-energy {animation:none;}
+}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] pv-widget-host [data-energy] > .pv-vehicle-energy {display:none !important;}
+}
+
+/* Music discovery keeps its existing Hero + two ListRows, but reserves the
+   complete artwork/copy/action composition within a short desktop display. */
+@media (min-width:1000px) and (min-height:641px) and (max-height:900px) {
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] {--pv-music-discovery-height:min(410px, calc(100dvh - 296px)); --pv-music-feature-art:min(260px, calc(var(--pv-music-discovery-height) - 150px));}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #music-response[data-discovery-collection="mood"] #result-list:has(> .result[data-artwork-role]) {
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr);
+    grid-template-rows:repeat(2,minmax(0,1fr));
+    height:var(--pv-music-discovery-height);
+    min-height:0;
+    gap:16px;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] #result-list > .result.pv-hero:first-child {
+    padding:24px;
+    grid-template-columns:minmax(0,1fr) 48px;
+    grid-template-rows:var(--pv-music-feature-art) minmax(0,1fr);
+    gap:16px;
+    height:var(--pv-music-discovery-height);
+    min-height:0;
+    align-content:start;
+    box-shadow:inset 0 0 0 1px var(--pv-line);
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] #result-list > .result.pv-hero:first-child > .result-art {
+    width:var(--pv-music-feature-art);
+    height:var(--pv-music-feature-art);
+    max-width:100%;
+    max-height:none;
+    justify-self:center;
+    object-fit:cover;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] #result-list > .result.pv-hero:first-child > .result-copy > h2 {
+    font:600 20px/26px var(--pv-font);
+    max-height:52px;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] #result-list > .result.pv-row {
+    padding:20px;
+    grid-template-columns:112px minmax(0,1fr);
+    grid-template-rows:minmax(0,1fr) 48px;
+    gap:8px 16px;
+    height:calc((var(--pv-music-discovery-height) - 16px) / 2);
+    min-height:0;
+    box-shadow:inset 0 0 0 1px var(--pv-line);
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] #result-list > .result.pv-row > .result-art {width:112px; height:112px;}
+  :root[data-design="candidate"] pv-widget-host #music-response[data-discovery-collection="mood"] #result-list > .result > .result-play {width:48px; height:48px; min-width:48px; min-height:48px;}
+}
+
+/* A result is itself the existing button. Press feedback belongs to its image
+   and play mark; pending content stays readable and the target stays still. */
+:root[data-design="candidate"] pv-widget-host #result-list > .result > .result-art {
+  transform-origin:center;
+  transition:transform 180ms cubic-bezier(.2,.8,.2,1);
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result:not(:disabled):not([aria-disabled="true"]):active > .result-art {transform:scale(.975);}
+:root[data-design="candidate"] pv-widget-host #result-list > .result > .result-play {
+  transition:background-color 160ms ease, box-shadow 160ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result:not(:disabled):not([aria-disabled="true"]):active > .result-play {
+  background:var(--pv-ink) !important;
+  box-shadow:0 0 0 4px var(--pv-surface-2);
+}
+:root[data-design="candidate"] pv-widget-host #result-list > .result:not(:disabled):not([aria-disabled="true"]):active > .result-play img {filter:brightness(0) invert(1);}
+@media (prefers-reduced-motion:reduce) {
+  :root[data-design="candidate"] pv-widget-host #result-list > .result > .result-art {transition:none; transform:none !important;}
+}
+
+/* At tablet width, retain the persistent player and give the left column two
+   usable Small tracks. Only composition changes; controls/anatomy are shared. */
+@media (min-width:760px) and (max-width:1099px) and (min-height:700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) {
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    grid-template-rows:340px repeat(4,var(--pv-card-row-height)) !important;
+    grid-auto-rows:var(--pv-card-row-height);
+  }
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-weather {
+    grid-column:1 / 3 !important; grid-row:1 !important; height:340px;
+    background-image:var(--pv-candidate-cloud);
+    background-position:right 16px top 16px;
+    background-size:160px auto;
+    background-repeat:no-repeat;
+  }
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-weather:not([data-weather-tone="partlycloudy"], [data-weather-tone="cloudy"]),
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-weather[data-weather-stale="true"] {background-image:none;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > .resource-card[data-kind="vacuum"] {grid-column:1 / 3 !important; grid-row:2 !important;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > .resource-card[data-kind="light"] {grid-column:1 !important; grid-row:3 !important;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-vehicle {grid-column:2 !important; grid-row:3 !important;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-music:not([data-kit-size]) {grid-column:1 !important; grid-row:4 !important;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-radio:not([data-kit-size]) {grid-column:2 !important; grid-row:4 !important;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #home-recipes:not([data-kit-size]) {grid-column:1 !important; grid-row:5 !important;}
+  :root[data-design="candidate"] pv-widget-host[data-view="active"]:not([data-library-widget-sizes]) #now-view:not([hidden]) > #timer-card:not([data-kit-size]) {grid-column:2 !important; grid-row:5 !important;}
+}
+
+/* Current rooms use the same 24px card inset / 16px content rhythm as the
+   detail controls. List default margins must not add a second spacing owner. */
+:root[data-design="candidate"] pv-widget-host pv-robot-control-panel .robot-current-rooms {gap:16px;}
+:root[data-design="candidate"] pv-widget-host pv-robot-control-panel .robot-current-room-list {margin:0;}
+
+/* Cleaning and pause share top-anchored copy and bottom-anchored transport.
+   A missing observed progress value leaves space, never a fabricated meter. */
+:root[data-design="candidate"] pv-widget-host pv-robot-control-panel pv-vacuum-widget.pv-kit-hero[data-component][data-kit-density="compact"]:is([data-resource-status="cleaning"], [data-resource-status="paused"]) {justify-content:flex-start;}
+:root[data-design="candidate"] pv-widget-host pv-robot-control-panel pv-vacuum-widget:is([data-resource-status="cleaning"], [data-resource-status="paused"]) > .pv-content {margin-block:0; flex-shrink:0;}
+:root[data-design="candidate"] pv-widget-host pv-robot-control-panel pv-vacuum-widget:is([data-resource-status="cleaning"], [data-resource-status="paused"]) > .transport {margin-top:auto !important; flex-shrink:0;}
+
+/* Recipe feedback is a receipt for an actual completed step. Stable rows
+   transition locally; no page entrance or recurring decorative activity. */
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li {
+  transition:background-color 240ms ease, border-color 240ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li > [data-recipe-step-number] {
+  position:relative;
+  transition:background-color 220ms ease, color 160ms ease, border-color 220ms ease, transform 140ms ease;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li > [data-recipe-step-number]::after {
+  content:'';
+  position:absolute;
+  inset:0;
+  display:grid;
+  place-items:center;
+  font-size:18px;
+  color:var(--pv-recipe-ink);
+  background:var(--pv-recipe-ink);
+  mask:url('/assets/icons/check2.svg') center / 20px 20px no-repeat;
+  opacity:0;
+  transform:scale(.65);
+  clip-path:inset(0 100% 0 0);
+  transition:opacity 160ms ease, transform 280ms cubic-bezier(.2,.8,.2,1), clip-path 280ms ease;
+  pointer-events:none;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li[data-completed="true"] > [data-recipe-step-number]::after {
+  opacity:1;
+  transform:scale(1);
+  clip-path:inset(0);
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] li:has(> button:active) > [data-recipe-step-number] {transform:scale(.92);}
+@media (prefers-reduced-motion:reduce) {
+  :root[data-design="candidate"] pv-widget-host #recipe-view [data-recipe-layout="reading"] :is(li, [data-recipe-step-number], [data-recipe-step-number]::after) {transition:none;}
+}
+
+/* Weather material reads the existing admitted tone/phase projection.
+   It represents condition only, never wind speed, rainfall quantity or progress. */
+:root[data-design="candidate"] [data-weather-tone="clear"] {--pv-weather-material:url("/comparison/references/weather-clear.svg");}
+:root[data-design="candidate"] [data-weather-tone="cloudy"] {--pv-weather-material:url("/comparison/references/weather-cloudy.svg");}
+:root[data-design="candidate"] [data-weather-tone="partlycloudy"] {--pv-weather-material:var(--pv-candidate-cloud);}
+:root[data-design="candidate"] [data-weather-tone="rain"] {--pv-weather-material:url("/comparison/references/weather-rain.svg");}
+:root[data-design="candidate"] [data-weather-tone="snow"] {--pv-weather-material:url("/comparison/references/weather-snow.svg");}
+:root[data-design="candidate"] [data-weather-tone="fog"] {--pv-weather-material:url("/comparison/references/weather-fog.svg");}
+:root[data-design="candidate"] [data-weather-tone="wind"] {--pv-weather-material:url("/comparison/references/weather-wind.svg");}
+:root[data-design="candidate"] [data-weather-tone="storm"] {--pv-weather-material:url("/comparison/references/weather-storm.svg");}
+:root[data-design="candidate"] [data-weather-tone="clear"][data-weather-phase="night"] {--pv-weather-material:url("/comparison/references/weather-night.svg");}
+@media (min-width:760px) and (min-height:700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #home-weather[data-weather-tone]:not([data-weather-tone="neutral"]):not([data-weather-stale="true"]) {
+    background-image:var(--pv-weather-material, none);
+    background-repeat:no-repeat;
+    background-position:right 12px top 24px;
+    background-size:min(58%,248px) auto;
+  }
+  :root[data-design="candidate"] pv-widget-host #weather-view .weather-current[data-weather-state="current"][data-weather-tone]:not([data-weather-tone="neutral"]) {
+    background-image:var(--pv-weather-material, none);
+    background-repeat:no-repeat;
+    background-position:right 24px top 20px;
+    background-size:min(26%,184px) auto;
+  }
+}
+@media (min-width:760px) and (max-width:1099px) and (min-height:700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #home-weather[data-weather-tone]:not([data-weather-tone="neutral"]):not([data-weather-stale="true"]) {background-size:160px auto; background-position:right 16px top 16px;}
+}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] pv-widget-host :is(#home-weather, #weather-view .weather-current) {background-image:none !important;}
+}
+
+/* Timer shortcut: the existing navigation chevron has its own trailing slot.
+   Do not let it fall into the status text's line box. Active timer controls
+   retain TimerView ownership and are not affected by this shortcut rule. */
+:root[data-design="candidate"] pv-widget-host #now-view #timer-card:not([data-activity-kind="timer"]) > #open-timers > img[src$="chevron-right.svg"] {
+  position:absolute;
+  top:24px;
+  right:20px;
+  left:auto;
+  bottom:auto;
+  width:20px;
+  height:24px;
+  margin:0;
+  pointer-events:none;
+}
+
+/* Player feedback: actual icon source remains authoritative. Two asset-backed
+   layers crossfade only in settled states; owner-owned busy indicators keep
+   their original pseudo-elements and the original image as fallback. */
+:root[data-design="candidate"] pv-widget-host {
+  --pv-control-press-duration:120ms;
+  --pv-control-state-duration:220ms;
+  --pv-control-ease:cubic-bezier(.16,1,.3,1);
+}
+:root[data-design="candidate"] pv-widget-host .player :is(#play-pause,#previous,#next,#volume-mute,#output) {
+  transition:scale var(--pv-control-press-duration) var(--pv-control-ease), background-color var(--pv-control-state-duration) ease;
+}
+:root[data-design="candidate"] pv-widget-host .player :is(#play-pause,#previous,#next,#volume-mute,#output):not(:disabled):not([aria-disabled="true"]):not([aria-busy="true"]):active {scale:.94;}
+/* Pending playback preserves transport roles; generic disabled surfaces must
+   not turn the secondary icons into a new family of outlined buttons. */
+:root[data-design="candidate"] pv-widget-host[data-view="active"] .player[aria-busy="true"] :is(#previous,#next,#volume-mute):disabled:not([aria-busy="true"]) {
+  --pv-button-disabled-bg:transparent;
+  --pv-button-disabled-ink:var(--pv-ink-3);
+  box-shadow:none !important;
+}
+:root[data-design="candidate"] pv-widget-host[data-view="active"] .player[aria-busy="true"] #play-pause:disabled:not([aria-busy="true"]) {
+  --pv-button-disabled-bg:var(--pv-dark);
+  --pv-button-disabled-ink:var(--pv-on-dark);
+  box-shadow:none !important;
+}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="pause-fill.svg"], > img[src$="play-fill.svg"]) {position:relative;}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="pause-fill.svg"], > img[src$="play-fill.svg"]) > img {opacity:0;}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="pause-fill.svg"], > img[src$="play-fill.svg"])::before,
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="pause-fill.svg"], > img[src$="play-fill.svg"])::after {
+  content:"";
+  position:absolute;
+  inset:50% auto auto 50%;
+  width:28px;
+  height:28px;
+  margin:-14px 0 0 -14px;
+  border:0;
+  border-radius:0;
+  /* The primary transport stays dark at every breakpoint; native mobile
+     button text color is not its icon color. */
+  background:var(--pv-on-dark);
+  pointer-events:none;
+  animation:none;
+  transition:opacity var(--pv-control-state-duration) ease, transform var(--pv-control-state-duration) var(--pv-control-ease);
+}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="pause-fill.svg"], > img[src$="play-fill.svg"])::before {
+  mask:url('/comparison/references/pause-solid.svg') center / contain no-repeat;
+  opacity:1;
+  transform:scale(1);
+}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="pause-fill.svg"], > img[src$="play-fill.svg"])::after {
+  mask:url('/assets/icons/play-fill.svg') center / contain no-repeat;
+  opacity:0;
+  transform:scale(.75);
+}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="play-fill.svg"])::before {opacity:0;transform:scale(.75);}
+:root[data-design="candidate"] pv-widget-host #play-pause:not([aria-busy="true"]):has(> img[src$="play-fill.svg"])::after {opacity:1;transform:scale(1);}
+
+/* Selection is a choice, not a success claim. Preserve meaningful owner text
+   in target-status and add the existing check asset only to its empty slot. */
+:root[data-design="candidate"] #room-options > button {
+  transition:background-color 220ms ease, box-shadow 220ms ease;
+}
+:root[data-design="candidate"] #room-options > button > img {transition:scale 120ms var(--pv-control-ease);}
+:root[data-design="candidate"] #room-options > button:not(:disabled):active > img {scale:.9;}
+:root[data-design="candidate"] #room-options > button > .target-status:empty {
+  display:block;
+  width:28px;
+  height:28px;
+  flex:none;
+  background:currentColor;
+  mask:url('/assets/icons/check2.svg') center / 24px no-repeat;
+  opacity:0;
+  transform:scale(.75);
+  transition:opacity 160ms ease,transform 260ms var(--pv-control-ease);
+}
+:root[data-design="candidate"] #room-options > button[aria-pressed="true"] > .target-status:empty {opacity:1;transform:scale(1);}
+@media (prefers-reduced-motion:reduce) {
+  :root[data-design="candidate"] pv-widget-host .player :is(#play-pause,#previous,#next,#volume-mute,#output),
+  :root[data-design="candidate"] pv-widget-host #play-pause::before,
+  :root[data-design="candidate"] pv-widget-host #play-pause::after,
+  :root[data-design="candidate"] #room-options > button > :is(img,.target-status) {transition:none !important;scale:1 !important;}
+}
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] .player :is(#play-pause,#previous,#next,#volume-mute,#output),
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] #play-pause::before,
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] #play-pause::after,
+:root[data-design="candidate"]:has(pv-widget-host[data-motion="reduced"]) #room-options > button > :is(img,.target-status) {transition:none !important;scale:1 !important;}
+
+/* Station descriptions retain their full meaning at tablet widths. The
+   existing fixed card footprint has room for two ordinary text lines. */
+:root[data-design="candidate"] pv-widget-host #radio-view button[data-option-id] > .pv-meta {
+  white-space:normal !important;
+  overflow-wrap:anywhere;
+  line-height:24px;
+  max-width:100%;
+  text-align:start;
+}
+
+/* Answer completion uses retained component slots, with the same short local
+   acknowledgement as recipe steps. Read-only answer rows remain untouched. */
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .checklist[data-read-only="false"] .pv-check::before {
+  content:"";
+  box-sizing:border-box;
+  width:24px;
+  height:24px;
+  border:1px solid var(--pv-ink-3);
+  border-radius:6px;
+  opacity:1;
+  background:var(--pv-surface) url('/assets/icons/check2.svg') center / 0 0 no-repeat;
+  transition:background-size 220ms var(--pv-control-ease), border-color 180ms ease, scale 120ms var(--pv-control-ease);
+}
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .checklist[data-read-only="false"] .pv-check[aria-pressed="true"]::before {
+  background-image:url('/assets/icons/check2.svg');
+  background-size:20px 20px;
+  border-color:var(--pv-ink);
+}
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .checklist[data-read-only="false"] .pv-check:not(:disabled):active::before {scale:.9;}
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .guide .pv-step-position:not([hidden]) {
+  position:relative;
+  display:grid;
+  place-items:center;
+  width:48px;
+  height:48px;
+  border:1px solid var(--pv-line);
+  border-radius:12px;
+  background:var(--pv-surface);
+  font:600 22px/28px var(--pv-font);
+  font-variant-numeric:tabular-nums;
+  transition:background-color 220ms ease,color 160ms ease,border-color 220ms ease;
+}
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .guide .pv-step-position::after {
+  content:"";
+  position:absolute;
+  inset:10px;
+  background:var(--pv-on-dark);
+  mask:url('/assets/icons/check2.svg') center / contain no-repeat;
+  opacity:0;
+  transform:scale(.7);
+  transition:opacity 160ms ease,transform 260ms var(--pv-control-ease);
+}
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .guide[data-state="complete"] .pv-step-position {
+  color:transparent;
+  background:var(--pv-ink);
+  border-color:var(--pv-ink);
+}
+:root[data-design="candidate"] #answer-host > pv-answer.answer-widget .guide[data-state="complete"] .pv-step-position::after {opacity:1;transform:scale(1);}
+@media (prefers-reduced-motion:reduce) {
+  :root[data-design="candidate"] #answer-host > pv-answer.answer-widget :is(.pv-check,.pv-step-position) {transition:none;scale:1;}
+}
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] #answer-host > pv-answer.answer-widget :is(.pv-check,.pv-step-position) {transition:none;scale:1;}
+
+@media (prefers-reduced-motion:reduce) {
+ :root[data-design="candidate"] #answer-host .pv-check::before, :root[data-design="candidate"] #answer-host .pv-step-position::after {transition:none;scale:1;}
+}
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] #answer-host .pv-check::before,
+:root[data-design="candidate"] pv-widget-host[data-motion="reduced"] #answer-host .pv-step-position::after {transition:none;scale:1;}
+
+/* The broader detail field stays in the upper 96px status zone, above the
+   measured progress and native transport. It is not another progress meter. */
+:root[data-design="candidate"] pv-widget-host pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-robot-material {
+  width:min(36%,280px);
+  height:100px;
+  mask-size:contain;
+  mask-position:right top;
+  opacity:1;
+  top:12px;
+  right:20px;
+}
+/* A reported progress track and the transport row remain separate groups when
+   tablet-width controls wrap. This space belongs to the progress slot. */
+:root[data-design="candidate"] pv-widget-host pv-robot-control-panel pv-vacuum-widget > .player-progress:not([hidden]) {
+  padding-bottom:16px;
+}
+
+/* Approved shortcut rhythm: identity icon, title, then lighter source/status.
+   Same owner anatomy in standalone Small specimens and the overview. */
+:root[data-design="candidate"] pv-widget-host #now-view
+:is(#home-music, #home-radio, #home-recipes):is([data-overview-size="s"], [data-kit-size="s"]),
+:root[data-design="candidate"] pv-widget-host #now-view
+#timer-card:not([data-activity-kind="timer"]):not([data-kit-size="m"], [data-kit-size="l"]) > #open-timers {
+  --pv-card-primary-y:104px;
+  --pv-card-status-font:400 17px/24px var(--pv-font);
+  --pv-card-status-leading:24px;
+}
+:root[data-design="candidate"] pv-widget-host #now-view
+:is(#home-music, #home-radio, #home-recipes):is([data-overview-size="s"], [data-kit-size="s"]) > span:not(.resource-facts,.resource-context) > strong,
+:root[data-design="candidate"] pv-widget-host #now-view
+#timer-card:not([data-activity-kind="timer"]):not([data-kit-size="m"], [data-kit-size="l"]) > #open-timers > span:not(.resource-facts,.resource-context) > strong {
+  position:absolute !important;inset:68px 20px auto !important; margin:0;
+  font:600 20px/26px var(--pv-font) !important;
+}
+:root[data-design="candidate"] pv-widget-host #now-view
+:is(#home-music, #home-radio, #home-recipes):is([data-overview-size="s"], [data-kit-size="s"]) > span:not(.resource-facts,.resource-context) > small,
+:root[data-design="candidate"] pv-widget-host #now-view
+#timer-card:not([data-activity-kind="timer"]):not([data-kit-size="m"], [data-kit-size="l"]) > #open-timers > span:not(.resource-facts,.resource-context) > small {
+  --pv-t-label:400 17px/24px var(--pv-font);
+  position:absolute;inset:104px 20px auto !important;
+  font:400 17px/24px var(--pv-font) !important;
+}
+:root[data-design="candidate"] pv-widget-host #now-view
+:is(#home-music, #home-radio, #home-recipes, #home-vehicle):is([data-overview-size="s"], [data-kit-size="s"])::after,
+:root[data-design="candidate"] pv-widget-host #now-view #home-vehicle:not([data-kit-size="m"],[data-kit-size="l"])::after,
+:root[data-design="candidate"] pv-widget-host #now-view
+#timer-card:not([data-activity-kind="timer"]):not([data-kit-size="m"], [data-kit-size="l"]) > #open-timers::after {top:24px;bottom:auto;}
+:root[data-design="candidate"] pv-widget-host #now-view
+#home-radio:is([data-overview-size="s"], [data-kit-size="s"]) {background:var(--pv-surface) !important;}
+:root[data-design="candidate"] pv-widget-host .player #player-title {font-weight:600;}
+
+:root[data-design="candidate"] pv-widget-host #now-view
+:is(#home-music, #home-radio):is([data-overview-size="s"], [data-kit-size="s"]) .overview-media-title {font-weight:400 !important;}
+/* Pinned kit's shared :is(...,#timer-card>#open-timers) status rule carries
+   three IDs. Match that specificity for this existing Small text role. */
+:root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) #home-recipes#home-recipes:is([data-overview-size="s"],[data-kit-size="s"]) > span > small:not([hidden]) {
+  font:400 17px/24px var(--pv-font) !important;
+}
+
+/* Narrow overview retains the same material identities in free space.
+   The title remains an uninterrupted reading line; no data is inferred. */
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host .resource-preview[data-kind="vacuum"][data-resource-status][data-material-owner="robot-motion"] > .pv-robot-material {
+    width:min(32%,112px);
+    top:auto;
+    bottom:12px;
+    right:16px;
+  }
+}
+@media (min-width:360px) and (max-width:759px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #home-weather[data-weather-tone]:not([data-weather-tone="neutral"]):not([data-weather-stale="true"]):not([data-kit-size="s"],[data-kit-size="m"]) {
+    background-image:var(--pv-weather-material,none);
+    background-repeat:no-repeat;
+    background-size:min(40%,140px) auto;
+    background-position:right 16px top 36px;
+  }
+}
+
+/* Narrow touch controls retain the progress slot, with a 16px outer inset.
+   The shared kit still adds its spinner width and gap on both sides. */
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host {--pv-button-content-inset:16px;}
+}
+/* The narrow robot hero gives metadata a complete row. Reserve the small
+   material only beside the status, rather than shrinking all copy to72%. */
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-content {
+    max-width:none;width:100%;padding-right:0;
+    grid-template-columns:40px minmax(0,1fr);column-gap:12px;
+  }
+  :root[data-design="candidate"] pv-widget-host pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-content > .pv-resource-value {padding-right:64px;}
+  :root[data-design="candidate"] pv-widget-host pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-content > .pv-meta {grid-column:1 / -1;max-width:none;}
+  :root[data-design="candidate"] pv-widget-host pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-content > .pv-instrument {width:40px;height:40px;}
+  :root[data-design="candidate"] pv-widget-host pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-robot-material {width:64px;top:20px;right:20px;}
+}
+@media (max-width:599px) {
+  /* On detail pages the destination title outranks duplicated weather context. */
+  :root[data-design="candidate"] pv-widget-host .view-nav:has(#header-title-action:not([hidden])) #header-weather {display:none;}
+  :root[data-design="candidate"] pv-widget-host #device-view pv-vacuum-widget[data-material-owner="robot-motion"] > .pv-content > .pv-meta {grid-column:1 / -1;}
+}
+
+/* A missing56px thumbnail still has a legible24px identity glyph.
+   Large editorial/cover variants retain their own asset treatment. */
+:root[data-design="candidate"] pv-widget-host #music-response #result-list > .result.pv-row[data-artwork-role] > .result-art.live-art-fallback {
+  padding:16px;object-fit:contain;
+}
+/* One pause silhouette across queue, mini player and transport. */
+:root[data-design="candidate"] img[src$="/pause-fill.svg"] {content:url('/comparison/references/pause-solid.svg');}
+
+/* Mobile discovery preserves the four named destinations and the existing
+   Hero anatomy. Copy and its play mark share one row below the artwork. */
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host #music-refinements {
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-refinements [data-collection] {
+    width:100%; min-width:0; min-height:48px;
+    padding:12px 16px;
+    white-space:normal;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response #result-list > .result:is(.pv-hero,.pv-card)[data-artwork-role] {
+    height:auto;
+    padding:24px;
+    grid-template-columns:minmax(0,1fr) 48px;
+    grid-template-rows:auto auto;
+    gap:20px 12px;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response #result-list > .result:is(.pv-hero,.pv-card)[data-artwork-role] > .result-art {
+    grid-column:1/-1; grid-row:1;
+    width:100%; height:auto; aspect-ratio:1; max-height:none;
+    object-fit:cover;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response #result-list > .result:is(.pv-hero,.pv-card)[data-artwork-role] > .result-copy {
+    grid-column:1; grid-row:2; min-height:0; align-self:center;
+  }
+  :root[data-design="candidate"] pv-widget-host #music-response #result-list > .result:is(.pv-hero,.pv-card)[data-artwork-role] > .result-play {
+    grid-column:2; grid-row:2; align-self:center;
+    width:48px; height:48px; min-width:48px; min-height:48px;
+  }
+}
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host #music-response #result-list > .result.pv-row[data-artwork-role] > .result-copy > h2 {
+    white-space:normal;
+    display:-webkit-box;
+    -webkit-box-orient:vertical;
+    -webkit-line-clamp:2;
+    overflow:hidden;
+    font:600 18px/24px var(--pv-font);
+    max-height:48px;
+  }
+}
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host #music-response #result-list > .result.pv-row[data-artwork-role] {
+    height:auto !important;
+    min-height:96px !important;
+    padding-block:12px;
+    grid-template-rows:auto !important;
+  }
+}
+/* Queue retains order, cover, copy and transport at phone width; desktop's
+   fixed artwork columns must not consume the title's available space. */
+@media (max-width:599px) {
+  :root[data-design="candidate"] pv-widget-host #queue > .queue-track {
+    grid-template-columns:24px 48px minmax(0,1fr) 24px !important;
+    gap:10px;
+    padding:12px;
+    min-height:80px;
+  }
+  :root[data-design="candidate"] pv-widget-host #queue > .queue-track > .queue-cover {
+    width:48px; height:48px; border-radius:12px;
+  }
+  :root[data-design="candidate"] pv-widget-host #queue > .queue-track > .queue-cover.live-art-fallback {padding:12px;}
+  :root[data-design="candidate"] pv-widget-host #queue .queue-copy > strong {font:600 16px/22px var(--pv-font);}
+  :root[data-design="candidate"] pv-widget-host #queue .queue-copy > small {font:400 14px/20px var(--pv-font);}
+}
+
+/* Medium overview: graphics and command have separate fixed slots. Pending
+   retains the command slot; navigation remains on the existing whole tile. */
+@media (min-width:1100px) and (min-height:700px) {
+  :root[data-design="candidate"] pv-widget-host #now-view > .resource-card[data-kind="vacuum"]:has(> .resource-direct-action:not([hidden])) > .resource-preview > .pv-robot-material {
+    width:190px;
+    height:72px;
+    top:12px;
+    right:16px;
+    bottom:auto;
+    mask-size:contain;
+  }
+  :root[data-design="candidate"] pv-widget-host #now-view > .resource-card[data-kind="vacuum"] > .resource-direct-action:not([hidden]) {
+    top:auto;
+    bottom:16px;
+    right:24px;
+    transform:none;
+  }
+}
+
+/* Light identity uses observed brightness, never the slider's pending draft.
+   The overview's existing free material zone keeps text and actions readable. */
+:root[data-design="candidate"] pv-widget-host .resource-preview[data-kind="light"][data-light-material] {
+  position:relative;
+  isolation:isolate;
+  background-image:none !important;
+}
+:root[data-design="candidate"] pv-widget-host .resource-card:not(:has(> .resource-direct-action:not([hidden]))) > .resource-preview[data-kind="light"][data-light-material]::after {
+  content:'';
+  position:absolute;
+  right:8px;
+  bottom:8px;
+  width:min(64%,135px);
+  height:112px;
+  pointer-events:none;
+  mask:var(--pv-candidate-light) center / contain no-repeat;
+  background:var(--pv-light-ink,#946400);
+  opacity:var(--pv-light-material-opacity,0);
+  transform:scale(var(--pv-light-material-scale,.8));
+  transform-origin:bottom right;
+  transition:opacity 220ms ease,transform 280ms cubic-bezier(.16,1,.3,1);
+}
+:root[data-design="candidate"] pv-widget-host .resource-preview[data-light-material-motion="settled"]::after {transition:none !important;}
+:root[data-design="candidate"] pv-widget-host .resource-preview:is([data-light-material="off"],[data-light-material="unknown"])::after {display:none;}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] pv-widget-host .resource-preview[data-light-material]::after {display:none;}
+}
+
+/* Rooms carry the shared light identity; lamp rows keep the compact control
+   anatomy and express observed intensity through their existing on surface. */
+:root[data-design="candidate"] pv-widget-host .light-room-power[data-light-material] {
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+}
+:root[data-design="candidate"] pv-widget-host .light-room-power[data-light-material]::after {
+  content:'';
+  position:absolute;
+  right:16px;
+  bottom:16px;
+  width:min(45%,172px);
+  height:132px;
+  mask:var(--pv-candidate-light) center / contain no-repeat;
+  background:var(--pv-light-ink);
+  opacity:var(--pv-light-material-opacity,0);
+  transform:scale(var(--pv-light-material-scale,.8));
+  transform-origin:bottom right;
+  pointer-events:none;
+  transition:opacity 220ms ease,transform 280ms cubic-bezier(.16,1,.3,1);
+}
+:root[data-design="candidate"] pv-widget-host .light-room-power[data-light-material] > .light-room-copy {max-width:55%;}
+:root[data-design="candidate"] pv-widget-host .light-room-power:is([data-light-material="off"],[data-light-material="unknown"])::after {display:none;}
+:root[data-design="candidate"] pv-widget-host .light-room-power[data-light-material-motion="settled"]::after {transition:none;}
+:root[data-design="candidate"] pv-widget-host .light-lamp-row[data-light-material="on"][data-light-level-known="true"] > .light-lamp-toggle:not([aria-busy="true"]) {
+  background:color-mix(in srgb,var(--pv-light-strong) calc(var(--pv-light-material-opacity) * 100%),var(--pv-surface));
+  transition:background-color 220ms ease;
+}
+:root[data-design="candidate"] pv-widget-host .light-lamp-row[data-light-material-motion="settled"] > .light-lamp-toggle {transition:none;}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] pv-widget-host .light-room-power[data-light-material]::after {display:none;}
+}
+
+/* The existing deadline-driven ring remains authoritative. A static material
+   mask turns its trailing quadrant into square cells without adding progress. */
+:root[data-design="candidate"] pv-widget-host .timer-panel[data-progress-known="true"]:not([data-stale="true"]) .timer-progress,
+:root[data-design="candidate"] pv-widget-host .timer-panel[data-status="done"]:not([data-stale="true"]) .timer-track {
+  mask:url('/comparison/references/timer-material-mask.svg') center / 100% 100% no-repeat;
+  mask-origin:view-box;
+  mask-clip:view-box;
+}
+@media (forced-colors:active) {
+  :root[data-design="candidate"] pv-widget-host .timer-panel :is(.timer-track,.timer-progress) {mask:none;}
+}
+/* Completion uses a coral alert outline, not a remaining-time measurement.
+   Its acknowledgement follows the shared neutral action family. */
+:root[data-design="candidate"] pv-widget-host .timer-panel[data-status="done"] .timer-track {stroke:var(--pv-candidate-timer-arc) !important;opacity:1;}
+:root[data-design="candidate"] pv-widget-host .timer-panel[data-status="done"] .timer-progress {visibility:hidden;}
+:root[data-design="candidate"] pv-widget-host .timer-panel[data-status="done"] .timer-count,
+:root[data-design="candidate"] #timer-alert .notice-copy > strong {color:var(--pv-candidate-timer-arc) !important;}
+:root[data-design="candidate"] pv-widget-host #timers-view .timer-panel[data-status="done"] .timer-finish,
+:root[data-design="candidate"] #timer-alert #timer-alert-dismiss {
+  --pv-action-secondary-bg:var(--pv-on-dark);
+  --pv-action-secondary-ink:var(--pv-dark);
+  background:var(--pv-on-dark) !important;
+  color:var(--pv-dark) !important;
+  border-color:transparent;
+}
+
+/* The compact global back label may truncate; the existing recipe heading
+   provides the full document title in the reading surface. */
+:root[data-design="candidate"] pv-widget-host #recipe-view:has([data-recipe-layout="intro"]) > .response-heading {
+  display:block;
+  margin:0 0 16px;
+  padding:0;
+  min-height:0;
+}
+:root[data-design="candidate"] pv-widget-host #recipe-view > .response-heading h1 {
+  display:block;
+  font:var(--pv-t-title);
+  max-width:64ch;
+  margin:0;
+  white-space:normal;
+  overflow:visible;
+  text-wrap:balance;
+}
+
+/* A disabled transport uses the kit's pale disabled surface, so its glyph must
+   follow disabled ink rather than the enabled button's on-dark color. */
+:root[data-design="candidate"] pv-widget-host #play-pause:disabled:not([aria-busy="true"])::before,
+:root[data-design="candidate"] pv-widget-host #play-pause:disabled:not([aria-busy="true"])::after {
+  background:var(--pv-button-disabled-ink) !important;
+}
+
+/* 9 November user review: material belongs to the surface edge; content
+   keeps its padding. The negative-space light bulb stays fully identifiable. */
+:root[data-design="candidate"] { --pv-candidate-light:url('/comparison/references/light-bulb-material.svg'); }
+:root[data-design="candidate"] pv-widget-host #now-view #timer-card .timer-panel[data-status="running"][data-stale="false"] > .timer-copy > .timer-state {display:none !important;}
+:root[data-design="candidate"] pv-widget-host .resource-card:not(:has(> .resource-direct-action:not([hidden]))) > .resource-preview[data-kind="light"][data-light-material]::after {
+  right:0; bottom:0; width:112px; height:140px;
+  mask-size:100% 100%; transform:none;
+  opacity:clamp(.65,var(--pv-light-material-opacity,.65),.9);
+}
+:root[data-design="candidate"] pv-widget-host .light-room-power[data-light-material]::after {right:0;bottom:0;transform:none;}
+@media (min-width:1100px) and (min-height:700px) {
+  :root[data-design="candidate"] pv-widget-host[data-view="active"] #now-view:not([hidden]) > #home-weather[data-weather-tone]:not([data-weather-tone="neutral"]):not([data-weather-stale="true"]) {
+    background-position:right -6px top -6px;
+  }
+  :root[data-design="candidate"] pv-widget-host #now-view > .resource-card[data-kind="vacuum"] > .resource-preview > .pv-robot-material {
+    right:-4px; bottom:0; mask-position:right center;
+  }
+  :root[data-design="candidate"] pv-widget-host #now-view > .resource-card[data-kind="vacuum"]:has(> .resource-direct-action:not([hidden])) > .resource-preview > .pv-robot-material {
+    right:-4px;top:-4px;width:166px;height:100px;mask-size:100% 100%;
+  }
+  :root[data-design="candidate"] pv-widget-host #home-vehicle > .pv-vehicle-energy {right:-4px;bottom:0;}
+}

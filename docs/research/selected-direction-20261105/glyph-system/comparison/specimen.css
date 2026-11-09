@@ -1,0 +1,32 @@
+/* Crop the library shell equally on both sides and keep its native specimen DOM. */
+.library-header, .library-sidebar, .library-touch-legend, .component-heading,
+.component-notes, .coverage, .state-toolbar, .variant-family {
+    display: none !important;
+}
+.library-layout, .library-layout > main, #library-workspace {
+    display: block;
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    max-width: none;
+}
+#kit-specimens {
+    display: block;
+    padding: 16px;
+}
+.kit-specimen {
+    padding: 0;
+    border: 0;
+}
+.kit-specimen > h2, .kit-specimen > p, .kit-specimen-measure {
+    display: none;
+}
+.kit-specimen-stage {
+    min-height: 152px;
+    padding: 20px;
+}
+body:not([data-specimen-ready]) #kit-specimens {
+    visibility: hidden;
+}
+.kit-specimen[hidden] { display: none !important; }
+.recipe-anatomy { display: none; }
