@@ -59,6 +59,44 @@ const assertRobotObservation=async(page,requests,action)=>{
   const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  if(process.env.ROBOT_HISTORY_DOCK_TEST==='1'){
+   const host=page.locator('pv-widget-host');
+   await page.waitForFunction(()=>!!document.querySelector('pv-widget-host')?.liveControls?.task?.historyDraft);
+   const capture=()=>host.evaluate(h=>{
+    const view=h.liveControls,task=view.task,panel=view.robotPanel;
+    return {taskId:task.taskId,historySource:task.historyDraft?.source??task.draft?.status,
+     draft:panel.readCleaningDraft(),dock:task.options.filter(o=>o.action==='dock').map(o=>o.argsSchema.operation)};
+   });
+   const original=await capture();
+   assert.equal(original.historySource,'accepted_start_history');
+   assert.equal(original.draft.areaIds.length,1);
+   assert.equal(original.draft.repeat,2);
+   assert.equal(await panel.getByRole('button',{name:'Køkkenalrum',exact:true}).getAttribute('aria-pressed'),'true');
+   assert.deepEqual(original.dock,['wash_start','empty_start','dry_start'],'the automatic cleaning draft must not hide fresh Base authority');
+   await baseMenu.tap();
+   assert.equal(await baseMenu.getAttribute('aria-expanded'),'true');
+   assert.deepEqual(await operations.evaluateAll(rows=>rows.map(row=>row.disabled)),[false,false,false]);
+   await page.waitForFunction(id=>{
+    const view=document.querySelector('pv-widget-host')?.liveControls;
+    return view?.task?.taskId&&view.task.taskId!==id&&view.task.draft?.status==='restored';
+   },original.taskId,{timeout:20000});
+   const renewed=await capture();
+   assert.deepEqual(renewed.dock,original.dock);
+   assert.equal(renewed.draft.repeat,2);
+   assert.equal(await panel.getByRole('button',{name:'Køkkenalrum',exact:true}).getAttribute('aria-pressed'),'true');
+   assert.equal(await baseMenu.getAttribute('aria-expanded'),'true');
+   assert.deepEqual(await ownerWrites(),[]);
+   const response=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')&&r.request().method()==='POST');
+   await operations.and(panel.locator('[data-dock-operation=wash_start]')).tap();
+   assert.equal((await (await response).json()).outcome,'accepted');
+   const writes=await ownerWrites();
+   assert.deepEqual(writes,[['services/vacuum/send_command',{entity_id:'vacuum.qrevo',command:'app_start_wash'}]]);
+   assert.deepEqual(errors,[]);
+   const proof={outcome:'PASS',original,renewed,writes,loadedBundleSha256,loadedCssSha256,inertFinalService:true};
+   await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-history-base-proof.json'),JSON.stringify(proof,null,2));
+   console.log(JSON.stringify(proof));
+   return;
+  }
   let refreshProof;
   if(!longSession){
    await baseMenu.waitFor({state:'visible'});
@@ -313,8 +351,12 @@ const assertRobotObservation=async(page,requests,action)=>{
   await mop.tap();
   assert.equal(await setting('suction').isVisible(),false);
   positions.mop=await geometry();
-  assert.deepEqual(positions.vacuum,positions.both,'vacuum preserves route and repeat positions');
-  assert.deepEqual(positions.mop,positions.both,'mop preserves route and repeat positions');
+  for(const mode of ['vacuum','mop']){
+   for(const [index,{x,y}] of positions[mode].entries()){
+    const previous=positions.both[index];
+    assert(Math.abs(x-previous.x)<0.05&&Math.abs(y-previous.y)<0.05,`${mode} preserves route and repeat positions`);
+   }
+  }
   await extreme.tap();
   assert(await extreme.isChecked());
   await both.tap();

@@ -280,6 +280,58 @@ async def seed(rig):
     return record
 
 
+@pytest.mark.parametrize("dock_error", ["ok", "water_empty"])
+async def test_automatic_history_and_explicit_recipe_keep_independent_dock_grant(
+    fixture, dock_error
+):
+    from integration.test_podview_dock_commands import command_catalog
+
+    rig, bridge, token = fixture
+    rig.configure(entities=list(rig.registry))
+    command_catalog(rig, bridge, error=dock_error)
+    rule = bridge.controls.policy["vacuum"][0]
+    rule["actions"].extend(["start", "reuse"])
+    record = await seed(rig)
+
+    explicit = await bridge.controls.setup(setup_body(bridge, recipeId=record), token)
+    automatic = await bridge.controls.setup(setup_body(bridge, restoreHistoryId=record), token)
+    for offer in (explicit, automatic):
+        assert offer["ok"], offer
+        assert offer["setup"]["historyDraft"]["repeat"] == 2
+        assert len(offer["setup"]["historyDraft"]["areaIds"]) == 1
+    assert [option["action"] for option in explicit["options"]] == ["reuse", "start"]
+    dock_operations = [
+        option["argsSchema"]["operation"]
+        for option in automatic["options"]
+        if option["action"] == "dock"
+    ]
+    assert dock_operations == (
+        ["wash_start", "empty_start", "dry_start"] if dock_error == "ok" else []
+    )
+    for invalid in (
+        {"restoreHistoryId": "not-a-record"},
+        {"restoreHistoryId": record, "recipeId": record},
+        {"restoreHistoryId": record, "renewTaskId": automatic["taskId"]},
+        {"restoreHistoryId": record, "draft": {}},
+    ):
+        assert (await bridge.controls.setup(setup_body(bridge, **invalid), token))[
+            "error"
+        ] == "invalid_setup"
+    assert not rig.writes
+    if dock_operations:
+        dock = next(option for option in automatic["options"] if option["action"] == "dock")
+        command = action_body(automatic, dock)
+        receipt = await bridge.controls.action(command, token)
+        assert receipt["outcome"] == "accepted", receipt
+        assert await bridge.controls.action(command, token) == receipt
+        assert rig.writes == [
+            ("services/vacuum/send_command", {"entity_id": ROBOT, "command": "app_start_wash"})
+        ]
+    rule["actions"].remove("reuse")
+    denied = await bridge.controls.setup(setup_body(bridge, restoreHistoryId=record), token)
+    assert denied["error"] == "target_not_granted"
+
+
 @pytest.mark.parametrize("fail_at", [None, 2])
 async def test_real87_complete_recipe_edits_use_actual_device_prepare_execute_and_abort(
     fixture, fail_at

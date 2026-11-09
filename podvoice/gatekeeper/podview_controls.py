@@ -920,6 +920,7 @@ class TouchControls:
             "domain",
             "target",
             "recipeId",
+            "restoreHistoryId",
             "requestedAction",
             "draft",
             "renewTaskId",
@@ -957,6 +958,15 @@ class TouchControls:
             or not 1 <= len(body["renewTaskId"]) <= 120
         ):
             return failure("invalid_setup")
+        restore_history_id = body.get("restoreHistoryId")
+        if "restoreHistoryId" in body and (
+            domain != "vacuum"
+            or {"recipeId", "draft", "renewTaskId", "requestedAction"} & body.keys()
+            or type(restore_history_id) is not str
+            or not re.fullmatch(r"[a-f0-9]{32}", restore_history_id)
+        ):
+            return failure("invalid_setup")
+        recipe_id = body.get("recipeId", restore_history_id)
         account_id = target.get("accountId")
         recovery_key = (room, account_id if isinstance(account_id, str) else "")
         recovery_move = bool(
@@ -1039,7 +1049,7 @@ class TouchControls:
             ):
                 return failure("invalid_target")
             rule = next((r for r in self.policy[domain] if r["entityId"] == target["entityId"]), {})
-            if "recipeId" in body and rule and "reuse" not in rule["actions"]:
+            if recipe_id is not None and rule and "reuse" not in rule["actions"]:
                 rule = {}
         if not rule and not (domain == "music" and moving):
             return failure("target_not_granted")
@@ -1333,7 +1343,7 @@ class TouchControls:
                     }
                     if (
                         set(rule["actions"]) & {"resume", "pause", "stop", "return"}
-                        and "recipeId" not in body
+                        and recipe_id is None
                     ):
                         facade = VacuumTransport(device)
                         try:
@@ -1376,6 +1386,7 @@ class TouchControls:
                                     "argsSchema": schema,
                                 }
                             )
+                    # The ordinary robot panel may restore a draft and offer Base independently.
                     if (
                         not transport_only
                         and "dock" in rule["actions"]
@@ -1466,14 +1477,14 @@ class TouchControls:
                         )
                         and (
                             set(rule["actions"]) & {"settings", "map", "start"}
-                            or "recipeId" in body
+                            or recipe_id is not None
                         )
                     ):
                         try:
                             offered = await device.display_setup(
                                 target["entityId"],
                                 task["owner"],
-                                body.get("recipeId"),
+                                recipe_id,
                                 map_selection="map" in rule["actions"],
                                 settings_roles=tuple(rule.get("settingsRoles", ())),
                             )
@@ -1490,13 +1501,13 @@ class TouchControls:
                             )
                             task["draft_boot"] = self.bridge.boot_id
                             task["draft_authority"] = self._robot_draft_authority(room, token)
-                            public_options += self._robot_options(task, "recipeId" in body)
+                            public_options += self._robot_options(task, recipe_id is not None)
                             setup = (
                                 {"mapName": offered["data"]["map"]["name"]}
                                 if "map" in offered["data"]
                                 else {}
                             )
-                            if "recipeId" in body:
+                            if recipe_id is not None:
                                 setup["recipeSummary"] = self._recipe_summary(task)
                                 if "start" in rule["actions"]:
                                     draft = self._robot_history_draft(task)

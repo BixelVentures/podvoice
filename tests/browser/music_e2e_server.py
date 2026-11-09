@@ -70,6 +70,7 @@ robot_draft = os.environ.get("ROBOT_DRAFT_TEST") == "1"
 robot_long_session = os.environ.get("ROBOT_LONG_SESSION_TEST") == "1"
 robot_observation = os.environ.get("ROBOT_OBSERVATION_TEST") == "1"
 robot_dock = os.environ.get("ROBOT_DOCK_TEST") == "1"
+robot_history_dock = robot_dock and os.environ.get("ROBOT_HISTORY_DOCK_TEST") == "1"
 robot_slow_posts = []
 robot = RobotRig() if os.environ.get("ROBOT_TEST") == "1" else None
 robot_lab = {"effectDelayMs": 150, "ignoreCommands": False}
@@ -646,6 +647,8 @@ if robot_slow_start or robot_dock:
         robot, app[BRIDGE], state="docked", status="charging", error="ok"
     )
     app[BRIDGE].controls.policy["vacuum"][0]["actions"] = ["settings", "start", "dock"]
+    if robot_history_dock:
+        app[BRIDGE].controls.policy["vacuum"][0]["actions"].append("reuse")
 
 if robot_draft:
     # Keep the actual server-issued task and deadline in agreement, but make
@@ -825,6 +828,14 @@ async def cleanup(_):
     if robot is not None:
         await robot.client.aclose()
 
+
+if robot_history_dock:
+    from integration.test_podview_robot_complete import seed
+
+    async def seed_robot_history(_):
+        await seed(robot)
+
+    app.on_startup.append(seed_robot_history)
 
 app.on_cleanup.append(cleanup)
 web.run_app(app, host="127.0.0.1", port=int(os.environ.get("MUSIC_TEST_PORT", "18973")), print=None)
