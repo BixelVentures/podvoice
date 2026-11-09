@@ -971,7 +971,8 @@ async function personalPlaylistCoverJourney(asset){
    surface.on('request',request=>{
     const pathname=new URL(request.url()).pathname;
     if(request.method()==='POST'&&pathname.startsWith('/view/api/')
-     &&pathname!=='/view/api/music/queue/offer')effects.push(pathname);
+     &&pathname!=='/view/api/music/queue/offer'
+     &&pathname!=='/view/api/client-diagnostics')effects.push(pathname);
    });
    await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
    await env.openOverview(surface);
@@ -1541,13 +1542,14 @@ async function queuePersistenceJourney(){
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
  if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
-  ||discoveryCover||voiceLongSession||documentScope){
+  ||discoveryCover||discoveryPersonalCover||voiceLongSession||documentScope){
   options.args=['--mute-audio'];
  }
  browser=await chromium.launch(options);
  const surfaceOptions={hasTouch:true,viewport:{width:1280,height:800}};
  page=documentScope?await (await browser.newContext(surfaceOptions)).newPage():await browser.newPage(surfaceOptions);
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit||voiceLongSession||documentScope){
+ if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
+  ||discoveryPersonalCover||voiceLongSession||documentScope){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
