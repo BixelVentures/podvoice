@@ -346,6 +346,13 @@ oprydningen, og Green viste til sidst Oplader/100 %. Ingen yderligere robothandl
 behandles som runtimefejl eller som bestået fornyelsesprøve. Den planlagte bekræftelsesbevarelse
 er stadig ikke gentestet på Green; softwarebeviset består. Root ejer fejlen i testinstruksen.
 
+### Green 9. november kl. 15.48 — kølåsningen lokaliseret på 2.0.161 / Speakers 0.26.81
+
+- Fra pauset Ordinary Things i Køkkenalrum blev køforekomst 2, What Is Hip? - Live, valgt én gang. Valgt række viste Starter; derefter skiftede titlen, mens højttaler blev ubekræftet og kø/pause/lydstyrke blev utilgængelige.
+- Ny installeret diagnostik fangede kl. 15.48.24 timeout og `native_health_probe phase=queued`: actor ventede i `Player.RoomMove → captureQueueWriter → radioPrimaryActorState`; worker ventede i `LockTransport → WithStartLock → applyRoomMove`; pipe ventede i faktisk FIFO `File.Write`. Det er nu konkret ejer-/låseevidens, ikke alene et UI-symptom.
+- Analyse: passiv radio-readiness bruger writer-inspection, der venter på lås holdt af blokeret lydskrivning; actor bliver dermed utilgængelig for status. Ejer actual_close_evidence implementerer mindste rettelse med faktisk Linux-FIFO regression og uafhængigt review. Ingen rettelse eller ny release er endnu påstået.
+- Bevis: `/private/tmp/pc81-queue-immediate-1548.txt`, `/private/tmp/pc81-queue-log-1548.txt`, `/private/tmp/pc81-queue-controls-lost.png`. Testmusik stoppet via Spotify; efterfølgende læsning kl. 15.49 viste NONE. Ingen automatisk gentagelse af køhandlingen.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
