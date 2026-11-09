@@ -353,6 +353,10 @@ er stadig ikke gentestet på Green; softwarebeviset består. Root ejer fejlen i 
 - Analyse: passiv radio-readiness bruger writer-inspection, der venter på lås holdt af blokeret lydskrivning; actor bliver dermed utilgængelig for status. Ejer actual_close_evidence implementerer mindste rettelse med faktisk Linux-FIFO regression og uafhængigt review. Ingen rettelse eller ny release er endnu påstået.
 - Bevis: `/private/tmp/pc81-queue-immediate-1548.txt`, `/private/tmp/pc81-queue-log-1548.txt`, `/private/tmp/pc81-queue-controls-lost.png`. Testmusik stoppet via Spotify; efterfølgende læsning kl. 15.49 viste NONE. Ingen automatisk gentagelse af køhandlingen.
 
+### Green 2.0.161 — samlet læsende musiknavigation 9. november
+
+Terra gennemgik alle fire faner i separat Chrome uden afspilningshandlinger: Tid på dagen viste tre billedkort, Vibe tre kort, Din musik udvidede 5→10 og Hør igen 5→7. Ved tilbagevenden til Din musik blev alle ti rækker bevaret, og Tid på dagen viste de tre kort direkte. Intet tomt mellemtrin blev observeret i disse snapshots; det er ikke frame-for-frame bevis for fravær af alle flashes. Syv af første ti Din musik-poster viste Omslag ikke tilgængeligt; tre havde billede. Coverkilden undersøges særskilt. Fysisk iPad og komplet godkendt reference-sammenligning står fortsat åbne.
+
 ## Fælles tilstande og overgangsregler
 
 | Tilstand | Forventet adfærd |
