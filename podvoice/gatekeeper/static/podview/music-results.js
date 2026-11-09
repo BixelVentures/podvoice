@@ -1,6 +1,6 @@
 import {applyKitTextRole,applyKitComponent,applyKitTemplate} from './ui/kit.js';
 import {discoveryPeriod,resultsFor} from './widget-model.js';
-import {MUSIC_THEMES,MUSIC_FEELINGS} from './music-selection-model.js';
+import {MUSIC_THEMES,MUSIC_FEELINGS,playlistArtIndex} from './music-selection-model.js';
 import {MUSIC_DISCOVERY_LIST_STEP} from './music-recommendation-model.js';
 import {spotifyArtwork,generatedMoodArtwork,spotifyItemUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
 
@@ -48,13 +48,40 @@ export function localDiscoveryCards(state){
   return {...card,name:vibe?option.description:card.name,description:vibe?card.name:heading&&index===0?({morning:'Rolig start på dagen',afternoon:'Pop til eftermiddagen',evening:'Jazz til aftenen'}[music.discoveryPeriod]):'',detail:'',fixtureArt:`assets/${vibe?'music-editorial-'+(index+1)+'.svg':option.art}`,artLabel:'Redaktionel illustration'};
  });
 }
+const LOCAL_PLAYLIST_ART = [
+ 'assets/music-editorial-1.svg', 'assets/music-editorial-2.svg', 'assets/music-editorial-3.svg',
+];
+
+function renderLibraryArtwork(image, card, contentIdentity, cover, diagnosticOwner) {
+ const label = `Illustration til ${text(card.name,256)}`;
+ const local = LOCAL_PLAYLIST_ART[playlistArtIndex(card.uri) % LOCAL_PLAYLIST_ART.length];
+ const localBackup = {url:local,identity:`playlist-local|${local}`,label};
+ const cache = typeof card.cachedPlaylistArt === 'string'
+  ? generatedMoodArtwork(card.cachedPlaylistArt, card.cachedPlaylistArt.split('/')[1])
+  : null;
+ const backup = cache ? {url:cache,identity:`playlist-cache|${cache}`,label,backup:localBackup} : localBackup;
+ // Keep accepted Spotify art for the exact row when its refresh has no replacement.
+ if (!cover && image.dataset.artworkContent === contentIdentity && image.dataset.displayedArtwork
+  && image.classList.contains('spotify-artwork')) {
+  cover = spotifyArtwork({kind:'playlist_cover',provider:'spotify',url:image.getAttribute('src')},card.uri);
+ }
+ const artwork = cover ? {
+  url:cover.url,identity:`${card.uri}|${cover.url}`,provider:true,backup,
+  label:`Playlisteomslag til ${text(card.sourceName || card.name,256)}`,
+ } : backup;
+ renderRetainedArtwork(image, {
+  ...artwork,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration,
+ });
+}
+
 export function sourceMusicCards(tracks,kind){
  const rows=['account_playlists','recent'].includes(kind)?tracks:tracks.slice(0,3),occurrences=new Map();
  return rows.map(track=>{
   const themed=!!track.themeTitle,artwork=spotifyArtwork(track.artwork,track.uri),staticArt=(kind==='feeling'?MUSIC_FEELINGS:MUSIC_THEMES)[track.themeId]?.[1],themeArt=['mood','feeling'].includes(kind)&&themed&&/^spotify:playlist:[A-Za-z0-9]{22}$/.test(track.uri)?(kind==='mood'&&generatedMoodArtwork(track.themeArt,track.themeId))||(staticArt&&[staticArt,staticArt.replace(/\.webp$/,'.png')].includes(track.themeArt)?staticArt:null):null;
   // A valid playlist cover is never replaced merely because another row shares it.
   const identity=JSON.stringify([track.uri,track.themeId||track.themeTitle||'']),occurrence=occurrences.get(identity)||0;occurrences.set(identity,occurrence+1);
-  return {id:`source:${identity}:${occurrence}`,name:track.themeTitle||track.name||track.title,description:track.themeTitle?(track.name||track.title):track.artist,detail:track.themeTitle?'':kind==='top'?'Dine topsange':'',uri:track.uri,sourceName:track.name||track.title,sourceArtist:track.artist,artwork,...(themed?{themeId:track.themeId,sourceArtwork:artwork}:{}),...(themeArt?{themeArt,artworkRole:generatedMoodArtwork(themeArt,track.themeId)||!artwork?'editorial':'cover'}:{})};
+  const cachedPlaylistArt = kind === 'account_playlists' ? track.cachedPlaylistArt : null;
+  return {id:`source:${identity}:${occurrence}`,...(cachedPlaylistArt ? {cachedPlaylistArt} : {}),name:track.themeTitle||track.name||track.title,description:track.themeTitle?(track.name||track.title):track.artist,detail:track.themeTitle?'':kind==='top'?'Dine topsange':'',uri:track.uri,sourceName:track.name||track.title,sourceArtist:track.artist,artwork,...(themed?{themeId:track.themeId,sourceArtwork:artwork}:{}),...(themeArt?{themeArt,artworkRole:generatedMoodArtwork(themeArt,track.themeId)||!artwork?'editorial':'cover'}:{})};
  });
 }
 
@@ -123,7 +150,7 @@ export class MusicResults{
   const showPlaceholders=busy&&!cards.length;
   if(!showPlaceholders)for(const row of this.placeholders||[])if(row.parentNode===this.list)row.remove();
   const wanted=new Set(cards.map(card=>card.id));for(const[id,row]of this.rows)if(!wanted.has(id)){this.contentTransitions.get(row)?.();cancelArtwork(row.children[0]);row.remove();this.rows.delete(id);}
-  cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){row=this.create(card.id);this.rows.set(card.id,row);}const contentKey=JSON.stringify([card.name,card.description,card.detail,card.fixtureArt,card.artwork,card.uri,card.themeArt]);const changed=row.contentKey!==undefined&&row.contentKey!==contentKey;if(changed&&!refreshCompleted)this.contentTransitions.get(row)?.();const retainedCover=preserveSourceCover&&card.uri&&row.musicCard?.uri===card.uri
+  cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){row=this.create(card.id);this.rows.set(card.id,row);}const contentKey=JSON.stringify([card.name,card.description,card.detail,card.fixtureArt,card.artwork,card.uri,card.themeArt,card.cachedPlaylistArt]);const changed=row.contentKey!==undefined&&row.contentKey!==contentKey;if(changed&&!refreshCompleted)this.contentTransitions.get(row)?.();const retainedCover=preserveSourceCover&&card.uri&&row.musicCard?.uri===card.uri
     &&!card.artwork&&!card.themeArt&&!card.fixtureArt&&row.children[0].dataset.displayedArtwork;
    const reveal=refreshCompleted&&changed&&!retainedCover?this.captureContent(row):null;row.contentKey=contentKey;row.musicCard=card;if(row.dataset.contentState!=='ready')row.dataset.contentState='ready';if(card.action==='continue')applyKitComponent(row,'hero');
    if(row.dataset.musicGroup!==(card.group||''))row.dataset.musicGroup=card.group||'';
@@ -138,7 +165,10 @@ export class MusicResults{
    if(row.dataset.pending!==String(pending))row.dataset.pending=String(pending);if(row.getAttribute('aria-busy')!==String(pending))row.setAttribute('aria-busy',String(pending));
    const actionIcon=row.children[3].children[0],actionSource=card.action==='continue'&&this.host.state.music.playback.playing?'assets/icons/chevron-right.svg':'assets/icons/play-fill.svg';if(actionIcon.getAttribute('src')!==actionSource)actionIcon.src=actionSource;
    const[art,copy,feedback]=row.children;for(const [node,value]of [[copy.children[0],text(card.name,256)],[copy.children[1],text(card.description,512)],[copy.children[2],text(card.detail,256)],[feedback,pending?'Starter afspilning':'']])if(node.textContent!==value)node.textContent=value;
-   const contentIdentity=JSON.stringify([this.host.liveCatalogue?.account??null,this.host.liveSnapshot?.bootId??null,this.host.liveSnapshot?.roomId??null,card.uri||card.id,card.artworkGeneration??null]);const illustrationLabel=`Illustration til ${text(card.name,256)}`,staticBackup=staticArt?{url:staticArt,identity:`theme-static|${staticArt}`,label:illustrationLabel}:null,actualCover=spotifyArtwork(card.artwork,card.uri),generated=themeArt?{url:themeArt,identity:`theme|${themeArt}`,label:illustrationLabel,backup:staticBackup}:staticBackup,cover=actualCover?{url:actualCover.url,identity:`${card.uri}|${actualCover.url}`,label:`Playlisteomslag til ${text(card.sourceName||card.name,256)}`,provider:true,backup:generated}:generated;if(themeArt||staticArt){renderRetainedArtwork(art,{...cover,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration});}else if(sourceCover){renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,!!actualCover||preserveSourceCover,diagnosticOwner,card.artworkRetryGeneration);}else if(card.fixtureArt&&fixtureArtwork(card.fixtureArt)){renderRetainedArtwork(art,{url:card.fixtureArt,identity:`fixture|${card.fixtureArt}`,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration,label:text(card.artLabel,512)});}else renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,true,diagnosticOwner,card.artworkRetryGeneration);
+   const contentIdentity=JSON.stringify([this.host.liveCatalogue?.account??null,this.host.liveSnapshot?.bootId??null,this.host.liveSnapshot?.roomId??null,card.uri||card.id,card.artworkGeneration??null]);const illustrationLabel=`Illustration til ${text(card.name,256)}`,staticBackup=staticArt?{url:staticArt,identity:`theme-static|${staticArt}`,label:illustrationLabel}:null,actualCover=spotifyArtwork(card.artwork,card.uri),generated=themeArt?{url:themeArt,identity:`theme|${themeArt}`,label:illustrationLabel,backup:staticBackup}:staticBackup,cover=actualCover?{url:actualCover.url,identity:`${card.uri}|${actualCover.url}`,label:`Playlisteomslag til ${text(card.sourceName||card.name,256)}`,provider:true,backup:generated}:generated;
+   if (accountLibrary && /^spotify:playlist:[A-Za-z0-9]{22}$/.test(card.uri)) {
+    renderLibraryArtwork(art, card, contentIdentity, actualCover, diagnosticOwner);
+   } else if(themeArt||staticArt){renderRetainedArtwork(art,{...cover,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration});}else if(sourceCover){renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,!!actualCover||preserveSourceCover,diagnosticOwner,card.artworkRetryGeneration);}else if(card.fixtureArt&&fixtureArtwork(card.fixtureArt)){renderRetainedArtwork(art,{url:card.fixtureArt,identity:`fixture|${card.fixtureArt}`,contentIdentity,quiet:true,diagnosticOwner,retryKey:card.artworkRetryGeneration,label:text(card.artLabel,512)});}else renderSpotifyArtwork(art,{uri:card.uri,name:card.sourceName||card.name,artwork:card.artwork},contentIdentity,true,diagnosticOwner,card.artworkRetryGeneration);
    reveal?.();
    if(card.group&&(index===0||cards[index-1].group!==card.group)){let heading=this.groupHeadings.get(card.group);if(!heading){heading=make(this.doc,'h2','music-group-heading');heading.textContent=card.group;this.groupHeadings.set(card.group,heading);}if(this.list.children[position]!==heading)this.list.insertBefore(heading,this.list.children[position]||null);position++;}if(this.list.children[position]!==row)this.list.insertBefore(row,this.list.children[position]||null);position++;
   });

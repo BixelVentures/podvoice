@@ -36,14 +36,32 @@ export function searchSample(body,account,query,snapshot){
 
 // Account-library reads use their own closed native schema. "Playliste" is a UI
 // type, never a creator claim; opaque occurrences still require a fresh offer.
+export function playlistArtIndex(uri) {
+ let index = 0;
+ for (const char of uri) index = (Math.imul(index, 31) + char.charCodeAt(0)) >>> 0;
+ return index;
+}
+
 export function accountPlaylistsSample(body,account,snapshot,requestedAt=Date.now()){
  const exact=(value,keys)=>!!value&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===keys.length&&keys.every(key=>Object.hasOwn(value,key));
- const outer=['ok','data',...(Object.hasOwn(body||{},'candidateSet')?['candidateSet']:[])],data=body?.data;
+ const outer = ['ok','data'];
+ if (Object.hasOwn(body || {}, 'candidateSet')) outer.push('candidateSet');
+ if (Object.hasOwn(body || {}, 'playlistArtwork')) outer.push('playlistArtwork');
+ const data = body?.data;
  if(!exact(body,outer)||body.ok!==true||!exact(data,['ok','schema','config_entry_id','owner_epoch','source','coverage','limit','returned_count','source_has_more','playlists'])||data.ok!==true||data.schema!=='podconnect.user_playlists.v1'||!text(account,1024)||data.config_entry_id!==account||!text(data.owner_epoch,128)||data.source!=='spotify_web_api'||data.coverage!=='first_page'||data.limit!==20||typeof data.source_has_more!=='boolean'||!Array.isArray(data.playlists)||data.playlists.length>20||!integer(data.returned_count,0,20)||data.returned_count!==data.playlists.length||!text(snapshot?.bootId,1024)||!text(snapshot?.roomId,1024)||!snapshot.capabilities?.musicRead?.includes('account_playlists')||!Number.isFinite(requestedAt)||requestedAt>Date.now()||requestedAt+60000<=Date.now())return null;
+ const pool = body.playlistArtwork;
+ const playlistArtwork = Array.isArray(pool) && pool.length <= Object.keys(THEMES).length
+  ? [...new Set(pool.filter(url => typeof url === 'string')
+   .map(url => generatedMoodArtwork(url, url.split('/')[1])).filter(Boolean))].sort()
+  : [];
  const tracks=[],uris=new Set();for(const row of data.playlists){
   if(!exact(row,['uri','name',...(Object.hasOwn(row||{},'artwork')?['artwork']:[])])||!PLAYLIST.test(row.uri)||uris.has(row.uri)||!text(row.name,256)||!row.name.trim())return null;
   const artwork=Object.hasOwn(row,'artwork')?spotifyArtwork(row.artwork,row.uri):null;if(Object.hasOwn(row,'artwork')&&!artwork)return null;
-  uris.add(row.uri);tracks.push({uri:row.uri,name:row.name,artist:'Playliste',artwork});
+  const cachedPlaylistArt = playlistArtwork.length
+   ? playlistArtwork[playlistArtIndex(row.uri) % playlistArtwork.length]
+   : null;
+  uris.add(row.uri);
+  tracks.push({uri:row.uri,name:row.name,artist:'Playliste',artwork,...(cachedPlaylistArt ? {cachedPlaylistArt} : {})});
  }
  const source={tracks,sourceKind:'account_playlists',ownerEpoch:data.owner_epoch,coverage:'first_page',sourceHasMore:data.source_has_more,expiresAt:requestedAt+60000,context:null,items:[]};
  if(!Object.hasOwn(body,'candidateSet'))return source;

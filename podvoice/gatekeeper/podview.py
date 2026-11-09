@@ -3439,6 +3439,16 @@ def _music_cache_fresh(key, value):
     return True
 
 
+def _music_read_response(kind, result, bridge, room, account):
+    if kind == "targets":
+        result = podview_room_media.scope_targets(result, bridge, room, account)
+    if kind == "account_playlists" and result.get("ok") and result["data"]["playlists"]:
+        owner = getattr(bridge.tools, "podview_theme_art", None)
+        if owner is not None and (artwork := owner.store.cached_playlist_artwork()):
+            result = {**result, "playlistArtwork": artwork}
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
+
+
 async def _music(request: web.Request) -> web.Response:
     from . import mood_diagnostics as diagnostic_log
 
@@ -3633,12 +3643,7 @@ async def _music(request: web.Request) -> web.Response:
             candidate_set = _music_search_candidate_set(search_context, result.get("data"))
             if candidate_set is not None:
                 result["candidateSet"] = candidate_set
-        return web.json_response(
-            podview_room_media.scope_targets(result, bridge, room, account)
-            if kind == "targets"
-            else result,
-            headers={"Cache-Control": "no-store"},
-        )
+        return _music_read_response(kind, result, bridge, room, account)
     if kind != "playback" and len(bridge._music_cache) >= 16:
         return _error("music_capacity", 429)
     if bridge._music_busy:
@@ -3732,12 +3737,7 @@ async def _music(request: web.Request) -> web.Response:
             )
         if completion is not None:
             completion.set_result(True)
-        return web.json_response(
-            podview_room_media.scope_targets(result, bridge, room, account)
-            if kind == "targets"
-            else result,
-            headers={"Cache-Control": "no-store"},
-        )
+        return _music_read_response(kind, result, bridge, room, account)
     finally:
         if completion is not None:
             if not completion.done():

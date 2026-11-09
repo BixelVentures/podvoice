@@ -591,11 +591,11 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "bdb9ffe4b3bd06557eb1073aab6c91d5dd997232af105f0a84e29653d71173c4"
+      "sha256": "e0ee7988dd4dfcb2c8ef6159443e2e582654e9f29b4183faeb468e12d34e0e41"
     },
     {
       "path": "music-selection-model.js",
-      "sha256": "7082e5f575411f08121c04497cc90a9b89b67b0bed9c419da972f6245fbaa80f"
+      "sha256": "c82f1197cedfc47d1b2c86a2efb1cd305d13a96a158263f88a48f549840ab1b4"
     },
     {
       "path": "ordbog.css",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "5e0574adc9f17399c6183155a74f140ac73b43b5c5992060e218bd0b3ae1533c"
+      "sha256": "6ed4bb7f9644e3132eadfa4e1ebe0b51c4c5f80d5333be882b93ba97f779b7ca"
     },
     {
       "path": "podview.css",
