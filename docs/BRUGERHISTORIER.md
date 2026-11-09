@@ -259,10 +259,24 @@ sammenhængen. Spotify Pause under oprydningen gav ukendt udfald, og næste afl�
 Lokale aflæsninger er `pc80-pause-owner-1505.json`, `pc80-queue-owner-lost-1505.json` og
 `pc80-health-after-queue-1506.txt`.
 
+**Leadbeslutning om køfejlen.** To afgrænsede Linux-prøver afgjorde ikke årsagen. Næste
+foreslåede skridt er at registrere den første fejltype ved Native-status, hvor Native-aktøren
+eller kaldet til C blokeres under sessionslukning, og C-ejerens årsag til at fjerne sessionen.
+Brug eksisterende logveje med faste grænser og redigerede felter. Musikagenten afklarer filer,
+udløser og grænser med lead før implementation. En ny fysisk prøve afventer denne måling.
+Diagnostikken skal skelne årsager uden at ændre afspilningen. Køfejlen står fortsat åben.
+
 **Timer og lys på Green 2.0.160.** Ny timer kunne sættes fra 5:00 til 6:00 og tilbage før start.
 Efter start viste overblikket 4:58 og detaljen 4:55. Den aktive detalje viste kun »Annuller«.
 Annullering ved 4:53 fjernede timeren fra overblikket før udløb. Lysvisningen meldte Hue ikke
 forbundet. Et faktisk lysforløb afventer forbindelse.
+
+Timeradapteren afviste den form, HA faktisk returnerer for v2-timerens selectorer, og faldt
+tilbage til v1 uden aktiv +1/−1. Den reviewede rettelse `b94296ab` godkender de konkrete
+HA-standardværdier. Samme pakkede Chromium-prøve skiftede fra v1 til v2 og gennemførte seks
+justeringer hos samme inerte timerejer med dækket pause og genoprettelse efter ukendt udfald.
+En prøve bruger HA's faktiske service-serialisering og afventer officiel CI. Timerrettelsen kan
+leveres med den mergede robotrettelse i `c2b5d55a`. Publicering og Green-prøve afventer.
 
 Efter opdateringen åbnede den aktive Burgerboller-widget direkte på trin 2 af 5 med én af ti
 ingredienser markeret og 15 stk. Galleriet gik fra 1/3 til 2/3 og lukkede tilbage til opskriften.
@@ -283,7 +297,7 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 |---|---|---|
 | 1 · Adgang og navigation (G1–G6) | Åben. Eksisterende HA-login gav adgang. Den eksisterende fane genforbandt efter add-on-genstart. | Kold åbning og genoptagelse på iPad, genoprettelse efter fejl, navigation under opdatering og sammenligning af de aftalte flader. |
 | 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | Åben. Hør igen viste valgt titel og cover. Fire faner og listeudvidelse bevarede forslagene. På Køkkenalrum bekræftede Speakers pause efter afspilning. | Faktiske tidsmål, betjening efter ti minutters afspilning, eksterne ændringer og endnu uprøvede valg i Find musik. |
-| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Accepteret køvalg efterlod ubekræftet højttaler og deaktiveret betjening. Ved anden prøve forblev Køkkenalrum valgt, mens ejerens titel og volumen forsvandt. | Følg kvittering `dd7a459a0f110e50`, ændringen af sessionsepoch og native-sundhedskontrollen. Gentag køforløbet efter rettelse. Højttalerskift afventer tilgængelig modtager. Frida var slukket. |
+| 3 · Kø og højttalere (K1–K7, H1, H4–H10) | Åben. Accepteret køvalg efterlod ubekræftet højttaler og deaktiveret betjening. Ved anden prøve forblev Køkkenalrum valgt, mens ejerens titel og volumen forsvandt. | Afgræns den første Native-fejl og årsagen til sessionsfjernelse. Fysisk gentagelse afventer den aftalte diagnostik. Højttalerskift afventer tilgængelig modtager. Frida var slukket. |
 | 4 · Radio (R1–R6) | Åben. 0.26.79 afviste passiv klargøring med `start_busy`. 0.26.80 blev installeret på Green kl. 14.58. | Aflæs klart tilbud på 0.26.80 før stationsvalg, skift, Stop og tilbagevenden til Spotify. |
 | 5 · Opskrifter (O1, O4–O8, O10) | Åben. Kataloget viste syv faktiske billeder. Bevarelse, afslutning med aktiv timer og upload er dokumenteret ovenfor. | Visningens opstart og resterende undersider mod referencen samt iPhone-genvejens konkrete HTTP-kvittering. |
 | 6 · Robot (S1–S16) | Åben. Navigation bevarede Base og kladden Gang, Støvsug, Stille og 1×. Start, Pause, Fortsæt og retur til opladning er observeret. | Den mergede dialogrettelse i PR #342 afventer installation og målrettet prøve. Stop, tidsmål, Base-kommandoer og øvrige tilstandsgrene afventer. |
