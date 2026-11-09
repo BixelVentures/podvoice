@@ -1,3 +1,7 @@
+## 2.0.164
+
+- Bevar opskriftskatalogets rulleposition, når du går tilbage fra en opskrift.
+
 ## 2.0.163
 
 - Vis grafik fra den eksisterende billedcache eller en lokal illustration, når Spotify-omslaget mangler på en personlig playliste.
