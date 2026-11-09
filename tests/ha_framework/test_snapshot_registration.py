@@ -102,6 +102,8 @@ class SnapshotRegistrationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_native_timer_v2_alias_schema_receipts_and_unload(self):
         from custom_components.podvoice import async_unload_entry
+        from homeassistant.components.api import async_services_json
+        from podvoice.gatekeeper.ha_timers import HomeAssistantTimers
 
         bridge = self.hass.data["podvoice"]
         endpoint = next(iter(bridge.devices))
@@ -118,6 +120,9 @@ class SnapshotRegistrationTests(unittest.IsolatedAsyncioTestCase):
             )
 
         self.assertTrue(self.hass.services.has_service("podvoice", "timer_command_v2"))
+        adapter = HomeAssistantTimers(None, "")
+        adapter.discover(await async_services_json(self.hass))
+        self.assertEqual(adapter.command_service, "timer_command_v2")
         start = {"request_id": "alias-start", "action": "start", "seconds": 120}
         created = await call("timer_command", **start)
         self.assertTrue(created["ok"])

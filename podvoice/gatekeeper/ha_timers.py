@@ -92,23 +92,30 @@ class HomeAssistantTimers:
             v2 = services.get("timer_command_v2", {})
             if valid(v2, _V2_FIELDS, [*_ACTIONS, "adjust"]):
                 fields = v2["fields"]
-                selectors: dict[str, dict] = {
-                    key: {"text": None} for key in _V2_FIELDS - {"action"}
-                }
-                selectors["seconds"] = {"number": {"min": 1, "max": 86400, "mode": "box"}}
-                selectors["delta_seconds"] = {
-                    "number": {"min": -86400, "max": 86400, "mode": "box"}
-                }
-                selectors["lookup_only"] = {"boolean": None}
-                if (
-                    all(
+
+                def exact_selectors(fields: dict, *, normalized: bool) -> bool:
+                    # HA validates services.yaml before returning /api/services.
+                    text = {"multiline": False, "multiple": False} if normalized else None
+                    selectors: dict[str, dict] = {
+                        key: {"text": text} for key in _V2_FIELDS - {"action"}
+                    }
+                    number = {"max": 86400, "mode": "box"}
+                    if normalized:
+                        number["step"] = 1
+                    selectors["seconds"] = {"number": {"min": 1, **number}}
+                    selectors["delta_seconds"] = {"number": {"min": -86400, **number}}
+                    selectors["lookup_only"] = {"boolean": {} if normalized else None}
+                    return all(
                         isinstance(fields[key], dict)
                         and fields[key].get("selector") == selector
                         and fields[key].get("required", False)
                         is (key in {"endpoint", "epoch", "request_id"})
                         for key, selector in selectors.items()
                     )
-                    and fields["action"].get("required") is True
+
+                if fields["action"].get("required") is True and (
+                    exact_selectors(fields, normalized=True)
+                    or exact_selectors(fields, normalized=False)
                 ):
                     self.command_service = "timer_command_v2"
             if self.command_service != "timer_command_v2" and not valid(command, _FIELDS, _ACTIONS):
