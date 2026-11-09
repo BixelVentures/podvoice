@@ -779,27 +779,36 @@ async function volumeDragJourney(page,errors){
  });
  const actions=()=>requests.filter(row=>row.url.endsWith('/control/actions'));
  const endpoint='**/view/api/music?**';
- let release,markHeld,holdTimeout,holding=true;
- const gate=new Promise(resolve=>{release=resolve;});
+ let openGate,markHeld,holdTimeout,holding=true;
+ const gate=new Promise(resolve=>{openGate=resolve;});
+ const release=()=>{holding=false;openGate();};
  const held=new Promise(resolve=>{markHeld=resolve;});
  const handler=async route=>{
   if(!holding||new URL(route.request().url()).searchParams.get('kind')!=='playback')return route.continue();
-  holding=false;
   const response=await route.fetch();
-  markHeld();
-  await gate;
+  const body=response.ok()?await response.json():null;
+  const sequence=body?.data?.poll_sequence,percent=body?.controls?.volume?.base_percent;
+  // A new music revision can supersede an in-flight read. Gate every response
+  // with the new owner observation, rather than whichever request starts first.
+  if(sequence>before.sequence){
+   if(percent===latePercent)markHeld({sequence,percent});
+   await gate;
+  }
   await route.fulfill({response});
  };
  await page.route(endpoint,handler);
  let inputs,lateFrames;
  try{
+  // An initial read started before route registration may already be in flight.
+  await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveMedia?.activeRead);
   const changed=await change({externalVolume:latePercent});
   assert(changed.ok);
   const {sequence}=await changed.json();
-  await Promise.race([held,new Promise((_,reject)=>{
-   holdTimeout=setTimeout(()=>reject(Error('earlier owner response was not held')),4000);
+  const observation=await Promise.race([held,new Promise((_,reject)=>{
+   holdTimeout=setTimeout(()=>reject(Error('new owner volume response was not held')),4000);
   })]);
   clearTimeout(holdTimeout);
+  assert.deepEqual(observation,{sequence,percent:latePercent});
   assert.equal(Number(await slider.inputValue()),before.volume,'browser still displays the prior owner volume');
   await testEnv.touchRange(page,slider,desired,{beforeRelease:async()=>{
    inputs=await page.evaluate(()=>window.volumeDragProbe.inputs);
@@ -1056,7 +1065,7 @@ async function longSession(page,errors){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  const browserOptions=testEnv.browserOptions();
- if(multiScreenMode||outputTransferMode)browserOptions.args=['--mute-audio'];
+ if(multiScreenMode||outputTransferMode||volumeDragMode)browserOptions.args=['--mute-audio'];
  browser=await chromium.launch(browserOptions);
  const page=await browser.newPage({viewport:{width:1280,height:800},hasTouch:true}),errors=[],diagnosticResponses=[];
  page.on('response',async response=>{
