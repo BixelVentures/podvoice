@@ -47,7 +47,7 @@ let server,browser;
  await update({releaseIntent:true});
  await page.waitForFunction(()=>{
   const controls=document.querySelector('pv-widget-host')?.liveControls;
-  return !controls?.lightInputQueue&&!controls?.lightActionOperation;
+  return [...(controls?.lightActions?.values()||[])].every(entry=>!entry.queue&&!entry.operation);
  },undefined,{timeout:5000});
  assert.deepEqual((await state()).writes.map(write=>write.name),['HassTurnOff','HassTurnOn']);
  assert.equal((await state()).light.state,'on');
@@ -70,7 +70,7 @@ let server,browser;
  await update({releaseIntent:true});
  await page.waitForFunction(()=>{
   const host=document.querySelector('pv-widget-host');
-  return !host?.liveControls?.lightInputQueue&&host?.currentLightDevice()?.observedLights?.[0]?.brightness===94;
+  return [...(host?.liveControls?.lightActions?.values()||[])].every(entry=>!entry.queue)&&host?.currentLightDevice()?.observedLights?.[0]?.brightness===94;
  },undefined,{timeout:5000});
  assert.deepEqual((await state()).writes.slice(2).map(write=>[write.name,write.args.brightness]),
   [['HassLightSet',49],['HassLightSet',37]]);
@@ -120,7 +120,8 @@ let server,browser;
  await update({releaseIntent:true});
  await page.waitForFunction(()=>{
   const controls=document.querySelector('pv-widget-host')?.liveControls;
-  return controls?.lightActionState?.outcome==='unknown'&&!controls.lightInputQueue;
+  const lights=[...(controls?.lightActions?.values()||[])];
+  return lights.some(entry=>entry.state?.outcome==='unknown')&&lights.every(entry=>!entry.queue);
  },undefined,{timeout:5000});
  await update({externalLight:{state:'off'}});
  await page.waitForFunction(()=>document.querySelector('.light-room-power')?.getAttribute('aria-pressed')==='false');
@@ -138,7 +139,8 @@ let server,browser;
  await update({releaseIntent:true});
  await page.waitForFunction(()=>{
   const controls=document.querySelector('pv-widget-host')?.liveControls;
-  return controls?.lightActionState?.outcome==='accepted'&&!controls.lightInputQueue;
+  const lights=[...(controls?.lightActions?.values()||[])];
+  return lights.some(entry=>entry.state?.outcome==='accepted')&&lights.every(entry=>!entry.queue);
  },undefined,{timeout:5000});
  assert.equal((await state()).writes.length,6,'a prior matching push cannot replace the failed post-action read');
  await page.unroute('**/view/api/home?*');
