@@ -202,6 +202,28 @@ for(const outcome of ['accepted','rejected','unknown'])test(`active robot settin
  }finally{f.view.cleanup();}
 });
 
+for(const [mode,boundary] of [
+ ['task','accepted'],['task','unknown'],['task','rejected'],['task','replacement'],['direct','unknown'],
+])test(`robot follow-up requires the accepted original command (${mode}, ${boundary})`,async()=>{
+ const f=fixture();try{
+  f.host.state.devices[0].status='cleaning';
+  f.view.robotDirectOffer=()=>({actions:['pause','return']});
+  const direct=[];f.host.liveTransport.controlIntent=intent=>{
+   direct.push(intent);
+   return direct.length===1&&mode==='direct'?f.action.promise:Promise.resolve({outcome:'accepted'});
+  };
+  if(mode==='task')await open(f);
+  const first=mode==='task'?f.view.send('pause',{}):f.view.robotDirectIntent(target.entityId,'pause');
+  assert.equal(await f.view.robotDirectIntent(target.entityId,'return'),true);
+  if(boundary==='replacement')f.view.opening++;
+  const outcome=boundary==='replacement'?'accepted':boundary;
+  f.action.resolve({outcome,ok:outcome==='accepted',requestId:'first'});
+  await first;
+  assert.deepEqual(direct.map(row=>row.action),mode==='direct'?['pause']:boundary==='accepted'?['return']:[]);
+  assert.equal(f.view.robotQueued,null);
+ }finally{clearTimeout(f.view.robotOptimisticTimer);f.view.cleanup();}
+});
+
 test('light journal observes exact fresh HA state using original wire UUID; sink failure cannot lose receipt',async()=>{
  for(const failSink of [false,true]){const f=lightFixture(),rows=[];try{
   f.host.liveTransport.recordDiagnostic=(stage,row)=>{if(failSink)throw Error('inert sink failure');rows.push({stage,...row});};
