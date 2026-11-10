@@ -443,8 +443,13 @@ export class LiveControlView{
   const unsettled = fence?.key === context.key && fence.outcome === 'accepted'
    && !['confirmed', 'rejected', 'superseded'].includes(fence.settlementStatus);
   if (this.musicIntentPending || unsettled) {
+   const generation = this.generation;
    const turn = await waitForMusicLane(this, true);
-   if (turn === 'free') return this.moveSpeaker(speaker, catalogueCurrent, choice);
+   if (turn === 'free') {
+    if (this.host.liveTransport !== transport || this.generation !== generation
+     || this.musicContext(true)?.presentationKey !== context.presentationKey) return reject('scope_changed');
+    return this.moveSpeaker(speaker, catalogueCurrent, choice);
+   }
    if (turn === 'unknown') {
     const message = 'Den forrige handling kunne ikke bekræftes · højttaleren blev ikke skiftet.';
     this.host.showFeedback?.(message, false, {source: 'music-intent'});

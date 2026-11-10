@@ -413,6 +413,21 @@ test('a speaker tapped while Pause is pending is not moved when Pause ends UNKNO
   assert.equal(output.pendingChoiceLabel(),'','the waiting choice is cleared');
  }finally{release?.();h.close();}
 });
+for(const replacement of ['new-route','new-owner','new-transport'])test(`a waiting speaker choice cannot move a replacement playback context (${replacement})`,async()=>{
+ const h=lifecycle(),{f,speakers}=h;try{
+  // Queue acceptance releases this shared lane even when its readback now has a different owner.
+  const token=f.view.beginMusicIntent({queuesTransport:true});
+  const moving=f.view.moveSpeaker(speakers[1],()=>true);
+  assert.deepEqual(f.effects,[]);
+  // The catalogue stays valid for the same account even when the origin changes.
+  if(replacement==='new-route')f.adopt({binding:'b'.repeat(64)});
+  if(replacement==='new-owner')f.adopt({epoch:'other-owner'});
+  if(replacement==='new-transport')f.host.liveTransport={...f.host.liveTransport};
+  f.view.endMusicIntent(token,'accepted');
+  assert.equal(await moving,false);
+  assert.deepEqual(f.effects,[]);
+ }finally{h.close();}
+});
 // A1/A7/A10: one transient failed read keeps the player usable while the lease is still valid.
 for(const failure of ['network','http','timeout'])test(`a single transient ${failure} read failure keeps controls while the lease is valid`,async()=>{
  const oldNow=Date.now;let now=oldNow();Date.now=()=>now;
