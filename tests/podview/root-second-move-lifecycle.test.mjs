@@ -413,3 +413,16 @@ test('a speaker tapped while Pause is pending is not moved when Pause ends UNKNO
   assert.equal(output.pendingChoiceLabel(),'','the waiting choice is cleared');
  }finally{release?.();h.close();}
 });
+// A1/A7/A10: one transient failed read keeps the player usable while the lease is still valid.
+for(const failure of ['network','http','timeout'])test(`a single transient ${failure} read failure keeps controls while the lease is valid`,async()=>{
+ const oldNow=Date.now;let now=oldNow();Date.now=()=>now;
+ const f=fixture(),g=integrate(f);let fail=false;try{
+  g.setRead(()=>{if(fail){const e=failure==='network'?new TypeError('network'):new Error(failure);if(failure==='http')e.code='read_transient';if(failure==='timeout')e.name='TimeoutError';return Promise.reject(e);}return Promise.resolve(g.body({ttl:15}));});
+  await g.media.refresh({immediate:true});f.view.render();assert.equal(f.nodes.get('play-pause').disabled,false);
+  fail=true;now+=2000;await g.media.refresh({immediate:true});f.view.render();
+  assert.equal(f.nodes.get('play-pause').disabled,false,'the player stays usable after one transient failure');
+  assert.equal(f.nodes.get('volume').disabled,false,'volume stays usable');
+  assert.equal(await f.view.musicIntent('pause'),true);await tick();assert.deepEqual(f.effects.map(e=>e.action),['pause']);
+  now+=20000;f.view.render();assert.equal(f.nodes.get('play-pause').disabled,true,'an expired lease still removes control');
+ }finally{f.close();Date.now=oldNow;}
+});
