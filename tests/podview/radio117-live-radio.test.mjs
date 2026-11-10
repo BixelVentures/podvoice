@@ -56,6 +56,26 @@ test('all start origins retain exact scoped station and desired target, expire d
 
 test('requested start preview volume belongs only to fresh admitted native destination, never the prior player or another receiver',async()=>{const kitchen={id:'kitchen',name:'Køkken',availability:'available',selectable:true,default:false};for(const sample of [{label:'Spotify other receiver',sourceKind:'spotify',status:'idle',targetId:'kitchen',volumePercent:62,expected:null},{label:'stopped radio other receiver',sourceKind:'radio',status:'stopped',targetId:'kitchen',volumePercent:62,expected:null},{label:'same receiver station switch',sourceKind:'radio',status:'playing',targetId:'stuen',volumePercent:37,expected:37},{label:'same receiver native Spotify',sourceKind:'spotify',status:'idle',targetId:'stuen',volumePercent:37,expected:37},{label:'missing measurement',sourceKind:'radio',status:'stopped',targetId:'stuen',volumePercent:null,expected:null},{label:'unknown source',sourceKind:'unknown',status:'idle',targetId:'stuen',volumePercent:37,expected:null},{label:'missing destination',sourceKind:'spotify',status:'idle',targetId:null,volumePercent:37,expected:null},{label:'stale measurement',sourceKind:'spotify',status:'idle',targetId:'stuen',volumePercent:37,observedAt:Date.now()/1000-31,expected:null},{label:'missing observation',sourceKind:'spotify',status:'idle',targetId:'stuen',volumePercent:37,observedAt:null,expected:null}]){const {expected,label,...state}=sample,{radio,host,calls}=fixture(value({targets:[...value().targets,kitchen],state:{...value().state,...state}})),offer=held(),sent=[];host.playerView.volumeMuteVM={volume:89};host.liveTransport.radioOffer=body=>{sent.push(body);return offer.promise;};const operation=radio.act('start',{stationId:'p1',targetId:'stuen'});assert.equal(radio.pendingStart().volumePercent,expected,label);radio.renderPlayer();assert.equal(calls[0][1].volume,expected,label);assert.equal(calls[1][1].volume,expected,label);assert.equal(calls[1][1].canVolume,false,label);assert.equal(sent[0].volumePercent,null,'preview measurement never becomes native start-volume authority');assert.equal(radio.value.state.targetId,state.targetId);assert.equal(host.playerView.volumeMuteVM.volume,89);radio.invalidate();offer.resolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await operation;assert.equal(radio.pendingStart(),null);}});
 
+test('radio stop feedback distinguishes an unsent request from a rejected receipt', async () => {
+ for (const dispatched of [false, true]) {
+  const {radio, host} = fixture();
+  let writes = 0;
+  host.liveTransport.radioOffer = async () => {
+   if (!dispatched) throw new Error('radio_offer_unavailable');
+   return {...snapshot, taskId:'t', optionId:'o', expiresAt:Date.now()/1000+5};
+  };
+  host.liveTransport.radioAction = async () => {
+   writes++;
+   return {status:'rejected'};
+  };
+  await radio.act('stop');
+  assert.equal(writes, Number(dispatched));
+  assert.equal(radio.unknown, false);
+  assert.equal(radio.value.state.status, 'playing');
+  assert.equal(radio.message, dispatched ? 'Radio kunne ikke stoppes.' : 'Stop blev ikke sendt.');
+ }
+});
+
 // A correlated explicit rejection is terminal; it is not a lost action receipt.
 test('explicit rejected receipt restores existing source without unknown custody, replay or optimistic selection',async()=>{const {radio,host}=fixture();let offers=0,writes=0;host.liveTransport.radioOffer=async()=>{offers++;return {...snapshot,taskId:'rejected-task',optionId:'rejected-option',expiresAt:Date.now()/1000+5};};host.liveTransport.radioAction=async()=>{writes++;return {status:'rejected'};};await radio.choose('p1');assert.equal(offers,1);assert.equal(writes,1);assert.equal(radio.unknown,false);assert.equal(radio.pending,false);assert.equal(radio.pendingStart(),null);assert.equal(radio.value.state.stationId,'p3');assert.equal(radio.value.state.status,'playing');assert.equal(radio.feedback().state,'error');assert.equal(radio.can('start'),true);assert.equal(radio.message,'Radio kunne ikke startes. Prøv igen.');});
 
