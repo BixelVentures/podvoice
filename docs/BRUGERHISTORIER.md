@@ -499,6 +499,17 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 
 Uafhængige, tilgængelige Green-prøver skal køre uden at vente på musikrettelsen. Ved et reelt blokpunkt noteres det første trin der ikke kan udføres. Efter rettelse gentestes berørte fejl og naboer i én sammenhængende serie. Lokal integration dækker særskilt ejergrænser og lukker ikke et fysisk krav. Uafhængig T1-forprøve kl. 14.59: Spotify NONE og ingen aktiv timer synlig. Alarmruten fremgik ikke af PodView, så timeren blev ikke startet. Live PodView ringer via bundet Voice PE eller Talk, og UI viste Voice PE ikke verificeret. Talk var online uden bevis for at være timerens alarmmål. Tidligere T1-trin ændres ikke.
 
+**Samlede prøveserier for de 51 åbne historier.** Hver historie står i én serie. Flere trin kan bevises i samme session, men en serie giver kun flueben ved opfyldt enkeltkrav.
+
+| Serie | Antal | Handling og historier |
+|---|---:|---|
+| Spotify og kø | 15 | Start forslag og Hør igen, vælg fra en rigtig kø, observer automatisk skift, test pause/fortsæt, hurtig næste, volumen og spoling, og gentag efter ventetid og fornyelse. A1–A5, A9, A10, A13, F2, F10, K1–K5. |
+| Radio, output og ekstern Spotify | 8 | Samme Green-session: Køkken → Svend → Køkken, ændring og afspilning fra Spotify, P3 → P1 → Stop → Spotify-retur og fejlhåndtering. A6, A8, H1, H5, H7, R1, R2, R4. |
+| Faktisk HA-app og godkendt visning | 8 | Kold åbning, dvale og genoptagelse på iPad, kontroller og session på Mac/iPad, Din musik/Hør igen med godkendt reference og coverforløb, opskriftssider og accordions. G1, G2, G6, H4, H9, F6, F9, O6. |
+| Robot | 8 | Én rengøring med valgte rum, rute, gentagelse og Extreme, målt status/fremdrift, Pause/Fortsæt/Base efter ventetid samt verificeret basefunktion. S1–S4, S6, S7, S11, S13. Afventer afhjulpet tømningskanal. |
+| Lys, timer og stemme | 7 | Lys og fysisk kontakt når Hue er forbundet. Timer udløb og ét Stop på bekræftet alarmmål. Samme Voice PE-forløb for musik, kø og svarhistorik. L1–L3, T1, A12, Q1, Q2. |
+| Tesla | 5 | Aktuelle entitetsværdier, dvale/vækning, ladekort og adgang/klima i aftalt visning. B2–B4, B7, B8. Afventer frigivelse. |
+
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
 dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
 [Speakers PR #125](https://github.com/BixelVentures/podconnect/pull/125)
