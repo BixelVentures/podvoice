@@ -107,3 +107,5 @@ med egen beslutning. Designet ligger på lærredet (tavlenavn i parentes).
 - Afspiller: lyd fra/til på højttalerikonet.
 - Tom afspiller med forslag (Tid på dagen) og Hør igen; følger fanernes regler, skjuler forslag når stemningsforslag ikke er tilgængelige.
 - Foto-Ro: billeder fra delt iCloud-album (afventer link).
+- Nat-skærm (Foto-Nat): sort, ur + vejr i dæmpet rød, kun kørende timer; tidsrum og lysstyrke kræver enhedsstyring.
+- Robot sticky: primær + »Mere ▾« som ark fra linjen (Robot-Sticky-Mere).

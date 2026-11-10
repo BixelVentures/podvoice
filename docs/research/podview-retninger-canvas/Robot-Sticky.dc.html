@@ -5,7 +5,7 @@
 <x-dc>
 <helmet>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
-<style>body{margin:0}
+<style>@keyframes shin{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}body{margin:0}
 .stk{animation:stkin 3.2s cubic-bezier(.2,.9,.3,1) infinite}
 @keyframes stkin{0%,12%{transform:translateY(-100%);opacity:0}24%,88%{transform:translateY(0);opacity:1}100%{transform:translateY(0);opacity:1}}
 @media (prefers-reduced-motion: reduce){.stk{animation:none}}</style>
@@ -24,14 +24,23 @@
       <span style="font-size: 20px; line-height: 26px; font-weight: 800">{{title}}</span>
       <span style="font-size: 15px; line-height: 20px; color: #5F5E5A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sub}}</span>
     </span>
-    <sc-for list="{{acts}}" as="a" hint-placeholder-count="1">
-      <dc-import name="K-Btn" label="{{a.l}}" variant="{{a.v}}" size="44" hint-size="160px,44px"></dc-import>
-    </sc-for>
+    <dc-import name="K-Btn" label="{{prim}}" variant="primaer" size="44" hint-size="160px,44px"></dc-import>
+    <span onClick="{{toggle}}" style="display: block; cursor: pointer"><dc-import name="K-Btn" label="Mere ▾" variant="kant" size="44" hint-size="110px,44px"></dc-import></span>
   </div></div>
+  <sc-if value="{{open}}" hint-placeholder-val="{{ false }}">
+  <div role="dialog" aria-label="Flere handlinger" style="position: absolute; left: 508px; top: 152px; width: 352px; z-index: 4; padding: 16px; box-sizing: border-box; border-radius: 20px; background: #F7F6F3; box-shadow: 0 24px 48px -20px rgba(23,23,26,.55), inset 0 0 0 1px rgba(23,23,26,.08); display: flex; flex-direction: column; gap: 8px; animation: shin .24s cubic-bezier(.2,.9,.3,1) both">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="2">
+      <span style="font-size: 15px; font-weight: 700; color: #5F5E5A; padding: 6px 4px 0">{{g.h}}</span>
+      <sc-for list="{{g.items}}" as="i" hint-placeholder-count="2">
+        <dc-import name="K-Btn" label="{{i.l}}" variant="{{i.v}}" size="44" w="100%" hint-size="320px,44px"></dc-import>
+      </sc-for>
+    </sc-for>
+  </div>
+  </sc-if>
   <i style="position: absolute; left: 24px; top: 144px; width: 844px; height: 24px; background: linear-gradient(180deg, rgba(233,231,226,.9), rgba(233,231,226,0)); display: block; pointer-events: none"></i>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"oplader","options":["oplader","rengoer"]},"$preview":{"width":1280,"height":800}}'>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"oplader","options":["oplader","rengoer"]},"mere":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   renderVals() {
     // Forslag: når heroen er rullet ud af skærmen, glider en 72 px handlingslinje ned fra topbaren (240 ms, ease-out),
@@ -40,10 +49,16 @@ class Component extends DCLogic {
     // Kun på sider med en primær handling i heroen: Robot (Start/Pause), Timer (+1 min), Tesla (Lås op). Ikke Vejr.
     const st = this.props.state || 'oplader';
     const S = {
-      oplader: { title: 'Oplader', sub: 'Stueplan (2025) · 6 rum valgt', dot: '#B23A62', acts: [{ l: 'Start · 6 rum', v: 'primaer' }] },
-      rengoer: { title: 'Rengør', sub: 'Støvsugning og gulvvask · 6 områder', dot: '#B23A62', acts: [{ l: 'Pause', v: 'primaer' }, { l: 'Afslut', v: 'fare' }] }
+      oplader: { title: 'Oplader', sub: 'Stueplan (2025) · 6 rum valgt', dot: '#B23A62', prim: 'Start · 6 rum', transport: [] },
+      rengoer: { title: 'Rengør', sub: 'Støvsugning og gulvvask · 6 områder', dot: '#B23A62', prim: 'Pause',
+        transport: [{ l: 'Kør til basen', v: 'sekundaer' }, { l: 'Afslut rengøring', v: 'fare' }] }
     };
-    return { st, scroll: 420, ...S[st] };
+    // Samme to knapper som heroen (primær + Mere ▾). Mere åbner et ark lige under linjen med samme indhold som heroens Mere:
+    // rengøring øverst (kun mens den kører), Basen nedenfor (produktets dock-handlinger). Arket lukker ved tryk udenfor.
+    const base = [{ l: 'Tøm støvbeholder', v: 'sekundaer' }, { l: 'Vask moppe', v: 'sekundaer' }, { l: 'Tør moppe', v: 'sekundaer' }];
+    const s = S[st], open = this.state.open ?? (this.props.mere === true);
+    const groups = [...(s.transport.length ? [{ h: 'Rengøring', items: s.transport }] : []), { h: 'Basen', items: base }];
+    return { st, scroll: 420, ...s, open, groups, toggle: () => this.setState({ open: !open }) };
   }
 }
 </script>

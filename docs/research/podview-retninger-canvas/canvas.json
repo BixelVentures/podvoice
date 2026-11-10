@@ -523,6 +523,15 @@
    "x": 8324,
    "y": 5200
   },
+  "Robot-Mere.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · Mere åben: rengøring + basen (pause)",
+   "w": 1280,
+   "x": 13764,
+   "y": 5200
+  },
   "Robot-Pause.dc.html": {
    "h": 1400,
    "is_interactive": true,
@@ -845,6 +854,15 @@
    "title": "Tesla · låst og lukket (rolige flader)",
    "w": 1280,
    "x": 5435,
+   "y": 10000
+  },
+  "Tesla-RobotFejl.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · robotfejl andetsteds: rødt mærke i topbaren",
+   "w": 1280,
+   "x": 10875,
    "y": 10000
   },
   "Timer-Alarm.dc.html": {
@@ -1225,22 +1243,22 @@
    "x": 908,
    "y": 3200
   },
-  "Tesla-RobotFejl.dc.html": {
+  "Foto-Nat.dc.html": {
    "page": "retning",
-   "title": "Tesla · robotfejl andetsteds: rødt mærke i topbaren",
+   "title": "Nat-skærm · forstyrrer mindst muligt (ny funktion)",
    "w": 1280,
    "h": 800,
-   "x": 10875,
-   "y": 10000,
+   "x": 2720,
+   "y": 1900,
    "is_interactive": true
   },
-  "Robot-Mere.dc.html": {
+  "Robot-Sticky-Mere.dc.html": {
    "page": "retning",
-   "title": "Robot · Mere åben: rengøring + basen (pause)",
+   "title": "Robot · sticky med Mere åben som ark",
    "w": 1280,
-   "h": 1400,
-   "x": 13764,
-   "y": 5200,
+   "h": 800,
+   "x": 5604,
+   "y": 6700,
    "is_interactive": true
   }
  },
@@ -1346,6 +1364,15 @@
    "w": 240,
    "x": 0,
    "y": 8100
+  },
+  "t-historik-tesla": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Tesla · ekstra handlingstavler (nu vist som tilstande i UI-kittets handlingsflade)",
+   "w": 240,
+   "x": 0,
+   "y": 9500
   },
   "t-principper-5": {
    "kind": "title1",
@@ -1463,15 +1490,6 @@
    "w": 240,
    "x": 0,
    "y": 18000
-  },
-  "t-historik-tesla": {
-   "kind": "title1",
-   "maxW": 12000,
-   "page": "historik",
-   "text": "Tesla · ekstra handlingstavler (nu vist som tilstande i UI-kittets handlingsflade)",
-   "w": 240,
-   "x": 0,
-   "y": 9500
   }
  },
  "order": [
@@ -1610,7 +1628,9 @@
   "Opskrift-TimerKoerer.dc.html",
   "Musik-Vibe.dc.html",
   "Robot-Basen-aaben.dc.html",
-  "Robot-Basen-vasker.dc.html"
+  "Robot-Basen-vasker.dc.html",
+  "Tesla-RobotFejl.dc.html",
+  "Robot-Mere.dc.html"
  ],
  "pages": [
   {

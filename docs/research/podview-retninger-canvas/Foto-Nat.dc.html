@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Nat-skærm</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600&amp;display=swap">
+<style>body{margin:0;background:#000}</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #000; position: relative; overflow: hidden; font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: #6B3A2C">
+  <div style="position: absolute; left: 0; right: 0; top: 300px; display: flex; flex-direction: column; align-items: center">
+    <span style="font-size: 168px; line-height: .9; font-weight: 500; letter-spacing: -0.05em; font-variant-numeric: tabular-nums">{{time}}</span>
+    <span style="margin-top: 14px; font-size: 22px; color: #4A2A20">{{sub}}</span>
+  </div>
+  <sc-if value="{{timer}}" hint-placeholder-val="{{ false }}">
+    <span style="position: absolute; left: 50%; bottom: 56px; transform: translateX(-50%); height: 44px; padding: 0 18px; border-radius: 22px; box-shadow: inset 0 0 0 1.5px #3A2018; display: flex; align-items: center; gap: 10px; font-size: 18px; font-variant-numeric: tabular-nums">Timer · 3:42</span>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"timer":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // NY FUNKTION (spor C, ikke i HA Green i dag): nat-skærm, der forstyrrer mindst muligt.
+    // Sort flade (Frameo-skærmen lyser næsten ikke), kun ur og vejr i dæmpet varm rød (ingen blåt lys), intet foto,
+    // ingen kort, ingen animation. Kun en kørende timer vises som en dæmpet kant-pille. Tryk vækker Foto-Ro.
+    // Tid for nat (fx 22–6) og lysstyrke kræver beslutning og enhedsstyring på Frameo.
+    return { time: '23.14', sub: '6° · Klart', timer: this.props.timer === true };
+  }
+}
+</script>
+</body>
+</html>

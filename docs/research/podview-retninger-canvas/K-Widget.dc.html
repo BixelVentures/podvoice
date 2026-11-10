@@ -47,7 +47,7 @@ a.kw:active{transform:scale(.985)}
     </div>
   </sc-if>
   <sc-if value="{{v.bulb}}" hint-placeholder-val="{{ false }}">
-    <div class="fade-t" style="position: absolute; right: 0; top: 50px; width: 150px; height: 110px; opacity: {{v.matOp}}" aria-hidden="true">
+    <div class="fade-t" style="position: absolute; right: 0; top: 40px; width: 150px; height: 110px; transform: scale(.74); transform-origin: right top; opacity: {{v.matOp}}" aria-hidden="true">
       <sc-for list="{{bulb}}" as="d" hint-placeholder-count="120"><i class="sq" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{v.mat}}"></i></sc-for>
     </div>
   </sc-if>
@@ -63,7 +63,7 @@ a.kw:active{transform:scale(.985)}
     </svg>
   </sc-if>
   <sc-if value="{{v.disc}}" hint-placeholder-val="{{ false }}">
-    <i style="position: absolute; right: -34px; top: 54px; width: 120px; height: 120px; border-radius: 50%; background: repeating-radial-gradient(circle, rgba(23,23,26,.10) 0 1.5px, transparent 1.5px 7px); display: block" aria-hidden="true"></i>
+    <span style="position: absolute; right: 20px; top: 60px; width: 64px; height: 64px; border-radius: 14px; background: #F6DCCB; display: flex; align-items: center; justify-content: center" aria-hidden="true"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13M6.5 20.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/></svg></span>
   </sc-if>
   <sc-if value="{{v.cover}}" hint-placeholder-val="{{ false }}">
     <i style="position: absolute; right: 20px; top: 60px; width: 64px; height: 64px; border-radius: 12px; background: {{v.coverBg}}; box-shadow: 0 10px 20px -10px rgba(23,23,26,.5); display: block" aria-hidden="true"></i>
@@ -173,20 +173,20 @@ class Component extends DCLogic {
       },
       musik: {
         _: { label: 'Find musik', icon: I.music, href: 'A-Musik.dc.html' },
-        tom: { prim: 'Vælg musik', ctx: 'Stemning · 3 forslag', disc: true },
-        ikketilg: { prim: 'Stemning', primC: '#5F5E5A', ctx: 'Stemningsforslag er ikke tilgængelige endnu.', disc: true }
+        tom: { prim: 'Vælg musik', ctx: 'Til eftermiddagen', disc: true },
+        ikketilg: { prim: 'Vælg musik', ctx: 'Stemningsforslag er ikke tilgængelige endnu.', disc: true }
       },
       radio: {
         // Radio afspiller altid gennem medieafspilleren.
         _: { label: 'Radio', icon: I.radio, href: 'A-Radio.dc.html' },
         vaelg: { prim: 'Vælg station', ctx: 'P1 · P3 · P4 · P6 · P8' },
-        spiller: { bg: '#E6DDF3', prim: 'P8 Jazz', ctx: 'Køkkenalrum HomePod', ctxC: '#4A3A6E', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' },
-        starter: { bg: '#E6DDF3', prim: 'P8 Jazz', ctx: 'Starter P8 Jazz…', ctxC: '#4A3A6E', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' },
+        spiller: { bg: '#E6DDF3', prim: 'P8 Jazz', ctx: 'Køkkenalrum HomePod', ctxC: '#5F5E5A', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' },
+        starter: { bg: '#E6DDF3', prim: 'P8 Jazz', ctx: 'Starter P8 Jazz…', ctxC: '#5F5E5A', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' },
         ikketilg: { fg: grey, prim: 'Ikke tilgængelig', primC: grey, ctx: 'Home Assistant svarer ikke lige nu', ctxC: grey }
       },
       opskrift: {
         _: { label: 'Opskrifter', icon: I.recipe, href: 'A-Opskrifter.dc.html' },
-        igang: { bg: '#F2E4D3', label: 'Opskrift', href: 'A-Opskrift.dc.html', prim: 'Burgerboller', ctx: 'I gang · trin 2 af 5', ctxC: '#6B4A2E', barN: 5, barGap: 4, barLabel: 'Trin 2 af 5',
+        igang: { bg: '#F2E4D3', label: 'Opskrift', href: 'A-Opskrift.dc.html', prim: 'Burgerboller', ctx: 'I gang · trin 2 af 5', ctxC: '#5F5E5A', barN: 5, barGap: 4, barLabel: 'Trin 2 af 5',
           bar: ['#7A4A22', '#C98A4E', 'rgba(122,74,34,.18)', 'rgba(122,74,34,.18)', 'rgba(122,74,34,.18)'] },
         katalog: { prim: '9 opskrifter', ctx: '5 kategorier' },
         tom: { prim: 'Ingen opskrifter', primC: '#5F5E5A', ctx: 'Der er ingen opskrifter endnu.' }
@@ -200,7 +200,7 @@ class Component extends DCLogic {
       },
       svar: {
         _: { label: 'Svar', icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', href: 'A-Svar.dc.html' },
-        seneste: { bg: '#E9E6F4', prim: 'El Clásico', ctx: 'Kort svar · 28. okt., 11.32', ctxC: '#4A4466' },
+        seneste: { bg: '#E9E6F4', prim: 'El Clásico', ctx: 'Kort svar · 28. okt., 11.32', ctxC: '#5F5E5A' },
         tom: { prim: 'Intet at vise endnu', primC: '#5F5E5A', ctx: 'Ingen visuelle svar endnu' }
       }
     };
@@ -212,7 +212,10 @@ class Component extends DCLogic {
     // tone=hvid: roligere overblik; flade i papirhvid, domænet bæres af materialet og ikonet.
     // Fast anatomi i alle widgets: hoved øverst; nederst primær linje (20/800, én linje), kontekst (15, én linje)
     // og en fast 18 px stribe til fremskridt, også når den er tom. Advarsler er en farvet prik, ikke farvet tekst.
-    const v = { ...base, ...K[kind]._, ...K[kind][st], bg: this.props.tone === 'hvid' && kind !== 'timer' ? '#FFFFFF' : DOM[kind] };
+    // Musik, radio, opskrift og svar er handlinger/indgange, ikke tilstande: altid hvid flade, også når noget spiller.
+    // Domænet bæres af ikonfladen (koral, P-logo, omslag). Kun tilstandsdomæner (vejr, robot, lys, tesla) har farvet flade.
+    const WHITE = ['musik', 'radio', 'opskrift', 'svar'];
+    const v = { ...base, ...K[kind]._, ...K[kind][st], bg: (this.props.tone === 'hvid' || WHITE.includes(kind)) && kind !== 'timer' ? '#FFFFFF' : DOM[kind] };
     v.noBar = !v.bar && !v.hours && !v.big;
 
     const out = { v, cloud: [], arcs: [], bulb: [], car: [] };

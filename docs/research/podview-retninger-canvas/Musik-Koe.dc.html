@@ -58,14 +58,16 @@ class Component extends DCLogic {
     // Tryk på en række: trykket markeres (grå flade), nummeret viser en lille spinner og "Starter…" (≈1 s), derefter
     // equalizer i accentfarve, titel i koral og en koral kant om omslaget. Pause viser et pause-symbol i stedet for equalizer.
     const rows = [{ t: 'Fast Car', a: 'Y.V.E. 48', art: '' }, ...T.map(([t, a, art]) => ({ t, a, art }))];
-    const cur = this.state.cur ?? 0, pend = this.state.pend, playing = this.props.playing === true || this.state.playing === true;
-    const q = rows.map((r, k) => {
+    // Når afspilleren bekræfter (efter "Starter…", ikke i samme splitsekund som trykket): det valgte nummer rykker op som række 1,
+    // og numrene over det forlader køen (som Spotify ved spring frem). Ingen flytning under fingeren før bekræftelsen.
+    const base = this.state.base || 0, cur = 0, pend = this.state.pend, playing = this.props.playing === true || this.state.playing === true;
+    const q = rows.slice(base).map((r, k) => {
       const isCur = k === cur && pend == null, isPend = k === pend;
       return { ...r, i: k + 1, cur: isCur ? 'true' : 'false', num: !isCur && !isPend, playing: isCur && playing, paused: isCur && !playing, pending: isPend,
         sub: isPend ? 'Starter…' : r.a, tc: isCur || isPend ? '#B4532A' : '#17171A', fw: isCur ? 800 : 700,
         artRing: isCur ? '0 0 0 2px #F7F6F3, 0 0 0 4px #B4532A' : 'none', sc: isPend ? 0.94 : 1,
         bt: k ? '1px solid rgba(23,23,26,.07)' : 'none',
-        pick: () => { if (k === cur) return; clearTimeout(this.t); this.setState({ pend: k }); this.t = setTimeout(() => this.setState({ cur: k, pend: null, playing: true }), 1000); } };
+        pick: () => { if (k === cur) return; clearTimeout(this.t); this.setState({ pend: k }); this.t = setTimeout(() => this.setState({ base: base + k, pend: null, playing: true }), 1000); } };
     });
     return { q };
   }
