@@ -497,7 +497,7 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 | Blokeret før selve kravet | 12 | A2, A3, A13, K2, K4, H1, H5 (session/kø), F6 (godkendt reference), L1–L3 (Hue), B4 (bilhandling afventer) |
 | Intet faktisk Green-forsøg på det skrevne trin bekræftet | 12 | G6, A5, A9, A10, A12, H4, H9, S6, S11, Q1, B3, B8 |
 
-Uafhængige, tilgængelige Green-prøver skal køre uden at vente på musikrettelsen. Ved et reelt blokpunkt noteres det første trin der ikke kan udføres. Efter rettelse gentestes berørte fejl og naboer i én sammenhængende serie. Lokal integration dækker særskilt ejergrænser og lukker ikke et fysisk krav.
+Uafhængige, tilgængelige Green-prøver skal køre uden at vente på musikrettelsen. Ved et reelt blokpunkt noteres det første trin der ikke kan udføres. Efter rettelse gentestes berørte fejl og naboer i én sammenhængende serie. Lokal integration dækker særskilt ejergrænser og lukker ikke et fysisk krav. Uafhængig T1-forprøve kl. 14.59: Spotify NONE og ingen aktiv timer synlig. Alarmruten fremgik ikke af PodView, så timeren blev ikke startet. Tidligere T1-trin ændres ikke.
 
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
 dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
