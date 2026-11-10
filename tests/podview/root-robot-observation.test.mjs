@@ -1,6 +1,7 @@
 import test from 'node:test';import assert from 'node:assert/strict';
 import {robotObservation,robotFacts,robotValue,robotActivity,robotExperience} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
 import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {deviceLabel,deviceOverviewFacts} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 const now=()=>Date.now()/1000;
 const row=(key,value,unit=null,age=0,domain='sensor')=>({key,entityId:`${domain}.${key}`,value,unit,updatedAt:now()-age,retrievedAt:now(),stale:age>300});
 const telemetry=items=>({schema:'podview.robot.v1',status:'observed',source:'home_assistant_roborock',vacuumEntityId:'vacuum.robot',items});
@@ -11,6 +12,34 @@ test('active status uses actual progress/room/area/time only when cleaning and f
  const observation=robotObservation(telemetry([row('current_room','Køkken'),row('clean_percent',0,'%'),row('cleaning_area',12.5,'m²'),row('cleaning_time',600,'s')]),'vacuum.robot');
  const d={status:'cleaning',telemetry:observation};assert.deepEqual(robotFacts(d).summary,['Køkken','0 %','12,5 m²','10 min']);
  assert.deepEqual(robotFacts({...d,status:'docked'}).summary,[]);assert.deepEqual(robotFacts({...d,stale:true}).summary,[]);assert.deepEqual(robotFacts(d,now()+600).summary,[]);
+});
+test('a historical room stays out of overview, status title and detail during the new run',()=>{
+ const entityId='vacuum.robot',bindingId='a'.repeat(64);
+ let scene={devices:[]};
+ for(const [revision,state,room,historical] of [
+  [1,'cleaning','Bathroom1',false],
+  [2,'cleaning','Bathroom1',true],
+  [3,'cleaning','Corridor1',false],
+  [4,'paused','Corridor1',false],
+  [5,'cleaning','Corridor1',false],
+ ]){
+  const report={...row('current_room',room),historical};
+  const observation={...telemetry([report,row('cleaning_area',9.4,'m²')]),bindingId};
+  const vacuum={status:'observed',items:[{
+   entityId,name:'Robot',state,source:'home_assistant_state',observedAt:now(),telemetry:observation,
+  }]};
+  const home=validateHome({
+   schema:'podview.home.v1',roomId:'r',bootId:'b',revision,observedAt:now(),vacuum,
+  },'r','b');
+  scene=applyHome(scene,home);
+  const device=scene.devices[0],overview=deviceOverviewFacts(device);
+  const visibleRoom=historical?undefined:room;
+  assert.equal(overview.facts.find(fact=>fact.id==='room')?.value,visibleRoom);
+  const status=state==='paused'?'Rengøring på pause':visibleRoom?`Rengør · ${visibleRoom}`:'Rengør';
+  assert.equal(deviceLabel(device),status);
+  assert.equal(robotFacts(device).summary.includes(room),!historical&&state==='cleaning');
+  assert.equal(overview.facts.find(fact=>fact.id==='cleaning_area')?.value,'9,4 m²');
+ }
 });
 test('native history stays distinct from command acceptance; no duration or completion inferred',()=>{
  const observed=robotObservation(telemetry([row('last_clean_start',now()-1000),row('last_clean_end',now()-500)]),'vacuum.robot');const facts=robotFacts({status:'docked',telemetry:observed,history:{items:[{outcome:'accepted_by_ha'}]}});
