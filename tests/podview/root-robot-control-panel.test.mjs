@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 class Node extends EventTarget{
  constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes=new Map();this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.textContent='';this.value='';this.checked=false;this.isConnected=true;this.open=false;if(tag!=='host')this.disabled=false;}
  append(...nodes){for(const node of nodes){if(node.parentNode)node.parentNode.children=node.parentNode.children.filter(child=>child!==node);node.parentNode=this;}this.children.push(...nodes);}
+ contains(node){for(let n=node;n;n=n.parentNode)if(n===this)return true;return false;}
  prepend(...nodes){for(const node of nodes)node.parentNode=this;this.children=this.children.filter(node=>!nodes.includes(node));this.children.unshift(...nodes);}
  replaceChildren(...nodes){for(const node of this.children)node.parentNode=undefined;this.children=[];this.append(...nodes);}
  setAttribute(key,value){this.attributes.set(key,String(value));this[key]=String(value);if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}
@@ -154,7 +155,7 @@ test('automatic recent setup has no extra apply step and a late suggestion prese
  const panel=new RobotControlPanel(),admitted=suggestionTask();panel.data={task:admitted,device};panel.suggest(suggestionFor(admitted));const form=cleaningForm(panel),rooms=form.querySelectorAll('[name=areaIds]');emit(rooms[0],'click');assert.equal(panel.suggest(suggestionFor(admitted)),false);assert.deepEqual(rooms.map(row=>row.checked),[true,true]);assert.equal(panel.proposalButton.hidden,true);assert.equal(panel.proposalCaption.textContent,'Tilpassede valg');
 });
 test('recent setup cannot re-enable disconnected stale or pending command authority',()=>{
- for(const context of [{connected:false},{device:{...device,stale:true}},{device:{...device,pending:true}},{pendingOptionId:'pending-setting'}]){const panel=new RobotControlPanel(),admitted=suggestionTask(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device,...context};panel.suggest(suggestionFor(admitted));emit(cleaningForm(panel),'submit');assert.equal(panel.cleaningSubmit.disabled,true);assert.deepEqual(actions,[]);}
+ for(const context of [{connected:false},{device:{...device,stale:true}},{device:{...device,pending:true}},{pendingOptionId:'pending-setting'}]){const panel=new RobotControlPanel(),admitted=suggestionTask(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device,...context};panel.suggest(suggestionFor(admitted));emit(cleaningForm(panel),'submit');const pending=!!(context.pendingOptionId||context.device?.pending);assert.equal(panel.cleaningSubmit.disabled,!pending,'a pending command does not grey Start (S2)');assert.deepEqual(actions,[]);}
 });
 
 const historicalTask=()=>{const admitted=suggestionTask();admitted.options.push({id:'e'.repeat(24),action:'reuse',label:'Brug denne rengøring',argsSchema:{kind:'none'}});admitted.historyDraft={source:'accepted_start_history',optionId:admitted.options[0].id,areaIds:[admitted.options[0].argsSchema.areas[0].id],repeat:2};return admitted;};
@@ -789,4 +790,17 @@ test('pause, resume and base stay tappable while a robot command is pending; onl
  assert.equal(pause.disabled,false,'the pressed control is not greyed');assert.equal(pause.getAttribute('aria-busy'),'true');
  assert.equal(base.disabled,false,'another control stays tappable');assert.equal(base.getAttribute('aria-busy'),'false');
  emit(pause,'click');assert.deepEqual(effects,[{action:'pause'}],'a tap during the pending command reaches the queue');
+});
+// S2: Start stays dark while its own command runs; a room change is kept for the next Start;
+// a second Start is answered, not queued.
+test('Start keeps its look while pending, a draft change is kept, and a second Start gets a message',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));
+ const admitted=suggestionTask();panel.data={task:admitted,device,connected:true};panel.suggest(suggestionFor(admitted));
+ emit(cleaningForm(panel),'submit');assert.equal(actions.length,1,'the first Start is sent');
+ panel.data={...panel.value,pendingOptionId:actions[0].optionId};
+ assert.equal(panel.cleaningSubmit.disabled,false,'Start does not go grey');assert.equal(panel.cleaningSubmit.getAttribute('aria-busy'),'true');
+ const area=cleaningForm(panel).querySelectorAll('button').find(b=>b.value&&!b.disabled);
+ assert.ok(area,'room choices stay editable as a local draft');
+ emit(cleaningForm(panel),'submit');assert.equal(actions.length,1,'a second Start is not queued');
+ assert.match(panel.draftFeedback,/forrige kommando/,'the user gets a concrete message');
 });
