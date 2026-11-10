@@ -255,7 +255,7 @@ test('observed v3 seek sends the scoped absolute position and retains it until p
  }finally{f.close();}
 });
 
-test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',async()=>{
+for(const outcome of ['accepted','unknown'])test(`queued seek coalesces on acceptance and is discarded on UNKNOWN (${outcome})`,async()=>{
  const f=fixture();
  let first,finish;
  try{
@@ -263,7 +263,7 @@ test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',a
   const track=f.host.liveMedia.playback.item.uri,{witness}=f.view.musicSeekState(track);
   f.host.liveTransport.controlIntent=intent=>{
    f.effects.push(intent);
-   return f.effects.length===1?new Promise(resolve=>finish=()=>resolve({outcome:'unknown'}))
+   return f.effects.length===1?new Promise(resolve=>finish=()=>resolve({outcome}))
     :Promise.resolve({outcome:'accepted'});
   };
   first=f.view.musicIntent('seek',{positionMs:12000,witness});
@@ -274,9 +274,15 @@ test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',a
   finish();
   await first;
   await tick();
-  assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),[12000,14000]);
-  assert.equal(f.effects[1].requestId,queued);
+  assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),outcome==='accepted'?[12000,14000]:[12000]);
   assert.notEqual(f.effects[0].requestId,queued);
+  if(outcome==='accepted')assert.equal(f.effects[1].requestId,queued);
+  else {
+   assert.equal(f.view.musicQueued,null);
+   assert.equal(await f.view.musicIntent('seek',{positionMs:15000,witness}),true);
+   assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),[12000,15000]);
+   assert.notEqual(f.effects[1].requestId,queued);
+  }
  }finally{finish?.();await first;f.close();}
 });
 

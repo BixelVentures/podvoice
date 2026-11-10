@@ -303,8 +303,8 @@ export class LiveControlView{
    // A skip can change the actual item before its new observation reaches PodView.
    queue.intents=queue.intents.filter(intent=>intent.action!=='seek'||intent.input.witness.trackUri!==skippedTrackUri);
   }
-  // Each queued entry is a distinct tap. The settled request is never sent again.
-  if (this.musicQueueCurrent(queue)) {
+  // Each queued entry is a distinct tap. An unknown outcome discards the waiting taps.
+  if (outcome !== 'unknown' && this.musicQueueCurrent(queue)) {
    while (queue.intents.length) {
     const intent = queue.intents.shift();
     if (!queue.intents.length) this.musicQueued = null;
