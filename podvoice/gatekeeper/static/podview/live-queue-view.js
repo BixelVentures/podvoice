@@ -3,9 +3,50 @@ import {spotifyArtwork} from './spotify-artwork.js';
 const text=(v,n=160)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const int=(v,min=0,max=Number.MAX_SAFE_INTEGER)=>Number.isInteger(v)&&v>=min&&v<=max;
 export function queueOffer(body,snapshot,account,target,requestedAt=Date.now(),expectedBindingId=null){
- if(!body||Object.keys(body).sort().join(',')!=='accountId,bootId,expectedBindingId,expiresInMs,items,ok,ownerEpoch,pollSequence,revision,roomId,schema,targetId,taskId,truncated'||body.ok!==true||body.schema!=='podview.queue-offer.v1'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.accountId!==account||body.targetId!==target||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId)||body.expectedBindingId!==expectedBindingId||!/^queue:[a-f0-9]{32}$/.test(body.taskId)||body.revision!==1||!int(body.expiresInMs,1,10000)||!text(body.ownerEpoch,128)||!int(body.pollSequence,1)||typeof body.truncated!=='boolean'||!Array.isArray(body.items)||body.items.length>20||!Number.isFinite(requestedAt)||requestedAt>Date.now()||requestedAt+body.expiresInMs<=Date.now())return null;
- const seen=new Set();for(const [index,row] of body.items.entries()){if(!row||typeof row!=='object'||Array.isArray(row)||!["artist,artwork,id,order,title,uri","artist,artwork,id,metadataKnown,order,title,uri"].includes(Object.keys(row).sort().join(','))||Object.hasOwn(row,'metadataKnown')&&typeof row.metadataKnown!=='boolean'||!text(row.id,24)||!/^[a-f0-9]{24}$/.test(row.id)||seen.has(row.id)||row.order!==index+1||typeof row.title!=='string'||row.title.length>256||(row.metadataKnown!==false&&!row.title.trim())||(typeof row.artist!=='string'||row.artist.length>512)||!/^spotify:track:[A-Za-z0-9]{22}$/.test(row.uri))return null;seen.add(row.id);}
- return {...body,items:body.items.map(row=>({...row,artwork:spotifyArtwork(row.artwork,row.uri)})),expiresAt:requestedAt+body.expiresInMs};
+ if(!body||typeof body!=='object'||Array.isArray(body))return null;
+ const fields=[
+  'accountId','bootId','expectedBindingId','expiresInMs','items','ok','ownerEpoch','pollSequence',
+  'revision','roomId','schema','targetId','taskId','truncated',
+ ];
+ if(Object.hasOwn(body,'queueKind')){
+  if(!['preview','promotion'].includes(body.queueKind))return null;
+  fields.push('queueKind');
+ }
+ if(Object.keys(body).length!==fields.length||!fields.every(key=>Object.hasOwn(body,key))
+  ||body.ok!==true||body.schema!=='podview.queue-offer.v1'||body.bootId!==snapshot?.bootId
+  ||body.roomId!==snapshot?.roomId||body.accountId!==account||body.targetId!==target
+  ||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId)
+  ||body.expectedBindingId!==expectedBindingId||!/^queue:[a-f0-9]{32}$/.test(body.taskId)
+  ||body.revision!==1||!int(body.expiresInMs,1,10000)||!text(body.ownerEpoch,128)
+  ||!int(body.pollSequence,1)||typeof body.truncated!=='boolean'||!Array.isArray(body.items)
+  ||body.items.length>20||!Number.isFinite(requestedAt)||requestedAt>Date.now()
+  ||requestedAt+body.expiresInMs<=Date.now())return null;
+ const seen=new Set(),displayIds=new Set();
+ for(const [index,row] of body.items.entries()){
+  if(!row||typeof row!=='object'||Array.isArray(row))return null;
+  const keys=['artist','artwork','id','order','title','uri'];
+  if(Object.hasOwn(row,'metadataKnown')){
+   if(typeof row.metadataKnown!=='boolean')return null;
+   keys.push('metadataKnown');
+  }
+  if(Object.hasOwn(row,'displayId')){
+   if(!body.queueKind||typeof row.displayId!=='string'||!/^display-[a-f0-9]{24}$/.test(row.displayId)
+    ||displayIds.has(row.displayId))return null;
+   displayIds.add(row.displayId);
+   keys.push('displayId');
+  }else if(body.queueKind==='preview')return null;
+  if(Object.keys(row).length!==keys.length||!keys.every(key=>Object.hasOwn(row,key))
+   ||!text(row.id,24)||!/^[a-f0-9]{24}$/.test(row.id)||seen.has(row.id)||row.order!==index+1
+   ||typeof row.title!=='string'||row.title.length>256||(row.metadataKnown!==false&&!row.title.trim())
+   ||typeof row.artist!=='string'||row.artist.length>512||!/^spotify:track:[A-Za-z0-9]{22}$/.test(row.uri))return null;
+  seen.add(row.id);
+ }
+ if(body.queueKind&&!displayIds.size)return null;
+ return {
+  ...body,
+  items:body.items.map(row=>({...row,artwork:spotifyArtwork(row.artwork,row.uri)})),
+  expiresAt:requestedAt+body.expiresInMs,
+ };
 }
 // The playback owner is independent of the conversation and answer shown alongside it.
 const ownerScope = (host, account, playback) => [
@@ -130,11 +171,17 @@ export class LiveQueueView{
    this.offer=null;
   }
   const shownOffer=this.retained.shownOffer;
-  const renewUnknown=this.sameChoiceScope(this.unknownChoice?.scope,choiceScope);
-  const currentOffer=!this.retained.metadataPending||this.offer===shownOffer&&shownOffer?.expiresAt>Date.now();
-  const selectable=!!(choiceScope&&shownOffer&&this.retained.transport===choiceScope.transport
-   &&this.retained.transportGeneration===choiceScope.generation
-   &&(renewUnknown||this.reconcilingChoice||sameAuthority&&(this.effectPending||!this.consumed&&currentOffer)));
+  const autoplay=!!shownOffer?.queueKind;
+  const sameTransport=choiceScope&&this.retained.transport===choiceScope.transport
+   &&this.retained.transportGeneration===choiceScope.generation;
+  if(autoplay&&!sameTransport)this.offer=null;
+  const liveOffer=this.offer===shownOffer&&shownOffer?.expiresAt>Date.now();
+  const renewUnknown=!autoplay&&this.sameChoiceScope(this.unknownChoice?.scope,choiceScope);
+  const currentOffer=liveOffer||!autoplay&&!this.retained.metadataPending;
+  const localIntent=!autoplay||shownOffer.expiresAt>Date.now();
+  const selectable=!!(shownOffer&&sameTransport
+   &&(renewUnknown||localIntent&&this.reconcilingChoice
+    ||sameAuthority&&(localIntent&&this.effectPending||!this.consumed&&currentOffer)));
   const latest=this.waitingChoices.at(-1);
   const visibleChoice=latest&&this.retained.items.some(row=>sameOccurrence(row,latest));
   const pendingId=visibleChoice?latest.id:this.effectPending?this.pendingOccurrenceId:null;
@@ -145,6 +192,7 @@ export class LiveQueueView{
     ...row,
     selectable:selectable&&row.id!==this.reconcilingChoice?.occurrenceId
      &&shownOffer.items.some(item=>sameOccurrence(item,row)),
+    ...(autoplay?{queueTaskId:shownOffer.taskId}:{}),
     ...(renewUnknown?{renewUnknown:true}:{}),
     ...(choiceScope&&row.id===pendingId?{pending:true}:{}),
    })),
@@ -161,7 +209,7 @@ export class LiveQueueView{
    if(!this.sameChoiceScope(input.scope,choiceScope))continue;
    // Newly exposed rows can lack labels. Retained display stays read-only, but
    // a recorded tap may use this exact occurrence in the newly admitted offer.
-   const row=fresh&&offer.items.find(item=>sameOccurrence(item,input));
+   const row=fresh&&offer.queueKind===input.queueKind&&offer.items.find(item=>sameOccurrence(item,input));
    if(row){
     await this.sendChoice(row,offer,choiceScope);
     return;
@@ -175,10 +223,11 @@ export class LiveQueueView{
  async choose(item){
   const media=this.host.liveMedia;
   const model=this.model(media?.account,media?.playback),shownOffer=this.retained?.shownOffer;
-  const selected=model?.items.find(row=>row.selectable&&sameOccurrence(row,item));
+  const selected=model?.items.find(row=>row.selectable&&sameOccurrence(row,item)
+   &&(!shownOffer?.queueKind&&!item.queueTaskId||item.queueTaskId===shownOffer?.taskId));
   if(!selected||!shownOffer?.items.some(row=>sameOccurrence(row,selected)))return;
   const choiceScope=this.choiceScope(media.account,media.playback);
-  const input={scope:choiceScope,id:selected.id,uri:selected.uri};
+  const input={scope:choiceScope,id:selected.id,uri:selected.uri,queueKind:shownOffer.queueKind};
   if(this.effectPending||this.reconcilingChoice){
    // This is local intent only. The spent shown task never authorizes a second action.
    this.waitingChoices.push(input);
@@ -210,7 +259,7 @@ export class LiveQueueView{
   const media=this.host.liveMedia,controls=this.host.liveControls;
   if (controls?.musicIntentPending) {
    // The latest choice waits for the running music action and is then sent from a fresh offer.
-   const input = {scope: choiceScope, id: selected.id, uri: selected.uri};
+   const input = {scope: choiceScope, id: selected.id, uri: selected.uri, queueKind: shownOffer.queueKind};
    this.waitingChoices = [input];
    this.redraw();
    const turn = await waitForMusicLane(controls);

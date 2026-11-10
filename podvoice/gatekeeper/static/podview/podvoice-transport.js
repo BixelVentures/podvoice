@@ -407,8 +407,48 @@ export class PodVoiceTransport {
   const body = await response.json(); if (!response.ok || !body.ok){const error=new Error(body.error || 'music_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}
   return body;
  }
- async queueOffer(accountId,targetId,expectedBindingId,{readDiagnostic}={}){const s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId||accountId.length>128||typeof targetId!=='string'||!targetId||targetId.length>1024||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId))throw Error('queue_not_paired');const response=await this.request(new URL('music/queue/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId})},16000,undefined,undefined,readDiagnostic);const body=await response.json();if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId){const error=Error('queue_offer_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if(!response.ok&&([408,429].includes(response.status)||response.status>=500&&response.status<=599))error.code='read_transient';throw error;}return body;}
- async queueAction(task,optionId){const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false},s=this.snapshot;if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId||!task.items?.some(row=>row.id===optionId))return rejected;const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};try{const response=await this.request(new URL('music/queue/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId})},undefined,undefined,requestId);const body=await response.json();if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;return body;}catch{return unknown;}}
+ async queueOffer(accountId,targetId,expectedBindingId,{readDiagnostic}={}){
+  const s=this.snapshot;
+  if(!this.connected||s?.capabilities.queueSelection!==true||typeof accountId!=='string'||!accountId
+   ||accountId.length>128||typeof targetId!=='string'||!targetId||targetId.length>1024
+   ||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId))throw Error('queue_not_paired');
+  const response=await this.request(new URL('music/queue/offer',this.base),{
+   method:'POST',credentials:'same-origin',cache:'no-store',
+   headers:{'Content-Type':'application/json','X-PodView-Request':'1'},
+   body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId,autoplayPreview:true}),
+  },16000,undefined,undefined,readDiagnostic);
+  const body=await response.json();
+  if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId){
+   const error=Error('queue_offer_unavailable');
+   if([401,403].includes(response.status))error.code='read_access_denied';
+   else if(!response.ok&&([408,429].includes(response.status)||response.status>=500&&response.status<=599)){
+    error.code='read_transient';
+   }
+   throw error;
+  }
+  return body;
+ }
+ async queueAction(task,optionId){
+  const rejected={ok:false,outcome:'rejected',retryAllowed:false,physicalResultVerified:false};
+  const s=this.snapshot;
+  if(!this.connected||s?.capabilities.queueSelection!==true||s.bootId!==task.bootId||s.roomId!==task.roomId
+   ||typeof optionId!=='string'||!/^[a-f0-9]{24}$/.test(optionId)
+   ||!task.items?.some(row=>row.id===optionId))return rejected;
+  const requestId=crypto.randomUUID(),unknown={...rejected,requestId,outcome:'unknown'};
+  try{
+   const response=await this.request(new URL('music/queue/actions',this.base),{
+    method:'POST',credentials:'same-origin',cache:'no-store',
+    headers:{'Content-Type':'application/json','X-PodView-Request':'1'},
+    body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,
+     revision:task.revision,requestId,optionId}),
+   },undefined,undefined,requestId);
+   const body=await response.json();
+   if(!response.ok||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)
+    ||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')
+    ||body.retryAllowed!==false||body.physicalResultVerified!==false)return unknown;
+   return body;
+  }catch{return unknown;}
+ }
  async musicSelectionSetup(candidateSetId,target,candidateIds,{traceId}={}){
   const s=this.snapshot;
   if(!this.connected||s?.capabilities.musicSelection!==true||!/^[a-f0-9]{64}$/.test(candidateSetId)||target?.kind!=='spotify_device'||typeof target.accountId!=='string'||!target.accountId||typeof target.targetId!=='string'||!target.targetId)throw new Error('selection_unavailable');

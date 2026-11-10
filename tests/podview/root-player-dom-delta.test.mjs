@@ -116,3 +116,26 @@ test('actual configured label owner keeps rendered idle player heading through T
 });
 
 test('queue failure remains visible with known current song and repeated renders preserve row and player content without toast emission',()=>{const f=fixture(),events=[];f.host.showFeedback=(...args)=>events.push(args);f.view.renderPlayer(active);const current={...queueItem,current:true,playing:true},items=[current];f.view.renderQueue(items,{status:'error'});const row=f.nodes.get('queue').children[0];assert.equal(f.nodes.get('queue-title').textContent,'Køen kunne ikke hentes');assert.equal(f.nodes.get('track-name').textContent,active.title);assert.equal(row.children[2].children[0].textContent,queueItem.title);f.writes.length=0;f.view.renderQueue(items,{status:'error'});assert.deepEqual(f.writes,[]);assert.equal(f.nodes.get('queue').children[0],row);assert.deepEqual(events,[]);});
+
+test('autoplay promotion keeps the displayed node and focus without retargeting an earlier press',()=>{
+ const f=fixture(),sent=[];
+ f.view.chooseQueue=item=>sent.push(item.id);
+ const preview={
+  ...queueItem,id:'a'.repeat(24),displayId:'display-'+'c'.repeat(24),queueTaskId:'queue:'+'a'.repeat(32),
+ };
+ const promotion={...preview,id:'b'.repeat(24),queueTaskId:'queue:'+'b'.repeat(32)};
+ f.view.renderQueue([preview]);
+ const queue=f.nodes.get('queue'),row=queue.children[0];
+ f.host.ownerDocument.activeElement=row;
+ queue.scrollTop=87;
+ row.dispatchEvent(new Event('pointerdown'));
+ f.view.renderQueue([promotion]);
+ assert.equal(queue.children[0],row);
+ assert.equal(queue.scrollTop,87);
+ assert.equal(f.host.ownerDocument.activeElement,row);
+ row.dispatchEvent(new Event('click'));
+ assert.deepEqual(sent,[]);
+ row.dispatchEvent(new Event('pointerdown'));
+ row.dispatchEvent(new Event('click'));
+ assert.deepEqual(sent,[promotion.id]);
+});

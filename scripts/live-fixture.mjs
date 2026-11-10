@@ -78,7 +78,12 @@ async function queueFixture(req,res,url){
  }
  const exact=keys=>body&&typeof body==='object'&&!Array.isArray(body)&&Object.keys(body).length===keys.length&&keys.every(key=>Object.hasOwn(body,key));
  if(url.pathname==='/view/api/music/queue/offer'){
-  if(!exact(['bootId','roomId','accountId','targetId','expectedBindingId'])||body.bootId!==snapshot.bootId||body.accountId!==queueAccount||body.targetId!==queueTarget||body.expectedBindingId!==state.bindingId){fail(409,'stale_fixture_scope');return true;}
+  const keys=['bootId','roomId','accountId','targetId','expectedBindingId'];
+  if(body?.autoplayPreview===true)keys.push('autoplayPreview');
+  if(!exact(keys)||body.bootId!==snapshot.bootId||body.accountId!==queueAccount
+   ||body.targetId!==queueTarget||body.expectedBindingId!==state.bindingId){
+   fail(409,'stale_fixture_scope');return true;
+  }
   state.reads++;if(room==='queue-read-error'&&state.reads>1){fail(503,'fixture_queue_unavailable');return true;}
   for(const [id,record]of state.offers)if(record.expiresAt<=Date.now())state.offers.delete(id);
   if(state.offers.size>=32){fail(503,'fixture_capacity');return true;}
