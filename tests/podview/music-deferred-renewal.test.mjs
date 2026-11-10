@@ -35,3 +35,44 @@ test('passive read-only renewal remains a quiet retained preview',()=>{const f=s
 for(const outcome of ['readonly','invalid_dto','owner_changed','candidate_reused','card_mismatch','focus_changed','cancelled'])test(`explicit renewal records its actual ${outcome} branch on the original touch trace`,async()=>{const f=setup(),trace={requestId:'11111111-1111-4111-8111-111111111111'};try{f.view.tracks('mood',body(),'account');f.view.tracks('mood',writable(),'account');const entry=f.view.entries.get(f.view.key()),cards=f.view.cards;Object.assign(entry,{actionDispatched:true,selectionConfirmed:true,selectionSpent:true,dispatchedCardId:cards[0].id,dispatchedCandidateId:'a'.repeat(64)});const done=f.view.renewForCard(cards[1],trace);assert.equal(f.view.pendingRead.diagnosticTrace,trace);if(outcome==='owner_changed')f.view.invalidateAuthority(false);else if(outcome==='focus_changed'){f.host.state.focus='now';f.view.render();}else if(outcome==='cancelled')f.view.interrupt();else{let next=outcome==='readonly'?body():writable();if(outcome==='invalid_dto')next={ok:false};if(outcome==='card_mismatch')next.data.tracks[1].name='Changed';f.view.tracks('mood',next,'account');}assert.equal(await done,false);assert.equal(trace.outcome,'renewal_'+outcome);}finally{clearTimeout(f.view.expiryTimer);}});
 test('joining an existing passive renewal does not assign it an invented wire trace',async()=>{const f=expiredFixture(),trace={requestId:'11111111-1111-4111-8111-111111111111'};try{f.view.renewRetained({owner:{},generation:2});const read=f.view.pendingRead;assert.equal(read.reason,'renew');const done=f.view.renewForCard(f.view.cards[0],trace);assert.equal(f.view.pendingRead,read);assert.equal(read.diagnosticTrace,undefined);f.view.tracks('mood',body(),'account');assert.equal(await done,false);assert.equal(trace.outcome,'renewal_other');}finally{clearTimeout(f.view.expiryTimer);}});
 test('unwritable diagnostic metadata cannot block a failed renewal',async()=>{const f=setup(),trace=Object.freeze({requestId:'11111111-1111-4111-8111-111111111111'});try{f.view.tracks('mood',body(),'account');f.view.tracks('mood',writable(),'account');const entry=f.view.entries.get(f.view.key());entry.source.expiresAt=Date.now()-1;const done=f.view.renewForCard(f.view.cards[0],trace);f.view.tracks('mood',body(),'account');assert.equal(await done,false);}finally{clearTimeout(f.view.expiryTimer);}});
+
+for (const change of ['sibling', 'selected']) {
+ test(`explicit mood choice keeps exact clicked identity when renewal changes the ${change} card`,async()=>{
+  const f=setup(),trace={requestId:'11111111-1111-4111-8111-111111111111'};
+  try {
+   f.view.tracks('mood',writable(),'account');
+   const entry=f.view.entries.get(f.view.key()),cards=f.view.cards;
+   assert.equal(cards.length,3);
+   Object.assign(entry,{actionDispatched:true,selectionConfirmed:true,selectionSpent:true,
+    dispatchedCardId:cards[0].id,dispatchedCandidateId:entry.source.context.candidateSetId});
+   const selected=cards[1],changedIndex=change==='sibling'?2:1;
+   assert.equal(f.view.canRenewEntry(entry,cards[0]),false,'previous confirmed card is still consumed');
+   assert.equal(f.view.canRenewEntry(entry,selected),true,'different explicit card is available');
+   const choice=f.view.renewForCard(selected,trace);
+   assert.equal(f.view.pendingRead.reason,'choice');
+   const fresh=writable();
+   fresh.candidateSet.candidateSetId='b'.repeat(64);
+   fresh.candidateSet.items=fresh.candidateSet.items.map(item=>({...item,id:item.id.replace(/a/g,'b')}));
+   fresh.data.tracks[changedIndex].uri='spotify:playlist:'+'z'.repeat(22);
+   f.view.tracks('mood',fresh,'account');
+   const renewed=await choice;
+   if(change==='sibling') {
+    assert.equal(renewed,true,`unchanged clicked card was rejected as ${trace.outcome}`);
+    assert.equal(entry.source.context.candidateSetId,fresh.candidateSet.candidateSetId);
+    const selectedIndex=entry.source.tracks.findIndex(track=>track.uri===selected.uri);
+    assert.notEqual(selectedIndex,-1);
+    assert.equal(entry.source.candidateIds[selectedIndex],fresh.candidateSet.items[1].id);
+    assert.equal(entry.source.tracks.some(track=>track.uri===cards[2].uri),false);
+   } else {
+    assert.equal(renewed,false);
+    assert.equal(trace.outcome,'renewal_card_mismatch');
+    assert.equal(entry.source,null);
+    assert.equal(entry.actionDispatched,true);
+   }
+   assert.equal(f.view.cards,cards);
+   assert.deepEqual(f.calls,[['mood','initial'],['mood','choice']]);
+  } finally {
+   clearTimeout(f.view.expiryTimer);
+  }
+ });
+}
