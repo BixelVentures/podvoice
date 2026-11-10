@@ -1,6 +1,7 @@
 ## 2.0.168
 
 - Skjul robottens tidligere rum, når Home Assistant bekræfter, at rumværdien stammer fra før den aktive tur.
+- Lad Annuller fortsætte efter en konkurrerende timerlæsning, når samme ejer og adgang er bekræftet.
 
 ## 2.0.167
 
