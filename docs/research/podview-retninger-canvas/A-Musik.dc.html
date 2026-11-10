@@ -140,7 +140,7 @@ class Component extends DCLogic {
     const rows = (tab === 'recent' ? [1,3,5,0,2,4].map((i) => ({ n: TR[i][0], d: TR[i][1], art: TR[i][2] })) : items.map((c) => ({ n: c.n, d: 'Spotify-playliste', art: c.art }))).map((r, k) => ({ ...r, bt: k ? '1px solid rgba(23,23,26,.07)' : 'none' }));
     const cards = (off || listMode ? [] : waiting ? [0,1,2].map((i) => ({ id: 'ph' + i, n: '', d: i === 0 ? 'Afventer data' : '', isPh: true })) : items).map((c) => {
       const s = this.state.started[c.id] || 'idle';
-      return { ...c, hasArt: !c.isPh, isPh: !!c.isPh, op: 1, ph: c.isPh ? '#F7F6F3' : '#DCEBEA',
+      return { ...c, hasArt: !c.isPh, isPh: !!c.isPh, op: 1, ph: c.isPh ? '#F7F6F3' : '#F6DCCB',
         idle: s === 'idle', pending: s === 'pending', playing: s === 'playing', keyBg: s === 'idle' ? '#F7F6F3' : '#17171A',
         d: s === 'pending' ? 'Starter…' : s === 'playing' ? 'Afspiller' : c.d, dc: s === 'idle' ? '#5F5E5A' : '#17171A',
         play: () => this.play(c.id) };

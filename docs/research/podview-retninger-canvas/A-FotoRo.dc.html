@@ -59,7 +59,7 @@ class Component extends DCLogic {
     const timer = 'M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 2M10 2h4';
     const green = (this.props.state || 'green') === 'green';
     const slots = green
-      ? [{ href: 'A-Musik.dc.html', chip: '#DCEBEA', ic: '#17171A', icon: music, logo: '', prim: 'Vælg musik', ctx: 'Til eftermiddagen' }]
+      ? [{ href: 'A-Musik.dc.html', chip: '#F6DCCB', ic: '#17171A', icon: music, logo: '', prim: 'Vælg musik', ctx: 'Til eftermiddagen' }]
       : [{ href: 'A-Timer.dc.html', chip: '#17171A', ic: '#FF7A5C', icon: timer, logo: '', prim: '3:42', ctx: 'Timer · tæller ned' },
          { href: 'A-Radio.dc.html', chip: '#E6DDF3', ic: '#17171A', icon: '', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384', prim: 'P8 Jazz', ctx: 'Direkte · Køkkenalrum HomePod' }];
     return { slots };

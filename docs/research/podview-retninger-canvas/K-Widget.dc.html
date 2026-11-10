@@ -208,7 +208,7 @@ class Component extends DCLogic {
     const states = Object.keys(K[kind]).filter((k) => k !== '_');
     const st = states.includes(this.props.state) ? this.props.state : states[0];
     // Domænefarven står altid fuldt frem (identitet). State vises med indhold, materialets intensitet og bevægelse.
-    const DOM = { vejr: '#DDE6FB', robot: '#F6D8E1', lys: '#FBEBC6', tesla: '#D5EADD', musik: '#DCEBEA', radio: '#E6DDF3', opskrift: '#F2E4D3', timer: '#17171A', svar: '#E9E6F4' };
+    const DOM = { vejr: '#DDE6FB', robot: '#F6D8E1', lys: '#FBEBC6', tesla: '#D5EADD', musik: '#F6DCCB', radio: '#E6DDF3', opskrift: '#F2E4D3', timer: '#17171A', svar: '#E9E6F4' };
     // tone=hvid: roligere overblik; flade i papirhvid, domænet bæres af materialet og ikonet.
     // Fast anatomi i alle widgets: hoved øverst; nederst primær linje (20/800, én linje), kontekst (15, én linje)
     // og en fast 18 px stribe til fremskridt, også når den er tom. Advarsler er en farvet prik, ikke farvet tekst.

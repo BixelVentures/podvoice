@@ -40,7 +40,7 @@ Opdatér kun primitiverne i `ui-kit.css`; aliaserne følger automatisk.
 | `--pv-robot` | #F6E4E6 | #F6D8E1 (materiale #B23A62) |
 | `--pv-light` | #F8EFD2 | #FBEBC6 |
 | `--pv-tesla` | #E1EFE9 | #D5EADD (grøn #2F7A55) |
-| musik (ny) | – | afventer farvevalg (A koral / B petrol / C lime) |
+| musik (ny) | – | #F6DCCB (koral, valgt 10. nov.) |
 | radio (ny) | – | #E6DDF3 |
 | opskrift (ny) | – | #F2E4D3 |
 | svar (ny) | – | #E9E6F4 |
@@ -100,7 +100,7 @@ UI-redesign". Rækkefølge med lavest risiko først:
 
 ## Åbne beslutninger før start
 
-- Musikfarve (A/B/C).
+- ~~Musikfarve~~ besluttet: koral #F6DCCB.
 - Font: Schibsted Grotesk + IBM Plex Mono, eller beholde Inter.
 - Hver funktion i fase 4.
 - Foto-Ro: iCloud-album som kilde.
