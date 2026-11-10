@@ -61,6 +61,42 @@ test('expired task becomes visibly inert before it can send',async()=>{
 test('disconnect preserves pending unknown and late accepted receipt, without stale DOM',async()=>{
  const f=fixture();try{await open(f);const sending=f.view.send('pause',{});f.host.isConnected=false;f.view.cleanup();assert.equal([...f.view.receipts.values()][0].outcome,'unknown');f.action.resolve({ok:true,outcome:'accepted',requestId:'receipt'});await sending;assert.equal([...f.view.receipts.values()][0].outcome,'accepted');assert.equal(f.view.task,null);assert.equal(f.calls(),1);f.host.isConnected=true;f.view.render();assert.match(f.view.receiptNote.textContent,/modtaget/);}finally{f.view.cleanup();}
 });
+for(const [boundary,leaveScope] of [
+ ['revoked access',f=>{f.host.liveSnapshot.capabilities.controlSetup=[];}],
+ ['disconnect',f=>{f.host.liveTransport.connected=false;}],
+ ['offer expiry',f=>{f.view.task.expiresAt=Date.now()/1000-1;}],
+ ['unclassified Home error',f=>{f.host.state.homeReadStatus.transient=false;}],
+])test(`a held dock receipt does not bypass ${boundary}`,async()=>{
+ const f=fixture();
+ try{
+  f.host.liveTransport.generation=1;
+  f.host.liveSnapshot.capabilities.homeRead=['vacuum'];
+  const offer=f.offer();
+  offer.options=[{id:'wash',action:'dock',label:'Vask moppe',argsSchema:{kind:'dock',operation:'wash_start'}}];
+  const opening=f.view.open('vacuum',target,new Node('button'));
+  f.setup.resolve(offer);
+  await opening;
+  // The minimal DOM port stores .data without the actual panel's setter.
+  f.view.robotPanel.value=f.view.robotPanel.data;
+  const sending=f.view.send('wash',{});
+  const scope=JSON.stringify(['boot','room']);
+  f.host.state={...f.host.state,homeScope:scope,homeReadStatus:{scope,vacuum:'error',transient:true},
+   devices:f.host.state.devices.map(device=>({...device,stale:true}))};
+  f.view.render();
+  const receipt=()=>[...f.view.receipts.values()].at(-1);
+  assert.equal(receipt().outcome,'pending');
+  assert.ok(f.view.task);
+  leaveScope(f);
+  f.view.render();
+  assert.equal(receipt().outcome,'unknown');
+  assert.equal(f.view.task,null);
+  f.action.resolve({ok:false,outcome:'unknown',requestId:'dock-receipt'});
+  await sending;
+  await f.view.send('wash',{});
+  assert.equal(f.calls(),1);
+ }finally{f.view.cleanup();}
+});
+
 test('receipts retain at most sixteen, hide on owner change and preserve known acceptance through disconnect',()=>{
  const f=fixture();try{f.view.domain='vacuum';f.view.target=target;for(let i=0;i<20;i++)f.view.remember({key:String(i),bootId:'boot',roomId:'room',domain:'vacuum',target,label:'Pause'},i%2?'accepted':'unknown');assert.equal(f.view.receipts.size,16);f.view.invalidate();assert.match(f.view.receiptNote.textContent,/modtaget/);f.host.liveSnapshot={...f.host.liveSnapshot,bootId:'new'};f.view.render();assert.equal(f.view.receiptNote.hidden,true);}finally{f.view.cleanup();}
 });
