@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "72a9a2ff6d730e2e34de0260f6afeea8b78328d8e52a7376beff3c9de0664556"
+      "sha256": "d5a6d347ba2b85361da4da43f81fc573c0ba4340e505595517f485c5e95f9631"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "5d0fc6f76beee8f0fbd067c63b9dd4a7e979cdc7bfcb43f23f55c0b77f628f44"
+      "sha256": "154802afc9ff7b91aae7547ddf824731a93e506200cfd1ecb08016eec8934a0c"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "8f1e90b1a97f8fba8e854d2fd7aca9d953386a0d7b4c98bea876918bd16fd22b"
+      "sha256": "d4509d8df38090c9c81fb877b8a3a33f6c1a96f1b475f9066b70c1cb55e8edd5"
     },
     {
       "path": "robot-observation.js",

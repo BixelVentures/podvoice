@@ -166,3 +166,20 @@ test('unknown for this robot before hidden expiry creates neither custody nor re
 test('reopening robot setup leaves panel descendants to its own disabled gate',async()=>{
  const f=fixture();try{await open(f);inline(f);const panel=f.view.robotPanel,base=new Node('button'),outside=new Node('button');base.dataset={};outside.dataset={};base.disabled=false;panel.replaceChildren(base);panel.contains=node=>node===base;f.view.body.append(outside);let baseWrites=0,baseDisabled=false;Object.defineProperty(base,'disabled',{get:()=>baseDisabled,set:value=>{baseWrites++;baseDisabled=value;}});f.view.task=null;const read=f.view.open('vacuum',target,new Node('button'));assert.equal(baseWrites,0,'opening must not transiently disable panel-owned Base');assert.equal(outside.disabled,true,'non-panel controls remain disabled');assert.equal(panel.disabled,true,'panel owns task/direct-action gating');f.next.resolve(f.offer('fresh'));await read;assert.equal(f.writes(),0);}finally{f.view.cleanup();}
 });
+// S2/S3: Pause tapped while Start is still in flight is queued and sent once Start settles.
+test('a robot transport tap during a pending Start is queued and sent once when Start settles',async()=>{
+ const f=fixture();try{
+  await open(f);inline(f);const d=f.host.state.devices[0];
+  const held=deferred(),intents=[];
+  f.host.liveTransport.controlAction=()=>held.promise;
+  f.host.liveTransport.controlIntent=async intent=>{intents.push(intent);return {outcome:'accepted',requestId:intent.requestId};};
+  const starting=f.view.send('old-start',{areaIds:['old-area'],repeat:1});
+  assert.equal(f.view.pending,true);
+  Object.assign(d,{status:'cleaning',revision:1,transportActions:{status:'observed',source:'home_assistant_state',entityId:d.id,observedAt:Date.now()/1000,actions:['pause']}});
+  f.host.state.homeScope=JSON.stringify(['boot','room']);
+  assert.equal(await f.view.robotDirectIntent(d.id,'pause'),true,'the tap is taken, not refused');
+  assert.equal(intents.length,0,'nothing is sent while Start is in flight');
+  held.resolve({ok:true,outcome:'accepted'});await starting;for(let i=0;i<3;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(intents.map(row=>row.action),['pause'],'Pause is sent exactly once after Start');
+ }finally{f.view.cleanup();}
+});
