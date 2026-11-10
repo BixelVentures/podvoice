@@ -1,3 +1,8 @@
+## 2.0.168
+
+- Skjul robottens tidligere rum, når Home Assistant bekræfter, at rumværdien stammer fra før den aktive tur.
+- Lad Annuller fortsætte efter en konkurrerende timerlæsning, når samme ejer og adgang er bekræftet.
+
 ## 2.0.167
 
 - Vis om radioens Stop ikke blev sendt, blev afvist eller har ukendt udfald. Vis en konkret besked, hvis en valgt playliste ikke kan bekræftes ved fornyelse.

@@ -12,11 +12,13 @@ import pytest
 from integration.test_robot_current_setup import build as setup_build
 
 from gatekeeper.device_control import DeviceControl
+from gatekeeper.podview import _home_vacuum
 from gatekeeper.podview_robot import project_current_activity
 
 VAC = "vacuum.qrevo"
 CLEAN = "binary_sensor.qrevo_cleaning"
 AREA = "sensor.qrevo_area"
+ROOM = "sensor.qrevo_current_room"
 
 
 def iso(epoch):
@@ -53,6 +55,28 @@ async def build(case="normal"):
             "last_reported": iso(time.time()),
         },
     }
+    if case.startswith("room-"):
+        registry[ROOM] = {
+            **registry[AREA],
+            "entity_id": ROOM,
+            "unique_id": "current_room_native",
+            "translation_key": "current_room",
+        }
+        states[ROOM] = {
+            "entity_id": ROOM,
+            "state": "Corridor1",
+            "attributes": {},
+            "last_changed": iso(edge + 30),
+            "last_reported": iso(time.time() - 1),
+        }
+        if case == "room-previous":
+            states[ROOM].update(state="Bathroom1", last_changed=iso(edge - 60))
+        elif case == "room-missing-change":
+            del states[ROOM]["last_changed"]
+        elif case == "room-invalid-change":
+            states[ROOM]["last_changed"] = iso(time.time() + 60)
+        elif case == "room-assumed":
+            states[ROOM]["attributes"]["assumed_state"] = True
     if case == "paused":
         states[VAC]["state"] = "paused"
     if case == "dockwash":
@@ -78,8 +102,10 @@ async def build(case="normal"):
     if case == "edge-mismatch":
         states[CLEAN]["last_changed"] = iso(edge - 1)
     calls, registry_calls = [], []
+    vacuum_reads = 0
 
     async def route(request):
+        nonlocal vacuum_reads
         path = request.url.path.removeprefix("/core/api/")
         if path == "services/podvoice/robot_observation_snapshot":
             assert request.method == "POST" and request.url.query == b"return_response"
@@ -104,7 +130,13 @@ async def build(case="normal"):
             await asyncio.Future()  # Existing readonly companion held inert.
         assert request.method == "GET", "No service mutation is part of this fixture"
         if path.startswith("states/"):
-            return httpx.Response(200, json=copy.deepcopy(states[path.removeprefix("states/")]))
+            entity = path.removeprefix("states/")
+            if entity == VAC and case == "room-pause-resume":
+                states[VAC]["state"] = ("cleaning", "paused", "cleaning")[vacuum_reads]
+                # A repeated report of an unchanged room does not move last_changed.
+                states[ROOM]["last_reported"] = iso(time.time())
+                vacuum_reads += 1
+            return httpx.Response(200, json=copy.deepcopy(states[entity]))
         assert path.startswith("history/period/")
         calls.append(request)
         start = datetime.fromisoformat(path.removeprefix("history/period/")).timestamp()
@@ -134,7 +166,7 @@ async def build(case="normal"):
             rows.insert(1, {"state": "unknown", "last_changed": iso(edge - 10)})
         elif case == "latest-off":
             rows.append({"state": "off", "last_changed": iso(edge + 30)})
-        elif case == "empty":
+        elif case in {"empty", "room-missing-run"}:
             return httpx.Response(200, json=[])
         elif case == "foreign":
             rows[0]["entity_id"] = "binary_sensor.foreign"
@@ -152,6 +184,8 @@ async def build(case="normal"):
     owner = DeviceControl(client, "inert-token")
     owner.configure(True, [VAC])
     fields = [{"key": "in_cleaning", "entityId": CLEAN}, {"key": "cleaning_area", "entityId": AREA}]
+    if case.startswith("room-"):
+        fields.append({"key": "current_room", "entityId": ROOM})
     if case == "setup-timeout":
         fields.append({"key": "status", "entityId": "sensor.qrevo_status"})
     owner.configure_robot_reads(
@@ -196,6 +230,47 @@ async def test_recorded_actual_edge_after_long_idle_survives_http_owner_projecti
         assert activity["source"] == "home_assistant_recorder"
         assert len(calls) == 1
         assert {item["key"] for item in value["items"]} == {"in_cleaning", "cleaning_area"}
+        assert not owner._tickets and not owner._display_tickets
+    finally:
+        await client.aclose()
+
+
+@pytest.mark.parametrize(
+    "case,expected",
+    [
+        ("room-previous", ("Bathroom1", True)),
+        ("room-fresh", ("Corridor1", False)),
+        ("room-pause-resume", ("Corridor1", False)),
+        ("room-missing-change", ("Corridor1", False)),
+        ("room-invalid-change", ("Corridor1", False)),
+        ("room-missing-run", ("Corridor1", False)),
+        ("room-assumed", None),
+    ],
+)
+async def test_current_room_requires_ha_value_change_inside_the_observed_run(case, expected):
+    owner, client, _, _ = await build(case)
+    try:
+        states = (
+            ("cleaning", "paused", "cleaning") if case == "room-pause-resume" else ("cleaning",)
+        )
+        for state in states:
+            device = _home_vacuum(await owner.observe())["items"][0]
+            assert device["state"] == state
+            room = next(
+                (row for row in device["telemetry"]["items"] if row["key"] == "current_room"), None
+            )
+            if expected is None:
+                assert room is None
+            else:
+                assert room is not None
+                assert (room["value"], room["stale"]) == expected
+                assert room["historical"] is expected[1]
+            assert (
+                next(row for row in device["telemetry"]["items"] if row["key"] == "cleaning_area")[
+                    "value"
+                ]
+                == 9.4
+            )
         assert not owner._tickets and not owner._display_tickets
     finally:
         await client.aclose()

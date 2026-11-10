@@ -58,6 +58,7 @@ class HomeAssistantTimers:
         self.bindings: dict[str, tuple[str, str] | tuple[str, str, str]] = {}
         self._registered_invalid: set[str] = set()
         self._registered_reads: dict[str, int] = {}
+        self._status_read_serials: dict[str, int] = {}
         self.snapshots: dict[str, dict] = {}
         self.observed_at: dict[str, float] = {}
         self.ready: set[str] = set()
@@ -189,12 +190,17 @@ class HomeAssistantTimers:
                 "retry_allowed": False,
             }
 
+    def _begin_status_read(self, endpoint: str) -> int:
+        serial = self._registered_reads.get(endpoint, 0) + 1
+        self._registered_reads[endpoint] = serial
+        self._status_read_serials[endpoint] = serial
+        return serial
+
     async def refresh(self, endpoint: str) -> dict:
         previous = self.bindings.get(endpoint)
         if previous is not None and len(previous) == 3:
             return await self.refresh_registered(endpoint, expected_kind="voice_pe")
-        serial = self._registered_reads.get(endpoint, 0) + 1
-        self._registered_reads[endpoint] = serial
+        serial = self._begin_status_read(endpoint)
         source = (self.contract, self.client, self.token, previous)
         data = await self._service("timer_status", {"endpoint": endpoint})
         if self._registered_reads.get(endpoint) != serial:
@@ -219,8 +225,7 @@ class HomeAssistantTimers:
             or endpoint in self._registered_invalid
         ):
             return self._unavailable(endpoint)
-        serial = self._registered_reads.get(endpoint, 0) + 1
-        self._registered_reads[endpoint] = serial
+        serial = self._begin_status_read(endpoint)
         source = (self.contract, self.client, self.token)
         data = await self._service("timer_status", {"endpoint": endpoint})
         if self._registered_reads.get(endpoint) != serial:
@@ -562,7 +567,40 @@ class HomeAssistantTimers:
         deadline = time.monotonic() + C.TOOL_TIMEOUT_S if deadline is None else deadline
         old = self.snapshots.get(endpoint, {}).get("epoch")
         old_contract = self.contract
+        cancel = name == "podvoice_cancel_timer"
+        if cancel:
+            source = (self.client, self.token, old_contract, self.command_service)
+            binding = self.bindings.get(endpoint)
+            expected_read = self._registered_reads.get(endpoint, 0) + 1
         state = await self.refresh(endpoint)
+        if cancel and state.get("error_kind") == "stale_timer_read":
+            latest = self._registered_reads.get(endpoint)
+            remaining = deadline - time.monotonic()
+
+            def cancel_source_current():
+                return (
+                    source == (self.client, self.token, self.contract, self.command_service)
+                    and binding == self.bindings.get(endpoint)
+                    and old == self.snapshots.get(endpoint, {}).get("epoch")
+                    and (execution_guard is None or execution_guard())
+                )
+
+            # Exactly one competing status read may have superseded this preflight.
+            # Unbinds and mutations also advance the serial, but cannot qualify here.
+            if (
+                latest == expected_read + 1
+                and latest == self._status_read_serials.get(endpoint)
+                and remaining > 0
+                and cancel_source_current()
+            ):
+                try:
+                    async with asyncio.timeout(remaining):
+                        refreshed = await self.refresh(endpoint)
+                except TimeoutError:
+                    pass  # The original preflight failed before any mutation.
+                else:
+                    if cancel_source_current():
+                        state = refreshed
         if (
             not state.get("ok")
             or state.get("epoch") != old

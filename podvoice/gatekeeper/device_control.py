@@ -422,6 +422,19 @@ class DeviceControl:
                 results = await asyncio.gather(*(optional_read(read) for _, read in reads))
                 for (key, _), observed in zip(reads, results, strict=True):
                     result[key] = observed
+            activity = result["currentActivity"]
+            if activity["status"] == "observed":
+                for row in items:
+                    if row["key"] != "current_room" or row.get("historical"):
+                        continue
+                    # Re-reporting the previous room is not a change within this run.
+                    change = podview_robot._epoch(snapshot[row["entityId"]].get("last_changed"))
+                    if (
+                        change is not None
+                        and 0 < change <= row["updatedAt"]
+                        and change < activity["registeredAt"]
+                    ):
+                        row.update(historical=True, stale=True)
             self._check(generation)
             return result
         except (CapabilityError, ValueError, httpx.HTTPError, aiohttp.ClientError):
