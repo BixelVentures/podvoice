@@ -1,3 +1,7 @@
+## 2.0.171
+
+- Bevar kvitteringen for en igangværende robotbasehandling, hvis Home Assistant kortvarigt ikke kan læses.
+
 ## 2.0.170
 
 - Bevar kendte rækker, mens Spotify gør den næste kø klar, og vælg præcis den forekomst, du trykker på.
