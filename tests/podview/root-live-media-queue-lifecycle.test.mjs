@@ -230,7 +230,7 @@ test('UNKNOWN renews the open queue on a newer same-track owner observation, onl
  }finally{f.close();}
 });
 
-for(const resolves of [false,true])test(`unresolved autoplay keeps prior rows read-only; resolves=${resolves}`,async()=>{
+for(const resolves of [false,true])test(`unresolved autoplay keeps rows read-only; resolves=${resolves}`,async()=>{
  const f=rig(),rendered=[];
  const pending=()=>Object.assign(Error('pending'),{code:'queue_preview_pending'});
  let attempts=0,effects=0;
