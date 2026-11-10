@@ -25,3 +25,118 @@ test('broker rejection of a changed ordered URI sequence cannot trigger client o
   host.liveTransport.queueOffer=async()=>{const value=initial();if(changed==='length')value.items.pop();else if(changed==='uri')value.items[0].uri='spotify:track:'+'2'.repeat(22);else value.items=[value.items[2],value.items[1],value.items[0]].map((row,index)=>({...row,order:index+1}));return value;};const posts=[];host.liveTransport.queueAction=async(task,id)=>{posts.push({task,id});return {outcome:'rejected'};};await view.choose(selected);assert.equal(posts.length,1);assert.equal(posts[0].task,shown);assert.equal(posts[0].id,selected.id);assert.equal(calls(),0);assert.equal(view.status,'error');assert.equal(view.errorKind,'choice');
  }finally{view.invalidate(true);}}
 });
+
+function autoplayOffer(queueKind='preview'){
+ const value={...offer(),queueKind};
+ value.items=value.items.map((row,index)=>({...row,displayId:'display-'+String(index+1).repeat(24)}));
+ if(queueKind==='promotion'){
+  value.taskId='queue:'+'b'.repeat(32);
+  value.items=value.items.map((row,index)=>({...row,id:String(index+3).repeat(24)}));
+ }
+ return value;
+}
+
+test('autoplay offer accepts mapped preview and partial promotion, never malformed display identity',()=>{
+ const snapshot={bootId:'boot',roomId:'kitchen'};
+ const parse=value=>queueOffer(value,snapshot,'account','device',Date.now(),'a'.repeat(64));
+ const preview=autoplayOffer(),promotion=autoplayOffer('promotion');
+ delete promotion.items[1].displayId;
+ assert.equal(parse(preview).items[1].displayId,preview.items[1].displayId);
+ assert.equal(parse(promotion).items[0].id,promotion.items[0].id);
+ assert.equal(parse(promotion).items[1].displayId,undefined);
+ const invalid=[
+  {...preview,queueKind:'unknown'},
+  {...offer(),items:preview.items},
+  {...preview,items:[preview.items[0],{...preview.items[1],displayId:preview.items[0].displayId}]},
+  {...preview,items:[preview.items[0],offer().items[1]]},
+  {...preview,items:[{...preview.items[0],displayId:'display-no'},preview.items[1]]},
+  {...preview,items:[{...preview.items[0],id:preview.items[0].displayId},preview.items[1]]},
+  {...offer(),queueKind:'promotion'},
+ ];
+ for(const value of invalid)assert.equal(parse(value),null);
+});
+
+test('preview remains visible through transient failure but promotion requires the fresh opaque witness',async()=>{
+ const {host,view}=rig(),p=host.liveMedia.playback,sent=[];
+ try{
+  host.liveTransport.queueOffer=async()=>autoplayOffer();
+  assert.equal(await view.load('account',p),true);
+  const old=view.model('account',p).items[1];
+  assert.equal(old.selectable,true);
+  host.liveTransport.queueOffer=async()=>{
+   throw Object.assign(Error('temporary'),{code:'read_transient'});
+  };
+  assert.equal(await view.load('account',p),false);
+  const retained=view.model('account',p).items[1];
+  assert.equal(retained.displayId,old.displayId);
+  assert.equal(retained.title,old.title);
+  assert.equal(retained.selectable,false);
+  host.liveTransport.queueAction=async(task,id)=>{sent.push([task.taskId,id]);return {outcome:'unknown'};};
+  await view.choose(old);
+  assert.deepEqual(sent,[]);
+  const promotion=autoplayOffer('promotion');
+  host.liveTransport.queueOffer=async()=>promotion;
+  assert.equal(await view.load('account',p),true);
+  const next=view.model('account',p).items[1];
+  assert.equal(next.displayId,old.displayId);
+  assert.notEqual(next.id,old.id);
+  await view.choose(old);
+  await view.choose({...next,id:next.displayId});
+  assert.deepEqual(sent,[]);
+  await view.choose(next);
+  assert.deepEqual(sent,[[promotion.taskId,promotion.items[1].id]]);
+ }finally{view.invalidate(true);}
+});
+
+test('a second preview tap waits locally and cannot carry over to the promotion witness',async()=>{
+ const {host,view}=rig(),p=host.liveMedia.playback,sent=[];
+ let finish,reads=0;
+ try{
+  host.liveTransport.queueOffer=async()=>autoplayOffer(reads++?'promotion':'preview');
+  host.liveTransport.queueAction=(task,id)=>{
+   sent.push([task.queueKind,id]);
+   return new Promise(resolve=>{finish=resolve;});
+  };
+  await view.load('account',p);
+  const shown=view.model('account',p).items;
+  const choosing=view.choose(shown[0]);
+  await view.choose(shown[1]);
+  assert.equal(view.model('account',p).items[1].pending,true);
+  assert.deepEqual(sent,[['preview',shown[0].id]]);
+  finish({outcome:'accepted'});
+  await choosing;
+  assert.equal(reads,2,'the existing post-action refresh is the only additional read');
+  assert.deepEqual(sent,[['preview',shown[0].id]]);
+  const promoted=view.model('account',p).items[1];
+  assert.equal(promoted.displayId,shown[1].displayId);
+  assert.equal(promoted.selectable,true);
+ }finally{finish?.({outcome:'rejected'});view.invalidate(true);}
+});
+
+test('revoked autoplay authority cannot revive the retained row after read access returns',async()=>{
+ const {host,view,calls}=rig(),p=host.liveMedia.playback;
+ try{
+  host.liveTransport.queueOffer=async()=>autoplayOffer();
+  await view.load('account',p);
+  const first=view.model('account',p).items[0];
+  host.liveSnapshot.capabilities.queueSelection=false;
+  assert.equal(view.model('account',p).items[0].selectable,false);
+  host.liveSnapshot.capabilities.queueSelection=true;
+  const retained=view.model('account',p).items[0];
+  assert.equal(retained.displayId,first.displayId);
+  assert.equal(retained.selectable,false);
+  await view.choose(first);
+  assert.equal(calls(),0);
+ }finally{view.invalidate(true);}
+});
+
+test('transport never posts a display identifier, including a malformed offer that repeats it as an id',async()=>{
+ const transport=new PodVoiceTransport({url:'https://home.invalid/view/',fetch:async()=>assert.fail('POST')});
+ const value=autoplayOffer(),displayId=value.items[0].displayId;
+ value.items[0].id=displayId;
+ transport.connected=true;
+ transport.snapshot={bootId:'boot',roomId:'kitchen',capabilities:{queueSelection:true}};
+ try{
+  assert.equal((await transport.queueAction(value,displayId)).outcome,'rejected');
+ }finally{transport.close();}
+});

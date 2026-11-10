@@ -19,6 +19,7 @@ VAC = "vacuum.qrevo"
 CLEAN = "binary_sensor.qrevo_cleaning"
 AREA = "sensor.qrevo_area"
 ROOM = "sensor.qrevo_current_room"
+PROGRESS = "sensor.qrevo_clean_percent"
 
 
 def iso(epoch):
@@ -69,7 +70,7 @@ async def build(case="normal", *, age=600):
             "last_changed": iso(edge + 30),
             "last_reported": iso(time.time() - 1),
         }
-        if case == "room-previous":
+        if case in {"room-previous", "room-previous-progress"}:
             states[ROOM].update(state="Bathroom1", last_changed=iso(edge - 60))
         elif case == "room-missing-change":
             del states[ROOM]["last_changed"]
@@ -77,6 +78,27 @@ async def build(case="normal", *, age=600):
             states[ROOM]["last_changed"] = iso(time.time() + 60)
         elif case == "room-assumed":
             states[ROOM]["attributes"]["assumed_state"] = True
+    if case.startswith("progress-") or case == "room-previous-progress":
+        registry[PROGRESS] = {
+            **registry[AREA],
+            "entity_id": PROGRESS,
+            "unique_id": "clean_percent_native",
+            "translation_key": "clean_percent",
+        }
+        reported = {
+            "progress-pre-run": edge - 20,
+            "progress-unproven": edge - 20,
+            "progress-at-start": edge,
+            "room-previous-progress": edge - 20,
+        }.get(case, edge + 20)
+        measured = case == "progress-measured"
+        states[PROGRESS] = {
+            "entity_id": PROGRESS,
+            "state": "42" if measured else "0",
+            "attributes": {"unit_of_measurement": "%"},
+            "last_changed": iso(reported if measured else edge - 60),
+            "last_reported": iso(reported),
+        }
     if case == "paused":
         states[VAC]["state"] = "paused"
     if case == "dockwash":
@@ -166,7 +188,7 @@ async def build(case="normal", *, age=600):
             rows.insert(1, {"state": "unknown", "last_changed": iso(edge - 10)})
         elif case == "latest-off":
             rows.append({"state": "off", "last_changed": iso(edge + 30)})
-        elif case in {"empty", "room-missing-run"}:
+        elif case in {"empty", "room-missing-run", "progress-unproven"}:
             return httpx.Response(200, json=[])
         elif case == "foreign":
             rows[0]["entity_id"] = "binary_sensor.foreign"
@@ -186,6 +208,8 @@ async def build(case="normal", *, age=600):
     fields = [{"key": "in_cleaning", "entityId": CLEAN}, {"key": "cleaning_area", "entityId": AREA}]
     if case.startswith("room-"):
         fields.append({"key": "current_room", "entityId": ROOM})
+    if case.startswith("progress-") or case == "room-previous-progress":
+        fields.append({"key": "clean_percent", "entityId": PROGRESS})
     if case == "setup-timeout":
         fields.append({"key": "status", "entityId": "sensor.qrevo_status"})
     owner.configure_robot_reads(
@@ -298,7 +322,9 @@ async def test_current_room_requires_ha_value_change_inside_the_observed_run(cas
     ],
 )
 async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness(prior):
-    owner, client, _, edge = await build("room-previous", age=30)
+    checks_progress = prior in {"dock", "delayed-binary"}
+    case = "room-previous-progress" if checks_progress else "room-previous"
+    owner, client, _, edge = await build(case, age=30)
     transport = client._transport
     read_registry = owner._ws_read
     state = "docked"
@@ -307,6 +333,7 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
     changed_registry = False
     delayed_binary = prior == "delayed-binary" or prior.startswith("vacuum-stamp-")
     vacuum_edge = 0.0
+    progress_rereported = False
 
     async def registry(command):
         entries = await read_registry(command)
@@ -358,13 +385,15 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
                     )
                 if row["entity_id"] == ROOM and room == "Corridor1":
                     row.update(state=room, last_changed=iso(edge + 10))
+                if row["entity_id"] == PROGRESS and progress_rereported:
+                    row["last_reported"] = iso(time.time())
             return httpx.Response(200, json=rows)
         return result
 
     owner._ws_read = registry
     client._transport = httpx.MockTransport(route)
 
-    async def view(expected_room, *, historical=False, recorded=False):
+    async def view(expected_room, *, historical=False, recorded=False, progress_historical=False):
         device = _home_vacuum(await owner.observe())["items"][0]
         row = next(row for row in device["telemetry"]["items"] if row["key"] == "current_room")
         assert device["state"] == state
@@ -372,6 +401,13 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
         assert row["historical"] is historical
         assert row["stale"] is historical
         assert (device["currentActivity"]["status"] == "observed") is recorded
+        if checks_progress:
+            progress = next(
+                item for item in device["telemetry"]["items"] if item["key"] == "clean_percent"
+            )
+            assert progress["value"] == 0
+            assert progress["historical"] is progress_historical
+            assert progress["stale"] is progress_historical
         assert not owner._tickets and not owner._display_tickets
 
     async with client:
@@ -389,18 +425,51 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
             await view("Bathroom1")
         state = "cleaning"
         vacuum_edge = time.time()
-        await view("Bathroom1", historical=prior in {"dock", "delayed-binary"})
-        if prior in {"dock", "delayed-binary"}:
+        await view("Bathroom1", historical=checks_progress, progress_historical=checks_progress)
+        if checks_progress:
             state = "paused"
             vacuum_edge = time.time()
-            await view("Bathroom1", historical=True)
+            await view("Bathroom1", historical=True, progress_historical=True)
             room = "Corridor1"
+            progress_rereported = True
             await view("Corridor1")
             state = "cleaning"
             await view("Corridor1")
             room = "Bathroom1"
             recorder_ready = True
             await view("Bathroom1", historical=True, recorded=True)
+
+
+@pytest.mark.parametrize(
+    "case, expected, historical",
+    [
+        ("progress-pre-run", 0, True),
+        ("progress-rereported", 0, False),
+        ("progress-at-start", 0, False),
+        ("progress-measured", 42, False),
+        ("progress-unproven", 0, False),
+    ],
+)
+async def test_progress_requires_an_in_run_report_when_the_ha_run_boundary_is_known(
+    case, expected, historical
+):
+    owner, client, _, edge = await build(case, age=90)
+    async with client:
+        device = _home_vacuum(await owner.observe())["items"][0]
+        progress = next(
+            row for row in device["telemetry"]["items"] if row["key"] == "clean_percent"
+        )
+        assert device["state"] == "cleaning"
+        activity = device["currentActivity"]
+        if case == "progress-unproven":
+            assert activity == {"status": "unavailable"}
+        else:
+            assert activity["status"] == "observed"
+            assert abs(activity["registeredAt"] - edge) < 0.001
+        assert progress["value"] == expected
+        assert progress["historical"] is historical
+        assert progress["stale"] is historical
+        assert not owner._tickets and not owner._display_tickets
 
 
 async def test_slow_independent_setup_read_does_not_erase_recorded_activity():

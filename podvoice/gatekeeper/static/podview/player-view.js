@@ -185,9 +185,77 @@ if(item.sourceKind==='radio'&&/^assets\/radio-(p3|p1|p4-ostjylland|p6-beat|p8-ja
  toggleVolumeMute(){const button=this.volumeMute,vm=this.volumeMuteVM;if(!button||button.disabled||!vm||this.volumeBinding()!==this.volumeMuteBinding)return;const value=vm.volume===0?this.volumeRestore:0;if(!Number.isInteger(value))return;this.volumeMuteRequest={from:vm.volume,value};button.disabled=true;this.host.music({type:'volume',value});}
  renderRadioProgress(progress){for(const id of ['output','detail-output']){const button=this.doc.getElementById(id);if(button&&(progress?.kind==='output'||button.dataset.radioProgress==='true')){const loading=progress?.kind==='output'&&id==='output';applyKitComponent(button,'button',{feedback:'progress',loading});button.dataset.radioProgress=String(loading);if(loading)button.disabled=true;}}}
  renderControls(vm){renderPlayerControls(this.host,vm);if(this.host.playerView!==this)this.syncVolumeMute(vm);for(const row of this.rows.values())if(row.queueItem?.current)row.disabled=this.doc.getElementById('play-pause').disabled;}
- createRow(id){const doc=this.doc,row=doc.createElement('button');row.type='button';row.className='queue-track pv-row pv-btn';applyKitComponent(row,'listrow');row.dataset.trackId=id;const order=doc.createElement('span'),cover=doc.createElement('img'),copy=doc.createElement('span'),title=doc.createElement('strong'),artist=doc.createElement('small'),play=doc.createElement('img');order.className='queue-order';cover.className='queue-cover';cover.alt='';copy.className='queue-copy';play.className='queue-play';play.src='assets/icons/play-fill.svg';play.alt='';copy.append(title,artist);row.append(order,cover,copy,play);row.addEventListener('click',()=>{if(row.queueItem?.current){const toggle=this.doc.getElementById('play-pause');if(!toggle.disabled)toggle.click();}else if(!row.disabled&&row.queueItem?.selectable)this.chooseQueue(row.queueItem);});return row;}
- renderQueue(items,{status='ready',empty='Ingen sange i køen.',sourceKind='music',errorKind=null}={}){if(this.host.liveRadio?.pendingStart?.()&&this.host.liveRadio?.presentsPlayer?.()!==false){const title=this.doc.getElementById('queue-title');if(!title.hidden)title.hidden=true;if(!this.queue.hidden)this.queue.hidden=true;for(const row of this.rows.values())if(!row.disabled)row.disabled=true;return;}items=items.filter(item=>typeof item?.title==='string'&&!!item.title.trim());const current=this.progressVM;if(this.host.live&&sourceKind!=='radio'&&current?.active&&current.fresh&&!current.readOnly&&current.metadataKnown!==false&&current.uri&&!items.some(item=>item.current))items=[{id:`current:${current.uri}`,uri:current.uri,title:current.title,artist:current.artist,artwork:current.artwork,order:0,current:true,playing:current.playing===true,selectable:false},...items];const title=this.doc.getElementById('queue-title');const hidden=sourceKind==='radio';if(title.hidden!==hidden)title.hidden=hidden;if(this.queue.hidden!==hidden)this.queue.hidden=hidden;const queueHeading=items.some(item=>item.current)?'Afspilning og kø':'Næste i køen',heading=status==='error'?(errorKind==='choice'?'Køvalget blev afvist':'Køen kunne ikke hentes'):status==='unknown'?'Afspilning ikke bekræftet':status==='stale'?'Sidst kendte kø':queueHeading,busy=String(['loading','pending'].includes(status)),label=status==='stale'?'Sidst kendte kø':status==='error'?(errorKind==='choice'?'Køvalget blev afvist':'Køen kunne ikke opdateres'):queueHeading;if(title.textContent!==heading)title.textContent=heading;if(this.queue.dataset.status!==status)this.queue.dataset.status=status;if(this.queue.getAttribute?.('aria-busy')!==busy)this.queue.setAttribute('aria-busy',busy);if(this.queue.getAttribute?.('aria-label')!==label)this.queue.setAttribute('aria-label',label);const wanted=new Set(items.map(item=>item.id));
-  items.forEach((item,index)=>{let row=this.rows.get(item.id);if(!row){row=this.createRow(item.id);this.rows.set(item.id,row);}row.queueItem=item;
+ createRow(id){
+  const doc=this.doc,row=doc.createElement('button');
+  row.type='button';
+  row.className='queue-track pv-row pv-btn';
+  applyKitComponent(row,'listrow');
+  row.dataset.trackId=id;
+  const order=doc.createElement('span'),cover=doc.createElement('img'),copy=doc.createElement('span');
+  const title=doc.createElement('strong'),artist=doc.createElement('small'),play=doc.createElement('img');
+  order.className='queue-order';
+  cover.className='queue-cover';
+  cover.alt='';
+  copy.className='queue-copy';
+  play.className='queue-play';
+  play.src='assets/icons/play-fill.svg';
+  play.alt='';
+  copy.append(title,artist);
+  row.append(order,cover,copy,play);
+  // A stable display node may receive a new witness before an activation finishes.
+  let pressed=null;
+  row.addEventListener('pointerdown',()=>{pressed=row.queueItem?.queueTaskId?row.queueItem:null;});
+  row.addEventListener('pointercancel',()=>{pressed=null;});
+  row.addEventListener('keydown',event=>{
+   if(!event.repeat&&['Enter',' '].includes(event.key))pressed=row.queueItem?.queueTaskId?row.queueItem:null;
+  });
+  row.addEventListener('click',()=>{
+   const item=row.queueItem,original=pressed;
+   pressed=null;
+   if(original&&(original.queueTaskId!==item?.queueTaskId||original.id!==item.id||original.uri!==item.uri))return;
+   if(item?.current){
+    const toggle=this.doc.getElementById('play-pause');
+    if(!toggle.disabled)toggle.click();
+   }else if(!row.disabled&&item?.selectable)this.chooseQueue(item);
+  });
+  return row;
+ }
+ renderQueue(items,{status='ready',empty='Ingen sange i køen.',sourceKind='music',errorKind=null}={}){
+  const title=this.doc.getElementById('queue-title');
+  if(this.host.liveRadio?.pendingStart?.()&&this.host.liveRadio?.presentsPlayer?.()!==false){
+   if(!title.hidden)title.hidden=true;
+   if(!this.queue.hidden)this.queue.hidden=true;
+   for(const row of this.rows.values())if(!row.disabled)row.disabled=true;
+   return;
+  }
+  items=items.filter(item=>typeof item?.title==='string'&&!!item.title.trim());
+  const current=this.progressVM;
+  if(this.host.live&&sourceKind!=='radio'&&current?.active&&current.fresh&&!current.readOnly
+   &&current.metadataKnown!==false&&current.uri&&!items.some(item=>item.current)){
+   items=[{
+    id:`current:${current.uri}`,uri:current.uri,title:current.title,artist:current.artist,
+    artwork:current.artwork,order:0,current:true,playing:current.playing===true,selectable:false,
+   },...items];
+  }
+  const hidden=sourceKind==='radio';
+  if(title.hidden!==hidden)title.hidden=hidden;
+  if(this.queue.hidden!==hidden)this.queue.hidden=hidden;
+  const queueHeading=items.some(item=>item.current)?'Afspilning og kø':'Næste i køen';
+  const heading=status==='error'?(errorKind==='choice'?'Køvalget blev afvist':'Køen kunne ikke hentes')
+   :status==='unknown'?'Afspilning ikke bekræftet':status==='stale'?'Sidst kendte kø':queueHeading;
+  const busy=String(['loading','pending'].includes(status));
+  const label=status==='stale'?'Sidst kendte kø'
+   :status==='error'?(errorKind==='choice'?'Køvalget blev afvist':'Køen kunne ikke opdateres'):queueHeading;
+  if(title.textContent!==heading)title.textContent=heading;
+  if(this.queue.dataset.status!==status)this.queue.dataset.status=status;
+  if(this.queue.getAttribute?.('aria-busy')!==busy)this.queue.setAttribute('aria-busy',busy);
+  if(this.queue.getAttribute?.('aria-label')!==label)this.queue.setAttribute('aria-label',label);
+  const wanted=new Set(items.map(item=>item.displayId??item.id));
+  items.forEach((item,index)=>{
+   const displayKey=item.displayId??item.id;
+   let row=this.rows.get(displayKey);
+   if(!row){row=this.createRow(displayKey);this.rows.set(displayKey,row);}
+   row.queueItem=item;
    const pending=!item.current&&item.pending===true;
    if(pending){if(row.getAttribute('aria-busy')!=='true')row.setAttribute('aria-busy','true');}
    else if(row.getAttribute('aria-busy')!==null)row.removeAttribute('aria-busy');

@@ -1,3 +1,8 @@
+## 2.0.170
+
+- Bevar kendte rækker, mens Spotify gør den næste kø klar, og vælg præcis den forekomst, du trykker på.
+- Skjul gamle fremdriftsmålinger fra før robottens aktuelle tur. En ny måling på 0 % vises fortsat.
+
 ## 2.0.169
 
 - Hent højttalerlisten, mens Vibe indlæses, lad Din musik vente på samme Vibe-opslag, og skjul robottens tidligere rum under opstart, når Home Assistant har bekræftet, at det stammer fra før turen.

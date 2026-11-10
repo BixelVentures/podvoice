@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music_selection import rig as rig
@@ -691,3 +692,105 @@ async def test_queue_artwork_is_safe_and_bound_to_each_occurrence_without_blocki
     result = await bridge.queue.action(action(offer, 1), "grant")
     assert result["outcome"] == "accepted"
     assert bridge.controls.music._read.await_args.args[-1]["args"]["occurrence_id"] == second["id"]
+
+
+@pytest.mark.parametrize("transition", ["unchanged", "promoted"])
+async def test_autoplay_duplicate_click_uses_fresh_occurrence_and_never_display_id(rig, transition):
+    bridge, request = prepare(rig)
+    rig.router._discovery = replace(rig.router._discovery, room_queue_autoplay=True)
+    reads = 0
+    commits = []
+
+    async def service(client, token, name, payload):
+        nonlocal reads
+        result = await queue_service_reply(client, token, name, payload)
+        if name == "get_room_queue_controls":
+            assert payload["autoplay_preview"] is True
+            reads += 1
+            kind = "promotion" if reads > 1 and transition == "promoted" else "preview"
+            result["autoplay"] = {
+                "kind": kind,
+                "display_ids": {
+                    row["option_id"]: f"display-{index + 5:024x}"
+                    for index, row in enumerate(result["items"])
+                },
+            }
+        elif name == "control_room_queue":
+            commits.append(payload["args"])
+        return result
+
+    bridge.controls.music._read.side_effect = service
+    offer = await bridge.queue.offer({**request, "autoplayPreview": True}, "grant")
+    assert offer["queueKind"] == "preview"
+    assert offer["items"][1]["displayId"] != offer["items"][1]["id"]
+    body = action(offer)
+    forged = {**body, "requestId": "forged", "optionId": offer["items"][1]["displayId"]}
+    assert (await bridge.queue.action(forged, "grant"))["outcome"] == "rejected"
+    assert reads == 1 and not commits
+    result = await bridge.queue.action(body, "grant")
+    assert reads == 2
+    if transition == "promoted":
+        assert result["outcome"] == "rejected" and not commits
+    else:
+        assert result["outcome"] == "accepted" and len(commits) == 1
+        assert commits[0]["occurrence_id"] == offer["items"][1]["id"]
+        assert (
+            commits[0]["observation_id"]
+            != bridge.queue.tasks[offer["taskId"]]["source"]["queue"]["observation_id"]
+        )
+    assert (await bridge.queue.action(body, "grant")) == result
+    assert reads == 2
+
+
+async def test_new_browser_keeps_ordinary_queue_with_older_control(rig):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer({**request, "autoplayPreview": True}, "grant")
+    assert offer["ok"] and "queueKind" not in offer
+    assert all("displayId" not in row for row in offer["items"])
+    assert "autoplay_preview" not in bridge.controls.music._read.await_args.args[3]
+
+
+async def test_autoplay_service_discovery_withdraws_opt_in_with_the_field(rig):
+    bridge, request = prepare(rig)
+    fields = {}
+    service_names = rig.router._discovery.podconnect_services
+
+    def describe_services(http_request):
+        assert http_request.url.path.endswith("/services")
+        services = {name: {} for name in service_names}
+        services["get_room_queue_controls"] = {"fields": fields}
+        return httpx.Response(200, json=[{"domain": "podconnect", "services": services}])
+
+    old_client = rig.router._client
+    async with httpx.AsyncClient(transport=httpx.MockTransport(describe_services)) as client:
+        request["autoplayPreview"] = True
+        for field, forwarded in [({"required": False}, True), ({"required": True}, False)]:
+            fields["autoplay_preview"] = field
+            rig.router._client = client
+            try:
+                await type(rig.router)._refresh_podconnect_services(rig.router)
+            finally:
+                rig.router._client = old_client
+            assert (await bridge.queue.offer(request, "grant"))["ok"]
+            payload = bridge.controls.music._read.await_args.args[3]
+            assert ("autoplay_preview" in payload) is forwarded
+
+
+async def test_unresolved_autoplay_is_not_empty_or_actionable(rig):
+    bridge, request = prepare(rig)
+    rig.router._discovery = replace(rig.router._discovery, room_queue_autoplay=True)
+
+    async def service(client, token, name, payload):
+        assert name == "get_room_queue_controls" and payload["autoplay_preview"] is True
+        result = await queue_service_reply(client, token, name, payload)
+        result.update(items=[], returned_count=0, actions=[], autoplay={"kind": "pending"})
+        return result
+
+    bridge.controls.music._read.side_effect = service
+    assert await bridge.queue.offer({**request, "autoplayPreview": True}, "grant") == {
+        "ok": False,
+        "error": "queue_preview_pending",
+        "retryAllowed": False,
+    }
+    assert not bridge.queue.tasks
+    assert bridge.controls.music._read.await_count == 1

@@ -3,9 +3,50 @@ import {spotifyArtwork} from './spotify-artwork.js';
 const text=(v,n=160)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const int=(v,min=0,max=Number.MAX_SAFE_INTEGER)=>Number.isInteger(v)&&v>=min&&v<=max;
 export function queueOffer(body,snapshot,account,target,requestedAt=Date.now(),expectedBindingId=null){
- if(!body||Object.keys(body).sort().join(',')!=='accountId,bootId,expectedBindingId,expiresInMs,items,ok,ownerEpoch,pollSequence,revision,roomId,schema,targetId,taskId,truncated'||body.ok!==true||body.schema!=='podview.queue-offer.v1'||body.bootId!==snapshot?.bootId||body.roomId!==snapshot?.roomId||body.accountId!==account||body.targetId!==target||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId)||body.expectedBindingId!==expectedBindingId||!/^queue:[a-f0-9]{32}$/.test(body.taskId)||body.revision!==1||!int(body.expiresInMs,1,10000)||!text(body.ownerEpoch,128)||!int(body.pollSequence,1)||typeof body.truncated!=='boolean'||!Array.isArray(body.items)||body.items.length>20||!Number.isFinite(requestedAt)||requestedAt>Date.now()||requestedAt+body.expiresInMs<=Date.now())return null;
- const seen=new Set();for(const [index,row] of body.items.entries()){if(!row||typeof row!=='object'||Array.isArray(row)||!["artist,artwork,id,order,title,uri","artist,artwork,id,metadataKnown,order,title,uri"].includes(Object.keys(row).sort().join(','))||Object.hasOwn(row,'metadataKnown')&&typeof row.metadataKnown!=='boolean'||!text(row.id,24)||!/^[a-f0-9]{24}$/.test(row.id)||seen.has(row.id)||row.order!==index+1||typeof row.title!=='string'||row.title.length>256||(row.metadataKnown!==false&&!row.title.trim())||(typeof row.artist!=='string'||row.artist.length>512)||!/^spotify:track:[A-Za-z0-9]{22}$/.test(row.uri))return null;seen.add(row.id);}
- return {...body,items:body.items.map(row=>({...row,artwork:spotifyArtwork(row.artwork,row.uri)})),expiresAt:requestedAt+body.expiresInMs};
+ if(!body||typeof body!=='object'||Array.isArray(body))return null;
+ const fields=[
+  'accountId','bootId','expectedBindingId','expiresInMs','items','ok','ownerEpoch','pollSequence',
+  'revision','roomId','schema','targetId','taskId','truncated',
+ ];
+ if(Object.hasOwn(body,'queueKind')){
+  if(!['preview','promotion'].includes(body.queueKind))return null;
+  fields.push('queueKind');
+ }
+ if(Object.keys(body).length!==fields.length||!fields.every(key=>Object.hasOwn(body,key))
+  ||body.ok!==true||body.schema!=='podview.queue-offer.v1'||body.bootId!==snapshot?.bootId
+  ||body.roomId!==snapshot?.roomId||body.accountId!==account||body.targetId!==target
+  ||typeof expectedBindingId!=='string'||!/^[a-f0-9]{64}$/.test(expectedBindingId)
+  ||body.expectedBindingId!==expectedBindingId||!/^queue:[a-f0-9]{32}$/.test(body.taskId)
+  ||body.revision!==1||!int(body.expiresInMs,1,10000)||!text(body.ownerEpoch,128)
+  ||!int(body.pollSequence,1)||typeof body.truncated!=='boolean'||!Array.isArray(body.items)
+  ||body.items.length>20||!Number.isFinite(requestedAt)||requestedAt>Date.now()
+  ||requestedAt+body.expiresInMs<=Date.now())return null;
+ const seen=new Set(),displayIds=new Set();
+ for(const [index,row] of body.items.entries()){
+  if(!row||typeof row!=='object'||Array.isArray(row))return null;
+  const keys=['artist','artwork','id','order','title','uri'];
+  if(Object.hasOwn(row,'metadataKnown')){
+   if(typeof row.metadataKnown!=='boolean')return null;
+   keys.push('metadataKnown');
+  }
+  if(Object.hasOwn(row,'displayId')){
+   if(!body.queueKind||typeof row.displayId!=='string'||!/^display-[a-f0-9]{24}$/.test(row.displayId)
+    ||displayIds.has(row.displayId))return null;
+   displayIds.add(row.displayId);
+   keys.push('displayId');
+  }else if(body.queueKind==='preview')return null;
+  if(Object.keys(row).length!==keys.length||!keys.every(key=>Object.hasOwn(row,key))
+   ||!text(row.id,24)||!/^[a-f0-9]{24}$/.test(row.id)||seen.has(row.id)||row.order!==index+1
+   ||typeof row.title!=='string'||row.title.length>256||(row.metadataKnown!==false&&!row.title.trim())
+   ||typeof row.artist!=='string'||row.artist.length>512||!/^spotify:track:[A-Za-z0-9]{22}$/.test(row.uri))return null;
+  seen.add(row.id);
+ }
+ if(body.queueKind&&!displayIds.size)return null;
+ return {
+  ...body,
+  items:body.items.map(row=>({...row,artwork:spotifyArtwork(row.artwork,row.uri)})),
+  expiresAt:requestedAt+body.expiresInMs,
+ };
 }
 // The playback owner is independent of the conversation and answer shown alongside it.
 const ownerScope = (host, account, playback) => [
@@ -28,6 +69,7 @@ export class LiveQueueView{
  allowed(account,playback){return !!(this.host.isConnected&&this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities?.queueSelection===true&&this.host.liveSnapshot?.capabilities?.musicRead?.includes('queue')&&text(account)&&roomObservationCurrent(playback,this.host.liveSnapshot)&&playbackBinding(playback,this.host.liveSnapshot,account)&&playback.target?.id);}
  invalidate(revoke=false,preserveChoices=false){
   this.readRetryable=false;
+  this.previewPending=false;
   this.generation++;
   this.pending=false;
   this.effectPending=false;
@@ -50,7 +92,42 @@ export class LiveQueueView{
   this.invalidate(false,preserveChoices);
   if(!this.allowed(account,playback))return false;
   this.unknownChoice=null;
-  if(notify)this.host.showFeedback?.('',false,{source:'queue'});const generation=this.generation,key=scope(this.host,account,playback),requestedAt=Date.now();const transport=this.host.liveTransport,transportGeneration=transport.generation;let diagnosticCode='failure';const readDiagnostic=transport.createReadDiagnostic?.(),record=value=>{if(typeof transport.recordReadDiagnostic==='function')transport.recordReadDiagnostic('queue_read',value,readDiagnostic);else transport.recordDiagnostic?.('queue_read',value);};record({code:'start'});this.pending=true;this.status='loading';this.redraw();try{const body=await this.host.liveTransport.queueOffer(account,playback.target.id,playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId,...(readDiagnostic?[{readDiagnostic}]:[]));if(generation!==this.generation||this.host.liveTransport!==transport||transport.generation!==transportGeneration||key!==scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)||!this.allowed(account,playback)){record({code:'superseded',current:false,durationMs:Date.now()-requestedAt});return false;}diagnosticCode='invalid_dto';const value=queueOffer(body,this.host.liveSnapshot,account,playback.target.id,requestedAt,playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId);if(value&&(value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence))diagnosticCode='stale_binding';if(!value||value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence)throw Error('foreign_queue');record({code:value.items.length?'ok':'empty',count:value.items.length,durationMs:Date.now()-requestedAt});
+  if(notify)this.host.showFeedback?.('',false,{source:'queue'});
+  const generation=this.generation,key=scope(this.host,account,playback),requestedAt=Date.now();
+  const transport=this.host.liveTransport,transportGeneration=transport.generation;
+  const bindingId=playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId;
+  const sameRead=()=>generation===this.generation&&this.host.liveTransport===transport
+   &&transport.generation===transportGeneration;
+  const current=()=>sameRead()&&key===scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)
+   &&this.allowed(account,playback)
+   &&playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId===bindingId;
+  let diagnosticCode='failure';
+  const readDiagnostic=transport.createReadDiagnostic?.();
+  const record=value=>{
+   if(typeof transport.recordReadDiagnostic==='function'){
+    transport.recordReadDiagnostic('queue_read',value,readDiagnostic);
+   }else transport.recordDiagnostic?.('queue_read',value);
+  };
+  record({code:'start'});
+  this.pending=true;
+  this.status='loading';
+  this.redraw();
+  try{
+   const body=await transport.queueOffer(account,playback.target.id,bindingId,
+    ...(readDiagnostic?[{readDiagnostic}]:[]));
+   if(!current()){
+    record({code:'superseded',current:false,durationMs:Date.now()-requestedAt});
+    return false;
+   }
+   diagnosticCode='invalid_dto';
+   const value=queueOffer(body,this.host.liveSnapshot,account,playback.target.id,requestedAt,bindingId);
+   if(value&&(value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence)){
+    diagnosticCode='stale_binding';
+   }
+   if(!value||value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence){
+    throw Error('foreign_queue');
+   }
+   record({code:value.items.length?'ok':'empty',count:value.items.length,durationMs:Date.now()-requestedAt});
    const displayKey = displayScope(this.host, account, playback);
    const previous = this.retained?.displayKey === displayKey ? this.retained.items : [];
    const items = [], unknown = [];
@@ -85,7 +162,49 @@ export class LiveQueueView{
    };
    this.consumed = false;
    this.status = unknown.length ? 'stale' : 'ready';
-   this.expiryTimer=setTimeout(()=>{if(this.offer===value){this.offer=null;if(!this.pending)this.status='stale';this.redraw();}},Math.max(0,value.expiresAt-Date.now()));return true;}catch(error){if(generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration)this.readRetryable=!!(error?.code==='read_transient'&&diagnosticCode==='failure'&&generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration&&key===scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)&&this.allowed(account,playback));record({code:error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'cancelled':error?.name==='TypeError'?'network':error?.code==='read_transient'?'http_transient':diagnosticCode,current:generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration,durationMs:Date.now()-requestedAt});if(generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration){this.offer=null;this.status='error';this.errorKind='read';if(notify&&key===scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)&&this.allowed(account,playback))this.host.showFeedback?.('Køen kunne ikke hentes. Den kendte sang bevares.',false,{source:'queue'});}return false;}finally{if(generation===this.generation){this.pending=false;this.redraw();}}}
+   this.expiryTimer=setTimeout(()=>{
+    if(this.offer===value){
+     this.offer=null;
+     if(!this.pending)this.status='stale';
+     this.redraw();
+    }
+   },Math.max(0,value.expiresAt-Date.now()));
+   return true;
+  }catch(error){
+   const previewPending=error?.code==='queue_preview_pending';
+   const transient=previewPending||error?.code==='read_transient';
+   if(sameRead())this.readRetryable=transient&&diagnosticCode==='failure'&&current();
+   const code=error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'cancelled'
+    :error?.name==='TypeError'?'network':transient?'http_transient':diagnosticCode;
+   record({code,current:sameRead(),durationMs:Date.now()-requestedAt});
+   if(previewPending){
+    if(current()){
+     // An unresolved preview is not an empty queue and carries no click witness.
+     this.offer=null;
+     this.previewPending=true;
+     if(this.retained){
+      this.retained.key=null;
+      this.retained.shownOffer=null;
+     }
+     this.status=this.retained?'stale':'loading';
+    }
+    return false;
+   }
+   if(sameRead()){
+    this.offer=null;
+    this.status='error';
+    this.errorKind='read';
+    if(notify&&current())this.host.showFeedback?.('Køen kunne ikke hentes. Den kendte sang bevares.',
+     false,{source:'queue'});
+   }
+   return false;
+  }finally{
+   if(generation===this.generation){
+    this.pending=false;
+    this.redraw();
+   }
+  }
+ }
  choiceScope(account,playback){
   const transport=this.host.liveTransport,capabilities=this.host.liveSnapshot?.capabilities;
   if(!this.allowed(account,playback))return null;
@@ -130,11 +249,17 @@ export class LiveQueueView{
    this.offer=null;
   }
   const shownOffer=this.retained.shownOffer;
-  const renewUnknown=this.sameChoiceScope(this.unknownChoice?.scope,choiceScope);
-  const currentOffer=!this.retained.metadataPending||this.offer===shownOffer&&shownOffer?.expiresAt>Date.now();
-  const selectable=!!(choiceScope&&shownOffer&&this.retained.transport===choiceScope.transport
-   &&this.retained.transportGeneration===choiceScope.generation
-   &&(renewUnknown||this.reconcilingChoice||sameAuthority&&(this.effectPending||!this.consumed&&currentOffer)));
+  const autoplay=!!shownOffer?.queueKind;
+  const sameTransport=choiceScope&&this.retained.transport===choiceScope.transport
+   &&this.retained.transportGeneration===choiceScope.generation;
+  if(autoplay&&!sameTransport)this.offer=null;
+  const liveOffer=this.offer===shownOffer&&shownOffer?.expiresAt>Date.now();
+  const renewUnknown=!autoplay&&this.sameChoiceScope(this.unknownChoice?.scope,choiceScope);
+  const currentOffer=liveOffer||!autoplay&&!this.retained.metadataPending;
+  const localIntent=!autoplay||shownOffer.expiresAt>Date.now();
+  const selectable=!!(shownOffer&&sameTransport
+   &&(renewUnknown||localIntent&&this.reconcilingChoice
+    ||sameAuthority&&(localIntent&&this.effectPending||!this.consumed&&currentOffer)));
   const latest=this.waitingChoices.at(-1);
   const visibleChoice=latest&&this.retained.items.some(row=>sameOccurrence(row,latest));
   const pendingId=visibleChoice?latest.id:this.effectPending?this.pendingOccurrenceId:null;
@@ -145,6 +270,7 @@ export class LiveQueueView{
     ...row,
     selectable:selectable&&row.id!==this.reconcilingChoice?.occurrenceId
      &&shownOffer.items.some(item=>sameOccurrence(item,row)),
+    ...(autoplay?{queueTaskId:shownOffer.taskId}:{}),
     ...(renewUnknown?{renewUnknown:true}:{}),
     ...(choiceScope&&row.id===pendingId?{pending:true}:{}),
    })),
@@ -161,7 +287,7 @@ export class LiveQueueView{
    if(!this.sameChoiceScope(input.scope,choiceScope))continue;
    // Newly exposed rows can lack labels. Retained display stays read-only, but
    // a recorded tap may use this exact occurrence in the newly admitted offer.
-   const row=fresh&&offer.items.find(item=>sameOccurrence(item,input));
+   const row=fresh&&offer.queueKind===input.queueKind&&offer.items.find(item=>sameOccurrence(item,input));
    if(row){
     await this.sendChoice(row,offer,choiceScope);
     return;
@@ -175,10 +301,11 @@ export class LiveQueueView{
  async choose(item){
   const media=this.host.liveMedia;
   const model=this.model(media?.account,media?.playback),shownOffer=this.retained?.shownOffer;
-  const selected=model?.items.find(row=>row.selectable&&sameOccurrence(row,item));
+  const selected=model?.items.find(row=>row.selectable&&sameOccurrence(row,item)
+   &&(!shownOffer?.queueKind&&!item.queueTaskId||item.queueTaskId===shownOffer?.taskId));
   if(!selected||!shownOffer?.items.some(row=>sameOccurrence(row,selected)))return;
   const choiceScope=this.choiceScope(media.account,media.playback);
-  const input={scope:choiceScope,id:selected.id,uri:selected.uri};
+  const input={scope:choiceScope,id:selected.id,uri:selected.uri,queueKind:shownOffer.queueKind};
   if(this.effectPending||this.reconcilingChoice){
    // This is local intent only. The spent shown task never authorizes a second action.
    this.waitingChoices.push(input);
@@ -198,7 +325,8 @@ export class LiveQueueView{
  }
  async renewChoices(media,previousTaskId,reconciling){
   const waiting=this.waitingChoices;
-  const loaded=await this.load(media.account,media.playback,{preserveChoices:true});
+  const loaded=await (media.loadQueue?.({renewChoice:true})
+   ??this.load(media.account,media.playback,{preserveChoices:true}));
   if(reconciling?this.reconcilingChoice===reconciling:this.waitingChoices===waiting){
    const freshOffer=loaded?this.retained?.shownOffer:null;
    this.reconcilingChoice=null;
@@ -210,7 +338,7 @@ export class LiveQueueView{
   const media=this.host.liveMedia,controls=this.host.liveControls;
   if (controls?.musicIntentPending) {
    // The latest choice waits for the running music action and is then sent from a fresh offer.
-   const input = {scope: choiceScope, id: selected.id, uri: selected.uri};
+   const input = {scope: choiceScope, id: selected.id, uri: selected.uri, queueKind: shownOffer.queueKind};
    this.waitingChoices = [input];
    this.redraw();
    const turn = await waitForMusicLane(controls);

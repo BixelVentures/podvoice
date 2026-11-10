@@ -211,6 +211,7 @@ class _DiscoverySnapshot:
     target_contracts: tuple[tuple[str, str], ...] = ()
     playlist_search_artwork: bool = False
     room_playback_seek: bool = False
+    room_queue_autoplay: bool = False
 
 
 _TARGETED_HA_INTENTS = {
@@ -648,6 +649,7 @@ class ToolRouter:
             target_contracts: tuple[tuple[str, str], ...] = ()
             playlist_search_artwork = False
             room_playback_seek = False
+            room_queue_autoplay = False
             for domain in domains:
                 if domain.get("domain") != "podconnect":
                     continue
@@ -677,6 +679,18 @@ class ToolRouter:
                 )
                 seek_reads = set()
                 if isinstance(services, dict):
+                    queue_service = services.get("get_room_queue_controls")
+                    queue_fields = (
+                        queue_service.get("fields") if isinstance(queue_service, dict) else None
+                    )
+                    autoplay_field = (
+                        queue_fields.get("autoplay_preview")
+                        if isinstance(queue_fields, dict)
+                        else None
+                    )
+                    room_queue_autoplay = (
+                        isinstance(autoplay_field, dict) and autoplay_field.get("required") is False
+                    )
                     for name in ("get_playback_snapshot", "get_room_playback_controls"):
                         service = services.get(name)
                         fields = service.get("fields") if isinstance(service, dict) else None
@@ -730,6 +744,7 @@ class ToolRouter:
                 target_contracts=target_contracts,
                 playlist_search_artwork=playlist_search_artwork,
                 room_playback_seek=room_playback_seek,
+                room_queue_autoplay=room_queue_autoplay,
                 last_error=snap.last_error,
                 retry_state=snap.retry_state,
                 retry_attempt=snap.retry_attempt,
@@ -828,6 +843,7 @@ class ToolRouter:
                 target_contracts=self._discovery.target_contracts,
                 playlist_search_artwork=self._discovery.playlist_search_artwork,
                 room_playback_seek=self._discovery.room_playback_seek,
+                room_queue_autoplay=self._discovery.room_queue_autoplay,
                 fetched_at=time.time(),
                 endpoint=self._safe_endpoint(getattr(self._mcp, "url", "")),
                 api_id=self._mcp_api_id(self._mcp),

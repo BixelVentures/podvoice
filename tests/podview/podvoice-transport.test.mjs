@@ -78,7 +78,9 @@ test('music setup and queue offer carry one exact actual-binding precondition wh
  try{
   await t.controlSetup('music',target);await t.controlSetup('music',{...target,speakerId:'b'.repeat(64)});await t.queueOffer('account','actual-device',id);
   assert.deepEqual(calls[0].body,{bootId:t.snapshot.bootId,roomId:'kitchen',domain:'music',target});assert.deepEqual(calls[1].body.target,{...target,speakerId:'b'.repeat(64)});
-  assert.deepEqual(calls[2].body,{bootId:t.snapshot.bootId,roomId:'kitchen',accountId:'account',targetId:'actual-device',expectedBindingId:id});
+  assert.deepEqual(calls[2].body,{bootId:t.snapshot.bootId,roomId:'kitchen',accountId:'account',
+   targetId:'actual-device',expectedBindingId:id,autoplayPreview:true,
+  });
   for(const call of calls){assert.equal(call.url.origin,'https://ha.example');assert(call.url.pathname.startsWith('/ingress/opaque/view/api/'));assert.equal(call.init.credentials,'same-origin');assert.equal(call.init.headers['X-PodView-Request'],'1');}
   for(const invalid of [undefined,null,'a'.repeat(63),'A'.repeat(64)]){await assert.rejects(()=>t.controlSetup('music',{...target,expectedBindingId:invalid}));await assert.rejects(()=>t.queueOffer('account','actual-device',invalid));}
   await assert.rejects(()=>t.controlSetup('music',{...target,grant:true}));assert.equal(calls.length,3,'invalid expectations never reach the server');
