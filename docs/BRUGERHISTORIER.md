@@ -612,6 +612,8 @@ På Green 16.43–16.46: Din musik kunne ikke hente forslag før et afspilningsv
 
 **S13 på Green .168.** Tilføjede Entré til den oprindelige kladde med Gang. Oversigt → genåbn bevarede begge rum og Støvsug/Stille/Standard/1×. Entré blev fjernet igen. Robotten blev stående i basen med Oplader 100 %. Prøven dækker navigation i samme session. Fuld genindlæsning, netudfald og faktisk Start med den gemte kladde står åbne. Ingen ny accept.
 
+**Installation på Green · 10. november ca. 19.00 CET.** Efter brugerens tilladelse til installation alene fandt Supervisor 0.26.89 og 2.0.169 via den normale katalogopdatering. Sikkerhedskopi blev valgt for begge. Home Assistant viste Opdateret og de installerede versioner Speakers 0.26.89 og PodVoice 2.0.169. Ingen Green-funktions- eller lydprøver efter installation. Den næste PodVoice-kandidat 2.0.170 ([PR #354](https://github.com/BixelVentures/podvoice/pull/354)) bestod 18 officielle kontroller; PodConnects Speakers 0.26.90/Control 0.10.40 ([PR #135](https://github.com/BixelVentures/podconnect/pull/135)) bestod Native og Manager, men HA-framework fejlede. Kandidaterne er fortsat åbne.
+
 **Aktuel pakkestatus · 10. november aften.** Adgang 3/6 · Afspiller og Find musik 10/25 · Kø og højttalere 5/15 · Radio 4/6 · Opskrifter 6/7 · Robot 10/16 · Tesla 6/11 · Lys, timer, vejr og svar 5/11. 7 åbne historier er iPad-sporet. De øvrige 41 er åbne før den separate iPad-runde.
 
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
