@@ -396,6 +396,12 @@ Kausal166-browserreproduktion (inertHA), /private/tmp/pv166-dock-receipt-red.log
 
 EksternSpotifyA8-prøve12.01blevafvistafautomatiskgodkendelsesreviewvedPlaypåKøkken. Ingenmusikstart. Rootharbedt omdirektekonkretbekræftelse; øvrigelæsningerfortsætter. Dette er værktøjsautorisation, ikkeproduktfejl.
 
+**PodConnect-afgrænsning12.04–12.07.** Green UI bekræfter Speakers0.26.84Kører; HACS viser Control0.10.39downloadet (ikke selvstændigt runtimebevis). DirekteautoriseretSpotifyPlay~12.05.43 modKøkken førteikke tilafspilning,SpotifyNONE12.05.55. Speakers12.05.51 dealerendpointresume afvist content_quarantined; aliasregistryerrortekst er generiskkarantæneguard, ikkebevisforændretaliasfil. Tidligsteårsagsspor11.22.35AirPlayPairingstep2authenticationfailure samtidigcontent_start_failed/c_barrier/unknown. Sammenhængstærk, præcisCreceiptmangler. Quarantinelogikuændret83→84;84ændredeFIFO/ownerlock/legacy-recovery. Ingenperson/agenttilskrivning.
+
+Sourceverificereteksisterenderecovery: SpeakersAddspeakerRescan→custody/admission→NativeSIGTERM/joinmensClever→Cstop/join→friskNative/Cmeddurableownerproof. Ingenquarantinebypass. RootautorisererénnormalRescanunderledigtSpotify/idleog08–18; resultatogCproof skalaflæses, ikkeantagHTTPok=funktion. Ingenhostreboot/nyparring/credentials.
+
+Tesla16612.04læst: HAunlocked,trunkclosed,heat_cool,target20,insidesensor19.7,battery45,range170.767,chargingdisconnected. PVUlåst/Åbnbagagerum/Varme-køling/20/19.7/45%/171km matcher. Samletældste11.56, felttiderikkesynlige; B2friskhedståråben. Ingenparkgearbekræftelse/bilhandling. Opskrifter166: aktivBurgerbollertrin2/5,1/10ingredienser;Ingredienser/Omåbner, Sconesvisesudenatændreaktivopskrift, tilbagebevarerBrødogbagværkfilter. Scrollikke målt; ingen nyafslutning/afspilning.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
