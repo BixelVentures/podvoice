@@ -1,1602 +1,1612 @@
 {
-  "v": 3,
-  "attachments": {},
-  "boards": {
-    "A-FotoRo.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Foto-Ro · Green: musikpladsen",
-      "w": 1280,
-      "x": 0,
-      "y": 1900
-    },
-    "A-Lys.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Lys · ikke forbundet (Green)",
-      "w": 1280,
-      "x": 1116,
-      "y": 8400
-    },
-    "A-MiniPlayer.dc.html": {
-      "h": 112,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Mini-afspiller (fravalgt: fuld afspiller overalt)",
-      "w": 372,
-      "x": 4080,
-      "y": 2440
-    },
-    "A-Musik.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Find musik · Tid på dagen, uden søgefelt",
-      "w": 1280,
-      "x": 638,
-      "y": 11600
-    },
-    "A-Opskrift.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Opskrift · Burgerboller, trin 2 af 5",
-      "w": 1280,
-      "x": 3597,
-      "y": 14800
-    },
-    "A-Opskrifter.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Opskrifter · katalog",
-      "w": 1280,
-      "x": 877,
-      "y": 14800
-    },
-    "A-Player.dc.html": {
-      "h": 696,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Afspiller · Fast Car, på pause (Green)",
-      "w": 372,
-      "x": 4718,
-      "y": 11600
-    },
-    "A-Radio.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Radio · vælg station (Green)",
-      "w": 1280,
-      "x": 1116,
-      "y": 13200
-    },
-    "A-Robot.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · oplader (Green)",
-      "w": 1280,
-      "x": 2884,
-      "y": 5200
-    },
-    "A-Skaerm.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Skærm og enhed · modal",
-      "w": 1280,
-      "x": 2720,
-      "y": 300
-    },
-    "A-Stemme.dc.html": {
-      "h": 800,
-      "is_interactive": false,
-      "page": "principper",
-      "title": "Stemmegrillen",
-      "w": 1280,
-      "x": 5200,
-      "y": 0
-    },
-    "A-Svar.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · kort svar, El Clásico (Green)",
-      "w": 1280,
-      "x": 0,
-      "y": 8400
-    },
-    "A-Tesla.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · ulåst, bagagerum åbent (Green)",
-      "w": 1280,
-      "x": 1355,
-      "y": 10000
-    },
-    "A-Timer.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Timer · tæller ned",
-      "w": 1280,
-      "x": 1116,
-      "y": 16400
-    },
-    "A-Topbar.dc.html": {
-      "h": 72,
-      "page": "historik",
-      "title": "Topbar-komponent (vist på alle skærme)",
-      "w": 1280,
-      "x": 4560,
-      "y": 2440
-    },
-    "A-Vejr.dc.html": {
-      "h": 1100,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Vejr · Green · hero L, scroller",
-      "w": 1280,
-      "x": 1522,
-      "y": 3200
-    },
-    "B-Overblik.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "B · Glyph — Overblik (fravalgt)",
-      "w": 1280,
-      "x": 0,
-      "y": 0
-    },
-    "B-Tesla.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "B · Glyph — Tesla (fravalgt)",
-      "w": 1280,
-      "x": 1360,
-      "y": 0
-    },
-    "C-Overblik.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "C · Instrument — Overblik (fravalgt)",
-      "w": 1280,
-      "x": 0,
-      "y": 1220
-    },
-    "C-Robot.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "C · Instrument — Robot (fravalgt)",
-      "w": 1280,
-      "x": 1360,
-      "y": 1220
-    },
-    "FotoRo-Aktiv.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Foto-Ro · aktiv: timer og radio i aktivitetspladserne",
-      "w": 1280,
-      "x": 1360,
-      "y": 1900
-    },
-    "Gennemgang.dc.html": {
-      "h": 800,
-      "is_interactive": false,
-      "page": "principper",
-      "title": "Gennemgang af :4394 · 4–5/10",
-      "w": 1280,
-      "x": 7920,
-      "y": 0
-    },
-    "Hero-Lys-Nu.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Lys · før 300",
-      "w": 1280,
-      "x": 2840,
-      "y": 6400
-    },
-    "Hero-Lys-S.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Lys · S 221 (standard)",
-      "w": 1280,
-      "x": 4200,
-      "y": 6400
-    },
-    "Hero-Radio-L.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Radio · L 458 (standard)",
-      "w": 1280,
-      "x": 9880,
-      "y": 6400
-    },
-    "Hero-Radio-Nu.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Radio · før 420",
-      "w": 1280,
-      "x": 8520,
-      "y": 6400
-    },
-    "Hero-Robot-Nu.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Robot · før 300",
-      "w": 1280,
-      "x": 0,
-      "y": 6400
-    },
-    "Hero-Robot-S.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Robot · S 221 (standard)",
-      "w": 1280,
-      "x": 1360,
-      "y": 6400
-    },
-    "Hero-Tesla-L.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Tesla · L 458 (standard)",
-      "w": 1280,
-      "x": 7040,
-      "y": 6400
-    },
-    "Hero-Tesla-Nu.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Tesla · før 372",
-      "w": 1280,
-      "x": 5680,
-      "y": 6400
-    },
-    "K-Kit.dc.html": {
-      "h": 2750,
-      "is_interactive": true,
-      "page": "principper",
-      "title": "UI-kit · tokens og komponenter (én kilde)",
-      "w": 2400,
-      "x": 0,
-      "y": 0
-    },
-    "Lys-Slukket.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Lys · slukket · gendan lys",
-      "w": 1280,
-      "x": 3836,
-      "y": 8400
-    },
-    "Lys-Taendt.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Lys · tændt, scener og lamper",
-      "w": 1280,
-      "x": 2476,
-      "y": 8400
-    },
-    "Lys-Ukendt.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Lys · status ukendt",
-      "w": 1280,
-      "x": 5196,
-      "y": 8400
-    },
-    "Main.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Overblik · Green 9. nov. 14.30 · standard: nederste række hvid",
-      "w": 1280,
-      "x": 0,
-      "y": 300
-    },
-    "Musik-DinMusik.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Find musik · Din musik, 5 forslag",
-      "w": 1280,
-      "x": 1998,
-      "y": 11600
-    },
-    "Musik-HoerIgen.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Find musik · Hør igen som liste (ægte Spotify-omslag)",
-      "w": 1280,
-      "x": 6526,
-      "y": 11600
-    },
-    "Musik-IkkeTilg.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Find musik · stemningsforslag ikke tilgængelige (Green): Din musik og Hør igen virker",
-      "w": 1280,
-      "x": 3358,
-      "y": 11600
-    },
-    "Musik-Koe.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Afspiller · nu og kø (tryk på omslag/Kø)",
-      "w": 1280,
-      "x": 7886,
-      "y": 11600
-    },
-    "Musik-Soeg.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Find musik · søgning (parkeret til tastatur er afklaret)",
-      "w": 1280,
-      "x": 0,
-      "y": 3640
-    },
-    "Musik-Vibe.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Find musik · Vibe (stemningsretninger)",
-      "w": 1280,
-      "x": 9246,
-      "y": 11600
-    },
-    "Northstars.dc.html": {
-      "h": 800,
-      "is_interactive": false,
-      "page": "principper",
-      "title": "Northstars",
-      "w": 1280,
-      "x": 2480,
-      "y": 0
-    },
-    "Opskrift-TimerKoerer.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Opskrift · timer startet fra trin: chip i topbaren (ny funktion)",
-      "w": 1280,
-      "x": 4957,
-      "y": 14800
-    },
-    "Opskrifter-Bog.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Opskrifter · udforsk som Cover Flow (billeder fra Green)",
-      "w": 1280,
-      "x": 2237,
-      "y": 14800
-    },
-    "Overblik-Aktiv.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Overblik · aktiv · standard: nederste række hvid",
-      "w": 1280,
-      "x": 1360,
-      "y": 300
-    },
-    "Overblik-Bundhvid.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Forslag A · valgt (nu standard i Overblik)",
-      "w": 1280,
-      "x": 0,
-      "y": 5000
-    },
-    "Overblik-Ro-Aktiv.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Forslag B · fravalgt (aktiv)",
-      "w": 1280,
-      "x": 2720,
-      "y": 5000
-    },
-    "Overblik-Ro.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Forslag B · fravalgt",
-      "w": 1280,
-      "x": 1360,
-      "y": 5000
-    },
-    "Player-AndenKonto.dc.html": {
-      "h": 696,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Afspiller · anden konto, Spil her",
-      "w": 372,
-      "x": 6074,
-      "y": 11600
-    },
-    "Player-Radio.dc.html": {
-      "h": 696,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Afspiller · radio",
-      "w": 372,
-      "x": 5170,
-      "y": 11600
-    },
-    "Player-Tom.dc.html": {
-      "h": 696,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Afspiller · intet spiller",
-      "w": 372,
-      "x": 5622,
-      "y": 11600
-    },
-    "Radio-IkkeTilg.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Radio · ikke tilgængelig",
-      "w": 1280,
-      "x": 5196,
-      "y": 13200
-    },
-    "Radio-Spiller.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Radio · spiller",
-      "w": 1280,
-      "x": 3836,
-      "y": 13200
-    },
-    "Radio-Starter.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Radio · starter",
-      "w": 1280,
-      "x": 2476,
-      "y": 13200
-    },
-    "Referencer.dc.html": {
-      "h": 960,
-      "is_interactive": false,
-      "page": "principper",
-      "title": "Referencer",
-      "w": 1280,
-      "x": 6560,
-      "y": 0
-    },
-    "Robot-Basen-aaben.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · Basen foldet ud (oplader)",
-      "w": 1280,
-      "x": 11044,
-      "y": 5200
-    },
-    "Robot-Basen-vasker.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · Basen: vasker moppen",
-      "w": 1280,
-      "x": 12404,
-      "y": 5200
-    },
-    "Robot-Fejl.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · hovedbørsten sidder fast",
-      "w": 1280,
-      "x": 8324,
-      "y": 5200
-    },
-    "Robot-Pause.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · på pause · mangler vand",
-      "w": 1280,
-      "x": 5604,
-      "y": 5200
-    },
-    "Robot-Rengoer.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · rengør",
-      "w": 1280,
-      "x": 4244,
-      "y": 5200
-    },
-    "Robot-Sticky-Rengoer.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Forslag · sticky handlingslinje (rengør: Pause/Afslut)",
-      "w": 1280,
-      "x": 4244,
-      "y": 6700
-    },
-    "Robot-Sticky.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Forslag · sticky handlingslinje når heroen er rullet ud (oplader)",
-      "w": 1280,
-      "x": 2884,
-      "y": 6700
-    },
-    "Robot-TilBasen.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · til basen",
-      "w": 1280,
-      "x": 6964,
-      "y": 5200
-    },
-    "Robot-Ukendt.dc.html": {
-      "h": 1400,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Robot · status ukendt",
-      "w": 1280,
-      "x": 9684,
-      "y": 5200
-    },
-    "Svar-Historik.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Svar · alle visuelle svar",
-      "w": 1280,
-      "x": 6078,
-      "y": 18300
-    },
-    "Svar-Ny-billede.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Svar · billede med kilde",
-      "w": 1280,
-      "x": 1998,
-      "y": 18300
-    },
-    "Svar-Ny-tal.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Svar · sammenligning og tal",
-      "w": 1280,
-      "x": 4718,
-      "y": 18300
-    },
-    "Svar-Ny-trin.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Svar · trin for trin",
-      "w": 1280,
-      "x": 3358,
-      "y": 18300
-    },
-    "Svar-Ny.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Svar · fakta (Green: El Clásico)",
-      "w": 1280,
-      "x": 638,
-      "y": 18300
-    },
-    "Svar-afbrudt.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · afbrudt",
-      "w": 1280,
-      "x": 16320,
-      "y": 8400
-    },
-    "Svar-billede.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · billede med kilde",
-      "w": 1280,
-      "x": 2720,
-      "y": 8400
-    },
-    "Svar-diagram.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · enkelt diagram",
-      "w": 1280,
-      "x": 5440,
-      "y": 8400
-    },
-    "Svar-faktakort.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · faktakort",
-      "w": 1280,
-      "x": 1360,
-      "y": 8400
-    },
-    "Svar-fejl.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · kom ikke frem",
-      "w": 1280,
-      "x": 17680,
-      "y": 8400
-    },
-    "Svar-graf.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · datagraf",
-      "w": 1280,
-      "x": 9520,
-      "y": 8400
-    },
-    "Svar-lytter.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · lytter",
-      "w": 1280,
-      "x": 13600,
-      "y": 8400
-    },
-    "Svar-offline.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · offline",
-      "w": 1280,
-      "x": 19040,
-      "y": 8400
-    },
-    "Svar-sammenligning.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · sammenligning",
-      "w": 1280,
-      "x": 8160,
-      "y": 8400
-    },
-    "Svar-taenker.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · tænker",
-      "w": 1280,
-      "x": 14960,
-      "y": 8400
-    },
-    "Svar-tidslinje.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · tidslinje",
-      "w": 1280,
-      "x": 4080,
-      "y": 8400
-    },
-    "Svar-tjekliste.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · tjekliste",
-      "w": 1280,
-      "x": 12240,
-      "y": 8400
-    },
-    "Svar-tom.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · intet at vise",
-      "w": 1280,
-      "x": 20400,
-      "y": 8400
-    },
-    "Svar-trin.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · trin for trin",
-      "w": 1280,
-      "x": 10880,
-      "y": 8400
-    },
-    "Svar-valg.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Svar · valgmuligheder",
-      "w": 1280,
-      "x": 6800,
-      "y": 8400
-    },
-    "System.dc.html": {
-      "h": 800,
-      "is_interactive": false,
-      "page": "principper",
-      "title": "Ét system: størrelser, tilstande, materiale",
-      "w": 1280,
-      "x": 3840,
-      "y": 0
-    },
-    "Tesla-Handling-bekraeftet.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · Lås op: bekræftet",
-      "w": 1280,
-      "x": 10875,
-      "y": 10000
-    },
-    "Tesla-Handling-laaser.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · Lås bilen: låser (ingen bekræftelse)",
-      "w": 1280,
-      "x": 12235,
-      "y": 10000
-    },
-    "Tesla-Handling-laast.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · Lås bilen: låst",
-      "w": 1280,
-      "x": 13595,
-      "y": 10000
-    },
-    "Tesla-Handling-sender.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · Lås op: sender",
-      "w": 1280,
-      "x": 8155,
-      "y": 10000
-    },
-    "Tesla-Handling-ukendt.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · Lås op: udfald ukendt",
-      "w": 1280,
-      "x": 9515,
-      "y": 10000
-    },
-    "Tesla-Handling.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · Lås op: bekræft",
-      "w": 1280,
-      "x": 6795,
-      "y": 10000
-    },
-    "Tesla-Klima.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · klima",
-      "w": 1280,
-      "x": 4075,
-      "y": 10000
-    },
-    "Tesla-Lader.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · lader",
-      "w": 1280,
-      "x": 2715,
-      "y": 10000
-    },
-    "Tesla-Parkeret.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Tesla · låst",
-      "w": 1280,
-      "x": 5435,
-      "y": 10000
-    },
-    "Timer-Alarm.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Timer · færdig: fuldskærmsalarm (timer-notice)",
-      "w": 1280,
-      "x": 2476,
-      "y": 16400
-    },
-    "Timer-faerdig.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Timer · tiden er gået",
-      "w": 1280,
-      "x": 3836,
-      "y": 16400
-    },
-    "Timer-pause.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Timer · på pause",
-      "w": 1280,
-      "x": 2476,
-      "y": 16400
-    },
-    "V2-Overblik.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Overblik v2 · kortgrid (erstattet)",
-      "w": 1280,
-      "x": 0,
-      "y": 2440
-    },
-    "V2-Robot.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Robot v2 (erstattet)",
-      "w": 1280,
-      "x": 1360,
-      "y": 2440
-    },
-    "V2-Tesla.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "historik",
-      "title": "Tesla v2 (erstattet)",
-      "w": 1280,
-      "x": 2720,
-      "y": 2440
-    },
-    "Vejr-Gammel.dc.html": {
-      "h": 1100,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Vejr · data over 30 min: tidspunkt vises",
-      "w": 1280,
-      "x": 2882,
-      "y": 3200
-    },
-    "Vejr-Shadere.dc.html": {
-      "h": 800,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Vejr · materiale pr. vejrtype (animeret)",
-      "w": 1280,
-      "x": 5602,
-      "y": 3200
-    },
-    "Vejr-Ukendt.dc.html": {
-      "h": 1100,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Vejr · kunne ikke hentes",
-      "w": 1280,
-      "x": 4242,
-      "y": 3200
-    },
-    "W-lys-ikkeforbundet.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ikkeforbundet",
-      "w": 199,
-      "x": 0,
-      "y": 8400
-    },
-    "W-lys-slukket.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · slukket",
-      "w": 199,
-      "x": 478,
-      "y": 8400
-    },
-    "W-lys-taendt.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · taendt",
-      "w": 199,
-      "x": 239,
-      "y": 8400
-    },
-    "W-lys-ukendt.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ukendt",
-      "w": 199,
-      "x": 717,
-      "y": 8400
-    },
-    "W-musik-ikketilg.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ikketilg",
-      "w": 199,
-      "x": 239,
-      "y": 11600
-    },
-    "W-musik-tom.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · tom",
-      "w": 199,
-      "x": 0,
-      "y": 11600
-    },
-    "W-opskrift-igang.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · igang",
-      "w": 199,
-      "x": 0,
-      "y": 14800
-    },
-    "W-opskrift-katalog.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · katalog",
-      "w": 199,
-      "x": 239,
-      "y": 14800
-    },
-    "W-opskrift-tom.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · tom",
-      "w": 199,
-      "x": 478,
-      "y": 14800
-    },
-    "W-radio-ikketilg.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ikketilg",
-      "w": 199,
-      "x": 717,
-      "y": 13200
-    },
-    "W-radio-spiller.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · spiller",
-      "w": 199,
-      "x": 239,
-      "y": 13200
-    },
-    "W-radio-starter.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · starter",
-      "w": 199,
-      "x": 478,
-      "y": 13200
-    },
-    "W-radio-vaelg.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · vaelg",
-      "w": 199,
-      "x": 0,
-      "y": 13200
-    },
-    "W-robot-fejl.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · fejl",
-      "w": 414,
-      "x": 1816,
-      "y": 5200
-    },
-    "W-robot-oplader.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · oplader",
-      "w": 414,
-      "x": 0,
-      "y": 5200
-    },
-    "W-robot-pause.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · pause",
-      "w": 414,
-      "x": 908,
-      "y": 5200
-    },
-    "W-robot-rengoer.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · rengoer",
-      "w": 414,
-      "x": 454,
-      "y": 5200
-    },
-    "W-robot-tilbasen.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · tilbasen",
-      "w": 414,
-      "x": 1362,
-      "y": 5200
-    },
-    "W-robot-ukendt.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ukendt",
-      "w": 414,
-      "x": 2270,
-      "y": 5200
-    },
-    "W-svar-seneste.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · seneste",
-      "w": 199,
-      "x": 0,
-      "y": 18300
-    },
-    "W-svar-tom.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · tom",
-      "w": 199,
-      "x": 239,
-      "y": 18300
-    },
-    "W-tesla-ikkeforbundet.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ikkeforbundet",
-      "w": 199,
-      "x": 956,
-      "y": 10000
-    },
-    "W-tesla-klima.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · klima",
-      "w": 199,
-      "x": 478,
-      "y": 10000
-    },
-    "W-tesla-laast.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · laast",
-      "w": 199,
-      "x": 717,
-      "y": 10000
-    },
-    "W-tesla-lader.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · lader",
-      "w": 199,
-      "x": 239,
-      "y": 10000
-    },
-    "W-tesla-sidstkendt.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · sidstkendt",
-      "w": 199,
-      "x": 0,
-      "y": 10000
-    },
-    "W-timer-faerdig.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · faerdig",
-      "w": 199,
-      "x": 717,
-      "y": 16400
-    },
-    "W-timer-koerer.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · koerer",
-      "w": 199,
-      "x": 239,
-      "y": 16400
-    },
-    "W-timer-pause.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · pause",
-      "w": 199,
-      "x": 478,
-      "y": 16400
-    },
-    "W-timer-start.dc.html": {
-      "h": 221,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · start",
-      "w": 199,
-      "x": 0,
-      "y": 16400
-    },
-    "W-vejr-frisk.dc.html": {
-      "h": 458,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · frisk",
-      "w": 414,
-      "x": 454,
-      "y": 3200
-    },
-    "W-vejr-sidstkendt.dc.html": {
-      "h": 458,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · sidstkendt",
-      "w": 414,
-      "x": 0,
-      "y": 3200
-    },
-    "W-vejr-ukendt.dc.html": {
-      "h": 458,
-      "is_interactive": true,
-      "page": "retning",
-      "title": "Widget · ukendt",
-      "w": 414,
-      "x": 908,
-      "y": 3200
-    }
+ "v": 3,
+ "attachments": {},
+ "boards": {
+  "A-FotoRo.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Foto-Ro · Green: musikpladsen",
+   "w": 1280,
+   "x": 0,
+   "y": 1900
   },
-  "createdOnFiles": {
-    "at": "2026-11-09T09:00:00Z",
-    "v": 1
+  "A-Lys.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Lys · ikke forbundet (Green)",
+   "w": 1280,
+   "x": 1116,
+   "y": 8400
   },
-  "designSystems": [],
-  "launch": {
-    "page": "retning",
-    "view": "canvas"
+  "A-MiniPlayer.dc.html": {
+   "h": 112,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Mini-afspiller (fravalgt: fuld afspiller overalt)",
+   "w": 372,
+   "x": 4080,
+   "y": 2440
   },
-  "noteOrder": [
-    "image-4z0kf3",
-    "image-79q5vk",
-    "image-ydhkdt",
-    "note-7lm50g",
-    "t-historik-4",
-    "t-principper-5",
-    "t-retning-6",
-    "t-retning-7",
-    "t-retning-8",
-    "t-retning-9",
-    "t-retning-10",
-    "t-retning-11",
-    "t-retning-12",
-    "t-retning-13",
-    "t-retning-14",
-    "t-retning-15",
-    "t-hero",
-    "t-historik-ovb",
-    "t-retning-ro",
-    "t-svar-ny",
-    "t-historik-svar"
-  ],
-  "notes": {
-    "image-4z0kf3": {
-      "alt": "Skærmbillede 2026-11-09 kl. 10.17.32",
-      "h": 165,
-      "kind": "image",
-      "src": "/_blob/0875b515ffb05afcb56ce0df9ea57bfa",
-      "w": 798,
-      "x": 137,
-      "y": -2949
-    },
-    "image-79q5vk": {
-      "alt": "Skærmbillede 2026-11-09 kl. 10.17.47",
-      "h": 218,
-      "kind": "image",
-      "src": "/_blob/2d4822adaf28f83094088fe7e2d1ce2e",
-      "w": 400,
-      "x": 744,
-      "y": -2618
-    },
-    "image-ydhkdt": {
-      "alt": "Skærmbillede 2026-11-09 kl. 10.17.40",
-      "h": 162,
-      "kind": "image",
-      "src": "/_blob/c08df484a5655415d7b7a6121c3d8af1",
-      "w": 424,
-      "x": 204,
-      "y": -2590
-    },
-    "note-7lm50g": {
-      "text": "Find musik\n\nF3 · Søgning mens man skriver: Jeg søger efter en kunstner, sang eller playliste, og resultaterne vises, mens jeg skriver.\n\nHøjttaler / konto-overtagelse\n\nH2 · En anden konto spiller: Sofie spiller fra sin konto på Køkken. Skærmen viser »Spiller fra en anden konto« og tilbyder »Spil her«.\nH3 · Spil her: Jeg trykker »Spil her«, og min musik spiller på Køkken inden for 3 s. Den skifter aldrig uden mit tryk.\n\nOpskrifter\n\nO2 · Antal personer: Jeg vælger en opskrift, og ingredienser og trin kan læses på afstand. Antal personer kan ændres. Selve ingrediens- og trinvisningen findes allerede, så idéen er kun ændringen af antal personer.\nO3 · Timer fra trin: Det aktuelle trin er tydeligt, og jeg kan starte en timer direkte fra trinnet. Markeringen af aktuelt trin findes allerede, så idéen er kun timerstarten.\nO9 · Portioner skalerer: Jeg ændrer antal portioner, og ingrediensmængderne følger med. Navigation og opdatering af foldbare sektioner må ikke ændre det valgte portionstal eller det aktuelle trin.",
-      "w": 665,
-      "x": 204,
-      "y": -2330
-    },
-    "t-hero": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "historik",
-      "text": "Hero-sammenligning · før → S 221 / L 458 (reglen står nu i UI-kittet)",
-      "w": 240,
-      "x": 0,
-      "y": 6100
-    },
-    "t-historik-4": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "historik",
-      "text": "Parkeret: søgning mens man skriver (kræver tastatur på Frameo)",
-      "w": 240,
-      "x": 0,
-      "y": 3340
-    },
-    "t-historik-ovb": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "historik",
-      "text": "Overblik · forslag til roligere farver (A er nu standard, B fravalgt)",
-      "w": 240,
-      "x": 0,
-      "y": 4700
-    },
-    "t-historik-svar": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "historik",
-      "text": "Svar · de tidligere ti former og faser (erstattet af fire former)",
-      "w": 240,
-      "x": 0,
-      "y": 8100
-    },
-    "t-principper-5": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "principper",
-      "text": "Principper, UI-kit og gennemgang",
-      "w": 240,
-      "x": 0,
-      "y": -300
-    },
-    "t-retning-10": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Tesla · bilen er batteriet",
-      "w": 240,
-      "x": 0,
-      "y": 9700
-    },
-    "t-retning-11": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Find musik og afspiller",
-      "w": 240,
-      "x": 0,
-      "y": 11300
-    },
-    "t-retning-12": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Radio · afspilles altid i medieafspilleren",
-      "w": 240,
-      "x": 0,
-      "y": 12900
-    },
-    "t-retning-13": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Opskrifter · rigtigt katalog (9) · katalog, udforsk, opskrift",
-      "w": 240,
-      "x": 0,
-      "y": 14500
-    },
-    "t-retning-14": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Timer",
-      "w": 240,
-      "x": 0,
-      "y": 16100
-    },
-    "t-retning-15": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "historik",
-      "text": "Svar · alle visuelle svarformer og faser (produktets egne)",
-      "w": 240,
-      "x": 0,
-      "y": 8300
-    },
-    "t-retning-6": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Overblik · faste pladser, Green 9. nov. 14.30 · aktiv · skærmindstillinger",
-      "w": 240,
-      "x": 0,
-      "y": 0
-    },
-    "t-retning-7": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Vejr · widget-states → detalje",
-      "w": 240,
-      "x": 0,
-      "y": 2900
-    },
-    "t-retning-8": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Robot · widget-states → detalje-states",
-      "w": 240,
-      "x": 0,
-      "y": 4900
-    },
-    "t-retning-9": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Lys · skærmens rum først, andre rum, hele hjemmet, lamper",
-      "w": 240,
-      "x": 0,
-      "y": 8100
-    },
-    "t-retning-ro": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Foto-Ro · ur, vejr og produktets to pladser (musik + aktivitet)",
-      "w": 240,
-      "x": 0,
-      "y": 1600
-    },
-    "t-svar-ny": {
-      "kind": "title1",
-      "maxW": 12000,
-      "page": "retning",
-      "text": "Svar · gentænkt: fire former + historik (forslag)",
-      "w": 240,
-      "x": 0,
-      "y": 18000
-    }
+  "A-Musik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Find musik · Tid på dagen, uden søgefelt",
+   "w": 1280,
+   "x": 638,
+   "y": 11600
   },
-  "order": [
-    "A-MiniPlayer.dc.html",
-    "A-Topbar.dc.html",
-    "B-Overblik.dc.html",
-    "B-Tesla.dc.html",
-    "C-Overblik.dc.html",
-    "C-Robot.dc.html",
-    "V2-Overblik.dc.html",
-    "V2-Robot.dc.html",
-    "V2-Tesla.dc.html",
-    "Musik-Soeg.dc.html",
-    "K-Kit.dc.html",
-    "Northstars.dc.html",
-    "System.dc.html",
-    "A-Stemme.dc.html",
-    "Referencer.dc.html",
-    "Gennemgang.dc.html",
-    "Main.dc.html",
-    "Overblik-Aktiv.dc.html",
-    "A-FotoRo.dc.html",
-    "A-Skaerm.dc.html",
-    "W-vejr-sidstkendt.dc.html",
-    "W-vejr-frisk.dc.html",
-    "W-vejr-ukendt.dc.html",
-    "A-Vejr.dc.html",
-    "W-robot-oplader.dc.html",
-    "W-robot-rengoer.dc.html",
-    "W-robot-pause.dc.html",
-    "W-robot-tilbasen.dc.html",
-    "W-robot-fejl.dc.html",
-    "W-robot-ukendt.dc.html",
-    "A-Robot.dc.html",
-    "Robot-Rengoer.dc.html",
-    "Robot-Pause.dc.html",
-    "Robot-TilBasen.dc.html",
-    "Robot-Fejl.dc.html",
-    "Robot-Ukendt.dc.html",
-    "W-lys-ikkeforbundet.dc.html",
-    "W-lys-taendt.dc.html",
-    "W-lys-slukket.dc.html",
-    "W-lys-ukendt.dc.html",
-    "A-Lys.dc.html",
-    "Lys-Taendt.dc.html",
-    "Lys-Slukket.dc.html",
-    "Lys-Ukendt.dc.html",
-    "W-tesla-sidstkendt.dc.html",
-    "W-tesla-lader.dc.html",
-    "W-tesla-klima.dc.html",
-    "W-tesla-laast.dc.html",
-    "W-tesla-ikkeforbundet.dc.html",
-    "A-Tesla.dc.html",
-    "Tesla-Lader.dc.html",
-    "Tesla-Klima.dc.html",
-    "Tesla-Parkeret.dc.html",
-    "W-musik-tom.dc.html",
-    "W-musik-ikketilg.dc.html",
-    "A-Musik.dc.html",
-    "A-Player.dc.html",
-    "Player-Radio.dc.html",
-    "Player-Tom.dc.html",
-    "Player-AndenKonto.dc.html",
-    "W-radio-vaelg.dc.html",
-    "W-radio-spiller.dc.html",
-    "W-radio-starter.dc.html",
-    "W-radio-ikketilg.dc.html",
-    "A-Radio.dc.html",
-    "Radio-Starter.dc.html",
-    "Radio-Spiller.dc.html",
-    "Radio-IkkeTilg.dc.html",
-    "W-opskrift-igang.dc.html",
-    "W-opskrift-katalog.dc.html",
-    "W-opskrift-tom.dc.html",
-    "A-Opskrifter.dc.html",
-    "Opskrifter-Bog.dc.html",
-    "A-Opskrift.dc.html",
-    "W-timer-start.dc.html",
-    "W-timer-koerer.dc.html",
-    "W-timer-pause.dc.html",
-    "W-timer-faerdig.dc.html",
-    "A-Timer.dc.html",
-    "Timer-pause.dc.html",
-    "Timer-faerdig.dc.html",
-    "W-svar-seneste.dc.html",
-    "W-svar-tom.dc.html",
-    "A-Svar.dc.html",
-    "Svar-faktakort.dc.html",
-    "Svar-billede.dc.html",
-    "Svar-tidslinje.dc.html",
-    "Svar-diagram.dc.html",
-    "Svar-valg.dc.html",
-    "Svar-sammenligning.dc.html",
-    "Svar-graf.dc.html",
-    "Svar-trin.dc.html",
-    "Svar-tjekliste.dc.html",
-    "Svar-lytter.dc.html",
-    "Svar-taenker.dc.html",
-    "Svar-afbrudt.dc.html",
-    "Svar-fejl.dc.html",
-    "Svar-offline.dc.html",
-    "Svar-tom.dc.html",
-    "Hero-Robot-Nu.dc.html",
-    "Hero-Robot-S.dc.html",
-    "Hero-Lys-Nu.dc.html",
-    "Hero-Lys-S.dc.html",
-    "Hero-Tesla-Nu.dc.html",
-    "Hero-Tesla-L.dc.html",
-    "Hero-Radio-Nu.dc.html",
-    "Hero-Radio-L.dc.html",
-    "Musik-DinMusik.dc.html",
-    "Musik-IkkeTilg.dc.html",
-    "Overblik-Bundhvid.dc.html",
-    "Overblik-Ro.dc.html",
-    "Overblik-Ro-Aktiv.dc.html",
-    "FotoRo-Aktiv.dc.html",
-    "Robot-Sticky.dc.html",
-    "Robot-Sticky-Rengoer.dc.html",
-    "Vejr-Gammel.dc.html",
-    "Vejr-Ukendt.dc.html",
-    "Timer-Alarm.dc.html",
-    "Tesla-Handling.dc.html",
-    "Tesla-Handling-sender.dc.html",
-    "Tesla-Handling-ukendt.dc.html",
-    "Vejr-Shadere.dc.html",
-    "Musik-HoerIgen.dc.html",
-    "Musik-Koe.dc.html",
-    "Svar-Ny.dc.html",
-    "Svar-Ny-billede.dc.html",
-    "Svar-Ny-trin.dc.html",
-    "Svar-Ny-tal.dc.html",
-    "Svar-Historik.dc.html",
-    "Tesla-Handling-bekraeftet.dc.html",
-    "Tesla-Handling-laaser.dc.html",
-    "Tesla-Handling-laast.dc.html",
-    "Opskrift-TimerKoerer.dc.html",
-    "Musik-Vibe.dc.html",
-    "Robot-Basen-aaben.dc.html",
-    "Robot-Basen-vasker.dc.html"
-  ],
-  "pages": [
-    {
-      "id": "retning",
-      "name": "Overblik og domæner"
-    },
-    {
-      "id": "principper",
-      "name": "Principper og kit"
-    },
-    {
-      "id": "historik",
-      "name": "Historik"
-    }
-  ],
-  "title": "PodView Retninger"
+  "A-Opskrift.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Opskrift · Burgerboller, trin 2 af 5",
+   "w": 1280,
+   "x": 3597,
+   "y": 14800
+  },
+  "A-Opskrifter.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Opskrifter · katalog",
+   "w": 1280,
+   "x": 877,
+   "y": 14800
+  },
+  "A-Player.dc.html": {
+   "h": 696,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Afspiller · Fast Car, på pause (Green)",
+   "w": 372,
+   "x": 4718,
+   "y": 11600
+  },
+  "A-Radio.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Radio · vælg station (Green)",
+   "w": 1280,
+   "x": 1116,
+   "y": 13200
+  },
+  "A-Robot.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · oplader (Green)",
+   "w": 1280,
+   "x": 2884,
+   "y": 5200
+  },
+  "A-Skaerm.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Skærm og enhed · modal",
+   "w": 1280,
+   "x": 2720,
+   "y": 300
+  },
+  "A-Stemme.dc.html": {
+   "h": 800,
+   "is_interactive": false,
+   "page": "principper",
+   "title": "Stemmegrillen",
+   "w": 1280,
+   "x": 5200,
+   "y": 0
+  },
+  "A-Svar.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · kort svar, El Clásico (Green)",
+   "w": 1280,
+   "x": 0,
+   "y": 8400
+  },
+  "A-Tesla.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · ulåst, bagagerum åbent (Green)",
+   "w": 1280,
+   "x": 1355,
+   "y": 10000
+  },
+  "A-Timer.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Timer · tæller ned",
+   "w": 1280,
+   "x": 1116,
+   "y": 16400
+  },
+  "A-Topbar.dc.html": {
+   "h": 72,
+   "page": "historik",
+   "title": "Topbar-komponent (vist på alle skærme)",
+   "w": 1280,
+   "x": 4560,
+   "y": 2440
+  },
+  "A-Vejr.dc.html": {
+   "h": 1100,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Vejr · Green · hero L, scroller",
+   "w": 1280,
+   "x": 1522,
+   "y": 3200
+  },
+  "B-Overblik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "B · Glyph — Overblik (fravalgt)",
+   "w": 1280,
+   "x": 0,
+   "y": 0
+  },
+  "B-Tesla.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "B · Glyph — Tesla (fravalgt)",
+   "w": 1280,
+   "x": 1360,
+   "y": 0
+  },
+  "C-Overblik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "C · Instrument — Overblik (fravalgt)",
+   "w": 1280,
+   "x": 0,
+   "y": 1220
+  },
+  "C-Robot.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "C · Instrument — Robot (fravalgt)",
+   "w": 1280,
+   "x": 1360,
+   "y": 1220
+  },
+  "FotoRo-Aktiv.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Foto-Ro · aktiv: timer og radio i aktivitetspladserne",
+   "w": 1280,
+   "x": 1360,
+   "y": 1900
+  },
+  "Gennemgang.dc.html": {
+   "h": 800,
+   "is_interactive": false,
+   "page": "principper",
+   "title": "Gennemgang af :4394 · 4–5/10",
+   "w": 1280,
+   "x": 7920,
+   "y": 0
+  },
+  "Hero-Lys-Nu.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Lys · før 300",
+   "w": 1280,
+   "x": 2840,
+   "y": 6400
+  },
+  "Hero-Lys-S.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Lys · S 221 (standard)",
+   "w": 1280,
+   "x": 4200,
+   "y": 6400
+  },
+  "Hero-Radio-L.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Radio · L 458 (standard)",
+   "w": 1280,
+   "x": 9880,
+   "y": 6400
+  },
+  "Hero-Radio-Nu.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Radio · før 420",
+   "w": 1280,
+   "x": 8520,
+   "y": 6400
+  },
+  "Hero-Robot-Nu.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Robot · før 300",
+   "w": 1280,
+   "x": 0,
+   "y": 6400
+  },
+  "Hero-Robot-S.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Robot · S 221 (standard)",
+   "w": 1280,
+   "x": 1360,
+   "y": 6400
+  },
+  "Hero-Tesla-L.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Tesla · L 458 (standard)",
+   "w": 1280,
+   "x": 7040,
+   "y": 6400
+  },
+  "Hero-Tesla-Nu.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Tesla · før 372",
+   "w": 1280,
+   "x": 5680,
+   "y": 6400
+  },
+  "K-Kit.dc.html": {
+   "h": 3080,
+   "is_interactive": true,
+   "page": "principper",
+   "title": "UI-kit · tokens og komponenter (én kilde)",
+   "w": 2400,
+   "x": 0,
+   "y": 0
+  },
+  "Lys-Slukket.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Lys · slukket · gendan lys",
+   "w": 1280,
+   "x": 3836,
+   "y": 8400
+  },
+  "Lys-Taendt.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Lys · tændt, scener og lamper",
+   "w": 1280,
+   "x": 2476,
+   "y": 8400
+  },
+  "Lys-Ukendt.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Lys · status ukendt",
+   "w": 1280,
+   "x": 5196,
+   "y": 8400
+  },
+  "Main.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Overblik · Green 9. nov. 14.30 · standard: nederste række hvid",
+   "w": 1280,
+   "x": 0,
+   "y": 300
+  },
+  "Musik-DinMusik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Find musik · Din musik, 5 forslag",
+   "w": 1280,
+   "x": 1998,
+   "y": 11600
+  },
+  "Musik-HoerIgen.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Find musik · Hør igen som liste (ægte Spotify-omslag)",
+   "w": 1280,
+   "x": 6526,
+   "y": 11600
+  },
+  "Musik-IkkeTilg.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Find musik · stemningsforslag ikke tilgængelige (Green): Din musik og Hør igen virker",
+   "w": 1280,
+   "x": 3358,
+   "y": 11600
+  },
+  "Musik-Koe.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Afspiller · nu og kø (tryk på omslag/Kø)",
+   "w": 1280,
+   "x": 7886,
+   "y": 11600
+  },
+  "Musik-Soeg.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Find musik · søgning (parkeret til tastatur er afklaret)",
+   "w": 1280,
+   "x": 0,
+   "y": 3640
+  },
+  "Musik-Vibe.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Find musik · Vibe (stemningsretninger)",
+   "w": 1280,
+   "x": 9246,
+   "y": 11600
+  },
+  "Northstars.dc.html": {
+   "h": 800,
+   "is_interactive": false,
+   "page": "principper",
+   "title": "Northstars",
+   "w": 1280,
+   "x": 2480,
+   "y": 0
+  },
+  "Opskrift-TimerKoerer.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Opskrift · timer startet fra trin: chip i topbaren (ny funktion)",
+   "w": 1280,
+   "x": 4957,
+   "y": 14800
+  },
+  "Opskrifter-Bog.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Opskrifter · udforsk som Cover Flow (billeder fra Green)",
+   "w": 1280,
+   "x": 2237,
+   "y": 14800
+  },
+  "Overblik-Aktiv.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Overblik · aktiv · standard: nederste række hvid",
+   "w": 1280,
+   "x": 1360,
+   "y": 300
+  },
+  "Overblik-Bundhvid.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Forslag A · valgt (nu standard i Overblik)",
+   "w": 1280,
+   "x": 0,
+   "y": 5000
+  },
+  "Overblik-Ro-Aktiv.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Forslag B · fravalgt (aktiv)",
+   "w": 1280,
+   "x": 2720,
+   "y": 5000
+  },
+  "Overblik-Ro.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Forslag B · fravalgt",
+   "w": 1280,
+   "x": 1360,
+   "y": 5000
+  },
+  "Player-AndenKonto.dc.html": {
+   "h": 696,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Afspiller · anden konto, Spil her",
+   "w": 372,
+   "x": 6074,
+   "y": 11600
+  },
+  "Player-Radio.dc.html": {
+   "h": 696,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Afspiller · radio",
+   "w": 372,
+   "x": 5170,
+   "y": 11600
+  },
+  "Player-Tom.dc.html": {
+   "h": 696,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Afspiller · intet spiller",
+   "w": 372,
+   "x": 5622,
+   "y": 11600
+  },
+  "Radio-IkkeTilg.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Radio · ikke tilgængelig",
+   "w": 1280,
+   "x": 5196,
+   "y": 13200
+  },
+  "Radio-Spiller.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Radio · spiller",
+   "w": 1280,
+   "x": 3836,
+   "y": 13200
+  },
+  "Radio-Starter.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Radio · starter",
+   "w": 1280,
+   "x": 2476,
+   "y": 13200
+  },
+  "Referencer.dc.html": {
+   "h": 960,
+   "is_interactive": false,
+   "page": "principper",
+   "title": "Referencer",
+   "w": 1280,
+   "x": 6560,
+   "y": 0
+  },
+  "Robot-Basen-aaben.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · Basen foldet ud (oplader)",
+   "w": 1280,
+   "x": 11044,
+   "y": 5200
+  },
+  "Robot-Basen-vasker.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · Basen: vasker moppen",
+   "w": 1280,
+   "x": 12404,
+   "y": 5200
+  },
+  "Robot-Fejl.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · hovedbørsten sidder fast",
+   "w": 1280,
+   "x": 8324,
+   "y": 5200
+  },
+  "Robot-Pause.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · på pause · mangler vand",
+   "w": 1280,
+   "x": 5604,
+   "y": 5200
+  },
+  "Robot-Rengoer.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · rengør",
+   "w": 1280,
+   "x": 4244,
+   "y": 5200
+  },
+  "Robot-Sticky-Rengoer.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Forslag · sticky handlingslinje (rengør: Pause/Afslut)",
+   "w": 1280,
+   "x": 4244,
+   "y": 6700
+  },
+  "Robot-Sticky.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Forslag · sticky handlingslinje når heroen er rullet ud (oplader)",
+   "w": 1280,
+   "x": 2884,
+   "y": 6700
+  },
+  "Robot-TilBasen.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · til basen",
+   "w": 1280,
+   "x": 6964,
+   "y": 5200
+  },
+  "Robot-Ukendt.dc.html": {
+   "h": 1400,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · status ukendt",
+   "w": 1280,
+   "x": 9684,
+   "y": 5200
+  },
+  "Svar-Historik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · alle visuelle svar",
+   "w": 1280,
+   "x": 6078,
+   "y": 18300
+  },
+  "Svar-Ny-billede.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · billede med kilde",
+   "w": 1280,
+   "x": 1998,
+   "y": 18300
+  },
+  "Svar-Ny-tal.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · sammenligning og tal",
+   "w": 1280,
+   "x": 4718,
+   "y": 18300
+  },
+  "Svar-Ny-trin.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · trin for trin",
+   "w": 1280,
+   "x": 3358,
+   "y": 18300
+  },
+  "Svar-Ny.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · fakta (Green: El Clásico)",
+   "w": 1280,
+   "x": 638,
+   "y": 18300
+  },
+  "Svar-afbrudt.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · afbrudt",
+   "w": 1280,
+   "x": 16320,
+   "y": 8400
+  },
+  "Svar-billede.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · billede med kilde",
+   "w": 1280,
+   "x": 2720,
+   "y": 8400
+  },
+  "Svar-diagram.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · enkelt diagram",
+   "w": 1280,
+   "x": 5440,
+   "y": 8400
+  },
+  "Svar-faktakort.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · faktakort",
+   "w": 1280,
+   "x": 1360,
+   "y": 8400
+  },
+  "Svar-fejl.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · kom ikke frem",
+   "w": 1280,
+   "x": 17680,
+   "y": 8400
+  },
+  "Svar-graf.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · datagraf",
+   "w": 1280,
+   "x": 9520,
+   "y": 8400
+  },
+  "Svar-lytter.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · lytter",
+   "w": 1280,
+   "x": 13600,
+   "y": 8400
+  },
+  "Svar-offline.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · offline",
+   "w": 1280,
+   "x": 19040,
+   "y": 8400
+  },
+  "Svar-sammenligning.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · sammenligning",
+   "w": 1280,
+   "x": 8160,
+   "y": 8400
+  },
+  "Svar-taenker.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · tænker",
+   "w": 1280,
+   "x": 14960,
+   "y": 8400
+  },
+  "Svar-tidslinje.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · tidslinje",
+   "w": 1280,
+   "x": 4080,
+   "y": 8400
+  },
+  "Svar-tjekliste.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · tjekliste",
+   "w": 1280,
+   "x": 12240,
+   "y": 8400
+  },
+  "Svar-tom.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · intet at vise",
+   "w": 1280,
+   "x": 20400,
+   "y": 8400
+  },
+  "Svar-trin.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · trin for trin",
+   "w": 1280,
+   "x": 10880,
+   "y": 8400
+  },
+  "Svar-valg.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Svar · valgmuligheder",
+   "w": 1280,
+   "x": 6800,
+   "y": 8400
+  },
+  "System.dc.html": {
+   "h": 800,
+   "is_interactive": false,
+   "page": "principper",
+   "title": "Ét system: størrelser, tilstande, materiale",
+   "w": 1280,
+   "x": 3840,
+   "y": 0
+  },
+  "Tesla-Handling-bekraeftet.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Tesla · Lås op: bekræftet",
+   "w": 1280,
+   "x": 0,
+   "y": 9800
+  },
+  "Tesla-Handling-laaser.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Tesla · Lås bilen: låser (ingen bekræftelse)",
+   "w": 1280,
+   "x": 1360,
+   "y": 9800
+  },
+  "Tesla-Handling-laast.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Tesla · Lås bilen: låst",
+   "w": 1280,
+   "x": 2720,
+   "y": 9800
+  },
+  "Tesla-Handling-sender.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: sender (feedback i fladen)",
+   "w": 1280,
+   "x": 8155,
+   "y": 10000
+  },
+  "Tesla-Handling-ukendt.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: udfald ukendt (generisk fejlbesked)",
+   "w": 1280,
+   "x": 9515,
+   "y": 10000
+  },
+  "Tesla-Handling.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: bekræft (modal)",
+   "w": 1280,
+   "x": 6795,
+   "y": 10000
+  },
+  "Tesla-Klima.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · klima",
+   "w": 1280,
+   "x": 4075,
+   "y": 10000
+  },
+  "Tesla-Lader.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · lader",
+   "w": 1280,
+   "x": 2715,
+   "y": 10000
+  },
+  "Tesla-Parkeret.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · låst og lukket (rolige flader)",
+   "w": 1280,
+   "x": 5435,
+   "y": 10000
+  },
+  "Timer-Alarm.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Timer · færdig: fuldskærmsalarm (timer-notice)",
+   "w": 1280,
+   "x": 2476,
+   "y": 16400
+  },
+  "Timer-faerdig.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Timer · tiden er gået",
+   "w": 1280,
+   "x": 3836,
+   "y": 16400
+  },
+  "Timer-pause.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Timer · på pause",
+   "w": 1280,
+   "x": 2476,
+   "y": 16400
+  },
+  "V2-Overblik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Overblik v2 · kortgrid (erstattet)",
+   "w": 1280,
+   "x": 0,
+   "y": 2440
+  },
+  "V2-Robot.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Robot v2 (erstattet)",
+   "w": 1280,
+   "x": 1360,
+   "y": 2440
+  },
+  "V2-Tesla.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "historik",
+   "title": "Tesla v2 (erstattet)",
+   "w": 1280,
+   "x": 2720,
+   "y": 2440
+  },
+  "Vejr-Gammel.dc.html": {
+   "h": 1100,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Vejr · data over 30 min: tidspunkt vises",
+   "w": 1280,
+   "x": 2882,
+   "y": 3200
+  },
+  "Vejr-Shadere.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Vejr · materiale pr. vejrtype (animeret)",
+   "w": 1280,
+   "x": 5602,
+   "y": 3200
+  },
+  "Vejr-Ukendt.dc.html": {
+   "h": 1100,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Vejr · kunne ikke hentes",
+   "w": 1280,
+   "x": 4242,
+   "y": 3200
+  },
+  "W-lys-ikkeforbundet.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ikkeforbundet",
+   "w": 199,
+   "x": 0,
+   "y": 8400
+  },
+  "W-lys-slukket.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · slukket",
+   "w": 199,
+   "x": 478,
+   "y": 8400
+  },
+  "W-lys-taendt.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · taendt",
+   "w": 199,
+   "x": 239,
+   "y": 8400
+  },
+  "W-lys-ukendt.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ukendt",
+   "w": 199,
+   "x": 717,
+   "y": 8400
+  },
+  "W-musik-ikketilg.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ikketilg",
+   "w": 199,
+   "x": 239,
+   "y": 11600
+  },
+  "W-musik-tom.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · tom",
+   "w": 199,
+   "x": 0,
+   "y": 11600
+  },
+  "W-opskrift-igang.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · igang",
+   "w": 199,
+   "x": 0,
+   "y": 14800
+  },
+  "W-opskrift-katalog.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · katalog",
+   "w": 199,
+   "x": 239,
+   "y": 14800
+  },
+  "W-opskrift-tom.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · tom",
+   "w": 199,
+   "x": 478,
+   "y": 14800
+  },
+  "W-radio-ikketilg.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ikketilg",
+   "w": 199,
+   "x": 717,
+   "y": 13200
+  },
+  "W-radio-spiller.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · spiller",
+   "w": 199,
+   "x": 239,
+   "y": 13200
+  },
+  "W-radio-starter.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · starter",
+   "w": 199,
+   "x": 478,
+   "y": 13200
+  },
+  "W-radio-vaelg.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · vaelg",
+   "w": 199,
+   "x": 0,
+   "y": 13200
+  },
+  "W-robot-fejl.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · fejl",
+   "w": 414,
+   "x": 1816,
+   "y": 5200
+  },
+  "W-robot-oplader.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · oplader",
+   "w": 414,
+   "x": 0,
+   "y": 5200
+  },
+  "W-robot-pause.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · pause",
+   "w": 414,
+   "x": 908,
+   "y": 5200
+  },
+  "W-robot-rengoer.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · rengoer",
+   "w": 414,
+   "x": 454,
+   "y": 5200
+  },
+  "W-robot-tilbasen.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · tilbasen",
+   "w": 414,
+   "x": 1362,
+   "y": 5200
+  },
+  "W-robot-ukendt.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ukendt",
+   "w": 414,
+   "x": 2270,
+   "y": 5200
+  },
+  "W-svar-seneste.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · seneste",
+   "w": 199,
+   "x": 0,
+   "y": 18300
+  },
+  "W-svar-tom.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · tom",
+   "w": 199,
+   "x": 239,
+   "y": 18300
+  },
+  "W-tesla-ikkeforbundet.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ikkeforbundet",
+   "w": 199,
+   "x": 956,
+   "y": 10000
+  },
+  "W-tesla-klima.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · klima",
+   "w": 199,
+   "x": 478,
+   "y": 10000
+  },
+  "W-tesla-laast.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · laast",
+   "w": 199,
+   "x": 717,
+   "y": 10000
+  },
+  "W-tesla-lader.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · lader",
+   "w": 199,
+   "x": 239,
+   "y": 10000
+  },
+  "W-tesla-sidstkendt.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · sidstkendt",
+   "w": 199,
+   "x": 0,
+   "y": 10000
+  },
+  "W-timer-faerdig.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · faerdig",
+   "w": 199,
+   "x": 717,
+   "y": 16400
+  },
+  "W-timer-koerer.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · koerer",
+   "w": 199,
+   "x": 239,
+   "y": 16400
+  },
+  "W-timer-pause.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · pause",
+   "w": 199,
+   "x": 478,
+   "y": 16400
+  },
+  "W-timer-start.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · start",
+   "w": 199,
+   "x": 0,
+   "y": 16400
+  },
+  "W-vejr-frisk.dc.html": {
+   "h": 458,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · frisk",
+   "w": 414,
+   "x": 454,
+   "y": 3200
+  },
+  "W-vejr-sidstkendt.dc.html": {
+   "h": 458,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · sidstkendt",
+   "w": 414,
+   "x": 0,
+   "y": 3200
+  },
+  "W-vejr-ukendt.dc.html": {
+   "h": 458,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · ukendt",
+   "w": 414,
+   "x": 908,
+   "y": 3200
+  }
+ },
+ "createdOnFiles": {
+  "at": "2026-11-09T09:00:00Z",
+  "v": 1
+ },
+ "designSystems": [],
+ "launch": {
+  "page": "retning",
+  "view": "canvas"
+ },
+ "noteOrder": [
+  "image-4z0kf3",
+  "image-79q5vk",
+  "image-ydhkdt",
+  "note-7lm50g",
+  "t-historik-4",
+  "t-principper-5",
+  "t-retning-6",
+  "t-retning-7",
+  "t-retning-8",
+  "t-retning-9",
+  "t-retning-10",
+  "t-retning-11",
+  "t-retning-12",
+  "t-retning-13",
+  "t-retning-14",
+  "t-retning-15",
+  "t-hero",
+  "t-historik-ovb",
+  "t-retning-ro",
+  "t-svar-ny",
+  "t-historik-svar",
+  "t-historik-tesla"
+ ],
+ "notes": {
+  "image-4z0kf3": {
+   "alt": "Skærmbillede 2026-11-09 kl. 10.17.32",
+   "h": 165,
+   "kind": "image",
+   "src": "/_blob/0875b515ffb05afcb56ce0df9ea57bfa",
+   "w": 798,
+   "x": 137,
+   "y": -2949
+  },
+  "image-79q5vk": {
+   "alt": "Skærmbillede 2026-11-09 kl. 10.17.47",
+   "h": 218,
+   "kind": "image",
+   "src": "/_blob/2d4822adaf28f83094088fe7e2d1ce2e",
+   "w": 400,
+   "x": 744,
+   "y": -2618
+  },
+  "image-ydhkdt": {
+   "alt": "Skærmbillede 2026-11-09 kl. 10.17.40",
+   "h": 162,
+   "kind": "image",
+   "src": "/_blob/c08df484a5655415d7b7a6121c3d8af1",
+   "w": 424,
+   "x": 204,
+   "y": -2590
+  },
+  "note-7lm50g": {
+   "text": "Find musik\n\nF3 · Søgning mens man skriver: Jeg søger efter en kunstner, sang eller playliste, og resultaterne vises, mens jeg skriver.\n\nHøjttaler / konto-overtagelse\n\nH2 · En anden konto spiller: Sofie spiller fra sin konto på Køkken. Skærmen viser »Spiller fra en anden konto« og tilbyder »Spil her«.\nH3 · Spil her: Jeg trykker »Spil her«, og min musik spiller på Køkken inden for 3 s. Den skifter aldrig uden mit tryk.\n\nOpskrifter\n\nO2 · Antal personer: Jeg vælger en opskrift, og ingredienser og trin kan læses på afstand. Antal personer kan ændres. Selve ingrediens- og trinvisningen findes allerede, så idéen er kun ændringen af antal personer.\nO3 · Timer fra trin: Det aktuelle trin er tydeligt, og jeg kan starte en timer direkte fra trinnet. Markeringen af aktuelt trin findes allerede, så idéen er kun timerstarten.\nO9 · Portioner skalerer: Jeg ændrer antal portioner, og ingrediensmængderne følger med. Navigation og opdatering af foldbare sektioner må ikke ændre det valgte portionstal eller det aktuelle trin.",
+   "w": 665,
+   "x": 204,
+   "y": -2330
+  },
+  "t-hero": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Hero-sammenligning · før → S 221 / L 458 (reglen står nu i UI-kittet)",
+   "w": 240,
+   "x": 0,
+   "y": 6100
+  },
+  "t-historik-4": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Parkeret: søgning mens man skriver (kræver tastatur på Frameo)",
+   "w": 240,
+   "x": 0,
+   "y": 3340
+  },
+  "t-historik-ovb": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Overblik · forslag til roligere farver (A er nu standard, B fravalgt)",
+   "w": 240,
+   "x": 0,
+   "y": 4700
+  },
+  "t-historik-svar": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Svar · de tidligere ti former og faser (erstattet af fire former)",
+   "w": 240,
+   "x": 0,
+   "y": 8100
+  },
+  "t-principper-5": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "principper",
+   "text": "Principper, UI-kit og gennemgang",
+   "w": 240,
+   "x": 0,
+   "y": -300
+  },
+  "t-retning-10": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Tesla · bilen er batteriet",
+   "w": 240,
+   "x": 0,
+   "y": 9700
+  },
+  "t-retning-11": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Find musik og afspiller",
+   "w": 240,
+   "x": 0,
+   "y": 11300
+  },
+  "t-retning-12": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Radio · afspilles altid i medieafspilleren",
+   "w": 240,
+   "x": 0,
+   "y": 12900
+  },
+  "t-retning-13": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Opskrifter · rigtigt katalog (9) · katalog, udforsk, opskrift",
+   "w": 240,
+   "x": 0,
+   "y": 14500
+  },
+  "t-retning-14": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Timer",
+   "w": 240,
+   "x": 0,
+   "y": 16100
+  },
+  "t-retning-15": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Svar · alle visuelle svarformer og faser (produktets egne)",
+   "w": 240,
+   "x": 0,
+   "y": 8300
+  },
+  "t-retning-6": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Overblik · faste pladser, Green 9. nov. 14.30 · aktiv · skærmindstillinger",
+   "w": 240,
+   "x": 0,
+   "y": 0
+  },
+  "t-retning-7": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Vejr · widget-states → detalje",
+   "w": 240,
+   "x": 0,
+   "y": 2900
+  },
+  "t-retning-8": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Robot · widget-states → detalje-states",
+   "w": 240,
+   "x": 0,
+   "y": 4900
+  },
+  "t-retning-9": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Lys · skærmens rum først, andre rum, hele hjemmet, lamper",
+   "w": 240,
+   "x": 0,
+   "y": 8100
+  },
+  "t-retning-ro": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Foto-Ro · ur, vejr og produktets to pladser (musik + aktivitet)",
+   "w": 240,
+   "x": 0,
+   "y": 1600
+  },
+  "t-svar-ny": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "retning",
+   "text": "Svar · gentænkt: fire former + historik (forslag)",
+   "w": 240,
+   "x": 0,
+   "y": 18000
+  },
+  "t-historik-tesla": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Tesla · ekstra handlingstavler (nu vist som tilstande i UI-kittets handlingsflade)",
+   "w": 240,
+   "x": 0,
+   "y": 9500
+  }
+ },
+ "order": [
+  "A-MiniPlayer.dc.html",
+  "A-Topbar.dc.html",
+  "B-Overblik.dc.html",
+  "B-Tesla.dc.html",
+  "C-Overblik.dc.html",
+  "C-Robot.dc.html",
+  "V2-Overblik.dc.html",
+  "V2-Robot.dc.html",
+  "V2-Tesla.dc.html",
+  "Musik-Soeg.dc.html",
+  "K-Kit.dc.html",
+  "Northstars.dc.html",
+  "System.dc.html",
+  "A-Stemme.dc.html",
+  "Referencer.dc.html",
+  "Gennemgang.dc.html",
+  "Main.dc.html",
+  "Overblik-Aktiv.dc.html",
+  "A-FotoRo.dc.html",
+  "A-Skaerm.dc.html",
+  "W-vejr-sidstkendt.dc.html",
+  "W-vejr-frisk.dc.html",
+  "W-vejr-ukendt.dc.html",
+  "A-Vejr.dc.html",
+  "W-robot-oplader.dc.html",
+  "W-robot-rengoer.dc.html",
+  "W-robot-pause.dc.html",
+  "W-robot-tilbasen.dc.html",
+  "W-robot-fejl.dc.html",
+  "W-robot-ukendt.dc.html",
+  "A-Robot.dc.html",
+  "Robot-Rengoer.dc.html",
+  "Robot-Pause.dc.html",
+  "Robot-TilBasen.dc.html",
+  "Robot-Fejl.dc.html",
+  "Robot-Ukendt.dc.html",
+  "W-lys-ikkeforbundet.dc.html",
+  "W-lys-taendt.dc.html",
+  "W-lys-slukket.dc.html",
+  "W-lys-ukendt.dc.html",
+  "A-Lys.dc.html",
+  "Lys-Taendt.dc.html",
+  "Lys-Slukket.dc.html",
+  "Lys-Ukendt.dc.html",
+  "W-tesla-sidstkendt.dc.html",
+  "W-tesla-lader.dc.html",
+  "W-tesla-klima.dc.html",
+  "W-tesla-laast.dc.html",
+  "W-tesla-ikkeforbundet.dc.html",
+  "A-Tesla.dc.html",
+  "Tesla-Lader.dc.html",
+  "Tesla-Klima.dc.html",
+  "Tesla-Parkeret.dc.html",
+  "W-musik-tom.dc.html",
+  "W-musik-ikketilg.dc.html",
+  "A-Musik.dc.html",
+  "A-Player.dc.html",
+  "Player-Radio.dc.html",
+  "Player-Tom.dc.html",
+  "Player-AndenKonto.dc.html",
+  "W-radio-vaelg.dc.html",
+  "W-radio-spiller.dc.html",
+  "W-radio-starter.dc.html",
+  "W-radio-ikketilg.dc.html",
+  "A-Radio.dc.html",
+  "Radio-Starter.dc.html",
+  "Radio-Spiller.dc.html",
+  "Radio-IkkeTilg.dc.html",
+  "W-opskrift-igang.dc.html",
+  "W-opskrift-katalog.dc.html",
+  "W-opskrift-tom.dc.html",
+  "A-Opskrifter.dc.html",
+  "Opskrifter-Bog.dc.html",
+  "A-Opskrift.dc.html",
+  "W-timer-start.dc.html",
+  "W-timer-koerer.dc.html",
+  "W-timer-pause.dc.html",
+  "W-timer-faerdig.dc.html",
+  "A-Timer.dc.html",
+  "Timer-pause.dc.html",
+  "Timer-faerdig.dc.html",
+  "W-svar-seneste.dc.html",
+  "W-svar-tom.dc.html",
+  "A-Svar.dc.html",
+  "Svar-faktakort.dc.html",
+  "Svar-billede.dc.html",
+  "Svar-tidslinje.dc.html",
+  "Svar-diagram.dc.html",
+  "Svar-valg.dc.html",
+  "Svar-sammenligning.dc.html",
+  "Svar-graf.dc.html",
+  "Svar-trin.dc.html",
+  "Svar-tjekliste.dc.html",
+  "Svar-lytter.dc.html",
+  "Svar-taenker.dc.html",
+  "Svar-afbrudt.dc.html",
+  "Svar-fejl.dc.html",
+  "Svar-offline.dc.html",
+  "Svar-tom.dc.html",
+  "Hero-Robot-Nu.dc.html",
+  "Hero-Robot-S.dc.html",
+  "Hero-Lys-Nu.dc.html",
+  "Hero-Lys-S.dc.html",
+  "Hero-Tesla-Nu.dc.html",
+  "Hero-Tesla-L.dc.html",
+  "Hero-Radio-Nu.dc.html",
+  "Hero-Radio-L.dc.html",
+  "Musik-DinMusik.dc.html",
+  "Musik-IkkeTilg.dc.html",
+  "Overblik-Bundhvid.dc.html",
+  "Overblik-Ro.dc.html",
+  "Overblik-Ro-Aktiv.dc.html",
+  "FotoRo-Aktiv.dc.html",
+  "Robot-Sticky.dc.html",
+  "Robot-Sticky-Rengoer.dc.html",
+  "Vejr-Gammel.dc.html",
+  "Vejr-Ukendt.dc.html",
+  "Timer-Alarm.dc.html",
+  "Tesla-Handling.dc.html",
+  "Tesla-Handling-sender.dc.html",
+  "Tesla-Handling-ukendt.dc.html",
+  "Vejr-Shadere.dc.html",
+  "Musik-HoerIgen.dc.html",
+  "Musik-Koe.dc.html",
+  "Svar-Ny.dc.html",
+  "Svar-Ny-billede.dc.html",
+  "Svar-Ny-trin.dc.html",
+  "Svar-Ny-tal.dc.html",
+  "Svar-Historik.dc.html",
+  "Tesla-Handling-bekraeftet.dc.html",
+  "Tesla-Handling-laaser.dc.html",
+  "Tesla-Handling-laast.dc.html",
+  "Opskrift-TimerKoerer.dc.html",
+  "Musik-Vibe.dc.html",
+  "Robot-Basen-aaben.dc.html",
+  "Robot-Basen-vasker.dc.html"
+ ],
+ "pages": [
+  {
+   "id": "retning",
+   "name": "Overblik og domæner"
+  },
+  {
+   "id": "principper",
+   "name": "Principper og kit"
+  },
+  {
+   "id": "historik",
+   "name": "Historik"
+  }
+ ],
+ "title": "PodView Retninger"
 }

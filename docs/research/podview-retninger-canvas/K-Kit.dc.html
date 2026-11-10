@@ -20,7 +20,7 @@ body{margin:0}
 .sw i{position:absolute;top:3px;width:28px;height:28px;border-radius:50%;background:#F7F6F3;box-shadow:0 1px 3px rgba(0,0,0,.25);display:block}
 </style>
 </helmet>
-<div style="width: 2400px; height: 2750px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; padding: 64px; box-sizing: border-box; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; align-content: start">
+<div style="width: 2400px; height: 3080px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; padding: 64px; box-sizing: border-box; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; align-content: start">
   <div style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-end">
     <div style="display: flex; flex-direction: column; gap: 8px">
       <span class="lbl">PodView · ét kit for overblik, widgets og detaljer</span>
@@ -163,9 +163,22 @@ body{margin:0}
       <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">K-Widget</span><span style="color: #5F5E5A">alle widgets i overblik og rækker</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">A-Topbar</span><span style="color: #5F5E5A">alle sider</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">A-Player</span><span style="color: #5F5E5A">alle sider med afspiller</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Beskedlinje + friskhedsmærke</span><span style="color: #5F5E5A">Robot, Tesla, Vejr</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Hero S/L</span><span style="color: #5F5E5A">alle detaljesider</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Sektionstitel 24/800</span><span style="color: #5F5E5A">alle sektioner</span></div>
     </div>
   </section>
+
+  <section class="cd" style="grid-column: 1 / -1; display: flex; flex-direction: column; gap: 16px">
+    <span class="h">Handlingsflade · status og handling i én flade</span>
+    <span class="lbl" style="color: #17171A">Ét tryk udfører handlingen; feedback sker i fladen (fylder op, prikker, ✓). Beskedlinjen bruges kun til fejl/handling/info og er ens på alle sider. Bruges i Tesla-adgang; kan genbruges fx til Robot-basen.</span>
+    <div style="display: grid; grid-template-columns: repeat(5, 220px); gap: 16px">
+      <dc-import name="K-ActionTile" label="Døre" value="Låst" hint="Tryk for at låse op" tone="calm" icon="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z" h="176" hint-size="220px,176px"></dc-import>
+      <dc-import name="K-ActionTile" label="Døre" value="Ulåst" hint="Tryk for at låse" tone="attention" icon="M7 11V7a5 5 0 0 1 9.6-2M5 11h14v10H5z" h="176" hint-size="220px,176px"></dc-import>
+      <dc-import name="K-ActionTile" label="Døre" value="Låser…" hint="Anmodning modtaget." tone="busy" icon="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z" h="176" hint-size="220px,176px"></dc-import>
+      <dc-import name="K-ActionTile" label="Døre" value="Låst" hint="Bekræftet" tone="done" icon="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z" h="176" hint-size="220px,176px"></dc-import>
+      <dc-import name="K-ActionTile" label="Døre" value="Ukendt" hint="Kontrollér bilen." tone="error" icon="M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z" h="176" hint-size="220px,176px"></dc-import>
+    </div>
+    <span class="mono">rolig · bør gøres · sender · bekræftet (3 s) · udfald ukendt</span>
+  </section>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":2750}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":3080}}'>
 class Component extends DCLogic {
   renderVals() {
     const dom = [['Vejr', '#DDE6FB'], ['Robot', '#F6D8E1'], ['Lys', '#FBEBC6'], ['Tesla', '#D5EADD'], ['Find musik', '#F6DCCB'], ['Radio', '#E6DDF3'], ['Opskrift', '#F2E4D3'], ['Svar', '#E9E6F4'], ['Timer', '#17171A']]

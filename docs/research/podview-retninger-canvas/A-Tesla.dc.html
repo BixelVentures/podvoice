@@ -197,14 +197,15 @@ class Component extends DCLogic {
     const doorT = { idle: locked ? { tone: 'calm', value: 'Låst', hint: 'Tryk for at låse op', icon: lockIc } : { tone: 'attention', value: 'Ulåst', hint: 'Tryk for at låse', icon: openIc },
       laaser: { tone: 'busy', value: 'Låser…', hint: 'Anmodning modtaget.', icon: lockIc }, laast: { tone: 'done', value: 'Låst', hint: 'Bekræftet', icon: lockIc },
       laaserop: { tone: 'busy', value: 'Låser op…', hint: 'Anmodning modtaget.', icon: openIc }, ulaast: { tone: 'done', value: 'Ulåst', hint: 'Bekræftet', icon: openIc },
-      ukendt: { tone: 'error', value: 'Udfald ukendt', hint: 'Kontrollér bilen.', icon: lockIc } }[ad];
+      ukendt: { tone: 'error', value: 'Ukendt', hint: 'Kontrollér bilen.', icon: lockIc } }[ad];
     const tiles = [{ label: 'Døre', ...doorT }, trunkOpen ? { label: 'Bagagerum', tone: 'attention', value: 'Åbent', hint: 'Tryk for at lukke', icon: trunkIc } : { label: 'Bagagerum', tone: 'calm', value: 'Lukket', hint: 'Tryk for at åbne', icon: trunkIc }];
     const lockBtnTxt = s.lock === 'Ulåst' ? 'Lås bilen' : 'Lås op', trunkBtnTxt = st === 'ukendt' ? 'Luk bagagerum' : 'Åbn bagagerum';
     return {
       tiles, lockBtn: lockBtnTxt, trunkBtn: trunkBtnTxt,
       // Adgangsknapper følger bilens tilstand (vehicle-view.js): Ulåst → "Lås bilen", Låst → "Lås op"; bagagerum åbent → "Luk bagagerum".
 
-      nb: nbOf(s.nb), fresh: s.fresh, noFresh: !s.fresh, carScale: heroS ? 0.5 : 1,
+      // Beskedlinjen er den generiske K-Notice (fejl/handling/info) som på alle sider. Bekræftelser vises kun i handlingsfladen.
+      nb: nbOf(ad === 'ukendt' ? ['fejl', 'Udfald ukendt · kontrollér bilen.', 'Svar mangler · Kontrollér bilen før en ny kommando.'] : s.nb), fresh: s.fresh, noFresh: !s.fresh, carScale: heroS ? 0.5 : 1,
       heroH, heroPad: heroS ? 24 : 32, heroTitle: heroS ? 40 : 56,
       s, car,
       climateLabel: on ? 'Tændt · ' + this.state.temp + ' °C' : 'Slukket',
