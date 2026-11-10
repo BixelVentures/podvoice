@@ -508,7 +508,9 @@ Uafhængige, tilgængelige Green-prøver skal køre uden at vente på musikrette
 | Faktisk HA-app og godkendt visning | 8 | Kold åbning, dvale og genoptagelse på iPad, kontroller og session på Mac/iPad, Din musik/Hør igen med godkendt reference og coverforløb, opskriftssider og accordions. G1, G2, G6, H4, H9, F6, F9, O6. |
 | Robot | 8 | Én rengøring med valgte rum, rute, gentagelse og Extreme, målt status/fremdrift, Pause/Fortsæt/Base efter ventetid samt verificeret basefunktion. S1–S4, S6, S7, S11, S13. Afventer afhjulpet tømningskanal. |
 | Lys, timer og stemme | 7 | Lys og fysisk kontakt når Hue er forbundet. Timer udløb og ét Stop på bekræftet alarmmål. Samme Voice PE-forløb for musik, kø og svarhistorik. L1–L3, T1, A12, Q1, Q2. |
-| Tesla | 5 | Aktuelle entitetsværdier, dvale/vækning, ladekort og adgang/klima i aftalt visning. B2–B4, B7, B8. Afventer frigivelse. |
+| Tesla | 5 | Læs eksisterende entitetsværdier, passiv dvale og ladekort samt adgang/klima i aftalt visning. B2–B4, B7, B8. Brugeren frigiver læsning og release. Ingen direkte bilkald, vækning eller betjening. |
+
+**Ny prøveprioritet og release · 10. november.** Brugeren har iPad i hånden og ønsker den fysiske HA-app-prøve så sent som muligt. Hue er endnu ikke opsat. Tesla-kode må frigives, og eksisterende HA-data må læses. Der må ikke sendes kald til bilen. Samlede lokale Linux-prøver bestod både Native/C og Manager/C: P1 mistede kontrolforbindelsen, og nye eksplicitte valg gav Spotify, Pause og P6 eller P6 og efterfølgende Spotify-retur, med autentificerede lydpakker og ingen Stop-kvittering for den mistede P1. Speakers 0.26.87 PR #132, commit 2a0d59c, kører officiel kontrol og imagebyg. PodVoice 2.0.167 PR #351, commit 26de29b, har selvstændigt review og kører officiel CI. Begge afventer merge og installation. Green-accept står stadig på 46/97.
 
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
 dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
