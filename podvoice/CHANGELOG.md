@@ -1,6 +1,6 @@
 ## 2.0.168
 
-- Vis først robottens aktuelle rum, når Home Assistant har bekræftet en rumværdi fra den aktive tur.
+- Skjul robottens tidligere rum, når Home Assistant bekræfter, at rumværdien stammer fra før den aktive tur.
 
 ## 2.0.167
 
