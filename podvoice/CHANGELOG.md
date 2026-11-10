@@ -1,3 +1,7 @@
+## 2.0.166
+
+- Bevar viste køvalg og valgte musikforslag gennem baggrundsfornyelse, fasthold robotens returbekræftelse under midlertidige læsefejl, og tilføj afgrænset fejldiagnostik for mistet musikbetjening og afviste robottryk.
+
 ## 2.0.165
 
 - Bevar betjening og eksplicitte valg under opdateringer på musik, radio, robot, lys og timere; behold korrekte mål ved ventende handlinger og vis resten af opskriftskataloget ved en ugyldig række.

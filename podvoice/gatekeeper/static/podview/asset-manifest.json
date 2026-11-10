@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "913baa5ea60641e4afbffada6df53d5b40328cb0cce2aa2ea0885f3acb758664"
+      "sha256": "ac1428807b8585563f6a3445b3bc64cbe8e6ad16f5defc9b058b6391ba006640"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "bead4d5763b8715e57e2b3b7c6d7224ced1e9bc08d2b32283c73bc9a7235dd50"
+      "sha256": "a07a0bae97c6f797c981e80734fd5fd92633f54949c46ae15f14a1efefa5e313"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "fe7725daa2c61102bb0e10f40e7cd5715f4965890aa0f74d04525d8dbfdb1d6c"
+      "sha256": "1560d2f89865876e99cfacc6f9c388fd691ec706be39075027898518f9dd1ad9"
     },
     {
       "path": "robot-observation.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "4eda251c9fe6a2f51521a0b8e1c092c6781594e8fecfb8bdb1afeb44ab94e486"
+      "sha256": "61f35637488de26647b74789a474d9f1cec5804820b26de73b072e12e7cdd1b9"
     },
     {
       "path": "workshop.css",
