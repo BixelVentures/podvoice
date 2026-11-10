@@ -157,7 +157,10 @@ export class RecipeView {
    const {recipes} = await response.json();
    if (!Array.isArray(recipes)) throw new Error('Ugyldigt katalog');
    const previous = new Map(this.saved.map(recipe=>[recipe.source?.url,recipe]));
-   this.saved = recipes.filter(recipe=>!this.deleted.has(recipe.source.url)).map(recipe=>{
+   // A malformed row is skipped so the rest of the catalogue still shows (O1).
+   const wellFormed = recipes.filter(recipe=>recipe && typeof recipe === 'object'
+    && typeof recipe.title === 'string' && typeof recipe.source?.url === 'string');
+   this.saved = wellFormed.filter(recipe=>!this.deleted.has(recipe.source.url)).map(recipe=>{
     const existing = previous.get(recipe.source.url);
     return existing && this.sessions.has(existing) ? existing : recipe;
    });
