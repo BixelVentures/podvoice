@@ -610,6 +610,8 @@ På Green 16.43–16.46: Din musik kunne ikke hente forslag før et afspilningsv
 
 **K1/K3/K5 · samlet lokal kandidat.** Reviewet fandt at en ventende læsning efter et accepteret valg kunne efterlade køen låst i sidste visning. Den konkrete regression fejlede før rettelsen og består nu: kendte rækker bliver stående uden handlingsret, næste relevante afspilningsobservation må genlæse én gang, og valget gentages ikke. Samlet PodVoice `6d5f18a`: 80 brokerprøver, 4.912 UI-prøver fordelt på hovedkørsel og lokal portgentest samt begge pakke-/serverkontroller består. PodConnect `7c47d67` har reviewet Native-overlay og pakket venteforløb. Den separate sammensatte prøve viste rigtig Manager→Native→C med inert Spotify-kilde: anden dublet nåede C én gang og den tredje beholdt sit visnings-id. Ingen ny Green-accept.
 
+**S13 på Green .168.** Tilføjede Entré til den oprindelige kladde med Gang. Oversigt → genåbn bevarede begge rum og Støvsug/Stille/Standard/1×. Entré blev fjernet igen. Robotten blev stående i basen med Oplader 100 %. Prøven dækker navigation i samme session. Fuld genindlæsning, netudfald og faktisk Start med den gemte kladde står åbne. Ingen ny accept.
+
 **Aktuel pakkestatus · 10. november aften.** Adgang 3/6 · Afspiller og Find musik 10/25 · Kø og højttalere 5/15 · Radio 4/6 · Opskrifter 6/7 · Robot 10/16 · Tesla 6/11 · Lys, timer, vejr og svar 5/11. 7 åbne historier er iPad-sporet. De øvrige 41 er åbne før den separate iPad-runde.
 
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
