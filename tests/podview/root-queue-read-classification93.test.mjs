@@ -20,3 +20,25 @@ test('fetch failure after generation replacement cannot request retry',async()=>
 
 test('classified fetch TypeError keeps network diagnostic identity',async()=>{const events=[],t=transport(async()=>{throw new TypeError('private');});t.crypto=null;t.recordDiagnostic=(stage,row)=>events.push({stage,...row});try{await assert.rejects(t.queueOffer('account','target',binding),e=>e instanceof TypeError&&e.code==='read_transient');assert.equal(events.find(e=>e.stage==='request'&&e.code==='network')?.code,'network');}finally{t.close();}});
 test('classified temporary queue response uses existing http_transient diagnostic',async()=>{const f=queueRig(),events=[];f.host.liveTransport.recordDiagnostic=(stage,row)=>events.push({stage,...row});f.host.liveTransport.queueOffer=async()=>{throw Object.assign(Error('temporary'),{code:'read_transient'});};await f.queue.load(mediaV2Account,f.playback);assert.equal(f.queue.readRetryable,true);assert.equal(events.at(-1).code,'http_transient');f.queue.invalidate();});
+
+test('only the exact unresolved preview response gets the bounded pending classification',async()=>{
+ const pending={ok:false,error:'queue_preview_pending',retryAllowed:false};
+ const cases=[
+  [200,pending,'queue_preview_pending'],
+  [200,{...pending,retryAllowed:true},undefined],
+  [200,{...pending,taskId:'queue:unexpected'},undefined],
+  [409,pending,undefined],
+  [403,pending,'read_access_denied'],
+ ];
+ for(const [status,body,code] of cases){
+  let reads=0;
+  const t=transport(async()=>{
+   reads++;
+   return {status,ok:status===200,json:async()=>body};
+  });
+  try{
+   await assert.rejects(t.queueOffer('account','target',binding),error=>error.code===code);
+   assert.equal(reads,1);
+  }finally{t.close();}
+ }
+});

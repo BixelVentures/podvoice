@@ -229,3 +229,100 @@ test('UNKNOWN renews the open queue on a newer same-track owner observation, onl
   assert.deepEqual(writes,[{taskId:oldTask,id:'a'.repeat(24)},{taskId:freshTask,id:'b'.repeat(24)}]);
  }finally{f.close();}
 });
+
+for(const resolves of [false,true])test(`unresolved autoplay keeps prior rows read-only; resolves=${resolves}`,async()=>{
+ const f=rig(),rendered=[];
+ const pending=()=>Object.assign(Error('pending'),{code:'queue_preview_pending'});
+ let attempts=0,effects=0;
+ try{
+  const source=f.host.liveTransport.queueOffer;
+  f.host.playerView.renderQueue=(items,options)=>rendered.push({items,options});
+  f.host.liveTransport.queueAction=async()=>{effects++;return {outcome:'unknown'};};
+  f.host.liveTransport.queueOffer=async(...args)=>{
+   const attempt=++attempts;
+   if(attempt===2||attempt===3&&!resolves)throw pending();
+   const body=await source(...args);
+   if(attempt===1){
+    body.items=[{id:'1'.repeat(24),title:'Retained',artist:'',uri:'spotify:track:'+'1'.repeat(22),
+     artwork:null,order:1}];
+   }
+   return body;
+  };
+  await f.refresh();
+  const queue=f.media.queueControls,old=queue.model('account',f.media.playback).items[0];
+  await f.media.loadQueue();
+  assert.equal(attempts,2);
+  assert.equal(queue.offer,null);
+  assert.equal(queue.status,'stale');
+  assert.equal(rendered.at(-1).items[0].title,'Retained');
+  assert.equal(rendered.at(-1).items[0].selectable,false);
+  await queue.choose(old);
+  assert.equal(effects,0);
+  await f.refresh();
+  await f.refresh();
+  await f.refresh();
+  assert.equal(attempts,3,'one existing playback-gated recovery read, no polling or replay');
+  const last=rendered.at(-1);
+  assert.equal(last.options.status,resolves?'ready':'stale');
+  assert.deepEqual(last.items.map(item=>item.title),resolves?[]:['Retained']);
+  assert.equal(effects,0);
+ }finally{f.close();}
+});
+
+test('initial unresolved autoplay is pending rather than a confirmed empty queue',async()=>{
+ const f=rig(),rendered=[];
+ try{
+  f.host.playerView.renderQueue=(items,options)=>rendered.push({items,options});
+  f.host.liveTransport.queueOffer=async()=>{
+   throw Object.assign(Error('pending'),{code:'queue_preview_pending'});
+  };
+  await f.refresh();
+  const last=rendered.at(-1);
+  assert.equal(last.options.status,'loading');
+  assert.equal(last.options.empty,'');
+  assert.deepEqual(last.items,[]);
+  assert.equal(f.media.queueControls.offer,null);
+ }finally{f.close();}
+});
+
+test('accepted queue choice with pending preview recovers on one newer playback read without another action',async()=>{
+ const f=rig();
+ const pending=()=>Object.assign(Error('pending'),{code:'queue_preview_pending'});
+ let attempts=0,effects=0,poll=2;
+ try{
+  const source=f.host.liveTransport.queueOffer;
+  f.host.liveTransport.music=async()=>{
+   const value=f.wire();
+   value.data.poll_sequence=poll;
+   return value;
+  };
+  f.host.liveTransport.queueOffer=async(...args)=>{
+   if(++attempts===2)throw pending();
+   const body=await source(...args);
+   body.pollSequence=poll;
+   body.items=[{id:String(attempts).repeat(24),title:'Queue track',artist:'',order:1,artwork:null,
+    uri:'spotify:track:'+'2'.repeat(22)}];
+   return body;
+  };
+  f.host.liveTransport.queueAction=async()=>{effects++;return {outcome:'accepted'};};
+  await f.refresh();
+  const queue=f.media.queueControls,old=queue.model('account',f.media.playback).items[0];
+  await queue.choose(old);
+  assert.equal(attempts,2);
+  assert.equal(effects,1);
+  assert.equal(queue.consumed,true);
+  assert.equal(queue.model('account',f.media.playback).items[0].selectable,false);
+  await f.refresh();
+  assert.equal(attempts,2,'a repeated playback observation does not spend the continuation');
+  poll++;
+  await f.refresh();
+  await f.refresh();
+  assert.equal(attempts,3,'only one passive read follows accepted → pending');
+  assert.equal(effects,1);
+  const fresh=queue.model('account',f.media.playback).items[0];
+  assert.notEqual(fresh.id,old.id);
+  assert.equal(fresh.selectable,true);
+  await queue.choose(old);
+  assert.equal(effects,1);
+ }finally{f.close();}
+});

@@ -418,6 +418,12 @@ export class PodVoiceTransport {
    body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,accountId,targetId,expectedBindingId,autoplayPreview:true}),
   },16000,undefined,undefined,readDiagnostic);
   const body=await response.json();
+  if(response.status===200&&body?.ok===false&&body.error==='queue_preview_pending'
+   &&body.retryAllowed===false&&Object.keys(body).length===3){
+   const pending=Error('queue_preview_pending');
+   pending.code='queue_preview_pending';
+   throw pending;
+  }
   if(!response.ok||body.ok!==true||body.expectedBindingId!==expectedBindingId){
    const error=Error('queue_offer_unavailable');
    if([401,403].includes(response.status))error.code='read_access_denied';

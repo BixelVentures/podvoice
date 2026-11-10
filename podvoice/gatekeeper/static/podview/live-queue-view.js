@@ -69,6 +69,7 @@ export class LiveQueueView{
  allowed(account,playback){return !!(this.host.isConnected&&this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities?.queueSelection===true&&this.host.liveSnapshot?.capabilities?.musicRead?.includes('queue')&&text(account)&&roomObservationCurrent(playback,this.host.liveSnapshot)&&playbackBinding(playback,this.host.liveSnapshot,account)&&playback.target?.id);}
  invalidate(revoke=false,preserveChoices=false){
   this.readRetryable=false;
+  this.previewPending=false;
   this.generation++;
   this.pending=false;
   this.effectPending=false;
@@ -91,7 +92,42 @@ export class LiveQueueView{
   this.invalidate(false,preserveChoices);
   if(!this.allowed(account,playback))return false;
   this.unknownChoice=null;
-  if(notify)this.host.showFeedback?.('',false,{source:'queue'});const generation=this.generation,key=scope(this.host,account,playback),requestedAt=Date.now();const transport=this.host.liveTransport,transportGeneration=transport.generation;let diagnosticCode='failure';const readDiagnostic=transport.createReadDiagnostic?.(),record=value=>{if(typeof transport.recordReadDiagnostic==='function')transport.recordReadDiagnostic('queue_read',value,readDiagnostic);else transport.recordDiagnostic?.('queue_read',value);};record({code:'start'});this.pending=true;this.status='loading';this.redraw();try{const body=await this.host.liveTransport.queueOffer(account,playback.target.id,playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId,...(readDiagnostic?[{readDiagnostic}]:[]));if(generation!==this.generation||this.host.liveTransport!==transport||transport.generation!==transportGeneration||key!==scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)||!this.allowed(account,playback)){record({code:'superseded',current:false,durationMs:Date.now()-requestedAt});return false;}diagnosticCode='invalid_dto';const value=queueOffer(body,this.host.liveSnapshot,account,playback.target.id,requestedAt,playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId);if(value&&(value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence))diagnosticCode='stale_binding';if(!value||value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence)throw Error('foreign_queue');record({code:value.items.length?'ok':'empty',count:value.items.length,durationMs:Date.now()-requestedAt});
+  if(notify)this.host.showFeedback?.('',false,{source:'queue'});
+  const generation=this.generation,key=scope(this.host,account,playback),requestedAt=Date.now();
+  const transport=this.host.liveTransport,transportGeneration=transport.generation;
+  const bindingId=playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId;
+  const sameRead=()=>generation===this.generation&&this.host.liveTransport===transport
+   &&transport.generation===transportGeneration;
+  const current=()=>sameRead()&&key===scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)
+   &&this.allowed(account,playback)
+   &&playbackBinding(playback,this.host.liveSnapshot,account)?.bindingId===bindingId;
+  let diagnosticCode='failure';
+  const readDiagnostic=transport.createReadDiagnostic?.();
+  const record=value=>{
+   if(typeof transport.recordReadDiagnostic==='function'){
+    transport.recordReadDiagnostic('queue_read',value,readDiagnostic);
+   }else transport.recordDiagnostic?.('queue_read',value);
+  };
+  record({code:'start'});
+  this.pending=true;
+  this.status='loading';
+  this.redraw();
+  try{
+   const body=await transport.queueOffer(account,playback.target.id,bindingId,
+    ...(readDiagnostic?[{readDiagnostic}]:[]));
+   if(!current()){
+    record({code:'superseded',current:false,durationMs:Date.now()-requestedAt});
+    return false;
+   }
+   diagnosticCode='invalid_dto';
+   const value=queueOffer(body,this.host.liveSnapshot,account,playback.target.id,requestedAt,bindingId);
+   if(value&&(value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence)){
+    diagnosticCode='stale_binding';
+   }
+   if(!value||value.ownerEpoch!==playback.owner_epoch||value.pollSequence<playback.poll_sequence){
+    throw Error('foreign_queue');
+   }
+   record({code:value.items.length?'ok':'empty',count:value.items.length,durationMs:Date.now()-requestedAt});
    const displayKey = displayScope(this.host, account, playback);
    const previous = this.retained?.displayKey === displayKey ? this.retained.items : [];
    const items = [], unknown = [];
@@ -126,7 +162,49 @@ export class LiveQueueView{
    };
    this.consumed = false;
    this.status = unknown.length ? 'stale' : 'ready';
-   this.expiryTimer=setTimeout(()=>{if(this.offer===value){this.offer=null;if(!this.pending)this.status='stale';this.redraw();}},Math.max(0,value.expiresAt-Date.now()));return true;}catch(error){if(generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration)this.readRetryable=!!(error?.code==='read_transient'&&diagnosticCode==='failure'&&generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration&&key===scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)&&this.allowed(account,playback));record({code:error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'cancelled':error?.name==='TypeError'?'network':error?.code==='read_transient'?'http_transient':diagnosticCode,current:generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration,durationMs:Date.now()-requestedAt});if(generation===this.generation&&this.host.liveTransport===transport&&transport.generation===transportGeneration){this.offer=null;this.status='error';this.errorKind='read';if(notify&&key===scope(this.host,this.host.liveMedia?.account,this.host.liveMedia?.playback)&&this.allowed(account,playback))this.host.showFeedback?.('Køen kunne ikke hentes. Den kendte sang bevares.',false,{source:'queue'});}return false;}finally{if(generation===this.generation){this.pending=false;this.redraw();}}}
+   this.expiryTimer=setTimeout(()=>{
+    if(this.offer===value){
+     this.offer=null;
+     if(!this.pending)this.status='stale';
+     this.redraw();
+    }
+   },Math.max(0,value.expiresAt-Date.now()));
+   return true;
+  }catch(error){
+   const previewPending=error?.code==='queue_preview_pending';
+   const transient=previewPending||error?.code==='read_transient';
+   if(sameRead())this.readRetryable=transient&&diagnosticCode==='failure'&&current();
+   const code=error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'cancelled'
+    :error?.name==='TypeError'?'network':transient?'http_transient':diagnosticCode;
+   record({code,current:sameRead(),durationMs:Date.now()-requestedAt});
+   if(previewPending){
+    if(current()){
+     // An unresolved preview is not an empty queue and carries no click witness.
+     this.offer=null;
+     this.previewPending=true;
+     if(this.retained){
+      this.retained.key=null;
+      this.retained.shownOffer=null;
+     }
+     this.status=this.retained?'stale':'loading';
+    }
+    return false;
+   }
+   if(sameRead()){
+    this.offer=null;
+    this.status='error';
+    this.errorKind='read';
+    if(notify&&current())this.host.showFeedback?.('Køen kunne ikke hentes. Den kendte sang bevares.',
+     false,{source:'queue'});
+   }
+   return false;
+  }finally{
+   if(generation===this.generation){
+    this.pending=false;
+    this.redraw();
+   }
+  }
+ }
  choiceScope(account,playback){
   const transport=this.host.liveTransport,capabilities=this.host.liveSnapshot?.capabilities;
   if(!this.allowed(account,playback))return null;
@@ -247,7 +325,8 @@ export class LiveQueueView{
  }
  async renewChoices(media,previousTaskId,reconciling){
   const waiting=this.waitingChoices;
-  const loaded=await this.load(media.account,media.playback,{preserveChoices:true});
+  const loaded=await (media.loadQueue?.({renewChoice:true})
+   ??this.load(media.account,media.playback,{preserveChoices:true}));
   if(reconciling?this.reconcilingChoice===reconciling:this.waitingChoices===waiting){
    const freshOffer=loaded?this.retained?.shownOffer:null;
    this.reconcilingChoice=null;
