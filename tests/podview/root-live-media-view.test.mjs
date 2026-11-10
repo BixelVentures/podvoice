@@ -184,7 +184,7 @@ test('temporary playback refresh failure returns to the bounded ordinary cadence
  const previousNow=Date.now;let clock=previousNow();Date.now=()=>clock;const f=surface();try{
   f.view.account='first';f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:1,expiresAt:clock+1000,state:'playing',item:{name:'Song',artists:['Artist']},target:{name:'Speaker'}},'first');f.view.refreshInterval=1000;let reads=0;
   f.host.liveTransport.music=async()=>{reads++;throw Object.assign(Error('source busy'),{code:'read_transient'});};
-  await f.view.refresh();const expiry=f.view.playback.expiresAt;assert.equal(f.view.refreshInterval,8000);assert.equal(f.view.playback.stale,true);
+  await f.view.refresh();const expiry=f.view.playback.expiresAt;assert.equal(f.view.refreshInterval,8000);assert.equal(f.view.playback.stale,'transient','shown as last known after a transient failure');
   for(let i=0;i<7;i++){clock+=1000;await f.view.refresh();}assert.equal(reads,1);assert.equal(f.view.playback.expiresAt,expiry);
   clock+=1000;await f.view.refresh();assert.equal(reads,2);assert.equal(f.view.playback.expiresAt,expiry);
  }finally{f.restore();Date.now=previousNow;}
@@ -290,7 +290,7 @@ test('v2 unavailable retains only same-scope read-only history; idle clears hist
  for(const terminal of ['idle','owner_changed']){const f=surface();try{f.view.account='first';let body=v2Payload();f.host.liveTransport.music=async()=>body;await f.view.refresh({immediate:true});body={...body,status:'unavailable',reason:'stale_observation',binding:null,data:null};await f.view.refresh({immediate:true});assert.equal(f.view.playback.item.name,'Actual song');assert.equal(f.view.playback.stale,true);assert.equal(f.view.playback.displayRetained,true);assert.equal(f.view.readState,'unavailable');assert.equal(f.view.account,'first');if(terminal==='idle'){body=v2Payload();body.status='idle';body.binding=null;body.data.playback={state:'no_active_playback',item:null,target:null};}else body.reason='owner_changed';await f.view.refresh({immediate:true});assert.equal(f.view.playback,null);assert.equal(f.view.account,'first');assert.equal(f.view.readState,terminal==='idle'?'idle':'unavailable');}finally{f.restore();}}
 });
 test('v2 metadata-only playback survives transient read loss and recovers fresh without a default binding',async()=>{
- const f=surface();try{f.view.account='first';f.host.liveSnapshot.mediaRoomBindings=[];const body=v2Payload();body.status='account_observed';body.reason='route_unavailable';body.binding=null;f.host.liveTransport.music=async()=>body;await f.view.refresh({immediate:true});assert.equal(f.view.playback.accountObserved,true);assert.equal(f.view.playback.actualTargetLabel,undefined);f.host.liveTransport.music=async()=>{throw new TypeError('network');};await f.view.refresh({immediate:true});assert.equal(f.view.playback.displayRetained,true);assert.equal(f.view.playback.stale,true);f.host.liveTransport.music=async()=>body;await f.view.refresh({immediate:true});assert.equal(f.view.playback.stale,undefined);assert.equal(f.view.readState,'ready');assert.equal(f.view.playback.accountObserved,true);}finally{f.restore();}
+ const f=surface();try{f.view.account='first';f.host.liveSnapshot.mediaRoomBindings=[];const body=v2Payload();body.status='account_observed';body.reason='route_unavailable';body.binding=null;f.host.liveTransport.music=async()=>body;await f.view.refresh({immediate:true});assert.equal(f.view.playback.accountObserved,true);assert.equal(f.view.playback.actualTargetLabel,undefined);f.host.liveTransport.music=async()=>{throw new TypeError('network');};await f.view.refresh({immediate:true});assert.equal(f.view.playback.displayRetained,true);assert.equal(f.view.playback.stale,'transient','shown as last known after a transient failure');f.host.liveTransport.music=async()=>body;await f.view.refresh({immediate:true});assert.equal(f.view.playback.stale,undefined);assert.equal(f.view.readState,'ready');assert.equal(f.view.playback.accountObserved,true);}finally{f.restore();}
 });
 
 function nativeVolumeSurface(){const f=domSurface(),now=Date.now();f.host.live=true;f.host.state={devices:[]};f.host.setAttribute=()=>{};f.view.account='first';f.view.readState='ready';f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:1,observedAt:new Date(now).toISOString(),expiresAt:now+15000,state:'playing',item:{uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Actual song',artists:['Artist'],duration_ms:180000},target:{name:'Actual speaker'}},'first');f.host.liveSnapshot.capabilities.controlSetup=['music'];const controls=Object.create(LiveControlView.prototype);Object.assign(controls,{host:f.host,spent:new Map(),receipts:new Map(),musicStatus:new DOMNode(),musicDetailStatus:new DOMNode(),musicButton:{},robotButton:{},dialog:{open:false},body:{setAttribute(){},querySelectorAll(){return [];}},generation:0,opening:0,renderReceipt(){},prepareMusic(){}});f.host.liveControls=controls;const context=controls.musicContext(),task=controlTask({ok:true,schema:'podview.control.v1',bootId:'boot',roomId:'r0',domain:'music',expectedBindingId:f.view.playback.roomBinding.bindingId,taskId:'current-volume',revision:1,expiresAt:now/1000+20,options:[{id:'volume-current',action:'volume',label:'Lydstyrke',argsSchema:{kind:'percent',min:0,max:60}}],setup:{volume:35}},f.host.liveSnapshot,'music');controls.musicOffer={context,task};controls.musicIntentOffer={context,task,transport:f.host.liveTransport};f.view.render();return {...f,controls};}
@@ -485,4 +485,19 @@ for(const mode of ['same owner','changed owner','changed route','malformed contr
   assert.equal(f.view.playback.stale,undefined);
   assert.equal(f.view.playback.roomBinding.validUntil,Date.now()/1000+1);
  }finally{f.view.invalidate(true);f.restore();context.mock.timers.reset();}
+});
+
+// K5/A11: a same-scope answer that only has an unexpected shape is not a new owner.
+// The known song stays on screen as last-known; it must never blank the player.
+test('a same-scope playback answer with an unexpected field keeps the known song as last-known',async()=>{
+ for(const mutate of [body=>{body.data.playback.context=null;},body=>{body.data.playback.item.name='';},body=>{body.data.playback.item.type='ad';}]){
+  const f=surface();try{
+   f.view.account='first';f.host.liveTransport.music=async()=>v2Payload();
+   await f.view.refresh({immediate:true});
+   const known=f.view.playback?.item?.name;assert.equal(typeof known,'string');assert.equal(f.view.readState,'ready');
+   const body=v2Payload();body.data.poll_sequence+=1;mutate(body);f.host.liveTransport.music=async()=>body;
+   await f.view.refresh({immediate:true});
+   assert.equal(f.view.playback?.item?.name,known);assert.equal(f.view.playback.stale,'transient','shown as last known after a transient failure');assert.equal(f.view.readState,'error');
+  }finally{clearTimeout(f.view.freshnessTimer);clearTimeout(f.view.recoveryTimer);f.restore();}
+ }
 });

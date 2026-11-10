@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 class Node extends EventTarget{
  constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes=new Map();this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.textContent='';this.value='';this.checked=false;this.isConnected=true;this.open=false;if(tag!=='host')this.disabled=false;}
  append(...nodes){for(const node of nodes){if(node.parentNode)node.parentNode.children=node.parentNode.children.filter(child=>child!==node);node.parentNode=this;}this.children.push(...nodes);}
+ contains(node){for(let n=node;n;n=n.parentNode)if(n===this)return true;return false;}
  prepend(...nodes){for(const node of nodes)node.parentNode=this;this.children=this.children.filter(node=>!nodes.includes(node));this.children.unshift(...nodes);}
  replaceChildren(...nodes){for(const node of this.children)node.parentNode=undefined;this.children=[];this.append(...nodes);}
  setAttribute(key,value){this.attributes.set(key,String(value));this[key]=String(value);if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}
@@ -154,7 +155,7 @@ test('automatic recent setup has no extra apply step and a late suggestion prese
  const panel=new RobotControlPanel(),admitted=suggestionTask();panel.data={task:admitted,device};panel.suggest(suggestionFor(admitted));const form=cleaningForm(panel),rooms=form.querySelectorAll('[name=areaIds]');emit(rooms[0],'click');assert.equal(panel.suggest(suggestionFor(admitted)),false);assert.deepEqual(rooms.map(row=>row.checked),[true,true]);assert.equal(panel.proposalButton.hidden,true);assert.equal(panel.proposalCaption.textContent,'Tilpassede valg');
 });
 test('recent setup cannot re-enable disconnected stale or pending command authority',()=>{
- for(const context of [{connected:false},{device:{...device,stale:true}},{device:{...device,pending:true}},{pendingOptionId:'pending-setting'}]){const panel=new RobotControlPanel(),admitted=suggestionTask(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device,...context};panel.suggest(suggestionFor(admitted));emit(cleaningForm(panel),'submit');assert.equal(panel.cleaningSubmit.disabled,true);assert.deepEqual(actions,[]);}
+ for(const context of [{connected:false},{device:{...device,stale:true}},{device:{...device,pending:true}},{pendingOptionId:'pending-setting'}]){const panel=new RobotControlPanel(),admitted=suggestionTask(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:admitted,device,...context};panel.suggest(suggestionFor(admitted));emit(cleaningForm(panel),'submit');const pending=!!(context.pendingOptionId||context.device?.pending);assert.equal(panel.cleaningSubmit.disabled,!pending,'a pending command does not grey Start (S2)');assert.deepEqual(actions,[]);}
 });
 
 const historicalTask=()=>{const admitted=suggestionTask();admitted.options.push({id:'e'.repeat(24),action:'reuse',label:'Brug denne rengøring',argsSchema:{kind:'none'}});admitted.historyDraft={source:'accepted_start_history',optionId:admitted.options[0].id,areaIds:[admitted.options[0].argsSchema.areas[0].id],repeat:2};return admitted;};
@@ -778,4 +779,56 @@ test('inactive mode drafts rebind only unambiguous fresh offered values without 
  emit(choice('old-mop'),'click');emit(choice('old-extreme'),'click');emit(choice('old-vac'),'click');emit(choice('old-max'),'click');emit(choice('old-both'),'click');const saved=panel.readModeDrafts();assert.equal(saved.ok,true);assert.equal(saved.items.length,3);assert.doesNotMatch(JSON.stringify(saved),/old-/);
  const fresh=task();fresh.options[0].argsSchema.settings=settings('new-');const current=new RobotControlPanel();current.addEventListener('robot-control-action',e=>effects.push(e.detail));current.data={task:fresh,device,connected:true};assert.equal(current.applyModeDrafts(saved),true);emit(current.querySelectorAll('input[data-robot-choice-kind=settingChoice]').find(x=>x.value==='new-mop'),'click');assert.equal(current.startSettingControls.find(x=>x.setting.key==='mop_intensity').selected,'new-extreme');emit(current.querySelectorAll('input[data-robot-choice-kind=settingChoice]').find(x=>x.value==='new-vac'),'click');assert.equal(current.startSettingControls.find(x=>x.setting.key==='suction').selected,'new-max');emit(current.querySelectorAll('input[data-robot-choice-kind=settingChoice]').find(x=>x.value==='new-both'),'click');assert.notEqual(current.startSettingControls.find(x=>x.setting.key==='mop_intensity').selected,'new-extreme','mop value is not inherited by combined mode');assert.deepEqual(effects,[]);
  for(const [missing,duplicate] of [[true,false],[false,true]]){const denied=task();denied.options[0].argsSchema.settings=settings('safe-',missing,duplicate);const next=new RobotControlPanel();next.data={task:denied,device,connected:true};assert.equal(next.applyModeDrafts(saved),false);assert.match(next.settingsContext.textContent,/kunne ikke genskabes/);next.observed(device,{controlFeedback:null,connected:true});assert.match(next.settingsContext.textContent,/kunne ikke genskabes/,'owner refresh retains honest feedback');emit(next.querySelectorAll('input[data-robot-choice-kind=settingChoice]').find(x=>x.value==='safe-mop'),'click');assert.equal(next.startSettingControls.find(x=>x.setting.key==='mop_intensity').selected,null,'unsupported or ambiguous value stays unselected');assert.equal(next.cleaningSubmit.disabled,true);}
+});
+// S3: while a robot command is pending only the pressed control shows busy; the others stay tappable.
+test('pause, resume and base stay tappable while a robot command is pending; only the pressed one is busy',()=>{
+ const panel=new RobotControlPanel(),effects=[];panel.addEventListener('robot-direct-action',event=>effects.push(event.detail));
+ const cleaning={id:'vacuum.actual',kind:'vacuum',live:true,status:'cleaning',pending:{action:'pause'}};
+ panel.data={task:task(),device:cleaning,connected:true,directActions:['pause','return'],directBlocked:false,directPendingAction:'pause'};
+ const pause=panel.querySelector('[data-direct-robot=true][data-action-id=pause]');
+ const base=panel.baseDisclosure.panel.querySelector('[data-direct-robot=true][data-action-id=return]');
+ assert.equal(pause.disabled,false,'the pressed control is not greyed');assert.equal(pause.getAttribute('aria-busy'),'true');
+ assert.equal(base.disabled,false,'another control stays tappable');assert.equal(base.getAttribute('aria-busy'),'false');
+ emit(pause,'click');assert.deepEqual(effects,[{action:'pause'}],'a tap during the pending command reaches the queue');
+});
+// S2: Start stays dark while its own command runs; a room change is kept for the next Start;
+// a second Start is answered, not queued.
+test('Start keeps its look while pending, a draft change is kept, and a second Start gets a message',()=>{
+ const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));
+ const admitted=suggestionTask();panel.data={task:admitted,device,connected:true};panel.suggest(suggestionFor(admitted));
+ emit(cleaningForm(panel),'submit');assert.equal(actions.length,1,'the first Start is sent');
+ panel.observed(device,{pendingOptionId:actions[0].optionId});
+ panel.disabled=true;
+ assert.equal(panel.cleaningSubmit.disabled,false,'Start does not go grey');assert.equal(panel.cleaningSubmit.getAttribute('aria-busy'),'true');
+ const area=cleaningForm(panel).querySelectorAll('button').find(b=>b.value&&!b.disabled);
+ assert.ok(area,'room choices stay editable as a local draft');
+ const addedArea=admitted.options[0].argsSchema.areas[0].id;
+ assert.ok(!panel.readCleaningDraft().areaIds.includes(addedArea));
+ emit(area,'click');
+ assert.ok(panel.readCleaningDraft().areaIds.includes(addedArea));
+ emit(cleaningForm(panel),'submit');assert.equal(actions.length,1,'a second Start is not queued');
+ assert.match(panel.draftFeedback,/forrige kommando/,'the user gets a concrete message');
+});
+
+
+test('a confirmed direct return remains explicit during a locally pending robot command',()=>{
+ const panel=new RobotControlPanel(),effects=[],admitted=suggestionTask();
+ const cleaning={...device,status:'cleaning'};
+ panel.addEventListener('robot-direct-action',event=>effects.push(event.detail));
+ panel.data={task:admitted,device:cleaning,connected:true,directActions:['return'],directBlocked:false};
+ const pendingOptionId=admitted.options[0].id;
+ panel.observed(cleaning,{pendingOptionId});
+ panel.disabled=true;
+ const base=panel.baseDisclosure.panel.querySelector('[data-direct-robot=true][data-action-id=return]');
+ emit(base,'click');
+ assert.equal(panel.confirmation.open,true);
+ panel.observed(cleaning,{pendingOptionId});
+ assert.equal(panel.confirmation.open,true,'unchanged local pending command preserves confirmation');
+ assert.deepEqual(effects,[]);
+ emit(panel.confirmation.querySelectorAll('button')[1],'click');
+ assert.deepEqual(effects,[{action:'return'}]);
+ panel.observed({...cleaning,pending:{action:'pause'}},{pendingOptionId:null,directBlocked:false});
+ emit(base,'click');
+ assert.equal(panel.confirmation.open,false,'foreign pending command cannot open confirmation');
+ assert.deepEqual(effects,[{action:'return'}]);
 });

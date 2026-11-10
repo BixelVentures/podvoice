@@ -1,3 +1,7 @@
+## 2.0.165
+
+- Bevar betjening og eksplicitte valg under opdateringer på musik, radio, robot, lys og timere; behold korrekte mål ved ventende handlinger og vis resten af opskriftskataloget ved en ugyldig række.
+
 ## 2.0.164
 
 - Bevar opskriftskatalogets rulleposition, når du går tilbage fra en opskrift.

@@ -256,10 +256,16 @@ class WidgetHost extends HTMLElement {
   const canStart=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.start'),canCancel=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.cancel'),canAdjust=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.adjust');
   const timerFences=(this.liveTimerFences||[]).filter(operation=>operation.bootId===snapshot?.bootId&&operation.roomId===snapshot?.roomId&&(snapshot?.timers?.status!=='observed'||operation.epoch===snapshot.timers.epoch));this.liveTimerFences=timerFences;
   const cancelBlockedIds=[...timerFences,...(this.liveTimerAction?[this.liveTimerAction]:[])].filter(operation=>operation.action==='timer.cancel').map(operation=>operation.timerId);
-  const adjustBlockedIds=[...timerFences,...(this.liveTimerAction?[this.liveTimerAction]:[])].filter(operation=>operation.action==='timer.adjust').map(operation=>operation.timerId);
-  const adjustOperation=this.liveTimerAction?.action==='timer.adjust'?this.liveTimerAction:null,adjustPending=adjustOperation?{timerId:adjustOperation.timerId,deltaSeconds:adjustOperation.deltaSeconds}:null;
-  const awaitingTimerObservation=timerFences.length>0||this.liveActionPending||['Afventer opdateret timer','Udfald ukendt · handlingen gentages ikke','Venter på hjemmet…'].includes(this.liveActionFeedback);
-  const waiting=this.liveActionPending||['Afventer opdateret timer','Venter på hjemmet…'].includes(this.liveActionFeedback),feedback=waiting?'':this.liveActionFeedback||(timerFences.length?'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.':!canStart&&!canCancel?'Timerstyring er ikke tilgængelig lige nu.':'');
+  // An adjustment in flight keeps +1/−1 of the same timer tappable: taps are queued (T1).
+  const timerAwaiting=this.liveTimerPhase==='awaiting';
+  const adjustOperation=this.liveTimerAction?.action==='timer.adjust'&&(this.liveActionPending||timerAwaiting)
+   ?this.liveTimerAction:null;
+  const adjustPending=adjustOperation?{timerId:adjustOperation.timerId,deltaSeconds:adjustOperation.deltaSeconds}:null;
+  const adjustBlockedIds=[...timerFences,...(this.liveTimerAction&&!adjustOperation?[this.liveTimerAction]:[])]
+   .filter(operation=>operation.action==='timer.adjust').map(operation=>operation.timerId);
+  const awaitingTimerObservation=timerFences.length>0||this.liveActionPending||timerAwaiting
+   ||this.liveTimerPhase==='unknown';
+  const waiting=this.liveActionPending||timerAwaiting,feedback=waiting?'':this.liveActionFeedback||(timerFences.length?'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.':!canStart&&!canCancel?'Timerstyring er ikke tilgængelig lige nu.':'');
   const timerAccess={connected,canStart,canCancel,canAdjust,adjustBlockedIds,adjustPending,allowIndependentCancel:!this.liveActionPending||!!adjustOperation,cancelBlockedIds,pending:!!this.liveActionPending,waiting:!!waiting,awaitingObservation:awaitingTimerObservation,feedback},timerAccessSignature=JSON.stringify(timerAccess);if(this.timerAccessSignature!==timerAccessSignature){this.timerAccessSignature=timerAccessSignature;this.timerView.renderAccess(timerAccess);}
   if($('results').hidden!==!!(false))$('results').hidden=false;if($('collapse').hidden!==!!(true))$('collapse').hidden=true;if($('results').inert!==!!(false))$('results').inert=false;if($('results').classList.contains('collapsed'))$('results').classList.remove('collapsed');
   // LiveMediaView owns account-picker visibility from validated choices.
@@ -267,7 +273,11 @@ class WidgetHost extends HTMLElement {
  }
  suspendLiveTimer(){
   this.liveTimerGeneration=(this.liveTimerGeneration||0)+1;clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;
-  if(this.liveTimerAction){this.liveTimerAction.unknownObservation?.();this.liveActionPending=false;this.liveTimerAction.outcome??='unknown';this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}
+  if(this.liveTimerAction){
+   this.liveTimerAction.unknownObservation?.();this.liveActionPending=false;this.liveTimerAction.outcome??='unknown';
+   this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';
+   this.liveTimerPhase='unknown';this.liveTimerAction.dropQueued?.();
+  }
  }
  reconcileLiveTimer(snapshot){
   const connected=this.liveStatus==='connected'&&this.liveTransport?.connected;
@@ -277,10 +287,14 @@ class WidgetHost extends HTMLElement {
   const operation=this.liveTimerAction;if(!operation)return;
   // New authoritative owners retire the old scope, without claiming completion.
   if(connected&&snapshot!==operation.snapshot&&(snapshot?.bootId!==operation.bootId||snapshot?.roomId!==operation.roomId||snapshot?.timers?.status==='observed'&&snapshot.timers.epoch!==operation.epoch)){
-   clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;this.liveActionPending=false;this.liveActionFeedback='';return;
+   clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;
+   this.liveActionPending=false;this.liveActionFeedback='';this.liveTimerPhase=null;operation.dropQueued?.();return;
   }
   if(this.liveActionPending)return;
-  if(operation.waitUntil&&Date.now()>=operation.waitUntil&&this.liveActionFeedback==='Afventer opdateret timer'){operation.unknownObservation?.();this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}
+  if(operation.waitUntil&&Date.now()>=operation.waitUntil&&this.liveTimerPhase==='awaiting'){
+   operation.unknownObservation?.();this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';
+   this.liveTimerPhase='unknown';operation.dropQueued?.();
+  }
   if(this.liveStatus!=='connected'||!this.liveTransport?.connected||snapshot===operation.snapshot||snapshot?.bootId!==operation.bootId||snapshot?.roomId!==operation.roomId||snapshot?.timers?.status!=='observed'||snapshot.timers.epoch!==operation.epoch)return;
   // Removal is the only completion proof for cancellation/finished acknowledgement.
   // Audio drained/stopped alone must still leave the real finished timer visible.
@@ -289,25 +303,59 @@ class WidgetHost extends HTMLElement {
   const observed=operation.action==='timer.cancel'?!row:operation.action==='timer.adjust'?adjusted:operation.outcome==='accepted'&&typeof operation.timerId==='string'&&operation.timerId.length>0&&!!row;
   if(!observed)return;
   const actual=operation.action==='timer.start'?snapshot.timers.items.find(timer=>timer.id===operation.timerId)?.secondsLeft:false;operation.journal?.('control_observation',{code:operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.receipt?.sourceRevision||operation.expectedRevision))?'superseded':'observed',source:'snapshot',trust:'state_observation',...(operation.action!=='timer.adjust'&&(typeof actual==='boolean'||typeof actual==='number'&&Number.isFinite(actual)&&actual>=0&&actual<=86400)?{observedValue:actual}:{})});
-  clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;this.liveActionFeedback='';if(operation.action==='timer.start'&&operation.outcome==='accepted')this.timerView?.completeStartNavigation(operation.uiReturnToken,operation.timerId);
+  const phase=this.liveTimerPhase;
+  clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;this.liveActionFeedback='';
+  this.liveTimerPhase=null;
+  if(operation.action==='timer.start'&&operation.outcome==='accepted'){
+   this.timerView?.completeStartNavigation(operation.uiReturnToken,operation.timerId);
+  }
+  // The next queued +1/−1 is sent now against the fresh revision; never after UNKNOWN (T1).
+  const queued=this.liveTimerAdjusts;
+  if(queued?.operation===operation){
+   const delta=operation.outcome==='accepted'&&phase==='awaiting'?queued.deltas.shift():undefined;
+   const event={type:'timer',action:'adjust',id:operation.timerId,deltaSeconds:delta};
+   const next=delta!==undefined&&liveTimerRequest(snapshot,connected,event);
+   if(next)void this.sendLiveTimer(next);
+   if(next&&this.liveTimerAction&&queued.deltas.length)queued.operation=this.liveTimerAction;
+   else if(next&&this.liveTimerAction)this.liveTimerAdjusts=null;
+   else operation.dropQueued();
+  }
  }
  async sendLiveTimer(request){
   const scope=this.liveSnapshot,fences=(this.liveTimerFences||[]).filter(operation=>operation.bootId===scope?.bootId&&operation.roomId===scope?.roomId&&(scope?.timers?.status!=='observed'||operation.epoch===scope.timers.epoch));this.liveTimerFences=fences;
   const exactCancel=request.action==='timer.cancel'&&this.liveStatus==='connected'&&this.liveTransport?.connected&&scope?.timers?.status==='observed'&&scope.capabilities.timerActions.includes('timer.cancel')&&scope.timers.items.some(timer=>timer.id===request.args?.timer_id);
   const adjustRequest=request.action==='timer.adjust'?liveTimerRequest(scope,this.liveStatus==='connected'&&this.liveTransport?.connected,{type:'timer',action:'adjust',id:request.args?.timer_id,deltaSeconds:request.args?.delta_seconds}):null;
   if(request.action==='timer.adjust'&&(!adjustRequest||adjustRequest.args.expected_revision!==request.args?.expected_revision))return;
+  // +1/−1 during an adjustment of the same timer is queued in order and each is sent once (T1).
+  const running=this.liveTimerAction;
+  if(request.action==='timer.adjust'&&running?.action==='timer.adjust'&&running.timerId===request.args.timer_id
+   &&(this.liveActionPending||this.liveTimerPhase==='awaiting')){
+   const queued=this.liveTimerAdjusts?.operation===running?this.liveTimerAdjusts:{operation:running,deltas:[]};
+   queued.deltas.push(request.args.delta_seconds);this.liveTimerAdjusts=queued;this.renderLive();return;
+  }
   if(this.liveActionPending&&!(exactCancel&&this.liveTimerAction?.action==='timer.adjust')||fences.some(operation=>request.action==='timer.start'||operation.action==='timer.cancel'&&operation.timerId===request.args?.timer_id||request.action==='timer.adjust'&&operation.timerId===request.args?.timer_id))return;
   if(this.liveTimerAction){if(!exactCancel||this.liveTimerAction.action==='timer.cancel'&&this.liveTimerAction.timerId===request.args?.timer_id)return;fences.push(this.liveTimerAction);this.liveTimerAction=null;}
-  else if(!exactCancel&&['Afventer opdateret timer','Udfald ukendt · handlingen gentages ikke','Venter på hjemmet…'].includes(this.liveActionFeedback))return;
+  else if(!exactCancel&&['awaiting','unknown'].includes(this.liveTimerPhase))return;
   const snapshot=this.liveSnapshot,transport=this.liveTransport,generation=this.liveTimerGeneration||0,operation={snapshot,bootId:snapshot.bootId,roomId:snapshot.roomId,epoch:snapshot.timers.epoch,action:request.action,timerId:request.args?.timer_id,deltaSeconds:request.args?.delta_seconds,expectedRevision:request.args?.expected_revision,outcome:null,waitUntil:null,uiReturnToken:request.action==='timer.start'?this.timerView?.startNavigation:null};
   const diagnosticGeneration=transport.generation,diagnosticAuthority=JSON.stringify(snapshot.admission??null),diagnosticPermitted=snapshot.capabilities?.timerActions?.includes(operation.action)===true,requestedValue=request.action==='timer.cancel'?false:request.action==='timer.adjust'&&Number.isInteger(request.args?.delta_seconds)&&request.args.delta_seconds!==0&&Math.abs(request.args.delta_seconds)<=86400?request.args.delta_seconds:Number.isInteger(request.args?.seconds)&&request.args.seconds>=1&&request.args.seconds<=86400?request.args.seconds:undefined;
   operation.journal=(stage,fields={})=>{if(transport!==this.liveTransport||stage!=='control_action'&&transport.generation!==diagnosticGeneration||this.liveSnapshot?.bootId!==operation.bootId||this.liveSnapshot?.roomId!==operation.roomId||JSON.stringify(this.liveSnapshot.admission??null)!==diagnosticAuthority||!diagnosticPermitted||!this.liveSnapshot.capabilities?.timerActions?.includes(operation.action)||transport.recoveryBlocked===true||transport.controllerRenewalDenied===true)return;try{transport.recordDiagnostic?.(stage,{domain:'timer',action:operation.action,requestId:operation.requestId,resourceId:operation.timerId,...(requestedValue!==undefined?{requestedValue}:{}),...fields});}catch{/* Journal failure cannot alter timer control. */}};
+  operation.dropQueued=()=>{
+   if(this.liveTimerAdjusts?.operation!==operation)return;
+   this.liveTimerAdjusts=null;
+   this.showFeedback?.('Timeren blev ikke bekræftet · dine næste justeringer blev ikke sendt.',false);
+  };
   operation.unknownObservation=()=>{if(operation.uncertaintyLogged)return;operation.uncertaintyLogged=true;operation.journal('control_observation',{code:'unknown',source:'snapshot',trust:'state_observation'});};
   const current=()=>this.isConnected&&this.liveTimerAction===operation&&transport===this.liveTransport&&generation===(this.liveTimerGeneration||0);
-  this.liveTimerAction=operation;this.liveActionPending=true;this.liveActionFeedback='';this.renderLive();clearTimeout(this.liveSlowTimer);
+  this.liveTimerAction=operation;this.liveActionPending=true;this.liveActionFeedback='';this.liveTimerPhase='sending';
+  this.renderLive();clearTimeout(this.liveSlowTimer);
   try{operation.requestId=crypto.randomUUID();operation.journal('control_intent',{code:'start'});operation.journal('control_action',{code:'start'});const result=await transport.action({...request,requestId:operation.requestId});operation.journal('control_action',{code:result?.ok?'accepted':result?.outcome==='unknown'?'unknown':'rejected',current:current()&&transport.generation===diagnosticGeneration,...(typeof result?.timerId==='string'?{resourceId:result.timerId}:{})});if(!current())return;operation.outcome=result.ok?'accepted':result.outcome==='unknown'?'unknown':'rejected';if(operation.action==='timer.adjust'&&operation.outcome==='accepted')operation.receipt=result;if(operation.action==='timer.start'&&operation.outcome==='accepted')operation.timerId=typeof result.timerId==='string'&&result.timerId.length>0&&result.timerId.length<=200?result.timerId:null;this.liveActionFeedback=operation.outcome==='accepted'?'Afventer opdateret timer':operation.outcome==='unknown'?'Udfald ukendt · handlingen gentages ikke':'Handlingen blev afvist · hent aktuel status';if(operation.outcome==='accepted'){operation.waitUntil=Date.now()+12000;this.showFeedback('Timeranmodningen er modtaget',false);}}catch{if(!current())return;operation.journal('control_action',{code:operation.requestId?'unknown':'failure'});operation.outcome='unknown';this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}finally{
-   if(!current())return;clearTimeout(this.liveSlowTimer);this.liveActionPending=false;if(operation.outcome==='rejected')this.liveTimerAction=null;this.reconcileLiveTimer(this.liveSnapshot);
-   if(this.liveTimerAction===operation&&operation.outcome==='accepted')this.liveSlowTimer=setTimeout(()=>{if(!current())return;this.liveSlowTimer=null;operation.unknownObservation?.();this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';if(this.isConnected)this.renderLive();},Math.max(0,operation.waitUntil-Date.now()));
+   if(!current())return;clearTimeout(this.liveSlowTimer);this.liveActionPending=false;
+   this.liveTimerPhase=operation.outcome==='accepted'?'awaiting':operation.outcome==='unknown'?'unknown':'rejected';
+   if(operation.outcome!=='accepted')operation.dropQueued();
+   if(operation.outcome==='rejected')this.liveTimerAction=null;this.reconcileLiveTimer(this.liveSnapshot);
+   if(this.liveTimerAction===operation&&operation.outcome==='accepted')this.liveSlowTimer=setTimeout(()=>{if(!current())return;this.liveSlowTimer=null;operation.unknownObservation?.();this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';
+    this.liveTimerPhase='unknown';operation.dropQueued();
+    if(this.isConnected)this.renderLive();},Math.max(0,operation.waitUntil-Date.now()));
    if(this.isConnected)this.renderLive();
   }
  }
@@ -464,7 +512,7 @@ class WidgetHost extends HTMLElement {
 
  onLightActionStatus(state,operation){
   const context=this.lightAreaContext(),light=this.currentLightDevice();
-  if(this.isConnected===false||!context||state?.late||!operation||operation.revoked||this.liveControls?.lightActionFeedbackOperation!==operation||!operation.context.current()||light?.lightScope?.areaId!==operation.target.areaId)return;
+  if(this.isConnected===false||!context||state?.late||!operation||operation.revoked||this.liveControls?.lightActions?.get(operation.identity)?.feedback!==operation||!operation.context.current()||light?.lightScope?.areaId!==operation.target.areaId)return;
   const phase=state.phase,pending=['preparing','sending'].includes(phase);
   if(['unknown','rejected'].includes(phase)){
    const fence=this.liveControls?.lightUnknowns?.get(operation.identity);
@@ -598,9 +646,12 @@ class WidgetHost extends HTMLElement {
   const local=!this.live&&light?.exampleOnly===true&&!light.live,selection=local?lightSelection(light):null,area=local?selection?.roomId:light?.lightScope?.areaId;
   const scenes=(light?.lightScenes||[]).filter(row=>!local||row.roomId===area),visible=!!(scenes.length&&(!local||selection?.kind==='room'));
   const preview=local&&light.feedbackPreview?.revision===light.revision?light.feedbackPreview:null;
-  const receipt=this.live?this.liveControls?.lightActionState:preview;
+  // The newest light status in this area (the per-light map keeps the latest update last, L1).
+  const latest=this.live?[...this.liveControls?.lightActions?.values()||[]].findLast(entry=>
+   entry.state?.target?.areaId===area):null;
+  const receipt=this.live?latest?.state:preview;
   const receiptCurrent=!!light&&!!receipt&&!receipt.late&&!light.stale&&receipt.target?.areaId===area
-   &&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.()===true);
+   &&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.(latest.feedback)===true);
   const phase=receiptCurrent?receipt.phase:'';
   this.lightCommandFeedback=['preparing','sending'].includes(phase)?receipt:null;
   if(!this.lightScenes){
@@ -617,7 +668,7 @@ class WidgetHost extends HTMLElement {
    return;
   }
   const sceneTitle='Scener';if(this.lightScenes.firstElementChild?.textContent!==sceneTitle&&this.lightScenes.firstElementChild)this.lightScenes.firstElementChild.textContent=sceneTitle;if(this.lightScenes.hidden)this.lightScenes.hidden=false;if(this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=false;
-  const selected=local?light.lightSceneSelections?.[area]:this.lightSceneRecent?.area===area?this.lightSceneRecent:null,chosen=scenes.find(row=>row.id===selected?.id),connected=this.live?!!this.liveTransport?.connected:this.state.connected,pending=!!(light.pending||this.lightAreaPending||this.liveControls?.lightActionState?.pending),enabled=(local||this.live)&&connected&&!light.stale&&!pending&&['on','off','mixed'].includes(light.status)&&(!this.live||this.liveSnapshot?.capabilities.controlSetup?.includes('light'));
+  const selected=local?light.lightSceneSelections?.[area]:this.lightSceneRecent?.area===area?this.lightSceneRecent:null,chosen=scenes.find(row=>row.id===selected?.id),connected=this.live?!!this.liveTransport?.connected:this.state.connected,pending=!!(light.pending||this.lightAreaPending||[...this.liveControls?.lightActions?.values()||[]].some(entry=>entry.state?.pending&&entry.state.target?.areaId===area&&!entry.state.target.entityId)),enabled=(local||this.live)&&connected&&!light.stale&&!pending&&['on','off','mixed'].includes(light.status)&&(!this.live||this.liveSnapshot?.capabilities.controlSetup?.includes('light'));
   for(const scene of scenes){let button=this.lightSceneButtons.get(scene.id);if(!button){button=document.createElement('button');button.type='button';button.addEventListener('click',()=>{const binding=button.sceneBinding;if(button.disabled||!binding)return;if(this.live){const current=this.currentLightDevice(),area=current?.lightScope?.areaId;void Promise.resolve(this.actCurrentLight('scene',{choiceId:binding.optionId},{sceneId:binding.optionId})).then(result=>{if(result?.outcome==='accepted'&&this.currentLightDevice()?.lightScope?.areaId===area){this.lightSceneRecent={id:binding.optionId,area};this.renderLightScenes(this.currentLightDevice());}});}else this.dispatch({type:'light-scene-select',...binding});});this.lightSceneChoices.append(button);this.lightSceneButtons.set(scene.id,button);}if(button.hidden)button.hidden=false;button.sceneBinding={sessionId:this.state.sessionId,taskId:light.id,revision:light.revision,optionId:scene.id};const text=scene.name;if(button.textContent!==text)button.textContent=text;applyKitComponent(button,'chip',{identity:'light',variant:'command',selected:chosen?.id===scene.id,disabled:!enabled,feedback:'progress',loading:!!this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id});button.setAttribute('aria-description',this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id?phase==='preparing'?'Forbereder handling':'Afventer svar':chosen?.id===scene.id?'Valgt scene til lysstyrkejustering':'Vælg scene');}
   for(const[id,button]of this.lightSceneButtons)if(!scenes.some(row=>row.id===id)&&!button.hidden)button.hidden=true;
   const lamps=local?light.lights:light.observedLights?.map(row=>({id:row.entityId,on:row.state==='on'?true:row.state==='off'?false:null,brightness:Number.isFinite(row.brightness)?Math.round(row.brightness/255*100):null,dimmable:row.supportsBrightness===true}))||[],members=local?lamps.filter(row=>row.roomId===area):chosen?lamps.filter(row=>chosen.entityIds.includes(row.id)):[],levels=members.map(row=>row.on===false?0:row.on===true?row.brightness:null),complete=local?members.length>0:!!chosen&&members.length===chosen.entityIds.length,known=complete&&levels.length>0&&levels.every(Number.isInteger),uniform=known&&levels.every(value=>value===levels[0]),level=known?(local?Math.max(...levels):uniform?levels[0]:null):null;

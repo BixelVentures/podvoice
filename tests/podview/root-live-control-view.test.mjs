@@ -202,6 +202,28 @@ for(const outcome of ['accepted','rejected','unknown'])test(`active robot settin
  }finally{f.view.cleanup();}
 });
 
+for(const [mode,boundary] of [
+ ['task','accepted'],['task','unknown'],['task','rejected'],['task','replacement'],['direct','unknown'],
+])test(`robot follow-up requires the accepted original command (${mode}, ${boundary})`,async()=>{
+ const f=fixture();try{
+  f.host.state.devices[0].status='cleaning';
+  f.view.robotDirectOffer=()=>({actions:['pause','return']});
+  const direct=[];f.host.liveTransport.controlIntent=intent=>{
+   direct.push(intent);
+   return direct.length===1&&mode==='direct'?f.action.promise:Promise.resolve({outcome:'accepted'});
+  };
+  if(mode==='task')await open(f);
+  const first=mode==='task'?f.view.send('pause',{}):f.view.robotDirectIntent(target.entityId,'pause');
+  assert.equal(await f.view.robotDirectIntent(target.entityId,'return'),true);
+  if(boundary==='replacement')f.view.opening++;
+  const outcome=boundary==='replacement'?'accepted':boundary;
+  f.action.resolve({outcome,ok:outcome==='accepted',requestId:'first'});
+  await first;
+  assert.deepEqual(direct.map(row=>row.action),mode==='direct'?['pause']:boundary==='accepted'?['return']:[]);
+  assert.equal(f.view.robotQueued,null);
+ }finally{clearTimeout(f.view.robotOptimisticTimer);f.view.cleanup();}
+});
+
 test('light journal observes exact fresh HA state using original wire UUID; sink failure cannot lose receipt',async()=>{
  for(const failSink of [false,true]){const f=lightFixture(),rows=[];try{
   f.host.liveTransport.recordDiagnostic=(stage,row)=>{if(failSink)throw Error('inert sink failure');rows.push({stage,...row});};
@@ -236,5 +258,60 @@ test('robot settings journal does not turn an unrelated state read into settings
   f.view.trackDeviceJournal('vacuum',{action:'settings',settingKey:'suction',target,observedRevision:1},'settings-id',undefined,target.entityId,()=>true);
   f.view.observeDeviceJournal({revision:2,vacuum:{status:'observed',items:[{entityId:target.entityId,state:'cleaning',observedAt:Date.now()/1000+1}]}});
   assert.equal(rows.length,1);assert.equal(rows[0].action,'settings');assert.equal(rows[0].code,'unconfirmed');assert.equal(rows[0].observedValue,undefined);assert.equal(f.calls(),0);
+ }finally{f.view.cleanup();}
+});
+// L1: lamp intent is independent, but a single broker slot owns each area.
+for(const [area,outcome,expected] of [
+ ['kitchen','accepted',2],['kitchen','unknown',1],['kitchen','unknown-and-stale-middle',1],
+ ['kitchen','scope-changed',1],['kitchen','unobserved-overlap',2],['living','accepted',2],
+])test(`light actions preserve area ownership (${area}, ${outcome})`,async()=>{
+ const f=lightFixture();try{
+  const desk={entityId:'light.desk',areaId:area,name:'Bord',state:'on',brightness:128,supportsBrightness:true};
+  if(area==='kitchen')f.mutate(o=>o.items.push(desk));
+  const staleMiddle=outcome==='unknown-and-stale-middle';
+  if(staleMiddle)f.mutate(o=>o.items.push({...desk,entityId:'light.wall'}));
+  const secondary=()=>area==='kitchen'?f.observation():{
+   ...f.observation(),scope:{...f.observation().scope,areaId:area},items:[desk],
+  };
+  const areasByTask=new Map(),active=new Set(),held=[];
+  f.host.liveTransport.controlSetup=(_domain,target)=>{
+   assert(!active.has(target.areaId),'the existing broker rejects setup while the area is busy');
+   const offer=f.lightOffer();
+   offer.taskId='control:'+(areasByTask.size+1).toString(16).padStart(32,'0');
+   offer.setup.scope=target.areaId==='kitchen'?f.observation().scope:secondary().scope;
+   offer.setup.areaId=target.areaId;
+   offer.setup.entityIds=[target.entityId];
+   areasByTask.set(offer.taskId,target.areaId);
+   return Promise.resolve(offer);
+  };
+  f.host.liveTransport.controlAction=task=>{
+   const areaId=areasByTask.get(task.taskId),operation=deferred();
+   active.add(areaId);held.push(operation);
+   return operation.promise.finally(()=>active.delete(areaId));
+  };
+  const ceiling={areaId:'kitchen',entityId:'light.ceiling'},table={areaId:area,entityId:desk.entityId};
+  const tick=()=>new Promise(resolve=>setImmediate(resolve));
+  const first=f.view.actLight(ceiling,f.observation(),'turn_off',{},f.observation);
+  await tick();
+  const second=f.view.actLight(table,secondary(),'turn_off',{},secondary);
+  await tick();
+  assert.equal(held.length,area==='kitchen'?1:2);
+  assert.equal(f.view.lightActions.get(JSON.stringify([area,desk.entityId,null])).state.pending,true);
+  let third=staleMiddle?f.view.actLight({areaId:area,entityId:'light.wall'},
+   f.observation(),'turn_off',{},f.observation):null;
+  if(staleMiddle)desk.state='unavailable';
+  if(outcome==='scope-changed')f.mutate(o=>o.sourceEpoch='other');
+  const reply=outcome.startsWith('unknown')?{ok:false,outcome:'unknown'}:{ok:true,outcome:'accepted'};
+  held[0].resolve(reply);
+  await first;await tick();
+  assert.equal(held.length,expected);
+  if(outcome==='unobserved-overlap'){
+   third=f.view.actLight(ceiling,f.observation(),'turn_on',{},f.observation);
+  }
+  held[1]?.resolve({ok:true,outcome:'accepted'});
+  await second;await tick();
+  assert.equal(held.length,expected);
+  await third;
+  assert.equal(active.size,0);
  }finally{f.view.cleanup();}
 });

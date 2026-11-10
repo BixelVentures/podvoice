@@ -4,7 +4,8 @@ import {scopedLightsObservation} from './ha-home-observation.js';
 import {applyKitComponent,applyKitDialog,syncKitSlider} from './ui/kit.js';
 import {renderPlayerControls} from './player-view.js';
 import {controlTask,controlArgs} from './control-model.js';
-import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding} from './media-observation.js';
+import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding,
+ waitForMusicLane,releaseMusicLane} from './media-observation.js';
 import './robot-control-panel.js';
 const robotRebindReasons=new Set(['robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
 const setupDiagnosticCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable','invalid_dto','stale_binding']);
@@ -32,8 +33,10 @@ export class LiveControlView{
  mountRobotInline(){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';}this.robotInline=true;this.robotEntry.hidden=false;const children=[this.note,this.receiptNote,this.body,this.robotButton];for(const [index,node]of children.entries()){const current=this.robotEntry.children[index];if(current!==node){if(typeof this.robotEntry.insertBefore==='function')this.robotEntry.insertBefore(node,current||null);else this.robotEntry.append(node);}}if(this.robotPanel){const card=this.host.deviceNodes?.get(this.target?.entityId);if(card){card.hidden=true;card.inert=true;card.parentNode.hidden=true;}this.note.hidden=true;this.robotButton.hidden=true;}}
  allowed(domain){return this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities.controlSetup?.includes(domain);}
  render(){
-  if(this.lightActionOperation&&!this.lightActionOperation.context.current())this.lightActionOperation.revoked=true;
-  if(this.lightActionFeedbackOperation&&!this.lightActionFeedbackOperation.context.current())this.lightActionFeedbackOperation.revoked=true;
+  for(const entry of this.lightActions?.values()||[]){
+   if(entry.operation&&!entry.operation.context.current())entry.operation.revoked=true;
+   if(entry.feedback&&!entry.feedback.context.current())entry.feedback.revoked=true;
+  }
   if(this.domain==='light'&&this.lightContext&&!this.lightContext.current()){this.lightContext=null;this.invalidate('Lysenes adgang eller område er ændret · hent betjeningen igen.',false);}
   const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected]),robotAuthority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.host.liveTransport?.generation,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
   const offlineDraft=this.robotOfflineDraftCurrent(this.expiredRobot)?this.expiredRobot:null;
@@ -251,7 +254,9 @@ export class LiveControlView{
    domain:'music',action:receipt.action,requestId:receipt.requestId,code,
   });
   this.receipts.set(receipt.operationKey,{...row,settlementStatus:status,settlementOwnerEpoch:settlement.owner_epoch,settlementRequestId:settlement.request_id,settlementCommandSequence:settlement.command_sequence,settlementEffect:settlement.effect?{...settlement.effect}:null});
-  const fence={...this.musicFence,settlementStatus:status};if(['confirmed','rejected','superseded'].includes(status)){delete fence.volumeDraft;clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;}this.musicFence=fence;if(receipt.kind==='move'&&['rejected','superseded'].includes(status)&&receipt.choice&&this.host.liveOutputs?.pendingChoice===receipt.choice)this.host.liveOutputs.pendingChoice=null;this.renderReceipt();return true;
+  const fence={...this.musicFence,settlementStatus:status};if(['confirmed','rejected','superseded'].includes(status)){delete fence.volumeDraft;clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;}this.musicFence=fence;
+  if(['confirmed','rejected','superseded'].includes(status))releaseMusicLane(this,'free');
+  if(receipt.kind==='move'&&['rejected','superseded'].includes(status)&&receipt.choice&&this.host.liveOutputs?.pendingChoice===receipt.choice)this.host.liveOutputs.pendingChoice=null;this.renderReceipt();return true;
  }
  seekPositionObserved(playback,receipt){
   const {positionMs,witness}=receipt.seekInput;
@@ -269,14 +274,18 @@ export class LiveControlView{
    if(this.musicFence?.settlementReceipt!==receipt||this.musicFence.outcome!=='accepted'||['confirmed','rejected','superseded','unknown'].includes(this.musicFence.settlementStatus))return;
    const row=this.receipts.get(receipt.operationKey);if(row)this.receipts.set(receipt.operationKey,{...row,settlementStatus:'unknown'});
    this.musicFence={...this.musicFence,outcome:'unknown',settlementStatus:'unknown'};delete this.musicFence.volumeDraft;
+   releaseMusicLane(this, 'unknown');
    if(receipt.kind==='move'&&receipt.choice&&this.host.liveOutputs?.pendingChoice===receipt.choice)this.host.liveOutputs.pendingChoice=null;
    this.host.liveTransport?.recordDiagnostic?.('control_action',{domain:'music',action:receipt.action,requestId:receipt.requestId,code:'unknown'});
    if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
   },30000);this.musicSettlementTimer.unref?.();
  }
  musicCurrent(context){return !!context&&this.musicContext(context.recovery===true)?.key===context.key;}
- beginMusicIntent(){
+ // A queue choice holds the lane without being a transport operation. It opts in,
+ // so transport taps made meanwhile are queued instead of dropped (K3, A9).
+ beginMusicIntent({queuesTransport=false}={}){
   if(this.musicIntentPending)return null;
+  this.musicIntentQueuesTransport=queuesTransport===true;
   clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;
   if(this.musicFence?.outcome==='accepted')this.musicFence=null;
   if(this.host.liveSelection?.feedback?.settlementReceipt)this.host.liveSelection.feedback={...this.host.liveSelection.feedback,settlementReceipt:null,awaitingObservation:false};
@@ -288,13 +297,14 @@ export class LiveControlView{
  }
  endMusicIntent(token,outcome,skippedTrackUri=null){
   if(!token||this.musicIntentOwner!==token)return;this.musicIntentOwner=null;this.musicIntentPending=false;
+  this.musicIntentQueuesTransport=false;
   const queue = this.musicQueued;
   if(queue&&skippedTrackUri&&outcome!=='rejected'){
    // A skip can change the actual item before its new observation reaches PodView.
    queue.intents=queue.intents.filter(intent=>intent.action!=='seek'||intent.input.witness.trackUri!==skippedTrackUri);
   }
-  // Each queued entry is a distinct tap. The settled request is never sent again.
-  if (this.musicQueueCurrent(queue)) {
+  // Each queued entry is a distinct tap. An unknown outcome discards the waiting taps.
+  if (outcome !== 'unknown' && this.musicQueueCurrent(queue)) {
    while (queue.intents.length) {
     const intent = queue.intents.shift();
     if (!queue.intents.length) this.musicQueued = null;
@@ -303,6 +313,8 @@ export class LiveControlView{
    }
   }
   this.musicQueued = null;
+  // A choice waiting in waitForMusicLane gets its turn; after UNKNOWN it is not sent.
+  releaseMusicLane(this, outcome === 'unknown' ? 'unknown' : 'free');
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
@@ -313,7 +325,10 @@ export class LiveControlView{
   this.pruneSpent();
   const context=this.musicContext();if(!context||this.pending||this.setupPending||this.musicReadPending||this.musicIntentPending)return;
   if(this.musicUnknownBlocks(context))return;
-  if(this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&!this.musicSettlementReceipt(true)&&context.pollSequence>this.musicFence.pollSequence){this.musicFence=null;this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;if(this.host.liveMedia?.playback?.projectionVersion===3)this.renderMusicControls();}
+  if(this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&!this.musicSettlementReceipt(true)&&context.pollSequence>this.musicFence.pollSequence){
+   this.musicFence=null;
+   releaseMusicLane(this,'free');
+   this.musicOffer=null;this.musicAttempt=null;this.musicAttemptPoll=null;if(this.host.liveMedia?.playback?.projectionVersion===3)this.renderMusicControls();}
   if(this.host.liveMedia?.playback?.projectionVersion===3)return;
   if(this.musicOffer?.context.key===context.key&&this.musicOffer.task.expiresAt*1000>Date.now())return;
   if(this.musicAttempt===context.key&&this.musicAttemptPoll===context.pollSequence)return; // One read per fresh source observation; intent fences keep the stable context.
@@ -422,7 +437,26 @@ export class LiveControlView{
   const reject=code=>{transport?.recordDiagnostic?.('control_intent',{...diagnostic,code});return false;};
   const context=this.musicContext(true),snapshot=this.host.liveSnapshot,binding=context?.binding;
   if(!context||!binding||!catalogueCurrent()||this.moveUnknownApplies(context)||this.musicUnknownBlocks(context))return reject('scope_changed');
-  if(this.musicIntentPending||this.musicFence?.key===context.key&&this.musicFence.outcome==='accepted'&&!['confirmed','rejected','superseded'].includes(this.musicFence.settlementStatus))return reject('intent_pending');
+  
+  // A move chosen while another music action runs, or before its effect is settled, waits for it (H1).
+  const fence = this.musicFence;
+  const unsettled = fence?.key === context.key && fence.outcome === 'accepted'
+   && !['confirmed', 'rejected', 'superseded'].includes(fence.settlementStatus);
+  if (this.musicIntentPending || unsettled) {
+   const generation = this.generation;
+   const turn = await waitForMusicLane(this, true);
+   if (turn === 'free') {
+    if (this.host.liveTransport !== transport || this.generation !== generation
+     || this.musicContext(true)?.presentationKey !== context.presentationKey) return reject('scope_changed');
+    return this.moveSpeaker(speaker, catalogueCurrent, choice);
+   }
+   if (turn === 'unknown') {
+    const message = 'Den forrige handling kunne ikke bekræftes · højttaleren blev ikke skiftet.';
+    this.host.showFeedback?.(message, false, {source: 'music-intent'});
+   }
+   return reject('intent_pending');
+  }
+  
   if(speaker?.kind!=='configured_alias'||speaker.accountId!==context.target.accountId||!/^[a-f0-9]{64}$/.test(speaker.speakerId)||speaker.selectable!==true||speaker.availability!=='available'||typeof speaker.nativeRoomId!=='string'||!speaker.nativeRoomId||typeof speaker.homepodId!=='string'||!/^[1-9][0-9]{0,19}$/.test(speaker.homepodId)||speaker.nativeRoomId===binding.nativeRoomId&&speaker.homepodId===binding.nativeHomepodId)return reject('invalid_target');
   const token=this.beginMusicIntent();if(!token)return reject('intent_pending');
   const destination=Object.freeze({accountId:speaker.accountId,nativeRoomId:speaker.nativeRoomId,nativeHomepodId:speaker.homepodId}),ownerScope=JSON.stringify([snapshot?.capabilities?.musicRead,snapshot?.capabilities?.controlSetup?.includes('music')]),generation=this.generation,musicGeneration=this.musicGeneration||0,transportGeneration=transport.generation;
@@ -465,8 +499,10 @@ export class LiveControlView{
   if(this.musicIntentPending){
    const active=this.musicOperation,token=this.musicIntentOwner;
    if (action !== 'volume') {
-    if (!token || !active || active.presentationKey !== context.presentationKey
-     || active.receiptMusicGeneration !== (this.musicGeneration || 0)) return reject('intent_pending');
+    const sameOperation = !!active && active.presentationKey === context.presentationKey
+     && active.receiptMusicGeneration === (this.musicGeneration || 0);
+    const queueChoice = !active && this.musicIntentQueuesTransport === true;
+    if (!token || !(sameOperation || queueChoice)) return reject('intent_pending');
     if (!this.musicQueueCurrent(this.musicQueued, context)) {
      const capabilities = this.host.liveSnapshot?.capabilities;
      this.musicQueued = {
@@ -607,21 +643,26 @@ export class LiveControlView{
   return !!context&&task?.domain==='light'&&context.current()&&(task.lightSetup.sceneId??null)===(context.scene?.id??null)&&(!context.scene||JSON.stringify(task.lightSetup.scenes)===JSON.stringify([context.scene]))&&Object.keys(context.scope).every(key=>task.lightSetup.scope[key]===context.scope[key])&&JSON.stringify([...task.lightSetup.entityIds].sort())===JSON.stringify(context.ids)&&(!task.options.some(option=>option.action==='brightness')||context.brightness)&&task.options.every(option=>option.action!=='scene'||context.scene&&option.argsSchema.choices.length===1&&option.argsSchema.choices[0].id===context.scene.id);
  }
  openLight(target,observation,opener,currentObservation){
-  if(this.pending||this.setupPending||this.lightActionOperation)return false;const context=this.lightActionContext(target,observation,currentObservation);if(!context)return false;this.lightContext=context;return this.open('light',{...target},opener);
+  const lightRunning=[...this.lightActions?.values()||[]].some(entry=>entry.operation);
+  if(this.pending||this.setupPending||lightRunning)return false;const context=this.lightActionContext(target,observation,currentObservation);if(!context)return false;this.lightContext=context;return this.open('light',{...target},opener);
  }
  updateLightAction(operation,phase,details={}){
   const state={target:{...operation.target},action:operation.action,phase,pending:['preparing','sending'].includes(phase),message:phase==='accepted'?'Anmodningen er modtaget.':phase==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':phase==='rejected'?'Handlingen kunne ikke udføres med den aktuelle adgang.':'',...details};
+  // Light state is kept per light (area, lamp or scene key); the latest update moves to the end (L1).
+  const lights=this.lightActions??=new Map(),entry=lights.get(operation.identity)||{};
+  lights.delete(operation.identity);lights.set(operation.identity,entry);
   if(state.pending&&operation.action==='brightness'){
-   const queue=this.lightInputQueue;
+   const queue=entry.queue;
    const latest=queue?.kind==='brightness'&&this.canQueueLightInput(operation.target,'brightness')
     ?queue.pending.at(-1):undefined;
    state.requestedPercent=latest??operation.requestedPercent;
   }
-  this.lightActionFeedbackOperation=operation;this.lightActionState=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state,operation);this.host.render?.();}return state;
+  entry.feedback=operation;entry.state=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state,operation);this.host.render?.();}return state;
  }
- lightActionFeedbackCurrent(){const operation=this.lightActionFeedbackOperation;if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
+ lightActionFeedbackCurrent(operation){if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
  canQueueLightInput(target,kind){
-  const queue=this.lightInputQueue,operation=this.lightActionOperation;
+  const entry=this.lightActions?.get(JSON.stringify([target.areaId,target.entityId??null,null]));
+  const queue=entry?.queue,operation=entry?.operation;
   return !!queue&&!!operation&&!operation.revoked&&!this.suspending&&queue.kind===kind
    &&queue.target.areaId===target.areaId&&queue.target.entityId===target.entityId&&queue.context.current();
  }
@@ -629,26 +670,25 @@ export class LiveControlView{
   const brightness=kind==='brightness';
   const percent=brightness?input?.percent:null;
   if(brightness&&(!Number.isInteger(percent)||percent<0||percent>100))return;
-  const running=this.lightInputQueue;
+  const lights=this.lightActions??=new Map(),key=JSON.stringify([target.areaId,target.entityId??null,null]);
+  const entry=lights.get(key)||{},running=entry.queue;lights.set(key,entry);
   if(running){
    if(!this.canQueueLightInput(target,kind))return;
    if(brightness){
     running.pending[0]=percent;
-    this.updateLightAction(this.lightActionOperation,this.lightActionState.phase);
+    this.updateLightAction(entry.operation,entry.state.phase);
    }else if(running.pending.length<32)running.pending.push(null);
    return;
   }
   const context=this.lightActionContext(target,observation,currentObservation);
-  if(!context||brightness&&!context.brightness||this.lightActionOperation)return;
+  if(!context||brightness&&!context.brightness||entry.operation)return;
   const queue={target:{...target},kind,context,pending:[percent]};
-  this.lightInputQueue=queue;
+  entry.queue=queue;
   try{
    while(queue.pending.length&&context.current()){
     const wanted=queue.pending.shift();
     const source=scopedLightsObservation(currentObservation());
-    const selected=source.items.filter(item=>context.ids.includes(item.entityId));
-    const action=brightness?'brightness':selected.some(item=>item.state==='on')?'turn_off':'turn_on';
-    const result=await this.actLight(target,source,action,brightness?{percent:wanted}:{},currentObservation);
+    const result=await this.actLight(target,source,kind,brightness?{percent:wanted}:{},currentObservation);
     if(result?.outcome!=='accepted'||result.late||!context.current()){
      queue.blocked=true;
      return result;
@@ -656,7 +696,7 @@ export class LiveControlView{
     const refreshed=scopedLightsObservation(currentObservation());
     const observed=refreshed.items.filter(item=>context.ids.includes(item.entityId));
     const matches=observed.every(item=>{
-     if(!brightness)return item.state===(action==='turn_on'?'on':'off');
+     if(!brightness)return item.state===(result.action==='turn_on'?'on':'off');
      const value=item.state==='off'?0:item.brightness===null?null:Math.round(item.brightness/255*100);
      return value===wanted;
     });
@@ -668,40 +708,134 @@ export class LiveControlView{
     if(!queue.pending.length||brightness&&queue.pending[0]===wanted)return result;
    }
   }finally{
-   if(this.lightInputQueue===queue)this.lightInputQueue=null;
+   if(entry.queue===queue)entry.queue=null;
   }
  }
  async actLight(target,observation,action,input={},currentObservation){
-  const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false},t=this.host.liveTransport,requestedValue=action==='turn_on'?true:action==='turn_off'?false:action==='brightness'&&Number.isInteger(input?.percent)&&input.percent>=0&&input.percent<=100?input.percent:undefined;let diagnostic;
-  try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}diagnostic={domain:'light',action,resourceId:target?.entityId||target?.sceneId||target?.areaId,...(requestedValue!==undefined?{requestedValue}:{})};this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
-  if(this.lightActionOperation||this.pending||this.setupPending||this.domain==='light'&&this.controlOpen()||!['turn_on','turn_off','brightness','scene'].includes(action)){this.journalDevice(t,'control_intent',{...diagnostic,code:'intent_pending'});return unavailable;}
-  const context=this.lightActionContext(target,observation,currentObservation);if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene){this.journalDevice(t,'control_intent',{...diagnostic,code:'stale_binding'});return unavailable;}
-  const identity=JSON.stringify([target.areaId,target.entityId??null,target.sceneId??null]);this.pruneSpent();const unknowns=this.lightUnknowns||(this.lightUnknowns=new Map());for(const[key,fence]of unknowns)if(fence.until<=Date.now())unknowns.delete(key);const unknown=unknowns.get(identity);
-  if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&context.sourceObservedAt<=unknown.observedAt){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});return {...unavailable,outcome:'unknown',phase:'unknown'};}unknowns.delete(identity);if(unknowns.size>=64){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});return unavailable;}
-  const operation={target:{...target},action,context,identity,sent:false,revoked:false,
-   requestedPercent:action==='brightness'?requestedValue:undefined};
-  this.lightActionOperation=operation;this.updateLightAction(operation,'preparing');
-  const current=()=>this.lightActionOperation===operation&&!operation.revoked&&!this.suspending&&context.current();let task,option,args,result;
+  const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false};
+  const t=this.host.liveTransport;
+  try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}
+  const resourceId=target?.entityId||target?.sceneId||target?.areaId;
+  const identity=JSON.stringify([target?.areaId,target?.entityId??null,target?.sceneId??null]);
+  const lights=this.lightActions??=new Map();
+  if(lights.get(identity)?.operation||this.pending||this.setupPending||this.domain==='light'&&this.controlOpen()
+   ||!['toggle','turn_on','turn_off','brightness','scene'].includes(action))return unavailable;
+  const context=this.lightActionContext(target,observation,currentObservation);
+  if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene)return unavailable;
+  const operation={target,action,context,identity,sent:false,revoked:false,
+   requestedPercent:action==='brightness'?input.percent:undefined};
+  const entry=lights.get(identity)||{};
+  entry.operation=operation;
+  lights.set(identity,entry);
+  // Independent lamp intents share the broker's one setup/action slot per HA area.
+  const lanes=this.lightAreaLanes??=new Map(),areaId=target.areaId,previous=lanes.get(areaId);
+  let release;
+  const turn=new Promise(resolve=>{release=resolve;});
+  lanes.set(areaId,turn);
+  this.updateLightAction(operation,'preparing');
+  const current=()=>this.lightActions?.get(identity)?.operation===operation
+   &&!operation.revoked&&!this.suspending&&context.current();
+  let completion;
   try{
-   this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});const raw=await context.transport.controlSetup('light',operation.target);if(!current())throw Error('light_context_changed');task=controlTask(raw,this.host.liveSnapshot,'light');
-   if(this.spent.has(task.taskId)||!this.lightTaskCurrent(context,task))throw Error('light_offer_changed');const candidates=task.options.filter(row=>row.action===action);if(candidates.length!==1)throw Error('light_action_not_offered');option=candidates[0];args=controlArgs(task,option.id,input);this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});
+   const prior=previous?await previous:null;
+   completion=prior;
+   if(!current()||this.pending||this.setupPending||this.domain==='light'&&this.controlOpen())return unavailable;
+   const source=scopedLightsObservation(context.observation());
+   const affected=prior?.ids.some(id=>context.ids.includes(id));
+   if(prior?.unknown||affected&&(!prior.refreshed||source.observedAt<=prior.observedBeforeSend)){
+    this.host.showFeedback?.('Hent aktuel lysstatus, før du prøver igen.',false);
+    return unavailable;
+   }
+   if(action==='toggle'){
+    const on=source.items.some(item=>context.ids.includes(item.entityId)&&item.state==='on');
+    operation.action=on?'turn_off':'turn_on';
+   }
+   const result=await this.sendLightOperation(operation,input,current,source,resourceId,t);
+   if(operation.sent&&(result.outcome==='accepted'||result.outcome==='unknown')){
+    // Without an area read, a distinct lamp cannot clear an older overlapping intent's fence.
+    const unobserved=prior&&!prior.refreshed&&!result.refreshed;
+    completion={ids:unobserved?[...new Set([...prior.ids,...context.ids])]:context.ids,
+     observedBeforeSend:unobserved?Math.max(prior.observedBeforeSend,operation.observedBeforeSend)
+      :operation.observedBeforeSend,refreshed:result.refreshed,unknown:result.outcome==='unknown'};
+   }
+   return result;
+  }finally{
+   if(entry.operation===operation){
+    const late=!current();
+    entry.operation=null;
+    if(entry.state.pending)this.updateLightAction(operation,'rejected',{late});
+   }
+   if(lanes.get(areaId)===turn)lanes.delete(areaId);
+   release(completion);
+  }
+ }
+ async sendLightOperation(operation,input,current,source,resourceId,t){
+  const {identity,context,target,action}=operation;
+  const requestedValue=action==='turn_on'?true:action==='turn_off'?false:operation.requestedPercent;
+  const diagnostic={domain:'light',action,resourceId,...(requestedValue!==undefined?{requestedValue}:{})};
+  this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
+  this.pruneSpent();
+  const unknowns=this.lightUnknowns??=new Map();
+  for(const [key,fence] of unknowns)if(fence.until<=Date.now())unknowns.delete(key);
+  const unknown=unknowns.get(identity);
+  if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&source.observedAt<=unknown.observedAt){
+   this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});
+   return {outcome:'unknown',phase:'unknown',pending:false,refreshed:false};
+  }
+  unknowns.delete(identity);
+  if(unknowns.size>=64){
+   this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});
+   return {outcome:'rejected',phase:'rejected',pending:false,refreshed:false};
+  }
+  let task,result;
+  try{
+   this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});
+   const raw=await context.transport.controlSetup('light',target);
+   if(!current())throw Error('light_context_changed');
+   task=controlTask(raw,this.host.liveSnapshot,'light');
+   if(this.spent.has(task.taskId)||!this.lightTaskCurrent(context,task))throw Error('light_offer_changed');
+   const candidates=task.options.filter(row=>row.action===action);
+   if(candidates.length!==1)throw Error('light_action_not_offered');
+   const option=candidates[0],args=controlArgs(task,option.id,input);
+   this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});
    if(!current()||!this.lightTaskCurrent(context,task))throw Error('light_context_changed');
-   this.spent.set(task.taskId,task.expiresAt);operation.task=task;operation.optionId=option.id;operation.label=option.label;this.updateLightAction(operation,'sending');
+   this.spent.set(task.taskId,task.expiresAt);
+   this.updateLightAction(operation,'sending');
    if(!current())throw Error('light_context_changed');
    operation.observedBeforeSend=scopedLightsObservation(context.observation()).observedAt;
    operation.sent=true;
-   result=await context.transport.controlAction(task,option.id,args);if(!['accepted','rejected','unknown'].includes(result?.outcome)||result.ok!==(result.outcome==='accepted'))result={ok:false,outcome:'unknown'};
-  }catch{this.journalDevice(t,operation.sent?'control_action':'control_setup',{...diagnostic,code:operation.sent?'unknown':current()?'setup_unavailable':'superseded'});result={ok:false,outcome:operation.sent?'unknown':'rejected'};}
+   operation.label=option.label;
+   result=await context.transport.controlAction(task,option.id,args);
+   if(!['accepted','rejected','unknown'].includes(result?.outcome)||result.ok!==(result.outcome==='accepted')){
+    result={ok:false,outcome:'unknown'};
+   }
+  }catch{
+   const code=operation.sent?'unknown':current()?'setup_unavailable':'superseded';
+   this.journalDevice(t,operation.sent?'control_action':'control_setup',{...diagnostic,code});
+   result={ok:false,outcome:operation.sent?'unknown':'rejected'};
+  }
   const outcome=result.outcome;
-  if(operation.sent){this.remember({key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:'light',target:operation.target,label:operation.label},outcome,result.requestId,result);if(outcome==='unknown')unknowns.set(identity,{sourceEpoch:context.sourceEpoch,observedAt:Math.max(context.sourceObservedAt,Date.now()/1000),until:Date.now()+15000});else unknowns.delete(identity);}
-  if(operation.sent&&outcome!=='rejected'&&current())this.trackDeviceJournal('light',operation,result.requestId,requestedValue,diagnostic.resourceId,()=>!operation.revoked&&!this.suspending&&context.current());
+  if(operation.sent){
+   this.remember({key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,
+    taskId:task.taskId,domain:'light',target,label:operation.label},outcome,result.requestId,result);
+   if(outcome==='unknown')unknowns.set(identity,{sourceEpoch:context.sourceEpoch,
+    observedAt:Math.max(source.observedAt,Date.now()/1000),until:Date.now()+15000});
+   else unknowns.delete(identity);
+  }
+  if(operation.sent&&outcome!=='rejected'&&current())this.trackDeviceJournal('light',operation,result.requestId,
+   requestedValue,resourceId,()=>!operation.revoked&&!this.suspending&&context.current());
   let refreshed=false;
-  if(outcome==='accepted'&&current()&&typeof this.host.readLightArea==='function'){try{refreshed=await this.host.readLightArea(operation.target.areaId,{preserveControls:true})===true;}catch{refreshed=false;}}
-  try{const snap=this.host.liveSnapshot;this.observeDeviceJournal({bootId:snap?.bootId,roomId:snap?.roomId,lights:scopedLightsObservation(context.observation())});}catch{}
-  const late=!current();this.lightActionOperation=null;
-  return this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late,
+  if(outcome==='accepted'&&current()&&typeof this.host.readLightArea==='function'){
+   try{refreshed=await this.host.readLightArea(target.areaId,{preserveControls:true})===true;}catch{refreshed=false;}
+  }
+  try{
+   const snap=this.host.liveSnapshot;
+   this.observeDeviceJournal({bootId:snap?.bootId,roomId:snap?.roomId,lights:scopedLightsObservation(context.observation())});
+  }catch{}
+  return this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late:!current(),
    observedBeforeSend:operation.observedBeforeSend});
  }
+
  openMusic(opener){const context=this.musicContext();if(!context)return;this.open('music',context.target,opener);}
  async openRobot(opener,recipeId){
   const d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum'),snapshot=this.host.liveSnapshot,unknown=[...this.receipts.values()].some(row=>row.bootId===snapshot?.bootId&&row.roomId===snapshot?.roomId&&row.domain==='vacuum'&&row.target?.entityId===d?.id&&this.robotReceiptUnknown(row));
@@ -874,22 +1008,45 @@ export class LiveControlView{
   const device=this.host.state.devices.find(row=>row.id===entityId&&row.kind==='vacuum'),offer=this.robotDirectOffer(device),fence=this.robotOverviewFence;
   const reject=code=>{this.journalDevice(transport,'control_intent',{...diag,code});return false;};
   if(!['pause','resume','stop','return'].includes(action)||!offer?.actions.includes(action))return reject('capability_missing');
-  if(this.pending||device.pending)return reject('intent_pending');
+  // A tap while this screen's robot command runs is queued and sent once it settles (S2, S3).
+  const ownRobotCommand=this.pending&&this.activeOperation?.domain==='vacuum';
+  const priorRobotOperation=this.robotOverviewOperation||(ownRobotCommand?this.activeOperation:null);
+  if(priorRobotOperation&&priorRobotOperation.target.entityId!==entityId)return reject('intent_pending');
+  if(!ownRobotCommand&&(this.pending||device.pending)){
+   const message='Robotten svarer stadig på den forrige kommando · prøv igen om et øjeblik.';
+   this.host.showFeedback?.(message,false,{source:'robot'});
+   return reject('intent_pending');
+  }
+  
   this.robotOptimistic = {entityId,
    status: {pause:'paused',resume:'cleaning',stop:'stopped',return:'docking'}[action], at:Date.now()};
   clearTimeout(this.robotOptimisticTimer);this.robotOptimisticTimer=setTimeout(()=>{this.robotOptimisticTimer=null;if(!this.host.isConnected)return;this.refreshRobotOverview();const d=this.robotDevice();if(d)this.robotPanel?.observed?.(this.robotView(d),{directActions:this.robotDirectOffer(d)?.actions||[],directPendingAction:null});},10050);
-  if(this.robotOverviewOperation){this.robotQueued={entityId,action};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
+  if(priorRobotOperation){this.robotQueued={entityId,action,operation:priorRobotOperation};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
   const transportGeneration=transport.generation,current=()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===snapshot.bootId&&this.host.liveSnapshot?.roomId===snapshot.roomId&&this.allowed('vacuum');
   const operation={key:snapshot.bootId+':'+requestId,bootId:snapshot.bootId,roomId:snapshot.roomId,domain:'vacuum',direct:true,target:{entityId},label:({pause:'Pause',resume:'Fortsæt',stop:'Afslut rengøring',return:'Kør til basen'})[action],action,observedRevision:device.revision};
+  let outcome='unknown';
   this.robotOverviewOperation=operation;this.remember(operation,'pending',requestId);this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});
   try{
    const result=await transport.controlIntent({bootId:snapshot.bootId,roomId:snapshot.roomId,domain:'vacuum',action,target:{entityId},args:{},requestId,issuedAt});
+   outcome=result.outcome;
    this.remember(operation,result.outcome,requestId,result);
    if(current()&&['accepted','unknown'].includes(result.outcome))this.trackDeviceJournal('vacuum',operation,requestId,undefined,entityId,current);
    if(current()){this.robotOverviewFence={bootId:snapshot.bootId,roomId:snapshot.roomId,entityId,revision:device.revision,outcome:result.outcome};if(result.outcome==='accepted'||result.outcome==='unknown')this.scheduleRobotObservation(transport,snapshot.bootId,snapshot.roomId,transportGeneration);}
    return true;
   }catch{this.remember(operation,'unknown',requestId);if(current())this.trackDeviceJournal('vacuum',operation,requestId,undefined,entityId,current);if(current()){this.robotOverviewFence={bootId:snapshot.bootId,roomId:snapshot.roomId,entityId,revision:device.revision,outcome:'unknown'};this.scheduleRobotObservation(transport,snapshot.bootId,snapshot.roomId,transportGeneration);}return true;}
-  finally{const owned=this.robotOverviewOperation===operation;if(owned)this.robotOverviewOperation=null;const queued=owned?this.robotQueued:null;if(owned)this.robotQueued=null;if(queued&&current()){void this.robotDirectIntent(queued.entityId,queued.action);}if(owned&&current()){this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{directPendingAction:null});this.refreshRobotOverview();this.render();}}
+  finally{
+   const owned=this.robotOverviewOperation===operation;
+   if(owned)this.robotOverviewOperation=null;
+   const queued=this.robotQueued?.operation===operation?this.robotQueued:null;
+   if(queued){
+    this.robotQueued=null;this.robotOptimistic=null;
+    if(owned&&current()){
+     if(outcome==='accepted')void this.robotDirectIntent(queued.entityId,queued.action);
+     else this.host.showFeedback?.('Robottens næste kommando blev ikke sendt.',false,{source:'robot'});
+    }
+   }
+   if(owned&&current()){this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{directPendingAction:null});this.refreshRobotOverview();this.render();}
+  }
  }
  robotOverviewContext(device){
   const snapshot=this.host.liveSnapshot,transport=this.host.liveTransport;
@@ -925,11 +1082,29 @@ export class LiveControlView{
    if(schema.kind==='cleaning'){const grid=make('div',undefined,'pv-actions');for(const area of schema.areas){const label=make('label'),input=make('input');input.type='checkbox';input.name='areaIds';input.value=area.id;label.append(input,make('span',area.label));grid.append(label);}const repeat=make('select');repeat.name='repeat';repeat.setAttribute('aria-label','Antal rengøringer');for(let n=1;n<=3;n++){const o=make('option',n===1?'1 gang':n+' gange');o.value=String(n);repeat.append(o);}form.append(grid,repeat);}
    if(schema.kind==='percent'){const label=make('label',this.task.domain==='light'?'Lysstyrke':'Vælg lydstyrke'),input=make('input'),value=make('output');input.type='range';input.name='percent';input.min='0';input.max=String(this.task.domain==='music'?100:schema.max);input.step='1';const observedPercent=this.task.domain==='light'?this.lightContext?.brightnessPercent??null:this.task.volume;input.value=String(observedPercent===null?50:Math.min(schema.max,observedPercent));value.textContent=observedPercent===null?(this.task.domain==='light'?'Vælg lysstyrke': 'Vælg på skyderen'):input.value+' %';input.setAttribute('aria-label',this.task.domain==='light'?'Lysstyrke':'Vælg lydstyrke');applyKitComponent(input,'slider');input.addEventListener('input',()=>{const attempted=Number(input.value),limited=this.task?.domain==='music'&&Number.isInteger(attempted)&&attempted>schema.max;if(limited){input.value=String(schema.max);syncKitSlider(input);}value.textContent=input.value+' %'+(limited?' · Højst '+schema.max+' %':'');form.querySelector('[type=submit]').disabled=false;});label.append(input,value);form.append(label);}
    const submit=make('button',schema.kind==='none'?option.label:schema.kind==='percent'?(this.task.domain==='light'?'Indstil lysstyrke':'Indstil lydstyrke'):schema.kind==='choice'?(this.task.domain==='light'&&option.action==='scene'?'Aktivér scene':'Anvend indstilling'):'Start rengøring','pv-button pv-primary');submit.type='submit';submit.disabled=schema.kind==='percent'&&(this.task.domain==='light'?this.lightContext?.brightnessPercent==null:this.task.volume===null);form.append(submit);form.addEventListener('submit',event=>{event.preventDefault();let args={};if(schema.kind==='choice')args={choiceId:form.elements.choiceId.value};if(schema.kind==='cleaning')args={areaIds:[...form.querySelectorAll('[name=areaIds]:checked')].map(x=>x.value),repeat:Number(form.elements.repeat.value)};if(schema.kind==='percent')args={percent:Number(form.elements.percent.value)};this.send(option.id,args);});section.append(form);this.body.append(section);}}
- async send(optionId,input){this.render();const task=this.task;if(!task||task.draft?.status==='awaiting_water'||this.pending||this.spent.has(task.taskId)||!this.allowed(task.domain)||task.domain==='light'&&(this.lightActionOperation||!this.lightContext?.current())||task.domain==='music'&&(JSON.stringify(this.musicContext()?.target)!==JSON.stringify(this.target)||task.expectedBindingId!==this.target.expectedBindingId)||task.domain==='vacuum'&&(this.robotControlOffer?.task!==task||!this.robotControlCurrent(this.robotControlOffer?.context)||this.robotDevice()?.live!==true||this.robotDevice()?.stale||this.robotInline&&this.host.state.focus!==this.target?.entityId))return;let args;try{args=controlArgs(task,optionId,input);}catch{this.note.textContent='Kontrollér dit valg, eller hent en ny betjening.';return;}this.spent.set(task.taskId,task.expiresAt);this.pending=true;const operation={key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:task.domain,optionId,observedRevision:task.domain==='vacuum'?this.robotDevice()?.revision:null,...(task.domain==='vacuum'?{choiceId:typeof args.choiceId==='string'?args.choiceId:null,value:typeof args.value==='number'?args.value:null}:{}),target:{...this.target},label:task.options.find(x=>x.id===optionId).label};this.activeOperation=operation;if(task.domain==='vacuum'){const selected=task.options.find(row=>row.id===optionId);operation.action=selected.action==='set_option'?'settings':selected.action==='reuse'?'start':selected.action;operation.settingKey=selected.settingKey;this.journalDevice(this.host.liveTransport,'control_intent',{domain:'vacuum',action:operation.action,resourceId:operation.target.entityId,code:'start',...(typeof args.value==='boolean'||typeof args.value==='number'?{requestedValue:args.value}:{})});}this.remember(operation,'pending');this.note.textContent='';for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;this.render();const generation=this.generation,opening=this.opening,transport=this.host.liveTransport,transportGeneration=transport.generation;let refreshScene=false;
-  try{if(task.domain==='vacuum'&&task.options.find(row=>row.id===optionId)?.action==='start'&&task.options.find(row=>row.id===optionId)?.argsSchema?.kind==='cleaning'){operation.receiptTask=task;operation.receiptTransport=transport;operation.receiptTransportGeneration=transportGeneration;}const result=await this.host.liveTransport.controlAction(task,optionId,args);refreshScene=task.domain==='light'&&!!this.target?.sceneId&&result.outcome==='accepted';this.remember(operation,result.outcome,result.requestId,result);if(task.domain==='vacuum'){this.journalDevice(transport,'control_action',{domain:'vacuum',action:operation.action,requestId:result.requestId,resourceId:operation.target.entityId,code:result.outcome});if(['accepted','unknown'].includes(result.outcome))this.trackDeviceJournal('vacuum',operation,result.requestId,typeof args.value==='boolean'||typeof args.value==='number'?args.value:undefined,operation.target.entityId,()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===task.bootId&&this.host.liveSnapshot?.roomId===task.roomId&&this.allowed('vacuum'));}if(generation!==this.generation||opening!==this.opening||!this.host.isConnected)return;if(task.domain==='vacuum'&&result.outcome==='accepted'){this.robotAwait={...operation,observedRevision:this.robotDevice()?.revision};if(task.options.find(row=>row.id===optionId)?.action==='set_option')this.scheduleRobotObservation(transport,task.bootId,task.roomId,transportGeneration);}this.note.textContent=task.domain==='vacuum'?'':result.partial&&result.outcome!=='accepted'?'Nogle indstillinger blev ændret. Rengøringen er ikke bekræftet startet.':result.ok?'Anmodningen er modtaget.':result.outcome==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':'Handlingen blev afvist · hent aktuel betjening.';if(result.outcome!=='unknown'){const refresh=make('button','Hent aktuel betjening','pv-button pv-ghost');refresh.type='button';refresh.addEventListener('click',()=>this.open(this.domain,this.target,this.opener,this.recipeId));this.body.append(refresh);}}
+ async send(optionId,input){this.render();const task=this.task;if(!task||task.draft?.status==='awaiting_water'||this.pending||this.spent.has(task.taskId)||!this.allowed(task.domain)||task.domain==='light'&&([...this.lightActions?.values()||[]].some(entry=>entry.operation)||!this.lightContext?.current())||task.domain==='music'&&(JSON.stringify(this.musicContext()?.target)!==JSON.stringify(this.target)||task.expectedBindingId!==this.target.expectedBindingId)||task.domain==='vacuum'&&(this.robotControlOffer?.task!==task||!this.robotControlCurrent(this.robotControlOffer?.context)||this.robotDevice()?.live!==true||this.robotDevice()?.stale||this.robotInline&&this.host.state.focus!==this.target?.entityId))return;let args;try{args=controlArgs(task,optionId,input);}catch{this.note.textContent='Kontrollér dit valg, eller hent en ny betjening.';return;}this.spent.set(task.taskId,task.expiresAt);this.pending=true;const operation={key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:task.domain,optionId,observedRevision:task.domain==='vacuum'?this.robotDevice()?.revision:null,...(task.domain==='vacuum'?{choiceId:typeof args.choiceId==='string'?args.choiceId:null,value:typeof args.value==='number'?args.value:null}:{}),target:{...this.target},label:task.options.find(x=>x.id===optionId).label};this.activeOperation=operation;if(task.domain==='vacuum'){const selected=task.options.find(row=>row.id===optionId);operation.action=selected.action==='set_option'?'settings':selected.action==='reuse'?'start':selected.action;operation.settingKey=selected.settingKey;this.journalDevice(this.host.liveTransport,'control_intent',{domain:'vacuum',action:operation.action,resourceId:operation.target.entityId,code:'start',...(typeof args.value==='boolean'||typeof args.value==='number'?{requestedValue:args.value}:{})});}this.remember(operation,'pending');this.note.textContent='';for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;this.render();const generation=this.generation,opening=this.opening,transport=this.host.liveTransport,transportGeneration=transport.generation;let refreshScene=false,outcome='unknown';
+  try{if(task.domain==='vacuum'&&task.options.find(row=>row.id===optionId)?.action==='start'&&task.options.find(row=>row.id===optionId)?.argsSchema?.kind==='cleaning'){operation.receiptTask=task;operation.receiptTransport=transport;operation.receiptTransportGeneration=transportGeneration;}const result=await this.host.liveTransport.controlAction(task,optionId,args);outcome=result.outcome;refreshScene=task.domain==='light'&&!!this.target?.sceneId&&result.outcome==='accepted';this.remember(operation,result.outcome,result.requestId,result);if(task.domain==='vacuum'){this.journalDevice(transport,'control_action',{domain:'vacuum',action:operation.action,requestId:result.requestId,resourceId:operation.target.entityId,code:result.outcome});if(['accepted','unknown'].includes(result.outcome))this.trackDeviceJournal('vacuum',operation,result.requestId,typeof args.value==='boolean'||typeof args.value==='number'?args.value:undefined,operation.target.entityId,()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===task.bootId&&this.host.liveSnapshot?.roomId===task.roomId&&this.allowed('vacuum'));}if(generation!==this.generation||opening!==this.opening||!this.host.isConnected)return;if(task.domain==='vacuum'&&result.outcome==='accepted'){this.robotAwait={...operation,observedRevision:this.robotDevice()?.revision};if(task.options.find(row=>row.id===optionId)?.action==='set_option')this.scheduleRobotObservation(transport,task.bootId,task.roomId,transportGeneration);}this.note.textContent=task.domain==='vacuum'?'':result.partial&&result.outcome!=='accepted'?'Nogle indstillinger blev ændret. Rengøringen er ikke bekræftet startet.':result.ok?'Anmodningen er modtaget.':result.outcome==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':'Handlingen blev afvist · hent aktuel betjening.';if(result.outcome!=='unknown'){const refresh=make('button','Hent aktuel betjening','pv-button pv-ghost');refresh.type='button';refresh.addEventListener('click',()=>this.open(this.domain,this.target,this.opener,this.recipeId));this.body.append(refresh);}}
   catch{this.remember(operation,'unknown');if(generation===this.generation&&opening===this.opening&&this.host.isConnected)this.note.textContent=task.domain==='vacuum'?'':'Udfaldet er ukendt · handlingen gentages ikke.';}
-  finally{clearTimeout(this.slowTimer);this.pending=false;this.activeOperation=null;if(this.host.isConnected)this.render();}
+  finally{
+   const owned=this.activeOperation===operation;
+   if(owned){clearTimeout(this.slowTimer);this.pending=false;this.activeOperation=null;}
+   const queued=this.robotQueued?.operation===operation?this.robotQueued:null;
+   if(queued){
+    this.robotQueued=null;this.robotOptimistic=null;
+    const current=owned&&generation===this.generation&&opening===this.opening&&this.host.isConnected
+     &&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration
+     &&this.host.liveSnapshot?.bootId===task.bootId&&this.host.liveSnapshot?.roomId===task.roomId
+     &&this.target?.entityId===queued.entityId&&this.allowed('vacuum');
+    if(current){
+     if(outcome==='accepted')void this.robotDirectIntent(queued.entityId,queued.action).then(sent=>{
+      if(!sent)this.host.showFeedback?.('Robottens næste kommando blev ikke sendt.',false,{source:'robot'});
+     });
+     else this.host.showFeedback?.('Robottens næste kommando blev ikke sendt.',false,{source:'robot'});
+    }
+   }
+   if(this.host.isConnected)this.render();
+  }
   if(refreshScene&&typeof this.host.readLightArea==='function'&&generation===this.generation&&opening===this.opening&&this.controlOpen()&&this.lightContext?.current()){const previous=this.lightContext,refreshed=await this.host.readLightArea(this.target.areaId,{preserveControls:true});if(refreshed===true&&generation===this.generation&&opening===this.opening&&this.controlOpen()&&previous.current())await this.openLight(this.target,previous.observation(),this.opener,previous.observation);}
  }
- cleanup(){clearTimeout(this.robotSetupExpiry);this.robotSetupExpiry=null;this.lightActionFeedbackOperation=null;if(this.lightActionOperation)this.lightActionOperation.revoked=true;this.robotEntryKey=null;this.robotAwait=null;this.musicMeasurement=null;this.suspending=true;clearTimeout(this.musicExpiryTimer);clearTimeout(this.slowTimer);clearTimeout(this.expiryTimer);this.invalidate();this.suspending=false;}
+ cleanup(){clearTimeout(this.robotSetupExpiry);this.robotSetupExpiry=null;for(const entry of this.lightActions?.values()||[])if(entry.operation)entry.operation.revoked=true;this.lightActions=new Map();this.robotEntryKey=null;this.robotAwait=null;this.musicMeasurement=null;this.suspending=true;clearTimeout(this.musicExpiryTimer);clearTimeout(this.slowTimer);clearTimeout(this.expiryTimer);this.invalidate();this.suspending=false;}
 }

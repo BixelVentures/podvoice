@@ -255,7 +255,7 @@ test('observed v3 seek sends the scoped absolute position and retains it until p
  }finally{f.close();}
 });
 
-test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',async()=>{
+for(const outcome of ['accepted','unknown'])test(`queued seek coalesces on acceptance and is discarded on UNKNOWN (${outcome})`,async()=>{
  const f=fixture();
  let first,finish;
  try{
@@ -263,7 +263,7 @@ test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',a
   const track=f.host.liveMedia.playback.item.uri,{witness}=f.view.musicSeekState(track);
   f.host.liveTransport.controlIntent=intent=>{
    f.effects.push(intent);
-   return f.effects.length===1?new Promise(resolve=>finish=()=>resolve({outcome:'unknown'}))
+   return f.effects.length===1?new Promise(resolve=>finish=()=>resolve({outcome}))
     :Promise.resolve({outcome:'accepted'});
   };
   first=f.view.musicIntent('seek',{positionMs:12000,witness});
@@ -274,9 +274,15 @@ test('only the latest queued absolute seek is sent; UNKNOWN is never replayed',a
   finish();
   await first;
   await tick();
-  assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),[12000,14000]);
-  assert.equal(f.effects[1].requestId,queued);
+  assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),outcome==='accepted'?[12000,14000]:[12000]);
   assert.notEqual(f.effects[0].requestId,queued);
+  if(outcome==='accepted')assert.equal(f.effects[1].requestId,queued);
+  else {
+   assert.equal(f.view.musicQueued,null);
+   assert.equal(await f.view.musicIntent('seek',{positionMs:15000,witness}),true);
+   assert.deepEqual(f.effects.map(intent=>intent.args.positionMs),[12000,15000]);
+   assert.notEqual(f.effects[1].requestId,queued);
+  }
  }finally{finish?.();await first;f.close();}
 });
 
@@ -387,7 +393,9 @@ test('transport exception retains its own unknown action without replay',async()
  const f=fixture();try{let calls=0;f.view.render();f.host.liveTransport.controlIntent=async()=>{calls++;throw Error('network');};assert.equal(await f.view.musicIntent('pause'),true);assert.equal(f.view.musicFence.action,'pause');assert.equal(f.view.musicFence.outcome,'unknown');assert.equal(f.view.moveUnknownFence,undefined);f.view.render();assert.equal(calls,1,'no automatic replay');assert.equal(await f.view.musicIntent('pause'),true);assert.equal(calls,2,'explicit tap is a new intent');}finally{f.close();}
 });
 for(const change of ['busy','invalid-target','binding-drift'])test(`unknown MOVE new explicit choice respects ${change}`,async()=>{
- const f=fixture();try{f.view.render();f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.moveSpeaker(alias(),()=>true),true);f.adopt();f.host.liveMedia.playback.poll_sequence=2;f.view.render();const speaker=alias();if(change==='busy')f.view.musicIntentPending=true;if(change==='invalid-target')speaker.selectable=false;if(change==='binding-drift')f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;assert.equal(await f.view.moveSpeaker(speaker,()=>true),false);assert.equal(f.effects.length,1);}finally{f.close();}
+ const f=fixture();try{f.view.render();f.host.liveTransport.controlIntent=async intent=>{f.effects.push(intent);return {outcome:'unknown',requestId:intent.requestId};};assert.equal(await f.view.moveSpeaker(alias(),()=>true),true);f.adopt();f.host.liveMedia.playback.poll_sequence=2;f.view.render();const speaker=alias();if(change==='busy')f.view.musicIntentPending=true;if(change==='invalid-target')speaker.selectable=false;if(change==='binding-drift')f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;const moving=f.view.moveSpeaker(speaker,()=>true);
+ if(change==='busy'){await new Promise(resolve=>setImmediate(resolve));assert.equal(f.effects.length,1,'a move waits while busy');f.view.musicLaneWaiter('replaced');}
+ assert.equal(await moving,false);assert.equal(f.effects.length,1);}finally{f.close();}
 });
 
 test('composed recovery snapshot sends one direct move and never replays UNKNOWN',async()=>{
@@ -496,8 +504,8 @@ test('held pause then two explicit toggles keep Pause, Resume, Pause in FIFO ord
  }
 });
 
-for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
- test(`queued explicit skips never replay UNKNOWN after ${boundary}`, async () => {
+for (const outcome of ['accepted', 'unknown']) for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
+ test(`queued skips are sent only after acceptance on the same owner (${outcome}, ${boundary})`, async () => {
   const f = fixture();
   let finish, first;
   try {
@@ -505,7 +513,7 @@ for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
     f.effects.push(intent);
     const receipt = {outcome: 'accepted', requestId: intent.requestId};
     return f.effects.length === 1
-     ? new Promise(resolve => { finish = () => resolve({...receipt, outcome: 'unknown'}); })
+     ? new Promise(resolve => { finish = () => resolve({...receipt, outcome}); })
      : Promise.resolve(receipt);
    };
    first = f.view.musicIntent('next');
@@ -517,7 +525,7 @@ for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
    finish();
    await first;
    await tick();
-   const expected = boundary === 'same-owner' ? ['next', 'previous', 'next'] : ['next'];
+   const expected = outcome === 'accepted' && boundary === 'same-owner' ? ['next', 'previous', 'next'] : ['next'];
    assert.deepEqual(f.effects.map(intent => intent.action), expected);
    assert.equal(new Set(f.effects.map(intent => intent.requestId)).size, expected.length);
   } finally {

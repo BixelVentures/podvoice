@@ -94,7 +94,15 @@ export function roomObservationBound(playback,snapshot,account=playback?.config_
 // Configured native names bind custody; they are never a physical route proof.
 export function accountObservationBound(playback,snapshot,account=playback?.config_entry_id){if([2,3].includes(playback?.projectionVersion))return v2Scope(playback,snapshot,account)&&playback.observationStatus==='account_observed'&&playback.accountObserved===true&&playback.roomBinding===null;return !!(snapshot?.capabilities?.musicRead?.includes('playback')===true&&playback?.accountObserved===true&&playback.readOnly===true&&playback.roomBound===false&&playback.config_entry_id===account&&playback.bootId===snapshot?.bootId&&playback.roomId===snapshot?.roomId&&sameRoomBinding(playback.roomBinding,mediaRoomBinding(snapshot,account))&&playback.target?.id===playback.roomBinding.targetId);}
 const playbackReadable=snapshot=>!Array.isArray(snapshot?.capabilities?.musicRead)||snapshot.capabilities.musicRead.includes('playback');
-export function roomObservationCurrent(playback,snapshot){return roomObservationBound(playback,snapshot)&&observationFresh(playback)&&(![2,3].includes(playback.projectionVersion)||!!playbackBinding(playback,snapshot));}
+// Current enough to command. One transient failed read marks the playback stale:'transient' (shown
+// as last known) but keeps command authority while the room binding and the controls lease are still
+// valid (A1, A7, A10). Any other stale mark, an expired lease or a foreign scope removes it.
+const commandFresh=p=>observationFresh(p)||p?.stale==='transient'&&p.projectionVersion===3
+ &&p.controls?.status==='observed'&&p.controls.valid_until*1000>Date.now();
+export function roomObservationCurrent(playback,snapshot){
+ return roomObservationBound(playback,snapshot)&&commandFresh(playback)
+  &&(![2,3].includes(playback.projectionVersion)||!!playbackBinding(playback,snapshot));
+}
 export function roomObservationDisplay(playback,snapshot,account=playback?.config_entry_id){if([2,3].includes(playback?.projectionVersion))return v2Scope(playback,snapshot,account)&&['observed','account_observed'].includes(playback.observationStatus)&&(observationFresh(playback)||playback.displayRetained===true);return playbackReadable(snapshot)&&(roomObservationBound(playback,snapshot,account)&&(observationFresh(playback)||playback.displayRetained===true)||accountObservationBound(playback,snapshot,account)&&observationFresh(playback));}
 export function roomPlaybackObservation(body,account,snapshot,previous,{receiptRequestId=null}={}){
  if(receiptRequestId!==null&&(typeof receiptRequestId!=='string'||Array.from(receiptRequestId).length<1||Array.from(receiptRequestId).length>120||body?.schema!=='podview.room-playback.v3'))throw Error('invalid_playback_receipt_selector');
@@ -115,4 +123,19 @@ export function roomPlaybackObservation(body,account,snapshot,previous,{receiptR
  const observed=playbackObservation(body.data,account,previous),until=body.data?.room_proof_valid_until;
  if(!['playing','paused'].includes(observed.state)||observed.target?.id!==bound.targetId||!Number.isFinite(until)||until*1000<=Date.now())throw Error('unbound_room_playback');
  return {...observed,expiresAt:Math.min(observed.expiresAt,until*1000),roomBound:true,bootId:body.bootId,roomId:body.roomId,roomBinding:{...bound}};
+}
+
+// The music lane admits one action at a time. A queue, Find musik or speaker choice made while
+// another music action runs waits here for its turn (K3, F2, A9, H1). Only the latest choice
+// waits: an earlier one resolves 'replaced'. When the running action ends UNKNOWN the waiting
+// choice resolves 'unknown' and is not sent; otherwise it resolves 'free' and checks again.
+export function waitForMusicLane(controls, busy = !!controls?.musicIntentPending) {
+ if (!busy) return Promise.resolve('free');
+ controls.musicLaneWaiter?.('replaced');
+ return new Promise(resolve => { controls.musicLaneWaiter = resolve; });
+}
+export function releaseMusicLane(controls, turn) {
+ const waiter = controls.musicLaneWaiter;
+ controls.musicLaneWaiter = null;
+ waiter?.(turn);
 }

@@ -99,3 +99,16 @@ test('background owner avoids initial focus/eager refresh and restores the valid
   assert.equal(background.sessions.get(background.active).steps.has('0'),true);
   assert.equal(background.pendingSession,null);assert.equal(removed,0);
 });
+
+// O1: one malformed catalogue row is skipped; the rest of the catalogue shows.
+test('a recipe without a source is skipped and the rest of the catalogue is shown',async()=>{
+  const good={title:'Karry',steps:['Kog'],ingredients:['Ris'],source:{url:'https://example.invalid/karry'}};
+  const RecipeView=vm.runInNewContext(recipe.replace(/^import .*\n/,'').replace('export class RecipeView','class RecipeView')+'\nRecipeView',{
+    Intl,Date,URL,document:{baseURI:'http://inert/'},
+    fetch:async()=>({ok:true,json:async()=>({recipes:[{title:'Uden kilde',steps:[]},null,{title:'Tom',source:{}},structuredClone(good)]})}),
+  });
+  const view=Object.assign(Object.create(RecipeView.prototype),{saved:[],deleted:new Set(),sessions:new Map(),catalogStatus:'loading',restoreSession(){}});
+  await view.refreshPublishedCatalog();
+  assert.equal(view.catalogStatus,'ready','the catalogue stays available');
+  assert.deepEqual(view.saved.map(r=>r.title),['Karry'],'only the well-formed recipe is shown');
+});

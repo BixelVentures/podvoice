@@ -13,7 +13,7 @@ export class LightLampView{
   const area=local?selection?.roomId:light?.lightScope?.areaId,scopeName=local?selection?.label:light?.lightScope?.areaName;
   const connected=h.live===true?h.liveTransport?.connected===true&&!h.liveTransport?.recoveryBlocked&&!h.browserOffline:h.state?.connected!==false;
   const active=!!light&&h.isConnected!==false&&h.state?.focus===light.id&&connected&&!light.stale&&!light.pending&&!h.lightAreaPending;
-  const controls=h.liveControls,pending=controls?.lightActionState?.pending;
+  const controls=h.liveControls;
   const authority=local?typeof h.state?.sessionId==='string'&&!!h.state.sessionId&&Number.isSafeInteger(light.revision)&&!!selection&&['on','off','mixed'].includes(light.status):h.live===true&&!!source&&source.status==='observed'&&source.scope.areaId===area&&h.liveTransport?.connected===true&&h.liveSnapshot?.capabilities?.controlSetup?.includes('light');
   const raw=local?(selection?.kind==='home'?light.lights:area?light.lights.filter(row=>row.roomId===area):[]):light?.live===true&&Array.isArray(light.observedLights)?light.observedLights.filter(row=>row.areaId===area):[];
   const seen=new Set(),rows=[];
@@ -27,11 +27,13 @@ export class LightLampView{
     dimmable,owner]);
    const key=JSON.stringify([authorityKey,light.revision,on,level]);
    const admitted=local||!!source?.items.some(item=>item.entityId===id&&item.areaId===area&&item.state===row.state&&item.brightness===row.brightness&&item.supportsBrightness===row.supportsBrightness);
+   // Only a pending command for this lamp blocks it; other lamps stay live (L1).
+   const pending=!local&&controls?.lightActions?.get(JSON.stringify([area,id,null]))?.state?.pending;
    const canQueueBrightness=!local&&pending&&controls.canQueueLightInput?.({areaId:area,entityId:id},'brightness');
    const binding=active&&authority&&admitted&&known&&(!pending||canQueueBrightness)
     ?{key,authorityKey,canQueueBrightness,local,sessionId:h.state.sessionId,taskId:light.id,
      revision:light.revision,optionId:id,transport:h.liveTransport,
-     inputQueue:canQueueBrightness?controls.lightInputQueue:null}:null;
+     inputQueue:canQueueBrightness?controls.lightActions.get(JSON.stringify([area,id,null])).queue:null}:null;
    rows.push({id,name,on,level,dimmable,binding,stale:light.stale===true||!connected||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
   }
   return rows;

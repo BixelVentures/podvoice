@@ -226,8 +226,9 @@ test('terminal music receipts release only the completed speaker-move fence',asy
   }finally{f.view.cleanup();}
  }
 });
-test('unsettled, unknown, busy and unavailable output remain fenced',async()=>{
- for(const kind of ['pending','accepted','unconfirmed','unknown','busy','unavailable','no_move']){
+// A pending or unsettled music action no longer locks the rows (H1); the move waits instead.
+test('unknown and unavailable output remain fenced',async()=>{
+ for(const kind of ['unknown','unavailable','no_move']){
   const f=idleStartSurface(),moves=[];try{
    actualPlayback(f,{nativeRoomId:'r0',nativeHomepodId:'42'});f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence={key:'music',action:'volume',outcome:kind==='unknown'?'unknown':kind==='pending'?'pending':'accepted',settlementStatus:kind==='unconfirmed'?'unconfirmed':['busy','unavailable','no_move'].includes(kind)?'confirmed':undefined};f.host.liveControls.musicIntentPending=['busy','pending'].includes(kind);f.host.liveControls.moveSpeaker=(row,current)=>{moves.push({id:row.speakerId,current:current()});return Promise.resolve(true);};
    f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=kind!=='no_move';for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});if(kind==='unavailable')p.speakers[1].availability='unavailable';return p;};await f.view.open();const destination=f.ids['room-options'].children[1];f.view.sync();assert.equal(destination.disabled,true,kind);destination.listeners.click?.();assert.deepEqual(moves,[],kind);

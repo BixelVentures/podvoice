@@ -171,3 +171,77 @@ test('a changed owner immediately removes the old pending Play projection and a 
  const f=searchDiscoveryView();let release,entered;const ready=new Promise(done=>entered=done);try{f.view.onSnapshot();await f.view.search();const card=f.models.at(-1).cards[0],original=f.view.host.liveTransport.musicSelectionSetup;f.view.host.liveTransport.musicSelectionSetup=async(...args)=>{const result=await original(...args);entered();return new Promise(done=>release=()=>done(result));};const work=f.view.chooseCard(card);await ready;assert.equal(f.models.at(-1).pendingId,card.id);f.view.host.liveSnapshot.providerGeneration=9;f.view.render();assert.equal(f.models.at(-1).pendingId,null,'presentation cannot follow the wrong owner');f.view.onSnapshot();release();await work;assert.equal(f.sent.length,0);assert.equal(f.models.at(-1).pendingId,null);
  }finally{release?.();f.cleanup();}
 });
+
+function selectionLaneFixture() {
+ const view=heldView({generation:1});
+ const controls=view.host.liveControls={musicIntentPending:true};
+ const s=view.host.liveSnapshot;
+ view.host.state={focus:'music'};
+ bindRoom(s,'account','direct-one');
+ view.active=true;
+ view.source=searchSample(result(),'account','sang',s);
+ view.searchScope=view.context();
+ view.targets=[target];
+ view.offer=selectionOffer(offer(),view.source,target);
+ view.chosen=view.offer.options[0];
+ const setupCalls=[];
+ view.setup=()=>{setupCalls.push({source:view.source,index:view.selectionIndex});};
+ const release=()=>{
+  controls.musicIntentPending=false;
+  controls.musicLaneWaiter('free');
+ };
+ return {view,s,setupCalls,release};
+}
+
+for(const operation of ['row','confirm'])for(const replacement of ['source','transport-generation','answer']) {
+ test(`waiting music ${operation} cannot dispatch after ${replacement} changes`,async()=>{
+  const {view,s,setupCalls,release}=selectionLaneFixture();
+  if(replacement==='answer') {
+   const answer={sessionId:'voice',turnId:'turn',taskId:'answer',inputRevision:1,revision:1};
+   s.voice={sessionId:answer.sessionId};
+   s.answers={...answer};
+   view.source.context={...view.source.context,...answer,revisionScope:'answer_task'};
+  }
+  const pending=operation==='row'?view.chooseCard({id:'row',optionIndex:0,uri:track.uri}):view.send();
+  if(replacement==='source') {
+   const different={...track,uri:'spotify:track:1123456789ABCDEFGHIJKL',name:'Replacement song'};
+   view.source={...view.source,tracks:[different]};
+   view.offer={...view.offer,options:[{...view.chosen,label:different.name}]};
+   view.chosen=view.offer.options[0];
+  }
+  if(replacement==='transport-generation')view.host.liveTransport.generation++;
+  if(replacement==='answer')s.answers={...s.answers,revision:2};
+  release();
+  await pending;
+  assert.deepEqual(setupCalls,[]);
+  assert.notEqual(view.feedback?.pending,true);
+ });
+}
+
+for(const operation of ['row','confirm']) {
+ test(`waiting music ${operation} retains the exact choice across an unrelated snapshot`,async()=>{
+  const {view,s,setupCalls,release}=selectionLaneFixture();
+  const source=view.source;
+  const pending=operation==='row'?view.chooseCard({id:'row',optionIndex:0,uri:track.uri}):view.send();
+  view.host.liveSnapshot={...s,revision:s.revision+1};
+  release();
+  await pending;
+  assert.deepEqual(setupCalls,[{source,index:0}]);
+ });
+}
+
+test('waiting catalogue click retains the same row through read-only source renewal',async()=>{
+ const {view,release}=selectionLaneFixture();
+ const card={id:'retained',uri:track.uri};
+ const entry={cards:[card],source:view.source};
+ view.active=false;
+ view.host.liveCatalogue={key:()=> 'recent',entries:new Map([['recent',entry]])};
+ const choices=[];
+ view.chooseCollection=choice=>{choices.push(choice);};
+ const pending=view.chooseCard(card);
+ entry.source={...entry.source,expiresAt:Date.now()+1000};
+ view.generation++;
+ release();
+ await pending;
+ assert.deepEqual(choices,[card]);
+});

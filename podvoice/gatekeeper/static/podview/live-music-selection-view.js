@@ -1,7 +1,10 @@
 import {applyKitComponent,applyKitDialog} from './ui/kit.js';
-import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent} from './media-observation.js';
+import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent,waitForMusicLane}
+ from './media-observation.js';
 import {sourceMusicCards} from './music-results.js';
 import {selectionRequestTargets,searchSample,selectionCurrent,selectionOffer,collectionCurrent} from './music-selection-model.js';
+const LANE_WAITING = 'Dit valg sendes, når den igangværende handling er færdig.';
+const LANE_UNKNOWN = 'Den forrige handling kunne ikke bekræftes · dit valg blev ikke sendt.';
 
 const selectionDisplayWaitMs=30000;
 const make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;if(tag==='button')applyKitComponent(node,'button',{variant:cls?.split(/\s+/).includes('pv-primary')?'primary':'secondary'});return node;};
@@ -72,7 +75,7 @@ export class LiveMusicSelectionView{
  prefetchTargets(){const scope=this.targetReadScope();if(!scope){this.targetRead=null;this.targetPrefetchPaused=null;return;}if(this.targetPrefetchPaused===scope)return;if(this.targetRead?.scope===scope&&this.targetRead.transport===this.host.liveTransport)return;this.targetRead=null;if(this.pending||this.active||this.collectionMode)return;void this.readTargets(true);}
  current(context,generation){const now=this.context(),s=this.host.liveSnapshot,r=this.recoveryContinuation,focus=globalThis.document?.activeElement,i=this.intent;if(i&&(this.host.state&&this.host.state.focus!=='music'||JSON.stringify(s?.mediaRoomBindings)!==i.binding||JSON.stringify([s?.providerGeneration,s?.voice,s?.sessionId,s?.taskId,s?.inputRevision])!==i.owner||focus&&focus!==i.focus&&focus!==globalThis.document?.body))return false;if(r&&(this.host.state?.focus!=='music'||this.host.liveCatalogue?.entries.get(this.host.liveCatalogue.key())!==r.entry||!r.entry.cards.includes(r.card)||r.entry.actionDispatched||JSON.stringify(s?.mediaRoomBindings)!==r.binding||JSON.stringify([s?.providerGeneration,s?.voice,s?.sessionId,s?.taskId,s?.inputRevision])!==r.owner||focus&&focus!==r.focus&&focus!==globalThis.document?.body&&focus!==this.targetSelect))return false;return !!now&&!!context&&generation===this.generation&&now.bootId===context.bootId&&now.roomId===context.roomId&&now.accountId===context.accountId&&s.capabilities.musicRead?.includes(this.collectionMode?this.source?.sourceKind:'search')&&(!this.collectionMode||this.host.liveCatalogue?.entries.get(this.host.liveCatalogue.key())===this.collectionEntry&&collectionCurrent(this.source,s,this.account));}
  // A result ticket carries presentation only; it cannot retain a source, task or action grant.
- feedbackScope(){const context=this.context(),s=this.host.liveSnapshot;return context?JSON.stringify([context,s?.mediaRoomBindings,s?.providerGeneration,s?.voice,s?.sessionId,s?.taskId,s?.inputRevision,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,this.feedbackAnswerTask?[s?.answers?.sessionId,s?.answers?.turnId,s?.answers?.taskId,s?.answers?.inputRevision,s?.answers?.revision]:null]):null;}
+ feedbackScope(answerTask=this.feedbackAnswerTask){const context=this.context(),s=this.host.liveSnapshot;return context?JSON.stringify([context,s?.mediaRoomBindings,s?.providerGeneration,s?.voice,s?.sessionId,s?.taskId,s?.inputRevision,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,answerTask?[s?.answers?.sessionId,s?.answers?.turnId,s?.answers?.taskId,s?.answers?.inputRevision,s?.answers?.revision]:null]):null;}
  resultCurrent(ticket){const focus=globalThis.document?.activeElement;return !!ticket&&this.resultTicket===ticket&&ticket.scope!==null&&ticket.scope===this.feedbackScope()&&(!focus||focus===ticket.focus||focus===globalThis.document?.body);}
  invalidate(message='Søg efter en sang.',retained=null){if(!this.used)this.host.liveControls?.endMusicIntent?.(this.musicIntentLock);this.musicIntentLock=null;this.resultTicket=retained?.ticket||null;this.expiryFeedbackScope=retained?.scope||null;this.pendingFeedbackScope=null;this.pendingCardId=null;this.pendingCardSource=null;this.pendingCardIndex=null;this.feedbackAnswerTask=retained?.answerTask===true;this.intent=null;this.selectionIndex=null;this.feedback=retained?.feedback||null;this.recovery=null;this.recoveryContinuation=null;this.generation++;clearTimeout(this.expiryTimer);if(this.dialog.open)this.dialog.close();this.active=false;this.collectionMode=false;this.collectionEntry=null;this.collectionIndex=null;this.retainedTracks=null;this.source=null;this.searchScope=null;this.offer=null;this.targets=[];this.used=false;this.pending=false;this.targetSelect.replaceChildren();this.targetLabel.hidden=true;this.note.textContent=message;this.host.liveMedia?.render?.();this.render();}
  setAccount(account){if(this.account===account)return;this.targetRead=null;this.account=account;this.input.value='';this.active=false;this.invalidate(account?'Søg efter en sang.':'Vælg en musikkonto.');}
@@ -92,9 +95,55 @@ export class LiveMusicSelectionView{
  leave(){this.targetPrefetchPaused=this.targetReadScope();this.targetRead=null;this.invalidate('Vælg musik.');if(this.searchDialog?.open)this.searchDialog.close();this.host.liveCatalogue?.render();}
  showTracks(){this.render();}
  async chooseCard(card){const transport=this.host.liveTransport;let requestId;try{const id=transport?.crypto?.randomUUID?.();if(typeof id==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(id))requestId=id;}catch{}const trace={requestId,transport,transportGeneration:transport?.generation,diagnosticScope:transport?.diagnosticScope,bootId:this.host.liveSnapshot?.bootId,roomId:this.host.liveSnapshot?.roomId,outcome:'rejected'};try{transport?.recordDiagnostic?.('control_intent',{code:'start',domain:'music',requestId});}catch{}try{return await this.chooseCardIntent(card,trace);}catch(error){trace.outcome='unknown';throw error;}finally{try{if(this.host.liveTransport===trace.transport&&transport?.generation===trace.transportGeneration&&transport?.diagnosticScope===trace.diagnosticScope&&this.host.liveSnapshot?.bootId===trace.bootId&&this.host.liveSnapshot?.roomId===trace.roomId)transport?.recordDiagnostic?.('control_intent',{code:trace.outcome,domain:'music',requestId});}catch{}}}
- async chooseCardIntent(card,trace){if(this.host.liveControls?.musicIntentPending&&!this.musicIntentLock){trace.outcome='busy';this.feedback={message:'Afvent den igangværende handling.',pending:false};this.host.liveMedia?.render?.();return;}if(!this.active)return this.chooseCollection(card,trace);if(this.pending||this.used||!this.source?.context){trace.outcome=this.pending?'busy':this.used?'spent':'stale_setup';return;}const index=card.optionIndex;if(!Number.isInteger(index)||!this.source.tracks[index]){trace.outcome='invalid_target';return;}this.intent={focus:globalThis.document?.activeElement,binding:JSON.stringify(this.host.liveSnapshot?.mediaRoomBindings),owner:JSON.stringify([this.host.liveSnapshot?.providerGeneration,this.host.liveSnapshot?.voice,this.host.liveSnapshot?.sessionId,this.host.liveSnapshot?.taskId,this.host.liveSnapshot?.inputRevision])};this.selectionIndex=index;const binding=mediaRoomBinding(this.host.liveSnapshot,this.account),target=binding&&this.targets.find(row=>row.accountId===this.account&&row.targetId===binding.targetId);if(!target){trace.outcome='invalid_target';this.feedback={message:'Højttaleren i rummet kan ikke bruges lige nu.',pending:false};this.host.liveMedia?.render?.();return;}this.pendingCardId=card.id;this.pendingCardSource=this.source;this.pendingCardIndex=index;this.feedbackAnswerTask=this.source.context?.revisionScope==='answer_task';this.pendingFeedbackScope=this.feedbackScope();this.feedback={message:'Afventer afspilning i rummet.',pending:true};this.host.liveMedia?.render?.();this.targetSelect.value=target.targetId;if(selectionCurrent(this.offer,this.host.liveSnapshot,this.account,this.source)&&this.destinationCurrent(this.offer))return this.openConfirm(index,trace);return this.setup(false,trace);}
+ async waitForSelectionLane(source, choiceCurrent) {
+  const controls = this.host.liveControls;
+  const transport = this.host.liveTransport;
+  const generation = transport?.generation;
+  const answerTask = source?.context?.revisionScope === 'answer_task';
+  const scope = this.feedbackScope(answerTask);
+  const focus = this.host.state?.focus;
+  let destination;
+  try { destination = this.host.liveOutputs?.selectionDestination?.(); }
+  catch { return null; }
+  // A waiter only retains the explicit selection's identity, never playback authority.
+  const current = () => !!scope && this.host.liveControls === controls && this.host.liveTransport === transport
+   && transport.generation === generation && this.host.state?.focus === focus
+   && this.feedbackScope(answerTask) === scope && this.destinationCurrent({destination}) && choiceCurrent();
+  const feedback = {message: LANE_WAITING, pending: true};
+  this.feedback = feedback;
+  this.host.liveMedia?.render?.();
+  const turn = await waitForMusicLane(controls);
+  if (this.feedback === feedback) {
+   this.feedback = turn === 'unknown' && current() ? {message: LANE_UNKNOWN, pending: false} : null;
+   this.host.liveMedia?.render?.();
+  }
+  return turn === 'free' ? current : null;
+ }
+ async chooseCardIntent(card,trace){
+  if (this.host.liveControls?.musicIntentPending && !this.musicIntentLock) {
+   const active = this.active;
+   const catalogue = active ? null : this.host.liveCatalogue;
+   const key = catalogue?.key();
+   const entry = catalogue?.entries.get(key);
+   const source = active ? this.source : entry?.source;
+   const index = card.optionIndex;
+   const track = source?.tracks[index];
+   const uri = card.uri;
+   const candidate = source?.context?.candidateSetId;
+   const generation = this.generation;
+   const choiceCurrent = active
+    ? () => this.active && this.source === source && this.generation === generation
+     && source?.context?.candidateSetId === candidate && card.optionIndex === index && card.uri === uri
+     && !!track && source.tracks[index] === track && track.uri === uri
+    : () => !this.active && this.host.liveCatalogue === catalogue && catalogue?.key() === key
+     && !!entry && catalogue.entries.get(key) === entry && entry.cards.includes(card) && card.uri === uri;
+   const current = await this.waitForSelectionLane(source, choiceCurrent);
+   if (!current) return;
+   if (!current()) { trace.outcome = 'superseded'; return; }
+  }
+  if(!this.active)return this.chooseCollection(card,trace);if(this.pending||this.used||!this.source?.context){trace.outcome=this.pending?'busy':this.used?'spent':'stale_setup';return;}const index=card.optionIndex;if(!Number.isInteger(index)||!this.source.tracks[index]){trace.outcome='invalid_target';return;}this.intent={focus:globalThis.document?.activeElement,binding:JSON.stringify(this.host.liveSnapshot?.mediaRoomBindings),owner:JSON.stringify([this.host.liveSnapshot?.providerGeneration,this.host.liveSnapshot?.voice,this.host.liveSnapshot?.sessionId,this.host.liveSnapshot?.taskId,this.host.liveSnapshot?.inputRevision])};this.selectionIndex=index;const binding=mediaRoomBinding(this.host.liveSnapshot,this.account),target=binding&&this.targets.find(row=>row.accountId===this.account&&row.targetId===binding.targetId);if(!target){trace.outcome='invalid_target';this.feedback={message:'Højttaleren i rummet kan ikke bruges lige nu.',pending:false};this.host.liveMedia?.render?.();return;}this.pendingCardId=card.id;this.pendingCardSource=this.source;this.pendingCardIndex=index;this.feedbackAnswerTask=this.source.context?.revisionScope==='answer_task';this.pendingFeedbackScope=this.feedbackScope();this.feedback={message:'Afventer afspilning i rummet.',pending:true};this.host.liveMedia?.render?.();this.targetSelect.value=target.targetId;if(selectionCurrent(this.offer,this.host.liveSnapshot,this.account,this.source)&&this.destinationCurrent(this.offer))return this.openConfirm(index,trace);return this.setup(false,trace);}
  expireCollection(entry){if(this.collectionEntry!==entry)return;this.offer=null;this.chosen=null;if(this.dialog.open)this.dialog.close();this.used=true;entry.selectionSpent=true;entry.selectionExpired=!entry.actionDispatched;this.note.textContent='Afspilningsvalget er udløbet.';this.render();}
- async chooseCollection(card,trace){if(this.host.liveControls?.musicIntentPending&&!this.musicIntentLock){if(trace)trace.outcome='busy';this.feedback={message:'Afvent den igangværende handling.',pending:false};this.host.liveMedia?.render?.();return;}
+ async chooseCollection(card,trace){
   const catalogue=this.host.liveCatalogue,entry=catalogue?.entries.get(catalogue.key()),index=entry?.cards.findIndex(row=>row.id===card.id);
   let continuation=null;
   if (!entry || index < 0 || entry.cards[index] !== card || this.recovery || this.pending
@@ -140,7 +189,28 @@ export class LiveMusicSelectionView{
   this.recoveryContinuation=null;row.focus();
  }
  openConfirm(index,trace=null){const offer=this.offer,source=this.source;if(this.pending||this.used)return;if(this.host.liveControls&&!this.musicIntentLock){if(this.collectionMode)this.collectionIndex=index;else this.selectionIndex=index;return this.setup(true,trace);}if(!(this.collectionMode||this.intent)||!this.current(this.searchScope,this.generation)||!selectionCurrent(offer,this.host.liveSnapshot,this.account,source)||!offer?.options[index]){this.feedback={message:'Afspilningsvalget er ikke længere tilgængeligt.',pending:false};this.host.liveMedia?.render?.();return;}this.chosen=offer.options[index];return this.send(trace);}
- async send(trace=null){if(this.host.liveControls&&!this.musicIntentLock){if(this.host.liveControls.musicIntentPending){this.feedback={message:'Afventer den igangværende musikhandling.',pending:false};this.host.liveMedia?.render?.();return;}const index=this.offer?.options.indexOf(this.chosen);if(Number.isInteger(index)&&index>=0){if(this.collectionMode)this.collectionIndex=index;else this.selectionIndex=index;return this.setup(true,trace);}return;}const intentLock=this.musicIntentLock;let destination,nativeDestination;try{destination=this.host.liveOutputs?.selectionDestination?.();nativeDestination=this.host.liveOutputs?.selectionWitness?.();if(!destination){const configured=mediaRoomBinding(this.host.liveSnapshot,this.account);if(configured)nativeDestination=Object.freeze({accountId:configured.accountId,nativeRoomId:configured.nativeRoomId,nativeHomepodId:configured.nativeHomepodId});}}catch{if(!this.used&&!this.pending){this.feedback={message:'Højttalervalget er udløbet · vælg højttaler igen.',pending:false};this.host.liveMedia?.render?.();}return;}const offer=this.offer,source=this.source,option=this.chosen,context=this.context();if((offer?.destination?.speakerId??null)!==(destination?.speakerId??null)||this.pending||this.used||!context||!option||(this.collectionMode||this.intent)&&!this.current(context,this.generation)||!selectionCurrent(offer,this.host.liveSnapshot,this.account,source)||!offer.options.some(row=>row.id===option.id)){this.dialog.close();return;}const focusTicket=this.host.playerView?.beginSourceFocus?.('music',nativeDestination);this.used=true;
+ async send(trace=null){if(this.host.liveControls&&!this.musicIntentLock){
+  const {offer,source,chosen,collectionMode,collectionEntry,generation} = this;
+  const index = offer?.options.indexOf(chosen);
+  if(Number.isInteger(index)&&index>=0){
+  if (this.host.liveControls.musicIntentPending) {
+   const track = source?.tracks[index];
+   const uri = track?.uri;
+   const optionId = chosen.id;
+   const candidate = source?.context?.candidateSetId;
+   const target = this.targetSelect.value;
+   const catalogue = this.host.liveCatalogue;
+   const current = await this.waitForSelectionLane(source, () => this.offer === offer && this.chosen === chosen
+    && offer.options[index] === chosen && chosen.id === optionId && this.source === source
+    && source?.context?.candidateSetId === candidate && !!track && source.tracks[index] === track && track.uri === uri
+    && this.collectionMode === collectionMode && this.collectionEntry === collectionEntry
+    && (!collectionMode || catalogue === this.host.liveCatalogue
+     && catalogue?.entries.get(catalogue.key()) === collectionEntry)
+    && this.generation === generation && this.targetSelect.value === target && this.destinationCurrent(offer));
+   if (!current) return;
+   if (!current()) { if(trace)trace.outcome = 'superseded'; return; }
+  }
+  if(this.collectionMode)this.collectionIndex=index;else this.selectionIndex=index;return this.setup(true,trace);}return;}const intentLock=this.musicIntentLock;let destination,nativeDestination;try{destination=this.host.liveOutputs?.selectionDestination?.();nativeDestination=this.host.liveOutputs?.selectionWitness?.();if(!destination){const configured=mediaRoomBinding(this.host.liveSnapshot,this.account);if(configured)nativeDestination=Object.freeze({accountId:configured.accountId,nativeRoomId:configured.nativeRoomId,nativeHomepodId:configured.nativeHomepodId});}}catch{if(!this.used&&!this.pending){this.feedback={message:'Højttalervalget er udløbet · vælg højttaler igen.',pending:false};this.host.liveMedia?.render?.();}return;}const offer=this.offer,source=this.source,option=this.chosen,context=this.context();if((offer?.destination?.speakerId??null)!==(destination?.speakerId??null)||this.pending||this.used||!context||!option||(this.collectionMode||this.intent)&&!this.current(context,this.generation)||!selectionCurrent(offer,this.host.liveSnapshot,this.account,source)||!offer.options.some(row=>row.id===option.id)){this.dialog.close();return;}const focusTicket=this.host.playerView?.beginSourceFocus?.('music',nativeDestination);this.used=true;
   const entry = this.collectionEntry;
   const dispatch = entry ? Object.freeze({
    candidateSetId: source.context.candidateSetId, taskId: offer.taskId,

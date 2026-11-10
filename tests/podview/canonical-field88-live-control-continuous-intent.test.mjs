@@ -38,14 +38,29 @@ function attachSelection(f){
 test('queue broker resolution holds the same effect lane as transport and preserves the shown opaque option',async()=>{
  const f=fixture();let finish;try{
   const q=attachQueue(f);enableV3(f);await q.queue.load('account',f.host.liveMedia.playback);const shown=q.queue.offer,visible=shown.items[0],held=deferred();finish=()=>held.resolve({outcome:'unknown'});f.host.liveTransport.queueAction=(task,id)=>{q.actions.push({task,id});return held.promise;};
-  const choosing=q.queue.choose(visible);assert.equal(f.view.musicIntentPending,true);assert.equal(await f.view.musicIntent('pause'),false);assert.equal(f.writes.length,0);assert.equal(q.actions.length,1);assert.equal(q.actions[0].task,shown);assert.equal(q.actions[0].id,visible.id);assert.equal(q.requests.length,1);
+  const choosing=q.queue.choose(visible);assert.equal(f.view.musicIntentPending,true);assert.equal(f.writes.length,0);assert.equal(q.actions.length,1);assert.equal(q.actions[0].task,shown);assert.equal(q.actions[0].id,visible.id);assert.equal(q.requests.length,1);
   finish();await choosing;assert.equal(f.view.musicIntentPending,false);assert.equal(q.actions.length,1);assert.equal(q.actions[0].task.taskId,shown.taskId);assert.equal(q.actions[0].id,visible.id);assert.equal(q.queue.status,'unknown');await q.queue.choose(visible);assert.equal(q.actions.length,1,'UNKNOWN cannot be replayed');
+ }finally{finish?.();f.host.liveMedia.queueControls?.invalidate(true);f.restore();}
+});
+// K3/A9: a queue choice must not make the transport deaf. A tap during the
+// choice is queued and sent exactly once when the choice has settled.
+test('pause tapped during a queue choice is queued and sent once after the choice settles',async()=>{
+ const f=fixture();let finish;try{
+  const q=attachQueue(f);enableV3(f);await q.queue.load('account',f.host.liveMedia.playback);
+  const visible=q.queue.offer.items[0],held=deferred();finish=()=>held.resolve({outcome:'accepted'});
+  f.host.liveTransport.queueAction=(task,id)=>{q.actions.push({task,id});return held.promise;};
+  const choosing=q.queue.choose(visible);assert.equal(f.view.musicIntentPending,true);
+  assert.equal(await f.view.musicIntent('pause'),true,'the tap is accepted into the queue');
+  assert.equal(f.writes.length,0,'nothing is sent while the choice is in flight');
+  assert.equal(f.view.optimisticPlaying(true),false,'the wanted state is shown at once');
+  finish();await choosing;await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(f.writes.map(row=>row.action),['pause']);assert.equal(q.actions.length,1);
  }finally{finish?.();f.host.liveMedia.queueControls?.invalidate(true);f.restore();}
 });
 test('selection setup through receipt owns the same lane; volume and queue cannot issue competing effects',async()=>{
  const f=fixture();try{
   const q=attachQueue(f);enableV3(f);await q.queue.load('account',f.host.liveMedia.playback);const visible=q.queue.offer.items[0],s=attachSelection(f),setupHeld=deferred(),actionHeld=deferred();let setups=0,effects=0;f.host.liveTransport.musicSelectionSetup=()=>{setups++;return setupHeld.promise;};f.host.liveTransport.musicSelectionAction=()=>{effects++;return actionHeld.promise;};
-  const selecting=s.selection.setup(true);assert.equal(f.view.musicIntentPending,true);assert.equal(setups,1);assert.equal(await f.view.musicIntent('volume',{percent:20}),false);await q.queue.choose(visible);assert.equal(q.actions.length,0);assert.equal(f.writes.length,0);
+  const selecting=s.selection.setup(true);assert.equal(f.view.musicIntentPending,true);assert.equal(setups,1);assert.equal(await f.view.musicIntent('volume',{percent:20}),false);void q.queue.choose(visible);assert.equal(q.actions.length,0);assert.equal(f.writes.length,0);
   setupHeld.resolve(s.setup());await new Promise(resolve=>setImmediate(resolve));assert.equal(effects,1);assert.equal(f.view.musicIntentPending,true,'lane includes the pending effect');assert.equal(await f.view.musicIntent('next'),false);
   actionHeld.resolve({outcome:'unknown'});await selecting;assert.equal(effects,1);assert.equal(f.view.musicIntentPending,false);assert.equal(f.view.musicOffer,null);assert.equal(q.queue.offer,null);assert.equal(s.selection.offer,null);assert.equal(f.writes.length,0);clearTimeout(s.selection.expiryTimer);
  }finally{f.host.liveMedia.queueControls?.invalidate(true);f.restore();}
@@ -65,4 +80,51 @@ for(const change of ['transport','transport-generation','boot','room','account',
   if(change==='transport')f.host.liveTransport={...f.host.liveTransport};if(change==='transport-generation')f.host.liveTransport.generation=1;if(change==='provider')f.host.liveSnapshot.providerGeneration=1;if(change==='boot')f.host.liveSnapshot.bootId='replacement';if(change==='room')f.host.liveSnapshot.roomId='replacement';if(change==='account')p.config_entry_id='replacement';if(change==='epoch')p.owner_epoch='replacement';if(change==='binding')p.roomBinding.bindingId='d'.repeat(64);if(change==='native-room')p.roomBinding.nativeRoomId='replacement';if(change==='native-homepod')p.roomBinding.nativeHomepodId='88';if(change==='target'){p.target.id='replacement';p.roomBinding.targetId='replacement';}if(change==='offline')f.host.liveTransport.connected=false;if(change==='stale')p.stale=true;if(change==='capability')f.host.liveSnapshot.capabilities.controlSetup=[];
   f.view.render();assert.equal(f.view.musicIntentOffer,null);assert.equal(f.view.volumeIntentOffer,null);assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);assert.equal(f.writes.length,0);
  }finally{resolve?.(f.offer());f.restore();}
+});
+// K3/F2/A9: a queue row or Find musik choice made while another music action is
+// pending waits for it and is sent once when it settles; UNKNOWN sends nothing.
+function stableQueue(q,f){
+ let n=0;f.host.liveTransport.queueOffer=async()=>{const raw=q.issue();raw.taskId='queue:'+(++n).toString(16).padStart(32,'0');raw.items[0].id='e'.repeat(24);q.requests.push(raw);return raw;};
+}
+test('a queue row tapped while Pause is pending is shown as chosen and sent once when Pause settles',async()=>{
+ const f=fixture();let finish;try{
+  const q=attachQueue(f);enableV3(f);stableQueue(q,f);await q.queue.load('account',f.host.liveMedia.playback);
+  const row=q.queue.offer.items[0],held=deferred();finish=()=>held.resolve({outcome:'accepted',requestId:'r'});
+  f.host.liveTransport.controlIntent=intent=>{f.writes.push(intent);return held.promise;};
+  const messages=[];f.host.showFeedback=text=>{if(text)messages.push(text);};
+  const pausing=f.view.musicIntent('pause');assert.equal(f.view.musicIntentPending,true);
+  const choosing=q.queue.choose(row);
+  assert.equal(q.actions.length,0,'nothing is sent while Pause is in flight');
+  assert.deepEqual(messages,[],'the tap is not refused');
+  assert.equal(q.queue.model('account',f.host.liveMedia.playback).items[0].pending,true,'the row shows the choice');
+  finish();await pausing;await choosing;for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(q.actions.length,1,'the choice is sent exactly once');assert.equal(q.actions[0].id,row.id);
+ }finally{finish?.();f.host.liveMedia.queueControls?.invalidate(true);f.restore();}
+});
+test('a queue row tapped while Pause is pending is not sent when Pause ends UNKNOWN',async()=>{
+ const f=fixture();let finish;try{
+  const q=attachQueue(f);enableV3(f);stableQueue(q,f);await q.queue.load('account',f.host.liveMedia.playback);
+  const row=q.queue.offer.items[0],held=deferred();finish=()=>held.resolve({outcome:'unknown',requestId:'r'});
+  f.host.liveTransport.controlIntent=intent=>{f.writes.push(intent);return held.promise;};
+  const messages=[];f.host.showFeedback=text=>{if(text)messages.push(text);};
+  const pausing=f.view.musicIntent('pause');const choosing=q.queue.choose(row);
+  finish();await pausing;await choosing;for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(q.actions.length,0,'nothing is replayed after UNKNOWN');
+  assert.ok(messages.some(text=>text.includes('ikke sendt')),'the user is told the choice was not sent');
+ }finally{finish?.();f.host.liveMedia.queueControls?.invalidate(true);f.restore();}
+});
+test('a Find musik choice confirmed while Pause is pending waits and starts once when Pause settles',async()=>{
+ const f=fixture();let finish;try{
+  attachQueue(f);enableV3(f);const s=attachSelection(f),held=deferred();let setups=0;
+  finish=()=>held.resolve({outcome:'accepted',requestId:'r'});
+  f.host.liveTransport.controlIntent=intent=>{f.writes.push(intent);return held.promise;};
+  f.host.liveTransport.musicSelectionSetup=()=>{setups++;return new Promise(()=>{});};
+  const pausing=f.view.musicIntent('pause');const option={id:'c'.repeat(24),label:'Chosen song'};
+  s.selection.offer={options:[option]};s.selection.chosen=option;
+  void s.selection.send();
+  assert.equal(setups,0,'nothing is started while Pause is in flight');
+  assert.equal(s.selection.feedback?.pending,true,'the choice is shown as waiting, not refused');
+  finish();await pausing;for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(setups,1,'the waiting choice is started exactly once');
+ }finally{finish?.();f.host.liveMedia.queueControls?.invalidate(true);f.restore();}
 });

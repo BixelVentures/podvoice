@@ -19,7 +19,7 @@ test('stale radio retains display but revokes every control and target choice',(
 test('target precedence is observed actual then explicit next then valid default',()=>{const {radio}=fixture();radio.value.targets.push({id:'kitchen',name:'Køkken',availability:'available',selectable:true,default:false});radio.nextTarget='kitchen';assert.equal(radio.target().id,'stuen');radio.value.state.targetId=null;assert.equal(radio.target().id,'kitchen');radio.nextTarget=null;assert.equal(radio.target().id,'stuen');radio.value.targets[0].availability='unavailable';assert.equal(radio.target(),null);});
 test('same playing station does not submit an offer; stopped station explicitly starts live',async()=>{const {radio}=fixture(),actions=[];radio.act=(...args)=>actions.push(args);await radio.choose('p3');assert.equal(actions.length,0);radio.value.state.status='stopped';await radio.choose('p3');assert.deepEqual(actions,[['start',{stationId:'p3',targetId:'stuen'}]]);});
 test('unsupported controls never route into Spotify and stop targets only radio session',()=>{const {radio}=fixture(),actions=[];radio.act=(...args)=>actions.push(args);radio.control({type:'skip',delta:1});radio.control({type:'toggle'});assert.deepEqual(actions,[['stop',{}, {kind:'transport',id:'play-pause'}]]);});
-test('unknown action outcome fences commands without retries or optimistic playing',async()=>{const {radio,host}=fixture(value({state:{...value().state,status:'stopped'}}));let offers=0,actions=0;host.liveTransport.radioOffer=async()=>{offers++;return {ok:true,...snapshot,taskId:'opaque-task',optionId:'opaque-option',expiresAt:Date.now()/1000+10};};host.liveTransport.radioAction=async()=>{actions++;return {status:'unknown'};};await radio.choose('p3');assert.equal(radio.value.state.status,'stopped');assert.equal(radio.unknown,true);await radio.choose('p3');assert.equal(offers,1);assert.equal(actions,1);});
+test('unknown action outcome fences commands without retries or optimistic playing',async()=>{const {radio,host}=fixture(value({state:{...value().state,status:'stopped'}}));let offers=0,actions=0;host.liveTransport.radioOffer=async()=>{offers++;return {ok:true,...snapshot,taskId:'opaque-task',optionId:'opaque-option',expiresAt:Date.now()/1000+10};};host.liveTransport.radioAction=async()=>{actions++;return {status:'unknown'};};await radio.choose('p3');assert.equal(radio.value.state.status,'stopped');assert.equal(radio.unknown,true);assert.equal(offers,1,'not retried');await radio.choose('p3');assert.equal(offers,2,'a new explicit tap is a new action');assert.equal(actions,2);});
 test('an offer resolved after owner scope changes is never sent',async()=>{const {radio,host}=fixture();let actions=0;host.liveTransport.radioOffer=async()=>{host.liveSnapshot={...snapshot,bootId:'new'};return {ok:true,...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+10};};host.liveTransport.radioAction=async()=>{actions++;};await radio.choose('p1');assert.equal(actions,0);});
 test('radio without valid destination opens existing picker before any mutation',async()=>{const {radio}=fixture(value({targets:[],state:{...value().state,targetId:null}}));let opened=0,actions=0;radio.openOutputs=()=>opened++;radio.act=()=>actions++;await radio.choose('p1');assert.equal(opened,1);assert.equal(actions,0);assert.equal(radio.waitingStation,'p1');});
 test('accepted receipt is settled only by newer native observation without optimistic playing',async()=>{const {radio,host}=fixture(value({state:{...value().state,status:'stopped'}}));let atReceipt;host.liveTransport.radioOffer=async()=>({ok:true,...snapshot,taskId:'task',optionId:'option',expiresAt:Date.now()/1000+5});host.liveTransport.radioAction=async()=>{atReceipt=radio.value.state.status;return {status:'accepted'};};host.liveTransport.radio=async()=>value({revision:2,state:{...value().state,generation:2,status:'playing'}});await radio.choose('p3');assert.equal(atReceipt,'stopped');assert.equal(radio.value.state.status,'playing');assert.equal(radio.pending,false);assert.equal(radio.unknown,false);clearTimeout(radio.expiry);});
@@ -48,11 +48,11 @@ function held(){let resolve;const promise=new Promise(r=>resolve=r);return {prom
 test('held station offer and writer show only exact readonly control; no observation or provider authority changes',async()=>{const {radio,host,calls}=fixture();const offer=held(),writer=held(),posts=[];host.liveTransport.radioOffer=body=>{posts.push(body);return offer.promise;};host.liveTransport.radioAction=body=>{posts.push(body);return writer.promise;};host.liveTransport.radio=async()=>value({revision:2,state:{...value().state,stationId:'p1',generation:2}});const operation=radio.choose('p1');assert.deepEqual(radio.progress(),{kind:'station',id:'p1'});assert.equal(Object.isFrozen(radio.progress()),true);assert.equal(radio.pendingPhase,'preparing');radio.renderControls();assert.equal(calls.filter(row=>row[0]==='controls').at(-1)?.[1]?.loadingControlId,'play-pause');assert.equal(radio.message,'');assert.equal(radio.value.state.stationId,'p3');assert.equal(radio.can('start'),false);await radio.choose('p1');assert.equal(posts.length,1);const marker=radio.progress();offer.resolve({...snapshot,taskId:'task',optionId:'opt',expiresAt:Date.now()/1000+5});await Promise.resolve();await Promise.resolve();assert.equal(radio.pendingPhase,'sending');assert.equal(radio.progress(),marker);assert.deepEqual(Object.keys(posts[0]).sort(),['action','bootId','revision','roomId','stationId','targetId','volumePercent']);assert.equal(posts[0].stationId,'p1');writer.resolve({status:'accepted'});await operation;assert.equal(radio.progress(),null);assert.equal(radio.pending,false);assert.equal(radio.value.state.stationId,'p1');assert.equal(radio.feedback(),null);clearTimeout(radio.expiry);});
 test('first start while Spotify owns player shows requested display only and restores source on offer failure',async()=>{const {radio,host,calls}=fixture(value({state:{...value().state,sourceKind:'spotify',status:'idle',stationId:null,targetId:null}}));const offer=held();host.liveTransport.radioOffer=()=>offer.promise;const operation=radio.choose('p1');assert.deepEqual(radio.progress(),{kind:'station',id:'p1'});assert.equal(radio.renderPlayer(),true);assert.equal(radio.ownsPlayer(),false);assert.equal(calls[0][1].title,'P1');assert.equal(calls[0][1].playing,false);assert.equal(calls[0][1].loading,true);assert.equal(calls[0][1].canOutput,false);calls.length=0;offer.resolve({...snapshot,taskId:'task',optionId:'opt',expiresAt:0});await operation;assert.equal(radio.progress(),null);assert.equal(radio.feedback().state,'error');assert.equal(radio.renderPlayer(),false);assert.equal(calls.length,0);assert.equal(radio.value.state.sourceKind,'spotify');});
 test('stale transport and disconnect remove progress without granting an action or replay',async()=>{for(const phase of ['stale','scope','disconnect']){const {radio,host}=fixture();const offer=held();let writes=0;host.liveTransport.radioOffer=()=>offer.promise;host.liveTransport.radioAction=async()=>{writes++;return {status:'accepted'};};const operation=radio.choose('p1');assert.ok(radio.progress());if(phase==='stale')radio.value.validUntil=0;else if(phase==='scope')host.liveSnapshot={...snapshot,sessionId:'other'};else {host.liveTransport.connected=false;radio.invalidate();}assert.equal(radio.progress(),null);if(phase==='stale')radio.invalidate();offer.resolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await operation;assert.equal(writes,0);assert.equal(radio.pending,false);}});
-test('unknown writer clears progress and retains no-repeat authority fence; volume keeps native measurement',async()=>{const {radio,host}=fixture(value({actions:['start','stop','move','volume'],state:{...value().state,volumePercent:37}}));const writer=held();host.liveTransport.radioOffer=async()=>({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});host.liveTransport.radioAction=()=>writer.promise;const operation=radio.act('volume',{volumePercent:60});assert.deepEqual(radio.progress(),{kind:'volume',id:'play-pause'});assert.equal(radio.value.state.volumePercent,37);await Promise.resolve();writer.resolve({status:'unknown'});await operation;assert.equal(radio.progress(),null);assert.equal(radio.feedback().state,'unknown');assert.equal(radio.can('volume'),false);assert.equal(radio.value.state.volumePercent,37);});
+test('unknown writer clears progress and retains no-repeat authority fence; volume keeps native measurement',async()=>{const {radio,host}=fixture(value({actions:['start','stop','move','volume'],state:{...value().state,volumePercent:37}}));const writer=held();host.liveTransport.radioOffer=async()=>({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});host.liveTransport.radioAction=()=>writer.promise;const operation=radio.act('volume',{volumePercent:60});assert.deepEqual(radio.progress(),{kind:'volume',id:'play-pause'});assert.equal(radio.value.state.volumePercent,37);await Promise.resolve();writer.resolve({status:'unknown'});await operation;assert.equal(radio.progress(),null);assert.equal(radio.feedback().state,'unknown');assert.equal(radio.can('volume'),true,'a new explicit volume is allowed');assert.equal(radio.value.state.volumePercent,37);});
 
 test('sending-phase render cannot submit a stale action after lifecycle invalidation',async()=>{const {radio,host}=fixture();let posts=0;host.liveTransport.radioOffer=async()=>({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});host.liveTransport.radioAction=async()=>{posts++;return {status:'accepted'};};let invalidated=false;radio.render=()=>{if(radio.pendingPhase==='sending'&&!invalidated){invalidated=true;radio.invalidate();}};await radio.choose('p1');assert.equal(posts,0);assert.equal(radio.progress(),null);assert.equal(radio.pending,false);});
 
-test('all start origins retain exact scoped station and desired target, expire display immediately and never submit stale preview',async()=>{for(const origin of [null,{kind:'transport',id:'play-pause'},{kind:'output',id:'stuen'}]){const {radio,host,calls}=fixture(value({state:{...value().state,volumePercent:37}}));const offer=held();let writes=0;host.liveTransport.radioOffer=()=>offer.promise;host.liveTransport.radioAction=async()=>{writes++;return {status:'accepted'};};const operation=radio.act('start',{stationId:'p1',targetId:'stuen'},origin);assert.equal(radio.pendingStart().stationId,'p1');assert.equal(radio.pendingStart().targetId,'stuen');assert.equal(radio.pendingStart().targetName,'Stuen');assert.equal(Object.isFrozen(radio.pendingStart()),true);radio.renderPlayer();assert.equal(calls[0][1].title,'P1');assert.equal(calls[0][1].target,'Stuen');assert.equal(calls[0][1].volume,37);assert.equal(calls[1][1].pendingLabel,'Starter P1…');assert.equal(calls[1][1].blocked,true);assert.equal(radio.value.state.stationId,'p3');radio.value.validUntil=0;assert.equal(radio.pendingStart(),null);calls.length=0;radio.renderPlayer();assert.equal(calls[0][1].title,'P3');assert.equal(calls[0][1].loading,undefined);radio.invalidate();offer.resolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await operation;assert.equal(writes,0);assert.equal(radio.pendingRequest,null);assert.equal(radio.pendingStart(),null);}});
+test('all start origins retain exact scoped station and desired target, expire display immediately and never submit stale preview',async()=>{for(const origin of [null,{kind:'transport',id:'play-pause'},{kind:'output',id:'stuen'}]){const {radio,host,calls}=fixture(value({state:{...value().state,volumePercent:37}}));const offer=held();let writes=0;host.liveTransport.radioOffer=()=>offer.promise;host.liveTransport.radioAction=async()=>{writes++;return {status:'accepted'};};const operation=radio.act('start',{stationId:'p1',targetId:'stuen'},origin);assert.equal(radio.pendingStart().stationId,'p1');assert.equal(radio.pendingStart().targetId,'stuen');assert.equal(radio.pendingStart().targetName,'Stuen');assert.equal(Object.isFrozen(radio.pendingStart()),true);radio.renderPlayer();assert.equal(calls[0][1].title,'P1');assert.equal(calls[0][1].target,'Stuen');assert.equal(calls[0][1].volume,37);assert.equal(calls[1][1].pendingLabel,'Starter P1…');assert.equal(calls[1][1].blocked,false);assert.equal(radio.value.state.stationId,'p3');radio.value.validUntil=0;assert.equal(radio.pendingStart(),null);calls.length=0;radio.renderPlayer();assert.equal(calls[0][1].title,'P3');assert.equal(calls[0][1].loading,undefined);radio.invalidate();offer.resolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await operation;assert.equal(writes,0);assert.equal(radio.pendingRequest,null);assert.equal(radio.pendingStart(),null);}});
 
 test('requested start preview volume belongs only to fresh admitted native destination, never the prior player or another receiver',async()=>{const kitchen={id:'kitchen',name:'Køkken',availability:'available',selectable:true,default:false};for(const sample of [{label:'Spotify other receiver',sourceKind:'spotify',status:'idle',targetId:'kitchen',volumePercent:62,expected:null},{label:'stopped radio other receiver',sourceKind:'radio',status:'stopped',targetId:'kitchen',volumePercent:62,expected:null},{label:'same receiver station switch',sourceKind:'radio',status:'playing',targetId:'stuen',volumePercent:37,expected:37},{label:'same receiver native Spotify',sourceKind:'spotify',status:'idle',targetId:'stuen',volumePercent:37,expected:37},{label:'missing measurement',sourceKind:'radio',status:'stopped',targetId:'stuen',volumePercent:null,expected:null},{label:'unknown source',sourceKind:'unknown',status:'idle',targetId:'stuen',volumePercent:37,expected:null},{label:'missing destination',sourceKind:'spotify',status:'idle',targetId:null,volumePercent:37,expected:null},{label:'stale measurement',sourceKind:'spotify',status:'idle',targetId:'stuen',volumePercent:37,observedAt:Date.now()/1000-31,expected:null},{label:'missing observation',sourceKind:'spotify',status:'idle',targetId:'stuen',volumePercent:37,observedAt:null,expected:null}]){const {expected,label,...state}=sample,{radio,host,calls}=fixture(value({targets:[...value().targets,kitchen],state:{...value().state,...state}})),offer=held(),sent=[];host.playerView.volumeMuteVM={volume:89};host.liveTransport.radioOffer=body=>{sent.push(body);return offer.promise;};const operation=radio.act('start',{stationId:'p1',targetId:'stuen'});assert.equal(radio.pendingStart().volumePercent,expected,label);radio.renderPlayer();assert.equal(calls[0][1].volume,expected,label);assert.equal(calls[1][1].volume,expected,label);assert.equal(calls[1][1].canVolume,false,label);assert.equal(sent[0].volumePercent,null,'preview measurement never becomes native start-volume authority');assert.equal(radio.value.state.targetId,state.targetId);assert.equal(host.playerView.volumeMuteVM.volume,89);radio.invalidate();offer.resolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await operation;assert.equal(radio.pendingStart(),null);}});
 
@@ -75,7 +75,7 @@ test('radio uses one existing source-scoped notification for failures, no pendin
  assert.equal(queue.current.source,'action');assert.equal(queue.pending.length,1);assert.equal(queue.pending[0].source,'radio');assert.equal(queue.pending[0].pending,false);assert.match(queue.pending[0].message,/Radio/);
  queue.dismiss();assert.equal(queue.current.source,'radio');assert.equal(shown.filter(item=>item?.source==='radio').length,1);
  radio.feedbackKind=null;radio.message='';radio.render();assert.equal(queue.current,null);assert.equal(queue.pending.length,0);
- radio.unknown=true;radio.render();radio.render();assert.equal(shown.filter(item=>item?.source==='radio').length,2);assert.match(queue.current.message,/ikke bekræftet/);assert.ok(Array.from(queue.current.message).length<=55);assert.equal(radio.can('start'),false);
+ radio.unknown=true;radio.render();radio.render();assert.equal(shown.filter(item=>item?.source==='radio').length,2);assert.match(queue.current.message,/ikke bekræftet/);assert.ok(Array.from(queue.current.message).length<=55);assert.equal(radio.can('start'),true);
  radio.invalidate(true);assert.equal(queue.current,null);queue.cleanup();
 });
 
@@ -219,4 +219,96 @@ test('short radio authority renews passively before expiry and a held read canno
   assert.equal(reads,3);
   assert.equal(actions,0);
  }finally{radio.invalidate(true);context.mock.timers.reset();}
+});
+// R2/R4: Stop is never dead while a station is starting; it waits for the start and is sent once.
+test('Stop tapped while a station is starting is shown, queued and sent once when the start settles',async()=>{
+ const {radio,host,calls}=fixture(),first=held(),offers=[],sent=[];let revision=1,status='playing',stationId='p3';
+ try{
+  host.liveTransport.radioOffer=async body=>{offers.push(body);return {...snapshot,taskId:'task-'+offers.length,optionId:'opt',expiresAt:Date.now()/1000+5};};
+  host.liveTransport.radioAction=async()=>{const body=offers.at(-1);sent.push(body.action);if(sent.length===1)await first.promise;
+   revision++;if(body.action==='stop')status='stopped';else stationId=body.stationId;return {status:'accepted'};};
+  host.liveTransport.radio=async()=>value({revision,state:{...value().state,status,stationId,generation:revision}});
+  const starting=radio.choose('p1');await Promise.resolve();
+  calls.length=0;radio.renderControls();const controls=calls.at(-1)[1];
+  assert.equal(controls.toggle,true,'Stop is tappable during the start');assert.equal(controls.blocked,false);
+  radio.control({type:'toggle'});
+  calls.length=0;radio.renderControls();assert.match(calls.at(-1)[1].pendingLabel,/Stopper/,'the Stop wish is shown at once');
+  assert.deepEqual(sent,['start'],'Stop waits for the start');
+  first.resolve();await starting;for(let i=0;i<5;i++)await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(sent,['start','stop'],'Stop is sent exactly once after the start');
+  assert.equal(radio.value.state.status,'stopped');
+ }finally{first.resolve();clearTimeout(radio.expiry);clearTimeout(radio.timer);}
+});
+test('a confirmed start Stop does not follow another queued station',async()=>{
+ const {radio,host}=fixture(),first=held(),offers=[];
+ let revision=1,stationId='p3';
+ try{
+  host.liveTransport.radioOffer=async body=>{
+   offers.push(body);
+   return {...snapshot,taskId:'task-'+offers.length,optionId:'opt',expiresAt:Date.now()/1000+5};
+  };
+  host.liveTransport.radioAction=async()=>{
+   if(offers.length===1)await first.promise;
+   const body=offers.at(-1);
+   if(body.action==='stop')return {status:'rejected'};
+   stationId=body.stationId;
+   revision++;
+   return {status:'accepted'};
+  };
+  host.liveTransport.radio=async()=>value({revision,state:{...value().state,stationId,generation:revision}});
+  const starting=radio.choose('p1');
+  await Promise.resolve();
+  await radio.choose('p6-beat');
+  radio.control({type:'toggle'});
+  first.resolve();
+  await starting;
+  assert.deepEqual(offers.map(body=>[body.action,body.stationId]),[['start','p1'],['start','p6-beat']]);
+  assert.equal(radio.value.state.stationId,'p6-beat');
+  assert.equal(radio.stationChoices.length,0);
+ }finally{first.resolve();radio.invalidate();}
+});
+for(const failure of ['offer rejection','action rejection','observed error']){
+ test(`Stop queued for an unsuccessful start leaves the previous station playing after ${failure}`,async()=>{
+  const {radio,host}=fixture(),first=held(),offers=[],sent=[];
+  radio.lastConfirmed={...radio.value.state};
+  try{
+   host.liveTransport.radioOffer=async body=>{
+    offers.push(body.action);
+    if(body.action==='start'&&failure==='offer rejection')return first.promise;
+    return {...snapshot,taskId:'task-'+offers.length,optionId:'opt',expiresAt:Date.now()/1000+5};
+   };
+   host.liveTransport.radioAction=async()=>{
+    const action=offers.at(-1);
+    sent.push(action);
+    if(action==='start')return failure==='action rejection'?first.promise:{status:'accepted'};
+    return {status:'rejected'};
+   };
+   host.liveTransport.radio=()=>first.promise;
+   const starting=radio.choose('p1');
+   await Promise.resolve();
+   assert.equal(radio.pendingStart()?.stationId,'p1');
+   radio.control({type:'toggle'});
+   first.resolve(failure==='offer rejection'?{}:failure==='action rejection'?{status:'rejected'}
+    :value({revision:2,state:{...value().state,generation:2,status:'error'}}));
+   await starting;
+   assert.deepEqual(offers,['start']);
+   assert.deepEqual(sent,failure==='offer rejection'?[]:['start']);
+   assert.equal(radio.displayState().stationId,'p3');
+   assert.equal(radio.displayState().status,'playing');
+   assert.equal(radio.stationChoices.length,0);
+  }finally{radio.invalidate();}
+ });
+}
+// R4: an unconfirmed start stays visible and is never replayed, but a new explicit tap is a new action.
+test('after an unconfirmed start the message stays, nothing is replayed, and a new station or Stop can be tapped',async()=>{
+ const {radio,host,calls}=fixture(value({state:{...value().state,status:'stopped'}})),offers=[];
+ host.liveTransport.radioOffer=async body=>{offers.push(body);return {...snapshot,taskId:'task-'+offers.length,optionId:'opt',expiresAt:Date.now()/1000+10};};
+ host.liveTransport.radioAction=async()=>({status:'unknown'});
+ await radio.choose('p3');for(let i=0;i<3;i++)await new Promise(resolve=>setImmediate(resolve));
+ assert.equal(offers.length,1,'the unknown start is not replayed');
+ assert.equal(radio.feedback()?.state,'unknown','the unknown result stays visible');
+ assert.equal(radio.canChooseStation(),true,'a new station can be chosen');
+ calls.length=0;radio.renderControls();assert.equal(calls.at(-1)[1].blocked,false,'the player is not locked');
+ await radio.choose('p6-beat');
+ assert.deepEqual(offers.map(body=>body.stationId),['p3','p6-beat'],'the new explicit tap is sent once');
 });

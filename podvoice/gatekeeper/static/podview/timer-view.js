@@ -74,7 +74,8 @@ export class TimerView {
    for(const button of node.querySelectorAll('.timer-actions button,.timer-finish'))applyKitComponent(button,'button',{variant:button.dataset.timerAction==='toggle'?'primary':'secondary'});node.querySelector('svg')?.classList.add('pv-illu');container.append(node);this.nodes.set(key,node);
    if(overview)node.querySelector('.timer-open').addEventListener('click',()=>{this.host.dispatch({type:'show',id:'timers'});this.host.focusHeading();});
    for(const button of node.querySelectorAll('[data-timer-action]'))button.addEventListener('click',()=>{const timer=timersFor(this.host.state).find(t=>t.id===node.dataset.timerId);if(button.disabled||button.hidden||!this.connected||!timer)return;
-    if(button.dataset.timerAction==='adjust'){const deltaSeconds=Number(button.dataset.deltaSeconds),access=this.accessModel,bounds=timerAdjustmentBounds(this.presentationTimer(timer));if(this.host.live!==true||!timer.ownerBootId||access?.canAdjust!==true||access.pending||access.awaitingObservation||access.adjustPending||access.adjustBlockedIds?.includes(timer.id)||!bounds||!([-60,60].includes(deltaSeconds))||!bounds[deltaSeconds<0?'minus':'plus'])return;this.host.dispatch({type:'timer',action:'adjust',id:timer.id,deltaSeconds});return;}
+    if(button.dataset.timerAction==='adjust'){const deltaSeconds=Number(button.dataset.deltaSeconds),access=this.accessModel,bounds=timerAdjustmentBounds(this.presentationTimer(timer));if(this.host.live!==true||!timer.ownerBootId||access?.canAdjust!==true||(access.pending||access.awaitingObservation||access.adjustPending)
+     &&access.adjustPending?.timerId!==timer.id||access.adjustBlockedIds?.includes(timer.id)||!bounds||!([-60,60].includes(deltaSeconds))||!bounds[deltaSeconds<0?'minus':'plus'])return;this.host.dispatch({type:'timer',action:'adjust',id:timer.id,deltaSeconds});return;}
     if(this.host.live||timer.ownerBootId||timer.stale||!['running','paused'].includes(timer.status))return;this.host.dispatch({type:'timer',id:timer.id,action:timer.status==='paused'?'resume':'pause',now:Date.now()});});
    node.querySelector('.timer-finish').addEventListener('click',()=>{if(!this.canCancel||this.accessModel?.cancelBlockedIds?.includes(node.dataset.timerId))return;this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'cancel'});this.host.focusHeading();});
   }
@@ -90,7 +91,9 @@ export class TimerView {
   if(actions.hidden!==hidden)actions.hidden=hidden;
   for(const button of node.querySelectorAll('[data-timer-action]')){
    const adjust=button.dataset.timerAction==='adjust',delta=Number(button.dataset.deltaSeconds),buttonHidden=adjust?!native:!local;if(button.hidden!==buttonHidden)button.hidden=buttonHidden;
-   if(adjust){const disabled=!native||!this.connected||access.canAdjust!==true||blocked||access.adjustBlockedIds?.includes(t?.id)||!bounds?.[delta<0?'minus':'plus'];if(button.disabled!==!!disabled)button.disabled=!!disabled;applyKitComponent(button,'button',{variant:'icon',feedback:'progress',loading:!!(pending&&pending.deltaSeconds===delta&&access.waiting)});}
+   if(adjust){
+    // An adjustment in flight for this timer keeps +1/−1 tappable; the host queues the taps (T1).
+    const disabled=!native||!this.connected||access.canAdjust!==true||blocked&&!pending||access.adjustBlockedIds?.includes(t?.id)||!bounds?.[delta<0?'minus':'plus'];if(button.disabled!==!!disabled)button.disabled=!!disabled;applyKitComponent(button,'button',{variant:'icon',feedback:'progress',loading:!!(pending&&pending.deltaSeconds===delta&&access.waiting)});}
    else{const label=t?.status==='paused'?'Fortsæt':'Pause';if(button.textContent!==label)button.textContent=label;const disabled=!local||!this.connected||blocked||t?.stale;if(button.disabled!==!!disabled)button.disabled=!!disabled;}
   }
  }
