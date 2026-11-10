@@ -63,15 +63,15 @@ class Component extends DCLogic {
     // Titel og info står fast under det valgte billede (kategori 20, titel 44, meta 24), så intet hopper.
     // Alle billeder og data er fra HA Green (api/recipes, recipe.image).
     const R = [
-      { t: 'Burgerboller', c: 'Brød og bagværk', m: '15 stk. · 2–3 timer hævning', img: 'https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=1200' },
-      { t: 'Kylling i karry', c: 'Aftensmad', m: '4 personer · 45 min. i alt', img: 'https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6777-edited.jpg' },
-      { t: 'Protein bagels med hytteost', c: 'Brød og bagværk', m: '4 bagels · ingen hævetid', img: 'https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-5.jpg' },
-      { t: 'Nem chokoladekage i bradepande', c: 'Desserter', m: '1 kage · 120 min.', img: 'https://images.arla.com/recordid/F92C4A6D-64ED-4F3C-8D03B2640884721F/picture.jpg' },
-      { t: 'Scones med hytteost og blåbær', c: 'Brød og bagværk', m: '9 stk. · 30 min. i alt', img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/05/Frederikke-Waerens-Scones-med-hytteost-og-blaabaer-12-1365x688.jpg' },
-      { t: 'Pizzaboller med hytteost', c: 'Madpakker', m: '8–10 stk. · 35 min. i alt', img: 'https://frederikkewaerens.dk/wp-content/uploads/2025/02/Frederikke-Waerens-Pizzaboller-med-hytteost-12-1440x688.jpg' },
-      { t: 'Chokoladegranola', c: 'Morgenmad', m: '1 stort glas · 20–30 min. bagetid', img: 'https://martinys.dk/cdn/shop/articles/Sund-chokolade-granola-sukkerfri_d88c14d4-3ea4-4c6e-a94c-53c3648696b5.jpg' },
-      { t: 'Koldhævede hytteostboller', c: 'Brød og bagværk', m: '15 stk. · hæver natten over', img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/10/Frederikke-Waerens-Koldhaevede-hytteostboller-13-1365x688.jpg' },
-      { t: 'Hjemmelavede müslibarer', c: 'Madpakker', m: 'Ca. 15 stk. · 1 time i alt', img: 'https://frederikkewaerens.dk/wp-content/uploads/2023/07/Frederikke-Waerens-Fredagshygge-Hjemmelavede-muslibarer-12-1365x688.jpg' }
+      { t: 'Burgerboller', c: 'Brød og bagværk', m: '15 stk. · 2–3 timer hævning', img: '/_blob/aea2f371059ce6329c9ddf1518ef4f68' },
+      { t: 'Kylling i karry', c: 'Aftensmad', m: '4 personer · 45 min. i alt', img: '/_blob/446c15015f8b510807a4d60ce1219a99' },
+      { t: 'Protein bagels med hytteost', c: 'Brød og bagværk', m: '4 bagels · ingen hævetid', img: '/_blob/79ee96ed4833dd4bf138089192f6ce60' },
+      { t: 'Nem chokoladekage i bradepande', c: 'Desserter', m: '1 kage · 120 min.', img: '/_blob/37ebec566f2c94a27014f2c91f556039' },
+      { t: 'Scones med hytteost og blåbær', c: 'Brød og bagværk', m: '9 stk. · 30 min. i alt', img: '/_blob/85550edf710012597ef8a830ccf3dfcc' },
+      { t: 'Pizzaboller med hytteost', c: 'Madpakker', m: '8–10 stk. · 35 min. i alt', img: '/_blob/610f9440135805c410ede74dfe79a38e' },
+      { t: 'Chokoladegranola', c: 'Morgenmad', m: '1 stort glas · 20–30 min. bagetid', img: '/_blob/5019153462fa1d16bd03e804b1ffd218' },
+      { t: 'Koldhævede hytteostboller', c: 'Brød og bagværk', m: '15 stk. · hæver natten over', img: '/_blob/adfaa46c293017c790075a0f01aa4ec4' },
+      { t: 'Hjemmelavede müslibarer', c: 'Madpakker', m: 'Ca. 15 stk. · 1 time i alt', img: '/_blob/c0dfbc2fca630c92a7f9ce0ce6ea9dfe' }
     ];
     const i = this.state.i;
     const covers = R.map((r, k) => {

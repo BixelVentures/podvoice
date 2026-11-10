@@ -43,12 +43,12 @@ class Component extends DCLogic {
     // Tryk på omslaget eller Kø i afspilleren åbner denne side (produktets music-detail/queue). Afspilleren står fast til højre.
     // Spiller nu og køens længde (20) er fra HA Green; de næste numre er produktets fixture med ægte Spotify-omslag.
     // Ind: venstre kolonne glider 16 px op og toner ind (320 ms).
-    const T = [['End of Beginning','Djo','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02da27026597de2d0d940990d2'],
-      ['Cruel Summer','Taylor Swift','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02e787cffec20aa2a396a61647'],
-      ['Flowers','Miley Cyrus','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e0266fd0917f38d472c8576754e'],
-      ['Lost','Frank Ocean','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e027aede4855f6d0d738012e2e5'],
-      ['Take Five','The Dave Brubeck Quartet','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e029a5cf8ee22fc7ee02ad3478e'],
-      ['Via con me','Paolo Conte','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e0260b2bff12b9c6b25b67876e3']];
+    const T = [['End of Beginning','Djo','/_blob/8a8790ee6fae7dbef7a620ae2061e220'],
+      ['Cruel Summer','Taylor Swift','/_blob/593d7741d16d21440560333e0e442ad1'],
+      ['Flowers','Miley Cyrus','/_blob/307bd4827a7bb0c9a91b42f220926d72'],
+      ['Lost','Frank Ocean','/_blob/bf5333b381d9648daf7b38135ec1105e'],
+      ['Take Five','The Dave Brubeck Quartet','/_blob/1e4b8c297f491dee57deeeace6c401c1'],
+      ['Via con me','Paolo Conte','/_blob/1f75aadfd8a14f20188b4bbc205bd78f']];
     return { q: T.map(([t, a, art], k) => ({ i: k + 2, t, a, art })) };
   }
 }

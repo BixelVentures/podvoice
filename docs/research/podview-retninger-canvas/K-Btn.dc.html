@@ -14,7 +14,7 @@ class Component extends DCLogic {
   renderVals() {
     // Fælles knap (UI-kit): 56 primær højde, 44 sekundær minimum. Trykfladen er hele pillen.
     const V = { primaer: { bg: '#17171A', fg: '#F7F6F3', sh: 'none' }, sekundaer: { bg: '#EFEDE8', fg: '#17171A', sh: 'none' },
-      kant: { bg: 'transparent', fg: '#17171A', sh: 'inset 0 0 0 1.5px rgba(23,23,26,.2)' }, fare: { bg: 'transparent', fg: '#B0262A', sh: 'inset 0 0 0 1.5px rgba(176,38,42,.45)' },
+      kant: { bg: 'transparent', fg: '#17171A', sh: 'inset 0 0 0 1.5px rgba(23,23,26,.2)' }, fare: { bg: '#FFFFFF', fg: '#B0262A', sh: 'inset 0 0 0 2px #B0262A' },
       lys: { bg: '#F7F6F3', fg: '#17171A', sh: 'none' }, moerk: { bg: '#2B2B30', fg: '#F7F6F3', sh: 'none' } };
     const h = Number(this.props.size) || 56;
     return { v: V[this.props.variant] || V.primaer, h, pad: h === 56 ? 26 : 18, fs: h === 56 ? 17 : 16, label: this.props.label || '', w: this.props.w || 'auto' };

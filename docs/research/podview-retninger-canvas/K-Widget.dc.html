@@ -167,7 +167,7 @@ class Component extends DCLogic {
         _: { label: 'Tesla', icon: I.car, href: 'A-Tesla.dc.html', car: true, primF: sans, primS: '20px' },
         sidstkendt: { bg: '#D5EADD', prim: '81 %', primC: '#2E4A3B', ctx: 'Ulåst · bagagerum åbent', alert: '#B07A06', level: 0.81, fill: '#8C918D' },
         lader: { bg: '#D5EADD', prim: '81 %', primC: '#17442F', ctx: 'Lader · forventet færdig 20.43', ctxC: '#2E5A43', level: 0.81, fill: '#2F7A55', flow: true },
-        klima: { bg: '#D5EADD', prim: '81 %', primC: '#17442F', ctx: 'Klima · varmer', ctxC: '#2E5A43', level: 0.81, fill: '#2F7A55' },
+        klima: { bg: '#D5EADD', prim: '81 %', primC: '#17442F', ctx: 'Klima · varmer', ctxC: '#2E5A43', level: 0.81, fill: '#2F7A55', warm: true },
         laast: { bg: '#D5EADD', prim: '81 %', ctx: 'Låst · 313 km', level: 0.81, fill: '#5E6B63' },
         ikkeforbundet: { bg: '#D5EADD', prim: 'Ikke forbundet', primF: sans, primS: '20px', primC: '#5F5E5A', ctx: 'Kræver tilslutning', level: 0, fill: grey }
       },
@@ -256,7 +256,9 @@ class Component extends DCLogic {
         const inBody = this.inPoly(x, y, body) && !near;
         let c = null, cls = '', dl = 0;
         if (tire) c = '#17171A';
-        else if (inBody) { const on = (x - 30) / 958 <= v.level; c = on ? v.fill : 'rgba(23,23,26,.10)'; if (on && v.flow) { cls = 'an-flow'; dl = Math.round(x * 2); } }
+        else if (inBody) { const on = (x - 30) / 958 <= v.level; c = on ? v.fill : 'rgba(23,23,26,.10)'; if (on && v.flow) { cls = 'an-flow'; dl = Math.round(x * 2); }
+          // Kabinen (vinduesfeltet over bæltelinjen) gløder orange, når klimaet varmer.
+          if (v.warm && y < 200 && x > 280 && x < 820) { c = '#FF7A5C'; cls = 'an-warm'; dl = Math.round(x * 3); } }
         if (c) out.car.push({ x: f((x - 24) * k - 2.2), y: f((y - 84) * k * 1.2 - 2.2), c, cls, dl });
       }
     }

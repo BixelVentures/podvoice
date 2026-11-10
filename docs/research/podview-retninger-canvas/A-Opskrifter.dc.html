@@ -23,7 +23,7 @@ a.cd:active{transform:scale(.985)}
   <dc-import name="A-Topbar" heading="Opskrifter" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
   <div style="position: absolute; left: 24px; top: 88px; width: 1232px; height: 696px; display: flex; flex-direction: column; gap: 20px">
     <a href="A-Opskrift.dc.html" class="cd" style="height: 96px; flex: none; padding: 0 24px; box-sizing: border-box; display: flex; align-items: center; gap: 18px; background: #F2E4D3">
-      <img src="https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=1200" alt="" style="width: 56px; height: 56px; border-radius: 16px; object-fit: cover; flex: none">
+      <img src="/_blob/aea2f371059ce6329c9ddf1518ef4f68" alt="" style="width: 56px; height: 56px; border-radius: 16px; object-fit: cover; flex: none">
       <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
         <span style="font-size: 15px; font-weight: 600; color: #7A4A22">I gang</span>
         <span style="font-size: 22px; font-weight: 800">Burgerboller · trin 2 af 5 · hvile og hævning</span>
@@ -61,15 +61,15 @@ class Component extends DCLogic {
     // Rigtigt katalog fra HA Green (api/recipes, 9. nov.): titler, kategorier, portioner og tider. Alfabetisk, som produktets indeks.
     const pal = { 'Brød og bagværk': ['#E8CBA6', '#A8622C', '#3B2412'], 'Morgenmad': ['#F1E3A8', '#A8862C', '#2F2610'], 'Madpakker': ['#CFE0C3', '#4F7A3A', '#1F3318'], 'Aftensmad': ['#E9B7A0', '#A33A1E', '#3A140A'], 'Desserter': ['#8C5A2E', '#E2C4A6', '#FFF2E4'] };
     const all = [
-      { img: 'https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=1200', t: 'Burgerboller', c: 'Brød og bagværk', m: '15 stk. · 2–3 timer hævning', active: true },
-      { img: 'https://martinys.dk/cdn/shop/articles/Sund-chokolade-granola-sukkerfri_d88c14d4-3ea4-4c6e-a94c-53c3648696b5.jpg', t: 'Chokoladegranola', c: 'Morgenmad', m: '1 stort glas · 20–30 min. bagetid' },
-      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2023/07/Frederikke-Waerens-Fredagshygge-Hjemmelavede-muslibarer-12-1365x688.jpg', t: 'Hjemmelavede müslibarer', c: 'Madpakker', m: 'Ca. 15 stk. · 1 time i alt' },
-      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/10/Frederikke-Waerens-Koldhaevede-hytteostboller-13-1365x688.jpg', t: 'Koldhævede hytteostboller', c: 'Brød og bagværk', m: '15 stk. · hæver natten over' },
-      { img: 'https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6777-edited.jpg', t: 'Kylling i karry', c: 'Aftensmad', m: '4 personer · 45 min. i alt' },
-      { img: 'https://images.arla.com/recordid/F92C4A6D-64ED-4F3C-8D03B2640884721F/picture.jpg', t: 'Nem chokoladekage i bradepande', c: 'Desserter', m: '1 kage · 120 min.' },
-      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2025/02/Frederikke-Waerens-Pizzaboller-med-hytteost-12-1440x688.jpg', t: 'Pizzaboller med hytteost', c: 'Madpakker', m: '8–10 stk. · 35 min. i alt' },
-      { img: 'https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-5.jpg', t: 'Protein bagels med hytteost', c: 'Brød og bagværk', m: '4 bagels · ingen hævetid' },
-      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/05/Frederikke-Waerens-Scones-med-hytteost-og-blaabaer-12-1365x688.jpg', t: 'Scones med hytteost og blåbær', c: 'Brød og bagværk', m: '9 stk. · 30 min. i alt' }
+      { img: '/_blob/aea2f371059ce6329c9ddf1518ef4f68', t: 'Burgerboller', c: 'Brød og bagværk', m: '15 stk. · 2–3 timer hævning', active: true },
+      { img: '/_blob/5019153462fa1d16bd03e804b1ffd218', t: 'Chokoladegranola', c: 'Morgenmad', m: '1 stort glas · 20–30 min. bagetid' },
+      { img: '/_blob/c0dfbc2fca630c92a7f9ce0ce6ea9dfe', t: 'Hjemmelavede müslibarer', c: 'Madpakker', m: 'Ca. 15 stk. · 1 time i alt' },
+      { img: '/_blob/adfaa46c293017c790075a0f01aa4ec4', t: 'Koldhævede hytteostboller', c: 'Brød og bagværk', m: '15 stk. · hæver natten over' },
+      { img: '/_blob/446c15015f8b510807a4d60ce1219a99', t: 'Kylling i karry', c: 'Aftensmad', m: '4 personer · 45 min. i alt' },
+      { img: '/_blob/37ebec566f2c94a27014f2c91f556039', t: 'Nem chokoladekage i bradepande', c: 'Desserter', m: '1 kage · 120 min.' },
+      { img: '/_blob/610f9440135805c410ede74dfe79a38e', t: 'Pizzaboller med hytteost', c: 'Madpakker', m: '8–10 stk. · 35 min. i alt' },
+      { img: '/_blob/79ee96ed4833dd4bf138089192f6ce60', t: 'Protein bagels med hytteost', c: 'Brød og bagværk', m: '4 bagels · ingen hævetid' },
+      { img: '/_blob/85550edf710012597ef8a830ccf3dfcc', t: 'Scones med hytteost og blåbær', c: 'Brød og bagværk', m: '9 stk. · 30 min. i alt' }
     ].map((r) => ({ active: false, ...r, bg: pal[r.c][0], fg: pal[r.c][1] }));
     const cats = ['Alle', 'Brød og bagværk', 'Madpakker', 'Aftensmad', 'Morgenmad', 'Desserter'];
     const tab = this.state.tab;

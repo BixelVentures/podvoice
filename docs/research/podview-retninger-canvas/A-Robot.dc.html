@@ -154,7 +154,7 @@ class Component extends DCLogic {
     const n = Object.values(this.state.rooms).filter(Boolean).length;
     const dark = { bg: '#17171A', fg: '#F7F6F3', sh: 'none' };
     const light = { bg: '#F7F6F3', fg: '#17171A', sh: 'none' };
-    const danger = { bg: 'transparent', fg: '#B0262A', sh: 'inset 0 0 0 1.5px rgba(176,38,42,.45)' };
+    const danger = { bg: '#FFFFFF', fg: '#B0262A', sh: 'inset 0 0 0 2px #B0262A' };
     const segs = (p) => Array.from({ length: 25 }, (_, i) => (i < Math.round(p / 4) ? '#7E2242' : 'rgba(126,34,66,.16)'));
     const S = {
       oplader: { surface: '#F6D8E1', ring: '#B23A62', core: '#F7F6F3', anim: '', ringOp: 0.55, mode: 'Ved basen', title: 'Oplader', titleC: '#17171A',

@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="da">
-<head><meta charset="utf-8"><title>Tesla · Lås op: ukendt</title><script src="./support.js"></script></head>
+<head><meta charset="utf-8"><title>Tesla · adgang: ukendt</title><script src="./support.js"></script></head>
 <body>
 <x-dc>
 <helmet>
@@ -11,11 +11,13 @@ body{margin:0}
 .md{animation:md .32s cubic-bezier(.2,.9,.3,1) both}@keyframes md{from{opacity:0;transform:translate(-50%,-46%) scale(.97)}to{opacity:1;transform:translate(-50%,-50%)}}
 .dot{animation:dot .9s ease-in-out infinite}@keyframes dot{0%,100%{opacity:.3;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
 .tst{animation:tst .3s cubic-bezier(.2,.9,.3,1) both}@keyframes tst{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion: reduce){.sh,.md,.dot,.tst{animation:none}}
+.sweep{animation:sweep 1.4s linear infinite}@keyframes sweep{from{transform:translateX(-100%)}to{transform:translateX(100%)}}
+.okpop{animation:okpop .4s cubic-bezier(.2,1.3,.4,1) both}@keyframes okpop{from{transform:scale(.92)}to{transform:none}}
+@media (prefers-reduced-motion: reduce){.sh,.md,.dot,.tst,.sweep,.okpop{animation:none}}
 </style>
 </helmet>
 <div style="width: 1280px; height: 800px; position: relative; overflow: hidden; font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: #17171A">
-  <dc-import name="A-Tesla" hint-size="1280px,800px"></dc-import>
+  <dc-import name="A-Tesla" state="{{carSt}}" hint-size="1280px,800px"></dc-import>
   <sc-if value="{{confirm}}" hint-placeholder-val="{{ true }}">
     <i class="sh" style="position: absolute; inset: 0; background: rgba(23,23,26,.45); display: block"></i>
     <div class="md" role="alertdialog" aria-labelledby="tq" style="position: absolute; left: 50%; top: 50%; width: 520px; padding: 32px; box-sizing: border-box; border-radius: 28px; background: #F7F6F3; box-shadow: 0 40px 80px -30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 12px; transform: translate(-50%,-50%)">
@@ -28,6 +30,13 @@ body{margin:0}
       </div>
     </div>
   </sc-if>
+  <sc-if value="{{btnOn}}" hint-placeholder-val="{{ false }}">
+    <div class="{{btnCls}}" aria-live="polite" style="position: absolute; left: 48px; top: 640px; width: 366px; height: 56px; border-radius: 999px; overflow: hidden; background: {{btnBg}}; color: {{btnFg}}; display: flex; align-items: center; justify-content: center; gap: 10px; font: 600 17px 'Schibsted Grotesk', sans-serif">
+      <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><i class="sweep" style="position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); display: block"></i></sc-if>
+      <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><span style="display: flex; gap: 4px"><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; display: block"></i><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; animation-delay: 150ms; display: block"></i><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; animation-delay: 300ms; display: block"></i></span></sc-if>
+      <span style="position: relative">{{btnL}}</span>
+    </div>
+  </sc-if>
   <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
     <div class="tst" role="status" style="position: absolute; left: 24px; top: 325px; width: 844px; min-height: 72px; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: {{bg}}; color: {{fg}}; display: flex; align-items: center; gap: 16px; box-shadow: 0 16px 32px -20px rgba(23,23,26,.5)">
       <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><span style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; gap: 4px; flex: none"><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; display: block"></i><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; animation-delay: 150ms; display: block"></i><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; animation-delay: 300ms; display: block"></i></span></sc-if>
@@ -37,19 +46,28 @@ body{margin:0}
   </sc-if>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"fase":{"editor":"enum","default":"ukendt","options":["bekraeft","sender","bekraeftet","ukendt"]},"$preview":{"width":1280,"height":800}}'>
+<script type="text/x-dc" data-dc-script data-props='{"fase":{"editor":"enum","default":"ukendt","options":["bekraeft","sender","bekraeftet","ukendt","laaser","laast"]},"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   renderVals() {
     // Flow for Lås op / Åbn bagagerum med produktets tekster (vehicle-view.js).
     // 1 bekræft: modal (fælles kit) · 2 sender: beskedlinje "Anmodning modtaget." med prikker, knapperne låst
     // 3 bekræftet: info, forsvinder efter 3 s · 4 ukendt: fejl "Udfald ukendt · kontrollér bilen." bliver stående.
     const f = this.props.fase || 'bekraeft';
+    // Låsning kræver ingen bekræftelse (sikker handling): Lås bilen → Låser… → ✓ Låst. Oplåsning kræver bekræftelse.
     const T = {
+      laaser: { bg: '#E2E0DB', fg: '#3F3E3B', busy: true, glyph: '', t: 'Anmodning modtaget.', d: 'Handlingen kan vække bilen.' },
+      laast: { bg: '#D5EADD', fg: '#17442F', busy: false, glyph: '✓', ic: '#2F7A55', t: 'Låst', d: '' },
       sender: { bg: '#E2E0DB', fg: '#3F3E3B', busy: true, glyph: '', t: 'Anmodning modtaget.', d: 'Handlingen kan vække bilen.' },
       bekraeftet: { bg: '#D5EADD', fg: '#17442F', busy: false, glyph: '✓', ic: '#2F7A55', t: 'Ulåst', d: 'Bilen låses ikke automatisk igen herfra.' },
       ukendt: { bg: '#F8DCDC', fg: '#5E1416', busy: false, glyph: '!', ic: '#B0262A', t: 'Udfald ukendt · kontrollér bilen.', d: 'Svar mangler · Kontrollér bilen før en ny kommando.' }
     };
-    return { confirm: f === 'bekraeft', toast: f !== 'bekraeft', ...(T[f] || { bg: '', fg: '', busy: false, glyph: '', ic: '', t: '', d: '' }) };
+    // Selve knappen giver feedback: sender = "Låser op…" med prikker og et lys der løber over pillen (knappen er låst);
+    // bekræftet = grøn "✓ Ulåst" med et lille pop, vender tilbage til "Lås bilen" efter 3 s; ukendt = knappen frigives igen.
+    const B = { sender: { btnOn: true, btnBg: '#17171A', btnFg: '#F7F6F3', btnL: 'Låser op…', btnCls: '' },
+      bekraeftet: { btnOn: true, btnBg: '#2F7A55', btnFg: '#FFFFFF', btnL: '✓ Ulåst', btnCls: 'okpop' },
+      laaser: { btnOn: true, btnBg: '#17171A', btnFg: '#F7F6F3', btnL: 'Låser…', btnCls: '' },
+      laast: { btnOn: true, btnBg: '#2F7A55', btnFg: '#FFFFFF', btnL: '✓ Låst', btnCls: 'okpop' } }[f] || { btnOn: false, btnBg: '', btnFg: '', btnL: '', btnCls: '' };
+    return { carSt: ['laaser','laast'].includes(f) ? 'ukendt' : 'parkeret', ...B, confirm: f === 'bekraeft', toast: f !== 'bekraeft', ...(T[f] || { bg: '', fg: '', busy: false, glyph: '', ic: '', t: '', d: '' }) };
   }
 }
 </script>

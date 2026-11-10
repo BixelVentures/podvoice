@@ -325,6 +325,15 @@
    "x": 1998,
    "y": 11600
   },
+  "Musik-HoerIgen.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Find musik · Hør igen som liste (ægte Spotify-omslag)",
+   "w": 1280,
+   "x": 6526,
+   "y": 11600
+  },
   "Musik-IkkeTilg.dc.html": {
    "h": 800,
    "is_interactive": true,
@@ -332,6 +341,15 @@
    "title": "Find musik · ikke tilgængelig (Green)",
    "w": 1280,
    "x": 3358,
+   "y": 11600
+  },
+  "Musik-Koe.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Afspiller · nu og kø (tryk på omslag/Kø)",
+   "w": 1280,
+   "x": 7886,
    "y": 11600
   },
   "Musik-Soeg.dc.html": {
@@ -523,6 +541,51 @@
    "x": 9684,
    "y": 5200
   },
+  "Svar-Historik.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · alle visuelle svar",
+   "w": 1280,
+   "x": 5440,
+   "y": 18300
+  },
+  "Svar-Ny-billede.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · billede med kilde",
+   "w": 1280,
+   "x": 1360,
+   "y": 18300
+  },
+  "Svar-Ny-tal.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · sammenligning og tal",
+   "w": 1280,
+   "x": 4080,
+   "y": 18300
+  },
+  "Svar-Ny-trin.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · trin for trin",
+   "w": 1280,
+   "x": 2720,
+   "y": 18300
+  },
+  "Svar-Ny.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Svar · fakta (Green: El Clásico)",
+   "w": 1280,
+   "x": 0,
+   "y": 18300
+  },
   "Svar-afbrudt.dc.html": {
    "h": 800,
    "is_interactive": true,
@@ -667,6 +730,42 @@
    "x": 3840,
    "y": 0
   },
+  "Tesla-Handling-bekraeftet.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: bekræftet",
+   "w": 1280,
+   "x": 10875,
+   "y": 10000
+  },
+  "Tesla-Handling-sender.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: sender",
+   "w": 1280,
+   "x": 8155,
+   "y": 10000
+  },
+  "Tesla-Handling-ukendt.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: udfald ukendt",
+   "w": 1280,
+   "x": 9515,
+   "y": 10000
+  },
+  "Tesla-Handling.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås op: bekræft",
+   "w": 1280,
+   "x": 6795,
+   "y": 10000
+  },
   "Tesla-Klima.dc.html": {
    "h": 800,
    "is_interactive": true,
@@ -693,6 +792,15 @@
    "w": 1280,
    "x": 5435,
    "y": 10000
+  },
+  "Timer-Alarm.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Timer · færdig: fuldskærmsalarm (timer-notice)",
+   "w": 1280,
+   "x": 2476,
+   "y": 16400
   },
   "Timer-faerdig.dc.html": {
    "h": 800,
@@ -746,6 +854,15 @@
    "title": "Vejr · data over 30 min: tidspunkt vises",
    "w": 1280,
    "x": 2882,
+   "y": 3200
+  },
+  "Vejr-Shadere.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Vejr · materiale pr. vejrtype (animeret)",
+   "w": 1280,
+   "x": 5602,
    "y": 3200
   },
   "Vejr-Ukendt.dc.html": {
@@ -1054,112 +1171,22 @@
    "x": 908,
    "y": 3200
   },
-  "Timer-Alarm.dc.html": {
+  "Tesla-Handling-laaser.dc.html": {
    "page": "retning",
-   "title": "Timer · færdig: fuldskærmsalarm (timer-notice)",
+   "title": "Tesla · Lås bilen: låser (ingen bekræftelse)",
    "w": 1280,
    "h": 800,
-   "x": 2476,
-   "y": 16400,
-   "is_interactive": true
-  },
-  "Tesla-Handling.dc.html": {
-   "page": "retning",
-   "title": "Tesla · Lås op: bekræft",
-   "w": 1280,
-   "h": 800,
-   "x": 6795,
+   "x": 12235,
    "y": 10000,
    "is_interactive": true
   },
-  "Tesla-Handling-sender.dc.html": {
+  "Tesla-Handling-laast.dc.html": {
    "page": "retning",
-   "title": "Tesla · Lås op: sender",
+   "title": "Tesla · Lås bilen: låst",
    "w": 1280,
    "h": 800,
-   "x": 8155,
+   "x": 13595,
    "y": 10000,
-   "is_interactive": true
-  },
-  "Tesla-Handling-ukendt.dc.html": {
-   "page": "retning",
-   "title": "Tesla · Lås op: udfald ukendt",
-   "w": 1280,
-   "h": 800,
-   "x": 9515,
-   "y": 10000,
-   "is_interactive": true
-  },
-  "Vejr-Shadere.dc.html": {
-   "page": "retning",
-   "title": "Vejr · materiale pr. vejrtype (animeret)",
-   "w": 1280,
-   "h": 800,
-   "x": 5602,
-   "y": 3200,
-   "is_interactive": true
-  },
-  "Musik-HoerIgen.dc.html": {
-   "page": "retning",
-   "title": "Find musik · Hør igen som liste (ægte Spotify-omslag)",
-   "w": 1280,
-   "h": 800,
-   "x": 6526,
-   "y": 11600,
-   "is_interactive": true
-  },
-  "Musik-Koe.dc.html": {
-   "page": "retning",
-   "title": "Afspiller · nu og kø (tryk på omslag/Kø)",
-   "w": 1280,
-   "h": 800,
-   "x": 7886,
-   "y": 11600,
-   "is_interactive": true
-  },
-  "Svar-Ny.dc.html": {
-   "page": "retning",
-   "title": "Svar · fakta (Green: El Clásico)",
-   "w": 1280,
-   "h": 800,
-   "x": 0,
-   "y": 18300,
-   "is_interactive": true
-  },
-  "Svar-Ny-billede.dc.html": {
-   "page": "retning",
-   "title": "Svar · billede med kilde",
-   "w": 1280,
-   "h": 800,
-   "x": 1360,
-   "y": 18300,
-   "is_interactive": true
-  },
-  "Svar-Ny-trin.dc.html": {
-   "page": "retning",
-   "title": "Svar · trin for trin",
-   "w": 1280,
-   "h": 800,
-   "x": 2720,
-   "y": 18300,
-   "is_interactive": true
-  },
-  "Svar-Ny-tal.dc.html": {
-   "page": "retning",
-   "title": "Svar · sammenligning og tal",
-   "w": 1280,
-   "h": 800,
-   "x": 4080,
-   "y": 18300,
-   "is_interactive": true
-  },
-  "Svar-Historik.dc.html": {
-   "page": "retning",
-   "title": "Svar · alle visuelle svar",
-   "w": 1280,
-   "h": 800,
-   "x": 5440,
-   "y": 18300,
    "is_interactive": true
   }
  },
@@ -1490,7 +1517,20 @@
   "Robot-Sticky.dc.html",
   "Robot-Sticky-Rengoer.dc.html",
   "Vejr-Gammel.dc.html",
-  "Vejr-Ukendt.dc.html"
+  "Vejr-Ukendt.dc.html",
+  "Timer-Alarm.dc.html",
+  "Tesla-Handling.dc.html",
+  "Tesla-Handling-sender.dc.html",
+  "Tesla-Handling-ukendt.dc.html",
+  "Vejr-Shadere.dc.html",
+  "Musik-HoerIgen.dc.html",
+  "Musik-Koe.dc.html",
+  "Svar-Ny.dc.html",
+  "Svar-Ny-billede.dc.html",
+  "Svar-Ny-trin.dc.html",
+  "Svar-Ny-tal.dc.html",
+  "Svar-Historik.dc.html",
+  "Tesla-Handling-bekraeftet.dc.html"
  ],
  "pages": [
   {
