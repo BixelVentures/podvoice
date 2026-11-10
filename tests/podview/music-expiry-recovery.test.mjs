@@ -45,6 +45,23 @@ test('late passive arrivals are discarded across every owner, authority, focus a
 test('owner replacement after warm prefetch causes a fresh read and cannot reuse the old target record',async()=>{
  const f=prefetchFixture();try{f.view.onSnapshot();await f.view.targetRead.promise;const old=f.view.targetRead;f.host.liveSnapshot.providerGeneration=2;await f.view.chooseCard(f.entry.cards[0]);assert.equal(f.reads.length,2);assert.notEqual(f.view.targetRead,old);assert.equal(f.setups.length,1);assert.equal(f.sent.length,1);}finally{f.cleanup();}
 });
+test('a playlist mismatch explains the rejected click without a playback write', async () => {
+ const f=renewalFixture();
+ try {
+  const player=f.host.liveMedia.playback;
+  f.entry.sourceKind='account_playlists';
+  f.host.liveCatalogue.renewForCard=(_card,trace)=>{
+   trace.outcome='renewal_card_mismatch';
+   return Promise.resolve(false);
+  };
+  await f.view.chooseCard(f.entry.cards[0]);
+  assert.equal(f.view.feedback?.message,'Den valgte playliste kunne ikke bekræftes.');
+  assert.equal(f.view.feedback?.pending,false);
+  assert.equal(f.host.liveMedia.playback,player);
+  assert.deepEqual(f.setups,[]);
+  assert.deepEqual(f.sent,[]);
+ } finally { f.cleanup(); }
+});
 test('one expired click revalidates then dispatches exact card once without confirmation',async()=>{const f=renewalFixture();try{const cards=f.entry.cards;const pending=f.view.chooseCard(cards[1]);await f.view.chooseCard(cards[2]);assert.equal(f.reads(),1);assert.equal(f.setups.length,0);f.release();await pending;assert.equal(f.setups.length,1);assert.equal(f.sent.length,1);assert.equal(f.view.dialog.open,false);assert.equal(f.sent[0].optionId,'1'.padStart(24,'c'));assert.strictEqual(f.entry.cards,cards);}finally{f.cleanup();}});
 for(const change of ['room','account','focus','entry','card','invalidate','keyboard'])test('renew continuation discarded on '+change,async()=>{const f=renewalFixture();const oldDoc=globalThis.document;globalThis.document={activeElement:{},body:{}};try{const pending=f.view.chooseCard(f.entry.cards[0]);if(change==='room')f.host.liveSnapshot.roomId='new';if(change==='account')f.view.account='other';if(change==='focus')f.host.state.focus='home';if(change==='entry')f.host.liveCatalogue.entries.clear();if(change==='card')f.entry.cards[0]={...f.entry.cards[0]};if(change==='invalidate')f.view.invalidate();if(change==='keyboard')globalThis.document.activeElement={};f.release();await pending;assert.equal(f.setups.length,0);assert.equal(f.sent.length,0);assert.equal(f.view.dialog.open,false);}finally{globalThis.document=oldDoc;f.cleanup();}});
 test('unknown dispatch survives invalidation and expiry without replaying its old authority', async () => {
