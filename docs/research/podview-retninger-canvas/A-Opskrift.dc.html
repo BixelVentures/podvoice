@@ -21,7 +21,7 @@ body{margin:0}
 </style>
 </helmet>
 <div style="width: 1280px; min-height: 800px; padding-bottom: 32px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
-  <dc-import name="A-Topbar" heading="Burgerboller" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <dc-import name="A-Topbar" heading="Burgerboller" back="{{ true }}" scenario="green" timer="{{tbTimer}}" timerName="{{tbName}}" hint-size="1280px,72px"></dc-import>
   <div style="position: relative; margin: 16px 24px 0; width: 1232px; display: flex; flex-direction: column; gap: 16px">
 
     <div class="cd" style="height: 221px; flex: none; background: #F2E4D3; padding: 24px; box-sizing: border-box; display: grid; grid-template-columns: 160px 1fr auto; align-items: center; gap: 22px">
@@ -88,12 +88,12 @@ body{margin:0}
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+<script type="text/x-dc" data-dc-script data-props='{"timer":{"editor":"boolean","default":false},"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
     // Som på Green 9. nov.: trin 2 af 5, 1 af 10 ingredienser fundet frem, 15 stk.
-    this.state = { n: 15, found: { 0: 1 }, timer: null, cur: 2 };
+    this.state = { n: 15, found: { 0: 1 }, timer: props.timer ? 2 : null, cur: 2 };
   }
   fmt(v, unit) {
     if (unit === 'stk') {
@@ -148,14 +148,18 @@ class Component extends DCLogic {
         fg: done ? '#5F5E5A' : '#17171A', tc: done ? '#5F5E5A' : isCur ? '#2B2B2E' : '#5F5E5A',
         hSize: isCur ? '22px' : '17px', tSize: isCur ? '19px' : '15px',
         timer: !!d.min && !done,
-        tLabel: running ? 'Timer kører · ' + label : (isCur ? 'Start timer · ' : '') + label,
+        tLabel: running ? 'Timer kører · 29:12' : (isCur ? 'Start timer · ' : '') + label,
         tH: isCur ? '56px' : '48px',
         tBg: running ? '#17171A' : isCur ? '#17171A' : '#ECEAE5', tFg: running || isCur ? '#F7F6F3' : '#17171A',
         tSh: isCur || running ? '0 3px 0 #000' : 'none',
         start: () => this.setState({ timer: no })
       };
     });
+    // Start timer (forslag): starter en almindelig timer navngivet efter trinnet. Knappen bliver til "Timer kører · 29:12",
+    // og timeren vises som chip i topbaren, i timer-widgetten og i Foto-Ros aktivitetsplads. Færdig = fuldskærmsalarm.
+    const tr = this.state.timer;
     return {
+      tbTimer: tr ? '29:12' : '', tbName: tr ? 'Hvile og hævning' : '',
       n, cur, groups, steps, foundLabel: foundCount + ' af 10 fundet frem',
       buns: (() => {
         const out = [];

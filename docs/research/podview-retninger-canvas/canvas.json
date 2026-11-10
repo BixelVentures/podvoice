@@ -104,11 +104,11 @@
   "A-Svar.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · kort svar, El Clásico (Green)",
    "w": 1280,
-   "x": 638,
-   "y": 19300
+   "x": 0,
+   "y": 8400
   },
   "A-Tesla.dc.html": {
    "h": 800,
@@ -547,7 +547,7 @@
    "page": "retning",
    "title": "Svar · alle visuelle svar",
    "w": 1280,
-   "x": 5440,
+   "x": 6078,
    "y": 18300
   },
   "Svar-Ny-billede.dc.html": {
@@ -556,7 +556,7 @@
    "page": "retning",
    "title": "Svar · billede med kilde",
    "w": 1280,
-   "x": 1360,
+   "x": 1998,
    "y": 18300
   },
   "Svar-Ny-tal.dc.html": {
@@ -565,7 +565,7 @@
    "page": "retning",
    "title": "Svar · sammenligning og tal",
    "w": 1280,
-   "x": 4080,
+   "x": 4718,
    "y": 18300
   },
   "Svar-Ny-trin.dc.html": {
@@ -574,7 +574,7 @@
    "page": "retning",
    "title": "Svar · trin for trin",
    "w": 1280,
-   "x": 2720,
+   "x": 3358,
    "y": 18300
   },
   "Svar-Ny.dc.html": {
@@ -583,143 +583,143 @@
    "page": "retning",
    "title": "Svar · fakta (Green: El Clásico)",
    "w": 1280,
-   "x": 0,
+   "x": 638,
    "y": 18300
   },
   "Svar-afbrudt.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · afbrudt",
    "w": 1280,
-   "x": 16958,
-   "y": 19300
+   "x": 16320,
+   "y": 8400
   },
   "Svar-billede.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · billede med kilde",
    "w": 1280,
-   "x": 3358,
-   "y": 19300
+   "x": 2720,
+   "y": 8400
   },
   "Svar-diagram.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · enkelt diagram",
    "w": 1280,
-   "x": 6078,
-   "y": 19300
+   "x": 5440,
+   "y": 8400
   },
   "Svar-faktakort.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · faktakort",
    "w": 1280,
-   "x": 1998,
-   "y": 19300
+   "x": 1360,
+   "y": 8400
   },
   "Svar-fejl.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · kom ikke frem",
    "w": 1280,
-   "x": 18318,
-   "y": 19300
+   "x": 17680,
+   "y": 8400
   },
   "Svar-graf.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · datagraf",
    "w": 1280,
-   "x": 10158,
-   "y": 19300
+   "x": 9520,
+   "y": 8400
   },
   "Svar-lytter.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · lytter",
    "w": 1280,
-   "x": 14238,
-   "y": 19300
+   "x": 13600,
+   "y": 8400
   },
   "Svar-offline.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · offline",
    "w": 1280,
-   "x": 19678,
-   "y": 19300
+   "x": 19040,
+   "y": 8400
   },
   "Svar-sammenligning.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · sammenligning",
    "w": 1280,
-   "x": 8798,
-   "y": 19300
+   "x": 8160,
+   "y": 8400
   },
   "Svar-taenker.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · tænker",
    "w": 1280,
-   "x": 15598,
-   "y": 19300
+   "x": 14960,
+   "y": 8400
   },
   "Svar-tidslinje.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · tidslinje",
    "w": 1280,
-   "x": 4718,
-   "y": 19300
+   "x": 4080,
+   "y": 8400
   },
   "Svar-tjekliste.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · tjekliste",
    "w": 1280,
-   "x": 12878,
-   "y": 19300
+   "x": 12240,
+   "y": 8400
   },
   "Svar-tom.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · intet at vise",
    "w": 1280,
-   "x": 21038,
-   "y": 19300
+   "x": 20400,
+   "y": 8400
   },
   "Svar-trin.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · trin for trin",
    "w": 1280,
-   "x": 11518,
-   "y": 19300
+   "x": 10880,
+   "y": 8400
   },
   "Svar-valg.dc.html": {
    "h": 800,
    "is_interactive": true,
-   "page": "retning",
+   "page": "historik",
    "title": "Svar · valgmuligheder",
    "w": 1280,
-   "x": 7438,
-   "y": 19300
+   "x": 6800,
+   "y": 8400
   },
   "System.dc.html": {
    "h": 800,
@@ -737,6 +737,24 @@
    "title": "Tesla · Lås op: bekræftet",
    "w": 1280,
    "x": 10875,
+   "y": 10000
+  },
+  "Tesla-Handling-laaser.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås bilen: låser (ingen bekræftelse)",
+   "w": 1280,
+   "x": 12235,
+   "y": 10000
+  },
+  "Tesla-Handling-laast.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Tesla · Lås bilen: låst",
+   "w": 1280,
+   "x": 13595,
    "y": 10000
   },
   "Tesla-Handling-sender.dc.html": {
@@ -1052,7 +1070,7 @@
    "title": "Widget · seneste",
    "w": 199,
    "x": 0,
-   "y": 19300
+   "y": 18300
   },
   "W-svar-tom.dc.html": {
    "h": 221,
@@ -1061,7 +1079,7 @@
    "title": "Widget · tom",
    "w": 199,
    "x": 239,
-   "y": 19300
+   "y": 18300
   },
   "W-tesla-ikkeforbundet.dc.html": {
    "h": 221,
@@ -1171,22 +1189,13 @@
    "x": 908,
    "y": 3200
   },
-  "Tesla-Handling-laaser.dc.html": {
+  "Opskrift-TimerKoerer.dc.html": {
    "page": "retning",
-   "title": "Tesla · Lås bilen: låser (ingen bekræftelse)",
+   "title": "Opskrift · timer startet fra trin: chip i topbaren (ny funktion)",
    "w": 1280,
    "h": 800,
-   "x": 12235,
-   "y": 10000,
-   "is_interactive": true
-  },
-  "Tesla-Handling-laast.dc.html": {
-   "page": "retning",
-   "title": "Tesla · Lås bilen: låst",
-   "w": 1280,
-   "h": 800,
-   "x": 13595,
-   "y": 10000,
+   "x": 4957,
+   "y": 14800,
    "is_interactive": true
   }
  },
@@ -1219,7 +1228,8 @@
   "t-hero",
   "t-historik-ovb",
   "t-retning-ro",
-  "t-svar-ny"
+  "t-svar-ny",
+  "t-historik-svar"
  ],
  "notes": {
   "image-4z0kf3": {
@@ -1339,11 +1349,11 @@
   "t-retning-15": {
    "kind": "title1",
    "maxW": 12000,
-   "page": "retning",
+   "page": "historik",
    "text": "Svar · alle visuelle svarformer og faser (produktets egne)",
    "w": 240,
    "x": 0,
-   "y": 17700
+   "y": 8300
   },
   "t-retning-6": {
    "kind": "title1",
@@ -1398,6 +1408,15 @@
    "w": 240,
    "x": 0,
    "y": 18000
+  },
+  "t-historik-svar": {
+   "kind": "title1",
+   "maxW": 12000,
+   "page": "historik",
+   "text": "Svar · de tidligere ti former og faser (erstattet af fire former)",
+   "w": 240,
+   "x": 0,
+   "y": 8100
   }
  },
  "order": [
@@ -1530,7 +1549,9 @@
   "Svar-Ny-trin.dc.html",
   "Svar-Ny-tal.dc.html",
   "Svar-Historik.dc.html",
-  "Tesla-Handling-bekraeftet.dc.html"
+  "Tesla-Handling-bekraeftet.dc.html",
+  "Tesla-Handling-laaser.dc.html",
+  "Tesla-Handling-laast.dc.html"
  ],
  "pages": [
   {

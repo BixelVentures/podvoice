@@ -58,3 +58,51 @@ Skal besluttes og bygges enkeltvis. Indtil da må de ikke komme med i reskinnet.
   og en tjekliste over handlinger på den side (alle knapper findes stadig og gør det samme).
 - Ingen ændring blander spor. En PR er enten tokens, én komponent eller én funktion.
 - Lærredets `.dc.html` er reference, ikke kode, der kopieres ind.
+
+## Nye funktioner · design færdigt, tests efter UI-redesign
+
+Hver funktion tages først, når spor A og B (reskin) er landet og grønne. Én funktion pr. ændring,
+med egen beslutning. Designet ligger på lærredet (tavlenavn i parentes).
+
+### 1. Sticky handlingslinje (Robot-Sticky, Robot-Sticky-Rengoer)
+- Linjen glider ind (240 ms) præcis når heroen er rullet ud, og ud igen når den kommer tilbage.
+- Viser samme status og samme primære handling som heroen; handlingen sender præcis samme kommando.
+- Afspilleren står fast; linjen ligger under topbaren uden afrunding foroven; skyggen klippes ikke.
+- Kun på sider med primær handling i heroen (Robot, Timer, Tesla). Ikke på Vejr.
+
+### 2. Cover Flow i Opskrifter · Udforsk (Opskrifter-Bog)
+- Swipe og pile skifter opskrift; tryk på en nabo vælger den; tryk på midten åbner opskriften.
+- Titel, kategori og meta står på faste linjer under billedet (ingen hop ved skift).
+- Billeder fra `recipe.image`; opskrift uden billede får produktets pladsholder.
+- Igangværende opskrift har mærket "I gang · trin X af Y".
+
+### 3. Markér trin færdigt (A-Opskrift)
+- Tryk på trinnets cirkel markerer det færdigt (✓), og næste trin bliver aktivt.
+- Tryk på et færdigt trin gør det aktivt igen.
+- Trinstatus gemmes i opskriftens session og ryddes af "Nulstil opskrift" (produktets eksisterende dialog).
+- Trykfladen er 44×44.
+
+### 4. Lås op / Lås bilen på Tesla (Tesla-Handling-*)
+- Knappen følger bilens tilstand: Ulåst → "Lås bilen", Låst → "Lås op"; bagagerum åbent → "Luk bagagerum".
+- Lås op kræver bekræftelse ("Lås bilen op?"); Lås bilen gør ikke.
+- Mens kommandoen sendes: knappen viser "Låser op…" / "Låser…", er låst mod dobbelttryk, og beskedlinjen viser "Anmodning modtaget.".
+- Bekræftet: grøn "✓ Ulåst"/"✓ Låst" i 3 s. Ukendt udfald: fejl-beskedlinje "Udfald ukendt · kontrollér bilen." og knappen frigives.
+- Alle tekster findes allerede i `vehicle-view.js`.
+
+### 5. Timer fra opskriftstrin (A-Opskrift, Opskrift-TimerKoerer)
+- "Start timer · 30 min" starter en almindelig timer navngivet efter trinnet.
+- Knappen bliver "Timer kører · mm:ss"; timeren vises som chip i topbaren på alle andre sider,
+  i timer-widgetten og i Foto-Ros aktivitetsplads.
+- Når tiden er gået: fuldskærmsalarm (Timer-Alarm, produktets `timer-notice.js`).
+
+### 6. Antal stk. med −/+ (A-Opskrift)
+- −/+ skalerer alle ingrediensmængder; ændrede mængder markeres i rav.
+- Valgt antal bevares i sessionen og nulstilles af "Nulstil opskrift".
+- Kun for opskrifter, hvor udbyttet er et tal (fx "15 stk.").
+
+### Øvrige forslag på lærredet, der ikke findes i dag
+- Skærm og enhed: lysstyrke-slider og automatisk dæmpning (kræver enhedsstyring på Frameo).
+- Vejr: materiale pr. vejrtype og vandret scroll af timer.
+- Svar: fire former og historik "Alle svar".
+- Afspiller: lyd fra/til på højttalerikonet.
+- Foto-Ro: billeder fra delt iCloud-album (afventer link).
