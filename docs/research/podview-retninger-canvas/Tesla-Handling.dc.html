@@ -17,7 +17,7 @@ body{margin:0}
 </style>
 </helmet>
 <div style="width: 1280px; height: 800px; position: relative; overflow: hidden; font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: #17171A">
-  <dc-import name="A-Tesla" state="{{carSt}}" hint-size="1280px,800px"></dc-import>
+  <dc-import name="A-Tesla" state="{{carSt}}" adgang="{{adg}}" hint-size="1280px,800px"></dc-import>
   <sc-if value="{{confirm}}" hint-placeholder-val="{{ true }}">
     <i class="sh" style="position: absolute; inset: 0; background: rgba(23,23,26,.45); display: block"></i>
     <div class="md" role="alertdialog" aria-labelledby="tq" style="position: absolute; left: 50%; top: 50%; width: 520px; padding: 32px; box-sizing: border-box; border-radius: 28px; background: #F7F6F3; box-shadow: 0 40px 80px -30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 12px; transform: translate(-50%,-50%)">
@@ -28,20 +28,6 @@ body{margin:0}
         <button style="height: 56px; border: 0; border-radius: 999px; background: #EFEDE8; font: 600 17px 'Schibsted Grotesk', sans-serif">Annuller</button>
         <button style="height: 56px; border: 0; border-radius: 999px; background: #17171A; color: #F7F6F3; font: 600 17px 'Schibsted Grotesk', sans-serif">Lås op</button>
       </div>
-    </div>
-  </sc-if>
-  <sc-if value="{{btnOn}}" hint-placeholder-val="{{ false }}">
-    <div class="{{btnCls}}" aria-live="polite" style="position: absolute; left: 48px; top: 640px; width: 366px; height: 56px; border-radius: 999px; overflow: hidden; background: {{btnBg}}; color: {{btnFg}}; display: flex; align-items: center; justify-content: center; gap: 10px; font: 600 17px 'Schibsted Grotesk', sans-serif">
-      <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><i class="sweep" style="position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.18), transparent); display: block"></i></sc-if>
-      <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><span style="display: flex; gap: 4px"><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; display: block"></i><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; animation-delay: 150ms; display: block"></i><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; animation-delay: 300ms; display: block"></i></span></sc-if>
-      <span style="position: relative">{{btnL}}</span>
-    </div>
-  </sc-if>
-  <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
-    <div class="tst" role="status" style="position: absolute; left: 24px; top: 325px; width: 844px; min-height: 72px; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: {{bg}}; color: {{fg}}; display: flex; align-items: center; gap: 16px; box-shadow: 0 16px 32px -20px rgba(23,23,26,.5)">
-      <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><span style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; gap: 4px; flex: none"><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; display: block"></i><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; animation-delay: 150ms; display: block"></i><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; animation-delay: 300ms; display: block"></i></span></sc-if>
-      <sc-if value="{{glyph}}" hint-placeholder-val="{{ false }}"><span style="width: 36px; height: 36px; border-radius: 50%; background: {{ic}}; color: #FFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">{{glyph}}</span></sc-if>
-      <span style="display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 22px; font-weight: 800">{{t}}</span><span style="font-size: 15px; line-height: 20px">{{d}}</span></span>
     </div>
   </sc-if>
 </div>
@@ -67,7 +53,9 @@ class Component extends DCLogic {
       bekraeftet: { btnOn: true, btnBg: '#2F7A55', btnFg: '#FFFFFF', btnL: '✓ Ulåst', btnCls: 'okpop' },
       laaser: { btnOn: true, btnBg: '#17171A', btnFg: '#F7F6F3', btnL: 'Låser…', btnCls: '' },
       laast: { btnOn: true, btnBg: '#2F7A55', btnFg: '#FFFFFF', btnL: '✓ Låst', btnCls: 'okpop' } }[f] || { btnOn: false, btnBg: '', btnFg: '', btnL: '', btnCls: '' };
-    return { carSt: ['laaser','laast'].includes(f) ? 'ukendt' : 'parkeret', ...B, confirm: f === 'bekraeft', toast: f !== 'bekraeft', ...(T[f] || { bg: '', fg: '', busy: false, glyph: '', ic: '', t: '', d: '' }) };
+    // Feedback sker nu i selve handlingsfladen (K-ActionTile) i Adgang-kortet; ingen separat knap eller toast.
+    const adg = { bekraeft: 'idle', sender: 'laaserop', bekraeftet: 'ulaast', ukendt: 'ukendt', laaser: 'laaser', laast: 'laast' }[f] || 'idle';
+    return { adg, carSt: ['laaser','laast'].includes(f) ? 'ukendt' : 'parkeret', ...B, confirm: f === 'bekraeft', toast: f !== 'bekraeft', ...(T[f] || { bg: '', fg: '', busy: false, glyph: '', ic: '', t: '', d: '' }) };
   }
 }
 </script>

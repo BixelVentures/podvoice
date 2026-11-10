@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Handlingsflade</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+.t{position:relative;overflow:hidden;border:0;cursor:pointer;text-align:left;font-family:'Schibsted Grotesk',system-ui,sans-serif;transition:transform .12s ease, background-color .3s ease, box-shadow .3s ease}
+.t:active{transform:scale(.98)}
+.t:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.fill{position:absolute;inset:0;transform-origin:left center;animation:fill 1.6s cubic-bezier(.4,0,.2,1) infinite}
+@keyframes fill{0%{transform:scaleX(0);opacity:.9}80%{transform:scaleX(1);opacity:.9}100%{transform:scaleX(1);opacity:0}}
+.pop{animation:pop .42s cubic-bezier(.2,1.3,.4,1) both}@keyframes pop{from{transform:scale(.6);opacity:0}to{transform:none;opacity:1}}
+.dot{animation:dot .9s ease-in-out infinite}@keyframes dot{0%,100%{opacity:.3}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.fill,.pop,.dot{animation:none}}
+</style>
+</helmet>
+<button class="t" aria-label="{{aria}}" aria-busy="{{busyAria}}" style="width: {{w}}; height: {{h}}px; border-radius: 22px; padding: 18px 18px 16px; box-sizing: border-box; background: {{v.bg}}; color: {{v.fg}}; box-shadow: {{v.ring}}; display: flex; flex-direction: column; justify-content: space-between">
+  <sc-if value="{{busy}}" hint-placeholder-val="{{ false }}"><i class="fill" style="background: {{v.fill}}; display: block"></i></sc-if>
+  <span style="position: relative; display: flex; justify-content: space-between; align-items: flex-start; width: 100%">
+    <span style="width: 44px; height: 44px; border-radius: 14px; background: {{v.icBg}}; display: flex; align-items: center; justify-content: center">
+      <sc-if value="{{done}}" hint-placeholder-val="{{ false }}"><svg class="pop" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{v.ic}}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></sc-if>
+      <sc-if value="{{notDone}}" hint-placeholder-val="{{ true }}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{v.ic}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{icon}}"/></svg></sc-if>
+    </span>
+    <sc-if value="{{busy}}" hint-placeholder-val="{{ false }}"><span style="display: flex; gap: 4px; padding-top: 18px" aria-hidden="true"><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; display: block"></i><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation-delay: 150ms; display: block"></i><i class="dot" style="width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation-delay: 300ms; display: block"></i></span></sc-if>
+  </span>
+  <span style="position: relative; display: flex; flex-direction: column">
+    <span style="font-size: 15px; line-height: 20px; opacity: .8">{{label}}</span>
+    <span style="font-size: 24px; line-height: 30px; font-weight: 800; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{value}}</span>
+    <span style="font-size: 15px; line-height: 20px; font-weight: 600; opacity: .85; height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{hint}}</span>
+  </span>
+</button>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"label":{"editor":"text","default":"Døre"},"value":{"editor":"text","default":"Ulåst"},"hint":{"editor":"text","default":"Tryk for at låse"},"icon":{"editor":"text","default":"M7 11V7a5 5 0 0 1 9.6-2M5 11h14v10H5z"},"tone":{"editor":"enum","default":"attention","options":["calm","attention","busy","done","error"]},"w":{"editor":"text","default":"100%"},"h":{"editor":"text","default":"176"},"$preview":{"width":260,"height":176}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Fælles handlingsflade (UI-kit): én flade = status + handling. Tryk udfører handlingen; feedback sker i fladen selv.
+    // calm = intet at gøre · attention = noget bør gøres (rav) · busy = sender (fylder op fra venstre, prikker)
+    // done = bekræftet (✓ popper, 3 s) · error = udfald ukendt. Bruges til Tesla-adgang; kan genbruges til fx Robot-basen.
+    const T = {
+      calm: { bg: '#F7F6F3', fg: '#17171A', ring: 'inset 0 0 0 1.5px rgba(23,23,26,.10)', icBg: '#EFEDE8', ic: '#17171A', fill: 'transparent' },
+      attention: { bg: '#FFF6E2', fg: '#4A3205', ring: 'inset 0 0 0 2px #E2B04A', icBg: '#FBE7B9', ic: '#7A4A06', fill: 'transparent' },
+      busy: { bg: '#17171A', fg: '#F7F6F3', ring: 'none', icBg: 'rgba(255,255,255,.12)', ic: '#F7F6F3', fill: 'rgba(255,255,255,.14)' },
+      done: { bg: '#2F7A55', fg: '#FFFFFF', ring: 'none', icBg: 'rgba(255,255,255,.18)', ic: '#FFFFFF', fill: 'transparent' },
+      error: { bg: '#F8DCDC', fg: '#5E1416', ring: 'inset 0 0 0 2px #B0262A', icBg: '#FFFFFF', ic: '#B0262A', fill: 'transparent' }
+    };
+    const tone = this.props.tone || 'attention';
+    return { v: T[tone] || T.calm, busy: tone === 'busy', busyAria: tone === 'busy' ? 'true' : 'false', done: tone === 'done', notDone: tone !== 'done',
+      label: this.props.label || '', value: this.props.value || '', hint: this.props.hint || '', icon: this.props.icon || '',
+      w: this.props.w || '100%', h: Number(this.props.h) || 176, aria: (this.props.label || '') + ': ' + (this.props.value || '') + '. ' + (this.props.hint || '') };
+  }
+}
+</script>
+</body>
+</html>

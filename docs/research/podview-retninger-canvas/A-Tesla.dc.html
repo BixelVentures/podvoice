@@ -61,46 +61,42 @@ body{margin:0}
       </sc-if>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 308px">
-        <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; background: #E6F2EA">
-          <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
+        <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; align-items: center; height: 44px">
             <span style="font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Adgang</span>
           </div>
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
-            <sc-for list="{{access}}" as="a" hint-placeholder-count="2">
-              <div style="height: 88px; padding: 14px 16px; box-sizing: border-box; border-radius: 18px; background: #FFFFFF; box-shadow: {{a.ring}}; display: flex; flex-direction: column; justify-content: space-between">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="{{a.c}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{a.i}}"/></svg>
-                <span style="display: flex; flex-direction: column"><span style="font-size: 15px; color: #5F5E5A; line-height: 18px">{{a.k}}</span><span style="font-size: 17px; font-weight: 800; line-height: 22px; color: {{a.c}}">{{a.v}}</span></span>
-              </div>
+          <div style="flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: stretch">
+            <sc-for list="{{tiles}}" as="t" hint-placeholder-count="2">
+              <dc-import name="K-ActionTile" label="{{t.label}}" value="{{t.value}}" hint="{{t.hint}}" icon="{{t.icon}}" tone="{{t.tone}}" h="196" hint-size="170px,196px"></dc-import>
             </sc-for>
           </div>
-          <div style="margin-top: auto; display: flex; flex-direction: column; gap: 8px">
-            <button class="btn" style="height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">{{lockBtn}}</button>
-            <button class="btn" style="height: 56px; border-radius: 999px; background: #FFFFFF; color: #17171A; box-shadow: inset 0 0 0 1.5px rgba(23,23,26,.14); font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">{{trunkBtn}}</button>
-          </div>
         </div>
-        <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 16px; background: {{climBg}}; transition: background-color .4s ease">
-          <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
-            <span style="display: flex; flex-direction: column"><span style="font-size: 24px; font-weight: 800; letter-spacing: -0.01em; line-height: 28px">Klima</span><span style="font-size: 15px; color: #3F3E3B; line-height: 18px">{{climateLabel}}</span></span>
-            <button class="btn" role="switch" aria-checked="{{climateAria}}" aria-label="Klima" onClick="{{toggle}}" style="position: relative; width: 72px; height: 44px; border-radius: 999px; background: {{swBg}}">
-              <span class="knob" style="position: absolute; left: 4px; top: 4px; width: 36px; height: 36px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 2px 6px rgba(23,23,26,.3); transform: translateX({{knobX}}px)"></span>
-            </button>
+        <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; justify-content: space-between; align-items: center; height: 44px; margin-bottom: 8px">
+            <span style="display: flex; flex-direction: column"><span style="font-size: 24px; font-weight: 800; letter-spacing: -0.01em; line-height: 28px">Klima</span><span style="font-size: 15px; color: #5F5E5A; line-height: 18px">{{climateLabel}}</span></span>
+            <span style="display: flex; align-items: center; gap: 8px">
+              <button class="btn" aria-label="Afrim ruder" title="Afrim ruder" style="width: 44px; height: 44px; border-radius: 999px; background: #EFEDE8; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9c3-3 15-3 18 0M5 13c2.5-2 11.5-2 14 0M8 17c1.5-1 6.5-1 8 0M12 3v18"/></svg></button>
+              <button class="btn" role="switch" aria-checked="{{climateAria}}" aria-label="Klima" onClick="{{toggle}}" style="background: transparent; padding: 0"><dc-import name="K-Switch" on="{{climateAria}}" hint-size="56px,44px"></dc-import></button>
+            </span>
           </div>
-          <div style="height: 72px; padding: 0 8px; border-radius: 18px; background: #FFFFFF; display: grid; grid-template-columns: 56px 1fr 56px; align-items: center">
-            <button class="btn" aria-label="Sænk temperatur" onClick="{{down}}" style="width: 56px; height: 56px; border-radius: 999px; background: #EFEDE8; font: 500 24px 'IBM Plex Mono', monospace">−</button>
-            <span style="text-align: center; display: flex; flex-direction: column; align-items: center; line-height: 1"><span style="font: 500 36px/1 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.05em; color: {{tempC}}">{{temp}}°</span><span style="margin-top: 4px; font-size: 13px; color: #5F5E5A">Måltemperatur</span></span>
-            <button class="btn" aria-label="Hæv temperatur" onClick="{{up}}" style="width: 56px; height: 56px; border-radius: 999px; background: #EFEDE8; font: 500 24px 'IBM Plex Mono', monospace">+</button>
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-top: 1px solid rgba(23,23,26,.07)">
+            <span style="font-size: 17px; font-weight: 600">Måltemperatur</span>
+            <div style="display: grid; grid-template-columns: 56px 92px 56px; align-items: center; padding: 4px; border-radius: 18px; background: #E9E7E2">
+              <button class="btn" aria-label="Sænk temperatur" onClick="{{down}}" style="height: 48px; border-radius: 999px; background: #F7F6F3; font: 500 24px 'IBM Plex Mono', monospace; color: #17171A">−</button>
+              <span style="text-align: center; font: 500 28px 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.05em; color: {{tempC}}">{{temp}}°</span>
+              <button class="btn" aria-label="Hæv temperatur" onClick="{{up}}" style="height: 48px; border-radius: 999px; background: #F7F6F3; font: 500 24px 'IBM Plex Mono', monospace; color: #17171A">+</button>
+            </div>
           </div>
           <sc-for list="{{seats}}" as="r" hint-placeholder-count="2">
-            <div style="display: flex; flex-direction: column; gap: 6px">
+            <div style="display: grid; grid-template-columns: 96px 1fr; align-items: center; gap: 8px; padding: 8px 0; border-top: 1px solid rgba(23,23,26,.07)">
               <span style="font-size: 15px; font-weight: 600; color: #3F3E3B">{{r.k}}</span>
-              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3px; padding: 3px; border-radius: 999px; background: rgba(255,255,255,.7)">
+              <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: #E9E7E2">
                 <sc-for list="{{r.opts}}" as="o" hint-placeholder-count="4">
-                  <button class="btn" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 44px; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; font: 600 15px 'Schibsted Grotesk', sans-serif">{{o.l}}</button>
+                  <button class="btn" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 44px; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; font: 600 16px 'Schibsted Grotesk', sans-serif">{{o.l}}</button>
                 </sc-for>
               </div>
             </div>
           </sc-for>
-          <button class="btn" style="margin-top: auto; height: 56px; border-radius: 999px; background: #FFFFFF; color: #17171A; box-shadow: inset 0 0 0 1.5px rgba(23,23,26,.14); font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">Afrim ruder</button>
         </div>
       </div>
     </div>
@@ -108,7 +104,7 @@ body{margin:0}
   </div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"hero":{"editor":"enum","default":"221","options":["221","458","372"]},"state":{"editor":"enum","default":"ukendt","options":["ukendt","lader","parkeret","klima"]},"$preview":{"width":1280,"height":800}}'>
+<script type="text/x-dc" data-dc-script data-props='{"adgang":{"editor":"enum","default":"idle","options":["idle","laaser","laast","laaserop","ulaast","ukendt"]},"hero":{"editor":"enum","default":"221","options":["221","458","372"]},"state":{"editor":"enum","default":"ukendt","options":["ukendt","lader","parkeret","klima"]},"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   constructor(props) {
     super(props);
@@ -195,19 +191,29 @@ class Component extends DCLogic {
           pick: () => this.setState({ seat: { ...this.state.seat, [key]: i } }) };
       })
     });
+    // Adgang som to handlingsflader (K-ActionTile): status og handling er én flade; feedback sker i fladen.
+    const ad = this.props.adgang || 'idle', locked = s.lock !== 'Ulåst', trunkOpen = st === 'ukendt';
+    const lockIc = 'M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z', openIc = 'M7 11V7a5 5 0 0 1 9.6-2M5 11h14v10H5z', trunkIc = 'M3 13l3-6h12l3 6v5H3zM3 13h18M7 18v2M17 18v2';
+    const doorT = { idle: locked ? { tone: 'calm', value: 'Låst', hint: 'Tryk for at låse op', icon: lockIc } : { tone: 'attention', value: 'Ulåst', hint: 'Tryk for at låse', icon: openIc },
+      laaser: { tone: 'busy', value: 'Låser…', hint: 'Anmodning modtaget.', icon: lockIc }, laast: { tone: 'done', value: 'Låst', hint: 'Bekræftet', icon: lockIc },
+      laaserop: { tone: 'busy', value: 'Låser op…', hint: 'Anmodning modtaget.', icon: openIc }, ulaast: { tone: 'done', value: 'Ulåst', hint: 'Bekræftet', icon: openIc },
+      ukendt: { tone: 'error', value: 'Udfald ukendt', hint: 'Kontrollér bilen.', icon: lockIc } }[ad];
+    const tiles = [{ label: 'Døre', ...doorT }, trunkOpen ? { label: 'Bagagerum', tone: 'attention', value: 'Åbent', hint: 'Tryk for at lukke', icon: trunkIc } : { label: 'Bagagerum', tone: 'calm', value: 'Lukket', hint: 'Tryk for at åbne', icon: trunkIc }];
+    const lockBtnTxt = s.lock === 'Ulåst' ? 'Lås bilen' : 'Lås op', trunkBtnTxt = st === 'ukendt' ? 'Luk bagagerum' : 'Åbn bagagerum';
     return {
+      tiles, lockBtn: lockBtnTxt, trunkBtn: trunkBtnTxt,
       // Adgangsknapper følger bilens tilstand (vehicle-view.js): Ulåst → "Lås bilen", Låst → "Lås op"; bagagerum åbent → "Luk bagagerum".
-      lockBtn: s.lock === 'Ulåst' ? 'Lås bilen' : 'Lås op', trunkBtn: st === 'ukendt' ? 'Luk bagagerum' : 'Åbn bagagerum',
+
       nb: nbOf(s.nb), fresh: s.fresh, noFresh: !s.fresh, carScale: heroS ? 0.5 : 1,
       heroH, heroPad: heroS ? 24 : 32, heroTitle: heroS ? 40 : 56,
       s, car,
       climateLabel: on ? 'Tændt · ' + this.state.temp + ' °C' : 'Slukket',
       climateAria: on ? 'true' : 'false', swBg: on ? '#2F7A55' : 'rgba(23,23,26,.18)', knobX: on ? 28 : 0,
-      climBg: on ? '#CDE8D8' : '#E6F2EA',
       // Adgang som to statusfelter (døre, bagagerum) over handlingerne. Rav kant = noget at gøre.
+      // Adgang: status og handling i samme række (Døre → Lås bilen/Lås op, Bagagerum → Luk/Åbn). Kort i neutral flade; kun headeren er grøn.
       access: [
-        { k: 'Døre', v: s.lock, i: s.lock === 'Ulåst' ? 'M7 11V7a5 5 0 0 1 9.6-2M5 11h14v10H5z' : 'M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z', c: s.lock === 'Ulåst' ? '#7A4A06' : '#17442F', ring: s.lock === 'Ulåst' ? 'inset 0 0 0 2px #E2B04A' : 'none' },
-        { k: 'Bagagerum', v: st === 'ukendt' ? 'Åbent' : 'Lukket', i: 'M3 13l3-6h12l3 6v5H3zM3 13h18M7 18v2M17 18v2', c: st === 'ukendt' ? '#7A4A06' : '#17442F', ring: st === 'ukendt' ? 'inset 0 0 0 2px #E2B04A' : 'none' }
+        { k: 'Døre', v: s.lock, btn: lockBtnTxt, i: s.lock === 'Ulåst' ? 'M7 11V7a5 5 0 0 1 9.6-2M5 11h14v10H5z' : 'M7 11V7a5 5 0 0 1 10 0v4M5 11h14v10H5z', c: s.lock === 'Ulåst' ? '#7A4A06' : '#17171A', icBg: s.lock === 'Ulåst' ? '#FBE7B9' : '#EFEDE8', bt: 'none', bBg: '#17171A', bFg: '#F7F6F3', bSh: 'none' },
+        { k: 'Bagagerum', v: st === 'ukendt' ? 'Åbent' : 'Lukket', btn: trunkBtnTxt, i: 'M3 13l3-6h12l3 6v5H3zM3 13h18M7 18v2M17 18v2', c: st === 'ukendt' ? '#7A4A06' : '#17171A', icBg: st === 'ukendt' ? '#FBE7B9' : '#EFEDE8', bt: '1px solid rgba(23,23,26,.08)', bBg: '#EFEDE8', bFg: '#17171A', bSh: 'none' }
       ],
       temp: this.state.temp, tempC: on ? '#17171A' : '#5F5E5A',
       seats: [seat('f', 'Førersæde'), seat('p', 'Passager')],
