@@ -18,9 +18,10 @@ test('actual live adapter keeps the empty form when no timer action is granted',
 });
 test('actual adapter distinguishes active observation wait from unknown outcome in aria-busy',()=>{
  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
- for(const [feedback,pending,busy,blocked] of [['',true,true,true],['Afventer opdateret timer',false,true,true],['Venter på hjemmet…',false,true,true],['Udfald ukendt · handlingen gentages ikke',false,false,true],['',false,false,false]]){
+ // Blocking follows the timer state field, not the displayed text (T1).
+ for(const [feedback,pending,busy,blocked,phase] of [['',true,true,true,'sending'],['Afventer opdateret timer',false,true,true,'awaiting'],['Udfald ukendt · handlingen gentages ikke',false,false,true,'unknown'],['',false,false,false,null]]){
   const view=fixture();view.status.setAttribute=function(k,v){this[k]=v;};view.form.setAttribute=function(k,v){this[k]=v;};view.renderAccess=TimerView.prototype.renderAccess;
-  render.call({timerView:view,liveActionPending:pending,liveActionFeedback:feedback},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel']}});
+  render.call({timerView:view,liveActionPending:pending,liveActionFeedback:feedback,liveTimerPhase:phase},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel']}});
   assert.equal(view.form['aria-busy'],String(busy),feedback);assert.equal(view.status['aria-busy'],String(busy),feedback);assert.equal(view.canStart,!blocked);assert.equal(view.canCancel,!pending);
   if(busy){assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');}
  }

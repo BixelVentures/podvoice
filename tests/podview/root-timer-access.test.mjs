@@ -18,9 +18,10 @@ test('actual live adapter keeps the empty form when no timer action is granted',
 });
 test('actual adapter distinguishes active observation wait from unknown outcome in aria-busy',()=>{
  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
- for(const [feedback,pending,busy,blocked] of [['',true,true,true],['Afventer opdateret timer',false,true,true],['Venter på hjemmet…',false,true,true],['Udfald ukendt · handlingen gentages ikke',false,false,true],['',false,false,false]]){
+ // Blocking follows the timer state field, not the displayed text (T1).
+ for(const [feedback,pending,busy,blocked,phase] of [['',true,true,true,'sending'],['Afventer opdateret timer',false,true,true,'awaiting'],['Udfald ukendt · handlingen gentages ikke',false,false,true,'unknown'],['',false,false,false,null]]){
   const view=fixture();view.status.setAttribute=function(k,v){this[k]=v;};view.form.setAttribute=function(k,v){this[k]=v;};view.renderAccess=TimerView.prototype.renderAccess;
-  render.call({timerView:view,liveActionPending:pending,liveActionFeedback:feedback},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel']}});
+  render.call({timerView:view,liveActionPending:pending,liveActionFeedback:feedback,liveTimerPhase:phase},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel']}});
   assert.equal(view.form['aria-busy'],String(busy),feedback);assert.equal(view.status['aria-busy'],String(busy),feedback);assert.equal(view.canStart,!blocked);assert.equal(view.canCancel,!pending);
   if(busy){assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');}
  }
@@ -232,4 +233,29 @@ test('timer adjustment journal keeps the signed requested delta with its actual 
 
 test('timer journal follows the original granted action across unrelated capability changes',async()=>{
  for(const change of ['added_adjust','removed_start','admission']){const t=timerOwner({items:[],result:{ok:true,outcome:'accepted',timerId:'native-new'}});await t.host.sendLiveTimer(startOne);const next=t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'native-new',status:'running',secondsLeft:9}]}});if(change==='added_adjust')next.capabilities.timerActions.push('timer.adjust');if(change==='removed_start')next.capabilities.timerActions=['timer.cancel','timer.adjust'];if(change==='admission')next.admission={kind:'ha_ingress',authenticated:true};t.observe(next);const observed=t.journal.filter(row=>row.stage==='control_observation'&&row.code==='observed');assert.equal(observed.length,change==='added_adjust'?1:0,change);if(observed.length)assert.equal(observed[0].requestId,t.calls[0].requestId);assert.equal(t.calls.length,1);}
+});
+// T1: +1/−1 tapped while an adjustment is in flight are queued in order and each sent once.
+test('adjust taps during an in-flight adjustment are queued in order and each sent once against the fresh revision',async()=>{
+ const t=timerOwner({items:[adjustRow],held:true});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');
+ const tap=(delta,row)=>liveTimerRequest(t.host.liveSnapshot,true,{type:'timer',action:'adjust',id:'exact',deltaSeconds:delta});
+ const first=t.host.sendLiveTimer(tap(60));void t.host.sendLiveTimer(tap(60));void t.host.sendLiveTimer(tap(-60));
+ assert.equal(t.calls.length,1,'only the first adjustment is sent while it is in flight');
+ assert.equal(t.host.liveTimerPhase,'sending','the blocking state is a state field');
+ t.settle({ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740993',sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90,status:'running'},0);await first;
+ assert.equal(t.calls.length,1,'the next tap waits for the observed result');
+ t.observe(t.snapshot({capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel','timer.adjust']},timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90}]}}));
+ assert.equal(t.calls.length,2);assert.deepEqual(t.calls[1].args,{timer_id:'exact',delta_seconds:60,expected_revision:'9007199254740994'});
+ t.settle({ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740994',sourceRevision:'9007199254740995',durationSeconds:220,secondsLeft:150,status:'running'},1);
+ await new Promise(resolve=>setImmediate(resolve));
+ t.observe(t.snapshot({capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel','timer.adjust']},timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740995',durationSeconds:220,secondsLeft:150}]}}));
+ assert.equal(t.calls.length,3);assert.deepEqual(t.calls[2].args,{timer_id:'exact',delta_seconds:-60,expected_revision:'9007199254740995'});
+});
+test('adjust taps queued behind an UNKNOWN adjustment are not sent and the user is told',async()=>{
+ const t=timerOwner({items:[adjustRow],held:true});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');
+ const tap=delta=>liveTimerRequest(t.host.liveSnapshot,true,{type:'timer',action:'adjust',id:'exact',deltaSeconds:delta});
+ const first=t.host.sendLiveTimer(tap(60));void t.host.sendLiveTimer(tap(60));
+ t.settle({ok:false,outcome:'unknown'},0);await first;
+ t.observe(t.snapshot({capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel','timer.adjust']},timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740994'}]}}));
+ assert.equal(t.calls.length,1,'nothing is replayed after UNKNOWN');
+ assert.ok(t.messages.some(text=>/ikke sendt/.test(text)),'the dropped tap is explained');
 });

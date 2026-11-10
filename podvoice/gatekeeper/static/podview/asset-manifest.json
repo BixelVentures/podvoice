@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "b652d466caae53ce7efc295861a780d09c46c770f4827aa7a54fcb93b0448fb2"
+      "sha256": "5d0fc6f76beee8f0fbd067c63b9dd4a7e979cdc7bfcb43f23f55c0b77f628f44"
     },
     {
       "path": "podview.css",
@@ -739,7 +739,7 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "19d481751206f946c1e41bd64ec19005e98bd331e484ed8d597088148345debd"
+      "sha256": "a2918f7ef8cea3d2bfbf9e194d0dfe31549296c7fd67c8fc821b6ae1ede1626f"
     },
     {
       "path": "ui-kit.css",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "d884be239ee410afb189ea06c9196feedfe70822d49432b348e48f1a23c1a3b4"
+      "sha256": "74ab355b0c71c137e545445cfc78a0cf268789cbcdbb7f18feb13e53deb86b42"
     },
     {
       "path": "workshop.css",
