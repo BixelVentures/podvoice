@@ -1,3 +1,7 @@
+## 2.0.167
+
+- Vis om radioens Stop ikke blev sendt, blev afvist eller har ukendt udfald. Vis en konkret besked, hvis en valgt playliste ikke kan bekræftes ved fornyelse.
+
 ## 2.0.166
 
 - Bevar viste køvalg og valgte musikforslag gennem baggrundsfornyelse, fasthold robotens returbekræftelse under midlertidige læsefejl, og tilføj afgrænset fejldiagnostik for mistet musikbetjening og afviste robottryk.
