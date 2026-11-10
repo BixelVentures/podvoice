@@ -797,10 +797,38 @@ test('Start keeps its look while pending, a draft change is kept, and a second S
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));
  const admitted=suggestionTask();panel.data={task:admitted,device,connected:true};panel.suggest(suggestionFor(admitted));
  emit(cleaningForm(panel),'submit');assert.equal(actions.length,1,'the first Start is sent');
- panel.data={...panel.value,pendingOptionId:actions[0].optionId};
+ panel.observed(device,{pendingOptionId:actions[0].optionId});
+ panel.disabled=true;
  assert.equal(panel.cleaningSubmit.disabled,false,'Start does not go grey');assert.equal(panel.cleaningSubmit.getAttribute('aria-busy'),'true');
  const area=cleaningForm(panel).querySelectorAll('button').find(b=>b.value&&!b.disabled);
  assert.ok(area,'room choices stay editable as a local draft');
+ const addedArea=admitted.options[0].argsSchema.areas[0].id;
+ assert.ok(!panel.readCleaningDraft().areaIds.includes(addedArea));
+ emit(area,'click');
+ assert.ok(panel.readCleaningDraft().areaIds.includes(addedArea));
  emit(cleaningForm(panel),'submit');assert.equal(actions.length,1,'a second Start is not queued');
  assert.match(panel.draftFeedback,/forrige kommando/,'the user gets a concrete message');
+});
+
+
+test('a confirmed direct return remains explicit during a locally pending robot command',()=>{
+ const panel=new RobotControlPanel(),effects=[],admitted=suggestionTask();
+ const cleaning={...device,status:'cleaning'};
+ panel.addEventListener('robot-direct-action',event=>effects.push(event.detail));
+ panel.data={task:admitted,device:cleaning,connected:true,directActions:['return'],directBlocked:false};
+ const pendingOptionId=admitted.options[0].id;
+ panel.observed(cleaning,{pendingOptionId});
+ panel.disabled=true;
+ const base=panel.baseDisclosure.panel.querySelector('[data-direct-robot=true][data-action-id=return]');
+ emit(base,'click');
+ assert.equal(panel.confirmation.open,true);
+ panel.observed(cleaning,{pendingOptionId});
+ assert.equal(panel.confirmation.open,true,'unchanged local pending command preserves confirmation');
+ assert.deepEqual(effects,[]);
+ emit(panel.confirmation.querySelectorAll('button')[1],'click');
+ assert.deepEqual(effects,[{action:'return'}]);
+ panel.observed({...cleaning,pending:{action:'pause'}},{pendingOptionId:null,directBlocked:false});
+ emit(base,'click');
+ assert.equal(panel.confirmation.open,false,'foreign pending command cannot open confirmation');
+ assert.deepEqual(effects,[{action:'return'}]);
 });
