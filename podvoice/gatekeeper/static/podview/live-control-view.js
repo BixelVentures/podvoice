@@ -33,8 +33,10 @@ export class LiveControlView{
  mountRobotInline(){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';}this.robotInline=true;this.robotEntry.hidden=false;const children=[this.note,this.receiptNote,this.body,this.robotButton];for(const [index,node]of children.entries()){const current=this.robotEntry.children[index];if(current!==node){if(typeof this.robotEntry.insertBefore==='function')this.robotEntry.insertBefore(node,current||null);else this.robotEntry.append(node);}}if(this.robotPanel){const card=this.host.deviceNodes?.get(this.target?.entityId);if(card){card.hidden=true;card.inert=true;card.parentNode.hidden=true;}this.note.hidden=true;this.robotButton.hidden=true;}}
  allowed(domain){return this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities.controlSetup?.includes(domain);}
  render(){
-  if(this.lightActionOperation&&!this.lightActionOperation.context.current())this.lightActionOperation.revoked=true;
-  if(this.lightActionFeedbackOperation&&!this.lightActionFeedbackOperation.context.current())this.lightActionFeedbackOperation.revoked=true;
+  for(const entry of this.lightActions?.values()||[]){
+   if(entry.operation&&!entry.operation.context.current())entry.operation.revoked=true;
+   if(entry.feedback&&!entry.feedback.context.current())entry.feedback.revoked=true;
+  }
   if(this.domain==='light'&&this.lightContext&&!this.lightContext.current()){this.lightContext=null;this.invalidate('Lysenes adgang eller område er ændret · hent betjeningen igen.',false);}
   const snapshot=this.host.liveSnapshot,authority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,!!this.host.liveTransport?.connected]),robotAuthority=JSON.stringify([snapshot?.bootId,snapshot?.roomId,this.host.liveTransport?.generation,!!this.host.liveTransport?.connected,!!this.allowed('vacuum')]);
   const offlineDraft=this.robotOfflineDraftCurrent(this.expiredRobot)?this.expiredRobot:null;
@@ -636,21 +638,26 @@ export class LiveControlView{
   return !!context&&task?.domain==='light'&&context.current()&&(task.lightSetup.sceneId??null)===(context.scene?.id??null)&&(!context.scene||JSON.stringify(task.lightSetup.scenes)===JSON.stringify([context.scene]))&&Object.keys(context.scope).every(key=>task.lightSetup.scope[key]===context.scope[key])&&JSON.stringify([...task.lightSetup.entityIds].sort())===JSON.stringify(context.ids)&&(!task.options.some(option=>option.action==='brightness')||context.brightness)&&task.options.every(option=>option.action!=='scene'||context.scene&&option.argsSchema.choices.length===1&&option.argsSchema.choices[0].id===context.scene.id);
  }
  openLight(target,observation,opener,currentObservation){
-  if(this.pending||this.setupPending||this.lightActionOperation)return false;const context=this.lightActionContext(target,observation,currentObservation);if(!context)return false;this.lightContext=context;return this.open('light',{...target},opener);
+  const lightRunning=[...this.lightActions?.values()||[]].some(entry=>entry.operation);
+  if(this.pending||this.setupPending||lightRunning)return false;const context=this.lightActionContext(target,observation,currentObservation);if(!context)return false;this.lightContext=context;return this.open('light',{...target},opener);
  }
  updateLightAction(operation,phase,details={}){
   const state={target:{...operation.target},action:operation.action,phase,pending:['preparing','sending'].includes(phase),message:phase==='accepted'?'Anmodningen er modtaget.':phase==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':phase==='rejected'?'Handlingen kunne ikke udføres med den aktuelle adgang.':'',...details};
+  // Light state is kept per light (area, lamp or scene key); the latest update moves to the end (L1).
+  const lights=this.lightActions??=new Map(),entry=lights.get(operation.identity)||{};
+  lights.delete(operation.identity);lights.set(operation.identity,entry);
   if(state.pending&&operation.action==='brightness'){
-   const queue=this.lightInputQueue;
+   const queue=entry.queue;
    const latest=queue?.kind==='brightness'&&this.canQueueLightInput(operation.target,'brightness')
     ?queue.pending.at(-1):undefined;
    state.requestedPercent=latest??operation.requestedPercent;
   }
-  this.lightActionFeedbackOperation=operation;this.lightActionState=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state,operation);this.host.render?.();}return state;
+  entry.feedback=operation;entry.state=state;if(this.host.isConnected&&!operation.revoked&&operation.context.current()){this.host.onLightActionStatus?.(state,operation);this.host.render?.();}return state;
  }
- lightActionFeedbackCurrent(){const operation=this.lightActionFeedbackOperation;if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
+ lightActionFeedbackCurrent(operation){if(!operation||operation.revoked||this.suspending)return false;if(!operation.context.current()){operation.revoked=true;return false;}return true;}
  canQueueLightInput(target,kind){
-  const queue=this.lightInputQueue,operation=this.lightActionOperation;
+  const entry=this.lightActions?.get(JSON.stringify([target.areaId,target.entityId??null,null]));
+  const queue=entry?.queue,operation=entry?.operation;
   return !!queue&&!!operation&&!operation.revoked&&!this.suspending&&queue.kind===kind
    &&queue.target.areaId===target.areaId&&queue.target.entityId===target.entityId&&queue.context.current();
  }
@@ -658,19 +665,20 @@ export class LiveControlView{
   const brightness=kind==='brightness';
   const percent=brightness?input?.percent:null;
   if(brightness&&(!Number.isInteger(percent)||percent<0||percent>100))return;
-  const running=this.lightInputQueue;
+  const lights=this.lightActions??=new Map(),key=JSON.stringify([target.areaId,target.entityId??null,null]);
+  const entry=lights.get(key)||{},running=entry.queue;lights.set(key,entry);
   if(running){
    if(!this.canQueueLightInput(target,kind))return;
    if(brightness){
     running.pending[0]=percent;
-    this.updateLightAction(this.lightActionOperation,this.lightActionState.phase);
+    this.updateLightAction(entry.operation,entry.state.phase);
    }else if(running.pending.length<32)running.pending.push(null);
    return;
   }
   const context=this.lightActionContext(target,observation,currentObservation);
-  if(!context||brightness&&!context.brightness||this.lightActionOperation)return;
+  if(!context||brightness&&!context.brightness||entry.operation)return;
   const queue={target:{...target},kind,context,pending:[percent]};
-  this.lightInputQueue=queue;
+  entry.queue=queue;
   try{
    while(queue.pending.length&&context.current()){
     const wanted=queue.pending.shift();
@@ -697,20 +705,26 @@ export class LiveControlView{
     if(!queue.pending.length||brightness&&queue.pending[0]===wanted)return result;
    }
   }finally{
-   if(this.lightInputQueue===queue)this.lightInputQueue=null;
+   if(entry.queue===queue)entry.queue=null;
   }
  }
  async actLight(target,observation,action,input={},currentObservation){
   const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false},t=this.host.liveTransport,requestedValue=action==='turn_on'?true:action==='turn_off'?false:action==='brightness'&&Number.isInteger(input?.percent)&&input.percent>=0&&input.percent<=100?input.percent:undefined;let diagnostic;
   try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}diagnostic={domain:'light',action,resourceId:target?.entityId||target?.sceneId||target?.areaId,...(requestedValue!==undefined?{requestedValue}:{})};this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
-  if(this.lightActionOperation||this.pending||this.setupPending||this.domain==='light'&&this.controlOpen()||!['turn_on','turn_off','brightness','scene'].includes(action)){this.journalDevice(t,'control_intent',{...diagnostic,code:'intent_pending'});return unavailable;}
+  // Only a command for the same light blocks; other lights are independent (L1).
+  const identity=JSON.stringify([target?.areaId,target?.entityId??null,target?.sceneId??null]);
+  const lights=this.lightActions??=new Map();
+  if(lights.get(identity)?.operation||this.pending||this.setupPending
+   ||this.domain==='light'&&this.controlOpen()||!['turn_on','turn_off','brightness','scene'].includes(action)){this.journalDevice(t,'control_intent',{...diagnostic,code:'intent_pending'});return unavailable;}
   const context=this.lightActionContext(target,observation,currentObservation);if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene){this.journalDevice(t,'control_intent',{...diagnostic,code:'stale_binding'});return unavailable;}
-  const identity=JSON.stringify([target.areaId,target.entityId??null,target.sceneId??null]);this.pruneSpent();const unknowns=this.lightUnknowns||(this.lightUnknowns=new Map());for(const[key,fence]of unknowns)if(fence.until<=Date.now())unknowns.delete(key);const unknown=unknowns.get(identity);
+  this.pruneSpent();const unknowns=this.lightUnknowns||(this.lightUnknowns=new Map());for(const[key,fence]of unknowns)if(fence.until<=Date.now())unknowns.delete(key);const unknown=unknowns.get(identity);
   if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&context.sourceObservedAt<=unknown.observedAt){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});return {...unavailable,outcome:'unknown',phase:'unknown'};}unknowns.delete(identity);if(unknowns.size>=64){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});return unavailable;}
   const operation={target:{...target},action,context,identity,sent:false,revoked:false,
    requestedPercent:action==='brightness'?requestedValue:undefined};
-  this.lightActionOperation=operation;this.updateLightAction(operation,'preparing');
-  const current=()=>this.lightActionOperation===operation&&!operation.revoked&&!this.suspending&&context.current();let task,option,args,result;
+  this.updateLightAction(operation,'preparing');
+  const entry=lights.get(identity);entry.operation=operation;
+  const current=()=>this.lightActions?.get(identity)?.operation===operation
+   &&!operation.revoked&&!this.suspending&&context.current();let task,option,args,result;
   try{
    this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});const raw=await context.transport.controlSetup('light',operation.target);if(!current())throw Error('light_context_changed');task=controlTask(raw,this.host.liveSnapshot,'light');
    if(this.spent.has(task.taskId)||!this.lightTaskCurrent(context,task))throw Error('light_offer_changed');const candidates=task.options.filter(row=>row.action===action);if(candidates.length!==1)throw Error('light_action_not_offered');option=candidates[0];args=controlArgs(task,option.id,input);this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});
@@ -727,7 +741,7 @@ export class LiveControlView{
   let refreshed=false;
   if(outcome==='accepted'&&current()&&typeof this.host.readLightArea==='function'){try{refreshed=await this.host.readLightArea(operation.target.areaId,{preserveControls:true})===true;}catch{refreshed=false;}}
   try{const snap=this.host.liveSnapshot;this.observeDeviceJournal({bootId:snap?.bootId,roomId:snap?.roomId,lights:scopedLightsObservation(context.observation())});}catch{}
-  const late=!current();this.lightActionOperation=null;
+  const late=!current();if(entry.operation===operation)entry.operation=null;
   return this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late,
    observedBeforeSend:operation.observedBeforeSend});
  }
@@ -961,7 +975,7 @@ export class LiveControlView{
    if(schema.kind==='cleaning'){const grid=make('div',undefined,'pv-actions');for(const area of schema.areas){const label=make('label'),input=make('input');input.type='checkbox';input.name='areaIds';input.value=area.id;label.append(input,make('span',area.label));grid.append(label);}const repeat=make('select');repeat.name='repeat';repeat.setAttribute('aria-label','Antal rengøringer');for(let n=1;n<=3;n++){const o=make('option',n===1?'1 gang':n+' gange');o.value=String(n);repeat.append(o);}form.append(grid,repeat);}
    if(schema.kind==='percent'){const label=make('label',this.task.domain==='light'?'Lysstyrke':'Vælg lydstyrke'),input=make('input'),value=make('output');input.type='range';input.name='percent';input.min='0';input.max=String(this.task.domain==='music'?100:schema.max);input.step='1';const observedPercent=this.task.domain==='light'?this.lightContext?.brightnessPercent??null:this.task.volume;input.value=String(observedPercent===null?50:Math.min(schema.max,observedPercent));value.textContent=observedPercent===null?(this.task.domain==='light'?'Vælg lysstyrke': 'Vælg på skyderen'):input.value+' %';input.setAttribute('aria-label',this.task.domain==='light'?'Lysstyrke':'Vælg lydstyrke');applyKitComponent(input,'slider');input.addEventListener('input',()=>{const attempted=Number(input.value),limited=this.task?.domain==='music'&&Number.isInteger(attempted)&&attempted>schema.max;if(limited){input.value=String(schema.max);syncKitSlider(input);}value.textContent=input.value+' %'+(limited?' · Højst '+schema.max+' %':'');form.querySelector('[type=submit]').disabled=false;});label.append(input,value);form.append(label);}
    const submit=make('button',schema.kind==='none'?option.label:schema.kind==='percent'?(this.task.domain==='light'?'Indstil lysstyrke':'Indstil lydstyrke'):schema.kind==='choice'?(this.task.domain==='light'&&option.action==='scene'?'Aktivér scene':'Anvend indstilling'):'Start rengøring','pv-button pv-primary');submit.type='submit';submit.disabled=schema.kind==='percent'&&(this.task.domain==='light'?this.lightContext?.brightnessPercent==null:this.task.volume===null);form.append(submit);form.addEventListener('submit',event=>{event.preventDefault();let args={};if(schema.kind==='choice')args={choiceId:form.elements.choiceId.value};if(schema.kind==='cleaning')args={areaIds:[...form.querySelectorAll('[name=areaIds]:checked')].map(x=>x.value),repeat:Number(form.elements.repeat.value)};if(schema.kind==='percent')args={percent:Number(form.elements.percent.value)};this.send(option.id,args);});section.append(form);this.body.append(section);}}
- async send(optionId,input){this.render();const task=this.task;if(!task||task.draft?.status==='awaiting_water'||this.pending||this.spent.has(task.taskId)||!this.allowed(task.domain)||task.domain==='light'&&(this.lightActionOperation||!this.lightContext?.current())||task.domain==='music'&&(JSON.stringify(this.musicContext()?.target)!==JSON.stringify(this.target)||task.expectedBindingId!==this.target.expectedBindingId)||task.domain==='vacuum'&&(this.robotControlOffer?.task!==task||!this.robotControlCurrent(this.robotControlOffer?.context)||this.robotDevice()?.live!==true||this.robotDevice()?.stale||this.robotInline&&this.host.state.focus!==this.target?.entityId))return;let args;try{args=controlArgs(task,optionId,input);}catch{this.note.textContent='Kontrollér dit valg, eller hent en ny betjening.';return;}this.spent.set(task.taskId,task.expiresAt);this.pending=true;const operation={key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:task.domain,optionId,observedRevision:task.domain==='vacuum'?this.robotDevice()?.revision:null,...(task.domain==='vacuum'?{choiceId:typeof args.choiceId==='string'?args.choiceId:null,value:typeof args.value==='number'?args.value:null}:{}),target:{...this.target},label:task.options.find(x=>x.id===optionId).label};this.activeOperation=operation;if(task.domain==='vacuum'){const selected=task.options.find(row=>row.id===optionId);operation.action=selected.action==='set_option'?'settings':selected.action==='reuse'?'start':selected.action;operation.settingKey=selected.settingKey;this.journalDevice(this.host.liveTransport,'control_intent',{domain:'vacuum',action:operation.action,resourceId:operation.target.entityId,code:'start',...(typeof args.value==='boolean'||typeof args.value==='number'?{requestedValue:args.value}:{})});}this.remember(operation,'pending');this.note.textContent='';for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;this.render();const generation=this.generation,opening=this.opening,transport=this.host.liveTransport,transportGeneration=transport.generation;let refreshScene=false;
+ async send(optionId,input){this.render();const task=this.task;if(!task||task.draft?.status==='awaiting_water'||this.pending||this.spent.has(task.taskId)||!this.allowed(task.domain)||task.domain==='light'&&([...this.lightActions?.values()||[]].some(entry=>entry.operation)||!this.lightContext?.current())||task.domain==='music'&&(JSON.stringify(this.musicContext()?.target)!==JSON.stringify(this.target)||task.expectedBindingId!==this.target.expectedBindingId)||task.domain==='vacuum'&&(this.robotControlOffer?.task!==task||!this.robotControlCurrent(this.robotControlOffer?.context)||this.robotDevice()?.live!==true||this.robotDevice()?.stale||this.robotInline&&this.host.state.focus!==this.target?.entityId))return;let args;try{args=controlArgs(task,optionId,input);}catch{this.note.textContent='Kontrollér dit valg, eller hent en ny betjening.';return;}this.spent.set(task.taskId,task.expiresAt);this.pending=true;const operation={key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:task.domain,optionId,observedRevision:task.domain==='vacuum'?this.robotDevice()?.revision:null,...(task.domain==='vacuum'?{choiceId:typeof args.choiceId==='string'?args.choiceId:null,value:typeof args.value==='number'?args.value:null}:{}),target:{...this.target},label:task.options.find(x=>x.id===optionId).label};this.activeOperation=operation;if(task.domain==='vacuum'){const selected=task.options.find(row=>row.id===optionId);operation.action=selected.action==='set_option'?'settings':selected.action==='reuse'?'start':selected.action;operation.settingKey=selected.settingKey;this.journalDevice(this.host.liveTransport,'control_intent',{domain:'vacuum',action:operation.action,resourceId:operation.target.entityId,code:'start',...(typeof args.value==='boolean'||typeof args.value==='number'?{requestedValue:args.value}:{})});}this.remember(operation,'pending');this.note.textContent='';for(const el of this.body.querySelectorAll('button,input,select'))el.disabled=true;this.render();const generation=this.generation,opening=this.opening,transport=this.host.liveTransport,transportGeneration=transport.generation;let refreshScene=false;
   try{if(task.domain==='vacuum'&&task.options.find(row=>row.id===optionId)?.action==='start'&&task.options.find(row=>row.id===optionId)?.argsSchema?.kind==='cleaning'){operation.receiptTask=task;operation.receiptTransport=transport;operation.receiptTransportGeneration=transportGeneration;}const result=await this.host.liveTransport.controlAction(task,optionId,args);refreshScene=task.domain==='light'&&!!this.target?.sceneId&&result.outcome==='accepted';this.remember(operation,result.outcome,result.requestId,result);if(task.domain==='vacuum'){this.journalDevice(transport,'control_action',{domain:'vacuum',action:operation.action,requestId:result.requestId,resourceId:operation.target.entityId,code:result.outcome});if(['accepted','unknown'].includes(result.outcome))this.trackDeviceJournal('vacuum',operation,result.requestId,typeof args.value==='boolean'||typeof args.value==='number'?args.value:undefined,operation.target.entityId,()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===task.bootId&&this.host.liveSnapshot?.roomId===task.roomId&&this.allowed('vacuum'));}if(generation!==this.generation||opening!==this.opening||!this.host.isConnected)return;if(task.domain==='vacuum'&&result.outcome==='accepted'){this.robotAwait={...operation,observedRevision:this.robotDevice()?.revision};if(task.options.find(row=>row.id===optionId)?.action==='set_option')this.scheduleRobotObservation(transport,task.bootId,task.roomId,transportGeneration);}this.note.textContent=task.domain==='vacuum'?'':result.partial&&result.outcome!=='accepted'?'Nogle indstillinger blev ændret. Rengøringen er ikke bekræftet startet.':result.ok?'Anmodningen er modtaget.':result.outcome==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':'Handlingen blev afvist · hent aktuel betjening.';if(result.outcome!=='unknown'){const refresh=make('button','Hent aktuel betjening','pv-button pv-ghost');refresh.type='button';refresh.addEventListener('click',()=>this.open(this.domain,this.target,this.opener,this.recipeId));this.body.append(refresh);}}
   catch{this.remember(operation,'unknown');if(generation===this.generation&&opening===this.opening&&this.host.isConnected)this.note.textContent=task.domain==='vacuum'?'':'Udfaldet er ukendt · handlingen gentages ikke.';}
   finally{
@@ -978,5 +992,5 @@ export class LiveControlView{
   }
   if(refreshScene&&typeof this.host.readLightArea==='function'&&generation===this.generation&&opening===this.opening&&this.controlOpen()&&this.lightContext?.current()){const previous=this.lightContext,refreshed=await this.host.readLightArea(this.target.areaId,{preserveControls:true});if(refreshed===true&&generation===this.generation&&opening===this.opening&&this.controlOpen()&&previous.current())await this.openLight(this.target,previous.observation(),this.opener,previous.observation);}
  }
- cleanup(){clearTimeout(this.robotSetupExpiry);this.robotSetupExpiry=null;this.lightActionFeedbackOperation=null;if(this.lightActionOperation)this.lightActionOperation.revoked=true;this.robotEntryKey=null;this.robotAwait=null;this.musicMeasurement=null;this.suspending=true;clearTimeout(this.musicExpiryTimer);clearTimeout(this.slowTimer);clearTimeout(this.expiryTimer);this.invalidate();this.suspending=false;}
+ cleanup(){clearTimeout(this.robotSetupExpiry);this.robotSetupExpiry=null;for(const entry of this.lightActions?.values()||[])if(entry.operation)entry.operation.revoked=true;this.lightActions=new Map();this.robotEntryKey=null;this.robotAwait=null;this.musicMeasurement=null;this.suspending=true;clearTimeout(this.musicExpiryTimer);clearTimeout(this.slowTimer);clearTimeout(this.expiryTimer);this.invalidate();this.suspending=false;}
 }

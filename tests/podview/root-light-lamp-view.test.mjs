@@ -61,7 +61,7 @@ test('live inline controls use actual raw brightness and exact entity target wit
 
 test('readable live rows remain disabled when observations, transport or capabilities are stale, unknown or unadmitted',()=>{
  for(const reason of ['expired','unavailable','binding','no-source','transport','capability','pending']){
-  const f=liveFixture(),entry=f.view.rows.get('light.ceiling');if(reason==='expired')f.observation.validUntil=Date.now()/1000-1;if(reason==='unavailable'){f.light.observedLights[0].state='unavailable';f.light.observedLights[0].brightness=null;}if(reason==='binding')f.observation.scope.areaId='foreign';if(reason==='no-source')f.light.lightObservation=null;if(reason==='transport')f.host.liveTransport.connected=false;if(reason==='capability')f.host.liveSnapshot.capabilities.controlSetup=[];if(reason==='pending')f.host.liveControls={lightActionState:{pending:true}};f.view.render(f.light);assert.equal(entry.toggle.disabled,true,reason);assert.equal(entry.field.input.disabled,true,reason);entry.toggle.click();change(entry,40);assert.deepEqual(f.effects,[],reason);assert.equal(entry.name.textContent,'Pendler');
+  const f=liveFixture(),entry=f.view.rows.get('light.ceiling');if(reason==='expired')f.observation.validUntil=Date.now()/1000-1;if(reason==='unavailable'){f.light.observedLights[0].state='unavailable';f.light.observedLights[0].brightness=null;}if(reason==='binding')f.observation.scope.areaId='foreign';if(reason==='no-source')f.light.lightObservation=null;if(reason==='transport')f.host.liveTransport.connected=false;if(reason==='capability')f.host.liveSnapshot.capabilities.controlSetup=[];if(reason==='pending')f.host.liveControls={lightActions:new Map([[JSON.stringify(['kitchen','light.ceiling',null]),{state:{pending:true}}]])};f.view.render(f.light);assert.equal(entry.toggle.disabled,true,reason);assert.equal(entry.field.input.disabled,true,reason);entry.toggle.click();change(entry,40);assert.deepEqual(f.effects,[],reason);assert.equal(entry.name.textContent,'Pendler');
  }
 });
 
@@ -96,3 +96,13 @@ test('individual command progress stays on its own toggle or Slider and cleans u
  for(const reason of ['transport','blocked','browser','capability','expired']){const saved=f.observation.validUntil;f.host.liveTransport.connected=reason!=='transport';f.host.liveTransport.recoveryBlocked=reason==='blocked';f.host.browserOffline=reason==='browser';f.host.liveSnapshot.capabilities.controlSetup=reason==='capability'?[]:['light'];if(reason==='expired')f.observation.validUntil=Date.now()/1000-1;f.view.render(f.light);assert.equal(row.toggle.disabled,true,reason);assert.equal(row.field.input.disabled,true,reason);f.observation.validUntil=saved;}
  assert.deepEqual(f.effects,[]);f.view.cleanup();
  });
+// L1: a pending command for one lamp never greys another lamp.
+test('another lamp stays tappable while one lamp command is pending',()=>{
+ const f=liveFixture();
+ f.host.liveControls={lightActions:new Map([[JSON.stringify(['kitchen','light.ceiling',null]),{state:{pending:true}}]])};
+ f.view.render(f.light);
+ const ceiling=f.view.rows.get('light.ceiling'),contact=f.view.rows.get('light.contact');
+ assert.equal(ceiling.toggle.disabled,true,'the pending lamp waits');
+ assert.equal(contact.toggle.disabled,false,'the other lamp is not greyed');
+ contact.toggle.click();assert.equal(f.effects.length,1,'the other lamp sends its own command');
+});

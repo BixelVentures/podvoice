@@ -523,11 +523,11 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "a0004c36fd5e366c604fec145e0cd011603aeb1fd36d5dad3fb12a90a18b5044"
+      "sha256": "788ac5dbefd7d74c04010e88c3a7db9d8989049a58dfe1ec561f34a2d026370f"
     },
     {
       "path": "light-room-view.js",
-      "sha256": "94da27585ca73f99588af793d1ce28316a0ada6633d339d2f88bd643c161638d"
+      "sha256": "d872e84e8268374f409c89c4f3139d3ad9c17875a71b1f69503e151b2b769a74"
     },
     {
       "path": "live-answer-view.js",
@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "d5a6d347ba2b85361da4da43f81fc573c0ba4340e505595517f485c5e95f9631"
+      "sha256": "8597db1e73cc02af320f7a79cdc1d7c89f9380c173222df045f86b25e99bed4f"
     },
     {
       "path": "live-home-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "3a57d448d3f5a52a094cce866fa00f256544aa664ca03bd16c3ec328ca3d3b26"
+      "sha256": "59170bd320275bac79670d7dde562c68a5c9f02d7db210acd23671bdbacdd38a"
     },
     {
       "path": "podview.css",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "74ab355b0c71c137e545445cfc78a0cf268789cbcdbb7f18feb13e53deb86b42"
+      "sha256": "4eda251c9fe6a2f51521a0b8e1c092c6781594e8fecfb8bdb1afeb44ab94e486"
     },
     {
       "path": "workshop.css",

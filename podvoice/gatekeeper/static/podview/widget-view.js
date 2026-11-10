@@ -512,7 +512,7 @@ class WidgetHost extends HTMLElement {
 
  onLightActionStatus(state,operation){
   const context=this.lightAreaContext(),light=this.currentLightDevice();
-  if(this.isConnected===false||!context||state?.late||!operation||operation.revoked||this.liveControls?.lightActionFeedbackOperation!==operation||!operation.context.current()||light?.lightScope?.areaId!==operation.target.areaId)return;
+  if(this.isConnected===false||!context||state?.late||!operation||operation.revoked||this.liveControls?.lightActions?.get(operation.identity)?.feedback!==operation||!operation.context.current()||light?.lightScope?.areaId!==operation.target.areaId)return;
   const phase=state.phase,pending=['preparing','sending'].includes(phase);
   if(['unknown','rejected'].includes(phase)){
    const fence=this.liveControls?.lightUnknowns?.get(operation.identity);
@@ -646,9 +646,12 @@ class WidgetHost extends HTMLElement {
   const local=!this.live&&light?.exampleOnly===true&&!light.live,selection=local?lightSelection(light):null,area=local?selection?.roomId:light?.lightScope?.areaId;
   const scenes=(light?.lightScenes||[]).filter(row=>!local||row.roomId===area),visible=!!(scenes.length&&(!local||selection?.kind==='room'));
   const preview=local&&light.feedbackPreview?.revision===light.revision?light.feedbackPreview:null;
-  const receipt=this.live?this.liveControls?.lightActionState:preview;
+  // The newest light status in this area (the per-light map keeps the latest update last, L1).
+  const latest=this.live?[...this.liveControls?.lightActions?.values()||[]].findLast(entry=>
+   entry.state?.target?.areaId===area):null;
+  const receipt=this.live?latest?.state:preview;
   const receiptCurrent=!!light&&!!receipt&&!receipt.late&&!light.stale&&receipt.target?.areaId===area
-   &&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.()===true);
+   &&(!this.live||this.liveControls?.lightActionFeedbackCurrent?.(latest.feedback)===true);
   const phase=receiptCurrent?receipt.phase:'';
   this.lightCommandFeedback=['preparing','sending'].includes(phase)?receipt:null;
   if(!this.lightScenes){
@@ -665,7 +668,7 @@ class WidgetHost extends HTMLElement {
    return;
   }
   const sceneTitle='Scener';if(this.lightScenes.firstElementChild?.textContent!==sceneTitle&&this.lightScenes.firstElementChild)this.lightScenes.firstElementChild.textContent=sceneTitle;if(this.lightScenes.hidden)this.lightScenes.hidden=false;if(this.lightLampDisclosure.hidden)this.lightLampDisclosure.hidden=false;
-  const selected=local?light.lightSceneSelections?.[area]:this.lightSceneRecent?.area===area?this.lightSceneRecent:null,chosen=scenes.find(row=>row.id===selected?.id),connected=this.live?!!this.liveTransport?.connected:this.state.connected,pending=!!(light.pending||this.lightAreaPending||this.liveControls?.lightActionState?.pending),enabled=(local||this.live)&&connected&&!light.stale&&!pending&&['on','off','mixed'].includes(light.status)&&(!this.live||this.liveSnapshot?.capabilities.controlSetup?.includes('light'));
+  const selected=local?light.lightSceneSelections?.[area]:this.lightSceneRecent?.area===area?this.lightSceneRecent:null,chosen=scenes.find(row=>row.id===selected?.id),connected=this.live?!!this.liveTransport?.connected:this.state.connected,pending=!!(light.pending||this.lightAreaPending||[...this.liveControls?.lightActions?.values()||[]].some(entry=>entry.state?.pending&&entry.state.target?.areaId===area&&!entry.state.target.entityId)),enabled=(local||this.live)&&connected&&!light.stale&&!pending&&['on','off','mixed'].includes(light.status)&&(!this.live||this.liveSnapshot?.capabilities.controlSetup?.includes('light'));
   for(const scene of scenes){let button=this.lightSceneButtons.get(scene.id);if(!button){button=document.createElement('button');button.type='button';button.addEventListener('click',()=>{const binding=button.sceneBinding;if(button.disabled||!binding)return;if(this.live){const current=this.currentLightDevice(),area=current?.lightScope?.areaId;void Promise.resolve(this.actCurrentLight('scene',{choiceId:binding.optionId},{sceneId:binding.optionId})).then(result=>{if(result?.outcome==='accepted'&&this.currentLightDevice()?.lightScope?.areaId===area){this.lightSceneRecent={id:binding.optionId,area};this.renderLightScenes(this.currentLightDevice());}});}else this.dispatch({type:'light-scene-select',...binding});});this.lightSceneChoices.append(button);this.lightSceneButtons.set(scene.id,button);}if(button.hidden)button.hidden=false;button.sceneBinding={sessionId:this.state.sessionId,taskId:light.id,revision:light.revision,optionId:scene.id};const text=scene.name;if(button.textContent!==text)button.textContent=text;applyKitComponent(button,'chip',{identity:'light',variant:'command',selected:chosen?.id===scene.id,disabled:!enabled,feedback:'progress',loading:!!this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id});button.setAttribute('aria-description',this.lightCommandFeedback&&receipt.action==='scene'&&receipt.target.sceneId===scene.id?phase==='preparing'?'Forbereder handling':'Afventer svar':chosen?.id===scene.id?'Valgt scene til lysstyrkejustering':'Vælg scene');}
   for(const[id,button]of this.lightSceneButtons)if(!scenes.some(row=>row.id===id)&&!button.hidden)button.hidden=true;
   const lamps=local?light.lights:light.observedLights?.map(row=>({id:row.entityId,on:row.state==='on'?true:row.state==='off'?false:null,brightness:Number.isFinite(row.brightness)?Math.round(row.brightness/255*100):null,dimmable:row.supportsBrightness===true}))||[],members=local?lamps.filter(row=>row.roomId===area):chosen?lamps.filter(row=>chosen.entityIds.includes(row.id)):[],levels=members.map(row=>row.on===false?0:row.on===true?row.brightness:null),complete=local?members.length>0:!!chosen&&members.length===chosen.entityIds.length,known=complete&&levels.length>0&&levels.every(Number.isInteger),uniform=known&&levels.every(value=>value===levels[0]),level=known?(local?Math.max(...levels):uniform?levels[0]:null):null;

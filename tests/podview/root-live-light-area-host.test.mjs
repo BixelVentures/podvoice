@@ -124,7 +124,7 @@ test('mismatched explicit-area response cannot replace retained selected detail'
 function actionFixture(){
  const f=fixture(),{host}=f,context=host.lightAreaContext(),focus=host.state.focus,light=host.currentLightDevice(),observation=light.lightObservation,toasts=[];
  const operation={identity:'one-light-operation',target:{areaId:light.lightScope.areaId,sceneId:'scene-one'},context:{sourceEpoch:observation.sourceEpoch,sourceObservedAt:observation.observedAt,current:()=>{const current=host.lightAreaContext();return host.state.focus===focus&&current?.key===context.key&&current.transport===context.transport;}}};
- host.liveControls={lightActionFeedbackOperation:operation,lightUnknowns:new Map()};
+ host.liveControls={lightActions:new Map([[operation.identity,{feedback:operation}]]),lightUnknowns:new Map()};
  host.showFeedback=(...args)=>{toasts.push(args);host.feedback=args[0];};
  // Retain the canonical status slot; this test exercises projection without a browser DOM.
  const attrs=new Map();host.lightSceneStatus={textContent:'',dataset:{},hidden:true,setAttribute:(key,value)=>attrs.set(key,String(value)),getAttribute:key=>attrs.get(key)??null};
@@ -168,7 +168,7 @@ test('late action feedback is fenced by focus, transport, producer identity and 
    const state={phase:'unknown',target:f.operation.target};
    if(boundary==='focus')f.host.state.focus='now';
    if(boundary==='transport')f.host.liveTransport={...f.host.liveTransport};
-   if(boundary==='producer')f.host.liveControls.lightActionFeedbackOperation={};
+   if(boundary==='producer')f.host.liveControls.lightActions.get(f.operation.identity).feedback={};
    if(boundary==='revoked')f.operation.revoked=true;
    if(boundary==='late')state.late=true;
    if(boundary==='disconnect')f.host.liveTransport.connected=false;

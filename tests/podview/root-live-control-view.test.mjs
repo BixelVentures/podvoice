@@ -238,3 +238,20 @@ test('robot settings journal does not turn an unrelated state read into settings
   assert.equal(rows.length,1);assert.equal(rows[0].action,'settings');assert.equal(rows[0].code,'unconfirmed');assert.equal(rows[0].observedValue,undefined);assert.equal(f.calls(),0);
  }finally{f.view.cleanup();}
 });
+// L1: a command for one lamp never blocks a command for another lamp.
+test('a second lamp is switched while the first lamp command is still in flight',async()=>{
+ const f=lightFixture();try{
+  f.mutate(o=>o.items.push({entityId:'light.desk',areaId:'kitchen',name:'Bord',state:'on',brightness:128,supportsBrightness:true}));
+  let n=0;const held=[],sent=[];
+  f.host.liveTransport.controlSetup=(_domain,target)=>{const offer=f.lightOffer();offer.taskId='control:'+(++n).toString(16).padStart(32,'0');offer.setup.entityIds=[target.entityId];return Promise.resolve(offer);};
+  f.host.liveTransport.controlAction=task=>{sent.push(task.lightSetup?.entityIds?.[0]??task.setup?.entityIds?.[0]);const d=deferred();held.push(d);return d.promise;};
+  const first=f.view.actLight({areaId:'kitchen',entityId:'light.ceiling'},f.observation(),'turn_off',{},f.observation);
+  await new Promise(resolve=>setImmediate(resolve));
+  const second=f.view.actLight({areaId:'kitchen',entityId:'light.desk'},f.observation(),'turn_off',{},f.observation);
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(held.length,2,'the second lamp is sent without waiting for the first');
+  assert.equal(f.view.canQueueLightInput({areaId:'kitchen',entityId:'light.desk'},'toggle'),false);
+  for(const d of held)d.resolve({ok:true,outcome:'accepted',requestId:'11111111-1111-4111-8111-111111111111'});
+  assert.equal((await first).outcome,'accepted');assert.equal((await second).outcome,'accepted');
+ }finally{f.view.cleanup();}
+});

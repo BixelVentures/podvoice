@@ -28,9 +28,11 @@ export class LightRoomView{
     &&!transport.recoveryBlocked&&!this.host.browserOffline);
    const permitted=connected&&this.host.liveSnapshot?.capabilities?.controlSetup?.includes('light')
     &&!this.host.lightAreaPending;
-   const controls=this.host.liveControls,pending=controls?.lightActionState?.pending;
+   const controls=this.host.liveControls;
    const rows=items.filter(row=>typeof row.areaId==='string'&&typeof row.areaName==='string').map(row=>{
     const current=source?.status==='observed'&&source.scope.areaId===row.areaId,known=current&&source.items.length>0&&source.items.every(item=>['on','off'].includes(item.state)),on=known?source.items.filter(item=>item.state==='on').length:null;
+    // Only a pending command for this room's own light blocks its tile (L1).
+    const pending=controls?.lightActions?.get(JSON.stringify([row.areaId,null,null]))?.state?.pending;
     const enabled=permitted&&known&&(!pending||controls.canQueueLightInput?.({areaId:row.areaId},'toggle'));
     return {id:row.areaId,name:row.areaName,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Sidst kendt':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!enabled,live:true};
    });
