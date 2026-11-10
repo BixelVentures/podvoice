@@ -438,7 +438,8 @@ async def resolve_actual(
             and owner_binding() == owner
         )
 
-    output = controls_read = {}
+    output: dict = {}
+    controls_read: dict = {}
 
     def result(
         status="unavailable",
