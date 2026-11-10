@@ -42,7 +42,7 @@ a{color:#17171A;text-decoration:none}
     <sc-if value="{{timer}}" hint-placeholder-val="{{ false }}">
     <a href="A-Timer.dc.html" class="tb-key" aria-label="Timer {{timer}}, {{timerName}}" style="height: 44px; padding: 0 14px 0 10px; border-radius: 22px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; gap: 10px; animation: tbin .32s cubic-bezier(.2,.9,.3,1) both">
       <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="#2E2E33" stroke-width="3"/><circle cx="12" cy="12" r="9" fill="none" stroke="#FF7A5C" stroke-width="3" stroke-linecap="round" stroke-dasharray="{{timerDash}}" transform="rotate(-90 12 12)"/></svg>
-      <span style="display: flex; flex-direction: column; line-height: 1.05"><span style="font: 500 18px 'IBM Plex Mono', monospace; letter-spacing: -0.03em">{{timer}}</span><span style="font-size: 13px; color: #BDBBB5">{{timerName}}</span></span>
+      <span style="font: 500 18px 'IBM Plex Mono', monospace; letter-spacing: -0.03em">{{timer}}</span>
     </a>
     </sc-if>
     <sc-if value="{{showWeather}}" hint-placeholder-val="{{ true }}">

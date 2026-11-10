@@ -71,10 +71,16 @@ body{margin:0}
         <sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
           <div style="display: grid; grid-template-columns: 36px 1fr auto; align-items: start; gap: 14px; padding: {{s.pad}}; border-radius: 18px; background: {{s.bg}}; box-shadow: {{s.ring}}">
             <button class="btn" onClick="{{s.toggle}}" aria-label="{{s.markAria}}" aria-pressed="{{s.doneAria}}" style="width: 44px; height: 44px; margin: -6px; border-radius: 50%; background: transparent; display: flex; align-items: center; justify-content: center; padding: 0"><span style="width: 32px; height: 32px; border-radius: 50%; background: {{s.dotBg}}; color: {{s.dotFg}}; display: flex; align-items: center; justify-content: center; font: 600 15px 'IBM Plex Mono', monospace; transition: background-color .25s ease">{{s.mark}}</span></button>
-            <div style="display: flex; flex-direction: column; gap: 3px">
-              <span style="font-size: {{s.hSize}}; font-weight: 800; color: {{s.fg}}">{{s.h}}</span>
-              <span style="font-size: {{s.tSize}}; line-height: 1.4; color: {{s.tc}}">{{s.t}}</span>
-            </div>
+            <button class="btn" onClick="{{s.toggle}}" aria-pressed="{{s.doneAria}}" style="display: flex; flex-direction: column; gap: 3px; padding: 0; background: transparent; text-align: left; font-family: 'Schibsted Grotesk', sans-serif; min-height: 44px">
+              <span style="font-size: {{s.hSize}}; font-weight: 800; color: {{s.fg}}; text-decoration: {{s.td}}; text-decoration-thickness: 2px; transition: color .25s ease">{{s.h}}</span>
+              <span style="font-size: {{s.tSize}}; line-height: 1.4; color: {{s.tc}}; text-decoration: {{s.td}}">{{s.t}}</span>
+            </button>
+            <sc-if value="{{s.runChip}}" hint-placeholder-val="{{ false }}">
+              <span style="height: 44px; padding: 0 14px 0 10px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; gap: 10px" aria-label="Timer kører, 29:12 tilbage">
+                <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="#2E2E33" stroke-width="3"/><circle cx="12" cy="12" r="9" fill="none" stroke="#FF7A5C" stroke-width="3" stroke-linecap="round" stroke-dasharray="54.8 56.5" transform="rotate(-90 12 12)"/></svg>
+                <span style="font: 500 18px 'IBM Plex Mono', monospace; letter-spacing: -0.03em">29:12</span>
+              </span>
+            </sc-if>
             <sc-if value="{{s.timer}}" hint-placeholder-val="{{ false }}">
               <button class="btn" onClick="{{s.start}}" style="height: {{s.tH}}; padding: 0 16px; border-radius: 999px; background: {{s.tBg}}; color: {{s.tFg}}; display: flex; align-items: center; gap: 8px; font: 600 15px 'Schibsted Grotesk', sans-serif; white-space: nowrap">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{s.tFg}}" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M10 2h4"/></svg>
@@ -147,7 +153,7 @@ class Component extends DCLogic {
         dotBg: done ? '#7A4A22' : isCur ? '#17171A' : '#ECEAE5', dotFg: done || isCur ? '#F7F6F3' : '#5F5E5A',
         fg: done ? '#5F5E5A' : '#17171A', tc: done ? '#5F5E5A' : isCur ? '#2B2B2E' : '#5F5E5A',
         hSize: isCur ? '22px' : '17px', tSize: isCur ? '19px' : '15px',
-        timer: !!d.min && !done,
+        timer: !!d.min && !done && !running, runChip: running, td: done ? 'line-through' : 'none',
         tLabel: running ? 'Timer kører · 29:12' : (isCur ? 'Start timer · ' : '') + label,
         tH: isCur ? '56px' : '48px',
         tBg: running ? '#17171A' : isCur ? '#17171A' : '#ECEAE5', tFg: running || isCur ? '#F7F6F3' : '#17171A',
