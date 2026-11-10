@@ -1,3 +1,7 @@
+## 2.0.168
+
+- Vis først robottens aktuelle rum, når Home Assistant har bekræftet en rumværdi fra den aktive tur.
+
 ## 2.0.167
 
 - Vis om radioens Stop ikke blev sendt, blev afvist eller har ukendt udfald. Vis en konkret besked, hvis en valgt playliste ikke kan bekræftes ved fornyelse.
