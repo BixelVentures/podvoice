@@ -402,6 +402,8 @@ class PodViewBridge:
         self._music_room_read_diagnostic: dict[tuple[str, str], tuple[str, ...]] = {}
         self._music_busy = False
         self._targets_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
+        self._mood_inflight: tuple[tuple, asyncio.Future[None]] | None = None
+        self._library_waiting_on_mood: asyncio.Future[None] | None = None
         self._music_source_generation = 0
         self._music_profile_generation: dict[str, object] = {}
         self._music_playlist_documents: dict[tuple[str, str], tuple[float, dict]] = {}
@@ -3647,7 +3649,61 @@ async def _music(request: web.Request) -> web.Response:
         return _music_read_response(kind, result, bridge, room, account)
     if kind != "playback" and len(bridge._music_cache) >= 16:
         return _error("music_capacity", 429)
-    if bridge._music_busy:
+    library_deadline = None
+    mood = bridge._mood_inflight
+    if (
+        kind == "account_playlists"
+        and document
+        and token
+        and bridge._music_busy
+        and mood is not None
+        and mood[0] == (bridge.boot_id, room, account, binding, token, document)
+        and bridge._library_waiting_on_mood is None
+    ):
+        assert account is not None
+        initial_voice = bridge.snapshot(room).get("voice")
+        initial_context = _music_search_context(
+            bridge, room, account, context_query, token, document=document
+        )
+        initial_grant = bridge._grant_for_token(room, token)
+        initial_authority = bridge._grant_current(room, token)
+        initial_writable = bridge.controls.selection_allowed(room, token, selection_action)
+        library_deadline = time.monotonic() + 10
+        mood_completion = mood[1]
+        bridge._library_waiting_on_mood = mood_completion
+        try:
+            async with asyncio.timeout(10):
+                await asyncio.shield(mood_completion)
+            denied = await _guard(request)
+            if denied is not None:
+                return denied
+            if (
+                request.app.get(BRIDGE) is not bridge
+                or bridge.boot_id != mood[0][0]
+                or _room(request, bridge) != room
+                or bridge.tools is not tools
+                or _music_binding(bridge, room) != binding
+                or _request_token(request, room) != token
+                or _music_document(request) != document
+                or bridge._grant_for_token(room, token) is not initial_grant
+                or bridge._grant_current(room, token) != initial_authority
+                or bridge.controls.selection_allowed(room, token, selection_action)
+                != initial_writable
+                or bridge.snapshot(room).get("voice") != initial_voice
+                or _music_search_context(
+                    bridge, room, account, context_query, token, document=document
+                )
+                != initial_context
+                or kind not in tools.podview_music_reads()
+                or (selection_requested and bridge.music_selection.busy(room))
+            ):
+                return _error("music_unavailable", 409)
+        except TimeoutError:
+            return _error("music_busy", 429)
+        finally:
+            bridge._library_waiting_on_mood = None
+    budget = 10 if library_deadline is None else library_deadline - time.monotonic()
+    if bridge._music_busy or budget <= 0:
         return _error("music_busy", 429)
     source_generation = None
     if selection_requested:
@@ -3670,7 +3726,7 @@ async def _music(request: web.Request) -> web.Response:
             if kind == "search":
                 raw = await asyncio.wait_for(tools.podview_read(kind, account, query), timeout=10)
             else:
-                raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=10)
+                raw = await asyncio.wait_for(tools.podview_read(kind, account), timeout=budget)
             result = _music_public(kind, raw, account, query)
         except Exception as error:
             _log_terminal_failure("music_read", error)
@@ -3848,6 +3904,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         document = _music_document(request)
     except ValueError:
         return _error("invalid_music_document", 400)
+    request_document = document
     writable = bridge.controls.selection_allowed(room, token, "play_context")
     playlist_scope = (kind, bridge._music_scope(token, document)) if document and grant else None
     if playlist_scope is None:
@@ -3934,6 +3991,13 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         diagnostic.outcome = error
         return _error(error)
 
+    completion = None
+    if kind == "mood":
+        completion = asyncio.get_running_loop().create_future()
+        bridge._mood_inflight = (
+            (bridge.boot_id, room, account, binding, token, request_document),
+            completion,
+        )
     try:
         # Leave two seconds for ingress/response within the browser 12-second deadline.
         async with asyncio.timeout(max(0, 10 - (time.monotonic() - started))) as total_deadline:
@@ -4313,6 +4377,9 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         return failed(f"{kind}_unavailable")
     finally:
         bridge._music_busy = False
+        if completion is not None:
+            bridge._mood_inflight = None
+            completion.set_result(None)
         diagnostic_log.finish(diagnostic, diagnostic_token)
 
 
