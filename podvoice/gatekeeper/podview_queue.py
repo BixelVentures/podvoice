@@ -20,6 +20,7 @@ from .podview_music_control import _integer, _room_receipt, _text
 from .podview_queue_scope import PURPOSE, owner_identity, owner_scope
 
 ACTION = "play_queue_occurrence"
+SUPERSEDED_PRESENTATION_TTL_S = 60
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -189,7 +190,7 @@ class QueueBroker:
         self.bridge = bridge
         self.tasks = {}
         self.receipts = {}
-        self.generation = {}
+        self.offer_reads = {}
 
     @property
     def available(self):
@@ -232,7 +233,6 @@ class QueueBroker:
             hashlib.sha256(
                 json.dumps(self.bridge.controls.policy, sort_keys=True).encode()
             ).digest(),
-            self.generation.get((room, token), 0),
         )
 
     def presented_current(self, task, token):
@@ -240,6 +240,7 @@ class QueueBroker:
         try:
             return bool(
                 task["room"] in self.bridge.sessions
+                and time.monotonic() < task.get("presentation_until", math.inf)
                 and secrets.compare_digest(task["token"], token)
                 and task["binding"] == self.binding(task["room"], token)
                 and task["rule"] in self.rules(task["room"], token)
@@ -284,13 +285,13 @@ class QueueBroker:
             return {"ok": False, "error": "invalid_queue_target", "retryAllowed": False}
         from .podview_room_media import expected_actual
 
-        gate = self.binding(room, token)[:-1]
+        gate = self.binding(room, token)
         resolved = await expected_actual(
             self.bridge,
             room,
             account,
             body["expectedBindingId"],
-            lambda: gate == self.binding(room, token)[:-1] and bool(self.rules(room, token)),
+            lambda: gate == self.binding(room, token) and bool(self.rules(room, token)),
         )
         scope = resolved["binding"] if resolved is not None else None
         matches = [
@@ -309,8 +310,9 @@ class QueueBroker:
         ):
             return {"ok": False, "error": "queue_not_paired", "retryAllowed": False}
         assert resolved is not None and scope is not None
-        generation_key = (room, token)
-        self.generation[generation_key] = self.generation.get(generation_key, 0) + 1
+        read_key = (room, token)
+        read = object()
+        self.offer_reads[read_key] = read
         task = {
             "room": room,
             "token": token,
@@ -340,7 +342,7 @@ class QueueBroker:
                         "homepod_id": rule["nativeHomepodId"],
                     },
                 )
-            if not self.current(task, token):
+            if self.offer_reads.get(read_key) is not read or not self.current(task, token):
                 raise ValueError("owner replaced")
             source = project(
                 value, account, target, room=rule["nativeRoomId"], homepod=rule["nativeHomepodId"]
@@ -360,11 +362,16 @@ class QueueBroker:
             self.tasks = {
                 k: t
                 for k, t in self.tasks.items()
-                if (t["room"], t["token"]) != (room, token)
-                and (self.bridge._ha_task_retained(t) or self.presented_current(t, t["token"]))
+                if self.bridge._ha_task_retained(t) or self.presented_current(t, t["token"])
             }
             if len(self.tasks) >= 64:
                 raise ValueError("queue capacity")
+            # An offer may already be displayed elsewhere under the same grant.
+            # A later read neither consumes it nor renews its native authority.
+            presentation_until = time.monotonic() + SUPERSEDED_PRESENTATION_TTL_S
+            for previous in self.tasks.values():
+                if (previous["room"], previous["token"]) == read_key:
+                    previous.setdefault("presentation_until", presentation_until)
             self.tasks[task_id] = task
             source["deadline_ms"] = max(
                 1, min(source["deadline_ms"], int((task["deadline"] - time.monotonic()) * 1000))
@@ -400,6 +407,9 @@ class QueueBroker:
             }
         except (Exception, asyncio.CancelledError):
             return {"ok": False, "error": "queue_offer_unavailable", "retryAllowed": False}
+        finally:
+            if self.offer_reads.get(read_key) is read:
+                self.offer_reads.pop(read_key)
 
     async def action(self, body, token):
         trace = {"stage": "validation", "dispatched": False, "kind": "none", "detail": ""}

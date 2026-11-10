@@ -40,6 +40,12 @@ const activeJob=device=>['cleaning','paused'].includes(device?.status)||robotExp
 const ownRobotPending=value=>!!value?.pendingOptionId&&value.task?.domain==='vacuum'
  &&value.task.options.some(option=>option.id===value.pendingOptionId);
 const foreignRobotPending=value=>!!(value?.pendingOptionId||value?.device?.pending)&&!ownRobotPending(value);
+const directConfirmationCurrent=(action,value)=>value.connected!==false&&!value.directBlocked
+ &&!value.directPendingAction&&!foreignRobotPending(value)
+ &&(value.device?.stale
+  ?action==='return'&&value.directReadGap===true
+  :value.directActions?.includes(action));
+
 
 const make=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;const role=['h2','h3'].includes(tag)?'section-title':['h4','legend'].includes(tag)?'field-label':tag==='summary'?'group-title':tag==='p'?(className?.split(/\s+/).includes('pv-meta')?'meta':className==='robot-repeat-value'?'control-value':'body'):className==='robot-room-label'?'field-label':null;if(role)applyKitTextRole(node,role);if(tag==='button')applyKitComponent(node,className?.split(/\s+/).includes('pv-segment')?'chip':'button',{identity:'robot',variant:className?.split(/\s+/).includes('pv-primary')?'primary':'secondary'});return node;};
 // Presentation follows admitted options, never an assumed Roborock model or service.
@@ -58,14 +64,15 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
    &&Number.isSafeInteger(oldScope.generation)&&oldScope.generation===newScope.generation;
   const sameTaskScope=!oldScope&&!newScope&&!!previous?.bootId
    &&previous.bootId===value?.task?.bootId&&previous.roomId===value?.task?.roomId;
-  const sameRobotScope=!!(sameDevice&&(samePresentationScope||sameTaskScope)
-   &&this.value?.localOnly===value?.localOnly&&this.value?.connected!==false&&value?.connected!==false
+  const sameConnectedRobot=!!(sameDevice&&this.value?.localOnly===value?.localOnly
+   &&this.value?.connected!==false&&value?.connected!==false);
+  const sameRobotScope=!!(sameConnectedRobot&&(samePresentationScope||sameTaskScope)
    &&!this.value?.device?.stale&&!value?.device?.stale);
   const directConfirmation=this.confirmation?.open&&this.confirmation.dataset.directAction;
-  const keepDirectConfirmation=!!(directConfirmation&&sameRobotScope&&samePresentationScope
+  const keepDirectConfirmation=!!(directConfirmation&&sameConnectedRobot&&samePresentationScope
    &&this.value.device.status===value.device.status&&activeJob(this.value.device)===activeJob(value.device)
-   &&value.directActions?.includes(directConfirmation)&&!value.directBlocked
-   &&!value.directPendingAction&&!foreignRobotPending(value));
+   &&(!this.value.device.stale||directConfirmation==='return'&&this.value.directReadGap===true)
+   &&directConfirmationCurrent(directConfirmation,value));
   if(directConfirmation&&!keepDirectConfirmation)this.confirmation.close();
   const baseTrigger=this.baseDisclosure?.trigger;
   const baseFocused=!!(sameRobotScope&&baseTrigger&&globalThis.document?.activeElement===baseTrigger);
@@ -135,8 +142,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
  observed(device,context={}){
   const before=this.value,next={...before,...context,device},direct=this.confirmation?.open&&this.confirmation.dataset.directAction;
   if(direct&&(device?.id!==before.device?.id||device?.status!==before.device?.status
-   ||activeJob(device)!==activeJob(before.device)||device?.stale||next.connected===false
-   ||next.directBlocked||next.directPendingAction||foreignRobotPending(next)||!next.directActions?.includes(direct)))this.confirmation.close();
+   ||activeJob(device)!==activeJob(before.device)||!directConfirmationCurrent(direct,next)))this.confirmation.close();
   this.value=next;this.syncDirectTransport();this.updateObservation();this.updateSettingValues?.();this.refreshCleaningSummary?.();this.syncDisabled();}
  updateObservation(){const d=this.value?.device,experience=robotExperience(d||{}),unknownFault=['fault','error'].includes(d?.status)&&!experience.issues.length;const ready=String(!!robotControlGroups(this.value?.task).cleaning&&!activeJob(d));if(this.dataset.cleaningReady!==ready)this.dataset.cleaningReady=ready;if(this.availabilityNote){const loading=this.value?.loading===true;this.availabilityNote.textContent=unknownFault?'Åbn Roborock-appen for at se fejlen og få hjælp.':experience.issues.length?'':loading?'Henter aktuel betjening…':!this.value?.task?(this.value?.readOnly!==false?'Kun status er tilgængelig.':''):this.mapControl&&this.value?.connected!==false?'':'Du kan ikke ændre rengøringen her lige nu.';this.availabilityNote.hidden=!this.availabilityNote.textContent;}if(this.currentMap){const map=this.value?.currentSetup?.mapName||this.value?.task?.mapName,known=typeof map==='string'&&map.trim().length>0&&map.length<=160;if(this.currentMap.textContent!==(known?map:''))this.currentMap.textContent=known?map:'';this.currentMap.hidden=!known;}if(this.currentRoomsUnknown){const room=robotRoom(d||{});this.currentRoomsUnknown.textContent=room?`Rengør nu: ${room}`:'Valgte rum er ikke oplyst';}this.updateCurrentRooms();if(this.repeatReadOnlyRail){const count=this.value?.currentSetup?.repeat;this.repeatReadOnlyRail.setValue(Number.isInteger(count)?String(count):null);}if(this.repeatStatus){const count=this.value?.currentSetup?.repeat;this.repeatStatus.textContent=Number.isInteger(count)&&count>=1&&count<=3?`${count} ${count===1?'gang':'gange'}`:'Aktuelt antal ikke oplyst';}if(!this.observation)return;this.observation.dataset.setupPending=String(this.value?.loading===true&&!this.value?.task);const now=Date.now()/1000,progress=d?.status==='cleaning'&&!d?.stale&&this.value?.connected!==false&&d?.telemetry?.status==='observed'&&Array.isArray(d.telemetry.items)?d.telemetry.items.find(row=>row.key==='clean_percent'):null,known=progress?.stale===false&&progress.unit==='%'&&Number.isFinite(progress.updatedAt)&&progress.updatedAt>=0&&progress.updatedAt<=now+1&&now-progress.updatedAt<=300&&Number.isFinite(progress.value)&&progress.value>=0&&progress.value<=100;this.robotProgress.hidden=!known;if(known){this.robotProgressMeter.value=progress.value;this.robotProgressLabel.textContent=`${progress.value.toLocaleString('da-DK',{maximumFractionDigits:1})} % færdig`;}const detail=robotDetailMetadata(d);if(this.observation.dataset.kitDensity!=='compact')this.observation.dataset.kitDensity='compact';const statusText=deviceLabel({...d,kind:'vacuum',live:d?.live!==false}),offline=this.value?.connected===false||!!d?.stale;this.observation.data={title:'Robotstøvsuger',resourceStatus:d?.status||'unknown',state:d?.pending?'pending':'ready',quietStatus:true,connected:this.value?.connected,text:offline&&!/^Sidst kendt\b/i.test(statusText)?`Sidst kendt · ${statusText}`:statusText,detail,actions:[]};
   const hidden=maintenanceHidden(d),recoverySignature=JSON.stringify({deviceId:d?.id,issues:experience.issues,maintenance:experience.maintenance,hidden});

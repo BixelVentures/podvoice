@@ -2709,6 +2709,93 @@ async def test_direct_command_server_trace_authorized_receipt_and_redelivery(
     assert len([call for call in music.calls if call[1].endswith("control_room_playback")]) == 1
 
 
+@pytest.mark.parametrize(
+    ("case", "outcome", "reason"),
+    [
+        ("held_setup", "rejected", "busy"),
+        ("unsupported", "rejected", "unsupported_action"),
+        ("changed_observation", "rejected", "transport_rejected"),
+        ("private_error", "rejected", "other"),
+        ("accepted", "accepted", None),
+        ("unknown", "unknown", None),
+    ],
+)
+async def test_direct_vacuum_pause_receipt_logs_only_bounded_rejection_reason(
+    offline_direct, caplog, monkeypatch, case, outcome, reason
+):
+    from gatekeeper.podview_vacuum_control import VacuumTransport
+
+    _, bridge, _, _, _, _, robot, _ = offline_direct
+    robot.states[ROBOT]["state"] = "cleaning"
+    robot.states[ROBOT]["attributes"]["supported_features"] = 4 | 8192
+    controls = bridge.controls
+    controls.policy["vacuum"][0]["actions"] = ["pause", "resume"]
+    token = bridge.grant_timer_control("kitchen")
+    body = {
+        **direct_music_body(bridge, action="pause", request_id="PRIVATE-pause"),
+        "domain": "vacuum",
+        "target": {"entityId": ROBOT},
+    }
+    passive_setup = None
+    release = asyncio.Event()
+    if case == "held_setup":
+        entered = asyncio.Event()
+        setup = VacuumTransport.setup
+
+        async def held_setup(self, entity, current):
+            entered.set()
+            await release.wait()
+            return await setup(self, entity, current)
+
+        monkeypatch.setattr(VacuumTransport, "setup", held_setup)
+        passive_setup = asyncio.create_task(controls.setup(setup_body(bridge), token))
+        await asyncio.wait_for(entered.wait(), 2)
+    elif case == "unsupported":
+        robot.states[ROBOT]["state"] = "paused"
+    elif case == "changed_observation":
+        setup = VacuumTransport.setup
+
+        async def changing_setup(self, entity, current):
+            offered = await setup(self, entity, current)
+            robot.states[ROBOT]["state"] = "paused"
+            return offered
+
+        monkeypatch.setattr(VacuumTransport, "setup", changing_setup)
+    elif case == "private_error":
+        monkeypatch.setattr(
+            controls, "setup", AsyncMock(return_value={"ok": False, "error": "PRIVATE-detail"})
+        )
+    elif case == "unknown":
+
+        async def fail_after_post():
+            raise TimeoutError("PRIVATE-detail")
+
+        robot.write_hook = fail_after_post
+
+    try:
+        with caplog.at_level("INFO", logger="gatekeeper.podview_controls"):
+            result = await controls.command(body, token)
+    finally:
+        release.set()
+        if passive_setup is not None:
+            assert (await passive_setup)["ok"]
+    assert result["outcome"] == outcome
+    messages = [record.getMessage() for record in caplog.records]
+    assert len(messages) == 2
+    assert "phase=admission domain=vacuum action=pause" in messages[0]
+    assert "reason=" not in messages[0]
+    assert (
+        f"outcome={outcome} delivery=new physical_result_verified=false kind=direct" in messages[1]
+    )
+    if reason is None:
+        assert "reason=" not in messages[1]
+    else:
+        assert messages[1].endswith(f" reason={reason}")
+    assert not any(secret in " ".join(messages) for secret in (token, ROBOT, "PRIVATE"))
+    expected = [("services/vacuum/pause", {"entity_id": ROBOT})] if reason is None else []
+    assert robot.writes == expected
+
+
 async def test_direct_command_server_trace_sink_failure_is_fail_open(offline_direct, monkeypatch):
     _, bridge, _, _, _, _, _, music = offline_direct
     token = bridge.grant_timer_control("kitchen")

@@ -100,6 +100,60 @@ async def read(rig, *, token=None, receipt_request_id=None):
     return json.loads(response.body)
 
 
+async def test_account_only_playback_logs_source_reasons_once_per_transition(controls_rig, caplog):
+    rig = controls_rig
+    current = copy.deepcopy(rig.value)
+
+    def owner_unavailable(reason):
+        rig.value["output"] = {"status": "unavailable", "reason": reason, "binding": None}
+        rig.value["controls"] = {
+            "status": "unavailable",
+            "reason": reason,
+            "binding_id": None,
+            "valid_until": None,
+            "supported_actions": [],
+            "volume": None,
+        }
+
+    assert (await read(rig))["status"] == "observed"
+    owner_unavailable("route_unavailable")
+    for _ in range(2):
+        body = await read(rig)
+        assert body["status"] == "account_observed"
+        assert body["reason"] == "route_unavailable"
+        assert body["binding"] is None
+        assert body["permissions"]["actions"] == []
+    owner_unavailable("ambiguous_output")
+    assert (await read(rig))["status"] == "account_observed"
+    rig.value = copy.deepcopy(current)
+    assert (await read(rig))["status"] == "observed"
+    rig.bridge.controls.policy["music"][0]["targetId"] = "different-target"
+    assert (await read(rig))["reason"] == "output_not_admitted"
+    rig.bridge.controls.policy["music"][0]["targetId"] = "device-one"
+    owner_unavailable("route_unavailable")
+    assert (await read(rig))["status"] == "account_observed"
+
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("podview_room_playback ")
+    ]
+    first = (
+        "podview_room_playback status=account_observed reason=route_unavailable "
+        "output_status=unavailable output_reason=route_unavailable "
+        "controls_status=unavailable controls_reason=route_unavailable"
+    )
+    assert messages == [
+        first,
+        first.replace("route_unavailable", "ambiguous_output"),
+        "podview_room_playback status=account_observed reason=output_not_admitted "
+        "output_status=observed output_reason=none controls_status=observed controls_reason=none",
+        first,
+    ]
+    assert len(rig.calls) == 7
+    assert all(path.endswith("get_playback_snapshot") for _, path, _ in rig.calls)
+
+
 async def test_seek_opt_in_requires_both_service_fields_and_room_policy(controls_rig):
     rig = controls_rig
     services = ("get_playback_snapshot", "get_room_playback_controls")

@@ -16,6 +16,45 @@ from . import podview_music, podview_speakers
 
 _LOG = logging.getLogger("podvoice.podview")
 
+_ROOM_STATUS = {"observed", "unavailable"}
+_ROOM_REASON = {"route_unavailable", "ambiguous_output", "owner_changed"}
+_CONTROL_REASON = _ROOM_REASON | {"volume_unavailable"}
+
+
+def _log_room_read_transition(bridge, room, account, status, reason, output, controls):
+    """Report the exact closed source fields once per account-only transition."""
+    try:
+        state = bridge._music_room_read_diagnostic
+        key = (room, account)
+        if status != "account_observed":
+            state.pop(key, None)
+            return
+
+        def safe(value, allowed):
+            if value is None:
+                return "none"
+            return value if isinstance(value, str) and value in allowed else "other"
+
+        row = (
+            safe(reason, _ROOM_REASON | {"output_not_admitted"}),
+            safe(output.get("status"), _ROOM_STATUS),
+            safe(output.get("reason"), _ROOM_REASON),
+            safe(controls.get("status"), _ROOM_STATUS),
+            safe(controls.get("reason"), _CONTROL_REASON),
+        )
+        if state.get(key) == row:
+            return
+        if key not in state and len(state) >= 32:
+            state.pop(next(iter(state)))
+        state[key] = row
+        _LOG.warning(
+            "podview_room_playback status=account_observed reason=%s "
+            "output_status=%s output_reason=%s controls_status=%s controls_reason=%s",
+            *row,
+        )
+    except Exception:
+        pass  # Diagnostics never affect admission, a read or its response.
+
 
 def _log_playback_failure(stage, error):
     """Log only fixed classifications, never owner or playback content."""
@@ -399,6 +438,9 @@ async def resolve_actual(
             and owner_binding() == owner
         )
 
+    output: dict = {}
+    controls_read: dict = {}
+
     def result(
         status="unavailable",
         reason="account_unavailable",
@@ -419,6 +461,10 @@ async def resolve_actual(
         if include_controls:
             value["controls"] = source_controls
             value["settlement"] = source_settlement
+            if reason != "owner_changed" or status == "account_observed":
+                _log_room_read_transition(
+                    bridge, room, account, status, reason, output, controls_read
+                )
         return value
 
     if not retained() or policy.get("roomId") != room:
@@ -469,6 +515,8 @@ async def resolve_actual(
         if source["playback"]["state"] == "no_active_playback":
             return result("idle", None, source)
         output = aggregate["output"]
+        if include_controls:
+            controls_read = aggregate["controls"]
         if output["status"] != "observed":
             return result("account_observed", output["reason"], source)
         identity = output["binding"]

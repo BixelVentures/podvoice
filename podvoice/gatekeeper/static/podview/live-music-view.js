@@ -136,7 +136,40 @@ export class LiveMusicCatalogueView{
   const expanding=accountPlaylists||kind==='recent';
   if(['renew','choice'].includes(request.reason)&&((before.actionDispatched&&request.reason!=='choice')||before.renewalScope!==this.renewalScope())){this.finishCardRenewal(false,request,'renewal_owner_changed');this.failure(kind);return;}
   if(['renew','choice'].includes(request.reason)&&preview){if(JSON.stringify(valid)!==JSON.stringify(before.sample)){if(kind==='feeling')before.vibeResync=true;this.finishCardRenewal(false,request,'renewal_other');this.failure(kind);return;}const explicitChoice=this.cardRenewal?.request===request&&this.cardRenewal.current();before.preview=preview;before.source=null;if(preview.refreshAvailable!==undefined)before.refreshAvailable=preview.refreshAvailable;before.status=explicitChoice?'Musikvalget fejlede · prøv igen.':kind==='feeling'?'3 humørvalg':'3 stemninger';this.pendingRead=null;this.restore(before);this.armExpiry(before);this.render();this.finishCardRenewal(false,request,'renewal_readonly');return;}
-  if(['renew','choice'].includes(request.reason)){let renewalReason='renewal_other';const renewed=renewCollectionSelection(fullSource,expanding?(this.cardRenewal?.request===request?[this.cardRenewal.card]:before.cards.slice(0,3)):before.cards,reason=>{renewalReason=reason;});if(kind==='feeling'&&!renewed)before.vibeResync=true;if(request.reason==='choice'&&(!renewed||renewed.context.candidateSetId===before.dispatchedCandidateId||before.dispatchHistory?.some(row=>row.candidateSetId===renewed.context.candidateSetId))){this.finishCardRenewal(false,request,renewed?'renewal_candidate_reused':renewalReason);this.failure(kind);return;}before.source=renewed;if(renewed?.refreshAvailable!==undefined)before.refreshAvailable=renewed.refreshAvailable;if(request.reason==='choice'){before.actionDispatched=false;before.selectionConfirmed=false;delete before.selectionSettlementStatus;}before.selectionSpent=false;before.selectionExpired=false;before.selectionUnavailable=false;before.status=renewed?(accountPlaylists?'Vælg en playliste.':'Vælg en sang.'):(accountPlaylists?'Afspilning kan ikke bekræftes for de viste playlister.':'Afspilning kan ikke bekræftes for de viste sange.');this.pendingRead=null;this.restore(before);this.armExpiry(before);this.render();this.finishCardRenewal(!!renewed,request,renewalReason);return;}
+  if(['renew','choice'].includes(request.reason)){
+   const choice=this.cardRenewal?.request===request?this.cardRenewal:null;
+   // An explicit mood choice renews its exact card, while passive renewal keeps the visible page intact.
+   const matchCards=choice&&(expanding||kind==='mood')?[choice.card]:expanding?before.cards.slice(0,3):before.cards;
+   let renewalReason='renewal_other';
+   const renewed=renewCollectionSelection(fullSource,matchCards,reason=>{renewalReason=reason;});
+   if(kind==='feeling'&&!renewed)before.vibeResync=true;
+   const candidateId=renewed?.context.candidateSetId;
+   const reusedCandidate=candidateId&&(request.reason==='choice'||choice&&kind==='mood')
+    &&(candidateId===before.dispatchedCandidateId||before.dispatchHistory?.some(row=>row.candidateSetId===candidateId));
+   if(reusedCandidate||request.reason==='choice'&&!renewed){
+    this.finishCardRenewal(false,request,reusedCandidate?'renewal_candidate_reused':renewalReason);
+    this.failure(kind);
+    return;
+   }
+   before.source=renewed;
+   if(renewed?.refreshAvailable!==undefined)before.refreshAvailable=renewed.refreshAvailable;
+   if(request.reason==='choice'){
+    before.actionDispatched=false;
+    before.selectionConfirmed=false;
+    delete before.selectionSettlementStatus;
+   }
+   before.selectionSpent=false;
+   before.selectionExpired=false;
+   before.selectionUnavailable=false;
+   before.status=renewed?(accountPlaylists?'Vælg en playliste.':'Vælg en sang.')
+    :(accountPlaylists?'Afspilning kan ikke bekræftes for de viste playlister.':'Afspilning kan ikke bekræftes for de viste sange.');
+   this.pendingRead=null;
+   this.restore(before);
+   this.armExpiry(before);
+   this.render();
+   this.finishCardRenewal(!!renewed,request,renewalReason);
+   return;
+  }
   const advance=request.reason==='refresh'&&before.sample.length>0;
   const unchanged=advance&&valid.length===before.sample.length&&valid.every((track,index)=>track.uri===before.sample[index].uri);
   const displaySource=fullSource?.tracks||valid,page=musicSourcePage(displaySource,request.sourceKind,advance?before.offset+3:0);if(!page){this.failure(kind);return;}

@@ -67,6 +67,26 @@ _TRACE_ACTIONS = {
     },
 }
 
+_VACUUM_COMMAND_REJECTION_REASONS = {
+    "busy",
+    "invalid_action",
+    "invalid_arguments",
+    "invalid_command",
+    "invalid_setup",
+    "invalid_target",
+    "request_capacity",
+    "request_reused",
+    "scope_not_paired",
+    "setup_capacity",
+    "setup_unavailable",
+    "stale_action",
+    "stale_intent",
+    "stale_setup",
+    "target_not_granted",
+    "unknown_option",
+    "unsupported_action",
+}
+
 
 def _robot_setup_error(stage: str, error: Exception) -> None:
     """Log only a fixed stage and safe exception category, never exception text."""
@@ -2353,7 +2373,13 @@ class TouchControls:
             result = await self._command_authorized(body, token, rejected, trace)
             return result
         finally:
-            self._log_command(body, "receipt", result.get("outcome", "rejected"), trace["delivery"])
+            self._log_command(
+                body,
+                "receipt",
+                result.get("outcome", "rejected"),
+                trace["delivery"],
+                error=result.get("error"),
+            )
 
     @staticmethod
     def _log_command(
@@ -2364,6 +2390,7 @@ class TouchControls:
         *,
         kind: str = "direct",
         step: dict | None = None,
+        error: object = None,
     ) -> None:
         """Small server-owned trace survives client reload/drop; sink is fail-open."""
         try:
@@ -2431,9 +2458,28 @@ class TouchControls:
                     str(step["partial"]).lower(),
                     str(step["startSent"]).lower(),
                 )
+            reason_format = ""
+            reason_values: tuple[str, ...] = ()
+            if (
+                phase == "receipt"
+                and kind == "direct"
+                and domain == "vacuum"
+                and outcome == "rejected"
+            ):
+                reason = (
+                    "transport_rejected"
+                    if error is None
+                    else error
+                    if isinstance(error, str) and error in _VACUUM_COMMAND_REJECTION_REASONS
+                    else "other"
+                )
+                reason_format = " reason=%s"
+                reason_values = (reason,)
             _LOGGER.info(
                 "control_command phase=%s domain=%s action=%s request_ref=%s "
-                "outcome=%s delivery=%s physical_result_verified=false kind=%s" + step_format,
+                "outcome=%s delivery=%s physical_result_verified=false kind=%s"
+                + step_format
+                + reason_format,
                 phase,
                 body["domain"],
                 body["action"],
@@ -2444,6 +2490,7 @@ class TouchControls:
                 delivery,
                 kind,
                 *step_values,
+                *reason_values,
             )
         except Exception:
             pass

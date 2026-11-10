@@ -926,6 +926,7 @@
           "arrow:reject": 3,
           "method:scheduleMusicSettlementDeadline": 1,
           "method:robotDirectBlocked": 1,
+          "method:robotReturnReadGap": 1,
           "method:robotDirectIntent": 1,
           "method:robotDirectOffer": 1,
           "method:robotReceiptUnknown": 1,
@@ -1109,6 +1110,7 @@
           "arrow:make": 1,
           "arrow:pendingCurrent": 1,
           "arrow:settle": 1,
+          "arrow:sourceIndex": 1,
           "class:LiveMusicSelectionView": 1,
           "method:chooseCard": 1,
           "method:chooseCardIntent": 1,
@@ -1771,6 +1773,7 @@
           "method:renderTransportOptions": 1,
           "method:syncDirectTransport": 1,
           "arrow:foreignRobotPending": 1,
+          "arrow:directConfirmationCurrent": 1,
           "arrow:ownRobotPending": 1
         },
         "roots": [

@@ -19,7 +19,7 @@ function catalogue(){const renders=[],reads=[],host={state:{focus:'music'},isCon
 test('expired catalogue source reissues authority without replacing any frozen card metadata or order',()=>{const f=catalogue();try{f.view.select('top');f.view.tracks('top',body(),'account');const entry=f.view.entries.get(f.view.key()),cards=f.view.cards;assert.equal(f.renders.at(-1).canChoose,true);entry.source.expiresAt=Date.now()-1;f.view.render();assert.equal(f.renders.at(-1).canChoose,false);f.view.select('top');assert.equal(f.view.pendingRead.reason,'renew');assert.equal(f.view.cards,cards);const renewed=body();renewed.data.tracks=[renewed.data.tracks[5],...renewed.data.tracks.slice(0,5)];f.view.tracks('top',renewed,'account');assert.equal(f.view.cards,cards);assert.deepEqual(entry.cards,cards);assert.equal(f.renders.at(-1).canChoose,true);assert.deepEqual(entry.source.candidateIds,[1,2,3].map(i=>String(i).padStart(24,'a')));}finally{f.cleanup();}});
 test('changed source on authority renewal retains cards and stays inactive; no grant never creates a choice',()=>{const f=catalogue();try{f.view.select('top');f.view.tracks('top',body(),'account');const cards=f.view.cards,entry=f.view.entries.get(f.view.key());entry.source.expiresAt=Date.now()-1;f.view.select('top');const changed=body();changed.data.tracks[0].artwork=art(99);f.view.tracks('top',changed,'account');assert.equal(f.view.cards,cards);assert.equal(entry.source,null);assert.equal(f.renders.at(-1).canChoose,false);f.view.select('recent');const passive=body('recent');delete passive.candidateSet;f.view.tracks('recent',passive,'account');assert.equal(f.view.cards.length,5);assert.equal(f.renders.at(-1).canChoose,false);}finally{f.cleanup();}});
 test('transport admits only closed unique candidate IDs and sends no URI on collection setup',async()=>{const calls=[],transport=new PodVoiceTransport({url:'https://home.invalid/view/',fetch:async(url,init)=>{calls.push(JSON.parse(init.body));return {ok:true,json:async()=>({ok:true})};}});transport.connected=true;transport.snapshot=snapshot();const target={accountId:'account',kind:'spotify_device',targetId:'device'};for(const ids of [[],['raw-uri'],['a'.repeat(24),'a'.repeat(24)],Array.from({length:4},(_,i)=>String(i).padStart(24,'a'))])await assert.rejects(transport.musicSelectionSetup('a'.repeat(64),target,ids));assert.equal(calls.length,0);await transport.musicSelectionSetup('a'.repeat(64),target,['b'.repeat(24)]);assert.deepEqual(calls[0].candidateIds,['b'.repeat(24)]);assert.equal('uri' in calls[0],false);transport.close();});
-function selectionFixture({knownTarget=true}={}){const f=catalogue();f.view.select('top');f.view.tracks('top',body(),'account');const entry=f.view.entries.get(f.view.key()),view=Object.create(LiveMusicSelectionView.prototype),sent=[],setups=[];const target={accountId:'account',kind:'spotify_device',targetId:'device',name:'Actual speaker'};const node=()=>({textContent:'',hidden:false,disabled:false,value:'',open:false,setAttribute(){},replaceChildren(){},append(){},showModal(){this.open=true;},close(){this.open=false;}});Object.assign(view,{host:f.host,account:'account',generation:0,active:false,used:false,pending:false,source:null,offer:null,targets:[],dialog:node(),searchDialog:node(),note:node(),detail:node(),volume:node(),confirmButton:node(),targetSelect:node(),targetLabel:node(),render(){f.view.render();},showTargets(){}});f.host.liveSelection=view;bindRoom(f.host.liveSnapshot);f.host.liveMedia={account:'account',playback:knownTarget?{config_entry_id:'account',expiresAt:Date.now()+15000,state:'paused',target:{id:'device'}}:null};if(f.host.liveMedia.playback)f.host.liveMedia.playback=boundPlayback(f.host.liveSnapshot,f.host.liveMedia.playback);f.host.liveTransport.music=async()=>({ok:true,coverage:'account_targets',bootId:f.host.liveSnapshot.bootId,roomId:f.host.liveSnapshot.roomId,roomBinding:{...f.host.liveSnapshot.mediaRoomBindings[0]},data:{targets:[{...target,restricted:false,readOnly:false}]}});f.host.liveTransport.musicSelectionSetup=async(candidateSetId,issuedTarget,candidateIds)=>{setups.push({candidateSetId,issuedTarget,candidateIds});return {ok:true,schema:'podview.music-selection.v1',candidateSetId,accountId:'account',target:{kind:'spotify_device',targetId:'device'},taskId:'music-selection:'+'b'.repeat(32),revision:1,startVolumePercent:35,expiresIn:40,options:view.source.tracks.map((track,index)=>({id:String(index).padStart(24,'c'),label:track.name,artist:track.artist}))};};f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{sent.push({offer,optionId});return {outcome:'unknown'};};return {...f,view,entry,sent,setups,cleanup(){clearTimeout(f.view.expiryTimer);clearTimeout(view.expiryTimer);}};}
+function selectionFixture({knownTarget=true,kind='top',initial=body()}={}){const f=catalogue();if(kind==='mood')bindRoom(f.host.liveSnapshot);if(!f.host.liveSnapshot.capabilities.musicRead.includes(kind)){f.host.liveSnapshot.capabilities.musicRead.push(kind);f.view.updateCapabilities(true,f.host.liveSnapshot.capabilities.musicRead);}f.view.select(kind);f.view.tracks(kind,initial,'account');const entry=f.view.entries.get(f.view.key()),view=Object.create(LiveMusicSelectionView.prototype),sent=[],setups=[];const target={accountId:'account',kind:'spotify_device',targetId:'device',name:'Actual speaker'};const node=()=>({textContent:'',hidden:false,disabled:false,value:'',open:false,setAttribute(){},replaceChildren(){},append(){},showModal(){this.open=true;},close(){this.open=false;}});Object.assign(view,{host:f.host,account:'account',generation:0,active:false,used:false,pending:false,source:null,offer:null,targets:[],dialog:node(),searchDialog:node(),note:node(),detail:node(),volume:node(),confirmButton:node(),targetSelect:node(),targetLabel:node(),render(){f.view.render();},showTargets(){}});f.host.liveSelection=view;bindRoom(f.host.liveSnapshot);f.host.liveMedia={account:'account',playback:knownTarget?{config_entry_id:'account',expiresAt:Date.now()+15000,state:'paused',target:{id:'device'}}:null};if(f.host.liveMedia.playback)f.host.liveMedia.playback=boundPlayback(f.host.liveSnapshot,f.host.liveMedia.playback);f.host.liveTransport.music=async()=>({ok:true,coverage:'account_targets',bootId:f.host.liveSnapshot.bootId,roomId:f.host.liveSnapshot.roomId,roomBinding:{...f.host.liveSnapshot.mediaRoomBindings[0]},data:{targets:[{...target,restricted:false,readOnly:false}]}});f.host.liveTransport.musicSelectionSetup=async(candidateSetId,issuedTarget,candidateIds)=>{setups.push({candidateSetId,issuedTarget,candidateIds});return {ok:true,schema:'podview.music-selection.v1',candidateSetId,accountId:'account',target:{kind:'spotify_device',targetId:'device'},taskId:'music-selection:'+'b'.repeat(32),revision:1,startVolumePercent:35,expiresIn:40,options:view.source.tracks.map((track,index)=>({id:String(index).padStart(24,'c'),label:track.name,artist:track.artist}))};};f.host.liveTransport.musicSelectionAction=async(offer,optionId)=>{sent.push({offer,optionId});return {outcome:'unknown'};};return {...f,view,entry,sent,setups,cleanup(){clearTimeout(f.view.expiryTimer);clearTimeout(view.expiryTimer);}};}
 function sourceSettlement(f,status='confirmed',requestId='selected',bodyOnly=false){
  if(!f.host.liveSnapshot.capabilities.musicRead.includes('playback'))f.host.liveSnapshot.capabilities.musicRead.push('playback');
  const feedback=f.view.feedback,binding={...f.host.liveSnapshot.mediaRoomBindings[0],validUntil:Date.now()/1000+5},epoch='source-owner',body={ok:true,schema:'podview.room-playback.v3',bootId:'boot',roomId:'room',configEntryId:'account',status:'observed',reason:null,binding,data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:epoch,poll_sequence:1,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},playback:{state:'playing',target:{kind:'spotify_device',target_id:'device',name:'Actual'},item:{type:'track',uri:feedback.uri,name:'Observed',artists:['Artist'],duration_ms:1000},progress_ms:0,provider_changed_at_ms:null,shuffle:false,repeat:'off'}},controls:{status:'observed',reason:null,binding_id:binding.bindingId,valid_until:binding.validUntil,supported_actions:[],volume:{base_percent:35,effective_percent:35}},permissions:{actions:[],maxVolume:null},settlement:{requestId,request_id:epoch+':1',command_sequence:1,owner_epoch:epoch,status,effect:status==='confirmed'?{source:'native_bound_state',effect_revision:'1'}:null}};
@@ -229,4 +229,64 @@ for(const boundary of ['expected','foreign'])test('held selected START POST reta
  const f=selectionFixture({knownTarget:false}),beforeDocument=globalThis.document;try{globalThis.document={getElementById:()=>({replaceChildren(){}})};let release;f.host.liveTransport.musicSelectionAction=async()=>{f.sent.push('one');return new Promise(resolve=>release=resolve);};const pending=f.view.chooseCard(f.entry.cards[0]);while(!release)await Promise.resolve();const expected=sourceSettlement(f,'confirmed','selected',true),old=structuredClone(expected);delete old.settlement;old.data.owner_epoch='old-owner';old.binding.nativeRoomId='old-room';old.binding.bindingId='d'.repeat(64);old.controls.binding_id=old.binding.bindingId;
  const media=Object.create(LiveMediaView.prototype);Object.assign(media,{host:f.host,account:'account',playback:roomPlaybackObservation(old,'account',f.host.liveSnapshot),generation:0,lastRead:0,pending:false,rows:new Map(),queueControls:{invalidate(){}},render(){},loadQueue:async()=>{}});f.host.liveMedia=media;f.host.liveMusicAccountChanged=account=>f.view.ownerChanged(account);f.host.liveTransport.music=async(_kind,_account,_query,options)=>{const body=structuredClone(expected);if(boundary==='foreign')body.binding.nativeRoomId='foreign-room';if(!options.receiptRequestId)delete body.settlement;return body;};await media.refresh({immediate:true});if(boundary==='expected'){assert.ok(f.view.resultTicket);assert.equal(f.view.feedback.pending,true);}else assert.equal(f.view.resultTicket,null);release({outcome:'accepted',requestId:'selected'});await pending;for(let i=0;i<8;i++)await Promise.resolve();if(boundary==='expected'){assert.equal(f.entry.selectionConfirmed,true);assert.equal(f.view.feedback.settlementStatus,'confirmed');assert.equal(media.playback.owner_epoch,'source-owner');assert.equal(f.view.pendingPlayer(),null);}else{assert.equal(f.entry.selectionConfirmed,false);assert.equal(f.view.settlementReceipt(),null);}assert.equal(f.sent.length,1);
  }finally{globalThis.document=beforeDocument;f.cleanup();}
+});
+
+
+test('explicit mood choice uses the fresh occurrence and an absent retained sibling needs another renewal',async()=>{
+ const initial=body('mood',3);
+ const themes=[['cooking','Musik til madlavningen','assets/kitchen.png'],
+  ['italian','En italiensk aften','assets/italian.png'],['calm','En rolig stund','assets/lake.png']];
+ initial.data.tracks.forEach((track,i)=>{
+  const [themeId,themeTitle,themeArt]=themes[i];
+  Object.assign(track,{uri:track.uri.replace(':track:',':playlist:'),artist:themeTitle,themeId,themeTitle,themeArt});
+ });
+ const f=selectionFixture({kind:'mood',initial});
+ const catalogue=f.host.liveCatalogue,cards=f.entry.cards;
+ function renewedResponse(letter,rows){
+  const response=structuredClone(initial);
+  response.candidateSet.candidateSetId=letter.repeat(64);
+  response.data.tracks=rows;
+  response.candidateSet.items=rows.map((_,index)=>({id:String(index).padStart(24,letter),index}));
+  return response;
+ }
+ try {
+  Object.assign(f.entry,{actionDispatched:true,selectionConfirmed:true,selectionSpent:true,
+   dispatchedCardId:cards[0].id,dispatchedCandidateId:initial.candidateSet.candidateSetId});
+  const setup=f.host.liveTransport.musicSelectionSetup;
+  f.host.liveTransport.musicSelectionSetup=async(...args)=>{
+   const offer=await setup(...args);
+   if(f.setups.length===1)throw Error('inert setup refusal');
+   return offer;
+  };
+  const first=f.view.chooseCard(cards[1]);
+  assert.equal(catalogue.pendingRead.reason,'choice');
+  const fresh=renewedResponse('b',[initial.data.tracks[2],initial.data.tracks[0],initial.data.tracks[1]]
+   .map((row,index)=>index===0?{...row,uri:'spotify:playlist:'+'z'.repeat(22)}:row));
+  catalogue.tracks('mood',fresh,'account');
+  await first;
+  assert.deepEqual(f.setups.map(call=>call.candidateIds),[[fresh.candidateSet.items[2].id]]);
+  assert.equal(f.sent.length,0);
+  assert.equal(f.entry.actionDispatched,false);
+  assert.equal(f.entry.source.tracks[0].uri,cards[1].uri);
+
+  const reused=f.view.chooseCard(cards[2]);
+  assert.equal(catalogue.pendingRead.reason,'renew');
+  catalogue.tracks('mood',initial,'account');
+  await reused;
+  assert.equal(f.setups.length,1,'the previously dispatched candidate never reaches setup');
+  assert.equal(f.sent.length,0);
+
+  const next=f.view.chooseCard(cards[2]);
+  assert.equal(catalogue.pendingRead.reason,'renew');
+  assert.equal(f.setups.length,1,'the retained sibling waits for its own fresh occurrence');
+  const newer=renewedResponse('d',[initial.data.tracks[2],initial.data.tracks[1],initial.data.tracks[0]]);
+  catalogue.tracks('mood',newer,'account');
+  await next;
+  assert.deepEqual(f.setups.map(call=>call.candidateIds),[[fresh.candidateSet.items[2].id],[newer.candidateSet.items[0].id]]);
+  assert.equal(f.sent.length,1);
+  assert.equal(f.sent[0].optionId,'0'.padStart(24,'c'));
+  assert.equal(f.entry.cards,cards);
+ } finally {
+  f.cleanup();
+ }
 });

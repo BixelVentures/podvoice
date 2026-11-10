@@ -399,6 +399,7 @@ class PodViewBridge:
         self._action_lock = asyncio.Lock()
         self._streams = 0
         self._music_cache: dict[tuple, tuple] = {}
+        self._music_room_read_diagnostic: dict[tuple[str, str], tuple[str, ...]] = {}
         self._music_busy = False
         self._targets_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
         self._music_source_generation = 0
