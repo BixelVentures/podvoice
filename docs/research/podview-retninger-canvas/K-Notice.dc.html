@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Beskedlinje</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div role="status" style="display: flex; align-items: center; gap: 16px; min-height: 72px; width: {{w}}; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: {{n.bg}}; color: {{n.fg}}; font-family: 'Schibsted Grotesk', system-ui, sans-serif">
+  <span aria-hidden="true" style="width: 36px; height: 36px; border-radius: 50%; background: {{n.ic}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">{{n.glyph}}</span>
+  <span style="display: flex; flex-direction: column; min-width: 0">
+    <span style="font-size: 17px; line-height: 22px; font-weight: 800">{{title}}</span>
+    <sc-if value="{{text}}" hint-placeholder-val="{{ true }}"><span style="font-size: 15px; line-height: 20px; font-weight: 500">{{text}}</span></sc-if>
+  </span>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"level":{"editor":"enum","default":"handling","options":["fejl","handling","info"]},"title":{"editor":"text","default":"Robotten mangler vand"},"text":{"editor":"text","default":""},"w":{"editor":"text","default":"844px"},"$preview":{"width":844,"height":72}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Fælles beskedlinje (UI-kit): fejl rød, handling rav, info grå. Kun produktets egen tekst.
+    const NB = { fejl: { bg: '#F8DCDC', fg: '#5E1416', ic: '#B0262A', glyph: '!' }, handling: { bg: '#FBE7B9', fg: '#4A3205', ic: '#B07A06', glyph: '!' }, info: { bg: '#E2E0DB', fg: '#3F3E3B', ic: '#7A7873', glyph: 'i' } };
+    return { n: NB[this.props.level] || NB.info, title: this.props.title || '', text: this.props.text || '', w: this.props.w || '844px' };
+  }
+}
+</script>
+</body>
+</html>

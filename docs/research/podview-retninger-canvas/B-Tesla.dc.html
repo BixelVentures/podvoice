@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Tesla · Glyph</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+.sl{position:relative;overflow:hidden;border-radius:28px}
+.gf{position:absolute;margin:0;font:400 10px/10px 'Geist Mono', ui-monospace, monospace;white-space:pre;pointer-events:none}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, background .2s ease}
+.btn:active{transform:scale(.96)}
+.btn:focus-visible,a:focus-visible{outline:2px solid #111114;outline-offset:3px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #EDEDEA; background-image: radial-gradient(rgba(23,23,26,.12) 1px, transparent 1.2px); background-size: 14px 14px; color: #111114; font-family: 'Geist', system-ui, sans-serif; position: relative">
+  <div style="height: 72px; padding: 0 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center">
+    <a href="B-Overblik.dc.html" style="display: flex; align-items: center; gap: 12px; font-size: 22px; font-weight: 600; letter-spacing: -0.02em" aria-label="Tilbage til overblik"><span style="font: 500 20px 'Geist Mono', monospace">&lt;-</span> Tesla</a>
+    <button class="btn" style="height: 48px; padding: 0 22px 0 8px; border-radius: 24px; background: #111114; color: #F4F4F1; display: flex; align-items: center; gap: 12px; font: 600 17px 'Geist', system-ui, sans-serif" aria-label="Svar og historik">
+      <span style="width: 34px; height: 34px; border-radius: 17px; background: #1B48F2; display: flex; align-items: center; justify-content: center; font: 500 9px/9px 'Geist Mono', monospace; white-space: pre; color: #F4F4F1" aria-hidden="true">:.:
+.:.
+:.:</span>
+      Svar
+    </button>
+    <div style="display: flex; justify-content: flex-end; gap: 26px; align-items: baseline">
+      <span style="font: 500 19px 'Geist Mono', monospace">15° <span style="font: 400 13px 'Geist', sans-serif; color: #55555A">Let skyet</span></span>
+      <span style="font: 500 19px 'Geist Mono', monospace">08.44 <span style="font: 400 13px 'Geist', sans-serif; color: #55555A">Man. 9. nov.</span></span>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; display: flex; flex-direction: column; gap: 16px">
+      <div class="sl" style="height: 400px; background: #1F6B4A; color: #EEF6F0; padding: 28px 30px; box-sizing: border-box; display: flex; flex-direction: column">
+        <pre class="gf" style="left: 0; top: 0; color: rgba(238,246,240,.95)" aria-hidden="true">{{hero}}</pre>
+        <div style="position: relative; display: flex; justify-content: space-between">
+          <span style="font-size: 26px; font-weight: 700; letter-spacing: -0.02em">Bilen lader</span>
+          <span style="font: 400 13px 'Geist Mono', monospace; opacity: .8">MODEL Y · 2023</span>
+        </div>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Batteri 72 procent</span>
+        <div style="position: relative; margin-top: auto; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px 18px; border-radius: 18px; background: #175739">
+          <div style="display: flex; flex-direction: column"><span style="font: 500 26px 'Geist Mono', monospace; letter-spacing: -0.03em">312 km</span><span style="font-size: 13px; opacity: .8">Rækkevidde</span></div>
+          <div style="display: flex; flex-direction: column"><span style="font: 500 26px 'Geist Mono', monospace; letter-spacing: -0.03em">11 kW</span><span style="font-size: 13px; opacity: .8">Ladeeffekt</span></div>
+          <div style="display: flex; flex-direction: column"><span style="font: 500 26px 'Geist Mono', monospace; letter-spacing: -0.03em">20.43</span><span style="font-size: 13px; opacity: .8">Forventet færdig</span></div>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; height: 280px">
+        <div class="sl" style="background: #F4F4F1; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column">
+          <span style="font: 400 12px 'Geist Mono', monospace; color: #55555A">ADGANG</span>
+          <span style="margin-top: 6px; font-size: 34px; font-weight: 700; letter-spacing: -0.03em">Låst</span>
+          <div style="margin-top: auto; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+            <button class="btn" style="height: 60px; border-radius: 30px; background: #111114; color: #F4F4F1; font: 600 16px 'Geist', sans-serif">Lås op</button>
+            <button class="btn" style="height: 60px; border-radius: 30px; background: #E4E4E0; color: #111114; font: 600 16px 'Geist', sans-serif">Åbn bagagerum</button>
+          </div>
+        </div>
+        <div class="sl" style="background: #F4F4F1; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start">
+            <div style="display: flex; flex-direction: column">
+              <span style="font: 400 12px 'Geist Mono', monospace; color: #55555A">KLIMA</span>
+              <span style="margin-top: 6px; font-size: 34px; font-weight: 700; letter-spacing: -0.03em">{{climateLabel}}</span>
+            </div>
+            <button class="btn" role="switch" aria-checked="{{climateAria}}" aria-label="Klima" onClick="{{toggle}}" style="height: 44px; padding: 0 14px; border-radius: 22px; background: {{swBg}}; color: {{swFg}}; font: 500 14px 'Geist Mono', monospace">{{swText}}</button>
+          </div>
+          <div style="margin-top: auto; display: grid; grid-template-columns: 60px 1fr 60px; gap: 8px; align-items: center">
+            <button class="btn" aria-label="Sænk temperatur" style="height: 60px; border-radius: 30px; background: #E4E4E0; font: 500 22px 'Geist Mono', monospace">−</button>
+            <span style="text-align: center; font: 500 30px 'Geist Mono', monospace; letter-spacing: -0.04em">21 °C</span>
+            <button class="btn" aria-label="Hæv temperatur" style="height: 60px; border-radius: 30px; background: #E4E4E0; font: 500 22px 'Geist Mono', monospace">+</button>
+          </div>
+          <button class="btn" style="margin-top: 8px; height: 52px; border-radius: 26px; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(17,17,20,.2); font: 600 15px 'Geist', sans-serif; color: #111114">Afrim ruder</button>
+        </div>
+      </div>
+    </div>
+
+    <div style="width: 372px; height: 696px; box-sizing: border-box; padding: 22px; border-radius: 28px; background: #F4F4F1; display: flex; flex-direction: column; gap: 16px">
+      <span style="align-self: center; font-size: 15px; font-weight: 600">Stuen ⌄</span>
+      <div style="height: 328px; border-radius: 18px; background: #DCDCD8; display: flex; align-items: flex-end; padding: 14px; box-sizing: border-box; font: 400 11px 'Geist Mono', monospace; color: #6A6A6F">COVER FRA KILDEN</div>
+      <div style="display: flex; flex-direction: column"><span style="font-size: 24px; font-weight: 700; letter-spacing: -0.02em">Heartless</span><span style="font-size: 15px; color: #55555A">Kanye West</span></div>
+      <div style="font: 400 12px 'Geist Mono', monospace; white-space: pre" role="img" aria-label="1:24 af 3:00">######################........................</div>
+      <div style="margin-top: auto; display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8px">
+        <button class="btn" aria-label="Forrige" style="height: 64px; border-radius: 32px; background: #E4E4E0; font: 500 18px 'Geist Mono', monospace">|◀</button>
+        <button class="btn" aria-label="Pause" style="height: 64px; border-radius: 32px; background: #111114; color: #F4F4F1; font: 500 18px 'Geist Mono', monospace">||</button>
+        <button class="btn" aria-label="Næste" style="height: 64px; border-radius: 32px; background: #E4E4E0; font: 500 18px 'Geist Mono', monospace">▶|</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { t: 0, climate: false }; this.m = null; }
+  componentDidMount() { this.iv = setInterval(() => this.setState({ t: this.state.t + 1 }), 380); }
+  componentWillUnmount() { clearInterval(this.iv); }
+  mask(cols, rows) {
+    if (this.m !== null) return this.m;
+    try {
+      const W = cols * 6, H = rows * 10;
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const x = c.getContext('2d');
+      x.font = '800 210px "Arial Black", Helvetica, sans-serif';
+      x.fillText('72%', 20, 250);
+      const d = x.getImageData(0, 0, W, H).data;
+      this.m = [];
+      for (let j = 0; j < rows; j++) {
+        const row = [];
+        for (let i = 0; i < cols; i++) row.push(d[((j * 10 + 5) * W + (i * 6 + 3)) * 4 + 3] > 100 ? 1 : 0);
+        this.m.push(row);
+      }
+    } catch (e) { this.m = false; }
+    return this.m;
+  }
+  renderVals() {
+    const t = this.state.t;
+    const cols = 141, rows = 40;
+    const m = this.mask(cols, rows);
+    const dense = '#%$@&8';
+    const lines = [];
+    // Tallet 72 % er bygget af tegn; ladestrømmen er en kolonnebølge, der kun løber inden for det kendte niveau (72 % af bredden).
+    for (let j = 0; j < rows; j++) {
+      let s = '';
+      for (let i = 0; i < cols; i++) {
+        const inText = m && m[j] && m[j][i];
+        const lvl = i / cols <= 0.72;
+        const band = j >= 26 && j <= 27;
+        const h = ((i * 2654435761) ^ (j * 40503) ^ (Math.floor((t + i) / 4) * 97)) >>> 0;
+        if (inText) s += dense[h % dense.length];
+        else if (band) s += lvl ? ((i - t * 2) % 14 < 3 && i > 0 ? '>' : '=') : '.';
+        else if (j > 4 && j < 25 && lvl && h % 11 === 0) s += '.';
+        else s += ' ';
+      }
+      lines.push(s);
+    }
+    const on = this.state.climate;
+    return {
+      hero: lines.join('\n'),
+      climateLabel: on ? 'Tændt' : 'Slukket',
+      climateAria: on ? 'true' : 'false',
+      swBg: on ? '#1F6B4A' : '#E4E4E0', swFg: on ? '#EEF6F0' : '#111114',
+      swText: on ? '[ ON ]' : '[ OFF ]',
+      toggle: () => this.setState({ climate: !this.state.climate })
+    };
+  }
+}
+</script>
+</body>
+</html>

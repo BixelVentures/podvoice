@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Radio</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);transition:background-color .5s ease}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease, box-shadow .3s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.btn:disabled{cursor:default;opacity:.45}
+.needle{transition:left .5s cubic-bezier(.2,.9,.3,1)}
+.live{animation:live 2.4s ease-in-out infinite}
+@keyframes live{0%,100%{opacity:1}50%{opacity:.5}}
+@media (prefers-reduced-motion: reduce){.needle{transition:none}.live{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Radio" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; height: 696px; display: flex; flex-direction: column; gap: 32px">
+      <div class="cd" style="height: {{heroH}}px; flex: none; padding: {{heroPad}}px; box-sizing: border-box; display: flex; flex-direction: column; background: {{tint}}">
+        <div style="display: flex; gap: 24px; align-items: center; min-height: 144px">
+          <sc-if value="{{hasStation}}" hint-placeholder-val="{{ true }}">
+            <img src="{{cur.logo}}" alt="{{cur.n}}" style="width: 144px; height: 144px; border-radius: 24px; box-shadow: 0 16px 32px -16px rgba(23,23,26,.45); flex: none; opacity: {{logoOp}}">
+          </sc-if>
+          <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0">
+            <span style="font-size: 17px; font-weight: 600; color: #3F3E3B">{{statusLine}}</span>
+            <span style="font-size: 56px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: {{titleC}}">{{heroTitle}}</span>
+            <span style="font-size: 20px; color: #3F3E3B">{{heroSub}}</span>
+          </div>
+        </div>
+        <div style="position: relative; margin-top: auto; height: 152px; opacity: {{scaleOp}}" role="img" aria-label="Stationsskala{{scaleLabel}}">
+          <div style="position: absolute; left: 0; right: 0; bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end">
+            <sc-for list="{{ticks}}" as="h" hint-placeholder-count="61"><i style="width: 3px; height: {{h}}px; border-radius: 2px; background: #17171A; opacity: .75; display: block"></i></sc-for>
+          </div>
+          <sc-for list="{{marks}}" as="m" hint-placeholder-count="5">
+            <span style="position: absolute; bottom: 0; left: {{m.x}}; transform: translateX(-50%); font: 700 17px 'Schibsted Grotesk', sans-serif; color: {{m.c}}">{{m.n}}</span>
+          </sc-for>
+          <sc-if value="{{hasStation}}" hint-placeholder-val="{{ true }}">
+            <i class="needle {{needleCls}}" style="position: absolute; left: {{cur.xp}}; top: 0; bottom: 28px; width: 4px; margin-left: -2px; border-radius: 2px; background: {{needleC}}; box-shadow: 0 0 12px {{needleGlow}}; display: block"></i>
+          </sc-if>
+        </div>
+      </div>
+      <sc-if value="{{off}}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top: -20px"><dc-import name="K-Notice" level="info" title="Home Assistant svarer ikke lige nu" hint-size="844px,72px"></dc-import></div>
+      </sc-if>
+      <section style="flex: 1; display: flex; flex-direction: column; gap: 16px; min-height: 0">
+        <div style="display: flex; justify-content: space-between; align-items: baseline">
+          <span style="font-size: 24px; font-weight: 800">Radiostationer</span>
+          <span style="font-size: 15px; color: #5F5E5A">Afspilles på {{speaker}}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; flex: 1">
+          <sc-for list="{{stations}}" as="s" hint-placeholder-count="5">
+            <button class="btn" onClick="{{s.pick}}" disabled="{{s.dis}}" aria-pressed="{{s.on}}" style="border-radius: 24px; background: #F7F6F3; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; text-align: left; font-family: 'Schibsted Grotesk', sans-serif; color: #17171A; box-shadow: {{s.ring}}">
+              <img src="{{s.logo}}" alt="" style="width: 56px; height: 56px; border-radius: 16px; filter: {{s.filter}}">
+              <span style="font-size: 17px; font-weight: 800">{{s.n}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+    </div>
+    <dc-import name="A-Player" mode="{{playerMode}}" radioState="{{radioState}}" station="{{cur.n}}" logo="{{cur.logo}}" art="{{cur.c}}" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"hero":{"editor":"enum","default":"458","options":["221","458","420"]},"state":{"editor":"enum","default":"vaelg","options":["vaelg","spiller","starter","ikketilg"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { sel: null, st: null }; }
+  renderVals() {
+    // Forslag: heroen låses til overblikkets rækker. S 221 (én række), L 458 (to rækker).
+    const heroH = Number(this.props.hero) || 458, heroS = heroH <= 221;
+    // Stationer, kategorier og logoer er produktets egne (radio-model.js, assets/radio-*.svg).
+    // Radio afspiller altid gennem medieafspilleren: start/stop og lydstyrke ligger i afspilleren til højre.
+    const defs = [
+      { short: 'P1', n: 'P1', g: 'Nyheder og samtaler', c: '#FF6600', logo: '/_blob/bbd3ad668b05b937eccfd6d926489030' },
+      { short: 'P3', n: 'P3', g: 'Musik og underholdning', c: '#4DFF4D', logo: '/_blob/4980b254a01428e0b06404b79e84bafe' },
+      { short: 'P4', n: 'P4 Østjylland', g: 'Musik og regionalt indhold', c: '#FF9900', logo: '/_blob/491dd686d3f3d293bb3189fbc8451e6b' },
+      { short: 'P6', n: 'P6 Beat', g: 'Alternativ musik', c: '#4F4A4F', logo: '/_blob/fce64b92b1c590a7328eb5bc7438852b' },
+      { short: 'P8', n: 'P8 Jazz', g: 'Jazz', c: '#7E57C8', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' }
+    ];
+    const mix = (hex, t) => {
+      const n = parseInt(hex.slice(1), 16), m = 0xF7F6F3;
+      const ch = (s) => Math.round(((n >> s) & 255) * (1 - t) + ((m >> s) & 255) * t);
+      return 'rgb(' + ch(16) + ',' + ch(8) + ',' + ch(0) + ')';
+    };
+    const st = this.state.st || this.props.state || 'vaelg';
+    const sel = this.state.sel != null ? this.state.sel : st === 'starter' ? 2 : st === 'vaelg' || st === 'ikketilg' ? null : 4;
+    const off = st === 'ikketilg', has = sel != null && !off;
+    const cur = has ? { ...defs[sel], xp: (10 + sel * 20) + '%' } : { n: '', logo: '', c: '#B98E66', xp: '50%' };
+    const stations = defs.map((d, i) => ({ ...d, on: i === sel ? 'true' : 'false', dis: off ? 'true' : undefined,
+      filter: off ? 'grayscale(1)' : 'none',
+      ring: i === sel && has ? 'inset 0 0 0 3px ' + d.c : 'inset 0 0 0 1px rgba(23,23,26,.06)',
+      pick: () => { this.setState({ sel: i, st: 'starter' }); clearTimeout(this.t); this.t = setTimeout(() => this.setState({ st: 'spiller' }), 1400); } }));
+    const lines = {
+      vaelg: ['Ingen station valgt', 'Vælg station', '5 stationer'],
+      spiller: ['Spiller på Køkkenalrum HomePod', cur.n, cur.g],
+      starter: ['Starter ' + cur.n + '…', cur.n, cur.g],
+      ikketilg: ['Ikke tilgængelig', 'Radio', 'Home Assistant svarer ikke lige nu']
+    }[st];
+    return {
+      heroH, heroPad: heroS ? 24 : 32, heroTitle: heroS ? 40 : 56,
+      off, stations, cur, hasStation: has, speaker: 'Køkkenalrum HomePod',
+      tint: has ? mix(cur.c, st === 'starter' ? 0.84 : 0.74) : off ? '#EEEDEA' : '#F7F6F3',
+      logoOp: st === 'starter' ? 0.7 : 1,
+      statusLine: lines[0], heroTitle: lines[1], heroSub: lines[2], titleC: off ? '#5F5E5A' : '#17171A',
+      scaleOp: off ? 0.3 : 1, scaleLabel: has ? ', valgt ' + cur.n : '',
+      needleC: st === 'starter' ? '#C9A227' : '#E5261E', needleGlow: st === 'starter' ? 'rgba(201,162,39,.4)' : 'rgba(229,38,30,.5)', needleCls: st === 'spiller' ? 'live' : '',
+      ticks: Array.from({ length: 61 }, (_, i) => (i % 10 === 0 ? 96 : i % 5 === 0 ? 64 : 38)),
+      marks: defs.map((d, i) => ({ n: d.short, x: (10 + i * 20) + '%', c: i === sel && has ? '#17171A' : '#3F3E3B' })),
+      playerMode: has ? 'radio' : 'mine', radioState: st === 'starter' ? 'starter' : 'spiller'
+    };
+  }
+}
+</script>
+</body>
+</html>

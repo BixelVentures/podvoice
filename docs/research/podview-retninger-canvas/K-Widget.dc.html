@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Widget</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+.kw{position:relative;overflow:hidden;border-radius:24px;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);padding:24px;box-sizing:border-box;display:flex;flex-direction:column;font-family:'Schibsted Grotesk',system-ui,sans-serif;transition:transform .14s ease, background-color .6s ease}
+a.kw:active{transform:scale(.985)}
+.kw .head{position:relative;z-index:2;display:flex;align-items:center;gap:10px;height:26px}
+.kw .head span{font-size:17px;font-weight:600}
+.kw .prim{position:relative;z-index:2;line-height:1.1;font-weight:800;letter-spacing:-0.015em}
+.kw .ctx{position:relative;z-index:2;font-size:15px;line-height:20px;height:20px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kw .prim{line-height:26px;height:26px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kw .btn{position:relative;z-index:3;border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease}
+.kw .btn:active{transform:scale(.97);filter:brightness(.92)}
+.sq{position:absolute;border-radius:1px}
+.dt{position:absolute;border-radius:50%}
+.fade-l{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 110px);mask-image:linear-gradient(90deg,transparent 0,#000 110px)}
+.fade-t{-webkit-mask-image:linear-gradient(180deg,transparent 0,#000 50px);mask-image:linear-gradient(180deg,transparent 0,#000 50px)}
+.an-in{animation:inward 2.4s ease-in-out infinite}
+.an-flow{animation:flow 2s linear infinite}
+.an-pulse{animation:pulse 1.6s ease-in-out infinite}
+.an-warm{animation:inward 2.6s ease-in-out infinite}
+@keyframes inward{0%,100%{transform:scale(.45);opacity:.45}50%{transform:scale(1);opacity:1}}
+@keyframes flow{0%{opacity:1}14%{opacity:.35}28%,100%{opacity:1}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media (prefers-reduced-motion: reduce){.an-in,.an-flow,.an-pulse,.an-warm{animation:none}}
+</style>
+</helmet>
+<a href="{{v.href}}" class="kw" style="width: {{v.w}}px; height: {{v.h}}px; background: {{v.bg}}; color: {{v.fg}}" aria-label="{{v.label}}, {{v.prim}}">
+  <sc-if value="{{v.cloud}}" hint-placeholder-val="{{ false }}">
+    <div class="fade-l" style="position: absolute; right: 0; top: 0; width: 270px; height: 290px; opacity: {{v.matOp}}" aria-hidden="true">
+      <sc-for list="{{cloud}}" as="d" hint-placeholder-count="300"><i class="sq" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{v.mat}}"></i></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{v.arcs}}" hint-placeholder-val="{{ false }}">
+    <div class="fade-l" style="position: absolute; right: 0; top: 0; width: 250px; height: 221px; opacity: {{v.matOp}}" aria-hidden="true">
+      <sc-for list="{{arcs}}" as="d" hint-placeholder-count="200"><i class="sq {{v.anim}}" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{v.mat}}; animation-delay: {{d.dl}}ms"></i></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{v.bulb}}" hint-placeholder-val="{{ false }}">
+    <div class="fade-t" style="position: absolute; right: 0; top: 50px; width: 150px; height: 110px; opacity: {{v.matOp}}" aria-hidden="true">
+      <sc-for list="{{bulb}}" as="d" hint-placeholder-count="120"><i class="sq" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{v.mat}}"></i></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{v.car}}" hint-placeholder-val="{{ false }}">
+    <div style="position: absolute; left: 24px; top: 70px; width: 151px; height: 52px" aria-hidden="true">
+      <sc-for list="{{car}}" as="d" hint-placeholder-count="200"><i class="dt {{d.cls}}" style="left: {{d.x}}px; top: {{d.y}}px; width: 4.4px; height: 4.4px; background: {{d.c}}; animation-delay: {{d.dl}}ms"></i></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{v.ring}}" hint-placeholder-val="{{ false }}">
+    <svg style="position: absolute; right: 22px; top: 62px" width="64" height="64" viewBox="0 0 64 64" aria-hidden="true">
+      <circle cx="32" cy="32" r="26" fill="none" stroke="#2E2E33" stroke-width="7"/>
+      <circle class="{{v.ringCls}}" cx="32" cy="32" r="26" fill="none" stroke="#FF7A5C" stroke-width="7" stroke-linecap="round" stroke-dasharray="{{v.dash}}" transform="rotate(-90 32 32)"/>
+    </svg>
+  </sc-if>
+  <sc-if value="{{v.disc}}" hint-placeholder-val="{{ false }}">
+    <i style="position: absolute; right: -34px; top: 54px; width: 120px; height: 120px; border-radius: 50%; background: repeating-radial-gradient(circle, rgba(23,23,26,.10) 0 1.5px, transparent 1.5px 7px); display: block" aria-hidden="true"></i>
+  </sc-if>
+  <sc-if value="{{v.cover}}" hint-placeholder-val="{{ false }}">
+    <i style="position: absolute; right: 20px; top: 60px; width: 64px; height: 64px; border-radius: 12px; background: {{v.coverBg}}; box-shadow: 0 10px 20px -10px rgba(23,23,26,.5); display: block" aria-hidden="true"></i>
+  </sc-if>
+  <sc-if value="{{v.logo}}" hint-placeholder-val="{{ false }}">
+    <img src="{{v.logo}}" alt="" style="position: absolute; right: 20px; top: 60px; width: 64px; height: 64px; border-radius: 14px">
+  </sc-if>
+  <div class="head">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{v.icon}}"/></svg>
+    <span>{{v.label}}</span>
+    <svg style="margin-left: auto" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+  </div>
+  <sc-if value="{{v.big}}" hint-placeholder-val="{{ false }}">
+    <span style="position: relative; z-index: 2; margin-top: 22px; font-size: 120px; line-height: .85; font-weight: 500; letter-spacing: -0.06em; color: {{v.bigC}}">{{v.big}}</span>
+  </sc-if>
+  <div style="margin-top: {{v.primTop}}; display: flex; align-items: flex-end; gap: 16px">
+    <div style="display: flex; flex-direction: column; min-width: 0; flex: 1">
+      <span class="prim" style="color: {{v.primC}}; font-family: {{v.primF}}; font-size: {{v.primS}}">{{v.prim}}</span>
+      <span class="ctx" style="color: {{v.ctxC}}"><sc-if value="{{v.alert}}" hint-placeholder-val="{{ false }}"><i style="display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: {{v.alert}}; vertical-align: 1px"></i></sc-if>{{v.ctx}}</span>
+    </div>
+    <sc-if value="{{v.action}}" hint-placeholder-val="{{ false }}">
+      <span class="btn" role="button" style="height: 56px; padding: 0 24px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; font: 600 17px 'Schibsted Grotesk', sans-serif">{{v.action}}</span>
+    </sc-if>
+  </div>
+  <sc-if value="{{v.bar}}" hint-placeholder-val="{{ false }}">
+    <div style="position: relative; z-index: 2; margin-top: 12px; display: grid; grid-template-columns: repeat({{v.barN}}, minmax(0, 1fr)); gap: {{v.barGap}}px" role="img" aria-label="{{v.barLabel}}">
+      <sc-for list="{{v.bar}}" as="s" hint-placeholder-count="5"><i style="height: 6px; border-radius: 3px; background: {{s}}; display: block"></i></sc-for>
+    </div>
+  </sc-if>
+  <sc-if value="{{v.noBar}}" hint-placeholder-val="{{ true }}"><i style="display: block; height: 18px; flex: none"></i></sc-if>
+  <sc-if value="{{v.hours}}" hint-placeholder-val="{{ false }}">
+    <div style="position: relative; z-index: 2; margin-top: auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding-top: 18px; border-top: 1px solid rgba(23,23,26,.08)">
+      <sc-for list="{{v.hours}}" as="h" hint-placeholder-count="5">
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+          <span style="font-size: 15px; color: #3E4660">{{h.t}}</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{h.d}}"/></svg>
+          <span style="font-size: 19px; font-weight: 800; color: {{v.hourC}}">{{h.v}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </sc-if>
+</a>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kind":{"editor":"enum","default":"tesla","options":["vejr","robot","lys","tesla","musik","radio","opskrift","timer","svar"]},"state":{"editor":"text","default":""},"tone":{"editor":"enum","default":"farve","options":["farve","hvid"]},"$preview":{"width":199,"height":221}}'>
+class Component extends DCLogic {
+  inPoly(x, y, P) {
+    let c = false;
+    for (let i = 0, j = P.length - 1; i < P.length; j = i++) {
+      if ((P[i][1] > y) !== (P[j][1] > y) && x < ((P[j][0] - P[i][0]) * (y - P[i][1])) / (P[j][1] - P[i][1]) + P[i][0]) c = !c;
+    }
+    return c;
+  }
+  renderVals() {
+    // Ét kit: samme anatomi i alle widgets (ikon + navn + chevron; én primær værdi; én kontekstlinje; materiale i midten).
+    // Størrelser: S 199×221, M 414×221, L 414×458. Afstande: 24 indre, 16 mellem kort.
+    const f = (n) => n.toFixed(1);
+    const I = {
+      cloud: 'M6 18h11a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 6 18z',
+      sun: 'M7 19h10a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 7 19zM11 8a3 3 0 1 0-5.5 1.7',
+      rain: 'M7 15h10a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 7 15zM9 18l-1 2.5M13 18l-1 2.5M17 18l-1 2.5',
+      robot: 'M21 12a9 9 0 1 1-18 0a9 9 0 1 1 18 0M16 12a4 4 0 1 1-8 0a4 4 0 1 1 8 0M10 4.5h4',
+      bulb: 'M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z',
+      car: 'M3 15v-3l3-4h12l4 4h1v3H3zM10 16a2 2 0 1 1-4 0a2 2 0 1 1 4 0M20 16a2 2 0 1 1-4 0a2 2 0 1 1 4 0',
+      music: 'M9 18V5l11-2v13M9 18a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0M20 16a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0',
+      radio: 'M3 10a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM7 8l10-4M6 12h4M6 15h4M17.5 14a2.5 2.5 0 1 1-5 0a2.5 2.5 0 1 1 5 0',
+      recipe: 'M6 3h12a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM9 3v18M12 8h5M12 12h5',
+      timer: 'M20 13a8 8 0 1 1-16 0a8 8 0 1 1 16 0M12 9v4l2 2M10 2h4'
+    };
+    const mono = "'IBM Plex Mono', monospace", sans = "'Schibsted Grotesk', sans-serif";
+    const base = { w: 199, h: 221, fg: '#17171A', bg: '#F7F6F3', primC: '#17171A', primF: sans, primS: '20px', primTop: 'auto', ctxC: '#5F5E5A', matOp: 1, anim: '', mat: '#17171A',
+      cloud: false, arcs: false, bulb: false, car: false, ring: false, disc: false, cover: false, logo: false, big: false, alert: '', action: false, bar: false, hours: false, level: 0, flow: false, ringCls: '' };
+    const grey = '#8C8A85';
+    const K = {
+      // Kilde: HA Green 9. nov. 14.30 (første state = Green) og produktets egne tekster (weather-view.js m.fl.).
+      vejr: {
+        _: { w: 414, h: 458, label: 'Vejr', icon: I.cloud, href: 'A-Vejr.dc.html', cloud: true, primTop: '20px', primS: '20px' },
+        sidstkendt: { bg: '#DDE6FB', mat: '#1F55F0', matOp: 0.45, big: '8°', bigC: '#17171A', prim: 'Skyet', ctx: 'Højst 8° · lavest 6°', ctxC: '#3E4660', hourC: '#1A3FB8',
+          hours: [['15.00', '8°'], ['16.00', '8°'], ['17.00', '7°'], ['18.00', '7°'], ['19.00', '7°']].map(([t, v]) => ({ t, v, d: I.cloud })) },
+        frisk: { bg: '#DDE6FB', mat: '#1F55F0', big: '8°', bigC: '#17171A', prim: 'Skyet', ctx: 'Højst 8° · lavest 6°', ctxC: '#3E4660', hourC: '#1A3FB8',
+          hours: [['15.00', '8°'], ['16.00', '8°'], ['17.00', '7°'], ['18.00', '7°'], ['19.00', '7°']].map(([t, v]) => ({ t, v, d: I.cloud })) },
+        ukendt: { bg: '#DDE6FB', mat: '#1F55F0', matOp: 0.2, big: '—', bigC: grey, prim: 'Vejret kunne ikke hentes', primC: '#5F5E5A', ctx: 'Home Assistant svarer ikke lige nu', hours: false }
+      },
+      robot: {
+        _: { w: 414, h: 221, label: 'Robotstøvsuger', icon: I.robot, href: 'A-Robot.dc.html', arcs: true, mat: '#B23A62', primS: '20px', primC: '#8A2A4C', ctxC: '#5E4049' },
+        oplader: { bg: '#F6D8E1', prim: 'Oplader', ctx: 'Batteri 100 % · senest 0,2 m² · 1,1 min', matOp: 0.55 },
+        rengoer: { bg: '#F6D8E1', prim: 'Rengør', ctx: 'Støvsugning og gulvvask', anim: 'an-in', action: 'Pause' },
+        pause: { bg: '#F6D8E1', prim: 'På pause', ctx: 'Robotten mangler vand', alert: '#B07A06', matOp: 0.7, action: 'Fortsæt' },
+        tilbasen: { bg: '#F6D8E1', prim: 'Kør til basen', ctx: 'Robotten sendes til basen.', anim: 'an-in', matOp: 0.8 },
+        fejl: { bg: '#F6D8E1', mat: grey, matOp: 0.45, prim: 'Robotfejl', ctx: 'Hovedbørsten sidder fast', alert: '#B0262A' },
+        ukendt: { bg: '#F6D8E1', mat: grey, matOp: 0.35, prim: 'Status ukendt', primC: '#5F5E5A', ctx: 'Senest ved basen', ctxC: '#5F5E5A' }
+      },
+      lys: {
+        // Lys er bundet til skærmens eget rum (Køkkenalrum).
+        _: { label: 'Lys', icon: I.bulb, href: 'A-Lys.dc.html', bulb: true, mat: '#C08410' },
+        ikkeforbundet: { bg: '#FBEBC6', prim: 'Ikke forbundet', primC: '#6F6A5E', ctx: 'Køkkenalrum', mat: '#B9AE93', matOp: 0.5 },
+        taendt: { bg: '#FBEBC6', prim: 'Tændt', primC: '#7A5205', ctx: 'Køkkenalrum · 80 %', ctxC: '#7A5205' },
+        slukket: { bg: '#FBEBC6', prim: 'Slukket', ctx: 'Køkkenalrum', matOp: 0.35, mat: '#B9AE93' },
+        ukendt: { bg: '#FBEBC6', prim: 'Status ukendt', primC: '#6F6A5E', ctx: 'Køkkenalrum', mat: '#B9AE93', matOp: 0.3 }
+      },
+      tesla: {
+        _: { label: 'Tesla', icon: I.car, href: 'A-Tesla.dc.html', car: true, primF: sans, primS: '20px' },
+        sidstkendt: { bg: '#D5EADD', prim: '81 %', primC: '#2E4A3B', ctx: 'Ulåst · bagagerum åbent', alert: '#B07A06', level: 0.81, fill: '#8C918D' },
+        lader: { bg: '#D5EADD', prim: '81 %', primC: '#17442F', ctx: 'Lader · forventet færdig 20.43', ctxC: '#2E5A43', level: 0.81, fill: '#2F7A55', flow: true },
+        klima: { bg: '#D5EADD', prim: '81 %', primC: '#17442F', ctx: 'Klima · varmer', ctxC: '#2E5A43', level: 0.81, fill: '#2F7A55' },
+        laast: { bg: '#D5EADD', prim: '81 %', ctx: 'Låst · 313 km', level: 0.81, fill: '#5E6B63' },
+        ikkeforbundet: { bg: '#D5EADD', prim: 'Ikke forbundet', primF: sans, primS: '20px', primC: '#5F5E5A', ctx: 'Kræver tilslutning', level: 0, fill: grey }
+      },
+      musik: {
+        _: { label: 'Find musik', icon: I.music, href: 'A-Musik.dc.html' },
+        tom: { prim: 'Vælg musik', ctx: 'Til eftermiddagen', disc: true },
+        ikketilg: { prim: 'Stemning', primC: '#5F5E5A', ctx: 'Stemningsforslag er ikke tilgængelige endnu.', disc: true }
+      },
+      radio: {
+        // Radio afspiller altid gennem medieafspilleren.
+        _: { label: 'Radio', icon: I.radio, href: 'A-Radio.dc.html' },
+        vaelg: { prim: 'Vælg station', ctx: 'P1 · P3 · P4 · P6 · P8' },
+        spiller: { bg: '#E6DDF3', prim: 'P8 Jazz', ctx: 'Køkkenalrum HomePod', ctxC: '#4A3A6E', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' },
+        starter: { bg: '#E6DDF3', prim: 'P8 Jazz', ctx: 'Starter P8 Jazz…', ctxC: '#4A3A6E', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384' },
+        ikketilg: { fg: grey, prim: 'Ikke tilgængelig', primC: grey, ctx: 'Home Assistant svarer ikke lige nu', ctxC: grey }
+      },
+      opskrift: {
+        _: { label: 'Opskrifter', icon: I.recipe, href: 'A-Opskrifter.dc.html' },
+        igang: { bg: '#F2E4D3', label: 'Opskrift', href: 'A-Opskrift.dc.html', prim: 'Burgerboller', ctx: 'I gang · trin 2 af 5', ctxC: '#6B4A2E', barN: 5, barGap: 4, barLabel: 'Trin 2 af 5',
+          bar: ['#7A4A22', '#C98A4E', 'rgba(122,74,34,.18)', 'rgba(122,74,34,.18)', 'rgba(122,74,34,.18)'] },
+        katalog: { prim: '9 opskrifter', ctx: 'Brød og bagværk · Aftensmad' },
+        tom: { prim: 'Ingen opskrifter', primC: '#5F5E5A', ctx: 'Der er ingen opskrifter endnu.' }
+      },
+      timer: {
+        _: { label: 'Timer', icon: I.timer, href: 'A-Timer.dc.html', bg: '#17171A', fg: '#F7F6F3', primC: '#F7F6F3', ctxC: '#BDBBB5', arcs: true, mat: '#FF7A5C', matOp: 0.4 },
+        start: { prim: 'Start en timer', ctx: 'Senest brugt 5:00' },
+        koerer: { anim: 'an-in', matOp: 0.6, prim: '3:42', primF: sans, primS: '20px', ctx: 'Tæller ned', ring: true, dash: '121.0 163.4' },
+        pause: { prim: '3:42', primF: sans, primS: '20px', ctx: 'På pause', ring: true, dash: '121.0 163.4' },
+        faerdig: { matOp: 0.9, anim: 'an-pulse', prim: 'Tiden er gået', primC: '#FF7A5C', ctx: 'Stop alarm', ring: true, dash: '163.4 163.4', ringCls: 'an-pulse' }
+      },
+      svar: {
+        _: { label: 'Svar', icon: 'M4 5h16v11H9l-5 4zM8 9h8M8 12h5', href: 'A-Svar.dc.html' },
+        seneste: { bg: '#E9E6F4', prim: 'El Clásico', ctx: 'Kort svar · 28. okt., 11.32', ctxC: '#4A4466' },
+        tom: { prim: 'Intet at vise endnu', primC: '#5F5E5A', ctx: 'Ingen visuelle svar endnu' }
+      }
+    };
+    const kind = K[this.props.kind] ? this.props.kind : 'tesla';
+    const states = Object.keys(K[kind]).filter((k) => k !== '_');
+    const st = states.includes(this.props.state) ? this.props.state : states[0];
+    // Domænefarven står altid fuldt frem (identitet). State vises med indhold, materialets intensitet og bevægelse.
+    const DOM = { vejr: '#DDE6FB', robot: '#F6D8E1', lys: '#FBEBC6', tesla: '#D5EADD', musik: '#DCEBEA', radio: '#E6DDF3', opskrift: '#F2E4D3', timer: '#17171A', svar: '#E9E6F4' };
+    // tone=hvid: roligere overblik; flade i papirhvid, domænet bæres af materialet og ikonet.
+    // Fast anatomi i alle widgets: hoved øverst; nederst primær linje (20/800, én linje), kontekst (15, én linje)
+    // og en fast 18 px stribe til fremskridt, også når den er tom. Advarsler er en farvet prik, ikke farvet tekst.
+    const v = { ...base, ...K[kind]._, ...K[kind][st], bg: this.props.tone === 'hvid' && kind !== 'timer' ? '#FFFFFF' : DOM[kind] };
+    v.noBar = !v.bar && !v.hours && !v.big;
+
+    const out = { v, cloud: [], arcs: [], bulb: [], car: [] };
+    if (v.cloud) {
+      const blobs = [[150, 140, 42], [198, 108, 56], [246, 146, 38]];
+      for (let y = 4.5; y < 290; y += 9) for (let x = 4.5; x < 270; x += 9) {
+        let d = 999;
+        for (const b of blobs) d = Math.min(d, Math.hypot(x - b[0], y - b[1]) - b[2]);
+        if (x > 112 && x < 284 && y > 136 && y < 184) d = Math.min(d, -1);
+        if (d < 4) continue;
+        const wd = Math.max(0, 6.4 - d * 0.045) * Math.min(1, (290 - y) / 100);
+        if (wd > 0.8) out.cloud.push({ x: f(x - wd / 2), y: f(y - wd / 2), w: f(wd) });
+      }
+    }
+    if (v.arcs) {
+      for (let y = 4.5; y < 221; y += 9) for (let x = 4.5; x < 250; x += 9) {
+        const rr = Math.hypot(x - 262, y - 236);
+        if (rr < 26 || rr > 300) continue;
+        const ph = (rr % 22) / 22;
+        if (ph > 0.55) continue;
+        if (st === 'fejl' && Math.sin(Math.atan2(y - 236, x - 262) * 7 + rr * 0.05) > 0.45) continue;
+        const wd = (6.6 - rr * 0.015) * Math.min(1, (y + 30) / 60) * (1 - Math.abs(ph - 0.27) * 1.4);
+        if (wd > 0.9) out.arcs.push({ x: f(x - wd / 2), y: f(y - wd / 2), w: f(wd), dl: Math.round(-(rr / 300) * 2400) });
+      }
+    }
+    if (v.bulb) {
+      for (let y = 4.5; y < 110; y += 9) for (let x = 4.5; x < 150; x += 9) {
+        const dg = Math.hypot(x - 100, y - 50) - 26;
+        if (dg < 4 || (x > 90 && x < 110 && y > 66 && y < 100)) continue;
+        const wd = Math.max(0, 6 - dg * 0.045) * Math.min(1, x / 60);
+        if (wd > 0.8) out.bulb.push({ x: f(x - wd / 2), y: f(y - wd / 2), w: f(wd) });
+      }
+    }
+    if (v.car) {
+      const body = [[30, 300], [44, 236], [128, 208], [300, 124], [430, 92], [612, 90], [738, 122], [878, 190], [958, 212], [988, 258], [982, 300]];
+      const wheels = [[236, 300], [804, 300]];
+      const k = 0.155;
+      for (let y = 84; y < 362; y += 30) for (let x = 24; x < 1000; x += 30) {
+        const tire = wheels.some(([a, b]) => { const rr = Math.hypot(x - a, y - b); return rr > 34 && rr < 62; });
+        const near = wheels.some(([a, b]) => Math.hypot(x - a, y - b) < 70);
+        const inBody = this.inPoly(x, y, body) && !near;
+        let c = null, cls = '', dl = 0;
+        if (tire) c = '#17171A';
+        else if (inBody) { const on = (x - 30) / 958 <= v.level; c = on ? v.fill : 'rgba(23,23,26,.10)'; if (on && v.flow) { cls = 'an-flow'; dl = Math.round(x * 2); } }
+        if (c) out.car.push({ x: f((x - 24) * k - 2.2), y: f((y - 84) * k * 1.2 - 2.2), c, cls, dl });
+      }
+    }
+    return out;
+  }
+}
+</script>
+</body>
+</html>

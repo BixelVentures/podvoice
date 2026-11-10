@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Lys</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);transition:background-color .5s ease}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease, background-color .4s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.btn:disabled{cursor:default;opacity:.4}
+.sq{position:absolute;border-radius:1px}
+.fade-l{-webkit-mask-image:linear-gradient(90deg,transparent 0,#000 120px);mask-image:linear-gradient(90deg,transparent 0,#000 120px)}
+.h2{font-size:24px;font-weight:800;letter-spacing:-0.01em}
+.sw{width:56px;height:34px;border-radius:17px;position:relative;display:block;flex:none;transition:background-color .3s ease}
+.sw i{position:absolute;top:3px;width:28px;height:28px;border-radius:50%;background:#F7F6F3;box-shadow:0 1px 3px rgba(0,0,0,.25);display:block;transition:left .25s ease}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Lys" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; height: 696px; display: flex; flex-direction: column; gap: 32px">
+
+      <sc-if value="{{disconnected}}" hint-placeholder-val="{{ false }}">
+        <div class="cd" style="height: {{heroH}}px; flex: none; padding: {{heroPad}}px; box-sizing: border-box; display: flex; flex-direction: column; background: #FBEBC6">
+          <div class="fade-l" style="position: absolute; right: 0; top: 0; width: 380px; height: {{heroH}}px; opacity: .4" aria-hidden="true">
+            <sc-for list="{{glow}}" as="d" hint-placeholder-count="300"><i class="sq" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: #B9AE93"></i></sc-for>
+          </div>
+          <span style="position: relative; font-size: 17px; font-weight: 600; color: #6F6A5E">Køkkenalrum · denne skærms rum</span>
+          <span style="position: relative; margin-top: 8px; font-size: {{heroTitle}}px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: #6F6A5E">Ikke forbundet</span>
+          <span style="position: relative; margin-top: 12px; font-size: 17px; color: #5F5E5A; max-width: 420px">Forbind lys i Home Assistant for at se og styre dem her.</span>
+          <button class="btn" style="position: relative; margin-top: auto; align-self: flex-start; height: 56px; padding: 0 28px; border-radius: 999px; background: #17171A; color: #F7F6F3; font: 600 17px 'Schibsted Grotesk', sans-serif">Opdater lys</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{connected}}" hint-placeholder-val="{{ true }}">
+        <section style="display: flex; flex-direction: column; gap: 16px">
+          <div style="display: flex; justify-content: space-between; align-items: center; height: 44px">
+            <span class="h2">Rum</span>
+            <div style="display: flex; gap: 12px; align-items: center">
+              
+              <button class="btn" onClick="{{home}}" disabled="{{homeDis}}" aria-label="{{homeAria}}" style="height: 44px; padding: 0 18px; border-radius: 999px; background: #F7F6F3; display: flex; align-items: center; gap: 8px; font: 600 16px 'Schibsted Grotesk', sans-serif; color: #17171A; box-shadow: inset 0 0 0 1px rgba(23,23,26,.08)">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-5h4v5"/></svg>{{homeLabel}}
+              </button>
+            </div>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px">
+            <sc-for list="{{rooms}}" as="r" hint-placeholder-count="2">
+              <div class="cd" style="height: 128px; background: {{r.bg}}; box-shadow: {{r.ring}}">
+                <button class="btn" onClick="{{r.select}}" aria-pressed="{{r.selAria}}" style="position: absolute; inset: 0; background: transparent; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; align-items: flex-start; text-align: left; font-family: 'Schibsted Grotesk', sans-serif; color: #17171A">
+                  <span style="font-size: 15px; font-weight: 600; color: {{r.tagC}}">{{r.tag}}</span>
+                  <span style="font-size: 26px; font-weight: 800; letter-spacing: -0.015em">{{r.n}}</span>
+                  <span style="margin-top: auto; font-size: 16px; color: {{r.sc}}">{{r.s}}</span>
+                </button>
+                <button class="btn" onClick="{{r.power}}" disabled="{{r.dis}}" aria-label="{{r.powerAria}}" aria-pressed="{{r.aria}}" style="position: absolute; right: 18px; bottom: 19px; background: transparent; padding: 5px 6px">
+                  <span class="sw" style="background: {{r.sw}}"><i style="left: {{r.kx}}px"></i></span>
+                </button>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+        <sc-if value="{{stale}}" hint-placeholder-val="{{ false }}">
+          <div style="margin-top: -20px"><dc-import name="K-Notice" level="info" title="Lysoplysninger kunne ikke hentes. Prøv igen." hint-size="844px,72px"></dc-import></div>
+        </sc-if>
+
+        <section class="cd" style="flex: 1; min-height: 0; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 24px; overflow-y: auto">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; flex: none">
+            <span class="h2">{{selName}}</span>
+            <span style="font-size: 15px; color: #5F5E5A">{{selStatus}}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 12px; flex: none">
+            <span style="font-size: 15px; font-weight: 600; color: #5F5E5A">Scener</span>
+            <div role="group" aria-label="Scener i {{selName}}" style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+              <sc-for list="{{scenes}}" as="c" hint-placeholder-count="3">
+                <button class="btn" onClick="{{c.pick}}" disabled="{{c.dis}}" aria-pressed="{{c.aria}}" style="height: 72px; padding: 0 20px; border-radius: 20px; background: {{c.bg}}; color: {{c.fg}}; box-shadow: {{c.ring}}; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; text-align: left; font-family: 'Schibsted Grotesk', sans-serif">
+                  <span style="font-size: 19px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%">{{c.n}}</span>
+                  <span style="font: 500 15px 'IBM Plex Mono', monospace; opacity: .75">{{c.lv}} %</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; gap: 16px; height: 44px; flex: none; opacity: {{levelOp}}">
+            <span style="font-size: 17px; font-weight: 600; width: 96px">Lysstyrke</span>
+            <div onClick="{{setLevel}}" role="slider" aria-label="Lysstyrke i {{selName}}" aria-valuenow="{{level}}" aria-valuemin="0" aria-valuemax="100" style="position: relative; flex: 1; height: 44px; cursor: pointer">
+              <div style="position: absolute; left: 0; right: 0; top: 18px; height: 8px; border-radius: 4px; background: rgba(23,23,26,.12)"></div>
+              <div style="position: absolute; left: 0; top: 18px; height: 8px; width: {{level}}%; border-radius: 4px; background: #17171A"></div>
+              <div style="position: absolute; left: calc({{level}}% - 14px); top: 8px; width: 28px; height: 28px; border-radius: 50%; background: #F7F6F3; box-shadow: 0 2px 8px rgba(23,23,26,.3)"></div>
+            </div>
+            <span style="font: 500 17px 'IBM Plex Mono', monospace; width: 64px; text-align: right">{{levelTxt}}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; flex: none">
+            <button class="btn" onClick="{{toggleLamps}}" aria-expanded="{{lampsAria}}" style="height: 56px; padding: 0; background: transparent; border-top: 1px solid rgba(23,23,26,.07); display: flex; align-items: center; gap: 12px; font: 600 17px 'Schibsted Grotesk', sans-serif; color: #17171A">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z"/></svg>
+              <span style="flex: 1; text-align: left">Lamper</span>
+              <span style="font: 500 15px 'IBM Plex Mono', monospace; color: #5F5E5A">{{lampCount}}</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="transform: rotate({{chev}}deg); transition: transform .2s ease"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+            <sc-if value="{{lampsOpen}}" hint-placeholder-val="{{ true }}">
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px">
+                <sc-for list="{{lamps}}" as="l" hint-placeholder-count="2">
+                  <div style="height: 64px; display: flex; align-items: center; gap: 12px; border-top: 1px solid rgba(23,23,26,.07)">
+                    <i style="width: 12px; height: 12px; border-radius: 50%; background: {{l.dot}}; display: block; flex: none"></i>
+                    <span style="flex: 1; display: flex; flex-direction: column; min-width: 0">
+                      <span style="font-size: 17px; font-weight: 700">{{l.n}}</span>
+                      <span style="font-size: 15px; color: #5F5E5A">{{l.s}}</span>
+                    </span>
+                    <button class="btn" onClick="{{l.toggle}}" disabled="{{l.dis}}" aria-label="{{l.aLabel}}" aria-pressed="{{l.aria}}" style="background: transparent; padding: 5px 0">
+                      <span class="sw" style="background: {{l.sw}}"><i style="left: {{l.kx}}px"></i></span>
+                    </button>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </section>
+      </sc-if>
+    </div>
+    <dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"hero":{"editor":"enum","default":"221","options":["221","458","300"]},"state":{"editor":"enum","default":"ikkeforbundet","options":["ikkeforbundet","taendt","slukket","ukendt"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { L: null, scn: null, sel: 'kok', restore: null }; }
+  renderVals() {
+    // Forslag: heroen låses til overblikkets rækker. S 221 (én række), L 458 (to rækker).
+    const heroH = Number(this.props.hero) || 221, heroS = heroH <= 221;
+    // Godkendt struktur fra light-room-view.js: rum (eget rum først) med tænd/sluk pr. rum, "Sluk alt"/"Gendan lys" for hele hjemmet,
+    // valgt rums scener, lysstyrke og individuelle lamper. Green: Lys "Ikke forbundet".
+    const st = this.props.state || 'ikkeforbundet';
+    const connected = st !== 'ikkeforbundet', stale = st === 'ukendt';
+    // Rum, lamper og scener er produktets eget Hue-eksempel (preview-scenes.js): køkken Pendler/Bordlys,
+    // scener Morgen/Madlavning/Aften (60/100/30 %); stue på 1. sal med seks lamper, scener Læsning/Aften/Hygge.
+    // Rummets navn Køkkenalrum er fra HA Green. Stue · 1. sal er eksemplets andet rum, indtil det rigtige navn kendes.
+    const R = [
+      { id: 'kok', n: 'Køkkenalrum', tag: 'Denne skærms rum', lamps: [['k1', 'Pendler'], ['k2', 'Bordlys']], scenes: [['Morgen', 60], ['Madlavning', 100], ['Aften', 30]] },
+      { id: 'stue', n: 'Stue · 1. sal', tag: 'Rum', lamps: [['s1', 'Gulvlampe'], ['s2', 'Sofa'], ['s3', 'Loftlys'], ['s4', 'Reol'], ['s5', 'Vindue'], ['s6', 'Væglys']], scenes: [['Læsning', 60], ['Aften', 100], ['Hygge', 30]] }
+    ];
+    const off = { k1: 0, k2: 0, s1: 0, s2: 0, s3: 0, s4: 0, s5: 0, s6: 0 };
+    const lit = { k1: 60, k2: 60, s1: 50, s2: 50, s3: 50, s4: 50, s5: 50, s6: 50 };
+    const init = st === 'slukket' ? off : lit;
+    const L = this.state.L || init;
+    const scn = this.state.scn || (st === 'slukket' ? {} : { kok: 'Morgen' });
+    const set = (next, scnNext) => this.setState({ L: next, scn: scnNext || scn });
+    const roomOn = (r) => r.lamps.some(([k]) => L[k] > 0);
+    const anyOn = R.some(roomOn);
+    const rooms = R.map((r) => {
+      const on = roomOn(r), sel = this.state.sel === r.id;
+      return { n: r.n, tag: r.tag, tagC: on && !stale ? '#7A5205' : '#6F6A5E',
+        s: stale ? 'Status ukendt' : on ? 'Tændt' : 'Slukket', sc: on && !stale ? '#7A5205' : '#5F5E5A',
+        bg: on && !stale ? '#FBEBC6' : '#F7F6F3', ring: sel ? 'inset 0 0 0 3px #17171A' : 'inset 0 0 0 1px rgba(23,23,26,.06)',
+        sw: on && !stale ? '#17171A' : 'rgba(23,23,26,.16)', kx: on ? 25 : 3, aria: on ? 'true' : 'false', selAria: sel ? 'true' : 'false', dis: stale ? 'true' : undefined,
+        powerAria: (on ? 'Sluk' : 'Tænd') + ' alle lys i ' + r.n,
+        select: () => this.setState({ sel: r.id, lampsOpen: undefined }),
+        power: () => { const n = { ...L }; r.lamps.forEach(([k]) => { n[k] = on ? 0 : lit[k]; }); set(n, { ...scn, [r.id]: null }); } };
+    });
+    const selR = R.find((r) => r.id === this.state.sel);
+    const lampsOn = selR.lamps.filter(([k]) => L[k] > 0);
+    const level = lampsOn.length ? Math.max(...lampsOn.map(([k]) => L[k])) : 0;
+    const scenes = selR.scenes.map(([n, lv]) => {
+      const on = scn[selR.id] === n && !stale;
+      return { n, lv, aria: on ? 'true' : 'false', dis: stale ? 'true' : undefined,
+        bg: on ? '#17171A' : '#FBEBC6', fg: on ? '#F7F6F3' : '#17171A', ring: on ? 'none' : 'inset 0 0 0 1px rgba(122,82,5,.12)',
+        pick: () => { const nx = { ...L }; selR.lamps.forEach(([k]) => { nx[k] = lv; }); set(nx, { ...scn, [selR.id]: n }); } };
+    });
+    const lamps = selR.lamps.map(([k, n]) => {
+      const on = L[k] > 0;
+      return { n, s: stale ? 'Status ukendt' : on ? 'Tændt · ' + L[k] + ' %' : 'Slukket', dot: on && !stale ? '#F2C14E' : 'rgba(23,23,26,.16)',
+        sw: on && !stale ? '#17171A' : 'rgba(23,23,26,.16)', kx: on ? 25 : 3, aria: on ? 'true' : 'false', dis: stale ? 'true' : undefined, aLabel: (on ? 'Sluk ' : 'Tænd ') + n,
+        toggle: () => set({ ...L, [k]: on ? 0 : lit[k] }, { ...scn, [selR.id]: null }) };
+    });
+    const restore = this.state.restore || (st === 'slukket' && !this.state.L ? lit : null);
+    const lampsOpen = this.state.lampsOpen !== undefined ? this.state.lampsOpen : selR.lamps.length <= 2;
+    const glow = [];
+    const f = (x) => x.toFixed(1);
+    for (let y = 4.5; y < 300; y += 9) for (let x = 4.5; x < 380; x += 9) {
+      const d = Math.hypot(x - 260, y - 120) - 44;
+      if (d < 4) continue;
+      const w = Math.max(0, 6.6 - d * 0.03);
+      if (w > 0.8) glow.push({ x: f(x - w / 2), y: f(y - w / 2), w: f(w) });
+    }
+    return {
+      heroH, heroPad: heroS ? 24 : 32, heroTitle: heroS ? 40 : 56,
+      stale, connected, disconnected: !connected, glow, rooms, lamps, scenes, selName: selR.n,
+      selStatus: stale ? 'Status ukendt' : lampsOn.length + ' af ' + selR.lamps.length + ' lamper tændt',
+      lampsOpen, lampsAria: lampsOpen ? 'true' : 'false', chev: lampsOpen ? 180 : 0, lampCount: selR.lamps.length + ' stk.',
+      toggleLamps: () => this.setState({ lampsOpen: !lampsOpen }),
+      setLevel: (e) => { if (stale || !lampsOn.length) return; const b = e.currentTarget.getBoundingClientRect(); const v = Math.max(1, Math.min(100, Math.round((e.clientX - b.left) / b.width * 100))); const nx = { ...L }; lampsOn.forEach(([k]) => { nx[k] = v; }); set(nx); },
+      level, levelTxt: stale ? '—' : lampsOn.length ? level + ' %' : '0 %', levelOp: lampsOn.length && !stale ? 1 : 0.4,
+      homeLabel: !anyOn && restore ? 'Gendan lys' : 'Sluk alt', homeAria: !anyOn && restore ? 'Gendan lyset i hjemmet som før slukning' : 'Sluk alle lys i hjemmet',
+      homeDis: stale || (!anyOn && !restore) ? 'true' : undefined,
+      home: () => { if (anyOn) this.setState({ restore: L, L: off }); else if (restore) this.setState({ L: restore, restore: null }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Opskrifter</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#17171A;text-decoration:none}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);transition:transform .14s ease}
+a.cd:active{transform:scale(.985)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.dt{position:absolute;border-radius:50%}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Opskrifter" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; width: 1232px; height: 696px; display: flex; flex-direction: column; gap: 20px">
+    <a href="A-Opskrift.dc.html" class="cd" style="height: 96px; flex: none; padding: 0 24px; box-sizing: border-box; display: flex; align-items: center; gap: 18px; background: #F2E4D3">
+      <img src="https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=1200" alt="" style="width: 56px; height: 56px; border-radius: 16px; object-fit: cover; flex: none">
+      <div style="flex: 1; display: flex; flex-direction: column; gap: 2px">
+        <span style="font-size: 15px; font-weight: 600; color: #7A4A22">I gang</span>
+        <span style="font-size: 22px; font-weight: 800">Burgerboller · trin 2 af 5 · hvile og hævning</span>
+      </div>
+      <span style="height: 56px; padding: 0 24px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; font: 600 17px 'Schibsted Grotesk', sans-serif">Fortsæt madlavning</span>
+    </a>
+    <div style="display: flex; justify-content: space-between; align-items: center">
+      <div style="display: flex; gap: 6px; padding: 4px; border-radius: 999px; background: #DCDAD4">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="6">
+          <button class="btn" onClick="{{t.pick}}" style="height: 44px; padding: 0 20px; border-radius: 999px; background: {{t.bg}}; color: {{t.fg}}; font: 600 16px 'Schibsted Grotesk', sans-serif">{{t.l}}</button>
+        </sc-for>
+      </div>
+      <div style="display: flex; align-items: center; gap: 16px"><span style="font-size: 16px; color: #5F5E5A">{{count}} opskrifter</span><a href="Opskrifter-Bog.dc.html" class="btn" style="height: 44px; padding: 0 20px; border-radius: 999px; background: #F7F6F3; display: flex; align-items: center; font: 600 16px 'Schibsted Grotesk', sans-serif; color: #17171A">Udforsk</a></div>
+    </div>
+    <div style="flex: 1; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); grid-template-rows: repeat(2, 252px); gap: 16px; min-height: 0; align-content: start">
+      <sc-for list="{{recipes}}" as="r" hint-placeholder-count="8">
+        <a href="A-Opskrift.dc.html" class="cd" style="padding: 12px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">
+          <div style="position: relative; height: 140px; flex: none; border-radius: 16px; background: {{r.bg}}; overflow: hidden">
+            <img src="{{r.img}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+            <sc-if value="{{r.active}}" hint-placeholder-val="{{ false }}"><span style="position: absolute; left: 10px; top: 10px; height: 28px; padding: 0 10px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; font: 600 15px 'Schibsted Grotesk', sans-serif">I gang</span></sc-if>
+          </div>
+          <span style="flex: none; height: 44px; font-size: 18px; font-weight: 800; line-height: 22px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden">{{r.t}}</span>
+          <span style="flex: none; height: 20px; font-size: 15px; line-height: 20px; color: #5F5E5A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.m}}</span>
+        </a>
+      </sc-for>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 0 }; }
+  renderVals() {
+    // Kort: fast billedhøjde 150, titel altid 2 linjer (44), meta 1 linje (20); billeder er recipe.image fra Green.
+    // Rigtigt katalog fra HA Green (api/recipes, 9. nov.): titler, kategorier, portioner og tider. Alfabetisk, som produktets indeks.
+    const pal = { 'Brød og bagværk': ['#E8CBA6', '#A8622C', '#3B2412'], 'Morgenmad': ['#F1E3A8', '#A8862C', '#2F2610'], 'Madpakker': ['#CFE0C3', '#4F7A3A', '#1F3318'], 'Aftensmad': ['#E9B7A0', '#A33A1E', '#3A140A'], 'Desserter': ['#8C5A2E', '#E2C4A6', '#FFF2E4'] };
+    const all = [
+      { img: 'https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=1200', t: 'Burgerboller', c: 'Brød og bagværk', m: '15 stk. · 2–3 timer hævning', active: true },
+      { img: 'https://martinys.dk/cdn/shop/articles/Sund-chokolade-granola-sukkerfri_d88c14d4-3ea4-4c6e-a94c-53c3648696b5.jpg', t: 'Chokoladegranola', c: 'Morgenmad', m: '1 stort glas · 20–30 min. bagetid' },
+      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2023/07/Frederikke-Waerens-Fredagshygge-Hjemmelavede-muslibarer-12-1365x688.jpg', t: 'Hjemmelavede müslibarer', c: 'Madpakker', m: 'Ca. 15 stk. · 1 time i alt' },
+      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/10/Frederikke-Waerens-Koldhaevede-hytteostboller-13-1365x688.jpg', t: 'Koldhævede hytteostboller', c: 'Brød og bagværk', m: '15 stk. · hæver natten over' },
+      { img: 'https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6777-edited.jpg', t: 'Kylling i karry', c: 'Aftensmad', m: '4 personer · 45 min. i alt' },
+      { img: 'https://images.arla.com/recordid/F92C4A6D-64ED-4F3C-8D03B2640884721F/picture.jpg', t: 'Nem chokoladekage i bradepande', c: 'Desserter', m: '1 kage · 120 min.' },
+      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2025/02/Frederikke-Waerens-Pizzaboller-med-hytteost-12-1440x688.jpg', t: 'Pizzaboller med hytteost', c: 'Madpakker', m: '8–10 stk. · 35 min. i alt' },
+      { img: 'https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-5.jpg', t: 'Protein bagels med hytteost', c: 'Brød og bagværk', m: '4 bagels · ingen hævetid' },
+      { img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/05/Frederikke-Waerens-Scones-med-hytteost-og-blaabaer-12-1365x688.jpg', t: 'Scones med hytteost og blåbær', c: 'Brød og bagværk', m: '9 stk. · 30 min. i alt' }
+    ].map((r) => ({ active: false, ...r, bg: pal[r.c][0], fg: pal[r.c][1] }));
+    const cats = ['Alle', 'Brød og bagværk', 'Madpakker', 'Aftensmad', 'Morgenmad', 'Desserter'];
+    const tab = this.state.tab;
+    const recipes = tab === 0 ? all : all.filter((r) => r.c === cats[tab]);
+    const tabs = cats.map((l, i) => ({ l, bg: tab === i ? '#17171A' : 'transparent', fg: tab === i ? '#F7F6F3' : '#17171A', pick: () => this.setState({ tab: i }) }));
+    return { recipes, tabs, count: recipes.length };
+  }
+}
+</script>
+</body>
+</html>

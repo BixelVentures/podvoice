@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>UI-kit</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.lbl{font:600 15px 'Schibsted Grotesk',sans-serif;color:#5F5E5A}
+.h{font:800 24px 'Schibsted Grotesk',sans-serif;letter-spacing:-0.01em}
+.mono{font:500 15px 'IBM Plex Mono',monospace;color:#5F5E5A}
+.cd{border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);padding:24px;box-sizing:border-box}
+.b{border:0;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;font:600 17px 'Schibsted Grotesk',sans-serif}
+.sw{width:56px;height:34px;border-radius:17px;position:relative;display:block}
+.sw i{position:absolute;top:3px;width:28px;height:28px;border-radius:50%;background:#F7F6F3;box-shadow:0 1px 3px rgba(0,0,0,.25);display:block}
+</style>
+</helmet>
+<div style="width: 2400px; height: 2750px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; padding: 64px; box-sizing: border-box; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 32px; align-content: start">
+  <div style="grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: flex-end">
+    <div style="display: flex; flex-direction: column; gap: 8px">
+      <span class="lbl">PodView · ét kit for overblik, widgets og detaljer</span>
+      <span style="font-size: 56px; font-weight: 800; letter-spacing: -0.035em; line-height: 1">UI-kit</span>
+    </div>
+    <span class="mono">Frameo 10,1″ · 1280×800 · forslag, ikke godkendt</span>
+  </div>
+
+  <section class="cd" style="display: flex; flex-direction: column; gap: 16px">
+    <span class="h">Domænefarver · altid fuldt frem</span>
+    <span class="lbl">Farven er identitet. State vises med indhold, materialets intensitet og bevægelse, aldrig ved at kortet blegner.</span>
+    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px">
+      <sc-for list="{{dom}}" as="d" hint-placeholder-count="9">
+        <div style="height: 88px; border-radius: 16px; background: {{d.c}}; color: {{d.f}}; padding: 12px 14px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)">
+          <span style="font-size: 17px; font-weight: 700">{{d.n}}</span><span style="font: 500 15px 'IBM Plex Mono', monospace; opacity: .75">{{d.c}}</span>
+        </div>
+      </sc-for>
+    </div>
+    <div style="display: flex; gap: 12px">
+      <sc-for list="{{base}}" as="d" hint-placeholder-count="4">
+        <div style="flex: 1; height: 56px; border-radius: 16px; background: {{d.c}}; color: {{d.f}}; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; box-shadow: inset 0 0 0 1px rgba(23,23,26,.08)"><span style="font-size: 15px; font-weight: 700">{{d.n}}</span><span style="font: 500 15px 'IBM Plex Mono', monospace">{{d.c}}</span></div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="cd" style="display: flex; flex-direction: column; gap: 14px">
+    <span class="h">Typografi · aldrig under 15 px</span>
+    <sc-for list="{{type}}" as="t" hint-placeholder-count="7">
+      <div style="display: flex; align-items: baseline; gap: 16px; border-bottom: 1px solid rgba(23,23,26,.07); padding-bottom: 10px">
+        <span class="mono" style="width: 56px">{{t.s}}</span>
+        <span style="font-size: {{t.s}}px; font-weight: {{t.w}}; letter-spacing: {{t.ls}}; line-height: 1.05; font-family: {{t.f}}">{{t.x}}</span>
+        <span class="lbl" style="margin-left: auto">{{t.r}}</span>
+      </div>
+    </sc-for>
+  </section>
+
+  <section class="cd" style="display: flex; flex-direction: column; gap: 16px">
+    <span class="h">Afstand, radius, højder</span>
+    <div style="display: flex; gap: 16px; align-items: flex-end">
+      <sc-for list="{{space}}" as="s" hint-placeholder-count="4"><div style="display: flex; flex-direction: column; gap: 6px; align-items: center"><i style="width: {{s}}px; height: {{s}}px; background: #17171A; border-radius: 2px; display: block"></i><span class="mono">{{s}}</span></div></sc-for>
+    </div>
+    <span class="lbl">8 · 16 · 24 · 32. Kortpolstring 24 · mellem kort 16 · mellem sektioner 32 · kant 24.</span>
+    <div style="display: flex; gap: 16px">
+      <div style="width: 96px; height: 72px; border-radius: 24px; background: #DDE6FB; display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box"><span class="mono">24 kort</span></div>
+      <div style="width: 96px; height: 72px; border-radius: 16px; background: #FBEBC6; display: flex; align-items: flex-end; padding: 8px; box-sizing: border-box"><span class="mono">16 indre</span></div>
+      <div style="width: 120px; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center"><span style="font: 500 15px 'IBM Plex Mono', monospace">999 knap</span></div>
+    </div>
+    <span class="lbl">Rækker 221 · gab 16 · topbar 72 · afspiller 372 × 696 · rørflade mindst 44.</span>
+  </section>
+
+  <section class="cd" style="grid-column: 1 / span 2; display: flex; flex-direction: column; gap: 16px">
+    <span class="h">Widget · én anatomi i tre størrelser</span>
+    <span class="lbl">Ikon, navn og chevron · én primær værdi · én kontekstlinje (højst to linjer) · materiale bag en maske, aldrig under tekst.</span>
+    <div style="display: flex; gap: 16px; align-items: flex-start">
+      <div style="display: flex; flex-direction: column; gap: 8px"><dc-import name="K-Widget" kind="lys" state="ikkeforbundet" hint-size="199px,221px"></dc-import><span class="mono">S 199 × 221</span></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><dc-import name="K-Widget" kind="robot" state="oplader" hint-size="414px,221px"></dc-import><span class="mono">M 414 × 221</span></div>
+      <div style="display: flex; flex-direction: column; gap: 8px"><dc-import name="K-Widget" kind="vejr" state="sidstkendt" hint-size="414px,458px"></dc-import><span class="mono">L 414 × 458</span></div>
+      <div style="display: flex; flex-direction: column; gap: 16px">
+        <dc-import name="K-Widget" kind="tesla" state="sidstkendt" hint-size="199px,221px"></dc-import>
+        <dc-import name="K-Widget" kind="timer" state="koerer" hint-size="199px,221px"></dc-import>
+      </div>
+    </div>
+  </section>
+
+  <section class="cd" style="display: flex; flex-direction: column; gap: 20px">
+    <span class="h">Knapper og kontroller</span>
+    <span class="lbl">Ét system: piller, højde 56 eller 44, tryk = 0,97 + lysstyrke. Ingen 3D.</span>
+    <div style="display: flex; gap: 12px; flex-wrap: wrap">
+      <span class="b" style="height: 56px; padding: 0 28px; background: #17171A; color: #F7F6F3">Primær 56</span>
+      <span class="b" style="height: 56px; padding: 0 28px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(23,23,26,.12)">Sekundær 56</span>
+      <span class="b" style="height: 56px; padding: 0 28px; color: #B0262A; box-shadow: inset 0 0 0 1.5px rgba(176,38,42,.45)">Afbryd</span>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center">
+      <span class="b" style="height: 44px; padding: 0 18px; background: #17171A; color: #F7F6F3; font-size: 16px">Valgt 44</span>
+      <span class="b" style="height: 44px; padding: 0 18px; background: #EFEDE8; font-size: 16px">Chip 44</span>
+      <span style="display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: #DCDAD4"><span class="b" style="height: 44px; padding: 0 18px; background: #17171A; color: #F7F6F3; font-size: 16px">Katalog</span><span class="b" style="height: 44px; padding: 0 18px; font-size: 16px">Udforsk</span></span>
+    </div>
+    <div style="display: flex; gap: 24px; align-items: center">
+      <span class="sw" style="background: #17171A"><i style="left: 25px"></i></span>
+      <span class="sw" style="background: rgba(23,23,26,.16)"><i style="left: 3px"></i></span>
+      <div style="position: relative; flex: 1; height: 8px; border-radius: 4px; background: rgba(23,23,26,.12)"><div style="position: absolute; left: 0; top: 0; bottom: 0; width: 60%; border-radius: 4px; background: #17171A"></div><div style="position: absolute; left: calc(60% - 14px); top: -10px; width: 28px; height: 28px; border-radius: 50%; background: #F7F6F3; box-shadow: 0 2px 8px rgba(23,23,26,.3)"></div></div>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center">
+      
+      <span style="height: 32px; padding: 0 12px; border-radius: 999px; background: rgba(23,23,26,.07); display: flex; align-items: center; font: 600 15px 'Schibsted Grotesk', sans-serif; color: #3F3E3B">Opdateret 11.02</span>
+      <span class="lbl">Mærker til ærlige tilstande og eksempler</span>
+    </div>
+  </section>
+
+  <section class="cd" style="grid-column: 1 / -1; display: flex; gap: 48px; align-items: flex-start">
+    <div style="display: flex; flex-direction: column; gap: 8px; width: 420px">
+      <span class="h">Detaljeside · samme skelet overalt</span>
+      <span class="lbl">Topbar 72 · indhold 844 bredt · afspiller 372 fast til højre (undtagen Foto-Ro og Opskrifter) · sektioner 32 fra hinanden · siden må scrolle, overblikket aldrig.</span>
+      <span class="lbl" style="color: #17171A">Hero i to højder låst til overblikkets rækker: S 221 (én række) og L 458 (to rækker, samme som Large-widget). Ingen sidespecifikke højder.</span>
+      <span class="lbl" style="color: #17171A">Fold ved 800: næste sektions overskrift står helt over folden, toppen af kortet kigger frem, og en 48 px kant fader indholdet ud. Folden må aldrig ligge i et gab eller skære gennem en tekstlinje.</span>
+      <span class="lbl" style="color: #17171A">Tekst i widgets står på faste linjer: kontekst har altid plads til to linjer, så primære værdier i en række flugter.</span>
+    </div>
+    <div style="display: flex; gap: 24px">
+      <sc-for list="{{heroes}}" as="h" hint-placeholder-count="2">
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <div style="width: 422px; height: 348px; border-radius: 12px; background: #E9E7E2; box-shadow: inset 0 0 0 1px rgba(23,23,26,.12); position: relative; overflow: hidden">
+            <i style="position: absolute; left: 0; right: 0; top: 0; height: 18px; background: rgba(23,23,26,.08); display: block"></i>
+            <i style="position: absolute; left: 6px; top: 22px; width: 278px; height: {{h.px}}px; border-radius: 8px; background: {{h.c}}; display: block"></i>
+            <i style="position: absolute; left: 6px; top: {{h.below}}px; width: 278px; height: 40px; border-radius: 8px; background: #F7F6F3; display: block"></i>
+            <i style="position: absolute; right: 6px; top: 22px; width: 124px; height: 320px; border-radius: 8px; background: #F7F6F3; display: block"></i>
+          </div>
+          <span class="mono">{{h.n}}</span>
+        </div>
+      </sc-for>
+    </div>
+  </section>
+
+  <section class="cd" style="grid-column: 1 / -1; display: flex; gap: 48px; align-items: flex-start">
+    <div style="display: flex; flex-direction: column; gap: 8px; width: 420px">
+      <span class="h">Beskeder i headeren · samme sted overalt</span>
+      <span class="lbl" style="color: #17171A">Friskhed: data under 30 min vises bare, uden mærke. Er data ældre, står tidspunktet som mærke øverst til højre (Opdateret 11.02). Kendes status ikke, siger titlen det ("Status ukendt"), og beskedlinjen forklarer. Ordet "Sidst kendt" bruges ikke.</span>
+      <span class="lbl" style="color: #17171A">Problemer og handlinger står i én beskedlinje lige under heroen, 12 px fra den, fuld bredde, mindst 72 px: ikon, fed hovedlinje, valgfri forklaring. Handlingsknapper bliver i heroen.</span>
+      <span class="lbl" style="color: #17171A">Tre niveauer: fejl (rød, robotten kan ikke fortsætte), handling (rav, noget skal gøres i hjemmet), info (grå, data eller kommando kan ikke bekræftes). Domænefarven i heroen ændres ikke.</span>
+      <span class="lbl">Kun produktets egen tekst. Højst én beskedlinje ad gangen; den mest alvorlige vinder.</span>
+    </div>
+    <div style="flex: 1; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; gap: 12px; align-items: center"><span style="height: 32px; padding: 0 12px; border-radius: 999px; background: rgba(23,23,26,.08); display: inline-flex; align-items: center; gap: 8px; font: 600 15px 'Schibsted Grotesk', sans-serif; color: #3F3E3B"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3F3E3B" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Opdateret 9. nov., 11.02</span><span class="mono">kun når data er over 30 min gammelt</span></div>
+      <div style="display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: #F8DCDC; color: #5E1416"><span style="width: 36px; height: 36px; border-radius: 50%; background: #B0262A; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">!</span><span style="display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 22px; font-weight: 800">Sluk robotten før du fjerner hår og genstande fra hovedbørsten, dens ender og holderne.</span></span></div>
+      <div style="display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: #FBE7B9; color: #4A3205"><span style="width: 36px; height: 36px; border-radius: 50%; background: #B07A06; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">!</span><span style="display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 22px; font-weight: 800">Bagagerum åbent</span><span style="font-size: 15px; line-height: 20px; font-weight: 500">Se til bilen, og hold området ved bagagerummet frit.</span></span></div>
+      <div style="display: flex; align-items: center; gap: 16px; min-height: 72px; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: #E2E0DB; color: #3F3E3B"><span style="width: 36px; height: 36px; border-radius: 50%; background: #7A7873; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">i</span><span style="display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 22px; font-weight: 800">Effekten af en kommando kan ikke bekræftes, før robotten svarer</span></span></div>
+    </div>
+  </section>
+
+  <section class="cd" style="grid-column: 1 / -1; display: grid; grid-template-columns: 2fr 1fr; gap: 48px; align-items: start">
+    <div style="display: flex; flex-direction: column">
+      <span class="h" style="margin-bottom: 8px">Trykmål · gælder alle sider</span>
+      <span class="lbl" style="margin-bottom: 12px; color: #17171A">Intet trykbart under 44 × 44. Primære handlinger 56. Lister og valg har hele rækken som trykflade. Målt på alle tavler: ingen fund.</span>
+      <div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Primær knap</span><span class="mono">56 høj · pille · fuld trykflade</span><span style="color: #5F5E5A">Robot Start, Opskrift Start timer, Bog Åbn</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Sekundær knap / segment</span><span class="mono">min. 44 høj · trykflade udvides til 48 i lister</span><span style="color: #5F5E5A">Tesla sæder, Musik-faner 48, Lys Sluk alt</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Listerække</span><span class="mono">48 høj · hele rækken er trykflade</span><span style="color: #5F5E5A">Ingredienser, Lamper</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Valgkort</span><span class="mono">72 høj · tekst + værdi</span><span style="color: #5F5E5A">Lys-scener, Robot-rum</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Rund handling</span><span class="mono">56–64 · cirkel</span><span style="color: #5F5E5A">Afspil på Find musik, afspillerens play</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Kontakt</span><span class="mono">56×34 synlig · 44+ trykflade (5 px luft)</span><span style="color: #5F5E5A">Rum og lamper i Lys, Klima</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Widget</span><span class="mono">hele kortet er ét link · 199×221 / 414×221 / 414×458</span><span style="color: #5F5E5A">Overblik</span></div><div style="display: grid; grid-template-columns: 220px 1fr 1fr; gap: 16px; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Beskedlinje</span><span class="mono">min. 72 høj · ikke trykbar</span><span style="color: #5F5E5A">Robot, Tesla</span></div>
+    </div>
+    <div style="display: flex; flex-direction: column">
+      <span class="h" style="margin-bottom: 8px">Fælles komponenter</span>
+      <span class="lbl" style="margin-bottom: 12px; color: #17171A">Sider komponeres af disse; tal og farver kommer fra tokens ovenfor.</span>
+      <div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">K-Widget</span><span style="color: #5F5E5A">alle widgets i overblik og rækker</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">A-Topbar</span><span style="color: #5F5E5A">alle sider</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">A-Player</span><span style="color: #5F5E5A">alle sider med afspiller</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Beskedlinje + friskhedsmærke</span><span style="color: #5F5E5A">Robot, Tesla, Vejr</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Hero S/L</span><span style="color: #5F5E5A">alle detaljesider</span></div><div style="display: flex; justify-content: space-between; padding: 12px 0; border-top: 1px solid rgba(23,23,26,.08); font-size: 16px"><span style="font-weight: 700">Sektionstitel 24/800</span><span style="color: #5F5E5A">alle sektioner</span></div>
+    </div>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2400,"height":2750}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dom = [['Vejr', '#DDE6FB'], ['Robot', '#F6D8E1'], ['Lys', '#FBEBC6'], ['Tesla', '#D5EADD'], ['Find musik', '#DCEBEA'], ['Radio', '#E6DDF3'], ['Opskrift', '#F2E4D3'], ['Svar', '#E9E6F4'], ['Timer', '#17171A']]
+      .map(([n, c]) => ({ n, c, f: c === '#17171A' ? '#F7F6F3' : '#17171A' }));
+    const base = [['Grund', '#E9E7E2'], ['Flade', '#F7F6F3'], ['Blæk', '#17171A'], ['Fejl', '#B0262A']].map(([n, c]) => ({ n, c, f: c === '#17171A' || c === '#B0262A' ? '#F7F6F3' : '#17171A' }));
+    const sans = "'Schibsted Grotesk', sans-serif", mono = "'IBM Plex Mono', monospace";
+    const type = [
+      { s: 56, w: 800, ls: '-0.035em', f: sans, x: 'Oplader', r: 'Hero-titel' },
+      { s: 40, w: 800, ls: '-0.03em', f: sans, x: 'Kort svar', r: 'Svar-resumé' },
+      { s: 26, w: 800, ls: '-0.015em', f: sans, x: 'Burgerboller', r: 'Widget primær' },
+      { s: 24, w: 800, ls: '-0.01em', f: sans, x: 'Rengøringsvalg', r: 'Sektion' },
+      { s: 20, w: 800, ls: '0', f: sans, x: 'Køkkenalrum', r: 'Listerække' },
+      { s: 17, w: 600, ls: '0', f: sans, x: 'Batteri 100 %', r: 'Brød, knapper' },
+      { s: 15, w: 500, ls: '0', f: mono, x: '0:44 · 2:37', r: 'Tal, mindste' }
+    ];
+    const heroes = [{ n: 'Hero S · 221', px: 98, below: 128, c: '#F6D8E1' }, { n: 'Hero L · 458', px: 204, below: 234, c: '#D5EADD' }];
+    return { dom, base, type, space: [8, 16, 24, 32], heroes };
+  }
+}
+</script>
+</body>
+</html>

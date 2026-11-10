@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Overblik</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Hjem" scenario="{{scenario}}" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="display: grid; grid-template-columns: repeat(4, 199px); grid-template-rows: repeat(3, 221px); gap: 16px">
+      <div style="grid-column: 1 / span 2; grid-row: 1 / span 2"><dc-import name="K-Widget" kind="vejr" state="{{s.vejr}}" tone="{{t.vejr}}" hint-size="414px,458px"></dc-import></div>
+      <div style="grid-column: 3 / span 2; grid-row: 1"><dc-import name="K-Widget" kind="robot" state="{{s.robot}}" tone="{{t.robot}}" hint-size="414px,221px"></dc-import></div>
+      <div style="grid-column: 3; grid-row: 2"><dc-import name="K-Widget" kind="lys" state="{{s.lys}}" tone="{{t.lys}}" hint-size="199px,221px"></dc-import></div>
+      <div style="grid-column: 4; grid-row: 2"><dc-import name="K-Widget" kind="tesla" state="{{s.tesla}}" tone="{{t.tesla}}" hint-size="199px,221px"></dc-import></div>
+      <div style="grid-column: 1; grid-row: 3"><dc-import name="K-Widget" kind="musik" state="{{s.musik}}" tone="{{t.musik}}" hint-size="199px,221px"></dc-import></div>
+      <div style="grid-column: 2; grid-row: 3"><dc-import name="K-Widget" kind="radio" state="{{s.radio}}" tone="{{t.radio}}" hint-size="199px,221px"></dc-import></div>
+      <div style="grid-column: 3; grid-row: 3"><dc-import name="K-Widget" kind="opskrift" state="{{s.opskrift}}" tone="{{t.opskrift}}" hint-size="199px,221px"></dc-import></div>
+      <div style="grid-column: 4; grid-row: 3"><dc-import name="K-Widget" kind="timer" state="{{s.timer}}" tone="{{t.timer}}" hint-size="199px,221px"></dc-import></div>
+    </div>
+    <dc-import name="A-Player" mode="{{p.mode}}" radioState="spiller" station="P8 Jazz" logo="/_blob/9ce4ff63f8b748436685d6a2bba17384" art="{{p.art}}" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scenario":{"editor":"enum","default":"green","options":["green","aktiv"]},"tone":{"editor":"enum","default":"bund","options":["farve","bund","ro"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Overblikket er komponeret af K-Widget (samme komponent som widget-rækkerne). Faste pladser; state vises på pladsen.
+    // green = HA Green 9. nov. 14.30. aktiv = samme hjem med flere ting i gang (produktets egne states).
+    const green = (this.props.scenario || 'green') === 'green';
+    const s = green
+      ? { vejr: 'sidstkendt', robot: 'oplader', lys: 'ikkeforbundet', tesla: 'sidstkendt', musik: 'tom', radio: 'vaelg', opskrift: 'igang', timer: 'start' }
+      : { vejr: 'frisk', robot: 'rengoer', lys: 'taendt', tesla: 'lader', musik: 'tom', radio: 'spiller', opskrift: 'igang', timer: 'koerer' };
+    // tone: farve = alle flader i domænefarve; bund = nederste række i hvid; ro = kun widgets med noget i gang
+    // eller noget at gøre står i farve, resten i hvid (afledt af samme states).
+    const tone = this.props.tone || 'bund';
+    const idle = { vejr: false, robot: !['rengoer','pause','tilbasen','fejl'].includes(s.robot), lys: s.lys !== 'taendt', tesla: !['lader','klima','sidstkendt'].includes(s.tesla),
+      musik: true, radio: s.radio !== 'spiller', opskrift: s.opskrift !== 'igang', timer: false };
+    const t = Object.fromEntries(Object.keys(s).map((k) => [k, tone === 'bund' ? (['musik','radio','opskrift'].includes(k) ? 'hvid' : 'farve') : tone === 'ro' ? (idle[k] ? 'hvid' : 'farve') : 'farve']));
+    return { t, scenario: green ? 'green' : 'aktiv', s, p: green ? { mode: 'mine', art: '#B98E66' } : { mode: 'radio', art: '#7E57C8' } };
+  }
+}
+</script>
+</body>
+</html>

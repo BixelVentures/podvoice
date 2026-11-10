@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Afspiller</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#17171A;text-decoration:none}
+.pl-b{border:0;background:transparent;cursor:pointer;border-radius:50%;transition:transform .12s ease, background .15s ease}
+.pl-b:active{transform:scale(.88);background:rgba(23,23,26,.07)}
+.pl-play{border:0;cursor:pointer;transition:transform .14s cubic-bezier(.3,1.5,.5,1)}
+.pl-play:active{transform:scale(.92)}
+.pl-chip{border:0;cursor:pointer;transition:transform .12s ease}
+.pl-chip:active,a.pl-chip:active{transform:scale(.97);filter:brightness(.92)}
+.pl-b:focus-visible,.pl-play:focus-visible,.pl-chip:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.pl-art{transition:transform .5s cubic-bezier(.2,.9,.3,1)}
+.paused .pl-art{transform:scale(.95)}
+.paused .blob{animation-play-state:paused}
+.gr{position:absolute;border-radius:50%;background:#17171A}
+.blob{position:absolute;border-radius:50%;filter:blur(44px);opacity:.42}
+.b1{animation:d1 18s ease-in-out infinite}
+.b2{animation:d2 22s ease-in-out infinite}
+.b3{animation:d3 26s ease-in-out infinite}
+@keyframes d1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(70px,40px) scale(1.2)}}
+@keyframes d2{0%,100%{transform:translate(0,0) scale(1.1)}50%{transform:translate(-60px,30px) scale(.9)}}
+@keyframes d3{0%,100%{transform:translate(0,0)}50%{transform:translate(30px,-50px) scale(1.25)}}
+.pend{animation:pend .9s ease-in-out infinite}
+@keyframes pend{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){.pl-art{transition:none}.b1,.b2,.b3,.pend{animation:none}}
+</style>
+</helmet>
+<div class="{{pausedCls}}" style="width: 372px; height: 696px; box-sizing: border-box; padding: 18px 24px 24px; border-radius: 26px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(23,23,26,.06); color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; position: relative; overflow: hidden">
+  <sc-if value="{{moodOn}}" hint-placeholder-val="{{ true }}">
+    <div style="position: absolute; left: 0; top: 0; right: 0; height: 470px; overflow: hidden; -webkit-mask-image: linear-gradient(#000 45%, transparent); mask-image: linear-gradient(#000 45%, transparent)" aria-hidden="true">
+      <i class="blob b1" style="left: -60px; top: -40px; width: 300px; height: 300px; background: {{c1}}"></i>
+      <i class="blob b2" style="left: 150px; top: 40px; width: 280px; height: 280px; background: {{c2}}"></i>
+      <i class="blob b3" style="left: 40px; top: 220px; width: 260px; height: 220px; background: {{c3}}"></i>
+    </div>
+  </sc-if>
+
+  <button class="pl-chip" aria-label="Vælg højttaler, nu {{speaker}}" style="position: relative; align-self: center; height: 44px; padding: 0 14px; border-radius: 999px; background: transparent; display: flex; align-items: center; gap: 8px; font: 700 18px 'Schibsted Grotesk', system-ui, sans-serif; color: #17171A">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2"/><circle cx="12" cy="14" r="3"/><circle cx="12" cy="7" r="1"/></svg>
+    {{speaker}}
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+
+  <sc-if value="{{isIdle}}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top: 16px; position: relative; width: 324px; height: 324px; border-radius: 16px; background: #ECEAE5; overflow: hidden" aria-hidden="true">
+      <sc-for list="{{grille}}" as="d" hint-placeholder-count="300">
+        <i class="gr" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; opacity: {{d.o}}"></i>
+      </sc-for>
+    </div>
+    <span style="margin-top: 20px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Intet spiller</span>
+    <span style="font-size: 16px; color: #5F5E5A">Vælg en stemning eller sang.</span>
+    <div style="margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap">
+      <sc-for list="{{moods}}" as="m" hint-placeholder-count="3">
+        <a href="A-Musik.dc.html" class="pl-chip" style="height: 44px; padding: 0 16px; border-radius: 999px; background: #ECEAE5; display: flex; align-items: center; font: 600 15px 'Schibsted Grotesk', system-ui, sans-serif">{{m}}</a>
+      </sc-for>
+    </div>
+    <a href="A-Musik.dc.html" class="pl-chip" style="margin-top: auto; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">Vælg musik →</a>
+  </sc-if>
+
+  <sc-if value="{{isOther}}" hint-placeholder-val="{{ false }}">
+    <div style="position: relative; margin-top: 16px; width: 324px; height: 260px; border-radius: 16px; background: radial-gradient(120% 90% at 30% 20%, #B9C4CA, #8E9EA6 55%, #5E6E78); opacity: .55" role="img" aria-label="Cover for den anden kontos nummer"></div>
+    <div style="position: relative; margin-top: 16px; display: flex; flex-direction: column">
+      <span style="font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: #5F5E5A">Heartless</span>
+      <span style="font-size: 15px; color: #5F5E5A">Kanye West</span>
+    </div>
+    <div style="position: relative; margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: #ECEAE5; display: flex; flex-direction: column; gap: 4px">
+      <span style="font-size: 16px; font-weight: 700">Spiller fra en anden konto</span>
+      <span style="font-size: 15px; color: #5F5E5A">{{otherNote}}</span>
+    </div>
+    <button class="pl-chip" onClick="{{takeOver}}" style="position: relative; margin-top: auto; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center; gap: 10px; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">
+      <sc-if value="{{pending}}" hint-placeholder-val="{{ false }}">
+        <span style="display: grid; grid-template-columns: repeat(3, 6px); gap: 4px" aria-hidden="true">
+          <i class="pend" style="width: 6px; height: 6px; border-radius: 3px; background: #F7F6F3; animation-delay: 0ms"></i>
+          <i class="pend" style="width: 6px; height: 6px; border-radius: 3px; background: #F7F6F3; animation-delay: 150ms"></i>
+          <i class="pend" style="width: 6px; height: 6px; border-radius: 3px; background: #F7F6F3; animation-delay: 300ms"></i>
+        </span>
+      </sc-if>
+      {{takeLabel}}
+    </button>
+  </sc-if>
+
+  <sc-if value="{{isMine}}" hint-placeholder-val="{{ true }}">
+    <div class="pl-art" style="margin-top: 20px; align-self: center; position: relative; width: 252px; height: 252px; border-radius: 14px; background: radial-gradient(120% 90% at 30% 20%, {{c1}} 0%, {{art}} 55%, {{c3}} 100%); box-shadow: 0 18px 36px -16px {{glow}}, inset 0 0 0 1px rgba(255,255,255,.12); overflow: hidden" role="img" aria-label="Albumcover: {{title}} af {{artist}} (pladsholder)">
+      <i style="position: absolute; inset: 0; background-image: radial-gradient(rgba(255,255,255,.10) 1px, transparent 1.2px), radial-gradient(rgba(0,0,0,.10) 1px, transparent 1.2px); background-size: 3px 3px, 5px 5px; background-position: 0 0, 1px 2px; mix-blend-mode: overlay; display: block"></i>
+      <i style="position: absolute; left: 50%; top: 52%; width: 92px; height: 92px; margin: -46px 0 0 -46px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, rgba(255,255,255,.55), {{c2}} 45%, rgba(0,0,0,.25) 100%); filter: blur(.3px); display: block"></i>
+      <span style="position: absolute; left: 0; right: 0; top: 20px; text-align: center; font: 600 11px 'Schibsted Grotesk', sans-serif; letter-spacing: .38em; text-transform: uppercase; color: rgba(255,255,255,.82)">{{artist}}</span>
+      <span style="position: absolute; left: 0; right: 0; bottom: 18px; text-align: center; font: 600 10px 'Schibsted Grotesk', sans-serif; letter-spacing: .42em; text-transform: uppercase; color: rgba(255,255,255,.7)">{{title}}</span>
+    </div>
+    <div style="position: relative; margin-top: 28px; display: flex; align-items: center; gap: 8px">
+      <div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+        <span style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15">{{title}}</span>
+        <span style="font-size: 17px; color: #5F5E5A">{{artist}}</span>
+      </div>
+      <button class="pl-b" aria-label="Kø" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 6h12M4 11h12M4 16h7"/><path d="M16 14v6l4-3z" fill="#17171A"/></svg>
+      </button>
+    </div>
+    <div style="margin-top: 22px; display: flex; flex-direction: column; gap: 10px">
+      <div style="position: relative; height: 4px; border-radius: 2px; background: rgba(23,23,26,.14)" role="img" aria-label="Spillet {{pos}} af {{dur}}">
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: {{progress}}; border-radius: 2px; background: #17171A"></div>
+        <div style="position: absolute; left: calc({{progress}} - 9px); top: -7px; width: 18px; height: 18px; border-radius: 50%; background: #17171A"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; font: 500 15px 'Schibsted Grotesk', system-ui, sans-serif; color: #5F5E5A; font-variant-numeric: tabular-nums">
+        <span>{{pos}}</span><span>{{dur}}</span>
+      </div>
+    </div>
+    <div style="margin-top: 14px; display: flex; align-items: center; justify-content: space-between; padding: 0 12px">
+      <button class="pl-b" aria-label="Forrige" style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M6 5v14M19 5.5v13L8.5 12z"/></svg>
+      </button>
+      <button class="pl-play" onClick="{{toggle}}" aria-label="{{playLabel}}" style="width: 80px; height: 80px; border-radius: 50%; background: #17171A; display: flex; align-items: center; justify-content: center">
+        <sc-if value="{{playing}}" hint-placeholder-val="{{ true }}">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#F7F6F3" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>
+        </sc-if>
+        <sc-if value="{{paused}}" hint-placeholder-val="{{ false }}">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="#F7F6F3" aria-hidden="true"><path d="M8 4.5v15l12-7.5z"/></svg>
+        </sc-if>
+      </button>
+      <button class="pl-b" aria-label="Næste" style="width: 56px; height: 56px; display: flex; align-items: center; justify-content: center">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true"><path d="M18 5v14M5 5.5v13L15.5 12z"/></svg>
+      </button>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 12px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5F5E5A" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
+      <div style="position: relative; flex: 1; height: 4px; border-radius: 2px; background: rgba(23,23,26,.12)" role="img" aria-label="Lydstyrke 35 %">
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 35%; border-radius: 2px; background: #17171A"></div>
+        <div style="position: absolute; left: calc(35% - 9px); top: -7px; width: 18px; height: 18px; border-radius: 50%; background: #17171A; box-shadow: 0 0 0 4px #F7F6F3"></div>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isRadio}}" hint-placeholder-val="{{ false }}">
+    <img class="pl-art" src="{{logo}}" alt="{{station}}" style="margin-top: 20px; align-self: center; position: relative; width: 252px; height: 252px; border-radius: 24px; box-shadow: 0 18px 36px -16px {{glow}}">
+    <div style="position: relative; margin-top: 28px; display: flex; flex-direction: column">
+      <span style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15">{{station}}</span>
+      <span style="font-size: 17px; color: #5F5E5A">{{radioLine}}</span>
+    </div>
+    <div style="position: relative; margin-top: 22px; height: 44px; display: flex; align-items: center; gap: 10px">
+      <i class="{{liveCls}}" style="width: 10px; height: 10px; border-radius: 50%; background: {{liveC}}; display: block"></i>
+      <span style="font: 600 15px 'Schibsted Grotesk', sans-serif; letter-spacing: .12em; text-transform: uppercase; color: #3F3E3B">{{liveLabel}}</span>
+    </div>
+    <div style="position: relative; margin-top: 14px; display: flex; justify-content: center">
+      <button class="pl-play" onClick="{{toggle}}" aria-label="{{radioPlayLabel}}" style="width: 80px; height: 80px; border-radius: 50%; background: #17171A; display: flex; align-items: center; justify-content: center">
+        <sc-if value="{{playing}}" hint-placeholder-val="{{ true }}"><i style="width: 22px; height: 22px; border-radius: 4px; background: #F7F6F3; display: block"></i></sc-if>
+        <sc-if value="{{paused}}" hint-placeholder-val="{{ false }}"><svg width="26" height="26" viewBox="0 0 24 24" fill="#F7F6F3" aria-hidden="true"><path d="M8 4.5v15l12-7.5z"/></svg></sc-if>
+      </button>
+    </div>
+    <div style="margin-top: auto; display: flex; align-items: center; gap: 12px">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#5F5E5A" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7"/></svg>
+      <div style="position: relative; flex: 1; height: 4px; border-radius: 2px; background: rgba(23,23,26,.12)" role="img" aria-label="Lydstyrke 35 %">
+        <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 35%; border-radius: 2px; background: #17171A"></div>
+        <div style="position: absolute; left: calc(35% - 9px); top: -7px; width: 18px; height: 18px; border-radius: 50%; background: #17171A; box-shadow: 0 0 0 4px #F7F6F3"></div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","default":"mine","options":["mine","idle","other","radio"]},"station":{"editor":"text","default":"P8 Jazz"},"logo":{"editor":"text","default":"/_blob/9ce4ff63f8b748436685d6a2bba17384"},"radioState":{"editor":"enum","default":"spiller","options":["spiller","starter","stoppet"]},"art":{"editor":"color","default":"#B98E66","options":["#8E9EA6","#7C3A35","#3E5A78","#2F6B57"]},"idle":{"editor":"boolean","default":false},"speaker":{"editor":null,"default":"Køkkenalrum HomePod"},"$preview":{"width":372,"height":696}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { playing: false, took: null }; }
+  componentWillUnmount() { clearTimeout(this.t); }
+  mix(hex, to, t, a) {
+    const n = parseInt(hex.slice(1), 16), m = parseInt(to.slice(1), 16);
+    const ch = (s) => Math.round(((n >> s) & 255) * (1 - t) + ((m >> s) & 255) * t);
+    return 'rgba(' + ch(16) + ',' + ch(8) + ',' + ch(0) + ',' + (a ?? 1) + ')';
+  }
+  renderVals() {
+    let mode = this.props.mode || (this.props.idle ? 'idle' : 'mine');
+    if (this.props.idle) mode = 'idle';
+    // H3: kun brugerens tryk skifter. Afventer vises i knappen; derefter spiller brugerens musik.
+    if (mode === 'other' && this.state.took === 'done') mode = 'mine';
+    const art0 = /^#[0-9a-fA-F]{6}$/.test(this.props.art || '') ? this.props.art : '#B98E66';
+    const art = mode === 'radio' && /^#[0-9a-fA-F]{6}$/.test(this.props.art || '') ? this.props.art : art0;
+    const rs = this.props.radioState || 'spiller';
+    const rStarting = rs === 'starter';
+    const mineAfterTake = this.state.took === 'done';
+    const grille = [];
+    if (mode === 'idle') {
+      for (let j = 0; j < 20; j++) {
+        for (let i = 0; i < 20; i++) {
+          const x = i * 16 + 10 + (j % 2 ? 8 : 0), y = j * 16 + 10;
+          const r = Math.hypot(x - 162, y - 162) / 162;
+          const w = 7 - r * 3;
+          if (x < 320) grille.push({ x: (x - w / 2).toFixed(1), y: (y - w / 2).toFixed(1), w: w.toFixed(1), o: (0.16 + (1 - r) * 0.1).toFixed(2) });
+        }
+      }
+    }
+    const playing = mode === 'radio' ? this.state.rp !== false && this.props.radioState !== 'stoppet' : this.state.playing;
+    const pending = this.state.took === 'pending';
+    return {
+      isIdle: mode === 'idle', isOther: mode === 'other', isMine: mode === 'mine', isRadio: mode === 'radio', moodOn: mode === 'mine' || (mode === 'radio' && rs !== 'stoppet'),
+      station: this.props.station || 'P8 Jazz', logo: this.props.logo || '/_blob/9ce4ff63f8b748436685d6a2bba17384',
+      radioLine: rStarting ? 'Starter ' + (this.props.station || 'P8 Jazz') + '…' : 'Direkte radio',
+      liveLabel: rStarting ? 'Forbinder' : (rs === 'stoppet' || this.state.rp === false) ? 'Stoppet' : 'Direkte', liveC: (rs === 'stoppet' || this.state.rp === false) ? '#8C8A85' : rStarting ? '#C9A227' : '#E5261E', liveCls: rStarting || (rs === 'spiller' && this.state.rp !== false) ? 'pend' : '',
+      radioPlayLabel: this.state.rp !== false && rs !== 'stoppet' ? 'Stop' : 'Afspil',
+      grille, moods: ['Tid på dagen', 'Vibe', 'Hør igen'],
+      speaker: this.props.speaker || 'Køkkenalrum HomePod',
+      title: mineAfterTake ? 'Fast Car' : (mode === 'mine' ? 'Fast Car' : 'Heartless'), artist: mineAfterTake || mode === 'mine' ? 'Y.V.E. 48' : 'Kanye West',
+      pos: '0:44', dur: '2:37', progress: '28%',
+      art,
+      // Coverets stemning: tre farver udledt af coveret driver langsomt bag coveret.
+      c1: this.mix(art, '#FFFFFF', 0.25), c2: this.mix(art, '#E8A06A', 0.45), c3: this.mix(art, '#2A3550', 0.35),
+      glow: this.mix(art, '#17171A', 0.25, 0.6),
+      otherNote: pending ? 'Skifter til din musik på ' + (this.props.speaker || 'Køkken') + '…' : 'En anden konto spiller på ' + (this.props.speaker || 'Køkken') + '. Den skifter kun, hvis du trykker.',
+      pending, takeLabel: pending ? 'Skifter…' : 'Spil her',
+      takeOver: () => {
+        if (this.state.took) return;
+        this.setState({ took: 'pending' });
+        this.t = setTimeout(() => this.setState({ took: 'done' }), 1600);
+      },
+      playing, paused: !playing, pausedCls: playing ? '' : 'paused',
+      playLabel: playing ? 'Pause' : 'Afspil',
+      toggle: () => mode === 'radio' ? this.setState({ rp: !playing }) : this.setState({ playing: !this.state.playing })
+    };
+  }
+}
+</script>
+</body>
+</html>

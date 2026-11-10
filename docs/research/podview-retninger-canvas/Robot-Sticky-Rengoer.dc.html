@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Robot · sticky handlingslinje</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}
+.stk{animation:stkin 3.2s cubic-bezier(.2,.9,.3,1) infinite}
+@keyframes stkin{0%,12%{transform:translateY(-100%);opacity:0}24%,88%{transform:translateY(0);opacity:1}100%{transform:translateY(0);opacity:1}}
+@media (prefers-reduced-motion: reduce){.stk{animation:none}}</style>
+</helmet>
+<div style="width: 1280px; height: 800px; position: relative; overflow: hidden; background: #E9E7E2; font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: #17171A">
+  <div style="position: absolute; left: 0; top: -{{scroll}}px">
+    <dc-import name="A-Robot" state="{{st}}" hint-size="1280px,1400px"></dc-import>
+  </div>
+  <div style="position: absolute; left: 0; top: 0; width: 1280px; height: 72px; background: #E9E7E2"></div>
+  <div style="position: absolute; left: 892px; top: 72px; width: 388px; height: 728px; background: #E9E7E2"></div>
+  <div style="position: absolute; left: 884px; top: 88px; z-index: 2"><dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import></div>
+  <div style="position: absolute; left: 0; top: 0"><dc-import name="A-Topbar" heading="Robotstøvsuger" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import></div>
+  <div style="position: absolute; left: 24px; top: 72px; width: 844px; height: 72px; overflow: hidden; z-index: 3"><div class="stk" role="region" aria-label="Robotstøvsuger, handlinger" style="width: 844px; height: 72px; padding: 0 12px 0 20px; box-sizing: border-box; border-radius: 0 0 20px 20px; background: #F6D8E1; box-shadow: 0 14px 28px -18px rgba(23,23,26,.55), inset 0 0 0 1px rgba(23,23,26,.06); display: flex; align-items: center; gap: 16px">
+    <span style="width: 12px; height: 12px; border-radius: 50%; background: {{dot}}; flex: none"></span>
+    <span style="display: flex; flex-direction: column; flex: 1; min-width: 0">
+      <span style="font-size: 20px; line-height: 26px; font-weight: 800">{{title}}</span>
+      <span style="font-size: 15px; line-height: 20px; color: #5F5E5A; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{sub}}</span>
+    </span>
+    <sc-for list="{{acts}}" as="a" hint-placeholder-count="1">
+      <dc-import name="K-Btn" label="{{a.l}}" variant="{{a.v}}" size="44" hint-size="160px,44px"></dc-import>
+    </sc-for>
+  </div></div>
+  <i style="position: absolute; left: 24px; top: 144px; width: 844px; height: 24px; background: linear-gradient(180deg, rgba(233,231,226,.9), rgba(233,231,226,0)); display: block; pointer-events: none"></i>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"rengoer","options":["oplader","rengoer"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Forslag: når heroen er rullet ud af skærmen, glider en 72 px handlingslinje ned fra topbaren (240 ms, ease-out),
+    // fast mod topbaren (radius 0 foroven, 20 forneden). Den glider op igen, når heroen kommer tilbage. Afspilleren står altid fast.
+    // Den genbruger heroens status og primære handling (samme tekst, K-Btn 44). Afspilleren til højre står fast.
+    // Kun på sider med en primær handling i heroen: Robot (Start/Pause), Timer (+1 min), Tesla (Lås op). Ikke Vejr.
+    const st = this.props.state || 'oplader';
+    const S = {
+      oplader: { title: 'Oplader', sub: 'Stueplan (2025) · 6 rum valgt', dot: '#B23A62', acts: [{ l: 'Start · 6 rum', v: 'primaer' }] },
+      rengoer: { title: 'Rengør', sub: 'Støvsugning og gulvvask · 6 områder', dot: '#B23A62', acts: [{ l: 'Pause', v: 'primaer' }, { l: 'Afslut', v: 'fare' }] }
+    };
+    return { st, scroll: 420, ...S[st] };
+  }
+}
+</script>
+</body>
+</html>

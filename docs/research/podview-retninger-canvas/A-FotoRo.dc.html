@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Foto-Ro</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#17171A;text-decoration:none}
+.btn{transition:transform .12s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.glass{background:rgba(247,246,243,.88);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);box-shadow:0 18px 40px -20px rgba(0,0,0,.55)}
+.sh{text-shadow:0 1px 10px rgba(0,0,0,.45)}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; position: relative; overflow: hidden; color: #FFFFFF; font-family: 'Schibsted Grotesk', system-ui, sans-serif; background: #3F5A52">
+  <img src="/_blob/53b61ced4762c6587f62c3e9854be4c4" alt="Foto fra albummet" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+  <i style="position: absolute; left: 0; right: 0; top: 0; height: 280px; background: linear-gradient(180deg, rgba(0,0,0,.42), transparent); display: block"></i>
+  <i style="position: absolute; left: 0; right: 0; bottom: 0; height: 260px; background: linear-gradient(0deg, rgba(0,0,0,.35), transparent); display: block"></i>
+  <div class="sh" style="position: absolute; left: 48px; top: 36px; display: flex; flex-direction: column">
+    <span style="font-size: 168px; line-height: .9; font-weight: 600; letter-spacing: -0.05em; font-variant-numeric: tabular-nums">14.30</span>
+    <span style="margin-top: 10px; font-size: 26px; font-weight: 600">mandag 9. november</span>
+  </div>
+  <div class="sh" style="position: absolute; right: 48px; top: 44px; display: flex; flex-direction: column; align-items: flex-end">
+    <span style="font-size: 44px; font-weight: 600; letter-spacing: -0.03em">8°</span>
+    <span style="font-size: 18px">Skyet</span>
+  </div>
+  <span class="sh" style="position: absolute; left: 48px; bottom: 48px; font-size: 17px">Tryk for at åbne hjemmet</span>
+
+  <div style="position: absolute; right: 40px; bottom: 40px; display: flex; flex-direction: column; align-items: flex-end; gap: 12px">
+    <sc-for list="{{slots}}" as="c" hint-placeholder-count="1">
+      <a href="{{c.href}}" class="btn glass" style="width: 340px; height: 80px; padding: 0 20px; box-sizing: border-box; border-radius: 24px; display: flex; align-items: center; gap: 16px; color: #17171A">
+        <span style="width: 48px; height: 48px; border-radius: 14px; background: {{c.chip}}; display: flex; align-items: center; justify-content: center; flex: none">
+          <sc-if value="{{c.logo}}" hint-placeholder-val="{{ false }}"><img src="{{c.logo}}" alt="" style="width: 48px; height: 48px; border-radius: 14px"></sc-if>
+          <sc-if value="{{c.icon}}" hint-placeholder-val="{{ true }}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="{{c.ic}}" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.icon}}"/></svg></sc-if>
+        </span>
+        <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+          <span style="font-size: 20px; line-height: 26px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums">{{c.prim}}</span>
+          <span style="font-size: 15px; line-height: 20px; color: #3F3E3B; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{c.ctx}}</span>
+        </span>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </a>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"green","options":["green","aktiv"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Som Foto-Ro på HA Green: ur, dato, vejr øverst til højre, kort nederst til højre.
+    // Pladserne er produktets: musik-pladsen og aktivitetspladsen (overview-activity-model.js: timer først,
+    // ellers robot i gang/fejl, ellers Tesla der lader). Samme indhold som widgets i overblikket.
+    const music = 'M9 18V5l11-2v13M6.5 20.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 18.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z';
+    const timer = 'M12 21a8 8 0 1 0 0-16 8 8 0 0 0 0 16zM12 9v4l2.5 2M10 2h4';
+    const green = (this.props.state || 'green') === 'green';
+    const slots = green
+      ? [{ href: 'A-Musik.dc.html', chip: '#DCEBEA', ic: '#17171A', icon: music, logo: '', prim: 'Vælg musik', ctx: 'Til eftermiddagen' }]
+      : [{ href: 'A-Timer.dc.html', chip: '#17171A', ic: '#FF7A5C', icon: timer, logo: '', prim: '3:42', ctx: 'Timer · tæller ned' },
+         { href: 'A-Radio.dc.html', chip: '#E6DDF3', ic: '#17171A', icon: '', logo: '/_blob/9ce4ff63f8b748436685d6a2bba17384', prim: 'P8 Jazz', ctx: 'Direkte · Køkkenalrum HomePod' }];
+    return { slots };
+  }
+}
+</script>
+</body>
+</html>

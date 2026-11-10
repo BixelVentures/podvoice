@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Kontakt</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+<style>body{margin:0}</style>
+</helmet>
+<span style="display: inline-flex; align-items: center; justify-content: center; width: 56px; height: 44px"><span style="width: 56px; height: 34px; border-radius: 17px; position: relative; display: block; background: {{bg}}; transition: background-color .3s ease"><i style="position: absolute; top: 3px; left: {{kx}}px; width: 28px; height: 28px; border-radius: 50%; background: #F7F6F3; box-shadow: 0 1px 3px rgba(0,0,0,.25); display: block; transition: left .25s ease"></i></span></span>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"on":{"editor":"enum","default":"true","options":["true","false"]},"dim":{"editor":"enum","default":"false","options":["true","false"]},"$preview":{"width":56,"height":44}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Fælles kontakt (UI-kit): 56×34 synlig, 44 høj trykflade. Selve trykket ejes af værtsknappen.
+    const on = String(this.props.on) === 'true', dim = String(this.props.dim) === 'true';
+    return { bg: on && !dim ? '#17171A' : 'rgba(23,23,26,.16)', kx: on ? 25 : 3 };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Opskrifter · magasin</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=Fraunces:opsz,wght@9..144,600;9..144,800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#FFFFFF;text-decoration:none}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease}
+.btn:active{transform:scale(.985);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.card{position:relative;display:block;border-radius:24px;overflow:hidden;background:#C9B79F}
+.card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.card .scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 35%,rgba(0,0,0,.78) 100%)}
+.card .txt{color:#FFFFFF;position:absolute;left:20px;right:20px;bottom:18px;display:flex;flex-direction:column;gap:4px;text-shadow:0 1px 8px rgba(0,0,0,.35)}
+.kick{font:600 15px 'Schibsted Grotesk',sans-serif;letter-spacing:.08em;text-transform:uppercase;opacity:.92}
+.meta{font:500 15px 'Schibsted Grotesk',sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.t2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Opskrifter" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; right: 24px; top: 88px; height: 52px; display: flex; justify-content: space-between; align-items: center">
+    <div style="display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: #DCDAD4">
+      <a href="A-Opskrifter.dc.html" class="btn" style="height: 44px; padding: 0 20px; border-radius: 999px; display: flex; align-items: center; color: #17171A; font: 600 16px 'Schibsted Grotesk', sans-serif">Katalog</a>
+      <span style="height: 44px; padding: 0 20px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; font: 600 16px 'Schibsted Grotesk', sans-serif">Udforsk</span>
+    </div>
+    <span style="font-size: 16px; color: #5F5E5A">9 opskrifter · 5 kategorier</span>
+  </div>
+
+  <div style="position: absolute; left: 24px; top: 156px; width: 1232px; display: grid; grid-template-columns: 1.55fr 1fr 1fr; grid-template-rows: 280px 280px; gap: 16px">
+    <a href="A-Opskrift.dc.html" class="card btn" style="grid-row: 1 / span 2" aria-label="{{cover.t}}, {{cover.m}}">
+      <img src="{{cover.img}}" alt="">
+      <i class="scrim"></i>
+      <span style="position: absolute; left: 24px; top: 24px; height: 32px; padding: 0 14px; border-radius: 999px; background: #F7F6F3; color: #17171A; display: flex; align-items: center; font: 700 15px 'Schibsted Grotesk', sans-serif">I gang · trin 2 af 5</span>
+      <div class="txt" style="left: 28px; right: 28px; bottom: 28px; gap: 8px">
+        <span class="kick">{{cover.c}}</span>
+        <span style="font: 800 56px/1 'Fraunces', Georgia, serif; letter-spacing: -0.02em">{{cover.t}}</span>
+        <span class="meta" style="font-size: 17px">{{cover.m}}</span>
+      </div>
+    </a>
+    <sc-for list="{{side}}" as="r" hint-placeholder-count="4">
+      <a href="A-Opskrift.dc.html" class="card btn" aria-label="{{r.t}}, {{r.m}}">
+        <img src="{{r.img}}" alt="">
+        <i class="scrim"></i>
+        <div class="txt">
+          <span class="kick">{{r.c}}</span>
+          <span class="t2" style="font: 800 24px/1.1 'Fraunces', Georgia, serif">{{r.t}}</span>
+          <span class="meta">{{r.m}}</span>
+        </div>
+      </a>
+    </sc-for>
+  </div>
+
+  <div style="position: absolute; left: 24px; top: 748px; width: 1232px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px">
+    <sc-for list="{{more}}" as="r" hint-placeholder-count="4">
+      <a href="A-Opskrift.dc.html" class="card btn" style="height: 240px" aria-label="{{r.t}}, {{r.m}}">
+        <img src="{{r.img}}" alt="">
+        <i class="scrim"></i>
+      </a>
+    </sc-for>
+  </div>
+  <i style="position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(180deg, rgba(233,231,226,0), #E9E7E2); display: block; pointer-events: none"></i>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Udforsk som magasin. Alle 9 opskrifter og billeder er fra HA Green (api/recipes, recipe.image), 10. nov.
+    // Forsiden er den igangværende opskrift; resten er lige store billedkort med titel, kategori, portioner og tid inde i billedet.
+    // Den sidste række kigger frem under folden (fold-reglen), siden scroller.
+    const R = [
+      { t: 'Burgerboller', c: 'Brød og bagværk', m: '15 stk. · 2–3 timer hævning', img: 'https://cdn.sanity.io/images/dbvg5cs2/production/d5e8c0689226282414d4a89ccbb444aa6f2a584d-1920x1440.jpg?w=1200' },
+      { t: 'Kylling i karry', c: 'Aftensmad', m: '4 personer · 45 min. i alt', img: 'https://emmaolsen.dk/wp-content/uploads/2025/09/6F0A6777-edited.jpg' },
+      { t: 'Protein bagels med hytteost', c: 'Brød og bagværk', m: '4 bagels · ingen hævetid', img: 'https://www.louisesmadblog.dk/wp-content/uploads/2026/01/Protein-bagels-med-hytteost-5.jpg' },
+      { t: 'Nem chokoladekage i bradepande', c: 'Desserter', m: '1 kage · 120 min.', img: 'https://images.arla.com/recordid/F92C4A6D-64ED-4F3C-8D03B2640884721F/picture.jpg' },
+      { t: 'Scones med hytteost og blåbær', c: 'Brød og bagværk', m: '9 stk. · 30 min. i alt', img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/05/Frederikke-Waerens-Scones-med-hytteost-og-blaabaer-12-1365x688.jpg' },
+      { t: 'Pizzaboller med hytteost', c: 'Madpakker', m: '8–10 stk. · 35 min. i alt', img: 'https://frederikkewaerens.dk/wp-content/uploads/2025/02/Frederikke-Waerens-Pizzaboller-med-hytteost-12-1440x688.jpg' },
+      { t: 'Chokoladegranola', c: 'Morgenmad', m: '1 stort glas · 20–30 min. bagetid', img: 'https://martinys.dk/cdn/shop/articles/Sund-chokolade-granola-sukkerfri_d88c14d4-3ea4-4c6e-a94c-53c3648696b5.jpg' },
+      { t: 'Koldhævede hytteostboller', c: 'Brød og bagværk', m: '15 stk. · hæver natten over', img: 'https://frederikkewaerens.dk/wp-content/uploads/2026/10/Frederikke-Waerens-Koldhaevede-hytteostboller-13-1365x688.jpg' },
+      { t: 'Hjemmelavede müslibarer', c: 'Madpakker', m: 'Ca. 15 stk. · 1 time i alt', img: 'https://frederikkewaerens.dk/wp-content/uploads/2023/07/Frederikke-Waerens-Fredagshygge-Hjemmelavede-muslibarer-12-1365x688.jpg' }
+    ];
+    return { cover: R[0], side: R.slice(1, 5), more: R.slice(5) };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Overblik · Glyph</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&amp;family=Geist+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:inherit;text-decoration:none}
+.sl{position:relative;overflow:hidden;border-radius:28px;transition:transform .16s cubic-bezier(.3,1.3,.5,1)}
+.sl:active{transform:scale(.982)}
+.gf{position:absolute;margin:0;font:400 10px/10px 'Geist Mono', ui-monospace, monospace;letter-spacing:0;white-space:pre;pointer-events:none}
+.btn{border:0;cursor:pointer;transition:transform .12s ease}
+.btn:active{transform:scale(.95)}
+.btn:focus-visible,a:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #EDEDEA; background-image: radial-gradient(rgba(23,23,26,.12) 1px, transparent 1.2px); background-size: 14px 14px; color: #111114; font-family: 'Geist', system-ui, sans-serif; position: relative">
+  <div style="height: 72px; padding: 0 28px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center">
+    <span style="font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Hjem</span>
+    <button class="btn" style="height: 48px; padding: 0 22px 0 8px; border-radius: 24px; background: #111114; color: #F4F4F1; display: flex; align-items: center; gap: 12px; font: 600 17px 'Geist', system-ui, sans-serif" aria-label="Svar og historik">
+      <span style="width: 34px; height: 34px; border-radius: 17px; background: #1B48F2; display: flex; align-items: center; justify-content: center; font: 500 9px/9px 'Geist Mono', monospace; white-space: pre; color: #F4F4F1" aria-hidden="true">{{mark}}</span>
+      Svar
+    </button>
+    <div style="display: flex; justify-content: flex-end; gap: 26px; align-items: baseline">
+      <span style="font: 500 19px 'Geist Mono', monospace">15° <span style="font: 400 13px 'Geist', sans-serif; color: #55555A">Let skyet</span></span>
+      <span style="font: 500 19px 'Geist Mono', monospace">08.44 <span style="font: 400 13px 'Geist', sans-serif; color: #55555A">Man. 9. nov.</span></span>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="display: grid; grid-template-columns: repeat(4, 199px); grid-template-rows: repeat(3, 221px); gap: 16px">
+      <div class="sl" onClick="{{tapWeather}}" style="grid-column: 1 / span 2; grid-row: 1 / span 2; background: #1B48F2; color: #F4F4F1; padding: 26px; box-sizing: border-box; display: flex; flex-direction: column; cursor: pointer">
+        <pre class="gf" style="left: 0; top: 0; color: rgba(244,244,241,.92)" aria-hidden="true">{{wx}}</pre>
+        <span style="position: relative; font-size: 17px; font-weight: 600">Vejr</span>
+        <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">15 grader, let skyet</span>
+        <div style="position: relative; margin-top: auto; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-direction: column"><span style="font-size: 22px; font-weight: 600">Let skyet</span><span style="font-size: 15px; opacity: .8">Højst 17° · Lavest 9°</span></div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding: 12px 8px; border-radius: 16px; background: #1238C4">
+            <sc-for list="{{hours}}" as="h" hint-placeholder-count="5">
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px; font-family: 'Geist Mono', monospace">
+                <span style="font-size: 12px; opacity: .75">{{h.t}}</span>
+                <span style="font-size: 13px; letter-spacing: 1px" aria-hidden="true">{{h.g}}</span>
+                <span style="font-size: 18px; font-weight: 500">{{h.v}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <a href="B-Overblik.dc.html" class="sl" style="grid-column: 3 / span 2; grid-row: 1; background: #C2275A; color: #FBF1F4; padding: 22px 24px; box-sizing: border-box; display: flex; flex-direction: column">
+        <pre class="gf" style="left: 150px; top: 0; color: rgba(251,241,244,.9)" aria-hidden="true">{{rb}}</pre>
+        <span style="position: relative; font-size: 17px; font-weight: 600">Robotstøvsuger</span>
+        <span style="position: relative; margin-top: 10px; font-size: 30px; font-weight: 700; letter-spacing: -0.03em">Rengør</span>
+        <span style="position: relative; font-size: 14px; opacity: .85">Batteri 76 % · Køkkenet</span>
+        <span style="position: relative; margin-top: auto; font: 500 13px 'Geist Mono', monospace">[{{rbBar}}] 38 %</span>
+      </a>
+
+      <a href="B-Overblik.dc.html" class="sl" style="grid-column: 3; grid-row: 2; background: #E7A51B; color: #241A05; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column">
+        <pre class="gf" style="left: 0; top: 0; color: rgba(36,26,5,.75)" aria-hidden="true">{{lt}}</pre>
+        <span style="position: relative; font-size: 17px; font-weight: 600">Lys</span>
+        <span style="position: relative; margin-top: auto; font-size: 26px; font-weight: 700">Tændt</span>
+      </a>
+
+      <a href="B-Tesla.dc.html" class="sl" style="grid-column: 4; grid-row: 2; background: #1F6B4A; color: #EEF6F0; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column" aria-label="Tesla, 72 procent, lader">
+        <pre class="gf" style="left: 0; top: 0; color: rgba(238,246,240,.95)" aria-hidden="true">{{ts}}</pre>
+        <span style="position: relative; font-size: 17px; font-weight: 600">Tesla</span>
+        <span style="position: relative; margin-top: auto; font-size: 15px">Lader · 312 km</span>
+      </a>
+
+      <a href="B-Overblik.dc.html" class="sl" style="grid-column: 1; grid-row: 3; background: #F4F4F1; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column">
+        <pre class="gf" style="left: 0; bottom: 0; top: auto; color: rgba(17,17,20,.28)" aria-hidden="true">{{mu}}</pre>
+        <span style="position: relative; font-size: 22px; font-weight: 700">Find musik</span>
+        <span style="position: relative; font-size: 15px; color: #55555A">Vælg musik</span>
+      </a>
+      <a href="B-Overblik.dc.html" class="sl" style="grid-column: 2; grid-row: 3; background: #F4F4F1; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column">
+        <span style="font-size: 22px; font-weight: 700">Radio</span>
+        <span style="font-size: 15px; color: #55555A">Vælg station</span>
+        <span style="margin-top: auto; font: 400 12px 'Geist Mono', monospace; color: #8A8A8F; letter-spacing: 1px" aria-hidden="true">|....|....|....|....|</span>
+      </a>
+      <a href="B-Overblik.dc.html" class="sl" style="grid-column: 3; grid-row: 3; background: #F4F4F1; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column">
+        <span style="font-size: 22px; font-weight: 700">Opskrifter</span>
+        <span style="font-size: 15px; color: #55555A">Se katalog</span>
+      </a>
+      <a href="B-Overblik.dc.html" class="sl" style="grid-column: 4; grid-row: 3; background: #111114; color: #F4F4F1; padding: 22px; box-sizing: border-box; display: flex; flex-direction: column" aria-label="Timer, 8 minutter 42 sekunder tilbage">
+        <pre class="gf" style="left: 0; top: 0; color: #FF7A5C" aria-hidden="true">{{tm}}</pre>
+        <span style="position: relative; font-size: 17px; font-weight: 600">Timer</span>
+        <span style="position: relative; margin-top: auto; font: 500 44px/1 'Geist Mono', monospace; letter-spacing: -0.05em">8:42</span>
+      </a>
+    </div>
+
+    <div style="width: 372px; height: 696px; box-sizing: border-box; padding: 22px; border-radius: 28px; background: #F4F4F1; display: flex; flex-direction: column; gap: 16px">
+      <span style="align-self: center; font-size: 15px; font-weight: 600">Stuen ⌄</span>
+      <div style="height: 328px; border-radius: 18px; background: #DCDCD8; display: flex; align-items: flex-end; padding: 14px; box-sizing: border-box; font: 400 11px 'Geist Mono', monospace; color: #6A6A6F">COVER FRA KILDEN</div>
+      <div style="display: flex; flex-direction: column"><span style="font-size: 24px; font-weight: 700; letter-spacing: -0.02em">Heartless</span><span style="font-size: 15px; color: #55555A">Kanye West</span></div>
+      <div style="font: 400 12px 'Geist Mono', monospace; color: #111114; white-space: pre" role="img" aria-label="1:24 af 3:00">{{prog}}</div>
+      <div style="display: flex; justify-content: space-between; font: 400 12px 'Geist Mono', monospace; color: #55555A"><span>1:24</span><span>3:00</span></div>
+      <div style="margin-top: auto; display: grid; grid-template-columns: 1fr 1.4fr 1fr; gap: 8px">
+        <button class="btn" aria-label="Forrige" style="height: 64px; border-radius: 32px; background: #E4E4E0; font: 500 18px 'Geist Mono', monospace">|◀</button>
+        <button class="btn" aria-label="Pause" style="height: 64px; border-radius: 32px; background: #111114; color: #F4F4F1; font: 500 18px 'Geist Mono', monospace">||</button>
+        <button class="btn" aria-label="Næste" style="height: 64px; border-radius: 32px; background: #E4E4E0; font: 500 18px 'Geist Mono', monospace">▶|</button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { t: 0, rip: null };
+    this.masks = {};
+  }
+  componentDidMount() {
+    this.iv = setInterval(() => this.setState({ t: this.state.t + 1 }), 420);
+  }
+  componentWillUnmount() { clearInterval(this.iv); }
+  mask(key, text, cols, rows, px, ox, oy) {
+    // Tekstform som negativ/positiv maske for tegnfeltet (beregnes én gang).
+    if (this.masks[key]) return this.masks[key];
+    const W = cols * 6, H = rows * 10;
+    let m = null;
+    try {
+      const c = document.createElement('canvas');
+      c.width = W; c.height = H;
+      const x = c.getContext('2d');
+      x.fillStyle = '#000';
+      x.font = '800 ' + px + 'px "Arial Black", Helvetica, sans-serif';
+      x.textBaseline = 'alphabetic';
+      x.fillText(text, ox, oy);
+      const d = x.getImageData(0, 0, W, H).data;
+      m = [];
+      for (let j = 0; j < rows; j++) {
+        const row = [];
+        for (let i = 0; i < cols; i++) row.push(d[((j * 10 + 5) * W + (i * 6 + 3)) * 4 + 3] > 100 ? 1 : 0);
+        m.push(row);
+      }
+    } catch (e) { m = null; }
+    this.masks[key] = m;
+    return m;
+  }
+  field(cols, rows, fn) {
+    const t = this.state.t;
+    const dense = '#%$@&8';
+    const mid = '+*=x';
+    const light = '.:-·';
+    const lines = [];
+    for (let j = 0; j < rows; j++) {
+      let s = '';
+      for (let i = 0; i < cols; i++) {
+        const v = fn(i, j);
+        const h = ((i * 73856093) ^ (j * 19349663) ^ (Math.floor((t + i * 7 + j * 3) / 5) * 83492791)) >>> 0;
+        if (v <= 0.06) s += ' ';
+        else if (v < 0.35) s += (h % 3 === 0) ? light[h % light.length] : ' ';
+        else if (v < 0.7) s += mid[h % mid.length];
+        else s += dense[h % dense.length];
+      }
+      lines.push(s);
+    }
+    return lines.join('\n');
+  }
+  renderVals() {
+    const t = this.state.t;
+    const rip = this.state.rip;
+    const ripAt = (i, j) => {
+      if (!rip) return 0;
+      const age = t - rip;
+      if (age > 8) return 0;
+      const r = Math.hypot((i - 34) * 0.6, j - 22);
+      return Math.abs(r - age * 4) < 1.6 ? 1 : 0;
+    };
+    const tm = this.mask('w', '15°', 69, 46, 190, 14, 225);
+    const wx = this.field(69, 46, (i, j) => {
+      if (ripAt(i, j)) return 1;
+      if (tm && tm[j] && tm[j][i]) return 0.9;
+      const cloud = Math.min(Math.hypot((i - 50) * 0.6, j - 6) - 7, Math.hypot((i - 60) * 0.6, j - 9) - 5);
+      if (cloud < 0) return 0;
+      return Math.max(0, 0.55 - cloud * 0.05) * (j < 26 ? 1 : 0.4);
+    });
+    const rb = this.field(44, 23, (i, j) => {
+      const r = Math.hypot((i - 26) * 0.6, j - 11);
+      if (r < 4) return 0;
+      const a = Math.atan2(j - 11, (i - 26) * 0.6);
+      return Math.max(0, Math.sin(r * 0.9 + t * 0.7) * 0.6 + Math.sin(a * 3) * 0.4) * (r < 16 ? 1 : 0);
+    });
+    const lt = this.field(34, 23, (i, j) => {
+      const r = Math.hypot((i - 22) * 0.6, j - 10);
+      if (r < 4.2 || (i > 19 && i < 25 && j > 13 && j < 17)) return 0;
+      return Math.max(0, 0.95 - r * 0.07) * (i > 8 ? 1 : 0);
+    });
+    const tsm = this.mask('t', '72%', 34, 23, 70, 4, 120);
+    const ts = this.field(34, 23, (i, j) => (tsm && tsm[j] && tsm[j][i] ? 0.95 : (j < 6 || j > 15 ? 0 : 0.12)));
+    const mu = this.field(34, 9, (i, j) => Math.max(0, Math.sin(i * 0.4 + t * 0.25) * 0.5 + 0.2) * (j / 9));
+    const tmF = this.field(34, 23, (i, j) => {
+      const r = Math.hypot((i - 26) * 0.6, j - 6);
+      const a = (Math.atan2(j - 6, (i - 26) * 0.6) + Math.PI * 2.5) % (Math.PI * 2);
+      return r > 3 && r < 5 && a < 0.87 * Math.PI * 2 ? 1 : 0;
+    });
+    const bar = (n, on) => '#'.repeat(Math.round(n * on)) + '.'.repeat(n - Math.round(n * on));
+    const hours = [
+      { t: '14', v: '16°', g: '.o.' }, { t: '15', v: '17°', g: '.o.' }, { t: '16', v: '15°', g: '///' },
+      { t: '17', v: '14°', g: '///' }, { t: '18', v: '14°', g: '===' }
+    ];
+    const marks = [':.:\n.:.\n:.:', '...\n.:.\n...'];
+    return {
+      wx, rb, lt, ts, mu, tm: tmF, hours,
+      rbBar: bar(16, 0.38),
+      prog: bar(46, 0.467),
+      mark: marks[0],
+      tapWeather: () => this.setState({ rip: this.state.t })
+    };
+  }
+}
+</script>
+</body>
+</html>

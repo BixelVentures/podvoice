@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Vejr</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+.sq{position:absolute;border-radius:1px}
+</style>
+</helmet>
+<div style="width: 1280px; height: 1100px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Vejr" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 752px; width: 844px; height: 48px; background: linear-gradient(180deg, rgba(233,231,226,0), #E9E7E2); z-index: 4; pointer-events: none" aria-hidden="true"></div>
+  <div style="position: absolute; left: 0; right: 0; top: 800px; border-top: 2px dashed rgba(23,23,26,.35); z-index: 5; pointer-events: none" aria-hidden="true">
+    <span style="position: absolute; right: 12px; top: 6px; padding: 4px 10px; border-radius: 8px; background: #17171A; color: #F7F6F3; font: 600 15px 'Schibsted Grotesk', sans-serif">Fold · 800 px · næste sektion kigger frem og fader ud · afspilleren står fast</span>
+  </div>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px; align-items: flex-start">
+    <div style="width: 844px; display: flex; flex-direction: column; gap: 32px">
+      <div class="cd" style="height: 458px; flex: none; padding: 32px; box-sizing: border-box; display: flex; flex-direction: column; background: #DDE6FB">
+        <div style="position: absolute; right: 0; top: 0; width: 470px; height: 360px; opacity: {{matOp}}; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 140px), linear-gradient(180deg, #000 70%, transparent); mask-image: linear-gradient(90deg, transparent 0, #000 140px); opacity: .45" aria-hidden="true">
+          <sc-for list="{{wx}}" as="d" hint-placeholder-count="400">
+            <i class="sq" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: #1F55F0"></i>
+          </sc-for>
+        </div>
+        <div style="position: relative; display: flex; justify-content: space-between; align-items: center">
+          <span style="font-size: 17px; font-weight: 600; color: #3E4660">Mårslet · Vejret i dag</span>
+          <sc-if value="{{fresh}}" hint-placeholder-val="{{ false }}"><dc-import name="K-Fresh" text="{{fresh}}" hint-size="220px,32px"></dc-import></sc-if>
+        </div>
+        <span style="position: relative; margin-top: 8px; font-size: 150px; line-height: .85; font-weight: 500; letter-spacing: -0.065em; color: {{bigC}}">{{big}}</span>
+        <span style="position: relative; margin-top: 16px; font-size: 26px; font-weight: 800">{{line}}</span>
+        <span style="position: relative; font-size: 17px; color: #3E4660">{{sub}}</span>
+        <div style="position: relative; margin-top: auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding-top: 20px; border-top: 1px solid rgba(23,23,26,.10); opacity: {{hoursOp}}" role="list" aria-label="Timeprognose">
+          <sc-for list="{{hours}}" as="h" hint-placeholder-count="5">
+            <div role="listitem" style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+              <span style="font: 500 16px 'IBM Plex Mono', monospace; color: #3E4660">{{h.t}}</span>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 18h11a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 6 18z"/></svg>
+              <span style="font-size: 22px; font-weight: 800; color: #3A4560">{{h.v}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-if value="{{off}}" hint-placeholder-val="{{ false }}">
+        <div style="margin-top: -20px"><dc-import name="K-Notice" level="info" title="Home Assistant svarer ikke lige nu" hint-size="844px,72px"></dc-import></div>
+      </sc-if>
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <span style="padding: 0 4px; font-size: 24px; font-weight: 800">De næste dage</span>
+        <div class="cd" style="padding: 8px 24px">
+          <sc-for list="{{days}}" as="d" hint-placeholder-count="5">
+            <div style="display: grid; grid-template-columns: 120px 40px 1fr 60px 60px; align-items: center; gap: 16px; height: 64px; border-bottom: 1px solid rgba(23,23,26,.07)">
+              <span style="font-size: 18px; font-weight: 700">{{d.n}}</span>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M6 18h11a4 4 0 0 0 0-8 5 5 0 0 0-9.6 1.5A3.3 3.3 0 0 0 6 18z"/></svg>
+              <div style="height: 8px; border-radius: 4px; background: #E9E7E2; position: relative"><i style="position: absolute; left: {{d.l}}%; width: {{d.w}}%; top: 0; bottom: 0; border-radius: 4px; background: linear-gradient(90deg, #8D9CBC, #3A4560); display: block"></i></div>
+              <span style="font-size: 18px; color: #5F5E5A; text-align: right">{{d.lo}}</span>
+              <span style="font-size: 18px; font-weight: 800; text-align: right">{{d.hi}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <span style="padding: 0 4px; font-size: 15px; color: #5F5E5A">Kilde: Met.no · Stednavn: GeoNames · CC BY 4.0</span>
+      </section>
+    </div>
+    <dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"frisk","options":["frisk","gammel","ukendt"]},"$preview":{"width":1280,"height":1100}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const f = (n) => n.toFixed(1);
+    const wx = [];
+    const blobs = [[230, 176, 56], [300, 130, 76], [372, 182, 50]];
+    for (let y = 5; y < 360; y += 10) {
+      for (let x = 5; x < 470; x += 10) {
+        let d = 999;
+        for (const b of blobs) d = Math.min(d, Math.hypot(x - b[0], y - b[1]) - b[2]);
+        if (x > 174 && x < 422 && y > 170 && y < 236) d = Math.min(d, -1);
+        if (d < 5) continue;
+        const w = Math.max(0, 7 - d * 0.04) * Math.min(1, (360 - y) / 90);
+        if (w > 0.8) wx.push({ x: f(x - w / 2), y: f(y - w / 2), w: f(w) });
+      }
+    }
+    const hours = [['15', '8°'], ['16', '8°'], ['17', '7°'], ['18', '7°'], ['19', '7°']].map(([t, v]) => ({ t: t + '.00', v }));
+    const days = [
+      { n: 'I dag', lo: '6°', hi: '9°', l: 20, w: 30 }, { n: 'Tirsdag', lo: '5°', hi: '10°', l: 15, w: 40 },
+      { n: 'Onsdag', lo: '4°', hi: '8°', l: 10, w: 32 }, { n: 'Torsdag', lo: '3°', hi: '7°', l: 6, w: 30 },
+      { n: 'Fredag', lo: '5°', hi: '11°', l: 16, w: 46 }
+    ];
+    // Tilstande efter friskhedsreglen: frisk (Green, hentet 14.22 = 8 min) uden mærke; gammel = over 30 min, tidspunktet vises;
+    // ukendt = weather-view.js "Vejret kunne ikke hentes" + "Home Assistant svarer ikke lige nu".
+    const st = this.props.state || 'frisk';
+    const S = {
+      frisk: { fresh: '', big: '8°', bigC: '#3A4560', line: 'Skyet · Tag en jakke med.', sub: 'Højst 8° · Lavest 6° · Met.no', matOp: 1, hoursOp: 1, off: false },
+      gammel: { fresh: 'Opdateret 11.02', big: '8°', bigC: '#3A4560', line: 'Skyet · Tag en jakke med.', sub: 'Højst 8° · Lavest 6° · Met.no', matOp: 0.45, hoursOp: 1, off: false },
+      ukendt: { fresh: '', big: '—', bigC: '#5F5E5A', line: 'Vejret kunne ikke hentes', sub: 'Met.no', matOp: 0.2, hoursOp: 0.3, off: true }
+    };
+    return { wx, hours, days, ...(S[st] || S.frisk) };
+  }
+}
+</script>
+</body>
+</html>

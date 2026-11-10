@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Mini-afspiller</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.mp-b{border:0;background:transparent;cursor:pointer;border-radius:50%;transition:transform .12s ease}
+.mp-b:active{transform:scale(.88)}
+.mp-play{border:0;cursor:pointer;transition:transform .14s cubic-bezier(.3,1.5,.5,1)}
+.mp-play:active{transform:scale(.9)}
+.mp-b:focus-visible,.mp-play:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+</style>
+</helmet>
+<div style="width: 372px; height: 112px; box-sizing: border-box; padding: 14px 16px 14px 14px; border-radius: 24px; background: linear-gradient(100deg, {{wash}} 0%, #F7F6F3 78%); box-shadow: inset 0 0 0 1px rgba(23,23,26,.06); display: grid; grid-template-columns: 84px 1fr auto; align-items: center; gap: 14px; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <div style="width: 84px; height: 84px; border-radius: 12px; background: linear-gradient(145deg, {{artLight}}, {{art}}); box-shadow: 0 10px 22px -10px {{glow}}" role="img" aria-label="Albumcover fra kilden"></div>
+  <div style="display: flex; flex-direction: column; min-width: 0; gap: 2px">
+    <span style="font-size: 17px; font-weight: 800; letter-spacing: -0.01em">Heartless</span>
+    <span style="font-size: 14px; color: #5F5E5A">Kanye West · Stuen</span>
+    <div style="margin-top: 8px; height: 3px; border-radius: 2px; background: rgba(23,23,26,.12)" role="img" aria-label="Spillet 1:24 af 3:00">
+      <div style="width: 46.7%; height: 3px; border-radius: 2px; background: #17171A"></div>
+    </div>
+  </div>
+  <div style="display: flex; align-items: center; gap: 4px">
+    <button class="mp-play" onClick="{{toggle}}" aria-label="{{playLabel}}" style="width: 52px; height: 52px; border-radius: 50%; background: #17171A; display: flex; align-items: center; justify-content: center">
+      <sc-if value="{{playing}}" hint-placeholder-val="{{ true }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="#F7F6F3" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg></sc-if>
+      <sc-if value="{{paused}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="#F7F6F3" aria-hidden="true"><path d="M8 4.5v15l12-7.5z"/></svg></sc-if>
+    </button>
+    <button class="mp-b" aria-label="Næste" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><rect x="16.6" y="5" width="2.4" height="14" rx="1"/><path d="M5 5.5v13L15.5 12z"/></svg>
+    </button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"art":{"editor":"color","default":"#8E9EA6","options":["#8E9EA6","#7C3A35","#3E5A78","#2F6B57"]},"$preview":{"width":372,"height":112}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { playing: true }; }
+  mix(hex, to, t, a) {
+    const n = parseInt(hex.slice(1), 16), m = parseInt(to.slice(1), 16);
+    const ch = (s) => Math.round(((n >> s) & 255) * (1 - t) + ((m >> s) & 255) * t);
+    return 'rgba(' + ch(16) + ',' + ch(8) + ',' + ch(0) + ',' + (a ?? 1) + ')';
+  }
+  renderVals() {
+    // Samme coverstemning som den store afspiller, koncentreret i en vandret toning.
+    const art = /^#[0-9a-fA-F]{6}$/.test(this.props.art || '') ? this.props.art : '#8E9EA6';
+    const playing = this.state.playing;
+    return {
+      art, artLight: this.mix(art, '#FFFFFF', 0.3), wash: this.mix(art, '#F7F6F3', 0.55),
+      glow: this.mix(art, '#17171A', 0.25, 0.6),
+      playing, paused: !playing, playLabel: playing ? 'Pause' : 'Afspil',
+      toggle: () => this.setState({ playing: !this.state.playing })
+    };
+  }
+}
+</script>
+</body>
+</html>

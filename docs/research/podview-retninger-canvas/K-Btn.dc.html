@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Knap</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+<style>body{margin:0}.b{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease}.b:active{transform:scale(.97);filter:brightness(.92)}.b:focus-visible{outline:2px solid #17171A;outline-offset:3px}</style>
+</helmet>
+<button class="b" style="height: {{h}}px; min-width: {{h}}px; width: {{w}}; padding: 0 {{pad}}px; border-radius: 999px; background: {{v.bg}}; color: {{v.fg}}; box-shadow: {{v.sh}}; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font: 600 {{fs}}px 'Schibsted Grotesk', system-ui, sans-serif; white-space: nowrap; box-sizing: border-box">{{label}}</button>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"label":{"editor":"text","default":"Start"},"variant":{"editor":"enum","default":"primaer","options":["primaer","sekundaer","kant","fare","lys","moerk"]},"size":{"editor":"enum","default":"56","options":["56","44"]},"w":{"editor":"text","default":"auto"},"$preview":{"width":200,"height":56}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Fælles knap (UI-kit): 56 primær højde, 44 sekundær minimum. Trykfladen er hele pillen.
+    const V = { primaer: { bg: '#17171A', fg: '#F7F6F3', sh: 'none' }, sekundaer: { bg: '#EFEDE8', fg: '#17171A', sh: 'none' },
+      kant: { bg: 'transparent', fg: '#17171A', sh: 'inset 0 0 0 1.5px rgba(23,23,26,.2)' }, fare: { bg: 'transparent', fg: '#B0262A', sh: 'inset 0 0 0 1.5px rgba(176,38,42,.45)' },
+      lys: { bg: '#F7F6F3', fg: '#17171A', sh: 'none' }, moerk: { bg: '#2B2B30', fg: '#F7F6F3', sh: 'none' } };
+    const h = Number(this.props.size) || 56;
+    return { v: V[this.props.variant] || V.primaer, h, pad: h === 56 ? 26 : 18, fs: h === 56 ? 17 : 16, label: this.props.label || '', w: this.props.w || 'auto' };
+  }
+}
+</script>
+</body>
+</html>

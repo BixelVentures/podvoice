@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Timer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #FF7A5C;outline-offset:3px}
+.ring-done{animation:ringpulse 1.6s ease-in-out infinite}
+@keyframes ringpulse{0%,100%{opacity:1}50%{opacity:.45}}
+.mat-in{animation:matin 2.4s ease-in-out infinite}
+@keyframes matin{0%,100%{transform:scale(.45);opacity:.45}50%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){.ring-done,.mat-in{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Timer" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; height: 696px; display: flex; flex-direction: column; gap: 16px">
+      <div class="cd" style="height: 458px; flex: none; background: #17171A; color: #F7F6F3; padding: 32px; box-sizing: border-box; display: grid; grid-template-columns: 340px 1fr; align-items: center; gap: 40px">
+        <div style="position: absolute; right: 0; top: 0; width: 520px; height: 458px; opacity: {{s.matOp}}; -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 200px); mask-image: linear-gradient(90deg, transparent 0, #000 200px); pointer-events: none" aria-hidden="true">
+          <sc-for list="{{mat}}" as="d" hint-placeholder-count="300"><i class="{{s.anim}}" style="position: absolute; border-radius: 1px; left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: #FF7A5C; animation-delay: {{d.dl}}ms; display: block"></i></sc-for>
+        </div>
+        <div style="position: relative; z-index: 1; width: 340px; height: 340px">
+          <svg width="340" height="340" viewBox="0 0 340 340" aria-hidden="true">
+            <circle cx="170" cy="170" r="150" fill="none" stroke="#2E2E33" stroke-width="22"/>
+            <circle class="{{s.ringCls}}" cx="170" cy="170" r="150" fill="none" stroke="#FF7A5C" stroke-width="22" stroke-linecap="round" stroke-dasharray="{{s.dash}}" transform="rotate(-90 170 170)"/>
+          </svg>
+          <div style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px">
+            <span style="font: 500 88px/1 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.06em">{{s.time}}</span>
+            <span style="font-size: 17px; color: #BDBBB5">af 10:00</span>
+          </div>
+        </div>
+        <div style="position: relative; z-index: 1; display: flex; flex-direction: column; gap: 12px">
+          <span style="font-size: 17px; font-weight: 600; color: #BDBBB5">{{s.kicker}}</span>
+          <span style="font-size: 48px; line-height: 1.02; font-weight: 800; letter-spacing: -0.03em; color: {{s.titleC}}">{{s.title}}</span>
+          <span style="font-size: 18px; color: #D9D7D1">{{s.sub}}</span>
+          <div style="margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px">
+            <sc-for list="{{s.actions}}" as="a" hint-placeholder-count="3">
+              <button class="btn" style="height: 56px; padding: 0 24px; border-radius: 999px; background: {{a.bg}}; color: {{a.fg}}; font: 600 17px 'Schibsted Grotesk', sans-serif">{{a.l}}</button>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+      <div class="cd" style="flex: 1; min-height: 0; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; justify-content: space-between; align-items: baseline"><span style="font-size: 24px; font-weight: 800">Tidligere timere</span><span style="font-size: 15px; color: #5F5E5A">Justér før start</span></div>
+        <div style="display: flex; gap: 10px">
+          <sc-for list="{{recent}}" as="r" hint-placeholder-count="5">
+            <button class="btn" style="height: 56px; padding: 0 22px; border-radius: 999px; background: #EFEDE8; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; font: 600 18px 'IBM Plex Mono', monospace; color: #17171A">{{r.t}}<span style="font: 500 15px 'Schibsted Grotesk', sans-serif; color: #5F5E5A">{{r.n}}</span></button>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+    <dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"koerer","options":["koerer","pause","faerdig"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Ringen er resttid / kendt total og følger timerens deadline. Native timer: ±1 min og Annuller; ingen opdigtet pause.
+    const C = 2 * Math.PI * 150;
+    const dash = (f) => (C * f).toFixed(1) + ' ' + C.toFixed(1);
+    const light = { bg: '#F7F6F3', fg: '#17171A', sh: 'none' };
+    const dark = { bg: '#2B2B30', fg: '#F7F6F3', sh: 'none' };
+    const S = {
+      koerer: { matOp: 0.55, anim: 'mat-in', kicker: 'Timer · 10 min', title: 'Tæller ned', titleC: '#F7F6F3', sub: 'Færdig kl. 14.39', time: '8:42', dash: dash(0.87), ringCls: '',
+        actions: [{ ...light, l: '+1 min' }, { ...dark, l: '−1 min' }, { ...dark, l: 'Annuller' }] },
+      pause: { matOp: 0.3, anim: '', kicker: 'Timer på pause', title: 'På pause', titleC: '#F7F6F3', sub: 'Ringen står stille, til du fortsætter.', time: '4:10', dash: dash(0.42), ringCls: '',
+        actions: [{ ...light, l: 'Fortsæt' }, { ...dark, l: 'Annuller' }] },
+      faerdig: { matOp: 0.9, anim: 'ring-done', kicker: 'Timeren ringede 14.30', title: 'Tiden er gået', titleC: '#FF7A5C', sub: 'Alarmen ringer, til du stopper den.', time: '0:00', dash: dash(1), ringCls: 'ring-done',
+        actions: [{ bg: '#FF7A5C', fg: '#17171A', sh: 'none', l: 'Stop alarm' }, { ...dark, l: 'Start igen · 10 min' }] }
+    };
+    const s = S[this.props.state] || S.koerer;
+    const recent = [{ t: '10:00', n: 'Seneste' }, { t: '12:00', n: 'Tidligere' }, { t: '30:00', n: 'Tidligere' }, { t: '3:00', n: 'Tidligere' }, { t: '45:00', n: 'Tidligere' }];
+    // Samme materiale som de andre domæner: kvadratiske celler i timerens orange, der stråler fra højre kant.
+    // Kører: pulserer indad · pause: står stille og svagt · færdig: fuldt og blinker med alarmen.
+    const mat = [];
+    for (let y = 4.5; y < 458; y += 9) for (let x = 4.5; x < 520; x += 9) {
+      const d = Math.hypot(x - 560, y - 229);
+      const band = Math.abs(Math.sin(d / 26));
+      const w = Math.max(0, 6.4 - d * 0.011) * band;
+      if (w > 0.9) mat.push({ x: (x - w / 2).toFixed(1), y: (y - w / 2).toFixed(1), w: w.toFixed(1), dl: Math.round(d * 4) });
+    }
+    return { s, recent, mat };
+  }
+}
+</script>
+</body>
+</html>

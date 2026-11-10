@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Find musik</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease, background-color .3s ease}
+.btn:active{transform:scale(.97);filter:brightness(.92)}
+.btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
+.btn:disabled{cursor:default;opacity:.4}
+.pend{animation:pend .9s ease-in-out infinite}
+@keyframes pend{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}
+.ph{animation:ph 1.6s ease-in-out infinite}
+@keyframes ph{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion: reduce){.pend,.ph{animation:none}}
+.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Find musik" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="position: relative; width: 844px; height: 712px; display: flex; flex-direction: column; gap: 24px; overflow: hidden">
+
+      <sc-if value="{{off}}" hint-placeholder-val="{{ false }}">
+        <div class="cd" style="height: 221px; flex: none; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; background: #DCEBEA">
+          <span style="font-size: 17px; font-weight: 600; color: #3F3E3B">Find musik</span>
+          <span style="margin-top: 8px; font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -0.035em">Vælg musik</span>
+          <span style="margin-top: 12px; font-size: 17px; color: #3F3E3B; max-width: 460px">Stemningsforslag er ikke tilgængelige endnu.</span>
+        </div>
+      </sc-if>
+
+      <div role="tablist" aria-label="Find musik" style="flex: none; display: flex; gap: 16px; align-items: center">
+        <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: #DCDAD4">
+          <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+            <button class="btn" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" disabled="{{t.dis}}" style="height: 48px; border-radius: 999px; background: {{t.bg}}; color: {{t.fg}}; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">{{t.label}}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <sc-if value="{{example}}" hint-placeholder-val="{{ true }}">
+      <div style="flex: none; display: flex; justify-content: space-between; align-items: baseline; height: 32px">
+        <span style="font-size: 26px; font-weight: 800; letter-spacing: -0.015em">{{heading}}</span>
+        <span style="display: flex; gap: 12px; align-items: baseline">
+          <span style="font-size: 15px; color: #5F5E5A">{{count}}</span>
+          
+        </span>
+      </div>
+      </sc-if>
+
+      <div style="flex: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px 16px">
+        <sc-for list="{{cards}}" as="c" hint-placeholder-count="3">
+          <div style="display: flex; flex-direction: column; gap: 12px; opacity: {{c.op}}">
+            <div class="cd" style="height: {{artH}}px; background: {{c.ph}}">
+              <sc-if value="{{c.hasArt}}" hint-placeholder-val="{{ true }}">
+                <img src="{{c.art}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+              </sc-if>
+              <sc-if value="{{c.isPh}}" hint-placeholder-val="{{ false }}"><i class="ph" style="position: absolute; inset: 0; background: rgba(23,23,26,.06); display: block"></i></sc-if>
+              <sc-if value="{{c.hasArt}}" hint-placeholder-val="{{ true }}">
+                <button class="btn" aria-label="Afspil {{c.n}}" onClick="{{c.play}}" style="position: absolute; right: 16px; bottom: 16px; width: 64px; height: 64px; border-radius: 999px; background: {{c.keyBg}}; box-shadow: 0 8px 20px -8px rgba(23,23,26,.5); display: flex; align-items: center; justify-content: center">
+                  <sc-if value="{{c.idle}}" hint-placeholder-val="{{ true }}"><svg width="24" height="24" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg></sc-if>
+                  <sc-if value="{{c.pending}}" hint-placeholder-val="{{ false }}"><span style="display: grid; grid-template-columns: repeat(3, 6px); gap: 4px"><i class="pend" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3"></i><i class="pend" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; animation-delay: 150ms"></i><i class="pend" style="width: 6px; height: 6px; border-radius: 50%; background: #F7F6F3; animation-delay: 300ms"></i></span></sc-if>
+                  <sc-if value="{{c.playing}}" hint-placeholder-val="{{ false }}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#F7F6F3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></sc-if>
+                </button>
+              </sc-if>
+            </div>
+            <div style="display: flex; flex-direction: column; height: 46px">
+              <span class="one" style="font-size: 19px; line-height: 24px; font-weight: 800">{{c.n}}</span>
+              <span class="one" style="font-size: 15px; line-height: 20px; color: {{c.dc}}">{{c.d}}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{showMore}}" hint-placeholder-val="{{ true }}">
+        <button class="btn" onClick="{{more}}" disabled="{{moreDis}}" style="flex: none; align-self: flex-start; height: 56px; padding: 0 28px; border-radius: 999px; background: #F7F6F3; color: #17171A; box-shadow: inset 0 0 0 1px rgba(23,23,26,.1); display: flex; align-items: center; gap: 10px; font: 600 17px 'Schibsted Grotesk', sans-serif">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>{{moreLabel}}
+        </button>
+      </sc-if>
+
+      <i style="position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(180deg, rgba(233,231,226,0), #E9E7E2); pointer-events: none; display: {{fadeD}}"></i>
+    </div>
+    <dc-import name="A-Player" mode="mine" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"forslag","options":["forslag","henter","ikketilg"]},"tab":{"editor":"enum","default":"mood","options":["mood","feeling","top","recent"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: null, page: 0, started: {} }; }
+  componentWillUnmount() { (this.timers || []).forEach(clearTimeout); }
+  play(id) {
+    this.setState({ started: { [id]: 'pending' } });
+    this.timers = this.timers || [];
+    this.timers.push(setTimeout(() => this.setState({ started: { [id]: 'playing' } }), 1100));
+  }
+  renderVals() {
+    // Ingen søgefelt: Frameo har intet tastatur, og produktets søgedialog (live-music-selection-view.js openSearch)
+    // har ingen kalder i dag. Søgning er en senere tilføjelse; her browses der.
+    // Indhold fra produktets godkendte prototype (widget-model.js discoveryOptions, music-results.js):
+    // faner Tid på dagen/Vibe/Din musik/Hør igen, periode "Til eftermiddagen" kl. 14.30, 3 forslag pr. side,
+    // knapper Andre forslag/Flere vibes/Flere playlister/Se tidligere, omslag music-editorial-1..3.svg.
+    const st = this.props.state || 'forslag', off = st === 'ikketilg', loading = st === 'henter';
+    const tab = this.state.tab || this.props.tab || 'mood', page = this.state.page;
+    const P = [['jazz','Jazz in the Background'],['slow','Summer Slowdown, No. 16'],['lounge','LOUNGE MUSIC 2026'],['pop','Pop Remix'],
+      ['house','Deep House 2026'],['hiphop','Kanye West Mix'],['techno','Techno 90s (Top 100)'],['fest','Fest'],['classic','The Jazz 100'],['kids','Bedste Børnehits']];
+    const ART = ['/_blob/94d92eb49e6195e3f0c19e1412a84a7a', '/_blob/0240efba3427697e45508328ae0ccb43', '/_blob/89accc68234e0dd1eb36aca40f3bf37f'];
+    const vibes = [[0,'Jazz & lounge'],[5,'Hiphop & R&B'],[3,'Pop & dance'],[1,'Afslappet pop'],[4,'Deep house'],[8,'Jazzklassikere'],[2,'Lounge'],[6,'90’er-techno'],[7,'Festmusik']];
+    const mk = (i, d) => ({ id: P[i][0], n: P[i][1], d, art: ART[i % 3] });
+    let items = [];
+    if (tab === 'mood') items = [[3,4,5],[7,6,2]][page % 2].map((i) => mk(i, 'Spotify-playliste · eksempel'));
+    if (tab === 'feeling') { const s = ((1 + page) % 3) * 3; items = vibes.slice(s, s + 3).map(([i, d]) => mk(i, d)); }
+    if (tab === 'top') items = [5,3,0,6,4,8,2,1,7,9].slice(0, (page + 1) * 5).map((i) => mk(i, 'Spotify-playliste · eksempel'));
+    const waiting = loading || tab === 'recent';
+    const cards = (off ? [] : waiting ? [0,1,2].map((i) => ({ id: 'ph' + i, n: '', d: i === 0 ? 'Afventer data' : '', isPh: true })) : items).map((c) => {
+      const s = this.state.started[c.id] || 'idle';
+      return { ...c, hasArt: !c.isPh, isPh: !!c.isPh, op: 1, ph: c.isPh ? '#F7F6F3' : '#DCEBEA',
+        idle: s === 'idle', pending: s === 'pending', playing: s === 'playing', keyBg: s === 'idle' ? '#F7F6F3' : '#17171A',
+        d: s === 'pending' ? 'Starter…' : s === 'playing' ? 'Afspiller' : c.d, dc: s === 'idle' ? '#5F5E5A' : '#17171A',
+        play: () => this.play(c.id) };
+    });
+    const tabDefs = [['mood','Tid på dagen'],['feeling','Vibe'],['top','Din musik'],['recent','Hør igen']];
+    const tabs = tabDefs.map(([id, label]) => { const on = tab === id;
+      return { label, on: on ? 'true' : 'false', bg: on ? '#17171A' : 'transparent', fg: on ? '#F7F6F3' : '#17171A', dis: off ? 'true' : undefined,
+        pick: () => this.setState({ tab: id, page: 0, started: {} }) }; });
+    const action = { mood: 'Andre forslag', feeling: 'Flere vibes', top: 'Flere playlister', recent: 'Se tidligere' }[tab];
+    const label = { mood: 'Til eftermiddagen', feeling: 'Vibe', top: 'Din musik', recent: 'Hør igen' }[tab];
+    return {
+      off, example: !off, tabs, cards, heading: off ? 'Forslag' : label,
+      count: off ? 'Ikke tilgængelig' : waiting ? '' : items.length + ' forslag',
+      artH: off ? 0 : 338, showMore: !off && !(tab === 'top' && items.length > 3), moreLabel: waiting ? 'Henter forslag' : action, moreDis: waiting ? 'true' : undefined,
+      fadeD: !off && items.length > 3 && !waiting ? 'block' : 'none',
+      more: () => this.setState({ page: page + 1, started: {} })
+    };
+  }
+}
+</script>
+</body>
+</html>

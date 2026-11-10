@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Find musik · Grille</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.cd{position:relative;overflow:hidden;border-radius:24px;background:#F7F6F3;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06), 0 2px 0 rgba(23,23,26,.05);transition:transform .14s ease}
+.cd:active{transform:scale(.985)}
+.btn{border:0;cursor:pointer;transition:transform .12s ease, box-shadow .12s ease, background .2s ease}
+.btn:active{transform:translateY(3px);box-shadow:none!important}
+.btn:focus-visible{outline:2px solid #EF5B25;outline-offset:3px}
+.cv{position:absolute;border-radius:50%}
+.pend{animation:pend .9s ease-in-out infinite}
+@keyframes pend{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion: reduce){.pend{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E7E5E0; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+  <dc-import name="A-Topbar" heading="Find musik" back="{{ true }}" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; display: flex; flex-direction: column; gap: 16px">
+      <div role="tablist" aria-label="Kategori" style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; padding: 6px; border-radius: 22px; background: #DCDAD4; box-shadow: inset 0 1px 3px rgba(23,23,26,.14)">
+        <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+          <button class="btn" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 54px; border-radius: 16px; background: {{t.bg}}; color: {{t.fg}}; box-shadow: {{t.sh}}; font: 600 16px 'Schibsted Grotesk', system-ui, sans-serif">{{t.label}}</button>
+        </sc-for>
+      </div>
+
+      <sc-if value="{{showList}}" hint-placeholder-val="{{ true }}">
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: repeat(2, 296px); gap: 16px">
+          <sc-for list="{{lists}}" as="p" hint-placeholder-count="5">
+            <div class="cd" style="padding: 14px; box-sizing: border-box; display: flex; flex-direction: column">
+              <div style="position: relative; height: 176px; border-radius: 14px; overflow: hidden; background: {{p.bg}}" aria-hidden="true">
+                <sc-for list="{{p.dots}}" as="d" hint-placeholder-count="80">
+                  <i class="cv" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; background: {{p.fg}}"></i>
+                </sc-for>
+              </div>
+              <div style="margin-top: 14px; display: flex; align-items: flex-end; gap: 10px; flex: 1">
+                <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+                  <span style="font-size: 17px; font-weight: 700; line-height: 1.2">{{p.title}}</span>
+                  <span style="font: 500 12px 'IBM Plex Mono', ui-monospace, monospace; color: #5F5E5A">{{p.state}}</span>
+                </div>
+                <button class="btn" aria-label="Afspil {{p.title}}" onClick="{{p.play}}" style="width: 56px; height: 56px; flex: none; border-radius: 16px; background: {{p.keyBg}}; box-shadow: {{p.keySh}}; display: flex; align-items: center; justify-content: center">
+                  <sc-if value="{{p.idle}}" hint-placeholder-val="{{ true }}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg>
+                  </sc-if>
+                  <sc-if value="{{p.pending}}" hint-placeholder-val="{{ false }}">
+                    <span style="display: grid; grid-template-columns: repeat(3, 5px); gap: 3px" aria-hidden="true">
+                      <i class="pend" style="width: 5px; height: 5px; border-radius: 50%; background: #F7F6F3; animation-delay: 0ms"></i>
+                      <i class="pend" style="width: 5px; height: 5px; border-radius: 50%; background: #F7F6F3; animation-delay: 150ms"></i>
+                      <i class="pend" style="width: 5px; height: 5px; border-radius: 50%; background: #F7F6F3; animation-delay: 300ms"></i>
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{p.playing}}" hint-placeholder-val="{{ false }}">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#F7F6F3" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                  </sc-if>
+                </button>
+              </div>
+            </div>
+          </sc-for>
+          <button class="btn" style="border-radius: 24px; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(23,23,26,.18); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif; color: #17171A">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Flere playlister
+          </button>
+        </div>
+      </sc-if>
+      <sc-if value="{{showEmpty}}" hint-placeholder-val="{{ false }}">
+        <div class="cd" style="height: 608px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px">
+          <span style="font-size: 22px; font-weight: 700">{{emptyTitle}}</span>
+          <span style="font-size: 15px; color: #5F5E5A">Prototypen har kun eksempeldata under Din musik.</span>
+        </div>
+      </sc-if>
+    </div>
+    <dc-import name="A-Player" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  constructor(props) { super(props); this.state = { tab: 'din', started: {} }; }
+  componentWillUnmount() { (this.timers || []).forEach(clearTimeout); }
+  cover(kind) {
+    // Playlist-covers er tegnet af samme perforering som resten af kittet (kun for genererede covers; rigtige covers røres ikke).
+    const out = [];
+    for (let j = 0; j < 18; j++) {
+      for (let i = 0; i < 26; i++) {
+        const x = i * 10 + 5, y = j * 10 + 5;
+        let v = 0;
+        if (kind === 'rings') v = 0.5 + 0.5 * Math.sin(Math.hypot(x - 200, y - 150) * 0.11);
+        if (kind === 'diag') v = (x + y) % 60 < 30 ? 1 - ((x + y) % 30) / 40 : 0.15;
+        if (kind === 'hill') v = y > 120 - 40 * Math.sin(x / 70) ? 0.95 : Math.max(0, 0.7 - Math.hypot(x - 180, y - 50) / 70);
+        if (kind === 'wave') v = 0.5 + 0.5 * Math.sin(x * 0.05 + Math.sin(y * 0.08) * 2);
+        if (kind === 'sun') v = Math.max(0, 1 - Math.hypot(x - 120, y - 92) / 90);
+        const w = v * 7.5;
+        if (w > 0.8) out.push({ x: (x - w / 2).toFixed(1), y: (y - w / 2).toFixed(1), w: w.toFixed(1) });
+      }
+    }
+    return out;
+  }
+  play(id) {
+    this.setState({ started: { ...this.state.started, [id]: 'pending' } });
+    this.timers = this.timers || [];
+    this.timers.push(setTimeout(() => this.setState({ started: { [id]: 'playing' } }), 1100));
+  }
+  renderVals() {
+    const tabDefs = [['tid', 'Tid på dagen'], ['vibe', 'Vibe'], ['din', 'Din musik'], ['igen', 'Hør igen']];
+    const tabs = tabDefs.map(([id, label]) => {
+      const on = this.state.tab === id;
+      return {
+        label, on: on ? 'true' : 'false',
+        bg: on ? '#17171A' : '#F7F6F3', fg: on ? '#F7F6F3' : '#17171A',
+        sh: on ? '0 3px 0 #000' : '0 3px 0 rgba(23,23,26,.12)',
+        pick: () => this.setState({ tab: id })
+      };
+    });
+    const defs = [
+      { id: 'dh', title: 'Deep House 2026', kind: 'rings', bg: '#232655', fg: '#8E95F2' },
+      { id: 't90', title: 'Techno 90s (Top 100)', kind: 'diag', bg: '#3A1B31', fg: '#F07A4A' },
+      { id: 'bb', title: 'Bedste Børnehits', kind: 'sun', bg: '#F2C14E', fg: '#B5461F' },
+      { id: 'kw', title: 'Kanye West Mix', kind: 'hill', bg: '#1E4A38', fg: '#D9E7B0' },
+      { id: 'jz', title: 'Jazz in the Background', kind: 'wave', bg: '#4A2B1F', fg: '#E8B46A' }
+    ];
+    const lists = defs.map((d) => {
+      const st = this.state.started[d.id] || 'idle';
+      return {
+        ...d, dots: this.cover(d.kind),
+        idle: st === 'idle', pending: st === 'pending', playing: st === 'playing',
+        state: st === 'pending' ? 'Starter i Stuen…' : st === 'playing' ? 'Spiller i Stuen' : 'Playliste',
+        keyBg: st === 'idle' ? '#ECEAE5' : '#17171A',
+        keySh: st === 'idle' ? '0 3px 0 rgba(23,23,26,.14)' : '0 3px 0 #000',
+        play: () => this.play(d.id)
+      };
+    });
+    const din = this.state.tab === 'din';
+    const titles = { tid: 'Tid på dagen', vibe: 'Vibe', igen: 'Hør igen' };
+    return { tabs, lists, showList: din, showEmpty: !din, emptyTitle: titles[this.state.tab] || '' };
+  }
+}
+</script>
+</body>
+</html>

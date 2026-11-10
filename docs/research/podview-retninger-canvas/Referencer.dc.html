@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Referencer v2</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+a{color:#17171A}
+.lbl{font:500 11px 'IBM Plex Mono', ui-monospace, monospace;letter-spacing:.08em;text-transform:uppercase;color:#6B6A66}
+</style>
+</helmet>
+<div style="width: 1280px; height: 960px; box-sizing: border-box; padding: 32px 36px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 18px">
+  <div style="display: flex; justify-content: space-between; align-items: flex-end">
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <span class="lbl">Referencer v2 · til en home hub på væggen</span>
+      <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.02em">Materialer, ro og tryk, der virker på 2 meters afstand</span>
+    </div>
+    <span style="max-width: 400px; font-size: 13px; line-height: 1.45; color: #4A4945">Filter: en reference tæller kun, hvis den kan køre billigt på en Frameo-skærm, kan stå stille i hvile og bærer en fakta, ikke pynt.</span>
+  </div>
+  <div style="flex: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; min-height: 0">
+    <sc-for list="{{cols}}" as="c" hint-placeholder-count="3">
+      <div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+        <span class="lbl" style="color: #17171A">{{c.h}}</span>
+        <sc-for list="{{c.items}}" as="r" hint-placeholder-count="6">
+          <div style="display: grid; grid-template-columns: 52px 1fr; gap: 12px; padding: 12px; border-radius: 16px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)">
+            <i style="width: 52px; height: 52px; border-radius: 12px; background: {{r.bg}}; background-image: {{r.tex}}; background-size: {{r.ts}}; display: block"></i>
+            <div style="display: flex; flex-direction: column; gap: 3px; min-width: 0">
+              <span style="font-size: 14px; font-weight: 800">{{r.n}}</span>
+              <span style="font: 500 11px 'IBM Plex Mono', ui-monospace, monospace; color: #6B6A66; overflow-wrap: anywhere">{{r.src}}</span>
+              <span style="font-size: 12.5px; line-height: 1.38; color: #3F3E3B">{{r.use}}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+  <div style="padding: 14px 18px; border-radius: 16px; background: #17171A; color: #F7F6F3; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 18px">
+    <sc-for list="{{rules}}" as="u" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; gap: 3px">
+        <span style="font-size: 14px; font-weight: 700">{{u.h}}</span>
+        <span style="font-size: 12px; line-height: 1.4; color: #C9C7C1">{{u.b}}</span>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":960}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const dots = (c) => 'radial-gradient(' + c + ' 34%, transparent 38%)';
+    const cols = [
+      { h: 'Shaders og materiale', items: [
+        { n: 'Paper Shaders · halftone dots', src: 'shaders.paper.design', use: 'Open source, uden afhængigheder, canvas. Samme motor som vores prikfelter: vejrets sky, robotbuer, lys. Kan stå helt stille (speed 0) i hvile.', bg: '#DDE6FB', tex: dots('#1F55F0'), ts: '7px 7px' },
+        { n: 'Paper Shaders · dithering', src: 'shaders.paper.design/dithering', use: 'To-farvet dither som stof på stille flader: Foto-Ro-overgange, tom afspiller, sidst kendt (grå dither i stedet for grå flade).', bg: '#E9E7E2', tex: 'repeating-conic-gradient(#17171A 0 25%, transparent 0 50%)', ts: '4px 4px' },
+        { n: 'Paper Shaders · mesh gradient + grain', src: 'shaders.paper.design/static-mesh-gradient', use: 'Coverets farver som mesh med korn bag afspilleren. Statisk mesh er billigere end vores sløring og ser mere ud af papir end af glas.', bg: '#7C3A35', tex: 'radial-gradient(circle at 25% 30%, #E8A06A, transparent 55%), radial-gradient(circle at 75% 70%, #2A3550, transparent 55%)', ts: 'auto' },
+        { n: 'Dither gradient · CMYK halftone', src: 'shadcn.io/shaders', use: 'God reference for blæk på papir. Kræver WebGPU, som Frameos browser næppe har, så kun som udtryk og ikke som teknik.', bg: '#F3C9DC', tex: dots('#4A6FD1'), ts: '6px 6px' },
+        { n: 'Apple Music · coverfarver', src: 'Apple Music, afspilning', use: 'Baggrund udledt af coveret, langsom og stopper ved pause. Bekræfter retningen for vores afspiller.', bg: '#3E5A78', tex: 'radial-gradient(circle at 30% 30%, #F2D4A0, transparent 60%)', ts: 'auto' },
+        { n: 'Liquid Glass · iOS 26', src: 'Apple Home og widgets', use: 'Kun lærdommen om lys kant og dybde på taster. Ikke gennemsigtighed: dyrt på svag hardware og ulæseligt over materiale.', bg: '#ECEAE5', tex: 'linear-gradient(160deg, rgba(255,255,255,.95), rgba(255,255,255,0) 45%)', ts: 'auto' }
+      ] },
+      { h: 'Home hubs og ambient', items: [
+        { n: 'Google Nest Hub · startskærm', src: 'babich.biz/google-hub-home-screen', use: 'Ét blik, én opgave. Tekst i stor størrelse, alt andet bag ét tryk. Argument for større metadata end i dag.', bg: '#F7F6F3', tex: 'linear-gradient(#17171A, #17171A)', ts: '30% 6px' },
+        { n: 'Vægskærm som ambient overflade', src: 'coclaw.pages.dev · HA wall dashboard', use: 'Vægskærmen har et andet job end telefonen. Det, der ikke tilfører ro eller handling, skal ud. Støtter faste pladser og Foto-Ro.', bg: '#E4EAF4', tex: 'none', ts: 'auto' },
+        { n: 'Echo Show 15 · widgets', src: 'Amazon Echo Show 15', use: 'Faste widgetstørrelser på en væg, læst på afstand. Samme logik som vores S/M/L.', bg: '#F6E6EA', tex: 'linear-gradient(90deg, #17171A 48%, transparent 48% 52%, #17171A 52%)', ts: '100% 40%' },
+        { n: 'HA-fællesskabet · rene vægtablets', src: 'community.home-assistant.io', use: 'Sparsomme dashboards med en stram palet og tydeligt hierarki. Hvad brugerne selv bygger, når de vælger ro.', bg: '#E7EEE9', tex: 'none', ts: 'auto' },
+        { n: '10″ vægtablet · touchmål', src: 'developex.com', use: 'En 10″ skærm på væggen kræver større touch-mål end en telefon. Vores minimum på 44 og primære knapper på 56 holder.', bg: '#F2E4D3', tex: 'radial-gradient(circle, #17171A 30%, transparent 32%)', ts: '100% 100%' },
+        { n: 'Apple Home · iOS 26', src: 'Apple Home', use: 'Tilstand som farvet ikon og kort statuslinje. Kategorifarver uden at male hele fladen. Bekræfter dæmpet toning.', bg: '#FBEBC6', tex: 'none', ts: 'auto' }
+      ] },
+      { h: 'Objekter og interaktion', items: [
+        { n: 'Voice Memos · byjwxn', src: 'x.com/byjwxn', use: 'Bløde runde taster, rød playhead, rolige bjælker. Model for knapsystemet og radioens skala.', bg: '#ECEAE5', tex: 'linear-gradient(90deg, transparent 48%, #E5261E 48% 52%, transparent 52%)', ts: 'auto' },
+        { n: 'Tesla-appen · bilen som tilstand', src: 'Tesla', use: 'Bilens billede viser lås, ladeport og klima. Begrunder vores prikbil, hvor karrosseriet er batteriet.', bg: '#D5EADD', tex: dots('#2F7A55'), ts: '6px 6px' },
+        { n: 'Braun · Dieter Rams', src: 'Braun T3, SK4', use: 'Få kontroller, præcis typografi og én signalfarve. Rettesnor for enkelhed i knapper og layout.', bg: '#E4E3DF', tex: dots('#17171A'), ts: '8px 8px' },
+        { n: 'Teenage Engineering', src: 'OP-1, TP-7', use: 'Mono-tal og tydelige tryk. Vi beholder tallene og dropper 3D-tasterne.', bg: '#F2F2EF', tex: 'linear-gradient(#FF5A1F, #FF5A1F)', ts: '40% 40%' },
+        { n: 'Halftone-grillen', src: 'Ripple, Voice, Sweep, Chat', use: 'Stemmens fire rytmer. Det eneste materiale, der må bevæge sig uden en enhed bag, og kun mens fasen varer.', bg: '#D8B25A', tex: dots('#1E1D1A'), ts: '6px 6px' },
+        { n: 'Velum · glyphblue', src: 'inspora.design', use: 'Tegnfelter i én mættet farve. Fravalgt som flade, men stærk til Foto-Ros ur og tomme tilstande.', bg: '#1B48F2', tex: dots('#F4F4F1'), ts: '6px 6px' }
+      ] }
+    ];
+    const rules = [
+      { h: 'Billigt', b: 'Canvas 2D eller WebGL1. Ingen WebGPU, ingen tung sløring; Frameo skal kunne køre det hele dagen.' },
+      { h: 'Stille som standard', b: 'Materialet står stille i hvile. Bevægelse kun når noget faktisk kører; pauser når skærmen er skjult.' },
+      { h: 'Aldrig under tekst', b: 'Materialet har sin egen zone og maskes væk fra tekst og knapper.' },
+      { h: 'Bærer en fakta', b: 'Hvert felt viser form, tilstand eller styrke. Ellers ud.' }
+    ];
+    return { cols, rules };
+  }
+}
+</script>
+</body>
+</html>

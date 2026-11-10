@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<title>Gennemgang 4394</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.lbl{font:500 11px 'IBM Plex Mono', ui-monospace, monospace;letter-spacing:.08em;text-transform:uppercase;color:#6B6A66}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; box-sizing: border-box; padding: 32px 36px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; display: flex; flex-direction: column; gap: 18px">
+  <div style="display: flex; flex-direction: column; gap: 4px">
+    <span class="lbl">Gennemgang · a2ba7bcc · kandidaten på :4394 ved 1280×800 · vurdering 4–5/10</span>
+    <span style="font-size: 30px; font-weight: 800; letter-spacing: -0.02em">Hvorfor det føles klemt, og hvad der løser det</span>
+  </div>
+  <div style="flex: 1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-content: start">
+    <sc-for list="{{items}}" as="i" hint-placeholder-count="8">
+      <div style="display: grid; grid-template-columns: 30px 1fr; gap: 12px; padding: 14px 16px; border-radius: 16px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(23,23,26,.06)">
+        <span style="font: 500 14px 'IBM Plex Mono', monospace; color: {{i.c}}">{{i.n}}</span>
+        <div style="display: flex; flex-direction: column; gap: 4px">
+          <span style="font-size: 16px; font-weight: 800">{{i.h}}</span>
+          <span style="font-size: 13px; line-height: 1.42; color: #3F3E3B"><b style="font-weight: 600">Set:&#160;</b>{{i.seen}}</span>
+          <span style="font-size: 13px; line-height: 1.42; color: #3F3E3B"><b style="font-weight: 600">Forslag:&#160;</b>{{i.fix}}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const items = [
+      { h: 'Gridet bruger ikke skærmen', seen: 'Overblikkets kort slutter ved ca. y 690; et tomt bånd på ca. 110 px nederst, mens indholdet ovenover er presset.', fix: 'Tre lige høje rækker på 221 px (S 199×221, M 414×221, L 414×458). Samme pladser, mere luft i hvert kort.' },
+      { h: 'Metadata er for lille til væggen', seen: 'Batteri, timer og prognosetider står i 12–13 px.', fix: 'Fire tekststørrelser: 40 titel, 22 status, 17 brødtekst, 15 metadata. Intet under 15 px på overblikket.' },
+      { h: 'Materiale under tekst', seen: 'Lys: “Tændt” ligger oven i prikfeltet. Vejr: feltet står tæt på temperaturen.', fix: 'Materialet får en fast zone med maske; tekst og knapper har altid ren flade bag sig.' },
+      { h: 'Indre afstand er for stram', seen: 'Kortene har ca. 18–20 px indre afstand, og titel og status står tæt.', fix: '24 px indre afstand, 16 px mellem titel og status, 24 px over handlinger.' },
+      { h: 'Chevrons er inkonsekvente', seen: 'Tesla har chevron, Lys og Robot ikke.', fix: 'Alle kort, der åbner en detalje, har chevron samme sted. Hele kortet er tryk-målet.' },
+      { h: 'Vejrets prognose kniber', seen: 'Prognoserækken støder op mod Højst/Lavest-linjen.', fix: 'Prognosen forankres i bunden med 24 px luft over; tider i 15 px.' },
+      { h: 'En anden aktiv opskrift er uklar', seen: 'Fortsæt kan forveksles med handling på den opskrift, man ser.', fix: 'Fast bånd øverst: “Burgerboller er i gang · trin 2 af 5” med sekundær “Gå til Burgerboller”. Denne opskrifts primære knap hedder “Start denne”.' },
+      { h: 'Ikke testet endnu', seen: 'Færdig timer og lange, tomme og fejlramte afspillere er ikke renderet igen (CLAUDE-REVIEW.md).', fix: 'Én række artboards pr. tilstand på lærredet, inden noget kodes videre; derefter rigtige Green-data via snapshot.' }
+    ].map((x, i) => ({ ...x, n: String(i + 1).padStart(2, '0'), c: i === 6 ? '#B0262A' : '#6B6A66' }));
+    return { items };
+  }
+}
+</script>
+</body>
+</html>
