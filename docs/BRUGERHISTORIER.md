@@ -488,6 +488,17 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 
 **Samlet 46/97.** R5 og B1 er godkendt ved at kombinere eksisterende Green-observationer og præcise browserprøver. Hvert flueben dækker historiens skrevne krav. Kontrolleret browser-/adapterbevis og faktisk Green-/hardwarebevis står pr. historie. Ingen pakke er fuldt afsluttet. De 51 åbne omfatter den nye observation af Stop og de udestående acceptkrav.
 
+**Afstemning af de 51 åbne historier · 10. november.** Grupperne er eksklusive og tæller et faktisk deltrin som et forsøg, aldrig som fuld accept.
+
+| Green-status | Antal | Historier |
+|---|---:|---|
+| Mindst ét relevant trin i den aktuelle Green-runde | 11 | G1 (Mac), A1, K1, F2, F10, R1, R2, R4, S1 (åbning), O6 (Mac), Q2 (gammel historik) |
+| Mindst ét tidligere relevant Green-trin, fuld prøve stadig åben | 16 | G2, A4, A6, A8, K3, K5, F9, H7, S2, S3, S4, S7, S13, T1, B2, B7 |
+| Blokeret før selve kravet | 12 | A2, A3, A13, K2, K4, H1, H5 (session/kø), F6 (godkendt reference), L1–L3 (Hue), B4 (bilhandling afventer) |
+| Intet faktisk Green-forsøg på det skrevne trin bekræftet | 12 | G6, A5, A9, A10, A12, H4, H9, S6, S11, Q1, B3, B8 |
+
+Uafhængige, tilgængelige Green-prøver skal køre uden at vente på musikrettelsen. Ved et reelt blokpunkt noteres det første trin der ikke kan udføres. Efter rettelse gentestes berørte fejl og naboer i én sammenhængende serie. Lokal integration dækker særskilt ejergrænser og lukker ikke et fysisk krav.
+
 De seks idéposter F3, H2, H3, O2, O3 og O9 indgår ikke i pakkernes accept. De allerede aftalte
 dele af O2/O3 bevares. [Robot PR #342](https://github.com/BixelVentures/podvoice/pull/342) ·
 [Speakers PR #125](https://github.com/BixelVentures/podconnect/pull/125)
