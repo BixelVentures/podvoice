@@ -401,8 +401,10 @@ class PodViewBridge:
         self._music_cache: dict[tuple, tuple] = {}
         self._music_room_read_diagnostic: dict[tuple[str, str], tuple[str, ...]] = {}
         self._music_busy = False
-        self._targets_inflight: tuple[tuple, asyncio.Future[bool]] | None = None
-        self._mood_inflight: tuple[tuple, asyncio.Future[None]] | None = None
+        self._targets_inflight: tuple[tuple, asyncio.Future[tuple | None], tuple | None] | None = (
+            None
+        )
+        self._mood_inflight: tuple[tuple, asyncio.Future[None], tuple | None] | None = None
         self._library_waiting_on_mood: asyncio.Future[None] | None = None
         self._music_source_generation = 0
         self._music_profile_generation: dict[str, object] = {}
@@ -3452,6 +3454,24 @@ def _music_read_response(kind, result, bridge, room, account):
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
+def _music_target_scope(bridge, room, account, token):
+    if not account or not token or not bridge._grant_current(room, token):
+        return None
+    grant = bridge._grant_for_token(room, token)
+    room_binding = podview_room_media.binding(bridge, room, account)
+    return (token, grant, room_binding) if grant is not None and room_binding is not None else None
+
+
+def _same_music_target_scope(expected, current):
+    return bool(
+        expected is not None
+        and current is not None
+        and expected[0] == current[0]
+        and expected[1] is current[1]
+        and expected[2] == current[2]
+    )
+
+
 async def _music(request: web.Request) -> web.Response:
     from . import mood_diagnostics as diagnostic_log
 
@@ -3613,9 +3633,25 @@ async def _music(request: web.Request) -> web.Response:
     }
     cached = bridge._music_cache.get(cache_key) if not selection_requested else None
     read_key = (bridge.boot_id, cache_key, binding)
-    if cached is None and kind == "targets" and bridge._music_busy:
+    exact_target_query = (
+        kind == "targets"
+        and set(request.query) <= {"kind", "account", "room"}
+        and all(len(request.query.getall(key)) == 1 for key in request.query)
+    )
+    if cached is None and kind == "targets":
         inflight = bridge._targets_inflight
-        if inflight is not None and inflight[0] == read_key:
+        if inflight is not None:
+            scope = inflight[2]
+            if inflight[0] != read_key or (
+                scope is not None
+                and (
+                    not exact_target_query
+                    or not _same_music_target_scope(
+                        scope, _music_target_scope(bridge, room, account, token)
+                    )
+                )
+            ):
+                return _error("music_busy", 429)
             try:
                 completed = await asyncio.wait_for(asyncio.shield(inflight[1]), timeout=10)
             except TimeoutError:
@@ -3631,10 +3667,17 @@ async def _music(request: web.Request) -> web.Response:
                 or bridge.tools is not tools
                 or binding != _music_binding(bridge, room)
                 or kind not in tools.podview_music_reads()
+                or (
+                    scope is not None
+                    and not _same_music_target_scope(
+                        scope,
+                        _music_target_scope(bridge, room, account, _request_token(request, room)),
+                    )
+                )
             ):
                 return _error("music_unavailable", 503)
             cached = bridge._music_cache.get(cache_key)
-            if cached is None or cached[1] != binding or not _music_cache_fresh(cache_key, cached):
+            if cached is not completed or not _music_cache_fresh(cache_key, cached):
                 return _error("music_unavailable", 503)
     if cached:
         result = (
@@ -3703,7 +3746,17 @@ async def _music(request: web.Request) -> web.Response:
         finally:
             bridge._library_waiting_on_mood = None
     budget = 10 if library_deadline is None else library_deadline - time.monotonic()
-    if bridge._music_busy or budget <= 0:
+    parallel_scope = None
+    if (
+        exact_target_query
+        and bridge._music_busy
+        and mood is not None
+        and mood[0][:5] == (bridge.boot_id, room, account, binding, token)
+    ):
+        target_scope = _music_target_scope(bridge, room, account, token)
+        if _same_music_target_scope(mood[2], target_scope):
+            parallel_scope = target_scope
+    if (bridge._music_busy and parallel_scope is None) or budget <= 0:
         return _error("music_busy", 429)
     source_generation = None
     if selection_requested:
@@ -3712,10 +3765,11 @@ async def _music(request: web.Request) -> web.Response:
             return _error("music_capacity", 429)
         # An admitted refresh replaces this document's pending intent before its first await.
         bridge._retire_music_source(token, document)
-    bridge._music_busy = True
+    if parallel_scope is None:
+        bridge._music_busy = True
     completion = asyncio.get_running_loop().create_future() if kind == "targets" else None
     if completion is not None:
-        bridge._targets_inflight = (read_key, completion)
+        bridge._targets_inflight = (read_key, completion, parallel_scope)
     try:
         try:
             if selection_requested:
@@ -3732,7 +3786,22 @@ async def _music(request: web.Request) -> web.Response:
             _log_terminal_failure("music_read", error)
             result = {"ok": False, "error": "music_unavailable", "retryAllowed": False}
         finally:
-            bridge._music_busy = False
+            if parallel_scope is None:
+                bridge._music_busy = False
+        if parallel_scope is not None:
+            denied = await _guard(request)
+            if denied is not None:
+                return denied
+            if (
+                request.app.get(BRIDGE) is not bridge
+                or _room(request, bridge) != room
+                or bridge.boot_id != read_key[0]
+                or not _same_music_target_scope(
+                    parallel_scope,
+                    _music_target_scope(bridge, room, account, _request_token(request, room)),
+                )
+            ):
+                return _error("music_unavailable", 503)
         if (
             (kind == "account_playlists" and request.app.get(BRIDGE) is not bridge)
             or bridge.tools is not tools
@@ -3786,6 +3855,8 @@ async def _music(request: web.Request) -> web.Response:
                                 )
         # Playback must consult its owner again; it never gets a fresh bridge timestamp.
         if kind != "playback" and not selection_requested:
+            if cache_key not in bridge._music_cache and len(bridge._music_cache) >= 16:
+                return _error("music_capacity", 429)
             bridge._music_cache[cache_key] = (
                 time.monotonic(),
                 binding,
@@ -3793,13 +3864,13 @@ async def _music(request: web.Request) -> web.Response:
                 2 if kind == "queue" else 15,
             )
         if completion is not None:
-            completion.set_result(True)
+            completion.set_result(bridge._music_cache[cache_key])
         return _music_read_response(kind, result, bridge, room, account)
     finally:
         if completion is not None:
             if not completion.done():
-                completion.set_result(False)
-            if bridge._targets_inflight == (read_key, completion):
+                completion.set_result(None)
+            if bridge._targets_inflight is not None and bridge._targets_inflight[1] is completion:
                 bridge._targets_inflight = None
 
 
@@ -3856,8 +3927,8 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
     if bridge.music_selection.busy(room):
         diagnostic_log.admission(kind, "selection_busy", 429)
         return _error("music_busy", 429)
-    if bridge._music_busy and inflight is not None:
-        read_key, completion = inflight
+    if bridge._music_busy and inflight is not None and inflight[2] is None:
+        read_key, completion, _ = inflight
         boot, cache_key, read_binding = read_key
         if (
             boot == bridge.boot_id
@@ -3997,6 +4068,7 @@ async def _mood_music(request, bridge, room, *, kind="mood"):
         bridge._mood_inflight = (
             (bridge.boot_id, room, account, binding, token, request_document),
             completion,
+            _music_target_scope(bridge, room, account, token),
         )
     try:
         # Leave two seconds for ingress/response within the browser 12-second deadline.
