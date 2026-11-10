@@ -31,11 +31,11 @@ body{margin:0}
         </div>
         <div style="position: relative; display: flex; justify-content: space-between; align-items: center">
           <span style="font-size: 17px; font-weight: 600; color: #3E4660">Mårslet · Vejret i dag</span>
-          <sc-if value="{{fresh}}" hint-placeholder-val="{{ false }}"><dc-import name="K-Fresh" text="{{fresh}}" hint-size="220px,32px"></dc-import></sc-if>
+          <sc-if value="{{fresh}}" hint-placeholder-val="{{ false }}"><dc-import name="K-Fresh" solid="true" text="{{fresh}}" hint-size="220px,32px"></dc-import></sc-if>
         </div>
         <span style="position: relative; margin-top: 8px; font-size: 150px; line-height: .85; font-weight: 500; letter-spacing: -0.065em; color: {{bigC}}">{{big}}</span>
-        <span style="position: relative; margin-top: 16px; font-size: 26px; font-weight: 800">{{line}}</span>
-        <span style="position: relative; font-size: 17px; color: #3E4660">{{sub}}</span>
+        <span style="position: relative; margin-top: 24px; font-size: 26px; line-height: 32px; font-weight: 800">{{line}}</span>
+        <span style="position: relative; margin-top: 8px; font-size: 17px; line-height: 24px; color: #3E4660">{{sub}}</span>
         <div style="position: relative; margin-top: auto; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); padding-top: 20px; border-top: 1px solid rgba(23,23,26,.10); opacity: {{hoursOp}}" role="list" aria-label="Timeprognose">
           <sc-for list="{{hours}}" as="h" hint-placeholder-count="5">
             <div role="listitem" style="display: flex; flex-direction: column; align-items: center; gap: 8px">
@@ -97,7 +97,7 @@ class Component extends DCLogic {
     const st = this.props.state || 'frisk';
     const S = {
       frisk: { fresh: '', big: '8°', bigC: '#3A4560', line: 'Skyet · Tag en jakke med.', sub: 'Højst 8° · Lavest 6° · Met.no', matOp: 1, hoursOp: 1, off: false },
-      gammel: { fresh: 'Opdateret 11.02', big: '8°', bigC: '#3A4560', line: 'Skyet · Tag en jakke med.', sub: 'Højst 8° · Lavest 6° · Met.no', matOp: 0.45, hoursOp: 1, off: false },
+      gammel: { fresh: 'Opdateret 11.02', big: '8°', bigC: '#3A4560', line: 'Skyet · Tag en jakke med.', sub: 'Højst 8° · Lavest 6° · Met.no', matOp: 1, hoursOp: 1, off: false },
       ukendt: { fresh: '', big: '—', bigC: '#5F5E5A', line: 'Vejret kunne ikke hentes', sub: 'Met.no', matOp: 0.2, hoursOp: 0.3, off: true }
     };
     return { wx, hours, days, ...(S[st] || S.frisk) };

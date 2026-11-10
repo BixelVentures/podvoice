@@ -29,7 +29,7 @@ a.kw:active{transform:scale(.985)}
 .an-flow{animation:flow 2s linear infinite}
 .an-pulse{animation:pulse 1.6s ease-in-out infinite}
 .an-warm{animation:inward 2.6s ease-in-out infinite}
-@keyframes inward{0%,100%{transform:scale(.45);opacity:.45}50%{transform:scale(1);opacity:1}}
+@keyframes inward{0%,100%{transform:scale(.3);opacity:.3}50%{transform:scale(1.1);opacity:1}}
 @keyframes flow{0%{opacity:1}14%{opacity:.35}28%,100%{opacity:1}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
 @media (prefers-reduced-motion: reduce){.an-in,.an-flow,.an-pulse,.an-warm{animation:none}}
@@ -140,14 +140,14 @@ class Component extends DCLogic {
       // Kilde: HA Green 9. nov. 14.30 (første state = Green) og produktets egne tekster (weather-view.js m.fl.).
       vejr: {
         _: { w: 414, h: 458, label: 'Vejr', icon: I.cloud, href: 'A-Vejr.dc.html', cloud: true, primTop: '20px', primS: '20px' },
-        sidstkendt: { bg: '#DDE6FB', mat: '#1F55F0', matOp: 0.45, big: '8°', bigC: '#17171A', prim: 'Skyet', ctx: 'Højst 8° · lavest 6°', ctxC: '#3E4660', hourC: '#1A3FB8',
+        sidstkendt: { bg: '#DDE6FB', mat: '#1F55F0', big: '8°', bigC: '#17171A', prim: 'Skyet', ctx: 'Højst 8° · lavest 6°', ctxC: '#3E4660', hourC: '#1A3FB8',
           hours: [['15.00', '8°'], ['16.00', '8°'], ['17.00', '7°'], ['18.00', '7°'], ['19.00', '7°']].map(([t, v]) => ({ t, v, d: I.cloud })) },
         frisk: { bg: '#DDE6FB', mat: '#1F55F0', big: '8°', bigC: '#17171A', prim: 'Skyet', ctx: 'Højst 8° · lavest 6°', ctxC: '#3E4660', hourC: '#1A3FB8',
           hours: [['15.00', '8°'], ['16.00', '8°'], ['17.00', '7°'], ['18.00', '7°'], ['19.00', '7°']].map(([t, v]) => ({ t, v, d: I.cloud })) },
         ukendt: { bg: '#DDE6FB', mat: '#1F55F0', matOp: 0.2, big: '—', bigC: grey, prim: 'Vejret kunne ikke hentes', primC: '#5F5E5A', ctx: 'Home Assistant svarer ikke lige nu', hours: false }
       },
       robot: {
-        _: { w: 414, h: 221, label: 'Robotstøvsuger', icon: I.robot, href: 'A-Robot.dc.html', arcs: true, mat: '#B23A62', primS: '20px', primC: '#8A2A4C', ctxC: '#5E4049' },
+        _: { w: 414, h: 221, label: 'Robotstøvsuger', icon: I.robot, href: 'A-Robot.dc.html', arcs: true, mat: '#B23A62', primS: '20px', ctxC: '#5E4049' },
         oplader: { bg: '#F6D8E1', prim: 'Oplader', ctx: 'Batteri 100 % · senest 0,2 m² · 1,1 min', matOp: 0.55 },
         rengoer: { bg: '#F6D8E1', prim: 'Rengør', ctx: 'Støvsugning og gulvvask', anim: 'an-in', action: 'Pause' },
         pause: { bg: '#F6D8E1', prim: 'På pause', ctx: 'Robotten mangler vand', alert: '#B07A06', matOp: 0.7, action: 'Fortsæt' },
@@ -173,7 +173,7 @@ class Component extends DCLogic {
       },
       musik: {
         _: { label: 'Find musik', icon: I.music, href: 'A-Musik.dc.html' },
-        tom: { prim: 'Vælg musik', ctx: 'Til eftermiddagen', disc: true },
+        tom: { prim: 'Vælg musik', ctx: 'Stemning · 3 forslag', disc: true },
         ikketilg: { prim: 'Stemning', primC: '#5F5E5A', ctx: 'Stemningsforslag er ikke tilgængelige endnu.', disc: true }
       },
       radio: {
@@ -188,7 +188,7 @@ class Component extends DCLogic {
         _: { label: 'Opskrifter', icon: I.recipe, href: 'A-Opskrifter.dc.html' },
         igang: { bg: '#F2E4D3', label: 'Opskrift', href: 'A-Opskrift.dc.html', prim: 'Burgerboller', ctx: 'I gang · trin 2 af 5', ctxC: '#6B4A2E', barN: 5, barGap: 4, barLabel: 'Trin 2 af 5',
           bar: ['#7A4A22', '#C98A4E', 'rgba(122,74,34,.18)', 'rgba(122,74,34,.18)', 'rgba(122,74,34,.18)'] },
-        katalog: { prim: '9 opskrifter', ctx: 'Brød og bagværk · Aftensmad' },
+        katalog: { prim: '9 opskrifter', ctx: '5 kategorier' },
         tom: { prim: 'Ingen opskrifter', primC: '#5F5E5A', ctx: 'Der er ingen opskrifter endnu.' }
       },
       timer: {

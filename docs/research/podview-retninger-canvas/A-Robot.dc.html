@@ -44,7 +44,7 @@ body{margin:0}
         </div>
         <span style="position: relative; margin-top: 8px; font-size: {{heroTitle}}px; line-height: 1; font-weight: 800; letter-spacing: -0.035em; color: {{s.titleC}}">{{s.title}}</span>
         <span style="position: relative; margin-top: 12px; font-size: 19px; font-weight: 600; color: #3F3E3B">{{s.sub}}</span>
-        <div style="position: relative; margin-top: auto; display: flex; align-items: center; gap: 12px">
+        <div style="position: relative; margin-top: auto; display: flex; align-items: center; gap: 12px; justify-content: flex-start; flex-direction: row-reverse">
           <sc-for list="{{s.actions}}" as="a" hint-placeholder-count="2">
             <button class="btn" style="height: 56px; padding: 0 26px; border-radius: 999px; background: {{a.bg}}; color: {{a.fg}}; box-shadow: {{a.sh}}; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">{{a.label}}</button>
           </sc-for>
@@ -80,11 +80,11 @@ body{margin:0}
         <span style="padding: 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Rengøringsvalg</span>
         <div class="cd" style="padding: 12px 24px; box-sizing: border-box; display: flex; flex-direction: column">
           <sc-for list="{{opts}}" as="g" hint-placeholder-count="5">
-            <div style="display: grid; grid-template-columns: 180px 1fr; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid rgba(23,23,26,.07)">
-              <span style="font-size: 17px; font-weight: 600">{{g.k}}</span>
+            <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-bottom: 1px solid rgba(23,23,26,.07)">
+              <span style="font-size: {{g.ks}}px; font-weight: {{g.kw}}; color: {{g.kc}}">{{g.k}}</span>
               <div style="display: grid; grid-template-columns: {{g.cols}}; gap: 4px; padding: 4px; border-radius: 999px; background: #E9E7E2">
                 <sc-for list="{{g.o}}" as="o" hint-placeholder-count="4">
-                  <button class="btn" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: 44px; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; font: 600 16px 'Schibsted Grotesk', sans-serif">{{o.l}}</button>
+                  <button class="btn" onClick="{{o.pick}}" aria-pressed="{{o.on}}" style="height: {{g.bh}}px; border-radius: 999px; background: {{o.bg}}; color: {{o.fg}}; font: 600 {{g.bf}}px 'Schibsted Grotesk', sans-serif">{{o.l}}</button>
                 </sc-for>
               </div>
             </div>
@@ -143,15 +143,15 @@ class Component extends DCLogic {
     const danger = { bg: 'transparent', fg: '#B0262A', sh: 'inset 0 0 0 1.5px rgba(176,38,42,.45)' };
     const segs = (p) => Array.from({ length: 25 }, (_, i) => (i < Math.round(p / 4) ? '#7E2242' : 'rgba(126,34,66,.16)'));
     const S = {
-      oplader: { surface: '#F6D8E1', ring: '#B23A62', core: '#F7F6F3', anim: '', ringOp: 0.55, mode: 'Ved basen', title: 'Oplader', titleC: '#8A2A4C',
+      oplader: { surface: '#F6D8E1', ring: '#B23A62', core: '#F7F6F3', anim: '', ringOp: 0.55, mode: 'Ved basen', title: 'Oplader', titleC: '#17171A',
         sub: 'Batteri 100 % · senest 0,2 m² · 1,1 min', actions: [{ ...dark, label: 'Start · ' + n + ' rum' }] },
-      rengoer: { surface: '#F6D3DE', ring: '#B23A62', core: '#B23A62', anim: 'an-in', ringOp: 1, mode: 'Støvsugning og gulvvask', title: 'Rengør', titleC: '#7E2242',
+      rengoer: { surface: '#F6D3DE', ring: '#B23A62', core: '#B23A62', anim: 'an-in', ringOp: 1, mode: 'Støvsugning og gulvvask', title: 'Rengør', titleC: '#17171A',
         sub: 'Stueplan (2025) · ' + n + ' områder',
         actions: [{ ...dark, label: 'Pause' }, { ...danger, label: 'Afslut' }] },
-      pause: { surface: '#F6D3DE', ring: '#B23A62', core: '#B23A62', anim: '', ringOp: 0.7, mode: 'Støvsugning og gulvvask', title: 'På pause', titleC: '#7E2242',
+      pause: { surface: '#F6D3DE', ring: '#B23A62', core: '#B23A62', anim: '', ringOp: 0.7, mode: 'Støvsugning og gulvvask', title: 'På pause', titleC: '#17171A',
         sub: 'Brug Pause, hvis du vil fortsætte senere.', nb: ['handling', 'Robotten mangler vand'],
         actions: [{ ...dark, label: 'Fortsæt' }, { ...danger, label: 'Afslut' }] },
-      tilbasen: { surface: '#F6D3DE', ring: '#B23A62', core: '#17171A', anim: 'an-in', ringOp: 0.8, mode: 'Kør til basen', title: 'Til basen', titleC: '#7E2242',
+      tilbasen: { surface: '#F6D3DE', ring: '#B23A62', core: '#17171A', anim: 'an-in', ringOp: 0.8, mode: 'Kør til basen', title: 'Til basen', titleC: '#17171A',
         sub: 'Robotten sendes til basen.', actions: [{ ...dark, label: 'Pause' }] },
       fejl: { surface: '#F6D8E1', ring: '#8C8A85', core: '#B0262A', anim: '', ringOp: 0.45, broken: true, mode: 'Robotfejl', title: 'Hovedbørsten sidder fast', titleC: '#B0262A',
         sub: 'Robotten melder en fejl', nb: ['fejl', 'Sluk robotten før du fjerner hår og genstande fra hovedbørsten, dens ender og holderne.'],
@@ -191,8 +191,9 @@ class Component extends DCLogic {
       ['rute', 'Rute', ['Standard', 'Hurtig', 'Tilpasset'], 'repeat(3, minmax(0, 1fr))'],
       ['gange', 'Antal gange', ['1×', '2×'], 'repeat(2, minmax(0, 1fr))']
     ];
-    const opts = groups.map(([key, k, labels, cols]) => ({
-      k, cols,
+    // Hierarki: Type er hovedvalget (56 høj, 20 px label); resten er finjustering (44 høj, 15 px grå label). Fuld bredde.
+    const opts = groups.map(([key, k, labels, cols], gi) => ({
+      k, cols, ks: gi === 0 ? 20 : 15, kw: gi === 0 ? 800 : 600, kc: gi === 0 ? '#17171A' : '#5F5E5A', bh: gi === 0 ? 56 : 44, bf: gi === 0 ? 17 : 16,
       o: labels.map((l, i) => {
         const on = this.state.o[key] === i;
         return { l, on: on ? 'true' : 'false', bg: on ? '#17171A' : 'transparent', fg: on ? '#F7F6F3' : '#17171A', sh: 'none',
