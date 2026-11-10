@@ -290,6 +290,11 @@ async def test_current_room_requires_ha_value_change_inside_the_observed_run(cas
         "reconfigure",
         "terminal",
         "pause-before-cleaning",
+        "delayed-binary",
+        "vacuum-stamp-missing",
+        "vacuum-stamp-previous",
+        "vacuum-stamp-future",
+        "vacuum-stamp-order",
     ],
 )
 async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness(prior):
@@ -300,6 +305,8 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
     room = "Bathroom1"
     recorder_ready = False
     changed_registry = False
+    delayed_binary = prior == "delayed-binary" or prior.startswith("vacuum-stamp-")
+    vacuum_edge = 0.0
 
     async def registry(command):
         entries = await read_registry(command)
@@ -317,6 +324,19 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
             value.update(
                 state=state, last_changed=iso(edge + 20 if state == "cleaning" else edge - 10)
             )
+            if delayed_binary and state != "docked":
+                if prior != "vacuum-stamp-missing":
+                    reported = time.time()
+                    changed = {
+                        "vacuum-stamp-previous": edge - 10,
+                        "vacuum-stamp-future": reported + 5,
+                        "vacuum-stamp-order": reported,
+                    }.get(prior, vacuum_edge)
+                    if prior == "vacuum-stamp-order":
+                        reported = changed - 1
+                    value.update(last_changed=iso(changed), last_reported=iso(reported))
+                else:
+                    value.pop("last_changed", None)
             if prior == "assumed" and state == "docked":
                 value["attributes"]["assumed_state"] = True
             return httpx.Response(200, json=value)
@@ -332,6 +352,10 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
                         row.update(last_changed=iso(edge - 400), last_reported=iso(edge - 390))
                     if prior == "old-edge":
                         row["last_reported"] = iso(edge + 5)
+                if row["entity_id"] == CLEAN and delayed_binary and not recorder_ready:
+                    row.update(
+                        state="off", last_changed=iso(edge - 20), last_reported=iso(edge - 15)
+                    )
                 if row["entity_id"] == ROOM and room == "Corridor1":
                     row.update(state=room, last_changed=iso(edge + 10))
             return httpx.Response(200, json=rows)
@@ -364,9 +388,11 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
             state = "idle" if prior == "terminal" else "paused"
             await view("Bathroom1")
         state = "cleaning"
-        await view("Bathroom1", historical=prior == "dock")
-        if prior == "dock":
+        vacuum_edge = time.time()
+        await view("Bathroom1", historical=prior in {"dock", "delayed-binary"})
+        if prior in {"dock", "delayed-binary"}:
             state = "paused"
+            vacuum_edge = time.time()
             await view("Bathroom1", historical=True)
             room = "Corridor1"
             await view("Corridor1")

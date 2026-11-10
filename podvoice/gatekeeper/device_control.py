@@ -203,10 +203,20 @@ class PreparedAction:
 
 
 @dataclass(frozen=True)
+class _RobotVacuumSample:
+    state: str
+    observed_at: float
+    read_time: float
+    fresh_change: float | None
+
+
+@dataclass(frozen=True)
 class _RobotRoomWitness:
     binding_id: str
     terminal_at: float
+    terminal_observed_at: float
     cleaning_since: float | None = None
+    vacuum_started: bool = False
 
 
 class DeviceControl:
@@ -261,7 +271,7 @@ class DeviceControl:
             self._display_tickets.clear()
 
     async def _robot_observation(
-        self, entity_id: str, generation: int, vacuum_sample: tuple[str, float, float] | None = None
+        self, entity_id: str, generation: int, vacuum_sample: _RobotVacuumSample | None = None
     ) -> dict:
         try:
             return await asyncio.wait_for(
@@ -301,7 +311,7 @@ class DeviceControl:
         return result
 
     async def _robot_observation_read(
-        self, entity_id: str, generation: int, vacuum_sample: tuple[str, float, float] | None
+        self, entity_id: str, generation: int, vacuum_sample: _RobotVacuumSample | None
     ) -> dict:
         optional_deadline = time.monotonic() + 4.5
         unavailable = {"status": "unavailable", "items": []}
@@ -473,16 +483,16 @@ class DeviceControl:
         self,
         entity_id: str,
         binding_id: str,
-        vacuum_sample: tuple[str, float, float] | None,
+        vacuum_sample: _RobotVacuumSample | None,
         cleaning: tuple[bool, float, float] | None,
     ) -> float | None:
         # This witness is a display-only lower bound, never a synthetic Recorder start.
         if vacuum_sample is None:
             return None
-        state, observed_at, read_time = vacuum_sample
+        state, observed_at = vacuum_sample.state, vacuum_sample.observed_at
         if (
             self._robot_read_source != (self._client, self._token)
-            or self._robot_read_times.get(entity_id) != read_time
+            or self._robot_read_times.get(entity_id) != vacuum_sample.read_time
         ):
             return None
         prior = self._robot_room_witnesses.get(entity_id)
@@ -492,26 +502,36 @@ class DeviceControl:
         if state == "docked":
             self._robot_room_witnesses.pop(entity_id, None)
             if cleaning is not None and not cleaning[0] and 0 <= observed_at - cleaning[2] <= 300:
-                self._robot_room_witnesses[entity_id] = _RobotRoomWitness(binding_id, cleaning[2])
+                self._robot_room_witnesses[entity_id] = _RobotRoomWitness(
+                    binding_id, cleaning[2], observed_at
+                )
             return None
-        if state == "paused" and prior and prior.cleaning_since is None:
+        if state not in {"cleaning", "paused"} or prior is None:
+            return None
+        changed = cleaning[1] if cleaning and cleaning[0] else None
+        if prior.cleaning_since is not None:
+            if changed == prior.cleaning_since:
+                return prior.terminal_at
+            if changed is not None:
+                self._robot_room_witnesses.pop(entity_id, None)
+            return None
+        if state == "paused" and not prior.vacuum_started:
             self._robot_room_witnesses.pop(entity_id, None)
             return None
-        if state not in {"cleaning", "paused"} or cleaning is None or not cleaning[0] or not prior:
-            return None
-        _, changed, _ = cleaning
-        if prior.cleaning_since == changed:
+        if changed is not None and 0 < changed - prior.terminal_at <= 300:
+            self._robot_room_witnesses[entity_id] = replace(prior, cleaning_since=changed)
             return prior.terminal_at
+        # The exact vacuum may change before the separate in_cleaning sensor.
+        # Its newer state proves activity after docking, but never sets the room cutoff.
+        vacuum_change = vacuum_sample.fresh_change
         if (
-            prior.cleaning_since is None
-            and state == "cleaning"
-            and 0 < changed - prior.terminal_at <= 300
+            cleaning is not None
+            and not cleaning[0]
+            and vacuum_change is not None
+            and 0 < vacuum_change - prior.terminal_observed_at <= 300
         ):
-            self._robot_room_witnesses[entity_id] = _RobotRoomWitness(
-                binding_id, prior.terminal_at, changed
-            )
+            self._robot_room_witnesses[entity_id] = replace(prior, vacuum_started=True)
             return prior.terminal_at
-        self._robot_room_witnesses.pop(entity_id, None)
         return None
 
     async def _robot_current_activity(
@@ -697,7 +717,16 @@ class DeviceControl:
                 self._robot_read_times[entity_id] = read_time
                 state = value["state"]
                 if attrs.get("assumed_state") is not True:
-                    vacuum_sample = (state, observed_at, read_time)
+                    changed = podview_robot._epoch(value.get("last_changed"))
+                    reported = podview_robot._epoch(value.get("last_reported"))
+                    fresh_change = (
+                        changed
+                        if changed is not None
+                        and reported is not None
+                        and observed_at - 300 <= changed <= reported <= observed_at
+                        else None
+                    )
+                    vacuum_sample = _RobotVacuumSample(state, observed_at, read_time, fresh_change)
                 if vacuum_sample is None or state not in {"docked", "cleaning", "paused"}:
                     self._robot_room_witnesses.pop(entity_id, None)
                 elif state == "docked" and (prior := self._robot_room_witnesses.get(entity_id)):
