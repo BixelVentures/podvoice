@@ -105,4 +105,5 @@ med egen beslutning. Designet ligger på lærredet (tavlenavn i parentes).
 - Vejr: materiale pr. vejrtype og vandret scroll af timer.
 - Svar: fire former og historik "Alle svar".
 - Afspiller: lyd fra/til på højttalerikonet.
+- Tom afspiller med forslag (Tid på dagen) og Hør igen; følger fanernes regler, skjuler forslag når stemningsforslag ikke er tilgængelige.
 - Foto-Ro: billeder fra delt iCloud-album (afventer link).

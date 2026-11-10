@@ -15,7 +15,7 @@ a{color:#17171A;text-decoration:none}
 .btn{border:0;cursor:pointer;transition:transform .12s ease, filter .12s ease}
 .btn:active{transform:scale(.97);filter:brightness(.92)}
 .btn:focus-visible{outline:2px solid #17171A;outline-offset:3px}
-.cf{position:absolute;left:50%;top:0;width:560px;height:360px;margin-left:-280px;border-radius:22px;overflow:hidden;background:#C9B79F;transition:transform .6s cubic-bezier(.2,.9,.3,1), opacity .5s ease, filter .5s ease;transform-style:preserve-3d}
+.cf{position:absolute;left:50%;top:0;width:720px;height:460px;margin-left:-360px;border-radius:22px;overflow:hidden;background:#C9B79F;transition:transform .6s cubic-bezier(.2,.9,.3,1), opacity .5s ease, filter .5s ease;transform-style:preserve-3d}
 .cf img{width:100%;height:100%;object-fit:cover;display:block}
 .info{transition:opacity .25s ease}
 @media (prefers-reduced-motion: reduce){.cf{transition:none}}
@@ -28,10 +28,10 @@ a{color:#17171A;text-decoration:none}
       <a href="A-Opskrifter.dc.html" class="btn" style="height: 44px; padding: 0 20px; border-radius: 999px; display: flex; align-items: center; font: 600 16px 'Schibsted Grotesk', sans-serif">Katalog</a>
       <span style="height: 44px; padding: 0 20px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; font: 600 16px 'Schibsted Grotesk', sans-serif">Udforsk</span>
     </div>
-    <span style="font: 500 16px 'Schibsted Grotesk', sans-serif; color: #5F5E5A">{{pos}} af {{total}} · swipe</span>
+    <span style="font: 500 16px 'Schibsted Grotesk', sans-serif; color: #5F5E5A">{{pos}} af {{total}}</span>
   </div>
 
-  <div style="position: absolute; left: 0; right: 0; top: 176px; height: 380px; perspective: 1400px" aria-roledescription="karrusel">
+  <div style="position: absolute; left: 0; right: 0; top: 152px; height: 470px; perspective: 1600px" aria-roledescription="karrusel">
     <sc-for list="{{covers}}" as="c" hint-placeholder-count="5">
       <a href="A-Opskrift.dc.html" class="cf" aria-hidden="{{c.hid}}" aria-label="{{c.t}}" onClick="{{c.go}}" style="transform: translateX({{c.x}}px) translateZ({{c.z}}px) rotateY({{c.r}}deg); opacity: {{c.o}}; z-index: {{c.zi}}; filter: brightness({{c.b}}); box-shadow: {{c.sh}}">
         <img src="{{c.img}}" alt="">
@@ -40,17 +40,13 @@ a{color:#17171A;text-decoration:none}
     </sc-for>
   </div>
 
-  <div class="info" style="position: absolute; left: 0; right: 0; top: 580px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center">
+  <div class="info" style="position: absolute; left: 0; right: 0; top: 636px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center">
     <span style="font: 600 15px 'Schibsted Grotesk', sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #7A4A22; height: 20px">{{cur.c}}</span>
     <span style="font: 800 36px/44px 'Fraunces', Georgia, serif; letter-spacing: -0.02em; height: 44px; max-width: 900px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{cur.t}}</span>
     <span style="font-size: 17px; line-height: 24px; color: #5F5E5A; height: 24px">{{cur.m}}</span>
   </div>
 
-  <div style="position: absolute; left: 24px; right: 24px; bottom: 24px; height: 56px; display: flex; justify-content: center; align-items: center; gap: 16px">
-    <button class="btn" onClick="{{prev}}" aria-label="Forrige opskrift" style="width: 56px; height: 56px; border-radius: 999px; background: #F7F6F3; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-    <div style="display: flex; gap: 8px"><sc-for list="{{dots}}" as="d" hint-placeholder-count="9"><i style="width: {{d.w}}px; height: 8px; border-radius: 4px; background: {{d.c}}; display: block; transition: width .3s ease"></i></sc-for></div>
-    <button class="btn" onClick="{{next}}" aria-label="Næste opskrift" style="width: 56px; height: 56px; border-radius: 999px; background: #F7F6F3; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
-    <a href="A-Opskrift.dc.html" class="btn" style="position: absolute; right: 0; height: 56px; padding: 0 24px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; font: 600 17px 'Schibsted Grotesk', sans-serif">Åbn opskrift</a>
+  <div style="position: absolute; left: 0; right: 0; top: 752px; display: flex; justify-content: center; gap: 8px" aria-hidden="true"><sc-for list="{{dots}}" as="d" hint-placeholder-count="9"><i style="width: {{d.w}}px; height: 6px; border-radius: 3px; background: {{d.c}}; display: block; transition: width .3s ease"></i></sc-for></div>
   </div>
 </div>
 </x-dc>
@@ -59,7 +55,7 @@ class Component extends DCLogic {
   constructor(props) { super(props); this.state = { i: 0 }; }
   renderVals() {
     // Udforsk som moderne Cover Flow i liggende format: det valgte billede står fladt og stort (560×360),
-    // naboerne vinkles 55° til siderne og falder tilbage. Swipe eller pile; tryk på en nabo vælger den.
+    // naboerne vinkles 55° til siderne og falder tilbage. Swipe vandret; tryk på en nabo vælger den, tryk på midten åbner opskriften. Ingen knapbjælke, så billederne får højden (720×460).
     // Titel og info står fast under det valgte billede (kategori 20, titel 44, meta 24), så intet hopper.
     // Alle billeder og data er fra HA Green (api/recipes, recipe.image).
     const R = [
@@ -76,7 +72,7 @@ class Component extends DCLogic {
     const i = this.state.i;
     const covers = R.map((r, k) => {
       const d = k - i, a = Math.abs(d), sgn = Math.sign(d);
-      return { ...r, active: k === 0, x: d === 0 ? 0 : sgn * (330 + (a - 1) * 120), z: d === 0 ? 0 : -220 - (a - 1) * 60, r: d === 0 ? 0 : -sgn * 55,
+      return { ...r, active: k === 0, x: d === 0 ? 0 : sgn * (430 + (a - 1) * 110), z: d === 0 ? 0 : -260 - (a - 1) * 60, r: d === 0 ? 0 : -sgn * 55,
         o: a > 3 ? 0 : 1, zi: 20 - a, b: d === 0 ? 1 : 0.82, hid: d === 0 ? 'false' : 'true',
         sh: d === 0 ? '0 40px 70px -30px rgba(23,23,26,.6)' : '0 20px 40px -24px rgba(23,23,26,.5)',
         go: (e) => { if (d !== 0) { e.preventDefault(); this.setState({ i: k }); } } };

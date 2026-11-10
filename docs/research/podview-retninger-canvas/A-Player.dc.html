@@ -51,12 +51,20 @@ a{color:#17171A;text-decoration:none}
   </button>
 
   <sc-if value="{{isIdle}}" hint-placeholder-val="{{ false }}">
-    <div style="margin-top: 16px; width: 324px; height: 324px; border-radius: 16px; background: #ECEAE5; display: flex; align-items: center; justify-content: center" aria-hidden="true">
-      <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="#8C8A85" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
+    <div style="margin-top: 16px; width: 324px; height: 220px; border-radius: 16px; background: #ECEAE5; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#8C8A85" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
     </div>
-    <span style="margin-top: 20px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Intet spiller</span>
-    <span style="font-size: 16px; color: #5F5E5A">Vælg en stemning eller sang.</span>
-    <a href="A-Musik.dc.html" class="pl-chip" style="margin-top: auto; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">Vælg musik</a>
+    <span style="margin-top: 16px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em">Intet spiller</span>
+    <sc-if value="{{moodOk}}" hint-placeholder-val="{{ true }}">
+    <span style="margin-top: 12px; font-size: 15px; font-weight: 600; color: #5F5E5A">{{periodLabel}}</span>
+    <a href="A-Musik.dc.html" class="pl-chip" style="margin-top: 6px; height: 56px; display: grid; grid-template-columns: 48px 1fr 44px; align-items: center; gap: 12px; color: #17171A; text-decoration: none"><img src="/_blob/593d7741d16d21440560333e0e442ad1" alt="" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 16px; font-weight: 700">Pop Remix</span><span style="font-size: 15px; color: #5F5E5A">Spotify-playliste</span></span><span style="width: 44px; height: 44px; border-radius: 999px; background: #EFEDE8; display: flex; align-items: center; justify-content: center" aria-label="Afspil Pop Remix"><svg width="16" height="16" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg></span></a>
+    </sc-if>
+    <span style="margin-top: 10px; font-size: 15px; font-weight: 600; color: #5F5E5A">Hør igen</span>
+    <div style="margin-top: 6px; display: flex; flex-direction: column; gap: 4px">
+      <a href="Musik-HoerIgen.dc.html" class="pl-chip" style="height: 56px; display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: 12px; color: #17171A; text-decoration: none"><img src="/_blob/8a8790ee6fae7dbef7a620ae2061e220" alt="" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 16px; font-weight: 700">End of Beginning</span><span style="font-size: 15px; color: #5F5E5A">Djo</span></span></a>
+      <a href="Musik-HoerIgen.dc.html" class="pl-chip" style="height: 56px; display: grid; grid-template-columns: 48px 1fr; align-items: center; gap: 12px; color: #17171A; text-decoration: none"><img src="/_blob/307bd4827a7bb0c9a91b42f220926d72" alt="" style="width: 48px; height: 48px; border-radius: 8px; object-fit: cover"><span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 16px; font-weight: 700">Flowers</span><span style="font-size: 15px; color: #5F5E5A">Miley Cyrus</span></span></a>
+    </div>
+    <a href="A-Musik.dc.html" class="pl-chip" style="margin-top: auto; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">Find musik</a>
   </sc-if>
 
   <sc-if value="{{isOther}}" hint-placeholder-val="{{ false }}">
@@ -197,7 +205,15 @@ class Component extends DCLogic {
     const pending = this.state.took === 'pending';
     // Lyd fra/til: højttalerikonet er en 44×44 trykflade. Lyd fra viser et kryds, slideren dæmpes, og niveauet huskes.
     const muted = !!this.state.muted;
+    // Tom afspiller følger produktets regler (audit 10. nov.):
+    // · Periode: discoveryPeriod() — før 11 "Godmorgen", før 17 "Til eftermiddagen", ellers "Til aftenen" (music-results.js).
+    // · Forslag: første kort i fanen Tid på dagen for perioden (widget-model discoveryGroups; eftermiddag = Pop Remix).
+    // · Hør igen: de to første i Senest (COLLECTION_TRACKS.recent = End of Beginning, Flowers; live = kontoens seneste).
+    // · Er stemningsforslag ikke tilgængelige (som på HA Green i dag), skjules forslagsrækken; Hør igen og Find musik står.
+    // · Opdateres når fanerne opdateres (samme kilde), ikke en separat liste. Selve visningen i afspilleren er ny (spor C).
+    const hr = Number(this.props.hour ?? 14), periodLabel = hr < 11 ? 'Godmorgen' : hr < 17 ? 'Til eftermiddagen' : 'Til aftenen';
     return {
+      periodLabel, moodOk: this.props.moodOk !== false && String(this.props.moodOk) !== 'false',
       mute: () => this.setState({ muted: !muted }), muteAria: muted ? 'Slå lyd til' : 'Slå lyd fra', mutedAria: muted ? 'true' : 'false',
       muteC: muted ? '#17171A' : '#5F5E5A', muteWave: muted ? 'M16 9l5 6M21 9l-5 6' : 'M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12', vol: muted ? 0 : 35, volOp: muted ? 0.45 : 1,
       isIdle: mode === 'idle', isOther: mode === 'other', isMine: mode === 'mine', isRadio: mode === 'radio', moodOn: mode === 'mine' || (mode === 'radio' && rs !== 'stoppet'),
