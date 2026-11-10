@@ -1,5 +1,6 @@
 """Real paired queue broker with separate effect-free staging and commit."""
 
+import asyncio
 import copy
 import secrets
 import time
@@ -142,6 +143,50 @@ async def test_exact_duplicate_occurrence_stages_then_commits_once_without_brows
         call[2] == {"config_entry_id": "account-alpha", "include_output": True}
         for call in rig.calls
     )
+
+
+@pytest.mark.parametrize("renewal", ["held", "failed", "same_grant_second_view"])
+async def test_presented_occurrence_survives_unrelated_queue_read(rig, renewal, caplog):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    assert offer["ok"]
+    choice = action(offer)
+    facade = bridge.controls.music
+    original = facade._read.side_effect
+    entered, release = asyncio.Event(), asyncio.Event()
+    held = None
+
+    async def hold_first_read(client, token, service, request):
+        if service == "get_room_queue_controls" and not entered.is_set():
+            entered.set()
+            if renewal == "held":
+                await release.wait()
+            if renewal == "failed":
+                raise OSError("inert queue refresh failed")
+        return await original(client, token, service, request)
+
+    facade._read.side_effect = hold_first_read
+    try:
+        if renewal == "held":
+            held = asyncio.create_task(bridge.queue.offer(request, "grant"))
+            await asyncio.wait_for(entered.wait(), 1)
+        else:
+            refresh = await bridge.queue.offer(dict(request), "grant")
+            assert refresh["ok"] is (renewal == "same_grant_second_view")
+            if refresh["ok"]:
+                assert refresh["taskId"] != offer["taskId"]
+        before = len(facade._read.await_args_list)
+        with caplog.at_level("INFO", logger="gatekeeper.podview_queue"):
+            receipt = await bridge.queue.action(choice, "grant")
+        calls = [call.args[2] for call in facade._read.await_args_list[before:]]
+        assert (receipt["outcome"], calls) == (
+            "accepted",
+            ["get_room_queue_controls", "prepare_room_queue", "control_room_queue"],
+        ), caplog.text
+    finally:
+        if held is not None:
+            release.set()
+            await held
 
 
 async def test_queue_read_matches_actual_registered_control_identity_schema(rig):

@@ -12,7 +12,8 @@ const queueIntentDuringRefresh = process.env.MUSIC_QUEUE_INTENTS === 'refresh' |
 const queueUnknownUnchanged = process.env.MUSIC_QUEUE_INTENTS === 'unknown-unchanged';
 const queueUnknown = process.env.MUSIC_QUEUE_INTENTS === 'unknown' || queueUnknownUnchanged;
 const queueIntents = process.env.MUSIC_QUEUE_INTENTS === '1' || queueIntentDuringRefresh || queueUnknown;
-const queueIdentity=process.env.MUSIC_QUEUE_IDENTITY_TEST==='1';
+const queueGeneration=process.env.MUSIC_QUEUE_IDENTITY_TEST==='generation';
+const queueIdentity=queueGeneration||process.env.MUSIC_QUEUE_IDENTITY_TEST==='1';
 const accountRollover=process.env.MUSIC_ACCOUNT_ROLLOVER_TEST==='1';
 const queueJourney = queueIdentity || process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
 const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
@@ -1123,6 +1124,42 @@ async function queueIdentityJourney(){
  assert.equal(first[0].uri,first[1].uri);
  assert.notEqual(first[0].id,first[1].id);
  const chosen=rows.nth(1);
+ if(queueGeneration){
+  let markHeld,release,timeout;
+  const held=new Promise(resolve=>{markHeld=resolve;});
+  const gate=new Promise(resolve=>{release=resolve;});
+  const shownTask=await host.evaluate(h=>h.liveMedia.queueControls.offer.taskId);
+  await page.route(endpoint,async route=>{
+   const response=await route.fetch();
+   markHeld(await response.json());
+   await gate;
+   await route.fulfill({response});
+  },{times:1});
+  try{
+   await page.locator('#header-title-action').tap();
+   await track.tap();
+   const replacement=await Promise.race([held,new Promise((_,reject)=>{
+    timeout=setTimeout(()=>reject(Error('queue renewal not held')),10000);
+   })]);
+   assert.equal(replacement.ok,true);
+   assert.notEqual(replacement.taskId,shownTask);
+   await chosen.waitFor({state:'visible'});
+   assert.equal(await chosen.isEnabled(),true,'the displayed occurrence remains selectable during renewal');
+   const result=page.waitForResponse(response=>response.url().endsWith('/music/queue/actions'));
+   await chosen.tap();
+   const response=await result, receipt=await response.json();
+   const sent=response.request().postDataJSON();
+   const owner=(await state()).nativeCalls.filter(row=>row.service==='control_room_queue');
+   console.log(JSON.stringify({story:'queue-renew-generation',bundleSHA,shownTaskUsed:sent.taskId===shownTask,
+    sameOccurrence:sent.optionId===first[1].id,outcome:receipt.outcome,ownerCalls:owner.length}));
+   assert.equal(sent.taskId,shownTask);
+   assert.equal(sent.optionId,first[1].id);
+   assert.equal(receipt.outcome,'accepted');
+   assert.equal(owner.length,1);
+   assert.equal(owner[0].args.args.occurrence_id,first[1].id);
+  }finally{clearTimeout(timeout);release();}
+  return;
+ }
  await chosen.evaluate(row=>row.addEventListener('click',event=>{
   if(!event.isTrusted)return;
   const start=performance.now();
@@ -1530,7 +1567,7 @@ async function queuePersistenceJourney(){
   MUSIC_COLD_CONTEXT:cold?'1':'0',MUSIC_COLD_REJECT:rejectSetup?'1':'0',
   MUSIC_REPEAT_MOOD:repeatMood?'1':'0',MUSIC_QUEUE_JOURNEY:queueJourney?'1':'0',
   MUSIC_QUEUE_COLD_TAIL:queueColdTail?'1':'0',PODVIEW_TEST_NONCE:nonce,
-  ...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1'}:{}),
+  ...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1',MUSIC_QUEUE_IDENTITY_TEST:'1'}:{}),
   // Reuse the existing isolated catalogue search and cover fixtures for all four reads.
   ...(discoveryLoading||discoveryPersonalCover?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{}),
   ...(discoveryPersonalCover?{MUSIC_PERSONAL_PLAYLIST_COVER:'1'}:{})
