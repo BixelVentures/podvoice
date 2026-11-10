@@ -239,6 +239,66 @@ test('Stop tapped while a station is starting is shown, queued and sent once whe
   assert.equal(radio.value.state.status,'stopped');
  }finally{first.resolve();clearTimeout(radio.expiry);clearTimeout(radio.timer);}
 });
+test('a confirmed start Stop does not follow another queued station',async()=>{
+ const {radio,host}=fixture(),first=held(),offers=[];
+ let revision=1,stationId='p3';
+ try{
+  host.liveTransport.radioOffer=async body=>{
+   offers.push(body);
+   return {...snapshot,taskId:'task-'+offers.length,optionId:'opt',expiresAt:Date.now()/1000+5};
+  };
+  host.liveTransport.radioAction=async()=>{
+   if(offers.length===1)await first.promise;
+   const body=offers.at(-1);
+   if(body.action==='stop')return {status:'rejected'};
+   stationId=body.stationId;
+   revision++;
+   return {status:'accepted'};
+  };
+  host.liveTransport.radio=async()=>value({revision,state:{...value().state,stationId,generation:revision}});
+  const starting=radio.choose('p1');
+  await Promise.resolve();
+  await radio.choose('p6-beat');
+  radio.control({type:'toggle'});
+  first.resolve();
+  await starting;
+  assert.deepEqual(offers.map(body=>[body.action,body.stationId]),[['start','p1'],['start','p6-beat']]);
+  assert.equal(radio.value.state.stationId,'p6-beat');
+  assert.equal(radio.stationChoices.length,0);
+ }finally{first.resolve();radio.invalidate();}
+});
+for(const failure of ['offer rejection','action rejection','observed error']){
+ test(`Stop queued for an unsuccessful start leaves the previous station playing after ${failure}`,async()=>{
+  const {radio,host}=fixture(),first=held(),offers=[],sent=[];
+  radio.lastConfirmed={...radio.value.state};
+  try{
+   host.liveTransport.radioOffer=async body=>{
+    offers.push(body.action);
+    if(body.action==='start'&&failure==='offer rejection')return first.promise;
+    return {...snapshot,taskId:'task-'+offers.length,optionId:'opt',expiresAt:Date.now()/1000+5};
+   };
+   host.liveTransport.radioAction=async()=>{
+    const action=offers.at(-1);
+    sent.push(action);
+    if(action==='start')return failure==='action rejection'?first.promise:{status:'accepted'};
+    return {status:'rejected'};
+   };
+   host.liveTransport.radio=()=>first.promise;
+   const starting=radio.choose('p1');
+   await Promise.resolve();
+   assert.equal(radio.pendingStart()?.stationId,'p1');
+   radio.control({type:'toggle'});
+   first.resolve(failure==='offer rejection'?{}:failure==='action rejection'?{status:'rejected'}
+    :value({revision:2,state:{...value().state,generation:2,status:'error'}}));
+   await starting;
+   assert.deepEqual(offers,['start']);
+   assert.deepEqual(sent,failure==='offer rejection'?[]:['start']);
+   assert.equal(radio.displayState().stationId,'p3');
+   assert.equal(radio.displayState().status,'playing');
+   assert.equal(radio.stationChoices.length,0);
+  }finally{radio.invalidate();}
+ });
+}
 // R4: an unconfirmed start stays visible and is never replayed, but a new explicit tap is a new action.
 test('after an unconfirmed start the message stays, nothing is replayed, and a new station or Stop can be tapped',async()=>{
  const {radio,host,calls}=fixture(value({state:{...value().state,status:'stopped'}})),offers=[];
