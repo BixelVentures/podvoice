@@ -76,3 +76,21 @@ for (const change of ['sibling', 'selected']) {
   }
  });
 }
+
+
+test('passive mood renewal still needs every retained card to match',()=>{
+ const f=expiredFixture();
+ try {
+  const cards=f.view.cards;
+  f.view.renewRetained({owner:{},generation:2});
+  assert.equal(f.view.pendingRead.reason,'renew');
+  const fresh=writable();
+  fresh.data.tracks[2].uri='spotify:playlist:'+'z'.repeat(22);
+  f.view.tracks('mood',fresh,'account');
+  assert.equal(f.entry.source,null);
+  assert.equal(f.view.cards,cards);
+  assert.equal(f.renders.at(-1).canChoose,false);
+ } finally {
+  clearTimeout(f.view.expiryTimer);
+ }
+});

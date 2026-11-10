@@ -2,7 +2,7 @@ import {applyKitComponent,applyKitDialog} from './ui/kit.js';
 import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent,waitForMusicLane}
  from './media-observation.js';
 import {sourceMusicCards} from './music-results.js';
-import {selectionRequestTargets,searchSample,selectionCurrent,selectionOffer,collectionCurrent} from './music-selection-model.js';
+import {selectionRequestTargets,searchSample,selectionCurrent,selectionOffer,collectionCurrent,collectionCardIndex} from './music-selection-model.js';
 const LANE_WAITING = 'Dit valg sendes, når den igangværende handling er færdig.';
 const LANE_UNKNOWN = 'Den forrige handling kunne ikke bekræftes · dit valg blev ikke sendt.';
 
@@ -151,7 +151,10 @@ export class LiveMusicSelectionView{
    if (trace) trace.outcome = this.recovery || this.pending ? 'busy' : !entry || index < 0 ? 'invalid_target' : 'spent';
    return;
   }
-  if(!collectionCurrent(entry.source,this.host.liveSnapshot,this.account)||entry.selectionExpired||entry.actionDispatched||['account_playlists','recent'].includes(entry.sourceKind)&&!entry.source.tracks.some(track=>track.uri===card.uri)){
+  // A retained mood row may sit outside the fresh source for a previous explicit choice.
+  const sourceIndex=()=>entry.sourceKind==='mood'?collectionCardIndex(entry.source,card)
+   :['account_playlists','recent'].includes(entry.sourceKind)?entry.source?.tracks.findIndex(track=>track.uri===card.uri)??-1:index;
+  if(!collectionCurrent(entry.source,this.host.liveSnapshot,this.account)||entry.selectionExpired||entry.actionDispatched||sourceIndex()<0){
    if(!catalogue.canRenewEntry?.(entry,card))return;
    const context=JSON.stringify(this.context()),binding=JSON.stringify(this.host.liveSnapshot?.mediaRoomBindings),focus=globalThis.document?.activeElement,key=catalogue.key();
    const retainedSource=entry.source,previousPreview=entry.preview,originTransport=this.host.liveTransport,originGeneration=originTransport?.generation,renewal=catalogue.renewForCard(card,trace),recovery={entry,card};this.recovery=recovery;this.source=retainedSource;this.searchScope=this.context();this.pendingCardId=card.id;this.pendingCardSource=retainedSource;this.pendingCardIndex=index;this.feedbackAnswerTask=retainedSource?.context?.revisionScope==='answer_task';this.pendingFeedbackScope=this.feedbackScope();const renewalFeedback={message:'Klargør dit musikvalg.',pending:true};this.feedback=renewalFeedback;this.host.liveMedia?.render?.();
@@ -163,7 +166,7 @@ export class LiveMusicSelectionView{
    continuation={entry,card,binding,focus,row:this.host.musicResults?.rows?.get(card.id),context,owner:JSON.stringify([this.host.liveSnapshot?.providerGeneration,this.host.liveSnapshot?.voice,this.host.liveSnapshot?.sessionId,this.host.liveSnapshot?.taskId,this.host.liveSnapshot?.inputRevision])};
   }
   if(!this.context()||!this.host.liveSnapshot.capabilities.musicRead?.includes('targets')||this.pending||entry.selectionSpent||entry.selectionUnavailable||!collectionCurrent(entry.source,this.host.liveSnapshot,this.account))return;
-  const selectionIndex=['account_playlists','recent'].includes(entry.sourceKind)?entry.source.tracks.findIndex(track=>track.uri===card.uri):index;
+  const selectionIndex=sourceIndex();
   if(selectionIndex<0)return;
   this.invalidate('');continuation??={entry,card,binding:JSON.stringify(this.host.liveSnapshot?.mediaRoomBindings),focus:globalThis.document?.activeElement,context:JSON.stringify(this.context()),owner:JSON.stringify([this.host.liveSnapshot?.providerGeneration,this.host.liveSnapshot?.voice,this.host.liveSnapshot?.sessionId,this.host.liveSnapshot?.taskId,this.host.liveSnapshot?.inputRevision])};this.recoveryContinuation=continuation;this.feedback={message:'Afventer afspilning i rummet.',pending:true};this.feedbackAnswerTask=entry.source.context.revisionScope==='answer_task';this.pendingFeedbackScope=this.feedbackScope();this.collectionMode=true;this.collectionEntry=entry;this.collectionIndex=selectionIndex;this.source=entry.source;this.pendingCardId=card.id;this.pendingCardSource=this.source;this.pendingCardIndex=selectionIndex;this.searchScope=this.context();this.pending=true;this.host.liveMedia?.render?.();this.render();const generation=this.generation,context=this.context(),source=this.source;
   try{const targets=await this.readTargets();if(!this.current(context,generation)||this.source!==source){if(trace)trace.outcome='superseded';return;}if(!targets)throw Error('invalid_targets');this.targets=targets;this.showTargets();this.pending=false;
