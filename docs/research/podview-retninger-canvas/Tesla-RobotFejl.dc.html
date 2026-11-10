@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Tesla · robotfejl andetsteds (topbar-mærke)</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><style>body{margin:0}</style></helmet>
+<div style="position: relative; width: 1280px; height: 800px; overflow: hidden">
+  <dc-import name="A-Tesla" state="parkeret" hint-size="1280px,800px"></dc-import>
+  <div style="position: absolute; left: 0; top: 0"><dc-import name="A-Topbar" heading="Tesla" back="{{ true }}" scenario="green" alert="Robotfejl" alertHref="Robot-Fejl.dc.html" alertDomain="Robot" hint-size="1280px,72px"></dc-import></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

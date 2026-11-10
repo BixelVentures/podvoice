@@ -1224,6 +1224,24 @@
    "w": 414,
    "x": 908,
    "y": 3200
+  },
+  "Tesla-RobotFejl.dc.html": {
+   "page": "retning",
+   "title": "Tesla · robotfejl andetsteds: rødt mærke i topbaren",
+   "w": 1280,
+   "h": 800,
+   "x": 10875,
+   "y": 10000,
+   "is_interactive": true
+  },
+  "Robot-Mere.dc.html": {
+   "page": "retning",
+   "title": "Robot · Mere åben: rengøring + basen (pause)",
+   "w": 1280,
+   "h": 1400,
+   "x": 13764,
+   "y": 5200,
+   "is_interactive": true
   }
  },
  "createdOnFiles": {

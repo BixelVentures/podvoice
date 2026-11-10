@@ -39,6 +39,7 @@ body{margin:0}
           <span style="font-size: 40px; line-height: 1.05; font-weight: 800; letter-spacing: -0.03em; color: {{s.titleC}}">{{s.title}}</span>
           <span style="margin-top: 6px; font-size: 17px; font-weight: 600; color: #3F3E3B">{{s.sub}}</span>
         </div>
+        <sc-if value="{{nb.on}}" hint-placeholder-val="{{ false }}"><span style="position: relative; z-index: 1; margin-top: 12px; display: block; height: 40px"><dc-import name="K-Notice" compact="true" level="{{nb.lvl}}" title="{{nb.t}}" text="{{nb.d}}" w="470px" hint-size="470px,40px"></dc-import></span></sc-if>
         <span style="position: absolute; right: 28px; top: 60px; font: 500 64px/0.85 'IBM Plex Mono', ui-monospace, monospace; letter-spacing: -0.07em; color: {{s.bigC}}">{{s.big}}<span style="font-size: 32px"> %</span></span>
         <div style="position: absolute; right: 20px; bottom: 16px; width: 540px; height: 168px; transform: scale({{carScale}}); transform-origin: right bottom" role="img" aria-label="{{s.carLabel}}">
           <sc-for list="{{car}}" as="d" hint-placeholder-count="600">
@@ -56,9 +57,6 @@ body{margin:0}
           </div>
         </sc-if>
       </div>
-      <sc-if value="{{nb.on}}" hint-placeholder-val="{{ false }}">
-        <div style="margin-top: -4px"><dc-import name="K-Notice" level="{{nb.lvl}}" title="{{nb.t}}" text="{{nb.d}}" hint-size="844px,72px"></dc-import></div>
-      </sc-if>
 
       <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 308px">
         <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px">

@@ -61,6 +61,13 @@ Accept: kun farve/typografi ændret i diff; alle tests grønne; ingen DOM-ændri
 2. **Kontakt** (`toggle`): 56×34 synlig, 44+ trykflade.
 3. **Beskedlinje** (ny, ud fra `notification-queue.js`): tre niveauer, livscyklus fra K-Kit
    (ind 280, ud 220, fejl/handling kan ikke lukkes, info kan lukkes, ✓ forsvinder efter 3 s, én ad gangen).
+   **Hybridregel: beskeden står der, hvor årsagen er, og den flytter aldrig noget under fingeren.**
+   - Tilstandsproblem (fx robotfejl, bagagerum åbent, vejr offline): kompakt linje (40 px) inde i heroen, i stedet for underlinjen. Intet layoutskift.
+   - Feedback på en handling: i kontrollen selv (handlingsflade/knap: sender → ✓ / ukendt).
+   - Info, som brugeren selv har udløst og kan lukke: må skubbe indhold.
+   - Hændelse fra et andet domæne: rødt mærke i topbaren ved uret; tryk går til domænet.
+   - Intet flytter sig inden for 500 ms efter et tryk. Overblikket viser en farvet prik.
+   - Robot-hero: højst to knapper (primær tilstandshandling + "Mere ▾"); Mere samler transport øverst og Basen nedenfor. Sticky-linjen får de samme to.
 4. **Friskhedsmærke**: kun når data er over 30 min ("Opdateret 11.02"); ordet "Sidst kendt" udgår.
 5. **Widget-anatomi**: faste linjer (primær 20/800 én linje, kontekst 15 én linje, 18 px stribe),
    advarsel som farvet prik, nederste overbliksrække hvid (forslag A).

@@ -7,9 +7,17 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
 <style>body{margin:0}
 .nin{animation:nin .28s cubic-bezier(.2,.9,.3,1) both}@keyframes nin{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+.cin{animation:cin .32s ease both}@keyframes cin{from{opacity:0}to{opacity:1}}
 .x{border:0;cursor:pointer;background:transparent}
 @media (prefers-reduced-motion: reduce){.nin{animation:none}}</style>
 </helmet>
+<sc-if value="{{compact}}" hint-placeholder-val="{{ false }}">
+<div class="cin" role="status" style="display: inline-flex; align-items: center; gap: 10px; height: 40px; max-width: {{w}}; padding: 0 14px 0 8px; box-sizing: border-box; border-radius: 12px; background: {{n.bg}}; color: {{n.fg}}; font-family: 'Schibsted Grotesk', system-ui, sans-serif">
+  <span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 50%; background: {{n.ic}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font: 800 14px 'Schibsted Grotesk', sans-serif; flex: none">{{n.glyph}}</span>
+  <span style="font-size: 15px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis"><b style="font-weight: 800">{{title}}</b>{{textSep}}</span>
+</div>
+</sc-if>
+<sc-if value="{{full}}" hint-placeholder-val="{{ true }}">
 <div class="nin" role="status" style="display: flex; align-items: center; gap: 16px; min-height: 72px; width: {{w}}; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: {{n.bg}}; color: {{n.fg}}; font-family: 'Schibsted Grotesk', system-ui, sans-serif">
   <span aria-hidden="true" style="width: 36px; height: 36px; border-radius: 50%; background: {{n.ic}}; color: #FFFFFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">{{n.glyph}}</span>
   <span style="display: flex; flex-direction: column; min-width: 0">
@@ -20,8 +28,9 @@
     <button class="x" aria-label="Luk besked" style="margin-left: auto; width: 44px; height: 44px; border-radius: 999px; display: flex; align-items: center; justify-content: center; flex: none"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
   </sc-if>
 </div>
+</sc-if>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"level":{"editor":"enum","default":"handling","options":["fejl","handling","info"]},"title":{"editor":"text","default":"Robotten mangler vand"},"text":{"editor":"text","default":""},"w":{"editor":"text","default":"844px"},"$preview":{"width":844,"height":72}}'>
+<script type="text/x-dc" data-dc-script data-props='{"level":{"editor":"enum","default":"handling","options":["fejl","handling","info"]},"title":{"editor":"text","default":"Robotten mangler vand"},"text":{"editor":"text","default":""},"compact":{"editor":"enum","default":"false","options":["true","false"]},"w":{"editor":"text","default":"844px"},"$preview":{"width":844,"height":72}}'>
 class Component extends DCLogic {
   renderVals() {
     // Fælles beskedlinje (UI-kit): fejl rød, handling rav, info grå. Kun produktets egen tekst.
@@ -29,7 +38,9 @@ class Component extends DCLogic {
     // Livscyklus (UI-kit): ind 280 ms (glider 12 px ned + fade, indholdet under skubbes blødt med), ud 220 ms (fade + kollaps).
     // Fejl og handling kan ikke lukkes: de står, så længe tilstanden gælder, og forsvinder selv, når den er løst.
     // Info kan lukkes med × (kommer igen ved næste hændelse). Bekræftelser (✓) forsvinder selv efter 3 s. Kun én ad gangen.
-    return { closable: (this.props.level || 'info') === 'info', n: NB[this.props.level] || NB.info, title: this.props.title || '', text: this.props.text || '', w: this.props.w || '844px' };
+    // Kompakt: én linje (40 px) inde i heroen, så intet skubbes. Krydstoner ind (320 ms) på stedet.
+    const compact = String(this.props.compact) === 'true';
+    return { compact, full: !compact, textSep: this.props.text ? ' · ' + this.props.text : '', closable: (this.props.level || 'info') === 'info', n: NB[this.props.level] || NB.info, title: this.props.title || '', text: this.props.text || '', w: this.props.w || '844px' };
   }
 }
 </script>
