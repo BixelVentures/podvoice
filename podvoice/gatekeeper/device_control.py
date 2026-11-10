@@ -458,28 +458,36 @@ class DeviceControl:
                     result[key] = observed
             self._check(generation)
             activity = result["currentActivity"]
-            room_cutoff = self._robot_room_cutoff(
+            run_cutoff = self._robot_run_cutoff(
                 entity_id, result["bindingId"], vacuum_sample, cleaning_evidence
             )
             if activity["status"] == "observed":
-                room_cutoff = activity["registeredAt"]
-            if room_cutoff is not None:
+                run_cutoff = activity["registeredAt"]
+            if run_cutoff is not None:
                 for row in items:
-                    if row["key"] != "current_room" or row.get("historical"):
+                    if row.get("historical"):
                         continue
-                    # Re-reporting the previous room is not a change within this run.
-                    change = podview_robot._epoch(snapshot[row["entityId"]].get("last_changed"))
+                    if row["key"] == "current_room":
+                        # A re-report is not a room change within this run.
+                        measured_at = podview_robot._epoch(
+                            snapshot[row["entityId"]].get("last_changed")
+                        )
+                    elif row["key"] == "clean_percent":
+                        # An unchanged 0% can be a fresh report during the run.
+                        measured_at = row["updatedAt"]
+                    else:
+                        continue
                     if (
-                        change is not None
-                        and 0 < change <= row["updatedAt"]
-                        and change < room_cutoff
+                        measured_at is not None
+                        and 0 < measured_at <= row["updatedAt"]
+                        and measured_at < run_cutoff
                     ):
                         row.update(historical=True, stale=True)
             return result
         except (CapabilityError, ValueError, httpx.HTTPError, aiohttp.ClientError):
             return unavailable
 
-    def _robot_room_cutoff(
+    def _robot_run_cutoff(
         self,
         entity_id: str,
         binding_id: str,
