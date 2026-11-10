@@ -17,7 +17,7 @@
       <div style="display: flex; justify-content: space-between; align-items: baseline; height: 32px"><span style="font-size: 24px; font-weight: 800">Kø</span><span style="font-size: 15px; color: #5F5E5A">20 numre · Køkkenalrum HomePod</span></div>
       <div style="flex: 1; min-height: 0; border-radius: 24px; background: #F7F6F3; padding: 8px 20px; overflow: hidden; position: relative">
         <sc-for list="{{q}}" as="r" hint-placeholder-count="6">
-          <div style="height: 72px; display: grid; grid-template-columns: 28px 56px 1fr 44px; align-items: center; gap: 14px; border-top: {{r.bt}}; margin: 0 -12px; padding: 0 12px; border-radius: 14px; background: {{r.bg}}">
+          <div style="height: 72px; display: grid; grid-template-columns: 28px 56px 1fr 44px; align-items: center; gap: 14px; border-top: {{r.bt}}; margin: 0 -12px; padding: 0 12px; border-radius: 14px; background: {{r.bg}}; box-shadow: {{r.ring}}">
             <span style="font: 500 15px 'IBM Plex Mono', monospace; color: #5F5E5A; display: flex; align-items: center">{{r.i}}<sc-if value="{{r.now}}" hint-placeholder-val="{{ false }}"><span class="eq" style="display: flex; gap: 2px; align-items: flex-end; height: 14px" aria-label="Spiller nu, på pause"><i style="animation-play-state: paused"></i><i style="animation-play-state: paused; animation-delay: .2s"></i><i style="animation-play-state: paused; animation-delay: .4s"></i></span></sc-if></span>
             <sc-if value="{{r.art}}" hint-placeholder-val="{{ true }}"><img src="{{r.art}}" alt="" style="width: 56px; height: 56px; border-radius: 8px; object-fit: cover"></sc-if><sc-if value="{{r.now}}" hint-placeholder-val="{{ false }}"><span style="width: 56px; height: 56px; border-radius: 8px; background: #B98E66; display: block"></span></sc-if>
             <span style="display: flex; flex-direction: column; min-width: 0"><span class="one" style="font-size: 17px; font-weight: {{r.fw}}">{{r.t}}</span><span class="one" style="font-size: 15px; color: #5F5E5A">{{r.a}}</span></span>
@@ -43,9 +43,10 @@ class Component extends DCLogic {
       ['Lost','Frank Ocean','/_blob/bf5333b381d9648daf7b38135ec1105e'],
       ['Take Five','The Dave Brubeck Quartet','/_blob/1e4b8c297f491dee57deeeace6c401c1'],
       ['Via con me','Paolo Conte','/_blob/1f75aadfd8a14f20188b4bbc205bd78f']];
+    // Valgt-tilstand fra UI-kittet (samme som valgt rum i Lys): hvid flade + 2 px mørk kant.
     // Køen er én liste: det aktuelle nummer er blot række 1, markeret med equalizer og let flade, ikke et særskilt kort.
     const rows = [{ i: '', t: 'Fast Car', a: 'Y.V.E. 48', art: '', now: true }, ...T.map(([t, a, art], k) => ({ i: k + 2, t, a, art, now: false }))];
-    return { q: rows.map((r, k) => ({ ...r, bt: k ? '1px solid rgba(23,23,26,.07)' : 'none', bg: r.now ? '#DCEBEA' : 'transparent', fw: r.now ? 800 : 700 })) };
+    return { q: rows.map((r, k) => ({ ...r, bt: k ? '1px solid rgba(23,23,26,.07)' : 'none', bg: r.now ? '#FFFFFF' : 'transparent', ring: r.now ? 'inset 0 0 0 2px #17171A' : 'none', fw: r.now ? 800 : 700 })) };
   }
 }
 </script>

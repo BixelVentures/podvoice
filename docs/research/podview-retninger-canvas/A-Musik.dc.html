@@ -29,13 +29,6 @@ body{margin:0}
   <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
     <div style="position: relative; width: 844px; height: 712px; display: flex; flex-direction: column; gap: 24px; overflow: hidden">
 
-      <sc-if value="{{off}}" hint-placeholder-val="{{ false }}">
-        <div class="cd" style="height: 221px; flex: none; padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; background: #DCEBEA">
-          <span style="font-size: 17px; font-weight: 600; color: #3F3E3B">Find musik</span>
-          <span style="margin-top: 8px; font-size: 40px; line-height: 1; font-weight: 800; letter-spacing: -0.035em">Vælg musik</span>
-          <span style="margin-top: 12px; font-size: 17px; color: #3F3E3B; max-width: 460px">Stemningsforslag er ikke tilgængelige endnu.</span>
-        </div>
-      </sc-if>
 
       <div role="tablist" aria-label="Find musik" style="flex: none; display: flex; gap: 16px; align-items: center">
         <div style="flex: 1; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: 999px; background: #DCDAD4">
@@ -45,6 +38,9 @@ body{margin:0}
         </div>
       </div>
 
+      <sc-if value="{{off}}" hint-placeholder-val="{{ false }}">
+        <dc-import name="K-Notice" level="info" title="Stemningsforslag er ikke tilgængelige endnu." hint-size="844px,72px"></dc-import>
+      </sc-if>
       <sc-if value="{{example}}" hint-placeholder-val="{{ true }}">
       <div style="flex: none; display: flex; justify-content: space-between; align-items: baseline; height: 32px">
         <span style="font-size: 26px; font-weight: 800; letter-spacing: -0.015em">{{heading}}</span>
@@ -118,7 +114,7 @@ class Component extends DCLogic {
     // faner Tid på dagen/Vibe/Din musik/Hør igen, periode "Til eftermiddagen" kl. 14.30, 3 forslag pr. side,
     // knapper Andre forslag/Flere vibes/Flere playlister/Se tidligere, omslag music-editorial-1..3.svg.
     const st = this.props.state || 'forslag', off = st === 'ikketilg', loading = st === 'henter';
-    const tab = this.state.tab || this.props.tab || 'mood', page = this.state.page;
+    const tab = this.state.tab || (off && (!this.props.tab || this.props.tab === 'mood') ? 'recent' : this.props.tab || 'mood'), page = this.state.page;
     const P = [['jazz','Jazz in the Background'],['slow','Summer Slowdown, No. 16'],['lounge','LOUNGE MUSIC 2026'],['pop','Pop Remix'],
       ['house','Deep House 2026'],['hiphop','Kanye West Mix'],['techno','Techno 90s (Top 100)'],['fest','Fest'],['classic','The Jazz 100'],['kids','Bedste Børnehits']];
     const ART = ['/_blob/94d92eb49e6195e3f0c19e1412a84a7a', '/_blob/0240efba3427697e45508328ae0ccb43', '/_blob/89accc68234e0dd1eb36aca40f3bf37f'];
@@ -140,9 +136,9 @@ class Component extends DCLogic {
     if (tab === 'feeling') { const s = ((1 + page) % 3) * 3; items = vibes.slice(s, s + 3).map(([i, d]) => mk(i, d)); }
     if (tab === 'top') items = [5,3,0,6,4,8,2,1,7,9].slice(0, (page + 1) * 5).map((i) => mk(i, 'Spotify-playliste · eksempel'));
     const waiting = loading;
-    const listMode = !off && !loading && (tab === 'top' || tab === 'recent');
+    const listMode = !loading && (tab === 'top' || tab === 'recent');
     const rows = (tab === 'recent' ? [1,3,5,0,2,4].map((i) => ({ n: TR[i][0], d: TR[i][1], art: TR[i][2] })) : items.map((c) => ({ n: c.n, d: 'Spotify-playliste', art: c.art }))).map((r, k) => ({ ...r, bt: k ? '1px solid rgba(23,23,26,.07)' : 'none' }));
-    const cards = (off ? [] : waiting ? [0,1,2].map((i) => ({ id: 'ph' + i, n: '', d: i === 0 ? 'Afventer data' : '', isPh: true })) : items).map((c) => {
+    const cards = (off || listMode ? [] : waiting ? [0,1,2].map((i) => ({ id: 'ph' + i, n: '', d: i === 0 ? 'Afventer data' : '', isPh: true })) : items).map((c) => {
       const s = this.state.started[c.id] || 'idle';
       return { ...c, hasArt: !c.isPh, isPh: !!c.isPh, op: 1, ph: c.isPh ? '#F7F6F3' : '#DCEBEA',
         idle: s === 'idle', pending: s === 'pending', playing: s === 'playing', keyBg: s === 'idle' ? '#F7F6F3' : '#17171A',
@@ -151,15 +147,15 @@ class Component extends DCLogic {
     });
     const tabDefs = [['mood','Tid på dagen'],['feeling','Vibe'],['top','Din musik'],['recent','Hør igen']];
     const tabs = tabDefs.map(([id, label]) => { const on = tab === id;
-      return { label, on: on ? 'true' : 'false', bg: on ? '#17171A' : 'transparent', fg: on ? '#F7F6F3' : '#17171A', dis: off ? 'true' : undefined,
+      return { label, on: on ? 'true' : 'false', bg: on ? '#17171A' : 'transparent', fg: on ? '#F7F6F3' : '#17171A', dis: off && (id === 'mood' || id === 'feeling') ? 'true' : undefined,
         pick: () => this.setState({ tab: id, page: 0, started: {} }) }; });
     const action = { mood: 'Andre forslag', feeling: 'Flere vibes', top: 'Flere playlister', recent: 'Se tidligere' }[tab];
     const label = { mood: 'Til eftermiddagen', feeling: 'Vibe', top: 'Din musik', recent: 'Hør igen' }[tab];
     return {
-      off, example: !off, tabs, cards, heading: off ? 'Forslag' : label,
-      count: off ? 'Ikke tilgængelig' : waiting ? '' : tab === 'recent' ? 'Senest afspillet' : items.length + ' forslag',
+      off, example: true, tabs, cards, heading: label,
+      count: waiting ? '' : tab === 'recent' ? 'Senest afspillet' : items.length + ' forslag',
       listMode, rows, cardMode: !listMode,
-      artH: off ? 0 : 270, showMore: !off, moreLabel: waiting ? 'Henter forslag' : action, moreDis: waiting ? 'true' : undefined,
+      artH: 270, showMore: true, moreLabel: waiting ? 'Henter forslag' : action, moreDis: waiting ? 'true' : undefined,
       fadeD: listMode ? 'block' : 'none',
       more: () => this.setState({ page: page + 1, started: {} })
     };
