@@ -59,6 +59,88 @@ const assertRobotObservation=async(page,requests,action)=>{
   const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  if(process.env.ROBOT_IDLE_RETURN_TEST==='1'){
+   const host=page.locator('pv-widget-host');
+   await update({robotState:'idle'});
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   await page.waitForFunction(()=>{
+    const h=document.querySelector('pv-widget-host'),view=h.liveControls;
+    const device=view.robotDevice();
+    return device?.status==='stopped'&&view.robotDirectOffer(device)?.actions.includes('return')
+     &&view.task&&view.robotControlCurrent(view.robotControlOffer?.context);
+   });
+   const openReturn=async()=>{
+    const button=panel.getByRole('button',{name:'Kør til basen',exact:true});
+    if(!await button.isVisible()&&await baseMenu.isVisible())await baseMenu.tap();
+    await button.tap();
+   };
+   await openReturn();
+   const confirm=panel.getByRole('dialog',{name:'Kør til basen?'});
+   const node=await confirm.elementHandle();
+   const initial=await host.evaluate(h=>h.liveControls.task.taskId);
+   await host.evaluate(h=>h.liveControls.renewRobotTask(h.liveControls.task));
+   await page.waitForFunction(id=>{
+    const current=document.querySelector('pv-widget-host').liveControls.task?.taskId;
+    return current&&current!==id;
+   },initial);
+   assert(await node.evaluate(dialog=>dialog.isConnected&&dialog.open),'idle return survives same-owner setup renewal');
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   assert(await node.evaluate(dialog=>dialog.isConnected&&dialog.open),'idle return survives fresh same-state Home read');
+   console.log('idle return survives actual same-owner setup renewal and fresh Home read');
+   await page.route('**/view/api/home?*',route=>route.fulfill({status:503,body:'{}'}));
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   const confirmReturn=confirm.getByRole('button',{name:'Kør til basen',exact:true});
+   assert(await node.evaluate(dialog=>dialog.isConnected&&dialog.open),'transient Home read must retain the open return confirmation');
+   assert(await confirmReturn.isDisabled(),'the stale offer cannot confirm return');
+   await confirmReturn.evaluate(button=>button.click());
+   const returnRequests=()=>requests.filter(row=>row.url.endsWith('/control/actions')&&row.body?.action==='return');
+   const vacuumWrites=async()=>(await state()).robot.writes.filter(([service])=>service.startsWith('services/vacuum/'));
+   assert.deepEqual(returnRequests(),[]);
+   assert.deepEqual(await vacuumWrites(),[]);
+   await page.unroute('**/view/api/home?*');
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   await page.waitForFunction(()=>{
+    const view=document.querySelector('pv-widget-host').liveControls;
+    return view.robotDirectOffer(view.robotDevice())?.actions.includes('return');
+   });
+   assert(await node.evaluate(dialog=>dialog.isConnected&&dialog.open),'fresh same-owner read keeps the original dialog');
+   assert(await confirmReturn.isEnabled(),'fresh return offer enables confirmation');
+
+   await update({robotState:'paused'});
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   await page.waitForFunction(()=>{
+    const view=document.querySelector('pv-widget-host').liveControls,device=view.robotDevice();
+    return device?.status==='paused'&&view.robotDirectOffer(device)?.actions.includes('return');
+   });
+   assert(!await node.evaluate(dialog=>dialog.isConnected&&dialog.open),'changed robot state closes the previous confirmation despite a fresh Return offer');
+   await openReturn();
+   const pausedDialog=await confirm.elementHandle();
+   await page.route('**/view/api/home?*',route=>route.fulfill({status:503,body:'{}'}));
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   assert(await pausedDialog.evaluate(dialog=>dialog.isConnected&&dialog.open),'unchanged paused robot also retains the confirmation');
+   assert(await confirmReturn.isDisabled(),'paused confirmation remains disabled without a fresh offer');
+   await page.unroute('**/view/api/home?*');
+
+   await page.route('**/view/api/home?*',route=>route.fulfill({status:403,body:'{}'}));
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   assert(!await pausedDialog.evaluate(dialog=>dialog.isConnected&&dialog.open),'denied Home access closes the dialog');
+   assert.deepEqual(returnRequests(),[]);
+   assert.deepEqual(await vacuumWrites(),[]);
+   await page.unroute('**/view/api/home?*');
+   await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+   await card.getByText('Robotstøvsuger',{exact:true}).tap();
+   await openReturn();
+   await confirmReturn.tap();
+   await confirm.waitFor({state:'hidden'});
+   await page.waitForFunction(()=>document.querySelector('pv-widget-host').state.devices.some(
+    device=>device.id==='vacuum.qrevo'&&device.status==='docking'));
+   assert.equal(returnRequests().length,1);
+   assert.deepEqual((await vacuumWrites()).map(([service])=>service),['services/vacuum/return_to_base']);
+   assert.deepEqual(errors,[]);
+   console.log(JSON.stringify({idleReturn:'PASS',idleAndPausedDialogsRetainedAfter503:true,changedStatusClosed:true,denialClosed:true,
+    returnRequests:1,vacuumServiceWrites:1,loadedBundleSha256}));
+   return;
+  }
   if(process.env.ROBOT_ACTIVE_BASE_TEST==='1'){
    const host=page.locator('pv-widget-host');
    const pause=panel.getByRole('button',{name:'Pause',exact:true});

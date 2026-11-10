@@ -926,6 +926,7 @@
           "arrow:reject": 3,
           "method:scheduleMusicSettlementDeadline": 1,
           "method:robotDirectBlocked": 1,
+          "method:robotReturnReadGap": 1,
           "method:robotDirectIntent": 1,
           "method:robotDirectOffer": 1,
           "method:robotReceiptUnknown": 1,
@@ -1772,6 +1773,7 @@
           "method:renderTransportOptions": 1,
           "method:syncDirectTransport": 1,
           "arrow:foreignRobotPending": 1,
+          "arrow:directConfirmationCurrent": 1,
           "arrow:ownRobotPending": 1
         },
         "roots": [
