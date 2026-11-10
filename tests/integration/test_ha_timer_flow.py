@@ -1289,6 +1289,69 @@ async def test_v2_adjust_receipt_fences_read_started_before_effect(registered):
         assert tools.timers.snapshots["kitchen"]["timers"][0]["duration_seconds"] == 180
 
 
+@pytest.mark.parametrize("change", ["none", "rebound", "epoch", "late-epoch", "grant"])
+async def test_cancel_preflight_survives_only_a_competing_timer_status_read(change):
+    async with _native_v2_adapter() as (manager, native, _, tools, calls, controls, _, timer_id):
+        timers = tools.timers
+        endpoint = "kitchen"
+        assert (await timers.refresh_registered(endpoint, expected_kind="voice_pe"))["ok"]
+        for delta in (60, -60):
+            assert (
+                await timers.dispatch(
+                    "podvoice_adjust_timer",
+                    {"timer_id": timer_id, "delta_seconds": delta},
+                    endpoint,
+                    "session",
+                    f"adjust-{delta}",
+                )
+            )["ok"]
+        calls.clear()
+        entered, release = asyncio.Event(), asyncio.Event()
+        controls["hold_read"] = entered, release
+        grant_current = True
+        pending = asyncio.create_task(
+            timers.dispatch(
+                "podvoice_cancel_timer",
+                {"timer_id": timer_id},
+                endpoint,
+                "session",
+                "cancel",
+                execution_guard=lambda: grant_current,
+            )
+        )
+        try:
+            await asyncio.wait_for(entered.wait(), 1)
+            if change == "rebound":
+                timers.unbind(endpoint)
+            elif change == "epoch":
+                native.epoch = "d" * 32
+            elif change == "grant":
+                grant_current = False
+            assert (await timers.refresh_registered(endpoint, expected_kind="voice_pe"))["ok"]
+            if change == "late-epoch":
+                native.epoch = "d" * 32
+        finally:
+            release.set()
+            result = await asyncio.wait_for(pending, 1)
+
+        paths = [path.rsplit("/", 1)[-1] for path, _ in calls]
+        if change == "none":
+            assert result["ok"] and timer_id not in manager.timers
+            assert paths == [
+                "timer_status",
+                "timer_status",
+                "timer_status",
+                "timer_command_v2",
+                "timer_status",
+            ]
+            assert calls[3][1]["action"] == "cancel" and calls[3][1]["timer_id"] == timer_id
+            assert not calls[3][1].get("lookup_only")
+        else:
+            assert result == {"ok": False, "error_kind": "stale_schema", "retry_allowed": False}
+            assert paths == ["timer_status"] * (3 if change == "late-epoch" else 2)
+            assert timer_id in manager.timers
+
+
 async def test_v2_dispatch_refresh_uses_original_remaining_deadline_without_effect():
     import time
 
