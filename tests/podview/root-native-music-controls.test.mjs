@@ -504,8 +504,8 @@ test('held pause then two explicit toggles keep Pause, Resume, Pause in FIFO ord
  }
 });
 
-for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
- test(`queued explicit skips never replay UNKNOWN after ${boundary}`, async () => {
+for (const outcome of ['accepted', 'unknown']) for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
+ test(`queued skips are sent only after acceptance on the same owner (${outcome}, ${boundary})`, async () => {
   const f = fixture();
   let finish, first;
   try {
@@ -513,7 +513,7 @@ for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
     f.effects.push(intent);
     const receipt = {outcome: 'accepted', requestId: intent.requestId};
     return f.effects.length === 1
-     ? new Promise(resolve => { finish = () => resolve({...receipt, outcome: 'unknown'}); })
+     ? new Promise(resolve => { finish = () => resolve({...receipt, outcome}); })
      : Promise.resolve(receipt);
    };
    first = f.view.musicIntent('next');
@@ -525,7 +525,7 @@ for (const boundary of ['same-owner', 'binding', 'transport', 'access']) {
    finish();
    await first;
    await tick();
-   const expected = boundary === 'same-owner' ? ['next', 'previous', 'next'] : ['next'];
+   const expected = outcome === 'accepted' && boundary === 'same-owner' ? ['next', 'previous', 'next'] : ['next'];
    assert.deepEqual(f.effects.map(intent => intent.action), expected);
    assert.equal(new Set(f.effects.map(intent => intent.requestId)).size, expected.length);
   } finally {
