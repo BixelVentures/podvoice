@@ -260,20 +260,58 @@ test('robot settings journal does not turn an unrelated state read into settings
   assert.equal(rows.length,1);assert.equal(rows[0].action,'settings');assert.equal(rows[0].code,'unconfirmed');assert.equal(rows[0].observedValue,undefined);assert.equal(f.calls(),0);
  }finally{f.view.cleanup();}
 });
-// L1: a command for one lamp never blocks a command for another lamp.
-test('a second lamp is switched while the first lamp command is still in flight',async()=>{
+// L1: lamp intent is independent, but a single broker slot owns each area.
+for(const [area,outcome,expected] of [
+ ['kitchen','accepted',2],['kitchen','unknown',1],['kitchen','unknown-and-stale-middle',1],
+ ['kitchen','scope-changed',1],['kitchen','unobserved-overlap',2],['living','accepted',2],
+])test(`light actions preserve area ownership (${area}, ${outcome})`,async()=>{
  const f=lightFixture();try{
-  f.mutate(o=>o.items.push({entityId:'light.desk',areaId:'kitchen',name:'Bord',state:'on',brightness:128,supportsBrightness:true}));
-  let n=0;const held=[],sent=[];
-  f.host.liveTransport.controlSetup=(_domain,target)=>{const offer=f.lightOffer();offer.taskId='control:'+(++n).toString(16).padStart(32,'0');offer.setup.entityIds=[target.entityId];return Promise.resolve(offer);};
-  f.host.liveTransport.controlAction=task=>{sent.push(task.lightSetup?.entityIds?.[0]??task.setup?.entityIds?.[0]);const d=deferred();held.push(d);return d.promise;};
-  const first=f.view.actLight({areaId:'kitchen',entityId:'light.ceiling'},f.observation(),'turn_off',{},f.observation);
-  await new Promise(resolve=>setImmediate(resolve));
-  const second=f.view.actLight({areaId:'kitchen',entityId:'light.desk'},f.observation(),'turn_off',{},f.observation);
-  await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(held.length,2,'the second lamp is sent without waiting for the first');
-  assert.equal(f.view.canQueueLightInput({areaId:'kitchen',entityId:'light.desk'},'toggle'),false);
-  for(const d of held)d.resolve({ok:true,outcome:'accepted',requestId:'11111111-1111-4111-8111-111111111111'});
-  assert.equal((await first).outcome,'accepted');assert.equal((await second).outcome,'accepted');
+  const desk={entityId:'light.desk',areaId:area,name:'Bord',state:'on',brightness:128,supportsBrightness:true};
+  if(area==='kitchen')f.mutate(o=>o.items.push(desk));
+  const staleMiddle=outcome==='unknown-and-stale-middle';
+  if(staleMiddle)f.mutate(o=>o.items.push({...desk,entityId:'light.wall'}));
+  const secondary=()=>area==='kitchen'?f.observation():{
+   ...f.observation(),scope:{...f.observation().scope,areaId:area},items:[desk],
+  };
+  const areasByTask=new Map(),active=new Set(),held=[];
+  f.host.liveTransport.controlSetup=(_domain,target)=>{
+   assert(!active.has(target.areaId),'the existing broker rejects setup while the area is busy');
+   const offer=f.lightOffer();
+   offer.taskId='control:'+(areasByTask.size+1).toString(16).padStart(32,'0');
+   offer.setup.scope=target.areaId==='kitchen'?f.observation().scope:secondary().scope;
+   offer.setup.areaId=target.areaId;
+   offer.setup.entityIds=[target.entityId];
+   areasByTask.set(offer.taskId,target.areaId);
+   return Promise.resolve(offer);
+  };
+  f.host.liveTransport.controlAction=task=>{
+   const areaId=areasByTask.get(task.taskId),operation=deferred();
+   active.add(areaId);held.push(operation);
+   return operation.promise.finally(()=>active.delete(areaId));
+  };
+  const ceiling={areaId:'kitchen',entityId:'light.ceiling'},table={areaId:area,entityId:desk.entityId};
+  const tick=()=>new Promise(resolve=>setImmediate(resolve));
+  const first=f.view.actLight(ceiling,f.observation(),'turn_off',{},f.observation);
+  await tick();
+  const second=f.view.actLight(table,secondary(),'turn_off',{},secondary);
+  await tick();
+  assert.equal(held.length,area==='kitchen'?1:2);
+  assert.equal(f.view.lightActions.get(JSON.stringify([area,desk.entityId,null])).state.pending,true);
+  let third=staleMiddle?f.view.actLight({areaId:area,entityId:'light.wall'},
+   f.observation(),'turn_off',{},f.observation):null;
+  if(staleMiddle)desk.state='unavailable';
+  if(outcome==='scope-changed')f.mutate(o=>o.sourceEpoch='other');
+  const reply=outcome.startsWith('unknown')?{ok:false,outcome:'unknown'}:{ok:true,outcome:'accepted'};
+  held[0].resolve(reply);
+  await first;await tick();
+  assert.equal(held.length,expected);
+  if(outcome==='unobserved-overlap'){
+   third=f.view.actLight(ceiling,f.observation(),'turn_on',{},f.observation);
+  }
+  held[1]?.resolve({ok:true,outcome:'accepted'});
+  await second;await tick();
+  assert.equal(held.length,expected);
+  await third;
+  assert.equal(active.size,0);
  }finally{f.view.cleanup();}
 });

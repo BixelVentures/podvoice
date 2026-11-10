@@ -688,9 +688,7 @@ export class LiveControlView{
    while(queue.pending.length&&context.current()){
     const wanted=queue.pending.shift();
     const source=scopedLightsObservation(currentObservation());
-    const selected=source.items.filter(item=>context.ids.includes(item.entityId));
-    const action=brightness?'brightness':selected.some(item=>item.state==='on')?'turn_off':'turn_on';
-    const result=await this.actLight(target,source,action,brightness?{percent:wanted}:{},currentObservation);
+    const result=await this.actLight(target,source,kind,brightness?{percent:wanted}:{},currentObservation);
     if(result?.outcome!=='accepted'||result.late||!context.current()){
      queue.blocked=true;
      return result;
@@ -698,7 +696,7 @@ export class LiveControlView{
     const refreshed=scopedLightsObservation(currentObservation());
     const observed=refreshed.items.filter(item=>context.ids.includes(item.entityId));
     const matches=observed.every(item=>{
-     if(!brightness)return item.state===(action==='turn_on'?'on':'off');
+     if(!brightness)return item.state===(result.action==='turn_on'?'on':'off');
      const value=item.state==='off'?0:item.brightness===null?null:Math.round(item.brightness/255*100);
      return value===wanted;
     });
@@ -714,42 +712,130 @@ export class LiveControlView{
   }
  }
  async actLight(target,observation,action,input={},currentObservation){
-  const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false},t=this.host.liveTransport,requestedValue=action==='turn_on'?true:action==='turn_off'?false:action==='brightness'&&Number.isInteger(input?.percent)&&input.percent>=0&&input.percent<=100?input.percent:undefined;let diagnostic;
-  try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}diagnostic={domain:'light',action,resourceId:target?.entityId||target?.sceneId||target?.areaId,...(requestedValue!==undefined?{requestedValue}:{})};this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
-  // Only a command for the same light blocks; other lights are independent (L1).
+  const unavailable={outcome:'rejected',phase:'rejected',pending:false,refreshed:false};
+  const t=this.host.liveTransport;
+  try{target=structuredClone(target);input=structuredClone(input);}catch{return unavailable;}
+  const resourceId=target?.entityId||target?.sceneId||target?.areaId;
   const identity=JSON.stringify([target?.areaId,target?.entityId??null,target?.sceneId??null]);
   const lights=this.lightActions??=new Map();
-  if(lights.get(identity)?.operation||this.pending||this.setupPending
-   ||this.domain==='light'&&this.controlOpen()||!['turn_on','turn_off','brightness','scene'].includes(action)){this.journalDevice(t,'control_intent',{...diagnostic,code:'intent_pending'});return unavailable;}
-  const context=this.lightActionContext(target,observation,currentObservation);if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene){this.journalDevice(t,'control_intent',{...diagnostic,code:'stale_binding'});return unavailable;}
-  this.pruneSpent();const unknowns=this.lightUnknowns||(this.lightUnknowns=new Map());for(const[key,fence]of unknowns)if(fence.until<=Date.now())unknowns.delete(key);const unknown=unknowns.get(identity);
-  if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&context.sourceObservedAt<=unknown.observedAt){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});return {...unavailable,outcome:'unknown',phase:'unknown'};}unknowns.delete(identity);if(unknowns.size>=64){this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});return unavailable;}
-  const operation={target:{...target},action,context,identity,sent:false,revoked:false,
-   requestedPercent:action==='brightness'?requestedValue:undefined};
+  if(lights.get(identity)?.operation||this.pending||this.setupPending||this.domain==='light'&&this.controlOpen()
+   ||!['toggle','turn_on','turn_off','brightness','scene'].includes(action))return unavailable;
+  const context=this.lightActionContext(target,observation,currentObservation);
+  if(!context||action==='brightness'&&!context.brightness||action==='scene'&&!context.scene)return unavailable;
+  const operation={target,action,context,identity,sent:false,revoked:false,
+   requestedPercent:action==='brightness'?input.percent:undefined};
+  const entry=lights.get(identity)||{};
+  entry.operation=operation;
+  lights.set(identity,entry);
+  // Independent lamp intents share the broker's one setup/action slot per HA area.
+  const lanes=this.lightAreaLanes??=new Map(),areaId=target.areaId,previous=lanes.get(areaId);
+  let release;
+  const turn=new Promise(resolve=>{release=resolve;});
+  lanes.set(areaId,turn);
   this.updateLightAction(operation,'preparing');
-  const entry=lights.get(identity);entry.operation=operation;
   const current=()=>this.lightActions?.get(identity)?.operation===operation
-   &&!operation.revoked&&!this.suspending&&context.current();let task,option,args,result;
+   &&!operation.revoked&&!this.suspending&&context.current();
+  let completion;
   try{
-   this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});const raw=await context.transport.controlSetup('light',operation.target);if(!current())throw Error('light_context_changed');task=controlTask(raw,this.host.liveSnapshot,'light');
-   if(this.spent.has(task.taskId)||!this.lightTaskCurrent(context,task))throw Error('light_offer_changed');const candidates=task.options.filter(row=>row.action===action);if(candidates.length!==1)throw Error('light_action_not_offered');option=candidates[0];args=controlArgs(task,option.id,input);this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});
+   const prior=previous?await previous:null;
+   completion=prior;
+   if(!current()||this.pending||this.setupPending||this.domain==='light'&&this.controlOpen())return unavailable;
+   const source=scopedLightsObservation(context.observation());
+   const affected=prior?.ids.some(id=>context.ids.includes(id));
+   if(prior?.unknown||affected&&(!prior.refreshed||source.observedAt<=prior.observedBeforeSend)){
+    this.host.showFeedback?.('Hent aktuel lysstatus, før du prøver igen.',false);
+    return unavailable;
+   }
+   if(action==='toggle'){
+    const on=source.items.some(item=>context.ids.includes(item.entityId)&&item.state==='on');
+    operation.action=on?'turn_off':'turn_on';
+   }
+   const result=await this.sendLightOperation(operation,input,current,source,resourceId,t);
+   if(operation.sent&&(result.outcome==='accepted'||result.outcome==='unknown')){
+    // Without an area read, a distinct lamp cannot clear an older overlapping intent's fence.
+    const unobserved=prior&&!prior.refreshed&&!result.refreshed;
+    completion={ids:unobserved?[...new Set([...prior.ids,...context.ids])]:context.ids,
+     observedBeforeSend:unobserved?Math.max(prior.observedBeforeSend,operation.observedBeforeSend)
+      :operation.observedBeforeSend,refreshed:result.refreshed,unknown:result.outcome==='unknown'};
+   }
+   return result;
+  }finally{
+   if(entry.operation===operation){
+    const late=!current();
+    entry.operation=null;
+    if(entry.state.pending)this.updateLightAction(operation,'rejected',{late});
+   }
+   if(lanes.get(areaId)===turn)lanes.delete(areaId);
+   release(completion);
+  }
+ }
+ async sendLightOperation(operation,input,current,source,resourceId,t){
+  const {identity,context,target,action}=operation;
+  const requestedValue=action==='turn_on'?true:action==='turn_off'?false:operation.requestedPercent;
+  const diagnostic={domain:'light',action,resourceId,...(requestedValue!==undefined?{requestedValue}:{})};
+  this.journalDevice(t,'control_intent',{...diagnostic,code:'start'});
+  this.pruneSpent();
+  const unknowns=this.lightUnknowns??=new Map();
+  for(const [key,fence] of unknowns)if(fence.until<=Date.now())unknowns.delete(key);
+  const unknown=unknowns.get(identity);
+  if(unknown&&unknown.sourceEpoch===context.sourceEpoch&&source.observedAt<=unknown.observedAt){
+   this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence'});
+   return {outcome:'unknown',phase:'unknown',pending:false,refreshed:false};
+  }
+  unknowns.delete(identity);
+  if(unknowns.size>=64){
+   this.journalDevice(t,'control_intent',{...diagnostic,code:'unknown_fence',count:64});
+   return {outcome:'rejected',phase:'rejected',pending:false,refreshed:false};
+  }
+  let task,result;
+  try{
+   this.journalDevice(t,'control_setup',{...diagnostic,code:'start'});
+   const raw=await context.transport.controlSetup('light',target);
+   if(!current())throw Error('light_context_changed');
+   task=controlTask(raw,this.host.liveSnapshot,'light');
+   if(this.spent.has(task.taskId)||!this.lightTaskCurrent(context,task))throw Error('light_offer_changed');
+   const candidates=task.options.filter(row=>row.action===action);
+   if(candidates.length!==1)throw Error('light_action_not_offered');
+   const option=candidates[0],args=controlArgs(task,option.id,input);
+   this.journalDevice(t,'control_setup',{...diagnostic,code:'ok'});
    if(!current()||!this.lightTaskCurrent(context,task))throw Error('light_context_changed');
-   this.spent.set(task.taskId,task.expiresAt);operation.task=task;operation.optionId=option.id;operation.label=option.label;this.updateLightAction(operation,'sending');
+   this.spent.set(task.taskId,task.expiresAt);
+   this.updateLightAction(operation,'sending');
    if(!current())throw Error('light_context_changed');
    operation.observedBeforeSend=scopedLightsObservation(context.observation()).observedAt;
    operation.sent=true;
-   result=await context.transport.controlAction(task,option.id,args);if(!['accepted','rejected','unknown'].includes(result?.outcome)||result.ok!==(result.outcome==='accepted'))result={ok:false,outcome:'unknown'};
-  }catch{this.journalDevice(t,operation.sent?'control_action':'control_setup',{...diagnostic,code:operation.sent?'unknown':current()?'setup_unavailable':'superseded'});result={ok:false,outcome:operation.sent?'unknown':'rejected'};}
+   operation.label=option.label;
+   result=await context.transport.controlAction(task,option.id,args);
+   if(!['accepted','rejected','unknown'].includes(result?.outcome)||result.ok!==(result.outcome==='accepted')){
+    result={ok:false,outcome:'unknown'};
+   }
+  }catch{
+   const code=operation.sent?'unknown':current()?'setup_unavailable':'superseded';
+   this.journalDevice(t,operation.sent?'control_action':'control_setup',{...diagnostic,code});
+   result={ok:false,outcome:operation.sent?'unknown':'rejected'};
+  }
   const outcome=result.outcome;
-  if(operation.sent){this.remember({key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,domain:'light',target:operation.target,label:operation.label},outcome,result.requestId,result);if(outcome==='unknown')unknowns.set(identity,{sourceEpoch:context.sourceEpoch,observedAt:Math.max(context.sourceObservedAt,Date.now()/1000),until:Date.now()+15000});else unknowns.delete(identity);}
-  if(operation.sent&&outcome!=='rejected'&&current())this.trackDeviceJournal('light',operation,result.requestId,requestedValue,diagnostic.resourceId,()=>!operation.revoked&&!this.suspending&&context.current());
+  if(operation.sent){
+   this.remember({key:task.bootId+':'+task.taskId,bootId:task.bootId,roomId:task.roomId,
+    taskId:task.taskId,domain:'light',target,label:operation.label},outcome,result.requestId,result);
+   if(outcome==='unknown')unknowns.set(identity,{sourceEpoch:context.sourceEpoch,
+    observedAt:Math.max(source.observedAt,Date.now()/1000),until:Date.now()+15000});
+   else unknowns.delete(identity);
+  }
+  if(operation.sent&&outcome!=='rejected'&&current())this.trackDeviceJournal('light',operation,result.requestId,
+   requestedValue,resourceId,()=>!operation.revoked&&!this.suspending&&context.current());
   let refreshed=false;
-  if(outcome==='accepted'&&current()&&typeof this.host.readLightArea==='function'){try{refreshed=await this.host.readLightArea(operation.target.areaId,{preserveControls:true})===true;}catch{refreshed=false;}}
-  try{const snap=this.host.liveSnapshot;this.observeDeviceJournal({bootId:snap?.bootId,roomId:snap?.roomId,lights:scopedLightsObservation(context.observation())});}catch{}
-  const late=!current();if(entry.operation===operation)entry.operation=null;
-  return this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late,
+  if(outcome==='accepted'&&current()&&typeof this.host.readLightArea==='function'){
+   try{refreshed=await this.host.readLightArea(target.areaId,{preserveControls:true})===true;}catch{refreshed=false;}
+  }
+  try{
+   const snap=this.host.liveSnapshot;
+   this.observeDeviceJournal({bootId:snap?.bootId,roomId:snap?.roomId,lights:scopedLightsObservation(context.observation())});
+  }catch{}
+  return this.updateLightAction(operation,outcome,{outcome,requestId:result.requestId,refreshed,late:!current(),
    observedBeforeSend:operation.observedBeforeSend});
  }
+
  openMusic(opener){const context=this.musicContext();if(!context)return;this.open('music',context.target,opener);}
  async openRobot(opener,recipeId){
   const d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum'),snapshot=this.host.liveSnapshot,unknown=[...this.receipts.values()].some(row=>row.bootId===snapshot?.bootId&&row.roomId===snapshot?.roomId&&row.domain==='vacuum'&&row.target?.entityId===d?.id&&this.robotReceiptUnknown(row));
