@@ -452,6 +452,8 @@ Supervisorens observerede slug85b5674b matcher SHA1 af den rene repositoryURL ud
 
 Prøver samles som start→køvalg→fortsat betjening efter ventetid/genåbning→pause→højttalerskift→radio→stationsskift→stop→Spotify-retur→stop. Flere historiekrav kan lukkes med samme observerede serie; hvert krav kræver sit forventede udfald. Uændret bestået evidens genbruges. Ingen gentagen katalog-/downloadundersøgelse uden ny afgørende observation. Status43/97 fastholdes indtil nye udfald er bevist; installation og agentarbejde lægger ingen flueben til.
 
+**Samlet Speakers 0.26.86-kandidat · 10. november.** PR #131 på `431d2e6` samler radiogenstartsrettelsen og `465bfd2` for den konkrete afbrudte START. Den kompilerede Linux-fixture består med Green-postens form: en ny proces beviser eksklusiv ejer, tom FIFO, frisk læser og uændret journal, hvorefter frisk Spotify-/radioadgang kan godkendes. En skriver, der åbner under journalopslaget, en ændret post og uafklaret radioejerskab holder stadig porten lukket. Den gamle UNKNOWN-post forbliver ordret intakt. Uafhængigt review og bytekontrol af den anvendte pakke består. CI 42820169073 og imagebyg 42820186308 kører for samme commit. Installation og musikserien på Green afventer. Næste milepæl er mindst 81/97, og hele målet forbliver 97/97.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
