@@ -9,10 +9,13 @@ from unittest.mock import AsyncMock
 
 import httpx
 import pytest
+from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
+from integration.test_podview_account_playlists import payload as account_playlists_payload
 from integration.test_podview_music_selection import rig  # noqa: F401
 from multidict import CIMultiDict
 
+from gatekeeper import podview
 from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_mood import configured_mood_selector
 
@@ -118,6 +121,167 @@ async def mood(client, refresh=False):
             headers=HEADERS,
         )
     ).json()
+
+
+@pytest.mark.parametrize("order", ["targets-first", "mood-first", "owner-change"])
+async def test_same_actor_scoped_targets_and_library_during_actual_mood(
+    mood_rig, monkeypatch, order
+):
+    router, bridge = mood_rig.router, mood_rig.app[BRIDGE]
+    bridge._grant_current = podview.PodViewBridge._grant_current.__get__(bridge)
+    bridge._grants.clear()
+    router._discovery = replace(
+        router._discovery,
+        podconnect_services=router._discovery.podconnect_services
+        | {"get_targets", "get_user_playlists"},
+        target_contracts=(("podconnect_get_targets", "a" * 64),),
+    )
+    upstream = mood_rig.client._transport
+    services = ("search_playlists", "get_targets", "get_user_playlists")
+    entered = {name: asyncio.Event() for name in services}
+    release = {name: asyncio.Event() for name in services}
+    count = dict.fromkeys(services, 0)
+    arrived = {name: asyncio.Event() for name in ("library", "join")}
+    original_guard = podview._guard
+
+    async def guard(request):
+        if (probe := request.headers.get("X-Read-Probe")) in arrived:
+            arrived[probe].set()
+        return await original_guard(request)
+
+    async def owner_read(request):
+        service = request.url.path.rsplit("/", 1)[-1]
+        if service not in entered:
+            return await upstream.handle_async_request(request)
+        args = json.loads(request.content)
+        assert args["config_entry_id"] == "account-alpha"
+        assert request.headers["Authorization"] == "Bearer server-only"
+        count[service] += 1
+        entered[service].set()
+        await release[service].wait()
+        if service == "search_playlists":
+            return await upstream.handle_async_request(request)
+        if service == "get_user_playlists":
+            assert args["limit"] == 20
+            value = account_playlists_payload()
+        else:
+            assert args == {"config_entry_id": "account-alpha"}
+            value = {
+                "config_entry_id": "account-alpha",
+                "errors": {},
+                "targets": [
+                    {
+                        "kind": "spotify_device",
+                        "target_id": target,
+                        "name": name,
+                        "restricted": False,
+                    }
+                    for target, name in (("device-one", "Kitchen"), ("foreign", "Other room"))
+                ],
+            }
+        return httpx.Response(200, json={"service_response": value})
+
+    @web.middleware
+    async def supervisor_ingress(request, handler):
+        return await handler(request.clone(remote="172.30.32.2"))
+
+    mood_rig.app.middlewares.insert(0, supervisor_ingress)
+    monkeypatch.setattr(podview, "_guard", guard)
+    monkeypatch.setattr(mood_rig.client, "_transport", httpx.MockTransport(owner_read))
+    async with TestClient(TestServer(mood_rig.app)) as client:
+        tasks = []
+
+        def begin(kind, *, probe="", account="account-alpha", user="a" * 32):
+            headers = {"X-Remote-User-Id": user, "X-Read-Probe": probe}
+            if kind != "targets":
+                headers["X-PodView-Music-Document"] = "a" * 32
+            task = asyncio.create_task(
+                client.get(
+                    f"/view/api/music?room=kitchen&kind={kind}&account={account}", headers=headers
+                )
+            )
+            tasks.append(task)
+            return task
+
+        async def await_event(event):
+            await asyncio.wait_for(event.wait(), timeout=2)
+
+        try:
+            mood_read = begin("mood")
+            await await_event(entered["search_playlists"])
+            denied = await begin("targets", user="b" * 32)
+            assert denied.status == 429 and (await denied.json())["error"] == "music_busy"
+            targets = begin("targets")
+            try:
+                await await_event(entered["get_targets"])
+            except TimeoutError:
+                if targets.done():
+                    denied = await targets
+                    pytest.fail(
+                        f"scoped targets denied with HTTP {denied.status}: {await denied.json()}"
+                    )
+                raise
+            library = begin("account_playlists", probe="library")
+            await await_event(arrived["library"])
+            assert bridge._music_busy and not mood_read.done() and not library.done()
+            assert count["get_user_playlists"] == 0
+
+            if order == "mood-first":
+                release["search_playlists"].set()
+                assert (await (await mood_read).json())["ok"] is True
+                await await_event(entered["get_user_playlists"])
+                assert bridge._mood_inflight is None and bridge._music_busy
+            join = begin("targets", probe="join")
+            await await_event(arrived["join"])
+            wrong_account = await begin("targets", account="other")
+            assert (
+                wrong_account.status == 429
+                and (await wrong_account.json())["error"] == "music_busy"
+            )
+            assert count["get_targets"] == 1 and not join.done()
+            duplicate = await begin("targets", account="account-alpha&account=other")
+            assert duplicate.status == 429 and (await duplicate.json())["error"] == "music_busy"
+            if order == "owner-change":
+                mood_rig.session._epoch = getattr(mood_rig.session, "_epoch", 0) + 1
+            release["get_targets"].set()
+            first, second = await asyncio.gather(targets, join)
+            assert bridge._music_busy, (
+                "targets must leave whichever primary read owns the lane alone"
+            )
+
+            if order == "owner-change":
+                assert first.status == second.status == 503
+                assert (
+                    (await first.json())["error"]
+                    == (await second.json())["error"]
+                    == "music_unavailable"
+                )
+                assert not any(key[1] == "targets" for key in bridge._music_cache)
+            else:
+                assert first.status == second.status == 200
+                one, two = await first.json(), await second.json()
+                assert one == two and one["ok"] is True
+                assert [row["targetId"] for row in one["data"]["targets"]] == ["device-one"]
+                assert one["roomBinding"]["targetId"] == "device-one"
+            release["search_playlists"].set()
+            release["get_user_playlists"].set()
+            library_result = await library
+            if order == "owner-change":
+                assert library_result.status == 409
+                assert count["get_user_playlists"] == 0
+            else:
+                assert library_result.status == 200 and (await library_result.json())["ok"] is True
+                assert count["get_user_playlists"] == 1
+                assert (await (await mood_read).json())["ok"] is True
+            assert count["get_targets"] == 1
+            assert bridge._targets_inflight is None and not bridge._music_busy
+            assert not bridge.music_selection.tasks
+            bridge.controls.music.setup_context.assert_not_awaited()
+            bridge.controls.music.execute_context.assert_not_awaited()
+        finally:
+            for gate in release.values():
+                gate.set()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 async def test_three_owned_themes_one_real_source_and_retained_until_refresh(mood_rig):

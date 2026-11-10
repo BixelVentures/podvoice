@@ -21,6 +21,7 @@ const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
 const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const discoveryPersonalCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='personal-cover';
+const libraryBusy=process.env.MUSIC_LIBRARY_BUSY_TEST;
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
@@ -29,6 +30,53 @@ const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+async function libraryBusyJourney(){
+ const gate=base+'/lab/library-race';
+ const observe=()=>fetch(gate).then(response=>response.json());
+ const wait=async predicate=>{
+  for(let attempt=0;attempt<100;attempt++){
+   const observation=await observe();
+   if(predicate(observation))return observation;
+   await sleep(20);
+  }
+  throw Error('fixture did not observe the expected real request');
+ };
+ const musicKind=(response,kind)=>{
+  const url=new URL(response.url());
+  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')===kind;
+ };
+ const list=page.locator('#result-list');
+ const mood=page.waitForResponse(response=>musicKind(response,'mood'));
+ await env.openOverview(page);
+ await page.locator('#home-music').tap();
+ await wait(value=>value.moodReads>0);
+ const library=page.waitForResponse(response=>musicKind(response,'account_playlists'));
+ await page.locator('[data-collection=top]').tap();
+ const before=await wait(value=>value.libraryArrivals===1);
+ assert.equal(before.libraryReads,0);
+ assert.equal(await list.getAttribute('aria-busy'),'true','library remains pending behind the real mood read');
+ assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0);
+ await fetch(gate,{method:'POST'});
+ const result=await library,body=await result.json();
+ await mood;
+ const final=await observe();
+ assert.equal(final.libraryArrivals,1,'no automatic library retry');
+ if(libraryBusy==='owner-change'){
+  assert.equal(result.status(),409);
+  assert.equal(body.error,'music_unavailable');
+  assert.equal(final.libraryReads,0,'changed owner cannot spend a library provider call');
+ }else{
+  assert.equal(result.status(),200);
+  assert.equal(body.ok,true);
+  assert.equal(final.libraryReads,1);
+  await list.getByText('Personlig testplayliste A',{exact:true}).waitFor({state:'visible'});
+ }
+ assert.deepEqual((await state()).writes,[]);
+ assert.deepEqual(actions.filter(action=>!action.url.endsWith('/music/queue/offer')),[]);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'library-after-mood',libraryBusy,bundleSHA,
+  status:result.status(),providerReads:final.libraryReads,oneBrowserRequest:true,effects:0}));
+}
 async function defaultSpeakerJourney(){
  const viewport={width:1194,height:834},controls=[];
  const record=surface=>surface.on('request',request=>{
@@ -1569,8 +1617,8 @@ async function queuePersistenceJourney(){
   MUSIC_QUEUE_COLD_TAIL:queueColdTail?'1':'0',PODVIEW_TEST_NONCE:nonce,
   ...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1',MUSIC_QUEUE_IDENTITY_TEST:'1'}:{}),
   // Reuse the existing isolated catalogue search and cover fixtures for all four reads.
-  ...(discoveryLoading||discoveryPersonalCover?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{}),
-  ...(discoveryPersonalCover?{MUSIC_PERSONAL_PLAYLIST_COVER:'1'}:{})
+  ...(discoveryLoading||discoveryPersonalCover||libraryBusy?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{}),
+  ...(discoveryPersonalCover||libraryBusy?{MUSIC_PERSONAL_PLAYLIST_COVER:'1'}:{})
  });
  server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],
   {cwd:env.runtimeRoot,env:fixtureEnv,stdio:['ignore','pipe','pipe']});
@@ -1579,14 +1627,14 @@ async function queuePersistenceJourney(){
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
  if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
-  ||discoveryCover||discoveryPersonalCover||voiceLongSession||documentScope){
+  ||discoveryCover||discoveryPersonalCover||libraryBusy||voiceLongSession||documentScope){
   options.args=['--mute-audio'];
  }
  browser=await chromium.launch(options);
  const surfaceOptions={hasTouch:true,viewport:{width:1280,height:800}};
  page=documentScope?await (await browser.newContext(surfaceOptions)).newPage():await browser.newPage(surfaceOptions);
  if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
-  ||discoveryPersonalCover||voiceLongSession||documentScope){
+  ||discoveryPersonalCover||libraryBusy||voiceLongSession||documentScope){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
   page.on('request',request=>{
    if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
@@ -1608,6 +1656,7 @@ async function queuePersistenceJourney(){
  });
  page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/music/'))actions.push({url:r.url(),body:r.postDataJSON(),traceHeader:r.headers()['x-podview-trace']});if(previewRenew&&r.method()==='GET'&&r.url().includes('/music?')){const url=new URL(r.url());if(url.searchParams.get('kind')==='mood'&&url.searchParams.get('renew')==='1')moodRenewals.push(r.headers()['x-podview-trace']);}});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(libraryBusy){await libraryBusyJourney();return;}
  if(defaultSpeakerProof){await defaultSpeakerJourney();return;}
  if(cold){
   const initial=await (await page.request.get(base+'/view/api/music?kind=playback&account=account&include_controls=1')).json();

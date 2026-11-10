@@ -1,3 +1,7 @@
+## 2.0.169
+
+- Hent højttalerlisten, mens Vibe indlæses, lad Din musik vente på samme Vibe-opslag, og skjul robottens tidligere rum under opstart, når Home Assistant har bekræftet, at det stammer fra før turen.
+
 ## 2.0.168
 
 - Skjul robottens tidligere rum, når Home Assistant bekræfter, at rumværdien stammer fra før den aktive tur.
