@@ -202,6 +202,13 @@ class PreparedAction:
     data: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class _RobotRoomWitness:
+    binding_id: str
+    terminal_at: float
+    cleaning_since: float | None = None
+
+
 class DeviceControl:
     def __init__(
         self, client: httpx.AsyncClient | None, token: str, *, journal_path: Path | None = None
@@ -213,6 +220,9 @@ class DeviceControl:
         self._entities: tuple[str, ...] = ()
         self._robot_reads: tuple[dict, ...] = ()
         self._generation = 0
+        self._robot_room_witnesses: dict[str, _RobotRoomWitness] = {}
+        self._robot_read_times: dict[str, float] = {}
+        self._robot_read_source = (client, token)
         self._tickets: dict[str, Capability] = {}
         self._display_tickets: dict[str, Capability] = {}
         self._map_revisions: dict[str, int] = {}
@@ -230,6 +240,8 @@ class DeviceControl:
         active = enabled is True and bool(allowed)
         if (active, allowed) != (self._enabled, self._entities):
             self._generation += 1
+            self._robot_room_witnesses.clear()
+            self._robot_read_times.clear()
             self._tickets.clear()
             self._display_tickets.clear()
             self._enabled, self._entities = active, allowed
@@ -243,13 +255,17 @@ class DeviceControl:
         if allowed != self._robot_reads:
             self._robot_reads = allowed
             self._generation += 1
+            self._robot_room_witnesses.clear()
+            self._robot_read_times.clear()
             self._tickets.clear()
             self._display_tickets.clear()
 
-    async def _robot_observation(self, entity_id: str, generation: int) -> dict:
+    async def _robot_observation(
+        self, entity_id: str, generation: int, vacuum_sample: tuple[str, float, float] | None = None
+    ) -> dict:
         try:
             return await asyncio.wait_for(
-                self._robot_observation_read(entity_id, generation), timeout=5
+                self._robot_observation_read(entity_id, generation, vacuum_sample), timeout=5
             )
         except TimeoutError:
             return {"status": "unavailable", "items": []}
@@ -284,7 +300,9 @@ class DeviceControl:
             result[entity] = row
         return result
 
-    async def _robot_observation_read(self, entity_id: str, generation: int) -> dict:
+    async def _robot_observation_read(
+        self, entity_id: str, generation: int, vacuum_sample: tuple[str, float, float] | None
+    ) -> dict:
         optional_deadline = time.monotonic() + 4.5
         unavailable = {"status": "unavailable", "items": []}
         binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == entity_id), None)
@@ -299,6 +317,7 @@ class DeviceControl:
             identity = podview_robot.registry_identity(binding, before)
             items = []
             cleaning_sample = None
+            cleaning_evidence: tuple[bool, float, float] | None = None
             snapshot = await self._robot_field_snapshot(
                 entity_id, [field["entityId"] for field in binding["fields"]], generation
             )
@@ -309,8 +328,13 @@ class DeviceControl:
                 row = podview_robot.field_value(field["key"], field["entityId"], value, time.time())
                 if row is not None:
                     items.append(row)
-                    if field["key"] == "in_cleaning" and row["value"] is True and not row["stale"]:
-                        cleaning_sample = (field, value)
+                    if field["key"] == "in_cleaning" and not row["stale"]:
+                        if row["value"] is True:
+                            cleaning_sample = (field, value)
+                        changed = podview_robot._epoch(value.get("last_changed"))
+                        reported = podview_robot._epoch(value.get("last_reported"))
+                        if changed is not None and reported is not None and 0 < changed <= reported:
+                            cleaning_evidence = (row["value"], changed, reported)
             try:
                 response = await asyncio.wait_for(
                     self._json(
@@ -422,8 +446,14 @@ class DeviceControl:
                 results = await asyncio.gather(*(optional_read(read) for _, read in reads))
                 for (key, _), observed in zip(reads, results, strict=True):
                     result[key] = observed
+            self._check(generation)
             activity = result["currentActivity"]
+            room_cutoff = self._robot_room_cutoff(
+                entity_id, result["bindingId"], vacuum_sample, cleaning_evidence
+            )
             if activity["status"] == "observed":
+                room_cutoff = activity["registeredAt"]
+            if room_cutoff is not None:
                 for row in items:
                     if row["key"] != "current_room" or row.get("historical"):
                         continue
@@ -432,13 +462,57 @@ class DeviceControl:
                     if (
                         change is not None
                         and 0 < change <= row["updatedAt"]
-                        and change < activity["registeredAt"]
+                        and change < room_cutoff
                     ):
                         row.update(historical=True, stale=True)
-            self._check(generation)
             return result
         except (CapabilityError, ValueError, httpx.HTTPError, aiohttp.ClientError):
             return unavailable
+
+    def _robot_room_cutoff(
+        self,
+        entity_id: str,
+        binding_id: str,
+        vacuum_sample: tuple[str, float, float] | None,
+        cleaning: tuple[bool, float, float] | None,
+    ) -> float | None:
+        # This witness is a display-only lower bound, never a synthetic Recorder start.
+        if vacuum_sample is None:
+            return None
+        state, observed_at, read_time = vacuum_sample
+        if (
+            self._robot_read_source != (self._client, self._token)
+            or self._robot_read_times.get(entity_id) != read_time
+        ):
+            return None
+        prior = self._robot_room_witnesses.get(entity_id)
+        if prior and prior.binding_id != binding_id:
+            self._robot_room_witnesses.pop(entity_id)
+            prior = None
+        if state == "docked":
+            self._robot_room_witnesses.pop(entity_id, None)
+            if cleaning is not None and not cleaning[0] and 0 <= observed_at - cleaning[2] <= 300:
+                self._robot_room_witnesses[entity_id] = _RobotRoomWitness(binding_id, cleaning[2])
+            return None
+        if state == "paused" and prior and prior.cleaning_since is None:
+            self._robot_room_witnesses.pop(entity_id, None)
+            return None
+        if state not in {"cleaning", "paused"} or cleaning is None or not cleaning[0] or not prior:
+            return None
+        _, changed, _ = cleaning
+        if prior.cleaning_since == changed:
+            return prior.terminal_at
+        if (
+            prior.cleaning_since is None
+            and state == "cleaning"
+            and 0 < changed - prior.terminal_at <= 300
+        ):
+            self._robot_room_witnesses[entity_id] = _RobotRoomWitness(
+                binding_id, prior.terminal_at, changed
+            )
+            return prior.terminal_at
+        self._robot_room_witnesses.pop(entity_id, None)
+        return None
 
     async def _robot_current_activity(
         self,
@@ -585,11 +659,20 @@ class DeviceControl:
         generation = self._generation
         self._check(generation)
         rows = []
+        source = (self._client, self._token)
+        if source != self._robot_read_source:
+            self._robot_read_source = source
+            self._robot_room_witnesses.clear()
+            self._robot_read_times.clear()
         for entity_id in self._entities:
             if not entity_id.startswith("vacuum."):
                 continue
+            read_time = time.monotonic()
             value = await self._json("GET", f"states/{entity_id}")
             self._check(generation)
+            if source != (self._client, self._token):
+                raise CapabilityError("Passiv enhedskilde er ændret")
+            observed_at = time.time()
             if (
                 not isinstance(value, dict)
                 or value.get("entity_id") != entity_id
@@ -609,8 +692,27 @@ class DeviceControl:
             ):
                 raise CapabilityError("Ugyldig passiv enhedsstatus")
             attrs = value["attributes"]
+            vacuum_sample = None
+            if read_time > self._robot_read_times.get(entity_id, 0):
+                self._robot_read_times[entity_id] = read_time
+                state = value["state"]
+                if attrs.get("assumed_state") is not True:
+                    vacuum_sample = (state, observed_at, read_time)
+                if vacuum_sample is None or state not in {"docked", "cleaning", "paused"}:
+                    self._robot_room_witnesses.pop(entity_id, None)
+                elif state == "docked" and (prior := self._robot_room_witnesses.get(entity_id)):
+                    if prior.cleaning_since is not None:
+                        self._robot_room_witnesses.pop(entity_id)
             battery = attrs.get("battery_level")
             name = attrs.get("friendly_name")
+            telemetry = await self._robot_observation(entity_id, generation, vacuum_sample)
+            if source != (self._client, self._token):
+                raise CapabilityError("Passiv enhedskilde er ændret")
+            if (
+                telemetry["status"] == "unavailable"
+                and self._robot_read_times.get(entity_id) == read_time
+            ):
+                self._robot_room_witnesses.pop(entity_id, None)
             rows.append(
                 {
                     "entityId": entity_id,
@@ -619,13 +721,13 @@ class DeviceControl:
                     "battery": battery
                     if type(battery) in {int, float} and 0 <= battery <= 100
                     else None,
-                    "observedAt": time.time(),
+                    "observedAt": observed_at,
                     "source": "home_assistant_state",
                     "supportedFeatures": attrs.get("supported_features")
                     if type(attrs.get("supported_features")) is int
                     and 0 <= attrs["supported_features"] <= 2**31
                     else None,
-                    "telemetry": await self._robot_observation(entity_id, generation),
+                    "telemetry": telemetry,
                 }
             )
         self._check(generation)

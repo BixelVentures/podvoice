@@ -25,8 +25,8 @@ def iso(epoch):
     return datetime.fromtimestamp(epoch, UTC).isoformat()
 
 
-async def build(case="normal"):
-    edge = time.time() - 600
+async def build(case="normal", *, age=600):
+    edge = time.time() - age
     registry = {
         eid: dict(
             entity_id=eid,
@@ -274,6 +274,107 @@ async def test_current_room_requires_ha_value_change_inside_the_observed_run(cas
         assert not owner._tickets and not owner._display_tickets
     finally:
         await client.aclose()
+
+
+@pytest.mark.parametrize(
+    "prior",
+    [
+        "dock",
+        "missing",
+        "stale",
+        "assumed",
+        "weak",
+        "old-edge",
+        "registry",
+        "token",
+        "reconfigure",
+        "terminal",
+        "pause-before-cleaning",
+    ],
+)
+async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness(prior):
+    owner, client, _, edge = await build("room-previous", age=30)
+    transport = client._transport
+    read_registry = owner._ws_read
+    state = "docked"
+    room = "Bathroom1"
+    recorder_ready = False
+    changed_registry = False
+
+    async def registry(command):
+        entries = await read_registry(command)
+        if changed_registry and ROOM in entries:
+            entries[ROOM]["unique_id"] = "new_room_identity"
+        return entries
+
+    async def route(request):
+        path = request.url.path
+        if "/history/period/" in path and not recorder_ready:
+            return httpx.Response(200, json=[])
+        result = await transport.handle_async_request(request)
+        if path.endswith(f"/states/{VAC}"):
+            value = result.json()
+            value.update(
+                state=state, last_changed=iso(edge + 20 if state == "cleaning" else edge - 10)
+            )
+            if prior == "assumed" and state == "docked":
+                value["attributes"]["assumed_state"] = True
+            return httpx.Response(200, json=value)
+        if path.endswith("/template"):
+            rows = result.json()
+            for row in rows:
+                if row["entity_id"] == CLEAN and state == "docked":
+                    if prior != "weak":
+                        row.update(
+                            state="off", last_changed=iso(edge - 20), last_reported=iso(edge - 15)
+                        )
+                    if prior == "stale":
+                        row.update(last_changed=iso(edge - 400), last_reported=iso(edge - 390))
+                    if prior == "old-edge":
+                        row["last_reported"] = iso(edge + 5)
+                if row["entity_id"] == ROOM and room == "Corridor1":
+                    row.update(state=room, last_changed=iso(edge + 10))
+            return httpx.Response(200, json=rows)
+        return result
+
+    owner._ws_read = registry
+    client._transport = httpx.MockTransport(route)
+
+    async def view(expected_room, *, historical=False, recorded=False):
+        device = _home_vacuum(await owner.observe())["items"][0]
+        row = next(row for row in device["telemetry"]["items"] if row["key"] == "current_room")
+        assert device["state"] == state
+        assert row["value"] == expected_room
+        assert row["historical"] is historical
+        assert row["stale"] is historical
+        assert (device["currentActivity"]["status"] == "observed") is recorded
+        assert not owner._tickets and not owner._display_tickets
+
+    async with client:
+        if prior != "missing":
+            await view("Bathroom1")
+        if prior == "token":
+            owner._token = "inert-replacement-token"
+        if prior == "registry":
+            changed_registry = True
+        if prior == "reconfigure":
+            owner.configure(False, [VAC])
+            owner.configure(True, [VAC])
+        if prior in {"terminal", "pause-before-cleaning"}:
+            state = "idle" if prior == "terminal" else "paused"
+            await view("Bathroom1")
+        state = "cleaning"
+        await view("Bathroom1", historical=prior == "dock")
+        if prior == "dock":
+            state = "paused"
+            await view("Bathroom1", historical=True)
+            room = "Corridor1"
+            await view("Corridor1")
+            state = "cleaning"
+            await view("Corridor1")
+            room = "Bathroom1"
+            recorder_ready = True
+            await view("Bathroom1", historical=True, recorded=True)
 
 
 async def test_slow_independent_setup_read_does_not_erase_recorded_activity():
