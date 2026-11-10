@@ -430,6 +430,8 @@ Terra læste igen Supervisor: opdateringsmærke synligt, men dialog installeret8
 
 Supervisor-loggen blev gemt efter et afventende native Gem-panel: /Users/madsbachandersen/Downloads/supervisor_2026-11-10T11-39-06.832Z.log. Root læste linje9343–9400: repositoryopdateringer12.31.29/12.31.48, PodConnectconfig valideret12.31.59.700, terminal Loading apps from store12.31.59.708. Core-timeout var altså ikke bevis for et fortsat hængende job. Mainmerge var12.31.00; en ny normal katalogkontrol er nu autoriseret som næste afgrænsede handling, da forrige job er dokumenteret færdigt. Ingen hostgenstart eller musikhandling.
 
+**Katalogafgrænsning efter ny kontrol.** Ny normal butikopdatering efter dokumenteret terminalt job,35s ventetid og frisk appside gav stadig84/84. Root verificerede GitHub-standardgren main og aktuelt podconnect/config.yaml85 via API. Normal homeassistant.update_entity rettet mod update.podconnect_speakers_opdatering via HA-UI ændrede ikke tilbuddet. Ingen install eller lydhandling. Flere identiske opdateringsforsøg stoppes; præcis manglende observation er Supervisorens faktisk hentede PodConnect-revision/katalogpost versus GitHubmain. Green bliver på84; publiceret85 er ikke installeret.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
