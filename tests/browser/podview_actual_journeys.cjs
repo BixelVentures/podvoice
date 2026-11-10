@@ -82,6 +82,8 @@ for(const journey of only.length?only:journeys){
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-observation')});
   runJourney(journey,{ROBOT_DOCK_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-dock')});
+  runJourney(journey,{ROBOT_DOCK_TEST:'1',ROBOT_DOCK_RECEIPT_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-dock-receipt')});
   runJourney(journey,{ROBOT_DOCK_TEST:'1',ROBOT_HISTORY_DOCK_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'robot-history-dock')});
   runJourney(journey,{ROBOT_DOCK_TEST:'1',ROBOT_ACTIVE_BASE_TEST:'1',

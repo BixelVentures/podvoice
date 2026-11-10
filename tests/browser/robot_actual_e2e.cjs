@@ -59,6 +59,67 @@ const assertRobotObservation=async(page,requests,action)=>{
   const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
+  if(process.env.ROBOT_DOCK_RECEIPT_TEST==='1'){
+   const host=page.locator('pv-widget-host');
+   const start=panel.getByRole('button',{name:'Vask moppe',exact:true});
+   await baseMenu.tap();
+   const actionPath='**/view/api/control/actions',homePath='**/view/api/home?*';
+   let release,upstreamResolve,upstreamReject;
+   const held=new Promise(resolve=>{release=resolve;});
+   const upstream=new Promise((resolve,reject)=>{upstreamResolve=resolve;upstreamReject=reject;});
+   await page.route(actionPath,async route=>{
+    try{
+     const response=await route.fetch();
+     upstreamResolve({status:response.status(),receipt:await response.json()});
+     await held;
+     await route.fulfill({response});
+    }catch(error){upstreamReject(error);}
+   });
+   const browserReceipt=page.waitForResponse(response=>response.url().endsWith('/view/api/control/actions'));
+   const snapshot=()=>host.evaluate(h=>{
+    const view=h.liveControls,device=view.robotDevice(),operation=view.activeOperation;
+    const receipt=operation?view.receipts.get(operation.key):[...view.receipts.values()].at(-1);
+    const renewalCodes=h.liveTransport.diagnostics().records
+     .filter(record=>record.stage==='robot_renewal').map(record=>record.code);
+    return {connected:h.liveTransport.connected,stale:!!device?.stale,
+     homeStatus:h.state.homeReadStatus?.vacuum,operationPending:!!view.pending,
+     task:!!view.task,outcome:receipt?.outcome,feedback:view.robotPanel?.value?.controlFeedback?.text,
+     renewalCodes};
+   });
+   const started=performance.now();
+   let beforeGap,afterGap,accepted;
+   try{
+    await start.tap();
+    accepted=await upstream;
+    assert.equal(accepted.status,200);
+    assert.equal(accepted.receipt.outcome,'accepted');
+    assert.deepEqual((await ownerWrites()).map(([,body])=>body.command),['app_start_wash']);
+    beforeGap=await snapshot();
+    assert.equal(beforeGap.outcome,'pending');
+    await page.route(homePath,route=>route.fulfill({status:503,body:'{}'}));
+    await host.evaluate(h=>h.loadLiveHome({afterCurrent:true}));
+    await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.homeReadStatus?.vacuum==='error');
+    afterGap=await snapshot();
+    assert.equal(afterGap.connected,true);
+    assert.equal(afterGap.stale,true);
+    assert.equal(afterGap.operationPending,true);
+   }finally{
+    release();
+    await page.unroute(homePath);
+    await page.unrouteAll({behavior:'wait'});
+   }
+   assert.equal((await (await browserReceipt).json()).requestId,accepted.receipt.requestId);
+   await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveControls.pending);
+   const afterReceipt=await snapshot();
+   assert.equal(afterReceipt.outcome,'accepted','the exact authoritative reply eventually reaches the browser');
+   const ref=crypto.createHash('sha256').update(accepted.receipt.requestId).digest('hex').slice(0,16);
+   console.log(JSON.stringify({dockReceiptRef:ref,elapsedMs:Math.round(performance.now()-started),
+    beforeGap,afterGap,afterReceipt,upstreamOutcome:accepted.receipt.outcome,loadedBundleSha256}));
+   assert.equal(requests.filter(row=>row.url.endsWith('/control/actions')).length,1);
+   assert.deepEqual((await ownerWrites()).map(([,body])=>body.command),['app_start_wash']);
+   assert.equal(afterGap.outcome,'pending','a transient Home read must not paint a pending admitted dock action as UNKNOWN');
+   return;
+  }
   if(process.env.ROBOT_IDLE_RETURN_TEST==='1'){
    const host=page.locator('pv-widget-host');
    await update({robotState:'idle'});
