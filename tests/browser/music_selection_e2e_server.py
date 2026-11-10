@@ -1,5 +1,6 @@
 """Extend the existing inert native service with actual catalogue/content/queue contracts."""
 
+import asyncio
 import base64
 import copy
 import hashlib
@@ -39,6 +40,9 @@ queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
 discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
 discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
 personal_playlist_cover = os.environ.get("MUSIC_PERSONAL_PLAYLIST_COVER") == "1"
+library_race = os.environ.get("MUSIC_LIBRARY_BUSY_TEST")
+library_race_release = asyncio.Event()
+library_race_arrivals = 0
 recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
@@ -260,6 +264,8 @@ async def native(request):
             },
         )
     if (cold or discovery_cover) and service == "search_playlists":
+        if library_race:
+            await library_race_release.wait()
         suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
         playlist = {"uri": "spotify:playlist:" + suffix, "name": "Kold jazz " + suffix[:4]}
         if discovery_cover and args["query"] == THEMES["cooking"]["query"]:
@@ -636,6 +642,33 @@ if queue_journey:
         return web.json_response({"condition": condition})
 
     base.app.router.add_post("/lab/queue", queue_state)
+
+if library_race:
+
+    @web.middleware
+    async def observe_library_race(request, handler):
+        global library_race_arrivals
+        if request.path == "/view/api/music" and request.query.get("kind") == "account_playlists":
+            library_race_arrivals += 1
+        return await handler(request)
+
+    async def library_race_gate(request):
+        if request.method == "POST":
+            if library_race == "owner-change":
+                base.session._epoch = getattr(base.session, "_epoch", 0) + 1
+            library_race_release.set()
+        calls = base.state["nativeCalls"]
+        return web.json_response(
+            {
+                "moodReads": sum(row["service"] == "search_playlists" for row in calls),
+                "libraryReads": sum(row["service"] == "get_user_playlists" for row in calls),
+                "libraryArrivals": library_race_arrivals,
+            }
+        )
+
+    base.app.middlewares.append(observe_library_race)
+    base.app.router.add_get("/lab/library-race", library_race_gate)
+    base.app.router.add_post("/lab/library-race", library_race_gate)
 
 base.app.on_cleanup.append(cleanup)
 web.run_app(
