@@ -460,6 +460,8 @@ Prøver samles som start→køvalg→fortsat betjening efter ventetid/genåbning
 
 **Samlet Green-prøverunde efter 0.26.86 · 10. november.** Efter radio viste en frisk PodView det pausede Spotify-testnummer, ubekræftet højttaler og deaktiveret Fortsæt/Næste/lydstyrke. Din musik kunne ikke hente forslag. Playlistestart, køvalg og betjening efter genåbning er blokeret før nyt tryk. Spotify bekræftede PAUSED og Speakers idle. Ingen ekstra lyd. Vejr viste 12 timefelter, seks dage og Met.no. Opskrifter åbnede Burgerboller på trin 2/5 med 1/10 ingredienser, bevarede det ved fold ud/ind og viste ni opskrifter tilbage i kataloget. Lys viste ikke forbundet og kræver Hue i HA. Timer viste 5:00 med presets og aktiv Start. Den hørbare alarm blev ikke prøvet. Robot viste 100 %, blokeret tømningskanal og fire vedligeholdelsespåmindelser. Svar viste eksisterende historik med dato og indhold. Disse observationer tilføjer ingen hele historier. Fortsæt prøverne og registrér udfald. Saml årsagsarbejde efter prøverunden.
 
+**Mac-adgang og opskriftsvisning på Green · 10. november.** En kold Chrome-fane åbnede PodView med den eksisterende HA-session uden skærmregistrering eller manuelt refresh. Mac-grenen af G1 er bekræftet, iPad er åben. Widgeten viste Burgerboller I gang. Aktiv detalje viste fem nummererede trin og bevarede trin 2/5 samt ingredienser 1/10. Om opskriften åbnede og lukkede. Katalog viste ni opskrifter og Uploadhistorik åbnede/lukkede med den gemte Arla-import. Arla-detaljen viste foto, 11 ingredienser og syv nummererede trin i læsbare kolonner på Mac. Den viste også Fortsæt Burgerboller. Senest gennemført var ikke synlig i det aktuelle katalog. De fem eksisterende godkendte layoutchecks bestod på kildefiler med samme bytes som den pakkede 2.0.166; den samlede bundle er forskellig fra arbejdsgrenen. O6 mangler fortsat den fulde visuelle sammenligning og iPad. Ingen ny hel historie.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
@@ -467,7 +469,7 @@ en aftalt gren mangler afprøvning. Fælles forløb som A12, G4 og G5 tælles i 
 
 | Pakke og historier | Bestået mod skrevet krav | Aktuelt resultat og næste rest |
 |---|---:|---|
-| 1 · Adgang og navigation (G1–G6) | 3/6 | G3–G5 bestået. iPad kold åbning, dvale/genoptagelse og samlet godkendt webview-layout mangler. Mac-genforbindelse er observeret. |
+| 1 · Adgang og navigation (G1–G6) | 3/6 | G3–G5 bestået. iPad kold åbning, dvale/genoptagelse og samlet godkendt webview-layout mangler. Mac-genforbindelse og kold adgang med eksisterende HA-login er observeret. |
 | 2 · Afspiller og Find musik (A1–A14, F1–F2, F4–F12) | 10/25 | Faktisk Spotify-start og Pause er observeret på .86. Tidsmål, bevaret betjening og F10 gennem refresh er stadig åbne. F6 mangler genopbyggelig godkendt reference. Voice PE og faktisk AI-coverkilde står særskilt. |
 | 3 · Kø og højttalere (K1–K7, H1, H4–H10) | 5/15 | Køidentitet, kendt kø under fejl og negative ejergrene bestået. Køvalg/fortsat kontrol på rigtig session, tidsmål og faktisk højttalerskift mangler; Frida slukket. |
 | 4 · Radio (R1–R6) | 2/6 | R3 og R6 bestået. P3 og P1 observeret på .86. Stop lukker outputforbindelsen, men efterlader radio utilgængelig og blokerer accept af handback. Tid og fuld refresh-prøve udestår. |
