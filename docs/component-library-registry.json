@@ -1109,6 +1109,7 @@
           "arrow:make": 1,
           "arrow:pendingCurrent": 1,
           "arrow:settle": 1,
+          "arrow:sourceIndex": 1,
           "class:LiveMusicSelectionView": 1,
           "method:chooseCard": 1,
           "method:chooseCardIntent": 1,
