@@ -535,7 +535,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "8597db1e73cc02af320f7a79cdc1d7c89f9380c173222df045f86b25e99bed4f"
+      "sha256": "913baa5ea60641e4afbffada6df53d5b40328cb0cce2aa2ea0885f3acb758664"
     },
     {
       "path": "live-home-view.js",
@@ -547,7 +547,7 @@
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "c307b8a8fc4764ded0f4b34bc437af8148c1b980185358fcfeae5727888dc6b6"
+      "sha256": "00c2c3487c8ce34ec8c79b61400b0acd625b8b3fc7e510fe50754a44c7da0491"
     },
     {
       "path": "live-music-view.js",
@@ -563,7 +563,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "d507aab7993a2f791716bee85a1b180d7005315d6b38b5c6afa67b506c664194"
+      "sha256": "2ad9edaa0039ebc9eff84b691c358afbc00acc08136a3c9cde2706bea0f40735"
     },
     {
       "path": "local-robot-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "59170bd320275bac79670d7dde562c68a5c9f02d7db210acd23671bdbacdd38a"
+      "sha256": "33678adc05a16515ace079d279b1d8cb1896082df8a51e27ac04773024945dce"
     },
     {
       "path": "podview.css",
@@ -679,7 +679,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "ce13c78a642f482fc5f6d9cc797afc136990e7e03e13bb5f648dbc635556a1a0"
+      "sha256": "fe7725daa2c61102bb0e10f40e7cd5715f4965890aa0f74d04525d8dbfdb1d6c"
     },
     {
       "path": "robot-observation.js",

@@ -945,7 +945,8 @@
           "method:connectionLost": 1,
           "method:restoreOfflineRobotDraft": 1,
           "method:robotOfflineDraftCurrent": 1,
-          "method:setRobotRefresh": 1
+          "method:setRobotRefresh": 1,
+          "method:sendLightOperation": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1104,7 +1105,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "arrow:current": 1,
+          "arrow:current": 2,
           "arrow:make": 1,
           "arrow:pendingCurrent": 1,
           "arrow:settle": 1,
@@ -1142,7 +1143,8 @@
           "method:showTargets": 1,
           "method:showTracks": 1,
           "method:targetReadScope": 1,
-          "method:settlementReceipt": 1
+          "method:settlementReceipt": 1,
+          "method:waitForSelectionLane": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1767,7 +1769,9 @@
           "arrow:paint": 1,
           "method:updateCurrentRooms": 1,
           "method:renderTransportOptions": 1,
-          "method:syncDirectTransport": 1
+          "method:syncDirectTransport": 1,
+          "arrow:foreignRobotPending": 1,
+          "arrow:ownRobotPending": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
