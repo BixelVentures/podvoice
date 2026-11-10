@@ -432,6 +432,10 @@ Supervisor-loggen blev gemt efter et afventende native Gem-panel: /Users/madsbac
 
 **Katalogafgrænsning efter ny kontrol.** Ny normal butikopdatering efter dokumenteret terminalt job,35s ventetid og frisk appside gav stadig84/84. Root verificerede GitHub-standardgren main og aktuelt podconnect/config.yaml85 via API. Normal homeassistant.update_entity rettet mod update.podconnect_speakers_opdatering via HA-UI ændrede ikke tilbuddet. Ingen install eller lydhandling. Flere identiske opdateringsforsøg stoppes; præcis manglende observation er Supervisorens faktisk hentede PodConnect-revision/katalogpost versus GitHubmain. Green bliver på84; publiceret85 er ikke installeret.
 
+**B2 kildeafklaring og fortsat katalogarbejde · 10. november.** Uafhængig læsning af eksakt166/HA0.1.18 viser: lås/bagagerum bruger Fleet vehicle_state_timestamp; _ha_discrete_fields ignorerer samme HA-værdi når coordinator allerede leverer den. _merge_fields bevarer reelle felttider, samlet ældste er minimum. Forskel HA last_updated12.16 versus samletPV12.36 er derfor ikke dokumenteret cachefejl. Næste egentlige B2-bevis kræver fieldObservedAt.locked, vehicle_state_timestamp og last_changed fra samme observation; ingen spekulativ rettelse.
+
+Supervisor-diagnostiklink blev prøvet via normalUI og nativeGem, men ingen fil blev gemt, ingen consolefejl; browserens automatiske downloads er allerede tilladt. Flere downloadgentagelser stoppes. Officiel Supervisor-kilde viser pull på den lokalt aktive branch og forbyder repositoryfjernelse når apps er installeret; der udføres derfor ikke fjern/genopret eller credentialsændring. Næste læsende kontrol er eksisterende Reparationer for konkret repositoryresettilbud. Ingen ny enhedshandling. Brugeren er spurgt om bilen aktuelt holder sikkert parkeret, før fysiske bilforløb.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
