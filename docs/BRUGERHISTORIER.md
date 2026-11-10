@@ -370,6 +370,14 @@ accept. En frisk HA-fane åbnede uden Gendan/ekstra login med Køkkenalrum konfi
 
 **Green11:22, før installation.** Forsiden viste robotten som Oplader100% efter den tidligere fysisk blokerede retur. Et eksplicit valg af Bandeordssangen fra Hør igen endte i ukendt udfald og blev ikke gentaget. Efterfølgende Spotify-læsning viste ingen aktiv afspilning. Næste/lydstyrke-forløbet kunne derfor ikke gennemføres. Startudfald og efterfølgende kontroltab skal stadig afgrænses med den installerede diagnostik; ingen ekstra flueben.
 
+**Afstemning efter seneste Green-observationer · 10. november kl.11.37.** Alle97 aktive IDer er afstemt mod den eksisterende evidens. Den tidligere optælling15 fuldt bestået er nu14: R3 tilbagetrækkes som aktuelt bestået, fordi alle fem radiostationer var deaktiverede11.07–11.22. De14 er F4,O1,O4,O5,O7,O8,O10,S5,B5,B6,T2,V1,V2,V4. Ni historier har dokumenteret fejlet brugerforløb: A1,F2,F10,K3,K5,R3,R4,S3,S4; flere deler samme hændelse/årsag. Ingen optælling af scoped software-PASS som fuld Green-accept.
+
+26 har fortsat utilstrækkelig konkret Green-prøve: A2–A6,A8–A10,A13,K1,K2,K4,H1,H5,H7,S1,S2,S7,S11–S13,B1,B2,B4,B10,B11. 27 har kontrollerede eller delvise beståede observationer, men mangler deres fulde acceptkrav: G3–G5,A7,A11,A14,F1,F5–F8,F11,F12,K6,K7,H6,H8,H10,R6,S8–S10,S14–S16,B9,V3. De27 er ikke fuldt beståede. 21 har registreret konkret afhængighed: G1,G2,G6,A12,F9,H4,H9,R1,R2,R5,O6,S6,B3,B7,B8,L1–L3,T1,Q1,Q2. Referencekontrol/egne rester må ikke fremstilles som brugerblokering; gennemfør dem hvor værktøjerne tillader det. Næste runde gennemgår hele restlisten før nye runtimepatches, bortset fra nødvendige testblokeringer.
+
+Uafhængig læseprøve11.29: climate.fam_bach_klima off, last_changed/last_updated11.23.22, target20; PodView Slukket,target20,samletældste11.23. Tidligere klimamismatch ikke reproducerbart nu; separat climate.status-tid mangler i UI, så præcis kildeidentitet er ikke bevist. Ingen bilhandling. Læseprøve11.37: Lys Ikke forbundet; Voice PE Vækning ikke bekræftet/ikke verificeret (ikke bevis for offline); timerUI læsbar uden alarmstart; vejr viste samme sidstkendte7°/hentet11.32 på forside/detalje og seks normale dagsikoner. Ingen ny kildefejl/lyd/lyshandling fremprovokeret.
+
+Levering: PR350 merged c88206d8 fra e8499323 efter grøn officiel PR-CI42799427875. Main-publicering42800322702 kører. Green er stadig2.0.165; 166 er endnu ikke installeret eller fysisk accepteret.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
