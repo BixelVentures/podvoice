@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Svar · alle visuelle svar</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=Fraunces:opsz,wght@9..144,800&amp;display=swap">
+<style>body{margin:0}.t2{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.st{animation:st .4s cubic-bezier(.2,.9,.3,1) both}@keyframes st{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.st{animation:none}}</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Alle svar" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div style="width: 844px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; height: 32px"><span style="font-size: 24px; font-weight: 800">Visuelle svar</span><span style="font-size: 15px; color: #5F5E5A">Nyeste først</span></div>
+      <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px">
+        <sc-for list="{{items}}" as="a" hint-placeholder-count="5">
+          <a href="{{a.href}}" class="st" style="animation-delay: {{a.dl}}ms; height: 300px; border-radius: 24px; overflow: hidden; position: relative; text-decoration: none; color: {{a.fg}}; background: {{a.bg}}; display: flex; flex-direction: column; padding: 20px; box-sizing: border-box">
+            <sc-if value="{{a.img}}" hint-placeholder-val="{{ false }}"><img src="{{a.img}}" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover"><i style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.7)); display: block"></i></sc-if>
+            <span style="position: relative; font-size: 15px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .85; height: 20px">{{a.k}}</span>
+            <span style="position: relative; margin: auto 0; font: 500 {{a.bs}}px/1 'IBM Plex Mono', monospace; letter-spacing: -0.06em; height: {{a.bs}}px">{{a.big}}</span>
+            <span class="t2" style="position: relative; font: 800 24px/29px 'Fraunces', Georgia, serif; height: 58px">{{a.t}}</span>
+            <span style="position: relative; margin-top: 6px; font-size: 15px; height: 20px; opacity: .85">{{a.d}}</span>
+          </a>
+        </sc-for>
+      </div>
+    </div>
+    <dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Historik over visuelle svar ("Vis alle svar"). Alle kort er lige store med faste linjer: art, fokus, titel (2 linjer), dato.
+    // El Clásico er fra HA Green; resten er produktets eksempler. Kortene stagger-ind 60 ms efter hinanden.
+    const L = '#E9E6F4';
+    const items = [
+      { k: 'Kort svar', big: '2–1', bs: 64, t: 'El Clásico', d: '28. okt., 11.32', href: 'Svar-Ny.dc.html', bg: L, fg: '#17171A', img: '' },
+      { k: 'Billede', big: '', bs: 0, t: 'En pause ved vandet', d: 'Eksempel', href: 'Svar-Ny-billede.dc.html', bg: '#3F5A52', fg: '#FFFFFF', img: '/_blob/5a1ae9f22dd212f79d50f566edca13c3' },
+      { k: 'Trin for trin', big: '4', bs: 64, t: 'Fold papir', d: 'Eksempel', href: 'Svar-Ny-trin.dc.html', bg: L, fg: '#17171A', img: '' },
+      { k: 'Sammenligning', big: '250 ml', bs: 44, t: 'Kaffe til morgenbordet', d: 'Eksempel', href: 'Svar-Ny-tal.dc.html', bg: L, fg: '#17171A', img: '' },
+      { k: 'Faktakort', big: '384.400 km', bs: 36, t: 'Hvor langt er der til Månen?', d: 'Eksempel', href: 'Svar-Ny.dc.html', bg: L, fg: '#17171A', img: '' }
+    ].map((a, i) => ({ ...a, dl: i * 60 }));
+    return { items };
+  }
+}
+</script>
+</body>
+</html>

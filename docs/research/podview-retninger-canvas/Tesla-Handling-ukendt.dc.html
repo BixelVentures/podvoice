@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Tesla · Lås op: ukendt</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;display=swap">
+<style>
+body{margin:0}
+.sh{animation:sh .28s ease both}@keyframes sh{from{opacity:0}to{opacity:1}}
+.md{animation:md .32s cubic-bezier(.2,.9,.3,1) both}@keyframes md{from{opacity:0;transform:translate(-50%,-46%) scale(.97)}to{opacity:1;transform:translate(-50%,-50%)}}
+.dot{animation:dot .9s ease-in-out infinite}@keyframes dot{0%,100%{opacity:.3;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
+.tst{animation:tst .3s cubic-bezier(.2,.9,.3,1) both}@keyframes tst{from{opacity:0;transform:translateY(-12px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.sh,.md,.dot,.tst{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; position: relative; overflow: hidden; font-family: 'Schibsted Grotesk', system-ui, sans-serif; color: #17171A">
+  <dc-import name="A-Tesla" hint-size="1280px,800px"></dc-import>
+  <sc-if value="{{confirm}}" hint-placeholder-val="{{ true }}">
+    <i class="sh" style="position: absolute; inset: 0; background: rgba(23,23,26,.45); display: block"></i>
+    <div class="md" role="alertdialog" aria-labelledby="tq" style="position: absolute; left: 50%; top: 50%; width: 520px; padding: 32px; box-sizing: border-box; border-radius: 28px; background: #F7F6F3; box-shadow: 0 40px 80px -30px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 12px; transform: translate(-50%,-50%)">
+      <span id="tq" style="font-size: 28px; font-weight: 800; letter-spacing: -0.02em">Lås bilen op?</span>
+      <span style="font-size: 17px; line-height: 24px; color: #3F3E3B">Bilen låses op. Den låses ikke automatisk igen herfra.</span>
+      <span style="font-size: 15px; color: #5F5E5A">Handlingen kan vække bilen.</span>
+      <div style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+        <button style="height: 56px; border: 0; border-radius: 999px; background: #EFEDE8; font: 600 17px 'Schibsted Grotesk', sans-serif">Annuller</button>
+        <button style="height: 56px; border: 0; border-radius: 999px; background: #17171A; color: #F7F6F3; font: 600 17px 'Schibsted Grotesk', sans-serif">Lås op</button>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{toast}}" hint-placeholder-val="{{ false }}">
+    <div class="tst" role="status" style="position: absolute; left: 24px; top: 325px; width: 844px; min-height: 72px; padding: 14px 20px; box-sizing: border-box; border-radius: 20px; background: {{bg}}; color: {{fg}}; display: flex; align-items: center; gap: 16px; box-shadow: 0 16px 32px -20px rgba(23,23,26,.5)">
+      <sc-if value="{{busy}}" hint-placeholder-val="{{ true }}"><span style="width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; gap: 4px; flex: none"><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; display: block"></i><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; animation-delay: 150ms; display: block"></i><i class="dot" style="width: 7px; height: 7px; border-radius: 50%; background: #3F3E3B; animation-delay: 300ms; display: block"></i></span></sc-if>
+      <sc-if value="{{glyph}}" hint-placeholder-val="{{ false }}"><span style="width: 36px; height: 36px; border-radius: 50%; background: {{ic}}; color: #FFF; display: flex; align-items: center; justify-content: center; font: 800 19px 'Schibsted Grotesk', sans-serif; flex: none">{{glyph}}</span></sc-if>
+      <span style="display: flex; flex-direction: column"><span style="font-size: 17px; line-height: 22px; font-weight: 800">{{t}}</span><span style="font-size: 15px; line-height: 20px">{{d}}</span></span>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"fase":{"editor":"enum","default":"ukendt","options":["bekraeft","sender","bekraeftet","ukendt"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Flow for Lås op / Åbn bagagerum med produktets tekster (vehicle-view.js).
+    // 1 bekræft: modal (fælles kit) · 2 sender: beskedlinje "Anmodning modtaget." med prikker, knapperne låst
+    // 3 bekræftet: info, forsvinder efter 3 s · 4 ukendt: fejl "Udfald ukendt · kontrollér bilen." bliver stående.
+    const f = this.props.fase || 'bekraeft';
+    const T = {
+      sender: { bg: '#E2E0DB', fg: '#3F3E3B', busy: true, glyph: '', t: 'Anmodning modtaget.', d: 'Handlingen kan vække bilen.' },
+      bekraeftet: { bg: '#D5EADD', fg: '#17442F', busy: false, glyph: '✓', ic: '#2F7A55', t: 'Ulåst', d: 'Bilen låses ikke automatisk igen herfra.' },
+      ukendt: { bg: '#F8DCDC', fg: '#5E1416', busy: false, glyph: '!', ic: '#B0262A', t: 'Udfald ukendt · kontrollér bilen.', d: 'Svar mangler · Kontrollér bilen før en ny kommando.' }
+    };
+    return { confirm: f === 'bekraeft', toast: f !== 'bekraeft', ...(T[f] || { bg: '', fg: '', busy: false, glyph: '', ic: '', t: '', d: '' }) };
+  }
+}
+</script>
+</body>
+</html>

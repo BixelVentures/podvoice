@@ -18,8 +18,12 @@ body{margin:0}
 .btn:disabled{cursor:default;opacity:.45}
 .needle{transition:left .5s cubic-bezier(.2,.9,.3,1)}
 .live{animation:live 2.4s ease-in-out infinite}
+.pop{animation:pop .5s cubic-bezier(.2,1.3,.4,1) both}
+@keyframes pop{from{opacity:0;transform:scale(.6) rotate(-6deg)}to{opacity:1;transform:none}}
+.needle-in{animation:nin .5s cubic-bezier(.2,.9,.3,1) both}
+@keyframes nin{from{opacity:0;transform:scaleY(.2)}to{opacity:1;transform:none}}
 @keyframes live{0%,100%{opacity:1}50%{opacity:.5}}
-@media (prefers-reduced-motion: reduce){.needle{transition:none}.live{animation:none}}
+@media (prefers-reduced-motion: reduce){.needle{transition:none}.live,.pop,.needle-in{animation:none}}
 </style>
 </helmet>
 <div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
@@ -29,7 +33,7 @@ body{margin:0}
       <div class="cd" style="height: {{heroH}}px; flex: none; padding: {{heroPad}}px; box-sizing: border-box; display: flex; flex-direction: column; background: {{tint}}">
         <div style="display: flex; gap: 24px; align-items: center; min-height: 144px">
           <sc-if value="{{hasStation}}" hint-placeholder-val="{{ true }}">
-            <img src="{{cur.logo}}" alt="{{cur.n}}" style="width: 144px; height: 144px; border-radius: 24px; box-shadow: 0 16px 32px -16px rgba(23,23,26,.45); flex: none; opacity: {{logoOp}}">
+            <img class="pop" src="{{cur.logo}}" alt="{{cur.n}}" style="width: 144px; height: 144px; border-radius: 24px; box-shadow: 0 16px 32px -16px rgba(23,23,26,.45); flex: none; opacity: {{logoOp}}">
           </sc-if>
           <div style="flex: 1; display: flex; flex-direction: column; gap: 8px; min-width: 0">
             <span style="font-size: 17px; font-weight: 600; color: #3F3E3B">{{statusLine}}</span>
@@ -45,7 +49,7 @@ body{margin:0}
             <span style="position: absolute; bottom: 0; left: {{m.x}}; transform: translateX(-50%); font: 700 17px 'Schibsted Grotesk', sans-serif; color: {{m.c}}">{{m.n}}</span>
           </sc-for>
           <sc-if value="{{hasStation}}" hint-placeholder-val="{{ true }}">
-            <i class="needle {{needleCls}}" style="position: absolute; left: {{cur.xp}}; top: 0; bottom: 28px; width: 4px; margin-left: -2px; border-radius: 2px; background: {{needleC}}; box-shadow: 0 0 12px {{needleGlow}}; display: block"></i>
+            <i class="needle needle-in {{needleCls}}" style="position: absolute; left: {{cur.xp}}; top: 0; bottom: 28px; width: 4px; margin-left: -2px; border-radius: 2px; background: {{needleC}}; box-shadow: 0 0 12px {{needleGlow}}; display: block"></i>
           </sc-if>
         </div>
       </div>
@@ -77,6 +81,7 @@ class Component extends DCLogic {
   renderVals() {
     // Forslag: heroen låses til overblikkets rækker. S 221 (én række), L 458 (to rækker).
     const heroH = Number(this.props.hero) || 458, heroS = heroH <= 221;
+    // Første valg: logoet popper ind (500 ms, let overshoot), nålen vokser frem fra skalaen og fladen tones i stationens farve.
     // Stationer, kategorier og logoer er produktets egne (radio-model.js, assets/radio-*.svg).
     // Radio afspiller altid gennem medieafspilleren: start/stop og lydstyrke ligger i afspilleren til højre.
     const defs = [

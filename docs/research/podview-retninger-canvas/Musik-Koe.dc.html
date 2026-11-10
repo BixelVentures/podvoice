@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Afspiller · nu og kø</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>body{margin:0}.one{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.eq i{display:block;width:3px;border-radius:2px;background:#17171A;animation:eq .9s ease-in-out infinite}@keyframes eq{0%,100%{height:5px}50%{height:16px}}
+.rise{animation:rise .32s cubic-bezier(.2,.9,.3,1) both}@keyframes rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.eq i,.rise{animation:none}}</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Afspiller" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <div class="rise" style="width: 844px; height: 696px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; height: 32px"><span style="font-size: 24px; font-weight: 800">Kø</span><span style="font-size: 15px; color: #5F5E5A">20 numre · Køkkenalrum HomePod</span></div>
+      <div style="height: 88px; padding: 0 20px; border-radius: 20px; background: #DCEBEA; display: grid; grid-template-columns: 64px 1fr auto; align-items: center; gap: 16px">
+        <span style="width: 64px; height: 64px; border-radius: 10px; background: #B98E66; display: block"></span>
+        <span style="display: flex; flex-direction: column; min-width: 0"><span style="font-size: 15px; font-weight: 600; color: #2E5A55">Spiller nu · på pause</span><span class="one" style="font-size: 20px; font-weight: 800">Fast Car</span><span class="one" style="font-size: 15px; color: #3F3E3B">Y.V.E. 48</span></span>
+        <span class="eq" style="display: flex; gap: 3px; align-items: flex-end; height: 16px" aria-hidden="true"><i style="animation-play-state: paused"></i><i style="animation-play-state: paused; animation-delay: .2s"></i><i style="animation-play-state: paused; animation-delay: .4s"></i></span>
+      </div>
+      <div style="flex: 1; min-height: 0; border-radius: 24px; background: #F7F6F3; padding: 4px 20px; overflow: hidden; position: relative">
+        <span style="display: block; padding: 12px 0 4px; font-size: 15px; font-weight: 600; color: #5F5E5A">Næste</span>
+        <sc-for list="{{q}}" as="r" hint-placeholder-count="6">
+          <div style="height: 72px; display: grid; grid-template-columns: 28px 56px 1fr 44px; align-items: center; gap: 14px; border-top: 1px solid rgba(23,23,26,.07)">
+            <span style="font: 500 15px 'IBM Plex Mono', monospace; color: #5F5E5A">{{r.i}}</span>
+            <img src="{{r.art}}" alt="" style="width: 56px; height: 56px; border-radius: 8px; object-fit: cover">
+            <span style="display: flex; flex-direction: column; min-width: 0"><span class="one" style="font-size: 17px; font-weight: 700">{{r.t}}</span><span class="one" style="font-size: 15px; color: #5F5E5A">{{r.a}}</span></span>
+            <button aria-label="Afspil {{r.t}} nu" style="width: 44px; height: 44px; border: 0; border-radius: 999px; background: #EFEDE8; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="#17171A" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg></button>
+          </div>
+        </sc-for>
+        <i style="position: absolute; left: 0; right: 0; bottom: 0; height: 48px; background: linear-gradient(180deg, rgba(247,246,243,0), #F7F6F3); display: block"></i>
+      </div>
+    </div>
+    <dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Tryk på omslaget eller Kø i afspilleren åbner denne side (produktets music-detail/queue). Afspilleren står fast til højre.
+    // Spiller nu og køens længde (20) er fra HA Green; de næste numre er produktets fixture med ægte Spotify-omslag.
+    // Ind: venstre kolonne glider 16 px op og toner ind (320 ms).
+    const T = [['End of Beginning','Djo','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02da27026597de2d0d940990d2'],
+      ['Cruel Summer','Taylor Swift','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e02e787cffec20aa2a396a61647'],
+      ['Flowers','Miley Cyrus','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e0266fd0917f38d472c8576754e'],
+      ['Lost','Frank Ocean','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e027aede4855f6d0d738012e2e5'],
+      ['Take Five','The Dave Brubeck Quartet','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e029a5cf8ee22fc7ee02ad3478e'],
+      ['Via con me','Paolo Conte','https://image-cdn-fa.spotifycdn.com/image/ab67616d00001e0260b2bff12b9c6b25b67876e3']];
+    return { q: T.map(([t, a, art], k) => ({ i: k + 2, t, a, art })) };
+  }
+}
+</script>
+</body>
+</html>

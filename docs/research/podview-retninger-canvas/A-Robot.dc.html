@@ -77,7 +77,21 @@ body{margin:0}
       </section>
 
       <section style="display: flex; flex-direction: column; gap: 16px">
-        <span style="padding: 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Rengøringsvalg</span>
+        <span style="padding: 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Flere handlinger</span>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px">
+          <sc-for list="{{more}}" as="m" hint-placeholder-count="6">
+            <button class="btn" style="height: 72px; padding: 0 18px; border-radius: 20px; background: #F7F6F3; box-shadow: inset 0 0 0 1px rgba(23,23,26,.06); display: flex; align-items: center; gap: 14px; text-align: left; font-family: 'Schibsted Grotesk', sans-serif; color: #17171A">
+              <span style="width: 40px; height: 40px; border-radius: 12px; background: #F6D8E1; display: flex; align-items: center; justify-content: center; flex: none"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#17171A" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{m.i}}"/></svg></span>
+              <span style="font-size: 17px; font-weight: 700">{{m.l}}</span>
+            </button>
+          </sc-for>
+        </div>
+      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 16px">
+        <span style="padding: 0 4px; font-size: 24px; font-weight: 800; letter-spacing: -0.01em">Rengøringsvalg</span>      </section>
+
+      <section style="display: flex; flex-direction: column; gap: 16px">
         <div class="cd" style="padding: 12px 24px; box-sizing: border-box; display: flex; flex-direction: column">
           <sc-for list="{{opts}}" as="g" hint-placeholder-count="5">
             <div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-bottom: 1px solid rgba(23,23,26,.07)">
@@ -200,6 +214,16 @@ class Component extends DCLogic {
           pick: () => this.setState({ o: { ...this.state.o, [key]: i } }) };
       })
     }));
+    // Flere handlinger fra produktet (robot-control-panel.js): Kør til basen, Tøm støvbeholder, Vask moppe, Tør moppe,
+    // Pletrengøring, Find robot. Kun produktets egne navne, ingen opdigtede undertekster.
+    const more = [
+      { l: 'Kør til basen', d: 'Robotten sendes til basen.', i: 'M4 11l8-6 8 6v9H4zM10 20v-5h4v5' },
+      { l: 'Tøm støvbeholder', d: 'Tøm støv', i: 'M5 7h14l-1.5 12h-11zM9 7V4h6v3' },
+      { l: 'Vask moppe', d: 'Vask', i: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z' },
+      { l: 'Tør moppe', d: 'Stop tørring', i: 'M4 12h10M4 8h14M4 16h8M18 14l3 3-3 3' },
+      { l: 'Pletrengøring', d: 'Denne tur', i: 'M12 12m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0M12 3v3M12 18v3M3 12h3M18 12h3' },
+      { l: 'Find robot', d: 'Lysblink og lyd', i: 'M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11zM12 10m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0' }
+    ];
     const events = [
       { t: '9. nov. · 14.18', h: 'Senest afsluttet', d: 'Stueplan (2025) · 0,2 m² · 1,1 min', again: false },
       { t: '8. nov. · 11.22', h: 'Start anmodet', d: 'Stueplan (2025) · 6 områder · 2 gange', again: true },
@@ -213,7 +237,7 @@ class Component extends DCLogic {
     return {
       nb: nbOf(s.nb), fresh: s.fresh,
       heroH, heroPad: heroS ? 24 : 32, heroTitle: heroS ? 40 : 56,
-      s, rings, rooms, roomCount: n, opts, events, care, full, mini: false,
+      s, rings, rooms, roomCount: n, opts, events, care, more, full, mini: false,
       all: () => this.setState({ rooms: Object.fromEntries(Object.keys(this.state.rooms).map((k) => [k, 1])) })
     };
   }

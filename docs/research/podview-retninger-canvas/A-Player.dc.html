@@ -51,19 +51,12 @@ a{color:#17171A;text-decoration:none}
   </button>
 
   <sc-if value="{{isIdle}}" hint-placeholder-val="{{ false }}">
-    <div style="margin-top: 16px; position: relative; width: 324px; height: 324px; border-radius: 16px; background: #ECEAE5; overflow: hidden" aria-hidden="true">
-      <sc-for list="{{grille}}" as="d" hint-placeholder-count="300">
-        <i class="gr" style="left: {{d.x}}px; top: {{d.y}}px; width: {{d.w}}px; height: {{d.w}}px; opacity: {{d.o}}"></i>
-      </sc-for>
+    <div style="margin-top: 16px; width: 324px; height: 324px; border-radius: 16px; background: #DCEBEA; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+      <svg width="88" height="88" viewBox="0 0 24 24" fill="none" stroke="#2E5A55" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></svg>
     </div>
     <span style="margin-top: 20px; font-size: 24px; font-weight: 800; letter-spacing: -0.02em">Intet spiller</span>
     <span style="font-size: 16px; color: #5F5E5A">Vælg en stemning eller sang.</span>
-    <div style="margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap">
-      <sc-for list="{{moods}}" as="m" hint-placeholder-count="3">
-        <a href="A-Musik.dc.html" class="pl-chip" style="height: 44px; padding: 0 16px; border-radius: 999px; background: #ECEAE5; display: flex; align-items: center; font: 600 15px 'Schibsted Grotesk', system-ui, sans-serif">{{m}}</a>
-      </sc-for>
-    </div>
-    <a href="A-Musik.dc.html" class="pl-chip" style="margin-top: auto; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">Vælg musik →</a>
+    <a href="A-Musik.dc.html" class="pl-chip" style="margin-top: auto; height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; display: flex; align-items: center; justify-content: center; font: 600 17px 'Schibsted Grotesk', system-ui, sans-serif">Vælg musik</a>
   </sc-if>
 
   <sc-if value="{{isOther}}" hint-placeholder-val="{{ false }}">

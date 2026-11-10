@@ -20,9 +20,9 @@ body{margin:0}
 .num{transition:color .3s ease}
 </style>
 </helmet>
-<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
+<div style="width: 1280px; min-height: 800px; padding-bottom: 32px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative">
   <dc-import name="A-Topbar" heading="Burgerboller" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
-  <div style="position: absolute; left: 24px; top: 88px; width: 1232px; height: 696px; display: flex; flex-direction: column; gap: 16px">
+  <div style="position: relative; margin: 16px 24px 0; width: 1232px; display: flex; flex-direction: column; gap: 16px">
 
     <div class="cd" style="height: 221px; flex: none; background: #F2E4D3; padding: 24px; box-sizing: border-box; display: grid; grid-template-columns: 160px 1fr auto; align-items: center; gap: 22px">
       <div style="position: relative; width: 108px; height: 108px; zoom: 1.48; border-radius: 11px; background: #E8CBA6; overflow: hidden" role="img" aria-label="Foto af burgerboller fra opskriften">
@@ -48,8 +48,8 @@ body{margin:0}
       </div>
     </div>
 
-    <div style="flex: 1; display: grid; grid-template-columns: 400px 1fr; gap: 16px; min-height: 0">
-      <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; overflow-y: auto">
+    <div style="display: grid; grid-template-columns: 400px 1fr; gap: 16px; align-items: start">
+      <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px">
         <div style="display: flex; justify-content: space-between; align-items: baseline">
           <span style="font-size: 24px; font-weight: 800">Ingredienser</span>
           <span style="font-size: 15px; color: #5F5E5A">{{foundLabel}}</span>
@@ -66,11 +66,11 @@ body{margin:0}
         </sc-for>
       </div>
 
-      <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; overflow-y: auto">
+      <div class="cd" style="padding: 24px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px">
         <span style="font-size: 24px; font-weight: 800">Sådan gør du</span>
         <sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
           <div style="display: grid; grid-template-columns: 36px 1fr auto; align-items: start; gap: 14px; padding: {{s.pad}}; border-radius: 18px; background: {{s.bg}}; box-shadow: {{s.ring}}">
-            <span style="width: 32px; height: 32px; border-radius: 50%; background: {{s.dotBg}}; color: {{s.dotFg}}; display: flex; align-items: center; justify-content: center; font: 600 15px 'IBM Plex Mono', monospace">{{s.mark}}</span>
+            <button class="btn" onClick="{{s.toggle}}" aria-label="{{s.markAria}}" aria-pressed="{{s.doneAria}}" style="width: 44px; height: 44px; margin: -6px; border-radius: 50%; background: transparent; display: flex; align-items: center; justify-content: center; padding: 0"><span style="width: 32px; height: 32px; border-radius: 50%; background: {{s.dotBg}}; color: {{s.dotFg}}; display: flex; align-items: center; justify-content: center; font: 600 15px 'IBM Plex Mono', monospace; transition: background-color .25s ease">{{s.mark}}</span></button>
             <div style="display: flex; flex-direction: column; gap: 3px">
               <span style="font-size: {{s.hSize}}; font-weight: 800; color: {{s.fg}}">{{s.h}}</span>
               <span style="font-size: {{s.tSize}}; line-height: 1.4; color: {{s.tc}}">{{s.t}}</span>
@@ -93,7 +93,7 @@ class Component extends DCLogic {
   constructor(props) {
     super(props);
     // Som på Green 9. nov.: trin 2 af 5, 1 af 10 ingredienser fundet frem, 15 stk.
-    this.state = { n: 15, found: { 0: 1 }, timer: null };
+    this.state = { n: 15, found: { 0: 1 }, timer: null, cur: 2 };
   }
   fmt(v, unit) {
     if (unit === 'stk') {
@@ -126,7 +126,8 @@ class Component extends DCLogic {
     });
     const groups = ['Dej', 'Pensling og drys'].map((name) => ({ name, items: items.filter((i) => i.g === name) }));
     const foundCount = Object.values(this.state.found).filter(Boolean).length;
-    const cur = 2;
+    // Trin markeres færdigt ved tryk på cirklen (✓). Næste trin bliver aktivt; tryk på et færdigt trin gør det aktivt igen.
+    const cur = this.state.cur;
     // O3: timeren startes direkte fra trinnet; varigheden kommer fra trinnets tekst.
     const defs = [
       { h: 'Ælting', t: 'Ælt dejen i hånden eller på maskine, til den er glat og slipper skålen. Tilsæt smørret til sidst.' },
@@ -140,7 +141,8 @@ class Component extends DCLogic {
       const running = this.state.timer === no;
       const label = d.min >= 60 ? (d.min / 60) + ' t' : d.min + ' min';
       return {
-        h: d.h, t: d.t, mark: done ? '✓' : String(no),
+        h: d.h, t: d.t, mark: done ? '✓' : String(no), doneAria: done ? 'true' : 'false', markAria: done ? 'Trin ' + no + ' er færdigt' : 'Markér trin ' + no + ' færdigt',
+        toggle: () => this.setState({ cur: done ? no : Math.min(6, no + 1) }),
         bg: isCur ? '#F2E4D3' : 'transparent', ring: isCur ? 'inset 0 0 0 2px #A8622C' : 'none', pad: isCur ? '16px 16px' : '6px 16px',
         dotBg: done ? '#7A4A22' : isCur ? '#17171A' : '#ECEAE5', dotFg: done || isCur ? '#F7F6F3' : '#5F5E5A',
         fg: done ? '#5F5E5A' : '#17171A', tc: done ? '#5F5E5A' : isCur ? '#2B2B2E' : '#5F5E5A',

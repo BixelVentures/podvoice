@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Svar · trin</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=Fraunces:opsz,wght@9..144,600;9..144,800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0}
+.b{border:0;cursor:pointer;transition:transform .12s ease}.b:active{transform:scale(.97)}
+.in{animation:in .42s cubic-bezier(.2,.9,.3,1) both}@keyframes in{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.in2{animation:in .42s .08s cubic-bezier(.2,.9,.3,1) both}.in3{animation:in .42s .16s cubic-bezier(.2,.9,.3,1) both}
+@media (prefers-reduced-motion: reduce){.in,.in2,.in3{animation:none}}
+</style>
+</helmet>
+<div style="width: 1280px; height: 800px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', system-ui, sans-serif; position: relative; overflow: hidden">
+  <dc-import name="A-Topbar" heading="Svar" back="{{ true }}" scenario="green" hint-size="1280px,72px"></dc-import>
+  <div style="position: absolute; left: 24px; top: 88px; display: flex; gap: 16px">
+    <article class="in" style="position: relative; width: 844px; height: 696px; border-radius: 24px; overflow: hidden; background: {{bg}}; color: {{fg}}; display: flex; flex-direction: column; padding: 32px; box-sizing: border-box">
+      <sc-if value="{{isImg}}" hint-placeholder-val="{{ false }}">
+        <img src="/_blob/5a1ae9f22dd212f79d50f566edca13c3" alt="Sø mellem bjerge i aftensol" style="position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover">
+        <i style="position: absolute; inset: 0; background: linear-gradient(180deg, rgba(0,0,0,.35) 0%, rgba(0,0,0,0) 30%, rgba(0,0,0,0) 45%, rgba(0,0,0,.75) 100%); display: block"></i>
+      </sc-if>
+      <div style="position: relative; display: flex; justify-content: space-between; align-items: center; height: 44px">
+        <span style="font-size: 15px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; opacity: .85">{{kicker}}</span>
+        <button class="b" aria-label="Skjul dette svar" style="width: 44px; height: 44px; border-radius: 999px; background: {{xbg}}; display: flex; align-items: center; justify-content: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{fg}}" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+
+      <sc-if value="{{isFakta}}" hint-placeholder-val="{{ true }}">
+        <span class="in2" style="position: relative; margin-top: 12px; font: 800 44px/1.05 'Fraunces', Georgia, serif; letter-spacing: -0.02em">El Clásico</span>
+        <div class="in3" style="position: relative; margin: auto 0; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 32px; text-align: center">
+          <span style="font-size: 32px; font-weight: 800">Real Madrid</span>
+          <span style="font: 500 148px/1 'IBM Plex Mono', monospace; letter-spacing: -0.08em">2–1</span>
+          <span style="font-size: 32px; font-weight: 800">Barcelona</span>
+        </div>
+        <span style="position: relative; text-align: center; font-size: 19px; color: #3F3E3B; margin-bottom: 24px">25. oktober 2026</span>
+      </sc-if>
+
+      <sc-if value="{{isImg}}" hint-placeholder-val="{{ false }}">
+        <div class="in2" style="position: relative; margin-top: auto; display: flex; flex-direction: column; gap: 8px; color: #FFFFFF; text-shadow: 0 1px 10px rgba(0,0,0,.4)">
+          <span style="font: 800 52px/1.02 'Fraunces', Georgia, serif; letter-spacing: -0.02em">En pause ved vandet</span>
+          <span style="font-size: 20px; line-height: 28px; max-width: 560px">Søen ligger stille mellem bjergene i aftensolen.</span>
+          <span style="font-size: 15px; opacity: .85">Farverne i himlen spejler sig i den rolige sø.</span>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTrin}}" hint-placeholder-val="{{ false }}">
+        <span class="in2" style="position: relative; margin-top: 12px; font: 800 44px/1.05 'Fraunces', Georgia, serif">Fold papir</span>
+        <span style="font-size: 17px; color: #3F3E3B; margin-top: 6px">15 min · 1 materiale · Et ark papir og plads ved bordet.</span>
+        <div class="in3" style="margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex: 1; min-height: 0">
+          <div style="border-radius: 20px; background: #F7F6F3; padding: 28px; display: flex; flex-direction: column">
+            <span style="font: 500 96px/1 'IBM Plex Mono', monospace; letter-spacing: -0.06em">2<span style="font-size: 32px; color: #5F5E5A"> / 4</span></span>
+            <span style="margin-top: 20px; font-size: 26px; line-height: 34px; font-weight: 700">Fold arket på midten, og åbn det igen.</span>
+            <div style="margin-top: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+              <button class="b" style="height: 56px; border-radius: 999px; background: #EFEDE8; font: 600 17px 'Schibsted Grotesk', sans-serif">Forrige</button>
+              <button class="b" style="height: 56px; border-radius: 999px; background: #17171A; color: #F7F6F3; font: 600 17px 'Schibsted Grotesk', sans-serif">Næste</button>
+            </div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <sc-for list="{{steps}}" as="s" hint-placeholder-count="4">
+              <div style="flex: 1; border-radius: 16px; padding: 0 18px; display: grid; grid-template-columns: 32px 1fr; align-items: center; gap: 14px; background: {{s.bg}}">
+                <span style="width: 32px; height: 32px; border-radius: 50%; background: {{s.dot}}; color: {{s.dotFg}}; display: flex; align-items: center; justify-content: center; font: 600 15px 'IBM Plex Mono', monospace">{{s.m}}</span>
+                <span style="font-size: 16px; line-height: 21px; color: {{s.c}}">{{s.t}}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isTal}}" hint-placeholder-val="{{ false }}">
+        <span class="in2" style="position: relative; margin-top: 12px; font: 800 44px/1.05 'Fraunces', Georgia, serif">Kaffe til morgenbordet</span>
+        <span style="font-size: 19px; color: #3F3E3B; margin-top: 6px">Til én kop filterkaffe.</span>
+        <div class="in3" style="margin: auto 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+          <sc-for list="{{nums}}" as="n" hint-placeholder-count="2">
+            <div style="border-radius: 20px; background: #F7F6F3; padding: 28px; display: flex; flex-direction: column; gap: 8px">
+              <span style="font-size: 17px; font-weight: 700">{{n.l}}</span>
+              <span style="font: 500 88px/1 'IBM Plex Mono', monospace; letter-spacing: -0.06em">{{n.v}}</span>
+              <span style="font-size: 15px; color: #5F5E5A">{{n.d}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </sc-if>
+
+      <div style="position: relative; display: flex; justify-content: space-between; align-items: center; height: 56px; color: {{footC}}">
+        <span style="font-size: 15px">{{source}}</span>
+        <a href="Svar-Historik.dc.html" class="b" style="height: 56px; padding: 0 24px; border-radius: 999px; background: {{histBg}}; color: {{histFg}}; display: flex; align-items: center; text-decoration: none; font: 600 17px 'Schibsted Grotesk', sans-serif">Vis alle svar</a>
+      </div>
+    </article>
+    <dc-import name="A-Player" speaker="Køkkenalrum HomePod" hint-size="372px,696px"></dc-import>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"form":{"editor":"enum","default":"trin","options":["fakta","billede","trin","tal"]},"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Gentænkt: fire stærke former i stedet for ti. Samme anatomi overalt: art øverst + luk, titel, ét fokus, kilde + "Vis alle svar".
+    // fakta (kort svar/faktakort), billede (billede med kilde), trin (trin/tjekliste), tal (sammenligning/graf).
+    // Indhold: El Clásico er fra HA Green; de andre er produktets egne eksempler (visual-examples.js, scene-model.js ACTIVITIES).
+    // Ind: kort glider 18 px op (420 ms), titel og fokus følger 80/160 ms efter.
+    const f = this.props.form || 'fakta';
+    const steps = ['Find et ark papir, og læg det på bordet.', 'Fold arket på midten, og åbn det igen.', 'Fold de to øverste hjørner ind mod midten.', 'Fold siderne ind igen. Fold midten, og giv flyet vinger.']
+      .map((t, i) => ({ t, m: i < 1 ? '✓' : String(i + 1), bg: i === 1 ? '#F7F6F3' : 'transparent', dot: i < 1 ? '#4A4466' : i === 1 ? '#17171A' : 'rgba(23,23,26,.08)', dotFg: i <= 1 ? '#F7F6F3' : '#5F5E5A', c: i === 1 ? '#17171A' : '#3F3E3B' }));
+    const S = {
+      fakta: { kicker: 'Kort svar · 28. okt., 11.32', source: 'Kilde: AI-forklaring fra PodVoice', bg: '#E9E6F4', fg: '#17171A' },
+      billede: { kicker: 'Billede', source: 'Kilde: forhåndsvisning', bg: '#3F5A52', fg: '#FFFFFF' },
+      trin: { kicker: 'Trin for trin', source: 'Kilde: lokalt aktivitetseksempel', bg: '#E9E6F4', fg: '#17171A' },
+      tal: { kicker: 'Sammenligning', source: 'Kilde: PodView · forhåndsvisning', bg: '#E9E6F4', fg: '#17171A' }
+    }[f];
+    const img = f === 'billede';
+    return { ...S, isFakta: f === 'fakta', isImg: img, isTrin: f === 'trin', isTal: f === 'tal', steps,
+      nums: [{ l: 'Vand', v: '250 ml', d: 'Bruges til at brygge kaffen.' }, { l: 'Kaffe', v: '15 g', d: 'Justér mængden efter smag.' }],
+      xbg: img ? 'rgba(255,255,255,.2)' : 'rgba(23,23,26,.06)', footC: img ? '#FFFFFF' : '#3F3E3B',
+      histBg: img ? '#F7F6F3' : '#17171A', histFg: img ? '#17171A' : '#F7F6F3' };
+  }
+}
+</script>
+</body>
+</html>
