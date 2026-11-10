@@ -62,7 +62,15 @@ def _trace_action(body, phase, trace, outcome):
         pass
 
 
-def project(value: object, account: str, target: str, *, room: str, homepod: str) -> dict:
+def project(
+    value: object,
+    account: str,
+    target: str,
+    *,
+    room: str,
+    homepod: str,
+    autoplay_preview: bool = False,
+) -> dict:
     keys = {
         "ok",
         "schema",
@@ -83,6 +91,8 @@ def project(value: object, account: str, target: str, *, room: str, homepod: str
         "returned_count",
         "truncated",
     }
+    if autoplay_preview and isinstance(value, dict) and "autoplay" in value:
+        keys.add("autoplay")
     if (
         not isinstance(value, dict)
         or set(value) != keys
@@ -182,6 +192,31 @@ def project(value: object, account: str, target: str, *, room: str, homepod: str
         _text(row["name"], 256)
         if not isinstance(row["artist"], str) or len(row["artist"]) > 512:
             raise ValueError("invalid artist metadata")
+    if "autoplay" in keys:
+        autoplay = value["autoplay"]
+        if autoplay == {"kind": "pending"}:
+            if rows or value["truncated"] or value["actions"]:
+                raise ValueError("pending autoplay cannot authorize an occurrence")
+            return {**copy.deepcopy(value), "deadline_ms": 0}
+        if (
+            not isinstance(autoplay, dict)
+            or set(autoplay) != {"kind", "display_ids"}
+            or autoplay["kind"] not in ("preview", "promotion")
+        ):
+            raise ValueError("invalid autoplay projection")
+        display_ids = autoplay["display_ids"]
+        if (
+            not isinstance(display_ids, dict)
+            or not display_ids
+            or not display_ids.keys() <= seen
+            or any(
+                not isinstance(key, str) or re.fullmatch(r"display-[a-f0-9]{24}", key) is None
+                for key in display_ids.values()
+            )
+            or len(set(display_ids.values())) != len(display_ids)
+            or (autoplay["kind"] == "preview" and display_ids.keys() != seen)
+        ):
+            raise ValueError("invalid autoplay display identity")
     return {**copy.deepcopy(value), "deadline_ms": max(0, min(expiry, int((until - now) * 1000)))}
 
 
@@ -271,9 +306,11 @@ class QueueBroker:
 
     async def offer(self, body, token):
         self.retire()
+        required = {"bootId", "roomId", "accountId", "targetId", "expectedBindingId"}
         if (
             not isinstance(body, dict)
-            or set(body) != {"bootId", "roomId", "accountId", "targetId", "expectedBindingId"}
+            or set(body) not in (required, required | {"autoplayPreview"})
+            or ("autoplayPreview" in body and body["autoplayPreview"] is not True)
             or body["bootId"] != self.bridge.boot_id
         ):
             return {"ok": False, "error": "invalid_queue_offer", "retryAllowed": False}
@@ -313,6 +350,11 @@ class QueueBroker:
         read_key = (room, token)
         read = object()
         self.offer_reads[read_key] = read
+        discovery = getattr(self.bridge.tools, "_discovery", None)
+        autoplay_preview = body.get("autoplayPreview") is True and getattr(
+            discovery, "room_queue_autoplay", False
+        )
+        read_options = {"autoplay_preview": True} if autoplay_preview else {}
         task = {
             "room": room,
             "token": token,
@@ -324,6 +366,7 @@ class QueueBroker:
             "consumed": False,
             "actual_binding": scope,
             "actual_current": resolved["current"],
+            "queue_read_options": read_options,
         }
         facade = self.bridge.controls.music
         try:
@@ -340,18 +383,26 @@ class QueueBroker:
                         "target_id": target,
                         "room_id": rule["nativeRoomId"],
                         "homepod_id": rule["nativeHomepodId"],
+                        **read_options,
                     },
                 )
             if self.offer_reads.get(read_key) is not read or not self.current(task, token):
                 raise ValueError("owner replaced")
             source = project(
-                value, account, target, room=rule["nativeRoomId"], homepod=rule["nativeHomepodId"]
+                value,
+                account,
+                target,
+                room=rule["nativeRoomId"],
+                homepod=rule["nativeHomepodId"],
+                autoplay_preview=autoplay_preview,
             )
             if (
                 source["native"]["room_id"] != rule["nativeRoomId"]
                 or source["native"]["homepod_id"] != rule["nativeHomepodId"]
             ):
                 raise ValueError("foreign native output")
+            if source.get("autoplay", {}).get("kind") == "pending":
+                return {"ok": False, "error": "queue_preview_pending", "retryAllowed": False}
             if ACTION not in source["actions"] or source["deadline_ms"] <= 0:
                 raise ValueError("queue readonly")
             task["deadline"] = min(
@@ -376,6 +427,8 @@ class QueueBroker:
             source["deadline_ms"] = max(
                 1, min(source["deadline_ms"], int((task["deadline"] - time.monotonic()) * 1000))
             )
+            autoplay = source.get("autoplay", {})
+            display_ids = autoplay.get("display_ids", {})
             return {
                 "ok": True,
                 "schema": "podview.queue-offer.v1",
@@ -390,9 +443,15 @@ class QueueBroker:
                 "ownerEpoch": source["owner_epoch"],
                 "pollSequence": source["poll_sequence"],
                 "truncated": source["truncated"],
+                **({"queueKind": autoplay["kind"]} if autoplay else {}),
                 "items": [
                     {
                         "id": r["option_id"],
+                        **(
+                            {"displayId": display_ids[r["option_id"]]}
+                            if r["option_id"] in display_ids
+                            else {}
+                        ),
                         "title": r["name"],
                         "metadataKnown": r.get("metadata_known", True),
                         "artist": r["artist"],
@@ -505,6 +564,7 @@ class QueueBroker:
                         "target_id": rule["targetId"],
                         "room_id": rule["nativeRoomId"],
                         "homepod_id": rule["nativeHomepodId"],
+                        **task["queue_read_options"],
                     },
                 )
                 if not self.presented_current(task, token) or not resolved["current"]():
@@ -527,6 +587,7 @@ class QueueBroker:
                     rule["targetId"],
                     room=rule["nativeRoomId"],
                     homepod=rule["nativeHomepodId"],
+                    autoplay_preview=bool(task["queue_read_options"]),
                 )
                 selected = next(
                     (r for r in source["items"] if r["option_id"] == body["optionId"]), None
@@ -535,6 +596,10 @@ class QueueBroker:
                 detail = ""
                 if selected is None:
                     detail = "occurrence_missing"
+                elif (source.get("autoplay", {}).get("kind") == "preview") != (
+                    old_source.get("autoplay", {}).get("kind") == "preview"
+                ):
+                    detail = "queue_kind_changed"
                 elif source["queue"]["queue_revision"] != old_source["queue"]["queue_revision"]:
                     detail = "revision_changed"
                 elif source["native"] != old_source["native"]:
