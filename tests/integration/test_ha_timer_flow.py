@@ -1289,7 +1289,9 @@ async def test_v2_adjust_receipt_fences_read_started_before_effect(registered):
         assert tools.timers.snapshots["kitchen"]["timers"][0]["duration_seconds"] == 180
 
 
-@pytest.mark.parametrize("change", ["none", "rebound", "epoch", "late-epoch", "grant"])
+@pytest.mark.parametrize(
+    "change", ["none", "rebound", "epoch", "late-epoch", "late-service", "grant"]
+)
 async def test_cancel_preflight_survives_only_a_competing_timer_status_read(change):
     async with _native_v2_adapter() as (manager, native, _, tools, calls, controls, _, timer_id):
         timers = tools.timers
@@ -1330,6 +1332,15 @@ async def test_cancel_preflight_survives_only_a_competing_timer_status_read(chan
             assert (await timers.refresh_registered(endpoint, expected_kind="voice_pe"))["ok"]
             if change == "late-epoch":
                 native.epoch = "d" * 32
+            elif change == "late-service":
+                retry_entered, retry_release = asyncio.Event(), asyncio.Event()
+                controls["hold_read"] = retry_entered, retry_release
+                release.set()
+                try:
+                    await asyncio.wait_for(retry_entered.wait(), 1)
+                    timers.command_service = "timer_command"
+                finally:
+                    retry_release.set()
         finally:
             release.set()
             result = await asyncio.wait_for(pending, 1)
@@ -1348,7 +1359,9 @@ async def test_cancel_preflight_survives_only_a_competing_timer_status_read(chan
             assert not calls[3][1].get("lookup_only")
         else:
             assert result == {"ok": False, "error_kind": "stale_schema", "retry_allowed": False}
-            assert paths == ["timer_status"] * (3 if change == "late-epoch" else 2)
+            assert paths == ["timer_status"] * (
+                3 if change in {"late-epoch", "late-service"} else 2
+            )
             assert timer_id in manager.timers
 
 

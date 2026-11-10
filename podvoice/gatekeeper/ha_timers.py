@@ -576,22 +576,31 @@ class HomeAssistantTimers:
         if cancel and state.get("error_kind") == "stale_timer_read":
             latest = self._registered_reads.get(endpoint)
             remaining = deadline - time.monotonic()
+
+            def cancel_source_current():
+                return (
+                    source == (self.client, self.token, self.contract, self.command_service)
+                    and binding == self.bindings.get(endpoint)
+                    and old == self.snapshots.get(endpoint, {}).get("epoch")
+                    and (execution_guard is None or execution_guard())
+                )
+
             # Exactly one competing status read may have superseded this preflight.
             # Unbinds and mutations also advance the serial, but cannot qualify here.
             if (
                 latest == expected_read + 1
                 and latest == self._status_read_serials.get(endpoint)
-                and source == (self.client, self.token, self.contract, self.command_service)
-                and binding == self.bindings.get(endpoint)
-                and old == self.snapshots.get(endpoint, {}).get("epoch")
-                and (execution_guard is None or execution_guard())
                 and remaining > 0
+                and cancel_source_current()
             ):
                 try:
                     async with asyncio.timeout(remaining):
-                        state = await self.refresh(endpoint)
+                        refreshed = await self.refresh(endpoint)
                 except TimeoutError:
                     pass  # The original preflight failed before any mutation.
+                else:
+                    if cancel_source_current():
+                        state = refreshed
         if (
             not state.get("ok")
             or state.get("epoch") != old
