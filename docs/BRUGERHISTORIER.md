@@ -438,6 +438,12 @@ Supervisor-diagnostiklink blev prøvet via normalUI og nativeGem, men ingen fil 
 
 **Genstartscope afklaret.** Normal HA-UI tilbyder Core-genstart og hel systemgenstart, men ingen særskilt Supervisor-genstart. Ingen genstart er udført. Brugeren er konkret spurgt om én ny Green-genstart som afgrænset forsøg på at genskabe kataloget; frisk Spotify-kontrol kræves før handling. Tidligere enkeltgodkendelse genbruges ikke som ubegrænset rebootadgang.
 
+**Afgrænsede rester S6/F9 · 10. november.** Eksisterende faktiske Roborock-diagnostikker fra1.november viser mode/distance203/85→207/85→207/60 på samme a75; historiskSTATUS119–154 korrelerer direkteHA-kald og seq1969→1994→2004 uden rengøring. Den aktuelle DeviceControl bruger samme207/60 og kræver frisk, ny sekvens fra samme ejer. S6 mangler derfor sammenhæng fra aktueltPodView-valg til faktiskHA-kvittering, ikke nyt bevis for at robotten understøtter indstillingen. Intet særskilt30-felt i diagnostikken; ingen nye robotkommandoer.
+
+F9 har faktisk personlig-playliste-mellemfallback i nuværende kode: account_playlists playlistArtwork→verificeret current-policyWebP→lokalSVG. Root læste tidligere163-browserbevis pv-personal-cover-browser163-fixture/podview-personal-playlist-cover-proof.json: to1024pxcachebilleder, cachefejl→to forskellige150pxSVG, nul providerdispatch/action. Dette er historisk inert bevis, ikke ny166/Greenaccept. Green-konfigurationen har udfyldt billedpolitik med max_images6, low1024webp og approval_ref; tom policy er udelukket. ThemeArtOwner logger ikke de enkelte returnNone-årsager, så mere livepoll-log afgør ikke cacheproblemet. Næste konkrete F9-observation er den eksisterende billedjournals cache/retired/attempt-state, ikke flere blindproviderkald eller budgetnulstilling. Ingen kodefejl er endnu dokumenteret.
+
+Supervisorens observerede slug85b5674b matcher SHA1 af den rene repositoryURL udenbranchfragment; GitHub har main, ingenmaster. Det udelukker ikke en afvigende lokalcheckout, men der er ikke bevis for forkert konfigureret URL. Rebootspørgsmålet og sikkerparkering er fortsat ubesvaret. Ingen lyd, genstart eller installation i denne runde. Optællingen står43/97.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
