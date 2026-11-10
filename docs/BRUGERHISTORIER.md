@@ -418,6 +418,10 @@ Speakers0.26.85 er afgrænset til den dokumenterede Rescan-feedbackfejl. Review 
 
 Speakers85 PR130 er merged som2ca86ac96bb7a45bac88db815f0cbd2eec8baa9f efter review og alle officiellePRchecks. Imagebyg42807158004 bestod beggearkitekturer med podconnect-subtree d8dee715332932860d966eeb0dac410b471a486b. Terra_green_read er eneste installationsejer og kontrollerer ledigSpotify før Supervisor-installation; root udfører ingen parallelle enhedshandlinger. Installation og faktisk recovery er endnu ikke bekræftet. Denne afgrænsede rettelse synliggør Rescan-udfald; den bypasser intet og tæller ikke som løst musikstart.
 
+**Årsagsafgrænsning og installation · 10. november efter kl.12.33 CET.** Uafhængig sammenligning af Speakers83 (3cadf25),84 (60d5266) og85 (6e39cba) viser identiske go-librespot-blobs for quarantineguard, START-karantæne og App.Close/replaceAppPlayer. 84 ændrede FIFO-lifetime/owner-recovery;85 ændrer alene Rescan-feedback. Derfor er Claude som fejlårsag ikke dokumenteret. Manglende afgørende observation er den samme11.22-handlings C-route-ready-kvittering: pairing/auth kontra owner/FIFO-admission. Ingen blind downgrade eller guard-bypass.
+
+Terra læste igen Supervisor: opdateringsmærke synligt, men dialog installeret84/nyeste84 og Opdatér deaktiveret. 85 er publiceret, ikke installeret; ingen ny Play eller Rescan. F6-reference genfundet i Musik audit research: brugeren godkendte localhost53880/music-prototype-morning, historisk1156×1060 og56pxcovers. Den tilhørende patch/build/capture er ikke længere på de registrerede stier; fuld visuel sammenligning står derfor åben. Aktuelt fortsat40/97, ingen nye fysiske acceptpåstande.
+
 **Aktiv Green-gennemgang i otte pakker · 9. november 2026.** Gennemgå de eksisterende forløb i
 rækkefølgen nedenfor. Saml dokumenterede fejl til én rettelse og installation pr. berørt produkt.
 Gentag derefter de fejlende handlinger og deres relevante naboforløb. En pakke står åben, mens
