@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
+import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music_selection import rig as rig
@@ -747,6 +748,32 @@ async def test_new_browser_keeps_ordinary_queue_with_older_control(rig):
     assert offer["ok"] and "queueKind" not in offer
     assert all("displayId" not in row for row in offer["items"])
     assert "autoplay_preview" not in bridge.controls.music._read.await_args.args[3]
+
+
+async def test_autoplay_service_discovery_withdraws_opt_in_with_the_field(rig):
+    bridge, request = prepare(rig)
+    fields = {}
+    service_names = rig.router._discovery.podconnect_services
+
+    def describe_services(http_request):
+        assert http_request.url.path.endswith("/services")
+        services = {name: {} for name in service_names}
+        services["get_room_queue_controls"] = {"fields": fields}
+        return httpx.Response(200, json=[{"domain": "podconnect", "services": services}])
+
+    old_client = rig.router._client
+    async with httpx.AsyncClient(transport=httpx.MockTransport(describe_services)) as client:
+        request["autoplayPreview"] = True
+        for field, forwarded in [({"required": False}, True), ({"required": True}, False)]:
+            fields["autoplay_preview"] = field
+            rig.router._client = client
+            try:
+                await type(rig.router)._refresh_podconnect_services(rig.router)
+            finally:
+                rig.router._client = old_client
+            assert (await bridge.queue.offer(request, "grant"))["ok"]
+            payload = bridge.controls.music._read.await_args.args[3]
+            assert ("autoplay_preview" in payload) is forwarded
 
 
 async def test_unresolved_autoplay_is_not_empty_or_actionable(rig):
