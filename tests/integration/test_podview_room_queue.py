@@ -189,6 +189,83 @@ async def test_presented_occurrence_survives_unrelated_queue_read(rig, renewal, 
             await held
 
 
+@pytest.mark.parametrize("change", ["owner", "expired_grant", "expired_presentation"])
+async def test_superseded_offer_cannot_cross_owner_or_presentation_boundary(rig, change):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    assert offer["ok"]
+    assert (await bridge.queue.offer(request, "grant"))["ok"]
+    facade = bridge.controls.music
+    if change == "owner":
+        original = facade._read.side_effect
+
+        async def new_owner(client, token, service, request):
+            value = await original(client, token, service, request)
+            assert service == "get_room_queue_controls"
+            value["owner_epoch"] = "replacement-owner"
+            return value
+
+        facade._read.side_effect = new_owner
+    elif change == "expired_grant":
+        bridge._grants["kitchen"] = ("grant", time.monotonic() - 1)
+    else:
+        bridge.queue.tasks[offer["taskId"]]["presentation_until"] = time.monotonic() - 1
+    before = len(facade._read.await_args_list)
+    assert (await bridge.queue.action(action(offer), "grant"))["outcome"] == "rejected"
+    assert [call.args[2] for call in facade._read.await_args_list[before:]] == (
+        ["get_room_queue_controls"] if change == "owner" else []
+    )
+
+
+async def test_older_inflight_read_cannot_publish_after_newer_offer(rig):
+    bridge, request = prepare(rig)
+    facade = bridge.controls.music
+    original = facade._read.side_effect
+    entered, release = asyncio.Event(), asyncio.Event()
+
+    async def hold_first(client, token, service, request):
+        if not entered.is_set():
+            entered.set()
+            await release.wait()
+        return await original(client, token, service, request)
+
+    facade._read.side_effect = hold_first
+    first = asyncio.create_task(bridge.queue.offer(request, "grant"))
+    try:
+        await asyncio.wait_for(entered.wait(), 1)
+        second = await bridge.queue.offer(request, "grant")
+        assert second["ok"]
+    finally:
+        release.set()
+        prior = await first
+    assert not prior["ok"]
+    assert list(bridge.queue.tasks) == [second["taskId"]]
+    assert not bridge.queue.offer_reads
+
+
+async def test_superseded_consumed_offer_keeps_unknown_without_another_dispatch(rig):
+    bridge, request = prepare(rig)
+    offer = await bridge.queue.offer(request, "grant")
+    facade = bridge.controls.music
+    original = facade._read.side_effect
+
+    async def lose_commit(client, token, service, request):
+        if service == "control_room_queue":
+            raise TimeoutError("inert lost commit response")
+        return await original(client, token, service, request)
+
+    facade._read.side_effect = lose_commit
+    choice = action(offer)
+    first = await bridge.queue.action(choice, "grant")
+    assert first["outcome"] == "unknown"
+    assert (await bridge.queue.offer(request, "grant"))["ok"]
+    before = facade._read.await_count
+    assert await bridge.queue.action(choice, "grant") == first
+    repeated = await bridge.queue.action({**choice, "requestId": "new-click"}, "grant")
+    assert repeated["outcome"] == "rejected"
+    assert facade._read.await_count == before
+
+
 async def test_queue_read_matches_actual_registered_control_identity_schema(rig):
     bridge, request = prepare(rig)
     original = bridge.controls.music._read.side_effect
