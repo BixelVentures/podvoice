@@ -413,10 +413,10 @@ const assertRobotObservation=async(page,requests,action)=>{
  if(process.env.ROBOT_OBSERVATION_TEST==='1'){
   await testEnv.openOverview(page);
   const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
-  await card.getByText('Batteri 78 % · Køkkenalrum',{exact:true}).waitFor({state:'visible',timeout:10000});
+  await card.getByText('Batteri 78 % · Robotten er i Køkkenalrum',{exact:true}).waitFor({state:'visible',timeout:10000});
   await card.getByText('Robotstøvsuger',{exact:true}).tap();
   const panel=page.locator('pv-robot-control-panel');
-  const room=panel.getByText('Rengør · Køkkenalrum',{exact:true});
+  const room=panel.getByText('Robotten er i Køkkenalrum',{exact:true});
   const progress=panel.getByText('42 % færdig',{exact:true});
   const care=panel.getByRole('button',{name:/^Vedligeholdelse/});
   const warning=panel.getByText('Rent vand mangler',{exact:true});

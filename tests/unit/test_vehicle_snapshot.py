@@ -948,3 +948,66 @@ async def test_trunk_control_proof_uses_current_local_evidence_only(
         expected_status = "stale" if rig.now - stamp > snapshot.TTL else "observed"
         assert result["status"] == expected_status and result["data"] == {"trunk": expected}
         assert result["fieldObservedAt"] == {"trunk": stamp}
+
+
+def add_status(rig, *, ha_state="off", changed_ago=4 * 3600):
+    from datetime import datetime
+
+    eid = "binary_sensor.car_status"
+    rig.entities["status"] = eid
+    rig.rows[eid] = NS(
+        id="status",
+        platform="tesla_fleet",
+        config_entry_id="fleet",
+        device_id="car",
+        disabled_by=None,
+        translation_key="state",
+    )
+    rig.hass.states = NS(
+        get=lambda name: NS(
+            entity_id=name,
+            state=ha_state,
+            last_changed=datetime.fromtimestamp(rig.now - changed_ago, UTC),
+            last_reported=datetime.fromtimestamp(rig.now - 5, UTC),
+        )
+    )
+    return addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+
+
+async def read_with_status(rig, scope):
+    async def read(request):
+        return await rig.owner.async_read(rig.call)
+
+    return await addon.read_snapshot(scope, service_read=read, current=lambda: True)
+
+
+async def test_sleep_comes_from_teslas_own_state_and_never_wakes_the_car(rig):
+    """B3: HA's status sensor says only off; Tesla's own state says asleep."""
+    scope = add_status(rig)
+    result = await read_with_status(rig, scope)
+    assert result["connection"] == {"state": "asleep", "since": rig.now - 4 * 3600}
+    # Same single non-waking cached read as without the status role; the API object
+    # (which would raise on any wake/live call) is never touched.
+    assert rig.read.await_count == 1
+    assert rig.vehicle.coordinator.data == {"state": "asleep"}
+    assert result["data"]["batteryPercent"] == 95
+
+
+async def test_offline_is_never_reported_as_sleep(rig):
+    rig.vehicle.coordinator.data = {"state": "offline"}
+    result = await read_with_status(rig, add_status(rig))
+    assert result["connection"]["state"] == "offline"
+
+
+async def test_unknown_status_after_core_restart_reports_no_connection(rig):
+    rig.vehicle.coordinator.data = {}
+    result = await read_with_status(rig, add_status(rig, ha_state="unknown"))
+    assert "connection" not in result
+    assert result["data"]["batteryPercent"] == 95
+
+
+async def test_sensor_change_time_is_used_only_when_it_matches_teslas_state(rig):
+    result = await read_with_status(rig, add_status(rig, ha_state="unknown"))
+    assert result["connection"] == {"state": "asleep", "since": None}

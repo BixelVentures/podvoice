@@ -172,10 +172,26 @@ if robot is not None:
             }
 
         async def telemetry_registry(command):
+            if command["type"] == "search/related":
+                assert command == {
+                    "type": "search/related",
+                    "item_type": "device",
+                    "item_id": "robot-one",
+                }
+                return {"entity": [ROBOT, "image.fixture_map"]}
             assert command["type"] == "config/entity_registry/get_entries"
             return {key: copy.deepcopy(robot.registry[key]) for key in command["entity_ids"]}
 
+        observed_request = robot.client._transport
+
+        async def map_image(request):
+            # Fetching Roborock's map image is what makes HA re-read the current room (S1).
+            if request.url.path == "/core/api/image_proxy/image.fixture_map":
+                return httpx.Response(200, content=b"\x89PNG")
+            return await observed_request.handle_async_request(request)
+
         robot.router._device_control._ws_read = telemetry_registry
+        robot.client._transport = httpx.MockTransport(map_image)
         robot.router._device_control.configure_robot_reads(
             json.dumps(
                 {
@@ -613,9 +629,8 @@ configuration = {
             "targetId": "device",
             "nativeRoomId": "native-room",
             "nativeHomepodId": "42",
-            "actions": ["pause", "resume", "next", "previous"]
-            + (["volume"] if extended else [])
-            + (["seek"] if seek_test else []),
+            # Like Green: seek is never listed; Pause/Fortsæt implies it (A5).
+            "actions": ["pause", "resume", "next", "previous"] + (["volume"] if extended else []),
             "maxVolume": 100 if extended else 40,
         }
     ],

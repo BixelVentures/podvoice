@@ -40,10 +40,14 @@ fields = {
 }
 if lifecycle:
     fields.update({role: mapping[0] for role, mapping in lifecycle_roles.items()})
+    fields["status"] = "binary_sensor.car_status"  # Tesla's own online/asleep/offline (B3).
 control_fields = {
     ("lock" if role == "locked" else role): eid
     for role, eid in fields.items()
-    if not lifecycle or role not in {"batteryPercent", "rangeKm", "charging", "powerKw", "endsAt"}
+    if role != "status"
+    and (
+        not lifecycle or role not in {"batteryPercent", "rangeKm", "charging", "powerKw", "endsAt"}
+    )
 }
 state = {"climate": "off", "temperature": 20.0}
 writes = []
@@ -104,7 +108,7 @@ def lifecycle_snapshot(body):
         )
         if opened and charging_ends_at is not None:
             data["charging"]["endsAt"] = charging_ends_at
-        if phase in {"known", "historical", "closed"}:
+        if phase in {"known", "historical", "closed", "asleep"}:
             data["climate"]["defrost"] = False
         stamps.update(charge_state=stamp, climate_state=stamp)
     observed = {
@@ -127,6 +131,11 @@ def lifecycle_snapshot(body):
         "data": data,
         "fieldObservedAt": observed,
         "historicalFields": list(observed) if phase == "historical" and full else [],
+        **(
+            {"connection": {"state": "asleep", "since": stamp}}
+            if full and phase == "asleep"
+            else {}
+        ),
     }
 
 
@@ -402,7 +411,7 @@ async def lab(request):
             trunk_control_state = body["trunkControlState"]
         if lifecycle and "phase" in body:
             phase = body["phase"]
-            assert phase in {"historical", "partial", "changed", "closed", "unlocked"}
+            assert phase in {"historical", "partial", "changed", "closed", "unlocked", "asleep"}
             if phase != "historical":
                 phase_observed = body.get("observationAt", time.time() - 0.01)
             charging_ends_at = body.get("endsAt") if phase == "changed" else None

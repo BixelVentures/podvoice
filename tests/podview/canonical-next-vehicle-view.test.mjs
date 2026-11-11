@@ -146,7 +146,7 @@ test('repeated stale observation projection and actual rendering qualify status 
  let projected={...observed,stale:true};const hero=view.hero,metrics=[...view.metrics.children];
  for(let i=0;i<4;i++){
   projected=vehicleModel(projected);view.render(projected);projected=vehicleModel(view.model);
-  assert.equal(projected.status,'Sidst kendt: Lader');assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.rangeValue.textContent,'312 km');assert.equal(view.powerValue.textContent,'11 kW');assert.equal(view.access.status.textContent,'Sidst kendt: Låst');assert.equal(view.climate.status.textContent,'Sidst kendt: Slukket');assert.deepEqual(projected.actions,[]);assert.equal(view.controlsEnabled,false);assert.equal(view.climateToggle.hidden,true);assert.equal(view.lockControls.hidden,true);assert.strictEqual(view.hero,hero);assert.deepEqual(view.metrics.children,metrics);
+  assert.equal(projected.status,'Lader');assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.rangeValue.textContent,'312 km');assert.equal(view.powerValue.textContent,'11 kW');assert.equal(view.access.status.textContent,'Låst');assert.equal(view.climate.status.textContent,'Slukket');assert.deepEqual(projected.actions,[]);assert.equal(view.controlsEnabled,false);assert.equal(view.climateToggle.hidden,true);assert.equal(view.lockControls.hidden,true);assert.strictEqual(view.hero,hero);assert.deepEqual(view.metrics.children,metrics);
  }
  assert.deepEqual(structuredClone(observed),before);assert.equal(view.heroIcon.hidden,false);assert.equal(view.figure.hidden,true);view.render(observed);assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.model.status,'Lader');assert.equal(view.controlsEnabled,false);view.cleanup();
 });
@@ -242,8 +242,8 @@ test('climate actions keep action-name semantics and the native meter owns its l
 
 test('lost connection qualifies retained vehicle facts once and recovery restores current status without replacing controls',()=>{
  const {root}=fixture(),view=new VehicleView(root),model=vehicleFixture({controls:true,charging:true}),hero=view.hero,lock=view.lockButton;
- view.render(model,{connected:false});assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.lockButton.disabled,true);
- view.render(model,{connected:false});assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.hero,hero);assert.equal(view.lockButton,lock);
+ view.render(model,{connected:false});assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.lockButton.disabled,true);
+ view.render(model,{connected:false});assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.hero,hero);assert.equal(view.lockButton,lock);
  view.render(model,{connected:true});assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.lockButton.disabled,false);view.cleanup();
 });
 
@@ -295,7 +295,7 @@ test('host liveScene projection renders fresh observed Tesla without false last-
  const run=new Function('VehicleView','projectVehicle','$','homeConnectionPresentation',`return function(s){const viewChanged=true;${source.slice(begin,end)}}`)(VehicleView,vehicleModel,()=>root,homeConnectionPresentation);
  const snapshot={bootId:'boot',roomId:'room',voice:{sessionId:'s'},timers:{status:'observed',items:[]},capabilities:{homeRead:['vehicle']}},observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:Date.now()/1000,entityIds:['sensor.car'],data:{locked:true,batteryPercent:70}}),s=liveScene({focus:'vehicle',vehicle:observed,devices:[],answers:[],extraTimers:[],music:{playback:{}}},snapshot),host={live:true,liveSnapshot:snapshot,liveTransport:{connected:true},vehicleView:view};
  assert.equal(s.connected,false);run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.climateToggle.hidden,true);assert.equal(view.controlsEnabled,false);
- host.liveTransport.connected=false;run.call(host,s);assert.equal(view.status.textContent,'Sidst kendt: Låst');assert.equal(view.batteryValue.textContent,'70 %');host.liveTransport.connected=true;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.controlsEnabled,false);view.cleanup();
+ host.liveTransport.connected=false;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.batteryValue.textContent,'70 %');host.liveTransport.connected=true;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.controlsEnabled,false);view.cleanup();
 });
 
 test('scoped observed Model Y uses generic illustration without inventing year or authority',async()=>{
@@ -325,14 +325,14 @@ test('vehicle admits only the explicit Tesla snapshot source and retains existin
 });
 
 test('Tesla snapshot labels the oldest source observation and retains it when stale',()=>{
- const {root}=fixture(),view=new VehicleView(root),stamp=1793350000,source={status:'observed',source:'tesla_fleet_snapshot',observedAt:stamp,entityIds:['sensor.car_battery'],data:{batteryPercent:94}},data=vehicleObservation(source),expected=`Ældste observation ${new Date(stamp*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`;
+ const {root}=fixture(),view=new VehicleView(root),stamp=1793350000,source={status:'observed',source:'tesla_fleet_snapshot',observedAt:stamp,entityIds:['sensor.car_battery'],data:{batteryPercent:94}},data=vehicleObservation(source),expected=`Opdateret: ${new Date(stamp*1000).toLocaleDateString('da-DK',{day:'numeric',month:'short'})} ${new Date(stamp*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})}`;
  view.render(data);assert.equal(view.connectionNote.hidden,false);assert.equal(view.connectionNote.textContent,expected);view.render(data);assert.equal(view.connectionNote.textContent,expected,'rerender cannot move the source timestamp');view.render({...data,stale:true});assert.equal(view.connectionNote.textContent,expected);view.render(null,{chargeContext:{readGranted:true,scope:'scope',sourceScope:'scope'}});assert.equal(view.connectionNote.hidden,true,'unavailable without source data does not invent a timestamp');view.render(vehicleObservation({...source,source:'home_assistant_state'}));assert.equal(view.connectionNote.hidden,true);view.cleanup();
 });
 
 
 test('vehicle qualifies historical access independently from fresh climate and keeps unknown honest',()=>{
  const {root}=fixture(),view=new VehicleView(root),stamp=1793350000,source={status:'observed',source:'tesla_fleet_snapshot',observedAt:stamp,entityIds:['lock.car','climate.car'],historicalFields:['locked','trunk'],fieldObservedAt:{locked:stamp,trunk:stamp,'climate.status':stamp+3600},data:{locked:false,trunk:'open',climate:{status:'heat',temperatureC:20}}};
- const model=vehicleObservation(source);view.render(model);assert.equal(view.access.status.textContent,'Sidst kendt: Ulåst');assert.equal(view.climate.status.textContent,'Varmer');assert.match(view.status.textContent,/Sidst kendt: bagagerum åbent/);assert.match(view.connectionNote.textContent,/^Ældste observation /);assert.equal(view.model.fieldObservedAt.locked,stamp);assert.deepEqual(view.vehicleActions,[]);
+ const model=vehicleObservation(source);view.render(model);assert.equal(view.access.status.textContent,'Ulåst');assert.equal(view.climate.status.textContent,'Varmer');assert.match(view.status.textContent,/Bagagerum åbent/);assert.match(view.connectionNote.textContent,/^Opdateret: /);assert.equal(view.model.fieldObservedAt.locked,stamp);assert.deepEqual(view.vehicleActions,[]);
  view.render(vehicleObservation({...source,historicalFields:[]}));assert.equal(view.access.status.textContent,'Ulåst');assert.equal(view.climate.status.textContent,'Varmer');
  view.render(vehicleObservation({...source,historicalFields:['climate.status'],data:{climate:{status:null}}}));assert.equal(view.access.status.textContent,'Ukendt');assert.equal(view.climate.status.textContent,'Ukendt');view.cleanup();
 });

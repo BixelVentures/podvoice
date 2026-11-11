@@ -219,7 +219,7 @@ async function lifecycleJourney(page,card,errors,commands){
  assert.match(await hero.innerText(),/312 km/);
  const time=hero.locator('.vehicle-connection-note');
  const firstTimestamp=await time.innerText();
- assert.match(firstTimestamp,/^Ældste observation .+\d\d[.:]\d\d$/);
+ assert.match(firstTimestamp,/^Opdateret: .*\d\d[.:]\d\d$/);
  assert.doesNotMatch(await hero.innerText(),/kW/);
  const trunk=name=>root.getByRole('button',{name,exact:true});
  const up=root.getByRole('button',{name:'Hæv temperatur',exact:true});
@@ -260,7 +260,7 @@ async function lifecycleJourney(page,card,errors,commands){
  await refresh('historical');
  await snapshotReady(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.historicalFields?.includes('trunk'));
  assert.deepEqual(await fieldTimes(),knownTimes,'historical re-emission preserves every field timestamp');
- assert.match(await hero.innerText(),/Sidst kendt/);
+ assert.doesNotMatch(await hero.innerText(),/Sidst kendt|observation/i);
  assert.equal(await time.innerText(),firstTimestamp);
  assert.match(await hero.innerText(),/312 km/);
  assert.doesNotMatch(await hero.innerText(),/dvale/i,'unproven sleep is not labelled as observed');
@@ -269,6 +269,14 @@ async function lifecycleJourney(page,card,errors,commands){
  assert(await up.isDisabled());
  assert.deepEqual((await state()).writes,[]);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-last-known.png')});
+
+ // B3: Tesla's own state says asleep; the card shows it as a state with its duration.
+ await refresh('asleep');
+ await hero.getByText(/^I dvale · \d+ min$/).waitFor({state:'visible'});
+ assert.match(await time.innerText(),/^Opdateret: \d\d[.:]\d\d$/);
+ assert.match(await hero.innerText(),/72/);
+ assert.deepEqual((await state()).writes,[],'showing sleep never sends a vehicle command');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-asleep.png')});
 
  await refresh('partial');
  await trunk('Bagagerum ukendt').waitFor({state:'visible'});

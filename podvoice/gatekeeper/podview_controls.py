@@ -235,6 +235,15 @@ def policy(value: str) -> dict:
             ]
             if len(primary) > 1 and sum(row.get("default") is True for row in primary) != 1:
                 return {}
+        for row in data["music"]:
+            # Seeking is ordinary playback control on the same speaker (A5): a room
+            # rule that may pause or resume may also seek. Source support still gates it.
+            if (
+                {"pause", "resume"} & set(row["actions"])
+                and "seek" not in row["actions"]
+                and all(row.get(key) for key in ("nativeRoomId", "nativeHomepodId"))
+            ):
+                row["actions"].append("seek")
         return data
     except (ValueError, TypeError):
         return {}
@@ -295,6 +304,8 @@ class TouchControls:
         self.receipts: dict[tuple, tuple] = {}
         self.busy: set[tuple[str, ...]] = set()
         self.setups: dict[tuple[str, ...], str] = {}
+        # Longer than one robot setup (10 s timeout), shorter than the client wait.
+        self.robot_command_wait = 12.0
         self.mutations: dict[tuple[str, ...], object] = {}
         self.move_unknown: dict[tuple[str, str], tuple[str, int, str]] = {}
 
@@ -2310,6 +2321,16 @@ class TouchControls:
             if step["action"] != "podvoice.extreme_water"
         ]
 
+    async def _robot_resource_free(self, resource: tuple[str, ...]) -> bool:
+        """A robot tap waits for the panel's renewal read or a prior command on the
+        same robot to finish instead of failing busy (S3: Pause, then Til basen)."""
+        deadline = time.monotonic() + self.robot_command_wait
+        while resource in self.busy or resource in self.setups:
+            if time.monotonic() >= deadline:
+                return False
+            await asyncio.sleep(0.05)
+        return True
+
     async def command(self, body: dict, token: str) -> dict:
         """One authenticated normal touch intention through the existing owner.
 
@@ -2547,6 +2568,10 @@ class TouchControls:
         if body["action"] != "move_existing_session":
             setup_body["requestedAction"] = body["action"]
         try:
+            if body["domain"] == "vacuum" and not await self._robot_resource_free(
+                self.resource_key("vacuum", body["target"])
+            ):
+                return reject("busy")
             offered = await self.setup(setup_body, token)
             if offered.get("ok") is not True:
                 return reject(offered.get("error", "setup_unavailable"))

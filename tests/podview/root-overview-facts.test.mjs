@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
 import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {vehicleFixture,vehicleModel} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {vehicleFixture,vehicleModel,vehicleUpdatedLabel} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
 import {localPlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
 import {timerTime,timerStateLabel} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
 import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
@@ -14,7 +14,7 @@ const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widg
 const method=source.slice(source.indexOf(' renderOverviewFacts('),source.indexOf(' renderResourceRail(){')).trim();
 function projection({live=false,vm=localPlayerModel(initialScene()),vehicle=vehicleFixture({charging:true}),timer=null,state=initialScene()}={}){
  const calls=new Map(),nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id});return nodes.get(id);};
- const render=new Function('$','updateResourceFacts','projectVehicle','timerTime','timerStateLabel','liveWeatherModel','localWeatherModel','WEATHER_CHANGE_EXAMPLE','renderOverviewMediaValues',`return function ${method}`)(node,(target,value)=>calls.set(target.id,value),vehicleModel,timerTime,timerStateLabel,liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE,()=>{});
+ const render=new Function('$','updateResourceFacts','projectVehicle','timerTime','timerStateLabel','liveWeatherModel','localWeatherModel','WEATHER_CHANGE_EXAMPLE','renderOverviewMediaValues','vehicleUpdatedLabel',`return function ${method}`)(node,(target,value)=>calls.set(target.id,value),vehicleModel,timerTime,timerStateLabel,liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE,()=>{},vehicleUpdatedLabel);
  const host={live,state,renderOverviewMediaCards(){},playerView:{progressVM:vm,rows:new Map(),queue:{dataset:{status:'ready'}}},timerView:{currentTimer:timer,nodes:new Map(timer?[[`overview:${timer.id}`,{querySelector:()=>node('active-timer')}]]:[])}};
  render.call(host,vehicle);return {calls,host,render};
 }

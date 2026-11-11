@@ -35,7 +35,7 @@ test('a historical room stays out of overview, status title and detail during th
   const device=scene.devices[0],overview=deviceOverviewFacts(device);
   const visibleRoom=historical?undefined:room;
   assert.equal(overview.facts.find(fact=>fact.id==='room')?.value,visibleRoom);
-  const status=state==='paused'?'Rengøring på pause':visibleRoom?`Rengør · ${visibleRoom}`:'Rengør';
+  const status=state==='paused'?'Rengøring på pause':visibleRoom?`Robotten er i ${visibleRoom}`:'Rengør';
   assert.equal(deviceLabel(device),status);
   assert.equal(robotFacts(device).summary.includes(room),!historical&&state==='cleaning');
   assert.equal(overview.facts.find(fact=>fact.id==='cleaning_area')?.value,'9,4 m²');

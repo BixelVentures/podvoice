@@ -15,6 +15,7 @@ import re
 import time
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from typing import Any, cast
 
 SOURCE_TTL = 900.0
@@ -34,7 +35,10 @@ ROLES = {
     "driverSeat": "select",
     "passengerSeat": "select",
     "trunk": "cover",
+    # Tesla Fleet connectivity: off means asleep OR offline; the snapshot tells which.
+    "status": "binary_sensor",
 }
+CONNECTION_STATES = ("online", "asleep", "offline")
 _ID = re.compile(r"[A-Za-z0-9_-]{1,128}\Z")
 
 
@@ -449,7 +453,7 @@ async def read_snapshot(
             if (
                 not current()
                 or type(value) is not dict
-                or set(value) - {"fieldObservedAt", "historicalFields"}
+                or set(value) - {"fieldObservedAt", "historicalFields", "connection"}
                 != {
                     "schema",
                     "configEntryId",
@@ -650,6 +654,16 @@ async def read_snapshot(
                     present = False
                 if not present:
                     return unavailable
+            connection = value.get("connection")
+            if connection is not None and (
+                "status" not in fields
+                or trunk_control
+                or type(connection) is not dict
+                or set(connection) != {"state", "since"}
+                or connection["state"] not in CONNECTION_STATES
+                or (connection["since"] is not None and not number(connection["since"], 1, clock))
+            ):
+                return unavailable
             return {
                 "status": value["status"],
                 "source": "tesla_fleet_snapshot",
@@ -658,7 +672,86 @@ async def read_snapshot(
                 "data": data,
                 "fieldObservedAt": field_times,
                 "historicalFields": historical,
+                **({"connection": dict(connection)} if connection is not None else {}),
             }
     except (TimeoutError, ValueError, TypeError, KeyError, OverflowError, RecursionError):
         diagnostic("invalid_projection")
         return unavailable
+
+
+class ConnectionMemory:
+    """Remembers the car's sleep across add-on and Core restarts (B3).
+
+    Tesla Fleet's status sensor has no RestoreEntity, so it is unknown after a Core
+    restart. The last observed sleep start is kept in the add-on's own /data. A
+    sleep can never have started before the car's last reported data.
+    """
+
+    def __init__(self, path: Path | None) -> None:
+        self.path = path
+        self._record: dict | None = None
+        self._loaded = False
+
+    def _load(self) -> dict | None:
+        if not self._loaded:
+            self._loaded = True
+            try:
+                if self.path is not None and self.path.exists():
+                    value = json.loads(self.path.read_text())
+                    if (
+                        type(value) is dict
+                        and set(value) == {"scope", "state", "since"}
+                        and isinstance(value["scope"], str)
+                        and value["state"] in CONNECTION_STATES
+                        and type(value["since"]) in (int, float)
+                        and math.isfinite(value["since"])
+                        and value["since"] > 0
+                    ):
+                        self._record = value
+            except (OSError, ValueError, TypeError):
+                self._record = None
+        return self._record
+
+    def _save(self, record: dict) -> None:
+        self._record = record
+        if self.path is None:
+            return
+        try:
+            temporary = self.path.with_suffix(".tmp")
+            temporary.write_text(json.dumps(record))
+            temporary.replace(self.path)
+        except OSError:
+            pass  # Memory still holds it; a later read tries again.
+
+    def apply(
+        self, scope: str, connection: dict | None, *, last_data_at: float | None, now: float
+    ) -> dict | None:
+        stored = self._load()
+        if stored is not None and stored["scope"] != scope:
+            stored = None
+        awake_after = last_data_at if last_data_at is not None and last_data_at <= now else None
+        if connection is None:
+            # Unknown after a restart: keep the remembered sleep unless the car has
+            # reported data since it fell asleep.
+            if (
+                stored is None
+                or stored["state"] == "online"
+                or (awake_after is not None and awake_after > stored["since"])
+            ):
+                return None
+            return {"state": stored["state"], "since": stored["since"], "remembered": True}
+        state, since = connection["state"], connection["since"]
+        if state == "online":
+            since = since if since is not None else now
+        else:
+            candidates = [since] if since is not None else []
+            if stored is not None and stored["state"] == state:
+                candidates.append(stored["since"])
+            since = min(candidates) if candidates else (awake_after or now)
+            if awake_after is not None:
+                since = max(since, awake_after)
+        since = min(since, now)
+        record = {"scope": scope, "state": state, "since": since}
+        if record != stored:
+            self._save(record)
+        return {"state": state, "since": since, "remembered": False}

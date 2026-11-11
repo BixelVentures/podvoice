@@ -14,6 +14,7 @@ import json
 import re
 import secrets
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -202,6 +203,10 @@ class PreparedAction:
     data: dict[str, Any]
 
 
+_ROBOT_MAP_REFRESH_INTERVAL = 25.0
+_ROBOT_ROOM_MAX_AGE = 60.0
+
+
 @dataclass(frozen=True)
 class _RobotVacuumSample:
     state: str
@@ -232,6 +237,11 @@ class DeviceControl:
         self._generation = 0
         self._robot_room_witnesses: dict[str, _RobotRoomWitness] = {}
         self._robot_read_times: dict[str, float] = {}
+        # Roborock's current_room sensor only moves when its map is fetched (S1).
+        self._robot_map_refreshed: dict[str, float] = {}
+        self._robot_map_attempts: dict[str, float] = {}
+        self._robot_map_tasks: dict[str, asyncio.Task] = {}
+        self.on_robot_map_refreshed: Callable[[], None] | None = None
         self._robot_read_source = (client, token)
         self._tickets: dict[str, Capability] = {}
         self._display_tickets: dict[str, Capability] = {}
@@ -267,8 +277,57 @@ class DeviceControl:
             self._generation += 1
             self._robot_room_witnesses.clear()
             self._robot_read_times.clear()
+            self._robot_map_refreshed.clear()
+            self._robot_map_attempts.clear()
             self._tickets.clear()
             self._display_tickets.clear()
+
+    def _schedule_robot_map_refresh(self, entity_id: str, device_id: str, generation: int) -> None:
+        """While the robot moves, fetch its map image now and then so HA re-reads the room."""
+        running = self._robot_map_tasks.get(entity_id)
+        now = time.time()
+        if (running is not None and not running.done()) or (
+            now - self._robot_map_attempts.get(entity_id, 0) < _ROBOT_MAP_REFRESH_INTERVAL
+        ):
+            return
+        self._robot_map_attempts[entity_id] = now
+        self._robot_map_tasks[entity_id] = asyncio.create_task(
+            self._robot_map_refresh(entity_id, device_id, generation)
+        )
+
+    async def _robot_map_refresh(self, entity_id: str, device_id: str, generation: int) -> None:
+        try:
+            async with asyncio.timeout(15):
+                related = await self._ws_read(
+                    {"type": "search/related", "item_type": "device", "item_id": device_id}
+                )
+                self._check(generation)
+                entities = related.get("entity", []) if isinstance(related, dict) else []
+                images = sorted(
+                    e for e in entities if isinstance(e, str) and e.startswith("image.")
+                )[:4]
+                client, token = self._client, self._token
+                if not images or client is None:
+                    return
+                fetched = False
+                for image in images:
+                    # Reading the image is what makes the Roborock integration reload its map.
+                    response = await client.get(
+                        f"{C.SUPERVISOR_CORE_API}/image_proxy/{image}",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    fetched = fetched or response.status_code == 200
+                self._check(generation)
+                if fetched:
+                    self._robot_map_refreshed[entity_id] = time.time()
+                    if self.on_robot_map_refreshed is not None:
+                        self.on_robot_map_refreshed()
+        except (Exception, asyncio.CancelledError):
+            pass  # No fresh map: the room is simply not shown.
+
+    def _robot_room_fresh(self, entity_id: str, read_started: float) -> bool:
+        refreshed = self._robot_map_refreshed.get(entity_id)
+        return refreshed is not None and 0 <= read_started - refreshed <= _ROBOT_ROOM_MAX_AGE
 
     async def _robot_observation(
         self, entity_id: str, generation: int, vacuum_sample: _RobotVacuumSample | None = None
@@ -314,6 +373,7 @@ class DeviceControl:
         self, entity_id: str, generation: int, vacuum_sample: _RobotVacuumSample | None
     ) -> dict:
         optional_deadline = time.monotonic() + 4.5
+        read_started = time.time()
         unavailable = {"status": "unavailable", "items": []}
         binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == entity_id), None)
         if binding is None or entity_id not in self._entities:
@@ -405,6 +465,17 @@ class DeviceControl:
             self._check(generation)
             if podview_robot.registry_identity(binding, after) != identity:
                 return unavailable
+            device_id = after[entity_id].get("device_id")
+            if (
+                vacuum_sample is not None
+                and vacuum_sample.state in {"cleaning", "returning"}
+                and isinstance(device_id, str)
+            ):
+                self._schedule_robot_map_refresh(entity_id, device_id, generation)
+            if not self._robot_room_fresh(entity_id, read_started):
+                # The sensor's report time moves without a map reload; only a room read
+                # after our own recent map refresh is the robot's actual room.
+                items = [row for row in items if row["key"] != "current_room"]
             items = await self._robot_named_current_room(entity_id, items, after[entity_id])
             self._check(generation)
             result: dict[str, Any] = {

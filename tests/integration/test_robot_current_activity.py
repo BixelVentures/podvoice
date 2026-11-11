@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 import httpx
 import pytest
 from integration.test_robot_current_setup import build as setup_build
+from integration.test_robot_current_setup import map_freshly_reloaded
 
 from gatekeeper.device_control import DeviceControl
 from gatekeeper.podview import _home_vacuum
@@ -249,6 +250,8 @@ async def build(case="normal", *, age=600):
         return result
 
     owner._ws_read = registry_read
+    if case.startswith("room-"):
+        map_freshly_reloaded(owner, VAC)
     return owner, client, calls, edge
 
 
@@ -604,3 +607,69 @@ def test_current_activity_public_projection_is_closed(patch):
     assert project_current_activity(value, VAC, now=now) == value
     assert project_current_activity({**value, **patch}, VAC, now=now) == {"status": "unavailable"}
     assert project_current_activity(value, VAC, now=now + 61) == {"status": "unavailable"}
+
+
+async def test_room_is_shown_only_after_podvoice_reloads_the_roborock_map():
+    """S1: Roborock's room sensor is re-reported without a map reload (said Bathroom1 in Entré)."""
+    owner, client, _, _ = await build("room-fresh")
+    owner._robot_map_refreshed.clear()
+    owner._robot_map_attempts.clear()
+    transport, read_registry = client._transport, owner._ws_read
+    related, images = [], []
+
+    async def registry(command):
+        if command["type"] == "search/related":
+            related.append(command)
+            return {"entity": [VAC, "image.qrevo_downstairs", "sensor.other"]}
+        return await read_registry(command)
+
+    async def route(request):
+        if request.url.path.endswith("/image_proxy/image.qrevo_downstairs"):
+            images.append(request.headers["Authorization"])
+            return httpx.Response(200, content=b"\x89PNG")
+        return await transport.handle_async_request(request)
+
+    def room(device):
+        rows = device["telemetry"]["items"]
+        return next((row["value"] for row in rows if row["key"] == "current_room"), None)
+
+    owner._ws_read = registry
+    client._transport = httpx.MockTransport(route)
+    async with client:
+        first = _home_vacuum(await owner.observe())["items"][0]
+        assert first["state"] == "cleaning"
+        assert room(first) is None  # Not yet re-read after a map reload: show nothing.
+        await owner._robot_map_tasks[VAC]
+        assert related == [{"type": "search/related", "item_type": "device", "item_id": "robot"}]
+        assert images == ["Bearer inert-token"]
+        assert room(_home_vacuum(await owner.observe())["items"][0]) == "Gang"
+        assert len(images) == 1  # Next reload only after the interval.
+        owner._robot_map_refreshed[VAC] -= 61
+        assert room(_home_vacuum(await owner.observe())["items"][0]) is None
+        assert not owner._tickets and not owner._display_tickets
+
+
+async def test_failed_map_reload_never_shows_the_room():
+    owner, client, _, _ = await build("room-fresh")
+    owner._robot_map_refreshed.clear()
+    owner._robot_map_attempts.clear()
+    transport, read_registry = client._transport, owner._ws_read
+
+    async def registry(command):
+        if command["type"] == "search/related":
+            return {"entity": ["image.qrevo_downstairs"]}
+        return await read_registry(command)
+
+    async def route(request):
+        if "/image_proxy/" in request.url.path:
+            return httpx.Response(500)
+        return await transport.handle_async_request(request)
+
+    owner._ws_read = registry
+    client._transport = httpx.MockTransport(route)
+    async with client:
+        await owner.observe()
+        await owner._robot_map_tasks[VAC]
+        device = _home_vacuum(await owner.observe())["items"][0]
+        assert not any(row["key"] == "current_room" for row in device["telemetry"]["items"])
+        assert VAC not in owner._robot_map_refreshed

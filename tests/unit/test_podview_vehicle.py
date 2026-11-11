@@ -652,3 +652,82 @@ async def test_optional_model_preserves_observation_and_requires_current_registr
         assert router._device_control._ws_read.await_count == (
             0 if status == "unavailable" else 2 if registry == "valid" else 1
         )
+
+
+SCOPE = "a" * 64
+
+
+def test_sleep_start_survives_addon_restart_and_unknown_after_core_restart(tmp_path):
+    """B3: Tesla's status sensor is unknown after a Core restart; the sleep is kept."""
+    path, start = tmp_path / "vehicle-sleep.json", 1_800_000_000.0
+    first = v.ConnectionMemory(path)
+    shown = first.apply(
+        SCOPE, {"state": "asleep", "since": start}, last_data_at=start - 60, now=start + 600
+    )
+    assert shown == {"state": "asleep", "since": start, "remembered": False}
+    restarted = v.ConnectionMemory(path)  # Add-on restart: only the file remains.
+    shown = restarted.apply(SCOPE, None, last_data_at=start - 60, now=start + 4 * 3600)
+    assert shown == {"state": "asleep", "since": start, "remembered": True}
+    # Core restart: HA's sensor changed to off at restart time; the earlier start stays.
+    shown = restarted.apply(
+        SCOPE, {"state": "asleep", "since": start + 3600}, last_data_at=start - 60, now=start + 7200
+    )
+    assert shown["since"] == start
+
+
+def test_sleep_start_is_never_before_the_cars_last_data(tmp_path):
+    memory, start = v.ConnectionMemory(tmp_path / "s.json"), 1_800_000_000.0
+    shown = memory.apply(
+        SCOPE, {"state": "asleep", "since": None}, last_data_at=start, now=start + 9
+    )
+    assert shown["since"] == start
+    memory.apply(SCOPE, {"state": "asleep", "since": start}, last_data_at=start, now=start + 10)
+    # The car reported again later (it was awake): the old sleep is no longer remembered.
+    assert memory.apply(SCOPE, None, last_data_at=start + 500, now=start + 900) is None
+    shown = memory.apply(
+        SCOPE, {"state": "asleep", "since": start}, last_data_at=start + 500, now=start + 900
+    )
+    assert shown["since"] == start + 500
+
+
+def test_offline_online_and_foreign_or_broken_memory(tmp_path):
+    path, start = tmp_path / "s.json", 1_800_000_000.0
+    memory = v.ConnectionMemory(path)
+    shown = memory.apply(SCOPE, {"state": "offline", "since": start}, last_data_at=None, now=start)
+    assert shown["state"] == "offline"
+    memory.apply(SCOPE, {"state": "online", "since": start + 5}, last_data_at=None, now=start + 5)
+    assert memory.apply(SCOPE, None, last_data_at=None, now=start + 9) is None
+    memory.apply(SCOPE, {"state": "asleep", "since": start}, last_data_at=None, now=start + 9)
+    assert v.ConnectionMemory(path).apply("b" * 64, None, last_data_at=None, now=start) is None
+    path.write_text("{broken")
+    assert v.ConnectionMemory(path).apply(SCOPE, None, last_data_at=None, now=start) is None
+
+
+async def test_snapshot_connection_is_admitted_only_for_the_status_role():
+    now = 1_800_000_000.0
+    entities = {"batteryPercent": "sensor.battery", "status": "binary_sensor.status"}
+    scope = v.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": entities})
+    )
+    value = {
+        "schema": "podvoice.vehicle_snapshot.v1",
+        "configEntryId": "fleet",
+        "deviceId": "car",
+        "entities": entities,
+        "source": "tesla_fleet",
+        "sourceIdentity": "coordinator",
+        "status": "observed",
+        "observedAt": now - 30,
+        "timestamps": {"charge_state": now - 30},
+        "data": {"batteryPercent": 62},
+        "connection": {"state": "asleep", "since": now - 3600},
+    }
+
+    async def read(request):
+        return copy.deepcopy(value)
+
+    result = await v.read_snapshot(scope, service_read=read, current=lambda: True, now=lambda: now)
+    assert result["connection"] == {"state": "asleep", "since": now - 3600}
+    value["connection"] = {"state": "sleeping", "since": None}
+    unknown = await v.read_snapshot(scope, service_read=read, current=lambda: True, now=lambda: now)
+    assert unknown["status"] == "unavailable"

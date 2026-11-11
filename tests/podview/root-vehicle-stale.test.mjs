@@ -10,7 +10,7 @@ test('a fresh page displays an explicitly stale vehicle as last known, without c
  const scene=applyHome({devices:[],focus:'vehicle',homeScope:null},home,['vehicle']);
  const model=vehicleModel(scene.vehicle);
  assert.equal(model.mode,'observed');assert.equal(model.stale,true);assert.equal(model.observedAt,stamp);
- assert.equal(model.charging.endsAt,null);const rail=vehicleRailPresentation(scene.vehicle,{live:true,connected:true,readGranted:true,scope:'s',sourceScope:'s'});assert.equal(rail.detail,'Sidst kendt opladning');assert.equal(rail.facts.some(f=>f.id==='ends'),false);assert.equal(model.status,'Sidst kendt: Lader');assert.deepEqual(model.actions,[]);
+ assert.equal(model.charging.endsAt,null);const rail=vehicleRailPresentation(scene.vehicle,{live:true,connected:true,readGranted:true,scope:'s',sourceScope:'s'});assert.equal(rail.detail,'Lader');assert.equal(rail.facts.some(f=>f.id==='ends'),false);assert.equal(model.status,'Lader');assert.deepEqual(model.actions,[]);
  assert.equal(vehicleChargeUpdate(null,model,{connected:true,scope:'s',sourceScope:'s',readGranted:true}).eligible,false);
  assert.equal(applyHome(scene,home,[]).vehicle,null);
  assert.equal(applyHome(scene,{...home,bootId:'other',vehicle:null},['vehicle']).vehicle,null);

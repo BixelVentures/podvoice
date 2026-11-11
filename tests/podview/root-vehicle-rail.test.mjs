@@ -13,7 +13,7 @@ test('Ro charging projection navigates with known passive facts and no command a
 
 test('Ro preserves legitimately retained charging as last-known on stale or disconnected data',()=>{
  for(const [input,options]of [[{...sample(),stale:true},context],[sample(),{...context,connected:false}]]){
-  const rail=vehicleRailPresentation(input,options);assert.equal(rail.detail,'Sidst kendt opladning');assert.equal(rail.stale,true);assert.equal(rail.status,'stale');assert.equal(rail.resourceStatus,'stale');assert.equal(rail.value,'72 %');assert.ok(rail.facts.every(fact=>fact.stale));assert.deepEqual(rail.actions,[]);
+  const rail=vehicleRailPresentation(input,options);assert.equal(rail.detail,'Lader');assert.equal(rail.stale,true);assert.equal(rail.status,'stale');assert.equal(rail.resourceStatus,'stale');assert.equal(rail.value,'72 %');assert.ok(rail.facts.every(fact=>fact.stale));assert.deepEqual(rail.actions,[]);
  }
 });
 
