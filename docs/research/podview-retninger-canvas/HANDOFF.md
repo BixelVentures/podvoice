@@ -29,6 +29,14 @@ Fælles:
 - Ved slut er `ui/legacy-components.css`, `widget-redesign.css`, `frame-layout.css`, `widget-view.css`,
   `live-music.css`, `timer-notice.css` og den gamle `ui-kit.css`-masse væk eller opløst i kit/tokens.
 
+## Teknisk fundament (lead-beslutning 11. nov. 2026)
+- **Udseendet er afgjort af lærredet.** Lærredets kit-tavler *er* UI-kittet: tokens, komponenter, tilstande, bevægelse.
+- **Under motorhjelmen** bygges kittet på en lille, etableret komponentmotor (Lit eller Preact), bundtet lokalt
+  i add-on'et (ingen CDN). Det erstatter håndskrevet DOM og den hjemmelavede `ui/kit.js`-mekanik.
+- **Ikke** et færdigt stylet kit (Shoelace/Material/Ionic): det ville kæmpe mod lærredets udseende.
+- **Første skridt i fase 1:** mål Frameoens browser (lille testside åbnes én gang på Frameo og iPad).
+  Resultatet afgør Lit vs. Preact og hvilke CSS-/JS-funktioner kittet må bruge.
+
 ## Læs først
 1. `AGENTS.md` i repo-roden (proces, review, bevis, udgivelse).
 2. Lærredets side *UI-kit og principper*: `Kit-Tokens`, `Kit-Migrering`, `Kit-Kontroller` m.fl.
