@@ -4,6 +4,20 @@ Status 11. nov. 2026: design og UI-kit er færdige (lærred v122, 108 tavler ude
 produktkode er ændret. Beslutning: **vi skifter UI direkte, uden flag.** Detaljer i `CODEX-PLAN.md`,
 `AUDIT-2026-11-11.md` og `README.md`.
 
+## Mål (ejerkrav 11. nov. 2026)
+**Produktet skal ende 100 % som det godkendte lærred:** layout, farver, typografi, tilstande, tekster,
+**animationer, transitioner og timing**, og alle spor C-funktioner. Intet er »færdigt«, før lærredsmatricen
+er grøn. Afvigelser kræver ejerens godkendelse; uspecificeret adfærd opfindes ikke, men løftes som spørgsmål.
+
+## Lærredsmatrix (kilde til »100 %«)
+Genereres af script fra lærredets `.dc.html` + `canvas.json` (få tokens). Én række pr. tavle × tilstand:
+tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tavlen → status (match / afvigelse godkendt).
+- **Bevægelseskatalog:** scriptet udtrækker alle `transition`, `@keyframes`/`animation` og
+  `prefers-reduced-motion` fra tavlerne (48 tavler har bevægelse, fx tryk `.12s`, indgang `.42s`,
+  ark `.28s`, bekræftelse `.4s`, karrusel 20 s / 1,2 s). Hver post får en Playwright-test med styret ur:
+  rigtigt element, varighed, kurve, slutstilstand, og `animation:none` ved reduceret bevægelse.
+- Matricen er en del af beviset ved hver PR og ved den endelige udgivelse.
+
 ## Læs først
 1. `AGENTS.md` i repo-roden (proces, review, bevis, udgivelse).
 2. Lærredets side *UI-kit og principper*: `Kit-Tokens`, `Kit-Migrering`, `Kit-Kontroller`.
@@ -14,6 +28,9 @@ produktkode er ændret. Beslutning: **vi skifter UI direkte, uden flag.** Detalj
   `podview.css` genereres af `scripts/build-assets.mjs`). Selektorer: `data-kit*`, `data-tone`, `aria-*`,
   `--pv-*` og eksisterende ID'er/klasser. Ny markup eller adfærd = spor C.
 - **Brugerhistorierne beskyttes af adfærdskontrakten og tryk-gennemløbet**, ikke af et flag.
+- **Vagt:** et script i CI afviser en spor A/B-PR, der ændrer andet end CSS-filer og testreferencer.
+- **Hvor CSS ikke kan nå lærredet** (fx manglende kroge i `index.html`), flyttes punktet til spor C med
+  ny markup + tests. Det besluttes i matricen, ikke undervejs.
 - **Tekster kommer fra produktet.** Lærredets `.dc.html` er reference og kopieres ikke ind.
 - **Tilbagerulning** = udgiv forrige version igen (normal udgivelsesproces).
 - **Udgivelse** kun via normal proces (version + dansk CHANGELOG i samme commit, push til `main`), og kun
@@ -29,8 +46,9 @@ produktkode er ændret. Beslutning: **vi skifter UI direkte, uden flag.** Detalj
 | 2 | **Komponenter, 3 PR'er:** kontroller (knap, kontakt, chip, skyder) · flader (listerække, sektionstitel, kort/widget, hero) · topbar, dialog, afspiller | kontrakt grøn, review |
 | 3 | **Sider, 2 PR'er.** Særskilt layout kun for Overblik, Foto-Ro, Robot og Svar; resten følger komponenterne | kontrakt grøn, skærmbillede pr. side ved tavlen |
 | 4 | **Tryk-gennemløb = eksisterende browser-suite** (`tests/browser/*_actual_e2e.cjs` med fake-servere for lys, musik, radio, opskrift, robot, svar, hjem; via `scripts/browser_gate.py`). Scriptet, ingen agent-klik eller skærmbilleder i kontekst; kun fejl læses. Mangler en handling, tilføjes den til suiten | alle grønne |
-| 5 | **Én samlet udgivelse**, derefter 24 t live på iPad og Frameo | ingen regression i brugerhistorier |
-| C… | Spor C-funktioner én ad gangen bagefter, først »Markér trin færdigt« | egen beslutning |
+| 5 | **Udgivelse 1** (UI-skift), derefter 24 t live på iPad og Frameo | ingen regression i brugerhistorier; matrix grøn for spor A/B |
+| 6 | **Spor C, alle funktioner (del af målet):** én PR pr. funktion med Playwright-tests og bevægelsestests i samme PR, først »Markér trin færdigt« | kontrakt + matrix grøn for funktionen |
+| 7 | **Udgivelse 2** (spor C) + 24 t live på iPad og Frameo | matrix 100 % grøn |
 
 Spor C-listen: kompakt beskedlinje i hero, friskhedsmærke, handlingsflade, rødt domænemærke i topbar,
 Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fra trin + timerchip, Cover Flow,
@@ -47,7 +65,7 @@ Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fr
 - **Holder med nyt UI:** testene finder elementer via ID'er (≈340) og roller (≈60), som CSS-skiftet ikke rører.
   ≈40 klassebaserede selektorer gennemgås i 0a. Skærmbillede-referencer (fx `daily_ui.cjs`) opdateres
   bevidst pr. side-PR, aldrig ved at slække testen.
-- **Spor C** leverer nye Playwright-tests i samme PR som ny markup.
+- **Spor C** leverer nye Playwright-tests (inkl. bevægelse) i samme PR som ny markup.
 - **Ingen computer use** til verifikation; agenter læser kun testfejl.
 
 ## Fart
@@ -57,7 +75,7 @@ Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fr
 - Parallelle sessioner kun i egne worktrees og aldrig på samme filer. Ét uafhængigt review pr. PR.
 - Ejeren er klar ved live-start (genindlæser iPad og Frameo).
 
-**Estimat:** ≈2½–4 t kode + 24 t live.
+**Estimat:** spor A/B ≈2½–4 t + 24 t live; spor C ≈12–20 t + 24 t live; matrix + bevægelseskatalog ≈1–2 t.
 
 ## Besluttede værdier
 Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces) · nat-skærm 21–7 · »Senest brugt« på timer
