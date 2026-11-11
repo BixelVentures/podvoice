@@ -1,6 +1,7 @@
 """Scoped paired HTTP tasks reuse actual robot effect owner; no live home calls."""
 
 import asyncio
+import copy
 import hashlib
 import json
 import time
@@ -2412,6 +2413,33 @@ async def test_seek_uses_current_track_duration_and_existing_room_owner(offline_
     }
 
 
+async def test_seek_works_for_a_room_policy_that_only_names_pause(offline_direct):
+    """A5 on Green: the configured room grants Pause/Fortsæt but never listed seek."""
+    client, bridge, _, _, _, _, _, music = offline_direct
+    track_uri = "spotify:track:" + "x" * 22
+    music.item_uri = track_uri
+    music.value.update(actions=["pause", "seek"], poll_sequence=4)
+    music.tools._discovery = replace(music.tools._discovery, room_playback_seek=True)
+    configured = copy.deepcopy(bridge.controls.policy)
+    configured["music"][0]["actions"] = ["pause"]
+    bridge.controls.policy = policy(json.dumps(configured))
+    assert bridge.controls.policy["music"][0]["actions"] == ["pause", "seek"]
+    token = bridge.grant_timer_control("kitchen")
+    headers = {"X-PodView-Request": "1", "Cookie": f"podview_control={token}"}
+    body = direct_music_body(bridge, action="seek")
+    body["args"] = {
+        "positionMs": 101000,
+        "expectedOwnerEpoch": music.value["owner_epoch"],
+        "expectedTrackUri": track_uri,
+    }
+    receipt = await (
+        await client.post("/view/api/control/actions", json=body, headers=headers)
+    ).json()
+    assert receipt["outcome"] == "accepted", receipt
+    effects = [call[3] for call in music.calls if call[1].endswith("/control_room_playback")]
+    assert [(e["action"], e["args"]) for e in effects] == [("seek", {"position_ms": 101000})]
+
+
 async def test_direct_http_command_reuses_original_receipt_after_short_task_expiry(offline_direct):
     client, bridge, _, _, _, _, _, music = offline_direct
     token = bridge.grant_timer_control("kitchen")
@@ -2748,6 +2776,8 @@ async def test_direct_vacuum_pause_receipt_logs_only_bounded_rejection_reason(
             return await setup(self, entity, current)
 
         monkeypatch.setattr(VacuumTransport, "setup", held_setup)
+        # A tap waits in line for a held setup; busy only after that bounded wait.
+        controls.robot_command_wait = 0.1
         passive_setup = asyncio.create_task(controls.setup(setup_body(bridge), token))
         await asyncio.wait_for(entered.wait(), 2)
     elif case == "unsupported":
@@ -2794,6 +2824,84 @@ async def test_direct_vacuum_pause_receipt_logs_only_bounded_rejection_reason(
     assert not any(secret in " ".join(messages) for secret in (token, ROBOT, "PRIVATE"))
     expected = [("services/vacuum/pause", {"entity_id": ROBOT})] if reason is None else []
     assert robot.writes == expected
+
+
+async def test_direct_robot_tap_waits_for_panel_renewal_instead_of_busy(
+    offline_direct, monkeypatch
+):
+    """S3 on Green: the open robot panel renews its setup while Til basen is tapped."""
+    from gatekeeper.podview_vacuum_control import VacuumTransport
+
+    _, bridge, _, _, _, _, robot, _ = offline_direct
+    robot.states[ROBOT]["state"] = "paused"
+    robot.states[ROBOT]["attributes"]["supported_features"] = 4 | 16 | 8192
+    controls = bridge.controls
+    controls.policy["vacuum"][0]["actions"] = ["pause", "resume", "return"]
+    token = bridge.grant_timer_control("kitchen")
+    entered, release = asyncio.Event(), asyncio.Event()
+    setup = VacuumTransport.setup
+    held = True
+
+    async def held_setup(self, entity, current):
+        nonlocal held
+        if held:
+            held = False
+            entered.set()
+            await release.wait()
+        return await setup(self, entity, current)
+
+    monkeypatch.setattr(VacuumTransport, "setup", held_setup)
+    renewal = asyncio.create_task(controls.setup(setup_body(bridge), token))
+    await asyncio.wait_for(entered.wait(), 2)
+    body = {
+        **direct_music_body(bridge, action="return", request_id="return-tap"),
+        "domain": "vacuum",
+        "target": {"entityId": ROBOT},
+    }
+    tap = asyncio.create_task(controls.command(body, token))
+    await asyncio.sleep(0.2)
+    assert not tap.done() and not robot.writes  # Queued, not rejected.
+    release.set()
+    assert (await renewal)["ok"]
+    result = await asyncio.wait_for(tap, 5)
+    assert result["outcome"] == "accepted", result
+    assert robot.writes == [("services/vacuum/return_to_base", {"entity_id": ROBOT})]
+    assert not controls.busy and not controls.setups
+
+
+async def test_direct_robot_pause_then_return_25_seconds_later_is_admitted(
+    offline_direct, monkeypatch
+):
+    _, bridge, _, _, _, _, robot, _ = offline_direct
+    robot.states[ROBOT]["state"] = "cleaning"
+    robot.states[ROBOT]["attributes"]["supported_features"] = 4 | 16 | 8192
+    controls = bridge.controls
+    controls.policy["vacuum"][0]["actions"] = ["pause", "resume", "return"]
+    token = bridge.grant_timer_control("kitchen")
+
+    async def actual_ha_pause():
+        if robot.writes[-1][0] == "services/vacuum/pause":
+            robot.states[ROBOT]["state"] = "paused"
+
+    robot.write_hook = actual_ha_pause
+    command = {**direct_music_body(bridge), "domain": "vacuum", "target": {"entityId": ROBOT}}
+    pause = {**command, "action": "pause", "requestId": "pause-tap"}
+    assert (await controls.command(pause, token))["outcome"] == "accepted"
+    assert not controls.busy and not controls.setups
+    now = time.time()
+    monkeypatch.setattr("gatekeeper.podview_controls.time.time", lambda: now + 25)
+    back = {
+        **command,
+        "action": "return",
+        "requestId": "return-tap",
+        "issuedAt": (int(now) + 25) * 1000,
+    }
+    result = await controls.command(back, token)
+    assert result["outcome"] == "accepted", result
+    assert [write[0] for write in robot.writes] == [
+        "services/vacuum/pause",
+        "services/vacuum/return_to_base",
+    ]
 
 
 async def test_direct_command_server_trace_sink_failure_is_fail_open(offline_direct, monkeypatch):

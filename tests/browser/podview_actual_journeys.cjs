@@ -30,6 +30,8 @@ for(const journey of only.length?only:journeys){
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'output-transfer')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_MULTI_SCREEN_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'multi-screen')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_SEEK_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'seek')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_MANUAL_RETRY_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'manual-retry')});
  if(journey==='music_selection_actual_e2e.cjs'){

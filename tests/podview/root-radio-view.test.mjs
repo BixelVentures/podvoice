@@ -55,7 +55,7 @@ test('local explicit selection delegates one stable station ID and rejects inval
 test('live and disconnected render remain visibly present but cannot select a station',()=>{
  const {root,view,calls}=fixture();view.render({live:true,connected:true,stationId:'p3'});const list=view.list;
  assert.equal(list.data.connected,false);assert.equal(list.data.state,'unsupported');
- assert.match(view.subtitle.textContent,/ikke tilgængelig/i);assert.equal(list.data.stateText,'');
+ assert.match(view.subtitle.textContent,/ikke klar på højttalerne/i);assert.equal(list.data.stateText,'');
  root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.equal(calls.length,0);
  view.render({live:false,connected:false,stationId:'p3'});
  assert.equal(list.data.connected,false);root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.equal(calls.length,0);
@@ -77,7 +77,7 @@ test('station identities reuse sourced DR marks and playback indication follows 
  view.render({live:true,connected:true,stationId:'p3',playing:true});assert.equal(list.data.selected,null);assert.ok(list.data.items.every(item=>item.current===false));assert.ok(list.data.items.every(item=>!/^Spiller|^Valgt|^Stoppet/.test(item.detail)));
 });
 
-test('radio introduction stays static while selected tiles distinguish playing-model selection and stop',()=>{const {view}=fixture();for(const playing of [true,false]){view.render({live:false,connected:true,stationId:'p3',playing});assert.equal(view.subtitle.textContent,'Vælg eller skift station nedenfor.');assert.equal(view.stationTitle.textContent,'Vælg radiostation');assert.equal(view.stationStatus.textContent,'Vælg eller skift station nedenfor.');assert.match(view.list.data.items[0].detail,playing?/^Valgt/:/^Stoppet/);}view.render({live:true,connected:true,stationId:'p3',playing:true});assert.match(view.stationStatus.textContent,/ikke tilgængelig/);assert.doesNotMatch(view.subtitle.textContent,/P3|Stoppet|Valgt i afspilleren/);});
+test('radio introduction stays static while selected tiles distinguish playing-model selection and stop',()=>{const {view}=fixture();for(const playing of [true,false]){view.render({live:false,connected:true,stationId:'p3',playing});assert.equal(view.subtitle.textContent,'Vælg eller skift station nedenfor.');assert.equal(view.stationTitle.textContent,'Vælg radiostation');assert.equal(view.stationStatus.textContent,'Vælg eller skift station nedenfor.');assert.match(view.list.data.items[0].detail,playing?/^Valgt/:/^Stoppet/);}view.render({live:true,connected:true,stationId:'p3',playing:true});assert.match(view.stationStatus.textContent,/ikke klar på højttalerne/);assert.doesNotMatch(view.subtitle.textContent,/P3|Stoppet|Valgt i afspilleren/);});
 
 test('station assets retain verified DR Design source bytes instead of recreated lettering',async()=>{
  const {readFile}=await import('node:fs/promises'),{createHash}=await import('node:crypto'),sources=JSON.parse(await readFile(new URL('../../docs/RADIO-LOGO-SOURCES.json',import.meta.url),'utf8'));

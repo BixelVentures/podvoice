@@ -48,7 +48,7 @@ export class RadioView{
    :setupIssue==='radio_native_auth_rejected'
     ?'PodConnect afviste radiotokenet. Kontrollér, at Speakers og PodVoice bruger samme radiotoken.'
     :null;
-  this.subtitle.textContent=available?'Vælg eller skift station nedenfor.':blocked?'Adgang afvist. Dine stationer er bevaret. Kontrollér adgangen i Home Assistant.':!connected?'Ikke forbundet. Dine stationer er bevaret. Kontrollér forbindelsen i Home Assistant.':setupMessage||'Radioafspilning er endnu ikke tilgængelig via Home Assistant.';
+  this.subtitle.textContent=available?'Vælg eller skift station nedenfor.':blocked?'Adgang afvist. Dine stationer er bevaret. Kontrollér adgangen i Home Assistant.':!connected?'Ikke forbundet. Dine stationer er bevaret. Kontrollér forbindelsen i Home Assistant.':setupMessage||'Radioen er ikke klar på højttalerne endnu.';
   // Station identity belongs to the selected Tile and retained PlayerView.
   // This Hero remains the same introduction before and after a local choice.
   this.hero.dataset.kitState=available?'ready':'empty';this.stationArt.src='assets/icons/boombox.svg';this.stationTitle.textContent=available?'Vælg radiostation':'Radio';this.stationStatus.textContent=available?'Vælg eller skift station nedenfor.':this.subtitle.textContent;this.playerButton.hidden=true;this.list.data={

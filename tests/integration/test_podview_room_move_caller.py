@@ -90,7 +90,14 @@ def configuration():
 
 def test_multidestination_policy_requires_unique_default_and_native_pair():
     value = configuration()
-    assert policy(json.dumps(value)) == value
+    parsed = policy(json.dumps(value))
+    # A room that may pause may also seek (A5); nothing else is added.
+    assert [row["actions"] for row in parsed["music"]] == [
+        ["pause", "volume", "move_existing_session", "seek"]
+    ] * 2
+    for row in parsed["music"]:
+        row["actions"].remove("seek")
+    assert parsed == value
     assert (
         podview_room_media.room_bindings(
             SimpleNamespace(

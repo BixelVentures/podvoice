@@ -423,6 +423,10 @@ class PodViewBridge:
         self._home_event_owner = None
         self._home_event_generation = 0
         self._home_light_interests: dict = {}
+        robot_owner = getattr(tools, "_device_control", None)
+        if robot_owner is not None:
+            # A fresh robot map can reveal its room; wake readers like an HA vacuum event.
+            robot_owner.on_robot_map_refreshed = lambda: self.home_events_changed({"vacuum"})
         self._home_weather_interest: tuple[tuple, frozenset[str]] | None = None
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""

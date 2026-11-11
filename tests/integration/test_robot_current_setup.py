@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import json
+import time
 from datetime import UTC, datetime
 from types import SimpleNamespace as NS
 
@@ -13,6 +14,12 @@ from unit.test_device_control import ROBOT, Rig
 from unit.test_ha_robot_snapshot import fixture as cache_fixture
 
 from gatekeeper.podview_robot import project_current_setup
+
+
+def map_freshly_reloaded(owner, vacuum):
+    """These rooms are read right after PodVoice's own map reload (S1)."""
+    owner._robot_map_refreshed[vacuum] = time.time() - 1
+    owner._robot_map_attempts[vacuum] = time.time() + 3600
 
 
 async def build(tmp_path, change=None):
@@ -98,6 +105,7 @@ async def build(tmp_path, change=None):
         return result
 
     owner._ws_read = registry
+    map_freshly_reloaded(owner, ROBOT)
     if change == "unmapped":
         cache.data.blocks = bytes([16, 18])
     elif change == "partial-area":
@@ -186,6 +194,7 @@ async def test_current_room_uses_the_ha_room_name_never_the_raw_roborock_name(tm
     rig, owner, original, _ = await build(tmp_path)
     try:
         add_current_room(rig, owner, raw)
+        map_freshly_reloaded(owner, ROBOT)
         value = await owner._robot_observation(ROBOT, owner._generation)
         rooms = [row["value"] for row in value["items"] if row["key"] == "current_room"]
         assert rooms == ([shown] if shown else []), value
