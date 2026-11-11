@@ -94,7 +94,6 @@
   },
   "A-Stemme.dc.html": {
    "h": 800,
-   "is_interactive": false,
    "page": "principper",
    "title": "Stemmegrillen",
    "w": 1280,
@@ -181,6 +180,15 @@
    "x": 1360,
    "y": 1040
   },
+  "Foto-Nat.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Nat-skærm · forstyrrer mindst muligt (ny funktion)",
+   "w": 1280,
+   "x": 2720,
+   "y": 1040
+  },
   "FotoRo-Aktiv.dc.html": {
    "h": 800,
    "is_interactive": true,
@@ -192,7 +200,6 @@
   },
   "Gennemgang.dc.html": {
    "h": 800,
-   "is_interactive": false,
    "page": "principper",
    "title": "Gennemgang af :4394 · 4–5/10",
    "w": 1280,
@@ -271,6 +278,24 @@
    "x": 5440,
    "y": 6540
   },
+  "K-ActionTile.dc.html": {
+   "h": 176,
+   "w": 260,
+   "x": 21760,
+   "y": 0
+  },
+  "K-Btn.dc.html": {
+   "h": 120,
+   "w": 200,
+   "x": 22100,
+   "y": 0
+  },
+  "K-Fresh.dc.html": {
+   "h": 120,
+   "w": 260,
+   "x": 22380,
+   "y": 0
+  },
   "K-Kit.dc.html": {
    "h": 3080,
    "is_interactive": true,
@@ -279,6 +304,69 @@
    "w": 2400,
    "x": 0,
    "y": 0
+  },
+  "K-Notice.dc.html": {
+   "h": 120,
+   "w": 844,
+   "x": 22720,
+   "y": 0
+  },
+  "K-Switch.dc.html": {
+   "h": 120,
+   "w": 120,
+   "x": 23644,
+   "y": 0
+  },
+  "K-Widget.dc.html": {
+   "h": 221,
+   "w": 199,
+   "x": 23844,
+   "y": 0
+  },
+  "Kit-Beskeder.dc.html": {
+   "h": 900,
+   "is_interactive": true,
+   "page": "principper",
+   "title": "Kit · beskedlinje og friskhed",
+   "w": 1400,
+   "x": 2560,
+   "y": 560
+  },
+  "Kit-Handlingsflader.dc.html": {
+   "h": 440,
+   "is_interactive": true,
+   "page": "principper",
+   "title": "Kit · handlingsflade",
+   "w": 1600,
+   "x": 2560,
+   "y": 1580
+  },
+  "Kit-Knapper.dc.html": {
+   "h": 440,
+   "is_interactive": true,
+   "page": "principper",
+   "title": "Kit · knapper og kontakter",
+   "w": 1400,
+   "x": 2560,
+   "y": 0
+  },
+  "Kit-Topbar.dc.html": {
+   "h": 560,
+   "is_interactive": true,
+   "page": "principper",
+   "title": "Kit · topbar",
+   "w": 1400,
+   "x": 2560,
+   "y": 2740
+  },
+  "Kit-Widgets.dc.html": {
+   "h": 480,
+   "is_interactive": true,
+   "page": "principper",
+   "title": "Kit · widget",
+   "w": 2240,
+   "x": 2560,
+   "y": 2140
   },
   "Lys-Slukket.dc.html": {
    "h": 800,
@@ -372,7 +460,6 @@
   },
   "Northstars.dc.html": {
    "h": 800,
-   "is_interactive": false,
    "page": "principper",
    "title": "Northstars",
    "w": 1280,
@@ -489,7 +576,6 @@
   },
   "Referencer.dc.html": {
    "h": 960,
-   "is_interactive": false,
    "page": "principper",
    "title": "Referencer",
    "w": 1280,
@@ -549,6 +635,15 @@
    "w": 1280,
    "x": 4164,
    "y": 3420
+  },
+  "Robot-Sticky-Mere.dc.html": {
+   "h": 800,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Robot · sticky med Mere åben som ark",
+   "w": 1280,
+   "x": 2720,
+   "y": 5060
   },
   "Robot-Sticky-Rengoer.dc.html": {
    "h": 800,
@@ -768,7 +863,6 @@
   },
   "System.dc.html": {
    "h": 800,
-   "is_interactive": false,
    "page": "principper",
    "title": "Ét system: størrelser, tilstande, materiale",
    "w": 1280,
@@ -1207,6 +1301,15 @@
    "x": 717,
    "y": 11300
   },
+  "W-timer-start-tom.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · timer start efter 6 t (intet hop)",
+   "w": 199,
+   "x": 478,
+   "y": 11300
+  },
   "W-timer-start.dc.html": {
    "h": 221,
    "is_interactive": true,
@@ -1242,78 +1345,6 @@
    "w": 414,
    "x": 908,
    "y": 2080
-  },
-  "Foto-Nat.dc.html": {
-   "page": "retning",
-   "title": "Nat-skærm · forstyrrer mindst muligt (ny funktion)",
-   "w": 1280,
-   "h": 800,
-   "x": 2720,
-   "y": 1040,
-   "is_interactive": true
-  },
-  "Robot-Sticky-Mere.dc.html": {
-   "page": "retning",
-   "title": "Robot · sticky med Mere åben som ark",
-   "w": 1280,
-   "h": 800,
-   "x": 2720,
-   "y": 5060,
-   "is_interactive": true
-  },
-  "W-timer-start-tom.dc.html": {
-   "h": 221,
-   "is_interactive": true,
-   "page": "retning",
-   "title": "Widget · timer start efter 6 t (intet hop)",
-   "w": 199,
-   "x": 478,
-   "y": 11300
-  },
-  "Kit-Knapper.dc.html": {
-   "page": "principper",
-   "title": "Kit · knapper og kontakter",
-   "w": 1400,
-   "h": 440,
-   "x": 2560,
-   "y": 0,
-   "is_interactive": true
-  },
-  "Kit-Beskeder.dc.html": {
-   "page": "principper",
-   "title": "Kit · beskedlinje og friskhed",
-   "w": 1400,
-   "h": 900,
-   "x": 2560,
-   "y": 560,
-   "is_interactive": true
-  },
-  "Kit-Handlingsflader.dc.html": {
-   "page": "principper",
-   "title": "Kit · handlingsflade",
-   "w": 1600,
-   "h": 440,
-   "x": 2560,
-   "y": 1580,
-   "is_interactive": true
-  },
-  "Kit-Widgets.dc.html": {
-   "page": "principper",
-   "title": "Kit · widget",
-   "w": 2240,
-   "h": 480,
-   "x": 2560,
-   "y": 2140,
-   "is_interactive": true
-  },
-  "Kit-Topbar.dc.html": {
-   "page": "principper",
-   "title": "Kit · topbar",
-   "w": 1400,
-   "h": 560,
-   "x": 2560,
-   "y": 2740,
-   "is_interactive": true
   }
  },
  "createdOnFiles": {
@@ -1326,12 +1357,8 @@
   "view": "canvas"
  },
  "noteOrder": [
-  "image-4z0kf3",
-  "image-79q5vk",
-  "image-ydhkdt",
-  "note-7lm50g",
   "t-historik-4",
-  "t-principper-5",
+  "image-4z0kf3",
   "t-retning-6",
   "t-retning-7",
   "t-retning-8",
@@ -1347,7 +1374,11 @@
   "t-retning-ro",
   "t-svar-ny",
   "t-historik-svar",
-  "t-historik-tesla"
+  "t-historik-tesla",
+  "image-79q5vk",
+  "image-ydhkdt",
+  "note-7lm50g",
+  "t-principper-5"
  ],
  "notes": {
   "image-4z0kf3": {
@@ -1385,52 +1416,52 @@
   },
   "t-hero": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "historik",
    "text": "Hero-sammenligning · før → S 221 / L 458 (reglen står nu i UI-kittet)",
    "w": 240,
    "x": 0,
-   "y": 6100
+   "y": 6240
   },
   "t-historik-4": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "historik",
    "text": "Parkeret: søgning mens man skriver (kræver tastatur på Frameo)",
    "w": 240,
    "x": 0,
-   "y": 3340
+   "y": 4160
   },
   "t-historik-ovb": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "historik",
    "text": "Overblik · forslag til roligere farver (A er nu standard, B fravalgt)",
    "w": 240,
    "x": 0,
-   "y": 4700
+   "y": 5200
   },
   "t-historik-svar": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "historik",
    "text": "Svar · de tidligere ti former og faser (erstattet af fire former)",
    "w": 240,
    "x": 0,
-   "y": 8100
+   "y": 7880
   },
   "t-historik-tesla": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "historik",
    "text": "Tesla · ekstra handlingstavler (nu vist som tilstande i UI-kittets handlingsflade)",
    "w": 240,
    "x": 0,
-   "y": 9500
+   "y": 8920
   },
   "t-principper-5": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "principper",
    "text": "Principper, UI-kit og gennemgang",
    "w": 240,
@@ -1439,111 +1470,111 @@
   },
   "t-retning-10": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Tesla · bilen er batteriet",
    "w": 240,
    "x": 0,
-   "y": 9700
+   "y": 6840
   },
   "t-retning-11": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Find musik og afspiller",
    "w": 240,
    "x": 0,
-   "y": 11300
+   "y": 7880
   },
   "t-retning-12": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Radio · afspilles altid i medieafspilleren",
    "w": 240,
    "x": 0,
-   "y": 12900
+   "y": 8920
   },
   "t-retning-13": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Opskrifter · rigtigt katalog (9) · katalog, udforsk, opskrift",
    "w": 240,
    "x": 0,
-   "y": 14500
+   "y": 9960
   },
   "t-retning-14": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Timer",
    "w": 240,
    "x": 0,
-   "y": 16100
+   "y": 11000
   },
   "t-retning-15": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "historik",
    "text": "Svar · alle visuelle svarformer og faser (produktets egne)",
    "w": 240,
    "x": 0,
-   "y": 8300
+   "y": 8080
   },
   "t-retning-6": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Overblik · faste pladser, Green 9. nov. 14.30 · aktiv · skærmindstillinger",
    "w": 240,
    "x": 0,
-   "y": 0
+   "y": -300
   },
   "t-retning-7": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Vejr · widget-states → detalje",
    "w": 240,
    "x": 0,
-   "y": 2900
+   "y": 1780
   },
   "t-retning-8": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Robot · widget-states → detalje-states",
    "w": 240,
    "x": 0,
-   "y": 4900
+   "y": 3120
   },
   "t-retning-9": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Lys · skærmens rum først, andre rum, hele hjemmet, lamper",
    "w": 240,
    "x": 0,
-   "y": 8100
+   "y": 5800
   },
   "t-retning-ro": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Foto-Ro · ur, vejr og produktets to pladser (musik + aktivitet)",
    "w": 240,
    "x": 0,
-   "y": 1600
+   "y": 740
   },
   "t-svar-ny": {
    "kind": "title1",
-   "maxW": 12000,
+   "maxW": 8000,
    "page": "retning",
    "text": "Svar · gentænkt: fire former + historik (forslag)",
    "w": 240,
    "x": 0,
-   "y": 18000
+   "y": 12040
   }
  },
  "order": [
@@ -1687,7 +1718,18 @@
   "Robot-Mere.dc.html",
   "Foto-Nat.dc.html",
   "Robot-Sticky-Mere.dc.html",
-  "W-timer-start-tom.dc.html"
+  "W-timer-start-tom.dc.html",
+  "Kit-Knapper.dc.html",
+  "Kit-Beskeder.dc.html",
+  "Kit-Handlingsflader.dc.html",
+  "Kit-Widgets.dc.html",
+  "Kit-Topbar.dc.html",
+  "K-ActionTile.dc.html",
+  "K-Btn.dc.html",
+  "K-Fresh.dc.html",
+  "K-Notice.dc.html",
+  "K-Switch.dc.html",
+  "K-Widget.dc.html"
  ],
  "pages": [
   {

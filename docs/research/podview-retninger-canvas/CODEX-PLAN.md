@@ -23,12 +23,31 @@ med færrest mulige funktionsfejl. Læs først `AGENTS.md` (proces, review, bevi
 - Views: `*-view.js` (vejr, robot, lys, vehicle, timer, recipe, radio, music-results, player-view).
 - Tests: `tests/podview/*.test.mjs` + `npm run check:components`.
 
+## Migreringsmodel: parallel kørsel bag et flag (valgt for færrest funktionsfejl)
+
+1. **Adfærdskontrakt før design.** En test pr. side tager et snapshot af alle handlinger
+   (knap → `data-action`/kommando, links, tilstande fra `preview-scenes.js`). Den fejler, hvis en handling
+   forsvinder, omdøbes eller sender noget andet. Den skrives i fase 0 og må aldrig ændres i spor A/B.
+2. **Nyt UI bag et flag, ikke i stedet for det gamle.** `<html data-ui="v2">` slår det nye kit til;
+   al ny CSS er afgrænset under `[data-ui="v2"]`. Det gamle UI virker uændret uden flaget.
+   Flaget kan sættes pr. skærm i HA, så Frameo'en kan skiftes frem og tilbage på sekunder.
+3. **Markup ændres kun med kroge.** Komponenter får klasser/attributter (`pv-notice`, `pv-btn--fare`),
+   men ingen element flyttes eller fjernes, der bærer en handling. Logik i `*-view.js` røres ikke.
+4. **Visuel regression på begge flag.** Skærmbilleder pr. tilstand (1280×800) med og uden `v2`;
+   v1 må ikke ændre sig med én pixel, v2 sammenlignes med lærredets tavle.
+5. **Én komponent ad gangen** (fase 2-rækkefølgen), hver bag samme flag, hver med grøn adfærdskontrakt.
+6. **Live-bevis på HA Green** med `v2` på den rigtige Frameo i mindst et døgn pr. fase, før næste fase.
+7. **Oprydning sidst:** først når alle sider kører `v2` og er godkendt, fjernes v1-CSS i én separat PR.
+
+Rul tilbage = sluk flaget. Ingen deploy, ingen revert, ingen funktion berørt.
+
 ## Fase 0 · Baseline (ingen ændringer)
 
 - Tag skærmbilleder 1280×800 af alle tilstande, der kan nås lokalt
   (`preview-scenes.js`-scener + HA Green): overblik, hver detalje, hver tilstand.
 - Gem dem som reference. Alle senere PR'er sammenlignes med dem.
 - Skriv en handlingstjekliste pr. side: hver knap → hvad den sender (fra koden).
+- Skriv adfærdskontrakt-testen (se migreringsmodellen) og flaget `data-ui` uden ny CSS.
 
 ## Fase 1 · Spor A: tokens (1 PR)
 
