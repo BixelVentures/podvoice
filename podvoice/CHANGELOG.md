@@ -1,3 +1,7 @@
+## 2.0.172
+
+- Hurtige faneskift i Find musik viser ikke længere »Kunne ikke hente forslag«; den nye fane venter på den forrige hentning. Rækker uden cover har igen den dokumenterede afstand om musiksymbolet.
+
 ## 2.0.171
 
 - Bevar kvitteringen for en igangværende robotbasehandling, hvis Home Assistant kortvarigt ikke kan læses.
