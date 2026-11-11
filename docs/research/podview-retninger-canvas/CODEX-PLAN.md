@@ -112,4 +112,4 @@ UI-redesign". Rækkefølge med lavest risiko først:
 - Fase 4 starter med »Markér trin færdigt« (besluttet 11. nov.); de øvrige besluttes én ad gangen.
 - Nat-skærm: fast 21–7 (besluttet 11. nov.); kræver lysstyrkestyring på Frameo.
 - Timer-widget: »Senest brugt« står i 6 timer efter sidste timer, derefter kun »Start en timer« (besluttet 11. nov.).
-- Foto-Ro: iCloud-album som kilde.
+- Foto-Ro: kilde er det delte iCloud-album (link modtaget 11. nov., står i HA-konfigurationen, ikke i koden). Karrusel-regler afventer beslutning.
