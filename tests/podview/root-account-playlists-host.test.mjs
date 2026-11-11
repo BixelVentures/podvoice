@@ -21,3 +21,22 @@ test('ordinary Top keeps its existing transport contract and cannot borrow an un
  const {h,events}=host();h.liveCatalogue.pendingRead={kind:'top',sourceKind:'top'};h.liveSnapshot.capabilities.musicRead=['top'];await load.call(h,'top');assert.equal(events.find(x=>x[0]==='read')[1],'top');
  const blocked=host();blocked.h.liveSnapshot.capabilities.musicRead=['top'];await load.call(blocked.h,'top');assert.deepEqual(blocked.events,[['offline']]);
 });
+
+test('an automatic read for a cached tab waits behind the prior tab without sending twice',async()=>{
+ const {h,events}=host();
+ h.liveSnapshot.capabilities.musicRead=['account_playlists','recent'];
+ let finishRecent;
+ h.liveTransport.music=kind=>{
+  events.push(['read',kind]);
+  return kind==='recent'?new Promise(resolve=>{finishRecent=resolve;}):Promise.resolve({ok:true});
+ };
+ h.liveCatalogue.pendingRead={kind:'recent',sourceKind:'recent',reason:'initial'};
+ const recent=load.call(h,'recent');
+ h.liveCatalogue.pendingRead={kind:'top',sourceKind:'account_playlists',reason:'renew'};
+ const returned=load.call(h,'top');
+ assert.deepEqual(events.filter(([event])=>event==='read'),[['read','recent']]);
+ finishRecent({ok:true});
+ await Promise.all([recent,returned]);
+ assert.deepEqual(events.filter(([event])=>event==='read'),[['read','recent'],['read','account_playlists']]);
+ assert.deepEqual(events.filter(([event])=>event==='tracks').map(([,kind])=>kind),['top']);
+});
