@@ -693,8 +693,15 @@ async function discoveryRevisitJourney(){
  try{
   await Promise.race([held,sleep(10000).then(()=>{throw Error('first recent read not held');})]);
   await top.tap();
+  // The server admits one catalogue read at a time. The new tab waits behind the abandoned
+  // read instead of sending a parallel read that the server would reject as busy.
+  await sleep(500);
+  assert.equal(await ready.filter({hasText:'Katalogsang 11'}).count(),0,'the other tab waits behind the held read');
+  assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0,
+   'waiting behind the held read shows no failure');
+  releaseFirst();
   await ready.filter({hasText:'Katalogsang 11'}).waitFor({timeout:10000});
-  assert.equal(await ready.count(),3,'the other tab completed while the first read was held');
+  assert.equal(await ready.count(),3,'the other tab completes once the abandoned read settles');
   await recent.tap();
   await page.waitForFunction(()=>document.querySelector('#result-list')?.getAttribute('aria-busy')==='true'
    ||document.querySelectorAll('#result-list > button[data-option-id]').length===5,undefined,{timeout:3000});
