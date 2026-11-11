@@ -26,8 +26,9 @@ Fælles:
   bundtet lokalt, konservativt build-target fx es2017). Erstatter den håndskrevne DOM og `ui/kit.js`-mekanikken;
   `ui/kit.js` udfases. Ikke et færdigt stylet kit.
 - **Ét token-sæt** `--pv-*` (fra `Kit-Tokens`) for farve, skrift, afstand, radius, skygge, bevægelse.
-- **Skrift:** Schibsted Grotesk + IBM Plex Mono, self-hosted med licens/proveniens som Inter i dag
-  (`assets/fonts`); Inter fjernes.
+- **Skrift:** Schibsted Grotesk + IBM Plex Mono. Begge er under SIL Open Font License (gratis, må bundtes);
+  de self-hostes med licensfil og proveniens som Inter i dag (`assets/fonts`). **Inter er fallback** i
+  skriftstakken, indtil filerne er på plads, og fjernes først i slutoprydningen.
 - **`index.html` er en tom skal.** `library.html` viser præcis produktets komponenter (AGENTS.md).
 - **Ved slut slettet eller opløst i kit/tokens:** `ui-kit.css`, `ui/components.css`, `ui/legacy-components.css`,
   `ui/library/library.css`, `widget-redesign.css`, `frame-layout.css`, `widget-view.css`, `live-music.css`,
@@ -100,7 +101,7 @@ Spor 2/3 kører i egne worktrees på billigere modeller; kun lead merger, én PR
 (Tidligere estimat 35–50 t blev underkendt i audit 3 som for optimistisk.)
 
 ## Besluttede værdier
-Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces, Inter udfases) · nat-skærm 21–7 · »Senest brugt«
+Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces; Inter fallback til slutoprydning) · nat-skærm 21–7 · »Senest brugt«
 på timer i 6 t uden hop · Foto-Ro: delt iCloud-album (HA-konfiguration) · karrusel 20 s / overtoning 1,2 s ·
 hvide indgangswidgets (musik, radio, opskrift, svar).
 
