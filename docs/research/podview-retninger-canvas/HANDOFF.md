@@ -16,9 +16,14 @@ flag-/CSS-model er erstattet. Revideret efter tre Fable 5.2-audits (se Historik)
 Pr. side:
 - **Tilstand:** henter og normaliserer data. Ingen DOM.
 - **Handlinger:** sender kommandoer; flyttes uændret fra nuværende kode.
-  **Undtagelse:** `live-control-view.js` (ejer næsten alle kommandoer; stale-command-værn bundet til
-  DOM-identitet) bevares som den er bag en tynd adapter og er undtaget fra grænsevagtens DOM-regel.
-  En senere opdeling er en egen beslutning.
+  **Undtagelse:** `live-control-view.js` ejer kommandoer for musik, lyd/rum, robot, lys, bil, scener,
+  opskrift og klima, og dens stale-command-værn er bundet til DOM-identitet. Den bevares som den er bag
+  en tynd adapter og er undtaget fra grænsevagtens DOM-regel. En senere opdeling er en egen beslutning.
+  **Andre filer blander også kommandoer og DOM** (fx `widget-view.js`, `robot-control-panel.js`,
+  `live-answer-view.js`, `live-music-selection-view.js`, `speaker-output-view.js`, `recipe-view.js`,
+  `timer-view.js`, `light-lamp-view.js`, `local-robot-view.js`, `player-view.js`). Kortlægges i 0a pr. fil:
+  rene kommandokald flyttes til handlingsmodulet; hvor værn er DOM-bundne, samme adapter-undtagelse som
+  ovenfor. Undtagelseslisten står i grænsevagten, navngivet pr. fil, og må kun krympe.
 - **Visning:** ren funktion af tilstand → DOM, kun med kit-komponenter. Ingen kommandoer, ingen fetch.
 
 Fælles:
@@ -47,7 +52,7 @@ Fælles:
 - **Genererede filer** (`podview.css`, `podview.bundle.js`, `library.bundle.js`, `asset-manifest.json`, asset-pins)
   committes kun af lead ved merge; spor 2/3 committer dem aldrig.
 - **Grænsevagt i CI:** visning må ikke importere fetch/kommando-kode; handlingsmoduler må ikke røre DOM
-  (undtagen `live-control-view.js`); ingen rå farver/skrifter/varigheder uden for tokens; ingen nye CSS-filer uden
+  (undtagen filerne på grænsevagtens navngivne undtagelsesliste); ingen rå farver/skrifter/varigheder uden for tokens; ingen nye CSS-filer uden
   for kittet; ingen `!important` uden begrundelse. Ingen eksisterende gate slækkes; komponent-gaten
   (`scripts/check-component-library.mjs`) omlægges én gang i fundamentet.
 - **Tekster kommer fra produktet.** Lærredets `.dc.html` er reference og kopieres ikke ind.
