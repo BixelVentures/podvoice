@@ -889,6 +889,12 @@ async function discoveryCoverJourney(){
  const image=row.locator('img.result-art:not([data-content-transition])');
  await page.waitForFunction(url=>[...document.querySelectorAll('#result-list img.result-art')]
   .some(image=>image.getAttribute('src')===url&&image.naturalWidth>0),coverUrl,{timeout:15000});
+ const fallback=list.locator('button.result').filter({hasText:'Katalogsang 12'}).locator('img.result-art.live-art-fallback');
+ await fallback.waitFor({state:'visible'});
+ assert.deepEqual(await fallback.evaluate(image=>{
+  const style=getComputedStyle(image), rect=image.getBoundingClientRect();
+  return [rect.width,rect.height,style.paddingTop,style.paddingLeft];
+ }),[56,56,'16px','16px'],'a missing list cover reserves the approved 24px music icon');
  const initial=await row.elementHandle();
  await row.evaluate(element=>{
   element.coverTransitions=0;

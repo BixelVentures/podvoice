@@ -2573,6 +2573,8 @@ dialog.pv-kit-dialog[data-recipe-layout=gallery] [role=status]:not([hidden]){
 
 #music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-art {grid-area:1 / 1;width:56px;height:56px;object-fit:cover;align-self:center}
 
+#music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-art.live-art-fallback {padding:16px}
+
 #music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result.pv-row[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy {grid-area:1 / 2;min-height:0;min-width:0}
 
 #music-response:is([data-discovery-collection=top],[data-discovery-collection=recent]) #result-list>.result[data-kit=listrow][data-artwork-role]:not([data-music-group="Fortsæt"])>.result-copy>:is(h2,p) {
