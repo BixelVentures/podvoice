@@ -52,6 +52,9 @@ a{color:#17171A;text-decoration:none}
 <script type="text/x-dc" data-dc-script data-props='{"state":{"editor":"enum","default":"green","options":["green","aktiv"]},"$preview":{"width":1280,"height":800}}'>
 class Component extends DCLogic {
   renderVals() {
+    // Karrusel (besluttet 11. nov.): 20 s pr. billede, overtoning 1,2 s, tilfældig uden gentagelse, nye først,
+    // ur/vejr/kort fast, stående billeder på sløret udgave, 21–7 nat-skærm, offline: senest viste billede uden fejl.
+    // Kilde: delt iCloud-album (link i HA-konfigurationen).
     // Som Foto-Ro på HA Green: ur, dato, vejr øverst til højre, kort nederst til højre.
     // Pladserne er produktets: musik-pladsen og aktivitetspladsen (overview-activity-model.js: timer først,
     // ellers robot i gang/fejl, ellers Tesla der lader). Samme indhold som widgets i overblikket.
