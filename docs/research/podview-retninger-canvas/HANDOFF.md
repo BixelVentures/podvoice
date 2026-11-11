@@ -96,6 +96,19 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
 ## Fart
 - 0a og 0b parallelt; fundamentet (1) kan starte, når 0a er grøn.
 - Sider i egne worktrees parallelt (2–3 ad gangen), aldrig samme filer; merges én ad gangen bag kontrakten.
+- **Parallelle spor (konkret):**
+
+| Bølge | Spor 1 (lead) | Spor 2 | Spor 3 |
+|---|---|---|---|
+| A | 0a kontrakt (netværk + tekst) | 0b matrix, bevægelseskatalog, `page.clock` | fake-servere: bil-lås, robot, vejr |
+| B | 1 fundament: Preact, build-target, komponent-gate | tokens + skrift | kit-komponenter fra kit-tavlerne |
+| C | Overblik + Lys (skabelon) | — | — |
+| D | review + merge | sider: Foto-Ro, Vejr, Robot, Tesla | sider: Musik, Radio, Opskrifter, Timer, Svar |
+| E | udgivelse 1 + live | spor C-blok (del 1) | spor C-blok (del 2) |
+| F | slutoprydning + udgivelse 2 + live | — | — |
+
+  Spor 2/3 kører i egne worktrees på billigere modeller; kun lead merger, én PR ad gangen bag kontrakten.
+  Bølge C er bevidst seriel: skabelonen skal ligge fast før siderne fordeles.
 - Billigere modeller til mekanisk arbejde (kortlægning, matrix, tokens); arkitektur, review og samling ejes af lead.
 - Ét uafhængigt review pr. PR. Ejeren er klar ved live-start.
 
