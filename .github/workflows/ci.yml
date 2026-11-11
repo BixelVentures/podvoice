@@ -64,6 +64,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: BixelVentures/podconnect
+          # podconnect#142 (Speakers 0.26.95) removed the Go contract exporter while keeping
+          # the /api/radio/* schemas. Pin the last tree with the exporter until it returns.
+          ref: 39e5165b8c2f2cfeafc8bf992a52db83a1946c51
           path: podconnect-sibling
       - uses: actions/setup-python@v5
         with:
