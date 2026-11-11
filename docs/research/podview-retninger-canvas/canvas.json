@@ -324,49 +324,49 @@
    "y": 0
   },
   "Kit-Beskeder.dc.html": {
-   "h": 900,
-   "is_interactive": true,
    "page": "principper",
    "title": "Kit · beskedlinje og friskhed",
    "w": 1400,
+   "h": 900,
    "x": 2560,
-   "y": 560
+   "y": 4280,
+   "is_interactive": true
   },
   "Kit-Handlingsflader.dc.html": {
-   "h": 440,
-   "is_interactive": true,
    "page": "principper",
    "title": "Kit · handlingsflade",
    "w": 1600,
+   "h": 440,
    "x": 2560,
-   "y": 1580
+   "y": 5300,
+   "is_interactive": true
   },
   "Kit-Knapper.dc.html": {
-   "h": 440,
-   "is_interactive": true,
    "page": "principper",
    "title": "Kit · knapper og kontakter",
    "w": 1400,
+   "h": 440,
    "x": 2560,
-   "y": 0
+   "y": 2780,
+   "is_interactive": true
   },
   "Kit-Topbar.dc.html": {
-   "h": 560,
-   "is_interactive": true,
    "page": "principper",
    "title": "Kit · topbar",
    "w": 1400,
+   "h": 560,
    "x": 2560,
-   "y": 2740
+   "y": 6460,
+   "is_interactive": true
   },
   "Kit-Widgets.dc.html": {
-   "h": 480,
-   "is_interactive": true,
    "page": "principper",
    "title": "Kit · widget",
    "w": 2240,
+   "h": 480,
    "x": 2560,
-   "y": 2140
+   "y": 5860,
+   "is_interactive": true
   },
   "Lys-Slukket.dc.html": {
    "h": 800,
@@ -1345,6 +1345,33 @@
    "w": 414,
    "x": 908,
    "y": 2080
+  },
+  "Kit-Tokens.dc.html": {
+   "page": "principper",
+   "title": "Kit · tokens (v1 → v2)",
+   "w": 1600,
+   "h": 1480,
+   "x": 2560,
+   "y": 0,
+   "is_interactive": true
+  },
+  "Kit-Migrering.dc.html": {
+   "page": "principper",
+   "title": "Kit · fra lærred til produktets kit",
+   "w": 1800,
+   "h": 1060,
+   "x": 2560,
+   "y": 1600,
+   "is_interactive": true
+  },
+  "Kit-Kontroller.dc.html": {
+   "page": "principper",
+   "title": "Kit · segment, skyder, række, titel, ikonknap, dialog",
+   "w": 1400,
+   "h": 820,
+   "x": 2560,
+   "y": 3340,
+   "is_interactive": true
   }
  },
  "createdOnFiles": {
