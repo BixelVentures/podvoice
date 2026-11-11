@@ -102,9 +102,9 @@ class Component extends DCLogic {
       .map((t, i) => ({ t, m: i < 1 ? '✓' : String(i + 1), bg: i === 1 ? '#F7F6F3' : 'transparent', dot: i < 1 ? '#4A4466' : i === 1 ? '#17171A' : 'rgba(23,23,26,.08)', dotFg: i <= 1 ? '#F7F6F3' : '#5F5E5A', c: i === 1 ? '#17171A' : '#3F3E3B' }));
     const S = {
       fakta: { kicker: 'Kort svar · 28. okt., 11.32', source: 'Kilde: AI-forklaring fra PodVoice', bg: '#E9E6F4', fg: '#17171A' },
-      billede: { kicker: 'Billede', source: 'Kilde: forhåndsvisning', bg: '#3F5A52', fg: '#FFFFFF' },
-      trin: { kicker: 'Trin for trin', source: 'Kilde: lokalt aktivitetseksempel', bg: '#E9E6F4', fg: '#17171A' },
-      tal: { kicker: 'Sammenligning', source: 'Kilde: PodView · forhåndsvisning', bg: '#E9E6F4', fg: '#17171A' }
+      billede: { kicker: 'Billede', source: '', bg: '#3F5A52', fg: '#FFFFFF' },
+      trin: { kicker: 'Trin for trin', source: '', bg: '#E9E6F4', fg: '#17171A' },
+      tal: { kicker: 'Sammenligning', source: '', bg: '#E9E6F4', fg: '#17171A' }
     }[f];
     const img = f === 'billede';
     return { ...S, isFakta: f === 'fakta', isImg: img, isTrin: f === 'trin', isTal: f === 'tal', steps,

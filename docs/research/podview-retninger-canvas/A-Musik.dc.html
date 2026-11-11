@@ -132,9 +132,9 @@ class Component extends DCLogic {
     const PT = [7, 1, 7, 2, 6, 0, 6, 3, 7, 3];
     const mk = (i, d) => ({ id: P[i][0], n: P[i][1], d, art: TR[PT[i]][2] });
     let items = [];
-    if (tab === 'mood') items = [[3,4,5],[7,6,2]][page % 2].map((i) => mk(i, 'Spotify-playliste · eksempel'));
+    if (tab === 'mood') items = [[3,4,5],[7,6,2]][page % 2].map((i) => mk(i, 'Spotify-playliste'));
     if (tab === 'feeling') { const s = ((1 + page) % 3) * 3; items = vibes.slice(s, s + 3).map(([i, d]) => mk(i, d)); }
-    if (tab === 'top') items = [5,3,0,6,4,8,2,1,7,9].slice(0, (page + 1) * 5).map((i) => mk(i, 'Spotify-playliste · eksempel'));
+    if (tab === 'top') items = [5,3,0,6,4,8,2,1,7,9].slice(0, (page + 1) * 5).map((i) => mk(i, 'Spotify-playliste'));
     const waiting = loading;
     const listMode = !loading && (tab === 'top' || tab === 'recent');
     const rows = (tab === 'recent' ? [1,3,5,0,2,4].map((i) => ({ n: TR[i][0], d: TR[i][1], art: TR[i][2] })) : items.map((c) => ({ n: c.n, d: 'Spotify-playliste', art: c.art }))).map((r, k) => ({ ...r, bt: k ? '1px solid rgba(23,23,26,.07)' : 'none' }));

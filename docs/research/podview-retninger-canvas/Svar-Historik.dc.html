@@ -38,10 +38,10 @@ class Component extends DCLogic {
     const L = '#E9E6F4';
     const items = [
       { k: 'Kort svar', big: '2–1', bs: 64, t: 'El Clásico', d: '28. okt., 11.32', href: 'Svar-Ny.dc.html', bg: L, fg: '#17171A', img: '' },
-      { k: 'Billede', big: '', bs: 0, t: 'En pause ved vandet', d: 'Eksempel', href: 'Svar-Ny-billede.dc.html', bg: '#3F5A52', fg: '#FFFFFF', img: '/_blob/5a1ae9f22dd212f79d50f566edca13c3' },
-      { k: 'Trin for trin', big: '4', bs: 64, t: 'Fold papir', d: 'Eksempel', href: 'Svar-Ny-trin.dc.html', bg: L, fg: '#17171A', img: '' },
-      { k: 'Sammenligning', big: '250 ml', bs: 44, t: 'Kaffe til morgenbordet', d: 'Eksempel', href: 'Svar-Ny-tal.dc.html', bg: L, fg: '#17171A', img: '' },
-      { k: 'Faktakort', big: '384.400 km', bs: 36, t: 'Hvor langt er der til Månen?', d: 'Eksempel', href: 'Svar-Ny.dc.html', bg: L, fg: '#17171A', img: '' }
+      { k: 'Billede', big: '', bs: 0, t: 'En pause ved vandet', d: '\u00a0', href: 'Svar-Ny-billede.dc.html', bg: '#3F5A52', fg: '#FFFFFF', img: '/_blob/5a1ae9f22dd212f79d50f566edca13c3' },
+      { k: 'Trin for trin', big: '4', bs: 64, t: 'Fold papir', d: '\u00a0', href: 'Svar-Ny-trin.dc.html', bg: L, fg: '#17171A', img: '' },
+      { k: 'Sammenligning', big: '250 ml', bs: 44, t: 'Kaffe til morgenbordet', d: '\u00a0', href: 'Svar-Ny-tal.dc.html', bg: L, fg: '#17171A', img: '' },
+      { k: 'Faktakort', big: '384.400 km', bs: 36, t: 'Hvor langt er der til Månen?', d: '\u00a0', href: 'Svar-Ny.dc.html', bg: L, fg: '#17171A', img: '' }
     ].map((a, i) => ({ ...a, dl: i * 60 }));
     return { items };
   }
