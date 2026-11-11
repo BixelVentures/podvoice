@@ -41,6 +41,28 @@ med færrest mulige funktionsfejl. Læs først `AGENTS.md` (proces, review, bevi
 
 Rul tilbage = sluk flaget. Ingen deploy, ingen revert, ingen funktion berørt.
 
+### Den mest skånsomme vej: kun et nyt CSS-lag på produktets eksisterende kit-kroge
+
+Fundet i koden (11. nov.): produktets kit adskiller allerede adfærd fra udseende.
+`applyKitComponent` (`ui/kit.js`) sætter `data-kit`, `data-kit-variant`, `data-kit-identity`, `data-tone`,
+`aria-*` på elementerne, og `ui-kit.css` styler næsten alt via disse attributter (≈450 forekomster).
+Derfor kan det nye UI for **knap, kontakt, kort, hero, chip, række, topbar, dialog** laves som ren CSS:
+
+1. **Cascade layers:** pak nuværende CSS i `@layer pv-v1` uden at ændre en linje; nyt kit i `@layer pv-v2`
+   afgrænset af `[data-ui="v2"]`. Senere lag vinder uden specificitetskrig, og v1 er urørt.
+2. **Kun attributvælgere:** v2 må kun ramme `[data-kit=…]`, `[data-kit-identity=…]`, `[data-tone=…]`,
+   `[aria-*]` og tokens (`--pv-*`). Ingen nye klasser i JS i denne fase, ingen DOM-ændringer.
+3. **Tokens først** (farver, skrift, radius) inde i `pv-v2`; alle komponenter følger automatisk.
+4. **Tekst/indhold:** kun hvor teksten allerede kommer fra produktet. Ny kopi = spor C (egen beslutning og test).
+5. **Det, der ikke kan gøres med CSS alene** (kompakt beskedlinje i hero, »Mere ▾«-ark, handlingsflader,
+   rødt topbarmærke, nat-skærm) kræver markup/logik og er derfor spor C: én funktion ad gangen,
+   med adfærdskontrakt og eget bevis.
+6. **Bevis pr. trin:** adfærdskontrakt grøn, v1-skærmbilleder pixel-identiske, v2 sammenlignet med lærredet,
+   live på Frameo/HA Green bag flaget. Tilbagerulning = sluk flaget.
+
+Kilder: GitHub/Primer migrerede styling uden brud via visuel regression, feature flags og et
+kompatibilitetslag; cascade layers bruges netop til versioneret, gradvis CSS-migrering.
+
 ## Fase 0 · Baseline (ingen ændringer)
 
 - Tag skærmbilleder 1280×800 af alle tilstande, der kan nås lokalt
