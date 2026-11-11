@@ -969,8 +969,9 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
   surface.on('request',request=>{
    const url=request.url(),pathname=new URL(url).pathname;
    if(new URL(url).origin!==base||pathname.startsWith('/view/theme-art/'))requests.push(url);
+   // Client diagnostics uploads are telemetry, never a music action.
    if(request.method()==='POST'&&pathname.startsWith('/view/api/')
-    &&pathname!=='/view/api/music/queue/offer')actionPosts.push(pathname);
+    &&pathname!=='/view/api/music/queue/offer'&&pathname!=='/view/api/client-diagnostics')actionPosts.push(pathname);
   });
   surface.on('response',response=>{
    if(response.url()===failedCoverUrl||response.url()===assetUrl){
