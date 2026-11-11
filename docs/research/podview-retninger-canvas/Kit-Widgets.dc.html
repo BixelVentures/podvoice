@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Kit · widget</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap"><style>body{margin:0}.l{font:600 15px 'IBM Plex Mono',monospace;color:#5F5E5A}.h{font:800 28px 'Schibsted Grotesk',sans-serif;letter-spacing:-.015em}.r{display:flex;gap:24px;align-items:center;flex-wrap:wrap}</style></helmet>
+<div style="width: 2240px; height: 480px; box-sizing: border-box; padding: 48px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', sans-serif; display: flex; flex-direction: column; gap: 28px">
+<span class="h">Kit · widget</span>
+<span style="font-size: 17px; line-height: 24px; color: #3F3E3B; max-width: 1100px">Ét widget-kit for alle domæner: ikon + navn + chevron, én primær linje (20/800), én kontekstlinje (15), fast 18 px stribe. Tilstandsdomæner (vejr, robot, lys, tesla) har farvet flade; indgange (musik, radio, opskrift, svar) er hvide; timer er mørk. Advarsel = farvet prik.</span>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Widget · S 199×221</span><div class="r"><dc-import name="K-Widget" kind="vejr" state="frisk" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="robot" state="rengoer" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="lys" state="taendt" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="tesla" state="lader" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="musik" state="tom" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="radio" state="spiller" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="opskrift" state="igang" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="timer" state="koerer" hint-size="199px,221px"></dc-import><dc-import name="K-Widget" kind="svar" state="seneste" hint-size="199px,221px"></dc-import></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":2240,"height":480}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

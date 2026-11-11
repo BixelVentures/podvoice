@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Kit · handlingsflade</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap"><style>body{margin:0}.l{font:600 15px 'IBM Plex Mono',monospace;color:#5F5E5A}.h{font:800 28px 'Schibsted Grotesk',sans-serif;letter-spacing:-.015em}.r{display:flex;gap:24px;align-items:center;flex-wrap:wrap}</style></helmet>
+<div style="width: 1600px; height: 440px; box-sizing: border-box; padding: 48px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', sans-serif; display: flex; flex-direction: column; gap: 28px">
+<span class="h">Kit · handlingsflade</span>
+<span style="font-size: 17px; line-height: 24px; color: #3F3E3B; max-width: 1100px">Én flade = status + handling. Feedback sker i fladen: sender (fylder op), bekræftet (✓ 3 s), ukendt (rød). Bruges til Tesla-adgang; genbruges hvor en tilstand ændres med ét tryk.</span>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-ActionTile · calm / attention / busy / done / error</span><div class="r"><dc-import name="K-ActionTile" tone="calm" w="260px" label="Døre" value="Låst" hint="Tryk for at låse op" hint-size="260px,176px"></dc-import><dc-import name="K-ActionTile" tone="attention" w="260px" label="Døre" value="Ulåst" hint="Tryk for at låse" hint-size="260px,176px"></dc-import><dc-import name="K-ActionTile" tone="busy" w="260px" label="Døre" value="Låser…" hint="" hint-size="260px,176px"></dc-import><dc-import name="K-ActionTile" tone="done" w="260px" label="Døre" value="Låst" hint="" hint-size="260px,176px"></dc-import><dc-import name="K-ActionTile" tone="error" w="260px" label="Døre" value="Udfald ukendt" hint="Kontrollér bilen" hint-size="260px,176px"></dc-import></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1600,"height":440}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

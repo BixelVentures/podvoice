@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Kit · beskedlinje og friskhed</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap"><style>body{margin:0}.l{font:600 15px 'IBM Plex Mono',monospace;color:#5F5E5A}.h{font:800 28px 'Schibsted Grotesk',sans-serif;letter-spacing:-.015em}.r{display:flex;gap:24px;align-items:center;flex-wrap:wrap}</style></helmet>
+<div style="width: 1400px; height: 900px; box-sizing: border-box; padding: 48px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', sans-serif; display: flex; flex-direction: column; gap: 28px">
+<span class="h">Kit · beskedlinje og friskhed</span>
+<span style="font-size: 17px; line-height: 24px; color: #3F3E3B; max-width: 1100px">Hybridregel: beskeden står der, hvor årsagen er, og flytter aldrig noget under fingeren. Kompakt (40) i hero eller sektion; fuld (72) kun for info, brugeren selv udløser. Andet domæne → rødt mærke i topbaren. Friskhed kun når data er over 30 min.</span>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Notice · fuld (72)</span><div class="r"><div style="display: flex; flex-direction: column; gap: 12px"><dc-import name="K-Notice" level="fejl" title="Hovedbørsten sidder fast" hint-size="844px,72px"></dc-import><dc-import name="K-Notice" level="handling" title="Robotten mangler vand" hint-size="844px,72px"></dc-import><dc-import name="K-Notice" level="info" title="Stemningsforslag er ikke tilgængelige endnu." hint-size="844px,72px"></dc-import></div></div></div><div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Notice · kompakt (40)</span><div class="r"><div style="display: flex; flex-direction: column; gap: 12px"><dc-import name="K-Notice" level="fejl" title="Robotfejl" compact="true" w="844px" hint-size="844px,40px"></dc-import><dc-import name="K-Notice" level="handling" title="Bagagerum åbent" compact="true" w="844px" hint-size="844px,40px"></dc-import><dc-import name="K-Notice" level="info" title="Home Assistant svarer ikke lige nu" compact="true" w="844px" hint-size="844px,40px"></dc-import></div></div></div><div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Fresh</span><div class="r"><dc-import name="K-Fresh"  hint-size="260px,32px"></dc-import><dc-import name="K-Fresh" solid="true" hint-size="260px,32px"></dc-import></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":900}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

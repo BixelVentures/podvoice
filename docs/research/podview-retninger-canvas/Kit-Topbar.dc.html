@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Kit · topbar</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap"><style>body{margin:0}.l{font:600 15px 'IBM Plex Mono',monospace;color:#5F5E5A}.h{font:800 28px 'Schibsted Grotesk',sans-serif;letter-spacing:-.015em}.r{display:flex;gap:24px;align-items:center;flex-wrap:wrap}</style></helmet>
+<div style="width: 1400px; height: 560px; box-sizing: border-box; padding: 48px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', sans-serif; display: flex; flex-direction: column; gap: 28px">
+<span class="h">Kit · topbar</span>
+<span style="font-size: 17px; line-height: 24px; color: #3F3E3B; max-width: 1100px">Fælles topbar på alle sider: tilbage, titel, Svar, vejr og ur. Kørende timer = orange chip; hændelse i et andet domæne = rødt mærke ved uret (tryk går til domænet).</span>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="l">A-Topbar · hjem / timer / andet domæne</span><div class="r"><div style="display: flex; flex-direction: column; gap: 12px"><dc-import name="A-Topbar" heading="Hjem" hint-size="1280px,72px"></dc-import><dc-import name="A-Topbar" heading="Opskrift" back="{{ true }}" timer="3:42" timerName="Hævning" hint-size="1280px,72px"></dc-import><dc-import name="A-Topbar" heading="Tesla" back="{{ true }}" alert="Robotfejl" hint-size="1280px,72px"></dc-import></div></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":560}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>

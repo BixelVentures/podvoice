@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="da">
+<head><meta charset="utf-8"><title>Kit · knapper og kontakter</title><script src="./support.js"></script></head>
+<body>
+<x-dc>
+<helmet><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;600;700;800&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap"><style>body{margin:0}.l{font:600 15px 'IBM Plex Mono',monospace;color:#5F5E5A}.h{font:800 28px 'Schibsted Grotesk',sans-serif;letter-spacing:-.015em}.r{display:flex;gap:24px;align-items:center;flex-wrap:wrap}</style></helmet>
+<div style="width: 1400px; height: 440px; box-sizing: border-box; padding: 48px; background: #E9E7E2; color: #17171A; font-family: 'Schibsted Grotesk', sans-serif; display: flex; flex-direction: column; gap: 28px">
+<span class="h">Kit · knapper og kontakter</span>
+<span style="font-size: 17px; line-height: 24px; color: #3F3E3B; max-width: 1100px">Én knap-komponent (K-Btn) i seks varianter og to højder: 56 primær, 44 sekundær. Fare = hvid flade, rød tekst, rød kant. Kontakt 56×34 synlig, 44+ trykflade. Ingen lokale knapper på sider.</span>
+<div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Btn · 56</span><div class="r"><dc-import name="K-Btn" label="Primær" variant="primaer" size="56" hint-size="160px,56px"></dc-import><dc-import name="K-Btn" label="Sekundær" variant="sekundaer" size="56" hint-size="160px,56px"></dc-import><dc-import name="K-Btn" label="Kant" variant="kant" size="56" hint-size="160px,56px"></dc-import><dc-import name="K-Btn" label="Fare" variant="fare" size="56" hint-size="160px,56px"></dc-import><dc-import name="K-Btn" label="Lys" variant="lys" size="56" hint-size="160px,56px"></dc-import><dc-import name="K-Btn" label="Mørk" variant="moerk" size="56" hint-size="160px,56px"></dc-import></div></div><div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Btn · 44</span><div class="r"><dc-import name="K-Btn" label="Primær" variant="primaer" size="44" hint-size="140px,44px"></dc-import><dc-import name="K-Btn" label="Sekundær" variant="sekundaer" size="44" hint-size="140px,44px"></dc-import><dc-import name="K-Btn" label="Kant" variant="kant" size="44" hint-size="140px,44px"></dc-import><dc-import name="K-Btn" label="Fare" variant="fare" size="44" hint-size="140px,44px"></dc-import></div></div><div style="display: flex; flex-direction: column; gap: 12px"><span class="l">K-Switch · til / fra / dæmpet</span><div class="r"><dc-import name="K-Switch" on="true" hint-size="56px,44px"></dc-import><dc-import name="K-Switch" on="false" hint-size="56px,44px"></dc-import><dc-import name="K-Switch" on="true" dim="true" hint-size="56px,44px"></dc-import></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1400,"height":440}}'>
+class Component extends DCLogic { renderVals() { return {}; } }
+</script>
+</body>
+</html>
