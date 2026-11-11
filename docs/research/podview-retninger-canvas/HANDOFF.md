@@ -12,9 +12,15 @@ gengivet uden fejl). Ingen produktkode er ændret endnu. Denne fil er startpunkt
 ## Ufravigelige regler (minimum af funktionsfejl)
 - **Ét spor pr. PR:** tokens, én komponent eller én funktion. Aldrig blandet.
 - **Spor A/B rører ikke JS-logik, kommandoer, tekster eller DOM**, der bærer en handling.
-  Kun CSS på de eksisterende kroge: `data-kit`, `data-kit-variant`, `data-kit-identity`, `data-tone`, `aria-*`, `--pv-*`.
-- **Alt nyt bag flaget** `<html data-ui="v2">`; nuværende CSS i `@layer pv-v1`, nyt i `@layer pv-v2`.
-  Uden flag skal produktet være pixel-identisk med i dag. Tilbagerulning = sluk flaget.
+  Kun CSS. Kroge: `data-kit*`, `data-tone`, `aria-*`, `--pv-*`, og hvor de mangler (index.html har ingen
+  `data-kit`; widget-/layout-CSS er ID-baseret) de **eksisterende ID'er/klasser**. Ny markup = spor C.
+- **v1-filer røres ikke.** `podview.css`, `ui-kit.css` m.fl. forbliver byte-identiske. Al v2 ligger i en
+  separat `podview-v2.css`, som kun indlæses når flaget er sat. **Ingen `@layer`** (v1 har hundredvis af
+  `!important`, som et senere lag ikke kan slå, og ældre WebViews dropper lag-blokke). v2 skal derfor matche
+  eller overgå v1's specificitet og selv bruge `!important` hvor v1 gør.
+- **Flag:** URL-parameter `ui=v2` (samme mønster som `room`/`kiosk`) sætter `data-ui="v2"` og indlæser
+  `podview-v2.css` før første tegning (ingen v1→v2-blink). iPad og Frameo får hver deres adresse.
+  Tilbagerulning = fjern parameteren.
 - **Tekster kommer fra produktet.** Ny kopi eller ny adfærd = spor C med egen beslutning.
 - **Lærredets `.dc.html` er reference** (mål, farver, tilstande, tider) og kopieres ikke ind.
 - **Udgivelse** kun via den normale proces (version + dansk CHANGELOG-post i samme commit, push til `main`).
@@ -22,10 +28,11 @@ gengivet uden fejl). Ingen produktkode er ændret endnu. Denne fil er startpunkt
 ## PR-rækkefølge
 | # | PR | Spor | Indhold | Bevis før merge |
 |---|---|---|---|---|
-| 0a | Adfærdskontrakt | 0 | test pr. side: hver handling → kommando, ud fra `preview-scenes.js` | grøn på nuværende kode |
+| 0 | Beslutningspost | 0 | aktiv post i `docs/STATUS.md` (krav i AGENTS.md) | ejer-OK |
+| 0a | Adfærdskontrakt | 0 | hver handling → kommando, kortlagt fra lytterne i `widget-view.js`, robot-, bil-, live-kontrol- og afspillervisning (ikke `preview-scenes.js`, som kun har tilstande); plus pr. handlingselement: `hidden`, `disabled` og tryk-træf i midten | grøn på nuværende kode |
 | 0b | Baseline-skærmbilleder | 0 | 1280×800 pr. tilstand, gemt som reference | — |
-| 0c | Flag + lag | 0 | `data-ui`-flag (sættes pr. skærm i HA), `@layer pv-v1` omkring nuværende CSS, tom `pv-v2` | pixel-identisk uden flag |
-| 1 | Tokens | A | værdier fra `Kit-Tokens` i `pv-v2`; skrift Schibsted Grotesk + IBM Plex Mono | kontrakt grøn, v1 uændret |
+| 0c | Flag + v2-fil | 0 | `ui=v2`-parameter, tidlig indlæsning af tom `podview-v2.css`; byggescript og bibliotekssider (`setup.html`, `library.html`) får samme v2-fil så bibliotek og produkt ikke skilles; `!important`-oversigt over v1-selektorer, v2 rører | v1-filer byte-identiske, pixel-identisk uden flag |
+| 1 | Tokens | A | værdier fra `Kit-Tokens` i v2-filen; skrift Schibsted Grotesk + IBM Plex Mono. Tests for palet (`check-ui-palette`) og typografi (`root-typography-contract`) udvides med en v2-gren, ikke slækkes. Tjek ur-placering (`measureText`) og `ui/motion.js`-højder med ny skrift | kontrakt grøn, v1 uændret |
 | 2–10 | Komponenter | B | i rækkefølge: knap, kontakt, segment/chip, skyder, listerække, sektionstitel, kort/widget, hero, topbar, dialog, afspiller | én komponent pr. PR, visuel diff kun på den |
 | 11+ | Sider | B | layout pr. side efter tavlen (Overblik → Foto-Ro → Vejr → Robot → Lys → Tesla → Musik → Radio → Opskrifter → Timer → Svar) | skærmbillede pr. tilstand ved siden af tavlen |
 | C1… | Funktioner | C | én ad gangen, først »Markér trin færdigt« | egen beslutning, test og live-bevis |
@@ -50,17 +57,25 @@ Ejeren har valgt ét samlet live-døgn til sidst i stedet for et døgn pr. fase 
 - Flaget tændes først i 24 t på iPad og Frameo (de skærme, ejeren bruger); alle andre skærme kører v1. Fejl = sluk flaget.
 - Mekanisk arbejde (kortlægning, baseline, token-CSS) må køre på billigere modeller;
   kontrakt, lag, review og samling ejes af lead. Parallelle sessioner kun i egne worktrees
-  og aldrig på samme filer. Review i bundter af 3–4 PR'er.
+  og aldrig på samme filer. Ét uafhængigt review pr. PR (AGENTS.md); PR'erne er bundtet, så antallet er lille.
 - Spor C er ikke omfattet og tages én ad gangen bagefter.
-- Fase 0 (kontrakt, baseline, flag + lag) beskæres ikke.
+- Fase 0 (beslutningspost, kontrakt, baseline, flag + v2-fil) beskæres ikke.
 
 ## Fartplan (vedtaget 11. nov. 2026, ≈2½–4 t kode + 24 t live)
 Bundtning: komponenter i 3 PR'er (kontroller · flader · topbar/dialog/afspiller), sider i 2 PR'er,
-tokens i 0c, ét adfærdsfokuseret review pr. PR, v2 tjekkes visuelt pr. side.
-1. **Parallel fase 0:** 0b baseline og 0c flag + lag køres samtidig med 0a kontrakt.
-2. **Tokens ved siden af:** billig agent oversætter `Kit-Tokens` til `pv-v2`-CSS mens 0a skrives.
+tokens lige efter 0c, ét adfærdsfokuseret review pr. PR, v2 tjekkes visuelt pr. side.
+1. **Parallel fase 0:** 0b baseline og 0c flag + v2-fil køres samtidig med 0a kontrakt.
+2. **Tokens ved siden af:** billig agent oversætter `Kit-Tokens` til v2-CSS mens 0a skrives.
 3. **Berørt-kun før merge:** kontrakt + pixel-diff kun for de sider PR'en rører; fuld suite én gang til sidst.
 4. **Ejer klar ved live-start:** lead melder tidspunkt; ejeren sætter flag/genindlæser iPad og Frameo.
 5. **Layout følger komponenterne:** særskilt sidelayout kun for Overblik, Foto-Ro, Robot og Svar.
 6. **v2 tjekkes mod tilstande, HA Green faktisk viser;** v1-baselinen dækker stadig alle tilstande.
-Uændret: adfærdskontrakt for alle handlinger, v1 pixel-identisk uden flag, kun CSS på kroge, flaget som nødbremse, 24 t live.
+7. **Tryk-gennemløb i rigtig browser** (1280×800, flag tændt): hver handling trykkes én gang og giver samme kommando som v1; fanger geometri-, berørings- og animationsfejl (`ui/touch-intent.js`, `ui/motion.js`, `ui/scroll-edges.js`), som kontrakt og »berørt-kun« ikke ser. Køres før live-døgnet.
+8. **Udgivelse** kun når STATUS ikke har en åben hovedfejl (AGENTS.md); ellers venter den samlede udgivelse.
+Uændret: adfærdskontrakt for alle handlinger, v1 pixel-identisk uden flag, kun CSS, flaget som nødbremse, 24 t live.
+Revideret estimat efter audit: ≈3½–5½ t kode + 24 t live.
+
+## Audit 11. nov. 2026 (Fable 5.2, snæver, statisk)
+Underkendte den første version: `@layer` mod v1's `!important`, ingen flag-krog pr. skærm, ingen
+kommandoer i `preview-scenes.js`, manglende `data-kit` i index.html, skrift/tokens rammer JS-målinger og
+eksisterende tests, review-bundter i strid med AGENTS.md. Alle punkter er indarbejdet ovenfor.
