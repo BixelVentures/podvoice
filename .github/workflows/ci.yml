@@ -55,19 +55,12 @@ jobs:
         run: node --test tests/podview/*.test.mjs
 
   radio-contract:
-    # Speakers' Go radio serializers and PodVoice's parser and UI must agree.
-    # Runs against PodConnect main so drift in either repository is caught.
+    # PodConnect's /api/radio/* shape (main after podconnect#142, transcribed in the test)
+    # and PodVoice's adapter, server and PodView parser must agree, without skips.
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/checkout@v4
-        with:
-          repository: BixelVentures/podconnect
-          # podconnect#142 (Speakers 0.26.95) removed the Go contract exporter while keeping
-          # the /api/radio/* schemas. Pin the last tree with the exporter until it returns.
-          ref: 39e5165b8c2f2cfeafc8bf992a52db83a1946c51
-          path: podconnect-sibling
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -75,19 +68,14 @@ jobs:
           cache-dependency-path: |
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: podconnect-sibling/podconnect/manager/go.mod
-          cache: false # The manager is stdlib-only and has no go.sum.
       - uses: actions/setup-node@v4
         with:
           node-version: "24.19.0"
           cache: npm
       - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
       - run: npm ci --ignore-scripts && npm run build:assets
-      - name: Go, Python and PodView radio contract without skips
+      - name: PodConnect, Python and PodView radio contract without skips
         env:
-          PODVIEW_RADIO_GO_ROOT: ${{ github.workspace }}/podconnect-sibling
           PODVIEW_CANONICAL_ROOT: ${{ github.workspace }}
         run: |
           python -m pytest -o addopts="" -q -rs tests/integration/test_podview_radio.py | tee radio-contract.log

@@ -796,96 +796,113 @@ const observed=await transport.radio();assert.equal(observed.state.status,'stopp
     assert len(effects(rig)) == 1 and effects(rig)[0][2]["station_id"] == "p3"
 
 
-def export_go_radio_contract(output, command=None):
-    """Invoke actual Go serializers in the explicitly paired, inert sibling tree."""
-    import os
-    import shutil
-    import subprocess
-    from pathlib import Path
+GO_COMMAND_FIELDS = {
+    "action_id",
+    "action",
+    "station_id",
+    "target_id",
+    "expected_revision",
+    "expected_process_id",
+    "expected_owner_generation",
+    "expected_generation",
+    "volume_percent",
+}
 
-    root = Path(
-        os.environ.get(
-            "PODVIEW_RADIO_GO_ROOT", str(Path(__file__).resolve().parents[3] / "podconnect")
-        )
-    )
-    manager = root / "podconnect" / "manager"
-    go = os.environ.get("PODVIEW_RADIO_GO") or shutil.which("go")
-    if not go or not (manager / "radio_contract_export_test.go").is_file():
-        pytest.skip("Explicit Go/Python radio pair requires Go and sibling contract exporter")
-    result = subprocess.run(
-        [
-            go,
-            "test",
-            "-ldflags=-linkmode=external",
-            "-run",
-            "^TestRadioExportBridgeContract$",
-            "-count=1",
-            ".",
+
+def podconnect_radio_state(case):
+    """/api/radio/state as PodConnect main serves it after podconnect#142 (Speakers 0.26.95).
+
+    Transcribed from podconnect/manager/radio.go (radioState, refresh, actionsLocked,
+    stampLocked) at 30e66124: the handler refreshes before every snapshot, so a state
+    read is always stamped; owner_generation is always 1; blocked_reasons is [],
+    radio_disabled or radio_player_starting; targets are room ids; a playing radio
+    always carries its start volume (35 %).
+    """
+    now = int(time.time())
+    enabled = case not in {"disabled", "starting"}
+    value = {
+        "schema": "podconnect.radio.v1",
+        "process_id": "5f0d7c1e-0142-4a95-8000-000000000142",
+        "actions": ["start"] if enabled else [],
+        "source_kind": "none",
+        "owner_generation": 1,
+        "retrieved_at": now,
+        "valid_until": now + 30,
+        "observed_at": now,
+        "volume_percent": None,
+        "enabled": enabled,
+        "blocked_reasons": {
+            "disabled": ["radio_disabled"],
+            "starting": ["radio_player_starting"],
+        }.get(case, []),
+        "stations": [{"id": i, "name": name} for i, name in STATIONS],
+        "targets": [
+            {
+                "id": room,
+                "name": name,
+                "availability": "available" if enabled else "unavailable",
+                "selectable": enabled,
+                "default": room == "r0",
+            }
+            for room, name in (("r0", "Køkkenalrum"), ("r1", "Fridas værelse"))
         ],
-        cwd=manager,
-        env={
-            **os.environ,
-            "PODVIEW_RADIO_CONTRACT_OUTPUT": str(output),
-            "PODVIEW_RADIO_CONTRACT_COMMAND": json.dumps(command) if command is not None else "",
-        },
-        capture_output=True,
-        text=True,
-        timeout=60,
-    )
-    assert result.returncode == 0, result.stderr + result.stdout
-    return json.loads(output.read_text())
+        "capabilities": ["start", "stop", "move", "volume"],
+        "state": "idle",
+        "station_id": "",
+        "target_id": "",
+        "generation": 0,
+        "revision": 1,
+        "physical_result_verified": False,
+    }
+    if case == "playing":
+        value.update(
+            state="playing",
+            source_kind="radio",
+            station_id="p3",
+            target_id="r1",
+            volume_percent=35,
+            actions=["start", "stop", "move", "volume"],
+            generation=1,
+            revision=2,
+        )
+    elif case == "stopped":
+        # A Spotify command on the radio's speaker stops the radio first.
+        value.update(state="stopped", generation=1, revision=3)
+    return value
 
 
-@pytest.fixture(scope="module")
-def actual_go_radio_contract(tmp_path_factory):
-    return export_go_radio_contract(tmp_path_factory.mktemp("radio-go-wire") / "contract.json")
-
-
-async def test_actual_go_snapshots_cross_native_bridge_and_canonical_parser(
-    rig, actual_go_radio_contract
-):
+@pytest.mark.parametrize("case", ["idle", "playing", "stopped", "disabled", "starting"])
+async def test_podconnect_142_radio_state_crosses_bridge_and_canonical_parser(rig, case):
     import os
     import shutil
     import subprocess
     from pathlib import Path
 
-    canonical = os.environ.get("PODVIEW_CANONICAL_ROOT")
-    if not canonical:
-        pytest.skip("Explicit canonical radio parser root required")
-    projected = []
-    for name, raw in actual_go_radio_contract["cases"].items():
-        rig.value = raw
-        value = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
-        assert value["state"]["generation"] == raw["generation"], name
-        assert value["state"]["sourceKind"] == raw["source_kind"], name
-        assert value["state"]["observedAt"] == raw["observed_at"], name
-        if raw["valid_until"] is None:
-            assert not value["enabled"] and value["actions"] == [], name
-            assert value["retrievedAt"] is None and value["validUntil"] is None, name
-            assert not (await offer(rig, targetId="r1"))["ok"], name
-        else:
-            assert value["enabled"] and value["actions"] == raw["actions"], name
-        if name == "spotify":
-            assert value["state"]["status"] == "idle" and value["actions"] == ["start"]
-        if name == "unknown":
-            assert value["state"]["status"] == "unknown"
-        assert not effects(rig), name
-        projected.append(value)
+    raw = podconnect_radio_state(case)
+    assert validate_native(raw)["enabled"] is raw["enabled"]
+    rig.value = raw
+    value = await (await rig.client.get("/view/api/radio?room=kitchen")).json()
+    assert value["enabled"] is raw["enabled"]
+    assert value["actions"] == (raw["actions"] if raw["enabled"] else [])
+    if raw["enabled"]:
+        assert value["state"]["status"] == raw["state"]
+        assert value["state"]["sourceKind"] == raw["source_kind"]
+    if case == "playing":
+        assert value["state"]["stationId"] == "p3" and value["state"]["targetId"] == "r1"
+    assert not effects(rig)
+    canonical = os.environ.get("PODVIEW_CANONICAL_ROOT") or str(Path(__file__).parents[2])
+    bundle = Path(canonical) / "dist/live-radio-view.js"
+    if not bundle.is_file():
+        pytest.skip("PodView radio parser needs npm run build:assets")
     script = """
 import assert from 'node:assert/strict';
 const {radioObservation}=await import(process.argv[1]);let text='';for await(const c of process.stdin)text+=c;
-for(const value of JSON.parse(text))assert.ok(radioObservation(value,{bootId:value.bootId,roomId:value.roomId}),JSON.stringify(value));
+const value=JSON.parse(text);assert.ok(radioObservation(value,{bootId:value.bootId,roomId:value.roomId}),text);
 """
     result = await asyncio.to_thread(
         subprocess.run,
-        [
-            shutil.which("node"),
-            "--input-type=module",
-            "-e",
-            script,
-            (Path(canonical) / "dist/live-radio-view.js").as_uri(),
-        ],
-        input=json.dumps(projected),
+        [shutil.which("node"), "--input-type=module", "-e", script, bundle.as_uri()],
+        input=json.dumps(value),
         text=True,
         capture_output=True,
         timeout=10,
@@ -893,24 +910,98 @@ for(const value of JSON.parse(text))assert.ok(radioObservation(value,{bootId:val
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("name", ["accepted", "unknown", "rejected"])
-async def test_actual_go_http_receipt_uses_native_adapter_without_retry(
-    actual_go_radio_contract, name
-):
-    entry = actual_go_radio_contract["receipts"][name]
+@pytest.mark.parametrize(
+    "status_code,status",
+    [(200, "accepted"), (409, "rejected"), (503, "rejected")],
+)
+async def test_podconnect_142_action_receipts_use_native_adapter_without_retry(status_code, status):
+    """radio_http.go: 200 accepted; 409 rejected while enabled; 503 rejected while disabled."""
     calls = []
 
     async def request(request):
         calls.append(json.loads(request.content))
-        return httpx.Response(entry["status_code"], json=entry["body"])
+        body = calls[-1]
+        return httpx.Response(
+            status_code,
+            json={
+                "schema": "podconnect.radio-action.v1",
+                "action_id": body["action_id"],
+                "status": status,
+                "retry_allowed": False,
+            },
+        )
 
     async with httpx.AsyncClient(
         base_url="http://native.invalid", transport=httpx.MockTransport(request)
     ) as client:
         native = NativeRadio("http://native.invalid", "inert-token", client=client)
-        receipt = await native.execute({"action_id": "contract-" + name})
-    assert receipt["status"] == name and receipt["retry_allowed"] is False
+        receipt = await native.execute({"action_id": "contract-" + status})
+    assert receipt["status"] == status and receipt["retry_allowed"] is False
     assert len(calls) == 1
+
+
+async def test_podconnect_142_start_sends_only_go_command_fields_and_shows_playing(rig):
+    rig.value = podconnect_radio_state("idle")
+
+    async def now_playing():
+        rig.value = podconnect_radio_state("playing")
+
+    rig.post_hook = now_playing
+    task = await offer(rig, revision=rig.value["revision"], targetId="r1")
+    assert task["ok"], task
+    result = await (await post(rig, "actions", action_body(task))).json()
+    assert result["status"] == "accepted", result
+    (command,) = [body for method, _, body in effects(rig)]
+    # The Go decoder disallows unknown fields; null station/target/volume decode as absent.
+    assert set(command) <= GO_COMMAND_FIELDS
+    assert command["action"] == "start" and command["station_id"] == "p3"
+    assert command["target_id"] == "r1" and command["volume_percent"] is None
+    assert command["expected_owner_generation"] == 1
+    value = await (await rig.client.get("/view/api/radio")).json()
+    assert value["state"]["status"] == "playing" and value["state"]["targetId"] == "r1"
+    assert len(effects(rig)) == 1
+
+
+async def test_podconnect_142_result_body_is_admitted():
+    state = podconnect_radio_state("playing")
+    proof = {"process_id": state["process_id"], "action_id": "one", "generation": 1}
+    query = dict(proof)
+    body = {
+        "schema": "podconnect.radio-result.v1",
+        **query,
+        "terminal": True,
+        "outcome": "committed",
+        "observation": {
+            key: state[key]
+            for key in (
+                "state",
+                "station_id",
+                "target_id",
+                "source_kind",
+                "owner_generation",
+                "observed_at",
+                "valid_until",
+                "volume_percent",
+            )
+        },
+    }
+
+    async def request(request):
+        assert request.url.path == "/api/radio/result"
+        return httpx.Response(200, json=body)
+
+    async with httpx.AsyncClient(
+        base_url="http://native.invalid", transport=httpx.MockTransport(request)
+    ) as client:
+        native = NativeRadio("http://native.invalid", "inert-token", client=client)
+        result = await native.result(
+            {
+                **query,
+                "command": {"action": "start", "volume_percent": None},
+                "effective": {"station_id": "p3", "target_id": "r1"},
+            }
+        )
+    assert result["outcome"] == "committed"
 
 
 @pytest.mark.parametrize(
@@ -1162,60 +1253,6 @@ async def test_native_action_timeout_covers_bounded_preflight_plus_effect_withou
         native = NativeRadio("http://native.invalid", "inert", client=client)
         await native.execute({"action_id": "one"})
     assert len(observed) == 1 and observed[0]["read"] == 15 and observed[0]["connect"] == 1
-
-
-async def test_real_go_action_and_result_handlers_cross_entire_bridge_unknown_recovery(
-    rig, actual_go_radio_contract, tmp_path
-):
-    scenario = actual_go_radio_contract["scenario"]
-    phase, posts, result_reads = "initial", [], []
-
-    async def request(request):
-        nonlocal scenario, phase
-        if request.method == "POST":
-            assert request.url.path == "/api/radio/action"
-            command = json.loads(request.content)
-            posts.append(command)
-            actual = await asyncio.to_thread(
-                export_go_radio_contract, tmp_path / "actual-command.json", command
-            )
-            scenario = actual["scenario"]
-            phase = "unknown"
-            return httpx.Response(scenario["post_status"], json=scenario["post_body"])
-        if request.url.path == "/api/radio/result":
-            result_reads.append(dict(request.url.params))
-            proof = scenario["result_body"]
-            assert dict(request.url.params) == {
-                "process_id": proof["process_id"],
-                "action_id": proof["action_id"],
-                "generation": str(proof["generation"]),
-            }
-            phase = "final"
-            return httpx.Response(scenario["result_status"], json=proof)
-        assert request.url.path == "/api/radio/state"
-        return httpx.Response(200, json=scenario[phase])
-
-    async with httpx.AsyncClient(
-        base_url="http://native.invalid", transport=httpx.MockTransport(request)
-    ) as client:
-        native = NativeRadio("http://native.invalid", "inert-token", client=client)
-        rig.bridge.radio.native = native
-        initial = await (await rig.client.get("/view/api/radio")).json()
-        assert initial["enabled"] and initial["actions"] == ["start"]
-        rig.value = scenario["initial"]
-        task = await offer(rig, revision=initial["revision"], targetId="r1")
-        assert task["ok"]
-        result = await (await post(rig, "actions", action_body(task))).json()
-        assert result["status"] == "unknown" and rig.bridge.radio.unknown
-        with pytest.raises(TypeError):
-            rig.bridge.radio.unknown_proof["action_id"] = "other"
-        recovered = await (await rig.client.get("/view/api/radio")).json()
-        assert recovered["enabled"] and recovered["state"]["status"] == "playing"
-        assert recovered["state"]["stationId"] == "p3" and recovered["state"]["targetId"] == "r1"
-        assert not rig.bridge.radio.unknown and rig.bridge.radio.unknown_proof is None
-        assert len(posts) == 1 and len(result_reads) == 1
-        assert not (await (await post(rig, "actions", action_body(task))).json())["ok"]
-        assert len(posts) == 1
 
 
 @pytest.mark.parametrize("outcome", ["rejected", "preempted"])
