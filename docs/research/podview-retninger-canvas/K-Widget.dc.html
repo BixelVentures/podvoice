@@ -193,7 +193,10 @@ class Component extends DCLogic {
       },
       timer: {
         _: { label: 'Timer', icon: I.timer, href: 'A-Timer.dc.html', bg: '#17171A', fg: '#F7F6F3', primC: '#F7F6F3', ctxC: '#BDBBB5', arcs: true, mat: '#FF7A5C', matOp: 0.4 },
+        // »Senest brugt« står i 6 timer efter sidste timer (besluttet 11. nov.), derefter tom kontekstlinje.
+        // Kontekstlinjen beholder sin faste højde (20 px) også tom, så »Start en timer« står præcis samme sted: intet hop.
         start: { prim: 'Start en timer', ctx: 'Senest brugt 5:00' },
+        startTom: { prim: 'Start en timer', ctx: '\u00a0' },
         koerer: { anim: 'an-in', matOp: 0.6, prim: '3:42', primF: sans, primS: '20px', ctx: 'Tæller ned', ring: true, dash: '121.0 163.4' },
         pause: { prim: '3:42', primF: sans, primS: '20px', ctx: 'På pause', ring: true, dash: '121.0 163.4' },
         faerdig: { matOp: 0.9, anim: 'an-pulse', prim: 'Tiden er gået', primC: '#FF7A5C', ctx: 'Stop alarm', ring: true, dash: '163.4 163.4', ringCls: 'an-pulse' }

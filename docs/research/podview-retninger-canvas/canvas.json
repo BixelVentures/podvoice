@@ -1260,6 +1260,15 @@
    "x": 5604,
    "y": 6700,
    "is_interactive": true
+  },
+  "W-timer-start-tom.dc.html": {
+   "h": 221,
+   "is_interactive": true,
+   "page": "retning",
+   "title": "Widget · timer start efter 6 t (intet hop)",
+   "w": 199,
+   "x": 239,
+   "y": 16400
   }
  },
  "createdOnFiles": {
