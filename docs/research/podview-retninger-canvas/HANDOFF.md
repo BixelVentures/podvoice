@@ -9,6 +9,15 @@ produktkode er ændret. Beslutning: **vi skifter UI direkte, uden flag.** Detalj
 **animationer, transitioner og timing**, og alle spor C-funktioner. Intet er »færdigt«, før lærredsmatricen
 er grøn. Afvigelser kræver ejerens godkendelse; uspecificeret adfærd opfindes ikke, men løftes som spørgsmål.
 
+**Slutbillede: ét UI-kit og ét design system, ingen levn.** I dag ligger styling spredt i 13 CSS-kilder
+(bl.a. `ui-kit.css` 2 776 linjer, `widget-redesign.css` 1 255, `ui/components.css`, `ui/legacy-components.css`,
+`frame-layout.css`, `widget-view.css`, `live-music.css`, `timer-notice.css`; `podview.css` er bygget output).
+Ved målet findes:
+- **Ét token-sæt** (`--pv-*`, fra `Kit-Tokens`) som eneste kilde til farve, skrift, afstand, radius, skygge og bevægelse.
+- **Ét komponentlag** pr. kit-komponent, og sidelayout der kun bruger komponenter og tokens.
+- **Ét bibliotek:** `library.html`/`setup.html` viser præcis de samme komponenter som produktet (AGENTS.md).
+- **Lærredets kit-tavler og produktets kit er samme sandhed**; ændres det ene, ændres det andet.
+
 ## Lærredsmatrix (kilde til »100 %«)
 Genereres af script fra lærredets `.dc.html` + `canvas.json` (få tokens). Én række pr. tavle × tilstand:
 tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tavlen → status (match / afvigelse godkendt).
@@ -48,7 +57,9 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
 | 4 | **Tryk-gennemløb = eksisterende browser-suite** (`tests/browser/*_actual_e2e.cjs` med fake-servere for lys, musik, radio, opskrift, robot, svar, hjem; via `scripts/browser_gate.py`). Scriptet, ingen agent-klik eller skærmbilleder i kontekst; kun fejl læses. Mangler en handling, tilføjes den til suiten | alle grønne |
 | 5 | **Udgivelse 1** (UI-skift), derefter 24 t live på iPad og Frameo | ingen regression i brugerhistorier; matrix grøn for spor A/B |
 | 6 | **Spor C, alle funktioner (del af målet):** én PR pr. funktion med Playwright-tests og bevægelsestests i samme PR, først »Markér trin færdigt« | kontrakt + matrix grøn for funktionen |
-| 7 | **Udgivelse 2** (spor C) + 24 t live på iPad og Frameo | matrix 100 % grøn |
+| 7 | **Oprydning: ét kit.** Slet døde selektorer (Playwright CSS-coverage over hele suiten viser hvad der aldrig bruges), fjern gamle tokens og palet, fjern `!important` hvor kittet nu ejer reglen, læg `legacy-components.css`, `widget-redesign.css` og de små side-filer ind i kit-/side-lagene og slet dem. Ingen visuel ændring | matrix uændret grøn, kontrakt grøn |
+| 8 | **Vogtere mod nye levn** (i CI): ingen rå farver/skrifter/varigheder uden for tokens, ingen nye CSS-filer uden for kittet, ingen `!important` uden begrundelse, ingen ubrugte selektorer | grøn |
+| 9 | **Udgivelse 2** (spor C + oprydning) + 24 t live på iPad og Frameo | matrix 100 % grøn, ingen levn |
 
 Spor C-listen: kompakt beskedlinje i hero, friskhedsmærke, handlingsflade, rødt domænemærke i topbar,
 Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fra trin + timerchip, Cover Flow,
@@ -75,7 +86,7 @@ Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fr
 - Parallelle sessioner kun i egne worktrees og aldrig på samme filer. Ét uafhængigt review pr. PR.
 - Ejeren er klar ved live-start (genindlæser iPad og Frameo).
 
-**Estimat:** spor A/B ≈2½–4 t + 24 t live; spor C ≈12–20 t + 24 t live; matrix + bevægelseskatalog ≈1–2 t.
+**Estimat:** spor A/B ≈2½–4 t + 24 t live; spor C ≈12–20 t + 24 t live; matrix + bevægelseskatalog ≈1–2 t; oprydning + vogtere ≈3–5 t.
 
 ## Besluttede værdier
 Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces) · nat-skærm 21–7 · »Senest brugt« på timer
