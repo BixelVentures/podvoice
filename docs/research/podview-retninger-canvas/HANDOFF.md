@@ -28,7 +28,7 @@ produktkode er ændret. Beslutning: **vi skifter UI direkte, uden flag.** Detalj
 | 1 | **Tokens + skrift** (Schibsted Grotesk + IBM Plex Mono). Opdatér palet- og typografitests (`check-ui-palette`, `root-typography-contract`) bevidst. Tjek ur (`measureText`) og `ui/motion.js` | kontrakt grøn |
 | 2 | **Komponenter, 3 PR'er:** kontroller (knap, kontakt, chip, skyder) · flader (listerække, sektionstitel, kort/widget, hero) · topbar, dialog, afspiller | kontrakt grøn, review |
 | 3 | **Sider, 2 PR'er.** Særskilt layout kun for Overblik, Foto-Ro, Robot og Svar; resten følger komponenterne | kontrakt grøn, skærmbillede pr. side ved tavlen |
-| 4 | **Tryk-gennemløb** i rigtig browser 1280×800: hver handling én gang, samme kommando som før | alle grønne |
+| 4 | **Tryk-gennemløb = eksisterende browser-suite** (`tests/browser/*_actual_e2e.cjs` med fake-servere for lys, musik, radio, opskrift, robot, svar, hjem; via `scripts/browser_gate.py`). Scriptet, ingen agent-klik eller skærmbilleder i kontekst; kun fejl læses. Mangler en handling, tilføjes den til suiten | alle grønne |
 | 5 | **Én samlet udgivelse**, derefter 24 t live på iPad og Frameo | ingen regression i brugerhistorier |
 | C… | Spor C-funktioner én ad gangen bagefter, først »Markér trin færdigt« | egen beslutning |
 
