@@ -66,7 +66,7 @@ Fælles:
 | 0a | **Adfærdskontrakt ved grænsen** (netværk + synlig tekst først, se Audit 2): (a) hver handling → kommando, kortlagt fra lytterne i `widget-view.js`, robot-, bil-, live-kontrol- og afspillervisning; (b) hver tilstand → synligt indhold. Pr. handlingselement: synligt, ikke `disabled`, tryk i midten rammer det. Testene finder elementer via rolle/tilgængeligt navn, ikke ID/klasse, så de overlever ombygningen. Huller lukkes med Playwright-tests | grøn på nuværende kode; dækningsliste uden huller |
 | 0b | **Lærredsmatrix + bevægelseskatalog** (script, se nedenfor) og baseline-skærmbilleder af i dag | — |
 | 1 | **Fundament:** tokens + skrift (Schibsted Grotesk + IBM Plex Mono), udvidet `ui/kit.js` med alle lærredets komponenttyper inkl. bevægelse, biblioteket opdateret, grænsevagt i CI. Palet- og typografitests omskrives til tokens | kit-tests + bibliotek mod kit-tavlerne |
-| 2 | **Sider, én ad gangen** (Overblik → Foto-Ro → Vejr → Robot → Lys → Tesla → Musik → Radio → Opskrifter → Timer → Svar): tilstand / handlinger / visning, gammel kode slettes. Sidens spor C-funktioner bygges i egne PR'er lige efter siden | kontrakt grøn, matrix grøn for siden |
+| 2 | **Sider, én ad gangen** (Overblik → Foto-Ro → Vejr → Robot → Lys → Tesla → Musik → Radio → Opskrifter → Timer → Svar): tilstand / handlinger / visning, gammel kode slettes. Overblik og Lys først som skabelon; spor C samlet efter siderne | kontrakt grøn, matrix grøn for siden |
 | 3 | **Udgivelse 1** efter de første sider (fx Overblik, Foto-Ro, Vejr, Robot) + 24 t live på iPad (Frameo når den er købt) | ingen regression |
 | 4 | Resten af siderne og spor C | som 2 |
 | 5 | **Slutoprydning:** CSS-coverage over hele suiten, slet døde selektorer/filer/tokens | matrix og kontrakt uændret grønne; ingen levn |
@@ -99,7 +99,18 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
 - Billigere modeller til mekanisk arbejde (kortlægning, matrix, tokens); arkitektur, review og samling ejes af lead.
 - Ét uafhængigt review pr. PR. Ejeren er klar ved live-start.
 
-**Estimat (revideret efter audit 2):** ≈60–90 t kode i alt + 2 × 24 t live. Største post: testmigrering (≈313 node-tests, ≈640 ID/klasse-selektorer) og omlægning af komponent-gaten.
+**Besparelser (vedtaget 11. nov. 2026):**
+1. **Slet frem for at flytte tests.** Node-tests for den gamle visnings indre (fake-DOM, kildetekst, markup i
+   `index.html`) slettes sammen med koden, når kontrakten dækker samme brugerhistorie. Det skal fremgå af
+   dækningslisten. Kun tests for bevaret kode flyttes (`live-control-view.js`, tilstand, handlinger, gatekeeper).
+2. **Kun de 24 Playwright-filer** skrives om til netværk + synlig tekst; ingen selektor-for-selektor-migrering.
+3. **Sideskabelon:** Overblik + én kontrolside (Lys) bygges først af lead og fastlægger mønstret; resten bygges
+   efter skabelonen af billigere modeller i parallelle worktrees med lead-review.
+4. **Generisk én gang:** matrix, bevægelseskatalog og styret ur som fælles infrastruktur; bevægelse som kit-tokens.
+5. **Spor C som én blok** efter siderne, når alt står på kittet.
+Ikke skåret: kontrakten, stale-command-værnene i `live-control-view.js`, live-døgnene, ingen gate slækkes.
+
+**Estimat:** ≈35–50 t kode, ≈15–25 t kalendertid med 2–3 parallelle spor, + 2 × 24 t live. (Før besparelser ≈60–90 t.)
 
 ## Besluttede værdier
 Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces) · nat-skærm 21–7 · »Senest brugt« på timer
