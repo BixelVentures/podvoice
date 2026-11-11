@@ -146,3 +146,50 @@ async def test_optional_job_failure_preserves_independent_telemetry(tmp_path, fa
     finally:
         await rig.client.aclose()
         await original.aclose()
+
+
+def add_current_room(rig, owner, state):
+    sensor = "sensor.robot_current_room"
+    rig.registry[sensor] = dict(
+        entity_id=sensor,
+        platform="roborock",
+        device_id="robot-one",
+        unique_id="current_room_exact",
+        translation_key="current_room",
+        disabled_by=None,
+        config_entry_id="entry",
+    )
+    rig.states[sensor] = {
+        "state": state,
+        "attributes": {},
+        "last_reported": datetime.now(UTC).isoformat(),
+    }
+    fields = [
+        {"key": "status", "entityId": "sensor.robot_status"},
+        {"key": "current_room", "entityId": sensor},
+    ]
+    owner.configure_robot_reads(
+        json.dumps(
+            {
+                "version": 1,
+                "bindings": [{"vacuumEntityId": ROBOT, "dockDeviceId": None, "fields": fields}],
+            }
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "shown"),
+    [("Kitchen", "Køkkenalrum"), ("Dining", "Spisestue"), ("Hallway", None)],
+)
+async def test_current_room_uses_the_ha_room_name_never_the_raw_roborock_name(tmp_path, raw, shown):
+    rig, owner, original, _ = await build(tmp_path)
+    try:
+        add_current_room(rig, owner, raw)
+        value = await owner._robot_observation(ROBOT, owner._generation)
+        rooms = [row["value"] for row in value["items"] if row["key"] == "current_room"]
+        assert rooms == ([shown] if shown else []), value
+        assert not rig.writes
+    finally:
+        await rig.client.aclose()
+        await original.aclose()

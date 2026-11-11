@@ -43,7 +43,7 @@ const assertRobotObservation=async(page,requests,action)=>{
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server start timeout');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  browser=await chromium.launch(testEnv.browserOptions());
- const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],requests=[],uploads=[];let loadedBundleSha256=null,loadedCssSha256=null;page.on('response',async r=>{const file=new URL(r.url()).pathname;if(file.endsWith('/podview.bundle.js'))loadedBundleSha256=crypto.createHash('sha256').update(await r.body()).digest('hex');if(file.endsWith('/podview.css'))loadedCssSha256=crypto.createHash('sha256').update(await r.body()).digest('hex')});
+ const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],requests=[],uploads=[];let loadedBundleSha256=null,loadedCssSha256=null;page.on('response',async r=>{if(r.status()!==200)return;const file=new URL(r.url()).pathname;if(file.endsWith('/podview.bundle.js'))loadedBundleSha256=crypto.createHash('sha256').update(await r.body()).digest('hex');if(file.endsWith('/podview.css'))loadedCssSha256=crypto.createHash('sha256').update(await r.body()).digest('hex')});
  page.on('response',async response=>{if(response.url().includes('/client-diagnostics')&&response.request().method()==='POST')uploads.push({atMs:Date.now(),status:response.status(),body:await response.text().catch(()=>null)});});
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
@@ -524,6 +524,73 @@ const assertRobotObservation=async(page,requests,action)=>{
   // Observe only the ordinary existing home poll; no forced read or UI state edit.
   let observedCleaning=false;try{await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.devices.some(d=>d.id==='vacuum.qrevo'&&d.live===true&&!d.stale&&d.status==='cleaning'),undefined,{timeout:20000});observedCleaning=true;}catch{}
   const observed=await page.locator('pv-widget-host').evaluate(h=>({at:Date.now(),devices:h.state.devices.filter(d=>d.kind==='vacuum').map(d=>({id:d.id,status:d.status,stale:d.stale,telemetry:d.telemetry})),panelText:h.liveControls.robotPanel?.innerText??'',liveHomeAt:h.liveHomeAt}));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-slow-start-observed.png')});await fs.writeFile(path.join(testEnv.artifactDir(),'podview-robot-slow-start-observed.json'),JSON.stringify({receiptBoundary:'PASS',progressGeometry:'PASS',observedCleaning,observed},null,2));assert(observedCleaning,'ordinary existing home observation eventually shows the inert native cleaning state');assert.match(observed.panelText,/Rengør/);assert.deepEqual(errors,[]);console.log(JSON.stringify({outcome:'PASS',actualStartOutlivesOriginalLease:true,settingHttpDelays:4,settingDelayMs:4000,oneStart:true,observedCleaning:true,servedBundleSha256:proof.servedBundleSha256}));return;
+ }
+ if(process.env.ROBOT_RELOAD_DRAFT_TEST==='1'||process.env.ROBOT_IDLE_START_TEST==='1'){
+  // S13/S4: the user's unsent choices survive a full reload, and a Start after an idle screen is an action.
+  const reload=process.env.ROBOT_RELOAD_DRAFT_TEST==='1';
+  const panel=page.locator('pv-robot-control-panel'),host=page.locator('pv-widget-host');
+  const room=panel.getByRole('button',{name:'Køkkenalrum',exact:true});
+  const setting=key=>panel.locator(`[data-setting-concept=${key}]`);
+  const choice=(key,name)=>setting(key).getByRole('radio',{name,exact:true});
+  const chosen=[choice('mode','Støvsug og vask'),choice('water','Extreme'),choice('suction','Maks.'),
+   choice('mop_mode','Hurtig'),choice('repeat','2×')];
+  const card=page.locator('.resource-preview[data-kind="vacuum"]:visible').first();
+  const openRobot=async()=>{
+   await testEnv.openOverview(page);
+   await card.waitFor({timeout:15000});
+   await card.tap();
+   await room.waitFor({state:'visible',timeout:15000});
+  };
+  const posts=()=>requests.filter(item=>new URL(item.url).pathname==='/view/api/control/actions');
+  const start=panel.getByRole('button',{name:'Start i Køkkenalrum',exact:true});
+  await openRobot();
+  if(reload){
+   await room.tap();
+   for(const option of chosen)await option.tap();
+   assert.equal(await room.getAttribute('aria-pressed'),'true');
+   await sleep(50);
+   await page.reload({waitUntil:'domcontentloaded'});
+   await openRobot();
+   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.task?.draft?.status==='restored',undefined,{timeout:15000});
+   assert.equal(await room.getAttribute('aria-pressed'),'true','the selected room survives a full reload');
+   for(const [index,option] of chosen.entries())assert(await option.isChecked(),`setting ${index} survives a full reload`);
+   assert.equal(await start.isEnabled(),true,'Start is available with the restored choices');
+   assert.deepEqual((await state()).robot.writes,[],'a reload never starts anything');
+   const response=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')&&r.request().method()==='POST',{timeout:15000});
+   await start.tap();
+   assert.equal((await (await response).json()).outcome,'accepted');
+   const writes=(await state()).robot.writes;
+   assert(writes.some(row=>row[1]?.params?.[0]?.repeat===2),'Start sends the restored repeat');
+   assert(writes.some(row=>row[1]?.fan_speed==='max'),'Start sends the restored suction');
+  }else{
+   await page.locator('#header-title-action').tap();
+   await page.locator('#show-photo').tap();
+   await page.locator('#photo-view').waitFor({state:'visible'});
+   await sleep(11000);
+   await openRobot();
+   await room.tap();
+   await start.waitFor({state:'visible'});
+   // A tab that was idle runs its timers late: the offer is already expired for the server
+   // but the screen has not yet noticed, so Start still looks usable when it is tapped.
+   const expiresAt=await host.evaluate(h=>{
+    const view=h.liveControls;
+    clearTimeout(view.expiryTimer);clearTimeout(view.robotEarlyRenewal);clearTimeout(view.robotRenewalRetry);
+    return view.task.expiresAt;
+   });
+   while(Date.now()/1000<=expiresAt+0.3)await sleep(100);
+   assert.equal(await start.isEnabled(),true,'Start still looks usable on the unnoticed expired offer');
+   await start.tap({timeout:15000});
+   const wire=Date.now();
+   while(!posts().length&&Date.now()-wire<12000)await sleep(100);
+   const note=await panel.innerText();
+   assert.equal(posts().length,1,`the Start tap after an idle screen is sent or answered; screen: ${note}`);
+   const cleans=async()=>(await state()).robot.writes.filter(row=>row[1]?.command==='app_segment_clean').length;
+   while(!await cleans()&&Date.now()-wire<15000)await sleep(100);
+   assert.equal(await cleans(),1,'the tapped Start starts exactly one cleaning run');
+  }
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({outcome:'PASS',story:reload?'S13':'S4'}));
+  return;
  }
  if(process.env.ROBOT_DRAFT_TEST==='1'){
   await testEnv.openOverview(page);

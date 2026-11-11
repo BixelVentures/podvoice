@@ -148,7 +148,7 @@ if robot is not None:
         robot.registry[ROBOT]["config_entry_id"] = "inert-robot-observation"
         telemetry = {}
         for key, domain, device, value, unit in (
-            ("current_room", "sensor", "robot-one", "Køkkenalrum", None),
+            ("current_room", "sensor", "robot-one", "Kitchen", None),
             ("clean_percent", "sensor", "robot-one", "42", "%"),
             ("filter_time_left", "sensor", "robot-one", "-2", "h"),
             ("dock_error", "sensor", "dock-one", "ok", None),

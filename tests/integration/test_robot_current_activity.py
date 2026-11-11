@@ -40,6 +40,7 @@ async def build(case="normal", *, age=600):
         )
         for eid, key in ((VAC, "roborock"), (CLEAN, "in_cleaning"), (AREA, "cleaning_area"))
     }
+    registry[VAC]["options"] = {"vacuum": {"area_mapping": {"hall": ["0_16"], "bath": ["0_17"]}}}
     states = {
         VAC: {"entity_id": VAC, "state": "cleaning", "attributes": {}},
         CLEAN: {
@@ -141,6 +142,11 @@ async def build(case="normal", *, age=600):
                     }
                 },
             )
+        if path == "services/roborock/get_maps":
+            assert request.method == "POST" and request.url.query == b"return_response"
+            rooms = {"16": "Corridor1", "17": "Bathroom1"}
+            maps = [{"flag": 0, "name": "Ground floor", "rooms": rooms}]
+            return httpx.Response(200, json={"service_response": {VAC: {"maps": maps}}})
         if path == "template":
             assert request.method == "POST"
             template = json.loads(request.content)["template"]
@@ -232,6 +238,11 @@ async def build(case="normal", *, age=600):
                     "config_entries": ["entry"],
                 }
             ]
+        if command["type"] == "config/area_registry/list":
+            return [
+                {"area_id": "hall", "name": "Gang", "aliases": []},
+                {"area_id": "bath", "name": "Badeværelse", "aliases": []},
+            ]
         result = {eid: copy.deepcopy(registry[eid]) for eid in command["entity_ids"]}
         if case == "registry-race" and len(registry_calls) > 2:
             result[CLEAN]["device_id"] = "replacement"
@@ -262,12 +273,12 @@ async def test_recorded_actual_edge_after_long_idle_survives_http_owner_projecti
 @pytest.mark.parametrize(
     "case,expected",
     [
-        ("room-previous", ("Bathroom1", True)),
-        ("room-fresh", ("Corridor1", False)),
-        ("room-pause-resume", ("Corridor1", False)),
-        ("room-missing-change", ("Corridor1", False)),
-        ("room-invalid-change", ("Corridor1", False)),
-        ("room-missing-run", ("Corridor1", False)),
+        ("room-previous", ("Badeværelse", True)),
+        ("room-fresh", ("Gang", False)),
+        ("room-pause-resume", ("Gang", False)),
+        ("room-missing-change", ("Gang", False)),
+        ("room-invalid-change", ("Gang", False)),
+        ("room-missing-run", ("Gang", False)),
         ("room-assumed", None),
     ],
 )
@@ -412,7 +423,7 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
 
     async with client:
         if prior != "missing":
-            await view("Bathroom1")
+            await view("Badeværelse")
         if prior == "token":
             owner._token = "inert-replacement-token"
         if prior == "registry":
@@ -422,22 +433,22 @@ async def test_first_cleaning_frame_uses_only_same_owner_recent_terminal_witness
             owner.configure(True, [VAC])
         if prior in {"terminal", "pause-before-cleaning"}:
             state = "idle" if prior == "terminal" else "paused"
-            await view("Bathroom1")
+            await view("Badeværelse")
         state = "cleaning"
         vacuum_edge = time.time()
-        await view("Bathroom1", historical=checks_progress, progress_historical=checks_progress)
+        await view("Badeværelse", historical=checks_progress, progress_historical=checks_progress)
         if checks_progress:
             state = "paused"
             vacuum_edge = time.time()
-            await view("Bathroom1", historical=True, progress_historical=True)
+            await view("Badeværelse", historical=True, progress_historical=True)
             room = "Corridor1"
             progress_rereported = True
-            await view("Corridor1")
+            await view("Gang")
             state = "cleaning"
-            await view("Corridor1")
+            await view("Gang")
             room = "Bathroom1"
             recorder_ready = True
-            await view("Bathroom1", historical=True, recorded=True)
+            await view("Badeværelse", historical=True, recorded=True)
 
 
 @pytest.mark.parametrize(

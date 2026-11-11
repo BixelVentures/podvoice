@@ -405,6 +405,8 @@ class DeviceControl:
             self._check(generation)
             if podview_robot.registry_identity(binding, after) != identity:
                 return unavailable
+            items = await self._robot_named_current_room(entity_id, items, after[entity_id])
+            self._check(generation)
             result: dict[str, Any] = {
                 "schema": "podview.robot.v1",
                 "status": "observed",
@@ -541,6 +543,65 @@ class DeviceControl:
             self._robot_room_witnesses[entity_id] = replace(prior, vacuum_started=True)
             return prior.terminal_at
         return None
+
+    async def _robot_named_current_room(
+        self, entity_id: str, items: list[dict], target: dict
+    ) -> list[dict]:
+        """Show the room by its HA area name; Roborock's own name is never user-facing."""
+        index = next((i for i, row in enumerate(items) if row["key"] == "current_room"), None)
+        if index is None:
+            return items
+        try:
+            label = await asyncio.wait_for(
+                self._robot_room_area_name(entity_id, items[index]["value"], target), 1.5
+            )
+        except (
+            TimeoutError,
+            CapabilityError,
+            ValueError,
+            TypeError,
+            KeyError,
+            httpx.HTTPError,
+            aiohttp.ClientError,
+        ):
+            label = None
+        if label is None:  # Unmapped rooms are not offered anywhere else either.
+            return [row for row in items if row["key"] != "current_room"]
+        named = list(items)
+        named[index] = {**items[index], "value": label}
+        return named
+
+    async def _robot_room_area_name(self, entity_id: str, raw: Any, target: dict) -> str | None:
+        response = await self._json(
+            "POST", "services/roborock/get_maps?return_response", {"entity_id": entity_id}
+        )
+        maps = response.get("service_response", {}).get(entity_id, {}).get("maps")
+        options = target.get("options", {}) if isinstance(target, dict) else {}
+        vacuum = options.get("vacuum", {}) if isinstance(options, dict) else {}
+        mapping = vacuum.get("area_mapping", {}) if isinstance(vacuum, dict) else {}
+        if not isinstance(maps, list) or not isinstance(mapping, dict) or not isinstance(raw, str):
+            return None
+        keys = {
+            f"{m['flag']}_{room_id}"
+            for m in maps
+            if isinstance(m, dict) and isinstance(m.get("rooms"), dict)
+            for room_id, name in m["rooms"].items()
+            if name == raw
+        }
+        area_ids = {
+            area_id
+            for area_id, segments in mapping.items()
+            if isinstance(segments, list) and keys.intersection(segments)
+        }
+        if len(area_ids) != 1:
+            return None  # Unmapped or ambiguous: never guess.
+        names = {
+            a.get("name")
+            for a in await self._areas()
+            if isinstance(a, dict) and a.get("area_id") in area_ids
+        }
+        name = names.pop() if len(names) == 1 else None
+        return name if isinstance(name, str) and 0 < len(name) <= 120 else None
 
     async def _robot_current_activity(
         self,
