@@ -110,6 +110,6 @@ UI-redesign". Rækkefølge med lavest risiko først:
 - ~~Musikfarve~~ besluttet: koral #F6DCCB.
 - ~~Font~~ besluttet 11. nov.: Schibsted Grotesk + IBM Plex Mono til tal.
 - Fase 4 starter med »Markér trin færdigt« (besluttet 11. nov.); de øvrige besluttes én ad gangen.
-- Nat-skærm: fast 22–6 (besluttet 11. nov.); kræver lysstyrkestyring på Frameo.
+- Nat-skærm: fast 21–7 (besluttet 11. nov.); kræver lysstyrkestyring på Frameo.
 - Timer-widget: »Senest brugt« står i 6 timer efter sidste timer, derefter kun »Start en timer« (besluttet 11. nov.).
 - Foto-Ro: iCloud-album som kilde.
