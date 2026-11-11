@@ -51,7 +51,7 @@ for(const journey of only.length?only:journeys){
    runJourney(journey,{MUSIC_DISCOVERY_LOADING_TEST:scenario,
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`discovery-${scenario}`)});
   }
-  for(const scenario of ['same-owner','owner-change']){
+  for(const scenario of ['same-owner','owner-change','rapid-switch']){
    runJourney(journey,{MUSIC_LIBRARY_BUSY_TEST:scenario,
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`library-busy-${scenario}`)});
   }

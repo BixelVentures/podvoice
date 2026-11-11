@@ -56,6 +56,24 @@ async function libraryBusyJourney(){
  assert.equal(before.libraryReads,0);
  assert.equal(await list.getAttribute('aria-busy'),'true','library remains pending behind the real mood read');
  assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0);
+ if(libraryBusy==='rapid-switch'){
+  const recentReads=[];
+  page.on('request',request=>{if(musicKind(request,'recent'))recentReads.push(request);});
+  const recent=page.waitForResponse(response=>musicKind(response,'recent'));
+  await page.locator('[data-collection=recent]').tap();
+  const first=await Promise.race([recent.then(response=>response.status()),sleep(300).then(()=>null)]);
+  await fetch(gate,{method:'POST'});
+  await Promise.all([mood,library]);
+  assert.equal(first,null,'the latest tab waits while the previous reads still own the catalogue');
+  assert.equal((await recent).status(),200);
+  await list.locator('img').first().waitFor({state:'visible'});
+  assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0);
+  assert.equal(recentReads.length,1,'one read for the selected tab');
+  assert.deepEqual((await state()).writes,[]);
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({outcome:'PASS',mode:'rapid-catalogue-switch',bundleSHA}));
+  return;
+ }
  await fetch(gate,{method:'POST'});
  const result=await library,body=await result.json();
  await mood;
@@ -675,8 +693,15 @@ async function discoveryRevisitJourney(){
  try{
   await Promise.race([held,sleep(10000).then(()=>{throw Error('first recent read not held');})]);
   await top.tap();
+  // The server admits one catalogue read at a time. The new tab waits behind the abandoned
+  // read instead of sending a parallel read that the server would reject as busy.
+  await sleep(500);
+  assert.equal(await ready.filter({hasText:'Katalogsang 11'}).count(),0,'the other tab waits behind the held read');
+  assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0,
+   'waiting behind the held read shows no failure');
+  releaseFirst();
   await ready.filter({hasText:'Katalogsang 11'}).waitFor({timeout:10000});
-  assert.equal(await ready.count(),3,'the other tab completed while the first read was held');
+  assert.equal(await ready.count(),3,'the other tab completes once the abandoned read settles');
   await recent.tap();
   await page.waitForFunction(()=>document.querySelector('#result-list')?.getAttribute('aria-busy')==='true'
    ||document.querySelectorAll('#result-list > button[data-option-id]').length===5,undefined,{timeout:3000});
@@ -871,6 +896,12 @@ async function discoveryCoverJourney(){
  const image=row.locator('img.result-art:not([data-content-transition])');
  await page.waitForFunction(url=>[...document.querySelectorAll('#result-list img.result-art')]
   .some(image=>image.getAttribute('src')===url&&image.naturalWidth>0),coverUrl,{timeout:15000});
+ const fallback=list.locator('button.result').filter({hasText:'Katalogsang 12'}).locator('img.result-art.live-art-fallback');
+ await fallback.waitFor({state:'visible'});
+ assert.deepEqual(await fallback.evaluate(image=>{
+  const style=getComputedStyle(image), rect=image.getBoundingClientRect();
+  return [rect.width,rect.height,style.paddingTop,style.paddingLeft];
+ }),[56,56,'16px','16px'],'a missing list cover reserves the approved 24px music icon');
  const initial=await row.elementHandle();
  await row.evaluate(element=>{
   element.coverTransitions=0;
@@ -1048,6 +1079,28 @@ async function personalPlaylistCoverJourney(asset){
    if(cachedFailure)assert.equal(new Set(images.map(image=>image.src)).size,2);
    else assert.ok(images.every(image=>image.width===1024&&image.height===1024));
    decoded[cachedFailure?'local':'cached']=images;
+   if(!cachedFailure){
+    const covered=surface.locator('#result-list button.result[data-option-id]').first();
+    const artwork=covered.locator('img.result-art');
+    const cached=await artwork.evaluate(image=>{
+     window.f9DisplayedArtwork=image;
+     return {src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight};
+    });
+    assert.equal(cached.src,asset);
+    await artwork.dispatchEvent('error');
+    await surface.waitForFunction(()=>window.f9DisplayedArtwork?.getAttribute('src')?.startsWith(
+     'assets/music-editorial-')&&window.f9DisplayedArtwork.naturalWidth===150);
+    const local=await artwork.evaluate(async image=>{
+     await image.decode();
+     return {sameNode:image===window.f9DisplayedArtwork,src:image.getAttribute('src'),
+      width:image.naturalWidth,height:image.naturalHeight};
+    });
+    assert.equal(local.sameNode,true);
+    assert.match(local.src,/^assets\/music-editorial-[123]\.svg$/);
+    assert.deepEqual([local.width,local.height],[150,150]);
+    assert.deepEqual(effects,[]);
+    decoded.sameRow={spotifyStatus:503,cached,displayedImageError:'synthetic event',local};
+   }
   }finally{await surface.close();}
  }
  const service=await state();
