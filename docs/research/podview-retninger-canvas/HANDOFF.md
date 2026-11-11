@@ -23,7 +23,7 @@ produktkode er ændret. Beslutning: **vi skifter UI direkte, uden flag.** Detalj
 | # | Indhold | Bevis før merge |
 |---|---|---|
 | 0 | Beslutningspost i `docs/STATUS.md` (krav i AGENTS.md) | ejer-OK |
-| 0a | **Adfærdskontrakt:** hver handling → kommando, kortlagt fra lytterne i `widget-view.js`, robot-, bil-, live-kontrol- og afspillervisning (`preview-scenes.js` har kun tilstande). Pr. handlingselement også: ikke `hidden`, ikke `disabled`, tryk i midten rammer det | grøn på nuværende kode |
+| 0a | **Adfærdskontrakt:** hver handling → kommando, kortlagt fra lytterne i `widget-view.js`, robot-, bil-, live-kontrol- og afspillervisning (`preview-scenes.js` har kun tilstande). Pr. handlingselement også: ikke `hidden`, ikke `disabled`, tryk i midten rammer det. **Hver handling uden dækning i `tests/browser/` (Playwright 1.62) får en Playwright-test her**, så al senere verifikation er scriptet og aldrig computer use | grøn på nuværende kode; dækningsliste handling → test uden huller |
 | 0b | **Baseline-skærmbilleder** 1280×800 pr. tilstand (sammenligning, ikke krav om uændret) | — |
 | 1 | **Tokens + skrift** (Schibsted Grotesk + IBM Plex Mono). Opdatér palet- og typografitests (`check-ui-palette`, `root-typography-contract`) bevidst. Tjek ur (`measureText`) og `ui/motion.js` | kontrakt grøn |
 | 2 | **Komponenter, 3 PR'er:** kontroller (knap, kontakt, chip, skyder) · flader (listerække, sektionstitel, kort/widget, hero) · topbar, dialog, afspiller | kontrakt grøn, review |
