@@ -40,7 +40,7 @@ Fælles:
   ældre Android med gammel System WebView, og WebView-opdatering kan være spærret (dm-verity). Derfor:
   - Kittet bygges mod et **konservativt browsermål** (transpileret JS, ingen nyeste CSS uden fallback),
     så det ikke afhænger af Frameoens WebView.
-  - Live-døgnene køres på **iPad** (og evt. den skærm der bruges i dag). Frameo måles og testes, når den er
+  - Frameo måles og testes, når den er
     købt og rootet; fund herfra er en egen PR, ikke en blokering for ombygningen.
   - Lærredets mål (1280×800) svarer til 10,1"-rammens forventede opløsning; bekræftes ved køb.
 
@@ -67,10 +67,10 @@ Fælles:
 | 0b | **Lærredsmatrix + bevægelseskatalog** (script, se nedenfor) og baseline-skærmbilleder af i dag | — |
 | 1 | **Fundament:** tokens + skrift (Schibsted Grotesk + IBM Plex Mono), udvidet `ui/kit.js` med alle lærredets komponenttyper inkl. bevægelse, biblioteket opdateret, grænsevagt i CI. Palet- og typografitests omskrives til tokens | kit-tests + bibliotek mod kit-tavlerne |
 | 2 | **Sider, én ad gangen** (Overblik → Foto-Ro → Vejr → Robot → Lys → Tesla → Musik → Radio → Opskrifter → Timer → Svar): tilstand / handlinger / visning, gammel kode slettes. Overblik og Lys først som skabelon; spor C samlet efter siderne | kontrakt grøn, matrix grøn for siden |
-| 3 | **Udgivelse 1** efter de første sider (fx Overblik, Foto-Ro, Vejr, Robot) + 24 t live på iPad (Frameo når den er købt) | ingen regression |
+| 3 | **Udgivelse 1** efter de første sider (fx Overblik, Foto-Ro, Vejr, Robot) | ingen regression |
 | 4 | Resten af siderne og spor C | som 2 |
 | 5 | **Slutoprydning:** CSS-coverage over hele suiten, slet døde selektorer/filer/tokens | matrix og kontrakt uændret grønne; ingen levn |
-| 6 | **Udgivelse 2** + 24 t live på iPad (Frameo når den er købt) | matrix 100 % grøn |
+| 6 | **Udgivelse 2** | matrix 100 % grøn |
 
 Spor C-funktioner (bygges med deres side): kompakt beskedlinje i hero, friskhedsmærke, handlingsflade,
 rødt domænemærke i topbar, Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fra trin
@@ -88,7 +88,7 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
 - Tryk → kommando og tilstand → skærm for alle handlinger, mod fake-servere i `tests/browser/`
   (lys, musik, radio, opskrift, robot, svar, hjem). Uafhængigt af bil, robot eller Spotify.
 - Tidsafhængigt (nat-skærm, karrusel, »Senest brugt« 6 t) med styret ur.
-- Køres på Mac/CI, ikke på HA Green. Live-døgnene dækker de rigtige enheder.
+- Køres på Mac/CI, ikke på HA Green. Rigtige enheder ligger uden for denne plan.
 - Eksisterende tests med ID-/klasse-selektorer flyttes til rolle/navn i 0a; skærmbillede-referencer
   opdateres bevidst pr. side, aldrig ved at slække testen.
 - Ingen computer use til verifikation; agenter læser kun testfejl.
@@ -104,13 +104,13 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
 | B | 1 fundament: Preact, build-target, komponent-gate | tokens + skrift | kit-komponenter fra kit-tavlerne |
 | C | Overblik + Lys (skabelon) | — | — |
 | D | review + merge | sider: Foto-Ro, Vejr, Robot, Tesla | sider: Musik, Radio, Opskrifter, Timer, Svar |
-| E | udgivelse 1 + live | spor C-blok (del 1) | spor C-blok (del 2) |
-| F | slutoprydning + udgivelse 2 + live | — | — |
+| E | udgivelse 1 | spor C-blok (del 1) | spor C-blok (del 2) |
+| F | slutoprydning + udgivelse 2 | — | — |
 
   Spor 2/3 kører i egne worktrees på billigere modeller; kun lead merger, én PR ad gangen bag kontrakten.
   Bølge C er bevidst seriel: skabelonen skal ligge fast før siderne fordeles.
 - Billigere modeller til mekanisk arbejde (kortlægning, matrix, tokens); arkitektur, review og samling ejes af lead.
-- Ét uafhængigt review pr. PR. Ejeren er klar ved live-start.
+- Ét uafhængigt review pr. PR.
 
 **Besparelser (vedtaget 11. nov. 2026):**
 1. **Slet frem for at flytte tests.** Node-tests for den gamle visnings indre (fake-DOM, kildetekst, markup i
@@ -121,9 +121,9 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
    efter skabelonen af billigere modeller i parallelle worktrees med lead-review.
 4. **Generisk én gang:** matrix, bevægelseskatalog og styret ur som fælles infrastruktur; bevægelse som kit-tokens.
 5. **Spor C som én blok** efter siderne, når alt står på kittet.
-Ikke skåret: kontrakten, stale-command-værnene i `live-control-view.js`, live-døgnene, ingen gate slækkes.
+Ikke skåret: kontrakten, stale-command-værnene i `live-control-view.js`, ingen gate slækkes.
 
-**Estimat:** ≈35–50 t kode, ≈15–25 t kalendertid med 2–3 parallelle spor, + 2 × 24 t live. (Før besparelser ≈60–90 t.)
+**Estimat:** ≈35–50 t kode, ≈15–25 t kalendertid med 2–3 parallelle spor. (Før besparelser ≈60–90 t.)
 
 ## Besluttede værdier
 Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces) · nat-skærm 21–7 · »Senest brugt« på timer
