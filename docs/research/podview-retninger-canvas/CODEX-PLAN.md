@@ -4,6 +4,9 @@ Mål: bring PodView-lærredet (claude.ai "PodView Retninger", kopi i denne mappe
 med færrest mulige funktionsfejl. Læs først `AGENTS.md` (proces, review, bevis) og
 `MIGRATION-PLAN.md` (sporene). Denne fil er den konkrete arbejdsliste.
 
+> **Erstattet 11. nov. 2026:** flag-, `@layer`- og pr.-komponent-afsnittene nedenfor gælder ikke længere.
+> Vi skifter UI direkte uden flag. Den gældende plan står i `HANDOFF.md`.
+
 ## Grundregler for Codex
 
 1. **Ét spor pr. PR.** Tokens, én komponent, eller én funktion. Aldrig blandet.
