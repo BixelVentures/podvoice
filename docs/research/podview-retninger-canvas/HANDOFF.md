@@ -53,3 +53,14 @@ Ejeren har valgt ét samlet live-døgn til sidst i stedet for et døgn pr. fase 
   og aldrig på samme filer. Review i bundter af 3–4 PR'er.
 - Spor C er ikke omfattet og tages én ad gangen bagefter.
 - Fase 0 (kontrakt, baseline, flag + lag) beskæres ikke.
+
+## Fartplan (vedtaget 11. nov. 2026, ≈2½–4 t kode + 24 t live)
+Bundtning: komponenter i 3 PR'er (kontroller · flader · topbar/dialog/afspiller), sider i 2 PR'er,
+tokens i 0c, ét adfærdsfokuseret review pr. PR, v2 tjekkes visuelt pr. side.
+1. **Parallel fase 0:** 0b baseline og 0c flag + lag køres samtidig med 0a kontrakt.
+2. **Tokens ved siden af:** billig agent oversætter `Kit-Tokens` til `pv-v2`-CSS mens 0a skrives.
+3. **Berørt-kun før merge:** kontrakt + pixel-diff kun for de sider PR'en rører; fuld suite én gang til sidst.
+4. **Ejer klar ved live-start:** lead melder tidspunkt; ejeren sætter flag/genindlæser iPad og Frameo.
+5. **Layout følger komponenterne:** særskilt sidelayout kun for Overblik, Foto-Ro, Robot og Svar.
+6. **v2 tjekkes mod tilstande, HA Green faktisk viser;** v1-baselinen dækker stadig alle tilstande.
+Uændret: adfærdskontrakt for alle handlinger, v1 pixel-identisk uden flag, kun CSS på kroge, flaget som nødbremse, 24 t live.
