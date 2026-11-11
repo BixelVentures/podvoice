@@ -63,7 +63,7 @@ Fælles:
 | # | Indhold | Bevis før merge |
 |---|---|---|
 | 0 | Beslutningspost i `docs/STATUS.md` (krav i AGENTS.md) | ejer-OK |
-| 0a | **Adfærdskontrakt ved grænsen:** (a) hver handling → kommando, kortlagt fra lytterne i `widget-view.js`, robot-, bil-, live-kontrol- og afspillervisning; (b) hver tilstand → synligt indhold. Pr. handlingselement: synligt, ikke `disabled`, tryk i midten rammer det. Testene finder elementer via rolle/tilgængeligt navn, ikke ID/klasse, så de overlever ombygningen. Huller lukkes med Playwright-tests | grøn på nuværende kode; dækningsliste uden huller |
+| 0a | **Adfærdskontrakt ved grænsen** (netværk + synlig tekst først, se Audit 2): (a) hver handling → kommando, kortlagt fra lytterne i `widget-view.js`, robot-, bil-, live-kontrol- og afspillervisning; (b) hver tilstand → synligt indhold. Pr. handlingselement: synligt, ikke `disabled`, tryk i midten rammer det. Testene finder elementer via rolle/tilgængeligt navn, ikke ID/klasse, så de overlever ombygningen. Huller lukkes med Playwright-tests | grøn på nuværende kode; dækningsliste uden huller |
 | 0b | **Lærredsmatrix + bevægelseskatalog** (script, se nedenfor) og baseline-skærmbilleder af i dag | — |
 | 1 | **Fundament:** tokens + skrift (Schibsted Grotesk + IBM Plex Mono), udvidet `ui/kit.js` med alle lærredets komponenttyper inkl. bevægelse, biblioteket opdateret, grænsevagt i CI. Palet- og typografitests omskrives til tokens | kit-tests + bibliotek mod kit-tavlerne |
 | 2 | **Sider, én ad gangen** (Overblik → Foto-Ro → Vejr → Robot → Lys → Tesla → Musik → Radio → Opskrifter → Timer → Svar): tilstand / handlinger / visning, gammel kode slettes. Sidens spor C-funktioner bygges i egne PR'er lige efter siden | kontrakt grøn, matrix grøn for siden |
@@ -99,12 +99,34 @@ tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tav
 - Billigere modeller til mekanisk arbejde (kortlægning, matrix, tokens); arkitektur, review og samling ejes af lead.
 - Ét uafhængigt review pr. PR. Ejeren er klar ved live-start.
 
-**Estimat:** ≈30–50 t kode i alt + 2 × 24 t live.
+**Estimat (revideret efter audit 2):** ≈60–90 t kode i alt + 2 × 24 t live. Største post: testmigrering (≈313 node-tests, ≈640 ID/klasse-selektorer) og omlægning af komponent-gaten.
 
 ## Besluttede værdier
 Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces) · nat-skærm 21–7 · »Senest brugt« på timer
 i 6 t uden hop · Foto-Ro: delt iCloud-album (HA-konfiguration) · karrusel 20 s / overtoning 1,2 s ·
 hvide indgangswidgets (musik, radio, opskrift, svar).
+
+## Audit 2 (Fable 5.2, 11. nov. 2026) – indarbejdet
+1. **`live-control-view.js` flyttes ikke ud i stykker.** Den ejer næsten alle kommandoer og har
+   »stale-command«-værn bundet til DOM-identitet (`musicVolumeGesture===input`, `host.isConnected`, scroll).
+   Den bevares som handlingsmodul bag en tynd adapter; eksisterende held-read/held-intent-e2e genbruges uændret.
+   En senere opdeling er en egen beslutning. `vehicle-view.js`, `player-view.js`, `robot-control-panel.js` kan flyttes rent.
+2. **Kontrakten bygges på netværk + synlig tekst først** (kommandoer der sendes, tekst der vises), ikke på
+   roller eller `pv-widget-host`-internals. Først når den er grøn, rettes a11y-huller (dublerede navne som
+   »Forrige nummer«/»Luk«, `aria-checked` uden rolle) i en lille egen PR, bevist af kontrakten.
+   Tests, der læser host-internals (fx `.state.vehicle`), omskrives til netværk/tekst før ombygning.
+3. **Build:** esbuild findes (`scripts/build-scripts.mjs`) men har `target:'esnext'` og afviser `node_modules`.
+   Preact vendores ind i `dist/` og registreres; target sænkes til et konservativt niveau (fx es2017) i fase 1.
+   Komponent-gaten (`scripts/check-component-library.mjs`) omlægges én gang i fase 1, så den forstår kit-komponenter
+   (ikke `createElement`-scanning); ingen gate slækkes. Asset-pins opdateres i hver side-PR.
+   Tests, der kræver markup i `index.html`, omskrives i takt med »tom skal«.
+4. **Matrix:** kun skærmtavler på siden *Skærme* (≈94 af 155); arkiv og principper udelades. Tavler uden
+   produktmodstykke (`Foto-Nat`, `Opskrifter-Bog`/Cover Flow, `Opskrift-TimerKoerer`, `Vejr-Shadere`,
+   Foto-Ro-karrusel) er spor C. Fake-servere udvides: bil (lås/oplås), egen robot-server, vejr.
+   `page.clock` er ny infrastruktur og bygges i 0b.
+5. **AGENTS.md/STATUS:** beslutningsposten (trin 0) skal eksplicit dække PR-/grenmodel og parallelle worktrees,
+   nye scripts (matrix, bevægelse, grænsevagt), Preact som ny motor, og afvente åbne STATUS-punkter
+   (Robot-UI visuel accept genåbnet, Candidate140 CI/publicering) før første udgivelse.
 
 ## Historik
 - Plan 1 (flag + `@layer`) underkendt af Fable 5.2-audit: v1's mange `!important` slår senere lag, ingen
