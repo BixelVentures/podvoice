@@ -47,7 +47,7 @@ handlingstjeklisten.
 Ejeren har valgt ét samlet live-døgn til sidst i stedet for et døgn pr. fase (≈26 dage).
 - Hver PR kræver stadig: kontrakt grøn, `npm test` grøn, v1 pixel-identisk uden flag.
 - PR'er merges løbende på arbejdsgrenen; **én samlet udgivelse** til `main` til sidst.
-- Flaget tændes først på **én** Frameo i et døgn; alle andre skærme kører v1. Fejl = sluk flaget.
+- Flaget tændes først i 24 t på iPad og Frameo (de skærme, ejeren bruger); alle andre skærme kører v1. Fejl = sluk flaget.
 - Mekanisk arbejde (kortlægning, baseline, token-CSS) må køre på billigere modeller;
   kontrakt, lag, review og samling ejes af lead. Parallelle sessioner kun i egne worktrees
   og aldrig på samme filer. Review i bundter af 3–4 PR'er.
