@@ -34,8 +34,15 @@ Fælles:
 - **Under motorhjelmen** bygges kittet på en lille, etableret komponentmotor (Lit eller Preact), bundtet lokalt
   i add-on'et (ingen CDN). Det erstatter håndskrevet DOM og den hjemmelavede `ui/kit.js`-mekanik.
 - **Ikke** et færdigt stylet kit (Shoelace/Material/Ionic): det ville kæmpe mod lærredets udseende.
-- **Første skridt i fase 1:** mål Frameoens browser (lille testside åbnes én gang på Frameo og iPad).
-  Resultatet afgør Lit vs. Preact og hvilke CSS-/JS-funktioner kittet må bruge.
+- **Motor: Preact** (lille, ingen krav om nyeste JS; kan bygges ned til ældre browsere). Lit 3 fravalgt,
+  fordi den kræver nyere JS end en gammel Android-WebView kan garantere.
+- **Frameo er ikke købt/rootet endnu** (tænkt model: Denver PFF-1037W, 10,1"). Frameo-rammer kører typisk
+  ældre Android med gammel System WebView, og WebView-opdatering kan være spærret (dm-verity). Derfor:
+  - Kittet bygges mod et **konservativt browsermål** (transpileret JS, ingen nyeste CSS uden fallback),
+    så det ikke afhænger af Frameoens WebView.
+  - Live-døgnene køres på **iPad** (og evt. den skærm der bruges i dag). Frameo måles og testes, når den er
+    købt og rootet; fund herfra er en egen PR, ikke en blokering for ombygningen.
+  - Lærredets mål (1280×800) svarer til 10,1"-rammens forventede opløsning; bekræftes ved køb.
 
 ## Læs først
 1. `AGENTS.md` i repo-roden (proces, review, bevis, udgivelse).
@@ -60,10 +67,10 @@ Fælles:
 | 0b | **Lærredsmatrix + bevægelseskatalog** (script, se nedenfor) og baseline-skærmbilleder af i dag | — |
 | 1 | **Fundament:** tokens + skrift (Schibsted Grotesk + IBM Plex Mono), udvidet `ui/kit.js` med alle lærredets komponenttyper inkl. bevægelse, biblioteket opdateret, grænsevagt i CI. Palet- og typografitests omskrives til tokens | kit-tests + bibliotek mod kit-tavlerne |
 | 2 | **Sider, én ad gangen** (Overblik → Foto-Ro → Vejr → Robot → Lys → Tesla → Musik → Radio → Opskrifter → Timer → Svar): tilstand / handlinger / visning, gammel kode slettes. Sidens spor C-funktioner bygges i egne PR'er lige efter siden | kontrakt grøn, matrix grøn for siden |
-| 3 | **Udgivelse 1** efter de første sider (fx Overblik, Foto-Ro, Vejr, Robot) + 24 t live på iPad og Frameo | ingen regression |
+| 3 | **Udgivelse 1** efter de første sider (fx Overblik, Foto-Ro, Vejr, Robot) + 24 t live på iPad (Frameo når den er købt) | ingen regression |
 | 4 | Resten af siderne og spor C | som 2 |
 | 5 | **Slutoprydning:** CSS-coverage over hele suiten, slet døde selektorer/filer/tokens | matrix og kontrakt uændret grønne; ingen levn |
-| 6 | **Udgivelse 2** + 24 t live på iPad og Frameo | matrix 100 % grøn |
+| 6 | **Udgivelse 2** + 24 t live på iPad (Frameo når den er købt) | matrix 100 % grøn |
 
 Spor C-funktioner (bygges med deres side): kompakt beskedlinje i hero, friskhedsmærke, handlingsflade,
 rødt domænemærke i topbar, Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fra trin
