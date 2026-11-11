@@ -46,7 +46,7 @@ Opdatér kun primitiverne i `ui-kit.css`; aliaserne følger automatisk.
 | svar (ny) | – | #E9E6F4 |
 | timer | `--pv-dark` | #17171A + orange #FF7A5C |
 | `--pv-ink-3` (grå etiket) | #6E6A63 | #5F5E5A (AA på farvede flader) |
-| typografi | Inter | Schibsted Grotesk + IBM Plex Mono til tal (kræver font-beslutning) |
+| typografi | Inter | Schibsted Grotesk + IBM Plex Mono til tal (valgt 11. nov.) |
 
 Tilføj nye tokens: `--pv-fresh-*`, `--pv-notice-{fejl,handling,info}-{bg,fg,icon}`,
 `--pv-hero-s:221px`, `--pv-hero-l:458px`, `--pv-hit-min:44px` (i dag 48), animationstider fra
@@ -108,6 +108,8 @@ UI-redesign". Rækkefølge med lavest risiko først:
 ## Åbne beslutninger før start
 
 - ~~Musikfarve~~ besluttet: koral #F6DCCB.
-- Font: Schibsted Grotesk + IBM Plex Mono, eller beholde Inter.
-- Hver funktion i fase 4.
+- ~~Font~~ besluttet 11. nov.: Schibsted Grotesk + IBM Plex Mono til tal.
+- Fase 4 starter med »Markér trin færdigt« (besluttet 11. nov.); de øvrige besluttes én ad gangen.
+- Nat-skærm: fast 22–6 (besluttet 11. nov.); kræver lysstyrkestyring på Frameo.
+- Timer-widget: »Senest brugt« står i 6 timer efter sidste timer, derefter kun »Start en timer« (besluttet 11. nov.).
 - Foto-Ro: iCloud-album som kilde.
