@@ -1,3 +1,7 @@
+## 2.0.175
+
+- Man kan spole i sangen igen, og »Kør til basen« lige efter Pause afvises ikke længere som optaget. Under rengøring står der fx »Robotten er i Entré« (kun når kortet netop er genindlæst) og »I basen«, når den lader. Teslaen viser »I dvale · 4 t« og »Opdateret: 17.40« i stedet for »Sidst kendt«, og dvalen huskes efter genstart (kræver HA-komponent 0.1.19). Radioteksten nævner ikke længere Home Assistant.
+
 ## 2.0.174
 
 - Robottens Pause/Fortsæt gråes ikke under eget tryk og sendes hurtigere, og et afvist eller ubekræftet køvalg viser nu en besked i stedet for blot at forsvinde.

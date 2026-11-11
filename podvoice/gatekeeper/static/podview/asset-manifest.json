@@ -483,7 +483,7 @@
     },
     {
       "path": "ha-home-observation.js",
-      "sha256": "9cc1200d95711d46e18f9fb6374694f072ed23bc96fc6b8d4c58430dd3f037e0"
+      "sha256": "9da5083c0ddd27f2b818201aa382ae8d85dc3185d17e2439236311d70477ec72"
     },
     {
       "path": "home-model.js",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "06cf691aced2d93ee459ab9671c9944801a15f3106fa3d350d2cb6cb8871c224"
+      "sha256": "fa5bac2308fb3eca0ca231bb32661e6c03014c6ad49c962b06c16f0a3f817b98"
     },
     {
       "path": "library.css",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "88400f3a79afc1aa2347e6d30c885dd2c4e8180991b7233164611cb84cc387f2"
+      "sha256": "c3562118aab65a9d5e57a3eaa4a37fcbc9cc830797cfa5d80c6229bad96a8796"
     },
     {
       "path": "podview.css",
@@ -839,7 +839,7 @@
     },
     {
       "path": "vehicle-model.js",
-      "sha256": "fbf8ae0be21eceb62eec2cc1f096dacd62c329667a1a694ca869a736c2245762"
+      "sha256": "bbb5f06c7b9d589814d8ae31c263bd56820889299459f29bde8ee34387479368"
     },
     {
       "path": "vehicle-preview-command.js",
@@ -847,7 +847,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "fff86337ea5f0e470f57f362c62818871b9837eaa419ab0887f3f40bef069ec1"
+      "sha256": "2b6f8d14110c8a66f24b881752e434dd86d23f92d44d87b2bb8c84b7fb78aaa9"
     },
     {
       "path": "visual-content.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "3114775d273fe72886032b0a2a6166d4c4fcf355569463b48b73e10c3bd9b7ff"
+      "sha256": "19f05c1f6171cdcebcaeb3c08e32c2e73faba06a4b1c750438e4851964626846"
     },
     {
       "path": "workshop.css",

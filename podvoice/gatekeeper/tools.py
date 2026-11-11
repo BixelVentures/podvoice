@@ -395,6 +395,11 @@ class ToolRouter:
         )
         self._vehicle_scope: podview_vehicle.VehicleScope | None = None
         self._vehicle_generation = 0
+        self._vehicle_connection = podview_vehicle.ConnectionMemory(
+            cleaning_journal_path.parent / "vehicle-sleep.json"
+            if cleaning_journal_path is not None
+            else None
+        )
         self._vehicle_control_scope: podview_vehicle_control.VehicleControlScope | None = None
         self._vehicle_control_registry: object | None = None
         self._vehicle_control_generation = 0
@@ -2815,10 +2820,28 @@ class ToolRouter:
                     return unavailable
                 if model is not None:
                     result["data"]["modelName"] = model
+                self._remember_vehicle_connection(scope, result)
             return {**result, "bindingId": source_binding} if current() else unavailable
         except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
             podview_vehicle.diagnostic("transport")
             return {**unavailable, "bindingId": source_binding} if current() else unavailable
+
+    def _remember_vehicle_connection(self, scope, result: dict) -> None:
+        """Sleep is shown from Tesla's own state, remembered across restarts (B3)."""
+        if "status" not in dict(scope.entities):
+            result.pop("connection", None)
+            return
+        times = [*result.get("fieldObservedAt", {}).values(), result["observedAt"]]
+        remembered = self._vehicle_connection.apply(
+            hashlib.sha256(f"{scope.config_entry_id}:{scope.device_id}".encode()).hexdigest(),
+            result.get("connection"),
+            last_data_at=max(times),
+            now=time.time(),
+        )
+        if remembered is None:
+            result.pop("connection", None)
+        else:
+            result["connection"] = remembered
 
     def podview_home_available(self) -> bool:
         owner = self._device_control

@@ -12,10 +12,30 @@ export function vehicleFixture({charging=false,now=Date.now(),controls=false}={}
  return {...unconnectedVehicleModel(),mode:'fixture',revision:1,controlsPreview:controls,access:{rearTrunk:'closed'},fixtureCase:charging?'charging':'parked',exampleOnly:true,context:'Model Y · 2023',modelName:'Model Y',modelYear:2023,connectionState:charging?'online':'asleep',status:charging?'Lader':'I dvale · Låst',parked:true,locked:true,batteryPercent:72,rangeKm:312,charging:{status:charging?'charging':'disconnected',powerKw:charging?11:null,endsAt:charging?Math.floor(now/1000)+2700:null},climate:{status:'off',temperatureC:null,targetTemperatureC:21,defrost:false,seats:{driver:0,passenger:0}},source:'Lokalt eksempel'};
 }
 
+// Tesla's own state, like the Tesla app: "I dvale · 4 t". Offline is not sleep.
+export function vehicleStatus(value,now=Date.now()){
+ if(value?.connectionState==='offline')return 'Ikke forbundet';
+ if(value?.connectionState!=='asleep')return value.status;
+ const seconds=Number.isFinite(value.connectionSince)?Math.max(0,now/1000-value.connectionSince):null;
+ if(seconds===null)return 'I dvale';
+ const minutes=Math.floor(seconds/60),hours=Math.floor(minutes/60),days=Math.floor(hours/24);
+ return `I dvale · ${days>=2?`${days} d`:hours>=1?`${hours} t`:`${minutes} min`}`;
+}
+// When the shown values were last reported by the car: "Opdateret: 17.40".
+export function vehicleUpdatedLabel(value,now=new Date()){
+ // Only Tesla's own block timestamps are the car's real update time, not HA re-reports.
+ if(!isVehicleObservation(value)||value.source!=='tesla_fleet_snapshot')return '';
+ const times=[value.observedAt,...Object.values(value.fieldObservedAt||{})].filter(t=>Number.isFinite(t)&&t>0&&t*1000<=now.getTime()+60000);
+ if(!times.length)return '';
+ const at=new Date(Math.max(...times)*1000),clock=at.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+ const day=date=>new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime(),age=Math.round((day(now)-day(at))/86400000);
+ return `Opdateret: ${age===0?clock:age===1?`i går ${clock}`:`${at.toLocaleDateString('da-DK',{day:'numeric',month:'short'})} ${clock}`}`;
+}
+
 export function vehicleModel(value){
  // Only the admitted passive HA shape is accepted. Other remote shapes fail
  // closed even when they contain plausible battery/lock/temperature fields.
- if(isVehicleObservation(value))return value.stale&&!value.status.startsWith('Sidst kendt: ')?{...value,status:`Sidst kendt: ${value.status}`} :value;
+ if(isVehicleObservation(value))return {...value,status:vehicleStatus(value)};
  if(value?.kind!=='vehicle'||value.mode!=='fixture')return unconnectedVehicleModel();
  const base=vehicleFixture({charging:value.fixtureCase==='charging',now:Number.isFinite(value.charging?.endsAt)?(value.charging.endsAt-2700)*1000:Date.now(),controls:value.controlsPreview===true});
  if(!base.controlsPreview)return base;
@@ -75,5 +95,5 @@ export function vehicleRailPresentation(value,{live=true,connected=false,readGra
  if(Number.isFinite(model.charging.powerKw)&&model.charging.powerKw>=0)facts.push({id:'power',label:'Ladeeffekt',value:`${model.charging.powerKw.toLocaleString('da-DK')} kW`,stale});
  if(Number.isFinite(model.charging.endsAt)&&model.charging.endsAt>=0)facts.push({id:'ends',label:'Opladning færdig',value:new Date(model.charging.endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),stale});
  const battery=model.batteryPercent;
- return {id:'vehicle',target:'vehicle',kind:'vehicle',title:'Tesla',status:stale?'stale':'charging',resourceStatus:stale?'stale':'charging',detail:stale?'Sidst kendt opladning':'Lader',value:Number.isFinite(battery)&&battery>=0&&battery<=100?`${Math.round(battery)} %`:'',stale,observedAt:observed?model.observedAt:null,exampleOnly:local,facts,actions:[]};
+ return {id:'vehicle',target:'vehicle',kind:'vehicle',title:'Tesla',status:stale?'stale':'charging',resourceStatus:stale?'stale':'charging',detail:stale?vehicleUpdatedLabel(model)||'Lader':'Lader',value:Number.isFinite(battery)&&battery>=0&&battery<=100?`${Math.round(battery)} %`:'',stale,observedAt:observed?model.observedAt:null,exampleOnly:local,facts,actions:[]};
 }

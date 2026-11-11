@@ -146,7 +146,7 @@ test('repeated stale observation projection and actual rendering qualify status 
  let projected={...observed,stale:true};const hero=view.hero,metrics=[...view.metrics.children];
  for(let i=0;i<4;i++){
   projected=vehicleModel(projected);view.render(projected);projected=vehicleModel(view.model);
-  assert.equal(projected.status,'Sidst kendt: Lader');assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.rangeValue.textContent,'312 km');assert.equal(view.powerValue.textContent,'11 kW');assert.equal(view.access.status.textContent,'Sidst kendt: Låst');assert.equal(view.climate.status.textContent,'Sidst kendt: Slukket');assert.deepEqual(projected.actions,[]);assert.equal(view.controlsEnabled,false);assert.equal(view.climateToggle.hidden,true);assert.equal(view.lockControls.hidden,true);assert.strictEqual(view.hero,hero);assert.deepEqual(view.metrics.children,metrics);
+  assert.equal(projected.status,'Lader');assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.rangeValue.textContent,'312 km');assert.equal(view.powerValue.textContent,'11 kW');assert.equal(view.access.status.textContent,'Låst');assert.equal(view.climate.status.textContent,'Slukket');assert.deepEqual(projected.actions,[]);assert.equal(view.controlsEnabled,false);assert.equal(view.climateToggle.hidden,true);assert.equal(view.lockControls.hidden,true);assert.strictEqual(view.hero,hero);assert.deepEqual(view.metrics.children,metrics);
  }
  assert.deepEqual(structuredClone(observed),before);assert.equal(view.heroIcon.hidden,false);assert.equal(view.figure.hidden,true);view.render(observed);assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.model.status,'Lader');assert.equal(view.controlsEnabled,false);view.cleanup();
 });
@@ -242,8 +242,8 @@ test('climate actions keep action-name semantics and the native meter owns its l
 
 test('lost connection qualifies retained vehicle facts once and recovery restores current status without replacing controls',()=>{
  const {root}=fixture(),view=new VehicleView(root),model=vehicleFixture({controls:true,charging:true}),hero=view.hero,lock=view.lockButton;
- view.render(model,{connected:false});assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.lockButton.disabled,true);
- view.render(model,{connected:false});assert.equal(view.status.textContent,'Sidst kendt: Lader');assert.equal(view.hero,hero);assert.equal(view.lockButton,lock);
+ view.render(model,{connected:false});assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.batteryValue.textContent,'72 %');assert.equal(view.lockButton.disabled,true);
+ view.render(model,{connected:false});assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.hero,hero);assert.equal(view.lockButton,lock);
  view.render(model,{connected:true});assert.equal(view.status.textContent,'Bilen lader');assert.equal(view.lockButton.disabled,false);view.cleanup();
 });
 
@@ -295,7 +295,7 @@ test('host liveScene projection renders fresh observed Tesla without false last-
  const run=new Function('VehicleView','projectVehicle','$','homeConnectionPresentation',`return function(s){const viewChanged=true;${source.slice(begin,end)}}`)(VehicleView,vehicleModel,()=>root,homeConnectionPresentation);
  const snapshot={bootId:'boot',roomId:'room',voice:{sessionId:'s'},timers:{status:'observed',items:[]},capabilities:{homeRead:['vehicle']}},observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:Date.now()/1000,entityIds:['sensor.car'],data:{locked:true,batteryPercent:70}}),s=liveScene({focus:'vehicle',vehicle:observed,devices:[],answers:[],extraTimers:[],music:{playback:{}}},snapshot),host={live:true,liveSnapshot:snapshot,liveTransport:{connected:true},vehicleView:view};
  assert.equal(s.connected,false);run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.climateToggle.hidden,true);assert.equal(view.controlsEnabled,false);
- host.liveTransport.connected=false;run.call(host,s);assert.equal(view.status.textContent,'Sidst kendt: Låst');assert.equal(view.batteryValue.textContent,'70 %');host.liveTransport.connected=true;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.controlsEnabled,false);view.cleanup();
+ host.liveTransport.connected=false;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.batteryValue.textContent,'70 %');host.liveTransport.connected=true;run.call(host,s);assert.equal(view.status.textContent,'Låst');assert.equal(view.controlsEnabled,false);view.cleanup();
 });
 test('observed disconnected charging shows passive status and local range without invented controls',async()=>{
  const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
@@ -386,7 +386,7 @@ test('climate owns dependent live controls, including programmatic seat setup',a
 test('stale controls present last-known relevant actions and retain confirmation',async()=>{
  const {root}=fixture();let sends=0;const setups=[];const view=new VehicleView(root,{onVehicleSetup:async(action,args)=>{setups.push([action,args]);return {operation:{},confirmation:{action,label:action,nativeWakePossible:true,requiresConfirmation:true,requiresOverride:false,priorUnresolved:{access:[],climate:[]}}};},onVehicleSend:async()=>{sends++;return {status:'accepted'};}});
  const data=vehicleObservation({status:'stale',source:'home_assistant_state',observedAt:100,entityIds:['climate.car','lock.car'],data:{locked:true,climate:{status:'off',defrost:false,targetTemperatureC:19.5,minTemperatureC:15,maxTemperatureC:28,temperatureStepC:0.5,driverSeatHeat:'off'}}});
- view.render(data,{vehicleActions:['lock','unlock','climateOn','climateOff','defrostOn','defrostOff','temperature','driverSeatHeat','rearTrunkToggle']});assert.equal(view.model.stale,true);assert.equal(view.liveVehicleButtons.unlock.hidden,false);for(const action of ['lock','climateOn','climateOff'])assert.equal(view.liveVehicleButtons[action].hidden,true);assert.equal(view.climateToggle.hidden,false);assert.equal(view.climate.status.textContent,'Sidst kendt: Slukket');assert.equal(view.defrostButton.disabled,true);assert.equal(view.defrostButton.hidden,false);assert.equal(view.temperatureControls.hidden,false);assert.equal(view.seatGroups.driver.node.hidden,false);assert.equal(view.rearTrunkButton.hidden,false);
+ view.render(data,{vehicleActions:['lock','unlock','climateOn','climateOff','defrostOn','defrostOff','temperature','driverSeatHeat','rearTrunkToggle']});assert.equal(view.model.stale,true);assert.equal(view.liveVehicleButtons.unlock.hidden,false);for(const action of ['lock','climateOn','climateOff'])assert.equal(view.liveVehicleButtons[action].hidden,true);assert.equal(view.climateToggle.hidden,false);assert.equal(view.climate.status.textContent,'Slukket');assert.equal(view.defrostButton.disabled,true);assert.equal(view.defrostButton.hidden,false);assert.equal(view.temperatureControls.hidden,false);assert.equal(view.seatGroups.driver.node.hidden,false);assert.equal(view.rearTrunkButton.hidden,false);
  view.defrostButton.dispatchEvent(new Event('click'));await new Promise(resolve=>setTimeout(resolve,0));assert.deepEqual(setups,[]);assert.equal(sends,0);view.cleanup();
 });
 
@@ -414,8 +414,8 @@ test('observed trunk status is qualified when stale and never invents closed',()
  view.render(make('observed','open'));assert.match(view.status.textContent,/Bagagerum åbent/);
  view.render(make('observed','closed'));assert.doesNotMatch(view.status.textContent,/Bagagerum/);
  view.render(make('observed',null));assert.doesNotMatch(view.status.textContent,/Bagagerum/);
- view.render(make('stale','open'));assert.match(view.status.textContent,/Sidst kendt: bagagerum åbent/);
- view.render(make('observed','open'),{connected:false});assert.match(view.status.textContent,/Sidst kendt: bagagerum åbent/);
+ view.render(make('stale','open'));assert.match(view.status.textContent,/Bagagerum åbent/);
+ view.render(make('observed','open'),{connected:false});assert.match(view.status.textContent,/Bagagerum åbent/);
  view.cleanup();
 });
 

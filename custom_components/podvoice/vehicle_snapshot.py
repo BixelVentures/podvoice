@@ -27,6 +27,7 @@ ROLES = {
     "driverSeat": ("select", "climate_state_seat_heater_left"),
     "passengerSeat": ("select", "climate_state_seat_heater_right"),
     "trunk": ("cover", "vehicle_state_rt"),
+    "status": ("binary_sensor", "state"),
 }
 BLOCKS = ("charge_state", "climate_state", "vehicle_state")
 TTL = 900
@@ -284,6 +285,31 @@ def _ha_discrete_fields(states, entities, coordinator_fields):
     return observations
 
 
+def _connection(hass, coordinator, entities):
+    """Tesla's own online/asleep/offline, which HA's status sensor folds into on/off.
+
+    The integration polls this without waking the car. `since` is when HA's status
+    sensor last changed to the matching value; it is unknown after a Core restart.
+    """
+    if "status" not in entities or type(coordinator.data) is not dict:
+        return None
+    state = coordinator.data.get("state")
+    if state not in ("online", "asleep", "offline"):
+        return None
+    since = None
+    states = getattr(hass, "states", None)
+    sensor = states.get(entities["status"]) if states is not None else None
+    try:
+        if sensor.entity_id == entities["status"] and sensor.state == (
+            "on" if state == "online" else "off"
+        ):
+            stamp = sensor.last_changed.timestamp()
+            since = stamp if _number(stamp, 1, time.time()) else None
+    except (AttributeError, TypeError, ValueError, OverflowError):
+        since = None
+    return {"state": state, "since": since}
+
+
 class VehicleSnapshot:
     """Supervisor-only, exact registry/entry/runtime-custody read service."""
 
@@ -446,6 +472,7 @@ class VehicleSnapshot:
             if role == "climate"
             else next(block for block in BLOCKS if ROLES[role][1].startswith(block + "_"))
             for role in entities
+            if role != "status"
         }
         current_fields = dict(coordinator_fields)
         if (
@@ -630,6 +657,9 @@ class VehicleSnapshot:
                 "timestamps": {},
                 "observedAt": None,
             }
+        connection = _connection(self.hass, coordinator, entities)
+        if connection is not None:
+            result["connection"] = connection
         if data and stamps:
             observed = min(stamps.values())
             result.update(

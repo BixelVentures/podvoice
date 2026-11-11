@@ -290,3 +290,46 @@ async def test_trunk_control_negotiates_scope_and_does_not_retry_older_component
         "entities": dict(scope.entities),
         "trunk_control": True,
     }
+
+
+async def test_podvoice_remembers_sleep_across_restart_and_unknown_status(tmp_path):
+    """B3: opening PodView sends exactly one passive snapshot read and wakes nothing."""
+    entities = {**ENTITIES, "status": "binary_sensor.car_status"}
+    policy = json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": entities})
+    value = snapshot()
+    value["entities"] = entities
+    asleep_since = value["observedAt"] + 5
+    value["connection"] = {"state": "asleep", "since": asleep_since}
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"service_response": copy.deepcopy(value)})
+
+    async def read():
+        router = ToolRouter(
+            None,
+            client=client,
+            supervisor_token="inert-token",
+            cleaning_journal_path=tmp_path / "cleaning-journal.json",
+        )
+        router._device_control._ws_read = AsyncMock(return_value=[])
+        router.configure_podview_vehicle_read(policy)
+        return await router.podview_vehicle_read()
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        first = await read()
+        assert first["connection"] == {
+            "state": "asleep",
+            "since": asleep_since,
+            "remembered": False,
+        }
+        assert (tmp_path / "vehicle-sleep.json").exists()
+        # Core restarted: Tesla's state is not known yet. A new add-on keeps the sleep.
+        del value["connection"]
+        second = await read()
+    assert second["connection"] == {"state": "asleep", "since": asleep_since, "remembered": True}
+    assert second["data"] == value["data"]
+    assert [request.url.path for request in seen] == [
+        "/core/api/services/podvoice/vehicle_snapshot"
+    ] * 2
