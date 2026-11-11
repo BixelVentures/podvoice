@@ -40,5 +40,16 @@ Musik koral #F6DCCB · skrift Schibsted + Plex (ingen Fraunces) · nat-skærm 21
 karrusel 20 s / overtoning 1,2 s · hvide indgangswidgets (musik, radio, opskrift, svar).
 
 ## Definition af færdig pr. fase
-Adfærdskontrakt grøn · `npm test` grøn · v1 pixel-identisk · v2 matcher tavlen · mindst et døgn live
-på Frameo/HA Green med flaget · ingen ændring i handlingstjeklisten.
+Adfærdskontrakt grøn · `npm test` grøn · v1 pixel-identisk · v2 matcher tavlen · ingen ændring i
+handlingstjeklisten.
+
+## Beslutning 11. nov. 2026: komprimeret forløb (spor A/B)
+Ejeren har valgt ét samlet live-døgn til sidst i stedet for et døgn pr. fase (≈26 dage).
+- Hver PR kræver stadig: kontrakt grøn, `npm test` grøn, v1 pixel-identisk uden flag.
+- PR'er merges løbende på arbejdsgrenen; **én samlet udgivelse** til `main` til sidst.
+- Flaget tændes først på **én** Frameo i et døgn; alle andre skærme kører v1. Fejl = sluk flaget.
+- Mekanisk arbejde (kortlægning, baseline, token-CSS) må køre på billigere modeller;
+  kontrakt, lag, review og samling ejes af lead. Parallelle sessioner kun i egne worktrees
+  og aldrig på samme filer. Review i bundter af 3–4 PR'er.
+- Spor C er ikke omfattet og tages én ad gangen bagefter.
+- Fase 0 (kontrakt, baseline, flag + lag) beskæres ikke.
