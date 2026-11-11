@@ -57,7 +57,28 @@ class VacuumTransport:
 
     async def _observe(self, entity, current):
         self._check(entity, current)
-        registry = await self.owner._registry()
+        client = self.owner._client
+        assert client is not None
+
+        async def read_state():
+            async with client.stream(
+                "GET",
+                f"{C.SUPERVISOR_CORE_API}/states/{entity}",
+                headers={"Authorization": f"Bearer {self.owner._token}"},
+                follow_redirects=False,
+            ) as response:
+                response.raise_for_status()
+                raw = bytearray()
+                async for chunk in response.aiter_bytes():
+                    self._check(entity, current)
+                    raw.extend(chunk)
+                    if len(raw) > 65536:
+                        raise ValueError("oversized state")
+            return raw
+
+        # Registry identity and state are independent reads; both complete before
+        # either is trusted, so the re-observation guarantee is unchanged.
+        registry, raw = await asyncio.gather(self.owner._registry(), read_state())
         self._check(entity, current)
         # Reuse the admitted registry identity validation without issuing a ticket.
         relevant = self.owner._relevant_entries(entity, registry)
@@ -69,22 +90,6 @@ class VacuumTransport:
         ):
             raise ValueError("missing registry identity")
         identity = self.owner._device_identity({entity: entry})
-        client = self.owner._client
-        assert client is not None
-        async with client.stream(
-            "GET",
-            f"{C.SUPERVISOR_CORE_API}/states/{entity}",
-            headers={"Authorization": f"Bearer {self.owner._token}"},
-            follow_redirects=False,
-        ) as response:
-            response.raise_for_status()
-            raw = bytearray()
-            async for chunk in response.aiter_bytes():
-                self._check(entity, current)
-                raw.extend(chunk)
-                if len(raw) > 65536:
-                    raise ValueError("oversized state")
-        self._check(entity, current)
         row = json.loads(raw)
         if not isinstance(row, dict) or row.get("entity_id") != entity:
             raise ValueError("wrong entity")
