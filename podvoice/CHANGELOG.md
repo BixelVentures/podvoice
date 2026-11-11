@@ -1,3 +1,7 @@
+## 2.0.173
+
+- Robotten viser det rigtige rumnavn under rengøring, Start virker efter lang tomgang uden genindlæsning, og valgte rum og indstillinger overlever en genindlæsning.
+
 ## 2.0.172
 
 - Hurtige faneskift i Find musik viser ikke længere »Kunne ikke hente forslag«; den nye fane venter på den forrige hentning. Rækker uden cover har igen den dokumenterede afstand om musiksymbolet.
