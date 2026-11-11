@@ -36,6 +36,20 @@ Spor C-listen: kompakt beskedlinje i hero, friskhedsmærke, handlingsflade, rød
 Robot »Mere ▾« + sticky-linje, nat-skærm 21–7, Foto-Ro-karrusel, timer fra trin + timerchip, Cover Flow,
 −/+ antal, tom afspiller med forslag.
 
+## Testmodel (deterministisk, Playwright)
+- **Dækker:** tryk → kommando for alle handlinger, mod fake-servere i `tests/browser/` (lys, musik, radio,
+  opskrift, robot, svar, hjem). Samme resultat hver gang, uafhængigt af bil, robot eller Spotify.
+- **Tidsafhængigt** (nat-skærm 21–7, karrusel, »Senest brugt« 6 t) testes med styret ur (Playwright clock);
+  manglende dækning tilføjes i 0a.
+- **Køres på Mac/CI, ikke på HA Green** (ARM, Alpine, lidt hukommelse; Chromium hører ikke hjemme der).
+  HA Green får kun den færdige udgivelse.
+- **Ikke dækket af tests:** at de rigtige enheder udfører kommandoen. Det dækker 24 t live på iPad og Frameo.
+- **Holder med nyt UI:** testene finder elementer via ID'er (≈340) og roller (≈60), som CSS-skiftet ikke rører.
+  ≈40 klassebaserede selektorer gennemgås i 0a. Skærmbillede-referencer (fx `daily_ui.cjs`) opdateres
+  bevidst pr. side-PR, aldrig ved at slække testen.
+- **Spor C** leverer nye Playwright-tests i samme PR som ny markup.
+- **Ingen computer use** til verifikation; agenter læser kun testfejl.
+
 ## Fart
 - 0a og 0b køres parallelt; en billig agent forbereder token-CSS imens.
 - Før merge: kontrakt kun for berørte sider; fuld suite én gang før udgivelse.
