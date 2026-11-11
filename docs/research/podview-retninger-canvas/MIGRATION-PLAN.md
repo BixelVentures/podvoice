@@ -1,6 +1,6 @@
 # Fra lærred til produkt uden at bryde validerede funktioner
 
-Status: forslag, 10. nov. 2026. Ingen produktkode er ændret.
+Status: klar til migrering 11. nov. 2026 — start i `HANDOFF.md`. Ingen produktkode er ændret.
 
 ## Princip: lag, ikke omskrivning
 
