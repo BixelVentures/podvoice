@@ -501,3 +501,31 @@ test('a same-scope playback answer with an unexpected field keeps the known song
   }finally{clearTimeout(f.view.freshnessTimer);clearTimeout(f.view.recoveryTimer);f.restore();}
  }
 });
+
+test('a rejected or unknown queue choice is reported even when the track changed while it was sent',async()=>{
+ for(const outcome of ['rejected','unknown']){
+  const f=domSurface();try{
+   f.view.account='first';
+   const observed=uri=>boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:1,
+    expiresAt:Date.now()+10000,state:'playing',item:{name:'Actual song',artists:['Artist'],uri},
+    target:{name:'Actual speaker'}},'first');
+   f.view.playback=observed('spotify:track:0123456789ABCDEFGHIJKL');
+   f.host.liveSnapshot.capabilities.queueSelection=true;
+   const item={id:'a'.repeat(24),title:'Known queued song',artist:'Artist',uri:'spotify:track:'+'0'.repeat(22),
+    artwork:null,order:1};
+   const offer={ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'r0',accountId:'first',
+    targetId:'device',expectedBindingId:f.view.playback.roomBinding.bindingId,taskId:'queue:'+'b'.repeat(32),
+    revision:1,expiresInMs:8000,ownerEpoch:'epoch',pollSequence:1,truncated:false,items:[item]};
+   const messages=[];f.host.showFeedback=(message,...rest)=>messages.push(message);
+   f.host.liveTransport.queueOffer=async()=>offer;
+   f.host.liveTransport.queueAction=async()=>{
+    f.view.playback=observed('spotify:track:ZZZZZZZZZZZZZZZZZZZZZZ');return {outcome};
+   };
+   await f.view.loadQueue();await f.view.queueControls.choose(item);
+   assert.equal(f.view.queueControls.pending,false);
+   const expected=outcome==='rejected'?'Køvalget blev afvist. Den kendte sang bevares.'
+    :'Køvalg kunne ikke bekræftes · handlingen gentages ikke.';
+   assert.ok(messages.includes(expected),`${outcome}: ${JSON.stringify(messages)}`);
+  }finally{f.view.queueControls.invalidate(true);f.restore();}
+ }
+});

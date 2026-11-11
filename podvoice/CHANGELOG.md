@@ -1,3 +1,7 @@
+## 2.0.174
+
+- Robottens Pause/Fortsæt gråes ikke under eget tryk og sendes hurtigere, og et afvist eller ubekræftet køvalg viser nu en besked i stedet for blot at forsvinde.
+
 ## 2.0.173
 
 - Robotten viser det rigtige rumnavn under rengøring, Start virker efter lang tomgang uden genindlæsning, og valgte rum og indstillinger overlever en genindlæsning.

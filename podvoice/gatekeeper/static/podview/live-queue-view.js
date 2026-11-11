@@ -374,7 +374,13 @@ export class LiveQueueView{
    // Expired display custody is not a native lease: fresh resolution/admission
    // belongs to the server, never a client URI/index remap or renewed deadline.
    if(!current())return;this.offer=null;sent=true;
-   const result=await transport.queueAction(shownOffer,selected.id);outcome=result.outcome;transport.recordDiagnostic?.('queue_action',{code:['accepted','unknown','rejected'].includes(result.outcome)?result.outcome:'other',requestId:result.requestId,current:current()});if(!current()&&!(result.outcome==='accepted'&&readCurrent()))return;
+   const result=await transport.queueAction(shownOffer,selected.id);outcome=result.outcome;transport.recordDiagnostic?.('queue_action',{code:['accepted','unknown','rejected'].includes(result.outcome)?result.outcome:'other',requestId:result.requestId,current:current()});if(!current()){
+    // A changed track must not hide the user's own unconfirmed or refused choice.
+    if(result.outcome!=='accepted'&&readCurrent())this.host.showFeedback?.(result.outcome==='unknown'
+     ?'Køvalg kunne ikke bekræftes · handlingen gentages ikke.'
+     :'Køvalget blev afvist. Den kendte sang bevares.',false,{source:'queue'});
+    if(!(result.outcome==='accepted'&&readCurrent()))return;
+   }
    this.status=result.outcome==='accepted'?'accepted':result.outcome==='unknown'?'unknown':'error';
    this.errorKind=this.status==='error'?'choice':null;
    if(result.outcome==='accepted')this.reconcilingChoice={scope:choiceScope,occurrenceId:selected.id};

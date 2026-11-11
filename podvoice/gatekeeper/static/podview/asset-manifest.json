@@ -559,7 +559,7 @@
     },
     {
       "path": "live-queue-view.js",
-      "sha256": "2da000879b9465e2be868ea5bb4d7e1ca5f18bac31a945abc2feed7eaf176cfc"
+      "sha256": "de9d4e1c1a5091b0d6f1f16af78ba920b42b5e4c1942b094c65e6e5c20112bcf"
     },
     {
       "path": "live-radio-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "0501d8f427576fa9dba67bf8de743e1e5476fd3e3012287b36e179af9e53674f"
+      "sha256": "16ee118a3175921dc241da76f8db8d0a488983f6ed8e72d2f8ac6ef46e393842"
     },
     {
       "path": "podview.css",
