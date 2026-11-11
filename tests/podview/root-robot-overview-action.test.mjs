@@ -54,3 +54,10 @@ test('fresh live docked Robot without a pause/resume offer renders navigation wi
  for(const change of [{liveAction:null},{liveAction:{...offer,resourceId:'foreign'}},{connected:false}])assert.equal(resourceOverviewAction(active,{...context,liveAction:offer,...change}),null);
  assert.equal(resourceOverviewAction({...active,stale:true},{...context,liveAction:offer}),null);
 });
+
+test('live Pause/Fortsæt stays usable while the user\'s own command is pending (S3)',()=>{
+ const robot={id:'r',kind:'vacuum',live:true,status:'cleaning',revision:5,pending:{action:'pause'}};
+ const liveAction={id:'pause',resourceId:'r',status:'cleaning',revision:5,label:'Pause rengøring',disabled:false};
+ const choice=resourceOverviewAction(robot,{live:true,connected:true,canControl:true,size:'m',actions:[],liveAction});
+ assert.equal(choice.disabled,false);
+});

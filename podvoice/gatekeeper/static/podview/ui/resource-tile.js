@@ -115,5 +115,5 @@ export function resourceOverviewAction(resource,{connected=false,live=false,acti
  const id=({cleaning:'pause',paused:'resume'})[status];if(!id)return null;
  const admitted=isLive?(liveAction?.id===id&&liveAction.resourceId===resource.id&&liveAction.revision===resource.revision?liveAction:null):id&&actions.find(action=>action.id===id);if(!admitted)return null;
  const label=({pause:'Pause',resume:'Fortsæt',turn_on:'Tænd',turn_off:'Sluk'})[id];
- return {id,label,ariaLabel:admitted.label||label,disabled:!!resource.pending||!!admitted.disabled};
+ return {id,label,ariaLabel:admitted.label||label,disabled:!isLive&&!!resource.pending||!!admitted.disabled};
 }
