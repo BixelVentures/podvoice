@@ -284,10 +284,28 @@ def _registries(hass):
     return entity_registry.async_get(hass), device_registry.async_get(hass)
 
 
-def _supervisor(hass):
-    from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
+def _device_entry_ids(device) -> set:
+    """The config entries a device belongs to. HA 2026.11 gives one config_entry_id and
+    rejects reading config_entries (except on composite devices); 2026.8 has both."""
+    entry_id = getattr(device, "config_entry_id", None)
+    if isinstance(entry_id, str):
+        return {entry_id}
+    entries = device.config_entries
+    if not isinstance(entries, (set, frozenset, list, tuple)) or any(
+        not isinstance(value, str) for value in entries
+    ):
+        return set()
+    return set(entries)
 
-    return hass.data.get(DATA_HASSIO_SUPERVISOR_USER)
+
+def _supervisor(hass):
+    # HA 2026.11 moved the key to http.const; it is the same "hassio_supervisor_user".
+    try:
+        from homeassistant.components.http.const import DATA_SUPERVISOR_USER as key
+    except ImportError:  # Home Assistant 2026.8 to 2026.10.
+        from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER as key
+
+    return hass.data.get(key)
 
 
 class RobotObservationSnapshot:
@@ -327,7 +345,7 @@ class RobotObservationSnapshot:
             or getattr(entry.state, "value", entry.state) != "loaded"
             or device is None
             or device.manufacturer != "Roborock"
-            or target["config_entry_id"] not in device.config_entries
+            or target["config_entry_id"] not in _device_entry_ids(device)
         ):
             raise ValueError("robot owner unavailable")
         return hashlib.sha256(

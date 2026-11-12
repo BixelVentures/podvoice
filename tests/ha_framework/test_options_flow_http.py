@@ -32,7 +32,7 @@ MATCH_SIGNAL = "ABC234"
 
 class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.assertEqual(__version__, "2026.8.2")
+        self.assertIn(__version__, {"2026.8.2", "2026.11.1"})  # both CI-pinned versions
         self.stack = AsyncExitStack()
         await self.stack.__aenter__()
         self.addAsyncCleanup(self.stack.aclose)

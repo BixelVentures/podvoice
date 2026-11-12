@@ -31,10 +31,28 @@ def service_schema():
     )
 
 
-def _supervisor(hass):
-    from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
+def _device_entry_ids(device) -> set:
+    """The config entries a device belongs to. HA 2026.11 gives one config_entry_id and
+    rejects reading config_entries (except on composite devices); 2026.8 has both."""
+    entry_id = getattr(device, "config_entry_id", None)
+    if isinstance(entry_id, str):
+        return {entry_id}
+    entries = device.config_entries
+    if not isinstance(entries, (set, frozenset, list, tuple)) or any(
+        not isinstance(value, str) for value in entries
+    ):
+        return set()
+    return set(entries)
 
-    return hass.data.get(DATA_HASSIO_SUPERVISOR_USER)
+
+def _supervisor(hass):
+    # HA 2026.11 moved the key to http.const; it is the same "hassio_supervisor_user".
+    try:
+        from homeassistant.components.http.const import DATA_SUPERVISOR_USER as key
+    except ImportError:  # Home Assistant 2026.8 to 2026.10.
+        from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER as key
+
+    return hass.data.get(key)
 
 
 def _integer(value):
@@ -74,9 +92,7 @@ def _resolve(hass, entities, devices, request):
         device is None
         or device.manufacturer != "Roborock"
         or device.model != request["model"]
-        or not isinstance(device.config_entries, (set, list, tuple))
-        or any(not isinstance(value, str) for value in device.config_entries)
-        or target.config_entry_id not in device.config_entries
+        or target.config_entry_id not in _device_entry_ids(device)
     ):
         raise ValueError("model_changed")
     entry = hass.config_entries.async_get_entry(target.config_entry_id)

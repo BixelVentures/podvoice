@@ -7,6 +7,27 @@ import json
 from .controller_admin import _valid_result
 
 
+def _device_entries(registry) -> list:
+    """All device entries. HA 2026.11 rejects `devices.values()` and iterating yields
+    entries; HA 2026.8-2026.10 iterate a mapping of ids."""
+    devices = registry.devices
+    return [devices[item] if isinstance(item, str) else item for item in devices]
+
+
+def _device_entry_ids(device) -> set:
+    """The config entries a device belongs to. HA 2026.11 gives one config_entry_id and
+    rejects reading config_entries (except on composite devices); 2026.8 has both."""
+    entry_id = getattr(device, "config_entry_id", None)
+    if isinstance(entry_id, str):
+        return {entry_id}
+    entries = device.config_entries
+    if not isinstance(entries, (set, frozenset, list, tuple)) or any(
+        not isinstance(value, str) for value in entries
+    ):
+        return set()
+    return set(entries)
+
+
 class DisplayDevices:
     """No polling, authorization, timer registration or physical-device inference."""
 
@@ -32,14 +53,14 @@ class DisplayDevices:
                 existing = next(
                     (
                         device
-                        for device in self.registry.devices.values()
+                        for device in _device_entries(self.registry)
                         if identifier in device.identifiers
                     ),
                     None,
                 )
                 if existing is not None and (
                     {item for item in existing.identifiers if item[0] == "podvoice"} != {identifier}
-                    or existing.config_entries - {self.entry_id}
+                    or _device_entry_ids(existing) - {self.entry_id}
                 ):
                     continue  # A merged/shared device is not ours to rename or reclassify.
                 self.registry.async_get_or_create(
@@ -49,8 +70,8 @@ class DisplayDevices:
                     manufacturer="PodVoice",
                     model="PodView browser profile",
                 )
-        for device in tuple(self.registry.devices.values()):
-            if self.entry_id not in device.config_entries:
+        for device in _device_entries(self.registry):
+            if self.entry_id not in _device_entry_ids(device):
                 continue
             owned = {
                 identifier

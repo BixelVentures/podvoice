@@ -25,7 +25,7 @@ SPEC.loader.exec_module(snapshot)
 
 class VehicleSnapshotSDKTests(unittest.IsolatedAsyncioTestCase):
     async def test_only_fixed_cached_get_on_existing_sdk_owner(self):
-        self.assertEqual(__version__, "2026.8.2")
+        self.assertIn(__version__, {"2026.8.2", "2026.11.1"})  # both CI-pinned versions
         api = SimpleNamespace(_request=AsyncMock(return_value={"response": {}}))
         vehicle = SimpleNamespace(api=api, vin="INERT_PRIVATE_VIN")
         self.assertEqual(await snapshot._cached_read(vehicle), {"response": {}})

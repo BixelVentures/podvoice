@@ -1,3 +1,7 @@
+## 2.0.179
+
+- PodVoice-komponenten i Home Assistant indlæses igen efter opdatering til HA 2026.11, så Tesla, robot, timere og administratorhandlinger virker i PodView igen (kræver HA-komponent 0.1.21). Den virker fortsat på HA 2026.8–2026.10.
+
 ## 2.0.178
 
 - Svarkort kommer nu også, når stemmen selv slår op på nettet (som FC Barcelona-spørgsmålene), selv om søgeresultatet er langt, og vejrkortet vises ved alle vejrspørgsmål. Svarkortet står, mens hun taler, plus 30 sekunder, og rører man det, bliver det stående. Hvert trin skrives i loggen som »podview card stage=…«, så det kan følges på Home Assistant.

@@ -11,13 +11,22 @@ import secrets
 import time
 
 from aiohasupervisor.models import AddonState
-from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
 from homeassistant.components.hassio.handler import get_supervisor_client
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
 
 ADDON = "23375871_podvoice"  # This installation's reviewed Supervisor identity.
+
+
+def _supervisor(hass):
+    # HA 2026.11 moved the key to http.const; it is the same "hassio_supervisor_user".
+    try:
+        from homeassistant.components.http.const import DATA_SUPERVISOR_USER as key
+    except ImportError:  # Home Assistant 2026.8 to 2026.10.
+        from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER as key
+
+    return hass.data.get(key)
 
 
 def _unique(pairs):
@@ -286,7 +295,7 @@ class ControllerAdmin:
             raise HomeAssistantError("unsupported administrator action")
 
     async def receipt(self, call: ServiceCall) -> None:
-        supervisor = self.hass.data.get(DATA_HASSIO_SUPERVISOR_USER)
+        supervisor = _supervisor(self.hass)
         context = call.context
         if (
             supervisor is None
