@@ -1,4 +1,4 @@
-import {updatedLabel} from './updated-label.js';
+import {updatedLabel,updatedWhen} from './updated-label.js';
 import {isVehicleObservation} from './ha-home-observation.js';
 // Tesla admits the closed passive HA observation below, never command authority.
 // Spotify/player data and arbitrary live-shaped objects cannot supply vehicle state.
@@ -13,14 +13,13 @@ export function vehicleFixture({charging=false,now=Date.now(),controls=false}={}
  return {...unconnectedVehicleModel(),mode:'fixture',revision:1,controlsPreview:controls,access:{rearTrunk:'closed'},fixtureCase:charging?'charging':'parked',exampleOnly:true,context:'Model Y · 2023',modelName:'Model Y',modelYear:2023,connectionState:charging?'online':'asleep',status:charging?'Lader':'I dvale · Låst',parked:true,locked:true,batteryPercent:72,rangeKm:312,charging:{status:charging?'charging':'disconnected',powerKw:charging?11:null,endsAt:charging?Math.floor(now/1000)+2700:null},climate:{status:'off',temperatureC:null,targetTemperatureC:21,defrost:false,seats:{driver:0,passenger:0}},source:'Lokalt eksempel'};
 }
 
-// Tesla's own state, like the Tesla app: "I dvale · 4 t". Offline is not sleep.
-export function vehicleStatus(value,now=Date.now()){
+// Tesla's own state beside the lock, like the Tesla app: "Låst · I dvale siden 09.44"
+// (overview: "Låst · I dvale"). Offline is not sleep: "Ikke forbundet".
+export function vehicleStatus(value,now=Date.now(),{short=false}={}){
  if(value?.connectionState==='offline')return 'Ikke forbundet';
  if(value?.connectionState!=='asleep')return value.status;
- const seconds=Number.isFinite(value.connectionSince)?Math.max(0,now/1000-value.connectionSince):null;
- if(seconds===null)return 'I dvale';
- const minutes=Math.floor(seconds/60),hours=Math.floor(minutes/60),days=Math.floor(hours/24);
- return `I dvale · ${days>=2?`${days} d`:hours>=1?`${hours} t`:`${minutes} min`}`;
+ const since=Number.isFinite(value.connectionSince)?updatedWhen(value.connectionSince*1000,new Date(now)):'';
+ return [value.status,short||!since?'I dvale':`I dvale siden ${since}`].filter(Boolean).join(' · ');
 }
 // When the shown values were last reported by the car: "Opdateret: 17.40".
 export function vehicleUpdatedLabel(value,now=new Date()){
@@ -34,7 +33,7 @@ export function vehicleUpdatedLabel(value,now=new Date()){
 export function vehicleModel(value){
  // Only the admitted passive HA shape is accepted. Other remote shapes fail
  // closed even when they contain plausible battery/lock/temperature fields.
- if(isVehicleObservation(value))return {...value,status:vehicleStatus(value)};
+ if(isVehicleObservation(value))return {...value,status:vehicleStatus(value),shortStatus:vehicleStatus(value,Date.now(),{short:true})};
  if(value?.kind!=='vehicle'||value.mode!=='fixture')return unconnectedVehicleModel();
  const base=vehicleFixture({charging:value.fixtureCase==='charging',now:Number.isFinite(value.charging?.endsAt)?(value.charging.endsAt-2700)*1000:Date.now(),controls:value.controlsPreview===true});
  if(!base.controlsPreview)return base;

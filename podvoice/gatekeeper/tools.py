@@ -2827,10 +2827,11 @@ class ToolRouter:
             return {**unavailable, "bindingId": source_binding} if current() else unavailable
 
     def _remember_vehicle_connection(self, scope, result: dict) -> None:
-        """Sleep is shown from Tesla's own state, remembered across restarts (B3)."""
-        if "status" not in dict(scope.entities):
-            result.pop("connection", None)
-            return
+        """Sleep is shown from Tesla's own state, remembered across restarts (B3).
+
+        Tesla's state comes from the integration itself; a configured status sensor
+        is not required (Green's vehicle policy predates that role).
+        """
         times = [*result.get("fieldObservedAt", {}).values(), result["observedAt"]]
         remembered = self._vehicle_connection.apply(
             hashlib.sha256(f"{scope.config_entry_id}:{scope.device_id}".encode()).hexdigest(),

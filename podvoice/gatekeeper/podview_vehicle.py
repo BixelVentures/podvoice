@@ -656,8 +656,7 @@ async def read_snapshot(
                     return unavailable
             connection = value.get("connection")
             if connection is not None and (
-                "status" not in fields
-                or trunk_control
+                trunk_control
                 or type(connection) is not dict
                 or set(connection) != {"state", "since"}
                 or connection["state"] not in CONNECTION_STATES

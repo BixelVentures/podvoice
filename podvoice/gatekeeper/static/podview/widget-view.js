@@ -839,7 +839,7 @@ class WidgetHost extends HTMLElement {
   const radioFacts=[];if(radio){radioFacts.push({id:'station',label:'Station',value:vm.title,stale});if(vm.target)radioFacts.push({id:'radio-room',label:'Højttaler',value:vm.target,stale});}
   updateResourceFacts($('home-radio'),{facts:radioFacts,context:''});
   const car=vehicleOverviewFacts(vehicle);
-  updateResourceFacts($('home-vehicle'),{facts:car,context:vehicle?.mode==='unconnected'?'':[vehicle?.status,vehicleUpdatedLabel(vehicle)].filter(Boolean).join(' · ')});
+  updateResourceFacts($('home-vehicle'),{facts:car,context:vehicle?.mode==='unconnected'?'':[vehicle?.shortStatus||vehicle?.status,vehicleUpdatedLabel(vehicle)].filter(Boolean).join(' · ')});
   const current=this.timerView?.currentTimer,timer=[];if(!current){const seen=new Set();for(const previous of s.timerHistory||[])if(Number.isFinite(previous.seconds)&&previous.seconds>0&&!seen.has(previous.seconds)){seen.add(previous.seconds);timer.push({id:`recent:${previous.seconds}`,label:timer.length?'Tidligere tid':'Senest brugt',value:timerTime(previous.seconds)});if(timer.length===3)break;}}
   // Active Timer and weather retain their own richer dial/deadline/forecast
   // anatomy. The optional fact role belongs only to the idle timer shortcut.

@@ -1053,3 +1053,16 @@ async def test_unknown_status_after_core_restart_reports_no_connection(rig):
 async def test_sensor_change_time_is_used_only_when_it_matches_teslas_state(rig):
     result = await read_with_status(rig, add_status(rig, ha_state="unknown"))
     assert result["connection"] == {"state": "asleep", "since": None}
+
+
+async def test_sleep_reaches_podvoice_without_a_configured_status_sensor(rig):
+    """B3 on Green: the vehicle policy predates the status role; sleep must still show."""
+    scope = addon.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": rig.entities})
+    )
+    assert "status" not in dict(scope.entities)
+    result = await read_with_status(rig, scope)
+    assert result["connection"] == {"state": "asleep", "since": None}
+    rig.vehicle.coordinator.data = {"state": "online"}
+    awake = await read_with_status(rig, scope)
+    assert awake["connection"] == {"state": "online", "since": None}

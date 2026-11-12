@@ -9,3 +9,8 @@ export function updatedLabel(ms,now=new Date()){
  const when=age===0?clock:age===1?`i går ${clock}`:`${at.toLocaleDateString('da-DK',{day:'numeric',month:'short'})} ${clock}`;
  return `Opdateret: ${when}`;
 }
+// The same time wording without the prefix: "09.44", "i går 09.44", "9. nov. 09.44".
+export function updatedWhen(ms,now=new Date()){
+ const label=updatedLabel(ms,now);
+ return label?label.slice('Opdateret: '.length):'';
+}

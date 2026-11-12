@@ -300,16 +300,18 @@ def _connection(hass, coordinator, entities):
     The integration polls this without waking the car. `since` is when HA's status
     sensor last changed to the matching value; it is unknown after a Core restart.
     """
-    if "status" not in entities or type(coordinator.data) is not dict:
+    if type(coordinator.data) is not dict:
         return None
     state = coordinator.data.get("state")
     if state not in ("online", "asleep", "offline"):
         return None
+    # The state needs no status entity; the configured sensor only dates it (B3).
     since = None
     states = getattr(hass, "states", None)
-    sensor = states.get(entities["status"]) if states is not None else None
+    eid = entities.get("status")
+    sensor = states.get(eid) if states is not None and eid else None
     try:
-        if sensor.entity_id == entities["status"] and sensor.state == (
+        if sensor.entity_id == eid and sensor.state == (
             "on" if state == "online" else "off"
         ):
             stamp = sensor.last_changed.timestamp()

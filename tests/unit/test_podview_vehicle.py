@@ -730,3 +730,30 @@ async def test_snapshot_connection_is_admitted_only_for_the_status_role():
     value["connection"] = {"state": "sleeping", "since": None}
     unknown = await v.read_snapshot(scope, service_read=read, current=lambda: True, now=lambda: now)
     assert unknown["status"] == "unavailable"
+
+
+async def test_snapshot_connection_is_admitted_without_the_status_role():
+    now = 1_800_000_000.0
+    entities = {"batteryPercent": "sensor.battery"}
+    scope = v.parse_policy(
+        json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": entities})
+    )
+    value = {
+        "schema": "podvoice.vehicle_snapshot.v1",
+        "configEntryId": "fleet",
+        "deviceId": "car",
+        "entities": entities,
+        "source": "tesla_fleet",
+        "sourceIdentity": "coordinator",
+        "status": "observed",
+        "observedAt": now - 30,
+        "timestamps": {"charge_state": now - 30},
+        "data": {"batteryPercent": 62},
+        "connection": {"state": "asleep", "since": None},
+    }
+
+    async def read(request):
+        return copy.deepcopy(value)
+
+    result = await v.read_snapshot(scope, service_read=read, current=lambda: True, now=lambda: now)
+    assert result["connection"] == {"state": "asleep", "since": None}
