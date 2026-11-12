@@ -35,7 +35,7 @@ SPEC.loader.exec_module(snapshot)
 
 class RobotSnapshotSDKTests(unittest.IsolatedAsyncioTestCase):
     async def build(self, missing_info=False):
-        self.assertEqual(__version__, "2026.8.2")
+        self.assertIn(__version__, {"2026.8.2", "2026.11.1"})  # both CI-pinned versions
         self.assertEqual(importlib.metadata.version("python-roborock"), "5.31.1")
         self.assertEqual(importlib.metadata.version("vacuum-map-parser-roborock"), "0.1.5")
         status = StatusTrait(NS())
