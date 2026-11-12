@@ -1927,6 +1927,12 @@ class PodViewBridge:
             "turnId": session._external_turn_id() if active else None,
             "active": active,
         }
+        from .voicepe import VoicePELink
+
+        link = getattr(session, "voicepe", None)
+        if isinstance(link, VoicePELink):
+            # Svar shows "Voice PE offline" while the room's puck has no API link.
+            voice["device"] = "online" if link._link_up else "offline"
         timer_owner = getattr(getattr(session, "tools", None), "timers", None)
         fresh = bool(timer_owner and timer_owner.available(room))
         timer_state = timer_owner.snapshots.get(room, {}) if fresh and timer_owner else {}

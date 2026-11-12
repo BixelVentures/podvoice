@@ -2159,7 +2159,7 @@
     },
     "dist/ui/library/visual-components.js": {
       "status": "approved-renderer",
-      "domOwner": "VisualComponent, four validated families only",
+      "domOwner": "VisualComponent, validated answer families only",
       "factoryClassArgument": 1,
       "imports": [
         "dist/visual-content.js",
@@ -2184,6 +2184,7 @@
         },
         "roots": [
           "factory:details:'pv-visual-sources'",
+          "factory:div:'pv-sport-score'",
           "factory:div:'pv-visual-body'",
           "factory:div:'pv-visual-lead'",
           "factory:div:'pv-visual-source-panel'",
@@ -2837,7 +2838,8 @@
           "method:updateHomeRevision": 1,
           "method:cancel": 1,
           "arrow:free": 1,
-          "arrow:visible": 1
+          "arrow:visible": 1,
+          "method:renderSvarDevice": 1
         },
         "roots": [
           "native:article:retained-answer",

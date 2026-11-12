@@ -222,3 +222,35 @@ def test_actual_thin_sink_rejects_mixed_or_unbound_presentation_signal(weather, 
         else {"actual"},
     )
     assert not store.snapshot("kitchen")["items"] and store._selection is None
+
+
+@pytest.mark.parametrize(
+    "question,title,day",
+    [
+        ("Hvordan bliver vejret i morgen?", "Vejret i hjemmet i morgen", "torsdag 10. september"),
+        ("Regner det på fredag?", "Vejret i hjemmet på fredag", "fredag 11. september"),
+    ],
+)
+def test_weather_card_shows_the_day_that_was_asked_about(
+    weather, monkeypatch, question, title, day
+):
+    from gatekeeper import podview_receipts
+
+    stamp = datetime.fromisoformat(weather["data"]["result"]["retrieved_at"]).timestamp()
+    monkeypatch.setattr(podview_receipts.time, "time", lambda: stamp)
+    store = VisualReceiptOwner()
+    assert put(store, weather, question=question)
+    item = store.snapshot("kitchen")["items"][0]
+    assert item["content"]["summary"] == title
+    facts = {f["label"]: f for f in item["content"]["facts"]}
+    assert "Temperatur" not in facts  # Not the current reading.
+    assert all(day in f["detail"] for f in facts.values())
+    if day.startswith("torsdag"):
+        assert facts["Højeste"]["value"] == "20.0 °C" and facts["Laveste"]["value"] == "17.7 °C"
+
+
+def test_weather_question_about_now_keeps_the_current_reading(weather):
+    store = VisualReceiptOwner()
+    assert put(store, weather, question="Hvad er temperaturen nu?")
+    item = store.snapshot("kitchen")["items"][0]
+    assert [f["label"] for f in item["content"]["facts"]] == ["Temperatur", "Vejrforhold"]

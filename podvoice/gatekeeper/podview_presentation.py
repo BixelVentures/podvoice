@@ -27,6 +27,8 @@ FAMILIES = frozenset(
         "sourced-image",
         "answer-timeline",
         "simple-diagram",
+        "sport-result",
+        "key-points",
     }
 )
 
@@ -234,7 +236,11 @@ def _album_cover_source(tool_name: str, result: object, now: float) -> dict | No
 
 
 def explanation_content(
-    presentation: dict, receipt_id: str, *, owned_images: dict | None = None
+    presentation: dict,
+    receipt_id: str,
+    *,
+    owned_images: dict | None = None,
+    source_label: str = "AI-forklaring fra PodVoice",
 ) -> dict:
     """Assign all identifiers and sources here; generated content has no tool badge."""
     if presentation.get("origin") != "ai_explanation" or presentation.get("sourceCalls") != []:
@@ -250,7 +256,7 @@ def explanation_content(
                 "id": source,
                 "kind": "owner_receipt",
                 "receiptId": receipt_id,
-                "label": "AI-forklaring fra PodVoice",
+                "label": source_label,
                 "scope": "conversation_answer",
             }
         ],
@@ -265,6 +271,56 @@ def explanation_content(
         _object(raw, {"visualValue"})
         if raw["visualValue"] != "reference":
             raise ValueError("concise requires explicit useful reference value")
+    elif family == "sport-result":
+        _object(raw, {"match", "scorers"})
+        match = raw["match"]
+        if (
+            not isinstance(match, dict)
+            or not {"home", "away", "date"} <= set(match)
+            or set(match) - {"home", "away", "homeScore", "awayScore", "date", "competition"}
+        ):
+            raise ValueError("invalid match")
+        scores = [match.get("homeScore"), match.get("awayScore")]
+        if any(v is not None and (type(v) is not int or not 0 <= v <= 999) for v in scores) or (
+            scores[0] is None
+        ) != (scores[1] is None):
+            raise ValueError("invalid score")
+        content["match"] = {
+            "home": _text(match["home"], 80),
+            "away": _text(match["away"], 80),
+            "homeScore": scores[0],
+            "awayScore": scores[1],
+            "date": _text(match["date"], 80),
+            "competition": _text(match["competition"], 80)
+            if match.get("competition") is not None
+            else None,
+        }
+        scorers = raw["scorers"]
+        if not isinstance(scorers, list) or len(scorers) > 12:
+            raise ValueError("invalid scorers")
+        rows = []
+        for i, row in enumerate(scorers):
+            if not isinstance(row, dict) or set(row) - {"team", "name", "minute"}:
+                raise ValueError("invalid scorer")
+            if row.get("team") not in {"home", "away"}:
+                raise ValueError("invalid scorer team")
+            minute = row.get("minute")
+            rows.append(
+                {
+                    "id": row_id(i),
+                    "team": row["team"],
+                    "name": _text(row.get("name"), 80),
+                    "minute": _text(minute, 24) if minute is not None else None,
+                    "sourceId": source,
+                }
+            )
+        content["scorers"] = rows
+    elif family == "key-points":
+        _object(raw, {"points"})
+        content["points"] = [
+            {"id": row_id(i), "text": _text(value, 240), "sourceId": source}
+            for i, value in enumerate(_rows(raw["points"], 4))
+        ]
     elif family == "comparison":
         _object(raw, {"columns", "items"})
         columns = [_text(label, 80) for label in _rows(raw["columns"], 3)]
@@ -642,6 +698,10 @@ def offer_completed(
                 }
                 source_text = "\n".join(f"{f['label']}: {f['value']}" for f in facts)[:1200]
         else:
+            searched = any(
+                isinstance(r, dict) and r.get("tool") == "google_web_sogning"
+                for r in registry.values()
+            )
             content = explanation_content(
                 presentation,
                 receipt_id,
@@ -649,6 +709,9 @@ def offer_completed(
                 if presentation["family"] == "sourced-image"
                 or "ownedImage" in presentation.get("content", {})
                 else {},
+                source_label="Websøgning, opsummeret af PodVoice"
+                if searched
+                else "AI-forklaring fra PodVoice",
             )
             valid_until = now + 120
         if not current():
@@ -800,6 +863,7 @@ def remember_source(
         return False
     now = time.time()
     registry[call_id] = {
+        "tool": tool_name,
         "key": key,
         "delegation_id": delegation_id,
         "deadline": sink._clock() + 120,

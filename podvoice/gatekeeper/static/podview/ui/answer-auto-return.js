@@ -1,6 +1,9 @@
 // A display-only return to overview. Its normal idle owner later opens Ro.
 // This never dismisses an answer or
 // stops a resource. Speech completion must come from an explicit owner signal.
+// The card stays while she speaks and for one minute after the conversation has closed.
+// A touch or scroll on the card keeps it until the user leaves it.
+export const AUTO_RETURN_MS=60000;
 export function autoReturnCandidate(host){
  const s=host.state,answer=s?.answers?.find(item=>item.id===s.focus&&!item.hidden);
  if(!answer)return null;
@@ -21,7 +24,7 @@ export function autoReturnCandidate(host){
  return {identity,eligible:connected&&complete&&!blocked&&(answer.readStatus||answer.status)==='ready',speaking};
 }
 export class AnswerAutoReturn{
- constructor(host,clock=globalThis){this.host=host;this.clock=clock;this.cancelled=new Set();this.timer=null;this.identity=null;this.attached=false;this.interact=()=>{this.cancel();this.sync();};this.visibility=()=>{if(this.host.ownerDocument?.visibilityState==='hidden')this.cancel(true);};}
+ constructor(host,clock=globalThis){this.host=host;this.clock=clock;this.cancelled=new Set();this.timer=null;this.identity=null;this.attached=false;this.interact=()=>{this.cancel(true);this.sync();};this.visibility=()=>{if(this.host.ownerDocument?.visibilityState==='hidden')this.cancel(true);};}
  attach(){if(this.attached)return;this.attached=true;const doc=this.host.ownerDocument;for(const type of ['pointerdown','click','touchstart','wheel','keydown','scroll'])doc.addEventListener(type,this.interact,{capture:true,passive:true});doc.addEventListener('visibilitychange',this.visibility);}
  cancel(remember=false){if(remember){const key=autoReturnCandidate(this.host)?.identity||this.identity;if(key)this.cancelled.add(key);if(this.identity)this.cancelled.add(this.identity);}if(this.timer!==null)this.clock.clearTimeout(this.timer);this.timer=null;this.identity=null;}
  sync(){
@@ -37,8 +40,10 @@ export class AnswerAutoReturn{
    this.cancelled.add(expected);
    if(!this.host.isConnected||this.host.ownerDocument?.visibilityState==='hidden'||!current?.eligible||current.identity!==expected)return;
    this.host.screenLifecycle?.resetIdle();
-   this.host.sceneNavigation=true;this.host.dispatch({type:'show',id:'now'});
-  },30000);
+   // Return to the view the card was presented over (fx fotovisning), not always the overview.
+   const presented=this.host.state?.presentationReturn?.answerId===this.host.state?.focus;
+   this.host.sceneNavigation=true;this.host.dispatch(presented?{type:'back'}:{type:'show',id:'now'});
+  },AUTO_RETURN_MS);
  }
  cleanup(){this.cancel(true);if(!this.attached)return;const doc=this.host.ownerDocument;for(const type of ['pointerdown','click','touchstart','wheel','keydown','scroll'])doc.removeEventListener(type,this.interact,true);doc.removeEventListener('visibilitychange',this.visibility);this.attached=false;}
 }
