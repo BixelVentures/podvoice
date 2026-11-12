@@ -36,7 +36,9 @@ SPEC.loader.exec_module(snapshot)
 class RobotSnapshotSDKTests(unittest.IsolatedAsyncioTestCase):
     async def build(self, missing_info=False):
         self.assertIn(__version__, {"2026.8.2", "2026.11.1"})  # both CI-pinned versions
-        self.assertEqual(importlib.metadata.version("python-roborock"), "5.31.1")
+        # The Roborock library HA pins for each CI-pinned HA version.
+        roborock = {"2026.8.2": "5.31.1", "2026.11.1": "7.12.0"}[__version__]
+        self.assertEqual(importlib.metadata.version("python-roborock"), roborock)
         self.assertEqual(importlib.metadata.version("vacuum-map-parser-roborock"), "0.1.5")
         status = StatusTrait(NS())
         status.map_status = 3  # Exact SDK current_map property yields flag 0.

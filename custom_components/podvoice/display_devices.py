@@ -7,6 +7,13 @@ import json
 from .controller_admin import _valid_result
 
 
+def _device_entries(registry) -> list:
+    """All device entries. HA 2026.11 rejects `devices.values()` and iterating yields
+    entries; HA 2026.8-2026.10 iterate a mapping of ids."""
+    devices = registry.devices
+    return [devices[item] if isinstance(item, str) else item for item in devices]
+
+
 class DisplayDevices:
     """No polling, authorization, timer registration or physical-device inference."""
 
@@ -32,7 +39,7 @@ class DisplayDevices:
                 existing = next(
                     (
                         device
-                        for device in self.registry.devices.values()
+                        for device in _device_entries(self.registry)
                         if identifier in device.identifiers
                     ),
                     None,
@@ -49,7 +56,7 @@ class DisplayDevices:
                     manufacturer="PodVoice",
                     model="PodView browser profile",
                 )
-        for device in tuple(self.registry.devices.values()):
+        for device in _device_entries(self.registry):
             if self.entry_id not in device.config_entries:
                 continue
             owned = {

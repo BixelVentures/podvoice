@@ -261,7 +261,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         await task
         devices = [
             device
-            for device in registry.devices.values()
+            for device in dr.async_entries_for_config_entry(registry, entry.entry_id)
             if entry.entry_id in device.config_entries and device.id not in original
         ]
         self.assertEqual(len(devices), 1)
