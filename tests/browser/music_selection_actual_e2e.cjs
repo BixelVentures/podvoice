@@ -1662,10 +1662,10 @@ async function queuePersistenceJourney(){
   try{
    await secondCommand.wait();
    await status('pending');
-   await assertNames([21,22,23,24]);
+   // K2: song 22 plays, so the played rows 21 and 22 are no longer listed as upcoming.
+   await assertNames([23,24]);
    const third=rows.filter({hasText:'Køsang 24'});
    assert.equal(await third.isEnabled(),true,'fresh exact surviving row stays tappable with a cold tail');
-   for(const removed of [21,22])assert.equal(await rows.filter({hasText:`Køsang ${removed}`}).isEnabled(),false);
    assert.equal(await rows.filter({hasText:'Køsang 23'}).getAttribute('aria-busy'),'true');
    assert.equal(await queue.getByText('Nummer i køen').count(),0,'unknown tail cannot invent a visible row');
    await third.tap();
