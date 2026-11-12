@@ -311,9 +311,7 @@ def _connection(hass, coordinator, entities):
     eid = entities.get("status")
     sensor = states.get(eid) if states is not None and eid else None
     try:
-        if sensor.entity_id == eid and sensor.state == (
-            "on" if state == "online" else "off"
-        ):
+        if sensor.entity_id == eid and sensor.state == ("on" if state == "online" else "off"):
             stamp = sensor.last_changed.timestamp()
             since = stamp if _number(stamp, 1, time.time()) else None
     except (AttributeError, TypeError, ValueError, OverflowError):
