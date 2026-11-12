@@ -183,6 +183,7 @@ jobs:
         if: matrix.journey != 'panel'
         env:
           JOURNEY_SHARD: ${{ matrix.shard }}
+          JOURNEY_BASE_ALONE: ${{ matrix.base_alone }}
           PODVIEW_TEST_PYTHON: python3
           PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
         run: node tests/browser/podview_actual_journeys.cjs ${{ matrix.journey }}

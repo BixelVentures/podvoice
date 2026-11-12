@@ -7,7 +7,9 @@ import {appendFileSync} from 'node:fs';
 const ALL = ['robot_ux', 'music_push', 'music', 'music_selection', 'radio', 'robot', 'light',
   'vehicle', 'timer', 'home_events', 'answers', 'recipe', 'panel'];
 // Long journeys are split into parallel jobs (JOURNEY_SHARD); together they run every variant.
-const SHARDS = {robot: 2, music: 2, music_selection: 2};
+// robot and music: the slow first run gets a shard of its own (JOURNEY_BASE_ALONE).
+const SHARDS = {robot: 3, music: 3, music_selection: 2};
+const BASE_ALONE = new Set(['robot', 'music']);
 const MUSIC = ['music', 'music_push', 'music_selection', 'radio'];
 const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty', 'setup_flow'];
 
@@ -97,7 +99,9 @@ export function select(files, base, head) {
 function matrix(journeys) {
   return journeys.flatMap(journey => {
     const total = SHARDS[journey] || 1;
-    return Array.from({length: total}, (_, index) => ({journey, shard: `${index}/${total}`}));
+    const baseAlone = BASE_ALONE.has(journey) ? '1' : '0';
+    return Array.from({length: total}, (_, index) => ({journey, shard: `${index}/${total}`,
+      base_alone: baseAlone}));
   });
 }
 
