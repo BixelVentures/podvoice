@@ -26,3 +26,19 @@ class FakeClock:
 @pytest.fixture
 def fake_clock() -> FakeClock:
     return FakeClock()
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """CI splits the suite with PYTEST_SHARD=i/n; each test lands in exactly one shard."""
+    import os
+
+    shard = os.environ.get("PYTEST_SHARD", "")
+    if not shard:
+        return
+    index, total = (int(part) for part in shard.split("/"))
+    # Round-robin over sorted test ids spreads the few slow tests (and their parameters).
+    order = {nodeid: position for position, nodeid in enumerate(sorted(i.nodeid for i in items))}
+    selected = [item for item in items if order[item.nodeid] % total == index]
+    deselected = [item for item in items if order[item.nodeid] % total != index]
+    config.hook.pytest_deselected(items=deselected)
+    items[:] = selected
