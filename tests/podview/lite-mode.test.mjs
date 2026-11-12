@@ -109,7 +109,7 @@ test('cached date formatting gives the same text as toLocaleTimeString', async (
   assert.equal(formatDate(at, day), at.toLocaleDateString('da-DK', day));
 });
 
-test('in strip mode a tap leaves feedback to CSS: no class, style read or animation', async () => {
+test('in strip mode the touched element shows pressed at once, without style reads or animation', async () => {
   const { attachPressedState } = await import('../../podvoice/gatekeeper/static/podview/ui/pressed-state.js');
   const handlers = new Map();
   let styleReads = 0;
@@ -132,12 +132,16 @@ test('in strip mode a tap leaves feedback to CSS: no class, style read or animat
     ownerDocument: doc, addEventListener: (name, fn) => handlers.set(name, fn), removeEventListener() {},
   };
   attachPressedState(surface);
-  const event = (type) => ({ type, pointerId: 1, clientX: 0, clientY: 0, button: 0, isPrimary: true,
+  const event = (type, x = 0, y = 0) => ({ type, pointerId: 1, clientX: x, clientY: y, button: 0, isPrimary: true,
     composedPath: () => [target, surface] });
   handlers.get('pointerdown')(event('pointerdown'));
+  assert.equal(target.classes.has('is-pressed'), true, 'pressed on touch-down, before any click');
   handlers.get('win:pointerup')(event('pointerup'));
-  assert.deepEqual({ classes: target.classes.size, styleReads, animations: target.animations },
-    { classes: 0, styleReads: 0, animations: 0 });
+  assert.equal(target.classes.size, 0, 'released on lift');
+  handlers.get('pointerdown')(event('pointerdown'));
+  handlers.get('pointermove')(event('pointermove', 0, 30));
+  assert.equal(target.classes.size, 0, 'dragging the finger away cancels the press');
+  assert.deepEqual({ styleReads, animations: target.animations }, { styleReads: 0, animations: 0 });
 });
 
 test('an unchanged screen sync writes nothing on the root (each root write restyles the whole page)', async () => {

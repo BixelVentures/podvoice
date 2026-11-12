@@ -22,18 +22,31 @@ export function attachPressedState(surface){
   const animation=target.animate(frames,{duration:90,easing:'cubic-bezier(.2,0,0,1)'});feedback.set(target,animation);
   animation.finished?.catch(()=>{}).finally(()=>{if(feedback.get(target)===animation)feedback.delete(target);});
  };
- // Strip mode (html[data-lite]): CSS :active is the feedback. No class, style read or animation, so a
- // tap does not start a style recalculation that the next layout read must wait for.
+ // Strip mode (html[data-lite]): the pressed class lands on the touched element at once (Chrome on
+ // Android only sets :active after it decides tap vs scroll, so quick taps showed nothing). No style
+ // read, focus marker or release animation; moving >10 px, scrolling or cancelling clears it.
  const lite=()=>doc.documentElement?.hasAttribute?.('data-lite')===true;
+ const liteDown=event=>{
+  if(event.isPrimary===false||event.button>0)return;clear();
+  const path=event.composedPath?.()||[event.target];
+  const index=path.findIndex(node=>node?.matches?.('button,a[href],summary,[role="button"]')),target=path[index];
+  const field='input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])';
+  if(index<0||path.slice(0,index+1).some(node=>node?.matches?.(field))||unavailable(target))return;
+  pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY,shadow:'none'};
+  target.classList.add('is-pressed');
+ };
  const down=event=>{
-  if(lite())return;
+  if(lite())return liteDown(event);
   if(event.isPrimary===false||event.button>0)return;if(event.pointerId!=='keyboard')pointerModality=true;clear();const path=event.composedPath?.()||[event.target],index=path.findIndex(node=>node?.matches?.('button,a[href],summary,[role="button"]')),target=path[index];
   // A nested native field owns its gesture and selection, not its card wrapper.
   if(index<0||path.slice(0,index+1).some(node=>node?.matches?.('input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])'))||unavailable(target))return;
   cancelFeedback(target);if(event.pointerId!=='keyboard'){clearFocus();pointerFocus=target;target.setAttribute?.('data-pv-pointer-focus','true');}
   const shadow=win?.getComputedStyle?.(target)?.boxShadow||'none';pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY,shadow};target.classList.add('is-pressed');
  };
- const up=event=>{if(event.pointerId!==pointerId)return;const target=pressed,shadow=origin?.shadow;clear();if(event.type==='pointerup'||event.type===undefined)acknowledge(target,shadow);};
+ const up=event=>{
+  if(event.pointerId!==pointerId)return;const target=pressed,shadow=origin?.shadow;clear();
+  if(!lite()&&(event.type==='pointerup'||event.type===undefined))acknowledge(target,shadow);
+ };
  const move=event=>{if(event.pointerId===pointerId&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)clear();};
  const keydown=event=>{pointerModality=false;clearFocus();if(event.repeat||!['Enter',' '].includes(event.key))return;down({...event,composedPath:()=>event.composedPath?.()||[event.target],isPrimary:true,button:0,pointerId:'keyboard',clientX:0,clientY:0});};
  const keyup=event=>{if(pointerId==='keyboard'&&['Enter',' '].includes(event.key)){const target=pressed,shadow=origin?.shadow;clear();acknowledge(target,shadow);}};
