@@ -4,7 +4,7 @@ import {renderPlayerControls} from './player-view.js';
 // The player's buttons: each tap is one direct call to the room's media_player (via PodVoice).
 // A tap shows its effect at once, waits its turn behind a running call (never a locked button),
 // and the next room read shows what really happened. Last command wins; nothing is retried.
-const OPTIMISTIC_MS=6000;
+const OPTIMISTIC_MS=6000,MOVE_MS=15000;
 const FAILED={
  rejected:'Højttaleren afviste handlingen. Prøv igen.',
  unknown:'Højttaleren svarede ikke. Tjek afspilleren, før du prøver igen.',
@@ -30,6 +30,8 @@ export class RoomPlayerControls{
   return d&&d.scope===this.scope(p)?d:null;
  }
  busy(){return !!this.running||this.queue.length>0;}
+ // "Flyt til <rum>" was tapped and the room does not play it yet.
+ moving(){return this.wish()?.moving===true;}
  optimisticPlaying(observed){
   const d=this.wish();
   return d&&typeof d.playing==='boolean'?d.playing:observed;
@@ -67,6 +69,7 @@ export class RoomPlayerControls{
   if(action==='volume')wish.volume=value;
   if(action==='seek')wish.seek={uri:p.item?.uri,positionMs:value};
   if(action==='next'||action==='previous')delete wish.seek;
+  if(action==='move_here')wish.moving=true;
   this.desired=wish;this.status='';this.failed=null;
   // An absolute value replaces the one still waiting; every toggle/skip tap is its own action.
   if(action==='volume'||action==='seek')this.queue=this.queue.filter(row=>row.action!==action);
@@ -114,10 +117,12 @@ export class RoomPlayerControls{
    this.observing=[];
   }
   const d=this.desired;
+  // A move is shown until the room plays (or a short while passes); then the room player decides.
   if(!d||this.busy())return;
-  const reached=(typeof d.playing!=='boolean'||(next.state==='playing')===d.playing)
+  const reached=(!d.moving||next.elsewhere!==true)
+   &&(typeof d.playing!=='boolean'||(next.state==='playing')===d.playing)
    &&(!Number.isInteger(d.volume)||next.volume===d.volume)&&!d.seek;
-  if(reached||Date.now()-d.at>OPTIMISTIC_MS)this.desired=null;
+  if(reached||Date.now()-d.at>(d.moving?MOVE_MS:OPTIMISTIC_MS))this.desired=null;
  }
  invalidate(){
   for(const row of this.queue)row.done(false);

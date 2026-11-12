@@ -286,7 +286,8 @@ export class LiveMediaView{
   if(currentStatus){if(this.selectionReceiptFeedback!==feedback){this.selectionReceiptFeedback=feedback;if(!this.host.feedbackMessage||this.host.feedbackMessage===feedback.message)this.host.showFeedback?.(feedback.message,false);}}else if(this.selectionReceiptFeedback!==feedback)this.selectionReceiptFeedback=null;
   const selection=this.host.liveSelection,playerFeedback=selection?.playerFeedback?.()??feedback,selected=selection?.pendingPlayer?.(playerFeedback),model=this.observedPlayerModel();if(model.active&&typeof model.playing==='boolean'&&this.host.liveControls?.optimisticPlaying)model.playing=this.host.liveControls.optimisticPlaying(model.playing);
   const controls=this.host.liveControls,controlStatus=!selected&&model.active?(controls?.playerStatus?.()||(this.host.liveTransport?.connected&&Array.isArray(this.host.liveSnapshot?.capabilities?.controlSetup)&&!this.host.liveSnapshot.capabilities.controlSetup.includes('music')?NO_ACCESS:'')):'';
-  const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()||'';
+  const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()
+   ||(controls?.player?.moving?.()?this.host.liveOutputs?.configuredLabel?.()||'Højttaleren i rummet':'');
     // The speaker's native confirmation of this exact request plays the chosen item before
   // Spotify's observation names it. Controls still wait for that observation's authority.
   const confirmed=!!selected&&playerFeedback?.settlementStatus==='confirmed';

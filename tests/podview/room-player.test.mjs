@@ -112,4 +112,11 @@ test('f) the own account on another device keeps its controls and offers "Flyt t
  assert.equal(await next,true);
  assert.deepEqual(calls,[['pause',undefined],['next',undefined]]);
  assert.equal(await controls.intent('volume',{percent:20}),false,'volume only if the device offers it');
+ host.liveMedia.playback=roomPlayerObservation(body({state:'idle',actions:['pause','next','move_here'],maxVolume:null,
+  elsewhere}),'account',snapshot);
+ const moved=controls.intent('move_here');
+ assert.equal(controls.moving(),true,'"Flyt til" shows at once');
+ await flush();releases.shift()();
+ assert.equal(await moved,true);
+ assert.deepEqual(calls.at(-1),['move_here',undefined]);
 });

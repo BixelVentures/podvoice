@@ -3433,7 +3433,8 @@
           "method:drain": 1,
           "method:observe": 1,
           "method:invalidate": 1,
-          "method:render": 1
+          "method:render": 1,
+          "method:moving": 1
         },
         "roots": [],
         "registrations": {},

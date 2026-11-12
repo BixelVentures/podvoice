@@ -123,6 +123,8 @@ class Rig:
                 physical_result_verified=False,
             )
             return httpx.Response(200, json={"service_response": receipt})
+        if path.endswith("/services/podconnect/move_playback"):
+            return httpx.Response(200, json=[])
         if path.startswith("/core/api/media_player_proxy/"):
             return httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})
         raise AssertionError(path)
@@ -319,7 +321,7 @@ async def test_own_account_on_another_device_keeps_its_device_controls(rig, monk
     assert body["elsewhere"]["targetName"] == "iPhone"
     assert body["elsewhere"]["title"] == "Let It Be"
     # f) The own account is never without control: the device's own offered actions.
-    assert body["actions"] == ["pause", "next", "previous"]
+    assert body["actions"] == ["pause", "next", "previous", "move_here"]
     result = await podview_room_player.command(
         rig.bridge, "kitchen", "account-alpha", rig.token, "next", None
     )
@@ -333,6 +335,16 @@ async def test_own_account_on_another_device_keeps_its_device_controls(rig, monk
         rig.bridge, "kitchen", "account-alpha", rig.token, "volume", 20
     )
     assert refused["outcome"] == "rejected"
+    # "Flyt til <rum>": one move_playback to the room's configured alias, no chooser or offer.
+    assert "move_here" in body["actions"]
+    moved = await podview_room_player.command(
+        rig.bridge, "kitchen", "account-alpha", rig.token, "move_here", None
+    )
+    assert moved == {"outcome": "accepted"}
+    moves = [row[2] for row in rig.calls if row[1].endswith("/move_playback")]
+    assert moves == [
+        {"config_entry_id": "account-alpha", "kind": "configured_alias", "target_id": "r6"}
+    ]
     # Unproven output on the room's own engine is not "another device": the room player decides.
     monkeypatch.setattr(
         podview_room_player.podview_room_media,

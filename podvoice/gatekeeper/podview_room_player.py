@@ -22,6 +22,9 @@ from . import podview_room_media
 _LOG = logging.getLogger("podvoice.podview")
 
 SCHEMA = "podview.room-player.v1"
+# f) The account plays on another device: take it over into this room, like choosing the
+# room in the Spotify app. PodConnect Control's move_playback to the configured room alias.
+MOVE_HERE = "move_here"
 STATES = ("playing", "paused", "buffering", "idle")
 # PodView action -> (media_player service, service field). Each tap is one call.
 COMMANDS = {
@@ -355,6 +358,9 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
         )
         offered = set(offer["actions"]) if offer else set()
         body["actions"] = [action for action in actions if action in offered]
+        if actions:
+            # "Flyt til <rum>": take the playback over into this room (move_playback).
+            body["actions"].append(MOVE_HERE)
         body["maxVolume"] = limit if "volume" in body["actions"] else None
         body["volumePercent"] = offer["volume_percent"] if offer else None
         devices[(room, account)] = elsewhere["targetId"]
@@ -365,6 +371,8 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
 
 async def command(bridge, room: str, account: str, token: str, action: str, value) -> dict:
     """One direct HA call on the room's media_player. HA's answer is the outcome."""
+    if action == MOVE_HERE:
+        return await _move_here(bridge, room, account, token)
     if action not in COMMANDS:
         return {"outcome": "rejected", "error": "unsupported_action"}
     scope, rule = player_target(bridge, room, account)
@@ -416,6 +424,43 @@ async def command(bridge, room: str, account: str, token: str, action: str, valu
         )
         return {"outcome": "rejected", "error": "ha_rejected"}
     _LOG.info("podview_room_player stage=command action=%s outcome=accepted ms=%s", action, elapsed)
+    return {"outcome": "accepted"}
+
+
+async def _move_here(bridge, room: str, account: str, token: str) -> dict:
+    """One move_playback call: the account's playback over to this screen's room."""
+    scope, rule = player_target(bridge, room, account)
+    actions, _ = permissions(bridge, room, token, rule)
+    if (
+        scope is None
+        or not actions
+        or (room, account) not in bridge._room_player_devices
+        or not available(bridge.tools)
+    ):
+        return {"outcome": "rejected", "error": "not_granted"}
+    tools = bridge.tools
+    try:
+        async with asyncio.timeout(15):
+            response = await tools._client.post(
+                f"{C.SUPERVISOR_CORE_API}/services/podconnect/move_playback",
+                headers={"Authorization": f"Bearer {tools._token}"},
+                json={
+                    "config_entry_id": account,
+                    "kind": "configured_alias",
+                    "target_id": scope["nativeRoomId"],
+                },
+            )
+    except Exception as error:
+        _LOG.warning(
+            "podview_room_player stage=move_here outcome=unknown error=%s", type(error).__name__
+        )
+        return {"outcome": "unknown", "error": "no_answer"}
+    if response.status_code >= 400:
+        _LOG.warning(
+            "podview_room_player stage=move_here outcome=rejected status=%s", response.status_code
+        )
+        return {"outcome": "rejected", "error": "ha_rejected"}
+    _LOG.info("podview_room_player stage=move_here outcome=accepted")
     return {"outcome": "accepted"}
 
 

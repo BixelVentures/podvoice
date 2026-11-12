@@ -272,7 +272,7 @@ export class LiveControlView{
  }
  // An explicit tap is one direct room player call, queued behind a running one, never replayed.
  musicIntent(action,input={}){
-  if(!['pause','resume','next','previous','volume','seek'].includes(action))return Promise.resolve(false);
+  if(!['pause','resume','next','previous','volume','seek','move_here'].includes(action))return Promise.resolve(false);
   return this.player.intent(action,input);
  }
  journalDevice(transport,stage,fields){try{transport?.recordDiagnostic?.(stage,fields);}catch{/* Diagnostics never own dispatch or presentation. */}}

@@ -492,7 +492,14 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   await assertNoTakeover();
  }
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
- assert.equal((await change({externalOutput:'native-room'})).ok,true);
+ // "Flyt til Køkkenalrum" takes the playback over from the phone at once (move_playback).
+ const moveTap=await page.locator('#output').evaluate(node=>{
+  const start=performance.now(),state=document.getElementById('player-state');
+  node.click();
+  return state.textContent==='Skifter til'?performance.now()-start:null;
+ });
+ assert(moveTap!==null&&moveTap<100,`"Skifter til" shows within 100 ms: ${moveTap}`);
+ assert.equal(await page.locator('#rooms').evaluate(dialog=>dialog.open),false,'no chooser opens');
  const waitForKitchen=phase=>page.waitForFunction(value=>{
   const host=document.querySelector('pv-widget-host'),p=host?.liveMedia?.playback;
   const button=document.querySelector('#play-pause'),output=document.querySelector('#output');
@@ -502,6 +509,9 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
    &&output.getAttribute('aria-label')?.includes('Aktuelt output');
  },phase,{timeout:15000});
  await waitForKitchen('playing');
+ assert.equal((await page.locator('#player-state').innerText()).trim(),'Spiller på');
+ assert.deepEqual((await state()).writes.filter(row=>row.action==='move_playback').map(row=>row.target),
+  ['native-room']);
  await assertNoTakeover();
  for(const phase of ['paused','playing']){
   await control.tap();
@@ -530,7 +540,8 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  assert.deepEqual(roomWrites(after).slice(roomWrites(before).length).map(({action,room,homepod})=>[action,room,homepod]),
   [['pause','native-room','42'],['resume','native-room','42'],
    ...(composed?[['play_queue_occurrence','native-room','42']]:[])]);
- assert.deepEqual(requests.slice(initialPosts).map(row=>row.body?.action),[...deviceActions,'pause','resume']);
+ assert.deepEqual(requests.slice(initialPosts).map(row=>row.body?.action),
+  [...deviceActions,'move_here','pause','resume']);
  if(composed){
   const native=queueCalls(after).slice(queueCalls(before).length);
   assert.deepEqual(native.map(({service,args})=>[service,args.room_id,args.homepod_id]),

@@ -561,6 +561,17 @@ async def native_service(request):
     args = json.loads(request.content)
     path = request.url.path
     service_reads.append({"path": path, "requestId": args.get("request_id")})
+    if path.endswith("/services/podconnect/move_playback"):
+        # PodConnect Control's take-over: the account's playback moves to the room's speaker.
+        assert args["kind"] == "configured_alias" and args["config_entry_id"] == "account"
+        state.pop("externalDevice", None)
+        state.update(room=args["target_id"], state="playing")
+        state["homepod"] = {"native-room": "42", "bedroom": "43"}[args["target_id"]]
+        state["sequence"] += 1
+        state["writes"].append({"action": "move_playback", "target": args["target_id"]})
+        await emit_playback_changed()
+        await emit_room_changed()
+        return httpx.Response(200, json=[])
     if (
         path.endswith(("get_playback_controls", "control_playback"))
         and args.get("target_id") != "device"

@@ -25,7 +25,7 @@ export function mediaRoomBinding(snapshot,account){
 // The room player (podview.room-player.v1) is the PodConnect room's own HA media_player.
 // It is one state model: whatever started the music, this is what the room plays.
 const PLAYER_STATES=['playing','paused','buffering','idle','unavailable'];
-const PLAYER_ACTIONS=['pause','resume','next','previous','seek','volume'];
+const PLAYER_ACTIONS=['pause','resume','next','previous','seek','volume','move_here'];
 const PLAYER_FRESH_MS=30000;
 const optionalText=(value,n=512)=>value===null?null:txt(value,n);
 const optionalCount=value=>value===null||Number.isSafeInteger(value)&&value>=0?value:(()=>{
