@@ -2745,7 +2745,8 @@
         "dist/vehicle-preview-command.js",
         "dist/live-radio-view.js",
         "dist/owner-answers.js",
-        "dist/recipe-view.js"
+        "dist/recipe-view.js",
+        "dist/ui/request-id.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2839,7 +2840,8 @@
           "method:cancel": 1,
           "arrow:free": 1,
           "arrow:visible": 1,
-          "method:renderSvarDevice": 1
+          "method:renderSvarDevice": 1,
+          "method:pollLive": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3400,6 +3402,23 @@
         "scope": "DOM-free refresh scheduling, visibility and disposal helpers in the existing RecipeView; retain category, focus and scroll. No DOM roots, component anatomy or family added. Real browser upload-to-catalogue and server restart checked on the isolated candidate.",
         "newComponentFamilies": false
       }
+    },
+    "dist/ui/request-id.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:randomUUID": 1,
+          "function:supplyRandomUUID": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "Supplies crypto.randomUUID from getRandomValues on plain-HTTP wall screens (Frameo), where it is missing."
     }
   },
   "sharedContracts": [

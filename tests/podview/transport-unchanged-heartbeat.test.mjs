@@ -28,6 +28,7 @@ async function fixture() {
     },
     onSnapshot: () => calls.push('snapshot'),
     onConnection: (state) => calls.push(`connection:${state}`),
+    onHeartbeat: (value) => calls.push(`heartbeat:${value.observedAt}`),
   });
   await transport.start();
   calls.length = 0;
@@ -45,7 +46,7 @@ async function withClock(fn) {
   }
 }
 
-test('an unchanged heartbeat refreshes liveness but does not redraw the screen', () =>
+test('an unchanged heartbeat keeps live reads polling but does not redraw the screen', () =>
   withClock(async (clock) => {
     const { transport, calls } = await fixture();
     try {
@@ -53,7 +54,8 @@ test('an unchanged heartbeat refreshes liveness but does not redraw the screen',
         clock.advance(1000);
         assert.equal(transport.accept(snapshot({ observedAt: 1000 + second }), clock.now()), true);
       }
-      assert.deepEqual(calls, []);
+      // Music, radio, answer and home reads still poll on the heartbeat; only the redraw is skipped.
+      assert.deepEqual(calls, ['heartbeat:1001', 'heartbeat:1002', 'heartbeat:1003', 'heartbeat:1004', 'heartbeat:1005']);
       assert.equal(transport.snapshot.observedAt, 1005, 'the newest observation is still kept');
       assert.equal(transport.acceptedReadAt, clock.now(), 'freshness follows the heartbeat');
     } finally {

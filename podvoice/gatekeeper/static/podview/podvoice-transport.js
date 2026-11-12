@@ -44,7 +44,7 @@ const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admissio
 const heartbeatSignature=value=>JSON.stringify({...value,observedAt:undefined});
 
 export class PodVoiceTransport {
- constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild} = {}) {
+ constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onHeartbeat = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild} = {}) {
   const page = new URL(url);
   if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
@@ -72,7 +72,7 @@ export class PodVoiceTransport {
   try{this.namedIntentStorage=namedIntentStorage===undefined?globalThis.localStorage:namedIntentStorage;}catch{this.namedIntentStorage=null;}
   this.namedIntentKey='podview.named-screen.intent.v1:'+this.cookieScope;
   this.namedControllerRenewed=false;this.namedLaneWanted=false;this.namedRenewalDenied=false;this.namedRenewalUnconfirmed=false;
-  this.onSnapshot = onSnapshot; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
+  this.onSnapshot = onSnapshot; this.onHeartbeat = onHeartbeat; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
   this.controllerRenewalOwner={}; this.snapshot = null; this.acceptedReadAt = null; this.connected = false; this.closed = true; this.generation = 0;
  }
  // Content-free diagnostics never own authority, retries, UI state or dispatch.
@@ -240,7 +240,7 @@ export class PodVoiceTransport {
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed){this.recordDiagnostic('freshness',{code:'expiry'});this.disconnected();}},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
-  if(unchanged){this.presentedSnapshot=value;return true;}
+  if(unchanged){this.presentedSnapshot=value;this.notify('onHeartbeat',value);return true;}
   this.presentedSnapshot=value;this.presentedAt=Date.now();
   const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
