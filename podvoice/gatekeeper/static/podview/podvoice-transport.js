@@ -252,7 +252,9 @@ export class PodVoiceTransport {
   // whole screen for it blocked taps for ~1 s on slow wall screens (Frameo, Chrome 107), so an
   // unchanged heartbeat only refreshes freshness; a redraw still happens every 10 s for aging labels.
   const unchanged=this.connected===true&&this.presentedSnapshot===this.snapshot&&Date.now()-this.presentedAt<10000
-   &&heartbeatSignature(this.snapshot)===heartbeatSignature(value);
+   &&heartbeatSignature(this.snapshot)===heartbeatSignature(value)
+   // During a conversation every heartbeat still redraws: answer cards appear while she speaks.
+   &&value?.voice?.active!==true;
   this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;this.syncDiagnosticScope(value);
   if(normalHA&&this.namedLaneWanted&&!this.namedControllerRenewed&&!this.namedRenewalDenied&&this.namedResumeNeeded&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.namedRenewTimer){const generation=this.generation;this.namedRenewTimer=setTimeout(()=>{this.namedRenewTimer=null;if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},1000);}
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
