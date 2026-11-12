@@ -63,7 +63,7 @@ test('fresh scoped weather expires offline via the existing model deadline, with
  const now=Date.now(),raw=retainedFacts(now);raw.stateUpdatedAt=new Date(now-7199000).toISOString();
  const facts=weatherFactObservation(raw,{now}),deadline=now+1000;
  assert.equal(facts.displayUntil,deadline);
- const before=liveWeatherModel(facts,{now:deadline-1,connected:false});assert.equal(before.current.temperature,'10°');assert.equal(before.sourceStale,true);assert.equal(before.refreshAt,deadline);assert.equal(before.metadata.find(row=>row.id==='weather-retrieved').label,'Hentet');
+ const before=liveWeatherModel(facts,{now:deadline-1,connected:false});assert.equal(before.current.temperature,'10°');assert.equal(before.sourceStale,true);assert.equal(before.refreshAt,deadline);assert.equal(before.metadata.find(row=>row.id==='weather-retrieved').label,'Opdateret');
  const after=liveWeatherModel(facts,{now:deadline,connected:false});assert.equal(after.current,null);assert.deepEqual(after.days,[]);assert.deepEqual(after.hours,[]);assert.equal(after.summary,'');
 });
 

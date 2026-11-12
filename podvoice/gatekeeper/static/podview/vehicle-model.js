@@ -1,3 +1,4 @@
+import {updatedLabel} from './updated-label.js';
 import {isVehicleObservation} from './ha-home-observation.js';
 // Tesla admits the closed passive HA observation below, never command authority.
 // Spotify/player data and arbitrary live-shaped objects cannot supply vehicle state.
@@ -27,9 +28,7 @@ export function vehicleUpdatedLabel(value,now=new Date()){
  if(!isVehicleObservation(value)||value.source!=='tesla_fleet_snapshot')return '';
  const times=[value.observedAt,...Object.values(value.fieldObservedAt||{})].filter(t=>Number.isFinite(t)&&t>0&&t*1000<=now.getTime()+60000);
  if(!times.length)return '';
- const at=new Date(Math.max(...times)*1000),clock=at.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
- const day=date=>new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime(),age=Math.round((day(now)-day(at))/86400000);
- return `Opdateret: ${age===0?clock:age===1?`i går ${clock}`:`${at.toLocaleDateString('da-DK',{day:'numeric',month:'short'})} ${clock}`}`;
+ return updatedLabel(Math.max(...times)*1000,now);
 }
 
 export function vehicleModel(value){
