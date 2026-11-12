@@ -1,3 +1,7 @@
+## 2.0.184
+
+- Teslaen giver ærlig besked: ved lavt batteri står der »Lavt batteri (9 %) · Tesla afviser måske klima«, mens bilen vækkes står der »Sendt · vækker bilen…«, og hvis bilen vågner uden at gøre det, står der fx »Bilen tændte ikke klimaet · batteri 9 %« i stedet for »Udfald ukendt«. Afviser Tesla eller Home Assistant kommandoen, vises det med det samme på dansk. Samme for lås, bagagerum og sædevarme.
+
 ## 2.0.183
 
 - Et opfølgende spørgsmål til et svarkort (fx »hvem scorede« efter en kamp) tilføjes nu som nyt afsnit på samme kort og kommer i historikken. Før blev det tabt, når modellen udfyldte ukendte felter med tom tekst. Teslaens kommandoer venter op til 45 sekunder, mens HA vækker bilen, i stedet for at vise »Udfald ukendt« efter 8 sekunder. En deling uden opskriftslink logger nu, hvilke felter der kom ind (kun navne og typer).
