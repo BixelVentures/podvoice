@@ -45,6 +45,7 @@ export class RecipeView {
   } catch { /* The catalog remains usable without storage. */ }
   this.saved = [];
   this.uploads = [];
+  this.shortcut = null;
   this.sources = [];
   this.sessions = new Map();
   this.pendingSession = null;
@@ -196,6 +197,19 @@ export class RecipeView {
   return status !== this.uploadHistoryStatus || before !== JSON.stringify(this.uploads);
  }
 
+ async refreshShortcut(signal) {
+  // HA administrators only: the server answers 403 to everyone else and the entry stays hidden.
+  const before = JSON.stringify(this.shortcut);
+  try {
+   const response = await fetch(new URL('api/recipe-shortcut',document.baseURI),{cache:'no-store',signal});
+   const shortcut = response.ok ? await response.json() : null;
+   this.shortcut = shortcut && typeof shortcut.download === 'string' ? shortcut : null;
+  } catch {
+   if (signal?.aborted) return false;
+  }
+  return before !== JSON.stringify(this.shortcut);
+ }
+
  catalog(refresh = true, {restoreScroll = !this.active} = {}) {
   const entries = element('div');
   this.page('Opskrifter','',()=>{
@@ -243,6 +257,49 @@ export class RecipeView {
    }
   };
   this.renderUploadHistory = () => {if(layout.isConnected) renderUploads();};
+  const shortcutBox = createKitDisclosure({id:'recipe-shortcut',title:'Tilføj opskrift-genvej til iPhone',
+   expanded:this.shortcutExpanded,onToggle:expanded=>{this.shortcutExpanded=expanded;}});
+  const shortcutUpdate = kit('listrow','',{tag:'div',variant:'read-only'});
+  const renderShortcut = () => {
+   const shortcut = this.shortcut, fileName = 'Opskrifter til PodView.shortcut';
+   shortcutBox.node.hidden = !shortcut;
+   shortcutUpdate.hidden = !shortcut?.outdated;
+   if (!shortcut) return;
+   const download = label => {
+    const link = applyKitComponent(element('a',label),'button',{variant:'secondary'});
+    link.href = new URL(shortcut.download,document.baseURI).href;
+    link.download = fileName;
+    return link;
+   };
+   shortcutUpdate.replaceChildren(applyKitTextRole(element('h3','Ny version af genvejen'),'field-label'),
+    meta('En iPhone brugte en ældre genvej. Hent den nye, og erstat den gamle.'),download('Hent ny version'));
+   shortcutBox.setDescription(shortcut.outdated ? 'Ny version af genvejen' : '');
+   const copyRow = (title, value, shown = value) => {
+    const row = kit('listrow','',{tag:'div',variant:'read-only'});
+    const text = meta(shown);
+    const copy = action('Kopiér',async()=>{
+     try {await navigator.clipboard.writeText(value); copy.textContent = 'Kopieret';}
+     catch {text.textContent = value; copy.textContent = 'Markér og kopiér';}
+    });
+    row.append(applyKitTextRole(element('h3',title),'field-label'),text,copy);
+    return {row,text};
+   };
+   const address = shortcut.address || new URL('/api/podvoice/recipe-submissions',location.origin).href;
+   shortcutBox.panel.replaceChildren(
+    meta('Del en opskrift fra Safari eller en anden app med genvejen. '
+     +'Når du tilføjer den, spørger iPhone om to ting. Kopiér dem herfra.'),
+    copyRow('1. PodView-adresse',address).row);
+   if (shortcut.uploadCode) {
+    const code = copyRow('2. Uploadkode',shortcut.uploadCode,'Skjult');
+    const reveal = action('Vis',()=>{code.text.textContent = shortcut.uploadCode; reveal.hidden = true;});
+    code.row.append(reveal);
+    shortcutBox.panel.append(code.row);
+   } else {
+    shortcutBox.panel.append(meta('2. Uploadkode: ikke sat. '
+     +'Angiv recipe_upload_token (mindst 32 tegn) i PodVoice-indstillingerne.'));
+   }
+   shortcutBox.panel.append(download('Hent genvejen'));
+  };
   function jump(letter) {
    const group = groups.get(letter);
    if (group) entries.scrollTop += group.getBoundingClientRect().top - entries.getBoundingClientRect().top;
@@ -348,7 +405,8 @@ export class RecipeView {
     entries.append(history.node);
    }
    renderUploads();
-   entries.append(uploads.node);
+   renderShortcut();
+   entries.append(uploads.node,shortcutUpdate,shortcutBox.node);
   };
   index.append(marker);
   layout.append(entries,index);
@@ -375,6 +433,7 @@ export class RecipeView {
   // A single bounded refresh loop belongs to this mounted catalog, not the widget host.
   const abort = new AbortController();
   let timer, inFlight = false, queued = false, historyPending = false, retryHistory = false;
+  let shortcutPending = false;
   const retryUploadHistory = () => { retryHistory = true; void run(); };
   const active = () => layout.isConnected && !this.root.hidden && !document.hidden;
   const schedule = () => { clearTimeout(timer); if (active()) timer = setTimeout(run, 10000); };
@@ -385,8 +444,9 @@ export class RecipeView {
    inFlight = true;
    const retryRequested = retryHistory;
    retryHistory = false;
-   const [historyChanged, changed] = await Promise.all([
+   const [historyChanged, changed, shortcutChanged] = await Promise.all([
     this.refreshUploadHistory(abort.signal), this.refreshPublishedCatalog(abort.signal),
+    this.refreshShortcut(abort.signal),
    ]);
    inFlight = false;
    if (abort.signal.aborted || !active()) return;
@@ -413,6 +473,9 @@ export class RecipeView {
    // The trigger is stable. Protect focus only in the panel being replaced.
    historyPending ||= historyChanged || retryRequested;
    const panelFocused = uploads.panel.contains(document.activeElement);
+   shortcutPending ||= shortcutChanged;
+   if (shortcutPending && !shortcutBox.panel.contains(document.activeElement)
+    && !shortcutUpdate.contains(document.activeElement)) {renderShortcut(); shortcutPending = false;}
    if (historyPending && (retryRequested || !panelFocused)) {
     renderUploads();
     historyPending = false;

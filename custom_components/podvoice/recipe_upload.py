@@ -34,6 +34,10 @@ async def _relay(
     if not _valid_bearer(request):
         return web.json_response({"message": "Adgang afvist"}, status=401, headers=_NO_STORE)
 
+    headers = {"Authorization": authorization[0], "Content-Type": "application/json"}
+    version = request.headers.getall("X-PodView-Shortcut", [])
+    if len(version) == 1 and re.fullmatch(r"[0-9]{1,6}", version[0]):
+        headers["X-PodView-Shortcut"] = version[0]
     session = async_get_clientsession(hass)
     try:
         async with session.request(
@@ -41,7 +45,7 @@ async def _relay(
             f"{_ADDON}/{endpoint}",
             params=params,
             data=body,
-            headers={"Authorization": authorization[0], "Content-Type": "application/json"},
+            headers=headers,
             allow_redirects=False,
             timeout=ClientTimeout(total=20),
         ) as response:

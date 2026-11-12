@@ -34,11 +34,13 @@ function renderCatalogue(view) {
   assert.ok(begin >= 0 && end > begin, 'canonical catalogue render boundary');
   const factory = new Function('entries','groups','alphabet','buttons','collator','categoriesOf',
     'element','kit','applyKitTextRole','meta','uploads','renderUploads',
+    'shortcutUpdate','shortcutBox','renderShortcut',
     recipe.slice(begin,end)+'; return render;');
   const render = factory.call(view,entries,groups,alphabet,alphabet.map(()=>node('button')),
     new Intl.Collator('da'),r=>r.categories || ['Øvrige'],node,
     (type,text,options={})=>Object.assign(node(type,text),{variant:options.variant}),
-    e=>e,text=>node('p',text),{node:node('uploads')},()=>{});
+    e=>e,text=>node('p',text),{node:node('uploads')},()=>{},
+    node('shortcut-update'),{node:node('shortcut')},()=>{});
   return {entries,render};
 }
 function node(tag,text='') {

@@ -12,9 +12,11 @@ from custom_components.podvoice import recipe_upload
 class RecipeUploadTests(unittest.IsolatedAsyncioTestCase):
     async def test_proxy_only_forwards_submit_and_status(self):
         calls = []
+        versions = []
         receipt = "a" * 64
 
         async def addon(request):
+            versions.append(request.headers.get("X-PodView-Shortcut"))
             calls.append(
                 (
                     request.method,
@@ -58,7 +60,9 @@ class RecipeUploadTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(calls, [])
 
                     submitted = await client.post(
-                        submissions.url, json={"url": "https://example.test"}, headers=headers
+                        submissions.url,
+                        json={"url": "https://example.test"},
+                        headers={**headers, "X-PodView-Shortcut": "1"},
                     )
                     self.assertEqual(submitted.status, 202)
                     self.assertEqual(submitted.headers["Cache-Control"], "no-store")
@@ -69,6 +73,8 @@ class RecipeUploadTests(unittest.IsolatedAsyncioTestCase):
                     )
                     self.assertEqual(checked.status, 200)
                     self.assertEqual((await checked.json())["status"], "received")
+                    # The shortcut's declared version reaches the add-on; nothing else is added.
+                    self.assertEqual(versions, ["1", None])
                     self.assertEqual(
                         calls,
                         [

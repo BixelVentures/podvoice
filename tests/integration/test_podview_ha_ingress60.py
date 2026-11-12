@@ -946,7 +946,7 @@ async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingre
 
     monkeypatch.setattr(recipe_import, "fetch_html", unavailable_source)
     ingress.bridge.recipe_upload_token = "x" * 32
-    headers = {"Authorization": "Bearer " + "x" * 32}
+    headers = {"Authorization": "Bearer " + "x" * 32, "X-PodView-Shortcut": "1"}
     path = "/internal/recipes/submissions"
     body = {"url": "https://example.org/shared"}
     assert (await ingress.client.post(path, headers=headers, json=body)).status == 403

@@ -250,7 +250,7 @@ async def test_phone_operation_returns_real_saved_message_and_history(tmp_path):
     request = SimpleNamespace(
         app={BRIDGE: SimpleNamespace(recipe_submissions=store, recipe_upload_token="x" * 32)},
         remote="127.0.0.1",
-        headers=CIMultiDict(Authorization="Bearer " + "x" * 32),
+        headers=CIMultiDict({"Authorization": "Bearer " + "x" * 32, "X-PodView-Shortcut": "1"}),
         method="POST",
         content_type="application/json",
         content=Content(),
@@ -595,7 +595,7 @@ async def test_phone_share_text_with_link_is_saved_and_no_link_explains(tmp_path
         return SimpleNamespace(
             app={BRIDGE: SimpleNamespace(recipe_submissions=store, recipe_upload_token="x" * 32)},
             remote="127.0.0.1",
-            headers=CIMultiDict(Authorization="Bearer " + "x" * 32),
+            headers=CIMultiDict({"Authorization": "Bearer " + "x" * 32, "X-PodView-Shortcut": "1"}),
             method="POST",
             content_type="application/json",
             content=Content(),
@@ -606,7 +606,12 @@ async def test_phone_share_text_with_link_is_saved_and_no_link_explains(tmp_path
     assert saved.status == 200 and json.loads(saved.text)["message"] == "Gemt: Boller"
     missing = await _phone_recipes(request({"url": "Boller", "text": "lækre boller"}))
     assert missing.status == 400
+    # Changed with the versioned shortcut: a share with only text now says so concretely.
     assert json.loads(missing.text)["message"] == (
+        "Delingen indeholdt kun tekst uden et link. Brug Kopiér link i appen, og del linket igen."
+    )
+    unknown = await _phone_recipes(request({"items": 3}))
+    assert json.loads(unknown.text)["message"] == (
         "Der var intet link i det delte. Del opskriftens link igen."
     )
 

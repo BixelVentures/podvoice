@@ -426,6 +426,10 @@
       "sha256": "13dab823352c43dc0cde720fbeaad91bc10c4d382283fab55588134c6aecfb5a"
     },
     {
+      "path": "assets/opskrifter-til-podview.shortcut",
+      "sha256": "044d49916be3a66b4a78ba9da62c95f011d219a9205898e6fa27893af73d6a27"
+    },
+    {
       "path": "assets/radio-p1.svg",
       "sha256": "48b9b2ca382676b063ad6d32957655f58995ce3b66bcc3f5125506c12a5440c0"
     },
