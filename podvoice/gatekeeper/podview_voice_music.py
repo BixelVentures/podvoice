@@ -44,6 +44,44 @@ def _scope(bridge: Any) -> tuple[str, dict, list[dict]] | None:
     return room, policy, rules
 
 
+def _room_entity_matches(data: Any, scope: dict, hint: str) -> bool:
+    """Control's HA context for the room setup's exact Spotify target names the hint.
+
+    The policy row's targetId is the only room->speaker mapping; HA's entity id,
+    name and aliases are language metadata for exactly that target, never a guess.
+    """
+    folded = hint.strip().casefold()
+    for row in data.get("targets", []) if isinstance(data, dict) else []:
+        context = row.get("ha_context") if isinstance(row, dict) else None
+        if (
+            row.get("kind") != "spotify_device"
+            or row.get("target_id") != scope["targetId"]
+            or not isinstance(context, dict)
+        ):
+            continue
+        names = [context.get("entity_id"), context.get("name"), *context.get("aliases", [])]
+        if any(isinstance(name, str) and name.strip().casefold() == folded for name in names):
+            return True
+    return False
+
+
+def _room_plan(room: str, scope: dict, rows: list[tuple[dict, dict]]) -> dict:
+    """The room's configured default output, named by its configured alias."""
+    names = [
+        row["name"]
+        for _scope, row in rows
+        if row["nativeRoomId"] == scope["nativeRoomId"]
+        and row["homepodId"] == scope["nativeHomepodId"]
+    ]
+    return {
+        "room": room,
+        "account": scope["accountId"],
+        "scope": scope,
+        "speaker": None,
+        "name": voice_rooms.display_name(names[0]) if len(names) == 1 else "",
+    }
+
+
 async def resolve_target(bridge: Any, hint: str | None, current: Callable[[], bool]):
     """None: PodView owns no voice start here. Otherwise {'plan'|None, 'known'}."""
     scoped = _scope(bridge)
@@ -66,6 +104,7 @@ async def resolve_target(bridge: Any, hint: str | None, current: Callable[[], bo
             },
         }
     speakers: list[tuple[dict, dict]] = []
+    entities: list[dict] = []
     if "targets" in bridge.tools.podview_music_reads():
         for scope in bindings:
             try:
@@ -81,10 +120,15 @@ async def resolve_target(bridge: Any, hint: str | None, current: Callable[[], bo
                 )
             except Exception:  # A failed passive read is "no names", never a guess.
                 continue
-            speakers.extend((scope, row) for row in catalogue["speakers"])
+            rows = [(scope, row) for row in catalogue["speakers"]]
+            speakers.extend(rows)
+            if _room_entity_matches(data, scope, hint):
+                entities.append(_room_plan(room, scope, rows))
     matched, known = voice_rooms.resolve(hint, [row["name"] for _scope, row in speakers])
     if matched is None:
-        return {"known": known, "plan": None}
+        # The room setup's own Spotify target, named by its exact HA media_player or
+        # HA name, is this room's speaker: start it like "spil musik" without a room.
+        return {"known": known, "plan": entities[0] if len(entities) == 1 else None}
     scope, speaker = next((s, row) for s, row in speakers if row["name"] == matched)
     return {
         "known": known,

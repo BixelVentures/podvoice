@@ -17,7 +17,8 @@ const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
 const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
 const multiScreenMode=process.env.MUSIC_MULTI_SCREEN_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||volumeDragMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode){
+const playerStatesMode=process.env.MUSIC_PLAYER_STATES_TEST==='1';
+if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||volumeDragMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode||playerStatesMode){
  process.env.MUSIC_EXTENDED='1';
 }
 let server,browser,data,servedBundleSHA,serverSuspended=false;
@@ -446,7 +447,10 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   },label,{timeout:15000});
   assert.equal(await track.innerText(),trackName);
   assert.equal((await output.locator('#player-room').innerText()).trim(),label);
-  assert.match(await output.getAttribute('aria-label'),/højttaler ikke bekræftet/);
+  // f) Own account on another device: its Spotify Connect name, no "ikke bekræftet"; the chip moves it back.
+  assert.equal((await page.locator('#player-state').innerText()).trim(),'Spiller på');
+  assert.doesNotMatch(await output.getAttribute('aria-label'),/ikke bekræftet|observation|sidst kendt/i);
+  assert.match(await output.getAttribute('aria-label'),/Flyt til |Vælg højttaler/);
   const freshRead=page.waitForResponse(response=>{
    const url=new URL(response.url());
    return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
@@ -526,6 +530,61 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-external-output.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-return.png')});
  console.log(JSON.stringify(proof));
+}
+// The player's state model (afgørelsesorden a, d, f, g) on the real packaged screen. Normal states never
+// say "ikke bekræftet", "observation" or "sidst kendt". g) is the user's 10-minute rule for a paused song.
+async function playerStatesJourney(page,errors){
+ const text=async id=>(await page.locator(id).innerText()).trim();
+ const forbidden=async()=>{
+  const shown=[await text('#player-state'),await text('#player-room'),await page.locator('#output').getAttribute('aria-label')||''];
+  for(const value of shown)assert.doesNotMatch(value,/ikke bekræftet|observation|sidst kendt|^Højttaler$/i,value);
+ };
+ const shot=name=>page.screenshot({path:path.join(testEnv.artifactDir(),`podview-player-${name}.png`)});
+ // d) Own Spotify on this room: "Spiller på <rum>" and full controls.
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Spiller på'
+  &&!document.querySelector('#play-pause')?.disabled&&!document.querySelector('#next')?.disabled,undefined,{timeout:15000});
+ const roomName=await text('#player-room');
+ assert.ok(roomName&&roomName!=='Højttaler',roomName);
+ await forbidden();await shot('d-room');
+ // f) Moved to the iPhone: its name, never "ikke bekræftet"; the chip offers to move it back.
+ assert.equal((await change({externalOutput:'iphone'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-room')?.textContent==='iPhone',undefined,{timeout:15000});
+ assert.equal(await text('#player-state'),'Spiller på');
+ assert.match(await page.locator('#output').getAttribute('aria-label'),/Flyt til |Vælg højttaler/);
+ await forbidden();await shot('f-iphone');
+ assert.equal((await change({externalPlaybackState:'paused'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='På pause',undefined,{timeout:15000});
+ await forbidden();
+ // Back in the room, paused: g) stays "På pause" with one tap to continue for 10 minutes.
+ assert.equal((await change({externalOutput:'native-room'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-room')?.textContent!=='iPhone'
+  &&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken'
+  &&!document.querySelector('#play-pause')?.disabled,undefined,{timeout:15000});
+ const title=await text('#track-name');
+ const age=minutes=>page.evaluate(ms=>{
+  const saved=JSON.parse(localStorage.getItem('podview.pausedSince'));
+  localStorage.setItem('podview.pausedSince',JSON.stringify({...saved,at:Date.now()-ms}));
+ },minutes*60000);
+ await age(9);await page.reload();await testEnv.openOverview(page);
+ await page.waitForFunction(name=>document.querySelector('#track-name')?.textContent===name
+  &&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken'
+  &&!document.querySelector('#play-pause')?.disabled,title,{timeout:15000});
+ await forbidden();await shot('g-paused-9min');
+ await age(11);await page.reload();await testEnv.openOverview(page);
+ await page.locator('#empty-find-music').waitFor({state:'visible',timeout:15000});
+ assert.equal((await page.locator('#empty-find-music').innerText()).trim(),'Vælg musik');
+ assert.equal(await page.locator('#track-name').innerText(),'');
+ await shot('g-empty-11min');
+ // Playing again (from anywhere) brings the player back at once.
+ assert.equal((await change({externalPlaybackState:'playing'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Spiller på',undefined,{timeout:15000});
+ // a) No connection: one honest line, no stale "Spiller på".
+ await page.context().setOffline(true);
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Forbindelsen mangler',undefined,{timeout:20000});
+ await shot('a-offline');
+ await page.context().setOffline(false);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'player-states',states:['d','f','g-9min','g-11min','a'],roomName}));
 }
 async function seekJourney(page,errors){
  const slider=page.locator('#detail-seek');
@@ -1122,6 +1181,7 @@ async function longSession(page,errors){
  if(outputTransferMode){await outputTransferJourney(page,errors);return;}
  if(multiScreenMode){await multiScreenJourney(page,errors);return;}
  if(externalOutputMode){await externalOutputJourney(page,errors);return;}
+ if(playerStatesMode){await playerStatesJourney(page,errors);return;}
  if(process.env.MUSIC_LONG_SESSION==='1'){await longSession(page,errors);return;}
  // Measure from the actual trusted touch-generated click, not from a later screenshot.
  await page.evaluate(()=>{

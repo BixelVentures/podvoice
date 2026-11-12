@@ -72,7 +72,7 @@ test('Robot progress meter preserves validated observed percent and disappears w
 test('account-only overview facts distinguish provider player from confirmed physical speaker without refreshing position',()=>{
  for(const playing of [false,true]){
   const vm={active:true,title:'Observed song',artist:'Observed artist',target:'Provider target',readOnly:true,fresh:false,positionFresh:false,playing,progressMs:20000,durationMs:60000},before=structuredClone(vm),f=projection({live:true,vm}),shown=f.calls.get('home-music');
-  assert.equal(shown.context,`${playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`);assert.deepEqual(shown.facts.find(row=>row.id==='room'),{id:'room',label:'Kontospiller',value:'Provider target',stale:false});assert.equal(shown.facts.find(row=>row.id==='artist').stale,false);assert.equal(shown.facts.find(row=>row.id==='duration').stale,false);assert.equal(shown.facts.find(row=>row.id==='remaining').stale,true);assert.equal(shown.facts.some(row=>row.meter),false);
+  assert.equal(shown.context,'Afspilningen er ikke opdateret');assert.deepEqual(shown.facts.find(row=>row.id==='room'),{id:'room',label:'Kontospiller',value:'Provider target',stale:false});assert.equal(shown.facts.find(row=>row.id==='artist').stale,false);assert.equal(shown.facts.find(row=>row.id==='duration').stale,false);assert.equal(shown.facts.find(row=>row.id==='remaining').stale,true);assert.equal(shown.facts.some(row=>row.meter),false);
   f.render.call(f.host,vehicleFixture({charging:true}));assert.deepEqual(f.calls.get('home-music'),shown);assert.deepEqual(vm,before);
  }
 });

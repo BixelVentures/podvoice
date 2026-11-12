@@ -7,7 +7,7 @@ const wire=()=>({ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:
 const parse=w=>roomPlaybackObservation(w,'account',snapshot);
 test('v2 external actual output bypasses configured NEXT/default but never derives native label from Spotify target',()=>{
  const p=parse(wire());assert.equal(playbackBinding(p,snapshot).nativeHomepodId,'2');assert.equal(roomObservationCurrent(p,snapshot),true);assert.equal(playbackObservationCurrent(p,snapshot),true);
- const vm=livePlayerModel(p,true,'ready',snapshot,'Default','Actual speaker');assert.equal(vm.target,'Actual speaker');assert.equal(vm.title,'Song');assert.equal(vm.canSeek,false);assert.equal(livePlayerModel(p,true,'ready',snapshot,'Default').target,'Højttaler');
+ const vm=livePlayerModel(p,true,'ready',snapshot,'Default','Actual speaker');assert.equal(vm.target,'Actual speaker');assert.equal(vm.title,'Song');assert.equal(vm.canSeek,false);assert.equal(livePlayerModel(p,true,'ready',snapshot,'Default').target,'Højttaleren i rummet');
  const host={live:true,liveSnapshot:snapshot,liveMedia:{playback:p}},key=PlayerView.prototype.volumeBinding.call({host});host.liveSnapshot={...snapshot,mediaRoomBindings:[]};assert.equal(PlayerView.prototype.volumeBinding.call({host}),key);host.liveMedia.playback={...p,roomBinding:{...p.roomBinding,bindingId:'c'.repeat(64)}};assert.notEqual(PlayerView.prototype.volumeBinding.call({host}),key);
 });
 test('v2 metadata-only observation is fresh with no native or command binding and retains only explicit same-scope display',()=>{

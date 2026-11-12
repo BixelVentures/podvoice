@@ -2,6 +2,7 @@ import {applyKitComponent,applyKitDialog} from './ui/kit.js';
 import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent,waitForMusicLane}
  from './media-observation.js';
 import {sourceMusicCards} from './music-results.js';
+import {NO_ACCESS} from './live-media-view.js';
 import {selectionRequestTargets,searchSample,selectionCurrent,selectionOffer,collectionCurrent,collectionCardIndex} from './music-selection-model.js';
 const LANE_WAITING = 'Dit valg sendes, når den igangværende handling er færdig.';
 const LANE_UNKNOWN = 'Den forrige handling kunne ikke bekræftes · dit valg blev ikke sendt.';
@@ -120,6 +121,10 @@ export class LiveMusicSelectionView{
   return turn === 'free' ? current : null;
  }
  async chooseCardIntent(card,trace){
+  // A screen without music access refuses here, visibly, instead of sending or staying silent.
+  if(this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities?.musicSelection===false){
+   trace.outcome='rejected';this.feedback={message:NO_ACCESS,pending:false};this.host.liveMedia?.render?.();return;
+  }
   if (this.host.liveControls?.musicIntentPending && !this.musicIntentLock) {
    const active = this.active;
    const catalogue = active ? null : this.host.liveCatalogue;

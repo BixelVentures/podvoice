@@ -1744,15 +1744,15 @@ class ToolRouter:
         """Route voice music starts in PodView rooms through PodView's own START owner.
 
         None leaves the call on HA's generic path (no PodView music owner here, or
-        the target is an exact HA media_player). A name that is neither a PodView
-        room nor an HA entity is refused in Danish before anything is sent.
+        an HA media_player that is not this room's configured speaker). The room's
+        own speaker entity (exact id or HA name) starts through PodView. A name that
+        is neither a PodView room nor an HA entity is refused in Danish before
+        anything is sent.
         """
         owner = self._podview_music_owner
         resolve = getattr(owner, "voice_music_start_target", None)
         hint = self._media_room_hint(args)
         if not callable(resolve) or hint is False:
-            return None
-        if isinstance(hint, str) and hint.casefold().startswith("media_player."):
             return None
         current = execution_guard or (lambda: True)
         resolved = await resolve(hint, current)
@@ -1760,9 +1760,19 @@ class ToolRouter:
             return None
         if resolved.get("plan") is None:
             assert isinstance(hint, str)
-            if await self._resolve_entity(hint) is not None:
-                return None
-            return voice_rooms.unknown_room_error(hint, resolved.get("known", []))
+            if hint.casefold().startswith("media_player."):
+                return None  # Not this room's configured speaker: HA's generic path.
+            entity = await self._resolve_entity(hint)
+            if entity is not None:
+                # An HA name of this room's configured speaker entity starts through
+                # PodView; any other HA entity stays on HA's generic path.
+                if entity.domain != "media_player" or not current():
+                    return None
+                resolved = await resolve(entity.entity_id, current)
+                if resolved is None or resolved.get("plan") is None:
+                    return None
+            else:
+                return voice_rooms.unknown_room_error(hint, resolved.get("known", []))
         query = args.get("search_query", args.get("query"))
         media_class = args.get("media_class")
         if (

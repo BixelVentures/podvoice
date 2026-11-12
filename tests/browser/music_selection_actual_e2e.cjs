@@ -25,11 +25,12 @@ const discoveryPersonalCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='persona
 const libraryBusy=process.env.MUSIC_LIBRARY_BUSY_TEST;
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const startLatency=process.env.MUSIC_START_LATENCY_TEST==='1';
+const startLatencyMood=process.env.MUSIC_START_LATENCY_TEST==='mood';
 const queueSkip=process.env.MUSIC_QUEUE_SKIP_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
-const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
+const cold=defaultSpeakerProof||startLatencyMood||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
@@ -75,6 +76,39 @@ async function startLatencyJourney(){
  assert.equal(fixture.writes.filter(row=>row.action==='play_track').length,1);
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',mode:'start-latency',...result}));
+}
+// F2: a Find musik suggestion (a mood playlist) shows its title at once and turns to playing at
+// the speaker's first native confirmation, not at Spotify's later observation (Green: 4.3 s).
+async function moodLatencyJourney(){
+ const row=page.locator('#result-list button.result').filter({hasText:'Kold jazz'}).first();
+ await row.waitFor({state:'visible',timeout:20000});
+ await row.evaluate(node=>{
+  node.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now(),probe=window.startLatency={clickAt:Date.now(),pendingMs:null,playingMs:null,title:null};
+   const sample=()=>{
+    const now=performance.now()-start,title=document.querySelector('#track-name')?.textContent||'';
+    const label=document.querySelector('#play-pause')?.getAttribute('aria-label');
+    if(probe.pendingMs===null&&title&&document.querySelector('.player')?.hidden===false){probe.pendingMs=now;probe.title=title;}
+    if(probe.playingMs===null&&label==='Sæt musik på pause')probe.playingMs=now;
+    if(now<12000&&probe.playingMs===null)requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+  },{once:true});
+ });
+ await row.tap();
+ await page.waitForFunction(()=>Number.isFinite(window.startLatency?.playingMs),undefined,{timeout:15000});
+ const probe=await page.evaluate(()=>window.startLatency),fixture=await state();
+ const speakerMs=Math.round(fixture.speakerConfirmedAtMs-probe.clickAt);
+ const result={pendingMs:Math.round(probe.pendingMs),pendingTitle:probe.title,speakerMs,
+  playingMs:Math.round(probe.playingMs),bundleSHA};
+ console.log('moodLatency',JSON.stringify(result));
+ assert(probe.pendingMs<300,`chosen suggestion visible within 300 ms: ${JSON.stringify(result)}`);
+ assert(probe.playingMs>=speakerMs,`never playing before the speaker confirms: ${JSON.stringify(result)}`);
+ // Measurement only: from an empty player the native confirmation cannot reach the screen before
+ // Spotify's own observation, because the room read is "idle" until then (needs Control, see PR).
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'mood-start-latency',...result}));
 }
 // K2/K4: three fast Next taps and one autoplay context switch. The queue list is never empty,
 // never shows error text, keeps each row's DOM node while it stays listed and never reorders rows.
@@ -1825,6 +1859,7 @@ async function queuePersistenceJourney(){
   if(previewRenew)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(url.searchParams.get('kind')!=='mood'||!initialMood&&!previewArmed)return route.continue();const response=await route.fetch(),body=await response.json();assert.equal(body.ok,true);assert.ok(body.candidateSet,'actual owner supplied playlist source');const tracks=body.data.tracks.map(({uri,name,artist,themeId,themeTitle,themeArt,artwork})=>({uri,name,artist,themeId,themeTitle,themeArt,...(artwork?{artwork}:{})}));const preview={ok:true,schema:'podview.mood-preview.v1',preview:{readOnly:true,bootId:snapshot.bootId,roomId:snapshot.roomId,configEntryId:'account',ownerEpoch:body.data.owner_epoch,source:'spotify_web_api',expiresIn:60,voiceSessionId:snapshot.voice.sessionId,voiceTurnId:snapshot.voice.turnId},data:{config_entry_id:'account',owner_epoch:body.data.owner_epoch,source:'spotify_web_api',tracks}};initialMood=false;previewArmed=false;await route.fulfill({response,json:preview});});
   await env.openOverview(page);await page.locator('#home-music').tap();
   await page.locator('#output').tap();await page.locator('#room-options button').filter({hasText:'Køkkenalrum HomePod'}).tap();
+  if(startLatencyMood){await moodLatencyJourney();return;}
   const row=page.locator('#result-list button.result').filter({hasText:'Kold jazz'}).first();await row.waitFor({state:'visible',timeout:20000});await row.tap();
   if(rejectSetup){
    await page.locator('#player-empty').getByText('Højttaleren i rummet kan ikke bruges lige nu.',{exact:true}).waitFor({state:'visible',timeout:15000});

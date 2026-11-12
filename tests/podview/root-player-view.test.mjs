@@ -437,8 +437,9 @@ test('a chosen local song is shown while starting without borrowing prior track 
 test('retained readonly player DOM qualifies both playing and paused metadata while fresh unconfirmed metadata stays current',()=>{
  for(const playing of [true,false]){
   const f=surface(),vm={active:true,readOnly:true,playing,fresh:false,title:'Retained song',artist:'Retained artist',target:'Account player',canOutput:false};f.view.renderPlayer(vm);
-  assert.match(f.nodes.get('player-state').textContent,/^Ikke opdateret ·/);assert.match(f.nodes.get('detail-status').textContent,/^Kontostatus ikke opdateret ·/);assert.match(f.nodes.get('player-state').textContent,playing?/afspiller/:/på pause/);assert.equal(f.nodes.get('track-name').textContent,'Retained song');
-  f.view.renderPlayer({...vm,fresh:true});assert.equal(f.nodes.get('player-state').textContent,`${playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`);assert.equal(f.nodes.get('detail-status').textContent.startsWith('Ikke opdateret'),false);
+  assert.equal(f.nodes.get('player-state').textContent,playing?'Ikke opdateret':'Ikke opdateret · på pause');assert.equal(f.nodes.get('detail-status').textContent,'Afspilningen er ikke opdateret');assert.equal(f.nodes.get('track-name').textContent,'Retained song');
+  f.view.renderPlayer({...vm,fresh:true});assert.equal(f.nodes.get('player-state').textContent,playing?'Spiller på':'På pause');assert.equal(f.nodes.get('detail-status').textContent.startsWith('Ikke opdateret'),false);
+  assert.doesNotMatch(f.nodes.get('player-state').textContent+f.nodes.get('detail-status').textContent,/ikke bekræftet|observation|sidst kendt/i);
  }
 });
 

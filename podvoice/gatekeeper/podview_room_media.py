@@ -21,14 +21,19 @@ _ROOM_REASON = {"route_unavailable", "ambiguous_output", "owner_changed"}
 _CONTROL_REASON = _ROOM_REASON | {"volume_unavailable"}
 
 
+_READ_STATUS = {"observed", "account_observed", "idle", "unavailable"}
+_READ_REASON = _ROOM_REASON | {"output_not_admitted", "account_unavailable", "stale_observation"}
+
+
 def _log_room_read_transition(bridge, room, account, status, reason, output, controls):
-    """Report the exact closed source fields once per account-only transition."""
+    """Report the exact closed source fields at the first read and at every change.
+
+    The first snapshot per room/account after start is logged whatever its status,
+    so a running read (also after an HA Core restart) is visible without a transition.
+    """
     try:
         state = bridge._music_room_read_diagnostic
         key = (room, account)
-        if status != "account_observed":
-            state.pop(key, None)
-            return
 
         def safe(value, allowed):
             if value is None:
@@ -36,7 +41,8 @@ def _log_room_read_transition(bridge, room, account, status, reason, output, con
             return value if isinstance(value, str) and value in allowed else "other"
 
         row = (
-            safe(reason, _ROOM_REASON | {"output_not_admitted"}),
+            safe(status, _READ_STATUS),
+            safe(reason, _READ_REASON),
             safe(output.get("status"), _ROOM_STATUS),
             safe(output.get("reason"), _ROOM_REASON),
             safe(controls.get("status"), _ROOM_STATUS),
@@ -48,7 +54,7 @@ def _log_room_read_transition(bridge, room, account, status, reason, output, con
             state.pop(next(iter(state)))
         state[key] = row
         _LOG.warning(
-            "podview_room_playback status=account_observed reason=%s "
+            "podview_room_playback status=%s reason=%s "
             "output_status=%s output_reason=%s controls_status=%s controls_reason=%s",
             *row,
         )
