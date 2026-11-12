@@ -33,26 +33,42 @@ FAMILIES = frozenset(
 )
 
 
-def _object(value: Any, fields: set[str]) -> dict:
+class InvalidPresentationField(ValueError):
+    """Which field broke which rule. Carries names only, never the value itself."""
+
+    def __init__(self, field: str, rule: str) -> None:
+        super().__init__(f"invalid presentation {field}: {rule}")
+        self.field, self.rule = field, rule
+
+
+def _object(value: Any, fields: set[str], field: str = "object") -> dict:
     if not isinstance(value, dict) or set(value) != fields:
-        raise ValueError("invalid presentation object")
+        raise InvalidPresentationField(field, "shape")
     return value
 
 
-def _text(value: Any, maximum: int = 240) -> str:
-    if (
-        not isinstance(value, str)
-        or not value.strip()
-        or len(value) > maximum
-        or re.search(r"https?://|<[/!a-zA-Z]", value)
-    ):
-        raise ValueError("invalid presentation text")
+def _text_rule(value: Any, maximum: int) -> str | None:
+    if not isinstance(value, str):
+        return "type"
+    if not value.strip():
+        return "empty"
+    if len(value) > maximum:
+        return "too_long"
+    if re.search(r"https?://|<[/!a-zA-Z]", value):
+        return "markup"
+    return None
+
+
+def _text(value: Any, maximum: int = 240, field: str = "text") -> str:
+    rule = _text_rule(value, maximum)
+    if rule is not None:
+        raise InvalidPresentationField(field, rule)
     return value
 
 
-def _rows(value: Any, maximum: int = 8) -> list:
+def _rows(value: Any, maximum: int = 8, field: str = "rows") -> list:
     if not isinstance(value, list) or not 1 <= len(value) <= maximum:
-        raise ValueError("invalid presentation rows")
+        raise InvalidPresentationField(field, "count")
     return value
 
 
@@ -244,13 +260,13 @@ def explanation_content(
 ) -> dict:
     """Assign all identifiers and sources here; generated content has no tool badge."""
     if presentation.get("origin") != "ai_explanation" or presentation.get("sourceCalls") != []:
-        raise ValueError("not an explanation")
+        raise InvalidPresentationField("origin", "not_explanation")
     family, raw = presentation["family"], presentation["content"]
     if family in {"fact-card", "chart"}:
-        raise ValueError("actual facts and numeric charts require an owner source")
+        raise InvalidPresentationField("family", "needs_owner_source")
     source = "source:" + receipt_id
     content: dict = {
-        "summary": _text(presentation["summary"], 600),
+        "summary": _text(presentation["summary"], 600, "summary"),
         "sources": [
             {
                 "id": source,
@@ -272,54 +288,54 @@ def explanation_content(
         if raw["visualValue"] != "reference":
             raise ValueError("concise requires explicit useful reference value")
     elif family == "sport-result":
-        _object(raw, {"match", "scorers"})
+        _object(raw, {"match", "scorers"}, "content")
         match = raw["match"]
         if (
             not isinstance(match, dict)
             or not {"home", "away", "date"} <= set(match)
             or set(match) - {"home", "away", "homeScore", "awayScore", "date", "competition"}
         ):
-            raise ValueError("invalid match")
+            raise InvalidPresentationField("match", "shape")
         scores = [match.get("homeScore"), match.get("awayScore")]
-        if any(v is not None and (type(v) is not int or not 0 <= v <= 999) for v in scores) or (
-            scores[0] is None
-        ) != (scores[1] is None):
-            raise ValueError("invalid score")
+        if any(v is not None and (type(v) is not int or not 0 <= v <= 999) for v in scores):
+            raise InvalidPresentationField("match.score", "range")
+        if (scores[0] is None) != (scores[1] is None):
+            raise InvalidPresentationField("match.score", "pair")
         content["match"] = {
-            "home": _text(match["home"], 80),
-            "away": _text(match["away"], 80),
+            "home": _text(match["home"], 80, "match.home"),
+            "away": _text(match["away"], 80, "match.away"),
             "homeScore": scores[0],
             "awayScore": scores[1],
-            "date": _text(match["date"], 80),
-            "competition": _text(match["competition"], 80)
+            "date": _text(match["date"], 80, "match.date"),
+            "competition": _text(match["competition"], 80, "match.competition")
             if match.get("competition") is not None
             else None,
         }
         scorers = raw["scorers"]
         if not isinstance(scorers, list) or len(scorers) > 12:
-            raise ValueError("invalid scorers")
+            raise InvalidPresentationField("scorers", "count")
         rows = []
         for i, row in enumerate(scorers):
             if not isinstance(row, dict) or set(row) - {"team", "name", "minute"}:
-                raise ValueError("invalid scorer")
+                raise InvalidPresentationField("scorers.row", "shape")
             if row.get("team") not in {"home", "away"}:
-                raise ValueError("invalid scorer team")
+                raise InvalidPresentationField("scorers.team", "enum")
             minute = row.get("minute")
             rows.append(
                 {
                     "id": row_id(i),
                     "team": row["team"],
-                    "name": _text(row.get("name"), 80),
-                    "minute": _text(minute, 24) if minute is not None else None,
+                    "name": _text(row.get("name"), 80, "scorers.name"),
+                    "minute": _text(minute, 24, "scorers.minute") if minute is not None else None,
                     "sourceId": source,
                 }
             )
         content["scorers"] = rows
     elif family == "key-points":
-        _object(raw, {"points"})
+        _object(raw, {"points"}, "content")
         content["points"] = [
-            {"id": row_id(i), "text": _text(value, 240), "sourceId": source}
-            for i, value in enumerate(_rows(raw["points"], 4))
+            {"id": row_id(i), "text": _text(value, 240, "points"), "sourceId": source}
+            for i, value in enumerate(_rows(raw["points"], 4, "points"))
         ]
     elif family == "comparison":
         _object(raw, {"columns", "items"})
@@ -412,6 +428,46 @@ def explanation_content(
     else:
         raise ValueError("unsupported presentation")
     return content
+
+
+def key_points_fallback(presentation: dict) -> dict | None:
+    """A simple heading-and-points section when a card's own data fails validation.
+
+    Only short fields the card model already produced (points, score line, scorers,
+    summary); never the spoken answer or a source excerpt. None when nothing is usable.
+    """
+    raw = presentation.get("content") if isinstance(presentation, dict) else None
+    raw = raw if isinstance(raw, dict) else {}
+    points_raw, scorers = raw.get("points"), raw.get("scorers")
+    candidates: list[Any] = list(points_raw) if isinstance(points_raw, list) else []
+    match = raw.get("match")
+    if isinstance(match, dict):
+        home, away = match.get("home"), match.get("away")
+        scores = match.get("homeScore"), match.get("awayScore")
+        if all(type(v) is int for v in scores) and isinstance(home, str) and isinstance(away, str):
+            candidates.append(f"{home.strip()} {scores[0]}-{scores[1]} {away.strip()}")
+    for row in scorers if isinstance(scorers, list) else []:
+        if isinstance(row, dict) and isinstance(row.get("name"), str):
+            minute = row.get("minute")
+            suffix = f" {minute.strip()}" if isinstance(minute, str) and minute.strip() else ""
+            candidates.append(row["name"].strip() + suffix)
+    title = presentation.get("title") if isinstance(presentation, dict) else None
+    summary = presentation.get("summary") if isinstance(presentation, dict) else None
+    candidates.append(summary)
+    points = []
+    for value in candidates:
+        if _text_rule(value, 240) is None and value not in points:
+            points.append(value)
+    if _text_rule(title, 120) is not None or not points:
+        return None
+    return {
+        "family": "key-points",
+        "title": title,
+        "summary": summary if _text_rule(summary, 600) is None else title,
+        "origin": "ai_explanation",
+        "content": {"points": points[:4]},
+        "sourceCalls": [],
+    }
 
 
 def same_task(left: tuple, right: tuple) -> bool:

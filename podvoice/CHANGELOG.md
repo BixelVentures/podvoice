@@ -1,3 +1,7 @@
+## 2.0.183
+
+- Et opfølgende spørgsmål til et svarkort (fx »hvem scorede« efter en kamp) tilføjes nu som nyt afsnit på samme kort og kommer i historikken. Før blev det tabt, når modellen udfyldte ukendte felter med tom tekst. Teslaens kommandoer venter op til 45 sekunder, mens HA vækker bilen, i stedet for at vise »Udfald ukendt« efter 8 sekunder. En deling uden opskriftslink logger nu, hvilke felter der kom ind (kun navne og typer).
+
 ## 2.0.182
 
 - Frameo-fotorammen (og enhver skærm åbnet over lokal http) kan nu styre musik, robot og timer: PodView brugte en browserfunktion, der kun findes på https, så tryk blev afvist i stilhed og viste »Udfald ukendt«. Ældre browsere (Chrome 107) får farver, flader, højder og ikoner, tryk reagerer 4–6 gange hurtigere, og køen kan rulles. Afspilleren siger »Spiller på Køkkenalrum« eller »Spiller på iPhone« i stedet for »højttaler ikke bekræftet«, en pauset sang eller stoppet station står i 10 minutter (også efter genindlæsning) og derefter »Vælg musik«, og en skærm uden adgang siger »Skærmen har ikke adgang · Tilknyt« i stedet for at gøre ingenting. Stemmen starter musik på rummets højttaler via PodViews egen vej. Op til 8 godkendte skærme pr. rum vises i Home Assistant, parringen logges, og efter en HA-genstart fornyer PodView selv forbindelsen i stedet for at vise 401. HA-komponent 0.1.22 kræves for skærmlisten.

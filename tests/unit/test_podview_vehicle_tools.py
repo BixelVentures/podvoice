@@ -61,7 +61,7 @@ async def test_exact_vehicle_send_preflight_and_ambiguous_result(tmp_path, case)
     }
 
     def handler(req):
-        calls.append((req.method, req.url.path, req.content))
+        calls.append((req.method, req.url.path, req.content, req.extensions.get("timeout", {})))
         if req.method == "GET":
             return httpx.Response(200, json=state)
         if case == "timeout":
@@ -151,6 +151,9 @@ async def test_exact_vehicle_send_preflight_and_ambiguous_result(tmp_path, case)
             else:
                 assert len(posts) == 1 and posts[0][1] == "/core/api/services/lock/unlock"
                 assert json.loads(posts[0][2]) == {"entity_id": "lock.car"}
+                # Green 12 Nov 19:03: HA waking the car took longer than the 8 s client
+                # default and the command became "unknown". The send waits up to 45 s.
+                assert posts[0][3].get("read") == 45.0
                 assert store.vehicle_risk(adapter.device_key)["unresolved"]["access"] == [
                     "unlocked"
                 ]

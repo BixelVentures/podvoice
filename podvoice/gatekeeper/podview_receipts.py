@@ -829,7 +829,7 @@ class VisualReceiptOwner:
         self._card_tasks[room_id] = loop.create_task(self._card(room_id, pending, question))
 
     async def _card(self, room_id: str, pending: dict, question: str | None) -> None:
-        from .podview_presentation import explanation_content
+        from .podview_presentation import FAMILIES, explanation_content, key_points_fallback
 
         try:
             await asyncio.sleep(0.15)
@@ -864,9 +864,24 @@ class VisualReceiptOwner:
                 }
                 self._rooms[room_id] = state
             receipt_id = pending.get("receipt") or secrets.token_hex(16)
-            content = explanation_content(
-                presentation, receipt_id, source_label="Google-søgning, opsummeret af PodVoice"
-            )
+            label = "Google-søgning, opsummeret af PodVoice"
+            try:
+                content = explanation_content(presentation, receipt_id, source_label=label)
+            except ValueError as error:
+                # Field and rule names only: never names, scores or text from the card.
+                family = presentation.get("family")
+                _LOG.info(
+                    "podview card stage=invalid room=%s family=%s field=%s rule=%s",
+                    room_id,
+                    family if family in FAMILIES else "other",
+                    getattr(error, "field", "unknown"),
+                    getattr(error, "rule", "unknown"),
+                )
+                fallback = key_points_fallback(presentation)
+                if fallback is None:
+                    raise
+                presentation = fallback
+                content = explanation_content(presentation, receipt_id, source_label=label)
             now = time.time()
             item = {
                 "schema": "podview.presentation.v1",

@@ -609,3 +609,19 @@ async def test_phone_share_text_with_link_is_saved_and_no_link_explains(tmp_path
     assert json.loads(missing.text)["message"] == (
         "Der var intet link i det delte. Del opskriftens link igen."
     )
+
+
+def test_share_without_link_logs_only_field_names_and_types(caplog):
+    """O8: a Chrome share sent no link; the log shows the fields' shape, never values."""
+    import logging
+
+    from gatekeeper.podview import _recipe_field_shape
+
+    body = {"text": "Hemmelig opskrift fra Mormor", "title": "Boller", "n": 3, "bad key!": "x"}
+    shape = _recipe_field_shape(body)
+    assert shape == "n=int text=str title=str other_keys=1"
+    assert "Mormor" not in shape and "Boller" not in shape
+    assert _recipe_field_shape({}) == "empty"
+    with caplog.at_level(logging.INFO, logger="podvoice.podview"):
+        logging.getLogger("podvoice.podview").info("recipe_submission_fields %s", shape)
+    assert "Mormor" not in caplog.text

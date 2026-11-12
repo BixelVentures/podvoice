@@ -440,7 +440,8 @@ class VehicleControl:
                 return False
 
         try:
-            async with asyncio.timeout(30):
+            # Room for the HA call to wake a sleeping car (tools VEHICLE_COMMAND_TIMEOUT_S = 45 s).
+            async with asyncio.timeout(50):
                 approved = authorize(proposal)
                 if inspect.isawaitable(approved):
                     approved = await approved

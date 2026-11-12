@@ -56,6 +56,8 @@ from .podview_weather import observation_is_current, weather_projection, with_ho
 from .tool_wire import compact_json_size, realtime_function_tool, realtime_tools_wire_size
 from .weather_result import compact_weather_result
 
+# A Tesla command can wait for HA to wake the car (typically 10-30 s).
+VEHICLE_COMMAND_TIMEOUT_S = 45.0
 log = logging.getLogger("podvoice.tools")
 
 
@@ -2789,10 +2791,13 @@ class ToolRouter:
             if not await preflight():
                 return {"outcome": "rejected", "noEffect": True}
             # No await or alternate target between the durable preflight and send.
+            # A sleeping Tesla is woken by HA before the command returns: often 10-30 s.
+            # The client's 8 s default turned every such command into "unknown".
             response = await client.post(
                 f"{C.SUPERVISOR_CORE_API}/services/{domain}/{service}",
                 headers={"Authorization": f"Bearer {token}"},
                 json={"entity_id": entity_id, **data},
+                timeout=httpx.Timeout(VEHICLE_COMMAND_TIMEOUT_S, connect=3.0),
             )
             response.raise_for_status()
             return {"outcome": "accepted"}

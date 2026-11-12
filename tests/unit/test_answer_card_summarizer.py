@@ -41,9 +41,14 @@ class FakeSummarizer:
 
 
 def search(
-    owner, store, call_id="search-1", text="Barcelona slog Sevilla 3-1. Lewandowski scorede."
+    owner,
+    store,
+    call_id="search-1",
+    text="Barcelona slog Sevilla 3-1. Lewandowski scorede.",
+    question="Hvem vandt FC Barcelonas kamp i går?",
+    **changes,
 ):
-    binding = context(owner)
+    binding = context(owner, **changes)
     return store.offer(
         owner,
         room_id="kitchen",
@@ -59,7 +64,7 @@ def search(
         current=lambda: True,
         read_current=lambda completed: True,
         delegation_id=binding["delegation_id"],
-        question="Hvem vandt FC Barcelonas kamp i går?",
+        question=question,
     )
 
 
@@ -155,3 +160,98 @@ async def test_missing_summarizer_is_logged_as_a_skip(caplog):
     owner, store = object(), VisualReceiptOwner()
     search(owner, store)
     assert any("reason=no_summarizer" in r.getMessage() for r in caplog.records)
+
+
+# Green 2.0.182: the follow-up "hvem scorede" logged stage=skip reason=ValueError and
+# never reached the screen. Its card names the scorers but the model marks unknown
+# fields with empty strings. A follow-up is a new section on the same card: a new
+# history entry in the same conversation, which PodView threads under the first.
+FOLLOW_UP = {
+    **SPORT,
+    "title": "Målscorere: Barcelona mod Sevilla",
+    "summary": "Lewandowski scorede to gange",
+    "match": {
+        "home": "FC Barcelona",
+        "away": "Sevilla",
+        "homeScore": None,
+        "awayScore": None,
+        "date": "11. november 2026",
+        "competition": "",
+    },
+    "scorers": [
+        {"team": "home", "name": "Lewandowski", "minute": ""},
+        {"team": "home", "name": "Pedri", "minute": "67'"},
+    ],
+}
+
+
+async def ask_and_follow_up(store, owner, follow_up):
+    store.configure_card_summarizer(FakeSummarizer(SPORT))
+    search(owner, store)
+    await settle(store)
+    store.configure_card_summarizer(FakeSummarizer(follow_up))
+    search(
+        owner,
+        store,
+        call_id="search-2",
+        text="Lewandowski scorede to gange, Pedri én.",
+        question="Hvem scorede?",
+        turn_id="live:2:response-final",
+        input_revision=2,
+        response_id="response-follow-up",
+    )
+    await settle(store)
+    return store.history("kitchen", owner)["items"]
+
+
+async def test_follow_up_extends_the_same_card_as_a_new_sport_section():
+    owner, store = object(), VisualReceiptOwner()
+    history = await ask_and_follow_up(store, owner, FOLLOW_UP)
+    assert [item["family"] for item in history] == ["sport-result", "sport-result"]
+    assert {item["sessionId"] for item in history} == {"session"}
+    newest = history[0]["content"]
+    assert [row["name"] for row in newest["scorers"]] == ["Lewandowski", "Pedri"]
+    assert newest["match"]["competition"] is None and newest["scorers"][0]["minute"] is None
+    assert store.snapshot("kitchen", owner)["items"][0]["family"] == "sport-result"
+
+
+async def test_follow_up_that_fails_validation_still_adds_a_simple_section(caplog):
+    caplog.set_level("INFO", logger="podvoice.podview")
+    owner, store = object(), VisualReceiptOwner()
+    broken = {**FOLLOW_UP, "match": {**FOLLOW_UP["match"], "date": ""}}
+    history = await ask_and_follow_up(store, owner, broken)
+    assert [item["family"] for item in history] == ["key-points", "sport-result"]
+    assert {item["sessionId"] for item in history} == {"session"}
+    section = history[0]
+    assert section["title"] == "Målscorere: Barcelona mod Sevilla"
+    points = [p["text"] for p in section["content"]["points"]]
+    assert points == ["Lewandowski", "Pedri 67'", "Lewandowski scorede to gange"]
+    assert "Lewandowski scorede to gange, Pedri én." not in str(section)  # never the source text
+    assert store.snapshot("kitchen", owner)["items"][0]["family"] == "key-points"
+    stages = [r.getMessage() for r in caplog.records if "podview card" in r.getMessage()]
+    assert not any("stage=skip" in m for m in stages)
+
+
+async def test_validation_failure_log_names_field_and_rule_but_no_content(caplog):
+    caplog.set_level("INFO", logger="podvoice.podview")
+    owner, store = object(), VisualReceiptOwner()
+    broken = {**FOLLOW_UP, "match": {**FOLLOW_UP["match"], "date": ""}}
+    await ask_and_follow_up(store, owner, broken)
+    invalid = [r.getMessage() for r in caplog.records if "stage=invalid" in r.getMessage()]
+    assert invalid == [
+        "podview card stage=invalid room=kitchen family=sport-result field=match.date rule=empty"
+    ]
+    everything = " ".join(r.getMessage() for r in caplog.records)
+    for content in ("Barcelona", "Sevilla", "Lewandowski", "Pedri", "Målscorere", "67"):
+        assert content not in everything
+
+
+async def test_card_without_any_usable_field_is_still_skipped_without_content(caplog):
+    caplog.set_level("INFO", logger="podvoice.podview")
+    owner, store = object(), VisualReceiptOwner()
+    broken = {**FOLLOW_UP, "title": "<b>", "match": {**FOLLOW_UP["match"], "date": ""}}
+    history = await ask_and_follow_up(store, owner, broken)
+    assert [item["family"] for item in history] == ["sport-result"]
+    messages = [r.getMessage() for r in caplog.records if "podview card" in r.getMessage()]
+    assert any("field=match.date rule=empty" in m for m in messages)
+    assert any("stage=skip room=kitchen reason=InvalidPresentationField" in m for m in messages)
