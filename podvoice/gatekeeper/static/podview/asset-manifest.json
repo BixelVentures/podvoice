@@ -543,7 +543,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "44af835f07e53c6a30de767b8c1cd9a5242d43ac5626da5ca2ae69d8ef2f9e04"
+      "sha256": "fbab32d8d018288b7348c064319e2e8a6793ee9e88c9ab79b92195df2c2e73e7"
     },
     {
       "path": "live-music-selection-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "25c6fcfa8362beaa401d28314daaaa7c2605c007ad2138cd4baa6a6dc498ef2c"
+      "sha256": "5013097b71ba6646da1864161d434f588ccca65e81287c6aaf332ee591cb744c"
     },
     {
       "path": "podview.css",
