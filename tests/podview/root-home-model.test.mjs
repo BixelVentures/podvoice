@@ -69,14 +69,15 @@ test('fresh scoped weather expires offline via the existing model deadline, with
 
 test('passive advice closes at source freshness expiry while historical facts stay bounded',()=>{
  const now=Date.now(),raw=retainedFacts(now);
- raw.stateUpdatedAt=new Date(now-30*60*1000+1000).toISOString();
+ raw.stateUpdatedAt=new Date(now-2*60*60*1000+1000).toISOString();
  const facts=weatherFactObservation(raw,{now}),scope={bootId:'boot',roomId:'room'};
  const cap={schema:'podview.weather-advice-capability.v1',...scope,weatherKey:'b'.repeat(64),source:raw.source,
   sourceRetrievedAt:Date.parse(raw.retrievedAt)/1000,availability:'available',status:'idle',validUntil:(now+60000)/1000};
  assert.ok(weatherAdviceCapability(cap,facts,scope,now+999));
  assert.equal(weatherAdviceCapability(cap,facts,scope,now+1000),null);
- assert.equal(liveWeatherModel(facts,{now:now+1000}).sourceStale,true);
- assert.equal(liveWeatherModel(facts,{now:now+1000}).current.temperature,'10°');
+ // Freshness and the 2 h display deadline now end together: nothing current is shown as fresh.
+ assert.equal(liveWeatherModel(facts,{now:now+999,connected:true}).sourceStale,false);
+ assert.notEqual(liveWeatherModel(facts,{now:now+1000,connected:true}).sourceStale,false);
  const shortBound=weatherFactObservation(raw,{now,validUntil:(now+500)/1000});
  assert.ok(weatherAdviceCapability(cap,shortBound,scope,now+499));
  assert.equal(weatherAdviceCapability(cap,shortBound,scope,now+500),null);
@@ -89,4 +90,16 @@ test('explicit legacy current-only weather is bounded, never retained, and never
  const good={status:'observed',data:raw,lastKnown:null,currentOnly:true},home=validateHome(retainedHome(good),'room','boot');assert.equal(home.weather.current.temperature,10);assert.equal(home.weather.displayUntil,deadline);const scene=applyHome({devices:[]},home,['weather']);const unavailable=validateHome(retainedHome({status:'unavailable',data:null,lastKnown:null}),'room','boot');assert.equal(applyHome(scene,unavailable,['weather']).liveWeather,null);
  const variants=[{...good,currentOnly:false},{status:'observed',data:raw,lastKnown:null},{status:'observed',data:raw,currentOnly:true},{...good,lastKnown:{data:raw,validUntil:deadline/1000}},{...good,data:{...raw,observationScope:null}},{...good,data:{...raw,observationScope:{entityId:'weather.actual'}}},{...good,data:{...raw,observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}}},{...good,status:'unavailable',data:null,lastKnown:{data:{...raw,observationScope:{entityId:'weather.actual',ownerEpoch:'a'.repeat(64)}},validUntil:deadline/1000}},{...good,data:{...raw,forecast:null}}];
  for(const variant of variants){const value=validateHome(retainedHome(variant),'room','boot');assert.equal(value.weather,null,JSON.stringify(variant));assert.equal(applyHome(scene,value,['weather']).liveWeather,null,JSON.stringify(variant));}
+});
+
+test('met.no state from 45 min ago is current weather, so the AI summary slot is not hidden as stale',()=>{
+ // Green 12 Nov: HA's met.no entity changes about hourly; a 30 min rule hid the AI text.
+ const now=Date.now(),raw=retainedFacts(now);raw.stateUpdatedAt=new Date(now-45*60000).toISOString();
+ const facts=weatherFactObservation(raw,{now});
+ const model=liveWeatherModel(facts,{now,connected:true});
+ assert.equal(model.sourceStale,false);assert.equal(model.subtitle,'Vejret i dag');
+ // Two hours is the shared limit with the server: older state is honestly not updated.
+ const old=retainedFacts(now);old.stateUpdatedAt=new Date(now-7199000).toISOString();
+ const later=liveWeatherModel(weatherFactObservation(old,{now}),{now:now+2000,connected:true});
+ assert.notEqual(later.sourceStale,false);
 });

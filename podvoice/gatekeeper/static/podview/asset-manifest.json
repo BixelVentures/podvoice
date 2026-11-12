@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "8487d8fd80cf44810cf141d5473687e47248a8b5419f6eebbf0c86b7a40d4096"
+      "sha256": "af152c4142c0e494329255969ab4d50deda830595f47cc100f0632f5b9df36f5"
     },
     {
       "path": "library.css",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "43fdf08d660ac7100771dff9604e74f3d9c6e9e0a25d6d8f1600b9df1ac50170"
+      "sha256": "056cb4f3bb1153e3fa6acc6cd9a88a8f0b71e8e73ec476804714b24f7da19366"
     },
     {
       "path": "podview.css",
@@ -875,7 +875,7 @@
     },
     {
       "path": "weather-observation.js",
-      "sha256": "32837ca8b430fe9cd5a549e2a27070e25a324913ccdea72c9c35ee6175fe511f"
+      "sha256": "38ce2293aa95b617cde13bc33b3efac46bf05eb59614ce7b509543b8473fb8b9"
     },
     {
       "path": "weather-view.js",

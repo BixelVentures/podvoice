@@ -249,17 +249,18 @@ async function offlineFeedbackJourney(page,errors){
   await emit({weatherNearFreshnessSeconds:8});
   await fresh(22.1);
   const nearFresh=await capture();
-  const staleAt=Date.parse(nearFresh.weather.stateUpdatedAt)+30*60*1000;
-  assert(staleAt>nearFresh.at&&staleAt<=nearFresh.at+8100);
+  // met.no changes about hourly: HA state older than 30 min is still current weather
+  // (shared 2 h limit), so it is not marked stale and the AI summary is not hidden.
+  const oldRule=Date.parse(nearFresh.weather.stateUpdatedAt)+30*60*1000;
+  assert(oldRule>nearFresh.at&&oldRule<=nearFresh.at+8100);
   assert.equal(nearFresh.home.temperature,'22°');
   assert.equal(nearFresh.home.stale,'false');
-  await page.waitForFunction(()=>document.querySelector('#home-weather')?.dataset.weatherStale==='true',
-   undefined,{timeout:12000});
+  await sleep(Math.max(0,oldRule-Date.now())+1500);
   const pastFresh=await save('weather-08b-source-over-30min');
-  assert(pastFresh.at>=staleAt);
+  assert(pastFresh.at>=oldRule);
   assert.equal(pastFresh.weather.stateUpdatedAt,nearFresh.weather.stateUpdatedAt);
-  assert.equal(pastFresh.home.temperature,nearFresh.home.temperature);
-  assert.match(pastFresh.home.condition,/Opdateret: /);
+  assert.equal(pastFresh.home.stale,'false','HA state 30 min old is still current weather');
+  assert.doesNotMatch(pastFresh.home.condition,/Opdateret: |Ikke opdateret/);
   assert(await page.locator('#home-weather small').isVisible());
   assert.equal(await page.locator('pv-widget-host').evaluate(host=>host.liveTransport.connected),true);
   await emit({weatherNearExpirySeconds:8});await fresh(21.1);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const near=await capture();assert(near.weather.displayUntil>near.at&&near.weather.displayUntil<=near.at+8100);const nearSource=near.weather.stateUpdatedAt;await page.context().setOffline(true);await save('weather-09-offline-retained');await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),w=h?.state.liveWeather;return w&&Date.now()>=w.displayUntil&&!h.querySelector('#weather-view .weather-current strong')?.textContent?.trim()},undefined,{timeout:12000});const expiredDetail=await save('weather-10-offline-expired-detail');assert.equal(expiredDetail.weather.stateUpdatedAt,nearSource);assert.equal(expiredDetail.detail.value,'');assert.equal(expiredDetail.detail.hours,0);await page.locator('#header-title-action').tap();const expiredHome=await save('weather-11-offline-expired-home');assert.equal(expiredHome.home.temperature,'');assert(!/[0-9]/.test(expiredHome.header.temperature),'expired source temperature cannot survive in the visible header');assert.equal(expiredHome.home.hourCount,0);assert(expiredHome.at>=near.weather.displayUntil);await page.context().setOffline(false);

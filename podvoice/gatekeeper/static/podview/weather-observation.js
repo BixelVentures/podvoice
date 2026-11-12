@@ -78,11 +78,14 @@ export function weatherFactObservation(value,{now=Date.now(),validUntil=null,sta
  return result;
 }
 
-// A recent retrieval of the same old HA state cannot renew freshness.
+// A recent retrieval of the same old HA state cannot renew freshness. HA's
+// met.no entity changes about once an hour, so its state may be up to the same
+// 2 h the server and the fact deadline accept (it was 30 min, which hid the AI
+// summary and called normal weather out of date between met.no updates).
 export function weatherFreshUntil(weather){
  const retrieved=Date.parse(weather.retrievedAt)+15*60*1000;
  if(!weather.current||!Number.isFinite(weather.displayUntil))return retrieved;
- return Math.min(retrieved,Date.parse(weather.stateUpdatedAt)+30*60*1000);
+ return Math.min(retrieved,Date.parse(weather.stateUpdatedAt)+2*60*60*1000);
 }
 
 export function hourlyWeather(weather,now=Date.now()){
