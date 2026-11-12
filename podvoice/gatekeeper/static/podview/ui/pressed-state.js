@@ -2,7 +2,10 @@
 export function attachPressedState(surface){
  const doc=surface.ownerDocument||surface,root=doc.nodeType===9?doc:surface,win=doc.defaultView,feedback=new Map();let pressed=null,pointerId=null,origin=null,pointerFocus=null,pointerModality=false;
  const unavailable=target=>!target||target.disabled||target.getAttribute?.('aria-disabled')==='true'||target.closest?.('[inert]');
- const clear=()=>{pressed?.classList.remove('is-pressed');pressed=null;pointerId=null;origin=null;};
+ let litePressed=null;
+ const clearLite=()=>{if(!litePressed)return;litePressed.style.removeProperty('transform');
+  litePressed.style.removeProperty('background-image');litePressed=null;};
+ const clear=()=>{clearLite();if(!lite())pressed?.classList.remove('is-pressed');pressed=null;pointerId=null;origin=null;};
  const clearFocus=()=>{pointerFocus?.removeAttribute?.('data-pv-pointer-focus');pointerFocus=null;};
  const cancelFeedback=target=>{feedback.get(target)?.cancel();feedback.delete(target);};
  // 12 % of the button's own colour. Computed in JS instead of color-mix(), which Chrome < 111
@@ -22,9 +25,9 @@ export function attachPressedState(surface){
   const animation=target.animate(frames,{duration:90,easing:'cubic-bezier(.2,0,0,1)'});feedback.set(target,animation);
   animation.finished?.catch(()=>{}).finally(()=>{if(feedback.get(target)===animation)feedback.delete(target);});
  };
- // Strip mode (html[data-lite]): the pressed class lands on the touched element at once (Chrome on
- // Android only sets :active after it decides tap vs scroll, so quick taps showed nothing). No style
- // read, focus marker or release animation; moving >10 px, scrolling or cancelling clears it.
+ // Strip mode (html[data-lite]): the touched element is marked pressed at once (Chrome on Android only
+ // sets :active after it decides tap vs scroll, so quick taps showed nothing). No style read, focus
+ // marker or release animation; moving >10 px, scrolling or cancelling clears it.
  const lite=()=>doc.documentElement?.hasAttribute?.('data-lite')===true;
  const liteDown=event=>{
   if(event.isPrimary===false||event.button>0)return;clear();
@@ -33,7 +36,13 @@ export function attachPressedState(surface){
   const field='input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])';
   if(index<0||path.slice(0,index+1).some(node=>node?.matches?.(field))||unavailable(target))return;
   pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY,shadow:'none'};
-  target.classList.add('is-pressed');
+  // Inline style, not a class: the is-pressed class is matched by many :has() rules and restyled the
+  // whole page (~0.6 s per tap on Frameo); an inline style restyles only the touched element.
+  if(target.id!=='photo-view'&&target.style){
+   target.style.setProperty('transform','scale(.97)','important');
+   target.style.setProperty('background-image','linear-gradient(rgba(27,29,28,.14),rgba(27,29,28,.14))','important');
+   litePressed=target;
+  }
  };
  const down=event=>{
   if(lite())return liteDown(event);

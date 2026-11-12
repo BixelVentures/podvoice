@@ -109,12 +109,17 @@ test('cached date formatting gives the same text as toLocaleTimeString', async (
   assert.equal(formatDate(at, day), at.toLocaleDateString('da-DK', day));
 });
 
-test('in strip mode the touched element shows pressed at once, without style reads or animation', async () => {
+test('in strip mode the touched element shows pressed at once via its own inline style', async () => {
   const { attachPressedState } = await import('../../podvoice/gatekeeper/static/podview/ui/pressed-state.js');
   const handlers = new Map();
   let styleReads = 0;
   const target = {
-    classes: new Set(), animations: 0, dataset: {}, disabled: false, isConnected: true,
+    classes: new Set(), animations: 0, dataset: {}, disabled: false, isConnected: true, id: 'home-vehicle',
+    inline: new Map(),
+    style: {
+      setProperty(name, value) { target.inline.set(name, value); },
+      removeProperty(name) { target.inline.delete(name); },
+    },
     classList: { add(name) { target.classes.add(name); }, remove(name) { target.classes.delete(name); } },
     matches: (selector) => selector.startsWith('button,'),
     getAttribute: () => null, setAttribute() {}, removeAttribute() {}, closest: () => null,
@@ -135,12 +140,13 @@ test('in strip mode the touched element shows pressed at once, without style rea
   const event = (type, x = 0, y = 0) => ({ type, pointerId: 1, clientX: x, clientY: y, button: 0, isPrimary: true,
     composedPath: () => [target, surface] });
   handlers.get('pointerdown')(event('pointerdown'));
-  assert.equal(target.classes.has('is-pressed'), true, 'pressed on touch-down, before any click');
+  assert.equal(target.inline.get('transform'), 'scale(.97)', 'pressed on touch-down, before any click');
+  assert.equal(target.classes.has('is-pressed'), false, 'no class: it restyled the whole page');
   handlers.get('win:pointerup')(event('pointerup'));
-  assert.equal(target.classes.size, 0, 'released on lift');
+  assert.equal(target.inline.size, 0, 'released on lift');
   handlers.get('pointerdown')(event('pointerdown'));
   handlers.get('pointermove')(event('pointermove', 0, 30));
-  assert.equal(target.classes.size, 0, 'dragging the finger away cancels the press');
+  assert.equal(target.inline.size, 0, 'dragging the finger away cancels the press');
   assert.deepEqual({ styleReads, animations: target.animations }, { styleReads: 0, animations: 0 });
 });
 
@@ -169,4 +175,13 @@ test('an unchanged screen sync writes nothing on the root (each root write resty
   writes.length = 0;
   lifecycle.sync();
   assert.deepEqual(writes, []);
+});
+
+test('edge-drag preview never writes the root in strip mode and only on change elsewhere', async () => {
+  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+    'utf8');
+  const preview = source.match(/preview:progress=>\{([\s\S]*?)\n  \}/)[1];
+  assert.match(preview, /if\(this\.lite\)return;/);
+  assert.match(preview, /if\(this\.dataset\.edgeDrag!==drag\)/);
+  assert.match(preview, /getPropertyValue\?\.\('--edge-progress'\)!==value/);
 });

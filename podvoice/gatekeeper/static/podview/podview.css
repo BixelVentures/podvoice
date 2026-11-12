@@ -2996,7 +2996,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 c413cd105e3a6f7ff2588f50f80978bfff474121823e524bb26d5b5afea9771c */
+/* Source: ui-kit.css · SHA256 5f7ccdc0820775554892ac27e672a78d1f1e4bc5582f16ec8e9286de0cec859b */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -5809,7 +5809,4 @@ html[data-lite] *,html[data-lite] *::before,html[data-lite] *::after{
  backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
  mask-image:none!important;-webkit-mask-image:none!important;scroll-behavior:auto!important}
 html[data-lite] :not(img){filter:none!important}
-html[data-lite] .is-pressed:not([disabled],[aria-disabled=true],#photo-view){
- transform:scale(.97)!important;
- background-image:linear-gradient(rgba(27,29,28,.14),rgba(27,29,28,.14))!important}
 html[data-lite]{touch-action:manipulation}

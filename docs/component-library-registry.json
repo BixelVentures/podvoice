@@ -3114,7 +3114,8 @@
           "arrow:keydown": 1,
           "arrow:keyup": 1,
           "arrow:lite": 1,
-          "arrow:liteDown": 1
+          "arrow:liteDown": 1,
+          "arrow:clearLite": 1
         },
         "roots": [],
         "registrations": {},
