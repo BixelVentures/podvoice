@@ -619,7 +619,7 @@ export class LiveControlView{
    h.liveSnapshot?.capabilities?.homeRead?.includes('vehicle')===true&&
    typeof resourceId==='string'&&h.state.vehicleBinding===resourceId;
   const waitForObservation=callback=>{
-   const timer=setTimeout(callback,30000);
+   const timer=setTimeout(callback,60000);  // A woken Tesla can take 10–30 s, then report.
    return ()=>clearTimeout(timer);
   };
   const operation={action,diagnostic,diagnosticTransport:t,requestedValue,resourceId,
