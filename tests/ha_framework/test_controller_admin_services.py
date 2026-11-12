@@ -19,13 +19,15 @@ from homeassistant.components.config.config_entries import (
     OptionManagerFlowIndexView,
     OptionManagerFlowResourceView,
 )
-from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
 from homeassistant.components.http import HomeAssistantHTTP
 from homeassistant.config_entries import ConfigEntries
 from homeassistant.const import __version__
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
+
+# HA 2026.11 moved the constant (hassio.const -> http.const); the key is unchanged.
+SUPERVISOR_USER_KEY = "hassio_supervisor_user"
 
 ROOT = Path(__file__).resolve().parents[2]
 ROOM = "configured-alpha"
@@ -67,7 +69,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.supervisor = await self.hass.auth.async_create_system_user(
             "Supervisor fixture", group_ids=[GROUP_ID_ADMIN]
         )
-        self.hass.data[DATA_HASSIO_SUPERVISOR_USER] = self.supervisor
+        self.hass.data[SUPERVISOR_USER_KEY] = self.supervisor
         self.writes = []
         self.written = asyncio.Event()
 

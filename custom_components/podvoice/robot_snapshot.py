@@ -32,9 +32,13 @@ def service_schema():
 
 
 def _supervisor(hass):
-    from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
+    # HA 2026.11 moved the key to http.const; it is the same "hassio_supervisor_user".
+    try:
+        from homeassistant.components.http.const import DATA_SUPERVISOR_USER as key
+    except ImportError:  # Home Assistant 2026.8 to 2026.10.
+        from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER as key
 
-    return hass.data.get(DATA_HASSIO_SUPERVISOR_USER)
+    return hass.data.get(key)
 
 
 def _integer(value):
