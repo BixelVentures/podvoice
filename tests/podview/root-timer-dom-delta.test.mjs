@@ -158,7 +158,7 @@ test('stale running timer retains its measured dial but exposes the freshness st
  try{
   const state={connected:false,focus:'timers',timer:{...timer,stale:true},timerHistory:[]};f.view.render(state);
   const card=f.view.nodes.get(`detail:${timer.id}`),count=card.querySelector('.timer-count'),status=card.querySelector('.timer-state');
-  assert.equal(card.dataset.stale,'true');assert.equal(count.textContent,'0:59');assert.match(status.textContent,/sidst kendt/i);assert.equal(status.hidden,false);
+  assert.equal(card.dataset.stale,'true');assert.equal(count.textContent,'0:59');assert.match(status.textContent,/ikke opdateret/i);assert.equal(status.hidden,false);
   f.writes.length=0;f.view.render(state);assert.deepEqual(f.writes,[],'identical stale data must not restart the instrument');
   f.view.render({...state,connected:true,timer:{...timer,stale:false}});assert.equal(card.dataset.stale,'false');assert.equal(card.querySelector('.timer-count'),count);
  }finally{globalThis.document=prior;}

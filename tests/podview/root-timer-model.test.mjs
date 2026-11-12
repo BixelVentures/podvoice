@@ -7,7 +7,7 @@ test('duration limits, offline starts, history dedupe and stale notice IDs',()=>
 test('timer details return to overview then Ro without stopping timers',()=>{let s=step(initialScene(),{type:'timer-start',now:0});s=step(s,{type:'show',id:'timers'});assert.equal(s.focus,'timers');s=step(s,{type:'device-back'});assert.equal(s.focus,'now');assert.equal(s.timer.status,'running');const timer=s.timer;s=step(s,{type:'back'});assert.equal(s.focus,'photo');assert.equal(s.timer,timer);});
 
 import {timerStateLabel} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
-test('all timer surfaces distinguish stale, paused and finished authoritative state',()=>{assert.equal(timerStateLabel({status:'running',stale:true}),'Sidst kendte tid');assert.equal(timerStateLabel({status:'paused'}),'På pause');assert.equal(timerStateLabel({status:'done'}),'Tiden er gået');});
+test('all timer surfaces distinguish stale, paused and finished authoritative state',()=>{assert.equal(timerStateLabel({status:'running',stale:true}),'Ikke opdateret');assert.equal(timerStateLabel({status:'paused'}),'På pause');assert.equal(timerStateLabel({status:'done'}),'Tiden er gået');});
 
 import {timerProgress} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
 test('progress never invents a total from native remaining time',()=>{

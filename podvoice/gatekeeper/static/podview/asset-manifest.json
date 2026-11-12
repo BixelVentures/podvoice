@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "fa5bac2308fb3eca0ca231bb32661e6c03014c6ad49c962b06c16f0a3f817b98"
+      "sha256": "0dbdb111aea90c434d4b95269dbf4cb2cf4a495070c9a81e334b2a17081bd64d"
     },
     {
       "path": "library.css",
@@ -523,11 +523,11 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "788ac5dbefd7d74c04010e88c3a7db9d8989049a58dfe1ec561f34a2d026370f"
+      "sha256": "5c0adeb38a8be5f9c28430abfce645c53d240ba4182d1c5204f563c7c0c414be"
     },
     {
       "path": "light-room-view.js",
-      "sha256": "d872e84e8268374f409c89c4f3139d3ad9c17875a71b1f69503e151b2b769a74"
+      "sha256": "d2f22fa1aa328c14fd410edfdc44adff257971a002dcf71ae0b0b0120ec43514"
     },
     {
       "path": "live-answer-view.js",
@@ -539,7 +539,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "56988600e59aee255b862cb08f9702ae0e44ea184668905029518030d6ada9d4"
+      "sha256": "747de18089fb05986968d77109dff96f6caa9d19f0fa6180a0c3a34c7e1d453d"
     },
     {
       "path": "live-media-view.js",
@@ -635,7 +635,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "c3562118aab65a9d5e57a3eaa4a37fcbc9cc830797cfa5d80c6229bad96a8796"
+      "sha256": "93f9a07330e0172b7d49d2b3ca2c8c83cde8add862da06614f1ab380a23da7d9"
     },
     {
       "path": "podview.css",
@@ -715,7 +715,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "610f377709cc3fc67cd422b2953148102719a54230631199e1504a493c5e87b7"
+      "sha256": "c6d66dce376dafd1b990a60136781306bfe54103fbae53aff517316ea18479f1"
     },
     {
       "path": "spotify-artwork.js",
@@ -727,7 +727,7 @@
     },
     {
       "path": "timer-model.js",
-      "sha256": "837fdc90e2d8281855da160610b4c300350659bbe497fab5b0eacb6f7336e0ea"
+      "sha256": "59e5026e5352ef824c04be66bc0cbcc202e718da6d204f32ab5ebd4213e874f1"
     },
     {
       "path": "timer-notice.css",
@@ -838,8 +838,12 @@
       "sha256": "1947c9032ef4ab26b524b34c25d77f60b54e3b755ec4cdbc477014385fe92eb3"
     },
     {
+      "path": "updated-label.js",
+      "sha256": "6b056ad09361042ccec5c5fa9c9a74968eab99f18cce00fd9868be130c949ad1"
+    },
+    {
       "path": "vehicle-model.js",
-      "sha256": "bbb5f06c7b9d589814d8ae31c263bd56820889299459f29bde8ee34387479368"
+      "sha256": "8b578c2a6fbcc533c21d43e035d529f503fbac68cc384049af65d8f80507756d"
     },
     {
       "path": "vehicle-preview-command.js",
@@ -875,7 +879,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "895f91ffc5e903bc191cd144496512ae0d2c5bd8521c755cb638efa711e75c58"
+      "sha256": "bc2851298c270beb9b4b2398b45307ce63ca65a4862a607cc349dc570d9d0dbc"
     },
     {
       "path": "widget-model.js",
@@ -891,7 +895,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "19f05c1f6171cdcebcaeb3c08e32c2e73faba06a4b1c750438e4851964626846"
+      "sha256": "c14f49242bde23a8b47a4aba4e604b7d2ef3929a8b6b7e904aa7671c0cac7b9a"
     },
     {
       "path": "workshop.css",

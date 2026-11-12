@@ -36,7 +36,7 @@ test('retained lamp dimmers survive room round trips without scene buttons',()=>
 test('unchanged rendering during a drag keeps the preview; lost capture cancels without a command',()=>{
  const h=fixture(),lamp=h.lightSliders.get('living-floor');event(lamp.input,'pointerdown',{button:0,pointerId:7,clientY:72});assert.equal(lamp.input.value,'80');h.render();assert.equal(lamp.input.value,'80');assert.equal(lamp.output.textContent,'80 %');
  const count=h.events.length;event(lamp.input,'lostpointercapture',{pointerId:7});event(lamp.input,'pointerup',{pointerId:7,clientY:72});assert.equal(h.events.length,count);assert.equal(lamp.input.value,'60');
- h.state={...h.state,connected:false};h.render();assert.equal(lamp.name.disabled,false,'offline known data remains browsable');assert.equal(lamp.stateText.textContent,'Sidst kendt · tændt');
+ h.state={...h.state,connected:false};h.render();assert.equal(lamp.name.disabled,false,'offline known data remains browsable');assert.equal(lamp.stateText.textContent,'Tændt · ikke opdateret');
 });
 
 
@@ -59,7 +59,7 @@ test('actual HA light observations use the same retained Tiles without local roo
 });
 
 test('read-only HA light Tiles retain last-known state on disconnect and clear when observations disappear',()=>{
- const h=fixture();h.live=true;h.state={...h.state,connected:false,focus:'actual',devices:[{id:'actual',kind:'light',source:'home_assistant_state',live:true,status:'on',stale:true,revision:2,observedLights:[{entityId:'light.actual',name:'Lampe',state:'on',brightness:255,supportsBrightness:true}]}]};h.render();const e=h.lightSliders.get('light.actual');assert.equal(e.stateText.textContent,'Sidst kendt · tændt');assert.equal(e.output.textContent,'100 %');assert.equal(e.input.disabled,true);assert.equal(e.label.dataset.confirmed,'false');h.state={...h.state,devices:[]};h.render();assert.equal(h.lightAdjustments.hidden,true);assert.deepEqual(h.events,[]);
+ const h=fixture();h.live=true;h.state={...h.state,connected:false,focus:'actual',devices:[{id:'actual',kind:'light',source:'home_assistant_state',live:true,status:'on',stale:true,revision:2,observedLights:[{entityId:'light.actual',name:'Lampe',state:'on',brightness:255,supportsBrightness:true}]}]};h.render();const e=h.lightSliders.get('light.actual');assert.equal(e.stateText.textContent,'Tændt · ikke opdateret');assert.equal(e.output.textContent,'100 %');assert.equal(e.input.disabled,true);assert.equal(e.label.dataset.confirmed,'false');h.state={...h.state,devices:[]};h.render();assert.equal(h.lightAdjustments.hidden,true);assert.deepEqual(h.events,[]);
 });
 
 test('every native lamp title opens the same kit Dialog and Close returns focus without toggling',()=>{
@@ -98,7 +98,7 @@ test('Light Hero projects only complete current counts and keeps disconnected co
  assert.equal(project(h.state,d,presentation,count),'2 af 4 tændt');
  const selected=sceneTransition(h.state,{type:'light-select',sessionId:h.state.sessionId,taskId:d.id,revision:d.revision,optionId:'light:living-floor'}),lamp=selected.devices[0],lampPresentation=devicePresentation(lamp),lampCount=lampPresentation.facts.find(row=>row.id==='on-count');assert.equal(lampPresentation.scope,'Stuen');assert.equal(project(selected,lamp,lampPresentation,lampCount),'Tændt');
  assert.equal(project({...h.state,connected:false},d,presentation,count),presentation.detail);
- assert.equal(project(h.state,{...d,stale:true},presentation,null),'Sidst kendt · 2 af 4 tændt');
+ assert.equal(project(h.state,{...d,stale:true},presentation,null),'2 af 4 tændt · ikke opdateret');
  const empty={kind:'light',status:'unavailable',live:true,presentationOnly:true},unknown=devicePresentation(empty);assert.equal(project(h.state,empty,unknown,null),'Ikke forbundet');assert.doesNotMatch(project(h.state,empty,unknown,null),/0 af|tændt/);
  assert.ok(source.includes("fact.id==='on-count'&&fact.label==='Tændt'&&!fact.stale"),'partial or stale observations cannot supply the current Hero count');
 });

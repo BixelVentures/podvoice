@@ -34,14 +34,14 @@ export class LightRoomView{
     // Only a pending command for this room's own light blocks its tile (L1).
     const pending=controls?.lightActions?.get(JSON.stringify([row.areaId,null,null]))?.state?.pending;
     const enabled=permitted&&known&&(!pending||controls.canQueueLightInput?.({areaId:row.areaId},'toggle'));
-    return {id:row.areaId,name:row.areaName,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Sidst kendt':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!enabled,live:true};
+    return {id:row.areaId,name:row.areaName,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Ikke opdateret':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!enabled,live:true};
    });
    return {live:true,rows,placement:items.find(row=>row.areaId===catalogue?.ownAreaId)?.areaName||'',globalEnabled:false};
   }
   if(!lightSelection(light))return null;
   const groups=new Map();for(const lamp of light.lights){if(!groups.has(lamp.roomId))groups.set(lamp.roomId,{id:lamp.roomId,name:lamp.roomName,lamps:[]});groups.get(lamp.roomId).lamps.push(lamp);}
   const selected=lightSelection(light).roomId,connected=this.host.state?.connected===true,known=connected&&!light.stale&&['on','off','mixed'].includes(light.status),enabled=known&&light.exampleOnly===true&&!light.pending&&this.host.state?.focus===light.id;
-  const rows=[...groups.values()].map(room=>{const on=room.lamps.filter(row=>row.on).length,roomKnown=room.lamps.every(row=>row.state===undefined||['on','off'].includes(row.state));return {id:room.id,name:room.name,selected:selected===room.id,status:!connected||light.stale?'Sidst kendt':known&&roomKnown?(on?'Tændt':'Slukket'):'Status ukendt',action:known&&roomKnown?(on?'turn_off':'turn_on'):null,enabled:enabled&&roomKnown,live:false};});
+  const rows=[...groups.values()].map(room=>{const on=room.lamps.filter(row=>row.on).length,roomKnown=room.lamps.every(row=>row.state===undefined||['on','off'].includes(row.state));return {id:room.id,name:room.name,selected:selected===room.id,status:!connected||light.stale?'Ikke opdateret':known&&roomKnown?(on?'Tændt':'Slukket'):'Status ukendt',action:known&&roomKnown?(on?'turn_off':'turn_on'):null,enabled:enabled&&roomKnown,live:false};});
   rows.sort((a,b)=>Number(b.id===light.ownRoomId)-Number(a.id===light.ownRoomId));
   return {live:false,rows,placement:groups.get(light.ownRoomId)?.name||'',globalRestore:lightHomeRestoreAvailable(this.host.state,light),globalEnabled:enabled&&rows.every(row=>row.action!==null)&&light.scope==='home'&&light.lights.some(row=>row.on)};
  }

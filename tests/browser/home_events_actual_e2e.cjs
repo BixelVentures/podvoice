@@ -191,7 +191,7 @@ async function offlineFeedbackJourney(page,errors){
    assert.equal(home.home.hourCount,0);
    assert.equal(home.header.temperature,'—');
    assert.equal(home.header.detail,'Vejr ukendt');
-   assert(!/Sidst kendt/.test(home.home.condition));
+   assert(!/Opdateret/.test(home.home.condition));
    await card.tap();
    await page.locator('#weather-view').waitFor({state:'visible'});
    const detail=await save('weather-cold-empty-detail');
@@ -199,7 +199,7 @@ async function offlineFeedbackJourney(page,errors){
    assert.equal(detail.detail.hours,0);
    assert.equal(await page.locator(dailyRowsSelector).count(),0);
    assert.match(detail.detail.text,/Der er ingen aktuelle vejroplysninger at vise/);
-   assert(!detail.detail.metadata.some(row=>['Hentet','Status'].includes(row.label)));
+   assert(!detail.detail.metadata.some(row=>['Opdateret','Status'].includes(row.label)));
    assert(homeResponses.every(row=>row.value.weather?.status!=='observed'&&!row.value.weather?.lastKnown));
    const failed=await state();
    assert(failed.weather.reads.length>0&&failed.weather.reads.every(row=>row.failed));
@@ -227,14 +227,15 @@ async function offlineFeedbackJourney(page,errors){
   await save('weather-01-current-rest');await testEnv.openOverview(page);await page.locator('#home-weather').waitFor({state:'visible'});const goodHome=await save('weather-02-current-home');assert.match(goodHome.home.temperature,/15/);assert(goodHome.home.hourCount>0);assert.equal(goodHome.home.stale,'false');await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const goodDetail=await save('weather-03-current-detail');assert(goodDetail.detail.hours>0);
   assert.equal(goodDetail.detail.value,goodHome.home.temperature,'overview and detail show the same observed temperature');
   assert.equal(goodDetail.weather.retrievedAt,goodHome.weather.retrievedAt,'overview and detail use the same observation');
-  await emit({weatherFail:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.liveWeather?.stale===true,undefined,{timeout:10000});const failed=await save('weather-04-failed-detail');assert.equal(failed.weather.retrievedAt,originalRetrieved);assert.equal(failed.detail.value,goodDetail.detail.value);assert.equal(failed.detail.hours,goodDetail.detail.hours);assert.match(failed.detail.text,/Sidst kendte vejr/);
-  const expectedClock=await page.evaluate(stamp=>new Date(stamp).toLocaleString('da-DK',{timeZone:'Europe/Copenhagen',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}),originalRetrieved);assert.equal(failed.detail.metadata.find(row=>row.label==='Hentet')?.value,expectedClock,'visible original retrieval date/time is not a DTO-only assertion');
-  const readsBeforeReload=(await state()).weather.reads.length;await sleep(5100);await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.liveWeather?.stale===true,undefined,{timeout:12000});await testEnv.openOverview(page);const reloadHome=await save('weather-05-reload-last-known-home');assert.equal(reloadHome.weather.retrievedAt,originalRetrieved);assert.equal(reloadHome.home.temperature,goodHome.home.temperature);assert.equal(reloadHome.home.hourCount,goodHome.home.hourCount);assert.match(reloadHome.home.condition,/Sidst kendt/);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const reloadDetail=await save('weather-06-reload-last-known-detail');assert.equal(reloadDetail.detail.value,goodDetail.detail.value);assert.equal(reloadDetail.detail.metadata.find(row=>row.label==='Hentet')?.value,expectedClock);assert((await state()).weather.reads.length>readsBeforeReload,'natural5.1s expiry plus reload reaches the real failed weather owner again');
+  await emit({weatherFail:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.liveWeather?.stale===true,undefined,{timeout:10000});const failed=await save('weather-04-failed-detail');assert.equal(failed.weather.retrievedAt,originalRetrieved);assert.equal(failed.detail.value,goodDetail.detail.value);assert.equal(failed.detail.hours,goodDetail.detail.hours);assert.match(failed.detail.text,/Opdateret\n/);
+  const expectedClock=await page.evaluate(stamp=>{const at=new Date(stamp),now=new Date(),clock=at.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),day=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate()).getTime(),age=Math.round((day(now)-day(at))/86400000);
+   return age===0?clock:age===1?`i går ${clock}`:`${at.toLocaleDateString('da-DK',{day:'numeric',month:'short'})} ${clock}`;},originalRetrieved);assert.equal(failed.detail.metadata.find(row=>row.label==='Opdateret')?.value,expectedClock,'visible original retrieval date/time is not a DTO-only assertion');
+  const readsBeforeReload=(await state()).weather.reads.length;await sleep(5100);await page.reload({waitUntil:'domcontentloaded'});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state.liveWeather?.stale===true,undefined,{timeout:12000});await testEnv.openOverview(page);const reloadHome=await save('weather-05-reload-last-known-home');assert.equal(reloadHome.weather.retrievedAt,originalRetrieved);assert.equal(reloadHome.home.temperature,goodHome.home.temperature);assert.equal(reloadHome.home.hourCount,goodHome.home.hourCount);assert.match(reloadHome.home.condition,/Opdateret: /);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const reloadDetail=await save('weather-06-reload-last-known-detail');assert.equal(reloadDetail.detail.value,goodDetail.detail.value);assert.equal(reloadDetail.detail.metadata.find(row=>row.label==='Opdateret')?.value,expectedClock);assert((await state()).weather.reads.length>readsBeforeReload,'natural5.1s expiry plus reload reaches the real failed weather owner again');
   const retained=homeResponses.findLast(row=>row.value.weather?.status==='unavailable'&&row.value.weather.lastKnown)?.value.weather.lastKnown;assert.equal(retained.data.retrievedAt,originalRetrieved);assert.equal(retained.data.stateUpdatedAt,original.stateUpdatedAt);assert.equal(retained.data.hourly.retrievedAt,original.hourly.retrievedAt);
   const fallbackColumns=await dailyWeatherColumns(page,['cloud','dash','dash'],'fallback');
   const originalDailyRows=(await page.locator(dailyRowsSelector).elementHandles()).slice(0,3);
   const originalDailyIcons=await Promise.all(originalDailyRows.map(row=>row.$('img')));
-  await emit({weatherRecover:true});await fresh(19.6);const recoveredDetail=await save('weather-07-recovered-detail');assert.equal(recoveredDetail.weather.stale,false);assert(recoveredDetail.weather.retrievedAt!==originalRetrieved);assert(!recoveredDetail.detail.metadata.some(row=>row.label==='Hentet'));
+  await emit({weatherRecover:true});await fresh(19.6);const recoveredDetail=await save('weather-07-recovered-detail');assert.equal(recoveredDetail.weather.stale,false);assert(recoveredDetail.weather.retrievedAt!==originalRetrieved);assert(!recoveredDetail.detail.metadata.some(row=>row.label==='Opdateret'));
   const recoveredColumns=await dailyWeatherColumns(page,['cloud','sun','cloud-rain'],'recovered');
   for(let index=0;index<3;index++){
    assert(await originalDailyRows[index].evaluate((row,{selector,index})=>row===document.querySelectorAll(selector)[index],{selector:dailyRowsSelector,index}));
@@ -244,7 +245,7 @@ async function offlineFeedbackJourney(page,errors){
   assert.deepEqual(positions(recoveredColumns),positions(fallbackColumns),'weather recovery keeps date, range and all column positions in place');
   await fs.writeFile(path.join(testEnv.artifactDir(),'weather-daily-columns-proof.json'),JSON.stringify({loadedBundle,loadedCss,fallbackColumns,recoveredColumns,retainedNodes:true},null,2));
   await page.locator('#header-title-action').tap();await page.locator('#home-weather').waitFor({state:'visible'});const recoveredHome=await save('weather-08-recovered-home');assert.match(recoveredHome.home.temperature,/20/);assert.equal(recoveredHome.home.stale,'false');
-  assert(reloadHome.home.detail.includes(expectedClock),'the front page shows the same original retrieval time');
+  assert(reloadHome.home.condition.includes(`Opdateret: ${expectedClock}`),'the front page shows the same original retrieval time');
   await emit({weatherNearFreshnessSeconds:8});
   await fresh(22.1);
   const nearFresh=await capture();
@@ -258,8 +259,7 @@ async function offlineFeedbackJourney(page,errors){
   assert(pastFresh.at>=staleAt);
   assert.equal(pastFresh.weather.stateUpdatedAt,nearFresh.weather.stateUpdatedAt);
   assert.equal(pastFresh.home.temperature,nearFresh.home.temperature);
-  assert.match(pastFresh.home.condition,/Sidst kendt/);
-  assert.match(pastFresh.home.detail,/Hentet/);
+  assert.match(pastFresh.home.condition,/Opdateret: /);
   assert(await page.locator('#home-weather small').isVisible());
   assert.equal(await page.locator('pv-widget-host').evaluate(host=>host.liveTransport.connected),true);
   await emit({weatherNearExpirySeconds:8});await fresh(21.1);await page.locator('#home-weather').tap();await page.locator('#weather-view').waitFor({state:'visible'});const near=await capture();assert(near.weather.displayUntil>near.at&&near.weather.displayUntil<=near.at+8100);const nearSource=near.weather.stateUpdatedAt;await page.context().setOffline(true);await save('weather-09-offline-retained');await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),w=h?.state.liveWeather;return w&&Date.now()>=w.displayUntil&&!h.querySelector('#weather-view .weather-current strong')?.textContent?.trim()},undefined,{timeout:12000});const expiredDetail=await save('weather-10-offline-expired-detail');assert.equal(expiredDetail.weather.stateUpdatedAt,nearSource);assert.equal(expiredDetail.detail.value,'');assert.equal(expiredDetail.detail.hours,0);await page.locator('#header-title-action').tap();const expiredHome=await save('weather-11-offline-expired-home');assert.equal(expiredHome.home.temperature,'');assert(!/[0-9]/.test(expiredHome.header.temperature),'expired source temperature cannot survive in the visible header');assert.equal(expiredHome.home.hourCount,0);assert(expiredHome.at>=near.weather.displayUntil);await page.context().setOffline(false);
