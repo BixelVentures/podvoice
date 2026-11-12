@@ -191,7 +191,8 @@ class WidgetHost extends HTMLElement {
   }
   this.addEventListener('wheel',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();},{passive:true});this.addEventListener('scroll',()=>{const now=Date.now();this.lastInteractionAt=now;this.lastScrollAt=now;
    // One layout read per frame, not per scroll event.
-   if(this.topbarScrollFrame)return;
+   // Strip mode: the scrolled-topbar shadow is gone, so skip its per-frame layout read and restyle.
+   if(this.lite||this.topbarScrollFrame)return;
    this.topbarScrollFrame=requestAnimationFrame(()=>{this.topbarScrollFrame=0;this.renderTopbarScroll();});},true);
   this.addEventListener('pointerdown',()=>{this.touching=true;},true);
   for(const name of ['pointerup','pointercancel'])globalThis.addEventListener?.(name,()=>{this.touching=false;},true);this.addEventListener('pointerdown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.addEventListener('keydown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.voiceSurface=new VoiceSurface(this);const historyNote=document.createElement('p');historyNote.id='history-example-note';historyNote.className='history-example-note';historyNote.hidden=true;historyNote.textContent='Forhåndsvisning · påvirker ikke hjemmet';$('history').append(historyNote);const historyEmpty=document.createElement('pv-inline-status');historyEmpty.id='history-empty';historyEmpty.data={state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:this.live?'Når PodVoice viser et visuelt svar, kan du finde det her igen.':'Her samles dine visuelle svar.'};$('history').insertBefore(historyEmpty,$('retained'));this.resourceButtons=new Map();this.deviceNodes=new Map();this.deviceRows=new Map();this.pins=new Set();this.answerNodes=new Map();this.retainedNodes=new Map();this.openers=new Map();$('open-history').setAttribute('aria-label','Svar · Se tidligere svar');$('open-history').setAttribute('aria-controls','history');$('open-history').setAttribute('aria-expanded','false');
@@ -825,8 +826,16 @@ class WidgetHost extends HTMLElement {
   // Follow TimerView's actual broad activity; authored library sizes stay explicit.
   if(radio&&!radio.dataset.kitSize&&radio.dataset.overviewSize!==radioSize)radio.dataset.overviewSize=radioSize;
   const overviewVisible=this.state.focus==='now';
+  if(!overviewVisible)this.overviewSignature=null;
   if(overviewVisible){
    const priorities=overviewPriorities({timers:timersFor(this.state),devices:this.presentationDevices||this.state.devices,mediaActive:this.dataset.playback==='active'});
+   // Strip mode: an unchanged order needs no DOM moves and no scroll-position read.
+   const signature=this.lite?JSON.stringify(priorities.map(item=>{
+    const row=this.deviceRows?.get(item.id),present=Boolean(row?.overviewShell||row||$(item.id));
+    return [item.id,item.rank,item.priority,present];
+   })):null;
+   if(signature&&signature===this.overviewSignature)return;
+   this.overviewSignature=signature;
    const ordered=[];
    for(const item of priorities){const row=this.deviceRows?.get(item.id),node=row?.overviewShell||row||$(item.id);if(!node)continue;if(node.style.order!==String(item.rank))node.style.order=String(item.rank);if(node.dataset.overviewPriority!==item.priority)node.dataset.overviewPriority=item.priority;if(node.dataset.overviewRank!==String(item.rank))node.dataset.overviewRank=String(item.rank);ordered.push(node);}
    // Fixed visual slots and native keyboard/read order are the same.
