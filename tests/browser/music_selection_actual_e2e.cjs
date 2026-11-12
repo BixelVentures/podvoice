@@ -1735,7 +1735,7 @@ async function queuePersistenceJourney(){
  await status('stale');
  await assertNames([23,24]);
  await assertNoEmpty();
- assert.equal(await title.innerText(),'Sidst kendte kø');
+ assert.equal(await title.innerText(),'Køen er ikke opdateret');
  assert.equal(await stableRow.evaluate(row=>row.isConnected),true);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-refresh-failed.png')});
 

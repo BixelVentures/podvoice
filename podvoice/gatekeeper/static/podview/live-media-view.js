@@ -164,7 +164,7 @@ export class LiveMediaView{
    const native=queue.model(this.account,this.playback);
    if(native){
     status=native.status;errorKind=native.errorKind;
-    empty=native.metadataPending?'Køens oplysninger er ikke tilgængelige endnu.':status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den sidst kendte kø.':status==='error'?(queue.errorKind==='choice'?'Køvalget blev afvist.':''):status==='unknown'?'Køvalg kunne ikke bekræftes.':'';
+    empty=native.metadataPending?'Køens oplysninger er ikke tilgængelige endnu.':status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den seneste kø.':status==='error'?(queue.errorKind==='choice'?'Køvalget blev afvist.':''):status==='unknown'?'Køvalg kunne ikke bekræftes.':'';
     items=this.host.liveSelection?.pendingPlayer?.()?native.items.map(item=>({...item,selectable:false})):native.items;
    }else{
     status=admitted?queue.status:'unavailable';errorKind=queue.errorKind;

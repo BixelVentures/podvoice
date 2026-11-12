@@ -14,7 +14,7 @@ const lines=node=>node.children.map(item=>item.textContent);
 test('compact music gives real title and artist separate roles, with visible freshness and accessible playback status',()=>{
  const f=fixture({active:true,title:'Heartless',artist:'Kanye West',playing:true,fresh:true});f.render();const node=f.nodes['home-music'];assert.deepEqual(lines(node),['Heartless','Kanye West']);assert.deepEqual(node.children.map(item=>item.className),['overview-media-title','overview-media-artist']);assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Afspiller');assert.equal(f.cards['home-music'].getAttribute('aria-label'),null);
  const children=[...node.children];f.render();assert.equal(node.children[0],children[0]);assert.equal(node.children[1],children[1]);
- f.host.playerView.progressVM={...f.host.playerView.progressVM,fresh:false};f.render();assert.deepEqual(lines(node),['Sidst kendt · Heartless','Kanye West']);assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Sidst kendte afspilning');
+ f.host.playerView.progressVM={...f.host.playerView.progressVM,fresh:false};f.render();assert.deepEqual(lines(node),['Ikke opdateret · Heartless','Kanye West']);assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Afspilningen er ikke opdateret');
  f.host.playerView.progressVM={active:false,title:'Old title',artist:'Old artist'};f.render();assert.deepEqual(lines(node),['Vælg musik','']);assert.equal(node.children[1].hidden,true);assert.equal(node.dataset.mediaMetadata,'false');assert.equal(f.cards['home-music'].getAttribute('aria-description'),null);
 });
 test('radio retains station and status without inventing a default or music identity',()=>{
@@ -32,7 +32,7 @@ test('all compact size roles use actual empty read state and transport fallback 
  const f=fixture({active:false},true);f.host.liveTransport={connected:false};f.render();assert.equal(lines(f.nodes['home-music'])[0],'Ikke forbundet');f.host.playerView.progressVM.emptyState='loading';f.render();assert.equal(lines(f.nodes['home-music'])[0],'Afventer data');f.host.playerView.progressVM.emptyState='account-selection';f.render();assert.equal(lines(f.nodes['home-music'])[0],'Vælg musikkonto');
 });
 test('local radio distinguishes silent example, observed playback and last known station',()=>{
- const f=fixture({active:true,title:'P3',sourceKind:'radio',playing:true,fresh:false,exampleOnly:true});f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Ingen lyd']);delete f.host.playerView.progressVM.exampleOnly;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Sidst kendt · P3','Afspiller']);f.host.playerView.progressVM.fresh=true;f.host.playerView.progressVM.previewLabel='Radio · ingen lyd';f.host.playerView.progressVM.fresh=false;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Ingen lyd']);delete f.host.playerView.progressVM.previewLabel;f.host.playerView.progressVM.fresh=false;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Sidst kendt · P3','Afspiller']);f.host.live=true;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);
+ const f=fixture({active:true,title:'P3',sourceKind:'radio',playing:true,fresh:false,exampleOnly:true});f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Ingen lyd']);delete f.host.playerView.progressVM.exampleOnly;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke opdateret · P3','Afspiller']);f.host.playerView.progressVM.fresh=true;f.host.playerView.progressVM.previewLabel='Radio · ingen lyd';f.host.playerView.progressVM.fresh=false;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['P3','Ingen lyd']);delete f.host.playerView.progressVM.previewLabel;f.host.playerView.progressVM.fresh=false;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke opdateret · P3','Afspiller']);f.host.live=true;f.render();assert.deepEqual(lines(f.nodes['home-radio']),['Ikke tilgængelig','']);
 });
 
 test('fresh account-only read names the track without asserting confirmed speaker or granting playback authority',()=>{
@@ -40,6 +40,6 @@ test('fresh account-only read names the track without asserting confirmed speake
   const vm={active:true,title:'Observed song',artist:'Observed artist',readOnly:true,fresh:false,positionFresh:false,playing},before=structuredClone(vm),f=fixture(vm,true);f.render();
   assert.deepEqual(lines(f.nodes['home-music']),['Observed song','Observed artist']);assert.equal(f.cards['home-music'].getAttribute('aria-description'),`${playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`);
   const children=[...f.nodes['home-music'].children];f.render();assert.deepEqual(f.nodes['home-music'].children,children);assert.deepEqual(vm,before);
-  vm.readOnly=false;f.render();assert.equal(lines(f.nodes['home-music'])[0],'Sidst kendt · Observed song');assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Sidst kendte afspilning');
+  vm.readOnly=false;f.render();assert.equal(lines(f.nodes['home-music'])[0],'Ikke opdateret · Observed song');assert.equal(f.cards['home-music'].getAttribute('aria-description'),'Afspilningen er ikke opdateret');
  }
 });
