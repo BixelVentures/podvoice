@@ -67,16 +67,27 @@ const label=value=>typeof value==='string'?value.trim().toLocaleLowerCase('da'):
 // Rows at or before the current track have already played. A queue read from before a skip
 // (retained display or a lagging source) never lists them as upcoming (K2). Match the exact
 // URI first; a relinked track falls back to title and artist.
-export function upcomingQueueRows(items,item){
- if(!Array.isArray(items)||!item)return items;
- let index=items.findIndex(row=>!!item.uri&&row.uri===item.uri);
+export function currentQueueIndex(items,item){
+ if(!Array.isArray(items)||!item)return -1;
+ const index=items.findIndex(row=>!!item.uri&&row.uri===item.uri);
  const title=label(item.name),artist=label(Array.isArray(item.artists)?item.artists.join(', '):'');
- if(index<0&&title)index=items.findIndex(row=>label(row.title)===title&&label(row.artist)===artist);
- return index<0?items:items.slice(index+1);
+ return index<0&&title?items.findIndex(row=>label(row.title)===title&&label(row.artist)===artist):index;
 }
+export function upcomingQueueRows(items,item){
+ return Array.isArray(items)?items.slice(currentQueueIndex(items,item)+1):items;
+}
+// A Next tap moves the known list up at once: the next known song shows as now playing until the
+// source's observation catches up. Previous, a failed skip or 10 s without catching up ends it.
+const SKIP_DISPLAY_MS=10000;
 export class LiveQueueView{
  constructor(host){this.host=host;this.generation=0;this.pending=false;this.pendingOccurrenceId=null;this.consumed=false;this.offer=null;this.retained=null;this.status='unavailable';this.errorKind=null;this.readRetryable=false;this.waitingChoices=[];this.reconcilingChoice=null;this.unknownChoice=null;}
  redraw(){this.host.liveMedia?.renderQueue();}
+ skip(action,playback){
+  const anchor=playback?.item??null,same=this.skipping&&Date.now()-this.skipping.at<SKIP_DISPLAY_MS;
+  this.skipping=action==='next'?{anchor:same?this.skipping.anchor:anchor,count:(same?this.skipping.count:0)+1,
+   at:Date.now()}:null;
+  this.redraw();
+ }
  allowed(account,playback){return !!(this.host.isConnected&&this.host.liveTransport?.connected&&this.host.liveSnapshot?.capabilities?.queueSelection===true&&this.host.liveSnapshot?.capabilities?.musicRead?.includes('queue')&&text(account)&&roomObservationCurrent(playback,this.host.liveSnapshot)&&playbackBinding(playback,this.host.liveSnapshot,account)&&playback.target?.id);}
  invalidate(revoke=false,preserveChoices=false){
   this.readRetryable=false;
@@ -271,13 +282,19 @@ export class LiveQueueView{
   const selectable=!!(shownOffer&&sameTransport
    &&(renewUnknown||localIntent&&this.reconcilingChoice
     ||sameAuthority&&(localIntent&&this.effectPending||!this.consumed&&currentOffer)));
+  const rows=this.retained.items,observed=currentQueueIndex(rows,playback?.item),skipping=this.skipping;
+  const target=skipping?currentQueueIndex(rows,skipping.anchor)+skipping.count:-1;
+  if(skipping&&(observed>=target||Date.now()-skipping.at>=SKIP_DISPLAY_MS||!rows[target]))this.skipping=null;
+  const ahead=this.skipping?target:-1,start=Math.max(observed,ahead)+1,now=rows[ahead];
+  const optimisticNow=now?[{id:`current:${now.uri}`,uri:now.uri,title:now.title,artist:now.artist,artwork:now.artwork,
+   order:0,current:true,playing:playback?.state==='playing',selectable:false}]:[];
   const latest=this.waitingChoices.at(-1);
   const visibleChoice=latest&&this.retained.items.some(row=>sameOccurrence(row,latest));
   const pendingId=visibleChoice?latest.id:this.effectPending?this.pendingOccurrenceId:null;
   return {
    errorKind:this.errorKind,
    metadataPending:this.retained.metadataPending===true,
-   items:upcomingQueueRows(this.retained.items,playback?.item).map(row=>({
+   items:[...optimisticNow,...rows.slice(start)].map(row=>row.current?row:({
     ...row,
     selectable:selectable&&row.id!==this.reconcilingChoice?.occurrenceId
      &&shownOffer.items.some(item=>sameOccurrence(item,row)),

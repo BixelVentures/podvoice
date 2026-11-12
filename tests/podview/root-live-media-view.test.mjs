@@ -86,14 +86,21 @@ test('queue empty slot distinguishes missing access, pending read, error and obs
   assert.equal(queue.children.length,1);assert.equal(queue.children[0].className,'queue-empty');
   assert.equal(queue.children[0].textContent,'Køen er ikke tilgængelig med den aktuelle adgang.');
   f.host.liveSnapshot.capabilities.queueSelection=true;
+  // Not yet read, reading and a fresh read failure all present loading placeholders, never error text.
+  const placeholders=()=>[...queue.children].every(row=>row.dataset.placeholder==='true'
+   &&row.getAttribute('aria-hidden')==='true');
   f.view.queueControls.status='unavailable';f.view.renderQueue();
-  assert.equal(queue.children[0].textContent,'Ingen bekræftet kø at vise.');
+  assert.equal(queue.dataset.status,'loading');assert.equal(queue.children.length,4);assert.ok(placeholders());
   f.view.queueControls.status='loading';f.view.queueControls.pending=true;f.view.renderQueue();
   assert.equal(queue.dataset.status,'loading');assert.equal(queue.getAttribute('aria-busy'),'true');
-  assert.equal(queue.children.length,0,'loading does not invent queue entries');
+  assert.equal(queue.children.length,4,'loading keeps the list height with placeholders, not queue entries');
+  assert.ok(placeholders());
   f.view.queueControls.pending=false;f.view.queueControls.status='error';f.view.renderQueue();
-  assert.equal(queue.dataset.status,'error');assert.equal(queue.children.length,1);
-  assert.equal(queue.children[0].textContent,'Køen kunne ikke hentes.');
+  assert.equal(queue.dataset.status,'loading');assert.ok(placeholders());
+  // Only a problem lasting 10 s is named, calmly.
+  f.view.queueTroubleSince=Date.now()-10001;f.view.renderQueue();
+  assert.equal(queue.dataset.status,'unavailable');assert.equal(queue.children.length,1);
+  assert.equal(queue.children[0].textContent,'Køen kan ikke vises lige nu. Musikken spiller videre.');
   f.view.queueControls.status='unknown';f.view.renderQueue();
   assert.equal(queue.dataset.status,'unknown');assert.equal(queue.children[0].textContent,'Køvalg kunne ikke bekræftes.');
   const key=JSON.stringify(['boot','r0','first',f.view.playback.roomBinding.bindingId,'epoch','device',null,null,null,null,null]);
@@ -264,7 +271,7 @@ test('actual rejected queue choice keeps known rows with a choice heading while 
   f.view.account='first';f.view.playback=boundPlayback(f.host.liveSnapshot,{owner_epoch:'epoch',poll_sequence:1,expiresAt:Date.now()+10000,state:'playing',item:{name:'Actual song',artists:['Artist'],uri:'spotify:track:0123456789ABCDEFGHIJKL'},target:{name:'Actual speaker'}},'first');f.host.liveSnapshot.capabilities.queueSelection=true;
   const item={id:'a'.repeat(24),title:'Known queued song',artist:'Artist',uri:'spotify:track:'+'0'.repeat(22),artwork:null,order:1},offer={ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'r0',accountId:'first',targetId:'device',expectedBindingId:f.view.playback.roomBinding.bindingId,taskId:'queue:'+'b'.repeat(32),revision:1,expiresInMs:8000,ownerEpoch:'epoch',pollSequence:1,truncated:false,items:[item]};
   let effects=0;f.host.liveTransport.queueOffer=async()=>offer;f.host.liveTransport.queueAction=async()=>{effects++;return {outcome:'rejected'};};await f.view.loadQueue();const row=f.host.playerView.rows.get(item.id);assert.ok(row);await f.view.queueControls.choose(item);assert.equal(f.view.queueControls.status,'error');assert.equal(f.view.queueControls.model('first',f.view.playback).errorKind,'choice');assert.equal(f.nodes.get('queue-title').textContent,'Køvalget blev afvist');assert.equal(f.host.playerView.rows.get(item.id),row);assert.equal(row.disabled,true);assert.equal(effects,1);f.view.renderQueue();assert.equal(f.nodes.get('queue-title').textContent,'Køvalget blev afvist');
-  f.host.liveTransport.queueOffer=async()=>{throw Error('read503');};await f.view.loadQueue();assert.equal(f.view.queueControls.status,'error');assert.equal(f.nodes.get('queue-title').textContent,'Køen kunne ikke hentes');assert.equal(f.host.playerView.rows.get(item.id),row);assert.equal(row.disabled,true);assert.equal(f.view.queueControls.model('first',f.view.playback).errorKind,'read');assert.equal(effects,1);f.view.queueControls.invalidate(true);assert.equal(f.view.queueControls.errorKind,null);
+  f.host.liveTransport.queueOffer=async()=>{throw Error('read503');};await f.view.loadQueue();assert.equal(f.view.queueControls.status,'error');assert.equal(f.nodes.get('queue-title').textContent,'Sidst kendte kø','a read failure keeps known rows calmly, without error text');assert.equal(f.host.playerView.rows.get(item.id),row);assert.equal(row.disabled,true);assert.equal(f.view.queueControls.model('first',f.view.playback).errorKind,'read');assert.equal(effects,1);f.view.queueControls.invalidate(true);assert.equal(f.view.queueControls.errorKind,null);
  }finally{f.view.queueControls.invalidate(true);f.restore();}
 });
 

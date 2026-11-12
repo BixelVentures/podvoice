@@ -1,4 +1,4 @@
-import {LiveQueueView} from './live-queue-view.js';
+import {LiveQueueView,upcomingQueueRows} from './live-queue-view.js';
 import {roomPlaybackObservation,roomObservationBound,accountObservationBound,roomObservationCurrent,roomObservationDisplay,playbackBinding,playbackObservationCurrent} from './media-observation.js';
 import {livePlayerModel,liveQueueModel} from './player-view.js';
 // Shape-only parse failures. Scope, account, binding and owner failures are not listed: those still clear.
@@ -7,7 +7,7 @@ const malformedPlaybackAnswer=new Set(['invalid_provider_playback','invalid_medi
 const $=id=>document.getElementById(id);
 // An accepted selection is settled by the first read that carries its native confirmation.
 // Read again shortly instead of at half the old observation's lifetime (Green: ~2 s late).
-const SETTLEMENT_READ_MS=250,SETTLEMENT_READ_WINDOW_MS=15000;
+const SETTLEMENT_READ_MS=250,SETTLEMENT_READ_WINDOW_MS=15000,QUEUE_TROUBLE_MS=10000;
 // A transient source read may retain the exact-bound display, never controls.
 // Explicit denials and invalid ownership clear it; unavailable is not idle.
 export class LiveMediaView{
@@ -95,9 +95,10 @@ export class LiveMediaView{
   const recovering=automatic&&sameRead&&afterPlayback&&retry?.key===key&&retry.transport===transport
    &&retry.transportGeneration===transportGeneration&&retry.generation===generation&&!retry.used;
   const recoverPreview=!!(recovering&&retry.previewPending&&p?.poll_sequence>retry.pollSequence);
-  // An unresolved autoplay queue (context switch) is read again on each newer source observation
-  // until its upcoming songs arrive, instead of staying empty for the rest of the song (K4).
-  const previewWaiting=automatic&&afterPlayback&&sameRead&&queue.previewPending===true
+  // An unresolved autoplay queue (context switch) or a failed read is read again on each newer source
+  // observation until the upcoming songs arrive, instead of staying empty for the rest of the song (K4).
+  const previewWaiting=automatic&&afterPlayback&&sameRead
+   &&(queue.previewPending===true||queue.status==='error'&&queue.errorKind==='read')
    &&Number.isInteger(p?.poll_sequence)&&p.poll_sequence>(this.queuePreviewPoll??Infinity);
   if(automatic&&(queue.consumed&&!recoverUnknown&&!recoverPreview&&!previewWaiting||feedback?.pending
    ||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed?.(this.account,p)))return;
@@ -131,7 +132,8 @@ export class LiveMediaView{
   const loaded=await queue.load(this.account,this.playback,{
    notify:!automatic&&!renewChoice,preserveChoices:renewChoice,
   });
-  this.queuePreviewPoll=queue.previewPending===true&&this.queueReadKey===key?p?.poll_sequence:null;
+  this.queuePreviewPoll=(queue.previewPending===true||queue.status==='error'&&queue.errorKind==='read')
+   &&this.queueReadKey===key?p?.poll_sequence:null;
   if(!recovering&&queue.readRetryable===true&&(!queue.consumed||queue.previewPending)
    &&this.queueReadKey===key&&this.queueReadTransport===transport&&host.liveTransport===transport
    &&transport.generation===transportGeneration&&this.generation===generation){
@@ -141,26 +143,57 @@ export class LiveMediaView{
   return loaded;
  }
 
+ // One presentation of the queue (K2/K4): known rows stay while a new read runs, loading shows
+ // placeholder rows, and a problem is only named once it has lasted QUEUE_TROUBLE_MS.
  renderQueue(){
-  const snapshot=this.host.liveSnapshot,read=snapshot?.capabilities?.musicRead||[];
+  const snapshot=this.host.liveSnapshot,read=snapshot?.capabilities?.musicRead||[],queue=this.queueControls;
   if(this.playback&&!read.includes('playback'))this.clearRoom();
-  if(!read.includes('queue')||!roomObservationDisplay(this.playback,snapshot,this.account)||!roomObservationBound(this.playback,snapshot,this.account)){
-   if(this.queueControls.retained||this.queueControls.offer||this.queueControls.pending)this.queueControls.invalidate(true);
-   this.host.playerView.renderQueue([],{status:'unavailable',empty:this.playback?.accountObserved===true?'Højttaleren er ikke bekræftet · køen er ikke tilgængelig.':!read.includes('queue')?'Køen er ikke tilgængelig med den aktuelle adgang.':'Køen kunne ikke bekræftes for rummet.'});
-   return;
+  const readable=read.includes('queue'),admitted=snapshot?.capabilities?.queueSelection===true;
+  let items=[],status,empty,errorKind=null;
+  if(!readable||!roomObservationDisplay(this.playback,snapshot,this.account)||!roomObservationBound(this.playback,snapshot,this.account)){
+   // Access rules revoke at once. A briefly unconfirmed route keeps the known rows as read-only display.
+   // An account-level observation is not this room's route: its queue is never shown here.
+   if(!readable||!this.playback||this.playback.accountObserved===true){
+    if(queue.retained||queue.offer||queue.pending)queue.invalidate(true);
+   }
+   else if(queue.offer||queue.pending)queue.invalidate(false);
+   if(queue.retained)items=upcomingQueueRows(queue.retained?.items||[],this.playback?.item).map(row=>({...row,selectable:false}));
+   status=items.length?'stale':'unavailable';
+   empty=!readable?'Køen er ikke tilgængelig med den aktuelle adgang.':'';
+  }else{
+   const native=queue.model(this.account,this.playback);
+   if(native){
+    status=native.status;errorKind=native.errorKind;
+    empty=native.metadataPending?'Køens oplysninger er ikke tilgængelige endnu.':status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den sidst kendte kø.':status==='error'?(queue.errorKind==='choice'?'Køvalget blev afvist.':''):status==='unknown'?'Køvalg kunne ikke bekræftes.':'';
+    items=this.host.liveSelection?.pendingPlayer?.()?native.items.map(item=>({...item,selectable:false})):native.items;
+   }else{
+    status=admitted?queue.status:'unavailable';errorKind=queue.errorKind;
+    empty=!admitted?'Køen er ikke tilgængelig med den aktuelle adgang.':status==='error'&&errorKind==='choice'?'Køvalget blev afvist.':status==='unknown'?'Køvalg kunne ikke bekræftes.':'';
+   }
   }
-  const native=this.queueControls.model(this.account,this.playback);
-  // Opening the player renders before its first queue read is dispatched.
-  // A currently admitted owner is loading, not an unavailable empty queue.
-  if(!native&&this.host.state?.focus==='player'&&['unavailable','stale'].includes(this.queueControls.status)&&!this.queueControls.retained&&!this.queueControls.consumed&&!this.queueReadKey&&this.queueControls.allowed(this.account,this.playback)){this.host.playerView.renderQueue([],{status:'loading',empty:''});return;}
-  if(native){
-   const status=native.status,empty=native.metadataPending?'Køens oplysninger er ikke tilgængelige endnu.':status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den sidst kendte kø.':status==='error'?(this.queueControls.errorKind==='choice'?'Køvalget blev afvist.':'Køen kunne ikke hentes.'):status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
-   const items=this.host.liveSelection?.pendingPlayer?.()?native.items.map(item=>({...item,selectable:false})):native.items;this.host.playerView.renderQueue(items,{status,empty,errorKind:native.errorKind});return;
+  // Known rows outlive a failed read as the last known queue; a read failure is not shown as an error.
+  if(items.length&&status==='error'&&errorKind!=='choice'){status='stale';errorKind=null;}
+  // Settled answers show at once: rows, an authoritative empty queue, a choice outcome or an access rule.
+  const settled=items.length>0||!readable||!admitted||['ready','unknown'].includes(status)||status==='error'&&errorKind==='choice'
+   ||status==='stale'&&queue.retained?.items?.length===0&&!queue.retained.metadataPending;
+  if(settled){this.queueTroubleSince=null;clearTimeout(this.queueTroubleTimer);this.queueTroubleTimer=null;}
+  else{
+   this.queueTroubleSince??=Date.now();
+   const remaining=this.queueTroubleSince+QUEUE_TROUBLE_MS-Date.now();
+   if(remaining>0){
+    status='loading';empty='';errorKind=null;
+    if(!this.queueTroubleTimer){
+     this.queueTroubleTimer=setTimeout(()=>{this.queueTroubleTimer=null;if(this.host.isConnected)this.renderQueue();},remaining);
+     this.queueTroubleTimer.unref?.();
+    }
+   }else{
+    status='unavailable';errorKind=null;
+    // Known songs that have all played, or an unresolved autoplay queue: more songs are on the way.
+    empty=queue.previewPending||queue.retained?.items?.length>0?'Flere sange kommer…'
+     :'Køen kan ikke vises lige nu. Musikken spiller videre.';
+   }
   }
-  const admitted=snapshot?.capabilities?.queueSelection===true,connected=!!this.host.liveTransport?.connected,current=roomObservationCurrent(this.playback,snapshot);
-  const status=admitted&&connected&&current?this.queueControls.status:'unavailable';
-  const empty=!admitted?'Køen er ikke tilgængelig med den aktuelle adgang.':!connected?'Forbindelsen mangler for køen.':!current?'Køen kunne ikke bekræftes for rummet.':status==='error'?(this.queueControls.errorKind==='choice'?'Køvalget blev afvist.':'Køen kunne ikke hentes.'):status==='unknown'?'Køvalg kunne ikke bekræftes.':status==='loading'||status==='pending'?'':'Ingen bekræftet kø at vise.';
-  this.host.playerView.renderQueue([],{status,empty,errorKind:this.queueControls.errorKind});
+  this.host.playerView.renderQueue(items,{status,empty,errorKind,placeholders:status==='loading'});
  }
 
  observedPlayerModel(){const p=roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account)?this.playback:null;return livePlayerModel(p,!!this.host.liveTransport?.connected,(['connecting','connected'].includes(this.host.liveStatus)&&!this.host.liveSnapshot&&!this.playback)?'loading':this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||'',this.host.liveOutputs?.actualLabel?.(playbackBinding(p,this.host.liveSnapshot,this.account))||p?.actualTargetLabel||'');}

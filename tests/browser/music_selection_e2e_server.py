@@ -33,7 +33,9 @@ cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 voice_journey = base.voice_journey
-queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey
+# K2/K4: three fast skips through a queue that advances with the song, then an autoplay context.
+queue_skip = os.environ.get("MUSIC_QUEUE_SKIP_TEST") == "1"
+queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey or queue_skip
 queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
 account_rollover = os.environ.get("MUSIC_ACCOUNT_ROLLOVER_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
@@ -75,6 +77,8 @@ base.state.update(
 )
 if account_rollover:
     base.state.update(state="playing", song=30, queue=[31, 32])
+if queue_skip:
+    base.state.update(state="playing", song=20, queue=list(range(21, 29)))
 if recent_session:
     tracks[0].update(
         name="Coming Home",
@@ -430,6 +434,8 @@ async def native(request):
             value["native"]["session_id"] = value["queue"]["session_id"] = "bedroom-session"
             value["route"]["session_epoch"] = "2"
         queue = base.state["queue"]
+        if queue_skip:
+            queue = [song for song in queue if song > base.state["song"]]
         if account_rollover:
             account = args["config_entry_id"]
             assert account in {"account", "account-b"}
@@ -655,6 +661,20 @@ if queue_journey:
             base.state["queueReadFailure"] = condition == "autoplay-no-queue"
             base.state["sequence"] += 1
             await base.emit_playback_changed()
+            return web.json_response({"condition": condition})
+        if queue_skip and condition == "autoplay":
+            # A new autoplay context: its queue is not readable for 2 s, then the source delivers it.
+            base.state.update(song=40, state="playing", queue=[41, 42, 43], queueReadFailure=True)
+            base.state["sequence"] += 1
+            await base.emit_playback_changed()
+
+            async def deliver():
+                await asyncio.sleep(2)
+                base.state["queueReadFailure"] = False
+                base.state["sequence"] += 1
+                await base.emit_playback_changed()
+
+            latency_tasks.append(asyncio.get_running_loop().create_task(deliver()))
             return web.json_response({"condition": condition})
         if condition not in {"failed", "empty"}:
             raise web.HTTPBadRequest()
