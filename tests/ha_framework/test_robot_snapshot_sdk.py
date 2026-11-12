@@ -9,7 +9,6 @@ from pathlib import Path
 from types import SimpleNamespace as NS
 from unittest.mock import AsyncMock
 
-from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
 from homeassistant.components.roborock.coordinator import RoborockDataUpdateCoordinator
 from homeassistant.const import __version__
 from roborock.data import CombinedMapInfo, MultiMapsListMapInfo, NamedRoomMapping
@@ -19,6 +18,9 @@ from roborock.devices.traits.v1.map_content import MapContent
 from roborock.devices.traits.v1.maps import MapsTrait
 from roborock.devices.traits.v1.status import StatusTrait
 from vacuum_map_parser_base.map_data import MapData
+
+# HA 2026.11 moved the constant (hassio.const -> http.const); the key is unchanged.
+SUPERVISOR_USER_KEY = "hassio_supervisor_user"
 
 SOURCE = Path(
     os.environ.get(
@@ -33,8 +35,10 @@ SPEC.loader.exec_module(snapshot)
 
 class RobotSnapshotSDKTests(unittest.IsolatedAsyncioTestCase):
     async def build(self, missing_info=False):
-        self.assertEqual(__version__, "2026.8.2")
-        self.assertEqual(importlib.metadata.version("python-roborock"), "5.31.1")
+        self.assertIn(__version__, {"2026.8.2", "2026.11.1"})  # both CI-pinned versions
+        # The Roborock library HA pins for each CI-pinned HA version.
+        roborock = {"2026.8.2": "5.31.1", "2026.11.1": "7.12.0"}[__version__]
+        self.assertEqual(importlib.metadata.version("python-roborock"), roborock)
         self.assertEqual(importlib.metadata.version("vacuum-map-parser-roborock"), "0.1.5")
         status = StatusTrait(NS())
         status.map_status = 3  # Exact SDK current_map property yields flag 0.
@@ -108,7 +112,7 @@ class RobotSnapshotSDKTests(unittest.IsolatedAsyncioTestCase):
         entry = NS(domain="roborock", state="loaded", runtime_data={"robot": owner})
         supervisor = NS(is_active=True, is_admin=True, system_generated=True)
         hass = NS(
-            data={DATA_HASSIO_SUPERVISOR_USER: supervisor},
+            data={SUPERVISOR_USER_KEY: supervisor},
             auth=NS(async_get_user=AsyncMock(return_value=supervisor)),
             config_entries=NS(async_get_entry=lambda _: entry),
             states=NS(get=lambda _: state),

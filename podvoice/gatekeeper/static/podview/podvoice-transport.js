@@ -40,6 +40,9 @@ function diagnosticRow(value){
 const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admission.authenticated===true&&Object.keys(value.admission).sort().join(',')==='authenticated,kind';
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
+// Everything in a snapshot except the heartbeat's observation time.
+const heartbeatSignature=value=>JSON.stringify({...value,observedAt:undefined});
+
 export class PodVoiceTransport {
  constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild} = {}) {
   const page = new URL(url);
@@ -227,11 +230,18 @@ export class PodVoiceTransport {
    this.controllerRenewRetryAt=null;this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;this.coordinatorName=null;
    if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
   }
+  // The server repeats an unchanged snapshot every second as a liveness heartbeat. Redrawing the
+  // whole screen for it blocked taps for ~1 s on slow wall screens (Frameo, Chrome 107), so an
+  // unchanged heartbeat only refreshes freshness; a redraw still happens every 10 s for aging labels.
+  const unchanged=this.connected===true&&this.presentedSnapshot===this.snapshot&&Date.now()-this.presentedAt<10000
+   &&heartbeatSignature(this.snapshot)===heartbeatSignature(value);
   this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;this.syncDiagnosticScope(value);
   if(normalHA&&this.namedLaneWanted&&!this.namedControllerRenewed&&!this.namedRenewalDenied&&this.namedResumeNeeded&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.namedRenewTimer){const generation=this.generation;this.namedRenewTimer=setTimeout(()=>{this.namedRenewTimer=null;if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},1000);}
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed){this.recordDiagnostic('freshness',{code:'expiry'});this.disconnected();}},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
+  if(unchanged){this.presentedSnapshot=value;return true;}
+  this.presentedSnapshot=value;this.presentedAt=Date.now();
   const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
  // Presentation observers may report their own error; they cannot turn a valid

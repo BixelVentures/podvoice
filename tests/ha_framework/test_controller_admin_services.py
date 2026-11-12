@@ -19,13 +19,15 @@ from homeassistant.components.config.config_entries import (
     OptionManagerFlowIndexView,
     OptionManagerFlowResourceView,
 )
-from homeassistant.components.hassio.const import DATA_HASSIO_SUPERVISOR_USER
 from homeassistant.components.http import HomeAssistantHTTP
 from homeassistant.config_entries import ConfigEntries
 from homeassistant.const import __version__
 from homeassistant.core import Context, HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.setup import async_setup_component
+
+# HA 2026.11 moved the constant (hassio.const -> http.const); the key is unchanged.
+SUPERVISOR_USER_KEY = "hassio_supervisor_user"
 
 ROOT = Path(__file__).resolve().parents[2]
 ROOM = "configured-alpha"
@@ -40,7 +42,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.gather(task, return_exceptions=True)
 
     async def asyncSetUp(self):
-        self.assertEqual(__version__, "2026.8.2")
+        self.assertIn(__version__, {"2026.8.2", "2026.11.1"})  # both CI-pinned versions
         self.stack = AsyncExitStack()
         await self.stack.__aenter__()
         self.addAsyncCleanup(self.stack.aclose)
@@ -67,7 +69,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         self.supervisor = await self.hass.auth.async_create_system_user(
             "Supervisor fixture", group_ids=[GROUP_ID_ADMIN]
         )
-        self.hass.data[DATA_HASSIO_SUPERVISOR_USER] = self.supervisor
+        self.hass.data[SUPERVISOR_USER_KEY] = self.supervisor
         self.writes = []
         self.written = asyncio.Event()
 
@@ -259,8 +261,8 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         await task
         devices = [
             device
-            for device in registry.devices.values()
-            if entry.entry_id in device.config_entries and device.id not in original
+            for device in dr.async_entries_for_config_entry(registry, entry.entry_id)
+            if device.config_entry_id == entry.entry_id and device.id not in original
         ]
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0].model, "PodView browser profile")
@@ -279,7 +281,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         )
         await task
         after = registry.async_get(devices[0].id)
-        self.assertTrue(after is None or entry.entry_id not in after.config_entries)
+        self.assertTrue(after is None or after.config_entry_id != entry.entry_id)
         self.assertEqual(set(self.hass.data["podvoice"].devices.values()), original)
 
     async def options_http(self):
