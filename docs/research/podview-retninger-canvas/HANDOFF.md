@@ -108,7 +108,9 @@ Spor 2/3 kører i egne worktrees på billigere modeller; kun lead merger, én PR
 ## Besluttede værdier
 Musik koral #F6DCCB · Schibsted + Plex (ingen Fraunces; Inter fallback til slutoprydning) · nat-skærm 21–7 · »Senest brugt«
 på timer i 6 t uden hop · Foto-Ro: delt iCloud-album (HA-konfiguration) · karrusel 20 s / overtoning 1,2 s ·
-hvide indgangswidgets (musik, radio, opskrift, svar).
+hvide indgangswidgets (musik, radio, opskrift, svar) · tryk på et nummer i Find musik spiller på den valgte højttaler
+(standard: rummets, Køkkenalrum) og overtager uden spørgsmål, også hvis en anden bruger den; trykket er det bevidste valg
+(foreløbig, 12. nov.) · afspillerens 8 tilstande og svarkort efter lærredet v141.
 
 ## Frameo
 Ikke købt/rootet (tænkt model Denver PFF-1037W, 10,1"). Uden for denne plan. Kittets konservative
