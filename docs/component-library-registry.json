@@ -2604,7 +2604,9 @@
     "dist/updated-label.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/date-format.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2625,7 +2627,8 @@
       "imports": [
         "dist/weather-observation.js",
         "dist/ui/kit.js",
-        "dist/updated-label.js"
+        "dist/updated-label.js",
+        "dist/ui/date-format.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2846,7 +2849,8 @@
           "method:cancel": 1,
           "arrow:free": 1,
           "arrow:visible": 1,
-          "method:renderSvarDevice": 1
+          "method:renderSvarDevice": 1,
+          "function:deferForGesture": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3419,7 +3423,9 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "function:liteMode": 1
+          "function:liteMode": 1,
+          "function:applyLiteMode": 1,
+          "function:instant": 1
         },
         "roots": [],
         "registrations": {},
@@ -3427,6 +3433,22 @@
         "dom": false
       },
       "reviewedScope": "Strip mode for weak wall screens (Chrome <111, e.g. Frameo): no scroll-edge fades, motion or painted effects."
+    },
+    "dist/ui/date-format.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:formatDate": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "Cached Intl.DateTimeFormat for clock, weather hours and updated labels (same output as toLocale*String)."
     }
   },
   "sharedContracts": [

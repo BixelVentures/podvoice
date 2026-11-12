@@ -20,3 +20,23 @@ export function liteMode({
   const chrome = /Chrome\/(\d+)/.exec(userAgent);
   return Boolean(chrome) && Number(chrome[1]) < 111;
 }
+
+// Applies strip mode to a document: CSS hook, no zoom, and every Web Animation finishing at once.
+// Instant (duration 0) animations still resolve `finished` and fire their events, so code that waits
+// for an animation keeps working; only the motion itself is gone.
+export function applyLiteMode(doc = globalThis.document) {
+  doc.documentElement.setAttribute('data-lite', '');
+  const viewport = doc.querySelector('meta[name="viewport"]');
+  const content = 'width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no';
+  viewport?.setAttribute('content', content); // index.html always declares one.
+  const proto = doc.defaultView?.Element?.prototype;
+  if (typeof proto?.animate !== 'function' || proto.animate.podviewLite) return;
+  const animate = proto.animate;
+  const instant = function (keyframes, options) {
+    const timing = typeof options === 'object' && options ? { ...options } : {};
+    Object.assign(timing, { duration: 0, delay: 0, endDelay: 0 });
+    return animate.call(this, keyframes, timing);
+  };
+  instant.podviewLite = true;
+  proto.animate = instant;
+}

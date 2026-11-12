@@ -47,3 +47,64 @@ test('strip mode does not start scroll-edge fades or motion bookkeeping', async 
   const guarded = /if\(!this\.lite\)\{this\.motion\?\?=new SceneMotion\(this\);this\.scrollEdges\?\?=new ScrollEdges/;
   assert.match(source, guarded);
 });
+
+test('strip mode makes every Web Animation finish at once and disables zoom', async () => {
+  const { applyLiteMode } = await import('../../podvoice/gatekeeper/static/podview/ui/lite.js');
+  const calls = [];
+  class Element {}
+  Element.prototype.animate = function (keyframes, timing) {
+    calls.push(timing);
+    return { finished: Promise.resolve() };
+  };
+  const attributes = new Map();
+  let viewport = 'width=device-width';
+  const doc = {
+    documentElement: { setAttribute: (name, value) => attributes.set(name, value) },
+    querySelector: () => ({ setAttribute: (_, value) => { viewport = value; } }),
+    defaultView: { Element },
+  };
+  applyLiteMode(doc);
+  applyLiteMode(doc);
+  const fade = { duration: 200, delay: 50, easing: 'ease-out', fill: 'both' };
+  new Element().animate([{ opacity: 0 }, { opacity: 1 }], fade);
+  new Element().animate([{ opacity: 0 }], 300);
+  assert.equal(attributes.has('data-lite'), true);
+  assert.match(viewport, /user-scalable=no/);
+  assert.deepEqual(calls[0], { duration: 0, delay: 0, endDelay: 0, easing: 'ease-out', fill: 'both' });
+  assert.deepEqual(calls[1], { duration: 0, delay: 0, endDelay: 0 });
+});
+
+test('a redraw waits while the finger is down or content scrolls, and runs right after', async () => {
+  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+    'utf8');
+  const body = source.match(/function deferForGesture\(host\)\{([\s\S]*?)\n\}/)[1];
+  const timers = [];
+  const host = {
+    touching: false, lastScrollAt: 0, isConnected: true, renders: 0,
+    render() { this.renders++; },
+  };
+  const deferFn = new Function('host', 'Date', 'setTimeout', 'clearTimeout', body);
+  const defer = (clock, set, clear) => deferFn(host, clock, set, clear);
+  const clock = { now: () => 10_000 };
+  const run = () => defer(clock, (fn) => timers.push(fn), () => {});
+  assert.equal(run(), false, 'idle: redraw now');
+  host.touching = true;
+  assert.equal(run(), true, 'finger down: redraw waits');
+  host.touching = false;
+  host.lastScrollAt = 9_950;
+  assert.equal(run(), true, 'scrolled 50 ms ago: redraw waits');
+  host.lastScrollAt = 0;
+  timers.at(-1)();
+  assert.equal(host.renders, 1, 'the waiting redraw runs once afterwards');
+});
+
+test('cached date formatting gives the same text as toLocaleTimeString', async () => {
+  const { formatDate } = await import('../../podvoice/gatekeeper/static/podview/ui/date-format.js');
+  const at = new Date('2026-11-12T19:05:00Z');
+  for (const options of [{ hour: '2-digit', minute: '2-digit' },
+    { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }]) {
+    assert.equal(formatDate(at, options), at.toLocaleTimeString('da-DK', options));
+  }
+  const day = { weekday: 'short', day: 'numeric', month: 'short' };
+  assert.equal(formatDate(at, day), at.toLocaleDateString('da-DK', day));
+});

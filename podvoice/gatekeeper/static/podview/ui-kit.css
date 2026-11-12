@@ -2811,3 +2811,4 @@ html[data-lite] *,html[data-lite] *::before,html[data-lite] *::after{
 html[data-lite] :not(img){filter:none!important}
 html[data-lite] :is(button,a[href],summary,[role=button]):active,html[data-lite] .is-pressed{
  background-image:linear-gradient(rgba(27,29,28,.12),rgba(27,29,28,.12))!important}
+html[data-lite]{touch-action:manipulation}

@@ -511,7 +511,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "fdf2841889fe3c38712ac6dd181760d4ca5b413b18300c6dac3dda2953997aa1"
+      "sha256": "48baea1beec9397cf4fa8f0ecf615eba66afe72eb57275d322b316e764941e18"
     },
     {
       "path": "library.css",
@@ -639,11 +639,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "3f895bbbb71a4d34aa4d34efe2650087e5b28529a753efac9b891b278cc00637"
+      "sha256": "2e302624276ed724577769f3d219c28a40a5663c920f7707146d70eab6a99f1c"
     },
     {
       "path": "podview.css",
-      "sha256": "94f6bce027ca1527abfa7f6e0120925610e8c435520e95908473f9e30d223b3f"
+      "sha256": "716f7ca7d7eb901c0e8e445e7b239355e279b55f6239f2d7ff467d2e03c4a99e"
     },
     {
       "path": "podvoice-transport.js",
@@ -747,7 +747,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "f1c9ea235324306b8c49aaabd6a1e0f8ac3774796da4ba735b3f8ee69a5d1280"
+      "sha256": "7cf49a15fdbe336cb6afc5834a27abf8159273e3d2a679866e8347a36daef2c2"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -843,7 +843,7 @@
     },
     {
       "path": "updated-label.js",
-      "sha256": "9c0d4d6e6da54b7aa2b05a1c8a15fa8eb9f7a9ac330a88441d3291f2cf23e16b"
+      "sha256": "1827e8d0fa05ca2b37bed691f185f4103809076d977dd3f4b005e3361d536e6f"
     },
     {
       "path": "vehicle-model.js",
@@ -883,7 +883,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "a0dffc3060cb7d68179ec900b7c6f7b996cece9068e2312663c2279c61bd02bd"
+      "sha256": "187f4151dc8a94d25e046763f789852ceed653233c4d30454f31331fd64f142a"
     },
     {
       "path": "widget-model.js",
@@ -899,7 +899,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "7c00430c55c52914805789966ef212c40381ef02bdf1d63ddf9d1cec7aa507e0"
+      "sha256": "e37d57ca28969a5e2576493c32083c4fcdc81454c64f19b0819b755274c4311f"
     },
     {
       "path": "workshop.css",
