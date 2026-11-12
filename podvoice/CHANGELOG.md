@@ -1,3 +1,7 @@
+## 2.0.181
+
+- Vejret vises igen på Home Assistant 2026.11 (HA's nye svarformat fra vejr-scriptet), og regn vises i hele procent. Teslaens kommandoer (Lås, Lås op, klima, temperatur, sædevarme, afrimning) kan sendes, selvom HA endnu ikke kender bilens tilstand efter en genstart, og knappen viser »Sendt · venter på bilen…«, til HA melder den. PodVoice beder desuden HA om at hente bilens status efter en genstart uden at vække den. HA-komponenten er uændret (0.1.21).
+
 ## 2.0.180
 
 - Stemmens hjemmestyring, vejret og musikkens højttalerliste virker igen på Home Assistant 2026.11. PodVoice accepterer nu HA's nye MCP-svar uden serverversion og HA's nye værktøjsnavne med kildepræfiks (fx »intent__HassTurnOn«). Kræver fortsat HA-komponent 0.1.21.
