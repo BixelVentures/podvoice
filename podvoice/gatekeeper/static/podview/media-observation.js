@@ -55,6 +55,18 @@ export function roomPlayerObservation(body,account,snapshot){
  const title=optionalText(body.title),artist=optionalText(body.artist),album=optionalText(body.album);
  const session=body.session&&typeof body.session==='object'?body.session:null;
  const binding=session&&sessionBinding(session.binding,snapshot,account)?{...session.binding}:null;
+ // The room is quiet while the account plays on another device (f): shown read-only, never controlled.
+ const away=body.elsewhere&&typeof body.elsewhere==='object'&&!active&&['playing','paused'].includes(body.elsewhere.state)
+  &&typeof body.elsewhere.targetName==='string'&&body.elsewhere.targetName?body.elsewhere:null;
+ if(away)return {
+  projectionVersion:4,config_entry_id:account,bootId:body.bootId,roomId:body.roomId,state:away.state,
+  source:'spotify',elsewhere:true,observedAt:new Date(receivedAt).toISOString(),receivedAt,
+  expiresAt:receivedAt+PLAYER_FRESH_MS,
+  item:{type:'track',uri:typeof away.uri==='string'?txt(away.uri,256):null,name:optionalText(away.title??null)||'',
+   artists:typeof away.artist==='string'&&away.artist?[txt(away.artist)]:[],album:null,duration_ms:null,artworkUrl:null},
+  progressMs:null,volume:null,controls:{actions:[],maxVolume:null},owner_epoch:null,poll_sequence:null,
+  target:{id:null,name:txt(away.targetName,256)},roomBinding:null,roomBound:false,
+ };
  // The position anchor is HA's own update time; a clock a little ahead is clamped to now.
  const observedAt=new Date(Math.min(receivedAt,positionAt??receivedAt)).toISOString();
  return {

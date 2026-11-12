@@ -12,7 +12,8 @@ const {createHash, randomUUID} = require('node:crypto');
 
 const port = Number(process.env.MUSIC_PUSH_TEST_PORT || 18977);
 const base = `http://127.0.0.1:${port}`;
-const coverUrl = 'https://i.scdn.co/image/InertExternalStartCover';
+// The room player's cover: HA's media_player proxy image, fetched through PodVoice.
+const coverPath = '/view/api/music/player/artwork';
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const ownerState = () => fetch(base + '/lab/state').then(r => r.json());
 const lab = body =>
@@ -28,7 +29,7 @@ async function shownWithin(page, check, arg, ms, label) {
     console.log('pushFailureEvidence', JSON.stringify({owner: await ownerState(), browser: await page.locator('pv-widget-host').evaluate(h => ({
       title: document.querySelector('#track-name')?.textContent, transportConnected: h.liveTransport?.connected,
       playback: h.liveMedia?.playback, readState: h.liveMedia?.readState, pending: h.liveMedia?.pending,
-      intentPending: h.liveControls?.musicIntentPending, records: h.liveTransport?.diagnostics?.().records,
+      intentPending: (h.liveControls?.musicIntentPending||h.liveControls?.player?.busy()), records: h.liveTransport?.diagnostics?.().records,
     }))}));
     await page.screenshot({path: path.join(testEnv.artifactDir(), `podview-music-push-fail-${label}.png`)});
     throw new Error(`${label}: not shown within ${ms} ms`);
@@ -66,11 +67,10 @@ let browser;
       const request = route.request();
       const url = new URL(request.url());
       if (url.origin === base) return route.continue();
-      if (request.url() !== coverUrl || request.resourceType() !== 'image') return route.abort();
-      coverRequests++;
-      return route.fulfill({contentType: 'image/svg+xml', headers: {'Access-Control-Allow-Origin': '*'},
-        body: '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
-          + '<rect width="64" height="64" fill="teal"/></svg>'});
+      return route.abort();
+    });
+    page.on('request', request => {
+      if (new URL(request.url()).pathname === coverPath && request.resourceType() === 'image') coverRequests++;
     });
     page.on('request', request => {
       if (request.method() === 'POST' && /\/view\/api\/(?:music\/[^/]+\/|control\/)?actions$/.test(
@@ -96,11 +96,12 @@ let browser;
         && button && !button.disabled && /pause/i.test(button.getAttribute('aria-label') || '');
     }, undefined, 8000, 'external-start-on-kitchen');
     const cover = page.locator('#cover');
-    await shownWithin(page, url => {
+    await shownWithin(page, coverPath => {
       const image = document.getElementById('cover');
-      return image?.currentSrc === url && image.complete && image.naturalWidth === 64
-        && image.checkVisibility({visibilityProperty: true, opacityProperty: true});
-    }, coverUrl, 5000, 'external-start-cover-decoded');
+      return !!image?.currentSrc && new URL(image.currentSrc).pathname === coverPath && image.complete
+        && image.naturalWidth === 64 && image.checkVisibility({visibilityProperty: true, opacityProperty: true});
+    }, coverPath, 5000, 'external-start-cover-decoded');
+    const coverUrl = await page.locator('#cover').evaluate(image => image.currentSrc);
     const decodedCover = await cover.evaluate(async image => {
       await image.decode();
       window.a8Cover = {image, mutations: []};
@@ -119,7 +120,8 @@ let browser;
     assert(refreshed.sequence > started.sequence);
     await shownWithin(page, ({sequence, url}) => {
       const playback = document.querySelector('pv-widget-host')?.liveMedia?.playback;
-      return playback?.poll_sequence === sequence && playback.item?.artwork?.url === url
+      return playback?.poll_sequence === sequence && !!playback.item?.artworkUrl
+        && document.getElementById('cover')?.currentSrc === url
         && playback.roomBinding?.nativeRoomId === 'native-room';
     }, {sequence: refreshed.sequence, url: coverUrl}, 8000, 'same-cover-owner-refresh');
     assert.deepEqual(await cover.evaluate(image => ({sameNode: window.a8Cover.image === image,

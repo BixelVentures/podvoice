@@ -92,3 +92,12 @@ test('no grant means no actions: a tap sends nothing',async()=>{
  assert.equal(await controls.intent('pause'),false);
  assert.deepEqual(calls,[]);
 });
+
+test('the account on another device is shown read-only with that device name',()=>{
+ const p=roomPlayerObservation(body({state:'idle',actions:[],maxVolume:null,
+  elsewhere:{state:'playing',targetName:'iPhone',title:'Let It Be',artist:'The Beatles',uri:null}}),'account',snapshot);
+ assert.equal(roomObservationDisplay(p,snapshot),true);
+ const model=livePlayerModel(p,true,'ready',snapshot,'Køkkenalrum');
+ assert.deepEqual([model.readOnly,model.placement,model.target,model.title],[true,'elsewhere','iPhone','Let It Be']);
+ assert.deepEqual(p.controls.actions,[]);
+});

@@ -435,6 +435,7 @@ class PodViewBridge:
         self._home_event_generation = 0
         self._home_light_interests: dict = {}
         self._room_player_entities: dict[str, str] = {}
+        self._room_player_targets: dict[tuple[str, str], dict] = {}
         robot_owner = getattr(tools, "_device_control", None)
         if robot_owner is not None:
             # A fresh robot map can reveal its room; wake readers like an HA vacuum event.

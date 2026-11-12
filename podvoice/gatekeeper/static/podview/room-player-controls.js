@@ -22,7 +22,8 @@ export class RoomPlayerControls{
   return p?JSON.stringify([p.bootId,p.roomId,p.config_entry_id,this.host.liveTransport?.generation??null]):null;
  }
  can(action,p=this.playback()){
-  return !!p&&this.host.liveTransport?.connected===true&&p.controls.actions.includes(action);
+  // A room that could not be read is shown as last known, never controlled.
+  return !!p&&p.stale!==true&&this.host.liveTransport?.connected===true&&p.controls.actions.includes(action);
  }
  wish(p=this.playback()){
   const d=this.desired;
@@ -87,6 +88,7 @@ export class RoomPlayerControls{
    catch{result={outcome:'unknown'};}
    this.running=null;
    row.done(result.outcome==='accepted');
+   if(result.outcome==='accepted')(this.observing??=[]).push(row.action);
    if(result.outcome!=='accepted'){
     // An honest outcome, never an automatic retry. Waiting taps were meant for the state before.
     for(const waiting of this.queue)waiting.done(false);
@@ -105,6 +107,12 @@ export class RoomPlayerControls{
   if(f&&(next.item?.uri!==f.uri||next.state!==f.state||Date.now()-f.at>OPTIMISTIC_MS)){
    this.failed=null;this.status='';
   }
+  // The first room read after accepted calls is their observed effect (diagnostics only).
+  if(!this.busy()&&this.observing?.length){
+   for(const action of this.observing)
+    this.host.liveTransport?.recordDiagnostic?.('playback_confirmation',{domain:'music',action,code:'confirmed'});
+   this.observing=[];
+  }
   const d=this.desired;
   if(!d||this.busy())return;
   const reached=(typeof d.playing!=='boolean'||(next.state==='playing')===d.playing)
@@ -113,7 +121,7 @@ export class RoomPlayerControls{
  }
  invalidate(){
   for(const row of this.queue)row.done(false);
-  this.queue=[];this.desired=null;this.status='';
+  this.queue=[];this.desired=null;this.status='';this.observing=[];
  }
  render(){
   const p=this.playback(),playing=!!p&&this.optimisticPlaying(p.state==='playing');
@@ -131,6 +139,15 @@ export class RoomPlayerControls{
    const node=document.getElementById(id);
    const busy=active===action||(id.endsWith('toggle')||id==='play-pause')&&['pause','resume'].includes(active);
    if(node&&node.getAttribute('aria-busy')!==String(busy))node.setAttribute('aria-busy',String(busy));
+  }
+  const transportBusy=String(!!active&&!['volume','seek'].includes(active));
+  for(const selector of ['.player .transport','#music-detail .transport']){
+   const node=this.host.querySelector?.(selector)||document.querySelector?.(selector);
+   if(node&&node.getAttribute('aria-busy')!==transportBusy)node.setAttribute('aria-busy',transportBusy);
+  }
+  for(const id of ['volume','detail-volume']){
+   const node=document.getElementById(id),busy=String(active==='volume');
+   if(node&&node.getAttribute('aria-busy')!==busy)node.setAttribute('aria-busy',busy);
   }
   return {transport:has('pause')||has('resume')||has('next')||has('previous'),canVolume};
  }

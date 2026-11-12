@@ -262,3 +262,77 @@ async def test_http_read_command_and_artwork(rig):
         ("volume_set", {"entity_id": ENTITY, "volume_level": 0.3}),
         ("media_pause", {"entity_id": ENTITY}),
     ]
+
+
+def resolved(status, *, target_id="device-one", name="Køkkenalrum", binding=None):
+    """resolve_actual's answer for PodConnect's account session."""
+    playback = {
+        "state": "playing",
+        "target": {"kind": "spotify_device", "target_id": target_id, "name": name},
+        "item": {
+            "name": "Let It Be",
+            "artists": ["The Beatles"],
+            "uri": "spotify:track:" + "b" * 22,
+        },
+    }
+    return {
+        "status": status,
+        "data": {"owner_epoch": "epoch", "poll_sequence": 3, "playback": playback},
+        "binding": binding,
+        "current": lambda: True,
+    }
+
+
+async def test_account_on_another_device_is_named_read_only(rig, monkeypatch):
+    rig.state = state(state="idle")
+    monkeypatch.setattr(
+        podview_room_player.podview_room_media,
+        "resolve_actual",
+        AsyncMock(return_value=resolved("account_observed", target_id="iphone", name="iPhone")),
+    )
+    body = await podview_room_player.read(rig.bridge, "kitchen", "account-alpha", rig.token)
+    assert body["state"] == "idle"
+    assert body["elsewhere"]["targetName"] == "iPhone"
+    assert body["elsewhere"]["title"] == "Let It Be"
+    # Unproven output on the room's own engine is not "another device": the room player decides.
+    monkeypatch.setattr(
+        podview_room_player.podview_room_media,
+        "resolve_actual",
+        AsyncMock(return_value=resolved("account_observed")),
+    )
+    body = await podview_room_player.read(rig.bridge, "kitchen", "account-alpha", rig.token)
+    assert body["elsewhere"] is None
+
+
+async def test_player_follows_the_sessions_proven_configured_room(rig, monkeypatch):
+    rig.bridge.controls.policy["music"].append(
+        {**rig.bridge.controls.policy["music"][0], "nativeRoomId": "r7", "nativeHomepodId": "43"}
+    )
+    rig.bridge.controls.policy["music"][0]["default"] = True
+    binding = {
+        "roomId": "kitchen",
+        "accountId": "account-alpha",
+        "targetId": "device-one",
+        "nativeRoomId": "r7",
+        "nativeHomepodId": "43",
+        "bindingId": "c" * 64,
+        "validUntil": 9e9,
+    }
+    monkeypatch.setattr(
+        podview_room_player.podview_room_media,
+        "resolve_actual",
+        AsyncMock(return_value=resolved("observed", binding=binding)),
+    )
+    seen = []
+
+    async def lookup(bridge, account, native_room):
+        seen.append(native_room)
+        return ENTITY
+
+    monkeypatch.setattr(podview_room_player, "entity_id", lookup)
+    body = await podview_room_player.read(rig.bridge, "kitchen", "account-alpha", rig.token)
+    assert body["session"]["binding"]["nativeRoomId"] == "r7"
+    await podview_room_player.command(
+        rig.bridge, "kitchen", "account-alpha", rig.token, "pause", None
+    )
+    assert seen == ["r7", "r7"]

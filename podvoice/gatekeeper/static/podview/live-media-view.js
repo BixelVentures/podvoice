@@ -9,7 +9,7 @@ const PAUSED_STORE='podview.pausedSince';
 export function pauseExpired(room,account,playback,now=Date.now()){
  let saved=null;
  try{saved=JSON.parse(globalThis.localStorage?.getItem(PAUSED_STORE)||'null');}catch{}
- if(playback?.state!=='paused'){
+ if(playback?.state!=='paused'||playback.elsewhere===true){
   if(saved&&playback?.state==='playing')try{globalThis.localStorage?.removeItem(PAUSED_STORE);}catch{}
   return false;
  }
@@ -101,7 +101,8 @@ export class LiveMediaView{
    if(next.state==='unavailable'){
     record({code:'unavailable',durationMs:Date.now()-diagnosticAt});
     if(this.playback&&roomObservationBound(this.playback,snap,account)){
-     this.playback={...this.playback,stale:true,displayRetained:true};this.queueControls.invalidate(false);
+     this.playback={...this.playback,stale:true,displayRetained:true,roomBinding:null};
+     this.queueControls.invalidate(false);
     }
     this.readState='unavailable';this.render();this.scheduleRecovery();return;
    }
@@ -125,7 +126,9 @@ export class LiveMediaView{
    this.playback=next;this.readState='ready';this.recoveryAttempts=0;
    host.liveControls?.observePlayer?.(next);
    host.liveSelection?.observePlayback?.(next,selection??null);
-   schedule(starting?SETTLEMENT_READ_MS:8000);
+   // PodConnect's session binding (queue, moves, output label) is renewed before half its life passes.
+   const sessionMs=nextBinding?nextBinding.validUntil*1000-Date.now():Infinity;
+   schedule(starting?SETTLEMENT_READ_MS:Math.max(1000,Math.min(8000,Math.floor(sessionMs/2))));
    this.render();void this.loadQueue({automatic:true,afterPlayback:true});
   }catch(error){
    record({code:!current()?'superseded':error?.code==='read_access_denied'?'http_denied'

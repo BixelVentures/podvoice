@@ -67,6 +67,28 @@ def room_rule(bridge, room: str, account: str) -> tuple[dict | None, dict | None
     return scope, rules[0] if len(rules) == 1 else None
 
 
+def player_target(bridge, room: str, account: str) -> tuple[dict | None, dict | None]:
+    """The configured room whose player this screen shows and controls.
+
+    Where PodConnect's session last proved the music plays in one of this screen's
+    configured rooms, that room; otherwise the room's configured (or moved-to) room.
+    """
+    scope, rule = room_rule(bridge, room, account)
+    if scope is None:
+        return None, None
+    actual = bridge._room_player_targets.get((room, account))
+    if actual is not None:
+        keys = ("accountId", "targetId", "nativeRoomId", "nativeHomepodId")
+        rules = [
+            candidate
+            for candidate in bridge.controls.policy.get("music", [])
+            if all(candidate.get(key) == actual.get(key) for key in keys)
+        ]
+        if len(rules) == 1:
+            return {**scope, **{key: actual[key] for key in keys}}, rules[0]
+    return scope, rule
+
+
 def permissions(bridge, room: str, token: str, rule: dict | None) -> tuple[list[str], int | None]:
     """Only a current screen grant and the room's music rule give actions."""
     if (
@@ -199,24 +221,50 @@ def project(row: dict | None) -> dict:
 
 
 async def _session(bridge, room, account, current):
-    """PodConnect's account session for the queue and speaker moves, never for controls."""
+    """PodConnect's account session: the queue and moves use it, and it names where the
+    account plays when that is not this room (f: "Spiller på iPhone"). Never controls."""
     try:
         resolved = await podview_room_media.resolve_actual(
             bridge, room, account, bridge.tools.podview_music_binding, current=current
         )
     except Exception:
-        return None
+        return None, None
     source, actual = resolved.get("data"), resolved.get("binding")
-    if resolved.get("status") != "observed" or not isinstance(source, dict) or not actual:
-        return None
-    target = source["playback"].get("target") or {}
+    if not isinstance(source, dict) or resolved.get("status") not in {
+        "observed",
+        "account_observed",
+    }:
+        return None, None
+    playback = source["playback"]
+    target = playback.get("target") or {}
+    if resolved["status"] == "account_observed" or not actual:
+        item = playback.get("item") or {}
+        own_engines = {
+            rule.get("targetId")
+            for rule in bridge.controls.policy.get("music", [])
+            if rule.get("accountId") == account
+        }
+        # Unproven output on this room's own engine is no other device: the room player decides.
+        if (
+            playback.get("state") not in {"playing", "paused"}
+            or not target.get("name")
+            or target.get("target_id") in own_engines
+        ):
+            return None, None
+        return None, {
+            "state": playback["state"],
+            "targetName": target["name"],
+            "title": item.get("name"),
+            "artist": ", ".join(item.get("artists") or []) or None,
+            "uri": item.get("uri"),
+        }
     return {
         "binding": actual,
         "ownerEpoch": source["owner_epoch"],
         "pollSequence": source["poll_sequence"],
         "targetId": target.get("target_id"),
         "targetName": target.get("name"),
-    }
+    }, None
 
 
 def _artwork_url(room, account, artwork):
@@ -241,12 +289,21 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
         "actions": [],
         "maxVolume": None,
         "session": None,
+        "elsewhere": None,
     }
     body.pop("artwork")
-    scope, rule = room_rule(bridge, room, account)
-    if scope is None or not available(bridge.tools):
+    if room_rule(bridge, room, account)[0] is None or not available(bridge.tools):
         return body
-    session = asyncio.create_task(_session(bridge, room, account, current))
+    session_value, elsewhere = await _session(bridge, room, account, current)
+    # The session's proven output room (if configured here) is the room this screen follows.
+    targets = bridge._room_player_targets
+    if session_value is not None:
+        targets[(room, account)] = session_value["binding"]
+    elif elsewhere is not None:
+        targets.pop((room, account), None)
+    scope, rule = player_target(bridge, room, account)
+    if scope is None:
+        return body
     try:
         entity = await entity_id(bridge, account, scope["nativeRoomId"])
         row = await _state(bridge.tools, entity) if entity else None
@@ -257,8 +314,6 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
             "podview_room_player stage=read outcome=unavailable error=%s", type(error).__name__
         )
         row = None
-    finally:
-        session_value = await session
     projected = project(row)
     artwork = projected.pop("artwork")
     actions, limit = permissions(bridge, room, token, rule) if row is not None else ([], None)
@@ -268,6 +323,10 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
         actions=actions,
         maxVolume=limit,
         session=session_value if current() else None,
+        # The account plays on another device while this room is quiet: show where, read-only.
+        elsewhere=elsewhere
+        if current() and projected["state"] in {"idle", "unavailable"}
+        else None,
     )
     return body
 
@@ -276,7 +335,7 @@ async def command(bridge, room: str, account: str, token: str, action: str, valu
     """One direct HA call on the room's media_player. HA's answer is the outcome."""
     if action not in COMMANDS:
         return {"outcome": "rejected", "error": "unsupported_action"}
-    scope, rule = room_rule(bridge, room, account)
+    scope, rule = player_target(bridge, room, account)
     actions, limit = permissions(bridge, room, token, rule)
     if scope is None or action not in actions or not available(bridge.tools):
         return {"outcome": "rejected", "error": "not_granted"}
@@ -327,7 +386,7 @@ async def command(bridge, room: str, account: str, token: str, action: str, valu
 
 async def artwork(bridge, room: str, account: str) -> tuple[bytes, str] | None:
     """The cover HA proxies for the room's media_player, fetched with PodVoice's own access."""
-    scope, _ = room_rule(bridge, room, account)
+    scope, _ = player_target(bridge, room, account)
     if scope is None or not available(bridge.tools):
         return None
     tools = bridge.tools

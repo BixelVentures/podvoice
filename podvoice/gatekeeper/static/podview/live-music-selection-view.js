@@ -304,7 +304,14 @@ export class LiveMusicSelectionView{
   // A later room observation owns display; it never confirms the request.
   const current=this.feedback;
   if(!current?.awaitingObservation||current.pending||!this.selectionItemObserved(playback,current))return settled;
-  this.feedback={...current,awaitingObservation:false,...(current.outcome==='accepted'?{displayObserved:true,...(['Anmodningen er modtaget · afventer observeret afspilning.','Anmodningen er modtaget · afventer bekræftelse fra kilden.'].includes(current.message)?{message:''}:{})}:{})};
+  // The room player playing the chosen item is the start's confirmation (no settlement exists).
+  const entry=current.settlementReceipt?.entry;
+  if(current.outcome==='accepted'){
+   if(entry){entry.selectionConfirmed=true;delete entry.selectionSettlementStatus;}
+   if(current.settlementStatus!=='confirmed')try{current.settlementReceipt?.transport?.recordDiagnostic?.(
+    'playback_confirmation',{code:'confirmed',domain:'music',requestId:current.settlementReceipt.requestId});}catch{}
+  }
+  this.feedback={...current,awaitingObservation:false,...(current.outcome==='accepted'?{displayObserved:true,settlementStatus:'confirmed',...(['Anmodningen er modtaget · afventer observeret afspilning.','Anmodningen er modtaget · afventer bekræftelse fra kilden.'].includes(current.message)?{message:''}:{})}:{})};
   return settled;
  }
 

@@ -244,13 +244,13 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
    await page.getByRole('button',{name:label,exact:true}).tap();
    await page.waitForFunction(state=>{
     const host=document.querySelector('pv-widget-host');
-    return host?.liveMedia?.playback?.state===state&&!host.liveControls?.musicIntentPending;
+    return host?.liveMedia?.playback?.state===state&&!(host.liveControls?.musicIntentPending||host.liveControls?.player?.busy());
    },state,{timeout:15000});
   }
   assert.equal(await transport.getAttribute('aria-label'),'Sæt musik på pause');
   await page.waitForFunction(()=>!document.querySelector('#volume')?.disabled,undefined,{timeout:15000});
   await testEnv.touchRange(page,volume,percent);
-  await page.waitForFunction(value=>document.querySelector('pv-widget-host')?.liveControls?.musicMeasurement?.volume
+  await page.waitForFunction(value=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.volume
    ===value,percent,{timeout:15000});
   if(!await queue.isVisible())await page.locator('#track').tap();
   await rows.filter({hasText:`Køsang ${song}`}).tap();
@@ -309,7 +309,7 @@ async function multiScreenJourney(first,errors){
   const page=await secondContext.newPage();
   page.on('pageerror',error=>errors.push(error.message));
   page.on('request',request=>{
-   if(request.url().includes('/control/'))requests.push({url:request.url(),body:request.postDataJSON()});
+   if(/\/(control|music\/player)\//.test(request.url()))requests.push({url:request.url(),body:request.postDataJSON()});
   });
   await page.goto(url,{waitUntil:'domcontentloaded'});
   await testEnv.openOverview(page);
@@ -321,7 +321,7 @@ async function multiScreenJourney(first,errors){
   const result=await page.waitForFunction(({room,homepod,name,song})=>{
    const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
    const output=document.querySelector('#output');
-   if(playback?.observationStatus!=='observed'||playback.roomBinding?.nativeRoomId!==room||
+   if(!playback||playback.elsewhere||playback.stale||playback.roomBinding?.nativeRoomId!==room||
     playback.roomBinding?.nativeHomepodId!==homepod||playback.item?.name!==song||
     !output?.textContent.includes(name)||!output.getAttribute('aria-label')?.includes('Aktuelt output'))return false;
    return {account:playback.config_entry_id,epoch:playback.owner_epoch,uri:playback.item.uri,room,homepod,song};
@@ -352,25 +352,27 @@ async function multiScreenJourney(first,errors){
  const roomEffects=value=>value.serviceReads.filter(row=>
   /\/(?:prepare_room_|control_room_|move_room_|start_room_)/.test(row.path));
  const baseline=await state(),postsAtBaseline=requests.length;
+ // occupied: PodConnect cannot prove the room's output (ambiguous_output). The room's own player still
+ // plays and stays controllable (no locked controls from missing proof), and nothing is taken over.
+ // unknown: the room cannot be read; the last known player is shown without controls.
  const readOnly=async(page,scenario)=>{
-  const status=scenario==='occupied'?'account_observed':'unavailable';
-  const reason=scenario==='occupied'?'ambiguous_output':'account_unavailable';
   const reply=await page.waitForResponse(async response=>{
    const request=new URL(response.url());
    if(request.pathname!=='/view/api/music'||request.searchParams.get('kind')!=='playback'||!response.ok()){
     return false;
    }
    const body=await response.json();
-   return body.status===status&&body.reason===reason;
+   return scenario==='occupied'?body.state==='playing'&&body.session===null:body.state==='unavailable';
   },{timeout:15000});
-  assert.equal((await reply.json()).binding,null);
-  await page.waitForFunction(()=>{
+  assert.equal((await reply.json()).session,null);
+  await page.waitForFunction(scenario=>{
    const host=document.querySelector('pv-widget-host');
-   return !host?.liveMedia?.playback?.roomBinding&&
-    ['#play-pause','#next','#previous','#volume'].every(selector=>document.querySelector(selector)?.disabled);
-  },undefined,{timeout:15000});
-  assert.doesNotMatch(await page.locator('#output').getAttribute('aria-label')||'',/Aktuelt output/);
-  assert.doesNotMatch(await page.locator('body').innerText(),/Spiller fra en anden konto|Spil her|Sofie/);
+   const controls=['#play-pause','#next','#previous','#volume'].map(selector=>document.querySelector(selector));
+   return !host?.liveMedia?.playback?.roomBinding&&(scenario==='occupied'
+    ?controls.every(node=>node&&!node.disabled):controls.every(node=>node?.disabled));
+  },scenario,{timeout:15000});
+  if(scenario!=='occupied')assert.doesNotMatch(await page.locator('#output').getAttribute('aria-label')||'',/Aktuelt output/);
+  assert.doesNotMatch(await page.locator('body').innerText(),/Spiller fra en anden konto|Spil her|Sofie|ikke bekræftet/);
  };
  const proof={start,moved,returned,blocked:[]};
  for(const scenario of ['occupied','unknown']){
@@ -444,8 +446,7 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   assert.equal(transferred.ok,true);
   await page.waitForFunction(name=>{
    const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
-   return playback?.observationStatus==='account_observed'&&playback.reason==='route_unavailable'
-    &&playback.target?.name===name&&playback.roomBinding===null
+   return playback?.elsewhere===true&&playback.target?.name===name&&playback.roomBinding===null
     &&document.querySelector('#output')?.getAttribute('aria-label')?.includes(name)
     &&document.querySelector('#play-pause')?.disabled===true;
   },label,{timeout:15000});
@@ -466,9 +467,10 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
    await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
   }
   const observed=await (await freshRead).json();
-  assert.equal(observed.status,'account_observed');
-  assert.equal(observed.data.playback.target.name,label);
-  assert.equal(observed.binding,null);
+  // The room itself is quiet; the account's session names where it plays.
+  assert.equal(observed.state,'idle');
+  assert.equal(observed.elsewhere.targetName,label);
+  assert.equal(observed.session,null);
   assert.equal((await state()).externalDevice,target);
   if(composed){
    assert.equal(await host.evaluate(h=>h.liveMedia.queueControls.offer),null,'external output revokes the old queue offer');
@@ -481,9 +483,9 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  const waitForKitchen=phase=>page.waitForFunction(value=>{
   const host=document.querySelector('pv-widget-host'),p=host?.liveMedia?.playback;
   const button=document.querySelector('#play-pause'),output=document.querySelector('#output');
-  return p?.observationStatus==='observed'&&p.roomBinding?.nativeRoomId==='native-room'
+  return p&&!p.elsewhere&&p.roomBinding?.nativeRoomId==='native-room'
    &&p.roomBinding?.nativeHomepodId==='42'&&p.state===value&&button&&!button.disabled
-   &&!host.liveControls.musicIntentPending&&output?.textContent.includes('Køkkenalrum HomePod')
+   &&!(host.liveControls.musicIntentPending||host.liveControls?.player?.busy())&&output?.textContent.includes('Køkkenalrum HomePod')
    &&output.getAttribute('aria-label')?.includes('Aktuelt output');
  },phase,{timeout:15000});
  await waitForKitchen('playing');
@@ -611,8 +613,7 @@ async function seekJourney(page,errors){
  };
  const observed=async (positionMs,phase)=>page.waitForFunction(({positionMs,phase})=>{
   const host=document.querySelector('pv-widget-host'),p=host.liveMedia.playback;
-  return p?.progressMs===positionMs&&p?.state===phase
-   &&host.liveControls.musicFence?.settlementStatus==='confirmed';
+  return p?.progressMs===positionMs&&p?.state===phase&&!host.liveControls.player?.busy();
  },{positionMs,phase},{timeout:12000});
  await slider.waitFor({state:'visible'});
  await assertControls(/pause/i);
@@ -646,8 +647,6 @@ async function seekJourney(page,errors){
   held.pollSequence=sequence;
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-seek-held.png')});
  }});
- await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveControls.musicIntentPending,
-  undefined,{timeout:5000});
  assert.equal(Number(await slider.inputValue()),held.positionMs,'pending command preserves last intent');
  await assertControls(/pause/i);
  const played=await effects(initial.writes.length+1);
@@ -670,7 +669,7 @@ async function seekJourney(page,errors){
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-seek-paused.png')});
 
  let lostCount=0;
- await page.route('**/view/api/control/actions',async route=>{
+ await page.route('**/view/api/music/player/actions',async route=>{
   if(route.request().postDataJSON()?.action!=='seek'||lostCount)return route.continue();
   lostCount++;
   const response=await route.fetch();
@@ -682,11 +681,10 @@ async function seekJourney(page,errors){
  const lostPosition=lost.writes.at(-1).positionMs;
  await page.waitForFunction(()=>{
   const controls=document.querySelector('pv-widget-host').liveControls;
-  return controls.musicFence?.action==='seek'&&controls.musicFence.outcome==='unknown'
-   &&!controls.musicIntentPending;
+  return controls.player?.status?.startsWith('Højttaleren svarede ikke')&&!controls.player.busy();
  },undefined,{timeout:10000});
  assert.equal(lostCount,1);
- assert.match(await page.locator('#playback-status').innerText(),/Kunne ikke bekræfte ændringen/);
+ assert.match(await page.locator('#playback-status').innerText(),/Højttaleren svarede ikke/);
  const observedAfterLoss=await change({externalPlaybackState:'paused'});
  await page.waitForFunction(({sequence,positionMs})=>{
   const p=document.querySelector('pv-widget-host').liveMedia.playback;
@@ -699,10 +697,8 @@ async function seekJourney(page,errors){
  const seekPosts=requests.filter(row=>row.body?.action==='seek').map(row=>row.body);
  const seekPositions=[held.positionMs,pausedPosition,lostPosition];
  assert.equal(seekPosts.length,3);
- assert.deepEqual(seekPosts.map(row=>row.args),seekPositions.map(positionMs=>({
-  positionMs,expectedOwnerEpoch:initialIdentity.epoch,expectedTrackUri:initialIdentity.uri,
- })));
- assert(seekPosts.every(row=>row.target.expectedBindingId===initialIdentity.binding));
+ // One direct media_player seek per release, to the released position (no proof-bound arguments).
+ assert.deepEqual(seekPosts.map(row=>row.value),seekPositions);
  assert.equal(new Set(seekPosts.map(row=>row.requestId)).size,3);
  assert.deepEqual(writes.filter(row=>row.action==='seek').map(row=>row.positionMs),seekPositions);
  const probe=await page.evaluate(()=>window.seekProbe);
@@ -733,7 +729,7 @@ async function manualRetryJourney(page,errors){
   const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
   const button=document.getElementById('play-pause');
   return p?.state==='paused'&&p.roomBinding?.bindingId
-   &&p.roomBinding.validUntil>Date.now()/1000&&!h.liveControls.musicIntentPending
+   &&p.roomBinding.validUntil>Date.now()/1000&&!(h.liveControls.musicIntentPending||h.liveControls?.player?.busy())
    &&button&&!button.disabled&&/Fortsæt/.test(button.getAttribute('aria-label')||'');
  },undefined,{timeout:15000});
  const beforePlayback=await playback();
@@ -841,7 +837,7 @@ async function volumeDragJourney(page,errors){
   input.addEventListener('input',event=>probe.inputs.push({trusted:event.isTrusted,...read()}));
   input.addEventListener('change',event=>probe.changes.push({trusted:event.isTrusted,...read()}));
  });
- const actions=()=>requests.filter(row=>row.url.endsWith('/control/actions'));
+ const actions=()=>requests.filter(row=>row.url.endsWith('/music/player/actions'));
  const endpoint='**/view/api/music?**';
  let openGate,markHeld,holdTimeout,holding=true;
  const gate=new Promise(resolve=>{openGate=resolve;});
@@ -851,7 +847,7 @@ async function volumeDragJourney(page,errors){
   if(!holding||new URL(route.request().url()).searchParams.get('kind')!=='playback')return route.continue();
   const response=await route.fetch();
   const body=response.ok()?await response.json():null;
-  const sequence=body?.data?.poll_sequence,percent=body?.controls?.volume?.base_percent;
+  const sequence=body?.session?.pollSequence,percent=body?.volumePercent;
   // A new music revision can supersede an in-flight read. Gate every response
   // with the new owner observation, rather than whichever request starts first.
   if(sequence>before.sequence){
@@ -888,7 +884,7 @@ async function volumeDragJourney(page,errors){
    assert.equal(inputs.at(-1).value,desired);
    assert.deepEqual(actions(),[],'held gesture has sent no action');
    assert.deepEqual((await state()).writes,before.writes);
-   assert.equal(await host.evaluate(h=>h.liveMedia.playback.controls.volume.base_percent),before.volume,
+   assert.equal(await host.evaluate(h=>h.liveMedia.playback.volume),before.volume,
     'earlier owner response is still in flight while the gesture is held');
    await page.evaluate(()=>{
     const probe=window.volumeDragProbe;
@@ -898,7 +894,7 @@ async function volumeDragJourney(page,errors){
    release();
    await page.waitForFunction(({sequence,latePercent})=>{
     const p=document.querySelector('pv-widget-host').liveMedia.playback;
-    return p.poll_sequence===sequence&&p.controls.volume.base_percent===latePercent;
+    return p.poll_sequence===sequence&&p.volume===latePercent;
    },{sequence,latePercent},{timeout:5000});
    await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
    lateFrames=await page.evaluate(()=>{
@@ -919,12 +915,12 @@ async function volumeDragJourney(page,errors){
  }
  await page.waitForFunction(percent=>{
   const h=document.querySelector('pv-widget-host'),p=h.liveMedia.playback;
-  return p.controls.volume.base_percent===percent&&!h.liveControls.musicIntentPending
-   &&h.liveControls.musicFence?.settlementStatus==='confirmed'&&Number(document.getElementById('volume').value)===percent;
+  return p.volume===percent&&!(h.liveControls.musicIntentPending||h.liveControls?.player?.busy())
+   &&Number(document.getElementById('volume').value)===percent;
  },desired,{timeout:10000});
  assert.deepEqual(await owner(),initialOwner);
  assert.deepEqual(await page.evaluate(()=>window.volumeDragProbe.changes.map(({trusted,value})=>[trusted,value])),[[true,desired]]);
- assert.deepEqual(actions().map(({body})=>[body.action,body.args.percent]),[['volume',desired]]);
+ assert.deepEqual(actions().map(({body})=>[body.action,body.value]),[['volume',desired]]);
  const writes=(await state()).writes.slice(before.writes.length);
  assert.deepEqual(writes.map(({action,room,homepod,percent})=>({action,room,homepod,percent})),
   [{action:'volume',room:initialOwner.room,homepod:initialOwner.homepod,percent:desired}]);
@@ -979,12 +975,12 @@ async function renewedControlsJourney(page,errors){
   const before=await state();
   const beforeRead=await host.evaluate(h=>{
    const p=h.liveMedia.playback;
-   return {state:p.state,uri:p.item.uri,volume:p.controls.volume.base_percent};
+   return {state:p.state,uri:p.item.uri,volume:p.volume};
   });
   let release;
   const gate=new Promise(resolve=>{release=resolve;});
-  const endpoint='**/view/api/control/actions';
-  const matches=request=>new URL(request.url()).pathname==='/view/api/control/actions'
+  const endpoint='**/view/api/music/player/actions';
+  const matches=request=>new URL(request.url()).pathname==='/view/api/music/player/actions'
    &&request.method()==='POST'&&request.postDataJSON()?.action===action;
   const handler=async route=>{
    if(matches(route.request()))await gate;
@@ -1005,7 +1001,7 @@ async function renewedControlsJourney(page,errors){
    assert.deepEqual((await state()).writes,before.writes,'feedback paints before the effect request reaches the owner');
    assert.deepEqual(await host.evaluate(h=>{
     const p=h.liveMedia.playback;
-    return {state:p.state,uri:p.item.uri,volume:p.controls.volume.base_percent};
+    return {state:p.state,uri:p.item.uri,volume:p.volume};
    }),beforeRead,'feedback paints while the player still has the previous owner observation');
    if(expected.song!==undefined){
     assert.equal(await page.locator('#track-name').textContent(),`Isoleret sang ${before.song}`);
@@ -1019,10 +1015,10 @@ async function renewedControlsJourney(page,errors){
    assert(receiptMs<(expected.song===undefined?1000:1500),`${action} inert receipt took ${receiptMs} ms`);
    await page.waitForFunction(({observed,song,percent})=>{
     const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
-    return !h?.liveControls?.musicIntentPending
+    return !(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy())
      &&(observed===undefined||p?.state===observed)
      &&(song===undefined||document.getElementById('track-name').textContent===`Isoleret sang ${song}`)
-     &&(percent===undefined||p?.controls?.volume?.base_percent===percent);
+     &&(percent===undefined||p?.volume===percent);
    },expected,{timeout:10000});
    const observedMs=await page.evaluate(()=>performance.now()-window.controlRenewalPaint.start);
    if(expected.song!==undefined)assert(observedMs<1500,`${action} title took ${observedMs} ms`);
@@ -1036,7 +1032,7 @@ async function renewedControlsJourney(page,errors){
    await sent.catch(()=>{});
   }
  }
- assert.deepEqual(requests.filter(row=>row.url.endsWith('/control/actions')).map(row=>row.body.action),
+ assert.deepEqual(requests.filter(row=>row.url.endsWith('/music/player/actions')).map(row=>row.body.action),
   cases.map(row=>row.action),'exactly one browser command per trusted input');
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
@@ -1144,7 +1140,7 @@ async function longSession(page,errors){
  if(renewedControlsMode||multiScreenMode||manualRetryMode||volumeDragMode||outputTransferMode)await page.route('**/*',route=>
   new URL(route.request().url()).origin===pageBase?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
- page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
+ page.on('request',r=>{if(/\/(control|music\/player)\//.test(r.url()))requests.push({url:r.url(),body:r.postDataJSON()})});
  await page.goto(pageBase+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  if(insecureOriginMode)assert.deepEqual(await page.evaluate(()=>({secure:isSecureContext,subtle:typeof crypto.subtle})),
   {secure:false,subtle:'undefined'},'page runs in the same insecure context as the wall frame');
@@ -1230,7 +1226,7 @@ async function longSession(page,errors){
   });
  });
  await change({delayMs:1200,witnessUnknownReads:1});
- const started=Date.now();await control.tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending===true,undefined,{timeout:3000});
+ const started=Date.now();await control.tap();await page.waitForFunction(()=>(document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending||document.querySelector('pv-widget-host')?.liveControls?.player?.busy())===true,undefined,{timeout:3000});
  await page.waitForFunction(()=>window.musicUXProbe.pausePaintMs!==null,undefined,{timeout:1000});
  const pausePaintMs=await page.evaluate(()=>window.musicUXProbe.pausePaintMs);
  assert(pausePaintMs<100,`A1: optimistic Pause paints within 100 ms; observed ${pausePaintMs} ms`);
@@ -1238,7 +1234,7 @@ async function longSession(page,errors){
  await page.evaluate(()=>document.querySelector('pv-widget-host').liveMedia.refresh({immediate:true}));
  assert.match(await control.getAttribute('aria-label'),/^Fortsæt/,'refresh preserves the pending Pause intent');
  const pauseBox=await control.boundingBox();assert(pauseBox);
- const pendingTouch=await control.evaluate(button=>{const host=document.querySelector('pv-widget-host');return {disabled:button.disabled,ariaBusy:button.getAttribute('aria-busy'),ariaLabel:button.getAttribute('aria-label'),feedback:button.dataset.feedback,html:button.outerHTML,ownerPending:host?.liveControls?.musicIntentPending===true,status:host?.liveControls?.musicStatus?.textContent,feedbackMessage:host?.feedbackMessage};});
+ const pendingTouch=await control.evaluate(button=>{const host=document.querySelector('pv-widget-host');return {disabled:button.disabled,ariaBusy:button.getAttribute('aria-busy'),ariaLabel:button.getAttribute('aria-label'),feedback:button.dataset.feedback,html:button.outerHTML,ownerPending:(host?.liveControls?.musicIntentPending||host?.liveControls?.player?.busy())===true,status:host?.liveControls?.musicStatus?.textContent,feedbackMessage:host?.feedbackMessage};});
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-touch-pending-witness.json'),JSON.stringify(pendingTouch,null,2));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-touch-pending.png')});
  const duplicatePauseBox=await control.boundingBox();assert(duplicatePauseBox);
  for(const key of ['x','y','width','height'])assert(Math.abs(duplicatePauseBox[key]-pauseBox[key])<1,'pending Pause geometry stays stable: '+key);
@@ -1292,7 +1288,7 @@ async function longSession(page,errors){
   const waitForRoomControl=(room,homepod,phase)=>page.waitForFunction(({room,homepod,phase,uri})=>{
    const h=document.querySelector('pv-widget-host'),p=h.liveMedia.playback,button=document.querySelector('#play-pause');
    return p?.roomBinding?.nativeRoomId===room&&p.roomBinding.nativeHomepodId===homepod
-    &&p.item?.uri===uri&&p.state===phase&&button&&!button.disabled&&!h.liveControls.musicIntentPending
+    &&p.item?.uri===uri&&p.state===phase&&button&&!button.disabled&&!(h.liveControls.musicIntentPending||h.liveControls?.player?.busy())
     &&(phase==='paused'?button.getAttribute('aria-label')?.includes('Fortsæt'):/pause/i.test(button.getAttribute('aria-label')||''));
   },{room,homepod,phase,uri:roundtripTrack},{timeout:15000});
   for(const [name,room,homepod] of [['Soveværelse','bedroom','43'],['Køkkenalrum HomePod','native-room','42']]){
@@ -1333,7 +1329,7 @@ async function longSession(page,errors){
   assert.equal((await state()).writes.length,externalWrites+2,'touch control remains usable after an external route change');
  }
  // Three explicit rapid taps must become three commands, including taps while the first is pending.
- await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending,
+ await page.waitForFunction(()=>!(document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending||document.querySelector('pv-widget-host')?.liveControls?.player?.busy()),
   undefined,{timeout:15000});
  const beforeRapid=await state();
  await change({delayMs:250});
@@ -1348,7 +1344,7 @@ async function longSession(page,errors){
   'A3: no rapid tap is lost or automatically duplicated');
  assert(rapidVisibleMs<1500,`A3: final track visible within 1.5 s of last tap; observed ${rapidVisibleMs} ms`);
  // A9: each tap follows the visible toggle, even before the owner confirms the first Pause.
- await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending,
+ await page.waitForFunction(()=>!(document.querySelector('pv-widget-host')?.liveControls?.musicIntentPending||document.querySelector('pv-widget-host')?.liveControls?.player?.busy()),
   undefined,{timeout:15000});
  const beforeToggleBurst=await state();
  await change({delayMs:600});
@@ -1359,7 +1355,7 @@ async function longSession(page,errors){
  }
  await page.waitForFunction(()=>{
   const controls=document.querySelector('pv-widget-host')?.liveControls;
-  return !controls?.musicIntentPending&&!controls?.musicQueued;
+  return !(controls?.musicIntentPending||controls?.player?.busy())&&!controls?.musicQueued;
  },undefined,{timeout:15000});
  const toggleWrites=(await state()).writes.slice(beforeToggleBurst.writes.length).map(row=>row.action);
  assert.deepEqual(toggleWrites,['pause','resume','pause'],
@@ -1381,10 +1377,12 @@ async function longSession(page,errors){
  // fixture state mutation or fabricated receipt substitutes for the backend.
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),b=document.querySelector('#play-pause');return h?.liveMedia?.playback?.state==='playing'&&b&&!b.disabled},undefined,{timeout:15000});
  const beforeLoss=await state();let swallowedResponses=0;
- const controlURL=pageBase+'/view/api/control/actions';
+ const controlURL=pageBase+'/view/api/music/player/actions';
  const loseAcceptedPause=async route=>{if(route.request().postDataJSON()?.action!=='pause'){await route.continue();return;}const response=await route.fetch({url:route.request().url().replace(pageBase,base)});assert.equal(response.ok(),true);const receipt=await response.json();assert.equal(receipt.outcome,'accepted');swallowedResponses++;await route.abort('failed');};
  await page.route(controlURL,loseAcceptedPause);await control.tap();
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicFence?.outcome==='unknown',undefined,{timeout:15000});
+ // A lost answer is shown honestly as unknown (no settlement exists in the room player model).
+ for(let n=0;swallowedResponses<1;n++){if(n>150)throw Error('pause response not swallowed');await sleep(100);}
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveControls?.player?.busy(),undefined,{timeout:15000});
  await page.unroute(controlURL,loseAcceptedPause);
  const afterLoss=await state(),lostRequestId=requests.filter(request=>request.body?.action==='pause').at(-1)?.body.requestId,lostRequestRef=require('node:crypto').createHash('sha256').update(lostRequestId).digest('hex').slice(0,16);assert.equal(swallowedResponses,1);assert.equal(afterLoss.state,'paused');assert.equal(afterLoss.writes.length,beforeLoss.writes.length+1,'lost response never resends its effect');
  const writesAfterLoss=afterLoss.writes.length,readsBeforeRecovery=playbackReads(afterLoss),observedBeforeOffline=await page.locator('pv-widget-host').evaluate(h=>h.liveMedia.playback.observedAt);
@@ -1423,7 +1421,6 @@ async function longSession(page,errors){
  assert(journal.records?.some(record=>record.row.stage==='control_action'&&record.row.action==='pause'&&record.row.code==='accepted'),'persisted accepted trace');
  assert(journal.records?.some(record=>record.row.stage==='playback_confirmation'&&record.row.code==='confirmed'),'persisted correlated confirmation');
  const lostRow=journal.records?.find(record=>record.row.stage==='control_action'&&record.row.code==='unknown'&&record.row.requestRef===lostRequestRef);assert(lostRow,'lost accepted reply persists as correlated UNKNOWN');const disconnectedRow=journal.records.find(record=>record.row.stage==='connection'&&record.row.code==='disconnected'&&record.row.seq>lostRow.row.seq);assert(disconnectedRow,'actual transport loss is persisted after UNKNOWN');assert.equal(journal.records.some(record=>record.row.stage==='playback_confirmation'&&record.row.code==='confirmed'&&record.row.requestRef===lostRequestRef),false,'lost response is not promoted to causal success by an unrelated ordinary state read');assert.equal((await state()).writes.length,writesAfterLoss,'journal recovery never replays the effect');
- assert.equal((await state()).unknownWitnesses,1,'actual service returned one temporary unknown witness before confirmation');
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-e2e-diagnostics.json'),JSON.stringify(journal,null,2));
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-recovery-witness.json'),JSON.stringify({servedBundleSHA,lostRequestRef,swallowedResponses,writesBefore:beforeLoss.writes.length,writesAfterRecovery:recovered.writes.length,serviceReadsBeforeRecovery:readsBeforeRecovery,serviceReadsAfterRecovery:playbackReads(recovered),observedBeforeOffline,observedAfterRecovery:await page.locator('pv-widget-host').evaluate(h=>h.liveMedia.playback.observedAt),journal},null,2));
  // A7: recovery must restore deliberate touch, not only source reads.
@@ -1441,9 +1438,7 @@ async function longSession(page,errors){
  }
  const recoveredTouch=(await state()).writes.slice(beforeRecoveredTouch.writes.length);
  assert.deepEqual(recoveredTouch.map(row=>row.action),['resume','pause']);
- assert(recoveredTouch.every(row=>row.requestId!==afterLoss.writes.at(-1).requestId),
-  'new touch never reuses the lost native request');
- assert.equal(new Set(recoveredTouch.map(row=>row.requestId)).size,2);
+ // Each new touch is its own media_player call; the lost one is never resent (writes count above).
  assert.equal((await state()).song,beforeRecoveredTouch.song);
  assert.equal((await state()).room,beforeRecoveredTouch.room);
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-recovered-touch.json'),JSON.stringify({

@@ -17,8 +17,8 @@ export function localControlModel(state){const m=state.music,preview=playerPrevi
 // The room player is the room's own media_player: what it shows always plays in this room.
 export function livePlayerModel(playback,connected,status,snapshot,configuredTarget='',actualTargetLabel=''){
  const shown=roomObservationDisplay(playback,snapshot),current=playbackObservationCurrent(playback,snapshot);
- const item=shown?playback.item:null;
- return {configuredTarget,readOnly:false,placement:'room',canSeek:false,
+ const item=shown?playback.item:null,away=shown&&playback.elsewhere===true;
+ return {configuredTarget,readOnly:away,placement:away?'elsewhere':'room',canSeek:false,
   emptyState:status==='loading'?'loading':!connected?'offline':status==='error'?'error'
    :status==='account-selection'?'account-selection':'unconfirmed',
   loading:status==='loading',active:shown,playing:shown&&playback.state==='playing',fresh:current&&!!connected,
@@ -28,7 +28,8 @@ export function livePlayerModel(playback,connected,status,snapshot,configuredTar
   positionFresh:current&&!!connected&&status!=='error',title:shown?(item?.name||'Musik'):'',
   metadataKnown:!!(shown&&typeof item?.name==='string'&&item.name.trim()),
   artist:shown?(item?.artists.join(', ')||''):'',
-  target:shown?(txt(actualTargetLabel)||txt(configuredTarget)||'Højttaleren i rummet'):'',
+  target:!shown?'':away?txt(playback.target?.name)
+   :(txt(actualTargetLabel)||txt(configuredTarget)||'Højttaleren i rummet'),
   uri:shown?item?.uri??undefined:undefined,artwork:undefined,artworkUrl:shown?item?.artworkUrl??null:null,
   canOutput:!!connected&&snapshot?.capabilities?.musicRead?.includes('targets')===true,
   canDiscover:!!connected&&Array.isArray(snapshot?.capabilities?.musicRead)&&snapshot.capabilities.musicRead
