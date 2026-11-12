@@ -12,7 +12,7 @@ import secrets
 import time
 
 from . import podview_light_control as lights
-from . import podview_speakers, robot_settings
+from . import podview_speakers, podview_vehicle_control, robot_settings
 from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
 from .podview_dock_control import DockTransport, validate_dock_controls
@@ -2979,6 +2979,9 @@ class TouchControls:
                         acknowledge_prior_unresolved=args.get("acknowledgePriorUnresolved", False),
                     )
                     outcome = result.get("outcome", "unknown")
+                    # HA's explicit service error, as a closed code; never the raw message.
+                    if result.get("vehicleError") in podview_vehicle_control.VEHICLE_ERRORS:
+                        receipt["vehicleError"] = result["vehicleError"]
                 elif task["domain"] == "light":
                     try:
                         data, entities, selected = await self._light_read(task, token, current)

@@ -36,6 +36,32 @@ ACTIONS = {
     "rearTrunkToggle": ("trunk", "cover", "toggle", "trunk", "actuate"),
 }
 CONFIRM = frozenset(ACTIONS) - {"lock"}
+# Closed codes for an explicit HA service error. The raw message is never kept or logged.
+VEHICLE_ERRORS = frozenset(
+    {"access_denied", "missing_scope", "wake_failed", "no_response", "rate_limited", "refused"}
+)
+
+
+def vehicle_error_code(status: int, body: bytes) -> str:
+    """Map an HA REST service error (tesla_fleet HomeAssistantError) to a closed code."""
+    message = ""
+    try:
+        row = json.loads(body[:4096]) if body and len(body) <= 4096 else None
+        if isinstance(row, dict) and isinstance(row.get("message"), str):
+            message = row["message"].lower()
+    except (ValueError, TypeError, RecursionError):
+        pass
+    if status in (401, 403):
+        return "access_denied"
+    if "scope" in message:
+        return "missing_scope"  # "Missing vehicle commands scope."
+    if "wake up" in message:
+        return "wake_failed"  # "Could not wake up vehicle" / "Failed to wake up vehicle"
+    if status == 429 or "rate limit" in message or "too many" in message:
+        return "rate_limited"
+    if "no response" in message or "timeout" in message or "timed out" in message:
+        return "no_response"
+    return "refused"
 
 
 @dataclass(frozen=True)
@@ -400,6 +426,7 @@ class VehicleControl:
         preflight_called = False
         settlement = "unknown"
         outcome = "rejected"
+        vehicle_error = None
 
         async def preflight():
             nonlocal reservation, crossed, preflight_called
@@ -462,6 +489,18 @@ class VehicleControl:
                     and response.get("noEffect") is True
                 ):
                     settlement, outcome = "no_effect", "rejected"
+                elif (
+                    isinstance(response, dict)
+                    and response.get("outcome") == "failed"
+                    and response.get("error") in VEHICLE_ERRORS
+                ):
+                    # HA answered with an explicit error. A 4xx is refused before any
+                    # effect; a 5xx came from the integration, so its effect stays unknown.
+                    vehicle_error = response["error"]
+                    if response.get("noEffect") is True:
+                        settlement, outcome = "no_effect", "rejected"
+                    else:
+                        outcome = "unknown"
                 elif isinstance(response, dict) and response.get("outcome") == "accepted":
                     settlement = "accepted"
                     outcome = "accepted" if self._current(offer.binding, current) else "unknown"
@@ -481,4 +520,8 @@ class VehicleControl:
                     # Durable pending remains or ACK risk was committed: never
                     # return apparent success when completion persistence failed.
                     outcome = "unknown"
-        return {**result, "outcome": outcome}
+        return {
+            **result,
+            "outcome": outcome,
+            **({"vehicleError": vehicle_error} if vehicle_error else {}),
+        }

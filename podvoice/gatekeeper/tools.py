@@ -2799,6 +2799,16 @@ class ToolRouter:
                 json={"entity_id": entity_id, **data},
                 timeout=httpx.Timeout(VEHICLE_COMMAND_TIMEOUT_S, connect=3.0),
             )
+            if 400 <= response.status_code <= 599:
+                # tesla_fleet's HomeAssistantError reaches REST as 500 {"message": ...};
+                # validation errors as 400. Only a closed code leaves here, never the text.
+                return {
+                    "outcome": "failed",
+                    "error": podview_vehicle_control.vehicle_error_code(
+                        response.status_code, response.content
+                    ),
+                    "noEffect": response.status_code < 500,
+                }
             response.raise_for_status()
             return {"outcome": "accepted"}
 

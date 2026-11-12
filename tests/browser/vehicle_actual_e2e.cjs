@@ -266,7 +266,7 @@ async function lifecycleJourney(page,card,errors,commands){
  assert.doesNotMatch(await hero.innerText(),/dvale/i,'unproven sleep is not labelled as observed');
  assert(await trunk('Åbn bagagerum').isDisabled());
  // 2.0.181: a remembered lock value no longer blocks Lås/Lås op (commands are idempotent;
- // the button shows "Sendt · venter på bilen…" until HA reports). The trunk stays blocked.
+ // the button shows "Sendt · vækker bilen…" until HA reports). The trunk stays blocked.
  assert.equal(await trunk('Lås op').isDisabled(),false);
  assert(await up.isDisabled());
  assert.deepEqual((await state()).writes,[]);
