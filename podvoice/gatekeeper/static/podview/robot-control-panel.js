@@ -40,8 +40,9 @@ const activeJob=device=>['cleaning','paused'].includes(device?.status)||robotExp
 const ownRobotPending=value=>!!value?.pendingOptionId&&value.task?.domain==='vacuum'
  &&value.task.options.some(option=>option.id===value.pendingOptionId);
 const foreignRobotPending=value=>!!(value?.pendingOptionId||value?.device?.pending)&&!ownRobotPending(value);
+// A pending Pause/Fortsæt does not cancel an open confirmation; its tap is queued (S3).
 const directConfirmationCurrent=(action,value)=>value.connected!==false&&!value.directBlocked
- &&!value.directPendingAction&&!foreignRobotPending(value)
+ &&!foreignRobotPending(value)
  &&(value.device?.stale
   ?action==='return'&&value.directReadGap===true
   :value.directActions?.includes(action));
@@ -194,7 +195,10 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
 
  }
  renderTransportOptions(options,device){
-  if(options.length){const primary=options.find(option=>option.action===(device?.status==='cleaning'?'pause':device?.status==='paused'?'resume':null));for(const option of [...options].sort((a,b)=>Number(b===primary)-Number(a===primary))){const button=make('button',option.action==='stop'?'Afslut rengøring':option.label,option.action==='stop'?'pv-button pv-ghost stop':option===primary?'pv-button pv-primary':'pv-button');button.type='button';const icon=createKitComponent('icon',{document,tag:option.action==='stop'?'span':'img',variant:option.action==='stop'?'mask':'default',className:'--24'});icon.src=`assets/icons/${({pause:'pause-fill',resume:'play-fill',return:'arrow-u-down-left',stop:'x-lg'})[option.action]}.svg`;icon.alt='';icon.width=24;icon.height=24;if(option.action==='stop'){icon.setAttribute('style','--pv-icon-source:url("assets/icons/x-lg.svg")');icon.setAttribute('aria-hidden','true');}button.prepend(icon);button.dataset.kitShape='pill';button.dataset.actionId=option.action;button.dataset.controlOptionId=option.id;if(option.direct)button.dataset.directRobot='true';button.addEventListener('click',()=>['stop','return'].includes(option.action)?this.confirmAction(option,button):this.action(option));this.transportControls.append(button);}}
+  if(options.length){const buttons=[],primary=options.find(option=>option.action===(device?.status==='cleaning'?'pause':device?.status==='paused'?'resume':null));for(const option of [...options].sort((a,b)=>Number(b===primary)-Number(a===primary))){const button=make('button',option.action==='stop'?'Afslut rengøring':option.label,option.action==='stop'?'pv-button pv-ghost stop':option===primary?'pv-button pv-primary':'pv-button');button.type='button';const icon=createKitComponent('icon',{document,tag:option.action==='stop'?'span':'img',variant:option.action==='stop'?'mask':'default',className:'--24'});icon.src=`assets/icons/${({pause:'pause-fill',resume:'play-fill',return:'arrow-u-down-left',stop:'x-lg'})[option.action]}.svg`;icon.alt='';icon.width=24;icon.height=24;if(option.action==='stop'){icon.setAttribute('style','--pv-icon-source:url("assets/icons/x-lg.svg")');icon.setAttribute('aria-hidden','true');}button.prepend(icon);button.dataset.kitShape='pill';button.dataset.actionId=option.action;button.dataset.controlOptionId=option.id;if(option.direct)button.dataset.directRobot='true';button.addEventListener('click',()=>['stop','return'].includes(option.action)?this.confirmAction(option,button):this.action(option));buttons.push(button);}
+  // A re-rendered offer takes the same place as before: in front of Base, never after it (S3).
+  if(this.baseDisclosure?.node?.parentNode===this.transportControls)this.transportControls.prepend(...buttons);
+  else this.transportControls.append(...buttons);}
  }
  syncDirectTransport(){
   if(!this.transportControls||!Array.isArray(this.value?.directActions))return;
