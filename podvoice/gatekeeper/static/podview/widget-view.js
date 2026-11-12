@@ -148,8 +148,10 @@ class WidgetHost extends HTMLElement {
    if(event.type==='collection'){this.liveSelection?.leave();this.liveCatalogue?.select(event.value);return;}
    if(event.type==='refresh'){this.liveCatalogue?.refresh();return;}
    const state=this.liveMedia?.playback?.state;
-   const knownPlayback = state === 'playing' || state === 'paused';
-   const playing = this.liveControls?.optimisticPlaying(state === 'playing') ?? (state === 'playing');
+   // Buffering: Spotify plays but the HomePod is still silent; a tap pauses it.
+   const knownPlayback = ['playing', 'paused', 'buffering'].includes(state);
+   const observedPlaying = state === 'playing' || state === 'buffering';
+   const playing = this.liveControls?.optimisticPlaying(observedPlaying) ?? observedPlaying;
    const action = event.type === 'toggle' ? (knownPlayback ? (playing ? 'pause' : 'resume') : null)
     : event.type === 'skip' ? (event.delta === -1 ? 'previous' : 'next')
     : event.type === 'volume' ? 'volume' : null;

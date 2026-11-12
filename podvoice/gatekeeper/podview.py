@@ -32,6 +32,7 @@ from . import (
     podview_music,
     podview_robot,
     podview_room_media,
+    podview_room_player,
     podview_speakers,
     podview_vehicle,
     podview_weather,
@@ -433,6 +434,7 @@ class PodViewBridge:
         self._home_event_owner = None
         self._home_event_generation = 0
         self._home_light_interests: dict = {}
+        self._room_player_entities: dict[str, str] = {}
         robot_owner = getattr(tools, "_device_control", None)
         if robot_owner is not None:
             # A fresh robot map can reveal its room; wake readers like an HA vacuum event.
@@ -1879,6 +1881,9 @@ class PodViewBridge:
         music = getattr(getattr(self, "controls", None), "music", None)
         if getattr(music, "available", False) or getattr(music, "room_start_available", False):
             interests["music"] = {"*"}
+        # The room's own media_player: any state change (voice, HA, the Spotify app) wakes music.
+        if self._room_player_entities:
+            interests["music"] = {*interests.get("music", ()), *self._room_player_entities.values()}
         tools = self.tools
         owner = getattr(tools, "_device_control", None)
         if owner is not None and getattr(tools, "podview_home_available", lambda: False)():
@@ -3704,19 +3709,11 @@ async def _music(request: web.Request) -> web.Response:
         return denied
     bridge: PodViewBridge = request.app[BRIDGE]
     kind = request.query.get("kind", "targets")
-    include_controls = "include_controls" in request.query
-    receipt_request_id = request.query.get("receipt_request_id")
-    if include_controls and (
-        kind != "playback"
-        or request.query.getall("include_controls", []) != ["1"]
-        or set(request.query)
-        - {"kind", "account", "room", "include_controls", "receipt_request_id"}
+    if kind == "playback" and (
+        set(request.query) - {"kind", "account", "room"}
         or any(len(request.query.getall(key, [])) != 1 for key in request.query)
         or len(request.query.getall("account", [])) != 1
-        or (receipt_request_id is not None and not 1 <= len(receipt_request_id) <= 120)
     ):
-        return _error("invalid_query", 400)
-    if receipt_request_id is not None and not include_controls:
         return _error("invalid_query", 400)
     if kind == "speakers" and (
         set(request.query) - {"kind", "account", "room"}
@@ -3791,22 +3788,19 @@ async def _music(request: web.Request) -> web.Response:
     if kind not in tools.podview_music_reads():
         bridge._music_cache.clear()
         return _error("music_unavailable", 503)
-    if kind == "playback":
-        if include_controls:
-            return await podview_room_media.read_playback(
+    if kind == "playback" and account is not None:
+        expected = (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge)
+        return web.json_response(
+            await podview_room_player.read(
                 bridge,
                 room,
                 account,
-                lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
-                include_controls=True,
-                token=_request_token(request, room),
-                receipt_request_id=receipt_request_id,
-            )
-        return await podview_room_media.read_playback(
-            bridge,
-            room,
-            account,
-            lambda: (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge),
+                _request_token(request, room),
+                lambda: (
+                    (_music_binding(bridge, room), request.app.get(BRIDGE) is bridge) == expected
+                ),
+            ),
+            headers={"Cache-Control": "no-store"},
         )
     binding = _music_binding(bridge, room)
     token = _request_token(request, room)
@@ -5738,6 +5732,8 @@ def mount(
             web.post("/view/api/radio/offer", radio_http),
             web.post("/view/api/radio/actions", radio_http),
             web.get("/view/api/music", _observed_music),
+            web.post("/view/api/music/player/actions", podview_room_player.actions_http),
+            web.get("/view/api/music/player/artwork", podview_room_player.artwork_http),
             web.post("/view/api/music/queue/offer", _observed_queue_offer),
             web.post("/view/api/music/queue/actions", queue_http),
             web.post("/view/api/music/selection/setup", _music_selection),

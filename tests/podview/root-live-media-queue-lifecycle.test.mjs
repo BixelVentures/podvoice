@@ -1,11 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
+import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function rig(){
  const previous=globalThis.document,node=()=>({hidden:false,setAttribute(){},addEventListener(){},prepend(){},replaceChildren(){}});globalThis.document={createElement:node,getElementById:node};
  let serial=0,binding='a'.repeat(64);const reads=[];
  const host={isConnected:true,state:{focus:'player'},liveSnapshot:{bootId:'boot',roomId:'display',capabilities:{musicRead:['playback','queue'],queueSelection:true},mediaRoomBindings:[]},liveTransport:{connected:true},playerView:{renderPlayer(){},renderControls(){},renderQueue(){}},liveSelection:{pendingPlayer:()=>null}};
+ // Authored playback answers in the room player's wire shape (podview.room-player.v1).
+ Object.defineProperty(host.liveTransport,'music',{set(read){this.read=read;},get(){return async(...args)=>roomPlayerWire(await this.read(...args));}});
  const wire=()=>({ok:true,schema:'podview.room-playback.v2',bootId:'boot',roomId:'display',configEntryId:'account',status:'observed',reason:null,binding:{roomId:'display',accountId:'account',targetId:'actual',nativeRoomId:'actual-room',nativeHomepodId:'2',bindingId:binding,validUntil:Date.now()/1000+10},data:{ok:true,schema:'podconnect.playback.v1',config_entry_id:'account',owner_epoch:'epoch',poll_sequence:2,physical_result_verified:false,observation:{status:'fresh',source:'spotify_web_api',observed_at:new Date().toISOString(),age_ms:0,max_age_ms:15000},playback:{state:'playing',target:{kind:'spotify_device',target_id:'actual',name:'Bridge'},item:{type:'track',uri:'spotify:track:0123456789ABCDEFGHIJKL',name:'Song',artists:['Artist'],duration_ms:60000},progress_ms:1000,provider_changed_at_ms:null,shuffle:false,repeat:'off'}}});
  host.liveTransport.music=async()=>wire();host.liveTransport.queueOffer=async(account,target,expected)=>{reads.push({account,target,expected});return {ok:true,schema:'podview.queue-offer.v1',bootId:'boot',roomId:'display',accountId:account,targetId:target,expectedBindingId:expected,taskId:'queue:'+(++serial).toString(16).padStart(32,'0'),revision:1,expiresInMs:8000,ownerEpoch:'epoch',pollSequence:2,truncated:false,items:[]};};
  const media=new LiveMediaView(host);host.liveMedia=media;media.account='account';
@@ -28,15 +31,6 @@ for(const state of ['outside','disconnected','selection-pending','selection-unkn
 test('pending selection settling permits one read on the next actual observation, not every poll',async()=>{const f=rig();try{f.host.liveSelection.feedback={pending:true};await f.refresh();assert.equal(f.reads.length,0);f.host.liveSelection.feedback=null;await f.refresh();await f.refresh();assert.equal(f.reads.length,1);}finally{f.close();}});
 test('failed automatic queue read does not retry on unchanged polls',async()=>{const f=rig();try{let reads=0;f.host.liveTransport.queueOffer=async()=>{reads++;throw Error('unavailable');};await f.refresh();await f.refresh();assert.equal(reads,1);assert.equal(f.media.queueControls.status,'error');}finally{f.close();}});
 test('late queue for replaced actual binding cannot overwrite the new queue',async()=>{const f=rig();let release;try{const source=f.host.liveTransport.queueOffer;let first=true;f.host.liveTransport.queueOffer=async(...args)=>{const reply=await source(...args);if(first){first=false;return new Promise(resolve=>release=()=>resolve(reply));}return reply;};await f.refresh();assert.equal(f.media.queueControls.pending,true);f.replaceBinding();await f.refresh();assert.equal(f.reads.length,2);const accepted=f.media.queueControls.offer;assert.equal(accepted.expectedBindingId,'b'.repeat(64));release();await tick();assert.equal(f.media.queueControls.offer,accepted);}finally{release?.();f.close();}});
-for(const terminal of [false,true])test(`same binding readmission after observed unbound state ${terminal?'preserves UNKNOWN command fence':'reads queue once again'}`,async()=>{const f=rig();try{
- await f.refresh();assert.equal(f.reads.length,1);
- if(terminal){f.media.queueControls.consumed=true;f.media.queueControls.status='unknown';}
- f.host.liveTransport.music=async()=>({...f.wire(),status:'account_observed',reason:'route_unavailable',binding:null});
- await f.refresh();assert.equal(f.media.playback.accountObserved,true);assert.equal(f.reads.length,1);
- f.host.liveTransport.music=async()=>f.wire();await f.refresh();await f.refresh();
- assert.equal(f.reads.length,terminal?1:2);
- if(!terminal)assert.equal(f.media.queueControls.status,'ready');
- }finally{f.close();}});
 
 for(const explicit of [false,true])test(`held control intent does not latch an unstarted ${explicit?'explicit':'automatic'} queue read`,async()=>{const f=rig();try{
  let effects=0;f.host.liveTransport.queueAction=async()=>{effects++;throw Error('unexpected effect');};
@@ -83,14 +77,6 @@ for(const code of ['read_access_denied',undefined])test(`non-transient queue err
  let calls=0;f.host.liveTransport.queueOffer=async()=>{calls++;throw Object.assign(Error('failed read'),{code});};await f.refresh();await f.refresh();await f.refresh();assert.equal(calls,1);assert.equal(f.media.queueReadRetry??null,null);
  }finally{f.close();}});
 
-test('music and queue diagnostic spans carry their own per-call read contexts without altering playback',async()=>{const f=rig();try{
- let seq=0;const records=[],playbackContexts=[],queueContexts=[],music=f.host.liveTransport.music,queue=f.host.liveTransport.queueOffer;
- f.host.liveTransport.createReadDiagnostic=()=>Object.freeze({seq:++seq});f.host.liveTransport.recordReadDiagnostic=(stage,row,context)=>records.push({stage,row,context});
- f.host.liveTransport.music=async(...args)=>{playbackContexts.push(args[3]?.readDiagnostic);return music(...args);};f.host.liveTransport.queueOffer=async(...args)=>{queueContexts.push(args[3]?.readDiagnostic);return queue(...args);};
- await f.refresh();assert.equal(f.media.playback.item.name,'Song');assert.equal(f.media.queueControls.status,'ready');assert.equal(f.reads.length,1);
- assert.ok(playbackContexts[0]);assert.ok(queueContexts[0]);assert.notEqual(playbackContexts[0],queueContexts[0]);assert.ok(records.filter(r=>r.stage==='music_read').every(r=>r.context===playbackContexts[0]));assert.ok(records.filter(r=>r.stage==='queue_read').every(r=>r.context===queueContexts[0]));
- assert.deepEqual(records.filter(r=>r.stage==='music_read').map(r=>r.row.code),['start','ok']);assert.deepEqual(records.filter(r=>r.stage==='queue_read').map(r=>r.row.code),['start','empty']);
- }finally{f.close();}});
 
 // Drive the real queue expiry callback without sleeping or issuing effects.
 function expiryRig(){

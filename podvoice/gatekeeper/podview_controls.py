@@ -12,7 +12,7 @@ import secrets
 import time
 
 from . import podview_light_control as lights
-from . import podview_speakers, podview_vehicle_control, robot_settings
+from . import podview_room_player, podview_speakers, podview_vehicle_control, robot_settings
 from .device_control import EXECUTE_ACTION
 from .execution_policy import ExecutionContext
 from .podview_dock_control import DockTransport, validate_dock_controls
@@ -23,7 +23,8 @@ from .podview_vacuum_settings import ActiveVacuumSettings
 
 _LOGGER = logging.getLogger(__name__)
 
-_ROOM_TRANSPORT_ACTIONS = {"pause", "resume", "next", "previous"}
+# Player taps go straight to the room's media_player (podview_room_player), not via tasks.
+_PLAYER_ACTIONS = set(podview_room_player.COMMANDS)
 _MUSIC = {
     "pause",
     "resume",
@@ -337,11 +338,9 @@ class TouchControls:
         if (
             any(
                 (
-                    (set(row["actions"]) & _ROOM_TRANSPORT_ACTIONS and self.music.room_available)
-                    or ("seek" in row["actions"] and getattr(self.music, "seek_available", False))
-                    or (
-                        "volume" in row["actions"]
-                        and getattr(self.music, "volume_available", False)
+                    (
+                        set(row["actions"]) & _PLAYER_ACTIONS
+                        and podview_room_player.available(self.bridge.tools)
                     )
                     or ("move_existing_session" in row["actions"] and self.move.available)
                 )
@@ -388,20 +387,8 @@ class TouchControls:
             and any(
                 row.get("accountId") == account
                 and all(row.get(key) for key in ("targetId", "nativeRoomId", "nativeHomepodId"))
-                and (
-                    (
-                        bool(set(row.get("actions", [])) & _ROOM_TRANSPORT_ACTIONS)
-                        and self.music.room_available
-                    )
-                    or (
-                        "seek" in row.get("actions", [])
-                        and getattr(self.music, "seek_available", False)
-                    )
-                    or (
-                        "volume" in row.get("actions", [])
-                        and getattr(self.music, "volume_available", False)
-                    )
-                )
+                and bool(set(row.get("actions", [])) & _PLAYER_ACTIONS)
+                and podview_room_player.available(self.bridge.tools)
                 for row in self.policy["music"]
             )
         )
@@ -564,33 +551,6 @@ class TouchControls:
         """Original music owners after a send; never an effect-admission guard."""
         return task["domain"] == "music" and self._current(task, token, _receipt_only=True)
 
-    def _confirmed_move_receipt_current(self, task: dict, token: str, binding_id: str) -> bool:
-        """A confirmed MOVE belongs to its new room binding, not the old read closure."""
-        from .podview_room_media import binding
-
-        room = task["room"]
-        account = task["target"]["accountId"]
-        actual = binding(self.bridge, room, account)
-        return bool(
-            task["domain"] == "music"
-            and secrets.compare_digest(task["token"], token)
-            and self.tasks.get(task["id"]) is task
-            and self.bridge._grant_current(room, token)
-            and self.bridge._grant_for_token(room, token) is task["move_grant"]
-            and self.policy is task["move_policy"]
-            and self.music.tools is self.bridge.tools
-            and self.move.available
-            and self.move.binding() == task["move_binding"]
-            and task["binding"] == self._binding(room, "music")
-            and any(rule is task["rule"] for rule in self.policy["music"])
-            and self._move_rule_identity(task["rule"]) == task["move_rule_identity"]
-            and bool(task["move_revision"])
-            and self._owner_revision(room, "music") == task["move_revision"]
-            and actual is not None
-            and (actual["targetId"], actual["bindingId"]) == task.get("move_source_scope")
-            and actual["bindingId"] == binding_id
-        )
-
     def _light_current(self, task: dict, token: str) -> bool:
         try:
             return bool(
@@ -731,33 +691,6 @@ class TouchControls:
                 or (len(value) in (3, 4) and time.monotonic() < value[2])
             )
         }
-
-    def settlement_identity(
-        self, room: str, token: str, request_id: str, account: str
-    ) -> dict | None:
-        """Resolve a Control identity only from this owner's accepted touch receipt."""
-        if not isinstance(request_id, str) or not 1 <= len(request_id) <= 120:
-            return None
-        entry = self.receipts.get((room, token, request_id))
-        if entry is None or len(entry) != 4 or entry[1].get("outcome") != "accepted":
-            return None
-        retained = entry[3]
-        task = retained["task"]
-        if (
-            task["target"].get("accountId") != account
-            or self.policy is not retained["policy"]
-            or self.music is not retained["music"]
-            or self.bridge._grant_for_token(room, token) is not retained["grant"]
-            or not (
-                self._confirmed_move_receipt_current(task, token, retained["binding_id"])
-                if retained.get("move_confirmed") is True
-                else self._receipt_current(task, token)
-                and task["actual_binding"]["bindingId"] == retained["binding_id"]
-            )
-            or self.receipts.get((room, token, request_id)) is not entry
-        ):
-            return None
-        return dict(retained["identity"])
 
     def _vehicle_available(self, room: str) -> bool:
         try:
@@ -971,7 +904,6 @@ class TouchControls:
         ):
             return failure("invalid_setup")
         requested_actions = {
-            "music": _ROOM_TRANSPORT_ACTIONS | {"volume", "seek"},
             "vacuum": {"pause", "resume", "stop", "return"},
         }
         if "requestedAction" in body and (
@@ -1029,13 +961,11 @@ class TouchControls:
         rule: dict
         if domain == "music":
             moving = "speakerId" in target
+            if not moving:
+                # Player taps are direct room media_player calls (podview_room_player).
+                return failure("setup_unavailable")
             if (
-                set(target)
-                != (
-                    {"accountId", "kind", "targetId", "speakerId", "expectedBindingId"}
-                    if moving
-                    else {"accountId", "kind", "targetId", "expectedBindingId"}
-                )
+                set(target) != {"accountId", "kind", "targetId", "speakerId", "expectedBindingId"}
                 or target["kind"] != "spotify_device"
                 or "recipeId" in body
             ):
@@ -1059,12 +989,9 @@ class TouchControls:
             if self.mutations.get(resource) is not setup_mutation:
                 return failure("stale_setup")
             source_scope = resolved["binding"]
-            if moving:
-                if not isinstance(target["speakerId"], str) or len(target["speakerId"]) != 64:
-                    return failure("invalid_target")
-                rule = {}  # Destination remains a fresh explicitly chosen alias.
-            else:
-                rule = resolved["rule"]
+            if not isinstance(target["speakerId"], str) or len(target["speakerId"]) != 64:
+                return failure("invalid_target")
+            rule = {}  # Destination remains a fresh explicitly chosen alias.
         elif domain == "light":
             if (
                 set(target) not in ({"areaId"}, {"areaId", "entityId"})
@@ -1082,16 +1009,7 @@ class TouchControls:
             rule = next((r for r in self.policy[domain] if r["entityId"] == target["entityId"]), {})
             if recipe_id is not None and rule and "reuse" not in rule["actions"]:
                 rule = {}
-        if not rule and not (domain == "music" and moving):
-            return failure("target_not_granted")
-        if (
-            domain == "music"
-            and not moving
-            and not all(
-                isinstance(rule.get(key), str) and rule[key]
-                for key in ("nativeRoomId", "nativeHomepodId")
-            )
-        ):
+        if not rule and domain != "music":
             return failure("target_not_granted")
         draft_source = self._robot_draft_source(body.get("draft"), room, target, token)
         renew_id = body.get("renewTaskId")
@@ -1117,8 +1035,6 @@ class TouchControls:
             "move_recovery": recovery_move,
         }
         if domain == "music":
-            if not moving and recovery_key in self.bridge._music_move_fence:
-                task["music_fence_witness"] = self.move_unknown.get(recovery_key)
             task.update(actual_binding=resolved["binding"], actual_current=resolved["current"])
             task["deadline"] = min(
                 task["deadline"],
@@ -1133,7 +1049,7 @@ class TouchControls:
                 light_grant=self.bridge._grant_for_token(room, token),
                 owner=("podview:" + self.bridge.boot_id, task_id),
             )
-        if domain == "music" and moving:
+        if domain == "music":
             task.update(
                 move_grant=self.bridge._grant_for_token(room, token),
                 move_policy=self.policy,
@@ -1152,169 +1068,71 @@ class TouchControls:
                 if domain == "music":
                     public_options = []
                     setup = {"volume": None}
-                    if moving:
-                        if not self.move.available:
+                    if not self.move.available:
+                        return failure("setup_unavailable")
+                    data = await podview_speakers.read_service(
+                        self.bridge.tools, target["accountId"]
+                    )
+                    if not self._current(task, token):
+                        return failure("stale_setup")
+                    catalogue = podview_speakers.project(
+                        data,
+                        boot=self.bridge.boot_id,
+                        room=room,
+                        account=target["accountId"],
+                        default_room=None,
+                    )
+                    selected = [
+                        row
+                        for row in catalogue["speakers"]
+                        if row["speakerId"] == target["speakerId"]
+                        and row["availability"] == "available"
+                    ]
+                    if len(selected) != 1:
+                        return failure("target_not_granted")
+                    destination = selected[0]
+                    matches = [
+                        row
+                        for row in self.policy["music"]
+                        if row["accountId"] == target["accountId"]
+                        and row["targetId"] == target["targetId"]
+                        and row.get("nativeRoomId") == destination["nativeRoomId"]
+                        and row.get("nativeHomepodId") == destination["homepodId"]
+                        and "move_existing_session" in row["actions"]
+                    ]
+                    if len(matches) != 1:
+                        return failure("target_not_granted")
+                    rule = matches[0]
+                    task["rule"] = rule
+                    owners = [
+                        row["binding"]
+                        for row in data["targets"]
+                        if row["kind"] == "configured_alias"
+                        and row["target_id"] == destination["nativeRoomId"]
+                        and row["homepod_id"] == destination["homepodId"]
+                    ]
+                    if len(owners) != 1:
+                        return failure("setup_unavailable")
+                    oid = "move:" + destination["speakerId"]
+                    task["move_alias_binding"] = owners[0]
+                    task["move_rule_identity"] = self._move_rule_identity(rule)
+                    task["move_destination"] = destination
+                    if recovery_move:
+                        offer = await self._fresh_move_offer(task, current)
+                        if not self._new_move_after_unknown(recovery_key, offer) or not current():
                             return failure("setup_unavailable")
-                        data = await podview_speakers.read_service(
-                            self.bridge.tools, target["accountId"]
-                        )
-                        if not self._current(task, token):
-                            return failure("stale_setup")
-                        catalogue = podview_speakers.project(
-                            data,
-                            boot=self.bridge.boot_id,
-                            room=room,
-                            account=target["accountId"],
-                            default_room=None,
-                        )
-                        selected = [
-                            row
-                            for row in catalogue["speakers"]
-                            if row["speakerId"] == target["speakerId"]
-                            and row["availability"] == "available"
-                        ]
-                        if len(selected) != 1:
-                            return failure("target_not_granted")
-                        destination = selected[0]
-                        matches = [
-                            row
-                            for row in self.policy["music"]
-                            if row["accountId"] == target["accountId"]
-                            and row["targetId"] == target["targetId"]
-                            and row.get("nativeRoomId") == destination["nativeRoomId"]
-                            and row.get("nativeHomepodId") == destination["homepodId"]
-                            and "move_existing_session" in row["actions"]
-                        ]
-                        if len(matches) != 1:
-                            return failure("target_not_granted")
-                        rule = matches[0]
-                        task["rule"] = rule
-                        owners = [
-                            row["binding"]
-                            for row in data["targets"]
-                            if row["kind"] == "configured_alias"
-                            and row["target_id"] == destination["nativeRoomId"]
-                            and row["homepod_id"] == destination["homepodId"]
-                        ]
-                        if len(owners) != 1:
-                            return failure("setup_unavailable")
-                        oid = "move:" + destination["speakerId"]
-                        task["move_alias_binding"] = owners[0]
-                        task["move_rule_identity"] = self._move_rule_identity(rule)
-                        task["move_destination"] = destination
-                        if recovery_move:
-                            offer = await self._fresh_move_offer(task, current)
-                            if (
-                                not self._new_move_after_unknown(recovery_key, offer)
-                                or not current()
-                            ):
-                                return failure("setup_unavailable")
-                        task["options"][oid] = {
+                    task["options"][oid] = {
+                        "action": "move_existing_session",
+                        "schema": {"kind": "none"},
+                    }
+                    public_options.append(
+                        {
+                            "id": oid,
+                            "label": "Flyt til " + destination["name"],
                             "action": "move_existing_session",
-                            "schema": {"kind": "none"},
+                            "argsSchema": {"kind": "none"},
                         }
-                        public_options.append(
-                            {
-                                "id": oid,
-                                "label": "Flyt til " + destination["name"],
-                                "action": "move_existing_session",
-                                "argsSchema": {"kind": "none"},
-                            }
-                        )
-                    else:
-                        reads = []
-                        transport_actions = _ROOM_TRANSPORT_ACTIONS
-                        if body.get("requestedAction") == "seek" and getattr(
-                            self.music, "seek_available", False
-                        ):
-                            transport_actions = transport_actions | {"seek"}
-                        for actions, available, read, slot in (
-                            (
-                                transport_actions,
-                                self.music.room_available,
-                                self.music.setup_room,
-                                "offered",
-                            ),
-                            (
-                                {"volume"},
-                                getattr(self.music, "volume_available", False),
-                                getattr(self.music, "setup_volume", None),
-                                "volume_offered",
-                            ),
-                        ):
-                            if (
-                                not available
-                                or (
-                                    "requestedAction" in body
-                                    and body["requestedAction"] not in actions
-                                )
-                                or not actions.intersection(rule["actions"])
-                                or read is None
-                            ):
-                                continue
-                            pending = asyncio.create_task(
-                                read(
-                                    target["accountId"],
-                                    target["targetId"],
-                                    rule["nativeRoomId"],
-                                    rule["nativeHomepodId"],
-                                    current,
-                                )
-                            )
-                            reads.append((actions, slot, pending))
-                        offered_reads = []
-                        transport_ready = False
-                        try:
-                            for actions, slot, pending in reads:
-                                # Volume is optional when a current transport offer
-                                # already exists. Never hold that offer for this read.
-                                if (
-                                    slot == "volume_offered"
-                                    and transport_ready
-                                    and not pending.done()
-                                ):
-                                    continue
-                                offered = await pending
-                                offered_reads.append((actions, slot, offered))
-                                if slot == "offered":
-                                    transport_ready = offered.get("ok") is True and bool(
-                                        set(offered["data"]["actions"]) & set(rule["actions"])
-                                    )
-                        finally:
-                            for _, _, pending in reads:
-                                if not pending.done():
-                                    pending.cancel()
-                            await asyncio.gather(*(row[2] for row in reads), return_exceptions=True)
-                        for actions, slot, offered in offered_reads:
-                            if offered.get("ok") is not True or not current():
-                                continue
-                            task[slot] = offered["data"]
-                            task["deadline"] = min(
-                                task["deadline"],
-                                time.monotonic()
-                                + max(0, offered["data"]["valid_until"] - time.time()),
-                            )
-                            if slot == "volume_offered":
-                                setup["volume"] = offered["data"]["volume_state"]["base_percent"]
-                            for action in offered["data"]["actions"]:
-                                if action not in actions or action not in rule["actions"]:
-                                    continue
-                                oid = secrets.token_hex(12)
-                                if action == "volume":
-                                    schema = {"kind": "percent", "min": 0, "max": rule["maxVolume"]}
-                                elif action == "seek":
-                                    schema = {"kind": "position"}
-                                else:
-                                    schema = {"kind": "none"}
-                                task["options"][oid] = {"action": action, "schema": schema}
-                                public_options.append(
-                                    {
-                                        "id": oid,
-                                        "label": _LABELS[action],
-                                        "action": action,
-                                        "argsSchema": schema,
-                                    }
-                                )
+                    )
                     if not public_options:
                         return failure("setup_unavailable")
                 elif domain == "light":
@@ -1337,7 +1155,7 @@ class TouchControls:
                         ):
                             continue
                         oid = secrets.token_hex(12)
-                        schema = (
+                        schema: dict = (
                             {"kind": "percent", "min": 0, "max": 100}
                             if action == "brightness"
                             else {"kind": "none"}
@@ -2363,7 +2181,7 @@ class TouchControls:
             "issuedAt",
         }
         actions = {
-            "music": _ROOM_TRANSPORT_ACTIONS | {"volume", "seek", "move_existing_session"},
+            "music": {"move_existing_session"},
             "vacuum": {"pause", "resume", "stop", "return"},
         }
         if (
@@ -2719,54 +2537,6 @@ class TouchControls:
             )
             if resolved is None:
                 return failure("stale_action")
-            refreshed_seek_offer = None
-            if option["action"] == "seek":
-
-                def track_matches(observed):
-                    item = observed["playback"].get("item") or {}
-                    duration = item.get("duration_ms")
-                    return (
-                        observed["owner_epoch"] == args["expectedOwnerEpoch"]
-                        and item.get("uri") == args["expectedTrackUri"]
-                        and type(duration) is int
-                        and 0 <= args["positionMs"] <= duration
-                    )
-
-                observed, offered = resolved["data"], task["offered"]
-                if not track_matches(observed) or offered["owner_epoch"] != observed["owner_epoch"]:
-                    return failure("stale_action")
-                if offered["poll_sequence"] != observed["poll_sequence"]:
-                    # A routine poll may land between the two reads. Join once
-                    # on fresh authority without carrying any effect across the gap.
-                    target, rule = task["target"], task["rule"]
-                    refreshed = await self.music.setup_room(
-                        target["accountId"],
-                        target["targetId"],
-                        rule["nativeRoomId"],
-                        rule["nativeHomepodId"],
-                        lambda: self._current(task, token),
-                    )
-                    if refreshed.get("ok") is not True:
-                        return failure("stale_action")
-                    latest = refreshed["data"]
-                    if "seek" not in latest["actions"] or any(
-                        latest[key] != offered[key] for key in ("owner_epoch", "native", "route")
-                    ):
-                        return failure("stale_action")
-                    resolved = await expected_actual(
-                        self.bridge,
-                        task["room"],
-                        target["accountId"],
-                        task["actual_binding"]["bindingId"],
-                        lambda: self._current(task, token),
-                    )
-                    if (
-                        resolved is None
-                        or not track_matches(resolved["data"])
-                        or latest["poll_sequence"] != resolved["data"]["poll_sequence"]
-                    ):
-                        return failure("stale_action")
-                    refreshed_seek_offer = latest
             if key in self.receipts and self.receipts[key] is not _reservation:
                 previous, receipt = self.receipts[key][:2]
                 if _trace is not None:
@@ -2782,12 +2552,6 @@ class TouchControls:
             ):
                 return failure("stale_action")
             task["actual_binding"] = resolved["binding"]
-            if refreshed_seek_offer is not None:
-                task["deadline"] = min(
-                    task["deadline"],
-                    time.monotonic() + max(0, refreshed_seek_offer["valid_until"] - time.time()),
-                )
-                task["offered"] = refreshed_seek_offer
         receipt = {
             "ok": False,
             "requestId": body["requestId"],
@@ -2923,25 +2687,8 @@ class TouchControls:
                             result = await self.move.move(
                                 offer, current, receipt_current=receipt_current
                             )
-                    elif option["action"] == "volume":
-                        result = await self.music.execute_volume(
-                            task["volume_offered"],
-                            args["percent"],
-                            current,
-                            receipt_current=receipt_current,
-                        )
                     else:
-                        result = await self.music.execute_room(
-                            task["offered"],
-                            option["action"],
-                            current,
-                            receipt_current=receipt_current,
-                            **(
-                                {"position_ms": args["positionMs"]}
-                                if option["action"] == "seek"
-                                else {}
-                            ),
-                        )
+                        result = {"outcome": "rejected"}
                     outcome = result.get("outcome", "unknown")
                     if moving:
                         if outcome == "accepted" and result.get("accepted_room_move") is True:
@@ -3095,8 +2842,7 @@ class TouchControls:
                 }
                 if (
                     task["domain"] == "music"
-                    and option["action"]
-                    in _ROOM_TRANSPORT_ACTIONS | {"volume", "seek", "move_existing_session"}
+                    and option["action"] == "move_existing_session"
                     and receipt["outcome"] == "accepted"
                     and result.get("schema") == "podconnect.command.v1"
                     and result.get("config_entry_id") == task["target"]["accountId"]
@@ -3215,21 +2961,6 @@ class TouchControls:
                 set(args) != {"percent"}
                 or type(args["percent"]) is not int
                 or not 0 <= args["percent"] <= option["schema"]["max"]
-            ):
-                raise ValueError
-            return []
-        if kind == "position":
-            if (
-                set(args) != {"positionMs", "expectedOwnerEpoch", "expectedTrackUri"}
-                or type(args["positionMs"]) is not int
-                or not 0 <= args["positionMs"] < 2**53
-                or not isinstance(args["expectedOwnerEpoch"], str)
-                or not 1 <= len(args["expectedOwnerEpoch"]) <= 128
-                or not isinstance(args["expectedTrackUri"], str)
-                or re.fullmatch(
-                    r"spotify:(?:track|episode):[a-zA-Z0-9]{22}", args["expectedTrackUri"]
-                )
-                is None
             ):
                 raise ValueError
             return []

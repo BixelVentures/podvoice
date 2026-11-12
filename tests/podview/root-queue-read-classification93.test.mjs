@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
 import {LiveQueueView} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
-import {roomPlaybackObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
+// Authored scenes in the room player's wire shape (podview.room-player.v1).
+const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
 import {mediaV2Snapshot,mediaV2Playback,mediaV2Account} from '../../scripts/media-v2-fixture.mjs';
 const binding='a'.repeat(64);
 function transport(fetch){const t=new PodVoiceTransport({url:'http://inert.invalid/view/',fetch});t.closed=false;t.connected=true;t.controller=new AbortController();t.snapshot={bootId:'boot',roomId:'room',capabilities:{queueSelection:true}};return t;}

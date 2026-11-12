@@ -1,3 +1,7 @@
+## 2.0.186
+
+- Musik, der er startet uden for PodView (med stemmen, fra Home Assistant eller i Spotify-appen), vises nu i den samme afspiller som musik startet fra PodView, og Pause, Afspil, Næste, Forrige, spoling og lydstyrke virker straks: hvert tryk går direkte til rummets PodConnect-afspiller i Home Assistant, viser sig med det samme og venter sin tur, hvis et andet tryk er i gang. »Højttaleren er ikke bekræftet« og låste knapper forsvinder, og afviser højttaleren et tryk, står det på skærmen uden at blive gentaget. Kræver PodConnect Control med én afspiller pr. rum.
+
 ## 2.0.185
 
 - Ny færdig iPhone-genvej »Opskrifter til PodView«: hent den i Opskrifter → »Tilføj opskrift-genvej til iPhone« (kun for HA-administrator), og indsæt den viste adresse og uploadkode én gang, når iPhonen spørger. Genvejen finder selv opskriftens link i det delte, og PodView siger til, når der findes en ny version af genvejen. Serveren forstår flere slags delinger og giver konkrete fejlbeskeder. Kræver HA-komponent 0.1.23 for versionsbeskeden gennem Home Assistant.

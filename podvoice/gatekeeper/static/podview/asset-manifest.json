@@ -539,7 +539,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "e33c7b75f9d7a4307d9fc757be010f439313a22539e04dab05f0ef5150afcaff"
+      "sha256": "9195b80b6afd6a6b1c6f7509e26daf3cc4c5128a1fecdc008e449715088a28ef"
     },
     {
       "path": "live-home-view.js",
@@ -547,11 +547,11 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "fbab32d8d018288b7348c064319e2e8a6793ee9e88c9ab79b92195df2c2e73e7"
+      "sha256": "17004cd19c000a561dda371ab4c8ca89f9bff7b6d3c928e84eac2dcf7ee5b8f7"
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "4eb42d06e6eb4f2df77483a2f072d77ba4419b4059dcc97253438de280f832fa"
+      "sha256": "e58d4d6ca66c22b7dfa0ac3b5174d1cfa0dffa4370fd73d2c98876bc751765f1"
     },
     {
       "path": "live-music-view.js",
@@ -575,7 +575,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "5c455c9f9b4453dffb5c27854e70d10527bad9c6cc07d3f86dde7e08a32b72b4"
+      "sha256": "f37331b164582ebfe11f34e6ad9f9f3ca4187ef3ab3cb4ff38e0018609431a0e"
     },
     {
       "path": "model.js",
@@ -635,11 +635,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "593f4976eb3c0854d2e0819d4ab4ea0e7651c030b798a0e76d49ef5172ec2a9e"
+      "sha256": "92a6741d21e774876de48420e03553162ef5f26feadbee7f6e80807da80d7896"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "3010587935611d414e014b16dec9967cb8a005586ded5deba5fb5a54e1663df2"
+      "sha256": "dd883189b66d6217dbed2333f54b06c20e5108b6817df955374b2592f13441df"
     },
     {
       "path": "podview.css",
@@ -647,7 +647,7 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "4dcdc38f6296e69dbf355daac73970a7a13528a3fe9c4d20de3629f9d77a0075"
+      "sha256": "9ff16490640709ffffc0699ac9f86007a9056ed270db3f81a2b92697226340fc"
     },
     {
       "path": "podvoice-view.js",
@@ -688,6 +688,10 @@
     {
       "path": "robot-observation.js",
       "sha256": "5f04419ada09ab5c99a006b9ce7043076163bfa04972da28e960ad6d0cf6e0df"
+    },
+    {
+      "path": "room-player-controls.js",
+      "sha256": "744036bfa8abb6ae59c42f69eb34fb816b01740823eb3ccace3f33baf6116249"
     },
     {
       "path": "scene-model.js",
@@ -899,7 +903,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "abc2d212c52e4ec2d6005b40fc34b6875bae699901ce45ac5185eebd084c96ec"
+      "sha256": "079b200f0af22ce330d1dccab4d8e029a3e0c031705e992c0f594852e3cdc961"
     },
     {
       "path": "workshop.css",

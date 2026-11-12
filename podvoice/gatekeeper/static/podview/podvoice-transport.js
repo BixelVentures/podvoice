@@ -26,7 +26,7 @@ const diagnosticTrust=new Set(['state_observation','owner_settlement']);
 const diagnosticAction=row=>['control_intent','control_action','control_observation','queue_action','playback_confirmation'].includes(row.stage)||row.stage==='control_setup'&&typeof row.diagnosticRef==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(row.diagnosticRef)&&Object.hasOwn(diagnosticDomainActions,row.domain)&&diagnosticDomainActions[row.domain].includes(row.action)||row.stage==='request'&&['actions','control/actions','radio/actions','music/queue/actions','music/selection/setup','music/selection/actions'].includes(row.endpoint);
 const diagnosticStages=new Set(['control_observation','home_read','control_intent','request','observer','sse','freshness','connection','control_setup','volume_setup','control_action','music_read','playback_confirmation','queue_read','queue_action','browser','lifecycle','control_state','volume_state','artwork','robot_renewal']);
 const diagnosticCodes=new Set([...controlSetupFailureCodes,'observed','recovered','start','ok','accepted','unknown','rejected','http_denied','http_transient','http_error','invalid_json','timeout','cancelled','network','failure','invalid_dto','stale_binding','superseded','empty','unavailable','matched','unconfirmed','expiry','error','cleanup','disconnected','connecting','connected','unhandled_rejection','read_inflight','intent_pending','spent','unknown_fence','capability_missing','unknown_value','resource_error','decode_error','other','confirmed','scope_changed','unsupported','robot_rebind_same','robot_rebind_context','robot_rebind_denied','robot_rebind_absent','robot_rebind_invalid','robot_rebind_draft','robot_rebind_dialog','robot_rebind_restored','robot_authority_changed','robot_offer_invalid','robot_open_reset','robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other','renewal_readonly','renewal_invalid_dto','renewal_owner_changed','renewal_candidate_reused','renewal_card_nonunique','renewal_card_mismatch','renewal_focus_changed','renewal_cancelled','renewal_other']);
-const diagnosticEndpoints=new Set(['radio','radio/offer','radio/actions','snapshot','events','home','answers','actions','pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup','control/actions','music/queue/offer','music/queue/actions','music/selection/setup','music/selection/actions','other']);
+const diagnosticEndpoints=new Set(['radio','radio/offer','radio/actions','snapshot','events','home','answers','actions','pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup','control/actions','music/queue/offer','music/queue/actions','music/player/actions','music/selection/setup','music/selection/actions','other']);
 const diagnosticKinds=new Set(['targets','playback','speakers','mood','feeling','top','recent','search','account_playlists','queue','other']);
 const diagnosticQuiet=new Set(['start','ok','connected','connecting','matched','empty','accepted','cleanup','superseded','cancelled']);
 // Values are boolean or finite numbers within±24h; no text/object payloads.
@@ -443,9 +443,26 @@ export class PodVoiceTransport {
  async radio(){if(!this.connected)throw Error('radio_offline');const response=await this.request(this.endpoint('radio'),{credentials:'same-origin',cache:'no-store',signal:this.controller.signal});if(!response.ok){const error=Error('radio_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}
  async radioOffer(intent){const s=this.snapshot;if(!this.connected||intent.bootId!==s.bootId||intent.roomId!==s.roomId)throw Error('radio_scope_changed');const response=await this.request(new URL('radio/offer',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify(intent)});const body=await response.json();if(!response.ok||body.ok!==true)throw Error('radio_offer_unavailable');return body;}
  async radioAction(offer){const s=this.snapshot;if(!this.connected||offer.bootId!==s.bootId||offer.roomId!==s.roomId)return {status:'rejected'};try{const response=await this.request(new URL('radio/actions',this.base),{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:offer.bootId,roomId:offer.roomId,taskId:offer.taskId,optionId:offer.optionId})},16000);const body=await response.json();return response.ok&&body?.ok===true&&body.schema==='podview.radio-action.v1'&&['accepted','unknown','rejected'].includes(body.status)&&body.retryAllowed===false?body:{status:'unknown'};}catch{return {status:'unknown'};}}
- async music(kind, account, query, {includeControls=false,receiptRequestId=null,readDiagnostic,traceId}={}) {
-  if(typeof includeControls!=='boolean'||includeControls&&(kind!=='playback'||query!==undefined||typeof account!=='string'||!account||account.length>1024))throw new Error('invalid_music_controls_read');
-  if(receiptRequestId!==null&&(!includeControls||typeof receiptRequestId!=='string'||Array.from(receiptRequestId).length<1||Array.from(receiptRequestId).length>120))throw new Error('invalid_music_receipt_selector');
+ // One room player tap: a direct media_player call through PodVoice. HA's answer is the outcome.
+ async playerAction(account,action,value){
+  const s=this.snapshot,requestId=crypto.randomUUID();
+  if(!this.connected||typeof account!=='string'||!account)return {outcome:'rejected'};
+  this.recordDiagnostic('control_action',{code:'start',domain:'music',action,requestId});
+  try{
+   const response=await this.request(new URL('music/player/actions',this.base),{method:'POST',credentials:'same-origin',
+    cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},
+    body:JSON.stringify({bootId:s.bootId,roomId:s.roomId,account,action,requestId,...(value===undefined?{}:{value})})},
+   undefined,undefined,requestId);
+   const body=await response.json();
+   const outcome=body?.requestId===requestId&&['accepted','rejected','unknown'].includes(body.outcome)?body.outcome:'unknown';
+   this.recordDiagnostic('control_action',{code:outcome,domain:'music',action,requestId,httpStatus:response.status});
+   return {outcome};
+  }catch{
+   this.recordDiagnostic('control_action',{code:'unknown',domain:'music',action,requestId});
+   return {outcome:'unknown'};
+  }
+ }
+ async music(kind, account, query, {readDiagnostic,traceId}={}) {
   if (!this.connected || !this.snapshot.capabilities.musicRead?.includes(kind==='speakers'?'targets':kind)) throw new Error('music_unavailable');
   if(kind==='search'&&(typeof query!=='string'||query.trim()!==query||query.length<1||query.length>160))throw new Error('invalid_query');
   const headers=['search','recent','top','liked','mood','feeling','account_playlists'].includes(kind)
@@ -456,8 +473,6 @@ export class PodVoiceTransport {
   }
   const response=await this.request(this.endpoint('music',{
    kind,account,
-   ...(includeControls?{include_controls:'1'}:{}),
-   ...(receiptRequestId===null?{}:{receipt_request_id:receiptRequestId}),
    ...(kind==='search'?{query}
     :['mood','feeling'].includes(kind)&&query==='refresh'?{refresh:'1'}
     :['mood','feeling'].includes(kind)&&query==='renew'?{renew:'1'}:{}),

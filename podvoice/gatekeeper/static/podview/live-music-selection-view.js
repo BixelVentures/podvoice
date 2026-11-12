@@ -276,13 +276,15 @@ export class LiveMusicSelectionView{
   return {title:track.name||track.title||'',artist:track.artist||'',uri:track.uri,artwork:track.artwork,themeArt:/^spotify:playlist:/.test(track.uri)?sourceMusicCards([track],this.collectionEntry?.kind||this.host.liveCatalogue?.selected)[0]?.themeArt:null,themeId:track.themeId,target:feedback.destination?.name||this.host.liveOutputs?.nextDestinationLabel?.()||this.offer?.target?.name||this.host.liveOutputs?.configuredLabel?.()||'Højttaleren i rummet'};
  }
  selectionItemObserved(playback,feedback,uri=feedback.uri){
-  if(!roomObservationCurrent(playback,this.host.liveSnapshot)||!['playing','paused'].includes(playback.state)||playback.config_entry_id!==feedback.accountId||playback.target?.id!==feedback.targetId)return false;
+  if(!roomObservationCurrent(playback,this.host.liveSnapshot)||!['playing','paused'].includes(playback.state)||playback.config_entry_id!==feedback.accountId||playback.target&&playback.target.id!==feedback.targetId)return false;
   if(feedback.nativeDestination?!this.destinationObserved(playback,feedback.nativeDestination):feedback.destination&&this.host.liveOutputs?.observedDestination?.(feedback.destination.speakerId)!==true)return false;
   const observedAt=Date.parse(playback.observedAt);
   if(!Number.isFinite(observedAt)||!Number.isFinite(feedback.requestedAt)||observedAt<feedback.requestedAt)return false;
   if(/^spotify:(track|episode):/.test(uri||''))return playback.item?.uri===uri;
   // Route confirmation alone says nothing about the playlist's first item.
-  return /^spotify:playlist:/.test(uri||'')&&feedback.settlementStatus==='confirmed'&&playback.owner_epoch===feedback.settlementTuple?.owner_epoch&&/^spotify:(track|episode):/.test(playback.item?.uri||'')&&Number.isFinite(playback.providerChangedAtMs)&&playback.providerChangedAtMs>=feedback.requestedAt&&playback.providerChangedAtMs<=observedAt;
+  // A playlist is observed when the room plays a song that started after the request.
+  return /^spotify:playlist:/.test(uri||'')&&/^spotify:(track|episode):/.test(playback.item?.uri||'')
+   &&Number.isSafeInteger(playback.progressMs)&&playback.progressMs<=observedAt-feedback.requestedAt+2000;
  }
  destinationObserved(playback,destination){const binding=playbackBinding(playback,this.host.liveSnapshot,destination.accountId);return !!binding&&binding.accountId===destination.accountId&&binding.nativeRoomId===destination.nativeRoomId&&binding.nativeHomepodId===destination.nativeHomepodId;}
  settlementReceipt(includeTerminal=false){const feedback=this.feedback,receipt=feedback?.settlementReceipt,transport=this.host.liveTransport;return receipt&&feedback.outcome==='accepted'&&this.resultCurrent(receipt.ticket)&&receipt.transport===transport&&transport.connected&&receipt.transportGeneration===transport.generation&&(!feedback.settlementTuple||!this.host.liveMedia?.playback?.owner_epoch||feedback.settlementTuple.owner_epoch===this.host.liveMedia.playback.owner_epoch)&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&this.host.liveSnapshot.capabilities.musicRead?.includes('playback')&&(includeTerminal||!['confirmed','rejected','superseded'].includes(feedback.settlementStatus))?receipt:null;}

@@ -10,56 +10,9 @@ import logging
 import time
 from datetime import datetime
 
-from aiohttp import web
-
 from . import podview_music, podview_speakers
 
 _LOG = logging.getLogger("podvoice.podview")
-
-_ROOM_STATUS = {"observed", "unavailable"}
-_ROOM_REASON = {"route_unavailable", "ambiguous_output", "owner_changed"}
-_CONTROL_REASON = _ROOM_REASON | {"volume_unavailable"}
-
-
-_READ_STATUS = {"observed", "account_observed", "idle", "unavailable"}
-_READ_REASON = _ROOM_REASON | {"output_not_admitted", "account_unavailable", "stale_observation"}
-
-
-def _log_room_read_transition(bridge, room, account, status, reason, output, controls):
-    """Report the exact closed source fields at the first read and at every change.
-
-    The first snapshot per room/account after start is logged whatever its status,
-    so a running read (also after an HA Core restart) is visible without a transition.
-    """
-    try:
-        state = bridge._music_room_read_diagnostic
-        key = (room, account)
-
-        def safe(value, allowed):
-            if value is None:
-                return "none"
-            return value if isinstance(value, str) and value in allowed else "other"
-
-        row = (
-            safe(status, _READ_STATUS),
-            safe(reason, _READ_REASON),
-            safe(output.get("status"), _ROOM_STATUS),
-            safe(output.get("reason"), _ROOM_REASON),
-            safe(controls.get("status"), _ROOM_STATUS),
-            safe(controls.get("reason"), _CONTROL_REASON),
-        )
-        if state.get(key) == row:
-            return
-        if key not in state and len(state) >= 32:
-            state.pop(next(iter(state)))
-        state[key] = row
-        _LOG.warning(
-            "podview_room_playback status=%s reason=%s "
-            "output_status=%s output_reason=%s controls_status=%s controls_reason=%s",
-            *row,
-        )
-    except Exception:
-        pass  # Diagnostics never affect admission, a read or its response.
 
 
 def _log_playback_failure(stage, error):
@@ -391,29 +344,6 @@ async def _confirm_destination(
         return False
 
 
-def envelope(
-    bridge,
-    room,
-    account,
-    actual=None,
-    source=None,
-    *,
-    status="unavailable",
-    reason="account_unavailable",
-):
-    return {
-        "ok": True,
-        "schema": "podview.room-playback.v2",
-        "bootId": bridge.boot_id,
-        "roomId": room,
-        "configEntryId": account,
-        "status": status,
-        "reason": reason,
-        "binding": actual,
-        "data": source,
-    }
-
-
 async def resolve_actual(
     bridge,
     room,
@@ -421,8 +351,6 @@ async def resolve_actual(
     owner_binding,
     *,
     current=lambda: True,
-    include_controls=False,
-    settlement_identity=None,
 ):
     """Admit one Control-owned actual output; never consult DEFAULT/NEXT intent."""
     tools, controls, boot = bridge.tools, bridge.controls, bridge.boot_id
@@ -444,19 +372,10 @@ async def resolve_actual(
             and owner_binding() == owner
         )
 
-    output: dict = {}
-    controls_read: dict = {}
-
     def result(
-        status="unavailable",
-        reason="account_unavailable",
-        data=None,
-        actual=None,
-        rule=None,
-        source_controls=None,
-        source_settlement=None,
+        status="unavailable", reason="account_unavailable", data=None, actual=None, rule=None
     ):
-        value = {
+        return {
             "status": status,
             "reason": reason,
             "data": data,
@@ -464,29 +383,11 @@ async def resolve_actual(
             "rule": rule,
             "current": retained,
         }
-        if include_controls:
-            value["controls"] = source_controls
-            value["settlement"] = source_settlement
-            if reason != "owner_changed" or status == "account_observed":
-                _log_room_read_transition(
-                    bridge, room, account, status, reason, output, controls_read
-                )
-        return value
 
     if not retained() or policy.get("roomId") != room:
         return result(reason="owner_changed")
     try:
-        raw = await (
-            tools.podview_read(
-                "playback",
-                account,
-                include_output=True,
-                include_controls=True,
-                settlement_identity=settlement_identity,
-            )
-            if include_controls
-            else tools.podview_read("playback", account, include_output=True)
-        )
+        raw = await tools.podview_read("playback", account, include_output=True)
         if not retained():
             return result(reason="owner_changed")
         if not raw.get("ok"):
@@ -497,13 +398,7 @@ async def resolve_actual(
                 else "account_unavailable"
             )
         aggregate = raw.get("data")
-        checked = (
-            podview_music.project_playback_controls(
-                aggregate, account, settlement_identity=settlement_identity
-            )
-            if include_controls
-            else podview_music.project_playback_output(aggregate, account)
-        )
+        checked = podview_music.project_playback_output(aggregate, account)
         if not checked.get("ok"):
             _log_playback_failure("projection", checked.get("error_kind"))
             return result(
@@ -512,17 +407,11 @@ async def resolve_actual(
                 else "account_unavailable"
             )
         aggregate = checked["data"]
-        source = {
-            key: copy.deepcopy(value)
-            for key, value in aggregate.items()
-            if key not in {"output", "controls", "settlement"}
-        }
+        source = {key: copy.deepcopy(value) for key, value in aggregate.items() if key != "output"}
         source["schema"] = "podconnect.playback.v1"
         if source["playback"]["state"] == "no_active_playback":
             return result("idle", None, source)
         output = aggregate["output"]
-        if include_controls:
-            controls_read = aggregate["controls"]
         if output["status"] != "observed":
             return result("account_observed", output["reason"], source)
         identity = output["binding"]
@@ -557,194 +446,10 @@ async def resolve_actual(
             "bindingId": identity["binding_id"],
             "validUntil": until,
         }
-        return result(
-            "observed",
-            None,
-            source,
-            actual,
-            matches[0],
-            aggregate.get("controls"),
-            aggregate.get("settlement"),
-        )
+        return result("observed", None, source, actual, matches[0])
     except Exception:
         _log_playback_failure("exception", "unavailable")
         return result(reason="account_unavailable" if retained() else "owner_changed")
-
-
-async def read_playback(
-    bridge,
-    room,
-    account,
-    owner_binding,
-    *,
-    include_controls=False,
-    token="",
-    receipt_request_id=None,
-):
-    grant = (
-        bridge._grant_for_token(room, token)
-        if include_controls and isinstance(token, str)
-        else None
-    )
-    granted_before = bool(grant is not None and bridge._grant_current(room, token))
-    controls_owner = bridge.controls
-    selection_owner = bridge.music_selection
-    receipt_key = (room, token, receipt_request_id)
-    retained_receipt = (
-        controls_owner.receipts.get(receipt_key) if receipt_request_id is not None else None
-    )
-    selected_receipts = (
-        [
-            (key, entry)
-            for key, entry in selection_owner.receipts.items()
-            if key[1] == receipt_request_id
-        ]
-        if receipt_request_id is not None
-        else []
-    )
-    selected_retained = selected_receipts[0] if len(selected_receipts) == 1 else None
-    touch_identity = (
-        controls_owner.settlement_identity(room, token, receipt_request_id, account)
-        if include_controls and granted_before and receipt_request_id is not None
-        else None
-    )
-    selected_identity = (
-        selection_owner.settlement_identity(bridge, room, token, receipt_request_id, account)
-        if include_controls
-        and granted_before
-        and receipt_request_id is not None
-        and selected_retained is not None
-        else None
-    )
-    settlement_identity = (
-        touch_identity
-        if touch_identity is not None and selected_identity is None
-        else selected_identity
-        if selected_identity is not None and touch_identity is None
-        else None
-    )
-    resolved = await (
-        resolve_actual(
-            bridge,
-            room,
-            account,
-            owner_binding,
-            include_controls=True,
-            settlement_identity=settlement_identity,
-        )
-        if include_controls
-        else resolve_actual(bridge, room, account, owner_binding)
-    )
-    body = envelope(
-        bridge,
-        room,
-        account,
-        resolved["binding"],
-        resolved["data"],
-        status=resolved["status"],
-        reason=resolved["reason"],
-    )
-    if include_controls:
-        body["schema"] = "podview.room-playback.v3"
-        if receipt_request_id is not None:
-            body["settlement"] = None
-        body["permissions"] = {"actions": [], "maxVolume": None}
-        body["controls"] = {
-            "status": "unavailable",
-            "reason": resolved["reason"] or "control_not_granted",
-            "binding_id": None,
-            "valid_until": None,
-            "supported_actions": [],
-            "volume": None,
-        }
-        rule = resolved["rule"]
-        source_controls = resolved["controls"]
-        if (
-            resolved["status"] == "observed"
-            and resolved["current"]()
-            and granted_before
-            and bridge._grant_for_token(room, token) is grant
-            and bridge._grant_current(room, token)
-            and bridge.controls.music.tools is bridge.tools
-            and isinstance(rule, dict)
-            and isinstance(rule.get("actions"), list)
-            and all(isinstance(action, str) for action in rule["actions"])
-            and type(rule.get("maxVolume")) is int
-            and 0 <= rule["maxVolume"] <= 100
-            and isinstance(source_controls, dict)
-        ):
-            scoped = copy.deepcopy(source_controls)
-            actions = [
-                action for action in scoped["supported_actions"] if action in rule["actions"]
-            ]
-            scoped["supported_actions"] = actions
-            scoped["valid_until"] = min(scoped["valid_until"], resolved["binding"]["validUntil"])
-            body["controls"] = scoped
-            body["permissions"] = {
-                "actions": actions.copy(),
-                "maxVolume": rule["maxVolume"] if "volume" in actions else None,
-            }
-            if (
-                settlement_identity is not None
-                and bridge.controls is controls_owner
-                and bridge.music_selection is selection_owner
-                and (
-                    (
-                        touch_identity is not None
-                        and selected_identity is None
-                        and controls_owner.receipts.get(receipt_key) is retained_receipt
-                        and controls_owner.settlement_identity(
-                            room, token, receipt_request_id, account
-                        )
-                        == settlement_identity
-                        and selection_owner.settlement_identity(
-                            bridge, room, token, receipt_request_id, account
-                        )
-                        is None
-                    )
-                    or (
-                        selected_identity is not None
-                        and touch_identity is None
-                        and controls_owner.settlement_identity(
-                            room, token, receipt_request_id, account
-                        )
-                        is None
-                        and selection_owner.settlement_identity(
-                            bridge, room, token, receipt_request_id, account
-                        )
-                        == settlement_identity
-                        and selected_retained is not None
-                        and selection_owner.receipts.get(selected_retained[0])
-                        is selected_retained[1]
-                        and (
-                            resolved["binding"]["accountId"],
-                            resolved["binding"]["targetId"],
-                            resolved["binding"]["nativeRoomId"],
-                            resolved["binding"]["nativeHomepodId"],
-                        )
-                        == (
-                            selected_retained[1][2]["task"]["account"],
-                            selected_retained[1][2]["task"]["target"],
-                            *selected_retained[1][2]["task"]["nativeBinding"],
-                        )
-                    )
-                )
-                and isinstance(resolved["settlement"], dict)
-                and all(
-                    resolved["settlement"].get(key) == settlement_identity[key]
-                    for key in settlement_identity
-                )
-            ):
-                source_settlement = resolved["settlement"]
-                body["settlement"] = {
-                    "requestId": receipt_request_id,
-                    "request_id": source_settlement["request_id"],
-                    "command_sequence": source_settlement["command_sequence"],
-                    "owner_epoch": source_settlement["owner_epoch"],
-                    "status": source_settlement["status"],
-                    "effect": source_settlement["observation"],
-                }
-    return web.json_response(body, headers={"Cache-Control": "no-store"})
 
 
 async def expected_actual(bridge, room, account, expected, current):

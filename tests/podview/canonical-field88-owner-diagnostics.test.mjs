@@ -22,19 +22,6 @@ function queueFixture(){
  const view=new LiveQueueView(host);return {host,view,notifications,renders,actions,reads,close(){view.invalidate(true);notifications.cleanup();}};
 }
 
-for(const scenario of ['503','invalid DTO','superseded'])test(`control setup logs closed terminal ${scenario} without payload`,async()=>{
- const f=fixture(),events=[],held=deferred();f.host.liveTransport.recordDiagnostic=(stage,fields)=>events.push({stage,...fields});
- try{
-  f.host.liveTransport.controlSetup=async()=>{if(scenario==='503')throw Error('503 PRIVATE TOKEN https://secret.example');if(scenario==='invalid DTO')return {...f.offer(),options:[]};return held.promise;};
-  const read=f.view.prepareMusic();if(scenario==='superseded'){f.view.invalidateMusic(undefined,false);held.resolve(f.offer());}await read;
-  assert.equal(events[0].code,'start');assert.equal(events.filter(e=>e.stage==='control_setup').at(-1).code,scenario==='503'?'failure':scenario==='invalid DTO'?'invalid_dto':'superseded');
-  assert.equal(JSON.stringify(events).includes('PRIVATE'),false);assert.equal(JSON.stringify(events).includes('spotify:'),false);assert.equal(f.writes.length,0);
- }finally{f.restore();}
-});
-test('filtered volume malformed offer produces closed diagnostic without changing failed-read policy',async()=>{
- const f=fixture(),events=[];f.host.liveTransport.recordDiagnostic=(stage,fields)=>events.push({stage,...fields});
- try{f.host.liveTransport.controlSetup=async(d,t,r,o)=>o?.requestedAction?{...f.offer(['volume']),options:[]}:f.offer(['pause'],null);await f.view.prepareMusic();await f.view.prepareVolume();await f.view.prepareVolume();assert.deepEqual(events.filter(e=>e.stage==='volume_setup').map(e=>e.code),['start','invalid_dto']);assert.equal(f.writes.length,0);}finally{f.restore();}
-});
 test('queue valid-empty is distinct from invalid DTO and unknown action keeps existing request correlation',async()=>{
  const f=queueFixture(),events=[];f.host.liveTransport.recordDiagnostic=(stage,fields)=>events.push({stage,...fields});const original=f.host.liveTransport.queueOffer;
  try{
@@ -68,25 +55,3 @@ for(const superseded of [false,true])test(`selection action UUID survives an ord
  }finally{f.cleanup();}
 });
 
-test('control-state diagnostics emit only independent reason transitions or transport replacement',async()=>{
- const f=fixture(),events=[],held=deferred(),volumeHeld=deferred();f.host.liveTransport.recordDiagnostic=(stage,fields)=>events.push({stage,...fields});
- const states=()=>events.filter(e=>e.stage.endsWith('_state'));
- try{
-  f.host.liveTransport.controlSetup=()=>held.promise;const read=f.view.prepareMusic();f.view.renderMusicControls();
-  assert.equal(states().find(e=>e.stage==='control_state').code,'read_inflight');const initial=states().length;f.view.renderMusicControls();assert.equal(states().length,initial);
-  held.resolve(f.offer(['pause'],null));await read;assert.equal(states().filter(e=>e.stage==='control_state').at(-1).code,'ok');
-  f.host.liveTransport.controlSetup=()=>volumeHeld.promise;const volumeRead=f.view.prepareVolume();f.view.renderMusicControls();
-  assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'read_inflight');assert.equal(f.nodes.get('play-pause').disabled,false);
-  volumeHeld.resolve(f.offer(['volume'],35));await volumeRead;assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'ok');
-  {const before=states().length;f.view.musicFence={...f.view.musicContext(),outcome:'unknown'};f.view.renderMusicControls();assert.equal(states().length,before,'unknown no longer changes usable control state');assert.equal(f.nodes.get('play-pause').disabled,false);}
-  f.view.musicFence=null;f.view.spent.set(f.view.musicOffer.task.taskId,Date.now()/1000+30);f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='control_state').at(-1).code,'ok','spent display task is not an intent lock or executable authority');assert.equal(f.writes.length,0);
-  f.view.spent.clear();f.view.musicOffer.task.expiresAt=Date.now()/1000-1;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='control_state').at(-1).code,'ok','expired display task does not disable a fresh-JIT intent');assert.equal(f.writes.length,0);
-  const before=states().length;f.view.renderMusicControls();assert.equal(states().length,before);
-  f.host.liveTransport={...f.host.liveTransport};f.view.renderMusicControls();assert.equal(states().length,before+2);
-  f.view.musicIntentPending=true;f.view.renderMusicControls();assert.deepEqual(states().slice(-2).map(e=>e.code),['intent_pending','intent_pending']);f.view.musicIntentPending=false;
-  f.view.volumeOffer.task.volume=null;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'unknown_value');
-  f.view.volumeOffer.task.expiresAt=Date.now()/1000-1;f.view.renderMusicControls();assert.equal(states().filter(e=>e.stage==='volume_state').at(-1).code,'expiry');
-  f.host.liveTransport.connected=false;f.view.renderMusicControls();assert.deepEqual(states().slice(-2).map(e=>e.code),['capability_missing','capability_missing']);
-  assert.equal(f.writes.length,0);
- }finally{f.restore();}
-});
