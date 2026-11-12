@@ -1,5 +1,22 @@
 const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Object.keys(d).sort().join(',')==='areaIds,optionId,repeat,revision,settingChoices,taskId'&&typeof d.taskId==='string'&&d.taskId.length>0&&d.taskId.length<=120&&d.revision===1&&typeof d.optionId==='string'&&/^[a-f0-9]{24}$/.test(d.optionId)&&Array.isArray(d.areaIds)&&d.areaIds.length<=32&&new Set(d.areaIds).size===d.areaIds.length&&d.areaIds.every(id=>typeof id==='string'&&/^[a-f0-9]{24}$/.test(id))&&Number.isInteger(d.repeat)&&d.repeat>=1&&d.repeat<=3&&Array.isArray(d.settingChoices)&&d.settingChoices.length<=16&&new Set(d.settingChoices.map(row=>row?.settingId)).size===d.settingChoices.length&&d.settingChoices.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Object.keys(row).sort().join(',')==='choiceId,settingId'&&/^[a-f0-9]{24}$/.test(row.settingId)&&/^[a-f0-9]{24}$/.test(row.choiceId));
 import {requestWithin} from './request-deadline.js';
+// A wall screen may open HA ingress over plain http on a LAN name (for example
+// http://homeassistant.lan:8123). That is not a secure context, so the browser
+// leaves out crypto.randomUUID while crypto.getRandomValues stays available.
+// Every explicit action needs a request id, so supply the same RFC 4122 v4 form.
+export function installRandomUUID(target=globalThis.crypto){
+ if(!target||typeof target.randomUUID==='function'||typeof target.getRandomValues!=='function')return false;
+ const randomUUID=()=>{
+  const bytes=target.getRandomValues(new Uint8Array(16));
+  bytes[6]=bytes[6]&0x0f|0x40;
+  bytes[8]=bytes[8]&0x3f|0x80;
+  const hex=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+ };
+ Object.defineProperty(target,'randomUUID',{value:randomUUID,configurable:true,writable:true});
+ return true;
+}
+installRandomUUID();
 const controlSetupFailureCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable']);
 // Content-free classifications only: these records never grant control authority.
 const diagnosticDomainActions={music:['pause','resume','next','previous','volume','seek','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel','timer.adjust'],radio:['start','stop','move','volume'],home:[]};
@@ -40,8 +57,12 @@ function diagnosticRow(value){
 const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admission.authenticated===true&&Object.keys(value.admission).sort().join(',')==='authenticated,kind';
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
+// Everything in a snapshot except the heartbeat's observation time.
+const heartbeatSignature=value=>JSON.stringify({...value,observedAt:undefined});
+
 export class PodVoiceTransport {
- constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild} = {}) {
+ constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild, cookies = () => globalThis.document?.cookie || ''} = {}) {
+  this.cookies = cookies;
   const page = new URL(url);
   if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
@@ -227,11 +248,20 @@ export class PodVoiceTransport {
    this.controllerRenewRetryAt=null;this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;this.coordinatorName=null;
    if(this.peerChannel){this.peerChannel.onmessage=null;this.peerChannel.close();this.peerChannel=null;}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;
   }
+  // The server repeats an unchanged snapshot every second as a liveness heartbeat. Redrawing the
+  // whole screen for it blocked taps for ~1 s on slow wall screens (Frameo, Chrome 107), so an
+  // unchanged heartbeat only refreshes freshness; a redraw still happens every 10 s for aging labels.
+  const unchanged=this.connected===true&&this.presentedSnapshot===this.snapshot&&Date.now()-this.presentedAt<10000
+   &&heartbeatSignature(this.snapshot)===heartbeatSignature(value)
+   // During a conversation every heartbeat still redraws: answer cards appear while she speaks.
+   &&value?.voice?.active!==true;
   this.room = value.roomId; this.snapshot = value; this.acceptedReadAt = readAt; this.connected = true;this.syncDiagnosticScope(value);
   if(normalHA&&this.namedLaneWanted&&!this.namedControllerRenewed&&!this.namedRenewalDenied&&this.namedResumeNeeded&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.namedRenewTimer){const generation=this.generation;this.namedRenewTimer=setTimeout(()=>{this.namedRenewTimer=null;if(!this.closed&&generation===this.generation)this.restart(false,true,true).catch(()=>{});},1000);}
   if(normalHA||value.controllerContinuity?.enabled!==true||value.controllerContinuity.available===false||this.controllerRenewed===true||this.cookieReadAuthority){clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;}
   if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!this.controllerRenewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed){this.recordDiagnostic('freshness',{code:'expiry'});this.disconnected();}},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
+  if(unchanged){this.presentedSnapshot=value;return true;}
+  this.presentedSnapshot=value;this.presentedAt=Date.now();
   const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
  // Presentation observers may report their own error; they cannot turn a valid
@@ -245,6 +275,22 @@ export class PodVoiceTransport {
   const delay=Math.min(30000,1000*2**Math.min(attempt,5));
   this.recoveryTimer=setTimeout(()=>{this.recoveryTimer=null;if(!this.closed&&!this.recoveryBlocked&&generation===this.generation)this.restart(true,!this.recoveryReadOnly).catch(()=>{});},delay);
  }
+ // HA's app panel renews its Supervisor ingress session (cookie path /api/hassio_ingress/) every 60 s.
+ // After a Core restart the old session answers 401 until then; PodView waits for that quietly.
+ ingressSession(){try{return /(?:^|;\s*)ingress_session=([^;]*)/.exec(this.cookies()||'')?.[1]||'';}catch{return '';}}
+ awaitIngressRenewal(generation){
+  const before=this.ingressSession();let ticks=0;
+  return new Promise(resolve=>{
+   this.ingressRenewalDone=resolve;
+   const tick=()=>{
+    this.ingressRenewalTimer=null;
+    if(generation!==this.generation||this.closed){resolve(false);return;}
+    if(this.ingressSession()!==before||++ticks>65){resolve(true);return;}
+    this.ingressRenewalTimer=setTimeout(tick,1000);
+   };
+   this.ingressRenewalTimer=setTimeout(tick,1000);
+  }).finally(()=>{this.ingressRenewalDone=null;});
+ }
  async restart(retrying=false,renew=true,coalesce=false){this.restartCount=(this.restartCount||0)+1;try{return await this.restartRead(retrying,renew,coalesce);}finally{this.restartCount--;this.schedulePeerRead();}}
  async restartRead(retrying=false,renew=true,coalesce=false) {
   // Enrollment denial does not revoke verified reads; automatic recovery stays read-only.
@@ -256,9 +302,17 @@ export class PodVoiceTransport {
   this.notify('onConnection','connecting');
   try {
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
+   if(response.status===401&&generation===this.generation){
+    // 401 is HA's ingress session, not PodVoice (which answers 403): renew quietly once.
+    if(!await this.awaitIngressRenewal(generation))return;
+    const retry={credentials:'same-origin',cache:'no-store',signal:this.controller.signal};
+    response=await this.request(this.endpoint('snapshot'),retry);
+   }
    let value = await response.json(),readAt=Date.now();
    if (generation !== this.generation) return;
-   if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}
+   if([401,403].includes(response.status)){
+    this.recoveryBlocked=true;this.sessionExpired=response.status===401;throw Error('transport_access_denied');
+   }
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
    const normalHA=haIngress(value);
    const boot=value.bootId,room=value.roomId;
@@ -552,10 +606,12 @@ export class PodVoiceTransport {
  close(disposeCoordinator=true) {
   this.stopDiagnosticUpload();this.recordDiagnostic('lifecycle',{code:'cleanup'});clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;if(disposeCoordinator)this.flushDiagnostics();
   if(disposeCoordinator){this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;const channel=this.peerChannel;this.peerChannel=null;if(channel){channel.onmessage=null;if(!this.renewHttpPending)channel.close();}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;}
-  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;
+  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;this.sessionExpired=false;
+  clearTimeout(this.ingressRenewalTimer);this.ingressRenewalTimer=null;
+  const renewal=this.ingressRenewalDone;this.ingressRenewalDone=null;
   clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;this.namedControllerRenewed=false;
   clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;this.controllerRenewed=false;this.cookieReadAuthority=false;
-  this.generation++; this.closed = true; this.connected = false; this.acceptedReadAt = null;
+  this.generation++; this.closed = true; this.connected = false; this.acceptedReadAt = null;renewal?.(false);
   clearTimeout(this.freshnessTimer);this.controller?.abort(); this.stream?.close(); this.stream = null;
  }
 }

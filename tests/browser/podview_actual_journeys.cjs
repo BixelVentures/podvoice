@@ -31,6 +31,8 @@ for(const journey of only.length?only:journeys){
  if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_transition_actual_e2e.cjs');
  if(journey==='music_push_actual_e2e.cjs')runJourney(journey,{MUSIC_PUSH_OVERLAP_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'push-overlap')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_INSECURE_ORIGIN_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'insecure-origin')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_VOLUME_DRAG_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'volume-drag')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_RENEWED_CONTROLS_TEST:'1',
@@ -43,6 +45,8 @@ for(const journey of only.length?only:journeys){
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'output-transfer')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_MULTI_SCREEN_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'multi-screen')});
+ if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_PLAYER_STATES_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'player-states')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_SEEK_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'seek')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_MANUAL_RETRY_TEST:'1',
@@ -60,6 +64,10 @@ for(const journey of only.length?only:journeys){
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'recent-session')});
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'0'});
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'1'});
+  runJourney(journey,{MUSIC_START_LATENCY_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'start-latency')});
+  runJourney(journey,{MUSIC_START_LATENCY_TEST:'mood',MUSIC_COLD_CONTEXT:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'start-latency-mood')});
   runJourney(journey,{MUSIC_DEFAULT_SPEAKER_PROOF:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'default-speaker')});
   for(const scenario of ['1','revisit','cover','personal-cover']){

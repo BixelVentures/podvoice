@@ -392,6 +392,31 @@ async function stationOrderJourney(stations){
  await page.waitForFunction(()=>{const b=document.querySelector('#play-pause');return b&&!b.disabled&&b.getAttribute('aria-label')==='Start radio ved livepunkt'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:5000});
  assert.equal(await page.locator('#play-icon').getAttribute('src'),'assets/icons/play-fill.svg');
  await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-stopped.png')});
+ // g) A stopped station stays like a paused song: 10 minutes, also across a reload (9 min yes, 11 min no).
+ const ageStation=minutes=>page.evaluate(ms=>{
+  const saved=JSON.parse(localStorage.getItem('podview.radioStation'));
+  localStorage.setItem('podview.radioStation',JSON.stringify({...saved,at:Date.now()-ms}));
+ },minutes*60000);
+ const reloadRadio=async()=>{
+  await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);await page.locator('#home-radio').tap();
+  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');
+   return h?.liveRadio?.current()&&h.liveRadio.value.state.status==='stopped'&&!h.liveRadio.pending;},undefined,{timeout:15000});
+ };
+ // The earlier document's diagnostics are persisted before it is replaced.
+ for(let n=0;n<200;n++){
+  const early=await readJournal(page);
+  if(early.records?.some(({row})=>row.stage==='control_observation'&&row.domain==='radio'&&row.action==='volume'&&row.code==='observed')
+   &&early.records?.some(({row})=>row.stage==='control_observation'&&row.domain==='radio'&&row.action==='stop'&&row.code==='observed'))break;
+  await sleep(500);
+ }
+ await ageStation(9);await reloadRadio();
+ await page.waitForFunction(()=>document.querySelector('#track-name')?.textContent?.trim()==='P3'
+  &&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Start radio ved livepunkt',undefined,{timeout:5000});
+ await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-stopped-9min-reload.png')});
+ await ageStation(11);await reloadRadio();
+ assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host').liveRadio.knownStopped()),false);
+ assert.notEqual((await page.locator('#track-name').innerText()).trim(),'P3','after 10 minutes the player is empty');
+ await settleMotion();await page.screenshot({path:path.join(env.artifactDir(),'podview-radio-stopped-11min-reload.png')});
  // The same inert native owner then reports a legitimate Spotify catalogue start.
  await stations.getByRole('button',{name:/P6 Beat/i}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.stationId==='p6-beat'&&h.liveRadio.value.state.status==='playing'&&!h.liveRadio.pending},undefined,{timeout:15000});

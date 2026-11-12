@@ -1,6 +1,23 @@
 import {LiveQueueView,upcomingQueueRows} from './live-queue-view.js';
 import {roomPlaybackObservation,roomObservationBound,accountObservationBound,roomObservationCurrent,roomObservationDisplay,playbackBinding,playbackObservationCurrent} from './media-observation.js';
-import {livePlayerModel,liveQueueModel} from './player-view.js';
+import {livePlayerModel,liveQueueModel,playbackPlacement} from './player-view.js';
+// A screen without control access says so where the controls are, never a silent lock or "unknown".
+export const NO_ACCESS='Skærmen har ikke adgang · Tilknyt';
+export const PAUSED_KEEP_MS=10*60*1000;
+const PAUSED_STORE='podview.pausedSince';
+// The first time this screen saw the song paused; stored so a reload keeps the same 10 minutes.
+export function pauseExpired(room,account,playback,snapshot,now=Date.now()){
+ let saved=null;
+ try{saved=JSON.parse(globalThis.localStorage?.getItem(PAUSED_STORE)||'null');}catch{}
+ if(playback?.state!=='paused'||playbackPlacement(playback,snapshot)==='elsewhere'){
+  if(saved&&playback?.state==='playing')try{globalThis.localStorage?.removeItem(PAUSED_STORE);}catch{}
+  return false;
+ }
+ const key=JSON.stringify([room,account,playback.item?.uri??null]);
+ if(saved?.key===key&&Number.isFinite(saved.at)&&saved.at<=now)return now-saved.at>=PAUSED_KEEP_MS;
+ try{globalThis.localStorage?.setItem(PAUSED_STORE,JSON.stringify({key,at:now}));}catch{}
+ return false;
+}
 // Shape-only parse failures. Scope, account, binding and owner failures are not listed: those still clear.
 const malformedPlaybackAnswer=new Set(['invalid_provider_playback','invalid_media_item','invalid_media_text',
  'invalid_media_timestamp','invalid_playback_state','invalid_playback_target','contradictory_empty_playback']);
@@ -67,6 +84,12 @@ export class LiveMediaView{
     this.render();
     return;
    }
+   // g) A song paused in this room stays for 10 min, also across a reload; then the player is empty.
+   if(pauseExpired(snap.roomId,account,next,snap)&&!readJob.settlementReceipt&&!host.liveSelection?.feedback?.pending){
+    record({code:'empty',durationMs:Date.now()-diagnosticAt});
+    this.clearRoom();this.establishedReadScope=JSON.stringify([bindingScope,this.account]);this.readState='idle';
+    this.render();return;
+   }
    const previousBinding=playbackBinding(this.playback,snap,account),nextBinding=playbackBinding(next,snap,account),ownerChanged=this.playback&&next.owner_epoch!==this.playback.owner_epoch;
    const pendingMove=host.liveControls?.musicIntentPending&&host.liveControls.musicOperation?.action==='move_existing_session'?host.liveControls.musicOperation:null,pendingSelection=host.liveSelection?.feedback?.pending?host.liveSelection.feedback.settlementReceipt:null,pendingDestination=pendingMove?.destination??pendingSelection?.destination,pendingTransition=!!pendingDestination&&next.projectionVersion===3&&roomObservationCurrent(next,snap)&&next.config_entry_id===pendingDestination.accountId&&nextBinding?.nativeRoomId===pendingDestination.nativeRoomId&&nextBinding?.nativeHomepodId===pendingDestination.nativeHomepodId&&(pendingMove?pendingMove.receiptTransport===transport&&pendingMove.receiptTransportGeneration===transport.generation&&pendingMove.receiptGeneration===host.liveControls.generation&&pendingMove.receiptMusicGeneration===(host.liveControls.musicGeneration||0)&&pendingMove.receiptOwnerScope===JSON.stringify([snap?.capabilities?.musicRead,snap?.capabilities?.controlSetup?.includes('music')]):pendingSelection.transport===transport&&pendingSelection.transportGeneration===transport.generation&&host.liveSelection.resultCurrent(pendingSelection.ticket));
    const receipt=readJob.settlementReceipt,destination=receipt?.destination,pinnedOwner=receipt?.kind==='move'?host.liveControls?.receipts?.get(receipt.operationKey)?.settlementOwnerEpoch:receipt?.kind==='selection'?host.liveSelection?.feedback?.settlementTuple?.owner_epoch:null,expectedTransition=(!pinnedOwner||next.owner_epoch===pinnedOwner)&&!!destination&&next.projectionVersion===3&&roomObservationCurrent(next,snap)&&next.config_entry_id===destination.accountId&&nextBinding?.nativeRoomId===destination.nativeRoomId&&nextBinding?.nativeHomepodId===destination.nativeHomepodId&&(receipt.kind==='move'?host.liveControls?.musicSettlementReceipt?.()===receipt:receipt.kind==='selection'&&host.liveSelection?.settlementReceipt?.()===receipt);if(expectedTransition){if(receipt.kind==='move')host.liveControls?.observeMusicSettlement?.(next,receipt,true);else host.liveSelection?.observePlayback?.(next,receipt);}
@@ -75,7 +98,9 @@ export class LiveMediaView{
    record({code:'ok',durationMs:Date.now()-diagnosticAt});if(actualLabel)next.actualTargetLabel=actualLabel;this.playback=next;if(!expectedTransition)host.liveControls?.observeMusicSettlement?.(next,readJob.settlementReceipt);const refreshUntil=nextBinding?.validUntil===undefined?next.expiresAt:Math.min(next.expiresAt,nextBinding.validUntil*1000);this.refreshInterval=Math.max(1000,Math.min(8000,Math.floor((refreshUntil-Date.now())/2)));this.readState='ready';this.recoveryAttempts=0;host.liveSelection?.observePlayback?.(next,expectedTransition?null:readJob.settlementReceipt);
    const settlement=host.liveSelection?.settlementReceipt?.(),settling=settlement?.kind==='selection'&&typeof settlement.requestId==='string'
     &&settlement.fastReadUntil>Date.now()&&Date.now()-host.liveSelection.feedback?.requestedAt<SETTLEMENT_READ_WINDOW_MS;
-   if(next.projectionVersion===3&&nextBinding||settling){const due=this.lastRead+Math.max(0,Math.floor((refreshUntil-this.lastRead)/2)),timerGeneration=this.generation,timerTransport=host.liveTransport,nextReadAt=Math.max(due,this.lastRead+1000);this.freshnessTimer=setTimeout(()=>{this.freshnessTimer=null;if(host.isConnected&&host.liveTransport===timerTransport&&this.generation===timerGeneration)void this.refresh({immediate:true}).catch(()=>{});},settling?SETTLEMENT_READ_MS:Math.max(0,nextReadAt-Date.now()));this.freshnessTimer.unref?.();}this.render();void this.loadQueue({automatic:true,afterPlayback:true});
+   // Own account playing elsewhere refreshes on the same freshness timer as room playback;
+   // it must not depend on snapshot-driven redraws, which skip unchanged heartbeats.
+   if(next.projectionVersion===3&&(nextBinding||next.accountObserved===true)||settling){const due=this.lastRead+Math.max(0,Math.floor((refreshUntil-this.lastRead)/2)),timerGeneration=this.generation,timerTransport=host.liveTransport,nextReadAt=Math.max(due,this.lastRead+1000);this.freshnessTimer=setTimeout(()=>{this.freshnessTimer=null;if(host.isConnected&&host.liveTransport===timerTransport&&this.generation===timerGeneration)void this.refresh({immediate:true}).catch(()=>{});},settling?SETTLEMENT_READ_MS:Math.max(0,nextReadAt-Date.now()));this.freshnessTimer.unref?.();}this.render();void this.loadQueue({automatic:true,afterPlayback:true});
   }catch(error){record({code:!current()?'superseded':error?.code==='read_access_denied'?'http_denied':error?.code==='read_transient'?'http_transient':error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'cancelled':error?.name==='TypeError'?'network':'failure',current:current(),durationMs:Date.now()-diagnosticAt});if(current()){
    // A same-scope answer with an unexpected shape is no new owner: keep the known song (K5, A11).
    const malformed=playbackResponse&&malformedPlaybackAnswer.has(error?.message);
@@ -213,7 +238,7 @@ export class LiveMediaView{
   const observed=Date.parse(p?.observedAt),currentStatus=feedback?.outcome==='unknown'&&!feedback.pending&&this.readState==='ready'&&this.host.liveTransport?.connected===true&&roomObservationCurrent(p,this.host.liveSnapshot)&&['playing','paused'].includes(p?.state)&&/^spotify:(track|episode):[A-Za-z0-9]{22}$/.test(p.item?.uri||'')&&p.config_entry_id===feedback.accountId&&p.target?.id===feedback.targetId&&(feedback.nativeDestination?this.host.liveSelection?.destinationObserved?.(p,feedback.nativeDestination)===true:!feedback.destination||this.host.liveOutputs?.observedDestination?.(feedback.destination.speakerId)===true)&&Number.isFinite(observed)&&Number.isFinite(feedback.requestedAt)&&observed>=feedback.requestedAt&&/^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/.test(feedback.uri||'')&&(!/^spotify:(track|episode):/.test(feedback.uri)||p.item?.uri===feedback.uri);
   if(currentStatus){if(this.selectionReceiptFeedback!==feedback){this.selectionReceiptFeedback=feedback;if(!this.host.feedbackMessage||this.host.feedbackMessage===feedback.message)this.host.showFeedback?.(feedback.message,false);}}else if(this.selectionReceiptFeedback!==feedback)this.selectionReceiptFeedback=null;
   const selection=this.host.liveSelection,playerFeedback=selection?.playerFeedback?.()??feedback,selected=selection?.pendingPlayer?.(playerFeedback),model=this.observedPlayerModel();if(model.active&&typeof model.playing==='boolean'&&this.host.liveControls?.optimisticPlaying)model.playing=this.host.liveControls.optimisticPlaying(model.playing);
-  const controls=this.host.liveControls,readFailure=controls?.musicFence,controlStatus=!selected&&model.active?(controls?.musicInlineStatus||(readFailure?.readFailure===true&&readFailure.outcome==='unavailable'&&readFailure.key===controls.musicContext()?.key?'Betjeningen kunne ikke hentes':'')):'';
+  const controls=this.host.liveControls,readFailure=controls?.musicFence,controlStatus=!selected&&model.active?(controls?.musicInlineStatus||(readFailure?.readFailure===true&&readFailure.outcome==='unavailable'&&readFailure.key===controls.musicContext()?.key?'Betjeningen kunne ikke hentes':'')||(this.host.liveTransport?.connected&&Array.isArray(this.host.liveSnapshot?.capabilities?.controlSetup)&&!this.host.liveSnapshot.capabilities.controlSetup.includes('music')?NO_ACCESS:'')):'';
   const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()||'';
     // The speaker's native confirmation of this exact request plays the chosen item before
   // Spotify's observation names it. Controls still wait for that observation's authority.

@@ -2316,7 +2316,7 @@ pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pe
 #quick-sheet .screen-build-row{grid-template-columns:max-content minmax(0,1fr);gap:var(--pv-s2)}
 #quick-sheet.pv-kit-dialog .screen-build-row>#screen-device-info{padding:0;margin:0;text-align:right;color:var(--pv-ink-2);overflow-wrap:anywhere}
 #quick-sheet [data-screen-action]{display:grid;grid-template-columns:var(--pv-icon-s) minmax(0,1fr) var(--pv-icon-s);align-items:center;gap:var(--pv-s2);width:100%;min-height:var(--pv-hit);padding:var(--pv-s2) 0;border:0;border-top:1px solid var(--pv-line);background:transparent;color:var(--pv-ink);font:var(--pv-t-body);text-align:left;text-decoration:none;cursor:pointer}
-#quick-sheet [data-screen-action]::before,#quick-sheet [data-screen-action]::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);background:currentColor;mask:var(--screen-action-icon) center/contain no-repeat}
+#quick-sheet [data-screen-action]::before,#quick-sheet [data-screen-action]::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);background:currentColor;-webkit-mask:var(--screen-action-icon) center/contain no-repeat;mask:var(--screen-action-icon) center/contain no-repeat}
 #quick-sheet [data-screen-action=rename]{--screen-action-icon:url(assets/icons/pencil.svg)}
 #quick-sheet [data-screen-action=diagnostics]{--screen-action-icon:url(assets/icons/three-dots.svg)}
 #quick-sheet [data-screen-action]::after{--screen-action-icon:url(assets/icons/chevron-right.svg)}

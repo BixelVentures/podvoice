@@ -5,9 +5,21 @@ export function attachPressedState(surface){
  const clear=()=>{pressed?.classList.remove('is-pressed');pressed=null;pointerId=null;origin=null;};
  const clearFocus=()=>{pointerFocus?.removeAttribute?.('data-pv-pointer-focus');pointerFocus=null;};
  const cancelFeedback=target=>{feedback.get(target)?.cancel();feedback.delete(target);};
+ // 12 % of the button's own colour. Computed in JS instead of color-mix(), which Chrome < 111
+ // (old Android WebView on wall screens) rejects, leaving taps without any feedback.
+ const pressOverlay=target=>{
+  const rgb=win?.getComputedStyle?.(target)?.color?.match(/rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?/);
+  const alpha=rgb?Math.round((rgb[4]===undefined?1:+rgb[4])*12)/100:.12;
+  return rgb?`rgba(${rgb[1]}, ${rgb[2]}, ${rgb[3]}, ${alpha})`:`rgba(0, 0, 0, ${alpha})`;
+ };
  const acknowledge=(target,shadow)=>{
   if(unavailable(target)||target.isConnected===false||doc.hidden||typeof target.animate!=='function')return;
-  cancelFeedback(target);const quiet=target.dataset?.pvPress==='quiet',animation=target.animate(quiet?[{opacity:.64},{opacity:1}]:[{boxShadow:'inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)'},{boxShadow:shadow||'none'}],{duration:90,easing:'cubic-bezier(.2,0,0,1)'});feedback.set(target,animation);
+  cancelFeedback(target);
+  const quiet=target.dataset?.pvPress==='quiet';
+  const frames=quiet
+   ?[{opacity:.64},{opacity:1}]
+   :[{boxShadow:`inset 0 0 0 999px ${pressOverlay(target)}`},{boxShadow:shadow||'none'}];
+  const animation=target.animate(frames,{duration:90,easing:'cubic-bezier(.2,0,0,1)'});feedback.set(target,animation);
   animation.finished?.catch(()=>{}).finally(()=>{if(feedback.get(target)===animation)feedback.delete(target);});
  };
  const down=event=>{

@@ -138,20 +138,53 @@ async def test_account_only_playback_logs_source_reasons_once_per_transition(con
         for record in caplog.records
         if record.getMessage().startswith("podview_room_playback ")
     ]
+    observed = (
+        "podview_room_playback status=observed reason=none "
+        "output_status=observed output_reason=none controls_status=observed controls_reason=none"
+    )
     first = (
         "podview_room_playback status=account_observed reason=route_unavailable "
         "output_status=unavailable output_reason=route_unavailable "
         "controls_status=unavailable controls_reason=route_unavailable"
     )
+    # The first snapshot after start is logged whatever its status; then once per change.
     assert messages == [
+        observed,
         first,
         first.replace("route_unavailable", "ambiguous_output"),
+        observed,
         "podview_room_playback status=account_observed reason=output_not_admitted "
         "output_status=observed output_reason=none controls_status=observed controls_reason=none",
         first,
     ]
     assert len(rig.calls) == 7
     assert all(path.endswith("get_playback_snapshot") for _, path, _ in rig.calls)
+
+
+async def test_first_room_snapshot_after_start_is_logged_once(controls_rig, caplog):
+    """Green 12 Nov: locked controls after a restart left no podview_room_playback line."""
+    rig = controls_rig
+    rig.value["output"] = {"status": "unavailable", "reason": "route_unavailable", "binding": None}
+    rig.value["controls"] = {
+        "status": "unavailable",
+        "reason": "route_unavailable",
+        "binding_id": None,
+        "valid_until": None,
+        "supported_actions": [],
+        "volume": None,
+    }
+    for _ in range(3):
+        assert (await read(rig))["status"] == "account_observed"
+    messages = [
+        record.getMessage()
+        for record in caplog.records
+        if record.getMessage().startswith("podview_room_playback ")
+    ]
+    assert messages == [
+        "podview_room_playback status=account_observed reason=route_unavailable "
+        "output_status=unavailable output_reason=route_unavailable "
+        "controls_status=unavailable controls_reason=route_unavailable"
+    ]
 
 
 async def test_seek_opt_in_requires_both_service_fields_and_room_policy(controls_rig):

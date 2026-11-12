@@ -15,7 +15,8 @@ for(const status of [401,403])for(const setup of [true,false])test(`renewal ${st
  // Simulate automatic reconnect; expired pre-denial capabilities cannot return.
  await f.transport.restart(true);readonly(f.transport);assert.equal(f.calls.filter(p=>p.endsWith('/controller/renew')).length,1);f.transport.accept(snapshot());readonly(f.transport);
  }finally{f.flow.close();}});
-for(const snapshotStatus of [401,403])test(`snapshot ${snapshotStatus} remains hard stop`,async()=>{const f=fixture({snapshotStatus});try{await f.flow.start();assert.equal(f.transport.connected,false);assert.equal(f.transport.snapshot,null);assert.equal(f.transport.recoveryBlocked,true);assert.equal(f.transport.recoveryTimer,null);assert.equal(f.renders.at(-1).disabled,true);assert.equal(f.calls.length,1);}finally{f.flow.close();}});
+// 401 is HA's ingress session: renewed quietly once (ingress-session-renewal.test.mjs).
+for(const snapshotStatus of [403])test(`snapshot ${snapshotStatus} remains hard stop`,async()=>{const f=fixture({snapshotStatus});try{await f.flow.start();assert.equal(f.transport.connected,false);assert.equal(f.transport.snapshot,null);assert.equal(f.transport.recoveryBlocked,true);assert.equal(f.transport.recoveryTimer,null);assert.equal(f.renders.at(-1).disabled,true);assert.equal(f.calls.length,1);}finally{f.flow.close();}});
 test('explicit post-approval start can establish newly validated authority',async()=>{const f=fixture({setup:false});f.transport.onConnection=()=>{};try{await f.transport.start();readonly(f.transport);f.state.status=200;await f.transport.start();assert.equal(f.transport.controllerRenewed,true);assert.equal(f.transport.snapshot.capabilities.musicSelection,true);assert.equal(f.calls.filter(p=>p.endsWith('/controller/renew')).length,2);}finally{f.transport.close();}});
 
 test('denial after a coalesced renewal deadline clears its expired retry schedule',async()=>{

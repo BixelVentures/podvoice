@@ -14,6 +14,7 @@ from homeassistant.helpers import selector
 from homeassistant.helpers.http import current_request
 
 from . import DOMAIN, ENDPOINT_SCHEMA
+from .controller_admin import ROOM_SCREEN_LIMIT
 
 
 class PodVoiceConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -168,7 +169,7 @@ class PodVoiceOptionsFlow(OptionsFlow):
                 )
         self._profiles = {}
         areas = ar.async_get(self.hass)
-        for row in enrolled[:2]:
+        for row in enrolled[:ROOM_SCREEN_LIMIT]:
             if (
                 isinstance(row, dict)
                 and re.fullmatch(r"[a-f0-9]{32}", str(row.get("id", "")))

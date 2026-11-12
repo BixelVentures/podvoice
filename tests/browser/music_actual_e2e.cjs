@@ -17,7 +17,12 @@ const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
 const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
 const multiScreenMode=process.env.MUSIC_MULTI_SCREEN_TEST==='1';
-if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||volumeDragMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode){
+// A wall frame opens HA ingress over plain http on a LAN name (http://homeassistant.lan:8123):
+// not a secure context, so crypto.randomUUID, crypto.subtle and navigator.locks are absent.
+const playerStatesMode=process.env.MUSIC_PLAYER_STATES_TEST==='1';
+const insecureOriginMode=process.env.MUSIC_INSECURE_ORIGIN_TEST==='1';
+const pageBase=insecureOriginMode?`http://podview-frame.test:${port}`:base;
+if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||volumeDragMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode||playerStatesMode){
  process.env.MUSIC_EXTENDED='1';
 }
 let server,browser,data,servedBundleSHA,serverSuspended=false;
@@ -446,7 +451,10 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   },label,{timeout:15000});
   assert.equal(await track.innerText(),trackName);
   assert.equal((await output.locator('#player-room').innerText()).trim(),label);
-  assert.match(await output.getAttribute('aria-label'),/højttaler ikke bekræftet/);
+  // f) Own account on another device: its Spotify Connect name, no "ikke bekræftet"; the chip moves it back.
+  assert.equal((await page.locator('#player-state').innerText()).trim(),'Spiller på');
+  assert.doesNotMatch(await output.getAttribute('aria-label'),/ikke bekræftet|observation|sidst kendt/i);
+  assert.match(await output.getAttribute('aria-label'),/Flyt til |Vælg højttaler/);
   const freshRead=page.waitForResponse(response=>{
    const url=new URL(response.url());
    return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
@@ -526,6 +534,61 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-external-output.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-return.png')});
  console.log(JSON.stringify(proof));
+}
+// The player's state model (afgørelsesorden a, d, f, g) on the real packaged screen. Normal states never
+// say "ikke bekræftet", "observation" or "sidst kendt". g) is the user's 10-minute rule for a paused song.
+async function playerStatesJourney(page,errors){
+ const text=async id=>(await page.locator(id).innerText()).trim();
+ const forbidden=async()=>{
+  const shown=[await text('#player-state'),await text('#player-room'),await page.locator('#output').getAttribute('aria-label')||''];
+  for(const value of shown)assert.doesNotMatch(value,/ikke bekræftet|observation|sidst kendt|^Højttaler$/i,value);
+ };
+ const shot=name=>page.screenshot({path:path.join(testEnv.artifactDir(),`podview-player-${name}.png`)});
+ // d) Own Spotify on this room: "Spiller på <rum>" and full controls.
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Spiller på'
+  &&!document.querySelector('#play-pause')?.disabled&&!document.querySelector('#next')?.disabled,undefined,{timeout:15000});
+ const roomName=await text('#player-room');
+ assert.ok(roomName&&roomName!=='Højttaler',roomName);
+ await forbidden();await shot('d-room');
+ // f) Moved to the iPhone: its name, never "ikke bekræftet"; the chip offers to move it back.
+ assert.equal((await change({externalOutput:'iphone'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-room')?.textContent==='iPhone',undefined,{timeout:15000});
+ assert.equal(await text('#player-state'),'Spiller på');
+ assert.match(await page.locator('#output').getAttribute('aria-label'),/Flyt til |Vælg højttaler/);
+ await forbidden();await shot('f-iphone');
+ assert.equal((await change({externalPlaybackState:'paused'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='På pause',undefined,{timeout:15000});
+ await forbidden();
+ // Back in the room, paused: g) stays "På pause" with one tap to continue for 10 minutes.
+ assert.equal((await change({externalOutput:'native-room'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-room')?.textContent!=='iPhone'
+  &&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken'
+  &&!document.querySelector('#play-pause')?.disabled,undefined,{timeout:15000});
+ const title=await text('#track-name');
+ const age=minutes=>page.evaluate(ms=>{
+  const saved=JSON.parse(localStorage.getItem('podview.pausedSince'));
+  localStorage.setItem('podview.pausedSince',JSON.stringify({...saved,at:Date.now()-ms}));
+ },minutes*60000);
+ await age(9);await page.reload();await testEnv.openOverview(page);
+ await page.waitForFunction(name=>document.querySelector('#track-name')?.textContent===name
+  &&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken'
+  &&!document.querySelector('#play-pause')?.disabled,title,{timeout:15000});
+ await forbidden();await shot('g-paused-9min');
+ await age(11);await page.reload();await testEnv.openOverview(page);
+ await page.locator('#empty-find-music').waitFor({state:'visible',timeout:15000});
+ assert.equal((await page.locator('#empty-find-music').innerText()).trim(),'Vælg musik');
+ assert.equal(await page.locator('#track-name').innerText(),'');
+ await shot('g-empty-11min');
+ // Playing again (from anywhere) brings the player back at once.
+ assert.equal((await change({externalPlaybackState:'playing'})).ok,true);
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Spiller på',undefined,{timeout:15000});
+ // a) No connection: one honest line, no stale "Spiller på".
+ await page.context().setOffline(true);
+ await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Forbindelsen mangler',undefined,{timeout:20000});
+ await shot('a-offline');
+ await page.context().setOffline(false);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'player-states',states:['d','f','g-9min','g-11min','a'],roomName}));
 }
 async function seekJourney(page,errors){
  const slider=page.locator('#detail-seek');
@@ -1067,6 +1130,7 @@ async function longSession(page,errors){
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  const browserOptions=testEnv.browserOptions();
  if(multiScreenMode||outputTransferMode||volumeDragMode)browserOptions.args=['--mute-audio'];
+ if(insecureOriginMode)browserOptions.args=[...browserOptions.args||[],'--host-resolver-rules=MAP podview-frame.test 127.0.0.1'];
  browser=await chromium.launch(browserOptions);
  const page=await browser.newPage({viewport:{width:1280,height:800},hasTouch:true}),errors=[],diagnosticResponses=[];
  page.on('response',async response=>{
@@ -1078,10 +1142,12 @@ async function longSession(page,errors){
   }
  });
  if(renewedControlsMode||multiScreenMode||manualRetryMode||volumeDragMode||outputTransferMode)await page.route('**/*',route=>
-  new URL(route.request().url()).origin===base?route.continue():route.abort());
+  new URL(route.request().url()).origin===pageBase?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await page.goto(pageBase+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(insecureOriginMode)assert.deepEqual(await page.evaluate(()=>({secure:isSecureContext,subtle:typeof crypto.subtle})),
+  {secure:false,subtle:'undefined'},'page runs in the same insecure context as the wall frame');
  await testEnv.openOverview(page);
  const control=page.locator('#play-pause');
  await control.waitFor({state:'visible',timeout:10000}).catch(async error=>{
@@ -1097,7 +1163,7 @@ async function longSession(page,errors){
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-failure.png')});
   console.log('control',await control.evaluate(e=>e.outerHTML));
   console.log('visibleUI',await page.locator('body').innerText());
-  console.log('playback',await (await page.request.get(base+'/view/api/music?room=kitchen&kind=playback&account=account&include_controls=1')).json());
+  console.log('playback',await (await page.request.get(pageBase+'/view/api/music?room=kitchen&kind=playback&account=account&include_controls=1')).json());
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
@@ -1122,6 +1188,7 @@ async function longSession(page,errors){
  if(outputTransferMode){await outputTransferJourney(page,errors);return;}
  if(multiScreenMode){await multiScreenJourney(page,errors);return;}
  if(externalOutputMode){await externalOutputJourney(page,errors);return;}
+ if(playerStatesMode){await playerStatesJourney(page,errors);return;}
  if(process.env.MUSIC_LONG_SESSION==='1'){await longSession(page,errors);return;}
  // Measure from the actual trusted touch-generated click, not from a later screenshot.
  await page.evaluate(()=>{
@@ -1314,8 +1381,8 @@ async function longSession(page,errors){
  // fixture state mutation or fabricated receipt substitutes for the backend.
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),b=document.querySelector('#play-pause');return h?.liveMedia?.playback?.state==='playing'&&b&&!b.disabled},undefined,{timeout:15000});
  const beforeLoss=await state();let swallowedResponses=0;
- const controlURL=base+'/view/api/control/actions';
- const loseAcceptedPause=async route=>{if(route.request().postDataJSON()?.action!=='pause'){await route.continue();return;}const response=await route.fetch();assert.equal(response.ok(),true);const receipt=await response.json();assert.equal(receipt.outcome,'accepted');swallowedResponses++;await route.abort('failed');};
+ const controlURL=pageBase+'/view/api/control/actions';
+ const loseAcceptedPause=async route=>{if(route.request().postDataJSON()?.action!=='pause'){await route.continue();return;}const response=await route.fetch({url:route.request().url().replace(pageBase,base)});assert.equal(response.ok(),true);const receipt=await response.json();assert.equal(receipt.outcome,'accepted');swallowedResponses++;await route.abort('failed');};
  await page.route(controlURL,loseAcceptedPause);await control.tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicFence?.outcome==='unknown',undefined,{timeout:15000});
  await page.unroute(controlURL,loseAcceptedPause);

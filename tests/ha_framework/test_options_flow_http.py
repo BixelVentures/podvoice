@@ -103,6 +103,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.release.set()
         self.addAsyncCleanup(self.release.set)
         self.bad = None
+        self.enrolled = []
 
         async def service(call):
             self.calls.append(call)
@@ -127,7 +128,7 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
                             "status": "pending",
                         }
                     ],
-                    "enrolled": [],
+                    "enrolled": self.enrolled,
                 }
             if call.service == "controller_approve":
                 return {
@@ -212,6 +213,30 @@ class OptionsHTTPTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dict(self.entry.data), self.original)
         self.assertEqual(dict(self.entry.options), {"retained": "unchanged"})
         self.assertNotIn(REQUEST_ID, repr(self.entry.as_dict()))
+
+    async def test_third_and_later_screens_are_listed_for_management(self):
+        # Previously only the first two approved screens were offered; a third was unmanageable.
+        self.enrolled = [
+            {
+                "id": f"{index + 1:032x}",
+                "name": f"Skærm {index + 1}",
+                "room": "configured-alpha",
+                "persistent": True,
+                "expiresAt": None,
+                "status": "active",
+                "areaId": None,
+                "placementRevision": 0,
+            }
+            for index in range(3)
+        ]
+        status, body = await self.request(data={"handler": self.entry.entry_id})
+        self.assertEqual(status, 200, body)
+        path = URL + "/" + body["flow_id"]
+        status, body = await self.request(path, {"room": "configured-alpha"})
+        self.assertEqual((status, body["step_id"]), (200, "manage"), body)
+        for row in self.enrolled:
+            self.assertIn(f"display:{row['id']}", str(body))
+            self.assertIn(row["name"], str(body))
 
     async def test_emergency_revoke_has_no_profile_identifier(self):
         path = await self.begin("revoke:")

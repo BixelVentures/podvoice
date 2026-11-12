@@ -92,6 +92,6 @@ test('persistent control read failure yields to real selection feedback and neve
   f.selection.feedback={message:'Afventer det eksplicitte musikvalg.',pending:true};f.media.render();assert.equal(f.nodes.get('player-state').textContent,'Afventer det eksplicitte musikvalg.');assert.equal(f.host.dataset.selectionFeedback,'true');
   f.selection.feedback=null;f.media.render();assert.equal(f.nodes.get('player-state').textContent,'Kan ikke styre højttaleren lige nu. Prøv igen om lidt.');assert.equal(f.host.dataset.selectionFeedback,'false');
   f.host.liveTransport.music=async()=>({...f.playback(),status:'account_observed',reason:'route_unavailable',binding:null});await f.media.refresh({immediate:true});await settle();
-  assert.equal(f.nodes.get('player-state').textContent,'Afspiller · højttaler ikke bekræftet');assert.equal(f.nodes.get('detail-status').textContent,'Kontostatus · afspiller · højttaler ikke bekræftet');assert.equal(f.host.dataset.selectionFeedback,'false');disabled(f);assert.deepEqual(f.writes,[]);
+  assert.equal(f.nodes.get('player-state').textContent,'Spiller på');assert.doesNotMatch(f.nodes.get('detail-status').textContent,/ikke bekræftet|Kontostatus/);assert.equal(f.host.dataset.selectionFeedback,'false');disabled(f);assert.deepEqual(f.writes,[]);
  }finally{f.restore();}
 });

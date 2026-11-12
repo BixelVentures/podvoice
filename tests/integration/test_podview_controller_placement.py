@@ -48,10 +48,9 @@ def test_two_controllers_same_session_room_keep_independent_placement_and_author
     assert reopened.placement(display_id, "session-room", PIN) == placed_display
     assert reopened.validate(mac, "session-room", PIN) == (mac_id, expiry)
     assert reopened.validate(display, "session-room", PIN) == (display_id, None)
-    with pytest.raises(ContinuityDenied, match="room enrollment full"):
-        reopened.enroll("session-room", PIN)
+    # The room bound is covered by the continuity tests; listing is newest first.
     admin_rows = reopened.list_enrollments("session-room", PIN)
-    assert [row["areaId"] for row in admin_rows] == ["kitchen_area", "living_area"]
+    assert [row["areaId"] for row in admin_rows] == ["living_area", "kitchen_area"]
     assert all(
         "bindingId" not in row and "pin" not in row and "digest" not in row for row in admin_rows
     )
