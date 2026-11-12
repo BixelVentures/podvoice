@@ -315,9 +315,12 @@ export class LiveControlView{
   this.musicQueued = null;
   // A choice waiting in waitForMusicLane gets its turn; after UNKNOWN it is not sent.
   releaseMusicLane(this, outcome === 'unknown' ? 'unknown' : 'free');
-  // A song observed while the intent was pending had its queue read deferred; read it now (K2).
-  void this.host.liveMedia?.loadQueue?.({automatic:true})?.catch?.(()=>{});
-  if(outcome!=='accepted')this.host.liveMedia?.queueControls?.skip?.(null);
+  // A song reached by a skip while the intent was pending had its queue read deferred; read it now (K2).
+  // Only skips: other music effects (e.g. a speaker move) keep their own queue lifecycle.
+  if(skippedTrackUri){
+   void this.host.liveMedia?.loadQueue?.({automatic:true})?.catch?.(()=>{});
+   if(outcome!=='accepted')this.host.liveMedia?.queueControls?.skip?.(null);
+  }
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
