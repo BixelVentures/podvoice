@@ -83,6 +83,20 @@ export function vehicleChargeUpdate(previous,model,{connected=false,scope='',sou
  return {scope,eligible,observedAt:retain?previous.observedAt:observedAt,percent:retain?previous.percent:percent,status:retain?previous.status:status,cancel:!eligible||status!=='charging'||!sameScope,cue:!suppress&&eligible&&previous?.eligible===true&&sameScope&&observedAt>previous.observedAt&&status==='charging'&&(previous.status!=='charging'||percent!==previous.percent)};
 }
 
+// Overview tile facts. Charge power and finish time only while the car is charging:
+// a stopped or unknown charge shows a plain battery/range tile, never "0 kW" (B7).
+export function vehicleOverviewFacts(vehicle){
+ if(!vehicle||vehicle.mode==='unconnected')return [];
+ const charging=vehicle.charging?.status==='charging',clock=at=>new Date(at*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+ const rows=[
+  ['battery','Batteri',Number.isFinite(vehicle.batteryPercent)?`${Math.round(vehicle.batteryPercent)} %`:null],
+  ['range','Rækkevidde',Number.isFinite(vehicle.rangeKm)?`${Math.round(vehicle.rangeKm)} km`:null],
+  ['power','Ladeeffekt',charging&&Number.isFinite(vehicle.charging.powerKw)?`${vehicle.charging.powerKw.toLocaleString('da-DK')} kW`:null],
+  ['ends','Opladning færdig',charging&&Number.isFinite(vehicle.charging.endsAt)?clock(vehicle.charging.endsAt):null],
+  ['temperature','Kabinetemperatur',Number.isFinite(vehicle.climate?.temperatureC)?`${vehicle.climate.temperatureC.toLocaleString('da-DK')}°`:null],
+  ['lock','Lås',typeof vehicle.locked==='boolean'?vehicle.locked?'Låst':'Ulåst':null]];
+ return rows.filter(([,,value])=>value!==null).map(([id,label,value])=>({id,label,value,stale:false}));
+}
 // Ro reuses the existing passive resource tile. Retained charging is explicitly
 // last-known; neither the tile nor its optional facts grants command authority.
 export function vehicleRailPresentation(value,{live=true,connected=false,readGranted=false,scope='',sourceScope=''}={}){

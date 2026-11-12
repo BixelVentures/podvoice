@@ -12,7 +12,7 @@ import {RecipeView} from './recipe-view.js';
 import {RadioView} from './radio-view.js';
 import {VehicleView} from './vehicle-view.js';
 import {VehiclePreviewCommand} from './vehicle-preview-command.js';
-import {vehicleFixture,unconnectedVehicleModel,vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleUpdatedLabel} from './vehicle-model.js';
+import {vehicleFixture,unconnectedVehicleModel,vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleUpdatedLabel,vehicleOverviewFacts} from './vehicle-model.js';
 import {SpeakerOutputView} from './speaker-output-view.js';
 import {PlayerView,localPlayerModel,localQueueModel,localControlModel} from './player-view.js';
 import {attachTouchIntent} from './ui/touch-intent.js';
@@ -838,7 +838,7 @@ class WidgetHost extends HTMLElement {
   updateResourceFacts($('home-music'),{facts:music,context:known&&!radio?(vm.readOnly?`${vm.playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`:vm.fresh===false?'Sidst kendte afspilning':vm.playing?'Afspiller':'På pause'):''});
   const radioFacts=[];if(radio){radioFacts.push({id:'station',label:'Station',value:vm.title,stale});if(vm.target)radioFacts.push({id:'radio-room',label:'Højttaler',value:vm.target,stale});}
   updateResourceFacts($('home-radio'),{facts:radioFacts,context:''});
-  const car=[];if(vehicle&&vehicle.mode!=='unconnected'){const stale=false;for(const [id,label,value]of [['battery','Batteri',Number.isFinite(vehicle.batteryPercent)?`${Math.round(vehicle.batteryPercent)} %`:null],['range','Rækkevidde',Number.isFinite(vehicle.rangeKm)?`${Math.round(vehicle.rangeKm)} km`:null],['power','Ladeeffekt',Number.isFinite(vehicle.charging?.powerKw)?`${vehicle.charging.powerKw.toLocaleString('da-DK')} kW`:null],['ends','Opladning færdig',vehicle.charging?.status==='charging'&&Number.isFinite(vehicle.charging.endsAt)?new Date(vehicle.charging.endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}):null],['temperature','Kabinetemperatur',Number.isFinite(vehicle.climate?.temperatureC)?`${vehicle.climate.temperatureC.toLocaleString('da-DK')}°`:null],['lock','Lås',typeof vehicle.locked==='boolean'?vehicle.locked?'Låst':'Ulåst':null]])if(value!==null)car.push({id,label,value,stale});}
+  const car=vehicleOverviewFacts(vehicle);
   updateResourceFacts($('home-vehicle'),{facts:car,context:vehicle?.mode==='unconnected'?'':[vehicle?.status,vehicleUpdatedLabel(vehicle)].filter(Boolean).join(' · ')});
   const current=this.timerView?.currentTimer,timer=[];if(!current){const seen=new Set();for(const previous of s.timerHistory||[])if(Number.isFinite(previous.seconds)&&previous.seconds>0&&!seen.has(previous.seconds)){seen.add(previous.seconds);timer.push({id:`recent:${previous.seconds}`,label:timer.length?'Tidligere tid':'Senest brugt',value:timerTime(previous.seconds)});if(timer.length===3)break;}}
   // Active Timer and weather retain their own richer dial/deadline/forecast

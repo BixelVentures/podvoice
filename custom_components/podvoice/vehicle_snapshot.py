@@ -257,7 +257,13 @@ def _merge_fields(fields, observations):
     return changed
 
 
-def _ha_discrete_fields(states, entities, coordinator_fields):
+def _ha_discrete_fields(states, entities, coordinator_fields, returns=None):
+    """HA lock/trunk/climate state changes newer than the Fleet data for that field.
+
+    A change to the value the coordinator already holds is collected in `returns`
+    instead: it is only a real observation when it moves the field back from a newer,
+    different value (for example lock after unlock), not when HA republishes it.
+    """
     observations = {}
     for role, path, values in (
         ("locked", "locked", {"locked": True, "unlocked": False}),
@@ -276,6 +282,8 @@ def _ha_discrete_fields(states, entities, coordinator_fields):
         raw = coordinator_fields.get(path)
         if raw is not None and raw["value"] == value:
             # HA may republish unchanged coordinator data while the car sleeps.
+            if returns is not None and _number(stamp, 1, time.time()):
+                returns[path] = {"value": value, "observedAt": stamp}
             continue
         if path == "trunk" and value == "open" and raw is None:
             # Tesla Fleet's rear cover also renders missing/null raw rt as open.
@@ -536,8 +544,11 @@ class VehicleSnapshot:
 
         state_machine = getattr(self.hass, "states", None)
         ha_fields = {}
+        ha_returns = {}
         if state_machine is not None:
-            ha_fields = _ha_discrete_fields(state_machine, entities, coordinator_fields)
+            ha_fields = _ha_discrete_fields(
+                state_machine, entities, coordinator_fields, ha_returns
+            )
             # Defrost has no trustworthy raw counterpart in the Fleet projection.
             eid = entities.get("defrost")
             state = state_machine.get(eid) if eid else None
@@ -614,6 +625,17 @@ class VehicleSnapshot:
                         changed = True
                     elif row["observedAt"] < old["observedAt"] or row != old:
                         historical.append(path)
+                for path, row in ha_returns.items():
+                    old = saved.get(path)
+                    if (
+                        old is not None
+                        and old["value"] != row["value"]
+                        and row["observedAt"] > old["observedAt"]
+                    ):
+                        # HA changed back to the coordinator's older value: a real change.
+                        saved[path] = row
+                        historical = [item for item in historical if item != path]
+                        changed = True
                 for path in saved:
                     if path not in current_fields:
                         historical.append(path)

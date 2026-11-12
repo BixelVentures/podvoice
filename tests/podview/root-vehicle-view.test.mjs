@@ -338,6 +338,35 @@ test('a later contrary observation removes the confirmed action text',async()=>{
  view.render(report(true,sentAt+2),options);
  assert.equal(view.accessFeedback.textContent,'');
 });
+test('HA lock change confirms Lås even when the HA clock is behind the screen and Fleet time is old',async()=>{
+ const {root}=fixture();
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['lock','unlock'],feedbackScope:'same-car'};
+ const report=(locked,stamp)=>vehicleObservation({status:'observed',source:'home_assistant_state',
+  observedAt:stamp,fieldObservedAt:{locked:stamp},entityIds:['sensor.car'],
+  data:{locked,charging:{},climate:{}}});
+ const now=Date.now()/1000;
+ view.render(report(false,now-40),options);
+ await view.finishVehicle({confirmation:{action:'lock'},operation:{
+  presentationCurrent:()=>true,observationCurrent:()=>true,waitForObservation:()=>()=>{},
+ }},view.liveVehicleButtons.lock);
+ const sentAt=view.liveVehicleCommands.get('lock').sentAt;
+ view.render(report(true,sentAt-1.5),options);
+ assert.equal(view.access.status.textContent,'Låst');
+ assert.equal(view.accessFeedback.textContent,'Bilen er låst.');
+ assert.doesNotMatch(view.accessFeedback.textContent,/Udfald ukendt/);
+});
+test('overview facts show no charge power or finish unless the car is charging (B7)',async()=>{
+ const {vehicleOverviewFacts}=await import('../../podvoice/gatekeeper/static/podview/vehicle-model.js');
+ const car={mode:'observed',batteryPercent:21,rangeKm:80,locked:true,climate:{}};
+ for(const status of ['unknown','stopped','complete',undefined]){
+  const ids=vehicleOverviewFacts({...car,charging:{status,powerKw:0,endsAt:Date.now()/1000+600}}).map(row=>row.id);
+  assert.deepEqual(ids,['battery','range','lock'],String(status));
+ }
+ const charging=vehicleOverviewFacts({...car,charging:{status:'charging',powerKw:11}});
+ assert.deepEqual(charging.find(row=>row.id==='power'),{id:'power',label:'Ladeeffekt',value:'11 kW',stale:false});
+ assert.deepEqual(vehicleOverviewFacts({mode:'unconnected'}),[]);
+});
 test('live unknown feedback survives same scope snapshot and clears when scope changes',async()=>{
  const {root}=fixture();let sends=0;const view=new VehicleView(root,{onVehicleSend:async()=>{sends++;return {status:'unknown'};}});const data=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car'],data:{charging:{},climate:{}}});const options={vehicleActions:['lock'],feedbackScope:'scope-a'};view.render(data,options);await view.finishVehicle({confirmation:{action:'lock'},operation:{}},view.liveVehicleButtons.lock);assert.match(view.accessFeedback.textContent,/Udfald ukendt/);view.render(data,options);assert.match(view.accessFeedback.textContent,/Udfald ukendt/);assert.equal(view.accessFeedback.hidden,false);assert.equal(sends,1);view.render(data,{...options,feedbackScope:'scope-b'});assert.equal(view.accessFeedback.textContent,'');view.cleanup();
 });

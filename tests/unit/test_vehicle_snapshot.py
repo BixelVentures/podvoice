@@ -881,6 +881,48 @@ async def test_unchanged_ha_republication_does_not_refresh_sleeping_tesla_field(
     assert result["status"] == "stale"
 
 
+async def test_ha_lock_after_unlock_counts_without_new_fleet_timestamp(rig, monkeypatch):
+    """Green 12 Nov: unlock then lock from PodView; Fleet still held the old locked."""
+    from datetime import datetime
+
+    stored = {}
+
+    class Store:
+        async def async_load(self):
+            return copy.deepcopy(stored.get("data"))
+
+        async def async_save(self, data):
+            stored["data"] = copy.deepcopy(data)
+
+    monkeypatch.setattr(snapshot, "_history_store", lambda hass: Store())
+    rig.vehicle.coordinator.data = {
+        "vehicle_state_timestamp": (rig.now - 1800) * 1000,
+        "vehicle_state_locked": True,
+        "vehicle_state_rt": 0,
+        "charge_state_timestamp": (rig.now - 1800) * 1000,
+        "charge_state_battery_level": 21,
+    }
+    rig.frame["vehicle_state"]["timestamp"] = (rig.now - 1800) * 1000
+    state = NS(
+        entity_id="lock.car",
+        state="unlocked",
+        last_changed=datetime.fromtimestamp(rig.now - 42, UTC),
+        last_reported=datetime.fromtimestamp(rig.now - 42, UTC),
+    )
+    rig.hass.states = NS(get=lambda eid: state if eid == "lock.car" else None)
+    unlocked = await rig.owner.async_read(rig.call)
+    assert unlocked["data"]["locked"] is False
+    assert unlocked["fieldObservedAt"]["locked"] == rig.now - 42
+
+    # The lock command: HA's lock entity changes, Fleet's timestamp does not.
+    state.state = "locked"
+    state.last_changed = datetime.fromtimestamp(rig.now - 1, UTC)
+    locked = await rig.owner.async_read(rig.call)
+    assert locked["data"]["locked"] is True
+    assert locked["fieldObservedAt"]["locked"] == rig.now - 1
+    assert "locked" not in locked["historicalFields"]
+
+
 async def test_partial_coordinator_refresh_during_cache_read_cannot_admit_false_trunk_open(rig):
     from datetime import datetime
 
