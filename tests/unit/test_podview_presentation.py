@@ -211,8 +211,11 @@ def test_no_current_session_bucket_or_foreign_source_fallback(change):
     if change == "missing":
         final["presentation"]["sourceCalls"] = ["different-call"]
         args["message"] = json.dumps(final)
-    assert not sink.offer_completed_answer(**args)
-    assert sink.snapshot("kitchen")["items"] == []
+    # Rule 5: the foreign/expired source is never shown; the answer becomes a text card.
+    assert sink.offer_completed_answer(**args)
+    item = sink.snapshot("kitchen", args["owner"])["items"][0]
+    assert item["family"] == "concise" and "facts" not in item["content"]
+    assert item["content"]["summary"] == final["spoken"]
 
 
 def test_registry_carries_only_same_explicit_delegation_over_multiple_response_ids():
@@ -259,11 +262,14 @@ def test_replay_selector_suppression_stop_and_normal_close_keep_original_lifecyc
 
 
 @pytest.mark.parametrize("family", ["fact-card", "chart"])
-def test_generated_facts_and_chart_numbers_never_fabricate_a_concise_fallback(family):
+def test_generated_facts_and_chart_numbers_become_a_text_card_with_what_she_said(family):
     owner, sink = object(), VisualReceiptOwner()
-    assert not sink.offer_completed_answer(**context(owner, message=json.dumps(message(family))))
-    assert sink.snapshot("kitchen", owner)["items"] == []
-    assert sink._history == {}
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(message(family))))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "concise"
+    assert item["content"]["summary"] == "Sådan virker det."
+    assert item["title"] == "Hvordan virker cyklens kæde og pedaler?"
+    assert "facts" not in item["content"] and "items" not in item["content"]
 
 
 def test_missing_or_tampered_pinned_asset_does_not_publish_an_image(monkeypatch):
@@ -271,11 +277,11 @@ def test_missing_or_tampered_pinned_asset_does_not_publish_an_image(monkeypatch)
 
     monkeypatch.setattr(producer, "owned_image_sources", lambda: {})
     owner, sink = object(), VisualReceiptOwner()
-    assert not sink.offer_completed_answer(
+    assert sink.offer_completed_answer(
         **context(owner, message=json.dumps(message("sourced-image")))
     )
-    assert sink.snapshot("kitchen", owner)["items"] == []
-    assert sink._history == {}
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "concise" and "image" not in item["content"]
 
 
 @pytest.mark.parametrize(
@@ -366,11 +372,12 @@ def test_model_bicycle_title_cannot_authorize_unrelated_or_missing_user_context(
     owner, sink = object(), VisualReceiptOwner()
     data = message("sourced-image")
     data["presentation"].update(title="Cyklens kæde", summary="Cyklens pedaler og baghjul")
-    assert not sink.offer_completed_answer(
+    assert sink.offer_completed_answer(
         **context(owner, message=json.dumps(data), question_context=question)
     )
-    assert sink.snapshot("kitchen", owner)["items"] == []
-    assert sink._history == {}
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "concise" and "image" not in item["content"]
+    assert item["title"] == (question or "Svar fra PodVoice")
 
 
 def test_unrelated_context_removes_optional_diagram_illustration_only():
@@ -392,32 +399,40 @@ def test_unrelated_context_removes_optional_diagram_illustration_only():
     [
         "Musikken spiller nu.",
         "Timeren er startet.",
-        "Tak, vi tales ved.",
         "En lang talt forklaring uden udtrykkeligt valgt visuelt indhold. " * 6,
         json.dumps({"spoken": "Rengøringen er sat i gang.", "presentation": None}),
-        "{malformed}",
-        json.dumps({"spoken": "Modtaget.", "presentation": {"family": "unknown"}}),
     ],
 )
-def test_spoken_only_null_acknowledgements_and_malformed_output_never_create_visual_or_history(raw):
+def test_every_spoken_answer_gets_a_text_card_and_history(raw):
+    owner, sink = object(), VisualReceiptOwner()
+    assert sink.offer_completed_answer(**context(owner, message=raw))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    spoken = final_message(raw)["spoken"]
+    assert item["family"] == "concise" and item["displaySuggested"] is True
+    assert spoken.startswith(item["content"]["summary"].rstrip("…"))
+    assert item["content"]["sources"][0]["label"] == "Det sagde PodVoice"
+    assert sink._history["kitchen"]["items"][0]["display"]["receiptId"] == item["receiptId"]
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ["{malformed}", json.dumps({"spoken": "Modtaget.", "presentation": {"family": "unknown"}})],
+)
+def test_malformed_json_is_never_shown_as_literal_text(raw):
     owner, sink = object(), VisualReceiptOwner()
     assert not sink.offer_completed_answer(**context(owner, message=raw))
     assert sink.snapshot("kitchen", owner)["items"] == []
-    assert sink._history == {} and sink._selection is None
-    if not raw.startswith("{"):
-        assert final_message(raw) == {"spoken": raw, "presentation": None}
 
 
 @pytest.mark.parametrize(
     "raw_content",
     [
-        {},
         {"visualValue": "acknowledgement"},
         {"visualValue": True},
         {"visualValue": "reference", "automatic": True},
     ],
 )
-def test_concise_requires_closed_explicit_reference_judgment(raw_content):
+def test_unknown_concise_content_becomes_the_plain_text_card(raw_content):
     owner, sink = object(), VisualReceiptOwner()
     data = message("concise")
     data["spoken"] = "Musikken spiller nu."
@@ -427,9 +442,10 @@ def test_concise_requires_closed_explicit_reference_judgment(raw_content):
     assert (
         final_message(raw)["spoken"] == data["spoken"]
     )  # Declining the visual keeps voice extraction.
-    assert not sink.offer_completed_answer(**context(owner, message=raw))
-    assert sink.snapshot("kitchen", owner)["items"] == []
-    assert sink._history == {}
+    assert sink.offer_completed_answer(**context(owner, message=raw))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert set(item["content"]) == {"summary", "sources"}
+    assert item["content"]["summary"] == "Musikken spiller nu."
 
 
 @pytest.mark.parametrize(
@@ -476,32 +492,25 @@ def test_spoken_followup_decline_preserves_existing_useful_answer_and_archive():
         ("simple-diagram", {"nodes": []}),
     ],
 )
-def test_malformed_explicit_family_never_falls_back_to_spoken_text(family, content):
+def test_malformed_explicit_family_falls_back_to_spoken_text(family, content):
     owner, sink = object(), VisualReceiptOwner()
     data = message(family)
     data["presentation"]["content"] = content
     raw = json.dumps(data)
     assert final_message(raw)["spoken"] == data["spoken"]
-    assert not sink.offer_completed_answer(**context(owner, message=raw))
-    assert sink.snapshot("kitchen", owner)["items"] == [] and sink._history == {}
+    assert sink.offer_completed_answer(**context(owner, message=raw))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "concise" and item["content"]["summary"] == data["spoken"]
 
 
-def test_backend_instructions_reserve_visuals_for_semantic_added_value_without_an_extra_call():
-    from gatekeeper.podview_presentation import BACKEND_PRESENTATION_INSTRUCTIONS
+def test_backend_instructions_always_choose_a_card_by_content_without_an_extra_call():
+    from gatekeeper.podview_presentation import BACKEND_PRESENTATION_INSTRUCTIONS as text
 
-    assert 'concise content{visualValue:"reference"}' in BACKEND_PRESENTATION_INSTRUCTIONS
-    assert "presentation:null" in BACKEND_PRESENTATION_INSTRUCTIONS
-    assert "kommando-kvittering" in BACKEND_PRESENTATION_INSTRUCTIONS
-    assert "konkret visuel merværdi" in BACKEND_PRESENTATION_INSTRUCTIONS
-    assert "Ingen ekstra modelrunde" in BACKEND_PRESENTATION_INSTRUCTIONS
-    assert (
-        "vælg en passende visning til en substantiel forklaring"
-        in BACKEND_PRESENTATION_INSTRUCTIONS
-    )
-    assert (
-        "med nyttig genlæsningsværdi i dit NORMALE sidste assistantresultat"
-        in BACKEND_PRESENTATION_INSTRUCTIONS
-    )
+    assert "vælg altid et svarkort" in text
+    assert "sport-result content{match:" in text and "key-points content{points:" in text
+    assert "concise content{} til alt andet" in text
+    assert "Ved tvivl: ingen ny visning" not in text
+    assert "Ingen ekstra modelrunde" in text
 
 
 @pytest.mark.parametrize("failure", ["missing", "tampered"])
@@ -522,10 +531,10 @@ def test_real_owned_webp_asset_must_exist_and_match_pin(monkeypatch, failure):
     monkeypatch.setattr(Path, "read_bytes", read)
     assert producer.owned_image_sources() == {}
     owner, sink = object(), VisualReceiptOwner()
-    assert not sink.offer_completed_answer(
+    assert sink.offer_completed_answer(
         **context(owner, message=json.dumps(message("sourced-image")))
     )
-    assert sink.snapshot("kitchen", owner)["items"] == [] and not sink._history
+    assert sink.snapshot("kitchen", owner)["items"][0]["family"] == "concise"
 
 
 def test_requested_spoken_scope_survives_optional_visual_budget():
@@ -545,3 +554,61 @@ def test_requested_spoken_scope_survives_optional_visual_budget():
         "Fold flyveren sammen langs midterfolden. Fold en vinge ned på hver side."
     )
     assert final_message(full_answer) == {"spoken": full_answer, "presentation": None}
+
+
+def test_sport_result_card_shows_teams_score_scorers_and_date():
+    owner, sink = object(), VisualReceiptOwner()
+    data = {
+        "spoken": "Barcelona vandt 3-1 over Sevilla i går. Lewandowski scorede to.",
+        "presentation": {
+            "family": "sport-result",
+            "title": "FC Barcelona mod Sevilla",
+            "summary": "Barcelona vandt 3-1 hjemme.",
+            "origin": "ai_explanation",
+            "content": {
+                "match": {
+                    "home": "FC Barcelona",
+                    "away": "Sevilla",
+                    "homeScore": 3,
+                    "awayScore": 1,
+                    "date": "11. november 2026",
+                    "competition": "La Liga",
+                },
+                "scorers": [
+                    {"team": "home", "name": "Lewandowski", "minute": "12'"},
+                    {"team": "home", "name": "Lewandowski", "minute": "58'"},
+                    {"team": "away", "name": "En-Nesyri", "minute": None},
+                ],
+            },
+            "sourceCalls": [],
+        },
+    }
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(data)))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "sport-result"
+    assert item["content"]["match"]["homeScore"] == 3
+    assert [r["name"] for r in item["content"]["scorers"]][:1] == ["Lewandowski"]
+    archived = sink._history["kitchen"]["items"][0]["display"]
+    assert archived["family"] == "sport-result"
+
+
+def test_key_points_card_has_headline_points_and_source_label():
+    owner, sink = object(), VisualReceiptOwner()
+    data = {
+        "spoken": "Månen er cirka 384.400 km væk.",
+        "presentation": {
+            "family": "key-points",
+            "title": "Afstanden til Månen",
+            "summary": "Månen er i gennemsnit 384.400 km fra Jorden.",
+            "origin": "ai_explanation",
+            "content": {"points": ["Gennemsnit 384.400 km", "Lys bruger 1,3 sekunder"]},
+            "sourceCalls": [],
+        },
+    }
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(data)))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert [p["text"] for p in item["content"]["points"]] == [
+        "Gennemsnit 384.400 km",
+        "Lys bruger 1,3 sekunder",
+    ]
+    assert sink._history["kitchen"]["items"][0]["display"]["family"] == "key-points"

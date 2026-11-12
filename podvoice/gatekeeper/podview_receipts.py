@@ -15,9 +15,10 @@ import re
 import secrets
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from .history import History
@@ -64,6 +65,8 @@ def validated_archive_display(value: object) -> dict | None:
             "answer-timeline": {"events"},
             "simple-diagram": {"nodes"},
             "sourced-image": {"image"},
+            "sport-result": {"match", "scorers"},
+            "key-points": {"points"},
         }
         if family not in additions or type(content) is not dict:
             return None
@@ -172,6 +175,42 @@ def validated_archive_display(value: object) -> dict | None:
                 for row in content[key]
             ):
                 return None
+        elif family == "key-points":
+            if not rows("points", 4, {"text": 240, "sourceId": 0}):
+                return None
+        elif family == "sport-result":
+            match = content["match"]
+            if type(match) is not dict or set(match) != {
+                "home",
+                "away",
+                "homeScore",
+                "awayScore",
+                "date",
+                "competition",
+            }:
+                return None
+            if not all(text(match[k], 80) for k in ("home", "away", "date")) or (
+                match["competition"] is not None and not text(match["competition"], 80)
+            ):
+                return None
+            scores = (match["homeScore"], match["awayScore"])
+            if (scores[0] is None) != (scores[1] is None) or any(
+                v is not None and (type(v) is not int or not 0 <= v <= 999) for v in scores
+            ):
+                return None
+            scorers = content["scorers"]
+            if type(scorers) is not list or len(scorers) > 12:
+                return None
+            for row in scorers:
+                if (
+                    type(row) is not dict
+                    or set(row) != {"id", "team", "name", "minute", "sourceId"}
+                    or row["team"] not in {"home", "away"}
+                    or not text(row["name"], 80)
+                    or (row["minute"] is not None and not text(row["minute"], 24))
+                    or row["sourceId"] not in source_ids
+                ):
+                    return None
         for name in ("image", "illustration"):
             if name not in content:
                 continue
@@ -275,7 +314,99 @@ def _weather_result(response: dict) -> dict:
     return {**response, "data": {**data, "result": {**result, "forecast": decoded}}}
 
 
-def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict] | None:
+_TZ = ZoneInfo("Europe/Copenhagen")
+_WEEKDAYS = ("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag")
+_MONTHS = (
+    "januar",
+    "februar",
+    "marts",
+    "april",
+    "maj",
+    "juni",
+    "juli",
+    "august",
+    "september",
+    "oktober",
+    "november",
+    "december",
+)
+
+
+def requested_day(question: object, now: float) -> tuple[date, str] | None:
+    """The day a Danish weather question asks about; None means now/today."""
+    if not isinstance(question, str) or len(question) > 1200:
+        return None
+    text = question.casefold()
+    today = datetime.fromtimestamp(now, _TZ).date()
+    if re.search(r"\bi\s*overmorgen\b|\bovermorgen\b", text):
+        return today + timedelta(days=2), "i overmorgen"
+    if re.search(r"\bi\s*morgen\b|\bimorgen\b", text) and not re.search(r"\bi\s*morges\b", text):
+        return today + timedelta(days=1), "i morgen"
+    for index, name in enumerate(_WEEKDAYS):
+        if re.search(rf"\b(?:på\s+)?{name}(?:en)?\b", text):
+            ahead = (index - today.weekday()) % 7
+            if ahead == 0:
+                return None
+            return today + timedelta(days=ahead), name
+    return None
+
+
+def _day_label(day: date) -> str:
+    return f"{_WEEKDAYS[day.weekday()]} {day.day}. {_MONTHS[day.month - 1]}"
+
+
+def _forecast_day_facts(data: dict, day: date, phrase: str) -> list[dict] | None:
+    rows = []
+    for row in data.get("forecast") or []:
+        try:
+            when = datetime.fromisoformat(row["datetime"]).astimezone(_TZ).date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if when == day:
+            rows.append(row)
+    if not rows:
+        return None
+    unit = data["units"]["temperature"]
+    detail = (
+        f"Prognose for {phrase} {_day_label(day)}"
+        if phrase not in _WEEKDAYS
+        else (f"Prognose for {_day_label(day)}")
+    )
+    if data.get("forecastType") == "daily":
+        high = rows[0].get("highTemperature")
+        low = rows[0].get("lowTemperature")
+        condition = rows[0].get("condition")
+        rain = rows[0].get("precipitation_probability")
+    else:
+        temps = [r["temperature"] for r in rows if isinstance(r.get("temperature"), (int, float))]
+        high = max(temps) if temps else None
+        low = min(temps) if temps else None
+        midday = min(
+            rows,
+            key=lambda r: abs(datetime.fromisoformat(r["datetime"]).astimezone(_TZ).hour - 13),
+        )
+        condition = midday.get("condition")
+        chances = [
+            r["precipitation_probability"]
+            for r in rows
+            if isinstance(r.get("precipitation_probability"), (int, float))
+        ]
+        rain = max(chances) if chances else None
+    facts = []
+    if condition is not None:
+        facts.append({"label": "Vejrforhold", "value": condition, "detail": detail})
+    if high is not None:
+        facts.append({"label": "Højeste", "value": f"{high} {unit}", "detail": detail})
+    if low is not None:
+        facts.append({"label": "Laveste", "value": f"{low} {unit}", "detail": detail})
+    if rain is not None:
+        facts.append({"label": "Risiko for regn", "value": f"{round(rain)} %", "detail": detail})
+    return facts or None
+
+
+def _facts(
+    tool_name: str, result: object, question: str | None = None
+) -> tuple[str, list[dict], bool, dict] | None:
     if not isinstance(result, dict) or result.get("ok") is not True:
         return None
     if tool_name in {"weather_forecast", "HassGetWeather"}:
@@ -283,6 +414,28 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
         if projected["status"] != "observed":
             return None
         data = projected["data"]
+        asked = requested_day(question, time.time())
+        day_facts = _forecast_day_facts(data, *asked) if asked is not None else None
+        if day_facts is not None and asked is not None:
+            return (
+                f"Vejret i {data['location']} {asked[1] if asked[1] not in _WEEKDAYS else 'på ' + asked[1]}",
+                day_facts,
+                False,
+                {
+                    "kind": "ha_weather",
+                    "source": data["source"],
+                    "retrievedAt": data["retrievedAt"],
+                    "stateUpdatedAt": data["stateUpdatedAt"],
+                    "validUntil": math.floor(
+                        (
+                            datetime.fromisoformat(data["retrievedAt"]).timestamp()
+                            + MAX_RETRIEVAL_AGE_S
+                        )
+                        * 1000
+                    )
+                    / 1000,
+                },
+            )
         facts = []
         current = data["current"]
         if current and current["temperature"] is not None:
@@ -749,6 +902,7 @@ class VisualReceiptOwner:
         read_current: Callable[[bool], bool] | None = None,
         direct_weather: bool = False,
         delegation_id: str | None = None,
+        question: str | None = None,
     ) -> bool:
         """Offer after result submission; no coroutine, network request or retry."""
         if self._closed or not all(
@@ -782,7 +936,7 @@ class VisualReceiptOwner:
                 and _text(tool_query, 240)
                 else None
             )
-            projected = _facts(tool_name, result) if research is None else None
+            projected = _facts(tool_name, result, question) if research is None else None
             if projected is None and research is None:
                 from .podview_presentation import remember_source
 
