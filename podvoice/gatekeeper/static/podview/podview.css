@@ -2996,7 +2996,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 ae0c218170b5469e60560a8eedf40986c18d0f86403800d19694959a7eeaf1d8 */
+/* Source: ui-kit.css · SHA256 666a82b6a9f7a2bf2606b80cd6fe2e8382108b3808303245460d6273ec87eac2 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -5315,7 +5315,7 @@ pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pe
 #quick-sheet .screen-build-row{grid-template-columns:max-content minmax(0,1fr);gap:var(--pv-s2)}
 #quick-sheet.pv-kit-dialog .screen-build-row>#screen-device-info{padding:0;margin:0;text-align:right;color:var(--pv-ink-2);overflow-wrap:anywhere}
 #quick-sheet [data-screen-action]{display:grid;grid-template-columns:var(--pv-icon-s) minmax(0,1fr) var(--pv-icon-s);align-items:center;gap:var(--pv-s2);width:100%;min-height:var(--pv-hit);padding:var(--pv-s2) 0;border:0;border-top:1px solid var(--pv-line);background:transparent;color:var(--pv-ink);font:var(--pv-t-body);text-align:left;text-decoration:none;cursor:pointer}
-#quick-sheet [data-screen-action]::before,#quick-sheet [data-screen-action]::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);background:currentColor;mask:var(--screen-action-icon) center/contain no-repeat}
+#quick-sheet [data-screen-action]::before,#quick-sheet [data-screen-action]::after{content:'';width:var(--pv-icon-s);height:var(--pv-icon-s);background:currentColor;-webkit-mask:var(--screen-action-icon) center/contain no-repeat;mask:var(--screen-action-icon) center/contain no-repeat}
 #quick-sheet [data-screen-action=rename]{--screen-action-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMjcuMzEsNzMuMzcsMTgyLjYzLDI4LjY4YTE2LDE2LDAsMCwwLTIyLjYzLDBMMzYuNjksMTUyQTE1Ljg2LDE1Ljg2LDAsMCwwLDMyLDE2My4zMVYyMDhhMTYsMTYsMCwwLDAsMTYsMTZIOTIuNjlBMTUuODYsMTUuODYsMCwwLDAsMTA0LDIxOS4zMUwyMjcuMzEsOTZhMTYsMTYsMCwwLDAsMC0yMi42M1pNOTIuNjksMjA4SDQ4VjE2My4zMWw4OC04OEwxODAuNjksMTIwWk0xOTIsMTA4LjY4LDE0Ny4zMSw2NGwyNC0yNEwyMTYsODQuNjhaIi8+PC9zdmc+")}
 #quick-sheet [data-screen-action=diagnostics]{--screen-action-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xNDAsMTI4YTEyLDEyLDAsMSwxLTEyLTEyQTEyLDEyLDAsMCwxLDE0MCwxMjhabTU2LTEyYTEyLDEyLDAsMSwwLDEyLDEyQTEyLDEyLDAsMCwwLDE5NiwxMTZaTTYwLDExNmExMiwxMiwwLDEsMCwxMiwxMkExMiwxMiwwLDAsMCw2MCwxMTZaIi8+PC9zdmc+")}
 #quick-sheet [data-screen-action]::after{--screen-action-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xODEuNjYsMTMzLjY2bC04MCw4MGE4LDgsMCwwLDEtMTEuMzItMTEuMzJMMTY0LjY5LDEyOCw5MC4zNCw1My42NmE4LDgsMCwwLDEsMTEuMzItMTEuMzJsODAsODBBOCw4LDAsMCwxLDE4MS42NiwxMzMuNjZaIi8+PC9zdmc+")}

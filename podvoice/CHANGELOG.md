@@ -1,3 +1,7 @@
+## 2.0.182
+
+- Frameo-fotorammen (og enhver skærm åbnet over lokal http) kan nu styre musik, robot og timer: PodView brugte en browserfunktion, der kun findes på https, så tryk blev afvist i stilhed og viste »Udfald ukendt«. Ældre browsere (Chrome 107) får farver, flader, højder og ikoner, tryk reagerer 4–6 gange hurtigere, og køen kan rulles. Afspilleren siger »Spiller på Køkkenalrum« eller »Spiller på iPhone« i stedet for »højttaler ikke bekræftet«, en pauset sang eller stoppet station står i 10 minutter (også efter genindlæsning) og derefter »Vælg musik«, og en skærm uden adgang siger »Skærmen har ikke adgang · Tilknyt« i stedet for at gøre ingenting. Stemmen starter musik på rummets højttaler via PodViews egen vej. Op til 8 godkendte skærme pr. rum vises i Home Assistant, parringen logges, og efter en HA-genstart fornyer PodView selv forbindelsen i stedet for at vise 401. HA-komponent 0.1.22 kræves for skærmlisten.
+
 ## 2.0.181
 
 - Vejret vises igen på Home Assistant 2026.11 (HA's nye svarformat fra vejr-scriptet), og regn vises i hele procent. Teslaens kommandoer (Lås, Lås op, klima, temperatur, sædevarme, afrimning) kan sendes, selvom HA endnu ikke kender bilens tilstand efter en genstart, og knappen viser »Sendt · venter på bilen…«, til HA melder den. PodVoice beder desuden HA om at hente bilens status efter en genstart uden at vække den. HA-komponenten er uændret (0.1.21).
