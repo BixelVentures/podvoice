@@ -486,3 +486,53 @@ process.stdout.write('live/history admitted');
         assert not tools.calls
     finally:
         await session.aclose()
+
+
+async def test_live_models_own_long_web_search_starts_the_card_call_and_publishes_a_card():
+    """Green 2.0.176: Live called google_web_sogning itself with long prose; no card came."""
+    from unit.test_answer_card_summarizer import SPORT, FakeSummarizer
+    from unit.test_openai_live import call
+
+    session, sdk, _, tools, _ = build()
+    store = tools.podview_receipts = VisualReceiptOwner()
+    fake = FakeSummarizer(SPORT)
+    store.configure_card_summarizer(fake)
+    tools.declarations = lambda: [
+        {
+            "name": "google_web_sogning",
+            "parameters": {
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+                "additionalProperties": False,
+            },
+        }
+    ]
+    prose = (
+        "FC Barcelona besejrede Sevilla 3-1 i La Liga i går, hvor Robert Lewandowski scorede to "
+        "mål efter oplæg fra Pedri og Lamine Yamal, mens Lukébakio reducerede for gæsterne. " * 10
+    )
+
+    async def dispatch(*args, **kwargs):
+        return {"ok": True, "data": {"success": True, "result": {"output": prose}}}
+
+    tools.dispatch = dispatch
+    await session.start()
+    try:
+        await session.wake()
+        await session.submit_text("Hvem vandt FC Barcelonas kamp i går?", command_id="q1")
+        await emit(
+            sdk,
+            created(),
+            call(name="google_web_sogning", arguments=json.dumps({"query": "Barcelona i går"})),
+            terminal(),
+        )
+        await until(lambda: bool(store.snapshot(session.room, session)["items"]))
+        row = store.snapshot(session.room, session)["items"][0]
+        assert row["family"] == "sport-result" and row["displaySuggested"] is True
+        assert fake.calls[0][0] == "Hvem vandt FC Barcelonas kamp i går?"
+        assert "Lewandowski" in fake.calls[0][1][0]["uddrag"]
+        # Typed question + the tool continuation; the card adds no voice round.
+        assert sdk.response.create.await_count == 2
+    finally:
+        await session.aclose()

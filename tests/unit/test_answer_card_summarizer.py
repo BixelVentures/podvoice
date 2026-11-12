@@ -72,7 +72,7 @@ async def test_search_result_gives_a_sport_card_in_parallel_and_in_history():
     owner, store = object(), VisualReceiptOwner()
     fake = FakeSummarizer(SPORT)
     store.configure_card_summarizer(fake)
-    assert search(owner, store)
+    search(owner, store)
     await settle(store)
     item = store.snapshot("kitchen", owner)["items"][0]
     assert item["family"] == "sport-result" and item["displaySuggested"] is True
@@ -90,7 +90,7 @@ async def test_several_searches_in_one_answer_give_one_card():
     fake = FakeSummarizer(SPORT)
     store.configure_card_summarizer(fake)
     for n in range(4):
-        assert search(owner, store, call_id=f"search-{n}", text=f"Kilde {n}: Barcelona 3-1.")
+        search(owner, store, call_id=f"search-{n}", text=f"Kilde {n}: Barcelona 3-1.")
     await settle(store)
     assert len(fake.calls) == 1 and len(fake.calls[0][1]) == 4
     assert len(store.snapshot("kitchen", owner)["items"]) == 1
@@ -108,7 +108,7 @@ async def test_several_searches_in_one_answer_give_one_card():
 async def test_no_honest_basis_means_no_card(card):
     owner, store = object(), VisualReceiptOwner()
     store.configure_card_summarizer(FakeSummarizer(card))
-    assert search(owner, store)
+    search(owner, store)
     await settle(store)
     assert store.snapshot("kitchen", owner)["items"] == []
     assert store._history == {}
@@ -118,7 +118,7 @@ async def test_topic_card_is_a_heading_with_keywords_not_sentences():
     owner, store = object(), VisualReceiptOwner()
     topic = {**SPORT, "kind": "emne", "title": "Månelandingen", "match": None, "points": ["1969"]}
     store.configure_card_summarizer(FakeSummarizer(topic))
-    assert search(owner, store)
+    search(owner, store)
     await settle(store)
     item = store.snapshot("kitchen", owner)["items"][0]
     assert item["family"] == "key-points" and item["title"] == "Månelandingen"
@@ -127,6 +127,31 @@ async def test_topic_card_is_a_heading_with_keywords_not_sentences():
 
 async def test_without_a_summarizer_a_search_shows_no_card():
     owner, store = object(), VisualReceiptOwner()
-    assert search(owner, store)
+    search(owner, store)
     assert store._card_tasks == {}
     assert store.snapshot("kitchen", owner)["items"] == []
+
+
+async def test_long_live_web_result_still_starts_the_card_call(caplog):
+    """Green 2.0.176: Live's own google_web_sogning result was long prose; it must still card."""
+    caplog.set_level("INFO", logger="podvoice.podview")
+    owner, store = object(), VisualReceiptOwner()
+    fake = FakeSummarizer(SPORT)
+    store.configure_card_summarizer(fake)
+    long_text = (
+        "FC Barcelona besejrede Sevilla med 3-1 på Estadi Olímpic Lluís Companys i går aftes, "
+        "hvor Robert Lewandowski scorede to gange og Pedri lavede den første assist. " * 12
+    )
+    search(owner, store, text=long_text)
+    await settle(store)
+    assert fake.calls and len(fake.calls[0][1][0]["uddrag"]) <= 4000
+    assert store.snapshot("kitchen", owner)["items"][0]["family"] == "sport-result"
+    stages = [r.getMessage() for r in caplog.records if "podview card" in r.getMessage()]
+    assert any("stage=start" in m for m in stages) and any("stage=publish" in m for m in stages)
+
+
+async def test_missing_summarizer_is_logged_as_a_skip(caplog):
+    caplog.set_level("INFO", logger="podvoice.podview")
+    owner, store = object(), VisualReceiptOwner()
+    search(owner, store)
+    assert any("reason=no_summarizer" in r.getMessage() for r in caplog.records)

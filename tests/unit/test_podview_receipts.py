@@ -132,7 +132,7 @@ def test_weather_facts_copy_only_actual_structured_fields(monkeypatch):
     store = VisualReceiptOwner()
     assert offer(store, tool_name="weather_forecast", result=payload)
     item = pending_items(store)[0]
-    assert item["displaySuggested"] is False
+    assert item["displaySuggested"] is True  # Every weather answer gets the weather card.
     assert [f["value"] for f in item["content"]["facts"]] == ["15.1 °C", "partlycloudy"]
     assert "private-token" not in str(item)
     assert payload == before

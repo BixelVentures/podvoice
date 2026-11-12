@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import json
+import logging
 import math
 import re
 import secrets
@@ -25,6 +26,8 @@ if TYPE_CHECKING:
 
 from .podview_enrichment import AnswerCardSummarizer, VisualSelector
 from .podview_weather import MAX_CURRENT_AGE_S, MAX_RETRIEVAL_AGE_S, weather_projection
+
+_LOG = logging.getLogger("podvoice.podview")
 
 
 def _text(value: object, maximum: int) -> bool:
@@ -499,6 +502,31 @@ def _facts(
     return None
 
 
+def _same_answer(left: tuple, right: tuple) -> bool:
+    """One spoken answer: same owner, session, generation, task and input; turn may differ."""
+    return left[0] is right[0] and left[1:3] == right[1:3] and left[4:] == right[4:]
+
+
+def _web_text(result: object) -> str | None:
+    """The web tool's own text, bounded; the card model reads it, nothing is shown verbatim."""
+    if not isinstance(result, dict) or result.get("ok") is not True:
+        return None
+    data = result.get("data")
+    if isinstance(data, dict) and data.get("success") is True:
+        data = data.get("result")
+    if isinstance(data, dict) and isinstance(data.get("output"), str):
+        data = data["output"]
+    if isinstance(data, (int, float)) and not isinstance(data, bool):
+        data = str(data)
+    if not isinstance(data, str):
+        try:
+            data = json.dumps(data, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return None
+    data = data.strip()
+    return data[:4000] if data else None
+
+
 class VisualReceiptOwner:
     """Owner-bound, bounded optional sink. Caller closes it with the add-on owner."""
 
@@ -518,6 +546,7 @@ class VisualReceiptOwner:
         self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
         self._summarizer: AnswerCardSummarizer | None = None
         self._card_tasks: dict[str, asyncio.Task] = {}
+        self._card_sources: dict[str, dict] = {}
 
     def bind_history_boot(self, boot: str) -> None:
         """New bridge revisions reload passive snapshots, never current receipt authority."""
@@ -755,42 +784,90 @@ class VisualReceiptOwner:
         """Sport and fact cards: one quick model call in parallel with speech."""
         self._summarizer = summarizer
 
-    def _schedule_card(self, room_id: str, question: str | None) -> None:
-        state = self._rooms.get(room_id)
-        if self._summarizer is None or not self._summarizer.available or state is None:
+    def _queue_web_card(
+        self,
+        owner: object,
+        key: tuple,
+        *,
+        room_id: str,
+        delegation_id: str | None,
+        result: object,
+        question: str | None,
+        current: Callable[[], bool],
+        read_current: Callable[[bool], bool] | None,
+    ) -> None:
+        """Every web result starts the card call; all results of one answer give one card."""
+        summarizer = self._summarizer
+        if summarizer is None or not summarizer.available:
+            _LOG.info("podview card stage=skip room=%s reason=no_summarizer", room_id)
+            return
+        text = _web_text(result)
+        if text is None:
+            _LOG.info("podview card stage=skip room=%s reason=empty_result", room_id)
             return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            _LOG.info("podview card stage=skip room=%s reason=no_loop", room_id)
             return
+        pending = self._card_sources.get(room_id)
+        if pending is None or not _same_answer(pending["key"], key):
+            pending = {
+                "key": key,
+                "delegation_id": delegation_id,
+                "current": current,
+                "read_current": read_current,
+                "texts": [],
+            }
+            self._card_sources[room_id] = pending
+        if len(pending["texts"]) < 4:
+            pending["texts"].append(text)
         prior = self._card_tasks.get(room_id)
         if prior is not None and not prior.done():
             prior.cancel()  # Several searches in one answer give one card from all of them.
-        self._card_tasks[room_id] = loop.create_task(self._card(room_id, state, question))
+        _LOG.info("podview card stage=start room=%s sources=%d", room_id, len(pending["texts"]))
+        self._card_tasks[room_id] = loop.create_task(self._card(room_id, pending, question))
 
-    async def _card(self, room_id: str, state: dict, question: str | None) -> None:
+    async def _card(self, room_id: str, pending: dict, question: str | None) -> None:
         from .podview_presentation import explanation_content
 
         try:
             await asyncio.sleep(0.15)
-            sources = [
-                {"uddrag": [f.get("value") for f in record["item"]["content"].get("facts", [])]}
-                for record in state.get("source_registry", {}).values()
-                if record.get("tool") == "google_web_sogning"
-            ]
             summarizer = self._summarizer
-            if summarizer is None or not sources:
+            if summarizer is None:
                 return
-            presentation = await summarizer.summarize(question, sources)
-            if presentation is None or self._closed or self._rooms.get(room_id) is not state:
+            presentation = await summarizer.summarize(
+                question, [{"uddrag": text} for text in pending["texts"]]
+            )
+            if presentation is None:
+                _LOG.info("podview card stage=skip room=%s reason=no_basis", room_id)
                 return
-            if not state["current"]():
+            if self._closed or self._card_sources.get(room_id) is not pending:
+                _LOG.info("podview card stage=skip room=%s reason=superseded", room_id)
                 return
-            receipt_id = state.get("card_receipt") or secrets.token_hex(16)
+            if not pending["current"]():
+                _LOG.info("podview card stage=skip room=%s reason=stale_turn", room_id)
+                return
+            key = pending["key"]
+            state = self._rooms.get(room_id)
+            if state is None or not _same_answer(state["key"], key):
+                state = {
+                    "key": key,
+                    "delegation_id": pending["delegation_id"],
+                    "current": pending["current"],
+                    "read_current": pending["read_current"],
+                    "completed": False,
+                    "seen": set(),
+                    "items": [],
+                    "revision": (state["revision"] if state else 0) + 1,
+                    "source_registry": {},
+                }
+                self._rooms[room_id] = state
+            receipt_id = pending.get("receipt") or secrets.token_hex(16)
             content = explanation_content(
                 presentation, receipt_id, source_label="Google-søgning, opsummeret af PodVoice"
             )
-            key, now = state["key"], time.time()
+            now = time.time()
             item = {
                 "schema": "podview.presentation.v1",
                 "receiptId": receipt_id,
@@ -811,19 +888,27 @@ class VisualReceiptOwner:
                 "content": content,
                 "provenance": {"kind": "ai_explanation"},
             }
-            replacing = state.get("card_receipt") == receipt_id
+            replacing = pending.get("receipt") == receipt_id
             state["items"] = [r for r in state["items"] if r["item"]["receiptId"] != receipt_id]
             state["items"].insert(
                 0,
                 {"item": item, "deadline": self._clock() + 120, "tool": "", "sourceText": ""},
             )
             del state["items"][3:]
-            state["card_receipt"] = receipt_id
+            pending["receipt"] = receipt_id
             state["revision"] += 1
             self._archive_display(room_id, state, item, replace_existing=replacing)
             self._notify(room_id)
-        except (ValueError, TypeError, KeyError):
-            return
+            _LOG.info(
+                "podview card stage=publish room=%s family=%s archived=%s",
+                room_id,
+                presentation["family"],
+                self.history_persistence_status(),
+            )
+        except asyncio.CancelledError:
+            raise
+        except (ValueError, TypeError, KeyError) as error:
+            _LOG.info("podview card stage=skip room=%s reason=%s", room_id, type(error).__name__)
 
     def configure_research_mode(self, policy: str = "") -> None:
         """Supervisor-only startup opt-in; empty default preserves exact26 scope.
@@ -1000,6 +1085,25 @@ class VisualReceiptOwner:
         try:
             if not current():
                 return False
+            if tool_name == "google_web_sogning":
+                self._queue_web_card(
+                    owner,
+                    (
+                        owner,
+                        session_id,
+                        session_epoch,
+                        turn_id,
+                        provider_generation,
+                        task_id,
+                        input_revision,
+                    ),
+                    room_id=room_id,
+                    delegation_id=delegation_id,
+                    result=result,
+                    question=question,
+                    current=current,
+                    read_current=read_current,
+                )
             research = None
             if self.research_enabled and provider_generation is not None:
                 from .podview_research import extract
@@ -1033,8 +1137,6 @@ class VisualReceiptOwner:
                     current=current,
                     read_current=read_current,
                 )
-                if remembered and tool_name == "google_web_sogning":
-                    self._schedule_card(room_id, question)
                 return remembered
             if research is not None:
                 summary, provenance = research["summary"], research["provenance"]
@@ -1184,9 +1286,9 @@ class VisualReceiptOwner:
                 )
         # Trusted Thin completion hint plus exact typed projection, never a browser
         # intent or a heuristic interpretation of web prose. Never overrule AI.
+        # Every weather answer gets the weather card (also when Live passes more arguments).
         if (
-            direct_weather is True
-            and research is None
+            research is None
             and provenance.get("kind") == "ha_weather"
             and tool_name in {"weather_forecast", "HassGetWeather"}
             and not self.selection_enabled
@@ -1195,6 +1297,7 @@ class VisualReceiptOwner:
             and (self._selection is None or self._selection.done())
         ):
             item["displaySuggested"] = True
+            _LOG.info("podview card stage=publish room=%s family=weather", room_id)
         state["items"].insert(0, row)
         self._archive_display(room_id, state, item)
         del state["items"][3:]

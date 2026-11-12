@@ -3580,6 +3580,15 @@ class ThinSession:
             if self._lease_is_current(lease):
                 self._request_close("live-playback-start-failed", error_kind="device")
 
+    def _card_question(self) -> str | None:
+        """What the user just asked, for the answer card model only (never shown or logged)."""
+        if self.live_alpha and self._live_input_evidence:
+            recent = [self._live_input_evidence[i] for i in sorted(self._live_input_evidence)[-3:]]
+            text = " ".join(str(row.get("text", "")).strip() for row in recent).strip()
+            if text:
+                return text[-400:]
+        return self._last_user_utterance or None
+
     def _remember_live_input(self, index: int, text: str, source: str, **timestamps: int) -> None:
         # Keep exact text and receipt order. Missing/evicted indices deny review;
         # neither timing gaps nor these records imply a complete user utterance.
@@ -7386,7 +7395,7 @@ class ThinSession:
                     else None,
                     read_current=read_current,
                     delegation_id=delegation_id,
-                    question=self._last_user_utterance or None,
+                    question=self._card_question(),
                     direct_weather=(
                         len(results) == 1
                         and isinstance(source_call_id, str)

@@ -6,6 +6,7 @@ import asyncio
 import fcntl
 import hashlib
 import json
+import logging
 import os
 import stat
 import tempfile
@@ -19,6 +20,7 @@ import httpx
 from .provider_budget import PROVIDER_BUDGET, ProviderBudgetCoordinator, ProviderBudgetUnavailable
 
 MODEL = "gpt-6-luna"
+_LOG = logging.getLogger("podvoice.podview")
 RESERVED_TOKENS = 8192
 MAX_REQUEST_BYTES = 4096
 _SCHEMA = {
@@ -734,7 +736,11 @@ class AnswerCardSummarizer:
             TypeError,
             AttributeError,
             ProviderBudgetUnavailable,
-        ):
+        ) as error:
+            status = getattr(getattr(error, "response", None), "status_code", None)
+            _LOG.info(
+                "podview card stage=model_error error=%s status=%s", type(error).__name__, status
+            )
             return None
         finally:
             self.budget.release(lease)
