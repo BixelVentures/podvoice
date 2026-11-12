@@ -746,6 +746,10 @@ class AnswerCardSummarizer:
             self.budget.release(lease)
 
 
+def _blank_none(value: object) -> object:
+    return None if isinstance(value, str) and not value.strip() else value
+
+
 def card_presentation(card: object) -> dict | None:
     """Map the model's closed card to an existing presentation family; None = no card."""
     if type(card) is not dict or card.get("kind") not in {"sport", "fakta", "emne"}:
@@ -756,7 +760,13 @@ def card_presentation(card: object) -> dict | None:
     if card["kind"] == "sport":
         if not isinstance(card.get("match"), dict):
             return None
-        content: dict = {"match": card["match"], "scorers": card.get("scorers") or []}
+        # "Unknown" may arrive as an empty string instead of null; both mean no value.
+        match = {**card["match"], "competition": _blank_none(card["match"].get("competition"))}
+        scorers = [
+            {**row, "minute": _blank_none(row.get("minute"))} if isinstance(row, dict) else row
+            for row in card.get("scorers") or []
+        ]
+        content: dict = {"match": match, "scorers": scorers}
         family = "sport-result"
     else:
         points = [p for p in card.get("points") or [] if isinstance(p, str) and p.strip()]
