@@ -875,3 +875,15 @@ pv-widget-host #device-view:has([data-robot-rooms=true]) #device-timeline.pv-com
 pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pending]>.result-copy>[data-kit-slot=title],
 pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pending]>.result-copy>[data-kit-slot=body]{block-size:var(--pv-leading-body)}
 pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pending]>.result-copy>[data-kit-slot]::after{display:none}
+/* Svar: sportsresultat — hold, stilling og dato som én tavle. */
+#answer-host>pv-answer.answer-widget pv-sport-result .pv-sport-score{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;gap:24px;margin:8px 0 4px;text-align:center}
+#answer-host>pv-answer.answer-widget pv-sport-result .pv-sport-team{font-size:var(--pv-type-title);font-weight:var(--pv-weight-semibold);overflow-wrap:anywhere}
+#answer-host>pv-answer.answer-widget pv-sport-result .pv-sport-result{font-size:var(--pv-type-display);font-weight:var(--pv-weight-semibold);font-variant-numeric:tabular-nums;letter-spacing:-.04em;line-height:1}
+#answer-host>pv-answer.answer-widget pv-sport-result .pv-sport-date{margin:0 0 16px;text-align:center;color:var(--pv-screen-muted)}
+/* Svar: en opfølgning er et nyt afsnit på samme kort. Tidligere afsnit står over det nye, kompakt og uden egne knapper. */
+#answer-host>pv-answer[data-thread]:not([hidden])~pv-answer[data-thread]:not([hidden]){margin-top:2px}
+#answer-host>pv-answer[data-thread=earlier]{border-bottom-left-radius:0;border-bottom-right-radius:0}
+#answer-host>pv-answer[data-thread]~pv-answer[data-thread]{border-top-left-radius:0;border-top-right-radius:0}
+#answer-host>pv-answer[data-thread=earlier] :is(.dismiss,.answer-actions,.followups,.retry-answer){display:none!important}
+#answer-host>pv-answer[data-thread=earlier] .answer-meta{display:none}
+#open-history.header-history[data-device=offline]{color:var(--pv-ink-3)}

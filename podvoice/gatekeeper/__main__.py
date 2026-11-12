@@ -516,6 +516,13 @@ async def run(cfg: Config) -> None:
         )
     )
     tools.podview_receipts.configure_research_mode(cfg.podview_research_visual_policy)
+    from .podview_enrichment import AnswerCardSummarizer
+
+    # Sport and fact cards (the user's choice A): a parallel call that never delays speech.
+    if cfg.openai_api_key:
+        tools.podview_receipts.configure_card_summarizer(
+            AnswerCardSummarizer(ha_client, cfg.openai_api_key)
+        )
     tools.configure_device_control(load_settings(settings_path))
     tools.configure_podview_robot_reads(cfg.podview_robot_read_policy)
     tools.configure_podview_vehicle_read(cfg.podview_vehicle_read_policy)

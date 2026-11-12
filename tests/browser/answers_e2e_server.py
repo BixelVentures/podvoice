@@ -13,7 +13,7 @@ from integration.test_presentation_live_pipeline import assistant_item
 from integration.test_thin_live import build as live_fixture
 from integration.test_thin_live import emit, until
 from multidict import CIMultiDict
-from unit.test_openai_live import created, terminal
+from unit.test_openai_live import created, envelope, terminal
 from unit.test_podview_presentation import context, message
 
 from gatekeeper.events import State
@@ -130,6 +130,78 @@ async def submit_live_answer(_request):
     return web.json_response({"inputSubmitted": sdk.response.create.await_count > 0})
 
 
+SPORT = {
+    "spoken": "FC Barcelona vandt 3-1 over Sevilla i går. Lewandowski scorede to.",
+    "presentation": {
+        "family": "sport-result",
+        "title": "FC Barcelona mod Sevilla",
+        "summary": "Barcelona vandt 3-1 hjemme.",
+        "origin": "ai_explanation",
+        "content": {
+            "match": {
+                "home": "FC Barcelona",
+                "away": "Sevilla",
+                "homeScore": 3,
+                "awayScore": 1,
+                "date": "11. november 2026",
+                "competition": "La Liga",
+            },
+            "scorers": [
+                {"team": "home", "name": "Lewandowski", "minute": "12'"},
+                {"team": "home", "name": "Lewandowski", "minute": "58'"},
+                {"team": "away", "name": "Lukébakio", "minute": "71'"},
+            ],
+        },
+        "sourceCalls": [],
+    },
+}
+FOLLOWUP = {
+    "spoken": "Pedri lavede assisten til det første mål.",
+    "presentation": {
+        "family": "key-points",
+        "title": "Assist",
+        "summary": "Assist: Pedri",
+        "origin": "ai_explanation",
+        "content": {"points": ["Pedri, til 1-0 i 12. minut"]},
+        "sourceCalls": [],
+    },
+}
+
+
+async def svar_sport(_request):
+    """Rule 2: a match question gets a sport card while she speaks."""
+    await session.wake()
+    await session.submit_text("Hvem vandt FC Barcelonas kamp i går?", command_id="sport-input")
+    await emit(sdk, created(), assistant_item(json.dumps(SPORT)), terminal())
+    await until(lambda: bool(sink.snapshot(session.room, session)["items"]))
+    return web.json_response({"sessionId": session._history_session})
+
+
+async def svar_followup(_request):
+    """Rule 3: a follow-up becomes a new section on the same card."""
+    await session.submit_text("Og hvem lavede assist?", command_id="followup-input")
+    item = envelope(
+        "response.output_item.done",
+        item={
+            "type": "message",
+            "id": "message-two",
+            "role": "assistant",
+            "status": "completed",
+            "content": [{"type": "output_text", "text": json.dumps(FOLLOWUP), "annotations": []}],
+        },
+        output_index=0,
+        sequence_number=2,
+    )
+    await emit(sdk, created("r2"), item, terminal("r2"))
+    await until(
+        lambda: any(
+            row["content"]["summary"] == FOLLOWUP["presentation"]["summary"]
+            for row in sink.snapshot(session.room, session)["items"]
+        )
+    )
+    return web.json_response({"sessionId": session._history_session})
+
+
 async def close_live_answer(_request):
     await session.stop(reason="model-close")
     return web.json_response(
@@ -140,6 +212,8 @@ async def close_live_answer(_request):
 if live_mode:
     app.router.add_post("/lab/submit-live-answer", submit_live_answer)
     app.router.add_post("/lab/close-live-answer", close_live_answer)
+    app.router.add_post("/lab/svar-sport", svar_sport)
+    app.router.add_post("/lab/svar-followup", svar_followup)
 else:
     app.router.add_post("/lab/publish-current", publish_current)
 app.router.add_get("/lab/history", history_status)

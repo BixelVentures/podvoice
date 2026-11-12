@@ -15,14 +15,15 @@ import re
 import secrets
 import time
 from collections.abc import Callable
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 if TYPE_CHECKING:
     from .history import History
 
-from .podview_enrichment import VisualSelector
+from .podview_enrichment import AnswerCardSummarizer, VisualSelector
 from .podview_weather import MAX_CURRENT_AGE_S, MAX_RETRIEVAL_AGE_S, weather_projection
 
 
@@ -64,6 +65,8 @@ def validated_archive_display(value: object) -> dict | None:
             "answer-timeline": {"events"},
             "simple-diagram": {"nodes"},
             "sourced-image": {"image"},
+            "sport-result": {"match", "scorers"},
+            "key-points": {"points"},
         }
         if family not in additions or type(content) is not dict:
             return None
@@ -172,6 +175,42 @@ def validated_archive_display(value: object) -> dict | None:
                 for row in content[key]
             ):
                 return None
+        elif family == "key-points":
+            if not rows("points", 4, {"text": 240, "sourceId": 0}):
+                return None
+        elif family == "sport-result":
+            match = content["match"]
+            if type(match) is not dict or set(match) != {
+                "home",
+                "away",
+                "homeScore",
+                "awayScore",
+                "date",
+                "competition",
+            }:
+                return None
+            if not all(text(match[k], 80) for k in ("home", "away", "date")) or (
+                match["competition"] is not None and not text(match["competition"], 80)
+            ):
+                return None
+            scores = (match["homeScore"], match["awayScore"])
+            if (scores[0] is None) != (scores[1] is None) or any(
+                v is not None and (type(v) is not int or not 0 <= v <= 999) for v in scores
+            ):
+                return None
+            scorers = content["scorers"]
+            if type(scorers) is not list or len(scorers) > 12:
+                return None
+            for row in scorers:
+                if (
+                    type(row) is not dict
+                    or set(row) != {"id", "team", "name", "minute", "sourceId"}
+                    or row["team"] not in {"home", "away"}
+                    or not text(row["name"], 80)
+                    or (row["minute"] is not None and not text(row["minute"], 24))
+                    or row["sourceId"] not in source_ids
+                ):
+                    return None
         for name in ("image", "illustration"):
             if name not in content:
                 continue
@@ -275,7 +314,99 @@ def _weather_result(response: dict) -> dict:
     return {**response, "data": {**data, "result": {**result, "forecast": decoded}}}
 
 
-def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict] | None:
+_TZ = ZoneInfo("Europe/Copenhagen")
+_WEEKDAYS = ("mandag", "tirsdag", "onsdag", "torsdag", "fredag", "lørdag", "søndag")
+_MONTHS = (
+    "januar",
+    "februar",
+    "marts",
+    "april",
+    "maj",
+    "juni",
+    "juli",
+    "august",
+    "september",
+    "oktober",
+    "november",
+    "december",
+)
+
+
+def requested_day(question: object, now: float) -> tuple[date, str] | None:
+    """The day a Danish weather question asks about; None means now/today."""
+    if not isinstance(question, str) or len(question) > 1200:
+        return None
+    text = question.casefold()
+    today = datetime.fromtimestamp(now, _TZ).date()
+    if re.search(r"\bi\s*overmorgen\b|\bovermorgen\b", text):
+        return today + timedelta(days=2), "i overmorgen"
+    if re.search(r"\bi\s*morgen\b|\bimorgen\b", text) and not re.search(r"\bi\s*morges\b", text):
+        return today + timedelta(days=1), "i morgen"
+    for index, name in enumerate(_WEEKDAYS):
+        if re.search(rf"\b(?:på\s+)?{name}(?:en)?\b", text):
+            ahead = (index - today.weekday()) % 7
+            if ahead == 0:
+                return None
+            return today + timedelta(days=ahead), name
+    return None
+
+
+def _day_label(day: date) -> str:
+    return f"{_WEEKDAYS[day.weekday()]} {day.day}. {_MONTHS[day.month - 1]}"
+
+
+def _forecast_day_facts(data: dict, day: date, phrase: str) -> list[dict] | None:
+    rows = []
+    for row in data.get("forecast") or []:
+        try:
+            when = datetime.fromisoformat(row["datetime"]).astimezone(_TZ).date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        if when == day:
+            rows.append(row)
+    if not rows:
+        return None
+    unit = data["units"]["temperature"]
+    detail = (
+        f"Prognose for {phrase} {_day_label(day)}"
+        if phrase not in _WEEKDAYS
+        else (f"Prognose for {_day_label(day)}")
+    )
+    if data.get("forecastType") == "daily":
+        high = rows[0].get("highTemperature")
+        low = rows[0].get("lowTemperature")
+        condition = rows[0].get("condition")
+        rain = rows[0].get("precipitation_probability")
+    else:
+        temps = [r["temperature"] for r in rows if isinstance(r.get("temperature"), (int, float))]
+        high = max(temps) if temps else None
+        low = min(temps) if temps else None
+        midday = min(
+            rows,
+            key=lambda r: abs(datetime.fromisoformat(r["datetime"]).astimezone(_TZ).hour - 13),
+        )
+        condition = midday.get("condition")
+        chances = [
+            r["precipitation_probability"]
+            for r in rows
+            if isinstance(r.get("precipitation_probability"), (int, float))
+        ]
+        rain = max(chances) if chances else None
+    facts = []
+    if condition is not None:
+        facts.append({"label": "Vejrforhold", "value": condition, "detail": detail})
+    if high is not None:
+        facts.append({"label": "Højeste", "value": f"{high} {unit}", "detail": detail})
+    if low is not None:
+        facts.append({"label": "Laveste", "value": f"{low} {unit}", "detail": detail})
+    if rain is not None:
+        facts.append({"label": "Risiko for regn", "value": f"{round(rain)} %", "detail": detail})
+    return facts or None
+
+
+def _facts(
+    tool_name: str, result: object, question: str | None = None
+) -> tuple[str, list[dict], bool, dict] | None:
     if not isinstance(result, dict) or result.get("ok") is not True:
         return None
     if tool_name in {"weather_forecast", "HassGetWeather"}:
@@ -283,6 +414,28 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
         if projected["status"] != "observed":
             return None
         data = projected["data"]
+        asked = requested_day(question, time.time())
+        day_facts = _forecast_day_facts(data, *asked) if asked is not None else None
+        if day_facts is not None and asked is not None:
+            return (
+                f"Vejret i {data['location']} {asked[1] if asked[1] not in _WEEKDAYS else 'på ' + asked[1]}",
+                day_facts,
+                False,
+                {
+                    "kind": "ha_weather",
+                    "source": data["source"],
+                    "retrievedAt": data["retrievedAt"],
+                    "stateUpdatedAt": data["stateUpdatedAt"],
+                    "validUntil": math.floor(
+                        (
+                            datetime.fromisoformat(data["retrievedAt"]).timestamp()
+                            + MAX_RETRIEVAL_AGE_S
+                        )
+                        * 1000
+                    )
+                    / 1000,
+                },
+            )
         facts = []
         current = data["current"]
         if current and current["temperature"] is not None:
@@ -363,6 +516,8 @@ class VisualReceiptOwner:
         self._research_mode = False
         self._research_admitted = False
         self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
+        self._summarizer: AnswerCardSummarizer | None = None
+        self._card_tasks: dict[str, asyncio.Task] = {}
 
     def bind_history_boot(self, boot: str) -> None:
         """New bridge revisions reload passive snapshots, never current receipt authority."""
@@ -596,6 +751,80 @@ class VisualReceiptOwner:
             raise RuntimeError("visual selector configuration is startup-only")
         self._selector = selector
 
+    def configure_card_summarizer(self, summarizer: AnswerCardSummarizer | None) -> None:
+        """Sport and fact cards: one quick model call in parallel with speech."""
+        self._summarizer = summarizer
+
+    def _schedule_card(self, room_id: str, question: str | None) -> None:
+        state = self._rooms.get(room_id)
+        if self._summarizer is None or not self._summarizer.available or state is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        prior = self._card_tasks.get(room_id)
+        if prior is not None and not prior.done():
+            prior.cancel()  # Several searches in one answer give one card from all of them.
+        self._card_tasks[room_id] = loop.create_task(self._card(room_id, state, question))
+
+    async def _card(self, room_id: str, state: dict, question: str | None) -> None:
+        from .podview_presentation import explanation_content
+
+        try:
+            await asyncio.sleep(0.15)
+            sources = [
+                {"uddrag": [f.get("value") for f in record["item"]["content"].get("facts", [])]}
+                for record in state.get("source_registry", {}).values()
+                if record.get("tool") == "google_web_sogning"
+            ]
+            summarizer = self._summarizer
+            if summarizer is None or not sources:
+                return
+            presentation = await summarizer.summarize(question, sources)
+            if presentation is None or self._closed or self._rooms.get(room_id) is not state:
+                return
+            if not state["current"]():
+                return
+            receipt_id = state.get("card_receipt") or secrets.token_hex(16)
+            content = explanation_content(
+                presentation, receipt_id, source_label="Google-søgning, opsummeret af PodVoice"
+            )
+            key, now = state["key"], time.time()
+            item = {
+                "schema": "podview.presentation.v1",
+                "receiptId": receipt_id,
+                "roomId": room_id,
+                "sessionId": key[1],
+                "sessionEpoch": key[2],
+                "turnId": key[3],
+                "providerGeneration": key[4],
+                "taskId": key[5],
+                "inputRevision": key[6],
+                "answerRevision": state["revision"] + 1,
+                "observedAt": now,
+                "validUntil": now + 120,
+                "family": presentation["family"],
+                "title": presentation["title"],
+                "displaySuggested": True,
+                "allowedActions": [],
+                "content": content,
+                "provenance": {"kind": "ai_explanation"},
+            }
+            replacing = state.get("card_receipt") == receipt_id
+            state["items"] = [r for r in state["items"] if r["item"]["receiptId"] != receipt_id]
+            state["items"].insert(
+                0,
+                {"item": item, "deadline": self._clock() + 120, "tool": "", "sourceText": ""},
+            )
+            del state["items"][3:]
+            state["card_receipt"] = receipt_id
+            state["revision"] += 1
+            self._archive_display(room_id, state, item, replace_existing=replacing)
+            self._notify(room_id)
+        except (ValueError, TypeError, KeyError):
+            return
+
     def configure_research_mode(self, policy: str = "") -> None:
         """Supervisor-only startup opt-in; empty default preserves exact26 scope.
 
@@ -749,6 +978,7 @@ class VisualReceiptOwner:
         read_current: Callable[[bool], bool] | None = None,
         direct_weather: bool = False,
         delegation_id: str | None = None,
+        question: str | None = None,
     ) -> bool:
         """Offer after result submission; no coroutine, network request or retry."""
         if self._closed or not all(
@@ -782,11 +1012,11 @@ class VisualReceiptOwner:
                 and _text(tool_query, 240)
                 else None
             )
-            projected = _facts(tool_name, result) if research is None else None
+            projected = _facts(tool_name, result, question) if research is None else None
             if projected is None and research is None:
                 from .podview_presentation import remember_source
 
-                return remember_source(
+                remembered = remember_source(
                     self,
                     owner,
                     room_id=room_id,
@@ -803,6 +1033,9 @@ class VisualReceiptOwner:
                     current=current,
                     read_current=read_current,
                 )
+                if remembered and tool_name == "google_web_sogning":
+                    self._schedule_card(room_id, question)
+                return remembered
             if research is not None:
                 summary, provenance = research["summary"], research["provenance"]
                 if research["family"] == "answer-timeline":
@@ -1263,6 +1496,8 @@ class VisualReceiptOwner:
         self._closed = True
         if self._selection is not None:
             self._selection.cancel()
+        for task in self._card_tasks.values():
+            task.cancel()
         self._rooms.clear()
         self._history.clear()
 

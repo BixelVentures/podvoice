@@ -1,6 +1,8 @@
 import {spotifyArtwork} from './spotify-artwork.js';
 // Read-only visual payloads. This validates shape, not the truth of source data.
 export const visualFamilies = ['fact-card','sourced-image','answer-timeline','simple-diagram'];
+// Live answer cards: the canonical visual families plus sport results and key points.
+export const answerFamilies = [...visualFamilies,'sport-result','key-points'];
 const string = (value, max = 300) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 const fail = () => { throw new Error('Invalid visual content'); };
 function link(value, image = false) {
@@ -23,7 +25,7 @@ function validateSources(raw,{ownerReceiptIds=[],allowConversation=false}={}){
  return raw.map(s=>s.kind==='owner_receipt'?{id:s.id,label:s.label,kind:'owner_receipt',receiptId:s.receiptId,scope:s.scope}:{id:s.id,label:s.label,url:s.url,scope:s.scope});
 }
 export function validateVisualContent(family, raw, {ownerReceiptIds=[],allowConversation=false}={}) {
- if (!visualFamilies.includes(family) || !raw || !string(raw.summary, 600)) fail();
+ if (!answerFamilies.includes(family) || !raw || !string(raw.summary, 600)) fail();
  const sources=validateSources(raw.sources,{ownerReceiptIds,allowConversation});
  const sourceIds = new Set(raw.sources.map(s => s.id));
  const sourced = x => sourceIds.has(x.sourceId);
@@ -37,9 +39,23 @@ export function validateVisualContent(family, raw, {ownerReceiptIds=[],allowConv
   const art=raw.illustration;
   if(art && (!link(art.url,true)||!string(art.alt,300)||!string(art.caption,300)||!string(art.credit,160)||art.kind!=='illustration'||!sourced(art))) fail();
  }
+ if (family === 'key-points') rows(raw.points, 4, p => string(p.text, 240) && sourced(p));
+ if (family === 'sport-result') {
+  const m = raw.match, score = v => v === null || Number.isInteger(v) && v >= 0 && v <= 999;
+  if (!m || !string(m.home, 80) || !string(m.away, 80) || !string(m.date, 80) || !score(m.homeScore) || !score(m.awayScore)
+   || (m.homeScore === null) !== (m.awayScore === null) || !(m.competition === null || string(m.competition, 80))) fail();
+  if (!Array.isArray(raw.scorers) || raw.scorers.length > 12) fail();
+  if (raw.scorers.length) rows(raw.scorers, 12, r => ['home','away'].includes(r.team) && string(r.name, 80) && (r.minute === null || string(r.minute, 24)) && sourced(r));
+ }
  // Return a closed shape: model-supplied HTML/styles/actions never enter the renderer.
  const result = {summary: raw.summary, sources};
  if (family === 'fact-card') result.facts = raw.facts.map(({id,label,value,detail,sourceId}) => ({id,label,value,detail,sourceId}));
+ if (family === 'key-points') result.points = raw.points.map(({id,text,sourceId}) => ({id,text,sourceId}));
+ if (family === 'sport-result') {
+  const {home,away,homeScore,awayScore,date,competition} = raw.match;
+  result.match = {home,away,homeScore,awayScore,date,competition};
+  result.scorers = raw.scorers.map(({id,team,name,minute,sourceId}) => ({id,team,name,minute,sourceId}));
+ }
  if (family === 'sourced-image') { const {url,alt,caption,credit,kind,sourceId} = raw.image; result.image = {url,alt,caption,credit,kind,sourceId}; }
  if (family === 'answer-timeline') result.events = raw.events.map(({id,time,label,detail,status,sourceId}) => ({id,time,label,detail,status,sourceId}));
  if (family === 'simple-diagram') {

@@ -7386,6 +7386,7 @@ class ThinSession:
                     else None,
                     read_current=read_current,
                     delegation_id=delegation_id,
+                    question=self._last_user_utterance or None,
                     direct_weather=(
                         len(results) == 1
                         and isinstance(source_call_id, str)

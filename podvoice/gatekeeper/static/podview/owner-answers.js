@@ -1,4 +1,4 @@
-import {validateVisualContent,validateTypedAnswerContent,visualFamilies,typedAnswerFamilies} from './visual-content.js';
+import {validateVisualContent,validateTypedAnswerContent,answerFamilies,typedAnswerFamilies} from './visual-content.js';
 import {researchAnswer} from './research-answers.js';
 const text=(v,n=160)=>typeof v==='string'&&v.length>0&&v.length<=n;
 const receipt=v=>typeof v==='string'&&/^[a-f0-9]{32}$/.test(v);
@@ -12,7 +12,7 @@ export function answerSession(snapshot){const id=snapshot?.answers?.sessionId;if
 // A source receipt is an opaque read reference. It never authorizes an action.
 export function presentationAnswer(row,context,now=Date.now()){
  const fields=['roomId','sessionId','turnId','taskId'];
- if(row?.schema!=='podview.presentation.v1'||!fields.every(key=>text(row[key])&&row[key]===context[key])||!['inputRevision','answerRevision','providerGeneration'].every(key=>Number.isSafeInteger(row[key])&&row[key]>=0&&row[key]===context[key])||!Number.isFinite(row.sessionEpoch)||row.sessionEpoch!==context.sessionEpoch||!receipt(row.receiptId)||!Number.isFinite(row.observedAt)||row.observedAt*1000>now+5000||row.observedAt*1000<now-120000||!Number.isFinite(row.validUntil)||row.validUntil*1000<=now||row.validUntil>row.observedAt+120||row.displaySuggested!==true||!Array.isArray(row.allowedActions)||row.allowedActions.length||!text(row.title,160)||![...visualFamilies,...typedAnswerFamilies].includes(row.family))throw Error('invalid_presentation_binding');
+ if(row?.schema!=='podview.presentation.v1'||!fields.every(key=>text(row[key])&&row[key]===context[key])||!['inputRevision','answerRevision','providerGeneration'].every(key=>Number.isSafeInteger(row[key])&&row[key]>=0&&row[key]===context[key])||!Number.isFinite(row.sessionEpoch)||row.sessionEpoch!==context.sessionEpoch||!receipt(row.receiptId)||!Number.isFinite(row.observedAt)||row.observedAt*1000>now+5000||row.observedAt*1000<now-120000||!Number.isFinite(row.validUntil)||row.validUntil*1000<=now||row.validUntil>row.observedAt+120||row.displaySuggested!==true||!Array.isArray(row.allowedActions)||row.allowedActions.length||!text(row.title,160)||![...answerFamilies,...typedAnswerFamilies].includes(row.family))throw Error('invalid_presentation_binding');
  const p=row.provenance,ai=p?.kind==='ai_explanation';
  if(ai){if(Object.keys(p).length!==1||['fact-card','chart'].includes(row.family)||row.family==='answer-timeline'&&row.content?.events?.some(event=>event.status!=='planned')||row.family==='checklist'&&row.content?.items?.some(item=>item.checked!==false))throw Error('invalid_explanation_provenance');const art=row.family==='sourced-image'?row.content?.image:row.content?.illustration;if(art&&(art.url!=='assets/bicycle-drivetrain-illustration.webp'||art.kind!=='illustration'))throw Error('unadmitted_explanation_image');}
  else if(p?.kind!=='owner_sources'||Object.keys(p).some(key=>!['kind','receiptIds'].includes(key))||!Array.isArray(p.receiptIds)||!p.receiptIds.length||p.receiptIds.length>8||p.receiptIds.some(id=>!receipt(id)||id===row.receiptId)||new Set(p.receiptIds).size!==p.receiptIds.length)throw Error('invalid_presentation_sources');
@@ -63,7 +63,7 @@ export function ownedSource(value,id,now=Date.now(),snapshot=null){
 export function historicalAnswers(value,snapshot,now=Date.now()){
  if(value?.schema!=='podview.answer-history.v1'||Object.keys(value).sort().join(',')!=='bootId,items,receiptIds,removalRevision,revision,roomId,schema'||value.bootId!==snapshot?.bootId||value.roomId!==snapshot?.roomId||snapshot?.capabilities?.answerRead!==true||!Number.isSafeInteger(value.revision)||value.revision<0||value.revision!==snapshot.answerHistoryRevision||!Number.isSafeInteger(value.removalRevision)||value.removalRevision<0||value.removalRevision>value.revision||value.removalRevision!==snapshot.answerHistoryRemovalRevision||!Array.isArray(value.items)||value.items.length>20||!Array.isArray(value.receiptIds)||!Array.isArray(snapshot.answerHistoryReceiptIds)||value.receiptIds.length!==value.items.length||JSON.stringify(value.receiptIds)!==JSON.stringify(snapshot.answerHistoryReceiptIds)||value.items.some((row,index)=>row?.receiptId!==value.receiptIds[index]))throw Error('invalid_answer_history');
  const seen=new Set(),items=value.items.map(row=>{
-  if(!row||!['content,family,observedAt,provenance,receiptId,title','content,family,observedAt,provenance,receiptId,sessionId,title','content,family,observedAt,provenance,receiptId,sessionId,title,turnId'].includes(Object.keys(row).sort().join(','))||('sessionId' in row&&!text(row.sessionId,256))||('turnId' in row&&!text(row.turnId,256))||!receipt(row.receiptId)||seen.has(row.receiptId)||![...typedAnswerFamilies,...visualFamilies].includes(row.family)||!text(row.title,160)||!Number.isFinite(row.observedAt)||row.observedAt<0||row.observedAt*1000>now+5000||!row.provenance||Object.keys(row.provenance).join(',')!=='kind'||!['tool_result','ha_weather','owner_sources','ai_explanation'].includes(row.provenance.kind)||new TextEncoder().encode(JSON.stringify(row)).length>65536)throw Error('invalid_historical_answer');
+  if(!row||!['content,family,observedAt,provenance,receiptId,title','content,family,observedAt,provenance,receiptId,sessionId,title','content,family,observedAt,provenance,receiptId,sessionId,title,turnId'].includes(Object.keys(row).sort().join(','))||('sessionId' in row&&!text(row.sessionId,256))||('turnId' in row&&!text(row.turnId,256))||!receipt(row.receiptId)||seen.has(row.receiptId)||![...typedAnswerFamilies,...answerFamilies].includes(row.family)||!text(row.title,160)||!Number.isFinite(row.observedAt)||row.observedAt<0||row.observedAt*1000>now+5000||!row.provenance||Object.keys(row.provenance).join(',')!=='kind'||!['tool_result','ha_weather','owner_sources','ai_explanation'].includes(row.provenance.kind)||new TextEncoder().encode(JSON.stringify(row)).length>65536)throw Error('invalid_historical_answer');
   seen.add(row.receiptId);const ai=row.provenance.kind==='ai_explanation',options={ownerReceiptIds:[row.receiptId],allowConversation:ai};
   if(ai){if(['fact-card','chart'].includes(row.family)||row.family==='answer-timeline'&&row.content?.events?.some(event=>event.status!=='planned')||row.family==='checklist'&&row.content?.items?.some(item=>item.checked!==false))throw Error('invalid_historical_explanation');const art=row.content?.image||row.content?.illustration;if(art&&(art.url!=='assets/bicycle-drivetrain-illustration.webp'||art.kind!=='illustration'))throw Error('invalid_historical_image');}
   const content=typedAnswerFamilies.includes(row.family)?validateTypedAnswerContent(row.family,row.content,options):validateVisualContent(row.family,row.content,options),keys=new Set();JSON.stringify(row.content,(key,v)=>{keys.add(key);return v;});const order=[...keys].sort();if(JSON.stringify(row.content,order)!==JSON.stringify(content,order))throw Error('unclosed_historical_content');
@@ -86,6 +86,30 @@ export function transcriptHistory(value,snapshot){
  });return {items};
 }
 
+// Rule 3: one card per conversation topic. Weather and other answers never share a card.
+const weatherLabels=new Set(['Temperatur','Vejrforhold','Højeste','Laveste','Risiko for regn']);
+export function answerTopic(item){
+ const weather=item?.kind==='fact-card'&&(item.provenance?.kind==='ha_weather'||
+  (item.content?.facts||[]).some(fact=>weatherLabels.has(fact.label)));
+ return `${item?.sessionId||''}|${weather?'weather':'answer'}`;
+}
+
+// The sections of the focused answer's card, oldest first: earlier answers on the same
+// topic in the same conversation, then the focused one. A follow-up becomes a new section.
+export function answerThread(answers,focusId){
+ const focus=answers.find(item=>item.id===focusId);
+ if(!focus||focus.presentation!==true||!focus.sessionId||!Number.isFinite(focus.observedAt))return null;
+ const topic=answerTopic(focus),byReceipt=new Map();
+ for(const item of answers){
+  if(item.id!==focus.id&&(item.hidden||item.transcriptSegment||item.presentation!==true||item.status!=='ready'
+   ||!Number.isFinite(item.observedAt)||item.observedAt>focus.observedAt||answerTopic(item)!==topic))continue;
+  const key=item.receiptId||item.id,known=byReceipt.get(key);
+  if(!known||item.id===focus.id||(item.live&&!known.live&&known.id!==focus.id))byReceipt.set(key,item);
+ }
+ const items=[...byReceipt.values()].sort((a,b)=>a.observedAt-b.observedAt).slice(-6);
+ return items.length>1?{sessionId:focus.sessionId,topic,items}:null;
+}
+
 // History contains finished visual answers with an explicit owner session identity.
 // Transcript fragments and unbound legacy receipts remain stored but are not shown.
 export function groupAnswerHistory(items,view){
@@ -99,9 +123,9 @@ export function groupAnswerHistory(items,view){
  for(const answer of items){
   const archived=snapshot?.answerHistoryReceiptIds?.includes(answer.receiptId)?archive?.get(answer.id):null;
   const item=archived?{...archived,hidden:answer.hidden}:answer;
-  if(item.hidden||item.transcriptSegment||item.presentation!==true||!item.historical||item.status!=='ready'||!item.sessionId||![...visualFamilies,...typedAnswerFamilies].includes(item.kind))continue;
-  let group=bySession.get(item.sessionId);
-  if(!group){group={sessionId:item.sessionId,items:[]};groups.push(group);bySession.set(item.sessionId,group);}
+  if(item.hidden||item.transcriptSegment||item.presentation!==true||!item.historical||item.status!=='ready'||!item.sessionId||![...answerFamilies,...typedAnswerFamilies].includes(item.kind))continue;
+  const topic=answerTopic(item);let group=bySession.get(topic);
+  if(!group){group={sessionId:item.sessionId,topic,items:[]};groups.push(group);bySession.set(topic,group);}
   group.items.push(item);
  }
  return groups;

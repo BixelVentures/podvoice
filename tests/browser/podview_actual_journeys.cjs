@@ -102,8 +102,10 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{OFFLINE_FEEDBACK_TEST:'1',PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'offline-feedback')});
   runJourney(journey,{OFFLINE_FEEDBACK_TEST:'1',RO_LAYOUT_TEST:'1',PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'ro-layout')});
  }
- if(journey==='answers_actual_e2e.cjs')runJourney(journey,{ANSWERS_LIVE_TEST:'1',
+ if(journey==='answers_actual_e2e.cjs'){runJourney(journey,{ANSWERS_LIVE_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'answers-live')});
+  runJourney(journey,{ANSWERS_LIVE_TEST:'1',SVAR_THREAD_TEST:'1',
+  PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'svar-ipad')});}
  if(journey==='timer_actual_e2e.cjs'){
   runJourney(journey,{TIMER_ADJUST_TEST:'1'});
   runJourney(journey,{TIMER_RELOAD_TEST:'1'});

@@ -545,3 +545,61 @@ def test_requested_spoken_scope_survives_optional_visual_budget():
         "Fold flyveren sammen langs midterfolden. Fold en vinge ned på hver side."
     )
     assert final_message(full_answer) == {"spoken": full_answer, "presentation": None}
+
+
+def test_sport_result_card_shows_teams_score_scorers_and_date():
+    owner, sink = object(), VisualReceiptOwner()
+    data = {
+        "spoken": "Barcelona vandt 3-1 over Sevilla i går. Lewandowski scorede to.",
+        "presentation": {
+            "family": "sport-result",
+            "title": "FC Barcelona mod Sevilla",
+            "summary": "Barcelona vandt 3-1 hjemme.",
+            "origin": "ai_explanation",
+            "content": {
+                "match": {
+                    "home": "FC Barcelona",
+                    "away": "Sevilla",
+                    "homeScore": 3,
+                    "awayScore": 1,
+                    "date": "11. november 2026",
+                    "competition": "La Liga",
+                },
+                "scorers": [
+                    {"team": "home", "name": "Lewandowski", "minute": "12'"},
+                    {"team": "home", "name": "Lewandowski", "minute": "58'"},
+                    {"team": "away", "name": "En-Nesyri", "minute": None},
+                ],
+            },
+            "sourceCalls": [],
+        },
+    }
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(data)))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert item["family"] == "sport-result"
+    assert item["content"]["match"]["homeScore"] == 3
+    assert [r["name"] for r in item["content"]["scorers"]][:1] == ["Lewandowski"]
+    archived = sink._history["kitchen"]["items"][0]["display"]
+    assert archived["family"] == "sport-result"
+
+
+def test_key_points_card_has_headline_points_and_source_label():
+    owner, sink = object(), VisualReceiptOwner()
+    data = {
+        "spoken": "Månen er cirka 384.400 km væk.",
+        "presentation": {
+            "family": "key-points",
+            "title": "Afstanden til Månen",
+            "summary": "Månen er i gennemsnit 384.400 km fra Jorden.",
+            "origin": "ai_explanation",
+            "content": {"points": ["Gennemsnit 384.400 km", "Lys bruger 1,3 sekunder"]},
+            "sourceCalls": [],
+        },
+    }
+    assert sink.offer_completed_answer(**context(owner, message=json.dumps(data)))
+    item = sink.snapshot("kitchen", owner)["items"][0]
+    assert [p["text"] for p in item["content"]["points"]] == [
+        "Gennemsnit 384.400 km",
+        "Lys bruger 1,3 sekunder",
+    ]
+    assert sink._history["kitchen"]["items"][0]["display"]["family"] == "key-points"
