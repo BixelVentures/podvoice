@@ -11,6 +11,7 @@ const configMode=process.env.RADIO_CONFIG_TEST;
 const privateFixtureTokens=configMode?[require('node:crypto').randomUUID(),require('node:crypto').randomUUID()]:[];
 const timingMode=process.env.RADIO_TIMING_TEST==='1';
 const startLatency=process.env.RADIO_START_LATENCY_TEST==='1';
+const volumeMode=process.env.RADIO_VOLUME_TEST==='1';
 const stationOrderMode=process.env.RADIO_STATION_ORDER_TEST;
 const orderedStations=['1','unknown','rejected'].includes(stationOrderMode);
 // Read every bounded persisted page; a healthy trace may exceed the first64 rows.
@@ -112,6 +113,42 @@ async function radioStartLatencyJourney(stations){
  assert.deepEqual((await state()).radioWrites.map(row=>row.action),['start']);
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',mode:'radio-start-latency',...result}));
+}
+// Volume during radio (Green 12 Nov): the native owner answers after 1.5 s. The slider keeps the
+// chosen value and neither it nor Stop is ever greyed; Stop pressed meanwhile wins.
+async function radioVolumeJourney(stations){
+ await stations.getByRole('button',{name:/P3/}).tap();
+ const volume=page.locator('#volume'),toggle=page.locator('#play-pause');
+ await page.waitForFunction(()=>{const input=document.querySelector('#volume');
+  return document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='playing'&&input&&!input.disabled
+   &&input.value==='30';},undefined,{timeout:10000});
+ const sent=[];page.on('request',request=>{if(new URL(request.url()).pathname==='/view/api/radio/actions')sent.push(Date.now());});
+ await page.evaluate(()=>{const probe=window.radioVolumeProbe={disabled:[],stop:false};const sample=()=>{
+  for(const id of ['volume','play-pause'])if(document.getElementById(id)?.disabled&&!probe.stop)probe.disabled.push(id);
+  if(!probe.stop)requestAnimationFrame(sample);};requestAnimationFrame(sample);});
+ const before=(await state()).radioWrites.length;let releasedAt;
+ await env.touchRange(page,volume,40,{afterRelease:()=>{releasedAt=Date.now();}});
+ releasedAt??=Date.now();
+ assert.equal(await volume.inputValue(),'40','the slider stays at the chosen value while the command is sent');
+ assert.equal(await volume.isDisabled(),false);assert.equal(await toggle.isDisabled(),false);
+ for(let n=0;sent.length===0&&n<50;n++)await sleep(20);
+ const sendMs=sent[0]-releasedAt;
+ await sleep(300);
+ assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host').liveRadio.pending),true,'volume still pending');
+ assert.equal(await volume.inputValue(),'40');
+ await toggle.tap();
+ const stopTappedMs=Date.now()-releasedAt;
+ await page.evaluate(()=>{window.radioVolumeProbe.stop=true;});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='stopped'
+  &&!document.querySelector('pv-widget-host').liveRadio.pending,undefined,{timeout:15000});
+ const doneMs=Date.now()-releasedAt,probe=await page.evaluate(()=>window.radioVolumeProbe);
+ const writes=(await state()).radioWrites.slice(before);
+ assert.deepEqual(writes.map(row=>row.action),['volume','stop'],'Stop pressed during the volume command is sent');
+ assert.equal(writes[0].volume_percent,40);
+ assert.deepEqual([...new Set(probe.disabled)],[],'slider and Stop are never greyed during the volume command');
+ assert(sendMs<300,`volume command sent ${sendMs} ms after release`);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'radio-volume',sendMs,stopTappedMs,stoppedMs:doneMs,bundleSHA}));
 }
 async function radioTimingJourney(stations){
  const results=[];
@@ -272,6 +309,7 @@ async function stationOrderJourney(stations){
  if(configMode){await radioConfigJourney(stations);return;}
  if(timingMode){await radioTimingJourney(stations);return;}
  if(startLatency){await radioStartLatencyJourney(stations);return;}
+ if(volumeMode){await radioVolumeJourney(stations);return;}
  if(orderedStations){await stationOrderJourney(stations);return;}
  await stations.getByRole('button',{name:/P3/}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='playing'&&!h.liveRadio.pending&&h.liveRadio.value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});

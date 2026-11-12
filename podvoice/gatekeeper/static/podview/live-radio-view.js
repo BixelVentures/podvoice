@@ -143,6 +143,8 @@ export class LiveRadioView{
      this.message = 'Radioændringen er ikke bekræftet. Tjek afspilleren.';
     } else if (action === 'stop') {
      this.message = sent ? 'Radio kunne ikke stoppes.' : 'Stop blev ikke sendt.';
+    } else if (action === 'volume') {
+     this.message = 'Lydstyrken blev ikke ændret.';
     } else {
      this.message = 'Radio kunne ikke startes. Prøv igen.';
     }
@@ -173,10 +175,29 @@ export class LiveRadioView{
    this.render();
    return;
   }
+  // Stop is always pressable: during a volume command it wins and is sent as soon as that settles.
+  if(this.pending&&this.pendingRequest?.action==='volume'){this.stopWish=origin;this.volumeWish=null;this.render();return;}
   const display=this.displayState();
   if(display.status==='playing')return this.act('stop',{},origin);
   if(display.stationId)return this.choose(display.stationId,origin);
- }if(event.type==='volume')return this.act('volume',{volumePercent:Number(event.value)});}
+ }if(event.type==='volume'){
+  // The slider keeps the chosen value; changes during a sent volume are coalesced to the last one.
+  const percent=Number(event.value);
+  if(this.pending&&this.pendingRequest?.action==='volume'){this.volumeWish=percent;this.render();return;}
+  return (async()=>{
+   let next=percent;
+   while(Number.isInteger(next)){
+    this.volumeWish=null;this.volumeTarget=next;
+    await this.act('volume',{volumePercent:next});
+    this.volumeTarget=null;
+    if(this.stopWish){const origin=this.stopWish;this.stopWish=null;this.volumeWish=null;this.render();
+     if(this.displayState().status==='playing')await this.act('stop',{},origin);return;}
+    next=this.feedbackKind?null:this.volumeWish;
+    if(next===this.value?.state?.volumePercent)next=null;
+   }
+   this.volumeWish=null;this.render();
+  })();
+ }}
  displayState(){const s=this.value?.state||{};return this.knownStopped()?{...this.lastConfirmed,status:'stopped',sourceKind:'none',generation:s.generation}:!['playing','stopped'].includes(s.status)&&this.lastConfirmed?this.lastConfirmed:s;}
  renderControls(){const request=this.pendingStart();if(request){
   // The start stays tappable: the toggle queues Stop and shows that wish at once.
@@ -185,7 +206,11 @@ export class LiveRadioView{
   this.host.playerView.renderControls({sourceKind:'radio',playing:!stopping,loadingControlId:'play-pause',pendingLabel,
    blocked:false,toggle:true,volume:request.volumePercent,canVolume:false});
   return;
- }const s=this.value?.state||{},display=this.displayState(),volume=this.knownStopped()?null:s.volumePercent;this.host.playerView.renderControls({sourceKind:'radio',loadingControlId:this.progress()?.kind==='transport'?this.progress().id:null,playing:display.status==='playing',toggle:this.can(display.status==='playing'?'stop':'start'),blocked:!this.current()||this.pending,volume:Number.isInteger(volume)?volume:null,canVolume:!this.knownStopped()&&this.can('volume')});}
+ }const s=this.value?.state||{},display=this.displayState(),wish=this.volumeWish??this.volumeTarget,volume=this.knownStopped()?null:Number.isInteger(wish)?wish:s.volumePercent;
+  // A volume command in flight never greys the slider or Stop (same as Spotify volume).
+  const busy=this.pending&&this.pendingRequest?.action!=='volume',stopWished=!!this.stopWish;
+  const ready=this.current()&&!busy&&!['preparing','unknown'].includes(s.status),actions=this.value?.actions||[];
+  this.host.playerView.renderControls({sourceKind:'radio',loadingControlId:stopWished?'play-pause':this.progress()?.kind==='transport'?this.progress().id:null,...(stopWished?{pendingLabel:'Stopper radio…'}:{}),playing:display.status==='playing',toggle:ready&&actions.includes(display.status==='playing'?'stop':'start'),blocked:!this.current()||busy,volume:Number.isInteger(volume)?volume:null,canVolume:!this.knownStopped()&&!stopWished&&ready&&actions.includes('volume')});}
  playerModel(){const request=this.pendingStart();if(request){const station=radioStation(request.stationId);return pendingRadioPlayerModel(station.id,request.volumePercent,request.targetName);}if(!this.hasSource()&&!this.knownStopped())return null;const s=this.value.state,display=this.displayState(),station=radioStation(display.stationId)||radioStation(s.stationId),target=this.value.targets.find(t=>t.id===display.targetId);return {active:true,sourceKind:'radio',playing:display.status==='playing',fresh:this.current()&&!this.knownStopped()&&['playing','stopped'].includes(s.status),title:station.label,artist:'Direkte radio',fixtureArt:`assets/radio-${station.id}.svg`,target:target?.name||display.targetName||'',volume:this.knownStopped()?null:s.volumePercent??null,canOutput:this.current(),canDiscover:true,canSeek:false,controlStatus:'',feedback:this.feedback()};}
  renderPlayer(){if(!this.presentsPlayer())return false;const model=this.playerModel();if(!model)return false;this.host.playerView.renderPlayer(model);this.renderControls();this.host.playerView.renderQueue([],{sourceKind:'radio'});return true;}
  render(){const h=this.host;if(!h.isConnected)return;const feedback=this.value&&h.liveSnapshot&&this.value.bootId===h.liveSnapshot.bootId&&this.value?.roomId===h.liveSnapshot?.roomId&&(this.unknown||this.feedbackKind||this.value.enabled===true&&(this.value.state.sourceKind==='radio'||this.lastConfirmed?.sourceKind==='radio'))?this.feedback():null;h.showFeedback?.(feedback?.message||'',false,{source:'radio'});h.radioSignature=null;h.render?.();if(!this.renderPlayer())h.liveMedia?.render?.();h.playerView?.renderRadioProgress?.(!this.presentsPlayer()||this.pendingStart()?null:this.progress());h.renderOverviewFacts?.();if(this.outputOpen)this.syncOutputs();}

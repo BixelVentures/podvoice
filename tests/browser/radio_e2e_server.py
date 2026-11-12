@@ -30,6 +30,8 @@ radio_fault = None
 start_latency = os.environ.get("RADIO_START_LATENCY_TEST") == "1"
 RADIO_PLAYS_AFTER_S = 2.7
 latency_tasks: list[asyncio.Task] = []
+# Green timing: the native radio owner answers a volume command after 1.5 s.
+volume_delay = os.environ.get("RADIO_VOLUME_TEST") == "1"
 radio = native_state()
 radio["targets"] = [
     {
@@ -139,6 +141,8 @@ async def radio_action(request):
         radio.update(state="stopped", source_kind="none")
     elif body["action"] == "volume":
         assert radio["state"] == "playing" and radio["source_kind"] == "radio"
+        if volume_delay:
+            await asyncio.sleep(1.5)
         assert body["station_id"] is None and body["target_id"] is None
         assert type(body["volume_percent"]) is int and 0 <= body["volume_percent"] <= 100
         radio["volume_percent"] = body["volume_percent"]
