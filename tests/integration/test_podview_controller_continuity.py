@@ -10,7 +10,7 @@ from integration.test_podview_bridge import envelope, owner
 
 from gatekeeper import podview
 from gatekeeper.podview import BRIDGE, PodViewBridge
-from gatekeeper.podview_continuity import ContinuityDenied, ControllerRegistry
+from gatekeeper.podview_continuity import ROOM_SCREEN_LIMIT, ContinuityDenied, ControllerRegistry
 
 GENERATION = "c" * 64
 
@@ -164,31 +164,24 @@ async def test_new_admin_pair_keeps_previous_active_profile(tmp_path):
     assert (await renew(second, credential)).status == 200
 
 
-def test_two_profiles_reject_third_without_eviction_and_revoke_individually(tmp_path):
+def test_room_lists_every_screen_newest_first_and_rejects_beyond_bound_without_eviction(tmp_path):
+    # Desired behavior changed: a third (up to ROOM_SCREEN_LIMIT) screen per room is
+    # enrolled and listed; previously the room stopped at two and hid the rest.
     registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
     pin = "e" * 64
     mac, mac_id, mac_expiry = registry.enroll("kitchen", pin, name="Mac")
     display, display_id, display_expiry = registry.enroll(
         "kitchen", pin, name="Display", persistent=True
     )
+    third, third_id, _ = registry.enroll("kitchen", pin, name="Third", persistent=True)
     assert mac_expiry is not None and display_expiry is None
-    before = registry.path.read_bytes()
-    with pytest.raises(ContinuityDenied, match="room enrollment full"):
-        registry.enroll("kitchen", pin, name="Third")
-    assert registry.path.read_bytes() == before
-    assert registry.validate(mac, "kitchen", pin) == (mac_id, mac_expiry)
-    assert registry.validate(display, "kitchen", pin, renew=True) == (display_id, None)
-    assert registry.list_enrollments("kitchen", pin) == [
-        {
-            "id": mac_id,
-            "name": "Mac",
-            "room": "kitchen",
-            "persistent": False,
-            "expiresAt": mac_expiry,
-            "areaId": None,
-            "placementRevision": 0,
-            "status": "active",
-        },
+    assert registry.validate(third, "kitchen", pin) == (third_id, None)
+    assert [row["id"] for row in registry.list_enrollments("kitchen", pin)] == [
+        third_id,
+        display_id,
+        mac_id,
+    ]
+    assert registry.list_enrollments("kitchen", pin)[1:] == [
         {
             "id": display_id,
             "name": "Display",
@@ -199,20 +192,43 @@ def test_two_profiles_reject_third_without_eviction_and_revoke_individually(tmp_
             "placementRevision": 0,
             "status": "active",
         },
+        {
+            "id": mac_id,
+            "name": "Mac",
+            "room": "kitchen",
+            "persistent": False,
+            "expiresAt": mac_expiry,
+            "areaId": None,
+            "placementRevision": 0,
+            "status": "active",
+        },
     ]
+    extra = [
+        registry.enroll("kitchen", pin, name=f"Extra {index}", persistent=True)
+        for index in range(ROOM_SCREEN_LIMIT - 3)
+    ]
+    before = registry.path.read_bytes()
+    with pytest.raises(ContinuityDenied, match="room enrollment full"):
+        registry.enroll("kitchen", pin, name="Too many")
+    assert registry.path.read_bytes() == before
+    assert len(registry.list_enrollments("kitchen", pin)) == ROOM_SCREEN_LIMIT
+    assert registry.list_enrollments("kitchen", pin)[0]["id"] == extra[-1][1]
+    assert registry.validate(mac, "kitchen", pin) == (mac_id, mac_expiry)
+    assert registry.validate(display, "kitchen", pin, renew=True) == (display_id, None)
     assert mac not in registry.path.read_text() and display not in registry.path.read_text()
     registry.revoke(mac_id, room="kitchen")
     with pytest.raises(ContinuityDenied):
         registry.validate(mac, "kitchen", pin)
     assert registry.validate(display, "kitchen", pin) == (display_id, None)
-    assert registry.list_enrollments("kitchen", "f" * 64)[1]["status"] == "stale"
+    stale = {row["id"]: row["status"] for row in registry.list_enrollments("kitchen", "f" * 64)}
+    assert stale[display_id] == "stale"
     with pytest.raises(ContinuityDenied):
         registry.revoke(display_id, room="other")
     assert registry.validate(display, "kitchen", pin) == (display_id, None)
     replacement, _, _ = registry.enroll("kitchen", pin, name="Replacement")
     assert registry.validate(replacement, "kitchen", pin)
     registry.revoke(room="kitchen")
-    for credential in (display, replacement):
+    for credential in (display, third, replacement):
         with pytest.raises(ContinuityDenied):
             registry.validate(credential, "kitchen", pin)
 
@@ -220,22 +236,19 @@ def test_two_profiles_reject_third_without_eviction_and_revoke_individually(tmp_
 def test_room_cap_includes_other_pins_without_eviction(tmp_path):
     registry = ControllerRegistry(tmp_path / "controllers" / "registry.json", GENERATION, 30)
     old_pin, new_pin = "e" * 64, "f" * 64
-    first, first_id, _ = registry.enroll("kitchen", old_pin, persistent=True)
-    second, second_id, _ = registry.enroll("kitchen", old_pin, persistent=True)
+    old = [registry.enroll("kitchen", old_pin, persistent=True) for _ in range(ROOM_SCREEN_LIMIT)]
     before = registry.path.read_bytes()
     with pytest.raises(ContinuityDenied, match="room enrollment full"):
         registry.enroll("kitchen", new_pin, persistent=True)
     assert registry.path.read_bytes() == before
     assert [row["id"] for row in registry.list_enrollments("kitchen", new_pin)] == [
-        first_id,
-        second_id,
+        identity for _, identity, _ in reversed(old)
     ]
     assert all(row["status"] == "stale" for row in registry.list_enrollments("kitchen", new_pin))
-    assert registry.validate(first, "kitchen", old_pin)
-    assert registry.validate(second, "kitchen", old_pin)
-    registry.revoke(first_id, room="kitchen")
+    assert all(registry.validate(token, "kitchen", old_pin) for token, _, _ in old)
+    registry.revoke(old[0][1], room="kitchen")
     third, _, _ = registry.enroll("kitchen", new_pin, persistent=True)
-    assert registry.validate(second, "kitchen", old_pin)
+    assert registry.validate(old[1][0], "kitchen", old_pin)
     assert registry.validate(third, "kitchen", new_pin)
 
 

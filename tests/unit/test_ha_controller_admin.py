@@ -415,6 +415,19 @@ def test_placement_receipt_is_closed_and_never_accepts_browser_scope(monkeypatch
     assert not api._valid_result("placement", "kitchen", {**good, **delta})
 
 
+def test_listing_accepts_every_screen_up_to_the_shared_room_bound(monkeypatch):
+    api, _, _, _, _, _ = rig(monkeypatch)
+    rows = [{**enrollment(), "id": f"{index:032x}"} for index in range(api.ROOM_SCREEN_LIMIT + 1)]
+
+    def listing(count):
+        return {"ok": True, "room": "kitchen", "pending": [], "enrolled": rows[:count]}
+
+    assert api.ROOM_SCREEN_LIMIT == 8  # Equals the add-on registry bound.
+    assert api._valid_result("list", "kitchen", listing(3))
+    assert api._valid_result("list", "kitchen", listing(api.ROOM_SCREEN_LIMIT))
+    assert not api._valid_result("list", "kitchen", listing(api.ROOM_SCREEN_LIMIT + 1))
+
+
 @pytest.mark.parametrize("change", ["admin", "area"])
 async def test_admin_or_area_removed_while_placement_ack_is_pending_is_not_claimed(
     monkeypatch, change

@@ -38,7 +38,7 @@ from . import (
     podview_weather_brief,
 )
 from .history import MAX_TURNS, TALK_ROOM, History
-from .podview_continuity import ControllerRegistry
+from .podview_continuity import ControllerRegistry, log_screen_enrollment
 from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
 from .recipe_import import import_link
@@ -1085,6 +1085,7 @@ class PodViewBridge:
             "pin": pin,
             "boot": self.boot_id,
         }
+        log_screen_enrollment("requested", room, request_id)
         return {
             "ok": True,
             "requestId": request_id,
@@ -1122,6 +1123,7 @@ class PodViewBridge:
         ):
             raise ValueError("controller request unavailable")
         row["status"] = "approved"
+        log_screen_enrollment("approved", room, request_id)
         return {"ok": True, "status": "approved", "requestId": request_id, "name": row["name"]}
 
     def controller_request_status(self, room: str, request_id: str, registry) -> dict:
@@ -1160,6 +1162,9 @@ class PodViewBridge:
         ):
             raise ValueError("controller claim unavailable")
         if row["status"] == "pending":
+            if not row.get("pendingLogged"):
+                row["pendingLogged"] = True
+                log_screen_enrollment("pending", room, request_id)
             return {
                 "ok": True,
                 "status": "pending",
@@ -1167,16 +1172,21 @@ class PodViewBridge:
             }, None
         if row["status"] == "approved":
             # No await between durable enrollment and the browser-bound replay record.
-            token, identity, expiry = row["registry"].enroll(
-                room, row["pin"], name=row["name"], persistent=True
-            )
+            try:
+                token, identity, expiry = row["registry"].enroll(
+                    room, row["pin"], name=row["name"], persistent=True
+                )
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                log_screen_enrollment("enroll_refused", room, request_id, reason=error)
+                raise
             try:
                 if not self._request_current(row):
                     raise ValueError("controller owner changed")
                 action = self.grant_timer_control(room, identity)
                 if not self._grant_current(room, action):
                     raise ValueError("controller grant unavailable")
-            except (OSError, ValueError, TypeError, KeyError):
+            except (OSError, ValueError, TypeError, KeyError) as error:
+                log_screen_enrollment("enroll_refused", room, request_id, reason=error)
                 row["registry"].revoke(identity, room=room)
                 self._grants.pop((room, identity), None)
                 self._controller_grants.pop((room, identity), None)
@@ -1184,6 +1194,7 @@ class PodViewBridge:
             row.update(
                 status="connected", token=token, identity=identity, action=action, expiry=expiry
             )
+            log_screen_enrollment("enrolled", room, identity)
         if row["status"] != "connected" or not row["registry"].current(
             row["identity"], room, row["pin"]
         ):
@@ -1226,11 +1237,13 @@ class PodViewBridge:
             if not known:
                 return False
             registry.revoke(identity, room=room)
-        except (OSError, ValueError, TypeError, KeyError):
+        except (OSError, ValueError, TypeError, KeyError) as error:
             self._controller_revocation_failed.add(room)
+            log_screen_enrollment("revoke_failed", room, identity, reason=error)
             return False
         self._grants.pop(slot, None)
         self._controller_grants.pop(slot, None)
+        log_screen_enrollment("revoked", room, identity)
         return True
 
     def revoke(self, room: str) -> bool:
@@ -1246,12 +1259,14 @@ class PodViewBridge:
         if registry is not None:
             try:
                 registry.revoke(room=room)
-            except (OSError, ValueError, TypeError, KeyError):
+            except (OSError, ValueError, TypeError, KeyError) as error:
                 committed = False
                 self._controller_revocation_failed.add(room)
+                log_screen_enrollment("room_revoke_failed", room, reason=error)
             else:
                 committed = True
                 self._controller_revocation_failed.discard(room)
+                log_screen_enrollment("room_revoked", room)
         for slot in list(self._grants):
             if slot == room or (isinstance(slot, tuple) and slot[0] == room):
                 self._grants.pop(slot, None)
@@ -2333,9 +2348,30 @@ class PodViewBridge:
             return receipt
 
 
+def _log_control_refused(request: web.Request, status: int, reason: str, room=None) -> None:
+    """A refused control call is visible in the add-on log; codes and hashes only."""
+    try:
+        _LOG.warning(
+            "podview_control_refused route=%s status=%s reason=%s room_ref=%s",
+            "control/setup" if request.path.endswith("/setup") else "control/actions",
+            status,
+            reason if re.fullmatch(r"[a-z_]{1,48}", str(reason)) else "unknown",
+            hashlib.sha256(str(room).encode(errors="surrogatepass")).hexdigest()[:8]
+            if isinstance(room, str)
+            else "none",
+        )
+    except Exception:
+        pass  # Diagnostics never change the response.
+
+
 async def _control(request: web.Request) -> web.Response:
     denied = await _guard(request)
     if denied is not None:
+        try:
+            reason = json.loads(denied.text or "")["error"]
+        except (ValueError, TypeError, KeyError, AttributeError):
+            reason = "unknown"
+        _log_control_refused(request, denied.status, reason)
         return denied
     if request.content_length is None or request.content_length > 4096:
         return _error("bounded_body_required", 413)
@@ -2359,6 +2395,7 @@ async def _control(request: web.Request) -> web.Response:
     token = _request_token(request, body.get("roomId"))
     bridge = request.app[BRIDGE]
     if vehicle and not bridge._vehicle_controller_current(body.get("roomId"), token):
+        _log_control_refused(request, 403, "control_not_paired", body.get("roomId"))
         return _error("control_not_paired", 403)
     current = asyncio.current_task()
     if vehicle and current is not None:
@@ -2368,6 +2405,8 @@ async def _control(request: web.Request) -> web.Response:
     finally:
         if vehicle and current is not None:
             bridge._vehicle_requests.discard(current)
+    if isinstance(result, dict) and result.get("error") == "scope_not_paired":
+        _log_control_refused(request, 200, "scope_not_paired", body.get("roomId"))
     return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
@@ -2879,7 +2918,9 @@ async def _pair(request: web.Request) -> web.Response:
                     registry.revoke(enrollment[1], room=body["roomId"])
                 except (OSError, ValueError, TypeError, KeyError):
                     bridge._controller_revocation_failed.add(body["roomId"])
+            log_screen_enrollment("pairing_enroll_refused", body["roomId"])
             return _error("controller_enrollment_denied", 403)
+        log_screen_enrollment("pairing_enrolled", body["roomId"], enrollment[1])
     response = web.json_response(
         {
             "ok": True,
@@ -3012,6 +3053,7 @@ async def _controller_request(request: web.Request) -> web.Response:
     prefix = request.headers.get("X-Ingress-Path", "")
     if prefix and re.fullmatch(r"/api/hassio_ingress/[A-Za-z0-9_-]+", prefix) is None:
         return _error("invalid_ingress_path", 403)
+    body = None
     try:
         body = json.loads(await request.text(), object_pairs_hook=_unique_json_object)
         if (
@@ -3023,7 +3065,9 @@ async def _controller_request(request: web.Request) -> web.Response:
         ):
             raise ValueError
         result, proof = request.app[BRIDGE].request_controller(body["roomId"], body["name"])
-    except (OSError, ValueError, TypeError, KeyError, UnicodeError):
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError) as error:
+        room = body.get("roomId") if isinstance(body, dict) else None
+        log_screen_enrollment("request_refused", room, reason=error)
         return _error("controller_request_denied", 403)
     response = web.json_response(result, headers={"Cache-Control": "no-store"})
     response.set_cookie(
@@ -3048,6 +3092,7 @@ async def _controller_claim(request: web.Request) -> web.Response:
     if prefix and re.fullmatch(r"/api/hassio_ingress/[A-Za-z0-9_-]+", prefix) is None:
         return _error("invalid_ingress_path", 403)
     bridge = request.app[BRIDGE]
+    body = None
     try:
         body = json.loads(await request.text(), object_pairs_hook=_unique_json_object)
         if (
@@ -3061,11 +3106,16 @@ async def _controller_claim(request: web.Request) -> web.Response:
         result, cookies = bridge.claim_controller_request(
             body["roomId"], body["requestId"], request.cookies.get(_REQUEST_COOKIE, "")
         )
-    except (OSError, ValueError, TypeError, KeyError, UnicodeError):
+    except (OSError, ValueError, TypeError, KeyError, UnicodeError) as error:
+        room, ref = (
+            (body.get("roomId"), body.get("requestId")) if isinstance(body, dict) else (None, None)
+        )
+        log_screen_enrollment("claim_refused", room, ref, reason=error)
         return _error("controller_claim_denied", 403)
     response = web.json_response(result, headers={"Cache-Control": "no-store"})
     if cookies is not None:
         controller_token, action_token, expiry = cookies
+        log_screen_enrollment("credential_issued", body["roomId"], body["requestId"])
         secure = request.secure or request.headers.get("X-Forwarded-Proto") == "https"
         response.set_cookie(
             _CONTROLLER_COOKIE,

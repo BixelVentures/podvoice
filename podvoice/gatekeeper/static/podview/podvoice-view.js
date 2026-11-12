@@ -43,13 +43,17 @@ export function liveTimerHistory(value,now=Date.now()){
 // the household owns devices. Retry below rereads the existing HA session.
 // Only explicit setup or a known connection failure chooses recovery copy.
 // An empty successful read does not imply missing permissions or configuration.
-export function homeConnectionPresentation({status,blocked=false,browserOffline=false,reason=null}={}){
- const known=['setup','unavailable','denied'].includes(reason)?reason:blocked?'denied':browserOffline||status==='disconnected'||status==='offline'?'unavailable':null;
+export function homeConnectionPresentation({status,blocked=false,sessionExpired=false,browserOffline=false,reason=null}={}){
+ const known=['setup','unavailable','denied'].includes(reason)?reason:blocked&&!sessionExpired?'denied':blocked?'unavailable':browserOffline||status==='disconnected'||status==='offline'?'unavailable':null;
  return {reason:known,detail:({setup:'Tilføj i Home Assistant',unavailable:'Home Assistant svarer ikke lige nu',denied:'PodView har ikke adgang – log ind i Home Assistant'})[known]||''};
 }
-export function connectionPresentation({status,snapshot,blocked=false,browserOffline=false}={}){
+export function connectionPresentation({status,snapshot,blocked=false,sessionExpired=false,browserOffline=false}={}){
  if(browserOffline)return {state:'offline',headerLabel:'Ingen netværksforbindelse',text:snapshot?'Ingen netværksforbindelse · viser det seneste.':'Ingen netværksforbindelse. Kontrollér skærmens forbindelse.',retry:false};
  if(status==='connecting')return {state:'connecting',headerLabel:snapshot?'Genopretter forbindelse…':'Forbinder…',text:snapshot?'Genopretter forbindelsen til hjemmet…':'Forbinder til Home Assistant…',retry:false};
+ // HA's ingress session stayed invalid after one quiet renewal: a connection problem, never a raw 401.
+ if(status!=='connected'&&blocked&&sessionExpired){
+  return {state:'offline',headerLabel:'Forbindelsen mangler',text:'Forbindelsen mangler · Prøv igen.',retry:true};
+ }
  if(status!=='connected')return blocked?{state:'denied',headerLabel:'Adgang mangler',text:'Home Assistant kræver login eller adgang. Log ind i Home Assistant, og prøv igen.',retry:true}:{state:'offline',headerLabel:snapshot?'Forbindelsen er afbrudt':'Ingen forbindelse',text:snapshot?'Forbindelsen til hjemmet er afbrudt · viser det seneste.':'Ingen forbindelse til Home Assistant endnu. Kontrollér forbindelsen, og prøv igen.',retry:true};
  const capabilities=snapshot?.capabilities;
  const empty=capabilities&&Array.isArray(capabilities.homeRead)&&Array.isArray(capabilities.musicRead)&&Array.isArray(capabilities.timerActions)&&!capabilities.homeRead.length&&!capabilities.musicRead.length&&!capabilities.timerActions.length&&capabilities.answerRead!==true;

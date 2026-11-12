@@ -16,6 +16,7 @@ from pathlib import Path
 
 import httpx
 
+from .podview_continuity import ROOM_SCREEN_LIMIT, log_screen_enrollment
 from .podview_controller_admin import ControllerAdminState
 
 _LOG = logging.getLogger("podvoice.admin")
@@ -478,10 +479,18 @@ class AdminStdinTransport:
                             "ok": True,
                             "room": room,
                             "pending": pending[:8],
+                            # Newest first (registry order); every active screen up to the
+                            # shared room bound, so a third screen is manageable in HA.
                             "enrolled": [item for item in enrolled if item["status"] == "active"][
-                                :2
+                                :ROOM_SCREEN_LIMIT
                             ],
                         }
+                        log_screen_enrollment(
+                            "listed",
+                            room,
+                            active=len(result["enrolled"]),
+                            pending=len(result["pending"]),
+                        )
                     else:
                         if not row["enabled"] or self.bridge.controls.policy.get("roomId") != room:
                             raise ValueError("room policy unavailable")

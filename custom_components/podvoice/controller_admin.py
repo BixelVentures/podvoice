@@ -16,6 +16,8 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import area_registry as ar
 
+# Screens per room; equals ROOM_SCREEN_LIMIT in the add-on's controller registry.
+ROOM_SCREEN_LIMIT = 8
 ADDON = "23375871_podvoice"  # This installation's reviewed Supervisor identity.
 
 
@@ -66,7 +68,7 @@ def _valid_result(action, room, value):
             and len(pending) <= 8
             and all(_valid_pending(row) for row in pending)
             and type(enrolled) is list
-            and len(enrolled) <= 2
+            and len(enrolled) <= ROOM_SCREEN_LIMIT
             and all(
                 type(row) is dict
                 and set(row)
