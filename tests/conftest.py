@@ -26,3 +26,18 @@ class FakeClock:
 @pytest.fixture
 def fake_clock() -> FakeClock:
     return FakeClock()
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """CI splits the suite with PYTEST_SHARD=i/n; each test file lands in exactly one shard."""
+    import os
+
+    shard = os.environ.get("PYTEST_SHARD", "")
+    if not shard:
+        return
+    index, total = (int(part) for part in shard.split("/"))
+    files = sorted({str(item.path) for item in items})
+    mine = {path for position, path in enumerate(files) if position % total == index}
+    selected = [item for item in items if str(item.path) in mine]
+    config.hook.pytest_deselected(items=[item for item in items if str(item.path) not in mine])
+    items[:] = selected

@@ -18,10 +18,45 @@ concurrency:
   group: podvoice-ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+env:
+  # Network flakes (npm/pip/DNS) retry instead of failing the run.
+  PIP_RETRIES: "5"
+  PIP_TIMEOUT: "30"
+  NPM_CONFIG_FETCH_RETRIES: "5"
+  NPM_CONFIG_FETCH_RETRY_MINTIMEOUT: "10000"
+  NPM_CONFIG_FETCH_RETRY_MAXTIMEOUT: "60000"
+
 jobs:
-  python:
+  changes:
+    # Pull requests run the browser journeys their files can affect; main runs all of them.
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.select.outputs.matrix }}
+      any: ${{ steps.select.outputs.any }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: ${{ github.event_name == 'pull_request' && 0 || 1 }}
+      - id: select
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${{ github.event_name }}" = pull_request ]; then
+            node scripts/ci-affected-journeys.mjs "$(git merge-base "$BASE" "$HEAD")" "$HEAD"
+          else
+            node scripts/ci-affected-journeys.mjs
+          fi
+
+  python:
+    # The server suite is split over two parallel jobs; together they run every test file.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: ["0/2", "1/2"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,10 +67,15 @@ jobs:
             podvoice/requirements.txt
             podvoice/requirements-dev.txt
       - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: mypy podvoice/gatekeeper
-      - run: python -m pytest -n auto tests/unit tests/integration
+      - if: matrix.shard == '0/2'
+        run: ruff check .
+      - if: matrix.shard == '0/2'
+        run: ruff format --check .
+      - if: matrix.shard == '1/2'
+        run: mypy podvoice/gatekeeper
+      - env:
+          PYTEST_SHARD: ${{ matrix.shard }}
+        run: python -m pytest -n auto tests/unit tests/integration
 
   ui:
     runs-on: ubuntu-latest
@@ -46,7 +86,10 @@ jobs:
         with:
           node-version: "24.19.0"
           cache: npm
-      - run: npm ci --ignore-scripts
+      - name: npm ci (retried on network flakes)
+        run: |
+          for attempt in 1 2 3; do npm ci --ignore-scripts && exit 0; sleep $((attempt * 15)); done
+          exit 1
       - name: Committed PodView assets match their sources
         run: |
           node scripts/prepare-podview-checkout.mjs
@@ -73,7 +116,11 @@ jobs:
           node-version: "24.19.0"
           cache: npm
       - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - run: npm ci --ignore-scripts && npm run build:assets
+      - name: npm ci (retried on network flakes)
+        run: |
+          for attempt in 1 2 3; do npm ci --ignore-scripts && exit 0; sleep $((attempt * 15)); done
+          exit 1
+      - run: npm run build:assets
       - name: PodConnect, Python and PodView radio contract without skips
         env:
           PODVIEW_CANONICAL_ROOT: ${{ github.workspace }}
@@ -85,13 +132,16 @@ jobs:
           fi
 
   journeys:
-    # Real-browser user journeys, one per job so they run in parallel.
+    # Real-browser user journeys in parallel jobs; long journeys are split into shards.
+    # The list comes from `changes` (all on main, affected ones on pull requests).
+    needs: changes
+    if: needs.changes.outputs.any == 'true'
+    name: journeys (${{ matrix.journey }} ${{ matrix.shard }})
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
-      matrix:
-        journey: [robot_ux, music_push, music, music_selection, radio, robot, light, vehicle, timer, home_events, answers, recipe, panel]
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -107,13 +157,32 @@ jobs:
           cache: npm
           cache-dependency-path: tests/browser/package-lock.json
       - run: pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-      - working-directory: tests/browser
+      - name: npm ci (retried on network flakes)
+        working-directory: tests/browser
         run: |
-          npm ci --ignore-scripts
-          node node_modules/playwright/cli.js install --with-deps chromium
+          for attempt in 1 2 3; do npm ci --ignore-scripts && exit 0; sleep $((attempt * 15)); done
+          exit 1
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/browser/package-lock.json') }}
+      - name: Chromium for Playwright
+        # The runner image usually has Chromium's system libraries; apt (slow, DNS flakes)
+        # only runs when the browser cannot start without it.
+        working-directory: tests/browser
+        run: |
+          retry() { for attempt in 1 2 3; do timeout 300 "$@" && return 0; sleep $((attempt * 15)); done; return 1; }
+          retry node node_modules/playwright/cli.js install chromium
+          launch="require('playwright').chromium.launch().then(b => b.close())"
+          if ! node -e "$launch"; then
+            echo "::notice::Installing Chromium system libraries with apt"
+            retry node node_modules/playwright/cli.js install-deps chromium
+            node -e "$launch"
+          fi
       - name: PodView journey
         if: matrix.journey != 'panel'
         env:
+          JOURNEY_SHARD: ${{ matrix.shard }}
           PODVIEW_TEST_PYTHON: python3
           PODVIEW_TEST_ARTIFACT_DIR: ${{ runner.temp }}/browser-proof
         run: node tests/browser/podview_actual_journeys.cjs ${{ matrix.journey }}
@@ -133,7 +202,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: browser-proof-${{ matrix.journey }}-${{ github.sha }}
+          name: browser-proof-${{ matrix.journey }}-${{ strategy.job-index }}-${{ github.sha }}
           path: ${{ runner.temp }}/browser-proof
           if-no-files-found: ignore
 
@@ -157,6 +226,7 @@ jobs:
     # Only when the add-on image itself can change; code is covered by the test jobs.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -218,6 +288,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     needs: [python, ui, journeys, ha-framework]
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:

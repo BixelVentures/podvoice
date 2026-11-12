@@ -5,7 +5,13 @@ const path=require('node:path');
 const {artifactDir}=require('./podview_actual_env.cjs');
 const journeys=['robot_ux_actual_e2e.cjs','music_push_actual_e2e.cjs','music_actual_e2e.cjs','music_selection_actual_e2e.cjs','radio_actual_e2e.cjs','robot_actual_e2e.cjs','light_actual_e2e.cjs','vehicle_actual_e2e.cjs','timer_actual_e2e.cjs','home_events_actual_e2e.cjs','answers_actual_e2e.cjs','recipe_actual_e2e.cjs'];
 const env={...process.env,MUSIC_EXTENDED:'1',PODVIEW_TEST_ARTIFACT_DIR:artifactDir()};
+// JOURNEY_SHARD=i/n (CI) runs every n-th journey variant, so one long journey can be split
+// across parallel jobs; all shards together run exactly the full list.
+const [shardIndex,shardTotal]=(process.env.JOURNEY_SHARD||'0/1').split('/').map(Number);
+let variant=-1;
 function runJourney(journey,extraEnv={}){
+ variant+=1;
+ if(variant%shardTotal!==shardIndex)return;
  console.log(`Running actual PodView journey: ${journey}${extraEnv.MUSIC_COLD_REJECT==='1'?' (cold music context: setup rejected)':extraEnv.MUSIC_COLD_CONTEXT==='1'?' (cold music context: observed)':extraEnv.ROBOT_DRAFT_TEST==='1'?' (server task expiry and mode drafts)':extraEnv.ROBOT_SLOW_START_TEST==='1'?' (admitted Start across source expiry)':extraEnv.WEATHER_RETENTION_TEST==='1'?' (weather failure, reload, recovery and offline expiry)':extraEnv.TIMER_ADJUST_TEST==='1'?' (native v2 timer adjustment and exact Cancel)':''}`);
  const result=spawnSync(process.execPath,[path.join(__dirname,journey)],{env:{...env,...extraEnv},stdio:'inherit',timeout:240000});
  if(result.error)throw result.error;
