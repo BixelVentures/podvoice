@@ -217,3 +217,11 @@ test('in strip mode the topbar clock skips a redraw with the same minute, connec
   assert.match(guard, /Math\.floor\(now\.getTime\(\)\/60000\)/);
   assert.match(guard, /observedAt:0/, 'the heartbeat time alone never redraws the clock');
 });
+
+test('strip mode attaches no swipe gestures at all', async () => {
+  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+    'utf8');
+  const start = source.indexOf('connectGestures(){');
+  const body = source.slice(start, source.indexOf('attachGestures(', start));
+  assert.match(body, /if\(this\.lite\)\{this\.detachGestures=null;return;\}/);
+});
