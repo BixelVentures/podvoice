@@ -1,5 +1,22 @@
 const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Object.keys(d).sort().join(',')==='areaIds,optionId,repeat,revision,settingChoices,taskId'&&typeof d.taskId==='string'&&d.taskId.length>0&&d.taskId.length<=120&&d.revision===1&&typeof d.optionId==='string'&&/^[a-f0-9]{24}$/.test(d.optionId)&&Array.isArray(d.areaIds)&&d.areaIds.length<=32&&new Set(d.areaIds).size===d.areaIds.length&&d.areaIds.every(id=>typeof id==='string'&&/^[a-f0-9]{24}$/.test(id))&&Number.isInteger(d.repeat)&&d.repeat>=1&&d.repeat<=3&&Array.isArray(d.settingChoices)&&d.settingChoices.length<=16&&new Set(d.settingChoices.map(row=>row?.settingId)).size===d.settingChoices.length&&d.settingChoices.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Object.keys(row).sort().join(',')==='choiceId,settingId'&&/^[a-f0-9]{24}$/.test(row.settingId)&&/^[a-f0-9]{24}$/.test(row.choiceId));
 import {requestWithin} from './request-deadline.js';
+// A wall screen may open HA ingress over plain http on a LAN name (for example
+// http://homeassistant.lan:8123). That is not a secure context, so the browser
+// leaves out crypto.randomUUID while crypto.getRandomValues stays available.
+// Every explicit action needs a request id, so supply the same RFC 4122 v4 form.
+export function installRandomUUID(target=globalThis.crypto){
+ if(!target||typeof target.randomUUID==='function'||typeof target.getRandomValues!=='function')return false;
+ const randomUUID=()=>{
+  const bytes=target.getRandomValues(new Uint8Array(16));
+  bytes[6]=bytes[6]&0x0f|0x40;
+  bytes[8]=bytes[8]&0x3f|0x80;
+  const hex=Array.from(bytes,byte=>byte.toString(16).padStart(2,'0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-${hex.slice(12,16)}-${hex.slice(16,20)}-${hex.slice(20)}`;
+ };
+ Object.defineProperty(target,'randomUUID',{value:randomUUID,configurable:true,writable:true});
+ return true;
+}
+installRandomUUID();
 const controlSetupFailureCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable']);
 // Content-free classifications only: these records never grant control authority.
 const diagnosticDomainActions={music:['pause','resume','next','previous','volume','seek','move_existing_session'],vacuum:['pause','resume','stop','return','start','settings','dock'],light:['turn_on','turn_off','brightness','scene'],vehicle:['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'],timer:['timer.start','timer.cancel','timer.adjust'],radio:['start','stop','move','volume'],home:[]};

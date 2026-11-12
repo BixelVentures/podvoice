@@ -43,6 +43,11 @@ test('modal padding, content, inside-to-outside drag, outside-to-inside and long
  else if(scenario==='right-button')f.click(dialog,{button:2});
  else {dialog.modal=false;f.click(dialog);}assert.equal(dialog.closes,0,scenario);}f.life.detach();
 });
+test('a programmatic scroll of inert content behind the modal does not swallow a backdrop tap',()=>{
+ const f=modalFixture(),dialog=f.dialog(),behind={tagName:'UL',contains:()=>false};
+ f.fire('pointerdown',dialog);f.fire('scroll',behind);f.fire('pointerup',dialog);f.fire('click',dialog);
+ assert.equal(dialog.closes,1);f.life.detach();
+});
 test('cancel, scroll, blur, removed dialog and lifecycle detach fence unfinished backdrop gestures',()=>{
  const f=modalFixture();for(const kind of ['pointercancel','scroll','blur','removed','detached','second-pointer']){const dialog=f.dialog();f.fire('pointerdown',dialog);if(kind==='blur')f.target.dispatchEvent(new Event('blur'));else if(kind==='removed')dialog.isConnected=false;else if(kind==='detached')f.life.detach();else if(kind==='second-pointer')f.fire('pointerdown',dialog,{isPrimary:false,pointerId:2});else f.fire(kind,dialog);f.fire('pointerup',dialog);f.fire('click',dialog);assert.equal(dialog.closes,0,kind);f.life.attach();}
  const dialog=f.dialog();f.life.attach();f.life.attach();f.click(dialog,{clientX:53});assert.equal(dialog.closes,1);f.life.detach();
