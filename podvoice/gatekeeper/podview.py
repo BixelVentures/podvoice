@@ -2485,6 +2485,25 @@ async def _phone_recipes(request: web.Request) -> web.Response:
     return await _recipe_operation(request, endpoint)
 
 
+def _recipe_field_shape(body: dict) -> str:
+    """Which fields a share sheet sent, as safe key names and JSON types, never values.
+
+    O8: a share without a link is diagnosed by its shape (e.g. "text=str title=str").
+    """
+    kinds = {str: "str", int: "int", float: "num", bool: "bool", list: "list", dict: "obj"}
+    shape = [
+        f"{key}={kinds.get(type(value), 'null' if value is None else 'other')}"
+        for key, value in body.items()
+        if isinstance(key, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,31}", key)
+    ]
+    hidden = sum(
+        1
+        for key in body
+        if not (isinstance(key, str) and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_-]{0,31}", key))
+    )
+    return " ".join(sorted(shape)[:12] + ([f"other_keys={hidden}"] if hidden else [])) or "empty"
+
+
 async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response:
     store = request.app[BRIDGE].recipe_submissions
     if store is None:
@@ -2532,6 +2551,7 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
                     from .recipe_submissions import recipe_event
 
                     recipe_event("submit", "rejected", reason="no_url")
+                    _LOG.info("recipe_submission_fields %s", _recipe_field_shape(body))
                     return web.json_response(
                         {
                             "error": "invalid_recipe_submission",
