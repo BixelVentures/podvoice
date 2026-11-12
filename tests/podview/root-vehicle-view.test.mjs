@@ -374,6 +374,31 @@ test('Tesla charging_state reads like the Tesla app and never shows 0 kW unless 
   if(status==='charging')assert.equal(power.value,'11 kW');else assert.equal(power,undefined,String(status));
  }
 });
+test('a newer lock observation after the wait removes Udfald ukendt, also after reconnect',async()=>{
+ const {root}=fixture();let timeout,sameConnection=true;
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['lock','unlock'],feedbackScope:'same-car'};
+ const report=(locked,stamp)=>vehicleObservation({status:'observed',source:'home_assistant_state',
+  observedAt:stamp,fieldObservedAt:{locked:stamp},entityIds:['sensor.car'],
+  data:{locked,charging:{},climate:{}}});
+ const now=Date.now()/1000;
+ view.render(report(false,now-40),options);
+ await view.finishVehicle({confirmation:{action:'lock'},operation:{
+  presentationCurrent:()=>true,observationCurrent:()=>sameConnection,waitForObservation:callback=>{timeout=callback;return ()=>{};},
+ }},view.liveVehicleButtons.lock);
+ const sentAt=view.liveVehicleCommands.get('lock').sentAt;
+ timeout();
+ // The iPad sleeps and the connection is renewed before the car's next report.
+ sameConnection=false;
+ view.render(report(false,now-40),options);
+ assert.match(view.accessFeedback.textContent,/Udfald ukendt/);
+ view.render(report(true,sentAt+200),options);
+ assert.equal(view.access.status.textContent,'Låst');
+ assert.doesNotMatch(view.accessFeedback.textContent,/Udfald ukendt/);
+ assert.equal(view.liveVehicleCommands.has('lock'),false);
+ view.render(report(true,sentAt+260),options);
+ assert.doesNotMatch(view.accessFeedback.textContent,/Udfald ukendt/);
+});
 test('overview facts show no charge power or finish unless the car is charging (B7)',async()=>{
  const {vehicleOverviewFacts}=await import('../../podvoice/gatekeeper/static/podview/vehicle-model.js');
  const car={mode:'observed',batteryPercent:21,rangeKm:80,locked:true,climate:{}};
