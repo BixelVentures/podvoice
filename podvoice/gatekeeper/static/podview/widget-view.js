@@ -153,7 +153,12 @@ class WidgetHost extends HTMLElement {
    const action = event.type === 'toggle' ? (knownPlayback ? (playing ? 'pause' : 'resume') : null)
     : event.type === 'skip' ? (event.delta === -1 ? 'previous' : 'next')
     : event.type === 'volume' ? 'volume' : null;
-   if(action)this.liveControls?.musicIntent(action,action==='volume'?{percent:Number(event.value)}:{});
+   const sent=action?this.liveControls?.musicIntent(action,action==='volume'?{percent:Number(event.value)}:{}):null;
+   // The known queue follows a skip tap at once; the observation still decides what plays (K2).
+   if(['next','previous'].includes(action)){
+    this.liveMedia?.queueControls?.skip?.(action,this.liveMedia.playback);
+    void sent?.then?.(ok=>{if(!ok)this.liveMedia?.queueControls?.skip?.(null);})?.catch?.(()=>{});
+   }
    return;
   }
   if(event.type==='refresh'){this.musicRefresh?.start();return;}

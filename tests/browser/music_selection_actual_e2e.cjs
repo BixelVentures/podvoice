@@ -15,7 +15,8 @@ const queueIntents = process.env.MUSIC_QUEUE_INTENTS === '1' || queueIntentDurin
 const queueGeneration=process.env.MUSIC_QUEUE_IDENTITY_TEST==='generation';
 const queueIdentity=queueGeneration||process.env.MUSIC_QUEUE_IDENTITY_TEST==='1';
 const accountRollover=process.env.MUSIC_ACCOUNT_ROLLOVER_TEST==='1';
-const queueJourney = queueIdentity || process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents;
+const queueJourney = queueIdentity || process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents
+ || process.env.MUSIC_QUEUE_SKIP_TEST === '1';
 const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
 const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
 const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
@@ -23,6 +24,8 @@ const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const discoveryPersonalCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='personal-cover';
 const libraryBusy=process.env.MUSIC_LIBRARY_BUSY_TEST;
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
+const startLatency=process.env.MUSIC_START_LATENCY_TEST==='1';
+const queueSkip=process.env.MUSIC_QUEUE_SKIP_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
@@ -30,6 +33,102 @@ const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+// Green timing: the speaker confirms at 2.7 s, Spotify's observation and HA event follow at 4.5 s.
+// The tapped track shows at once, and the player turns to playing at the first confirmation.
+async function startLatencyJourney(){
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="top"]').tap();
+ const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});
+ await row.waitFor({state:'visible',timeout:15000});
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('#play-pause');
+  return button&&!button.disabled&&button.getAttribute('aria-label')==='Fortsæt musikken';
+ },undefined,{timeout:15000});
+ await row.evaluate(node=>{
+  node.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now();
+   const probe=window.startLatency={clickAt:Date.now(),pendingMs:null,playingMs:null,playingTitle:null};
+   const sample=()=>{
+    const now=performance.now()-start,title=document.querySelector('#track-name')?.textContent;
+    const label=document.querySelector('#play-pause')?.getAttribute('aria-label');
+    if(probe.pendingMs===null&&title==='Katalogsang 11')probe.pendingMs=now;
+    if(probe.playingMs===null&&label==='Sæt musik på pause'&&['Katalogsang 11','Isoleret sang 11'].includes(title)){
+     probe.playingMs=now;probe.playingTitle=title;
+    }
+    if(now<12000&&probe.playingMs===null)requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+  },{once:true});
+ });
+ await row.tap();
+ await page.waitForFunction(()=>Number.isFinite(window.startLatency?.playingMs),undefined,{timeout:15000});
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-start-latency-playing.png')});
+ const probe=await page.evaluate(()=>window.startLatency),fixture=await state();
+ const speakerMs=Math.round(fixture.speakerConfirmedAtMs-probe.clickAt);
+ const result={pendingMs:Math.round(probe.pendingMs),speakerMs,playingMs:Math.round(probe.playingMs),
+  playingTitle:probe.playingTitle,bundleSHA};
+ console.log('startLatency',JSON.stringify(result));
+ assert(probe.pendingMs<300,`chosen track visible within 300 ms: ${JSON.stringify(result)}`);
+ assert(probe.playingMs>=speakerMs,`never playing before the speaker confirms: ${JSON.stringify(result)}`);
+ assert(probe.playingMs<speakerMs+500,`playing within 500 ms of the speaker confirmation: ${JSON.stringify(result)}`);
+ assert.equal(fixture.writes.filter(row=>row.action==='play_track').length,1);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'start-latency',...result}));
+}
+// K2/K4: three fast Next taps and one autoplay context switch. The queue list is never empty,
+// never shows error text, keeps each row's DOM node while it stays listed and never reorders rows.
+async function queueSkipJourney(){
+ await page.locator('#track').tap();
+ const upcoming=()=>page.evaluate(()=>[...document.querySelectorAll('#queue button.queue-track[data-current="false"]')]
+  .filter(row=>row.dataset.placeholder!=='true').map(row=>row.querySelector('.queue-copy strong').textContent));
+ const firstUpcoming=title=>page.waitForFunction(title=>{
+  const row=[...document.querySelectorAll('#queue button.queue-track[data-current="false"]')]
+   .find(node=>node.dataset.placeholder!=='true');
+  return row?.querySelector('.queue-copy strong')?.textContent===title;
+ },title,{timeout:15000});
+ await firstUpcoming('Køsang 21');
+ await page.evaluate(()=>{
+  const queue=document.getElementById('queue'),probe=window.queueSkipProbe={frames:[],identity:[],order:[],texts:new Set()};
+  let previous=new Map();
+  const sample=()=>{
+   const rows=[...queue.querySelectorAll('button.queue-track')],real=rows.filter(row=>row.dataset.placeholder!=='true');
+   const upcoming=real.filter(row=>row.dataset.current==='false');
+   const placeholders=rows.length-real.length,ids=real.map(row=>row.dataset.trackId),now=new Map(real.map(row=>[row.dataset.trackId,row]));
+   for(const [id,node] of now)if(previous.has(id)&&previous.get(id)!==node)probe.identity.push(id);
+   const kept=[...previous.keys()].filter(id=>now.has(id));
+   if(kept.join()!==ids.filter(id=>previous.has(id)).join())probe.order.push({before:[...previous.keys()],after:ids});
+   const titles=upcoming.map(row=>row.querySelector('.queue-copy strong').textContent);
+   probe.frames.push({at:performance.now(),upcoming:titles.length,placeholders,
+    ascending:titles.every((title,index)=>index===0||Number(title.split(' ')[1])>Number(titles[index-1].split(' ')[1]))});
+   probe.texts.add(document.getElementById('queue-title')?.textContent||'');
+   probe.texts.add(queue.querySelector('.queue-empty')?.textContent||'');
+   previous=now;
+   if(!window.stopQueueSkip)requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+ });
+ const before=await state(),next=page.locator('#next');
+ for(let tap=0;tap<3;tap++)await next.tap();
+ await firstUpcoming('Køsang 24');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.item?.name==='Isoleret sang 23'
+  &&document.getElementById('queue').dataset.status==='ready',undefined,{timeout:15000});
+ assert.deepEqual((await upcoming()),['Køsang 24','Køsang 25','Køsang 26','Køsang 27','Køsang 28']);
+ assert.deepEqual((await state()).writes.slice(before.writes.length).map(row=>row.action),['next','next','next']);
+ assert.equal((await page.request.post(base+'/lab/queue',{data:{condition:'autoplay'}})).ok(),true);
+ await firstUpcoming('Køsang 41');
+ assert.deepEqual(await upcoming(),['Køsang 41','Køsang 42','Køsang 43']);
+ const probe=await page.evaluate(()=>{window.stopQueueSkip=true;const p=window.queueSkipProbe;return {...p,texts:[...p.texts]};});
+ const emptyFrames=probe.frames.filter(frame=>frame.upcoming+frame.placeholders===0);
+ assert.deepEqual(emptyFrames,[],'the queue list is never empty');
+ assert.deepEqual(probe.texts.filter(text=>/kunne ikke|ikke tilgængelig|afvist|fejl/i.test(text)),[],'no error text');
+ assert.deepEqual(probe.identity,[],'a listed row keeps its DOM node');
+ assert.deepEqual(probe.order,[],'rows never reorder');
+ assert.ok(probe.frames.every(frame=>frame.ascending),'upcoming rows keep queue order');
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'queue-skip-autoplay',frames:probe.frames.length,
+  placeholderFrames:probe.frames.filter(frame=>frame.placeholders>0).length,texts:probe.texts.filter(Boolean),bundleSHA}));
+}
 async function libraryBusyJourney(){
  const gate=base+'/lab/library-race';
  const observe=()=>fetch(gate).then(response=>response.json());
@@ -1366,9 +1465,11 @@ async function queueIdentityJourney(){
  await mutate('autoplay-no-queue');
  await observed(32,'bedroom','43');
  assert.equal((await (await queueUnavailable).json()).error,'queue_offer_unavailable');
- await status('stale');
- assert.equal(await page.locator('#queue-title').innerText(),'Sidst kendte kø');
- assert.deepEqual(await names(),['Køsang 31','Køsang 32'],'only previously known rows are retained');
+ // The known rows have all played and the new source has not delivered: calm placeholders.
+ await status('loading');
+ assert.doesNotMatch(await page.locator('#queue-title').innerText(),/kunne ikke|ikke tilgængelig/);
+ // K2: song 32 now plays, so the last-known rows 31 and 32 have played and are not upcoming.
+ assert.deepEqual(await names(),[],'played rows of the last-known queue are not listed as upcoming');
  assert.equal(await rows.and(queue.locator('button:enabled')).count(),0,'last-known rows grant no actions');
  assert.equal(await queue.locator('button[data-current="true"] strong').innerText(),'Isoleret sang 32');
  assert.match(await page.locator('#detail-toggle').getAttribute('aria-label'),/pause/i);
@@ -1630,10 +1731,11 @@ async function queuePersistenceJourney(){
   await assertNoEmpty();
   assert.equal(await stableRow.evaluate(row=>row.isConnected&&row.getClientRects().length>0),true);
  }finally{failedRead.release();}
- await status('error');
+ // A read failure keeps the known rows as the last known queue, without error text.
+ await status('stale');
  await assertNames([23,24]);
  await assertNoEmpty();
- assert.equal(await title.innerText(),'Køen kunne ikke hentes');
+ assert.equal(await title.innerText(),'Sidst kendte kø');
  assert.equal(await stableRow.evaluate(row=>row.isConnected),true);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-refresh-failed.png')});
 
@@ -1843,12 +1945,14 @@ async function queuePersistenceJourney(){
  if(voiceJourney){await voiceQueueJourney();return;}
  if(accountRollover){await accountRolloverJourney();return;}
  if(queueIdentity){await queueIdentityJourney();return;}
+ if(queueSkip){await queueSkipJourney();return;}
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}
  if(discoveryCover){await discoveryCoverJourney();return;}
  if(discoveryPersonalCover){await personalPlaylistCoverJourney((await state()).personalPlaylistCache);return;}
  if(recentSession){await recentSessionJourney();return;}
+ if(startLatency){await startLatencyJourney();return;}
  if(documentScope){await documentScopeJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();

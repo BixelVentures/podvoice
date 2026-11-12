@@ -1,5 +1,6 @@
 """Actual NativeRadio HTTP owner and PodView, with inert radio/Spotify effects."""
 
+import asyncio
 import copy
 import logging
 import os
@@ -25,6 +26,12 @@ port = int(os.environ.get("RADIO_TEST_PORT", "18982"))
 config_mode = os.environ.get("RADIO_CONFIG_TEST")
 owner_token = os.environ.get("RADIO_FIXTURE_OWNER_TOKEN", "inert-radio-owner-token")
 radio_fault = None
+# Green timing: the native owner accepts at once and reports playing when audio flows.
+start_latency = os.environ.get("RADIO_START_LATENCY_TEST") == "1"
+RADIO_PLAYS_AFTER_S = 2.7
+latency_tasks: list[asyncio.Task] = []
+# Green timing: the native radio owner answers a volume command after 1.5 s.
+volume_delay = os.environ.get("RADIO_VOLUME_TEST") == "1"
 radio = native_state()
 radio["targets"] = [
     {
@@ -53,6 +60,8 @@ def radio_observation():
     value["actions"] = (
         ["start", "stop", "move", "volume"]
         if value["source_kind"] == "radio" and value["state"] == "playing"
+        else []
+        if value["state"] == "preparing"
         else ["start"]
     )
     return validate_native(value)
@@ -111,17 +120,29 @@ async def radio_action(request):
         assert body["station_id"] in {row["id"] for row in radio["stations"]}
         assert body["target_id"] in {row["id"] for row in radio["targets"]}
         radio.update(
-            state="playing",
+            state="preparing" if start_latency else "playing",
             source_kind="radio",
             station_id=body["station_id"],
             target_id=body["target_id"],
         )
         base.state["state"] = "paused"
+        if start_latency:
+
+            async def audio_flows():
+                await asyncio.sleep(RADIO_PLAYS_AFTER_S)
+                radio.update(state="playing")
+                radio["generation"] += 1
+                radio["revision"] += 1
+                base.state["radioPlayingAtMs"] = time.time() * 1000
+
+            latency_tasks.append(asyncio.get_running_loop().create_task(audio_flows()))
     elif body["action"] == "stop":
         assert radio["state"] == "playing" and radio["source_kind"] == "radio"
         radio.update(state="stopped", source_kind="none")
     elif body["action"] == "volume":
         assert radio["state"] == "playing" and radio["source_kind"] == "radio"
+        if volume_delay:
+            await asyncio.sleep(1.5)
         assert body["station_id"] is None and body["target_id"] is None
         assert type(body["volume_percent"]) is int and 0 <= body["volume_percent"] <= 100
         radio["volume_percent"] = body["volume_percent"]
