@@ -3112,7 +3112,8 @@
           "arrow:visibility": 1,
           "function:attachPressedState": 1,
           "arrow:keydown": 1,
-          "arrow:keyup": 1
+          "arrow:keyup": 1,
+          "arrow:lite": 1
         },
         "roots": [],
         "registrations": {},

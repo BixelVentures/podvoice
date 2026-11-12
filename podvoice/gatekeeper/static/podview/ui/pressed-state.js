@@ -22,7 +22,11 @@ export function attachPressedState(surface){
   const animation=target.animate(frames,{duration:90,easing:'cubic-bezier(.2,0,0,1)'});feedback.set(target,animation);
   animation.finished?.catch(()=>{}).finally(()=>{if(feedback.get(target)===animation)feedback.delete(target);});
  };
+ // Strip mode (html[data-lite]): CSS :active is the feedback. No class, style read or animation, so a
+ // tap does not start a style recalculation that the next layout read must wait for.
+ const lite=()=>doc.documentElement?.hasAttribute?.('data-lite')===true;
  const down=event=>{
+  if(lite())return;
   if(event.isPrimary===false||event.button>0)return;if(event.pointerId!=='keyboard')pointerModality=true;clear();const path=event.composedPath?.()||[event.target],index=path.findIndex(node=>node?.matches?.('button,a[href],summary,[role="button"]')),target=path[index];
   // A nested native field owns its gesture and selection, not its card wrapper.
   if(index<0||path.slice(0,index+1).some(node=>node?.matches?.('input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])'))||unavailable(target))return;

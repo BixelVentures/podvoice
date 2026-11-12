@@ -819,7 +819,7 @@ class WidgetHost extends HTMLElement {
   if(!d||!this.state.connected||d.stale||d.pending||d.presentationOnly||!['docked','stopped','complete'].includes(d.status)||this.live!==!!d.live||!controls?.allowed('vacuum')||controls.pending||controls.setupPending||controls.musicIntentPending)return;
   this.dispatch({type:'show',id:d.id});this.focusHeading?.();
  }
- focusHeading(){if(this.state.conflict||$('history').open)return;const heading=this.state.focus==='photo'?$('photo-view'):$('header-title');heading?.focus({preventScroll:true});}
+ focusHeading(){if(this.lite||this.state.conflict||$('history').open)return;const heading=this.state.focus==='photo'?$('photo-view'):$('header-title');heading?.focus({preventScroll:true});}
  alignOverview(){
   const radio=$('home-radio'),radioSize=$('timer-card')?.dataset.activityKind==='timer'?'m':'s';
   // Follow TimerView's actual broad activity; authored library sizes stay explicit.

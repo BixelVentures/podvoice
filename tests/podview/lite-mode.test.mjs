@@ -108,3 +108,34 @@ test('cached date formatting gives the same text as toLocaleTimeString', async (
   const day = { weekday: 'short', day: 'numeric', month: 'short' };
   assert.equal(formatDate(at, day), at.toLocaleDateString('da-DK', day));
 });
+
+test('in strip mode a tap leaves feedback to CSS: no class, style read or animation', async () => {
+  const { attachPressedState } = await import('../../podvoice/gatekeeper/static/podview/ui/pressed-state.js');
+  const handlers = new Map();
+  let styleReads = 0;
+  const target = {
+    classes: new Set(), animations: 0, dataset: {}, disabled: false, isConnected: true,
+    classList: { add(name) { target.classes.add(name); }, remove(name) { target.classes.delete(name); } },
+    matches: (selector) => selector.startsWith('button,'),
+    getAttribute: () => null, setAttribute() {}, removeAttribute() {}, closest: () => null,
+    animate() { target.animations++; return { cancel() {}, finished: Promise.resolve() }; },
+  };
+  const win = {
+    addEventListener: (name, fn) => handlers.set(`win:${name}`, fn), removeEventListener() {},
+    getComputedStyle: () => { styleReads++; return { boxShadow: 'none', color: 'rgb(0, 0, 0)' }; },
+  };
+  const doc = {
+    defaultView: win, addEventListener() {}, removeEventListener() {},
+    documentElement: { hasAttribute: (name) => name === 'data-lite' },
+  };
+  const surface = {
+    ownerDocument: doc, addEventListener: (name, fn) => handlers.set(name, fn), removeEventListener() {},
+  };
+  attachPressedState(surface);
+  const event = (type) => ({ type, pointerId: 1, clientX: 0, clientY: 0, button: 0, isPrimary: true,
+    composedPath: () => [target, surface] });
+  handlers.get('pointerdown')(event('pointerdown'));
+  handlers.get('win:pointerup')(event('pointerup'));
+  assert.deepEqual({ classes: target.classes.size, styleReads, animations: target.animations },
+    { classes: 0, styleReads: 0, animations: 0 });
+});
