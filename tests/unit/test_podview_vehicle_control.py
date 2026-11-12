@@ -657,3 +657,22 @@ async def test_trunk_close_rechecks_native_observation_at_last_send(h):
     result = await h.run(setup)
     assert result["outcome"] == "rejected"
     assert not h.calls and not h.risk()["pending"]
+
+
+@pytest.mark.asyncio
+async def test_explicit_ha_error_reaches_receipt_as_closed_code(h):
+    # Green 12 Nov: the card shows HA's error at once instead of "Udfald ukendt".
+    setup = await h.setup("climateOn")
+    h.response = {"outcome": "failed", "error": "wake_failed", "noEffect": False}
+    result = await h.run(setup)
+    assert result["outcome"] == "unknown" and result["vehicleError"] == "wake_failed"
+    assert h.risk()["unresolved"]["climate"] == ["on"]
+    setup = await h.setup("lock")
+    h.response = {"outcome": "failed", "error": "refused", "noEffect": True}
+    result = await h.run(setup, "refused")
+    assert result["outcome"] == "rejected" and result["vehicleError"] == "refused"
+    assert h.risk()["unresolved"]["access"] == []
+    setup = await h.setup("lock")
+    h.response = {"outcome": "failed", "error": "Raw HA text", "noEffect": True}
+    result = await h.run(setup, "raw")
+    assert result["outcome"] == "unknown" and "vehicleError" not in result

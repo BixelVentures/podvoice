@@ -34,6 +34,28 @@ const liveVehicleEffects={
  driverSeatHeat:['climate.driverSeatHeat',args=>args.option,model=>model.climate.driverSeatHeat,'Ændrer sædevarme…','Førerens sædevarme er opdateret.'],
  passengerSeatHeat:['climate.passengerSeatHeat',args=>args.option,model=>model.climate.passengerSeatHeat,'Ændrer sædevarme…','Passagerens sædevarme er opdateret.'],
 };
+// HA's explicit service error (closed code from the server) in short Danish.
+const vehicleErrorTexts={
+ access_denied:'Home Assistant afviste adgangen til bilen.',
+ missing_scope:'Tesla-forbindelsen mangler tilladelse til kommandoer.',
+ wake_failed:'Bilen kunne ikke vækkes.',
+ no_response:'Bilen svarede ikke.',
+ rate_limited:'Tesla afviser flere kommandoer lige nu · prøv igen senere.',
+ refused:'Bilen afviste kommandoen.',
+};
+// A fresh observation after the command that contradicts it: what the car did not do.
+const vehicleNotDone={
+ lock:'Bilen låste ikke',unlock:'Bilen låste ikke op',
+ rearTrunkToggle:args=>args.direction==='open'?'Bagagerummet åbnede ikke':'Bagagerummet lukkede ikke',
+ climateOn:'Bilen tændte ikke klimaet',climateOff:'Bilen slukkede ikke klimaet',
+ temperature:'Bilen ændrede ikke temperaturen',
+ defrostOn:'Bilen tændte ikke afrimningen',defrostOff:'Bilen slukkede ikke afrimningen',
+ driverSeatHeat:'Bilen ændrede ikke sædevarmen',passengerSeatHeat:'Bilen ændrede ikke sædevarmen',
+};
+// Tesla may refuse remote climate at low battery; HA reports no error then.
+const LOW_BATTERY_PERCENT=15;
+const lowBattery=model=>model?.mode==='observed'&&Number.isFinite(model.batteryPercent)&&
+ model.batteryPercent<LOW_BATTERY_PERCENT?Math.round(model.batteryPercent):null;
 
 // One retained detail composition: observed car, access, combined climate and
 // charging facts in the Hero. Controls are explicit local previews; observations grant none.
@@ -51,6 +73,8 @@ export class VehicleView{
   this.onImageError=()=>{this.image.hidden=true;this.figure.dataset.imageState='missing';this.heroIcon.hidden=false;};this.onImageLoad=()=>{if(this.figure.hidden)return;this.image.hidden=false;this.heroIcon.hidden=true;this.figure.dataset.imageState='ready';};this.image.addEventListener('error',this.onImageError);this.image.addEventListener('load',this.onImageLoad);this.figure.append(this.image,this.context);this.content.append(this.figure,this.measurements);this.context.className='vehicle-context';this.hero.append(this.status,this.connectionNote,this.content,this.heroIcon);this.next=make('button','text-control pv-button','Til overblikket');this.next.type='button';this.onNext=()=>{const host=this.root.closest('pv-widget-host');host?.dispatch({type:'show',id:'now'});host?.focusHeading();};this.next.addEventListener('click',this.onNext);this.next.hidden=true;
   const disclosure=(title,rows,primary=false)=>{const detail=make(primary?'section':'details','device-history vehicle-disclosure pv-tile'),summary=make(primary?'h2':'summary',primary?'vehicle-section-heading pv-section-header':undefined),label=make('span',null,title),status=make('small');summary.append(label,status);const body=make('dl','vehicle-detail-values');const values=rows.map(([id,text])=>{const row=createKitComponent('listrow',{document:root.ownerDocument,tag:'div',className:'vehicle-fact-row'}),label=make('dt',null,text),value=make('dd');row.append(label,value);body.append(row);return {id,value};});applyKitTextRole(label,'section-title');applyKitTextRole(status,'body');detail.append(summary,body);return {detail,status,values,body};};
   this.climate=disclosure('Klima',[['state','Status'],['temperature','I kabinen'],['defrost','Afrimning'],['seats','Sædevarme']],true);
+  this.climateBatteryNote=make('p','vehicle-climate-note');applyKitTextRole(this.climateBatteryNote,'meta');
+  this.climateBatteryNote.hidden=true;this.climate.detail.append(this.climateBatteryNote);
   this.access=disclosure('Adgang',[['locks','Døre og låse'],['luggage','Bagagerum'],['windows','Vinduer']],true);
   this.access.detail.dataset.vehicleSection='access';
   this.health=disclosure('Bilens tilstand',[['tires','Dæktryk · afhænger af bilen'],['sentry','Sentry Mode'],['software','Softwareopdatering']]);
@@ -112,6 +136,11 @@ export class VehicleView{
   assign(this.powerValue,power||'');this.powerGroup.hidden=power===null;assign(this.finishValue,endsAt||'');this.finishGroup.hidden=endsAt===null;this.measurements.hidden=disconnected||this.metrics.children.length>0&&[this.batteryGroup,this.rangeGroup,this.powerGroup,this.finishGroup].every(group=>group.hidden);this.content.hidden=disconnected||!showArtwork&&this.measurements.hidden;
   for(const {id,value}of this.climate.values){const known=({state:climate,temperature})[id];assign(value,known||'');value.parentNode.hidden=id!=='temperature'||!temperature;}
   this.climate.body.hidden=!temperature;this.climate.detail.hidden=disconnected;
+  const battery=lowBattery(model),
+   climateOffered=['climateOn','climateOff'].some(action=>this.vehicleActions.includes(action));
+  const batteryNote=battery!==null&&climateOffered&&!activeClimateModes.has(model.climate.status);
+  assign(this.climateBatteryNote,batteryNote?`Lavt batteri (${battery} %) · Tesla afviser måske klima`:'');
+  this.climateBatteryNote.hidden=!batteryNote;
   for(const group of this.capabilities){group.detail.hidden=true;group.body.hidden=true;assign(group.status,'Ikke oplyst');for(const {value}of group.values){assign(value,'Ikke oplyst');value.parentNode.hidden=true;}}
   if(!disconnected){this.access.detail.hidden=false;assign(this.access.status,'Ukendt');}
   // An observed lock state is readable; it never grants a lock command.
@@ -155,13 +184,16 @@ export class VehicleView{
   if(this.vehicleActionBlocked(action)||this.disposed)return;
   const family=vehicleActionFamily(action);
   const [field,wanted,read,label,confirmation]=liveVehicleEffects[action]||[];
-  const command={family,operation:proposal.operation,trigger,action,field,expected:wanted?.(args),read,
+  const command={family,operation:proposal.operation,trigger,action,args,field,expected:wanted?.(args),read,
    label:typeof label==='function'?label(args):label,
    confirmation:typeof confirmation==='function'?confirmation(args):confirmation,
    previousAt:this.model.fieldObservedAt?.[field]??this.model.observedAt??0,
    sentAt:Date.now()/1000,phase:'sending',note:['lock','unlock','rearTrunkToggle'].includes(action)?this.accessFeedback:this.climateFeedback};
   // HA did not know the field when sent (e.g. unknown after a Core restart): Tesla wakes the car.
-  command.awaitingCar=!!field&&(historicalField(this.model,field,this.connected)||vehicleFieldValue(this.model,field)==null);
+  command.awaitingCar=!!field&&(historicalField(this.model,field,this.connected)||
+   vehicleFieldValue(this.model,field)==null||['asleep','offline'].includes(this.model.connectionState));
+  // A sleeping, offline or unknown car is woken by the command before it can answer.
+  if(command.awaitingCar)command.label='Sendt · vækker bilen…';
   this.liveVehicleCommands.set(family,command);
   this.liveVehicleFeedback.delete(family);
   assign(command.note,'');
@@ -172,16 +204,19 @@ export class VehicleView{
   this.vehiclePending=false;
   if(this.disposed)return;
   if(this.liveVehicleCommands.get(family)!==command){this.renderControls();return;}
-  if(result?.late){
+  if(result?.error&&!result.late){
+   this.finishVehicleFeedback(command,'error',vehicleErrorTexts[result.error]||vehicleErrorTexts.refused);
+  }else if(result?.late){
    if(command.operation?.presentationCurrent?.())this.finishVehicleFeedback(command,'unknown','Udfald ukendt · kontrollér bilen.');
    else this.clearLiveVehicleCommand(command);
   }else if(result?.status==='accepted'){
    command.phase='observing';
-   if(command.awaitingCar)command.label='Sendt · venter på bilen…';
    this.reconcileLiveVehicleCommand(command);
    if(this.liveVehicleCommands.get(family)===command)command.cancelObservation=command.operation?.waitForObservation?.(()=>{
     if(this.liveVehicleCommands.get(family)!==command||command.phase!=='observing')return;
-    this.finishVehicleFeedback(command,'unknown','Udfald ukendt · kontrollér bilen.');
+    const notDone=this.liveVehicleContradiction(command);
+    if(notDone){command.contradicted=true;this.finishVehicleFeedback(command,'error',notDone);}
+    else this.finishVehicleFeedback(command,'unknown','Udfald ukendt · kontrollér bilen.');
     this.renderControls();
    });
   }else if(result?.status==='unknown'){
@@ -217,6 +252,10 @@ export class VehicleView{
   for(const [family,{command,state}]of this.liveVehicleFeedback){
    if(!command.operation.presentationCurrent()||
     state==='ready'&&!this.liveVehicleObservationMatches(command)){this.liveVehicleFeedback.delete(family);continue;}
+   // The car did what was asked after all: the contradiction no longer holds.
+   if(command.contradicted&&this.liveVehicleObservationMatches(command)){
+    this.liveVehicleFeedback.delete(family);continue;
+   }
    // A newer observation of the field is the car's answer: "Udfald ukendt" has served its purpose.
    if(state==='unknown'&&this.liveVehicleObservedSince(command)){
     this.liveVehicleFeedback.delete(family);
@@ -256,6 +295,17 @@ export class VehicleView{
   const observedAt=this.model.fieldObservedAt?.[command.field];
   return !historicalField(this.model,command.field,this.connected)&&Number.isFinite(observedAt)&&
    observedAt>command.previousAt&&observedAt>=command.sentAt-CLOCK_SKEW_S;
+ }
+ // Basis for a concrete result: the car is not asleep/offline and a fresh known value
+ // newer than the command differs from the target. Otherwise null ("Udfald ukendt").
+ liveVehicleContradiction(command){
+  const m=this.model,text=vehicleNotDone[command.action];
+  if(!text||!command.read||m.mode!=='observed'||m.stale||['asleep','offline'].includes(m.connectionState)||
+   command.operation?.observationCurrent&&!command.operation.observationCurrent()||
+   !this.liveVehicleObservedSince(command)||vehicleFieldValue(m,command.field)==null||
+   this.liveVehicleObservationMatches(command))return null;
+  const battery=command.family==='climate'?lowBattery(m):null;
+  return (typeof text==='function'?text(command.args||{}):text)+(battery===null?'':` · batteri ${battery} %`);
  }
  liveVehicleObservationMatches(command){
   if(!command.read||this.model.mode!=='observed'||

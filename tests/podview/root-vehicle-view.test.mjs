@@ -557,7 +557,7 @@ test('Klima with an unknown HA state is sent and waits for the car, then shows w
  assert.equal(sends,1);
  const command=view.liveVehicleCommands.get('climate');
  assert.equal(command.phase,'observing');
- assert.equal(command.label,'Sendt · venter på bilen…');
+ assert.equal(command.label,'Sendt · vækker bilen…');
  view.render(report('heat_cool',command.sentAt+5),options);
  assert.equal(view.climateFeedback.textContent,'Klimaet er tændt.');
  view.cleanup();
@@ -574,6 +574,106 @@ test('an older remembered lock value does not block Lås; the command waits for 
  await view.finishVehicle({confirmation:{action:'lock'},operation:{
   presentationCurrent:()=>true,observationCurrent:()=>true,
  }},view.liveVehicleButtons.lock);
- assert.equal(view.liveVehicleCommands.get('lock').label,'Sendt · venter på bilen…');
+ assert.equal(view.liveVehicleCommands.get('lock').label,'Sendt · vækker bilen…');
  view.cleanup();
+});
+
+// Green 12 Nov 19:02–19:16: climateOn was accepted, the car woke (online 19:06:39) but
+// climate stayed off at 9 % battery. HA logged no error. The card says what is known.
+const lowBatteryCar=({climate='off',battery=9,connection='asleep',stamp,climateAt=stamp})=>
+ vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:stamp,
+  fieldObservedAt:{'climate.status':climateAt,batteryPercent:stamp},connection:{state:connection,since:null},
+  entityIds:['sensor.car','climate.car'],
+  data:{batteryPercent:battery,charging:{status:'disconnected'},climate:{status:climate}}});
+test('low battery shows a climate note with the observed percent, only while climate is not on',()=>{
+ const {root}=fixture();const view=new VehicleView(root);const now=Date.now()/1000;
+ const options={vehicleActions:['climateOn','climateOff']};
+ view.render(lowBatteryCar({stamp:now-60}),options);
+ assert.equal(view.climateBatteryNote.hidden,false);
+ assert.equal(view.climateBatteryNote.textContent,'Lavt batteri (9 %) · Tesla afviser måske klima');
+ view.render(lowBatteryCar({stamp:now-60,battery:40}),options);
+ assert.equal(view.climateBatteryNote.hidden,true);
+ view.render(lowBatteryCar({stamp:now-60,climate:'heat_cool'}),options);
+ assert.equal(view.climateBatteryNote.hidden,true);
+ view.render(lowBatteryCar({stamp:now-60}),{vehicleActions:[]});
+ assert.equal(view.climateBatteryNote.hidden,true);
+ view.cleanup();
+});
+test('a sleeping car says Sendt · vækker bilen… while the command is in flight and after acceptance',async()=>{
+ const {root}=fixture();let release;
+ const view=new VehicleView(root,{onVehicleSend:()=>new Promise(resolve=>{release=resolve;})});
+ const now=Date.now()/1000;
+ view.render(lowBatteryCar({stamp:now-600,battery:60}),{vehicleActions:['climateOn','climateOff']});
+ const done=view.finishVehicle({confirmation:{action:'climateOn'},operation:{presentationCurrent:()=>true,
+  observationCurrent:()=>true,waitForObservation:()=>()=>{}}},view.liveVehicleButtons.climateOn);
+ assert.equal(view.liveVehicleCommands.get('climate').label,'Sendt · vækker bilen…');
+ release({status:'accepted'});await done;
+ const command=view.liveVehicleCommands.get('climate');
+ assert.equal(command.phase,'observing');assert.equal(command.label,'Sendt · vækker bilen…');
+ view.cleanup();
+});
+test('car online after the command with climate still off says what it did not do, not Udfald ukendt',async()=>{
+ const {root}=fixture();let timeout;
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['climateOn','climateOff'],feedbackScope:'same-car'};const now=Date.now()/1000;
+ view.render(lowBatteryCar({stamp:now-600}),options);
+ await view.finishVehicle({confirmation:{action:'climateOn'},operation:{presentationCurrent:()=>true,
+  observationCurrent:()=>true,waitForObservation:callback=>{timeout=callback;return ()=>{};}}},
+  view.liveVehicleButtons.climateOn);
+ const sentAt=view.liveVehicleCommands.get('climate').sentAt;
+ view.render(lowBatteryCar({stamp:sentAt+220,connection:'online'}),options);
+ timeout();view.renderControls();
+ assert.equal(view.climateFeedback.textContent,'Bilen tændte ikke klimaet · batteri 9 %');
+ assert.equal(view.climateFeedback.dataset.state,'error');
+ assert.equal(view.liveVehicleCommands.has('climate'),false);
+ view.render(lowBatteryCar({stamp:sentAt+230,connection:'online'}),options);
+ assert.equal(view.climateFeedback.textContent,'Bilen tændte ikke klimaet · batteri 9 %');
+ // The car turns climate on later after all: the contradiction disappears.
+ view.render(lowBatteryCar({stamp:sentAt+300,connection:'online',climate:'heat_cool'}),options);
+ assert.doesNotMatch(view.climateFeedback.textContent,/tændte ikke/);
+ view.cleanup();
+});
+test('no fresh observation after the command keeps Udfald ukendt',async()=>{
+ const {root}=fixture();let timeout;
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['climateOn','climateOff'],feedbackScope:'same-car'};const now=Date.now()/1000;
+ view.render(lowBatteryCar({stamp:now-600}),options);
+ const op={presentationCurrent:()=>true,observationCurrent:()=>true,
+  waitForObservation:callback=>{timeout=callback;return ()=>{};}};
+ await view.finishVehicle({confirmation:{action:'climateOn'},operation:op},view.liveVehicleButtons.climateOn);
+ timeout();view.renderControls();
+ assert.match(view.climateFeedback.textContent,/Udfald ukendt/);
+ view.cleanup();
+});
+test('lock contradicted by a fresh observation says Bilen låste ikke',async()=>{
+ const {root}=fixture();let timeout;
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['lock','unlock'],feedbackScope:'same-car'};const now=Date.now()/1000;
+ const report=(locked,stamp)=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:stamp,
+  fieldObservedAt:{locked:stamp},connection:{state:'online',since:null},entityIds:['sensor.car'],
+  data:{locked,charging:{},climate:{}}});
+ view.render(report(false,now-40),options);
+ await view.finishVehicle({confirmation:{action:'lock'},operation:{presentationCurrent:()=>true,
+  observationCurrent:()=>true,waitForObservation:callback=>{timeout=callback;return ()=>{};}}},
+  view.liveVehicleButtons.lock);
+ const sentAt=view.liveVehicleCommands.get('lock').sentAt;
+ view.render(report(false,sentAt+20),options);timeout();view.renderControls();
+ assert.equal(view.accessFeedback.textContent,'Bilen låste ikke');
+ view.cleanup();
+});
+test('an explicit HA service error is shown at once in Danish, not Udfald ukendt',async()=>{
+ for(const [error,text] of [['refused','Bilen afviste kommandoen.'],['wake_failed','Bilen kunne ikke vækkes.'],
+  ['missing_scope','Tesla-forbindelsen mangler tilladelse til kommandoer.'],['bogus','Bilen afviste kommandoen.']]){
+  const {root}=fixture();
+  const view=new VehicleView(root,{onVehicleSend:async()=>({status:'unknown',error})});
+  view.render(lowBatteryCar({stamp:Date.now()/1000-60,battery:60}),
+   {vehicleActions:['climateOn','climateOff'],feedbackScope:'car'});
+  await view.finishVehicle({confirmation:{action:'climateOn'},operation:{presentationCurrent:()=>true,
+   observationCurrent:()=>true,waitForObservation:()=>{throw Error('must not wait');}}},
+   view.liveVehicleButtons.climateOn);
+  assert.equal(view.climateFeedback.textContent,text);
+  assert.equal(view.climateFeedback.dataset.state,'error');
+  assert.equal(view.liveVehicleCommands.has('climate'),false);
+  view.cleanup();
+ }
 });

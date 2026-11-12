@@ -430,7 +430,12 @@ export class PodVoiceTransport {
   try{const response=await this.request(url,{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'Content-Type':'application/json','X-PodView-Request':'1'},body:JSON.stringify({bootId:task.bootId,roomId:task.roomId,taskId:task.taskId,revision:task.revision,requestId,optionId,args})},receiptWait,undefined,requestId);const body=await response.json();
    if(!response.ok||!body||body.requestId!==requestId||!['accepted','unknown','rejected'].includes(body.outcome)||typeof body.ok!=='boolean'||body.ok!==(body.outcome==='accepted')||body.retryAllowed!==false||body.physicalResultVerified!==false)return finish(unknown(requestId));
    const detail=task.domain==='vacuum'&&typeof body.partial==='boolean'&&Number.isInteger(body.completedSteps)&&body.completedSteps>=0&&body.completedSteps<=64?{partial:body.partial,completedSteps:body.completedSteps,...(typeof body.startSent==='boolean'?{startSent:body.startSent}:{})}:{};
-   return finish({ok:body.ok,requestId,outcome:body.outcome,retryAllowed:false,physicalResultVerified:false,...detail});
+   // HA's explicit vehicle service error as a closed code (never HA's raw text).
+   const vehicleError=task.domain==='vehicle'&&body.outcome!=='accepted'&&['access_denied','missing_scope',
+    'wake_failed','no_response','rate_limited','refused'].includes(body.vehicleError)
+    ?{vehicleError:body.vehicleError}:{};
+   return finish({ok:body.ok,requestId,outcome:body.outcome,retryAllowed:false,physicalResultVerified:false,...detail,
+    ...vehicleError});
   }catch{return finish(unknown(requestId));}
  }
  async answers(history=false){if(history!==false&&history!==true&&history!=='segments')throw Error('invalid_answers_mode');if(!this.connected||this.snapshot.capabilities.answerRead!==true)throw Error('answers_unavailable');const response=await this.request(this.endpoint('answers',history===true?{history:'1'}:history==='segments'?{history:'segments'}:{}),{credentials:'same-origin',cache:'no-store'});if(!response.ok){const error=Error('answers_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';throw error;}return response.json();}

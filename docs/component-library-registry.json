@@ -2434,6 +2434,8 @@
           "method:finishVehicle": 1,
           "arrow:liveClimateActive": 1,
           "arrow:historicalField": 1,
+          "arrow:lowBattery": 1,
+          "method:liveVehicleContradiction": 1,
           "arrow:vehicleActionFamily": 1,
           "method:clearLiveVehicleCommand": 1,
           "method:finishVehicleFeedback": 1,

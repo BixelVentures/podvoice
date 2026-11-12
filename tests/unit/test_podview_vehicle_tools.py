@@ -43,7 +43,17 @@ def test_vehicle_write_policy_only_supervisor_options(monkeypatch, tmp_path):
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "case", ["accepted", "timeout", "revoked", "read_changed", "read_changed_back"]
+    "case",
+    [
+        "accepted",
+        "timeout",
+        "revoked",
+        "read_changed",
+        "read_changed_back",
+        "tesla_refused",
+        "wake_failed",
+        "validation",
+    ],
 )
 async def test_exact_vehicle_send_preflight_and_ambiguous_result(tmp_path, case):
     calls = []
@@ -66,6 +76,13 @@ async def test_exact_vehicle_send_preflight_and_ambiguous_result(tmp_path, case)
             return httpx.Response(200, json=state)
         if case == "timeout":
             raise httpx.ReadTimeout("lost response", request=req)
+        # HA REST: tesla_fleet HomeAssistantError -> 500, ServiceValidationError -> 400.
+        if case == "tesla_refused":
+            return httpx.Response(500, json={"message": "Command was unsuccessful: fixture-token"})
+        if case == "wake_failed":
+            return httpx.Response(500, json={"message": "Could not wake up vehicle"})
+        if case == "validation":
+            return httpx.Response(400, json={"message": "Invalid option"})
         return httpx.Response(200, json=[])
 
     async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
@@ -142,8 +159,18 @@ async def test_exact_vehicle_send_preflight_and_ambiguous_result(tmp_path, case)
                     "revoked": "rejected",
                     "read_changed": "rejected",
                     "read_changed_back": "rejected",
+                    "tesla_refused": "unknown",
+                    "wake_failed": "unknown",
+                    "validation": "rejected",
                 }[case]
             )
+            # Green 12 Nov: an explicit HA error is a closed code for the card, never HA's text.
+            assert result.get("vehicleError") == {
+                "tesla_refused": "refused",
+                "wake_failed": "wake_failed",
+                "validation": "refused",
+            }.get(case)
+            assert "fixture-token" not in json.dumps(result)
             posts = [item for item in calls if item[0] == "POST"]
             if case in ("revoked", "read_changed", "read_changed_back"):
                 assert posts == []
@@ -154,9 +181,10 @@ async def test_exact_vehicle_send_preflight_and_ambiguous_result(tmp_path, case)
                 # Green 12 Nov 19:03: HA waking the car took longer than the 8 s client
                 # default and the command became "unknown". The send waits up to 45 s.
                 assert posts[0][3].get("read") == 45.0
-                assert store.vehicle_risk(adapter.device_key)["unresolved"]["access"] == [
-                    "unlocked"
-                ]
+                # A 400 is refused before any effect; a 500 keeps the effect unknown (B4).
+                assert store.vehicle_risk(adapter.device_key)["unresolved"]["access"] == (
+                    [] if case == "validation" else ["unlocked"]
+                )
         finally:
             store.vehicle_stop()
 
@@ -186,3 +214,28 @@ async def test_home_assistant_temperature_unit_comes_from_bounded_config(unit, e
             is None
         )
         assert len(seen) == 1
+
+
+@pytest.mark.parametrize(
+    "status,message,expected",
+    [
+        (500, "Command was unsuccessful: cabin_comfort_remote_settings_not_enabled", "refused"),
+        (500, "Command was unsuccessful but did not return a reason why.", "refused"),
+        (500, "Could not wake up vehicle", "wake_failed"),
+        (500, "Failed to wake up vehicle", "wake_failed"),
+        (500, "Missing vehicle commands scope.", "missing_scope"),
+        (500, "Command had no response", "no_response"),
+        (500, "Command failed: Too many requests", "rate_limited"),
+        (429, None, "rate_limited"),
+        (401, None, "access_denied"),
+        (403, "Forbidden", "access_denied"),
+        (500, None, "refused"),
+    ],
+)
+def test_ha_service_error_maps_to_closed_vehicle_code(status, message, expected):
+    from gatekeeper.podview_vehicle_control import VEHICLE_ERRORS, vehicle_error_code
+
+    body = b"" if message is None else json.dumps({"message": message}).encode()
+    assert vehicle_error_code(status, body) == expected
+    assert expected in VEHICLE_ERRORS
+    assert vehicle_error_code(500, b"not json" * 1000) == "refused"
