@@ -1,4 +1,4 @@
-## 2.0.177
+## 2.0.176
 
 - Svar fra en websøgning (fx fodbold) får nu et kort, mens hun taler, uden at talen bliver langsommere. En kamp vises med hold, stilling, målscorere pr. hold og dato, og fakta vises som overskrift med 2–3 nøglepunkter. Kortene gentager aldrig hendes sætninger, og uden grundlag vises intet kort. Vejrkortet viser den dag, der spørges om (fx »i morgen« eller »på fredag«), i stedet for vejret lige nu. En opfølgning bliver et nyt afsnit på samme kort, og historikken viser ét kort pr. emne. Kortet står 60 sekunder efter samtalen, bliver stående, hvis man rører det, og derefter vender skærmen tilbage til den forrige visning. Svar-knappen viser »Voice PE offline« i gråt, når højttaleren mangler forbindelse.
 
