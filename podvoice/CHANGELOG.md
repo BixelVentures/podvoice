@@ -1,3 +1,7 @@
+## 2.0.185
+
+- Ny færdig iPhone-genvej »Opskrifter til PodView«: hent den i Opskrifter → »Tilføj opskrift-genvej til iPhone« (kun for HA-administrator), og indsæt den viste adresse og uploadkode én gang, når iPhonen spørger. Genvejen finder selv opskriftens link i det delte, og PodView siger til, når der findes en ny version af genvejen. Serveren forstår flere slags delinger og giver konkrete fejlbeskeder. Kræver HA-komponent 0.1.23 for versionsbeskeden gennem Home Assistant.
+
 ## 2.0.184
 
 - Teslaen giver ærlig besked: ved lavt batteri står der »Lavt batteri (9 %) · Tesla afviser måske klima«, mens bilen vækkes står der »Sendt · vækker bilen…«, og hvis bilen vågner uden at gøre det, står der fx »Bilen tændte ikke klimaet · batteri 9 %« i stedet for »Udfald ukendt«. Afviser Tesla eller Home Assistant kommandoen, vises det med det samme på dansk. Samme for lås, bagagerum og sædevarme.
