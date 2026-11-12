@@ -1,6 +1,6 @@
 import {applyKitComponent,applyKitTemplate} from '../kit.js';
 import {conclusionDisclosure} from '../conclusion-disclosure.js';
-import {validateVisualContent,visualFamilies} from '../../visual-content.js';
+import {validateVisualContent,answerFamilies} from '../../visual-content.js';
 const weatherIcons=Object.freeze({'Let skyet':'cloud-sun','Skyet':'cloud','Regn':'cloud-rain','Sol':'sun'});
 // Authored local illustration only: the generic/live fact contract stays unchanged.
 const weatherPresentation=(family,data,content)=>family==='fact-card'&&data.exampleOnly===true&&data.weatherPresentation?.kind==='local-weather'&&content.facts?.length===4&&content.facts.every((fact,index)=>Object.hasOwn(weatherIcons,fact.detail)&&/^-?\d{1,2}°$/.test(fact.value)&&(index===0?fact.label==='Nu':/^(?:[01]?\d|2[0-3])$/.test(fact.label)));
@@ -29,7 +29,15 @@ class VisualComponent extends HTMLElement {
    if(this.family==='simple-diagram'){this.figure.classList.add('pv-diagram-image');this.figure.hidden=true;this.list=make('ol','pv-visual-list');this.body.append(this.list);}
    this.image.addEventListener('error',()=>{if(!this.image.getAttribute('src')||this.image.complete!==true||this.image.naturalWidth>0)return;this.image.hidden=true;this.imageError.hidden=false;});
    this.image.addEventListener('load',()=>{if(this.image.complete!==true||!(this.image.naturalWidth>0))return;if(this.data.historical===true&&this.image.getAttribute('src')!=='assets/bicycle-drivetrain-illustration.webp')return;this.image.hidden=false;this.imageError.hidden=true;});
-  }else{this.list=make(this.family==='fact-card'?'dl':'ol','pv-visual-list');this.body.append(this.list);}
+  }else{
+   if(this.family==='sport-result'){
+    // Scoreboard: home, score, away; then date. Score is absent when the result is unknown.
+    this.score=make('div','pv-sport-score');this.score.setAttribute('role','group');
+    this.home=make('span','pv-sport-team');this.result=make('span','pv-sport-result');this.away=make('span','pv-sport-team');
+    this.when=make('p','pv-sport-date');this.score.append(this.home,this.result,this.away);this.body.append(this.score,this.when);
+   }
+   this.list=make(this.family==='fact-card'?'dl':'ol','pv-visual-list');this.body.append(this.list);
+  }
   this.sources=make('details','pv-visual-sources');const sourceToggle=make('summary',undefined,'Kilder');sourceToggle.setAttribute('aria-label','Kilder og grundlag');sourceToggle.title='Kilder og grundlag';this.sources.append(sourceToggle);this.sourcePanel=make('div','pv-visual-source-panel');this.sourcePanel.dataset.responseZone='metadata';this.sourceList=make('ul');this.sourcePanel.append(this.sourceList);this.sources.append(this.sourcePanel);this.sourceNodes=new Map();this.sources.dataset.responseZone='metadata';this.append(this.note,this.body,this.sources);
   this.sources.addEventListener('keydown',event=>{if(event.key==='Escape'&&this.sources.open){event.stopPropagation();this.sources.open=false;sourceToggle.focus({preventScroll:true});}});
  }
@@ -68,14 +76,26 @@ class VisualComponent extends HTMLElement {
   }
   const plannedTimeline=this.family==='answer-timeline'&&d.forecast!==true&&content.events.every(event=>event.status==='planned');
   if(this.family==='answer-timeline'){this.timelineContext??=make('p','pv-timeline-context');if(!this.timelineContext.parentNode)this.body.insertBefore(this.timelineContext,this.list);copy(this.timelineContext,plannedTimeline?'Planlagt forløb':'');copy(this.timelineContext,!plannedTimeline,'hidden');}
+  if(this.family==='sport-result'){
+   const m=content.match,known=m.homeScore!==null;
+   copy(this.home,m.home);copy(this.away,m.away);copy(this.result,known?`${m.homeScore}–${m.awayScore}`:'mod');
+   copy(this.score,known?`${m.home} ${m.homeScore}, ${m.away} ${m.awayScore}`:`${m.home} mod ${m.away}`,'aria-label','attribute');
+   copy(this.when,m.competition?`${m.date} · ${m.competition}`:m.date);copy(this.list,!content.scorers.length,'hidden');
+  }
   if(this.list){
-   const items=content.facts||content.events||content.nodes;
+   const items=content.facts||content.events||content.nodes||content.points||content.scorers;
    this.reconcile(this.list,this.rows,items,()=>{
     const row=make(this.family==='fact-card'?'div':'li','pv-visual-item');applyKitComponent(row,'listrow');
     row.append(make(this.family==='fact-card'?'dt':'span','pv-visual-label'),make(this.family==='fact-card'?'dd':'h2','pv-visual-value'),make(this.family==='fact-card'?'dd':'p','pv-visual-detail'));return row;
    },(row,item,index)=>{
     const [label,value,detail]=row.children;copy(row.dataset,this.family==='fact-card'&&index===0?'primary':'supporting','answerRole');
     if(this.family==='fact-card'){const numeric=/^[-+]?\d[\d.,:\s]*\s*(?:°[CF]?|%|km|m|cm|mm|kg|g|W|kW|kWh|min|t)?$/.test(item.value);copy(row.dataset,numeric?'numeric':'text','valueKind');copy(row.dataset,numeric&&item.value.length>16?'long':'short','valueDensity');}
+    if(this.family==='key-points'||this.family==='sport-result'){
+     const team=this.family==='sport-result'?content.match[item.team]:'';
+     copy(label,this.family==='sport-result'?item.minute||'':String(index+1).padStart(2,'0'));
+     copy(value,this.family==='sport-result'?item.name:item.text);copy(detail,team);copy(detail,!team,'hidden');
+     copy(row.dataset,String(index+1),'position');return;
+    }
     copy(label,this.family==='fact-card'?item.label:this.family==='answer-timeline'?plannedTimeline?item.time:`${item.time}\n${d.forecast===true?'Prognose':item.status==='planned'?'Planlagt':'Registreret'}`:String(index+1).padStart(2,'0'));
     copy(value,this.family==='fact-card'?item.value:item.label);copy(detail,item.detail);copy(row.dataset,String(index+1),'position');
     if(weather){if(!row.weatherIcon){row.weatherIcon=make('img');row.weatherIcon.alt='';row.weatherDecoration=make('dd');row.weatherDecoration.setAttribute('aria-hidden','true');row.weatherDecoration.append(row.weatherIcon);row.append(row.weatherDecoration);}copy(row.weatherIcon,`assets/icons/${weatherIcons[item.detail]}.svg`,'src');copy(row.weatherIcon,false,'hidden');copy(row.weatherDecoration,false,'hidden');}
@@ -86,4 +106,4 @@ class VisualComponent extends HTMLElement {
   this.reconcile(this.sourceList,this.sourceNodes,content.sources,()=>{const li=make('li');const a=make('a');a.target='_blank';a.rel='noopener noreferrer';li.append(a,make('p'));return li;},(li,s)=>{const owner=s.kind==='owner_receipt';if((li.children[0].tagName==='BUTTON')!==owner){const control=make(owner?'button':'a');if(owner){control.type='button';control.className='text-control';applyKitComponent(control,'button',{variant:'secondary'});control.addEventListener('click',()=>{if(this.data.historical===true||control.disabled)return;control.dispatchEvent(new CustomEvent('owner-source',{bubbles:true,composed:true,detail:{receiptId:li.dataset.receiptId}}));});}else{control.target='_blank';control.rel='noopener noreferrer';}li.children[0].replaceWith(control);}copy(li.children[0],s.label);if(owner)copy(li.children[0],d.historical===true||['offline','loading','pending'].includes(state),'disabled');copy(li.dataset,owner?s.receiptId:'','receiptId');if(!owner){if(d.historical===true)copy(li.children[0],null,'href','attribute');else copy(li.children[0],s.url,'href','attribute');}copy(li.children[1],owner?(s.scope==='conversation_answer'?'AI-forklaring':'Modtaget værktøjsresultat'):s.scope);});
  }
 }
-for(const family of visualFamilies)customElements.define(`pv-${family}`,class extends VisualComponent{});
+for(const family of answerFamilies)customElements.define(`pv-${family}`,class extends VisualComponent{});

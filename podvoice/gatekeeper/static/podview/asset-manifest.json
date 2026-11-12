@@ -15,7 +15,7 @@
     },
     {
       "path": "answer-widget.js",
-      "sha256": "97f2a62d7d35bab10690ecc6014f2af018da174d637a025d33ce174280298d8c"
+      "sha256": "98b713becc0a8f411faf8d718edf1cff644169c6e51b67a2328d9fbc816ec2e7"
     },
     {
       "path": "app.js",
@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "fa5bac2308fb3eca0ca231bb32661e6c03014c6ad49c962b06c16f0a3f817b98"
+      "sha256": "8d3dbf53621b7c0fb78081594b410b820ec61e27cc0872b0494ac7cb31f64a27"
     },
     {
       "path": "library.css",
@@ -615,7 +615,7 @@
     },
     {
       "path": "owner-answers.js",
-      "sha256": "c14bee802f56c1feebe5717bdb628773382ab2552e81b7e3679b8b4f4007af67"
+      "sha256": "e58a4cc167d8a27ae1512cd48718988aa1b3c20cf9734a31bf19564837f901a0"
     },
     {
       "path": "patterns.css",
@@ -635,11 +635,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "c3562118aab65a9d5e57a3eaa4a37fcbc9cc830797cfa5d80c6229bad96a8796"
+      "sha256": "d1927b028e498dc63b284eb725518be058dfb867e6cf1b5b16e7da12dcf79ffa"
     },
     {
       "path": "podview.css",
-      "sha256": "0898f8c297652e9d01ccf8a164c3d3e422ba011b5411afbaf52df9d14961f4aa"
+      "sha256": "1333c9ab00d2e9f9f9fa94c45a1a99acabcc59b5002e76411720a2127b026d45"
     },
     {
       "path": "podvoice-transport.js",
@@ -755,7 +755,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "13e24b11e69e00f0439f06629041bff2541cbd4b097dc328f292216be57f6333"
+      "sha256": "fabd8f57e8c2261a9d6f4345332c95285d429e22451d5fe484d83888e5fcb149"
     },
     {
       "path": "ui/components.js",
@@ -795,7 +795,7 @@
     },
     {
       "path": "ui/library/visual-components.js",
-      "sha256": "44ccc567b872014e3c26fbf98dd479fdf772b7d75c7d885523db5001927c15a4"
+      "sha256": "b03b9df0133d680ba07344a7631264150a70b2f55869c335ce3254283973d1af"
     },
     {
       "path": "ui/motion.js",
@@ -851,7 +851,7 @@
     },
     {
       "path": "visual-content.js",
-      "sha256": "dae566a6c5088cb90ee87e071bdd35df9267171a9a71f44d58ef2b06f21b2386"
+      "sha256": "a6a91452e0319249314f731fd40a525387f7b3e309ff0e66419c23b84b01e40b"
     },
     {
       "path": "visual-examples.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "19f05c1f6171cdcebcaeb3c08e32c2e73faba06a4b1c750438e4851964626846"
+      "sha256": "30554e8f44c9b7acb9c353455607fcd68f6fcbc3abbae5075e940d48f09923c4"
     },
     {
       "path": "workshop.css",
