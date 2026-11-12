@@ -122,21 +122,76 @@ class RecipeRejectedError(ValueError):
 
 _SHARED_URL = re.compile(r"https?://[^\s<>\"'`«»“”]+", re.IGNORECASE)
 
+# The version of podvoice/shortcuts/opskrifter-til-podview.plist. Raise both together
+# when the shortcut changes; older shortcuts are told to fetch the new one in PodView.
+RECIPE_SHORTCUT_VERSION = 1
+
+# Fields a share sheet or shortcut may send, in the order they are trusted for a link.
+_SHARED_FIELDS = ("url", "urls", "webpage", "page", "link", "text", "title")
+_NESTED_URL_KEYS = ("url", "URL", "href", "link")
+
+
+def _shared_strings(value: object, depth: int = 0):
+    """Strings from a field: text, a list of texts/pages, or a page {"url": …}."""
+    if isinstance(value, str):
+        if len(value) <= 8192:
+            yield value
+    elif depth < 2 and isinstance(value, list):
+        for item in value[:20]:
+            yield from _shared_strings(item, depth + 1)
+    elif depth < 2 and isinstance(value, dict):
+        for key in _NESTED_URL_KEYS:
+            yield from _shared_strings(value.get(key), depth + 1)
+
 
 def shared_recipe_url(body: dict) -> str | None:
     """The first http(s) link in what a share sheet sent: a bare URL, "Se denne
-    opskrift: https://…", title plus link, quotes or <>; also in text/title fields."""
-    for field in ("url", "text", "title"):
-        value = body.get(field)
-        if not isinstance(value, str) or len(value) > 8192:
+    opskrift: https://…", title plus link, quotes or <>; a list of URLs, a web page
+    {"url": …}; also in text/title fields."""
+    for field in _SHARED_FIELDS:
+        for value in _shared_strings(body.get(field)):
+            match = _SHARED_URL.search(value)
+            if match is None:
+                continue
+            url = match.group(0).rstrip(".,;:!?")
+            while url.endswith(")") and url.count(")") > url.count("("):
+                url = url[:-1]
+            return url
+    return None
+
+
+def shared_recipe_problem(body: dict, *, outdated: bool) -> str:
+    """A concrete Danish reason why a share held no usable link (never echoes values)."""
+    texts = [
+        value.strip()
+        for field in _SHARED_FIELDS
+        for value in _shared_strings(body.get(field))
+        if value.strip()
+    ]
+    if texts:
+        if outdated:
+            return "Delingen indeholdt kun sidens titel. Opdatér genvejen i PodView."
+        return (
+            "Delingen indeholdt kun tekst uden et link. "
+            "Brug Kopiér link i appen, og del linket igen."
+        )
+    if not any(value not in (None, "", [], {}) for key, value in body.items() if key != "shortcut"):
+        return "Der kom intet med fra delingen. Del opskriftens link igen."
+    return "Der var intet link i det delte. Del opskriftens link igen."
+
+
+def shortcut_version(header: str | None, body: dict | None) -> int | None:
+    """The shortcut's declared version from X-PodView-Shortcut or its body, if valid."""
+    candidates: list[object] = [header]
+    if body is not None:
+        candidates.append(body.get("shortcut"))
+    for value in candidates:
+        if isinstance(value, bool):
             continue
-        match = _SHARED_URL.search(value)
-        if match is None:
-            continue
-        url = match.group(0).rstrip(".,;:!?")
-        while url.endswith(")") and url.count(")") > url.count("("):
-            url = url[:-1]
-        return url
+        if isinstance(value, int) and 0 <= value < 1_000_000:
+            return value
+        if isinstance(value, str) and re.fullmatch(r"[0-9]{1,6}", value.strip()):
+            return int(value.strip())
     return None
 
 

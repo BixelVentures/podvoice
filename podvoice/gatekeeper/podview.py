@@ -42,7 +42,14 @@ from .podview_continuity import ControllerRegistry, log_screen_enrollment
 from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
 from .recipe_import import import_link
-from .recipe_submissions import RecipeRejectedError, RecipeSubmissions, shared_recipe_url
+from .recipe_submissions import (
+    RECIPE_SHORTCUT_VERSION,
+    RecipeRejectedError,
+    RecipeSubmissions,
+    shared_recipe_problem,
+    shared_recipe_url,
+    shortcut_version,
+)
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
@@ -343,6 +350,9 @@ class PodViewBridge:
 
         self.recipe_upload_token = recipe_upload_token
         self.recipe_catalog_path = recipe_catalog_path
+        # Last time an iPhone shortcut older than RECIPE_SHORTCUT_VERSION posted (memory only).
+        self.recipe_shortcut_outdated: dict | None = None
+        self._recipe_shortcut_address: tuple[float, str | None] | None = None
         self.recipe_submissions = (
             RecipeSubmissions(recipe_catalog_path) if recipe_catalog_path else None
         )
@@ -1011,6 +1021,38 @@ class PodViewBridge:
             [room, self.controls.policy, owner.bindings[room]], sort_keys=True, allow_nan=False
         )
         return hashlib.sha256(encoded.encode()).hexdigest()
+
+    async def recipe_shortcut_address(self) -> str | None:
+        """The HA recipe-submissions URL for the iPhone, external URL preferred.
+
+        None when HA has no configured URL; the admin page then uses its own origin.
+        """
+        now = time.monotonic()
+        cached = self._recipe_shortcut_address
+        if cached is not None and now - cached[0] < (3600 if cached[1] else 60):
+            return cached[1]
+        from .config import _supervisor_token
+
+        address = None
+        token = _supervisor_token()
+        if token:
+            try:
+                async with httpx.AsyncClient(timeout=3) as client:
+                    response = await client.get(
+                        "http://supervisor/core/api/config",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    response.raise_for_status()
+                    config = response.json()
+                for key in ("external_url", "internal_url"):
+                    base = config.get(key) if isinstance(config, dict) else None
+                    if isinstance(base, str) and re.fullmatch(r"https?://[^\s/?#]+/?", base):
+                        address = base.rstrip("/") + _RECIPE_SHORTCUT_PATH
+                        break
+            except (httpx.HTTPError, OSError, ValueError):
+                address = None
+        self._recipe_shortcut_address = (now, address)
+        return address
 
     def _controller_request_scope(self, room: str) -> tuple[ControllerRegistry, tuple, str]:
         registry = self._controller_registry
@@ -2461,6 +2503,36 @@ async def _recipe_submissions(request: web.Request) -> web.Response:
     return await _recipe_operation(request, request.path.rsplit("/", 1)[-1])
 
 
+async def _recipe_shortcut(request: web.Request) -> web.Response:
+    """HA administrator only: what the iPhone shortcut's two import questions need."""
+    denied = await _guard(request)
+    if denied is not None:
+        return web.json_response(
+            {"message": "Adgang afvist"},
+            status=denied.status,
+            headers={"Cache-Control": "no-store"},
+        )
+    scope = _HA_REQUEST.get()
+    if not scope or not scope["active"] or not scope["user"]:
+        return _error("recipes_denied", 403)
+    bridge = request.app[BRIDGE]
+    token = bridge.recipe_upload_token
+    return web.json_response(
+        {
+            "version": RECIPE_SHORTCUT_VERSION,
+            "download": _RECIPE_SHORTCUT_ASSET,
+            "address": await bridge.recipe_shortcut_address(),
+            "uploadCode": token if len(token) >= 32 else None,
+            "outdated": bridge.recipe_shortcut_outdated,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+_RECIPE_SHORTCUT_ASSET = "assets/opskrifter-til-podview.shortcut"
+_RECIPE_SHORTCUT_PATH = "/api/podvoice/recipe-submissions"
+
+
 async def _phone_recipes(request: web.Request) -> web.Response:
     token = request.app[BRIDGE].recipe_upload_token
     auth = request.headers.getall("Authorization", [])
@@ -2481,8 +2553,36 @@ async def _phone_recipes(request: web.Request) -> web.Response:
             status=400,
             headers={"Cache-Control": "no-store"},
         )
-    endpoint = "recipe-status" if request.method == "GET" else "recipe-submissions"
-    return await _recipe_operation(request, endpoint)
+    if request.method == "GET":
+        return await _recipe_operation(request, "recipe-status")
+    headers = request.headers.getall("X-PodView-Shortcut", [])
+    phone: dict = {"header": headers[0] if len(headers) == 1 else None}
+    response = await _recipe_operation(request, "recipe-submissions", phone)
+    if "outdated" not in phone:
+        return response
+    # The latest post decides: an updated iPhone clears the notice, an old one sets it.
+    request.app[BRIDGE].recipe_shortcut_outdated = (
+        {"seenAt": int(time.time() * 1000), "version": phone["version"]}
+        if phone["outdated"]
+        else None
+    )
+    _LOG.info(
+        "recipe_shortcut version=%s outdated=%s",
+        phone["version"] if phone["version"] is not None else "none",
+        phone["outdated"],
+    )
+    try:
+        payload = json.loads(response.text or "")
+    except (TypeError, ValueError):
+        return response
+    message = payload.get("message") if isinstance(payload, dict) else None
+    if not phone["outdated"] or not isinstance(message, str) or "genvejen" in message:
+        return response
+    payload["message"] = message + _SHORTCUT_UPDATE_NOTICE
+    return web.json_response(payload, status=response.status, headers={"Cache-Control": "no-store"})
+
+
+_SHORTCUT_UPDATE_NOTICE = " · Ny version af genvejen \u2013 hent den i PodView"
 
 
 def _recipe_field_shape(body: dict) -> str:
@@ -2504,7 +2604,10 @@ def _recipe_field_shape(body: dict) -> str:
     return " ".join(sorted(shape)[:12] + ([f"other_keys={hidden}"] if hidden else [])) or "empty"
 
 
-async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response:
+async def _recipe_operation(
+    request: web.Request, endpoint: str, phone: dict | None = None
+) -> web.Response:
+    """phone (iPhone shortcut posts only) receives the declared shortcut version."""
     store = request.app[BRIDGE].recipe_submissions
     if store is None:
         return web.json_response(
@@ -2541,6 +2644,11 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
                     status=400,
                     headers={"Cache-Control": "no-store"},
                 )
+            if phone is not None:
+                phone["version"] = shortcut_version(phone["header"], body)
+                phone["outdated"] = (
+                    phone["version"] is None or phone["version"] < RECIPE_SHORTCUT_VERSION
+                )
             if endpoint == "recipe-publication":
                 result = await asyncio.to_thread(store.publish, body)
             elif request.method == "PATCH":
@@ -2555,7 +2663,9 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
                     return web.json_response(
                         {
                             "error": "invalid_recipe_submission",
-                            "message": "Der var intet link i det delte. Del opskriftens link igen.",
+                            "message": shared_recipe_problem(
+                                body, outdated=bool(phone and phone["outdated"])
+                            ),
                         },
                         status=400,
                         headers={"Cache-Control": "no-store"},
@@ -5451,17 +5561,34 @@ async def _assets(request: web.Request) -> web.StreamResponse:
         not target.is_relative_to(root.resolve())
         or not target.is_file()
         or target.suffix
-        not in {".html", ".js", ".css", ".svg", ".png", ".jpg", ".jpeg", ".webp", ".woff2", ".wav"}
+        not in {
+            ".html",
+            ".js",
+            ".css",
+            ".svg",
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".woff2",
+            ".wav",
+            ".shortcut",
+        }
     ):
         raise web.HTTPNotFound()
-    return web.FileResponse(
-        target,
-        headers={
-            "Cache-Control": "no-cache",
-            "X-Content-Type-Options": "nosniff",
-            "Referrer-Policy": "same-origin",
-        },
-    )
+    headers = {
+        "Cache-Control": "no-cache",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "same-origin",
+    }
+    if target.suffix == ".shortcut":
+        # The file name becomes the shortcut's name when iOS imports it.
+        headers["Content-Type"] = "application/octet-stream"
+        headers["Content-Disposition"] = (
+            'attachment; filename="Opskrifter til PodView.shortcut"; '
+            "filename*=UTF-8''Opskrifter%20til%20PodView.shortcut"
+        )
+    return web.FileResponse(target, headers=headers)
 
 
 def mount(
@@ -5595,6 +5722,7 @@ def mount(
             web.patch("/view/api/recipe-submissions", _recipe_submissions),
             web.get("/view/api/recipe-status", _recipe_submissions),
             web.get("/view/api/recipe-upload-history", _recipe_submissions),
+            web.get("/view/api/recipe-shortcut", _recipe_shortcut),
             web.post("/view/api/recipe-publication", _recipe_submissions),
             web.get("/view/api/client-diagnostics", _client_diagnostics),
             web.post("/view/api/client-diagnostics", _client_diagnostics),

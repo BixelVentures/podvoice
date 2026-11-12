@@ -426,6 +426,10 @@
       "sha256": "13dab823352c43dc0cde720fbeaad91bc10c4d382283fab55588134c6aecfb5a"
     },
     {
+      "path": "assets/opskrifter-til-podview.shortcut",
+      "sha256": "044d49916be3a66b4a78ba9da62c95f011d219a9205898e6fa27893af73d6a27"
+    },
+    {
       "path": "assets/radio-p1.svg",
       "sha256": "48b9b2ca382676b063ad6d32957655f58995ce3b66bcc3f5125506c12a5440c0"
     },
@@ -635,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "fb59b6495601a8b1c41150f62c18e8347d15a7be8276c25e16546d431056499b"
+      "sha256": "3010587935611d414e014b16dec9967cb8a005586ded5deba5fb5a54e1663df2"
     },
     {
       "path": "podview.css",
@@ -663,7 +667,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "faf0d8ba70b0a9656754f8f536760fc95f3667e37e2618d1e837b2ac0a20c592"
+      "sha256": "78b1a13741988d59d3f583555c45086098163be1e42933630051135fd4b7da2e"
     },
     {
       "path": "references.json",
