@@ -507,7 +507,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "9580b3527e637f31818346bcc2b2fac46e7435616f6b468b3d05456314218003"
+      "sha256": "f5a1c75f4d4028961f96e779c43e3703164e1cc1616ccd6eff4a50a9cfe52fb6"
     },
     {
       "path": "library.css",
@@ -635,11 +635,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "076c0082626f2597ff9a1941b4402628d14cdc4abe25ea919375c2638516bdb0"
+      "sha256": "f16204f3451a8713440ca10e6928854c51b880607be3e1189d5f0c12d7b07e93"
     },
     {
       "path": "podview.css",
-      "sha256": "91557a1b39c83f07884ea33f44cae8ff6f495ab9cadb52c4ba1b04142a4750d1"
+      "sha256": "49f7c5e0937cf680ba7c2bf8d53a56a177448075510639d5ec3ffcfb207c2d6d"
     },
     {
       "path": "podvoice-transport.js",
@@ -811,7 +811,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "24198a398930782de9ffba82a68bbd517b55b99cd0ab7aa1c7da5e0e1ffe2e4c"
+      "sha256": "d34291e8b503f281b69a017b6cf8adf4d47a61c3a34fbb44d1809aa42955aeec"
     },
     {
       "path": "ui/reconcile.js",
