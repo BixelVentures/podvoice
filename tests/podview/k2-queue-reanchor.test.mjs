@@ -93,7 +93,7 @@ test('K2: a song observed while Next was pending gets its queue read when the in
   const control=Object.create(LiveControlView.prototype);
   Object.assign(control,{host,musicIntentOwner:'token',musicIntentPending:true,musicQueued:null,musicDeferred:null,
    renderMusicControls(){}});
-  control.endMusicIntent('token','accepted');
+  control.endMusicIntent('token','accepted',uri(20));
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(reads.length,1,'intent end reads the deferred queue once');
  }finally{media.queueControls.invalidate(true);globalThis.document=previous;}
