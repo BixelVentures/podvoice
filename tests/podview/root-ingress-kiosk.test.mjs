@@ -100,6 +100,7 @@ test('standalone and cross-origin pages keep ordinary link behavior and direct l
  const legacy=frame(panel,'view/');beginIngressKiosk(legacy.win);dedicated(legacy);assert.equal(legacy.replacements.length,0);
 });
 
+// Re-asking never unsubscribes first: the gap made HA flash its toolbar on every tap (focus).
 test('iPad wake: kiosk full screen is requested again when PodView becomes visible, focused or online',()=>{
  const f=frame(panel+'/view'),docListeners=new Map();
  f.win.document={visibilityState:'visible',addEventListener(type,fn){docListeners.set(type,fn);},removeEventListener(type,fn){if(docListeners.get(type)===fn)docListeners.delete(type);}};
@@ -112,9 +113,10 @@ test('iPad wake: kiosk full screen is requested again when PodView becomes visib
  assert.deepEqual(f.sent,[kiosk]);
  // Unlocked: HA's rebuilt panel gets the kiosk request again.
  f.win.document.visibilityState='visible';docListeners.get('visibilitychange')();
- assert.deepEqual(f.sent.slice(1),[reset,kiosk]);
+ assert.deepEqual(f.sent.slice(1),[kiosk]);
  f.emit('focus');f.emit('online');
- assert.deepEqual(f.sent.slice(3),[reset,kiosk,reset,kiosk]);
+ assert.deepEqual(f.sent.slice(2),[kiosk,kiosk]);
+ assert.equal(f.sent.some(sent=>sent.message.type===reset.message.type),false,'no kiosk gap');
  end();
  assert.equal(docListeners.size,0);assert.equal(f.listeners.size,0);
  f.sent.length=0;f.emit('focus');assert.deepEqual(f.sent,[]);

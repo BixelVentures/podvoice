@@ -172,11 +172,11 @@ export function beginIngressKiosk(win) {
   }
   // HA (e.g. the iPad Companion app after the screen was locked) can rebuild its
   // panel and forget the kiosk request. Ask again whenever PodView comes back.
+  // Only ask; never unsubscribe first: between the two messages HA leaves kiosk mode and
+  // draws its toolbar, which flashed on every tap into PodView (focus) on a wall screen.
   function reassert() {
     if (leaving || !session.active || win.document?.visibilityState === "hidden" || !inPanel(frame)) return;
-    if (subscribed) send("home-assistant/unsubscribe-properties");
-    subscribed = false;
-    subscribe();
+    subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
   }
   win.addEventListener("message", onProperties);
   win.addEventListener("pagehide", onPageHide);
