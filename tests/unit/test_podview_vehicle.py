@@ -179,7 +179,8 @@ def test_stale_retains_actual_source_timestamp_and_no_power_does_not_invent_comp
     data[FIELDS["charging"]]["state"] = "no_power"
     result = v.project(v.parse_policy(policy()), data, now=NOW)
     assert result["status"] == "stale" and result["observedAt"] == NOW - v.SOURCE_TTL - 1
-    assert result["data"]["charging"] == {"powerKw": 11}
+    # no_power is plugged in without power (paused charger): stopped, never complete.
+    assert result["data"]["charging"] == {"status": "stopped", "powerKw": 11}
     assert not v.observation_current(result, now=NOW)
     assert v.observation_current(
         {**result, "status": "observed", "observedAt": NOW - v.SOURCE_TTL}, now=NOW
@@ -432,10 +433,8 @@ def test_native_fleet_charging_enum_sensor_is_not_cable_connectivity(state):
     data["sensor.car_charging"]["state"] = state
     result = v.project(scope, data, now=NOW)
     assert result["status"] == "observed"
-    if state == "no_power":
-        assert "charging" not in result["data"]
-    else:
-        assert result["data"]["charging"] == {"status": state}
+    expected = "stopped" if state == "no_power" else state
+    assert result["data"]["charging"] == {"status": expected}
 
 
 @pytest.mark.parametrize("state", ["on", "off", "Charging", "NoPower", "connected"])

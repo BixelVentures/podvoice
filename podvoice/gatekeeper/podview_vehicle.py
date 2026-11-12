@@ -248,8 +248,8 @@ def project(
                 "no_power",
             }:
                 raise ValueError("invalid vehicle charging observation")
-            if value != "no_power":
-                charging["status"] = value
+            # no_power: plugged in, but the charger gives no power (e.g. paused box).
+            charging["status"] = "stopped" if value == "no_power" else value
         elif role == "powerKw":
             if unit not in {"kW", "W"}:
                 raise ValueError("vehicle power unit differs")

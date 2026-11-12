@@ -97,6 +97,7 @@ def project(frame: dict, entities: dict, *, now: float) -> tuple[dict, dict]:
                 "Starting": "starting",
                 "Charging": "charging",
                 "Stopped": "stopped",
+                "NoPower": "stopped",
                 "Complete": "complete",
                 "Disconnected": "disconnected",
             }.get(block.get("charging_state") if type(block.get("charging_state")) is str else None)

@@ -300,7 +300,7 @@ test('host liveScene projection renders fresh observed Tesla without false last-
 test('observed disconnected charging shows passive status and local range without invented controls',async()=>{
  const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
  const {root}=fixture(),view=new VehicleView(root),observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_charging'],data:{batteryPercent:27,rangeKm:104.6,charging:{status:'disconnected',powerKw:0}}});
- view.render(observed);assert.equal(view.status.textContent,'Oplader frakoblet');assert.equal(view.rangeValue.textContent,'105 km');assert.equal(view.model.locked,null);assert.equal(view.access.detail.hidden,false);assert.equal(view.access.status.textContent,'Ukendt');assert.deepEqual(view.model.actions,[]);view.cleanup();
+ view.render(observed);assert.equal(view.status.textContent,'Status ukendt');assert.equal(view.rangeValue.textContent,'105 km');assert.equal(view.model.locked,null);assert.equal(view.access.detail.hidden,false);assert.equal(view.access.status.textContent,'Ukendt');assert.deepEqual(view.model.actions,[]);view.cleanup();
 });
 
 test('live vehicle server proposal discloses wake and prior risk together and sends only after confirmation',async()=>{
@@ -355,6 +355,24 @@ test('HA lock change confirms Lås even when the HA clock is behind the screen a
  assert.equal(view.access.status.textContent,'Låst');
  assert.equal(view.accessFeedback.textContent,'Bilen er låst.');
  assert.doesNotMatch(view.accessFeedback.textContent,/Udfald ukendt/);
+});
+test('Tesla charging_state reads like the Tesla app and never shows 0 kW unless charging (B7)',async()=>{
+ const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js');
+ const {vehicleOverviewFacts}=await import('../../podvoice/gatekeeper/static/podview/vehicle-model.js');
+ const now=Date.now()/1000;
+ const car=status=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:now-5,
+  entityIds:['sensor.car'],data:{locked:true,batteryPercent:21,rangeKm:80,climate:{},
+   charging:{...(status?{status}:{}),powerKw:status==='charging'?11:0,endsAt:now+1800}}});
+ const cases=[['disconnected','Låst'],[undefined,'Låst'],['stopped','Tilsluttet · lader ikke'],
+  ['starting','Starter opladning'],['charging','Lader'],['complete','Opladet']];
+ for(const [status,label]of cases){
+  const {root}=fixture(),view=new VehicleView(root),observed=car(status);
+  view.render(observed);
+  assert.equal(view.status.textContent,status==='charging'?'Bilen lader':label,String(status));
+  const power=vehicleOverviewFacts(observed).find(row=>row.id==='power');
+  assert.equal(view.powerGroup.hidden,status!=='charging',String(status));
+  if(status==='charging')assert.equal(power.value,'11 kW');else assert.equal(power,undefined,String(status));
+ }
 });
 test('overview facts show no charge power or finish unless the car is charging (B7)',async()=>{
  const {vehicleOverviewFacts}=await import('../../podvoice/gatekeeper/static/podview/vehicle-model.js');
