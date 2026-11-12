@@ -44,6 +44,20 @@ def _registries(hass):
     return device_registry.async_get(hass), entity_registry.async_get(hass)
 
 
+def _device_entry_ids(device) -> set:
+    """The config entries a device belongs to. HA 2026.11 gives one config_entry_id and
+    rejects reading config_entries (except on composite devices); 2026.8 has both."""
+    entry_id = getattr(device, "config_entry_id", None)
+    if isinstance(entry_id, str):
+        return {entry_id}
+    entries = device.config_entries
+    if not isinstance(entries, (set, frozenset, list, tuple)) or any(
+        not isinstance(value, str) for value in entries
+    ):
+        return set()
+    return set(entries)
+
+
 def _supervisor(hass):
     # HA 2026.11 moved the key to http.const; it is the same "hassio_supervisor_user".
     try:
@@ -379,7 +393,7 @@ class VehicleSnapshot:
             raise ValueError("Tesla runtime missing")
         devices, registry = _registries(self.hass)
         device = devices.async_get(did)
-        if device is None or cid not in device.config_entries or device.disabled_by is not None:
+        if device is None or cid not in _device_entry_ids(device) or device.disabled_by is not None:
             raise ValueError("Tesla device differs")
         vehicles = [v for v in runtime.vehicles if ("tesla_fleet", v.vin) in device.identifiers]
         if len(vehicles) != 1:

@@ -262,7 +262,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         devices = [
             device
             for device in dr.async_entries_for_config_entry(registry, entry.entry_id)
-            if entry.entry_id in device.config_entries and device.id not in original
+            if device.config_entry_id == entry.entry_id and device.id not in original
         ]
         self.assertEqual(len(devices), 1)
         self.assertEqual(devices[0].model, "PodView browser profile")
@@ -281,7 +281,7 @@ class ControllerAdminServiceFrameworkTests(unittest.IsolatedAsyncioTestCase):
         )
         await task
         after = registry.async_get(devices[0].id)
-        self.assertTrue(after is None or entry.entry_id not in after.config_entries)
+        self.assertTrue(after is None or after.config_entry_id != entry.entry_id)
         self.assertEqual(set(self.hass.data["podvoice"].devices.values()), original)
 
     async def options_http(self):
