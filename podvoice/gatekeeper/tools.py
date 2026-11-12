@@ -34,7 +34,7 @@ from jsonschema.exceptions import SchemaError
 
 from . import constants as C
 from . import podconnect_targets as playback_targets
-from . import podview_lights, podview_music, podview_vehicle, podview_vehicle_control
+from . import podview_lights, podview_music, podview_vehicle, podview_vehicle_control, voice_rooms
 from .data_result import data_limit, select_track_result
 from .device_control import (
     GET_CAPABILITIES,
@@ -1511,6 +1511,18 @@ class ToolRouter:
                 result = {"ok": False, "error_kind": "unknown_outcome", "retry_allowed": False}
             self._log_tool(name, result, dispatch_args)
             return result
+        if name == "HassMediaSearchAndPlay":
+            routed = await self._dispatch_podview_voice_start(
+                name,
+                dispatch_args,
+                declaration,
+                execution_context,
+                approval_token,
+                execution_guard,
+            )
+            if routed is not None:
+                self._log_tool(name, routed, dispatch_args)
+                return routed
         if declaration:
             prepared = await self._prepare_execution(name, dispatch_args)
             if prepared.error is not None:
@@ -1700,6 +1712,83 @@ class ToolRouter:
         if moving:
             return await owner.voice_move_select(room, context, args, approval_token, current)
         return await owner.voice_music_select(room, context, args, approval_token, current)
+
+    @staticmethod
+    def _media_room_hint(args: dict[str, Any]) -> str | bool | None:
+        """One spoken room/speaker name, None when absent, False when not a single name."""
+        if any(args.get(key) not in (None, "", []) for key in ("floor", "floor_id", "device_id")):
+            return False
+        values = [
+            args.get(key)
+            for key in ("name", "area", "area_id", "room", "target", "entity", "entity_id")
+        ]
+        present = [value for value in values if value not in (None, "", [])]
+        if not present:
+            return None
+        names = {value.strip() for value in present if isinstance(value, str) and value.strip()}
+        if len(names) != 1 or len(present) != len(
+            [value for value in present if isinstance(value, str)]
+        ):
+            return False
+        return next(iter(names))
+
+    async def _dispatch_podview_voice_start(
+        self,
+        name: str,
+        args: dict,
+        declaration: dict,
+        context: ExecutionContext | None,
+        approval_token: str | None,
+        execution_guard: Callable[[], bool] | None,
+    ) -> dict | None:
+        """Route voice music starts in PodView rooms through PodView's own START owner.
+
+        None leaves the call on HA's generic path (no PodView music owner here, or
+        the target is an exact HA media_player). A name that is neither a PodView
+        room nor an HA entity is refused in Danish before anything is sent.
+        """
+        owner = self._podview_music_owner
+        resolve = getattr(owner, "voice_music_start_target", None)
+        hint = self._media_room_hint(args)
+        if not callable(resolve) or hint is False:
+            return None
+        if isinstance(hint, str) and hint.casefold().startswith("media_player."):
+            return None
+        current = execution_guard or (lambda: True)
+        resolved = await resolve(hint, current)
+        if resolved is None:
+            return None
+        if resolved.get("plan") is None:
+            assert isinstance(hint, str)
+            if await self._resolve_entity(hint) is not None:
+                return None
+            return voice_rooms.unknown_room_error(hint, resolved.get("known", []))
+        query = args.get("search_query", args.get("query"))
+        media_class = args.get("media_class")
+        if (
+            not isinstance(query, str)
+            or not 1 <= len(query.strip()) <= 160
+            or (media_class is not None and not isinstance(media_class, str))
+        ):
+            return {
+                "ok": False,
+                "error_kind": "bad_args",
+                "error": "Sig hvilken musik der skal spilles.",
+                "retry_allowed": True,
+            }
+        denied = self.execution_policy.authorize(
+            name,
+            args,
+            description=str(declaration.get("description", "")),
+            context=context,
+            approval_token=approval_token,
+            trusted_risk=Risk.LOW_RISK,
+        )
+        if denied is not None:
+            return denied
+        if owner is None or not current():
+            return self._stale_execution()
+        return await owner.voice_music_start(resolved["plan"], query.strip(), media_class, current)
 
     async def _dispatch_device(
         self,

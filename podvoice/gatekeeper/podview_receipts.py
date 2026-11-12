@@ -275,6 +275,63 @@ def _weather_result(response: dict) -> dict:
     return {**response, "data": {**data, "result": {**result, "forecast": decoded}}}
 
 
+_CONDITIONS_DA = {
+    "clear": "Klart",
+    "sunny": "Solrigt",
+    "partlycloudy": "Let skyet",
+    "cloudy": "Skyet",
+    "rainy": "Regn",
+    "pouring": "Kraftig regn",
+    "snowy": "Sne",
+    "fog": "Tåge",
+    "windy": "Blæsende",
+    "clear-night": "Klar nat",
+    "lightning": "Torden",
+    "lightning-rainy": "Torden og regn",
+    "snowy-rainy": "Slud",
+    "exceptional": "Usædvanligt vejr",
+}
+_WEEKDAYS_DA = ("Mandag", "Tirsdag", "Onsdag", "Torsdag", "Fredag", "Lørdag", "Søndag")
+
+
+def _degrees(value: float, unit: str) -> str:
+    number = round(value) if abs(value) >= 0.5 else 0
+    return f"{number}°" if unit in {"°C", "C"} else f"{number} {unit}"
+
+
+def _forecast_facts(data: dict) -> list[dict]:
+    """Q1: a forecast answer shows the forecast periods, not the current measurement.
+
+    The HA weather_forecast call carries only forecast_type, so a daily answer shows
+    today/tomorrow/next day, each labelled with its own day. Values are copied from
+    the owner rows, never derived.
+    """
+    if data["forecastType"] != "daily":
+        return []  # Hourly answers keep their existing current-measurement card.
+    units, facts = data["units"], []
+    today_at = time.time()
+    for row in data["forecast"]:
+        stamp = datetime.fromisoformat(row["datetime"])
+        offset = (stamp.date() - datetime.fromtimestamp(today_at, stamp.tzinfo).date()).days
+        if offset < 0:
+            continue
+        label = ("I dag", "I morgen")[offset] if offset < 2 else _WEEKDAYS_DA[stamp.weekday()]
+        value = _degrees(row["highTemperature"], units["temperature"])
+        if row.get("lowTemperature") is not None:
+            value += " / " + _degrees(row["lowTemperature"], units["temperature"])
+        rain = row.get("precipitation")
+        if rain and units.get("precipitation"):
+            value += f", regn {rain:g} {units['precipitation']}"
+        condition = row.get("condition")
+        detail = "Prognose"
+        if isinstance(condition, str):
+            detail += " · " + _CONDITIONS_DA.get(condition, condition)
+        facts.append({"label": label, "value": value[:80], "detail": detail})
+        if len(facts) == 3:
+            break
+    return facts
+
+
 def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict] | None:
     if not isinstance(result, dict) or result.get("ok") is not True:
         return None
@@ -283,8 +340,9 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
         if projected["status"] != "observed":
             return None
         data = projected["data"]
+        forecast = _forecast_facts(data) if tool_name == "weather_forecast" else []
+        current = data["current"] if not forecast else None
         facts = []
-        current = data["current"]
         if current and current["temperature"] is not None:
             facts.append(
                 {
@@ -301,7 +359,8 @@ def _facts(tool_name: str, result: object) -> tuple[str, list[dict], bool, dict]
                     "detail": "Aktuel måling",
                 }
             )
-        if not facts:
+        facts += forecast
+        if not facts or data["stateUpdatedAt"] is None:
             return None
         provenance = {
             "kind": "ha_weather",
