@@ -511,7 +511,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "b5697f5849b9496ff539246120c3a52098027084d2c7104081b288476271b1cf"
+      "sha256": "049868ab40fca31639340bdcd548035af3f59827ac344915e065be61125ad8d4"
     },
     {
       "path": "library.css",
@@ -547,7 +547,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "fbab32d8d018288b7348c064319e2e8a6793ee9e88c9ab79b92195df2c2e73e7"
+      "sha256": "25565adae177ac49d1ca1e4d68aea74852856276345fa64fa3944e7647e116ff"
     },
     {
       "path": "live-music-selection-view.js",
@@ -639,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "f73e8dc2621582c33d9b1ff3e6b4e7f7a26e65c5158bcb46e75409d202433334"
+      "sha256": "61b20365890816ec8c40fc53fe6728b71dd1aa7f3357d87ae6949515ff44ff86"
     },
     {
       "path": "podview.css",
@@ -815,7 +815,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "66535c807e01fe720e7fc5fcddf6b0022506608172eaa804c2ae43776d754b32"
+      "sha256": "8bf78976809ebb7f47c6f9c44c4e5debd0b59fab8b716b222d8cee0fd08dbbdd"
     },
     {
       "path": "ui/reconcile.js",
@@ -899,7 +899,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "3aa70ccfe0a63ddc011f2d41b75801524791fdd4b930e54e26e9342860381eaa"
+      "sha256": "37a106910fadc0207605fae3014701542549bb20609790853e07fdde1ad9e925"
     },
     {
       "path": "workshop.css",

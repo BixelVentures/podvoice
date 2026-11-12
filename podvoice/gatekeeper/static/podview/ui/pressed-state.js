@@ -53,7 +53,16 @@ export function attachPressedState(surface){
   const shadow=win?.getComputedStyle?.(target)?.boxShadow||'none';pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY,shadow};target.classList.add('is-pressed');
  };
  const up=event=>{
-  if(event.pointerId!==pointerId)return;const target=pressed,shadow=origin?.shadow;clear();
+  if(event.pointerId!==pointerId)return;const target=pressed,shadow=origin?.shadow;
+  // Strip mode: keep the mark through the click's work (a page change takes ~0.7 s there) and drop it
+  // with the first frame after, like iPad; a drag or cancel still clears it at once via move/cancel.
+  if(lite()&&event.type==='pointerup'&&litePressed){
+   const held=litePressed;litePressed=null;pressed=null;pointerId=null;origin=null;
+   win?.setTimeout?.(()=>win.requestAnimationFrame?.(()=>{if(litePressed!==held){held.style.removeProperty('transform');
+    held.style.removeProperty('background-image');}}),0);
+   return;
+  }
+  clear();
   if(!lite()&&(event.type==='pointerup'||event.type===undefined))acknowledge(target,shadow);
  };
  const move=event=>{if(event.pointerId===pointerId&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)clear();};

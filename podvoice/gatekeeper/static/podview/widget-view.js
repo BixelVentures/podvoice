@@ -549,6 +549,16 @@ class WidgetHost extends HTMLElement {
  openScreenSettings(opener){this.renderScreenSettings();this.open('quick-sheet',opener);}
  scheduleClock(){clearTimeout(this.clockTimer);if(!this.isConnected)return;this.renderTopbarClock(new Date());this.alignClock();const now=Date.now();this.clockTimer=setTimeout(()=>this.scheduleClock(),60000-now%60000);}
  renderTopbarClock(now=new Date()){
+  // Strip mode: three Intl formats and a connection projection per call, called from every redraw; skip
+  // when the minute, connection and snapshot content (without its heartbeat time) are unchanged.
+  if(this.lite){
+   const snapshot=this.liveSnapshot?JSON.stringify({...this.liveSnapshot,observedAt:0}):'';
+   const key=JSON.stringify([Math.floor(now.getTime()/60000),this.liveStatus,this.browserOffline===true,
+    this.liveTransport?.recoveryBlocked===true,this.state?.connected,this.dataset.night,
+    $('quick-sheet')?.open===true,snapshot]);
+   if(key===this.topbarClockKey)return;
+   this.topbarClockKey=key;
+  }
   const time=now.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),rawDate=now.toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'}),date=rawDate.charAt(0).toLocaleUpperCase('da-DK')+rawDate.slice(1);
   const connection=connectionPresentation({...this.live?{status:this.liveStatus,snapshot:this.liveSnapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true}:this.state.connectionPreview||{status:this.state.connected?'connected':'disconnected',snapshot:this.state.connected?undefined:{}},browserOffline:this.browserOffline===true}),offline=['offline','denied'].includes(connection.state);
   for(const [id,value] of [['photo-date',connection.headerLabel||now.toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'})],['header-date',connection.headerLabel||date]]){const node=$(id);if(node.textContent!==value)node.textContent=value;for(const [key,value] of [['role','status'],['aria-live','polite'],['aria-atomic','true']])if(node.getAttribute?.(key)!==value)node.setAttribute?.(key,value);if(connection.headerLabel&&connection.text){if(node.getAttribute?.('aria-label')!==connection.text)node.setAttribute?.('aria-label',connection.text);}else if(node.getAttribute?.('aria-label')!==null)node.removeAttribute?.('aria-label');}

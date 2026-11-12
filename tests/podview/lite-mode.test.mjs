@@ -125,9 +125,11 @@ test('in strip mode the touched element shows pressed at once via its own inline
     getAttribute: () => null, setAttribute() {}, removeAttribute() {}, closest: () => null,
     animate() { target.animations++; return { cancel() {}, finished: Promise.resolve() }; },
   };
+  const later = [];
   const win = {
     addEventListener: (name, fn) => handlers.set(`win:${name}`, fn), removeEventListener() {},
     getComputedStyle: () => { styleReads++; return { boxShadow: 'none', color: 'rgb(0, 0, 0)' }; },
+    setTimeout: (fn) => later.push(fn), requestAnimationFrame: (fn) => later.push(fn),
   };
   const doc = {
     defaultView: win, addEventListener() {}, removeEventListener() {},
@@ -143,7 +145,9 @@ test('in strip mode the touched element shows pressed at once via its own inline
   assert.equal(target.inline.get('transform'), 'scale(.97)', 'pressed on touch-down, before any click');
   assert.equal(target.classes.has('is-pressed'), false, 'no class: it restyled the whole page');
   handlers.get('win:pointerup')(event('pointerup'));
-  assert.equal(target.inline.size, 0, 'released on lift');
+  assert.equal(target.inline.get('transform'), 'scale(.97)', 'still marked while the click does its work');
+  while (later.length) later.shift()();
+  assert.equal(target.inline.size, 0, 'released with the first frame after the click');
   handlers.get('pointerdown')(event('pointerdown'));
   handlers.get('pointermove')(event('pointermove', 0, 30));
   assert.equal(target.inline.size, 0, 'dragging the finger away cancels the press');
@@ -184,4 +188,32 @@ test('edge-drag preview never writes the root in strip mode and only on change e
   assert.match(preview, /if\(this\.lite\)return;/);
   assert.match(preview, /if\(this\.dataset\.edgeDrag!==drag\)/);
   assert.match(preview, /getPropertyValue\?\.\('--edge-progress'\)!==value/);
+});
+
+test('in strip mode the player refresh waits while a finger is down and runs right after', async () => {
+  const { LiveMediaView } = await import('../../podvoice/gatekeeper/static/podview/live-media-view.js');
+  const source = LiveMediaView.prototype.render.toString();
+  const waits = /this\.host\.lite&&\(this\.host\.touching\|\|Date\.now\(\)-\(this\.host\.lastScrollAt\|\|0\)<150\)/;
+  assert.match(source, waits);
+  const view = Object.create(LiveMediaView.prototype);
+  view.host = { lite: true, touching: true };
+  const realSetTimeout = globalThis.setTimeout;
+  const timers = [];
+  globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
+  try {
+    view.render();
+    assert.equal(timers.length, 1, 'redraw postponed, not run under the finger');
+  } finally {
+    globalThis.setTimeout = realSetTimeout;
+  }
+});
+
+test('in strip mode the topbar clock skips a redraw with the same minute, connection and snapshot', async () => {
+  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+    'utf8');
+  const start = source.indexOf(' renderTopbarClock(now=new Date()){');
+  const guard = source.slice(start, source.indexOf('this.topbarClockKey=key;', start));
+  assert.match(guard, /if\(this\.lite\)\{/);
+  assert.match(guard, /Math\.floor\(now\.getTime\(\)\/60000\)/);
+  assert.match(guard, /observedAt:0/, 'the heartbeat time alone never redraws the clock');
 });
