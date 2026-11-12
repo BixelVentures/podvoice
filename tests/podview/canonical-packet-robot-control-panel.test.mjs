@@ -180,7 +180,7 @@ test('an authorized taskless read retains the real observation without terminal 
 test('robot control keeps canonical status identity and connection while observations retain edited form',()=>{
  const panel=new RobotControlPanel();panel.data={task:task(),device:{...device,live:true,status:'cleaning',pending:true,battery:76},connected:true};
  const form=cleaningForm(panel);assert.equal(panel.observation.data.title,'Robotstøvsuger');assert.equal(panel.observation.data.resourceStatus,'cleaning');assert.equal(panel.observation.data.state,'pending');assert.equal(panel.observation.data.quietStatus,true);assert.equal(panel.observation.data.connected,true);assert.equal(panel.observation.data.text,'Rengør');
- panel.observed({...device,live:true,status:'stopped',stale:true,battery:130},{connected:false});assert.equal(cleaningForm(panel),form);assert.equal(panel.observation.data.resourceStatus,'stopped');assert.equal(panel.observation.data.state,'ready');assert.equal(panel.observation.data.connected,false);assert.equal(panel.observation.data.text,'Sidst kendt: Ingen aktiv rengøring');
+ panel.observed({...device,live:true,status:'stopped',stale:true,battery:130},{connected:false});assert.equal(cleaningForm(panel),form);assert.equal(panel.observation.data.resourceStatus,'stopped');assert.equal(panel.observation.data.state,'ready');assert.equal(panel.observation.data.connected,false);assert.equal(panel.observation.data.text,'Ikke opdateret: Ingen aktiv rengøring');
  const time=new Date(device.observedAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
  assert.equal(panel.observation.data.detail,`Sidst opdateret kl. ${time}`);
 });
@@ -413,7 +413,7 @@ test('confirmed ongoing job keeps current repeat during mop washing without crea
 });
 
 test('legacy ready settings are observed read-only and never dispatch before a composite Start',()=>{
- const panel=new RobotControlPanel(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:task(),device:{...device,id:'robot-one'},connected:true,settingValues:{'fan-option':'fan-quiet'}};assert.equal(panel.settingControls[0].readOnly.textContent,'Stille');assert.equal(panel.settingControls[0].wrapper.getAttribute('data-kit-variant'),'read-only');assert.equal(panel.querySelectorAll('input[data-robot-choice-kind=choiceId]').length,0);assert(panel.querySelectorAll('p').some(row=>/kan ikke ændres i dette rengøringssetup/.test(row.textContent)));emit(panel.querySelector('[name=areaIds]'),'click');assert.deepEqual(effects,[]);emit(cleaningForm(panel),'submit');assert.deepEqual(effects,[{optionId:'start-option',args:{areaIds:['area-k'],repeat:1}}]);panel.observed({...device,id:'robot-one',stale:true},{connected:false});assert.match(panel.settingControls[0].readOnly.textContent,/sidst kendt/);
+ const panel=new RobotControlPanel(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:task(),device:{...device,id:'robot-one'},connected:true,settingValues:{'fan-option':'fan-quiet'}};assert.equal(panel.settingControls[0].readOnly.textContent,'Stille');assert.equal(panel.settingControls[0].wrapper.getAttribute('data-kit-variant'),'read-only');assert.equal(panel.querySelectorAll('input[data-robot-choice-kind=choiceId]').length,0);assert(panel.querySelectorAll('p').some(row=>/kan ikke ændres i dette rengøringssetup/.test(row.textContent)));emit(panel.querySelector('[name=areaIds]'),'click');assert.deepEqual(effects,[]);emit(cleaningForm(panel),'submit');assert.deepEqual(effects,[{optionId:'start-option',args:{areaIds:['area-k'],repeat:1}}]);panel.observed({...device,id:'robot-one',stale:true},{connected:false});assert.match(panel.settingControls[0].readOnly.textContent,/ikke opdateret/);
 });
 
 test('draft retention is bound to exact robot even when task envelope and admitted room IDs coincide',()=>{
@@ -429,7 +429,7 @@ test('offered route remains available during vacuum-only cleaning',()=>{
 });
 
 test('offline and stale Robot Hero explicitly marks last known activity without changing observed state',()=>{
- const panel=new RobotControlPanel(),running={...device,status:'cleaning'};panel.data={task:task(),device:running,connected:false};assert.equal(panel.observation.data.text,'Sidst kendt · Rengør');assert.equal(panel.observation.data.resourceStatus,'cleaning');assert(panel.querySelectorAll('button,input').every(node=>node.disabled));panel.observed({...running,stale:true},{connected:true});assert.match(panel.observation.data.text,/^Sidst kendt/);assert.equal((panel.observation.data.text.match(/Sidst kendt/g)||[]).length,1);panel.observed(running,{connected:true});assert.equal(panel.observation.data.text,'Rengør');
+ const panel=new RobotControlPanel(),running={...device,status:'cleaning'};panel.data={task:task(),device:running,connected:false};assert.equal(panel.observation.data.text,'Ikke opdateret · Rengør');assert.equal(panel.observation.data.resourceStatus,'cleaning');assert(panel.querySelectorAll('button,input').every(node=>node.disabled));panel.observed({...running,stale:true},{connected:true});assert.match(panel.observation.data.text,/^Ikke opdateret/);assert.equal((panel.observation.data.text.match(/Ikke opdateret/g)||[]).length,1);panel.observed(running,{connected:true});assert.equal(panel.observation.data.text,'Rengør');
 });
 
 test('unknown Robot fault points to the app without inventing a cause or exposing capability jargon',()=>{
@@ -536,7 +536,7 @@ for(const boundary of ['stale','revoked'])test(`inline ${boundary} Robot fallbac
   assert.equal(f.view.robotInline,true);assert.ok(f.view.robotPanel instanceof RobotControlPanel);
   assert.equal(card.hidden,true,'the inline canonical panel owns the only visible Robot observation');assert.equal(card.inert,true);assert.equal(detail.hidden,true,'remove the empty outer slot so the canonical panel keeps the player top anchor');
   assert.equal(f.view.note.hidden,true,'do not repeat the panel availability explanation');assert.equal(f.view.robotButton.hidden,true,'do not offer entry into an already mounted panel');
-  assert.equal(f.view.robotPanel.observation.data.text.startsWith('Sidst kendt'),boundary==='stale');
+  assert.equal(f.view.robotPanel.observation.data.text.startsWith('Ikke opdateret'),boundary==='stale');
   assert.equal(f.view.robotPanel._disabled,true);assert.equal(f.view.task,null);assert.equal(f.writes(),0);assert.equal(f.reads(),1);
   d.stale=false;f.host.liveSnapshot.capabilities.controlSetup=['vacuum'];await f.view.openRobot(new Node('button'));f.view.render();
   assert.ok(f.view.task);assert.equal(f.view.robotPanel._disabled,false);assert.equal(card.hidden,true);assert.equal(f.view.robotButton.hidden,true);assert.equal(f.writes(),0);

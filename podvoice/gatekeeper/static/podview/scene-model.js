@@ -141,13 +141,13 @@ export function sceneTransition(s,e){
 export const visibleActivities=a=>ACTIVITIES.filter(x=>a.filter==='all'||(a.filter==='quick'?x.minutes<=20:x.materials===1));
 
 export const deviceLabel=d=>{
- if(d.kind==='vacuum'){const experience=robotExperience(d),activity=robotActivity(d);if(experience.issues.length)return experience.issues[0].title;if(activity)return (d.stale?'Sidst kendt: ':'')+activity;}
+ if(d.kind==='vacuum'){const experience=robotExperience(d),activity=robotActivity(d);if(experience.issues.length)return experience.issues[0].title;if(activity)return (d.stale?'Ikke opdateret: ':'')+activity;}
  if(d.kind==='light'&&d.live===true&&d.scope==='ha_area'){
   const rows=Array.isArray(d.observedLights)?d.observedLights:[],observed=d.lightObservation?.status==='observed'&&d.lightObservation.complete===true&&['on','off','mixed','unknown','empty'].includes(d.status),known=rows.filter(row=>['on','off'].includes(row.state)),on=known.filter(row=>row.state==='on').length,unknown=rows.length-known.length;
   const detail=observed?rows.length===0?'Ingen lys i rummet':unknown?`${known.length?`${on} af ${rows.length} bekræftet tændt`:'Lysstatus ukendt'} · ${unknown} ${unknown===1?'ukendt':'ukendte'}`:`${on} af ${rows.length} tændt`:({unknown:'Lysstatus ukendt',fault:'Lysstatus kunne ikke hentes',unavailable:'Ikke forbundet'})[d.status]||'Lysstatus ukendt';
-  return (d.stale||Number.isFinite(d.validUntil)&&Date.now()>=d.validUntil*1000?'Sidst kendt: ':'')+detail;
+  return (d.stale||Number.isFinite(d.validUntil)&&Date.now()>=d.validUntil*1000?'Ikke opdateret: ':'')+detail;
  }
- return d.kind==='light'&&d.source==='home_assistant_state'&&d.displayState?(d.stale?'Sidst kendt: ':'')+d.displayState:lightSelection(d)?lightSelection(d).detail:d.kind==='light'?(d.stale?'Sidst kendt: ':'')+(({on:'Lys er tændt',off:'Lys er slukket',unavailable:'Ikke forbundet',unknown:'Lysstatus ukendt',fault:'Lysstatus ukendt'})[d.status]||'Lysstatus ukendt'):d.live?(d.stale?'Sidst kendt: ':'')+(({cleaning:robotRoom(d)?`Robotten er i ${robotRoom(d)}`:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'I basen',complete:'Rengøring afsluttet',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]||'Status ukendt'):({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'I basen',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Status ukendt',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
+ return d.kind==='light'&&d.source==='home_assistant_state'&&d.displayState?(d.stale?'Ikke opdateret: ':'')+d.displayState:lightSelection(d)?lightSelection(d).detail:d.kind==='light'?(d.stale?'Ikke opdateret: ':'')+(({on:'Lys er tændt',off:'Lys er slukket',unavailable:'Ikke forbundet',unknown:'Lysstatus ukendt',fault:'Lysstatus ukendt'})[d.status]||'Lysstatus ukendt'):d.live?(d.stale?'Ikke opdateret: ':'')+(({cleaning:robotRoom(d)?`Robotten er i ${robotRoom(d)}`:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'I basen',complete:'Rengøring afsluttet',stopped:'Ingen aktiv rengøring',fault:'Robotten melder en fejl',unknown:'Status ukendt',unavailable:'Robotten er ikke tilgængelig'})[d.status]||'Status ukendt'):({cleaning:'Rengør',paused:'Rengøring på pause',docking:'På vej til basen',docked:'I basen',complete:'Rengøring afsluttet',fault:'Børste blokeret · se enheden',unknown:'Status ukendt',stopped:'Rengøring stoppet',on:'Lyset er tændt',off:'Lyset er slukket'})[d.status]||'Status ukendt';
 };
 // Bounded read-only metadata for the existing sized Card/Tile anatomy. Missing
 // telemetry is omitted; a status or accepted command never manufactures a fact.
@@ -177,7 +177,7 @@ export function deviceOverviewFacts(d,now=Date.now()/1000){
 // One device presentation is shared by Ro, overview and detail; density belongs to the renderer.
 // One factual metadata role for the Robot Hero in panel and detail.
 export function robotDetailMetadata(device,now=Date.now()/1000){
- const facts=deviceOverviewFacts({...device,kind:'vacuum'},now).facts,format=row=>`${row.value}${row.stale?' · sidst kendt':''}`,battery=facts.find(row=>row.id==='battery'),measurements=['cleaning_area','cleaning_time'].map(id=>facts.find(row=>row.id===id)).filter(Boolean).map(format).join(' · '),active=['cleaning','paused'].includes(device?.status);
+ const facts=deviceOverviewFacts({...device,kind:'vacuum'},now).facts,format=row=>`${row.value}${row.stale?' · ikke opdateret':''}`,battery=facts.find(row=>row.id==='battery'),measurements=['cleaning_area','cleaning_time'].map(id=>facts.find(row=>row.id===id)).filter(Boolean).map(format).join(' · '),active=['cleaning','paused'].includes(device?.status);
  const at = device?.observedAt;
  const lastRead = device?.live === true && device.stale === true && Number.isFinite(at) && at > 0 && at <= now + 1
   ? `Sidst opdateret kl. ${new Date(at * 1000).toLocaleTimeString('da-DK', {hour:'2-digit',minute:'2-digit'})}` : '';

@@ -125,6 +125,6 @@ export function robotExperience(device,now=Date.now()/1000){
  }
  return {activity,jobActive,battery,charging,dnd,issues,maintenance,stale};
 }
-// Legacy label consumers explicitly prefix device.stale with “Sidst kendt”. Retain
+// Legacy label consumers explicitly prefix device.stale with “Ikke opdateret”. Retain
 // that last observed label while robotExperience exposes current facts strictly.
 export function robotActivity(device,now=Date.now()/1000){return robotExperience(device?.stale?{...device,stale:false}:device,now).activity;}

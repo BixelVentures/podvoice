@@ -47,7 +47,7 @@ test('source-owned fact meters retain native determinate progress and suppress s
   updateResourceFacts(card,{facts:[{...input.facts[0],meter:bad}]});assert.equal(meter.hidden,true);assert.equal(meter.getAttribute('value'),null);assert.equal(meter.getAttribute('max'),null);assert.equal(card.resourceFacts.rows.get('elapsed'),row);assert.deepEqual(row.node.children,[label,value,meter]);
  }
  clean();updateResourceFacts(card,{facts:[{...input.facts[0],meter:{value:999,max:180}}]});assert.equal(mutations.length,0,'equally invalid input does not restart or rewrite the retained row');
- updateResourceFacts(card,input);updateResourceFacts(card,{facts:[{...input.facts[0],stale:true}]});assert.equal(meter.hidden,true);assert.equal(meter.getAttribute('value'),null);assert.equal(value.textContent,'1:24 af 3:00 · sidst kendt');assert.equal(card.resourceFacts.items[0].meter,undefined);
+ updateResourceFacts(card,input);updateResourceFacts(card,{facts:[{...input.facts[0],stale:true}]});assert.equal(meter.hidden,true);assert.equal(meter.getAttribute('value'),null);assert.equal(value.textContent,'1:24 af 3:00 · ikke opdateret');assert.equal(card.resourceFacts.items[0].meter,undefined);
  updateResourceFacts(card,{facts:[{...input.facts[0],meter:{value:180,max:180}}]});assert.equal(meter.hidden,false);assert.equal(meter.getAttribute('value'),'180');assert.equal(card.resourceFacts.rows.get('elapsed').meter,meter);assert.equal(value.textContent,'1:24 af 3:00','copy remains source-owned and is not synthesized from the meter');assert.equal(effects,0);
 });
 

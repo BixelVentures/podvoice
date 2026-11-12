@@ -26,7 +26,7 @@ test('robot history has one heading and preserves fresh, stale and empty meaning
   const now=Date.now()/1000,device={id:'vacuum',kind:'vacuum',live:true,source:'home_assistant_state',status:'docked',stale:false,history:{status:'observed',items:[{id:'a',recordedAt:now,outcome:'accepted_by_ha',recipe:{areaIds:[]}}]},telemetry:{status:'observed',items:[]}};
   const host={liveSnapshot:{bootId:'boot',roomId:'room',capabilities:{homeRead:['vacuum']}},state:{focus:'vacuum',devices:[device],homeScope:JSON.stringify(['boot','room']),connected:true},liveControls:{allowed:()=>false}};
   renderRobotHistory(host);assert.equal(title.textContent,'Seneste hændelser');assert.equal(timeline.data.stateText,'');assert.equal(timeline.data.items.length,1);
-  device.stale=true;renderRobotHistory(host);assert.equal(title.textContent,'Sidst kendte hændelser');assert.equal(timeline.data.stateText,'');assert.equal(timeline.data.items.length,1);
+  device.stale=true;renderRobotHistory(host);assert.equal(title.textContent,'Seneste hændelser · ikke opdateret');assert.equal(timeline.data.stateText,'');assert.equal(timeline.data.items.length,1);
   device.stale=false;device.history.items=[];renderRobotHistory(host);assert.equal(title.textContent,'Seneste hændelser');assert.equal(timeline.data.stateText,'Ingen hændelser at vise endnu.');
  } finally {globalThis.document=oldDocument;}
 });
