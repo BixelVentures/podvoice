@@ -286,6 +286,14 @@ def _mcp_result_to_contract(result: dict, *, tool_name: str | None = None) -> di
         else:
             out.setdefault("data", parsed)
     payload = out.get("data")
+    if (
+        isinstance(payload, dict)
+        and set(payload) == {"result"}
+        and isinstance(payload["result"], dict)
+    ):
+        # HA 2026.11 script tools answer {"result": ...}; earlier HA added "success": true.
+        # A script call that failed arrives as isError above, so this is the same success.
+        payload = out["data"] = {"success": True, "result": payload["result"]}
     if isinstance(payload, dict):
         if (
             "ok" not in payload
@@ -395,6 +403,8 @@ class ToolRouter:
         )
         self._vehicle_scope: podview_vehicle.VehicleScope | None = None
         self._vehicle_generation = 0
+        self._vehicle_status_refresh = podview_vehicle.StatusRefresh()
+        self._vehicle_status_task: asyncio.Task | None = None
         self._vehicle_connection = podview_vehicle.ConnectionMemory(
             cleaning_journal_path.parent / "vehicle-sleep.json"
             if cleaning_journal_path is not None
@@ -2910,10 +2920,55 @@ class ToolRouter:
                 if model is not None:
                     result["data"]["modelName"] = model
                 self._remember_vehicle_connection(scope, result)
+            self._schedule_vehicle_status_refresh(scope, client, token)
             return {**result, "bindingId": source_binding} if current() else unavailable
         except (CapabilityError, httpx.HTTPError, aiohttp.ClientError, ValueError):
             podview_vehicle.diagnostic("transport")
             return {**unavailable, "bindingId": source_binding} if current() else unavailable
+
+    def _schedule_vehicle_status_refresh(self, scope, client, token) -> None:
+        """Ask HA to re-read Tesla's online/asleep without waking the car (never blocks a read)."""
+        eid = dict(scope.entities).get("status")
+        task = self._vehicle_status_task
+        if eid is None or (task is not None and not task.done()):
+            return
+        binding = (
+            self._vehicle_generation,
+            scope,
+            id(client),
+            hashlib.sha256(token.encode()).digest(),
+        )
+        if not self._vehicle_status_refresh.wants_state(binding, time.time()):
+            return
+        self._vehicle_status_task = asyncio.create_task(
+            self._refresh_vehicle_status(eid, client, token)
+        )
+
+    async def _refresh_vehicle_status(self, eid: str, client, token: str) -> None:
+        policy = self._vehicle_status_refresh
+        headers = {"Authorization": f"Bearer {token}"}
+        try:
+            async with asyncio.timeout(15):
+                state = None
+                if policy.sent_at is not None:
+                    response = await client.get(
+                        f"{C.SUPERVISOR_CORE_API}/states/{eid}", headers=headers
+                    )
+                    response.raise_for_status()
+                    row = response.json()
+                    state = row.get("state") if isinstance(row, dict) else None
+                if not policy.due(state, time.time()):
+                    return
+                policy.sent(time.time())
+                response = await client.post(
+                    f"{C.SUPERVISOR_CORE_API}/services/homeassistant/update_entity",
+                    headers=headers,
+                    json={"entity_id": eid},
+                )
+                response.raise_for_status()
+                log.info("vehicle status refresh requested")
+        except Exception:  # Best effort; the next due read tries again.
+            log.info("vehicle status refresh unavailable")
 
     def _remember_vehicle_connection(self, scope, result: dict) -> None:
         """Sleep is shown from Tesla's own state, remembered across restarts (B3).

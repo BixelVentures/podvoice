@@ -273,6 +273,21 @@ def test_contract_folding_shapes():
     assert _mcp_result_to_contract({"content": []}) == {"ok": True, "empty": True}
 
 
+def test_ha_2026_11_script_result_keeps_the_success_envelope():
+    # HA 2026.11 script tools answer {"result": ...}; HA 2026.8 answered with success: true.
+    new = {"content": [{"type": "text", "text": '{"result": {"location": "Hjem"}}'}]}
+    old = {
+        "content": [
+            {"type": "text", "text": json.dumps({"success": True, "result": {"location": "Hjem"}})}
+        ]
+    }
+    expected = {"ok": True, "data": {"success": True, "result": {"location": "Hjem"}}}
+    assert _mcp_result_to_contract(new) == expected
+    assert _mcp_result_to_contract(old) == expected
+    failed = {"content": [{"type": "text", "text": '{"result": {"ok": false, "error": "x"}}'}]}
+    assert _mcp_result_to_contract(failed)["ok"] is False
+
+
 @pytest.mark.parametrize("structured", [False, True])
 def test_exact_live_context_domain_failure_is_not_success(structured):
     data = {"success": False, "error": "No entities are exposed"}

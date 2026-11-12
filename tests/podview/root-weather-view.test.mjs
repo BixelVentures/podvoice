@@ -437,3 +437,11 @@ test('expired bounded weather clears raw Home, header and photo facts as well as
   for(const id of ['home-weather','header-weather','photo-weather'])assert.equal(f.ids.get(id).querySelector(':scope > img').hidden,true,id);
  }finally{globalThis.document=previousDoc;Date.now=previousNow;}
 });
+
+test('weather Hero rounds rain probability to a whole percent (Green: 11.1 %)',()=>{
+ const source=dualWeather();source.hourly.forecast[0].precipitation_probability=11.1;
+ const model=liveWeatherModel(projected(source),{now});
+ assert.equal(model.metadata.find(item=>item.id==='rain').value,'11 %');
+ source.hourly.forecast[0].precipitation_probability=66.6;
+ assert.equal(liveWeatherModel(projected(source),{now}).metadata.find(item=>item.id==='rain').value,'67 %');
+});

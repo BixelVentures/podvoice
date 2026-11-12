@@ -206,17 +206,20 @@ class VehicleControl:
                 not self._current(expected, current)
                 or not isinstance(climate, dict)
                 or climate.get("entity_id") != climate_id
-                or climate.get("state") != "heat_cool"
+                # Unknown (HA has not heard from the sleeping car) is not "off".
+                or climate.get("state") not in {"heat_cool", "unknown"}
             ):
                 raise ValueError("climate must be on")
         capability: tuple = ()
-        if role == "lock" and state not in {"locked", "unlocked"}:
+        # After a Core restart Tesla Fleet reports "unknown" until the car wakes. Lock and
+        # climate commands are idempotent and Tesla wakes the car, so they may still be sent.
+        if role == "lock" and state not in {"locked", "unlocked", "unknown"}:
             raise ValueError("vehicle state unknown")
         if role == "climate":
             modes, features = attrs.get("hvac_modes"), attrs.get("supported_features")
             required = 1 if action == "temperature" else (256 if action == "climateOn" else 128)
             if (
-                state not in {"off", "heat_cool"}
+                state not in {"off", "heat_cool", "unknown"}
                 or not isinstance(modes, list)
                 or not {"off", "heat_cool"} <= set(modes)
                 or type(features) is not int
@@ -245,7 +248,7 @@ class VehicleControl:
             ):
                 raise ValueError("seat options unavailable")
             capability = tuple(options)
-        elif role == "defrost" and state not in {"on", "off"}:
+        elif role == "defrost" and state not in {"on", "off", "unknown"}:
             raise ValueError("defrost unavailable")
         elif role == "trunk":
             features = attrs.get("supported_features")
