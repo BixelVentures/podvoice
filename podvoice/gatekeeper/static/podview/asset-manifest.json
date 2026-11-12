@@ -639,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "c1a2caca4035bddb87d52bf4262b09182e437eca22c94f951cc3134404dd1f80"
+      "sha256": "c3360f75b029d6f7e0c494afd1e7bfc893076c7feb5bfbf034c23dcd84d47957"
     },
     {
       "path": "podview.css",
@@ -667,7 +667,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "78b1a13741988d59d3f583555c45086098163be1e42933630051135fd4b7da2e"
+      "sha256": "76c35dfce4fdf214100f51338541e91c86b0ad5a7f78c4371da1a60f2af2cab9"
     },
     {
       "path": "references.json",
@@ -771,7 +771,7 @@
     },
     {
       "path": "ui/gestures.js",
-      "sha256": "5f72bd3111df67c4d4eb01df9fe5f08f046884227abab87c37d176c26b0dd0b5"
+      "sha256": "4b36490a821b87dd0fd31d099c51892196dc25812672b10eccbc95d2ec436e17"
     },
     {
       "path": "ui/kit.js",
@@ -831,7 +831,7 @@
     },
     {
       "path": "ui/screen-lifecycle.js",
-      "sha256": "680a7dd232d28a2c5b8dfee0aa4b21c44edf09729b83754ca4304bfe25c9fd79"
+      "sha256": "cc3aa0f13fe0a13db3dba7ca251d23956e241c83710f3769c1909f49f7175908"
     },
     {
       "path": "ui/scroll-edges.js",

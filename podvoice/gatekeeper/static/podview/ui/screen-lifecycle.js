@@ -1,7 +1,11 @@
 // Screen-only lifecycle. No HA controls, fabricated sun observation or permission
 // renewal. Night uses an explicit Copenhagen clock schedule until sun is admitted.
+// One formatter: building Intl.DateTimeFormat on every sync (every tap) cost ~0.3 s per few taps on Frameo.
+let screenClockFormat=null;
 export function screenClock(now){
- const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23',hour12:false}).formatToParts(now),get=type=>parts.find(part=>part.type===type)?.value;
+ screenClockFormat??=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',
+  day:'2-digit',hour:'2-digit',hourCycle:'h23',hour12:false});
+ const parts=screenClockFormat.formatToParts(now),get=type=>parts.find(part=>part.type===type)?.value;
  return {day:`${get('year')}-${get('month')}-${get('day')}`,hour:Number(get('hour'))%24};
 }
 export function screenBusy(host){
