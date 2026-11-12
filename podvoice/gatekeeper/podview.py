@@ -1517,6 +1517,20 @@ class PodViewBridge:
             self._music_move_fence.discard((room, task["account"]))
         return {"ok": result.get("ok") is True, "data": result}
 
+    async def voice_music_start_target(self, hint: str | None, current) -> dict | None:
+        """Resolve a spoken room to one configured PodView speaker (no effect)."""
+        from . import podview_voice_music
+
+        return await podview_voice_music.resolve_target(self, hint, current)
+
+    async def voice_music_start(
+        self, plan: dict, query: str, media_class: str | None, current
+    ) -> dict:
+        """Start voice-requested music through the PodView room START owner."""
+        from . import podview_voice_music
+
+        return await podview_voice_music.start(self, plan, query, media_class, current)
+
     def voice_music_room(self, context: object) -> str | None:
         if getattr(context, "approval_mode", None) != "live":
             return None
