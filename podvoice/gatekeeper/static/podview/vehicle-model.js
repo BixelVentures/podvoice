@@ -1,3 +1,4 @@
+import {updatedLabel,updatedWhen} from './updated-label.js';
 import {isVehicleObservation} from './ha-home-observation.js';
 // Tesla admits the closed passive HA observation below, never command authority.
 // Spotify/player data and arbitrary live-shaped objects cannot supply vehicle state.
@@ -12,14 +13,13 @@ export function vehicleFixture({charging=false,now=Date.now(),controls=false}={}
  return {...unconnectedVehicleModel(),mode:'fixture',revision:1,controlsPreview:controls,access:{rearTrunk:'closed'},fixtureCase:charging?'charging':'parked',exampleOnly:true,context:'Model Y · 2023',modelName:'Model Y',modelYear:2023,connectionState:charging?'online':'asleep',status:charging?'Lader':'I dvale · Låst',parked:true,locked:true,batteryPercent:72,rangeKm:312,charging:{status:charging?'charging':'disconnected',powerKw:charging?11:null,endsAt:charging?Math.floor(now/1000)+2700:null},climate:{status:'off',temperatureC:null,targetTemperatureC:21,defrost:false,seats:{driver:0,passenger:0}},source:'Lokalt eksempel'};
 }
 
-// Tesla's own state, like the Tesla app: "I dvale · 4 t". Offline is not sleep.
-export function vehicleStatus(value,now=Date.now()){
+// Tesla's own state beside the lock, like the Tesla app: "Låst · I dvale siden 09.44"
+// (overview: "Låst · I dvale"). Offline is not sleep: "Ikke forbundet".
+export function vehicleStatus(value,now=Date.now(),{short=false}={}){
  if(value?.connectionState==='offline')return 'Ikke forbundet';
  if(value?.connectionState!=='asleep')return value.status;
- const seconds=Number.isFinite(value.connectionSince)?Math.max(0,now/1000-value.connectionSince):null;
- if(seconds===null)return 'I dvale';
- const minutes=Math.floor(seconds/60),hours=Math.floor(minutes/60),days=Math.floor(hours/24);
- return `I dvale · ${days>=2?`${days} d`:hours>=1?`${hours} t`:`${minutes} min`}`;
+ const since=Number.isFinite(value.connectionSince)?updatedWhen(value.connectionSince*1000,new Date(now)):'';
+ return [value.status,short||!since?'I dvale':`I dvale siden ${since}`].filter(Boolean).join(' · ');
 }
 // When the shown values were last reported by the car: "Opdateret: 17.40".
 export function vehicleUpdatedLabel(value,now=new Date()){
@@ -27,15 +27,13 @@ export function vehicleUpdatedLabel(value,now=new Date()){
  if(!isVehicleObservation(value)||value.source!=='tesla_fleet_snapshot')return '';
  const times=[value.observedAt,...Object.values(value.fieldObservedAt||{})].filter(t=>Number.isFinite(t)&&t>0&&t*1000<=now.getTime()+60000);
  if(!times.length)return '';
- const at=new Date(Math.max(...times)*1000),clock=at.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
- const day=date=>new Date(date.getFullYear(),date.getMonth(),date.getDate()).getTime(),age=Math.round((day(now)-day(at))/86400000);
- return `Opdateret: ${age===0?clock:age===1?`i går ${clock}`:`${at.toLocaleDateString('da-DK',{day:'numeric',month:'short'})} ${clock}`}`;
+ return updatedLabel(Math.max(...times)*1000,now);
 }
 
 export function vehicleModel(value){
  // Only the admitted passive HA shape is accepted. Other remote shapes fail
  // closed even when they contain plausible battery/lock/temperature fields.
- if(isVehicleObservation(value))return {...value,status:vehicleStatus(value)};
+ if(isVehicleObservation(value))return {...value,status:vehicleStatus(value),shortStatus:vehicleStatus(value,Date.now(),{short:true})};
  if(value?.kind!=='vehicle'||value.mode!=='fixture')return unconnectedVehicleModel();
  const base=vehicleFixture({charging:value.fixtureCase==='charging',now:Number.isFinite(value.charging?.endsAt)?(value.charging.endsAt-2700)*1000:Date.now(),controls:value.controlsPreview===true});
  if(!base.controlsPreview)return base;
@@ -84,6 +82,20 @@ export function vehicleChargeUpdate(previous,model,{connected=false,scope='',sou
  return {scope,eligible,observedAt:retain?previous.observedAt:observedAt,percent:retain?previous.percent:percent,status:retain?previous.status:status,cancel:!eligible||status!=='charging'||!sameScope,cue:!suppress&&eligible&&previous?.eligible===true&&sameScope&&observedAt>previous.observedAt&&status==='charging'&&(previous.status!=='charging'||percent!==previous.percent)};
 }
 
+// Overview tile facts. Charge power and finish time only while the car is charging:
+// a stopped or unknown charge shows a plain battery/range tile, never "0 kW" (B7).
+export function vehicleOverviewFacts(vehicle){
+ if(!vehicle||vehicle.mode==='unconnected')return [];
+ const charging=vehicle.charging?.status==='charging',clock=at=>new Date(at*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});
+ const rows=[
+  ['battery','Batteri',Number.isFinite(vehicle.batteryPercent)?`${Math.round(vehicle.batteryPercent)} %`:null],
+  ['range','Rækkevidde',Number.isFinite(vehicle.rangeKm)?`${Math.round(vehicle.rangeKm)} km`:null],
+  ['power','Ladeeffekt',charging&&Number.isFinite(vehicle.charging.powerKw)?`${vehicle.charging.powerKw.toLocaleString('da-DK')} kW`:null],
+  ['ends','Opladning færdig',charging&&Number.isFinite(vehicle.charging.endsAt)?clock(vehicle.charging.endsAt):null],
+  ['temperature','Kabinetemperatur',Number.isFinite(vehicle.climate?.temperatureC)?`${vehicle.climate.temperatureC.toLocaleString('da-DK')}°`:null],
+  ['lock','Lås',typeof vehicle.locked==='boolean'?vehicle.locked?'Låst':'Ulåst':null]];
+ return rows.filter(([,,value])=>value!==null).map(([id,label,value])=>({id,label,value,stale:false}));
+}
 // Ro reuses the existing passive resource tile. Retained charging is explicitly
 // last-known; neither the tile nor its optional facts grants command authority.
 export function vehicleRailPresentation(value,{live=true,connected=false,readGranted=false,scope='',sourceScope=''}={}){

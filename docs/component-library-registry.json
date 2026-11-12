@@ -2377,7 +2377,8 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/ha-home-observation.js"
+        "dist/ha-home-observation.js",
+        "dist/updated-label.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2439,7 +2440,8 @@
           "method:renderLiveVehicleCommand": 1,
           "method:renderLiveVehicleCommands": 1,
           "method:renderLiveVehicleFeedback": 1,
-          "method:vehicleActionBlocked": 1
+          "method:vehicleActionBlocked": 1,
+          "method:liveVehicleObservedSince": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
@@ -2593,13 +2595,31 @@
       },
       "compositionScope": "Reviewed47 bounded display-locality data projection only. Existing configured label or fresh closed-shape HA-home locality feeds the same weather title/footer; no DOM, renderer, family, authority, forecast-location replacement or provider request. Existing scoped fact projection now also validates a fixed source-timestamp display deadline and strips advice from last-known facts. No DOM, network, family or authority."
     },
+    "dist/updated-label.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:updatedLabel": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Reviewed47 bounded display-locality data projection only. Existing configured label or fresh closed-shape HA-home locality feeds the same weather title/footer; no DOM, renderer, family, authority, forecast-location replacement or provider request. Existing scoped fact projection now also validates a fixed source-timestamp display deadline and strips advice from last-known facts. No DOM, network, family or authority."
+    },
     "dist/weather-view.js": {
       "status": "approved-renderer",
       "domOwner": "build/renderWeather",
       "factoryClassArgument": 1,
       "imports": [
         "dist/weather-observation.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/updated-label.js"
       ],
       "surface": {
         "customElementAccesses": 0,

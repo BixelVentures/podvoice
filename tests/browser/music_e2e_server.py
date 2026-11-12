@@ -621,6 +621,21 @@ async def emit_playback_changed():
                 await websocket.send_json({"id": number, "type": "event", "event": event})
 
 
+async def emit_robot_state_changed():
+    """HA's own state_changed for the robot, as the real coordinator sends it."""
+    event = {
+        "event_type": "state_changed",
+        "data": {"entity_id": ROBOT, "old_state": None, "new_state": robot.states[ROBOT]},
+        "origin": "LOCAL",
+        "time_fired": datetime.now(UTC).isoformat(),
+        "context": {"id": "inert-event", "parent_id": None, "user_id": None},
+    }
+    for websocket, subscriptions in list(ha_clients.items()):
+        for number, event_type in list(subscriptions.items()):
+            if event_type == "state_changed":
+                await websocket.send_json({"id": number, "type": "event", "event": event})
+
+
 configuration = {
     "roomId": "kitchen",
     "music": [
@@ -795,6 +810,8 @@ async def lab_state(request):
                 robot.states[MOP]["state"] = args["robotMop"]
             if "robotState" in args:
                 robot.states[ROBOT]["state"] = args["robotState"]
+                if args.get("robotStateEvent") is True:
+                    await emit_robot_state_changed()
             if "robotEffectDelayMs" in args:
                 robot_lab["effectDelayMs"] = int(args["robotEffectDelayMs"])
             if "robotIgnoreCommands" in args:

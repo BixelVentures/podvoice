@@ -12,6 +12,9 @@ const liveClimateActive=model=>!!model&&!model.stale&&!(model.historicalFields||
 const activeClimateModes=new Set(['heat','cool','auto','heat_cool','fan_only','dry']);
 const vehicleActionFamily=action=>action==='rearTrunkToggle'?'trunk':
  action==='lock'||action==='unlock'?'lock':'climate';
+// HA's clock (last_changed) and the screen's clock can differ by a few seconds.
+// The field must still be newer than what was shown before the tap.
+const CLOCK_SKEW_S=30;
 const liveVehicleEffects={
  lock:['locked',()=>true,model=>model.locked,'Låser…','Bilen er låst.'],
  unlock:['locked',()=>false,model=>model.locked,'Låser op…','Bilen er låst op.'],
@@ -206,7 +209,12 @@ export class VehicleView{
  renderLiveVehicleFeedback(){
   for(const [family,{command,state}]of this.liveVehicleFeedback){
    if(!command.operation.presentationCurrent()||
-    state==='ready'&&!this.liveVehicleObservationMatches(command))this.liveVehicleFeedback.delete(family);
+    state==='ready'&&!this.liveVehicleObservationMatches(command)){this.liveVehicleFeedback.delete(family);continue;}
+   // A newer observation of the field is the car's answer: "Udfald ukendt" has served its purpose.
+   if(state==='unknown'&&this.liveVehicleObservedSince(command)){
+    this.liveVehicleFeedback.delete(family);
+    if(this.liveVehicleCommands.get(family)===command)this.clearLiveVehicleCommand(command);
+   }
   }
   for(const note of [this.accessFeedback,this.climateFeedback]){
    const entries=[...this.liveVehicleFeedback.values()].filter(row=>row.command.note===note);
@@ -236,12 +244,19 @@ export class VehicleView{
    this.finishVehicleFeedback(command,'ready',command.confirmation);
   }
  }
+ liveVehicleObservedSince(command){
+  if(!command.field||this.model.mode!=='observed')return false;
+  const observedAt=this.model.fieldObservedAt?.[command.field];
+  return !historicalField(this.model,command.field,this.connected)&&Number.isFinite(observedAt)&&
+   observedAt>command.previousAt&&observedAt>=command.sentAt-CLOCK_SKEW_S;
+ }
  liveVehicleObservationMatches(command){
   if(!command.read||this.model.mode!=='observed'||
    command.operation?.observationCurrent&&!command.operation.observationCurrent())return false;
   const observedAt=this.model.fieldObservedAt?.[command.field];
   return !historicalField(this.model,command.field,this.connected)&&Number.isFinite(observedAt)&&
-   observedAt>command.previousAt&&observedAt>=command.sentAt&&command.read(this.model)===command.expected;
+   observedAt>command.previousAt&&observedAt>=command.sentAt-CLOCK_SKEW_S&&
+   command.read(this.model)===command.expected;
  }
  renderLiveVehicleCommands(){
   for(const command of this.liveVehicleCommands.values())if(command.phase!=='unknown')this.renderLiveVehicleCommand(command);

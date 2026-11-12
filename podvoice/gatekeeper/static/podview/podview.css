@@ -2940,7 +2940,7 @@ pv-widget-host[data-view=active] .frame:has(#weather-view:not([hidden])[data-scr
 @media(max-height:560px){#timer-alert[open]{justify-content:flex-start;gap:var(--pv-s2);padding:var(--pv-s3)}}
 body:has(>pv-widget-host[data-motion=reduced]) #timer-alert[open],body:has(>pv-widget-host[data-motion=reduced]) #timer-alert .notice-icon::before{animation:none}
 
-/* Source: live-music.css · SHA256 1cfd7c8329d4d011ad81f2ad7959ff2bbc82b0ecb51a1ba381823fcdfd76dc8b */
+/* Source: live-music.css · SHA256 b521192fbadf99b0fdf429317b578091a79cbec8b5e3c73ccc191f73606ad0dd */
 /* Read-only Spotify source surfaces. Original covers stay square and unobscured. */
 #live-music .live-music-note{height:24px;min-height:24px;margin:10px 0 12px;font-size:var(--pv-type-caption);line-height:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #live-music .live-music-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);margin:0;align-items:start;min-height:260px}
@@ -2980,6 +2980,21 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 .weather-live-advice p{margin:8px 0}.weather-live-advice .weather-advice-period,.weather-live-advice .weather-advice-children{font-size:var(--pv-type-caption);color:var(--pv-weather-ink)}.weather-live-advice .weather-advice-period{font-size:var(--pv-type-caption)}
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
+
+/* Queue (K2/K4): placeholder rows keep the real row size while a read runs; rows enter softly. */
+#queue>.queue-track{position:relative;transition:opacity .18s ease}
+@starting-style{#queue>.queue-track{opacity:0}}
+#queue>.queue-track[data-placeholder=true]{pointer-events:none}
+#queue>.queue-track[data-placeholder=true]>*{visibility:hidden}
+#queue>.queue-track[data-placeholder=true]::before{content:"";position:absolute;inset:var(--pv-screen-space-2);
+ border-radius:var(--pv-screen-radius-field);background:linear-gradient(90deg,var(--pv-screen-control),
+ var(--pv-screen-line),var(--pv-screen-control));background-size:200% 100%;
+ animation:pv-queue-placeholder 1.4s ease-in-out infinite}
+@keyframes pv-queue-placeholder{from{background-position:100% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){
+ #queue>.queue-track{transition:none}
+ #queue>.queue-track[data-placeholder=true]::before{animation:none}
+}
 
 /* Source: ui-kit.css · SHA256 ae0c218170b5469e60560a8eedf40986c18d0f86403800d19694959a7eeaf1d8 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */

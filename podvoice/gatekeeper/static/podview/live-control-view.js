@@ -63,7 +63,7 @@ export class LiveControlView{
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();
   const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!roomObservationCurrent(p,snapshot);this.musicButton.disabled=!!this.musicIntentPending;this.robotButton.hidden=!d?.live;this.robotButton.disabled=!!(this.pending||this.setupPending);const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
   if(d&&!d.stale){const activity=robotExperience(d).activity,key=JSON.stringify([d.id,d.status,activity]);this.robotObservedId=d.id;this.robotObservedState=key;this.robotObservedStatus=d.status;}const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard&&this.robotInline&&this.domain==='vacuum'&&this.target?.entityId!==d.id){this.opening++;if(this.expiredRobot?.offline)this.clearRobotRefresh();this.robotDeferredDraft=null;this.task=null;this.robotSuggestion=null;this.target={entityId:d.id};this.buildOptions();}if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';this.robotEntry.append(this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
-  if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&this.task.draft?.status!=='awaiting_water'&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:null});this.robotPanel.disabled=!ready;const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
+  if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&this.task.draft?.status!=='awaiting_water'&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotDirectOffer(device)?.pending??null});this.robotPanel.disabled=!ready;const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
   if(this.robotInline&&d){this.robotButton.hidden=!!(this.robotPanel||this.task||this.setupPending);if(robotCard&&this.robotPanel){robotCard.hidden=true;robotCard.inert=true;robotCard.parentNode.hidden=true;}}
   if(this.refreshButton)this.refreshButton.disabled=!this.canRefreshRobot();
   this.renderReceipt();this.renderMusicControls();if(!this.suspending){this.prepareMusic();this.prepareVolume();}
@@ -81,8 +81,8 @@ export class LiveControlView{
    const controlFeedback=this.task?.draft?.status==='awaiting_water'
     ?{text:'Dine valg er bevaret. Start afventer en aktuel vandstatus.',state:'unknown'}
     :visible?{text,state:row.outcome==='rejected'?'error':row.outcome}:null;
-   this.robotPanel.observed(this.robotDevice(),{controlFeedback});
-  }if(this.domain==='vacuum')for(const button of this.robotPanel?.querySelectorAll?.('button')||[]){const busy=!!(row?.outcome==='pending'&&this.pending&&this.activeOperation?.key===row.key&&button.dataset.controlOptionId===row.optionId);const family=button.dataset.kit;if(button.dataset.controlOptionId&&['button','chip','tile','toggle'].includes(family))applyKitComponent(button,family,{feedback:'progress',loading:busy});}
+   this.robotPanel.observed(this.robotView(this.robotDevice()),{controlFeedback});
+  }if(this.domain==='vacuum')for(const button of this.robotPanel?.querySelectorAll?.('button')||[]){const busy=!!(row?.outcome==='pending'&&this.pending&&this.activeOperation?.key===row.key&&button.dataset.controlOptionId===row.optionId);const family=button.dataset.kit;if(button.dataset.controlOptionId&&button.dataset.directRobot!=='true'&&['button','chip','tile','toggle'].includes(family))applyKitComponent(button,family,{feedback:'progress',loading:busy});}
  }
  invalidateMusic(message='Musikken er ændret · hent betjeningen igen.',render=true,preservePresentation=false){
   const capabilities = this.host.liveSnapshot?.capabilities;
@@ -142,7 +142,7 @@ export class LiveControlView{
    if(operation){this.remember(operation,'unknown');this.robotOverviewFence={bootId:operation.bootId,roomId:operation.roomId,entityId:operation.target.entityId,outcome:'unknown'};}
    // In-flight custody stays held until its original await settles; a new
    // domain cannot start and then be cleared by the old operation's finally.
-   if(this.controlOpen())this.note.textContent=message;const device=this.robotDevice();this.robotPanel?.observed?.(this.robotView(device),{connected:!!this.host.liveTransport?.connected,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:null});for(const el of this.body.querySelectorAll('button,input,select'))if(!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;this.restoreOfflineRobotDraft(offlineDraft);if(render)this.render();return;
+   if(this.controlOpen())this.note.textContent=message;const device=this.robotDevice();this.robotPanel?.observed?.(this.robotView(device),{connected:!!this.host.liveTransport?.connected,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotDirectOffer(device)?.pending??null});for(const el of this.body.querySelectorAll('button,input,select'))if(!this.robotPanel?.contains?.(el))el.disabled=true;if(this.robotPanel)this.robotPanel.disabled=true;this.restoreOfflineRobotDraft(offlineDraft);if(render)this.render();return;
   }
   if(this.musicDeferred){this.musicDeferred=null;this.host.showFeedback?.('Det ventende valg blev ikke sendt.',false,{source:'music-intent'});}
   this.musicQueued = null;
@@ -315,6 +315,12 @@ export class LiveControlView{
   this.musicQueued = null;
   // A choice waiting in waitForMusicLane gets its turn; after UNKNOWN it is not sent.
   releaseMusicLane(this, outcome === 'unknown' ? 'unknown' : 'free');
+  // A song reached by a skip while the intent was pending had its queue read deferred; read it now (K2).
+  // Only skips: other music effects (e.g. a speaker move) keep their own queue lifecycle.
+  if(skippedTrackUri){
+   void this.host.liveMedia?.loadQueue?.({automatic:true})?.catch?.(()=>{});
+   if(outcome!=='accepted')this.host.liveMedia?.queueControls?.skip?.(null);
+  }
   const deferred=this.musicDeferred;if(deferred?.token===token){this.musicDeferred=null;if(outcome==='accepted'&&deferred.sameScope(true)){void this.musicIntent('volume',{percent:deferred.percent}).then(sent=>{if(!sent)this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}).catch(()=>this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'}));return;}this.host.showFeedback?.('Den valgte lydstyrke blev ikke sendt.',false,{source:'music-intent'});}
   if(this.host.isConnected){this.renderMusicControls();this.host.liveOutputs?.sync();}
  }
@@ -1038,8 +1044,12 @@ export class LiveControlView{
   const snap=this.host.liveSnapshot,transport=this.host.liveTransport,homeScope=JSON.stringify([snap?.bootId,snap?.roomId]),state=({docking:'returning',stopped:'idle',fault:'error'})[device?.status]||device?.status;
   if(!this.host.isConnected||!transport?.connected||!this.allowed('vacuum')||this.host.state.homeScope!==homeScope||device?.live!==true||device.stale||device.presentationOnly||!this.host.state.devices.includes(device))return null;
   const offer=robotTransportOffer(device.transportActions,device.id,state),view=this.robotView(device);
-  if(offer&&view!==device&&['cleaning','paused'].includes(view.status)){const swap={pause:'resume',resume:'pause'};offer.actions=offer.actions.map(action=>swap[action]??action);}
-  return offer;
+  // A tapped Pause/Fortsæt keeps the row it was tapped in until HA confirms or the hold times out:
+  // HA's transitional states (idle, returning, unknown) do not reshape or empty the row (S3).
+  // Its slot shows pending meanwhile.
+  const held=view!==device&&this.robotOptimistic?.actions;
+  return held?{...offer,entityId:device.id,actions:[...held],
+   pending:{paused:'resume',cleaning:'pause'}[view.status]??null}:offer;
  }
  // Optimistic presentation of the robot's own tap until HA reports that status (max 10 s).
  robotView(device){const o=this.robotOptimistic;if(!device||!o||o.entityId!==device.id)return device;if(device.status===o.status||Date.now()-o.at>10000){this.robotOptimistic=null;return device;}return {...device,status:o.status};}
@@ -1069,14 +1079,16 @@ export class LiveControlView{
    return reject('intent_pending');
   }
   
+  const swap={pause:'resume',resume:'pause'};
   this.robotOptimistic = {entityId,
-   status: {pause:'paused',resume:'cleaning',stop:'stopped',return:'docking'}[action], at:Date.now()};
-  clearTimeout(this.robotOptimisticTimer);this.robotOptimisticTimer=setTimeout(()=>{this.robotOptimisticTimer=null;if(!this.host.isConnected)return;this.refreshRobotOverview();const d=this.robotDevice();if(d)this.robotPanel?.observed?.(this.robotView(d),{directActions:this.robotDirectOffer(d)?.actions||[],directPendingAction:null});},10050);
-  if(priorRobotOperation){this.robotQueued={entityId,action,operation:priorRobotOperation};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
+   status: {pause:'paused',resume:'cleaning',stop:'stopped',return:'docking'}[action], at:Date.now(),
+   actions: swap[action]?offer.actions.map(row=>row===action?swap[row]:row):null};
+  clearTimeout(this.robotOptimisticTimer);this.robotOptimisticTimer=setTimeout(()=>{this.robotOptimisticTimer=null;if(!this.host.isConnected)return;this.refreshRobotOverview();const d=this.robotDevice();if(d)this.robotPanel?.observed?.(this.robotView(d),{directActions:this.robotDirectOffer(d)?.actions||[],directPendingAction:this.robotDirectOffer(d)?.pending??null});},10050);
+  if(priorRobotOperation){this.robotQueued={entityId,action,operation:priorRobotOperation};this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:this.robotDirectOffer(device)?.pending??null});this.journalDevice(transport,'control_intent',{...diag,code:'queued'});return true;}
   const transportGeneration=transport.generation,current=()=>this.host.isConnected&&this.host.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&this.host.liveSnapshot?.bootId===snapshot.bootId&&this.host.liveSnapshot?.roomId===snapshot.roomId&&this.allowed('vacuum');
   const operation={key:snapshot.bootId+':'+requestId,bootId:snapshot.bootId,roomId:snapshot.roomId,domain:'vacuum',direct:true,target:{entityId},label:({pause:'Pause',resume:'Fortsæt',stop:'Afslut rengøring',return:'Kør til basen'})[action],action,observedRevision:device.revision};
   let outcome='unknown';
-  this.robotOverviewOperation=operation;this.remember(operation,'pending',requestId);this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:null});
+  this.robotOverviewOperation=operation;this.remember(operation,'pending',requestId);this.refreshRobotOverview();this.robotPanel?.observed?.(this.robotView(device),{directActions:this.robotDirectOffer(device)?.actions||[],directPendingAction:this.robotDirectOffer(device)?.pending??null});
   try{
    const result=await transport.controlIntent({bootId:snapshot.bootId,roomId:snapshot.roomId,domain:'vacuum',action,target:{entityId},args:{},requestId,issuedAt});
    outcome=result.outcome;
@@ -1088,6 +1100,7 @@ export class LiveControlView{
   finally{
    const owned=this.robotOverviewOperation===operation;
    if(owned)this.robotOverviewOperation=null;
+   if(owned&&outcome==='rejected'&&this.robotOptimistic?.entityId===entityId)this.robotOptimistic=null;
    const queued=this.robotQueued?.operation===operation?this.robotQueued:null;
    if(queued){
     this.robotQueued=null;this.robotOptimistic=null;
@@ -1096,7 +1109,7 @@ export class LiveControlView{
      else this.host.showFeedback?.('Robottens næste kommando blev ikke sendt.',false,{source:'robot'});
     }
    }
-   if(owned&&current()){this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{directPendingAction:null});this.refreshRobotOverview();this.render();}
+   if(owned&&current()){this.robotPanel?.observed?.(this.robotView(this.robotDevice()),{directPendingAction:this.robotDirectOffer(this.robotDevice())?.pending??null});this.refreshRobotOverview();this.render();}
   }
  }
  robotOverviewContext(device){
@@ -1120,7 +1133,7 @@ export class LiveControlView{
   return setup;
  }
  robotDevice(){return this.host.state.devices.find(d=>d.kind==='vacuum'&&d.id===this.target?.entityId);}
- buildOptions(){if(this.task?.domain==='vacuum'||this.domain==='vacuum'){const device=this.robotDevice(),existing=this.robotPanel,panel=existing||document.createElement('pv-robot-control-panel'),scrollOwner=this.host.querySelector?.('#device-view'),scrollTop=scrollOwner?.scrollTop;panel.data={task:this.task,device:this.robotView(device),presentationScope:this.host.liveTransport?{bootId:this.host.liveSnapshot?.bootId,roomId:this.host.liveSnapshot?.roomId,transport:this.host.liveTransport,generation:this.host.liveTransport.generation,deviceId:device?.id}:null,currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,history:device?.history,readOnly:!this.allowed('vacuum')||device?.live!==true||!!device.stale,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:null};if(!existing){panel.addEventListener('robot-draft-changed',()=>setTimeout(()=>this.persistRobotDraft(),0));panel.addEventListener('robot-control-expired-start',event=>this.queueExpiredRobotStart(event.detail.optionId));panel.addEventListener('robot-control-action',event=>this.send(event.detail.optionId,event.detail.args));panel.addEventListener('robot-direct-action',event=>this.robotDirectIntent(this.target?.entityId,event.detail.action));panel.addEventListener('robot-control-recipe',event=>this.openRobot(this.opener,event.detail.recipeId));}this.robotPanel=panel;this.currentRobotSetup(device);panel.disabled=!this.task;if(panel.renewalDiagnostic){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:panel.renewalDiagnostic});panel.renewalDiagnostic=null;}
+ buildOptions(){if(this.task?.domain==='vacuum'||this.domain==='vacuum'){const device=this.robotDevice(),existing=this.robotPanel,panel=existing||document.createElement('pv-robot-control-panel'),scrollOwner=this.host.querySelector?.('#device-view'),scrollTop=scrollOwner?.scrollTop;panel.data={task:this.task,device:this.robotView(device),presentationScope:this.host.liveTransport?{bootId:this.host.liveSnapshot?.bootId,roomId:this.host.liveSnapshot?.roomId,transport:this.host.liveTransport,generation:this.host.liveTransport.generation,deviceId:device?.id}:null,currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,history:device?.history,readOnly:!this.allowed('vacuum')||device?.live!==true||!!device.stale,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotDirectOffer(device)?.pending??null};if(!existing){panel.addEventListener('robot-draft-changed',()=>setTimeout(()=>this.persistRobotDraft(),0));panel.addEventListener('robot-control-expired-start',event=>this.queueExpiredRobotStart(event.detail.optionId));panel.addEventListener('robot-control-action',event=>this.send(event.detail.optionId,event.detail.args));panel.addEventListener('robot-direct-action',event=>this.robotDirectIntent(this.target?.entityId,event.detail.action));panel.addEventListener('robot-control-recipe',event=>this.openRobot(this.opener,event.detail.recipeId));}this.robotPanel=panel;this.currentRobotSetup(device);panel.disabled=!this.task;if(panel.renewalDiagnostic){this.host.liveTransport?.recordDiagnostic?.('robot_renewal',{code:panel.renewalDiagnostic});panel.renewalDiagnostic=null;}
    // Remove the expired-offer helper without detaching the current robot panel.
    if(panel.parentNode===this.body){
     for(const child of [...this.body.children])if(child!==panel)child.remove();

@@ -270,9 +270,9 @@ async function lifecycleJourney(page,card,errors,commands){
  assert.deepEqual((await state()).writes,[]);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-vehicle-last-known.png')});
 
- // B3: Tesla's own state says asleep; the card shows it as a state with its duration.
+ // B3: Tesla's own state says asleep; the header shows it beside the lock with its start.
  await refresh('asleep');
- await hero.getByText(/^I dvale · \d+ min$/).waitFor({state:'visible'});
+ await hero.getByText(/ · I dvale siden \d\d[.:]\d\d$/).waitFor({state:'visible'});
  assert.match(await time.innerText(),/^Opdateret: \d\d[.:]\d\d$/);
  assert.match(await hero.innerText(),/72/);
  assert.deepEqual((await state()).writes,[],'showing sleep never sends a vehicle command');

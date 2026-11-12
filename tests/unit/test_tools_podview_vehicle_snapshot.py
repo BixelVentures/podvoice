@@ -333,3 +333,40 @@ async def test_podvoice_remembers_sleep_across_restart_and_unknown_status(tmp_pa
     assert [request.url.path for request in seen] == [
         "/core/api/services/podvoice/vehicle_snapshot"
     ] * 2
+
+
+async def test_sleep_is_remembered_without_a_status_sensor_in_the_policy(tmp_path):
+    """B3 on Green: off since 09.44 must show as sleep although the policy has no status."""
+    policy = json.dumps({"configEntryId": "fleet", "deviceId": "car", "entities": ENTITIES})
+    value = snapshot()
+    asleep_since = value["observedAt"] + 5
+    value["connection"] = {"state": "asleep", "since": asleep_since}
+
+    def handler(request):
+        return httpx.Response(200, json={"service_response": copy.deepcopy(value)})
+
+    async def read():
+        router = ToolRouter(
+            None,
+            client=client,
+            supervisor_token="inert-token",
+            cleaning_journal_path=tmp_path / "cleaning-journal.json",
+        )
+        router._device_control._ws_read = AsyncMock(return_value=[])
+        router.configure_podview_vehicle_read(policy)
+        return await router.podview_vehicle_read()
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        first = await read()
+        assert first["connection"]["state"] == "asleep"
+        del value["connection"]
+        restarted = await read()
+        assert restarted["connection"] == {
+            "state": "asleep",
+            "since": asleep_since,
+            "remembered": True,
+        }
+        # The car woke up and reported data: sleep disappears.
+        value["connection"] = {"state": "online", "since": None}
+        awake = await read()
+    assert awake["connection"]["state"] == "online"

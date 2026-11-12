@@ -37,3 +37,18 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 .weather-live-advice p{margin:8px 0}.weather-live-advice .weather-advice-period,.weather-live-advice .weather-advice-children{font-size:var(--pv-type-caption);color:var(--pv-weather-ink)}.weather-live-advice .weather-advice-period{font-size:var(--pv-type-caption)}
 
 @media(max-width:759px){.weather-current{min-width:0;gap:var(--pv-s2)}.weather-current>div{min-width:0}.weather-current strong{font-size:var(--pv-type-display)}.weather-current>img{flex:0 1 64px;width:64px;height:auto;max-width:20vw;margin-right:0}}
+
+/* Queue (K2/K4): placeholder rows keep the real row size while a read runs; rows enter softly. */
+#queue>.queue-track{position:relative;transition:opacity .18s ease}
+@starting-style{#queue>.queue-track{opacity:0}}
+#queue>.queue-track[data-placeholder=true]{pointer-events:none}
+#queue>.queue-track[data-placeholder=true]>*{visibility:hidden}
+#queue>.queue-track[data-placeholder=true]::before{content:"";position:absolute;inset:var(--pv-screen-space-2);
+ border-radius:var(--pv-screen-radius-field);background:linear-gradient(90deg,var(--pv-screen-control),
+ var(--pv-screen-line),var(--pv-screen-control));background-size:200% 100%;
+ animation:pv-queue-placeholder 1.4s ease-in-out infinite}
+@keyframes pv-queue-placeholder{from{background-position:100% 0}to{background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce){
+ #queue>.queue-track{transition:none}
+ #queue>.queue-track[data-placeholder=true]::before{animation:none}
+}

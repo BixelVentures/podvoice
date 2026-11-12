@@ -44,7 +44,7 @@ test('actual local host branch preserves connection identity when navigation cle
  const render=new Function('s','connectionPresentation',source.slice(start,end));
  const seen=[],queue=new NotificationQueue(item=>seen.push(item),{setTimer:()=>1,clearTimer:()=>{}});
  const host={renderConnectionNotice:connection=>queue.update('connection',connection.text,{retry:connection.retry})};
- render.call(host,{connected:false,notice:'Offline · viser sidst kendte indhold'},connectionPresentation);
+ render.call(host,{connected:false,notice:'Offline · viser seneste indhold'},connectionPresentation);
  assert.match(queue.current.message,/afbrudt/);queue.dismiss();const count=seen.length;
  render.call(host,{connected:false,notice:null},connectionPresentation);
  assert.equal(queue.current,null);assert.equal(seen.length,count,'navigation must not reopen the dismissed loss under a different message');

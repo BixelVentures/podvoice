@@ -1,3 +1,7 @@
+## 2.0.177
+
+- Robottens Pause/Fortsæt bliver på sin plads under kommandoen, og knaprækken hopper eller tømmes ikke længere. Vejr, lys, timer, robot og musik siger »Opdateret: 07.04« eller »Ikke opdateret« i stedet for »Sidst kendt«. Afspilning vises hurtigere efter tryk (musik ca. 2,8 s i stedet for 4,5 s i prøven), køen viser ikke allerede spillede sange og henter igen efter autoplay, og radiolydstyrken låser ikke længere slider og Stop. Teslaen viser Låst straks efter HA-skift, »Låst · I dvale siden 09.44« og ladetilstande uden 0 kW (kræver HA-komponent 0.1.20). Fuld skærm genoprettes, når iPad'en vågner, opskriftslinks i delt tekst virker, stemmen forstår PodViews rumnavne, og vejrkortets korte AI-tekst vises igen (vejret regnes som aktuelt i 2 timer efter HA's opdatering, ikke 30 min).
+
 ## 2.0.176
 
 - Svar fra en websøgning (fx fodbold) får nu et kort, mens hun taler, uden at talen bliver langsommere. En kamp vises med hold, stilling, målscorere pr. hold og dato, og fakta vises som overskrift med 2–3 nøglepunkter. Kortene gentager aldrig hendes sætninger, og uden grundlag vises intet kort. Vejrkortet viser den dag, der spørges om (fx »i morgen« eller »på fredag«), i stedet for vejret lige nu. En opfølgning bliver et nyt afsnit på samme kort, og historikken viser ét kort pr. emne. Kortet står 60 sekunder efter samtalen, bliver stående, hvis man rører det, og derefter vender skærmen tilbage til den forrige visning. Svar-knappen viser »Voice PE offline« i gråt, når højttaleren mangler forbindelse.

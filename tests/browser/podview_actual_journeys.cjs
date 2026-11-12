@@ -16,6 +16,8 @@ const only=process.argv.slice(2).map(name=>name.endsWith('_actual_e2e.cjs')?name
 for(const name of only)if(!journeys.includes(name))throw new Error(`Unknown journey: ${name}`);
 for(const journey of only.length?only:journeys){
  runJourney(journey);
+ // S3 through HA's transitional states: Pause/Fortsæt keep their slot and the row stays put.
+ if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_transition_actual_e2e.cjs');
  if(journey==='music_push_actual_e2e.cjs')runJourney(journey,{MUSIC_PUSH_OVERLAP_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'push-overlap')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_VOLUME_DRAG_TEST:'1',

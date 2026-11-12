@@ -248,8 +248,8 @@ def project(
                 "no_power",
             }:
                 raise ValueError("invalid vehicle charging observation")
-            if value != "no_power":
-                charging["status"] = value
+            # no_power: plugged in, but the charger gives no power (e.g. paused box).
+            charging["status"] = "stopped" if value == "no_power" else value
         elif role == "powerKw":
             if unit not in {"kW", "W"}:
                 raise ValueError("vehicle power unit differs")
@@ -656,8 +656,7 @@ async def read_snapshot(
                     return unavailable
             connection = value.get("connection")
             if connection is not None and (
-                "status" not in fields
-                or trunk_control
+                trunk_control
                 or type(connection) is not dict
                 or set(connection) != {"state", "since"}
                 or connection["state"] not in CONNECTION_STATES

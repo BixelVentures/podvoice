@@ -33,7 +33,9 @@ cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
 repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 voice_journey = base.voice_journey
-queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey
+# K2/K4: three fast skips through a queue that advances with the song, then an autoplay context.
+queue_skip = os.environ.get("MUSIC_QUEUE_SKIP_TEST") == "1"
+queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey or queue_skip
 queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
 account_rollover = os.environ.get("MUSIC_ACCOUNT_ROLLOVER_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
@@ -44,6 +46,12 @@ library_race = os.environ.get("MUSIC_LIBRARY_BUSY_TEST")
 library_race_release = asyncio.Event()
 library_race_arrivals = 0
 recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
+# Green timing: the speaker confirms the start natively at 2.7 s, while the Spotify
+# Web API observation (and PodConnect's playback event) only shows the new item later.
+start_latency = os.environ.get("MUSIC_START_LATENCY_TEST") == "1"
+SPEAKER_CONFIRMS_S = 2.7
+SPOTIFY_OBSERVES_S = 4.5
+latency_tasks: list[asyncio.Task] = []
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -69,6 +77,8 @@ base.state.update(
 )
 if account_rollover:
     base.state.update(state="playing", song=30, queue=[31, 32])
+if queue_skip:
+    base.state.update(state="playing", song=20, queue=list(range(21, 29)))
 if recent_session:
     tracks[0].update(
         name="Coming Home",
@@ -342,7 +352,23 @@ async def native(request):
                 volume=args["start_offer"]["start_volume_percent"],
                 selected_at_ms=int(time.time() * 1000),
             )
-            if voice_journey:
+            if start_latency:
+
+                async def speaker_starts(args=args, observation=observation):
+                    await asyncio.sleep(SPEAKER_CONFIRMS_S)
+                    settle(args)
+                    base.state["speakerConfirmedAtMs"] = time.time() * 1000
+                    await asyncio.sleep(SPOTIFY_OBSERVES_S - SPEAKER_CONFIRMS_S)
+                    base.state.update(observation)
+                    base.state["sequence"] += 1
+                    await base.emit_playback_changed()
+
+                # Like PodConnect's settlement(): unknown until the native witness confirms.
+                settle(args)
+                base.receipts[args["request_id"]].update(status="unknown", observation=None)
+                base.state["startAcceptedAtMs"] = time.time() * 1000
+                latency_tasks.append(asyncio.get_running_loop().create_task(speaker_starts()))
+            elif voice_journey:
                 base.state["pendingVoiceObservation"] = observation
                 base.state["pendingVoiceReceipt"] = args
                 receipt = response.json()
@@ -360,7 +386,7 @@ async def native(request):
                 }
             )
             base.music.value["next_command_sequence"] += 1
-            if not voice_journey:
+            if not voice_journey and not start_latency:
                 settle(args)
         return response
     if service == "get_queue":
@@ -408,6 +434,8 @@ async def native(request):
             value["native"]["session_id"] = value["queue"]["session_id"] = "bedroom-session"
             value["route"]["session_epoch"] = "2"
         queue = base.state["queue"]
+        if queue_skip:
+            queue = [song for song in queue if song > base.state["song"]]
         if account_rollover:
             account = args["config_entry_id"]
             assert account in {"account", "account-b"}
@@ -633,6 +661,20 @@ if queue_journey:
             base.state["queueReadFailure"] = condition == "autoplay-no-queue"
             base.state["sequence"] += 1
             await base.emit_playback_changed()
+            return web.json_response({"condition": condition})
+        if queue_skip and condition == "autoplay":
+            # A new autoplay context: its queue is not readable for 2 s, then the source delivers it.
+            base.state.update(song=40, state="playing", queue=[41, 42, 43], queueReadFailure=True)
+            base.state["sequence"] += 1
+            await base.emit_playback_changed()
+
+            async def deliver():
+                await asyncio.sleep(2)
+                base.state["queueReadFailure"] = False
+                base.state["sequence"] += 1
+                await base.emit_playback_changed()
+
+            latency_tasks.append(asyncio.get_running_loop().create_task(deliver()))
             return web.json_response({"condition": condition})
         if condition not in {"failed", "empty"}:
             raise web.HTTPBadRequest()

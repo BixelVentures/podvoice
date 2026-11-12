@@ -17,6 +17,6 @@ test('offline empty device navigation exposes only the honest existing unavailab
 });
 test('a stale resource still opens retained detail; command-disabled data does not disable its navigation button',()=>{
  const parts=new Map(['strong','small','.resource-value','.resource-visual img','svg'].map(key=>[key,{textContent:'',hidden:false,style:{display:''},getAttribute(){return null;}}]));const attrs=new Map(),values=new Map(),node={disabled:true,dataset:{},style:{getPropertyValue:k=>values.get(k),setProperty:(k,v)=>values.set(k,v)},querySelector:k=>parts.get(k),getAttribute:k=>attrs.get(k)??null,setAttribute:(k,v)=>attrs.set(k,String(v)),removeAttribute:k=>attrs.delete(k)};
- updateResourceTile(node,{kind:'light',target:'retained-light',title:'Lys',status:'unavailable',detail:'Sidst kendt: Lysstatus ukendt',disabled:true});assert.equal(node.disabled,false);assert.equal(node.dataset.target,'retained-light');
+ updateResourceTile(node,{kind:'light',target:'retained-light',title:'Lys',status:'unavailable',detail:'Ikke opdateret: Lysstatus ukendt',disabled:true});assert.equal(node.disabled,false);assert.equal(node.dataset.target,'retained-light');
  updateResourceTile(node,{kind:'light',target:undefined,title:'Lys',status:'unavailable',disabled:true});assert.equal(node.disabled,true);
 });
