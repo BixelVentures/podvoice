@@ -90,7 +90,7 @@ _ROOM_KEYS = frozenset(
 )
 _CONTENT_SOURCE_ACTIONS = frozenset({"play_track", "play_context", "play_episode", "play_tracks"})
 _ACTIONS = frozenset(
-    {"pause", "resume", "next", "previous", "volume", "play_track", "play_context"}
+    {"pause", "resume", "next", "previous", "seek", "volume", "play_track", "play_context"}
 )
 _ERRORS = frozenset(
     {
@@ -888,12 +888,13 @@ class MusicControlFacade:
             value = _controls(offered, account, target, offered=True)
             if value["status"] != "ready" or action not in value["actions"]:
                 return _failure("unsupported_action")
-            if not isinstance(args, dict) or set(args) != (
-                {"percent"} if action == "volume" else set()
-            ):
+            expected_args = {"volume": {"percent"}, "seek": {"position_ms"}}.get(action, set())
+            if not isinstance(args, dict) or set(args) != expected_args:
                 return _failure("invalid_arguments")
             if action == "volume":
                 _integer(args["percent"], 0, 100)
+            if action == "seek":
+                _integer(args["position_ms"], 0)
             sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
             identity = {
                 "schema": "podconnect.command.v1",

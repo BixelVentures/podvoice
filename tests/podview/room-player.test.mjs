@@ -93,11 +93,23 @@ test('no grant means no actions: a tap sends nothing',async()=>{
  assert.deepEqual(calls,[]);
 });
 
-test('the account on another device is shown read-only with that device name',()=>{
- const p=roomPlayerObservation(body({state:'idle',actions:[],maxVolume:null,
-  elsewhere:{state:'playing',targetName:'iPhone',title:'Let It Be',artist:'The Beatles',uri:null}}),'account',snapshot);
+test('f) the own account on another device keeps its controls and offers "Flyt til" the room',async()=>{
+ const elsewhere={state:'playing',targetId:'iphone-id',targetName:'iPhone',title:'Let It Be',artist:'The Beatles',
+  uri:null,positionMs:1000,positionAt:Date.now()-500,durationMs:243000};
+ const {host,controls,calls,releases}=rig();
+ host.liveMedia.playback=roomPlayerObservation(body({state:'idle',actions:['pause','next','previous'],maxVolume:null,
+  elsewhere}),'account',snapshot);
+ const p=host.liveMedia.playback;
  assert.equal(roomObservationDisplay(p,snapshot),true);
  const model=livePlayerModel(p,true,'ready',snapshot,'Køkkenalrum');
- assert.deepEqual([model.readOnly,model.placement,model.target,model.title],[true,'elsewhere','iPhone','Let It Be']);
- assert.deepEqual(p.controls.actions,[]);
+ assert.deepEqual([model.placement,model.target,model.title,model.playing],['elsewhere','iPhone','Let It Be',true]);
+ assert.deepEqual(p.controls.actions,['pause','next','previous'],'only what the device offers');
+ const paused=controls.intent('pause');
+ assert.equal(controls.optimisticPlaying(true),false);
+ releases.shift()();
+ assert.equal(await paused,true);
+ const next=controls.intent('next');await flush();releases.shift()();
+ assert.equal(await next,true);
+ assert.deepEqual(calls,[['pause',undefined],['next',undefined]]);
+ assert.equal(await controls.intent('volume',{percent:20}),false,'volume only if the device offers it');
 });

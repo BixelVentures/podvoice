@@ -251,12 +251,17 @@ async def _session(bridge, room, account, current):
             or target.get("target_id") in own_engines
         ):
             return None, None
+        observed = source.get("observation", {}).get("observed_at")
         return None, {
             "state": playback["state"],
+            "targetId": target.get("target_id"),
             "targetName": target["name"],
             "title": item.get("name"),
             "artist": ", ".join(item.get("artists") or []) or None,
             "uri": item.get("uri"),
+            "positionMs": playback.get("progress_ms"),
+            "positionAt": _timestamp_ms(observed),
+            "durationMs": item.get("duration_ms"),
         }
     return {
         "binding": actual,
@@ -265,6 +270,18 @@ async def _session(bridge, room, account, current):
         "targetId": target.get("target_id"),
         "targetName": target.get("name"),
     }, None
+
+
+async def _device_offer(bridge, account: str, device: str, current) -> dict | None:
+    """PodConnect's direct Spotify-device controls: what that device offers right now."""
+    music = getattr(bridge.controls, "music", None)
+    if music is None or not getattr(music, "available", False):
+        return None
+    try:
+        offered = await music.setup(account, device, current)
+    except Exception:
+        return None
+    return offered["data"] if offered.get("ok") is True else None
 
 
 def _artwork_url(room, account, artwork):
@@ -296,9 +313,10 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
         return body
     session_value, elsewhere = await _session(bridge, room, account, current)
     # The session's proven output room (if configured here) is the room this screen follows.
-    targets = bridge._room_player_targets
+    targets, devices = bridge._room_player_targets, bridge._room_player_devices
     if session_value is not None:
         targets[(room, account)] = session_value["binding"]
+        devices.pop((room, account), None)
     elif elsewhere is not None:
         targets.pop((room, account), None)
     scope, rule = player_target(bridge, room, account)
@@ -323,11 +341,25 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
         actions=actions,
         maxVolume=limit,
         session=session_value if current() else None,
-        # The account plays on another device while this room is quiet: show where, read-only.
-        elsewhere=elsewhere
-        if current() and projected["state"] in {"idle", "unavailable"}
-        else None,
+        elsewhere=None,
     )
+    if elsewhere is not None and current() and projected["state"] in {"idle", "unavailable"}:
+        # f) The user's own account on another device (iPhone): never without control. The
+        # device's own direct controls, within this screen's grant; "Flyt til" moves it back.
+        body["elsewhere"] = elsewhere
+        actions, limit = permissions(bridge, room, token, rule)
+        offer = (
+            await _device_offer(bridge, account, elsewhere["targetId"], current)
+            if actions
+            else None
+        )
+        offered = set(offer["actions"]) if offer else set()
+        body["actions"] = [action for action in actions if action in offered]
+        body["maxVolume"] = limit if "volume" in body["actions"] else None
+        body["volumePercent"] = offer["volume_percent"] if offer else None
+        devices[(room, account)] = elsewhere["targetId"]
+    else:
+        devices.pop((room, account), None)
     return body
 
 
@@ -339,6 +371,9 @@ async def command(bridge, room: str, account: str, token: str, action: str, valu
     actions, limit = permissions(bridge, room, token, rule)
     if scope is None or action not in actions or not available(bridge.tools):
         return {"outcome": "rejected", "error": "not_granted"}
+    device = bridge._room_player_devices.get((room, account))
+    if device is not None:
+        return await _device_command(bridge, account, device, action, value, limit)
     service, field = COMMANDS[action]
     data: dict = {}
     if action == "volume":
@@ -382,6 +417,29 @@ async def command(bridge, room: str, account: str, token: str, action: str, valu
         return {"outcome": "rejected", "error": "ha_rejected"}
     _LOG.info("podview_room_player stage=command action=%s outcome=accepted ms=%s", action, elapsed)
     return {"outcome": "accepted"}
+
+
+async def _device_command(bridge, account, device, action, value, limit) -> dict:
+    """One direct command on the account's own Spotify device (f), as that device offers it."""
+    offer = await _device_offer(bridge, account, device, lambda: True)
+    if offer is None or action not in offer["actions"]:
+        return {"outcome": "rejected", "error": "not_offered"}
+    if action == "volume":
+        if type(value) is not int or not 0 <= value <= 100:
+            return {"outcome": "rejected", "error": "invalid_value"}
+        args: dict = {"percent": min(value, limit or 0)}
+    elif action == "seek":
+        if type(value) is not int or value < 0:
+            return {"outcome": "rejected", "error": "invalid_value"}
+        args = {"position_ms": value}
+    else:
+        args = {}
+    result = await bridge.controls.music.execute(offer, action, args, lambda: True)
+    outcome = result.get("outcome")
+    if outcome not in {"accepted", "rejected"}:
+        outcome = "unknown"
+    _LOG.info("podview_room_player stage=device_command action=%s outcome=%s", action, outcome)
+    return {"outcome": outcome, **({} if outcome == "accepted" else {"error": "device"})}
 
 
 async def artwork(bridge, room: str, account: str) -> tuple[bytes, str] | None:

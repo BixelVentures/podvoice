@@ -8,6 +8,7 @@ import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_bridge import owner
+from integration.test_podview_music_control import controls as device_controls
 
 from gatekeeper import podview_room_player
 from gatekeeper.hub import StatusHub
@@ -48,7 +49,9 @@ class Rig:
         self.router = ToolRouter(None, supervisor_token="server-only", client=self.client)
         self.router._discovery = replace(
             self.router._discovery,
-            podconnect_services=frozenset({"get_playback_snapshot", "get_queue"}),
+            podconnect_services=frozenset(
+                {"get_playback_snapshot", "get_queue", "get_playback_controls", "control_playback"}
+            ),
         )
         self.router._refresh_podconnect_services = AsyncMock(side_effect=AssertionError)
         self.router._device_control._ws_read = self.ws_read
@@ -99,6 +102,27 @@ class Rig:
             return httpx.Response(
                 200, json={"service_response": {"ok": False, "error_kind": "stale"}}
             )
+        if path.endswith("/get_playback_controls"):
+            value = device_controls()
+            value.update(config_entry_id="account-alpha", actions=["pause", "next", "previous"])
+            value["target"].update(target_id=body["target_id"], name="iPhone")
+            return httpx.Response(200, json={"service_response": value})
+        if path.endswith("/control_playback"):
+            receipt = {
+                key: body[key]
+                for key in ("config_entry_id", "owner_epoch", "request_id", "command_sequence")
+            }
+            receipt.update(
+                ok=True,
+                schema="podconnect.command.v1",
+                action=body["action"],
+                target={"kind": "spotify_device", "target_id": body["target_id"]},
+                outcome="accepted",
+                provider_request_accepted=True,
+                retry_allowed=False,
+                physical_result_verified=False,
+            )
+            return httpx.Response(200, json={"service_response": receipt})
         if path.startswith("/core/api/media_player_proxy/"):
             return httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})
         raise AssertionError(path)
@@ -283,7 +307,7 @@ def resolved(status, *, target_id="device-one", name="Køkkenalrum", binding=Non
     }
 
 
-async def test_account_on_another_device_is_named_read_only(rig, monkeypatch):
+async def test_own_account_on_another_device_keeps_its_device_controls(rig, monkeypatch):
     rig.state = state(state="idle")
     monkeypatch.setattr(
         podview_room_player.podview_room_media,
@@ -294,6 +318,21 @@ async def test_account_on_another_device_is_named_read_only(rig, monkeypatch):
     assert body["state"] == "idle"
     assert body["elsewhere"]["targetName"] == "iPhone"
     assert body["elsewhere"]["title"] == "Let It Be"
+    # f) The own account is never without control: the device's own offered actions.
+    assert body["actions"] == ["pause", "next", "previous"]
+    result = await podview_room_player.command(
+        rig.bridge, "kitchen", "account-alpha", rig.token, "next", None
+    )
+    assert result == {"outcome": "accepted"}
+    sends = [row for row in rig.calls if row[1].endswith("/control_playback")]
+    assert [(row[2]["action"], row[2]["target_id"], row[2]["args"]) for row in sends] == [
+        ("next", "iphone", {})
+    ]
+    assert rig.services() == [], "no room media_player call for the device"
+    refused = await podview_room_player.command(
+        rig.bridge, "kitchen", "account-alpha", rig.token, "volume", 20
+    )
+    assert refused["outcome"] == "rejected"
     # Unproven output on the room's own engine is not "another device": the room player decides.
     monkeypatch.setattr(
         podview_room_player.podview_room_media,

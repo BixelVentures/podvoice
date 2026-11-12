@@ -55,18 +55,25 @@ export function roomPlayerObservation(body,account,snapshot){
  const title=optionalText(body.title),artist=optionalText(body.artist),album=optionalText(body.album);
  const session=body.session&&typeof body.session==='object'?body.session:null;
  const binding=session&&sessionBinding(session.binding,snapshot,account)?{...session.binding}:null;
- // The room is quiet while the account plays on another device (f): shown read-only, never controlled.
+ // f) The room is quiet while the user's own account plays on another device (iPhone): that
+ // device's own controls (only what it offers), never locked; "Flyt til <rum>" moves it back.
  const away=body.elsewhere&&typeof body.elsewhere==='object'&&!active&&['playing','paused'].includes(body.elsewhere.state)
   &&typeof body.elsewhere.targetName==='string'&&body.elsewhere.targetName?body.elsewhere:null;
- if(away)return {
-  projectionVersion:4,config_entry_id:account,bootId:body.bootId,roomId:body.roomId,state:away.state,
-  source:'spotify',elsewhere:true,observedAt:new Date(receivedAt).toISOString(),receivedAt,
-  expiresAt:receivedAt+PLAYER_FRESH_MS,
-  item:{type:'track',uri:typeof away.uri==='string'?txt(away.uri,256):null,name:optionalText(away.title??null)||'',
-   artists:typeof away.artist==='string'&&away.artist?[txt(away.artist)]:[],album:null,duration_ms:null,artworkUrl:null},
-  progressMs:null,volume:null,controls:{actions:[],maxVolume:null},owner_epoch:null,poll_sequence:null,
-  target:{id:null,name:txt(away.targetName,256)},roomBinding:null,roomBound:false,
- };
+ if(away){
+  const count=value=>Number.isSafeInteger(value)&&value>=0?value:null;
+  const awayAt=count(away.positionAt);
+  return {
+   projectionVersion:4,config_entry_id:account,bootId:body.bootId,roomId:body.roomId,state:away.state,
+   source:'spotify',elsewhere:true,observedAt:new Date(Math.min(receivedAt,awayAt??receivedAt)).toISOString(),
+   receivedAt,expiresAt:receivedAt+PLAYER_FRESH_MS,
+   item:{type:'track',uri:typeof away.uri==='string'?txt(away.uri,256):null,name:optionalText(away.title??null)||'',
+    artists:typeof away.artist==='string'&&away.artist?[txt(away.artist)]:[],album:null,
+    duration_ms:count(away.durationMs),artworkUrl:null},
+   progressMs:count(away.positionMs),volume,controls:{actions,maxVolume},owner_epoch:null,poll_sequence:null,
+   target:{id:typeof away.targetId==='string'?away.targetId:null,name:txt(away.targetName,256)},
+   roomBinding:null,roomBound:false,
+  };
+ }
  // The position anchor is HA's own update time; a clock a little ahead is clamped to now.
  const observedAt=new Date(Math.min(receivedAt,positionAt??receivedAt)).toISOString();
  return {

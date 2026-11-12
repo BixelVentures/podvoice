@@ -575,7 +575,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "84f461533c1db56dcd6be8a84da063ceef7fc0489305b3c961ac2c50e7ebf8ee"
+      "sha256": "637cf2b3fdb013ffd0d838e8810e9ebc63a7356a90ac5834420508b51ec308dc"
     },
     {
       "path": "model.js",
@@ -639,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "68ba6b5aeedad0cf054e09b78b4209e60ee2b3b39621fa40166f0f58e6158dc9"
+      "sha256": "a7d2602d0f603c7d1681456a152258222ef6f20d9c587d7765088a8d3a5fa823"
     },
     {
       "path": "podview.css",

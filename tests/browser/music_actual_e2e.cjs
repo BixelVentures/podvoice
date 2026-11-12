@@ -411,6 +411,7 @@ async function multiScreenJourney(first,errors){
 
 async function externalOutputJourney(page,errors,{composed=false}={}){
  const host=page.locator('pv-widget-host');
+ const external=name=>({tesla:'d'.repeat(40),iphone:'e'.repeat(40)})[name];
  const readHomeQueue=async priorTask=>{
   const witness=await page.waitForFunction(prior=>{
    const {playback,queueControls}=document.querySelector('pv-widget-host')?.liveMedia??{};
@@ -434,48 +435,60 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  const output=page.locator('#output');
  const roomRequests=snapshot=>snapshot.serviceReads.filter(row=>
   /\/(?:prepare_room_|control_room_|move_room_|start_room_)/.test(row.path));
+ // No room-level takeover: no room command/move/start and no media_player write in the room.
+ const roomWrites=snapshot=>snapshot.writes.filter(row=>row.room!==undefined);
  const assertNoTakeover=async()=>{
-  assert.equal(requests.length,initialPosts);
   const current=await state();
   assert.deepEqual(roomRequests(current),roomRequests(before));
-  assert.deepEqual(current.writes,before.writes);
+  assert.deepEqual(roomWrites(current),roomWrites(before));
   if(composed)assert.deepEqual(queueCalls(current),queueCalls(before));
  };
+ const deviceActions=[];
  for(const [target,label] of [['tesla','Tesla'],['iphone','iPhone']]){
+  const shownTrack=await track.innerText();
   const transferred=await change({externalOutput:target});
   assert.equal(transferred.ok,true);
+  // f) The user's own account on another device: its name, never "ikke bekræftet", never locked.
   await page.waitForFunction(name=>{
    const playback=document.querySelector('pv-widget-host')?.liveMedia?.playback;
+   const enabled=selector=>document.querySelector(selector)?.disabled===false;
    return playback?.elsewhere===true&&playback.target?.name===name&&playback.roomBinding===null
-    &&document.querySelector('#output')?.getAttribute('aria-label')?.includes(name)
-    &&document.querySelector('#play-pause')?.disabled===true;
+    &&document.querySelector('#output')?.getAttribute('aria-label')?.includes('Flyt til Køkkenalrum')
+    &&['#play-pause','#next','#previous'].every(enabled);
   },label,{timeout:15000});
-  assert.equal(await track.innerText(),trackName);
+  assert.equal(await track.innerText(),shownTrack);
   assert.equal((await output.locator('#player-room').innerText()).trim(),label);
-  // f) Own account on another device: its Spotify Connect name, no "ikke bekræftet"; the chip moves it back.
   assert.equal((await page.locator('#player-state').innerText()).trim(),'Spiller på');
   assert.doesNotMatch(await output.getAttribute('aria-label'),/ikke bekræftet|observation|sidst kendt/i);
-  assert.match(await output.getAttribute('aria-label'),/Flyt til |Vælg højttaler/);
-  const freshRead=page.waitForResponse(response=>{
+  const observed=await (await page.waitForResponse(response=>{
    const url=new URL(response.url());
    return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
-  },{timeout:10000});
-  for(const selector of ['#play-pause','#next','#previous','#volume']){
-   const button=page.locator(selector),box=await button.boundingBox();
-   assert.ok(box,selector);
-   assert.equal(await button.isDisabled(),true,selector);
-   await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
-  }
-  const observed=await (await freshRead).json();
-  // The room itself is quiet; the account's session names where it plays.
+  },{timeout:10000})).json();
+  // The room itself is quiet; the account's session names the device, which offers its own controls.
   assert.equal(observed.state,'idle');
   assert.equal(observed.elsewhere.targetName,label);
   assert.equal(observed.session,null);
+  assert.ok(observed.actions.includes('next'));
   assert.equal((await state()).externalDevice,target);
   if(composed){
    assert.equal(await host.evaluate(h=>h.liveMedia.queueControls.offer),null,'external output revokes the old queue offer');
    assert.equal(await page.locator('#queue button.queue-track[data-current=false]:enabled').count(),0);
   }
+  // Pause, resume and next act on that device directly (PodConnect's direct device control).
+  const song=(await state()).song;
+  for(const [selector,expected] of [['#play-pause','paused'],['#play-pause','playing']]){
+   await page.locator(selector).tap();
+   await page.waitForFunction(phase=>{
+    const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
+    return p?.elsewhere===true&&p.state===phase&&!h.liveControls.player.busy();
+   },expected,{timeout:15000});
+  }
+  await page.locator('#next').tap();
+  await page.waitForFunction(title=>document.querySelector('#track-name')?.textContent?.trim()===title,
+   `Isoleret sang ${song+1}`,{timeout:15000});
+  const deviceWrites=(await state()).writes.filter(row=>row.device===external(target));
+  assert.deepEqual(deviceWrites.map(row=>row.action),['pause','resume','next']);
+  deviceActions.push(...deviceWrites.map(row=>row.action));
   await assertNoTakeover();
  }
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
@@ -494,7 +507,6 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   await control.tap();
   await waitForKitchen(phase);
  }
- assert.equal(await track.innerText(),trackName);
  let renewedQueue;
  if(composed){
   const queue=page.locator('#queue');
@@ -515,10 +527,10 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   },renewedQueue.item.uri,{timeout:15000});
  }
  const after=await state();
- assert.deepEqual(after.writes.slice(before.writes.length).map(({action,room,homepod})=>[action,room,homepod]),
+ assert.deepEqual(roomWrites(after).slice(roomWrites(before).length).map(({action,room,homepod})=>[action,room,homepod]),
   [['pause','native-room','42'],['resume','native-room','42'],
    ...(composed?[['play_queue_occurrence','native-room','42']]:[])]);
- assert.deepEqual(requests.slice(initialPosts).map(row=>row.body?.action),['pause','resume']);
+ assert.deepEqual(requests.slice(initialPosts).map(row=>row.body?.action),[...deviceActions,'pause','resume']);
  if(composed){
   const native=queueCalls(after).slice(queueCalls(before).length);
   assert.deepEqual(native.map(({service,args})=>[service,args.room_id,args.homepod_id]),
@@ -531,7 +543,7 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',story:'H7',servedBundleSHA,externalAccountOutputs:['Tesla','iPhone'],
-  outsideRoomControlPosts:0,automaticTakeovers:0,returnedOutput:'Køkkenalrum HomePod',
+  deviceControl:deviceActions,automaticTakeovers:0,returnedOutput:'Køkkenalrum HomePod',
   confirmedTouchEffects:['pause','resume'],inertFinalService:true,pageErrors:errors};
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-external-output.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-return.png')});

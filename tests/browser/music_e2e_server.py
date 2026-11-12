@@ -17,6 +17,7 @@ from integration.test_cleaning_journal import bind
 from integration.test_podview_bridge import owner
 from integration.test_podview_music import payload, timestamp
 from integration.test_podview_music_control import Rig, room_owner
+from integration.test_podview_music_control import controls as device_controls
 from multidict import CIMultiDict
 from unit.test_device_control import MODE, MOP, ROBOT
 from unit.test_device_control import Rig as RobotRig
@@ -491,6 +492,63 @@ async def room_player_service(request):
     return httpx.Response(200, json=[])
 
 
+def device_service(path, args):
+    """PodConnect's direct control of the account's own Spotify device (iPhone, Tesla)."""
+    external = external_devices.get(state.get("externalDevice"))
+    target = args.get("target_id")
+    if not external or external[0] != target:
+        return httpx.Response(
+            200, json={"service_response": {"ok": False, "error_kind": "unavailable"}}
+        )
+    if path.endswith("get_playback_controls"):
+        value = device_controls()
+        value["target"].update(target_id=target, name=external[1])
+        value.update(
+            owner_epoch="a" * 32,
+            poll_sequence=state["sequence"],
+            next_command_sequence=state.setdefault("deviceSequence", 1),
+            actions=[
+                "pause" if state["state"] == "playing" else "resume",
+                "next",
+                "previous",
+                "volume",
+            ],
+            volume_percent=state["volume"],
+        )
+        return httpx.Response(200, json={"service_response": value})
+    action = args["action"]
+    if action in {"pause", "resume"}:
+        state["state"] = "paused" if action == "pause" else "playing"
+    elif action in {"next", "previous"}:
+        state["song"] += 1 if action == "next" else -1
+    elif action == "volume":
+        state["volume"] = args["args"]["percent"]
+    state["sequence"] += 1
+    state["deviceSequence"] += 1
+    state["writes"].append(
+        {
+            "action": action,
+            "device": target,
+            **({"percent": state["volume"]} if action == "volume" else {}),
+        }
+    )
+    receipt = {
+        "ok": True,
+        "schema": "podconnect.command.v1",
+        "config_entry_id": args["config_entry_id"],
+        "owner_epoch": args["owner_epoch"],
+        "request_id": args["request_id"],
+        "command_sequence": args["command_sequence"],
+        "action": action,
+        "target": {"kind": "spotify_device", "target_id": target},
+        "outcome": "accepted",
+        "provider_request_accepted": True,
+        "retry_allowed": False,
+        "physical_result_verified": False,
+    }
+    return httpx.Response(200, json={"service_response": receipt})
+
+
 async def native_service(request):
     if request.url.path == "/core/api/template" or request.url.path.startswith(
         (
@@ -503,6 +561,14 @@ async def native_service(request):
     args = json.loads(request.content)
     path = request.url.path
     service_reads.append({"path": path, "requestId": args.get("request_id")})
+    if (
+        path.endswith(("get_playback_controls", "control_playback"))
+        and args.get("target_id") != "device"
+    ):
+        response = device_service(path, args)
+        if path.endswith("control_playback"):
+            await emit_playback_changed()
+        return response
     if path.endswith("get_targets"):
         if extended and args.get("config_entry_id"):
             value = speaker_catalogue()
@@ -706,7 +772,7 @@ music.tools._device_control._ws_read = room_registry
 music.tools._discovery = replace(
     music.tools._discovery,
     podconnect_services=music.tools._discovery.podconnect_services
-    | {"get_playback_snapshot", "get_targets"}
+    | {"get_playback_snapshot", "get_targets", "get_playback_controls", "control_playback"}
     | (
         {
             "get_room_volume_controls",
