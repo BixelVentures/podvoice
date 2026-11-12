@@ -112,6 +112,14 @@ hvide indgangswidgets (musik, radio, opskrift, svar) · tryk på et nummer i Fin
 (standard: rummets, Køkkenalrum) og overtager uden spørgsmål, også hvis en anden bruger den; trykket er det bevidste valg
 (foreløbig, 12. nov.) · afspillerens 8 tilstande og svarkort efter lærredet v141.
 
+## Genbesøges i redesignet
+- **Overtag ved tryk på nummer** (foreløbig regel ovenfor: tryk = overtag uden spørgsmål). Før redesignet låses:
+  undersøg og sammenlign, hvordan andre løser »højttaleren er i brug af en anden«, og vælg derefter mellem
+  1) overtag uden spørgsmål, 2) spørg først (»Overtag og spil« / »Vælg anden højttaler«), 3) spil aldrig over andre.
+  Referencer, der skal tjekkes (ikke antaget her): Apple (HomePod, AirPlay 2, Apple Music, flere brugere i Home),
+  Amazon (Echo/Alexa, flere enheder), Google (Nest/Cast), Sonos, Spotify Connect (»sidste enhed vinder«).
+  Fokus: advares den, der bliver afbrudt? Kan man fortryde? Skelnes der mellem egen og andres konto?
+
 ## Frameo
 Ikke købt/rootet (tænkt model Denver PFF-1037W, 10,1"). Uden for denne plan. Kittets konservative
 build-target gør, at den ikke er en forudsætning.
