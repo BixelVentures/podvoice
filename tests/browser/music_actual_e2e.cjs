@@ -17,6 +17,10 @@ const externalOutputMode=process.env.MUSIC_EXTERNAL_OUTPUT_TEST==='1';
 const speakerRefreshMode=process.env.MUSIC_SPEAKER_REFRESH_TEST==='1';
 const outputTransferMode=process.env.MUSIC_OUTPUT_TRANSFER_TEST==='1';
 const multiScreenMode=process.env.MUSIC_MULTI_SCREEN_TEST==='1';
+// A wall frame opens HA ingress over plain http on a LAN name (http://homeassistant.lan:8123):
+// not a secure context, so crypto.randomUUID, crypto.subtle and navigator.locks are absent.
+const insecureOriginMode=process.env.MUSIC_INSECURE_ORIGIN_TEST==='1';
+const pageBase=insecureOriginMode?`http://podview-frame.test:${port}`:base;
 if(process.env.MUSIC_LONG_SESSION==='1'||renewedControlsMode||seekMode||volumeDragMode||externalOutputMode||speakerRefreshMode||outputTransferMode||multiScreenMode){
  process.env.MUSIC_EXTENDED='1';
 }
@@ -1067,6 +1071,7 @@ async function longSession(page,errors){
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,testNonce,'own isolated Python runtime nonce');
  const browserOptions=testEnv.browserOptions();
  if(multiScreenMode||outputTransferMode||volumeDragMode)browserOptions.args=['--mute-audio'];
+ if(insecureOriginMode)browserOptions.args=[...browserOptions.args||[],'--host-resolver-rules=MAP podview-frame.test 127.0.0.1'];
  browser=await chromium.launch(browserOptions);
  const page=await browser.newPage({viewport:{width:1280,height:800},hasTouch:true}),errors=[],diagnosticResponses=[];
  page.on('response',async response=>{
@@ -1078,10 +1083,12 @@ async function longSession(page,errors){
   }
  });
  if(renewedControlsMode||multiScreenMode||manualRetryMode||volumeDragMode||outputTransferMode)await page.route('**/*',route=>
-  new URL(route.request().url()).origin===base?route.continue():route.abort());
+  new URL(route.request().url()).origin===pageBase?route.continue():route.abort());
  page.on('pageerror',e=>errors.push(e.message));
  page.on('request',r=>{if(r.url().includes('/control/'))requests.push({url:r.url(),body:r.postDataJSON()})});
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await page.goto(pageBase+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ if(insecureOriginMode)assert.deepEqual(await page.evaluate(()=>({secure:isSecureContext,subtle:typeof crypto.subtle})),
+  {secure:false,subtle:'undefined'},'page runs in the same insecure context as the wall frame');
  await testEnv.openOverview(page);
  const control=page.locator('#play-pause');
  await control.waitFor({state:'visible',timeout:10000}).catch(async error=>{
@@ -1097,7 +1104,7 @@ async function longSession(page,errors){
   await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-failure.png')});
   console.log('control',await control.evaluate(e=>e.outerHTML));
   console.log('visibleUI',await page.locator('body').innerText());
-  console.log('playback',await (await page.request.get(base+'/view/api/music?room=kitchen&kind=playback&account=account&include_controls=1')).json());
+  console.log('playback',await (await page.request.get(pageBase+'/view/api/music?room=kitchen&kind=playback&account=account&include_controls=1')).json());
   throw error;
  });
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-before.png')});
@@ -1314,8 +1321,8 @@ async function longSession(page,errors){
  // fixture state mutation or fabricated receipt substitutes for the backend.
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host'),b=document.querySelector('#play-pause');return h?.liveMedia?.playback?.state==='playing'&&b&&!b.disabled},undefined,{timeout:15000});
  const beforeLoss=await state();let swallowedResponses=0;
- const controlURL=base+'/view/api/control/actions';
- const loseAcceptedPause=async route=>{if(route.request().postDataJSON()?.action!=='pause'){await route.continue();return;}const response=await route.fetch();assert.equal(response.ok(),true);const receipt=await response.json();assert.equal(receipt.outcome,'accepted');swallowedResponses++;await route.abort('failed');};
+ const controlURL=pageBase+'/view/api/control/actions';
+ const loseAcceptedPause=async route=>{if(route.request().postDataJSON()?.action!=='pause'){await route.continue();return;}const response=await route.fetch({url:route.request().url().replace(pageBase,base)});assert.equal(response.ok(),true);const receipt=await response.json();assert.equal(receipt.outcome,'accepted');swallowedResponses++;await route.abort('failed');};
  await page.route(controlURL,loseAcceptedPause);await control.tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveControls?.musicFence?.outcome==='unknown',undefined,{timeout:15000});
  await page.unroute(controlURL,loseAcceptedPause);
