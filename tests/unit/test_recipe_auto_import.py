@@ -548,3 +548,64 @@ async def test_microdata_uses_existing_durable_import_and_phone_receipt(tmp_path
     assert store.phone_receipt(saved["id"]) == saved
     catalog = json.loads(store.path.read_text())["recipes"]
     assert catalog[saved["id"]]["steps"] == ["Bland mel og æg.", "Bag 15 minutter."]
+
+
+@pytest.mark.parametrize(
+    "body,expected",
+    [
+        ({"url": URL}, URL),
+        ({"url": f"Se denne opskrift: {URL}"}, URL),
+        ({"url": f"Boller\n{URL}\n"}, URL),
+        ({"url": f"<{URL}>"}, URL),
+        ({"url": f'"{URL}".'}, URL),
+        ({"url": f"({URL})"}, URL),
+        ({"url": f"{URL}?utm_source=ios&fbclid=x&id=7"}, f"{URL}?utm_source=ios&fbclid=x&id=7"),
+        ({"url": f"{URL} og https://second.example/opskrift"}, URL),
+        ({"url": "Boller", "text": f"Se her {URL}"}, URL),
+        ({"title": f"Boller {URL}"}, URL),
+        ({"url": "Boller uden link"}, None),
+        ({"url": "ftp://example.com/opskrift"}, None),
+        ({}, None),
+    ],
+)
+def test_shared_text_yields_first_http_link(body, expected):
+    from gatekeeper.recipe_submissions import _source_url, shared_recipe_url
+
+    assert shared_recipe_url(body) == expected
+    if expected and "utm_source" in expected:
+        # Tracking parameters are still removed by the existing normalisation.
+        assert "utm_source" not in _source_url(expected) and "id=7" in _source_url(expected)
+
+
+@pytest.mark.asyncio
+async def test_phone_share_text_with_link_is_saved_and_no_link_explains(tmp_path):
+    from types import SimpleNamespace
+
+    from multidict import CIMultiDict
+
+    from gatekeeper.podview import BRIDGE, _phone_recipes
+
+    store = RecipeSubmissions(tmp_path / "catalog.json")
+
+    def request(body):
+        class Content:
+            async def iter_chunked(self, _):
+                yield json.dumps(body).encode()
+
+        return SimpleNamespace(
+            app={BRIDGE: SimpleNamespace(recipe_submissions=store, recipe_upload_token="x" * 32)},
+            remote="127.0.0.1",
+            headers=CIMultiDict(Authorization="Bearer " + "x" * 32),
+            method="POST",
+            content_type="application/json",
+            content=Content(),
+        )
+
+    with patch("gatekeeper.recipe_import.fetch_html", new=AsyncMock(return_value=(html(), URL))):
+        saved = await _phone_recipes(request({"url": f"Se denne opskrift: {URL}"}))
+    assert saved.status == 200 and json.loads(saved.text)["message"] == "Gemt: Boller"
+    missing = await _phone_recipes(request({"url": "Boller", "text": "lækre boller"}))
+    assert missing.status == 400
+    assert json.loads(missing.text)["message"] == (
+        "Der var intet link i det delte. Del opskriftens link igen."
+    )

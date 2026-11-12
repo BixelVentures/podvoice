@@ -42,7 +42,7 @@ from .podview_continuity import ControllerRegistry
 from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
 from .recipe_import import import_link
-from .recipe_submissions import RecipeRejectedError, RecipeSubmissions
+from .recipe_submissions import RecipeRejectedError, RecipeSubmissions, shared_recipe_url
 
 BRIDGE: web.AppKey = web.AppKey("podview")
 _PAIR_COOKIE = "podview_control"
@@ -2468,7 +2468,20 @@ async def _recipe_operation(request: web.Request, endpoint: str) -> web.Response
             elif request.method == "PATCH":
                 result = await asyncio.to_thread(store.reject, body.get("url"), body.get("reason"))
             else:
-                result = await import_link(store, body.get("url"))
+                url = shared_recipe_url(body)
+                if url is None:
+                    from .recipe_submissions import recipe_event
+
+                    recipe_event("submit", "rejected", reason="no_url")
+                    return web.json_response(
+                        {
+                            "error": "invalid_recipe_submission",
+                            "message": "Der var intet link i det delte. Del opskriftens link igen.",
+                        },
+                        status=400,
+                        headers={"Cache-Control": "no-store"},
+                    )
+                result = await import_link(store, url)
                 status = 202 if result["status"] in {"received", "importing"} else 200
     except RecipeRejectedError:
         return web.json_response(

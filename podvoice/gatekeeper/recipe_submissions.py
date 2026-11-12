@@ -59,6 +59,7 @@ def recipe_event(
     reasons = {
         "none",
         "invalid_url",
+        "no_url",
         "cancelled",
         "not_recipe",
         "unreadable",
@@ -117,6 +118,26 @@ class RecipeStorageError(OSError):
 
 class RecipeRejectedError(ValueError):
     """An administrator has already rejected the submitted URL."""
+
+
+_SHARED_URL = re.compile(r"https?://[^\s<>\"'`«»“”]+", re.IGNORECASE)
+
+
+def shared_recipe_url(body: dict) -> str | None:
+    """The first http(s) link in what a share sheet sent: a bare URL, "Se denne
+    opskrift: https://…", title plus link, quotes or <>; also in text/title fields."""
+    for field in ("url", "text", "title"):
+        value = body.get(field)
+        if not isinstance(value, str) or len(value) > 8192:
+            continue
+        match = _SHARED_URL.search(value)
+        if match is None:
+            continue
+        url = match.group(0).rstrip(".,;:!?")
+        while url.endswith(")") and url.count(")") > url.count("("):
+            url = url[:-1]
+        return url
+    return None
 
 
 def _source_url(value: object) -> str:
