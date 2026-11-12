@@ -546,9 +546,7 @@ class VehicleSnapshot:
         ha_fields = {}
         ha_returns = {}
         if state_machine is not None:
-            ha_fields = _ha_discrete_fields(
-                state_machine, entities, coordinator_fields, ha_returns
-            )
+            ha_fields = _ha_discrete_fields(state_machine, entities, coordinator_fields, ha_returns)
             # Defrost has no trustworthy raw counterpart in the Fleet projection.
             eid = entities.get("defrost")
             state = state_machine.get(eid) if eid else None
