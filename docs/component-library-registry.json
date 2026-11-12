@@ -1073,7 +1073,8 @@
           "method:focusAccountChoice": 1,
           "arrow:owner": 1,
           "arrow:readKey": 1,
-          "method:observedPlayerModel": 1
+          "method:observedPlayerModel": 1,
+          "function:pauseExpired": 1
         },
         "roots": [],
         "registrations": {},
@@ -1106,7 +1107,8 @@
         "dist/media-observation.js",
         "dist/music-results.js",
         "dist/music-selection-model.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/live-media-view.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1508,7 +1510,8 @@
           "arrow:paint": 1,
           "method:renderTimeline": 1,
           "method:sameSeek": 1,
-          "method:seekState": 1
+          "method:seekState": 1,
+          "function:playbackPlacement": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"

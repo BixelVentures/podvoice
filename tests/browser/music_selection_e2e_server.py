@@ -48,7 +48,7 @@ library_race_arrivals = 0
 recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
 # Green timing: the speaker confirms the start natively at 2.7 s, while the Spotify
 # Web API observation (and PodConnect's playback event) only shows the new item later.
-start_latency = os.environ.get("MUSIC_START_LATENCY_TEST") == "1"
+start_latency = os.environ.get("MUSIC_START_LATENCY_TEST") in {"1", "mood"}
 SPEAKER_CONFIRMS_S = 2.7
 SPOTIFY_OBSERVES_S = 4.5
 latency_tasks: list[asyncio.Task] = []
