@@ -139,3 +139,30 @@ test('in strip mode a tap leaves feedback to CSS: no class, style read or animat
   assert.deepEqual({ classes: target.classes.size, styleReads, animations: target.animations },
     { classes: 0, styleReads: 0, animations: 0 });
 });
+
+test('an unchanged screen sync writes nothing on the root (each root write restyles the whole page)', async () => {
+  const { ScreenLifecycle } = await import('../../podvoice/gatekeeper/static/podview/ui/screen-lifecycle.js');
+  const writes = [];
+  const values = new Map();
+  const dataset = new Proxy({}, {
+    set(target, key, value) { writes.push(`data-${String(key)}`); target[key] = value; return true; },
+  });
+  const host = {
+    dataset, state: { focus: 'now' }, isConnected: true, live: false,
+    ownerDocument: { visibilityState: 'visible' },
+    style: {
+      getPropertyValue: (name) => values.get(name) || '',
+      setProperty: (name, value) => { writes.push(name); values.set(name, value); },
+    },
+  };
+  const lifecycle = Object.create(ScreenLifecycle.prototype);
+  Object.assign(lifecycle, {
+    host, attached: true, clock: { now: () => Date.UTC(2026, 10, 12, 12) }, nightWakeUntil: 0, step: 0, kiosk: false,
+    syncDetail() {}, syncIdle() {}, syncWakeLock() {},
+  });
+  lifecycle.sync();
+  assert.ok(writes.length > 0, 'first sync sets the root');
+  writes.length = 0;
+  lifecycle.sync();
+  assert.deepEqual(writes, []);
+});
