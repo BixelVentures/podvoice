@@ -10,6 +10,7 @@ const state=()=>fetch(base+'/lab/state').then(r=>r.json());
 const configMode=process.env.RADIO_CONFIG_TEST;
 const privateFixtureTokens=configMode?[require('node:crypto').randomUUID(),require('node:crypto').randomUUID()]:[];
 const timingMode=process.env.RADIO_TIMING_TEST==='1';
+const startLatency=process.env.RADIO_START_LATENCY_TEST==='1';
 const stationOrderMode=process.env.RADIO_STATION_ORDER_TEST;
 const orderedStations=['1','unknown','rejected'].includes(stationOrderMode);
 // Read every bounded persisted page; a healthy trace may exceed the first64 rows.
@@ -79,6 +80,38 @@ async function radioConfigRecoveryJourney(stations){
  if(process.env.RADIO_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RADIO_EXPECTED_BUNDLE);
  console.log(JSON.stringify({outcome:'PASS',bundleSHA,radioConfig:'rotate',
   noCredentialExposure:true,healthyRejectedUnavailableRecovered:true,revisionFloorRetained:true,noReplay:true}));
+}
+// Green timing: the native owner accepts at once and reports playing 2.7 s later.
+// Playing is shown from that observation, never before it, and well under 3 s.
+async function radioStartLatencyJourney(stations){
+ const p3=stations.getByRole('button',{name:/P3/});
+ await p3.evaluate(node=>{
+  node.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now(),probe=window.radioLatency={clickAt:Date.now(),pendingMs:null,playingMs:null};
+   const frame=()=>{
+    const now=performance.now()-start,radio=document.querySelector('pv-widget-host')?.liveRadio;
+    if(probe.pendingMs===null&&document.querySelector('#track-name')?.textContent==='P3')probe.pendingMs=now;
+    if(radio?.value?.state?.status==='playing'
+     &&document.getElementById('play-pause')?.getAttribute('aria-label')==='Stop radio')probe.playingMs=now;
+    else if(now<10000)requestAnimationFrame(frame);
+   };
+   requestAnimationFrame(frame);
+  },{capture:true,once:true});
+ });
+ await p3.tap();
+ await page.waitForFunction(()=>Number.isFinite(window.radioLatency?.playingMs),undefined,{timeout:12000});
+ const probe=await page.evaluate(()=>window.radioLatency),fixture=await state();
+ const result={pendingMs:Math.round(probe.pendingMs),nativePlayingMs:Math.round(fixture.radioPlayingAtMs-probe.clickAt),
+  playingMs:Math.round(probe.playingMs),bundleSHA};
+ console.log('radioStartLatency',JSON.stringify(result));
+ assert(probe.pendingMs<300,`chosen station visible within 300 ms: ${JSON.stringify(result)}`);
+ assert(result.playingMs>=result.nativePlayingMs,`never playing before the native owner: ${JSON.stringify(result)}`);
+ assert(probe.playingMs<3000,`radio playing shown under 3 s: ${JSON.stringify(result)}`);
+ assert(result.playingMs-result.nativePlayingMs<300,`playing within 300 ms of the native owner: ${JSON.stringify(result)}`);
+ assert.deepEqual((await state()).radioWrites.map(row=>row.action),['start']);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'radio-start-latency',...result}));
 }
 async function radioTimingJourney(stations){
  const results=[];
@@ -238,6 +271,7 @@ async function stationOrderJourney(stations){
  if(configMode==='rotate'){await radioConfigRecoveryJourney(stations);return;}
  if(configMode){await radioConfigJourney(stations);return;}
  if(timingMode){await radioTimingJourney(stations);return;}
+ if(startLatency){await radioStartLatencyJourney(stations);return;}
  if(orderedStations){await stationOrderJourney(stations);return;}
  await stations.getByRole('button',{name:/P3/}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='playing'&&!h.liveRadio.pending&&h.liveRadio.value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});

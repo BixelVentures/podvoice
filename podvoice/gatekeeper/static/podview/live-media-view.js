@@ -5,6 +5,9 @@ import {livePlayerModel,liveQueueModel} from './player-view.js';
 const malformedPlaybackAnswer=new Set(['invalid_provider_playback','invalid_media_item','invalid_media_text',
  'invalid_media_timestamp','invalid_playback_state','invalid_playback_target','contradictory_empty_playback']);
 const $=id=>document.getElementById(id);
+// An accepted selection is settled by the first read that carries its native confirmation.
+// Read again shortly instead of at half the old observation's lifetime (Green: ~2 s late).
+const SETTLEMENT_READ_MS=250,SETTLEMENT_READ_WINDOW_MS=15000;
 // A transient source read may retain the exact-bound display, never controls.
 // Explicit denials and invalid ownership clear it; unavailable is not idle.
 export class LiveMediaView{
@@ -41,14 +44,26 @@ export class LiveMediaView{
    if ([2,3].includes(next.projectionVersion) && next.observationStatus === 'idle') {
     record({code:'empty',durationMs:Date.now()-diagnosticAt});
     const receipt = readJob.settlementReceipt;
-    if (next.projectionVersion === 3 && receipt?.kind === 'selection' && Number.isFinite(receipt.fastReadUntil)
-     && receipt.fastReadUntil > Date.now() && host.liveSelection?.settlementReceipt?.() === receipt) {
-     this.refreshInterval = 1000;
-    }
+    const fastRead = next.projectionVersion === 3 && receipt?.kind === 'selection'
+     && Number.isFinite(receipt.fastReadUntil) && receipt.fastReadUntil > Date.now()
+     && host.liveSelection?.settlementReceipt?.() === receipt;
+    if (fastRead) this.refreshInterval = 1000;
     this.clearRoom();
     this.establishedReadScope = JSON.stringify([bindingScope,this.account]);
     this.readState = 'idle';
     host.liveCatalogue?.observeIdlePlayback?.(account);
+    // While an accepted selection awaits its native confirmation, its receipt read is repeated soon.
+    if (fastRead && typeof receipt.requestId === 'string'
+     && Date.now() - host.liveSelection.feedback?.requestedAt < SETTLEMENT_READ_WINDOW_MS) {
+     const timerGeneration = this.generation;
+     this.freshnessTimer = setTimeout(() => {
+      this.freshnessTimer = null;
+      if (host.isConnected && host.liveTransport === transport && this.generation === timerGeneration) {
+       void this.refresh({immediate:true}).catch(() => {});
+      }
+     }, SETTLEMENT_READ_MS);
+     this.freshnessTimer.unref?.();
+    }
     this.render();
     return;
    }
@@ -57,7 +72,10 @@ export class LiveMediaView{
    const receipt=readJob.settlementReceipt,destination=receipt?.destination,pinnedOwner=receipt?.kind==='move'?host.liveControls?.receipts?.get(receipt.operationKey)?.settlementOwnerEpoch:receipt?.kind==='selection'?host.liveSelection?.feedback?.settlementTuple?.owner_epoch:null,expectedTransition=(!pinnedOwner||next.owner_epoch===pinnedOwner)&&!!destination&&next.projectionVersion===3&&roomObservationCurrent(next,snap)&&next.config_entry_id===destination.accountId&&nextBinding?.nativeRoomId===destination.nativeRoomId&&nextBinding?.nativeHomepodId===destination.nativeHomepodId&&(receipt.kind==='move'?host.liveControls?.musicSettlementReceipt?.()===receipt:receipt.kind==='selection'&&host.liveSelection?.settlementReceipt?.()===receipt);if(expectedTransition){if(receipt.kind==='move')host.liveControls?.observeMusicSettlement?.(next,receipt,true);else host.liveSelection?.observePlayback?.(next,receipt);}
    if(ownerChanged||previousBinding?.bindingId!==nextBinding?.bindingId){this.queueReadKey=null;this.queue=null;this.queueControls.invalidate(true);$('queue').replaceChildren();this.rows.clear();this.host.liveControls?.invalidateMusic(undefined,false,(expectedTransition&&receipt.kind==='move'||pendingTransition&&!!pendingMove)||!ownerChanged&&!!nextBinding&&this.playback?.roomBinding?.bindingId===nextBinding.bindingId&&this.playback?.roomBinding?.nativeRoomId===nextBinding.nativeRoomId&&this.playback?.roomBinding?.nativeHomepodId===nextBinding.nativeHomepodId&&this.playback?.target?.id===next.target?.id);if(ownerChanged&&!expectedTransition&&!pendingTransition)this.host.liveMusicAccountChanged?.(account);}
    const actualLabel=nextBinding?host.liveOutputs?.actualLabel?.(nextBinding)||'':'';
-   record({code:'ok',durationMs:Date.now()-diagnosticAt});if(actualLabel)next.actualTargetLabel=actualLabel;this.playback=next;if(!expectedTransition)host.liveControls?.observeMusicSettlement?.(next,readJob.settlementReceipt);const refreshUntil=nextBinding?.validUntil===undefined?next.expiresAt:Math.min(next.expiresAt,nextBinding.validUntil*1000);this.refreshInterval=Math.max(1000,Math.min(8000,Math.floor((refreshUntil-Date.now())/2)));this.readState='ready';this.recoveryAttempts=0;if(next.projectionVersion===3&&nextBinding){const due=this.lastRead+Math.max(0,Math.floor((refreshUntil-this.lastRead)/2)),timerGeneration=this.generation,timerTransport=host.liveTransport,nextReadAt=Math.max(due,this.lastRead+1000);this.freshnessTimer=setTimeout(()=>{this.freshnessTimer=null;if(host.isConnected&&host.liveTransport===timerTransport&&this.generation===timerGeneration)void this.refresh({immediate:true}).catch(()=>{});},Math.max(0,nextReadAt-Date.now()));this.freshnessTimer.unref?.();}host.liveSelection?.observePlayback?.(next,expectedTransition?null:readJob.settlementReceipt);this.render();void this.loadQueue({automatic:true,afterPlayback:true});
+   record({code:'ok',durationMs:Date.now()-diagnosticAt});if(actualLabel)next.actualTargetLabel=actualLabel;this.playback=next;if(!expectedTransition)host.liveControls?.observeMusicSettlement?.(next,readJob.settlementReceipt);const refreshUntil=nextBinding?.validUntil===undefined?next.expiresAt:Math.min(next.expiresAt,nextBinding.validUntil*1000);this.refreshInterval=Math.max(1000,Math.min(8000,Math.floor((refreshUntil-Date.now())/2)));this.readState='ready';this.recoveryAttempts=0;host.liveSelection?.observePlayback?.(next,expectedTransition?null:readJob.settlementReceipt);
+   const settlement=host.liveSelection?.settlementReceipt?.(),settling=settlement?.kind==='selection'&&typeof settlement.requestId==='string'
+    &&settlement.fastReadUntil>Date.now()&&Date.now()-host.liveSelection.feedback?.requestedAt<SETTLEMENT_READ_WINDOW_MS;
+   if(next.projectionVersion===3&&nextBinding||settling){const due=this.lastRead+Math.max(0,Math.floor((refreshUntil-this.lastRead)/2)),timerGeneration=this.generation,timerTransport=host.liveTransport,nextReadAt=Math.max(due,this.lastRead+1000);this.freshnessTimer=setTimeout(()=>{this.freshnessTimer=null;if(host.isConnected&&host.liveTransport===timerTransport&&this.generation===timerGeneration)void this.refresh({immediate:true}).catch(()=>{});},settling?SETTLEMENT_READ_MS:Math.max(0,nextReadAt-Date.now()));this.freshnessTimer.unref?.();}this.render();void this.loadQueue({automatic:true,afterPlayback:true});
   }catch(error){record({code:!current()?'superseded':error?.code==='read_access_denied'?'http_denied':error?.code==='read_transient'?'http_transient':error?.name==='TimeoutError'?'timeout':error?.name==='AbortError'?'cancelled':error?.name==='TypeError'?'network':'failure',current:current(),durationMs:Date.now()-diagnosticAt});if(current()){
    // A same-scope answer with an unexpected shape is no new owner: keep the known song (K5, A11).
    const malformed=playbackResponse&&malformedPlaybackAnswer.has(error?.message);
@@ -77,7 +95,11 @@ export class LiveMediaView{
   const recovering=automatic&&sameRead&&afterPlayback&&retry?.key===key&&retry.transport===transport
    &&retry.transportGeneration===transportGeneration&&retry.generation===generation&&!retry.used;
   const recoverPreview=!!(recovering&&retry.previewPending&&p?.poll_sequence>retry.pollSequence);
-  if(automatic&&(queue.consumed&&!recoverUnknown&&!recoverPreview||feedback?.pending
+  // An unresolved autoplay queue (context switch) is read again on each newer source observation
+  // until its upcoming songs arrive, instead of staying empty for the rest of the song (K4).
+  const previewWaiting=automatic&&afterPlayback&&sameRead&&queue.previewPending===true
+   &&Number.isInteger(p?.poll_sequence)&&p.poll_sequence>(this.queuePreviewPoll??Infinity);
+  if(automatic&&(queue.consumed&&!recoverUnknown&&!recoverPreview&&!previewWaiting||feedback?.pending
    ||feedback?.outcome==='unknown'||host.liveSelection?.pendingPlayer?.()||!queue.allowed?.(this.account,p)))return;
   // Prefetch: a new song's queue is read on every page so the player opens with it at once.
   // Re-reads of the same song only happen while the player is open.
@@ -95,7 +117,7 @@ export class LiveMediaView{
   const expired=automatic&&sameRead&&afterPlayback&&queue.status==='stale'&&!queue.offer
    &&queue.retained?.transport===transport&&queue.retained?.transportGeneration===transportGeneration
    &&Number.isFinite(queue.retained?.shownOffer?.expiresAt)&&queue.retained.shownOffer.expiresAt<=Date.now();
-  if(automatic&&sameRead&&!recovering&&!expired&&!recoverUnknown)return;
+  if(automatic&&sameRead&&!recovering&&!expired&&!recoverUnknown&&!previewWaiting)return;
   if(!roomObservationCurrent(this.playback,this.host.liveSnapshot)||!this.host.liveTransport?.connected){
    this.queueControls.invalidate(!roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account));
    this.renderQueue();
@@ -109,6 +131,7 @@ export class LiveMediaView{
   const loaded=await queue.load(this.account,this.playback,{
    notify:!automatic&&!renewChoice,preserveChoices:renewChoice,
   });
+  this.queuePreviewPoll=queue.previewPending===true&&this.queueReadKey===key?p?.poll_sequence:null;
   if(!recovering&&queue.readRetryable===true&&(!queue.consumed||queue.previewPending)
    &&this.queueReadKey===key&&this.queueReadTransport===transport&&host.liveTransport===transport
    &&transport.generation===transportGeneration&&this.generation===generation){
@@ -159,8 +182,11 @@ export class LiveMediaView{
   const selection=this.host.liveSelection,playerFeedback=selection?.playerFeedback?.()??feedback,selected=selection?.pendingPlayer?.(playerFeedback),model=this.observedPlayerModel();if(model.active&&typeof model.playing==='boolean'&&this.host.liveControls?.optimisticPlaying)model.playing=this.host.liveControls.optimisticPlaying(model.playing);
   const controls=this.host.liveControls,readFailure=controls?.musicFence,controlStatus=!selected&&model.active?(controls?.musicInlineStatus||(readFailure?.readFailure===true&&readFailure.outcome==='unavailable'&&readFailure.key===controls.musicContext()?.key?'Betjeningen kunne ikke hentes':'')):'';
   const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()||'';
-  this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{selectedTarget:pendingChoice}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:false,fresh:false,loading:true,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:false,feedback:{...feedback,message:'Starter afspilning…',pending:true}}:{})});
+    // The speaker's native confirmation of this exact request plays the chosen item before
+  // Spotify's observation names it. Controls still wait for that observation's authority.
+  const confirmed=!!selected&&playerFeedback?.settlementStatus==='confirmed';
+  this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{selectedTarget:pendingChoice}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:confirmed,fresh:false,loading:!confirmed,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:false,feedback:confirmed?null:{...feedback,message:'Starter afspilning…',pending:true}}:{})});
   if(!this.host.liveControls)this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true});
-  this.renderQueue();this.host.liveControls?.render();if(selected)this.host.playerView.renderControls({playing:false,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
+  this.renderQueue();this.host.liveControls?.render();if(selected)this.host.playerView.renderControls({playing:confirmed,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
  }
 }

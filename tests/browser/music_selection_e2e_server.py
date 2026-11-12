@@ -44,6 +44,12 @@ library_race = os.environ.get("MUSIC_LIBRARY_BUSY_TEST")
 library_race_release = asyncio.Event()
 library_race_arrivals = 0
 recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
+# Green timing: the speaker confirms the start natively at 2.7 s, while the Spotify
+# Web API observation (and PodConnect's playback event) only shows the new item later.
+start_latency = os.environ.get("MUSIC_START_LATENCY_TEST") == "1"
+SPEAKER_CONFIRMS_S = 2.7
+SPOTIFY_OBSERVES_S = 4.5
+latency_tasks: list[asyncio.Task] = []
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
 if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
     logging.getLogger("podvoice.mood").setLevel(logging.INFO)
@@ -342,7 +348,23 @@ async def native(request):
                 volume=args["start_offer"]["start_volume_percent"],
                 selected_at_ms=int(time.time() * 1000),
             )
-            if voice_journey:
+            if start_latency:
+
+                async def speaker_starts(args=args, observation=observation):
+                    await asyncio.sleep(SPEAKER_CONFIRMS_S)
+                    settle(args)
+                    base.state["speakerConfirmedAtMs"] = time.time() * 1000
+                    await asyncio.sleep(SPOTIFY_OBSERVES_S - SPEAKER_CONFIRMS_S)
+                    base.state.update(observation)
+                    base.state["sequence"] += 1
+                    await base.emit_playback_changed()
+
+                # Like PodConnect's settlement(): unknown until the native witness confirms.
+                settle(args)
+                base.receipts[args["request_id"]].update(status="unknown", observation=None)
+                base.state["startAcceptedAtMs"] = time.time() * 1000
+                latency_tasks.append(asyncio.get_running_loop().create_task(speaker_starts()))
+            elif voice_journey:
                 base.state["pendingVoiceObservation"] = observation
                 base.state["pendingVoiceReceipt"] = args
                 receipt = response.json()
@@ -360,7 +382,7 @@ async def native(request):
                 }
             )
             base.music.value["next_command_sequence"] += 1
-            if not voice_journey:
+            if not voice_journey and not start_latency:
                 settle(args)
         return response
     if service == "get_queue":

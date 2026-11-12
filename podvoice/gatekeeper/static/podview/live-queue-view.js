@@ -63,6 +63,17 @@ const scope = (host, account, playback) => JSON.stringify([
 ]);
 const displayScope = (host, account, playback) => JSON.stringify(ownerScope(host, account, playback));
 const sameOccurrence=(a,b)=>a?.id===b?.id&&a?.uri===b?.uri;
+const label=value=>typeof value==='string'?value.trim().toLocaleLowerCase('da'):'';
+// Rows at or before the current track have already played. A queue read from before a skip
+// (retained display or a lagging source) never lists them as upcoming (K2). Match the exact
+// URI first; a relinked track falls back to title and artist.
+export function upcomingQueueRows(items,item){
+ if(!Array.isArray(items)||!item)return items;
+ let index=items.findIndex(row=>!!item.uri&&row.uri===item.uri);
+ const title=label(item.name),artist=label(Array.isArray(item.artists)?item.artists.join(', '):'');
+ if(index<0&&title)index=items.findIndex(row=>label(row.title)===title&&label(row.artist)===artist);
+ return index<0?items:items.slice(index+1);
+}
 export class LiveQueueView{
  constructor(host){this.host=host;this.generation=0;this.pending=false;this.pendingOccurrenceId=null;this.consumed=false;this.offer=null;this.retained=null;this.status='unavailable';this.errorKind=null;this.readRetryable=false;this.waitingChoices=[];this.reconcilingChoice=null;this.unknownChoice=null;}
  redraw(){this.host.liveMedia?.renderQueue();}
@@ -266,7 +277,7 @@ export class LiveQueueView{
   return {
    errorKind:this.errorKind,
    metadataPending:this.retained.metadataPending===true,
-   items:this.retained.items.map(row=>({
+   items:upcomingQueueRows(this.retained.items,playback?.item).map(row=>({
     ...row,
     selectable:selectable&&row.id!==this.reconcilingChoice?.occurrenceId
      &&shownOffer.items.some(item=>sameOccurrence(item,row)),

@@ -23,6 +23,7 @@ const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
 const discoveryPersonalCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='personal-cover';
 const libraryBusy=process.env.MUSIC_LIBRARY_BUSY_TEST;
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
+const startLatency=process.env.MUSIC_START_LATENCY_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
@@ -30,6 +31,49 @@ const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+// Green timing: the speaker confirms at 2.7 s, Spotify's observation and HA event follow at 4.5 s.
+// The tapped track shows at once, and the player turns to playing at the first confirmation.
+async function startLatencyJourney(){
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="top"]').tap();
+ const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});
+ await row.waitFor({state:'visible',timeout:15000});
+ await page.waitForFunction(()=>{
+  const button=document.querySelector('#play-pause');
+  return button&&!button.disabled&&button.getAttribute('aria-label')==='Fortsæt musikken';
+ },undefined,{timeout:15000});
+ await row.evaluate(node=>{
+  node.addEventListener('click',event=>{
+   if(!event.isTrusted)return;
+   const start=performance.now();
+   const probe=window.startLatency={clickAt:Date.now(),pendingMs:null,playingMs:null,playingTitle:null};
+   const sample=()=>{
+    const now=performance.now()-start,title=document.querySelector('#track-name')?.textContent;
+    const label=document.querySelector('#play-pause')?.getAttribute('aria-label');
+    if(probe.pendingMs===null&&title==='Katalogsang 11')probe.pendingMs=now;
+    if(probe.playingMs===null&&label==='Sæt musik på pause'&&['Katalogsang 11','Isoleret sang 11'].includes(title)){
+     probe.playingMs=now;probe.playingTitle=title;
+    }
+    if(now<12000&&probe.playingMs===null)requestAnimationFrame(sample);
+   };
+   requestAnimationFrame(sample);
+  },{once:true});
+ });
+ await row.tap();
+ await page.waitForFunction(()=>Number.isFinite(window.startLatency?.playingMs),undefined,{timeout:15000});
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-start-latency-playing.png')});
+ const probe=await page.evaluate(()=>window.startLatency),fixture=await state();
+ const speakerMs=Math.round(fixture.speakerConfirmedAtMs-probe.clickAt);
+ const result={pendingMs:Math.round(probe.pendingMs),speakerMs,playingMs:Math.round(probe.playingMs),
+  playingTitle:probe.playingTitle,bundleSHA};
+ console.log('startLatency',JSON.stringify(result));
+ assert(probe.pendingMs<300,`chosen track visible within 300 ms: ${JSON.stringify(result)}`);
+ assert(probe.playingMs>=speakerMs,`never playing before the speaker confirms: ${JSON.stringify(result)}`);
+ assert(probe.playingMs<speakerMs+500,`playing within 500 ms of the speaker confirmation: ${JSON.stringify(result)}`);
+ assert.equal(fixture.writes.filter(row=>row.action==='play_track').length,1);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'start-latency',...result}));
+}
 async function libraryBusyJourney(){
  const gate=base+'/lab/library-race';
  const observe=()=>fetch(gate).then(response=>response.json());
@@ -1368,7 +1412,8 @@ async function queueIdentityJourney(){
  assert.equal((await (await queueUnavailable).json()).error,'queue_offer_unavailable');
  await status('stale');
  assert.equal(await page.locator('#queue-title').innerText(),'Sidst kendte kø');
- assert.deepEqual(await names(),['Køsang 31','Køsang 32'],'only previously known rows are retained');
+ // K2: song 32 now plays, so the last-known rows 31 and 32 have played and are not upcoming.
+ assert.deepEqual(await names(),[],'played rows of the last-known queue are not listed as upcoming');
  assert.equal(await rows.and(queue.locator('button:enabled')).count(),0,'last-known rows grant no actions');
  assert.equal(await queue.locator('button[data-current="true"] strong').innerText(),'Isoleret sang 32');
  assert.match(await page.locator('#detail-toggle').getAttribute('aria-label'),/pause/i);
@@ -1849,6 +1894,7 @@ async function queuePersistenceJourney(){
  if(discoveryCover){await discoveryCoverJourney();return;}
  if(discoveryPersonalCover){await personalPlaylistCoverJourney((await state()).personalPlaylistCache);return;}
  if(recentSession){await recentSessionJourney();return;}
+ if(startLatency){await startLatencyJourney();return;}
  if(documentScope){await documentScopeJourney();return;}
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="top"]').tap();
