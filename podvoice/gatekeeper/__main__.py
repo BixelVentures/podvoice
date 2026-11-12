@@ -523,6 +523,7 @@ async def run(cfg: Config) -> None:
         tools.podview_receipts.configure_card_summarizer(
             AnswerCardSummarizer(ha_client, cfg.openai_api_key)
         )
+    _LOG.info("podview card summarizer=%s", "on" if cfg.openai_api_key else "off_no_api_key")
     tools.configure_device_control(load_settings(settings_path))
     tools.configure_podview_robot_reads(cfg.podview_robot_read_policy)
     tools.configure_podview_vehicle_read(cfg.podview_vehicle_read_policy)

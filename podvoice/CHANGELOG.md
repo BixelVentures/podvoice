@@ -1,3 +1,7 @@
+## 2.0.178
+
+- Svarkort kommer nu også, når stemmen selv slår op på nettet (som FC Barcelona-spørgsmålene), selv om søgeresultatet er langt, og vejrkortet vises ved alle vejrspørgsmål. Svarkortet står, mens hun taler, plus 30 sekunder, og rører man det, bliver det stående. Hvert trin skrives i loggen som »podview card stage=…«, så det kan følges på Home Assistant.
+
 ## 2.0.177
 
 - Robottens Pause/Fortsæt bliver på sin plads under kommandoen, og knaprækken hopper eller tømmes ikke længere. Vejr, lys, timer, robot og musik siger »Opdateret: 07.04« eller »Ikke opdateret« i stedet for »Sidst kendt«. Afspilning vises hurtigere efter tryk (musik ca. 2,8 s i stedet for 4,5 s i prøven), køen viser ikke allerede spillede sange og henter igen efter autoplay, og radiolydstyrken låser ikke længere slider og Stop. Teslaen viser Låst straks efter HA-skift, »Låst · I dvale siden 09.44« og ladetilstande uden 0 kW (kræver HA-komponent 0.1.20). Fuld skærm genoprettes, når iPad'en vågner, opskriftslinks i delt tekst virker, stemmen forstår PodViews rumnavne, og vejrkortets korte AI-tekst vises igen (vejret regnes som aktuelt i 2 timer efter HA's opdatering, ikke 30 min).

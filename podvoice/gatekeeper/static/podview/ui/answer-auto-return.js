@@ -1,9 +1,9 @@
 // A display-only return to overview. Its normal idle owner later opens Ro.
 // This never dismisses an answer or
 // stops a resource. Speech completion must come from an explicit owner signal.
-// The card stays while she speaks and for one minute after the conversation has closed.
+// The card stays while she speaks and for 30 seconds after the conversation has closed.
 // A touch or scroll on the card keeps it until the user leaves it.
-export const AUTO_RETURN_MS=60000;
+export const AUTO_RETURN_MS=30000;
 export function autoReturnCandidate(host){
  const s=host.state,answer=s?.answers?.find(item=>item.id===s.focus&&!item.hidden);
  if(!answer)return null;

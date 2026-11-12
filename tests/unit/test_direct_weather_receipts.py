@@ -60,7 +60,7 @@ def test_exhausted_selector_cannot_be_called_or_refilled(weather):
     )
 
 
-@pytest.mark.parametrize("mutation", ["failed", "malformed", "foreign_tool", "no_trusted_hint"])
+@pytest.mark.parametrize("mutation", ["failed", "malformed", "foreign_tool"])
 def test_ambiguous_failed_unrelated_and_unhinted_candidates_never_display(weather, mutation):
     store = VisualReceiptOwner()
     kwargs = {"tool_name": "weather_forecast", "result": weather, "direct_weather": True}
@@ -70,8 +70,6 @@ def test_ambiguous_failed_unrelated_and_unhinted_candidates_never_display(weathe
         kwargs["result"] = {"ok": True, "data": {"temperature": 12}}
     elif mutation == "foreign_tool":
         kwargs.update(tool_name="google_web_sogning", result={"ok": True, "data": 2004})
-    else:
-        kwargs["direct_weather"] = False
     offer(store, **kwargs)
     assert not store.snapshot("kitchen")["items"] and store._selection is None
 
@@ -254,3 +252,10 @@ def test_weather_question_about_now_keeps_the_current_reading(weather):
     assert put(store, weather, question="Hvad er temperaturen nu?")
     item = store.snapshot("kitchen")["items"][0]
     assert [f["label"] for f in item["content"]["facts"]] == ["Temperatur", "Vejrforhold"]
+
+
+def test_every_live_weather_call_shows_the_weather_card(weather):
+    """Green 2.0.176: Live passed more than forecast_type; the weather card must still show."""
+    store = VisualReceiptOwner()
+    assert offer(store, tool_name="weather_forecast", result=weather, direct_weather=False)
+    assert store.snapshot("kitchen")["items"][0]["displaySuggested"] is True
