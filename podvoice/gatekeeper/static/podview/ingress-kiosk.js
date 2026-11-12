@@ -142,9 +142,20 @@ export function beginIngressKiosk(win) {
   function onPageShow(event) {
     if (event.persisted && inPanel(frame)) { session.active = true; leaving = false; subscribe(); }
   }
+  // HA (e.g. the iPad Companion app after the screen was locked) can rebuild its
+  // panel and forget the kiosk request. Ask again whenever PodView comes back.
+  function reassert() {
+    if (leaving || !session.active || win.document?.visibilityState === "hidden" || !inPanel(frame)) return;
+    if (subscribed) send("home-assistant/unsubscribe-properties");
+    subscribed = false;
+    subscribe();
+  }
   win.addEventListener("message", onProperties);
   win.addEventListener("pagehide", onPageHide);
   win.addEventListener("pageshow", onPageShow);
+  win.addEventListener("focus", reassert);
+  win.addEventListener("online", reassert);
+  win.document?.addEventListener?.("visibilitychange", reassert);
   subscribe();
   return () => {
     leaving = true;
@@ -153,6 +164,9 @@ export function beginIngressKiosk(win) {
     win.removeEventListener("message", onProperties);
     win.removeEventListener("pagehide", onPageHide);
     win.removeEventListener("pageshow", onPageShow);
+    win.removeEventListener("focus", reassert);
+    win.removeEventListener("online", reassert);
+    win.document?.removeEventListener?.("visibilitychange", reassert);
     session.active = false; if (kioskSessions.get(win) === session) kioskSessions.delete(win);
   };
 }

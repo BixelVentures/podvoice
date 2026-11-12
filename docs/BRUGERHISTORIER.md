@@ -671,8 +671,13 @@ Fejl fundet i runden:
 - Robotknapper hopper: efter Pause/Fortsæt forsvandt knappen i 2–5 s, de øvrige knapper rykkede frem, og rækken var et øjeblik tom.
 - Vejrkortet brugte jargon (»Sidst kendt · Skyet«) i stedet for »Opdateret: tid« som Tesla-kortet.
 - Forsinkelser: PodView viste afspilning ca. 4,5 s efter tryk på et forslag, mens højttaleren spillede efter ca. 2,7 s; radio viste afspilning efter ca. 4,8 s (krav under 3 s).
+- Tesla-lås (12. nov. 09.20): Lås fra PodView blev accepteret på 0,4 s, og HA's lås viste »locked« kl. 09.20.55. PodView blev stående på »Ulåst« og viste efter 40 s »Udfald ukendt · kontrollér bilen«. Først Fleet-hentningen kl. 09.24.18 gav »Låst«. Årsag: HA-komponenten ignorerede låsens skift tilbage til den værdi, Fleet allerede havde, og den gemte nyere »ulåst« vandt.
+- Tesla på iPad (09.26): kortet viste »Låst · Opdateret: 09.24«, men »Udfald ukendt« stod der stadig efter genforbindelse.
+- B7: Tesla-detaljen viste »Ladeeffekt 0 kW«, mens kablet sad i, og Clever-ladeboksen havde sat opladningen på pause (charging = stopped).
+- G2 på iPad (HA Companion): efter ca. 1 min med låst skærm viste HA sidemenuen, og PodView var ikke længere i fuld skærm.
+- Lav prioritet, ikke rettet: lydstyrkesliderens trykområde er for lille på iPad.
 
-PodVoice 2.0.176 retter K2 i PodView, knaphoppet, vejrteksten og visningen af afspilningsstart. Rettelserne afventer Green-gentest.
+PodVoice 2.0.176 retter K2 i PodView, knaphoppet, vejrteksten, visningen af afspilningsstart, Tesla-låsen (HA-komponent 0.1.20), »Udfald ukendt« efter genforbindelse, ladetilstandene som i Tesla-appen (uden 0 kW) og fuld skærm efter iPad-opvågning. Rettelserne afventer Green-gentest. Ladegrænsen (»Opladet · 80 %«) kræver en ny HA-aflæsning og er ikke med.
 
 Ikke testet i runden: S4, S6, S13, A10, A13, K4, H7, Q2, Tesla B2–B4 og B7, iPad, Hue og Voice PE.
 
