@@ -23,7 +23,7 @@ from zoneinfo import ZoneInfo
 if TYPE_CHECKING:
     from .history import History
 
-from .podview_enrichment import VisualSelector
+from .podview_enrichment import AnswerCardSummarizer, VisualSelector
 from .podview_weather import MAX_CURRENT_AGE_S, MAX_RETRIEVAL_AGE_S, weather_projection
 
 
@@ -516,6 +516,8 @@ class VisualReceiptOwner:
         self._research_mode = False
         self._research_admitted = False
         self._subscribers: dict[asyncio.Event, tuple[str, asyncio.AbstractEventLoop]] = {}
+        self._summarizer: AnswerCardSummarizer | None = None
+        self._card_tasks: dict[str, asyncio.Task] = {}
 
     def bind_history_boot(self, boot: str) -> None:
         """New bridge revisions reload passive snapshots, never current receipt authority."""
@@ -749,6 +751,80 @@ class VisualReceiptOwner:
             raise RuntimeError("visual selector configuration is startup-only")
         self._selector = selector
 
+    def configure_card_summarizer(self, summarizer: AnswerCardSummarizer | None) -> None:
+        """Sport and fact cards: one quick model call in parallel with speech."""
+        self._summarizer = summarizer
+
+    def _schedule_card(self, room_id: str, question: str | None) -> None:
+        state = self._rooms.get(room_id)
+        if self._summarizer is None or not self._summarizer.available or state is None:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        prior = self._card_tasks.get(room_id)
+        if prior is not None and not prior.done():
+            prior.cancel()  # Several searches in one answer give one card from all of them.
+        self._card_tasks[room_id] = loop.create_task(self._card(room_id, state, question))
+
+    async def _card(self, room_id: str, state: dict, question: str | None) -> None:
+        from .podview_presentation import explanation_content
+
+        try:
+            await asyncio.sleep(0.15)
+            sources = [
+                {"uddrag": [f.get("value") for f in record["item"]["content"].get("facts", [])]}
+                for record in state.get("source_registry", {}).values()
+                if record.get("tool") == "google_web_sogning"
+            ]
+            summarizer = self._summarizer
+            if summarizer is None or not sources:
+                return
+            presentation = await summarizer.summarize(question, sources)
+            if presentation is None or self._closed or self._rooms.get(room_id) is not state:
+                return
+            if not state["current"]():
+                return
+            receipt_id = state.get("card_receipt") or secrets.token_hex(16)
+            content = explanation_content(
+                presentation, receipt_id, source_label="Google-søgning, opsummeret af PodVoice"
+            )
+            key, now = state["key"], time.time()
+            item = {
+                "schema": "podview.presentation.v1",
+                "receiptId": receipt_id,
+                "roomId": room_id,
+                "sessionId": key[1],
+                "sessionEpoch": key[2],
+                "turnId": key[3],
+                "providerGeneration": key[4],
+                "taskId": key[5],
+                "inputRevision": key[6],
+                "answerRevision": state["revision"] + 1,
+                "observedAt": now,
+                "validUntil": now + 120,
+                "family": presentation["family"],
+                "title": presentation["title"],
+                "displaySuggested": True,
+                "allowedActions": [],
+                "content": content,
+                "provenance": {"kind": "ai_explanation"},
+            }
+            replacing = state.get("card_receipt") == receipt_id
+            state["items"] = [r for r in state["items"] if r["item"]["receiptId"] != receipt_id]
+            state["items"].insert(
+                0,
+                {"item": item, "deadline": self._clock() + 120, "tool": "", "sourceText": ""},
+            )
+            del state["items"][3:]
+            state["card_receipt"] = receipt_id
+            state["revision"] += 1
+            self._archive_display(room_id, state, item, replace_existing=replacing)
+            self._notify(room_id)
+        except (ValueError, TypeError, KeyError):
+            return
+
     def configure_research_mode(self, policy: str = "") -> None:
         """Supervisor-only startup opt-in; empty default preserves exact26 scope.
 
@@ -940,7 +1016,7 @@ class VisualReceiptOwner:
             if projected is None and research is None:
                 from .podview_presentation import remember_source
 
-                return remember_source(
+                remembered = remember_source(
                     self,
                     owner,
                     room_id=room_id,
@@ -957,6 +1033,9 @@ class VisualReceiptOwner:
                     current=current,
                     read_current=read_current,
                 )
+                if remembered and tool_name == "google_web_sogning":
+                    self._schedule_card(room_id, question)
+                return remembered
             if research is not None:
                 summary, provenance = research["summary"], research["provenance"]
                 if research["family"] == "answer-timeline":
@@ -1417,6 +1496,8 @@ class VisualReceiptOwner:
         self._closed = True
         if self._selection is not None:
             self._selection.cancel()
+        for task in self._card_tasks.values():
+            task.cancel()
         self._rooms.clear()
         self._history.clear()
 

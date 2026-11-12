@@ -1,3 +1,7 @@
+## 2.0.177
+
+- Svar fra en websøgning (fx fodbold) får nu et kort, mens hun taler, uden at talen bliver langsommere. En kamp vises med hold, stilling, målscorere pr. hold og dato, og fakta vises som overskrift med 2–3 nøglepunkter. Kortene gentager aldrig hendes sætninger, og uden grundlag vises intet kort. Vejrkortet viser den dag, der spørges om (fx »i morgen« eller »på fredag«), i stedet for vejret lige nu. En opfølgning bliver et nyt afsnit på samme kort, og historikken viser ét kort pr. emne. Kortet står 60 sekunder efter samtalen, bliver stående, hvis man rører det, og derefter vender skærmen tilbage til den forrige visning. Svar-knappen viser »Voice PE offline« i gråt, når højttaleren mangler forbindelse.
+
 ## 2.0.175
 
 - Man kan spole i sangen igen, og »Kør til basen« lige efter Pause afvises ikke længere som optaget. Under rengøring står der fx »Robotten er i Entré« (kun når kortet netop er genindlæst) og »I basen«, når den lader. Teslaen viser »I dvale · 4 t« og »Opdateret: 17.40« i stedet for »Sidst kendt«, og dvalen huskes efter genstart (kræver HA-komponent 0.1.19). Radioteksten nævner ikke længere Home Assistant.

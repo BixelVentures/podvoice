@@ -531,7 +531,7 @@
     },
     {
       "path": "live-answer-view.js",
-      "sha256": "038a02c8d5ac9c41d62b544973c175e14e14b14dd37d9c286cd1d9a60a50af6f"
+      "sha256": "70da709ad8b8a81fdcc3d9287b8dbfd78cd8b706b6a298f23b2daa72850054a0"
     },
     {
       "path": "live-control-view.js",
@@ -635,11 +635,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "d1927b028e498dc63b284eb725518be058dfb867e6cf1b5b16e7da12dcf79ffa"
+      "sha256": "e5efd619ea7cc1161701af8c6223a2563ae83201ba771accd4a3c292d1b05dbb"
     },
     {
       "path": "podview.css",
-      "sha256": "1333c9ab00d2e9f9f9fa94c45a1a99acabcc59b5002e76411720a2127b026d45"
+      "sha256": "0923d75a458734b6e15f3db790cebdfd5457015e4f7dc4e8b0e8cb25f921a838"
     },
     {
       "path": "podvoice-transport.js",
@@ -747,7 +747,7 @@
     },
     {
       "path": "ui/answer-auto-return.js",
-      "sha256": "4df26fcd805eb5ccb4d7d3a47e4d3db6f4d1a4b779fde4054aefc9e7e3d65a8b"
+      "sha256": "2002812ba9b56dc04655b5bbbb32a29391107c6cf478b316267650deea2df544"
     },
     {
       "path": "ui/catalog.js",
@@ -755,7 +755,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "fabd8f57e8c2261a9d6f4345332c95285d429e22451d5fe484d83888e5fcb149"
+      "sha256": "ce49d727cb871a043bd1860b7cde2abd3281e6d641121d0296677c12f07a6d8e"
     },
     {
       "path": "ui/components.js",
@@ -795,7 +795,7 @@
     },
     {
       "path": "ui/library/visual-components.js",
-      "sha256": "b03b9df0133d680ba07344a7631264150a70b2f55869c335ce3254283973d1af"
+      "sha256": "9fd9c09464c8d7b1be737bea586ed6335c8c73fcd5523a8b301f6ab1c87ca1d4"
     },
     {
       "path": "ui/motion.js",
@@ -891,7 +891,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "30554e8f44c9b7acb9c353455607fcd68f6fcbc3abbae5075e940d48f09923c4"
+      "sha256": "d911b5e797625cd60c7d7c4c8afb04a7da415f3f14a0156c137f127eaa4925df"
     },
     {
       "path": "workshop.css",

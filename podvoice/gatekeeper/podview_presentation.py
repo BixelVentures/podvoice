@@ -266,9 +266,11 @@ def explanation_content(
         return f"presentation:{receipt_id}:{index}"
 
     if family == "concise":
-        # Every spoken answer gets a card; a text card shows what she said.
-        if raw not in ({}, {"visualValue": "reference"}):
-            raise ValueError("invalid concise content")
+        # Semantic intent comes from the existing conversation model, never a
+        # local phrase/length heuristic. Do not admit an unqualified text echo.
+        _object(raw, {"visualValue"})
+        if raw["visualValue"] != "reference":
+            raise ValueError("concise requires explicit useful reference value")
     elif family == "sport-result":
         _object(raw, {"match", "scorers"})
         match = raw["match"]
@@ -435,46 +437,7 @@ def bicycle_context(text: object) -> bool:
     return bool(bicycle and drivetrain)
 
 
-def spoken_card(spoken: str, question: str | None) -> dict:
-    """Rule 5: an answer that has no better form is a text card with what she said."""
-    summary = spoken.strip()
-    if len(summary) > 600:
-        cut = summary[:600]
-        stop = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
-        summary = cut[: stop + 1] if stop >= 200 else cut[:599].rstrip() + "…"
-    title = " ".join(question.split()) if isinstance(question, str) else ""
-    if not title or re.search(r"https?://|<[/!a-zA-Z]", title):
-        title = "Svar fra PodVoice"
-    elif len(title) > 120:
-        title = title[:119].rstrip() + "…"
-    return {
-        "family": "concise",
-        "title": title,
-        "summary": summary,
-        "origin": "ai_explanation",
-        "content": {},
-        "sourceCalls": [],
-    }
-
-
-def offer_completed(sink: Any, owner: object, **binding: Any) -> bool:
-    """Every completed spoken answer gets a card; fall back to its text (rule 1 and 5)."""
-    if _offer_completed(sink, owner, **binding):
-        return True
-    parsed = final_message(binding.get("message", ""))
-    if parsed is None:
-        return False
-    fallback = json.dumps(
-        {
-            "spoken": parsed["spoken"],
-            "presentation": spoken_card(parsed["spoken"], binding.get("question_context")),
-        },
-        ensure_ascii=False,
-    )
-    return _offer_completed(sink, owner, **{**binding, "message": fallback}, fallback=True)
-
-
-def _offer_completed(
+def offer_completed(
     sink: Any,
     owner: object,
     *,
@@ -491,7 +454,6 @@ def _offer_completed(
     current: Any,
     read_current: Any,
     question_context: str | None = None,
-    fallback: bool = False,
 ) -> bool:
     """Pure current owner admission after one already-existing backend completion."""
     import secrets
@@ -541,13 +503,7 @@ def _offer_completed(
             return False
         presentation = parsed["presentation"]
         if presentation is None:
-            presentation, fallback = spoken_card(parsed["spoken"], question_context), True
-        if (
-            fallback
-            and related_context
-            and any(r["item"].get("displaySuggested") for r in prior.get("items", []))
-        ):
-            return False  # The turn already shows a real card (fx vejret); no text duplicate.
+            return False  # Spoken-only completion never fabricates a visual/history receipt.
         if (
             presentation["origin"] == "ai_explanation"
             and (
@@ -755,8 +711,6 @@ def _offer_completed(
                 else {},
                 source_label="Websøgning, opsummeret af PodVoice"
                 if searched
-                else "Det sagde PodVoice"
-                if presentation["family"] == "concise"
                 else "AI-forklaring fra PodVoice",
             )
             valid_until = now + 120
@@ -830,7 +784,7 @@ def _offer_completed(
 
 
 PRIMARY_PRESENTATION_INSTRUCTIONS = """\nPodView-præsentation er valgfri og må ikke udløse delegation alene for at tegne et svar. Et allerede delegeret slutresultat kan være JSON med spoken og presentation. Brug kun spoken som det naturlige svar; læs aldrig JSON, metadata eller præsentationsfelter op. Det ændrer ikke samtalens handlinger, godkendelser eller afslutning.\n"""
-BACKEND_PRESENTATION_INSTRUCTIONS = """\nNår du udfører denne delegerede opgave, vælg altid et svarkort til dit NORMALE sidste assistantresultat; hvert svar vises på skærmen, mens det bliver sagt. Ingen ekstra værktøjer, opslag eller modelrunde for visningen. Hold JSON-resultatet under2048 UTF-8bytes. Hvis visningen ellers kræver at forkorte brugerens ønskede talte svar, udelad visningen og returnér hele svaret som almindelig tekst. Når hele det talte svar og visningen kan være inden for grænsen, returnér kun JSON {"spoken":"det fulde naturlige danske svar i brugerens ønskede format og omfang","presentation":{"family":"...","title":"...","summary":"...","origin":"ai_explanation","content":{},"sourceCalls":[]}}. Ellers returnér almindelig tekst i brugerens ønskede omfang. Brug aldrig HTML, CSS, JS, URLer, IDer eller handlingsargumenter. En AI-forklaring er undervisning/foreslået plan, aldrig påstand om husstandens aktuelle målinger eller udførte handlinger. Vælg kun meningsfuldt format: sport-result content{match:{home,away,homeScore,awayScore,date,competition},scorers:[{team:"home" eller "away",name,minute}]} til kampe og resultater (hold, stilling, målscorere, dato; ukendt stilling = null, competition = null når ukendt, tomme scorers når ukendt), key-points content{points:[2-3 korte nøglepunkter]} til fakta og opslag med overskrift i title, concise content{} til alt andet, comparison content{columns:[tekst],items:[{label,values:[tekst]}]}, choices content{items:[{label,detail}]}, chart kræver origin owner_sources og content{items:[{callId,field:"temperature"}]} fra faktisk accepteret vejr; serveren kopierer tal/enhed, steps content{steps:[tekst]}, checklist content{items:[{label}]} aldrig antaget færdig, fact-card kræver owner_sources og de nedenfor beskrevne kildefelter, answer-timeline content{events:[{time,label,detail}]} kun foreslået plan, simple-diagram content{nodes:[{label,detail}]} med valgfri ownedImage:"bicycle_drivetrain" kun ved forklaring om cyklens drivlinje. Højst8rækker,6valg/sammenligningsrækker,3sammenligningskolonner,5diagramnoder,6facts. Hver tekst kort; summary højst600tegn. Aktuelle vejrmålinger kræver origin owner_sources, sourceCalls:[de faktiske accepterede tool call-IDer], family fact-card og content{facts:[{callId,field:"temperature" eller "condition" (webværktøjets korte hele kildeuddrag kan vælges som field:"excerpt:0" til "excerpt:5")}]}; server kopierer selv kildens værdier. Andre faktiske data må ikke opfindes som AI-eksempel. sourced-image content{ownedImage:"bicycle_drivetrain"} må kun vælges til en relevant undervisningsforklaring om cyklens pedaler/kæde/baghjul. Det er en AI-genereret principskitse, ikke teknisk dokumentation. Til andre emner vælg et andet format; opfind aldrig billedURL/kilde/credit. Hvis intet andet format passer, brug concise; summary er da det, du siger.\n"""
+BACKEND_PRESENTATION_INSTRUCTIONS = """\nNår du udfører denne delegerede opgave, vælg en passende visning til en substantiel forklaring, sammenligning eller trinvis vejledning med nyttig genlæsningsværdi i dit NORMALE sidste assistantresultat. Ingen ekstra værktøjer, opslag eller modelrunde for visningen. Hold JSON-resultatet under2048 UTF-8bytes. Hvis visningen ellers kræver at forkorte brugerens ønskede talte svar, udelad visningen og returnér hele svaret som almindelig tekst. Når hele det talte svar og visningen kan være inden for grænsen, returnér kun JSON {"spoken":"det fulde naturlige danske svar i brugerens ønskede format og omfang","presentation":{"family":"...","title":"...","summary":"...","origin":"ai_explanation","content":{},"sourceCalls":[]}}. Ellers returnér almindelig tekst i brugerens ønskede omfang. Brug aldrig HTML, CSS, JS, URLer, IDer eller handlingsargumenter. En AI-forklaring er undervisning/foreslået plan, aldrig påstand om husstandens aktuelle målinger eller udførte handlinger. Vælg kun meningsfuldt format: concise content{visualValue:"reference"} kun til nyttig genlæsning/reference, comparison content{columns:[tekst],items:[{label,values:[tekst]}]}, choices content{items:[{label,detail}]}, chart kræver origin owner_sources og content{items:[{callId,field:"temperature"}]} fra faktisk accepteret vejr; serveren kopierer tal/enhed, steps content{steps:[tekst]}, checklist content{items:[{label}]} aldrig antaget færdig, fact-card kræver owner_sources og de nedenfor beskrevne kildefelter, answer-timeline content{events:[{time,label,detail}]} kun foreslået plan, simple-diagram content{nodes:[{label,detail}]} med valgfri ownedImage:"bicycle_drivetrain" kun ved forklaring om cyklens drivlinje. Højst8rækker,6valg/sammenligningsrækker,3sammenligningskolonner,5diagramnoder,6facts. Hver tekst kort; summary højst600tegn. Aktuelle vejrmålinger kræver origin owner_sources, sourceCalls:[de faktiske accepterede tool call-IDer], family fact-card og content{facts:[{callId,field:"temperature" eller "condition" (webværktøjets korte hele kildeuddrag kan vælges som field:"excerpt:0" til "excerpt:5")}]}; server kopierer selv kildens værdier. Andre faktiske data må ikke opfindes som AI-eksempel. sourced-image content{ownedImage:"bicycle_drivetrain"} må kun vælges til en relevant undervisningsforklaring om cyklens pedaler/kæde/baghjul. Det er en AI-genereret principskitse, ikke teknisk dokumentation. Til andre emner vælg et andet format; opfind aldrig billedURL/kilde/credit. Hvis format/kilde ikke passer, returnér presentation:null eller almindelig talt tekst uden visning.\n"""
 
 
 def remember_source(
@@ -934,9 +888,5 @@ BACKEND_PRESENTATION_INSTRUCTIONS += """\nEt faktisk accepteret podconnect_recen
 
 
 BACKEND_PRESENTATION_INSTRUCTIONS += """
-Vælg korttype efter indholdet: kamp/resultat → sport-result; fakta/opslag → key-points;
-vejr → fact-card/chart med kildefelter som beskrevet; trin/valg/sammenligning → de tilsvarende;
-alt andet, også kvitteringer → concise. Indhold på kortet skal være det samme, som du siger;
-tilføj aldrig fakta, du ikke siger eller har fra et værktøj. Ingen ekstra modelrunde, værktøj eller opslag
-for at vælge kortet.
+Vælg en visning kun når den giver konkret visuel merværdi ud over det talte svar: en sammenligning, overskuelige trin/valg, et kildebundet vejroverblik/faktagrundlag eller en forklaring, som brugeren meningsfuldt kan genlæse. En kommando-kvittering, afspilnings-/timer-/enhedsstatus, tak, farvel, opklaring eller anden dialoglim skal bruge presentation:null eller almindelig talt tekst; den eksisterende widget viser opgavens status. Opfind aldrig en kort tekstvisning blot fordi backendopgaven er færdig. concise kræver content{visualValue:"reference"}; dette er din udtrykkelige semantiske vurdering af nyttigt referenceindhold, ikke en standardværdi eller længdeklassifikation. Ved tvivl: ingen ny visning. Tale og allerede nyttigt skærmindhold fortsætter uafhængigt. Ingen ekstra modelrunde, værktøj eller opslag for at afgøre dette.
 """

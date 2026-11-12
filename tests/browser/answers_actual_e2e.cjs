@@ -15,9 +15,73 @@ let server,browser,data;
  server=spawn(env.python,[path.join(__dirname,'answers_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({ANSWERS_TEST_PORT:String(port),ANSWERS_TEST_DATA:data}),stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',chunk=>process.stderr.write(chunk));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('answer fixture exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('answer fixture startup');await sleep(100)}
- browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],writes=[];
+ browser=await chromium.launch(env.browserOptions());
+ // iPad in the HA app: coarse pointer, touch only, portrait 834×1194.
+ const ipad=process.env.SVAR_THREAD_TEST==='1';
+ const page=await browser.newPage(ipad?{hasTouch:true,isMobile:true,viewport:{width:834,height:1194},deviceScaleFactor:2}:{hasTouch:true,viewport:{width:1280,height:800}}),errors=[],writes=[];
  page.on('pageerror',error=>errors.push(error.message));page.on('request',r=>{if(r.method()!=='GET')writes.push({path:new URL(r.url()).pathname,body:r.postData()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
+ if(ipad){
+  const answerHost=page.locator('#answer-host');
+  assert.equal(await page.evaluate(()=>matchMedia('(pointer: coarse)').matches),true,'iPad emulation has a coarse pointer');
+  // Rule 2: a match question shows teams, score, scorers and date while she speaks.
+  assert.equal((await fetch(base+'/lab/svar-sport',{method:'POST'})).status,200);
+  const sport=answerHost.locator('pv-answer:visible',{has:page.locator('pv-sport-result')});
+  await sport.locator('.pv-sport-result').getByText('3–1',{exact:true}).waitFor({state:'visible',timeout:10000});
+  assert.equal(await sport.locator('.pv-sport-team').first().textContent(),'FC Barcelona');
+  assert.match(await sport.locator('.pv-sport-date').textContent(),/11\. november 2026 · La Liga/);
+  // Design: scorers per team, one line each.
+  assert.deepEqual(await sport.locator('.pv-visual-list .pv-visual-value').allTextContents(),["Lewandowski 12', 58'","Lukébakio 71'"]);
+  const before=await sport.boundingBox();
+  // Rule 3: the spoken-only follow-up becomes a new section below, on the same card.
+  assert.equal((await fetch(base+'/lab/svar-followup',{method:'POST'})).status,200);
+  const followup='Pedri, til 1-0 i 12. minut';
+  await answerHost.getByText(followup,{exact:true}).waitFor({state:'visible',timeout:10000});
+  await sport.waitFor({state:'visible'});
+  assert.equal(await sport.getAttribute('data-thread'),'earlier');
+  const current=answerHost.locator('pv-answer[data-thread=current]:visible');
+  assert.equal(await current.count(),1);assert.match(await current.textContent(),/Assist/);assert.doesNotMatch(await answerHost.textContent(),/lavede assisten/,'no transcript on any card');
+  const after=await sport.boundingBox();
+  assert(Math.abs(after.y-before.y)<1,`the section being read did not move (${before.y}→${after.y})`);
+  assert((await current.boundingBox()).y>after.y,'the new section is below the earlier one');
+  // Touch targets: every control on the card and the Svar button is at least 44×44.
+  const small=await page.evaluate(()=>[...document.querySelectorAll('#answer-host pv-answer:not([hidden]) :is(button,a,summary),#open-history')]
+   .filter(n=>n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden')
+   .map(n=>{const r=n.getBoundingClientRect();return {label:n.getAttribute('aria-label')||n.textContent.trim().slice(0,30),w:r.width,h:r.height};})
+   .filter(r=>r.w<44||r.h<44));
+  assert.deepEqual(small,[],'all answer controls are at least 44×44');
+  // Kilder folds out and back on tap.
+  const sources=current.locator('details:visible > summary').first();
+  if(await sources.count()){await sources.tap();assert.equal(await sources.evaluate(n=>n.parentNode.open),true);await sources.tap();assert.equal(await sources.evaluate(n=>n.parentNode.open),false);}
+  // A scroll gesture across the card is a scroll, never a tap on it.
+  const focusBefore=await page.evaluate(()=>document.querySelector('pv-widget-host').state?.focus);
+  const scroller=page.locator('pv-widget-host .responses');
+  await env.touchScroll(page,scroller,{dy:300});await env.touchScroll(page,scroller,{dy:-300});
+  assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host').state?.focus),focusBefore,'scrolling did not navigate');
+  assert.equal(await page.locator('dialog[open]').count(),0,'scrolling did not open anything');
+  await page.screenshot({path:path.join(env.artifactDir(),'svar-ipad-thread.png')});
+  assert.equal((await fetch(base+'/lab/close-live-answer',{method:'POST'})).status,200);
+  // History: one card for the topic; opening it shows both sections. No unread mark (user's choice U1 c).
+  await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);
+  const svar=page.locator('#open-history');
+  assert.equal(await svar.getAttribute('data-unread'),null);
+  await svar.tap();
+  const rows=page.locator('#retained .history-open:visible');
+  await rows.first().waitFor({state:'visible',timeout:10000});
+  assert.equal(await rows.count(),1,'the follow-up is a section, not a separate history card');
+  assert.match(await rows.first().textContent(),/FC Barcelona mod Sevilla/);
+  await rows.first().tap();
+  await answerHost.getByText(followup,{exact:true}).waitFor({state:'visible'});
+  await answerHost.locator('.pv-sport-result:visible').getByText('3–1',{exact:true}).waitFor({state:'visible'});
+  await page.screenshot({path:path.join(env.artifactDir(),'svar-ipad-history.png')});
+  await page.getByRole('button',{name:'Svar · Tilbage',exact:true}).tap();
+  await page.waitForFunction(()=>!document.querySelector('#answer-host pv-answer:not([hidden])'),null,{timeout:5000});
+  assert.deepEqual(errors,[]);
+  assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,0);
+  console.log(JSON.stringify({outcome:'PASS',mode:'svar-ipad-thread',actualThin:true,inertProvider:true,coarsePointer:true,
+   sportCard:true,followupSection:true,readingPositionKept:true,historyCards:1,unreadMark:false,pageErrors:errors}));
+  return;
+ }
  if(process.env.ANSWERS_LIVE_TEST==='1'){
   const posted=await fetch(base+'/lab/submit-live-answer',{method:'POST'});
   assert.equal(posted.status,200);

@@ -83,7 +83,10 @@ class VisualComponent extends HTMLElement {
    copy(this.when,m.competition?`${m.date} · ${m.competition}`:m.date);copy(this.list,!content.scorers.length,'hidden');
   }
   if(this.list){
-   const items=content.facts||content.events||content.nodes||content.points||content.scorers;
+   // Sport: one line per team, each scorer once with all of their minutes (»Lewandowski 12', 58'«).
+   const perTeam=content.scorers&&['home','away'].map(team=>{const names=new Map();for(const r of content.scorers.filter(r=>r.team===team))names.set(r.name,[...(names.get(r.name)||[]),r.minute].filter(Boolean));
+    return {id:team,team,text:[...names].map(([name,minutes])=>minutes.length?`${name} ${minutes.join(', ')}`:name).join(' · ')};}).filter(row=>row.text);
+   const items=content.facts||content.events||content.nodes||content.points||perTeam;
    this.reconcile(this.list,this.rows,items,()=>{
     const row=make(this.family==='fact-card'?'div':'li','pv-visual-item');applyKitComponent(row,'listrow');
     row.append(make(this.family==='fact-card'?'dt':'span','pv-visual-label'),make(this.family==='fact-card'?'dd':'h2','pv-visual-value'),make(this.family==='fact-card'?'dd':'p','pv-visual-detail'));return row;
@@ -92,8 +95,9 @@ class VisualComponent extends HTMLElement {
     if(this.family==='fact-card'){const numeric=/^[-+]?\d[\d.,:\s]*\s*(?:°[CF]?|%|km|m|cm|mm|kg|g|W|kW|kWh|min|t)?$/.test(item.value);copy(row.dataset,numeric?'numeric':'text','valueKind');copy(row.dataset,numeric&&item.value.length>16?'long':'short','valueDensity');}
     if(this.family==='key-points'||this.family==='sport-result'){
      const team=this.family==='sport-result'?content.match[item.team]:'';
-     copy(label,this.family==='sport-result'?item.minute||'':String(index+1).padStart(2,'0'));
-     copy(value,this.family==='sport-result'?item.name:item.text);copy(detail,team);copy(detail,!team,'hidden');
+     copy(label,!team&&this.family==='sport-result','hidden');
+     copy(label,this.family==='sport-result'?team:String(index+1).padStart(2,'0'));
+     copy(value,item.text);copy(detail,'');copy(detail,true,'hidden');
      copy(row.dataset,String(index+1),'position');return;
     }
     copy(label,this.family==='fact-card'?item.label:this.family==='answer-timeline'?plannedTimeline?item.time:`${item.time}\n${d.forecast===true?'Prognose':item.status==='planned'?'Planlagt':'Registreret'}`:String(index+1).padStart(2,'0'));

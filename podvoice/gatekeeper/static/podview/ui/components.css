@@ -886,3 +886,4 @@ pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pe
 #answer-host>pv-answer[data-thread]~pv-answer[data-thread]{border-top-left-radius:0;border-top-right-radius:0}
 #answer-host>pv-answer[data-thread=earlier] :is(.dismiss,.answer-actions,.followups,.retry-answer){display:none!important}
 #answer-host>pv-answer[data-thread=earlier] .answer-meta{display:none}
+#open-history.header-history[data-device=offline]{color:var(--pv-ink-3)}
