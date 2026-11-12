@@ -1,3 +1,7 @@
+## 2.0.180
+
+- Stemmens hjemmestyring, vejret og musikkens højttalerliste virker igen på Home Assistant 2026.11. PodVoice accepterer nu HA's nye MCP-svar uden serverversion og HA's nye værktøjsnavne med kildepræfiks (fx »intent__HassTurnOn«). Kræver fortsat HA-komponent 0.1.21.
+
 ## 2.0.179
 
 - PodVoice-komponenten i Home Assistant indlæses igen efter opdatering til HA 2026.11, så Tesla, robot, timere og administratorhandlinger virker i PodView igen (kræver HA-komponent 0.1.21). Den virker fortsat på HA 2026.8–2026.10.

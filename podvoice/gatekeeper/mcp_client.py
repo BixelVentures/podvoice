@@ -21,12 +21,16 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Callable
 from typing import Any
 
 import httpx
 
 from . import __version__
+
+# HA 2026.11 tool names: "<source>__<name>" (source is a lowercase slug).
+_NAMESPACED = re.compile(r"^[a-z0-9_]+?__(?!_)(.+)$")
 
 _LOG = logging.getLogger("podvoice.mcp")
 
@@ -64,6 +68,7 @@ class HomeAssistantMCP:
         self._token = token
         self._client = client
         self._next_id = 0
+        self._wire_names: dict[str, str] = {}
         self.initialized = False
         self.server_info: dict = {}
 
@@ -172,17 +177,16 @@ class HomeAssistantMCP:
         capabilities = result.get("capabilities")
         if not isinstance(capabilities, dict) or not isinstance(capabilities.get("tools"), dict):
             raise McpError("MCP initialize: tools capability is missing", connection_shaped=True)
-        server_info = result.get("serverInfo")
-        if (
-            not isinstance(server_info, dict)
-            or not isinstance(server_info.get("name"), str)
-            or not server_info.get("name")
-            or not isinstance(server_info.get("version"), str)
-            or not server_info.get("version")
-        ):
-            raise McpError("MCP initialize: invalid serverInfo", connection_shaped=True)
+        # serverInfo is descriptive only. HA 2026.11 (mcp 2.x) sends it without a version,
+        # so missing or partial values never turn off home control.
+        raw_info = result.get("serverInfo")
+        server_info = {
+            key: raw_info[key][:200]
+            for key in ("name", "version")
+            if isinstance(raw_info, dict) and isinstance(raw_info.get(key), str) and raw_info[key]
+        }
         await self._notify("notifications/initialized")
-        self.server_info = dict(server_info)
+        self.server_info = server_info
         self.initialized = True
         _LOG.info(
             "mcp: connected to %s (%s %s)",
@@ -210,7 +214,7 @@ class HomeAssistantMCP:
             tools.extend(page)
             next_cursor = result.get("nextCursor")
             if next_cursor is None:
-                return tools
+                return self._local_names(tools)
             if not isinstance(next_cursor, str) or not next_cursor:
                 raise McpError(
                     "MCP tools/list: nextCursor is not a non-empty string",
@@ -222,6 +226,27 @@ class HomeAssistantMCP:
             cursor = next_cursor
         raise McpError("MCP tools/list: pagination exceeded 10 pages", connection_shaped=True)
 
+    def _local_names(self, tools: list[dict]) -> list[dict]:
+        """HA 2026.11 prefixes each tool with its source: "intent__HassTurnOn",
+        "script__weather_forecast", "homeassistant__GetLiveContext". PodVoice keeps
+        using the plain names; a prefix is removed only when the plain name is unique,
+        and calls are sent with HA's own name. Older HA sends plain names unchanged."""
+        plain: dict[str, list[str]] = {}
+        for tool in tools:
+            name = tool.get("name")
+            if isinstance(name, str):
+                match = _NAMESPACED.match(name)
+                plain.setdefault(match.group(1) if match else name, []).append(name)
+        wire = {local: names[0] for local, names in plain.items() if len(names) == 1}
+        self._wire_names = {local: real for local, real in wire.items() if local != real}
+        renamed = {real: local for local, real in self._wire_names.items()}
+        return [
+            {**tool, "name": renamed[tool["name"]]}
+            if isinstance(tool.get("name"), str) and tool["name"] in renamed
+            else tool
+            for tool in tools
+        ]
+
     async def call_tool(
         self, name: str, arguments: dict, *, execution_guard: Callable[[], bool] | None = None
     ) -> dict:
@@ -230,4 +255,5 @@ class HomeAssistantMCP:
             await self.initialize()
         if execution_guard is not None and not execution_guard():
             raise McpError("stale_execution: session or input changed before tools/call")
-        return await self._rpc("tools/call", {"name": name, "arguments": arguments or {}})
+        wire = self._wire_names.get(name, name)
+        return await self._rpc("tools/call", {"name": wire, "arguments": arguments or {}})

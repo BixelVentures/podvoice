@@ -480,11 +480,6 @@ async def test_mcp_transport_failure_is_connection_shaped():
             "capabilities": {"tools": []},
             "serverInfo": {"name": "HA", "version": "1"},
         },
-        {
-            "protocolVersion": "2025-06-18",
-            "capabilities": {"tools": {}},
-            "serverInfo": {"name": "HA"},
-        },
     ],
 )
 @respx.mock
@@ -1671,3 +1666,92 @@ async def test_rest_discovery_overlap_cannot_reuse_generation_for_stale_mcp_dead
         finally:
             release.set()
             await asyncio.gather(delayed, return_exceptions=True)
+
+
+@pytest.mark.parametrize(
+    "server_info",
+    [
+        {"name": "home-assistant", "version": None},  # HA 2026.11 (mcp 2.3): no version
+        {"name": "home-assistant"},
+        {"name": "Home Assistant", "version": "2026.8.2"},
+        None,
+    ],
+)
+@respx.mock
+async def test_initialize_accepts_serverinfo_without_version(server_info):
+    """Green 12 Nov: HA 2026.11 sent serverInfo without a version and home control went off."""
+
+    def handler(request):
+        body = json.loads(request.content)
+        if body.get("method") == "notifications/initialized":
+            return httpx.Response(202)
+        result = {"protocolVersion": "2025-06-18", "capabilities": {"tools": {}}}
+        if server_info is not None:
+            result["serverInfo"] = server_info
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": result})
+
+    respx.post(MCP_URL).mock(side_effect=handler)
+    async with httpx.AsyncClient() as client:
+        mcp = HomeAssistantMCP(MCP_URL, "tok", client)
+        await mcp.initialize()
+    assert mcp.initialized is True
+    assert mcp.server_info.get("name") == (server_info or {}).get("name")
+
+
+@respx.mock
+async def test_ha_2026_11_namespaced_tools_keep_plain_names_and_call_real_names():
+    """HA 2026.11 names tools "<source>__<name>"; PodVoice keeps the plain names."""
+    called = []
+    tools = [
+        {"name": "intent__HassTurnOn", "description": "on", "inputSchema": {"type": "object"}},
+        {"name": "script__weather_forecast", "description": "w", "inputSchema": {"type": "object"}},
+        {"name": "homeassistant__GetLiveContext", "inputSchema": {"type": "object"}},
+        # Two sources with the same plain name stay namespaced: never guess.
+        {"name": "intent__HassStart", "inputSchema": {"type": "object"}},
+        {"name": "script__HassStart", "inputSchema": {"type": "object"}},
+        {"name": "podconnect_get_targets", "inputSchema": {"type": "object"}},
+    ]
+
+    def handler(request):
+        body = json.loads(request.content)
+        method = body.get("method")
+        if method == "notifications/initialized":
+            return httpx.Response(202)
+        if method == "initialize":
+            result = {
+                "protocolVersion": "2025-06-18",
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "home-assistant", "version": None},
+            }
+        elif method == "tools/list":
+            result = {"tools": tools}
+        else:
+            called.append(body["params"]["name"])
+            result = {"content": [{"type": "text", "text": "ok"}]}
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": body["id"], "result": result})
+
+    respx.post(MCP_URL).mock(side_effect=handler)
+    async with httpx.AsyncClient() as client:
+        mcp = HomeAssistantMCP(MCP_URL, "tok", client)
+        names = [tool["name"] for tool in await mcp.list_tools()]
+        assert names == [
+            "HassTurnOn",
+            "weather_forecast",
+            "GetLiveContext",
+            "intent__HassStart",
+            "script__HassStart",
+            "podconnect_get_targets",
+        ]
+        for name in (
+            "HassTurnOn",
+            "weather_forecast",
+            "podconnect_get_targets",
+            "intent__HassStart",
+        ):
+            await mcp.call_tool(name, {})
+    assert called == [
+        "intent__HassTurnOn",
+        "script__weather_forecast",
+        "podconnect_get_targets",
+        "intent__HassStart",
+    ]
