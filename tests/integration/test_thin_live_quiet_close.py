@@ -73,14 +73,16 @@ async def fresh_settled_quiet(session, link, monkeypatch, deliver=None):
     await until(lambda: session._test_backend_settled.is_set())
     await asyncio.sleep(0)  # Run the released finish coroutine through its reset.
     await until(lambda: session._live_quiet_work_clear(semantic=True))
-    with monkeypatch.context() as patch:
-        first = 41
-        if deliver is None:
-            deliver, _ = native_activity(session, link, patch)
-            first = 1
-        for i in range(first, first + 1 + int(session.idle_timeout_s * 10)):
-            deliver(i, empty=not bool(session._live_output_bytes))
-        await until(lambda: session.brain._close_requested)
+    # The fake clock stays installed until the test ends. Restoring the real clock here let a
+    # close deadline computed on the fake clock (~100 s) be compared with real monotonic time,
+    # which on a slow CI runner closed as "output-quiet-unconfirmed" instead of "model-close".
+    first = 41
+    if deliver is None:
+        deliver, _ = native_activity(session, link, monkeypatch)
+        first = 1
+    for i in range(first, first + 1 + int(session.idle_timeout_s * 10)):
+        deliver(i, empty=not bool(session._live_output_bytes))
+    await until(lambda: session.brain._close_requested)
 
 
 @pytest.mark.asyncio
