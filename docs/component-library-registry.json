@@ -2441,7 +2441,8 @@
           "method:renderLiveVehicleCommands": 1,
           "method:renderLiveVehicleFeedback": 1,
           "method:vehicleActionBlocked": 1,
-          "method:liveVehicleObservedSince": 1
+          "method:liveVehicleObservedSince": 1,
+          "arrow:vehicleFieldValue": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",

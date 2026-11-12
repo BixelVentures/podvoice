@@ -561,11 +561,36 @@ async def test_trunk_direction_requires_known_unchanged_state_and_supported_acti
         ("passengerSeatHeat", {"option": "off"}),
     ],
 )
-@pytest.mark.parametrize("state", ["off", "unknown", "unavailable"])
+@pytest.mark.parametrize("state", ["off", "unavailable"])
 async def test_dependent_controls_require_climate_on_at_prepare(h, action, args, state):
     h.states[h.policy["entities"]["climate"]]["state"] = state
     assert await h.adapter.prepare(current=lambda: True, action=action) is None
     assert h.calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "action,args,role",
+    [
+        ("lock", {}, "lock"),
+        ("unlock", {}, "lock"),
+        ("climateOn", {}, "climate"),
+        ("climateOff", {}, "climate"),
+        ("temperature", {"temperature": 22}, "climate"),
+        ("driverSeatHeat", {"option": "high"}, "climate"),
+        ("defrostOn", {}, "defrost"),
+    ],
+)
+async def test_unknown_ha_state_after_restart_still_sends_explicit_commands(h, action, args, role):
+    # Green 14.02: climate.fam_bach_klima was unknown after a Core restart, and Klima gave
+    # "Betjeningen kunne ikke hentes" without a command. Tesla wakes the car for the command.
+    h.states[h.policy["entities"][role]]["state"] = "unknown"
+    if role != "climate":
+        h.states[h.policy["entities"]["climate"]]["state"] = "unknown"
+    setup = await h.setup(action, args)
+    assert setup["ok"], setup
+    assert (await h.run(setup, f"{action}-unknown"))["outcome"] == "accepted"
+    assert len(h.calls) == 1
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,8 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "podvoice"))
 
 from gatekeeper.mcp_client import HomeAssistantMCP  # noqa: E402
+from gatekeeper.podview_weather import weather_projection  # noqa: E402
+from gatekeeper.tools import _mcp_result_to_contract  # noqa: E402
 
 
 class McpServerClientTests(unittest.IsolatedAsyncioTestCase):
@@ -81,6 +83,35 @@ class McpServerClientTests(unittest.IsolatedAsyncioTestCase):
                 },
             )
         )
+        # Green's weather owner: the exposed script weather_forecast answering PodVoice's
+        # contract (source/location/units/retrieved_at/forecast) as its response variable.
+        now = "{{ now().isoformat() }}"
+        later = "{{ (now() + timedelta(hours=1)).isoformat() }}"
+        weather = {
+            "entity_id": "weather.forecast_hjem",
+            "source": "Home Assistant / Met.no",
+            "location": "Hjem",
+            "temperature_unit": "°C",
+            "precipitation_unit": "mm",
+            "retrieved_at": now,
+            "state_updated_at": "{{ (now() - timedelta(minutes=1)).isoformat() }}",
+            "condition": "rainy",
+            "temperature": 9,
+            "forecast_type": "hourly",
+            "forecast": [{"datetime": later, "temperature": 9, "precipitation_probability": 11.1}],
+        }
+        script = {
+            "alias": "Weather forecast",
+            "sequence": [
+                {"variables": {"out": weather}},
+                {"stop": "done", "response_variable": "out"},
+            ],
+        }
+        self.assertTrue(
+            await async_setup_component(
+                self.hass, "script", {"script": {"weather_forecast": script}}
+            )
+        )
         self.assertTrue(await async_setup_component(self.hass, "mcp_server", {}))
         result = await self.hass.config_entries.flow.async_init(
             "mcp_server", context={"source": "user"}
@@ -98,6 +129,7 @@ class McpServerClientTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNotNone(self.hass.states.get("weather.hjem"))
         async_expose_entity(self.hass, "conversation", "weather.hjem", True)
+        async_expose_entity(self.hass, "conversation", "script.weather_forecast", True)
 
         server = TestServer(self.hass.http.app, host="127.0.0.1")
         await server.start_server()
@@ -129,3 +161,16 @@ class McpServerClientTests(unittest.IsolatedAsyncioTestCase):
         # because this fixture never fires HA's started event.
         self.assertIn("names: Hjem", str(result))
         self.assertIn("domain: weather", str(result))
+
+    async def test_weather_script_reaches_the_weather_card(self):
+        # Green 12 Nov on HA 2026.11: "Vejret kunne ikke hentes". The script tool now answers
+        # {"result": ...} without the former "success": true, so the card got no weather.
+        mcp = HomeAssistantMCP(self.url, self.token, self.client)
+        await mcp.initialize()
+        self.assertIn("weather_forecast", {tool["name"] for tool in await mcp.list_tools()})
+        result = await mcp.call_tool("weather_forecast", {})
+        self.assertFalse(result.get("isError"), result)
+        contract = _mcp_result_to_contract(result)
+        projected = weather_projection(contract)
+        self.assertEqual(projected["status"], "observed", projected)
+        self.assertEqual(projected["data"]["location"], "Hjem")

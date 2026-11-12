@@ -540,3 +540,40 @@ test('historical Tesla defrost is displayed but cannot authorize a new action',a
  const data=vehicleObservation({status:'observed',source:'tesla_fleet_snapshot',observedAt:100,entityIds:['switch.car'],data:{climate:{defrost:false}},historicalFields:['climate.defrost'],fieldObservedAt:{'climate.defrost':100}});
  view.render(data,{vehicleActions:['defrostOn','defrostOff']});assert.equal(view.defrostButton.textContent,'Afrim ruder');assert.equal(view.defrostButton.disabled,true);await view.beginVehicle('defrostOn',view.defrostButton);assert.deepEqual(calls,[]);view.cleanup();
 });
+test('Klima with an unknown HA state is sent and waits for the car, then shows what HA reports (Green 14.02)',async()=>{
+ const {root}=fixture();let sends=0;
+ const view=new VehicleView(root,{onVehicleSend:async()=>{sends++;return {status:'accepted'};}});
+ const options={vehicleActions:['climateOn','climateOff'],feedbackScope:'same-car'};
+ const report=(status,stamp)=>vehicleObservation({status:'observed',source:'home_assistant_state',
+  observedAt:stamp,fieldObservedAt:status?{'climate.status':stamp}:{},entityIds:['sensor.car'],
+  data:{charging:{},climate:status?{status}:{}}});
+ const now=Date.now()/1000;
+ view.render(report(null,now-600),options);
+ assert.equal(view.liveVehicleButtons.climateOn.hidden,false);
+ assert.equal(view.liveVehicleButtons.climateOn.disabled,false);
+ await view.finishVehicle({confirmation:{action:'climateOn'},operation:{
+  presentationCurrent:()=>true,observationCurrent:()=>true,
+ }},view.liveVehicleButtons.climateOn);
+ assert.equal(sends,1);
+ const command=view.liveVehicleCommands.get('climate');
+ assert.equal(command.phase,'observing');
+ assert.equal(command.label,'Sendt · venter på bilen…');
+ view.render(report('heat_cool',command.sentAt+5),options);
+ assert.equal(view.climateFeedback.textContent,'Klimaet er tændt.');
+ view.cleanup();
+});
+test('an older remembered lock value does not block Lås; the command waits for the car',async()=>{
+ const {root}=fixture();
+ const view=new VehicleView(root,{onVehicleSend:async()=>({status:'accepted'})});
+ const options={vehicleActions:['lock','unlock'],feedbackScope:'same-car'};
+ const now=Date.now()/1000;
+ view.render(vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:now-3600,
+  fieldObservedAt:{locked:now-3600},historicalFields:['locked'],entityIds:['sensor.car'],
+  data:{locked:false,charging:{},climate:{}}}),options);
+ assert.equal(view.liveVehicleButtons.lock.disabled,false);
+ await view.finishVehicle({confirmation:{action:'lock'},operation:{
+  presentationCurrent:()=>true,observationCurrent:()=>true,
+ }},view.liveVehicleButtons.lock);
+ assert.equal(view.liveVehicleCommands.get('lock').label,'Sendt · venter på bilen…');
+ view.cleanup();
+});
