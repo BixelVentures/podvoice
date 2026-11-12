@@ -754,3 +754,46 @@ class ConnectionMemory:
         if record != stored:
             self._save(record)
         return {"state": state, "since": since, "remembered": False}
+
+
+class StatusRefresh:
+    """When PodVoice asks HA to re-read Tesla's online/asleep state (Green 12 Nov).
+
+    After a Core restart every tesla_fleet entity is unknown until the car wakes.
+    homeassistant.update_entity on the status sensor runs the integration's own
+    coordinator refresh: the free vehicle-list call, and vehicle_data only when the car
+    is already online. It never wakes the car (checked in HA 2026.11.1's tesla_fleet).
+    Once per owner binding (startup or HA reconnect), then again when the sensor has
+    been unknown for 2 minutes, at most once per 10 minutes.
+    """
+
+    UNKNOWN_FOR = 120
+    INTERVAL = 600
+
+    def __init__(self) -> None:
+        self.binding: object = None
+        self.sent_at: float | None = None
+        self.unknown_since: float | None = None
+
+    def wants_state(self, binding: object, now: float) -> bool:
+        """Whether a state read is worth doing now; reads are not free on every poll."""
+        if binding != self.binding:
+            self.binding, self.sent_at, self.unknown_since = binding, None, None
+        if self.sent_at is None:
+            return True
+        if now - self.sent_at < self.INTERVAL:
+            return False
+        return self.unknown_since is None or now - self.unknown_since >= self.UNKNOWN_FOR
+
+    def due(self, state: object, now: float) -> bool:
+        if self.sent_at is None:
+            return True
+        if state != "unknown":
+            self.unknown_since = None
+            return False
+        if self.unknown_since is None:
+            self.unknown_since = now
+        return now - self.unknown_since >= self.UNKNOWN_FOR and now - self.sent_at >= self.INTERVAL
+
+    def sent(self, now: float) -> None:
+        self.sent_at = now

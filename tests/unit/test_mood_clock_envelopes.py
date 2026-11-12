@@ -29,13 +29,15 @@ async def coarse(payload, *, structured=True, outer_error=False, alive=None):
 
 
 @pytest.mark.parametrize("structured", [True, False])
-@pytest.mark.parametrize("wrapper", ["flat", "success", "ok", "success_ok"])
+@pytest.mark.parametrize("wrapper", ["flat", "success", "ok", "success_ok", "ha_2026_11"])
 async def test_documented_clock_envelopes(structured, wrapper):
     value = {"time": "18:21:00.123", "date": "2026-10-15", "private": "NEVER_MODEL"}
     if wrapper == "success":
         value = {"success": True, "result": value}
     elif wrapper == "ok":
         value = {"ok": True, "data": value}
+    elif wrapper == "ha_2026_11":  # HA 2026.11 script tools drop "success": true
+        value = {"result": value}
     elif wrapper == "success_ok":
         value = {"success": True, "result": {"ok": True, "data": value}}
     assert await coarse(value, structured=structured) == {"hour": 18, "roomKind": "kitchen"}
@@ -48,7 +50,6 @@ async def test_documented_clock_envelopes(structured, wrapper):
         {"success": "true", "result": {"time": "18:00"}},
         {"ok": False, "data": {"time": "18:00"}},
         {"ok": 1, "data": {"time": "18:00"}},
-        {"result": {"time": "18:00"}},
         {"data": {"time": "18:00"}},
         {"success": True, "result": {"ok": False, "time": "18:00"}},
         {"ok": True, "data": {"success": False, "time": "18:00"}},
