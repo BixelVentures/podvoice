@@ -316,6 +316,7 @@ test('temporary continuity outage recovers automatically when the owner returns'
  try{await h.transport.start();const hint=h.store.getItem(h.key);value=snapshot();value.revision=2;value.controllerContinuity.available=false;h.transport.stream.snapshot({data:JSON.stringify(value)});assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.store.getItem(h.key),hint);value=snapshot();value.revision=3;h.transport.stream.snapshot({data:JSON.stringify(value)});await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2);assert.equal(h.transport.namedControllerRenewed,true);assert.equal(h.store.getItem(h.key),hint);await new Promise(resolve=>setTimeout(resolve,1100));assert.equal(renewals,2,'successful recovery must not schedule an extra renewal');assert(h.calls.every(c=>['snapshot','controller/renew'].includes(c.path)));}finally{h.transport.close();}
 });
 
-for(const status of [401,403])test(`ordinary HA snapshot ${status} blocks access without renewal or enrollment`,async()=>{
+// 401 is HA's ingress session: renewed quietly once (ingress-session-renewal.test.mjs).
+for(const status of [403])test(`ordinary HA snapshot ${status} blocks access without renewal or enrollment`,async()=>{
  const h=rig({url:ROOT,screenEnrollment:false,handler:path=>reply(snapshot(),status)});h.store.setItem(h.key,JSON.stringify(intent()));try{await assert.rejects(()=>h.transport.start(),/transport_access_denied/);assert.equal(h.transport.recoveryBlocked,true);assert.equal(h.transport.connected,false);assert.deepEqual(h.calls.map(call=>call.path),['snapshot']);assert.equal(posts(h.calls).length,0);}finally{h.transport.close();}
 });

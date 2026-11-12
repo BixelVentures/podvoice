@@ -5,6 +5,7 @@ from __future__ import annotations
 import fcntl
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -15,10 +16,38 @@ from pathlib import Path
 
 _AREA_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
 _PLACEMENT_MAX = 2**53 - 1
+# Screens per room. The HA component and its options flow use the same bound.
+ROOM_SCREEN_LIMIT = 8
+
+
+_LOG = logging.getLogger("podvoice.podview")
 
 
 class ContinuityDenied(ValueError):
     pass
+
+
+def _short_ref(value) -> str:
+    return hashlib.sha256(str(value).encode(errors="surrogatepass")).hexdigest()[:8]
+
+
+def log_screen_enrollment(step: str, room, ref=None, *, reason=None, **counts) -> None:
+    """One add-on log line per screen pairing step: hashes and codes only, never secrets."""
+    try:
+        if isinstance(reason, BaseException):
+            text = str(reason)
+            reason = text if re.fullmatch(r"[a-z ]{1,48}", text) else type(reason).__name__
+        extra = "".join(f" {key}={value}" for key, value in counts.items() if type(value) is int)
+        _LOG.info(
+            "podview_screen_enrollment step=%s room_ref=%s ref=%s reason=%s%s",
+            step,
+            _short_ref(room),
+            _short_ref(ref) if ref is not None else "none",
+            str(reason or "none").replace(" ", "_"),
+            extra,
+        )
+    except Exception:
+        pass  # Diagnostics never change the pairing outcome.
 
 
 def _object(pairs):
@@ -31,7 +60,7 @@ def _object(pairs):
 
 
 class ControllerRegistry:
-    """At most two active browser profiles per room, with durable revocation.
+    """At most ROOM_SCREEN_LIMIT browser profiles per room, with durable revocation.
 
     Only explicit one-use administrator pairing may create a missing registry.
     All subsequent reads require it; corruption never becomes empty authority.
@@ -582,7 +611,7 @@ class ControllerRegistry:
             }
             if len(data["records"]) >= 256:
                 raise ContinuityDenied("registry full")
-            if sum(row["room"] == room for row in data["records"].values()) >= 2:
+            if sum(row["room"] == room for row in data["records"].values()) >= ROOM_SCREEN_LIMIT:
                 raise ContinuityDenied("room enrollment full")
             identity, secret = secrets.token_hex(16), secrets.token_urlsafe(32)
             token = identity + "." + secret
@@ -777,6 +806,12 @@ class ControllerRegistry:
         try:
             data = self._load()
             now = self._now()
+            # Newest first; equal timestamps keep the later enrollment first.
+            rows = sorted(
+                reversed(list(data["records"].items())),
+                key=lambda item: item[1]["issuedAt"],
+                reverse=True,
+            )
             return [
                 {
                     "id": identity,
@@ -795,7 +830,7 @@ class ControllerRegistry:
                     and now >= min(row["expiresAt"], row["issuedAt"] + self.days * 86400)
                     else "active",
                 }
-                for identity, row in data["records"].items()
+                for identity, row in rows
                 if row["room"] == room
             ]
         finally:

@@ -41,7 +41,8 @@ const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admissio
 // Same-origin HA-ingress transport. Import only in live /view/ mode.
 // No provider credentials, cross-origin bridge, action retries or offline actions. Recovery only reacquires reads and existing grants.
 export class PodVoiceTransport {
- constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild} = {}) {
+ constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild, cookies = () => globalThis.document?.cookie || ''} = {}) {
+  this.cookies = cookies;
   const page = new URL(url);
   if (!['https:', 'http:'].includes(page.protocol) || !/\/view\//.test(page.pathname)) throw new Error('PodVoice ingress /view/ is required');
   const prefix = page.pathname.slice(0, page.pathname.lastIndexOf('/view/') + 6);
@@ -245,6 +246,22 @@ export class PodVoiceTransport {
   const delay=Math.min(30000,1000*2**Math.min(attempt,5));
   this.recoveryTimer=setTimeout(()=>{this.recoveryTimer=null;if(!this.closed&&!this.recoveryBlocked&&generation===this.generation)this.restart(true,!this.recoveryReadOnly).catch(()=>{});},delay);
  }
+ // HA's app panel renews its Supervisor ingress session (cookie path /api/hassio_ingress/) every 60 s.
+ // After a Core restart the old session answers 401 until then; PodView waits for that quietly.
+ ingressSession(){try{return /(?:^|;\s*)ingress_session=([^;]*)/.exec(this.cookies()||'')?.[1]||'';}catch{return '';}}
+ awaitIngressRenewal(generation){
+  const before=this.ingressSession();let ticks=0;
+  return new Promise(resolve=>{
+   this.ingressRenewalDone=resolve;
+   const tick=()=>{
+    this.ingressRenewalTimer=null;
+    if(generation!==this.generation||this.closed){resolve(false);return;}
+    if(this.ingressSession()!==before||++ticks>65){resolve(true);return;}
+    this.ingressRenewalTimer=setTimeout(tick,1000);
+   };
+   this.ingressRenewalTimer=setTimeout(tick,1000);
+  }).finally(()=>{this.ingressRenewalDone=null;});
+ }
  async restart(retrying=false,renew=true,coalesce=false){this.restartCount=(this.restartCount||0)+1;try{return await this.restartRead(retrying,renew,coalesce);}finally{this.restartCount--;this.schedulePeerRead();}}
  async restartRead(retrying=false,renew=true,coalesce=false) {
   // Enrollment denial does not revoke verified reads; automatic recovery stays read-only.
@@ -256,9 +273,17 @@ export class PodVoiceTransport {
   this.notify('onConnection','connecting');
   try {
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
+   if(response.status===401&&generation===this.generation){
+    // 401 is HA's ingress session, not PodVoice (which answers 403): renew quietly once.
+    if(!await this.awaitIngressRenewal(generation))return;
+    const retry={credentials:'same-origin',cache:'no-store',signal:this.controller.signal};
+    response=await this.request(this.endpoint('snapshot'),retry);
+   }
    let value = await response.json(),readAt=Date.now();
    if (generation !== this.generation) return;
-   if([401,403].includes(response.status)){this.recoveryBlocked=true;throw Error('transport_access_denied');}
+   if([401,403].includes(response.status)){
+    this.recoveryBlocked=true;this.sessionExpired=response.status===401;throw Error('transport_access_denied');
+   }
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
    const normalHA=haIngress(value);
    const boot=value.bootId,room=value.roomId;
@@ -552,10 +577,12 @@ export class PodVoiceTransport {
  close(disposeCoordinator=true) {
   this.stopDiagnosticUpload();this.recordDiagnostic('lifecycle',{code:'cleanup'});clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;if(disposeCoordinator)this.flushDiagnostics();
   if(disposeCoordinator){this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;const channel=this.peerChannel;this.peerChannel=null;if(channel){channel.onmessage=null;if(!this.renewHttpPending)channel.close();}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;}
-  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;
+  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;this.sessionExpired=false;
+  clearTimeout(this.ingressRenewalTimer);this.ingressRenewalTimer=null;
+  const renewal=this.ingressRenewalDone;this.ingressRenewalDone=null;
   clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;this.namedControllerRenewed=false;
   clearTimeout(this.controllerRenewTimer);this.controllerRenewTimer=null;this.controllerRenewed=false;this.cookieReadAuthority=false;
-  this.generation++; this.closed = true; this.connected = false; this.acceptedReadAt = null;
+  this.generation++; this.closed = true; this.connected = false; this.acceptedReadAt = null;renewal?.(false);
   clearTimeout(this.freshnessTimer);this.controller?.abort(); this.stream?.close(); this.stream = null;
  }
 }
