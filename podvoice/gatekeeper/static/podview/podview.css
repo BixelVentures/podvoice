@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 92ddeb9da0a0365cea88dbc2843471487c0114040677076cba40433be48632a9 */
+/* Source: ui-kit.css · SHA256 d8715dd89991940a6112539486ae5b24fcafdf62934b72693e9095061af424cf */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -3044,7 +3044,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 :root{--pv-vejr:var(--pv-weather);--pv-vejr-strong:var(--pv-weather-strong);--pv-vejr-ink:var(--pv-weather-ink);
  --pv-lys:var(--pv-light);--pv-lys-strong:var(--pv-light-strong);--pv-lys-ink:var(--pv-light-ink);--pv-detail-min:200px;
  --pv-detail-columns:4;--pv-detail-columns-content:3;--pv-press-release:var(--pv-d-press);--pv-clock-size:128px;
- --pv-clock-night:#B04A3A}
+ --pv-clock-night:#6B3A2C;--pv-clock-night-2:#4A2A20;--pv-clock-night-line:#3A2018}
 .pv-card,.pv-hero,.pv-tile{box-sizing:border-box;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow);color:var(--pv-ink);background:var(--pv-surface)}
 .pv-card{padding:var(--pv-s3);gap:var(--pv-s1)}
 .pv-hero{grid-column:1/-1;width:100%;min-height:var(--pv-detail-min);padding:var(--pv-s4);gap:var(--pv-s2)}
@@ -6139,4 +6139,174 @@ body button:not(.is-pressed){transition-property:filter!important}
   background:var(--pv-surface);box-shadow:0 40px 80px -30px rgba(0,0,0,.5);translate:none!important;
   transform:none!important}
  body>dialog#quick-sheet.pv-kit-dialog::backdrop{background:rgba(23,23,26,.42)}
+}
+
+/* iPad Foto-Ro (lærred v192 »A-FotoRo«, v190 »FotoRo-Aktiv«, issue 390): the photo fills 1180×820.
+   Clock and date top-left, weather top-right, activity cards always left, music always right (340×80 glass).
+   Only music and radio get the round 52-px control; everything else keeps the chevron. */
+.empty-find-context{display:none}
+@media (min-width:1000px){
+ :root{--pv-rest-glass:rgba(247,246,243,0.88)}@supports (color:color-mix(in srgb,red,red)){:root{--pv-rest-glass:color-mix(in srgb,var(--pv-surface) 88%,transparent)}}
+ body:has(>pv-widget-host[data-view=rest]){padding:0!important}
+ body pv-widget-host[data-view=rest] .photo-view{border-radius:0!important;padding:0!important}
+ body pv-widget-host[data-view=rest] .photo-view::before{background:linear-gradient(180deg,rgba(0,0,0,.42),
+   transparent 280px),
+  linear-gradient(0deg,rgba(0,0,0,.35),transparent 260px)}
+ body pv-widget-host[data-view=rest] #photo-view::after{z-index:1;
+   background:radial-gradient(circle,rgba(255,255,255,.55),
+  rgba(255,255,255,0) 70%)}
+ body pv-widget-host[data-view=rest] #photo-view{--pv-press-size:160px}
+ body pv-widget-host[data-view=rest] .photo-time{position:absolute;left:48px;top:36px;display:flex;
+   flex-direction:column;gap:10px;
+  text-shadow:0 1px 10px rgba(0,0,0,.45)}
+ body pv-widget-host[data-view=rest] #photo-clock{font-size:168px;line-height:.9;font-weight:600;letter-spacing:-.05em}
+ body pv-widget-host[data-view=rest] #photo-date{font-size:26px;line-height:32px;font-weight:600}
+ body pv-widget-host[data-view=rest] .photo-caption{display:block;position:absolute;left:0;right:0;bottom:14px;
+  text-align:center;font:400 15px/20px var(--pv-font);color:var(--pv-on-dark);text-shadow:0 1px 10px rgba(0,0,0,.45)}
+ body pv-widget-host[data-view=rest] .photo-weather{right:48px;top:44px;display:flex;flex-direction:column;
+   align-items:flex-end;
+  gap:0;min-height:0;text-shadow:0 1px 10px rgba(0,0,0,.45)}
+ body pv-widget-host[data-view=rest] .photo-weather>img{display:none}
+ body pv-widget-host[data-view=rest] .photo-weather strong{font:600 44px/1.1 var(--pv-font);letter-spacing:-.03em}
+ body pv-widget-host[data-view=rest] .photo-weather>span{font:400 18px/24px var(--pv-font)}
+ /* Cards: glass 340×80, radius 24, padding 0 16 0 20; 48-px chip, 20/800 primary, 15 context. */
+ body pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview){box-sizing:border-box;
+  width:340px!important;height:80px!important;min-height:80px!important;max-height:80px!important;
+   padding:0 16px 0 20px!important;
+  border-radius:24px!important;background:var(--pv-rest-glass)!important;color:var(--pv-ink)!important;
+  -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px)!important;box-shadow:0 18px 40px -20px rgba(0,0,0,.55)}
+ body pv-widget-host[data-view=rest] :is(.player,#player-empty){top:auto!important;right:40px!important;
+   bottom:40px!important;
+  left:auto!important;margin:0!important}
+ body pv-widget-host[data-view=rest] #resource-rail{left:40px;bottom:40px!important;width:340px;gap:12px;
+   overflow:visible}
+ body pv-widget-host[data-view=rest] .player{grid-template-columns:48px minmax(0,1fr) 52px!important;
+  grid-template-rows:80px!important;column-gap:16px!important;row-gap:0!important}
+ body pv-widget-host[data-view=rest] .player :is(.cover-button,.cover-button .cover){width:48px;height:48px;
+   border-radius:14px}
+ body pv-widget-host[data-view=rest] .player .track strong{font:800 20px/26px var(--pv-font);
+   font-variant-numeric:tabular-nums}
+ body pv-widget-host[data-view=rest] .player .track span{font:400 15px/20px var(--pv-font);color:var(--pv-ink-2)}
+ body pv-widget-host[data-view=rest] .player .transport{margin-left:-4px}
+ body pv-widget-host[data-view=rest] .player .transport .main-control{width:52px!important;height:52px!important;
+  min-width:52px!important;min-height:52px!important;max-height:52px!important;padding:0!important;
+  border-radius:50%!important;background:var(--pv-dark)!important;display:grid;place-items:center}
+ body pv-widget-host[data-view=rest] .player .main-control>img{width:20px;height:20px;filter:brightness(0) invert(1)}
+ body pv-widget-host[data-view=rest] #player-empty>.player-empty-art{position:absolute;left:20px!important;
+   top:16px!important;
+  margin:0!important;translate:none;grid-area:auto!important;width:48px!important;height:48px!important;
+  border-radius:14px;background:var(--pv-music);display:grid;place-items:center}
+ body pv-widget-host[data-view=rest] #player-empty>.player-empty-art>img{width:24px;height:24px}
+ body pv-widget-host[data-view=rest] #player-empty>#empty-find-music{display:grid;
+   grid-template-columns:minmax(0,1fr) 18px;
+  grid-template-rows:26px 20px;align-content:center!important;align-items:center;column-gap:12px;row-gap:0!important;
+  height:80px;min-height:80px;padding:0 16px 0 84px!important;
+  font:800 20px/26px var(--pv-font);text-align:left;white-space:nowrap}
+ body pv-widget-host[data-view=rest] #player-empty>#empty-find-music>img{grid-column:2;grid-row:1/3;align-self:center;
+  width:18px;height:18px}
+ body pv-widget-host[data-view=rest] #player-empty>#empty-find-music>.empty-find-context{display:block;grid-column:1;
+   grid-row:2;
+  overflow:hidden;text-overflow:ellipsis;font:400 15px/20px var(--pv-font);color:var(--pv-ink-2)}
+ body pv-widget-host[data-view=rest] #player-empty>#empty-find-music>.empty-find-context:empty{display:none}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview{grid-template-columns:48px minmax(0,1fr) 18px;
+  grid-template-rows:80px;column-gap:16px;align-items:center}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-visual{position:relative;width:48px;
+   height:48px;
+  border-radius:14px;background:var(--pv-surface-2)}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-visual>img{width:24px;height:24px}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview[data-kind=vacuum] .resource-visual{background:var(--pv-robot)}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identity=tesla] .resource-visual{
+  background:var(--pv-tint)}
+ /* Older layers rebind --pv-timer-accent to on-dark; the Foto-Ro chip uses the palette's coral (line 6) again. */
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview[data-kind=timer] .resource-visual{background:var(--pv-dark);
+  --pv-timer-accent:#FF7A5C}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview[data-kind=timer] .resource-visual>img{visibility:hidden}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview[data-kind=timer] .resource-visual::after{content:"";
+  position:absolute;inset:0;width:auto;height:auto;background:var(--pv-timer-accent)!important;
+  -webkit-mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xMjgsNDBhOTYsOTYsMCwxLDAsOTYsOTZBOTYuMTEsOTYuMTEsMCwwLDAsMTI4LDQwWm0wLDE3NmE4MCw4MCwwLDEsMSw4MC04MEE4MC4wOSw4MC4wOSwwLDAsMSwxMjgsMjE2Wk0xNzMuNjYsOTAuMzRhOCw4LDAsMCwxLDAsMTEuMzJsLTQwLDQwYTgsOCwwLDAsMS0xMS4zMi0xMS4zMmw0MC00MEE4LDgsMCwwLDEsMTczLjY2LDkwLjM0Wk05NiwxNmE4LDgsMCwwLDEsOC04aDQ4YTgsOCwwLDAsMSwwLDE2SDEwNEE4LDgsMCwwLDEsOTYsMTZaIi8+PC9zdmc+") center/24px no-repeat!important;
+   mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xMjgsNDBhOTYsOTYsMCwxLDAsOTYsOTZBOTYuMTEsOTYuMTEsMCwwLDAsMTI4LDQwWm0wLDE3NmE4MCw4MCwwLDEsMSw4MC04MEE4MC4wOSw4MC4wOSwwLDAsMSwxMjgsMjE2Wk0xNzMuNjYsOTAuMzRhOCw4LDAsMCwxLDAsMTEuMzJsLTQwLDQwYTgsOCwwLDAsMS0xMS4zMi0xMS4zMmw0MC00MEE4LDgsMCwwLDEsMTczLjY2LDkwLjM0Wk05NiwxNmE4LDgsMCwwLDEsOC04aDQ4YTgsOCwwLDAsMSwwLDE2SDEwNEE4LDgsMCwwLDEsOTYsMTZaIi8+PC9zdmc+") center/24px no-repeat!important}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label{display:block;grid-column:2;
+   min-width:0;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:400 15px/20px var(--pv-font);color:var(--pv-ink-2)}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label>.resource-value{display:block;
+  font:800 20px/26px var(--pv-font)!important;color:var(--pv-ink)!important;font-variant-numeric:tabular-nums}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label>strong{display:inline!important;
+  font:400 15px/20px var(--pv-font)!important;color:var(--pv-ink-2)!important}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview .resource-label>strong>.resource-title-full{display:none}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview .resource-label>strong>.resource-title-short{display:inline}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label>small{display:inline!important;
+  font:400 15px/20px var(--pv-font)!important;color:var(--pv-ink-2)!important}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview .resource-label>small:not([hidden]):not(:empty)::before{
+  content:" · "}
+ /* Without a value the title is the primary line. */
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview .resource-label:has(>.resource-value[hidden])>strong{
+  display:block!important;font:800 20px/26px var(--pv-font)!important;color:var(--pv-ink)!important}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview .resource-label:has(>.resource-value[hidden])>strong>
+  .resource-title-full{display:inline}
+ body pv-widget-host[data-view=rest] #resource-rail>
+  .resource-preview .resource-label:has(>.resource-value[hidden])>strong>
+  .resource-title-short{display:none}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label:has(>.resource-value[hidden])>
+  small::before{content:none}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview .resource-label>.resource-facts,
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview>.resource-facts,
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview>.resource-context{display:none!important}
+ body pv-widget-host[data-view=rest] #resource-rail>.resource-preview>.resource-chevron{display:block!important;
+   grid-column:3;
+  width:18px;height:18px;filter:brightness(0)}
+
+ /* Foto-Nat 21–7: black, no photo, dimmed warm clock and weather in the middle; only a running timer as a pill. */
+ html:has(pv-widget-host[data-view=rest][data-night=true]),body:has(pv-widget-host[data-view=rest][data-night=true]){
+  background:#000}
+ body pv-widget-host[data-view=rest][data-night=true] .photo-view{background:#000}
+ body pv-widget-host[data-view=rest][data-night=true] .photo-view>img,
+ body pv-widget-host[data-view=rest][data-night=true] .photo-view::before,
+ body pv-widget-host[data-view=rest][data-night=true] :is(.photo-caption,#photo-date){display:none}
+ body pv-widget-host[data-view=rest][data-night=true] #photo-view::after{background:radial-gradient(circle,
+  rgba(107,58,44,.6),rgba(107,58,44,0) 70%)}
+ body pv-widget-host[data-view=rest][data-night=true] .photo-time{left:0;right:0;top:310px;align-items:center;
+  color:var(--pv-clock-night);text-shadow:none}
+ body pv-widget-host[data-view=rest][data-night=true] #photo-clock{font-weight:500}
+ body pv-widget-host[data-view=rest][data-night=true] .photo-weather{visibility:visible;left:50%;right:auto;top:475px;
+  translate:-50% 0;flex-direction:row;align-items:baseline;gap:0;color:var(--pv-clock-night-2);text-shadow:none;
+   pointer-events:none}
+ body pv-widget-host[data-view=rest][data-night=true] .photo-weather :is(strong,span){font:400 22px/28px var(--pv-font);
+  letter-spacing:0}
+ body pv-widget-host[data-view=rest][data-night=true] .photo-weather>span::before{content:" · ";white-space:pre}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail{visibility:visible;left:50%;
+   bottom:56px!important;width:auto;
+  translate:-50% 0;align-items:center}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>
+  .resource-preview:not([data-kind=timer]){display:none!important}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>
+  .resource-preview[data-kind=timer]{display:flex!important;
+  width:auto!important;height:44px!important;min-height:44px!important;max-height:44px!important;
+   padding:0 18px!important;
+  align-items:center!important;border-radius:22px!important;background:transparent!important;
+  -webkit-backdrop-filter:none;backdrop-filter:none!important;
+  box-shadow:inset 0 0 0 1.5px var(--pv-clock-night-line);color:var(--pv-clock-night)!important;pointer-events:none}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer]>
+  :is(.resource-visual,.resource-chevron){display:none!important}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer] .resource-label{
+  display:flex;gap:0;height:24px!important;min-height:0!important;margin:0!important;padding:0!important;
+   align-self:center;
+  align-items:center;font:400 18px/24px var(--pv-font);color:var(--pv-clock-night)}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer] .resource-label>
+  :is(strong,.resource-value){display:inline!important;order:0;font:400 18px/24px var(--pv-font)!important;
+  color:var(--pv-clock-night)!important}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer] .resource-label>
+  .resource-value{order:1}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer] .resource-label>
+  strong::after{content:" · ";white-space:pre}
+ body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer] .resource-label>
+  small{display:none!important}
 }

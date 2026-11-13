@@ -9,6 +9,8 @@ export {discoveryPeriod};
 const PROTOTYPE_TABS={mood:'Tid på dagen',feeling:'Vibe',top:'Din musik',recent:'Hør igen'};
 const DISCOVERY_ACTION={mood:'Andre forslag',feeling:'Flere vibes',top:'Flere playlister',recent:'Se tidligere'};
 const DISCOVERY_PERIOD={morning:'Godmorgen',afternoon:'Til eftermiddagen',evening:'Til aftenen'};
+// The same period heading the music page uses, for the resting music card's context line.
+export const discoveryPeriodLabel=now=>DISCOVERY_PERIOD[discoveryPeriod(now)]||'';
 const text=(value,max=1024)=>typeof value==='string'?value.slice(0,max):'';
 const make=(doc,tag,cls)=>{const node=doc.createElement(tag);if(cls)node.className=cls;return node;};
 // The fixture adapter admits only bundled images or its explicitly verified artwork hosts.
