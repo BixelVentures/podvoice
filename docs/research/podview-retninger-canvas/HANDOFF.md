@@ -120,6 +120,39 @@ hvide indgangswidgets (musik, radio, opskrift, svar) · tryk på et nummer i Fin
 (standard: rummets, Køkkenalrum) og overtager uden spørgsmål, også hvis en anden bruger den; trykket er det bevidste valg
 (foreløbig, 12. nov.) · afspillerens 8 tilstande og svarkort efter lærredet v141.
 
+## Musik-siden: data, AI og fornyelse (forslag 13. nov., ikke bygget)
+Én side uden faner: **Lige nu** (hero) · **Fortsæt** · **Til <ugedag> <tid>** · **Vibe** · **Jeres playlister** ·
+**Sæson** (fx »Snart jul«) · **Nyt fra jeres kunstnere**. Alle rækker scroller vandret med kit-fade.
+
+**Kilder pr. række**
+- Fortsæt: Spotify »recently played« for de tilknyttede konti (seneste først, dubletter slået sammen).
+- Jeres playlister: Spotify-playlister (egne + gemte), mærket med ejer (»Mads«, »Fælles«).
+- Nyt fra jeres kunstnere: nye udgivelser fra kunstnere i jeres »top artists« / fulgte kunstnere.
+- Til tid/Vibe/Sæson/Lige nu: kandidater fra jeres egne playlister, gemte, top-numre og Spotify-editorielle
+  playlister, rangeret af PodVoice-AI'en (se nedenfor).
+- **Tjek før bygning:** Spotify lukkede for nye apps' adgang til bl.a. recommendations, related artists og
+  audio features (nov. 2024). Rangering må derfor ikke forudsætte dem; brug egne data + søgning + editorielle lister.
+
+**Kontekst AI'en må bruge** (alt lokalt i HA, intet sendes ud uden grund): klokkeslæt, ugedag, helligdage/årstid,
+vejr fra HA, hvem der er hjemme (hvis kendt), rummet (Køkkenalrum), aktive timere/opskrifter, egen afspilningshistorik
+pr. tid og ugedag. Ikke: lokation ud over hjemmet, mikrofon, kalenderindhold.
+
+**AI'ens opførsel**
+- Vælger, aldrig spiller selv: musik starter kun ved tryk eller stemme.
+- »Lige nu« viser altid hvad der spilles (navn, type, længde, 3 kunstnere/omslag). »Roligere«, »Mere fart« og
+  »Noget nyt« bytter forslaget på samme plads — ingen ny side.
+- Lærer af valg: tryk = svagt plus, spillet > 10 min = plus, sprunget over/skiftet inden 1 min = minus. Pr. tid og ugedag.
+- Ingen ny rækkefølge mens nogen ser på skærmen; rækker må kun skifte ved sideskift eller efter 30 min uden tryk.
+- Ingen opfundne navne i UI: rækkenavne fra et fast, godkendt sæt; playlistnavne fra Spotify.
+
+**Fornyelse**
+- »Lige nu« og »Til <tid>«: hver gang perioden skifter (morgen/formiddag/frokost/eftermiddag/aftensmad/aften/nat).
+- Fortsæt: ved hver afspilning. Playlister: hver 6. time. Nyt fra kunstnere: dagligt kl. 06. Sæson: dagligt.
+- Offline/Spotify nede: vis senest hentede rækker uændret, ingen fejl i rækkerne; »Afspil« giver fejltilstand på kortet.
+
+**Afspil-flow:** tryk (< 100 ms respons) → Starter (prikker, maks ~4 s) → Spiller (equalizer-mærke; afspilleren
+skifter titel/omslag straks) eller Fejl (»Prøv igen«; afspilleren viser det, der faktisk spiller). Sidste tryk vinder.
+
 ## Afspiller tilstand 4 (ejer 13. nov.)
 Højttaleren bruges af en anden: vis hvem/hvilken enhed (dæmpet cover eller AirPlay-ikon + kilde), ingen styring af
 deres indhold, ingen blind »Overtag«. Primær knap »Vælg musik« (åbner Find musik; valg af nummer/station overtager).
