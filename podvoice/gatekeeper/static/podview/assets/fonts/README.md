@@ -19,3 +19,14 @@ were copied directly from the package. The font-face declaration uses the
 package's Latin unicode range and the shared `--pv-screen-font` token. The
 weight-only file keeps this one required request smaller than the optical-size
 variant. Native fallback fonts remain available while the local file loads.
+
+## iPad kit fonts (issue 387)
+
+Unchanged Latin subsets, retrieved 13 November 2026 with `npm pack`; licenses copied verbatim.
+
+- `schibsted-grotesk-latin-wght-normal.woff2` — **@fontsource-variable/schibsted-grotesk@5.3.0**, weights 400–900,
+  text font (`--pv-font`). License: SIL OFL 1.1, `OFL-SchibstedGrotesk.txt`.
+- `ibm-plex-mono-latin-400-normal.woff2`, `ibm-plex-mono-latin-500-normal.woff2` — **@fontsource/ibm-plex-mono@5.3.0**,
+  numbers (`--pv-font-mono`). License: SIL OFL 1.1, `OFL-IBMPlexMono.txt`.
+
+Inter stays as the fallback in both stacks.

@@ -1,21 +1,27 @@
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
- --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
- --pv-weather:#E4EDF2;--pv-weather-strong:#C9DAE5;--pv-weather-ink:#2F5D7C;
- --pv-robot:#F6E4E6;--pv-robot-strong:#EDC9CE;--pv-robot-ink:#8C3A4B;
- --pv-light:#F8EFD2;--pv-light-strong:#F0DC9E;--pv-light-ink:#7A5A10;
- --pv-tesla:#E1EFE9;--pv-tesla-strong:#C3E0D3;--pv-tesla-ink:#2F6B55;
- --pv-font:"Inter Variable",Inter,Arial,Helvetica,sans-serif;
+ --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
+  --pv-ink-3:#5F5E5A;--pv-on-dark:#F7F6F3;--pv-dark:#17171A;--pv-danger:#B0262A;--pv-danger-tint:#F8DCDC;
+ --pv-warning:#E2B04A;--pv-warning-tint:#FFF6E2;--pv-ok:#2F7A55;--pv-music:#F6DCCB;--pv-radio:#E6DDF3;
+  --pv-recipe:#F2E4D3;--pv-answer:#E9E6F4;--pv-timer-accent:#FF7A5C;--pv-topbar:#E7E5E0;--pv-on-danger:#FFFFFF;
+ --pv-weather:#DDE6FB;--pv-weather-strong:#C9DAE5;--pv-weather-ink:#2F5D7C;
+ --pv-robot:#F6D8E1;--pv-robot-strong:#EDC9CE;--pv-robot-ink:#8C3A4B;
+ --pv-light:#FBEBC6;--pv-light-strong:#F0DC9E;--pv-light-ink:#7A5A10;
+ --pv-tesla:#D5EADD;--pv-tesla-strong:#C3E0D3;--pv-tesla-ink:#2F6B55;
+ --pv-font:"Schibsted Grotesk Variable","Inter Variable",Inter,Arial,Helvetica,sans-serif;
+ --pv-font-mono:"IBM Plex Mono","Inter Variable",Inter,ui-monospace,monospace;
  --pv-t-meta:400 15px/20px var(--pv-font);--pv-t-body:400 17px/24px var(--pv-font);--pv-t-label:600 20px/26px var(--pv-font);--pv-t-title:600 28px/34px var(--pv-font);--pv-t-value:500 40px/44px var(--pv-font);--pv-t-hero:500 64px/64px var(--pv-font);
  --pv-type-meta:15px;--pv-type-caption:var(--pv-type-meta);--pv-type-card-value:17px;--pv-type-body:var(--pv-type-card-value);--pv-type-card-title:20px;--pv-type-label:var(--pv-type-card-title);--pv-type-title:28px;--pv-type-display:40px;--pv-type-value:64px;--pv-type-clock:128px;--pv-type-header-value:var(--pv-type-label);
  --pv-screen-space-1:var(--pv-s1);--pv-screen-space-2:var(--pv-s1);--pv-screen-space-3:var(--pv-s2);--pv-screen-space-4:var(--pv-s2);--pv-screen-space-5:var(--pv-s3);--pv-screen-space-6:var(--pv-s3);--pv-screen-space-8:var(--pv-s4);--pv-screen-space-10:var(--pv-s5);
  --pv-screen-radius:var(--pv-r-l);--pv-screen-radius-control:var(--pv-r-l);--pv-screen-radius-row:var(--pv-r-l);--pv-screen-radius-field:var(--pv-r-s);--pv-screen-radius-frame:var(--pv-r-l);--pv-screen-radius-art:var(--pv-r-s);--pv-screen-radius-choice:var(--pv-r-s);--pv-screen-radius-pill:var(--pv-r-pill);--pv-resource-radius:var(--pv-r-l);--pv-hit-radius:var(--pv-r-s);
  --pv-weight-regular:400;--pv-weight-medium:500;--pv-weight-semibold:600;--pv-weight-bold:var(--pv-weight-semibold);
  --pv-s1:8px;--pv-s2:16px;--pv-s3:24px;--pv-s4:32px;--pv-s5:40px;--pv-control-label-gap:var(--pv-s1);--pv-control-row-gap:var(--pv-s2);--pv-control-section-gap:var(--pv-s4);--pv-control-panel-gap:var(--pv-s3);--pv-control-card-inset:var(--pv-s3);
- --pv-r-s:16px;--pv-r-l:24px;--pv-r-pill:999px;
+ --pv-r-s:14px;--pv-r-l:22px;--pv-r-hero:26px;--pv-r-pill:999px;
  --pv-icon-s:24px;--pv-icon-m:32px;--pv-icon-l:48px;--pv-icon-stroke:2px;
  --pv-shadow:0 1px 3px rgba(27,29,28,.04);--pv-scrim:rgba(27,29,28,.32);
- --pv-d-press:90ms;--pv-d-fast:200ms;--pv-d-move:280ms;--pv-ease:cubic-bezier(.2,0,0,1);--pv-hit:64px;--pv-hit-min:48px;
+ --pv-d-press:120ms;--pv-d-switch:240ms;--pv-d-in:400ms;--pv-d-fast:var(--pv-d-press);--pv-d-move:var(--pv-d-switch);
+  --pv-ease:cubic-bezier(.2,0,0,1);--pv-hit:64px;--pv-hit-min:44px;--pv-hero-s:221px;--pv-hero-l:458px;
+  --pv-widget-s:174px;--pv-widget-m:364px;--pv-gap:16px;
  --pv-screen-paper:var(--pv-bg);--pv-screen-surface:var(--pv-surface);--pv-screen-control:var(--pv-surface-2);--pv-screen-hover:var(--pv-line);--pv-screen-line:var(--pv-line);--pv-screen-outline:var(--pv-line);--pv-screen-ink:var(--pv-ink);--pv-screen-muted:var(--pv-ink-3);--pv-screen-action-ink:var(--pv-ink);--pv-screen-accent:var(--pv-ink);--pv-screen-selection:var(--pv-surface-2);--pv-screen-danger:var(--pv-danger);--pv-screen-danger-surface:var(--pv-danger-tint);--pv-screen-font:var(--pv-font);
  --pv-instrument:var(--pv-dark);--pv-instrument-muted:var(--pv-on-dark);--pv-instrument-line:var(--pv-ink-3);--pv-resource-quiet:var(--pv-surface-2);--pv-quiet-surface:var(--pv-surface-2);--pv-neutral-category:var(--pv-surface-2);
  --pv-vacuum-surface:var(--pv-robot);--pv-vacuum-ink:var(--pv-robot-ink);--pv-vacuum-muted:var(--pv-robot-ink);--pv-vacuum-hover:var(--pv-robot-strong);--pv-light-surface:var(--pv-light);--pv-light-muted:var(--pv-light-ink);--pv-weather-surface:var(--pv-weather);--pv-vehicle-surface:var(--pv-tesla);
@@ -26,7 +32,10 @@
 }
 
 /* Twelve shared component anatomies; domain selectors below bind existing owners. */
-:root{--pv-vejr:var(--pv-weather);--pv-vejr-strong:var(--pv-weather-strong);--pv-vejr-ink:var(--pv-weather-ink);--pv-lys:var(--pv-light);--pv-lys-strong:var(--pv-light-strong);--pv-lys-ink:var(--pv-light-ink);--pv-detail-min:200px;--pv-detail-columns:4;--pv-detail-columns-content:3;--pv-press-release:160ms;--pv-clock-size:128px;--pv-clock-night:#B04A3A}
+:root{--pv-vejr:var(--pv-weather);--pv-vejr-strong:var(--pv-weather-strong);--pv-vejr-ink:var(--pv-weather-ink);
+ --pv-lys:var(--pv-light);--pv-lys-strong:var(--pv-light-strong);--pv-lys-ink:var(--pv-light-ink);--pv-detail-min:200px;
+ --pv-detail-columns:4;--pv-detail-columns-content:3;--pv-press-release:var(--pv-d-press);--pv-clock-size:128px;
+ --pv-clock-night:#B04A3A}
 .pv-card,.pv-hero,.pv-tile{box-sizing:border-box;border-radius:var(--pv-r-l);box-shadow:var(--pv-shadow);color:var(--pv-ink);background:var(--pv-surface)}
 .pv-card{padding:var(--pv-s3);gap:var(--pv-s1)}
 .pv-hero{grid-column:1/-1;width:100%;min-height:var(--pv-detail-min);padding:var(--pv-s4);gap:var(--pv-s2)}
@@ -2817,3 +2826,72 @@ html[data-lite] *,html[data-lite] *::before,html[data-lite] *::after{
  mask-image:none!important;-webkit-mask-image:none!important;scroll-behavior:auto!important}
 html[data-lite] :not(img){filter:none!important}
 html[data-lite]{touch-action:manipulation}
+
+/* iPad kit (lærred v190, issue 387): fonts, topbar, widget sizes, press feedback and horizontal fade. */
+@font-face{font-family:"Schibsted Grotesk Variable";font-style:normal;font-display:swap;font-weight:400 900;
+ src:url(assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
+ unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
+  U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-display:swap;font-weight:400;
+ src:url(assets/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
+@font-face{font-family:"IBM Plex Mono";font-style:normal;font-display:swap;font-weight:500;
+ src:url(assets/fonts/ibm-plex-mono-latin-500-normal.woff2) format("woff2")}
+:root{--pv-screen-font:var(--pv-font)}
+body{font-family:var(--pv-font)}
+.pv-num,#header-clock{font-family:var(--pv-font-mono);font-variant-numeric:tabular-nums}
+
+/* Topbar: 72 high, title left, Svar centred on the full width, weather and clock right. */
+@media (min-width:1000px){
+ body pv-widget-host[data-topbar][data-view]>nav.view-nav,body pv-widget-host>nav.view-nav{position:relative;
+  box-sizing:border-box;
+  width:100vw;max-width:none;height:72px;min-height:72px;max-height:72px;margin-inline:calc(50% - 50vw);padding:0 28px;
+  background:var(--pv-topbar);color:var(--pv-ink)}
+ pv-widget-host>.view-nav .header-title{font:600 22px/26px var(--pv-font);letter-spacing:-.01em}
+ pv-widget-host>.view-nav #open-history{position:absolute;left:50%;top:12px;translate:-50% 0;z-index:1;height:48px;
+  min-height:48px;padding:0 22px 0 16px;gap:12px;border:0;border-radius:24px;background:var(--pv-surface);
+   color:var(--pv-ink);
+  box-shadow:0 2px 0 rgba(23,23,26,.10),inset 0 0 0 1px rgba(23,23,26,.06);font:600 18px/22px var(--pv-font)}
+ pv-widget-host>.view-nav #open-history strong{font:inherit}
+ /* The voice surface keeps Svar inside .header-activity; then that slot is the centred box. */
+ body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-left>.header-activity:has(>#open-history){inset:auto;
+  position:absolute;left:50%;top:12px;translate:-50% 0;transform:none;width:auto;min-width:0;max-width:none;height:48px;
+  margin:0;flex:none;overflow:visible}
+ body pv-widget-host>nav.view-nav .header-activity>#open-history{position:static;translate:none}
+ body pv-widget-host>nav.view-nav #header-date{font-family:var(--pv-font)}
+ pv-widget-host>.view-nav #header-clock{font-size:20px;font-weight:500;letter-spacing:-.02em}
+}
+.pv-svar-grille{position:relative;display:block;flex:none;width:46px;height:22px}
+.pv-svar-grille>i{position:absolute;width:4.2px;height:4.2px;border-radius:50%;background:currentColor}
+.pv-svar-grille>i:nth-child(7n+1),.pv-svar-grille>i:nth-child(7n){width:2.9px;height:2.9px}
+#open-history>img{display:none}
+
+/* Widget sizes on the 1180×820 grid: S 174×221, M 364×221, L 364×458; 16 between cards. */
+.pv-widget{box-sizing:border-box;position:relative;overflow:hidden;display:flex;flex-direction:column;padding:20px;
+ border-radius:var(--pv-r-l);background:var(--pv-surface);color:var(--pv-ink);
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);
+ font-family:var(--pv-font);transition:background-color var(--pv-d-in) var(--pv-ease)}
+.pv-widget[data-size=s]{width:var(--pv-widget-s);height:var(--pv-hero-s)}
+.pv-widget[data-size=m]{width:var(--pv-widget-m);height:var(--pv-hero-s)}
+.pv-widget[data-size=l]{width:var(--pv-widget-m);height:var(--pv-hero-l)}
+
+/* Press: visible on pointerdown (< 100 ms). Controls shrink and darken; flat surfaces draw a circle at the finger. */
+body :is(button,a[href],summary,[role=button]).is-pressed:not(:disabled,[aria-disabled=true],[data-touch-cancelled=true],.pv-widget,[data-pv-press=flat]){
+ scale:.97!important;filter:brightness(.92)!important;
+  transition:scale var(--pv-d-press) var(--pv-ease),filter var(--pv-d-press) var(--pv-ease)!important}
+/* Release returns the scale at once (only the darkening fades), so no scale animation outlives the tap. */
+body button:not(.is-pressed){transition-property:filter!important}
+[data-pv-press=flat]{position:relative;overflow:hidden}
+:is(.pv-widget,[data-pv-press=flat])::after{content:"";position:absolute;z-index:0;pointer-events:none;
+ border-radius:50%;
+ left:var(--pv-press-x,50%);top:var(--pv-press-y,50%);width:var(--pv-press-size,0);height:var(--pv-press-size,0);
+ translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0;transition:opacity var(--pv-d-switch) var(--pv-ease)}
+:is(.pv-widget,[data-pv-press=flat])[data-pv-circle=down]::after{opacity:1;transition:none;
+ animation:pv-press-circle var(--pv-d-press) var(--pv-ease) both}
+@keyframes pv-press-circle{from{scale:.2}to{scale:1}}
+
+/* Horizontal scroll: the weather's fade toward the right edge, with snap. */
+.pv-hscroll{display:flex;gap:var(--pv-gap);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;
+ scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);
+  mask-image:linear-gradient(90deg,#000 78%,transparent)}
+.pv-hscroll::-webkit-scrollbar{display:none}
+.pv-hscroll>*{flex:none;scroll-snap-align:start}
