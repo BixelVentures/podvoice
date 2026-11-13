@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 582d01ddb3dae63f79400019b1dce7d21a24002d512fdf1fa2f3c3d99a538b71 */
+/* Source: ui-kit.css · SHA256 a3025d2146c37f9fb6a1e44478ceb71a08ab51e363bcf456c42aae07143177d5 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -7189,11 +7189,13 @@ body button:not(.is-pressed){transition-property:filter!important}
    display:none!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .transport>button{height:56px!important;min-height:56px!important;
-   width:auto!important;min-width:132px!important;justify-content:center!important;padding:0
-   26px!important;border-radius:999px!important;margin:0!important;
+   width:auto!important;min-width:132px!important;justify-content:center!important;
+   padding-block:0!important;--pv-button-content-inset:14px;border-radius:999px!important;margin:0!important;
    font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important;position:static!important;flex:none!important;
    background:#17171A!important;color:#F7F6F3!important;box-shadow:none!important;border:0!important;
    inset:auto!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>button:not([data-feedback=progress]){padding-inline:26px!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .transport>button[data-kit-variant=destructive]{background:#FFFFFF!important;
    color:#B0262A!important;box-shadow:inset 0 0 0 2px #B0262A!important}

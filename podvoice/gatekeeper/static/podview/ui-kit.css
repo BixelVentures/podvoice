@@ -4177,11 +4177,13 @@ body button:not(.is-pressed){transition-property:filter!important}
    display:none!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .transport>button{height:56px!important;min-height:56px!important;
-   width:auto!important;min-width:132px!important;justify-content:center!important;padding:0
-   26px!important;border-radius:999px!important;margin:0!important;
+   width:auto!important;min-width:132px!important;justify-content:center!important;
+   padding-block:0!important;--pv-button-content-inset:14px;border-radius:999px!important;margin:0!important;
    font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important;position:static!important;flex:none!important;
    background:#17171A!important;color:#F7F6F3!important;box-shadow:none!important;border:0!important;
    inset:auto!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>button:not([data-feedback=progress]){padding-inline:26px!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .transport>button[data-kit-variant=destructive]{background:#FFFFFF!important;
    color:#B0262A!important;box-shadow:inset 0 0 0 2px #B0262A!important}
