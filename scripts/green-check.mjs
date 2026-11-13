@@ -308,6 +308,7 @@ class Check {
     this.frame = frame;
     this.out = out;
     this.results = [];
+    this.ownLogLines = [];
   }
 
   record(id, stories, status, detail = '') {
@@ -479,13 +480,21 @@ async function silentChecks(check) {
     if (locked.length) problems.push(`kø-rækker låst: ${locked.slice(0, 3).join(', ')}`);
     return problems;
   };
-  await check.visit('afspiller + kø', 'K1 H6', '#track, #home-music-player, #player-detail', {
-    extra: async () => [...(await queue()), ...(await picker())],
-  });
-  await check.visit('afspiller + kø', 'K7', '#track, #home-music-player, #player-detail', {
-    reopen: true,
-    extra: queue,
-  });
+  // On the iPad layout the player sits on the home page; #track opens its own view only while music plays.
+  await check.home();
+  if (await frame.locator('#track:not([disabled])').isVisible()) {
+    await check.visit('afspiller + kø', 'K1 H6', '#track', {
+      extra: async () => [...(await queue()), ...(await picker())],
+    });
+    await check.visit('afspiller + kø', 'K7', '#track', {reopen: true, extra: queue});
+  } else {
+    const problems = await picker();
+    if (await frame.locator('#queue').isVisible()) problems.push(...(await queue()));
+    if (problems.length) await check.shot('afspiller');
+    const note = 'tom afspiller på forsiden; køen tjekkes med --sound';
+    check.record('afspiller + højttalervælger', 'H4 H6', problems.length ? 'fejl' : 'ok',
+      problems.length ? problems.join('; ') : note);
+  }
   await check.visit('Find musik', 'F1 F11', '#home-music', {extra: () => findMusicLocks(check)});
   await findMusicTabs(check);
   await check.visit('radio', 'R3 R5', '#home-radio', {
@@ -593,7 +602,6 @@ async function soundChecks(check, ha) {
     check.record('lyd', 'A1 A2 H1 R1 R2', 'sprunget', `${busy.join(', ')} spiller; rører den ikke`);
     return;
   }
-  const {frame} = check;
   const quiet = () => ha.service('media_player', 'volume_set', {entity_id: kitchen, volume_level: 0.08});
   const guard = async () => {
     const state = await ha.state(kitchen);
@@ -634,20 +642,36 @@ async function soundChecks(check, ha) {
   const openPlayer = async () => {
     if ((await check.focus()) === 'player') return;
     await check.home();
-    await frame.locator('#track, #home-music-player, #player-detail').first().tap();
-    await frame.locator('#play-pause').waitFor({state: 'visible', timeout: 5000});
+    const track = check.frame.locator('#track:not([disabled])');
+    if (!(await track.isVisible())) return; // empty player: it is on the home page
+    await track.tap();
+    await check.frame.locator('#play-pause').waitFor({state: 'visible', timeout: 5000});
   };
   const tapWatched = async (selector, after) => {
     await check.gc('begin', false);
-    await frame.locator(selector).first().tap();
+    await check.frame.locator(selector).first().tap();
     const result = await after();
     const window = await check.gc('end');
     const flash = flashes(window.history, 1);
     return {result, flash};
   };
 
+  // The volume must be at most 10 % before the first sound. If the speaker refuses a volume change
+  // while it is quiet, no sound is made at all.
   try {
     await quiet();
+  } catch {
+    // The refused volume call is our own; its log lines are not a product regression.
+    check.ownLogLines.push(/volume failed|Native route unavailable/i);
+  }
+  const level = (await waitState(ha, kitchen, s => (s.attributes.volume_level ?? 1) <= 0.1, 4000)).state;
+  if ((level?.attributes?.volume_level ?? 1) > 0.1) {
+    const percent = Math.round((level?.attributes?.volume_level ?? 1) * 100);
+    check.record('lyd', 'A1 A2 H1 R1 R2', 'sprunget',
+      `${kitchen} kan ikke sættes til ≤10 % før afspilning (står på ${percent} %); ingen lyd afspillet`);
+    return;
+  }
+  try {
     if ((await ha.state(kitchen)).state === 'playing') {
       await ha.service('media_player', 'media_pause', {entity_id: kitchen});
       await notPlaying();
@@ -657,14 +681,30 @@ async function soundChecks(check, ha) {
       check.frame = await openPodView(check.page);
       await check.home();
       await openPlayer();
-      const room = await check.frame.locator('#player-room, #output').first().innerText().catch(() => '');
+      const room = await check.check.frame.locator('#player-room, #output').first().innerText().catch(() => '');
       return KITCHEN.test(room) ? [] : [`afspilleren står ikke på Køkkenalrum (${room.trim() || 'tom'})`];
     });
     const f = () => check.frame;
     await step('afspil fra kø', 'K3 K5 A11', async () => {
       await openPlayer();
-      const row = f().locator('#queue button.queue-track:not([data-current="true"])').first();
-      if (!(await row.count())) return ['køen har ingen sange at vælge (start fra Find musik dækker F2)'];
+      let row = f().locator('#queue button.queue-track:not([data-current="true"])').first();
+      if (!(await row.count())) {
+        // Cold start with an empty player: start something from Find musik so there is a queue.
+        await check.home();
+        await f().locator('#home-music').tap();
+        const choice = f().locator('#result-list button.result:not([disabled])').first();
+        await choice.waitFor({state: 'visible', timeout: 8000});
+        await quiet();
+        await choice.tap();
+        const first = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
+        await guard();
+        if (!first.ok) return ['kold start fra Find musik spillede ikke på Køkkenalrum inden 8 s'];
+        await sleep(3000);
+        await openPlayer();
+        row = f().locator('#queue button.queue-track:not([data-current="true"])').first();
+        await row.waitFor({state: 'visible', timeout: 6000}).catch(() => {});
+        if (!(await row.count())) return ['køen viser ingen kommende sange efter start'];
+      }
       await quiet();
       const {result, flash} = await tapWatched('#queue button.queue-track:not([data-current="true"])', playing);
       await guard();
@@ -763,11 +803,14 @@ async function soundChecks(check, ha) {
 function logResults(check, before, after, startedAt) {
   const problems = [...after.errors];
   for (const [name, text] of Object.entries(after.addons)) {
-    const fresh = newLogLines(before.addons[name] || '', text).filter(isProblemLine);
+    const fresh = newLogLines(before.addons[name] || '', text)
+      .filter(line => isProblemLine(line) && !check.ownLogLines.some(rule => rule.test(line)));
     if (fresh.length) problems.push(`${name}: ${fresh.length} nye linjer, fx "${fresh[0].slice(0, 160)}"`);
   }
   if (after.system) {
-    const fresh = newSystemLogEntries(after.system, startedAt);
+    const fresh = newSystemLogEntries(after.system, startedAt).filter(
+      entry => !check.ownLogLines.some(rule => rule.test([].concat(entry.message).join(' '))),
+    );
     if (fresh.length) {
       const first = fresh[0];
       problems.push(`HA: ${fresh.length} nye, fx ${first.name}: "${[].concat(first.message)[0]?.slice(0, 160)}"`);
