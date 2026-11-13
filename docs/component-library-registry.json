@@ -1354,6 +1354,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:discoveryPeriodLabel": 1,
           "arrow:finish": 2,
           "arrow:make": 1,
           "arrow:ready": 1,
