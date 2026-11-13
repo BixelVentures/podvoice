@@ -100,7 +100,8 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   const actionOptions=pending?.action?options.filter(option=>option.action===pending.action):[];
   const pendingId=value.pendingOptionId||pending?.optionId||(actionOptions.length===1?actionOptions[0].id:null);
   const knownPending=!!pending||!!value.pendingOptionId;
-  const expired=Number.isFinite(value.task?.expiresAt)&&value.task.expiresAt*1000<=Date.now();
+  // While the owner fetches a fresh offer (loading), an expired one keeps the controls live; taps wait for it.
+  const expired=Number.isFinite(value.task?.expiresAt)&&value.task.expiresAt*1000<=Date.now()&&value.loading!==true;
   const unavailable=this._disabled||value.connected===false||knownPending||!!value.device?.stale||expired;
   // While only a robot command is pending, Start and its local draft stay live: Start shows busy, a
   // changed room or setting is kept for the next Start, and a second Start gets a message (S2).
@@ -215,7 +216,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   }
   // A Start on an offer that expired unnoticed is still the user's action; the owner decides what happens to it.
   if(option?.action==='start'&&task?.options?.includes(option)&&Number.isFinite(task.expiresAt)&&task.expiresAt*1000<=Date.now()&&this.value.connected!==false&&!this.value.pendingOptionId&&!device?.pending&&!device?.stale){this.dispatchEvent(new CustomEvent('robot-control-expired-start',{detail:{optionId:option.id},bubbles:true,composed:true}));return;}
-  if(!task?.options?.includes(option)||Number.isFinite(task.expiresAt)&&task.expiresAt*1000<=Date.now()||this.value.connected===false||this.value.pendingOptionId||device?.pending||device?.stale||option.action==='pause'&&device?.status!=='cleaning'||option.action==='resume'&&device?.status!=='paused')return;this.emit('robot-control-action',{optionId:option.id,args});}
+  if(!task?.options?.includes(option)||Number.isFinite(task.expiresAt)&&task.expiresAt*1000<=Date.now()&&this.value.loading!==true||this.value.connected===false||this.value.pendingOptionId||device?.pending||device?.stale||option.action==='pause'&&device?.status!=='cleaning'||option.action==='resume'&&device?.status!=='paused')return;this.emit('robot-control-action',{optionId:option.id,args});}
  disconnectedCallback(){
   clearTimeout(this.maintenanceTimer);
   if(this.confirmation?.open)this.confirmation.close();

@@ -395,10 +395,10 @@ export class PodVoiceTransport {
   finally{if(!(read&&endpoint==='music'&&['mood','feeling'].includes(kind)&&diagnosticRequestId)||generation===this.generation&&originScope===this.diagnosticScope&&originBoot===this.snapshot?.bootId&&originRoom===this.snapshot?.roomId)this.recordReadDiagnostic('request',{code:code||'failure',endpoint,kind,localRequestSeq,requestId,httpStatus,durationMs:Math.min(120000,Math.max(0,Date.now()-started)),current:generation===this.generation},token);}
  }
 
- async home({lightArea,readDiagnostic}={}){
+ async home({lightArea,readDiagnostic,vehicleFresh=false}={}){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   if(lightArea!==undefined&&(!this.snapshot.capabilities.homeRead.includes('light')||typeof lightArea!=='string'||!lightArea||lightArea.length>128||/[\u0000-\u001f\u007f]/u.test(lightArea)))throw new Error('light_area_unavailable');
-  const response=await this.request(this.endpoint('home',lightArea===undefined?{}:{lightArea}),{credentials:'same-origin',cache:'no-store'},undefined,undefined,undefined,readDiagnostic);if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
+  const response=await this.request(this.endpoint('home',{...(lightArea===undefined?{}:{lightArea}),...(vehicleFresh===true?{vehicleFresh:'1'}:{})}),{credentials:'same-origin',cache:'no-store'},undefined,undefined,undefined,readDiagnostic);if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
  }
  async weatherAdvice(binding,{signal}={}){
   const snapshot=this.snapshot,generation=this.generation;

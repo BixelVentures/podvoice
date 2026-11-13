@@ -266,7 +266,7 @@ async function lifecycleJourney(page,card,errors,commands){
  assert.doesNotMatch(await hero.innerText(),/dvale/i,'unproven sleep is not labelled as observed');
  assert(await trunk('Åbn bagagerum').isDisabled());
  // 2.0.181: a remembered lock value no longer blocks Lås/Lås op (commands are idempotent;
- // the button shows "Sendt · vækker bilen…" until HA reports). The trunk stays blocked.
+ // the button shows "Vækker bilen…" until HA reports). The trunk stays blocked.
  assert.equal(await trunk('Lås op').isDisabled(),false);
  assert(await up.isDisabled());
  assert.deepEqual((await state()).writes,[]);
@@ -521,7 +521,9 @@ async function recoveryJourney(page,card,errors,requests){
  await update({hold:true});await dialog.getByRole('button',{name:'Tænd klima',exact:true}).tap();for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('vehicle intent not held');await sleep(25)}
  assert.equal(await toggle.getAttribute('aria-busy'),'true');
  assert.equal(await toggle.getAttribute('aria-checked'),'false','unobserved climate command keeps its previous switch state');
- assert.match(await toggle.innerText(),/Tænder…/);
+ // Fejl 11 (13 Nov): the switch shows progress; its status is one line under the title.
+ assert.doesNotMatch(await toggle.innerText(),/Tænder…/);
+ assert.equal(await page.locator('#vehicle-view [data-kit-variant=feedback]:visible').innerText(),'Tænder…');
  await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next',undefined,{timeout:2500});await update({release:true});
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='heat_cool',undefined,{timeout:5000});assert.equal((await state()).writes.length,1);assert.deepEqual((await state()).writes[0],{service:'turn_on',body:{entity_id:'climate.car'}});
  assert(await up.isEnabled());

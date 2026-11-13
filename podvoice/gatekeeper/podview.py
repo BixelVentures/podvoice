@@ -441,6 +441,9 @@ class PodViewBridge:
         if robot_owner is not None:
             # A fresh robot map can reveal its room; wake readers like an HA vacuum event.
             robot_owner.on_robot_map_refreshed = lambda: self.home_events_changed({"vacuum"})
+        if hasattr(tools, "on_vehicle_refreshed"):
+            # HA fetched Tesla's data on request; its timestamps may change without an HA event.
+            tools.on_vehicle_refreshed = lambda: self.home_events_changed({"vehicle"})
         self._home_weather_interest: tuple[tuple, frozenset[str]] | None = None
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""
@@ -5146,6 +5149,12 @@ async def _home(request: web.Request) -> web.Response:
         for name in ("podview_home_read", "podview_home_binding", "podview_home_available")
     ):
         return _error("home_unavailable", 503)
+    if request.query.get("vehicleFresh") == "1" and "vehicle" in bridge.home_read_kinds(
+        room, _request_token(request, room)
+    ):
+        # The Tesla page opened: Tesla Fleet polls, so ask HA for the car's data now (fejl 12).
+        # The tools owner limits this to an online car, at most once a minute.
+        getattr(tools, "podview_vehicle_request_fresh", lambda: False)()
 
     def home_effect_revision_now():
         # Cache-ordering fences from the existing resource owner, never state.

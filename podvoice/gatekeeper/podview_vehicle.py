@@ -797,3 +797,37 @@ class StatusRefresh:
 
     def sent(self, now: float) -> None:
         self.sent_at = now
+
+
+class FreshRead:
+    """When PodVoice asks HA to fetch Tesla's data now (testnoter 13 Nov, fejl 11 and 12).
+
+    Tesla Fleet polls, so a change from the Tesla app or a command reaches HA only at the
+    next poll. homeassistant.update_entity runs the integration's coordinator refresh at
+    once: the free vehicle list, and vehicle_data only when the car is online, so it never
+    wakes the car. Asked when the Tesla page opens while the car is online (at most once a
+    minute) and a few times just after an accepted command, which woke the car. Never
+    closer than 10 s apart, so the screen does not keep the car awake.
+    """
+
+    OPEN_INTERVAL = 60.0
+    MIN_GAP = 10.0
+    AFTER_COMMAND = (4.0, 15.0, 35.0)  # seconds after HA accepted the command
+
+    def __init__(self) -> None:
+        self.sent_at: float | None = None
+        self.opened_at: float | None = None
+
+    def gap_ok(self, now: float) -> bool:
+        return self.sent_at is None or now - self.sent_at >= self.MIN_GAP
+
+    def open_due(self, connection: object, now: float) -> bool:
+        if connection != "online" or not self.gap_ok(now):
+            return False
+        if self.opened_at is not None and now - self.opened_at < self.OPEN_INTERVAL:
+            return False
+        self.opened_at = now
+        return True
+
+    def sent(self, now: float) -> None:
+        self.sent_at = now
