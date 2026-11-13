@@ -3,6 +3,7 @@ import {TRACKS,LOCAL_POSITION_EXAMPLE} from './widget-model.js';
 import {fixtureArtwork} from './music-results.js';
 import {renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork,generatedMoodArtwork,spotifyArtwork} from './spotify-artwork.js';
 import {roomObservationCurrent,roomObservationDisplay,playbackObservationCurrent,playbackBinding} from './media-observation.js';
+const PLAYER_SPEAKER_IDLE_MS=10*60*1000;
 const txt=value=>typeof value==='string'?value:'';
 const fixtureArt=art=>fixtureArtwork(art?.startsWith('https:')?art:`assets/${art}`);
 const playerPreview=state=>state.playerPreview==='empty'&&state.music.playback.active?null:state.playerPreview;
@@ -121,6 +122,22 @@ export class PlayerView{
   this.volumeMute=this.doc.getElementById('volume-mute');if(this.volumeMute){applyKitComponent(this.volumeMute,'button',{variant:'icon'});this.volumeMuteClick=()=>this.toggleVolumeMute();this.volumeMute.addEventListener('click',this.volumeMuteClick);}
   this.rows=new Map();this.queue=this.doc.getElementById('queue');this.queue.setAttribute('role','group');this.queue.replaceChildren();this.emptyCopy=this.doc.getElementById('player-empty').querySelector('p');this.emptyCopy.setAttribute('role','status');this.emptyCopy.setAttribute('aria-live','polite');this.emptyCopy.setAttribute('aria-atomic','true');const discoveryText=this.doc.getElementById('empty-find-music').firstChild;if(discoveryText?.nodeType===3&&discoveryText.nodeValue!=='Vælg musik')discoveryText.nodeValue='Vælg musik';const output=this.doc.getElementById('output'),emptyTitle=this.doc.getElementById('player-empty').querySelector('h2');if(output?.parentNode&&emptyTitle?.parentNode){const parent=output.parentNode,volume=parent.querySelector('.volume');if(volume&&volume.parentNode===parent)parent.insertBefore(output,volume);this.outputPlacement={output,parent,next:output.nextSibling||volume,emptyTitle,copy:emptyTitle.parentNode};}}
  // One scoped presentation focus; it never grants or repeats an effect.
+ // The player owns the speaker choice (test 11): the user's last explicit speaker stays until the user
+ // changes it, or until 10 min pass with nothing playing or paused. Radio and music start there.
+ chooseSpeaker(row){
+  const homepodId=row?.homepodId??row?.id;if(!homepodId)return;
+  this.chosenSpeaker={homepodId:String(homepodId),nativeRoomId:row.nativeRoomId??null,name:row.name||'',at:Date.now(),
+   scope:this.sourceScope()};
+ }
+ playerSpeaker(){
+  const h=this.host,c=this.chosenSpeaker,p=h.liveMedia?.playback,radio=h.liveRadio?.value?.state;
+  const active=['playing','paused'].includes(p?.state)&&roomObservationDisplay(p,h.liveSnapshot)
+   ||['playing','stopped'].includes(radio?.status)&&radio?.sourceKind==='radio';
+  if(c&&c.scope===this.sourceScope()&&(active||Date.now()-c.at<PLAYER_SPEAKER_IDLE_MS)){if(active)c.at=Date.now();return c;}
+  this.chosenSpeaker=null;
+  const b=playbackBinding(p,h.liveSnapshot,h.liveMedia?.account);
+  return b?{homepodId:String(b.nativeHomepodId),nativeRoomId:b.nativeRoomId,name:''}:null;
+ }
  sourceScope(){const s=this.host.liveSnapshot;return s?.bootId&&s?.roomId?JSON.stringify([s.bootId,s.roomId]):null;}
  focusSource(kind,target=null){if(!['music','radio'].includes(kind)||!this.sourceScope())return false;const scope=this.sourceScope(),changed=this.sourceFocus?.scope!==scope||this.sourceFocus.kind!==kind;this.sourceFocus=Object.freeze({scope,kind,target:target?Object.freeze({...target}):null});if(kind==='music')this.host.liveRadio?.closeOutputs?.();return changed;}
  beginSourceFocus(kind,target=null){const previous=this.sourceFocus;this.focusSource(kind,target);return Object.freeze({previous,current:this.sourceFocus,scope:this.sourceScope()});}
@@ -129,9 +146,10 @@ export class PlayerView{
  radioHistorySuperseded(history){if(!history||history.scope!==this.sourceScope())return false;if(history.superseded)return true;const h=this.host,p=h.liveMedia?.playback,s=h.liveSnapshot;
   // The room's media_player is the room: music it shows now (also paused, also without a
   // PodConnect session) replaces a stopped radio in the player (testnoter 13/11 fejl 13).
-  // A song paused before the radio stopped is older than the station and does not replace it.
-  if(p?.source==='spotify'&&['playing','paused','buffering'].includes(p.state)&&roomObservationCurrent(p,s)
-   &&(p.state!=='paused'||Date.parse(p.observedAt)>=(history.observedAt+1)*1000))return history.superseded=true;
+  // The last started source owns the player (test 11): a stopped radio keeps it for 10 min like a
+  // paused song. Only music that plays replaces it; a paused song never does.
+  if(p?.source==='spotify'&&['playing','buffering'].includes(p.state)&&roomObservationCurrent(p,s))
+   return history.superseded=true;
   const b=p?.state==='playing'&&playbackObservationCurrent(p,s)&&roomObservationCurrent(p,s)?playbackBinding(p,s,h.liveMedia?.account):null;if(b&&b.nativeRoomId===history.targetId&&Number.isFinite(history.observedAt)&&Date.parse(p.observedAt)>=(history.observedAt+1)*1000)history.superseded=true;return history.superseded;}
  sourceModel(kind){if(this.host.live!==true)return this.progressVM||{};
   // One truth: while the radio holds the player, the music card does not show an older song.

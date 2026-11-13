@@ -13,6 +13,7 @@ const timingMode=process.env.RADIO_TIMING_TEST==='1';
 const startLatency=process.env.RADIO_START_LATENCY_TEST==='1';
 const volumeMode=process.env.RADIO_VOLUME_TEST==='1';
 const stationOrderMode=process.env.RADIO_STATION_ORDER_TEST;
+const playerModelMode=process.env.RADIO_PLAYER_MODEL_TEST==='1';
 const orderedStations=['1','unknown','rejected'].includes(stationOrderMode);
 // Read every bounded persisted page; a healthy trace may exceed the first64 rows.
 const readJournal=async page=>{let result,after=0;const records=[];for(let count=0;count<8;count++){result=await (await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after)).json();records.push(...(result.records||[]));if(!result.hasMore)break;after=result.nextAfter;}return {...result,records};};
@@ -288,6 +289,74 @@ async function stationOrderJourney(stations){
  await fs.writeFile(path.join(env.artifactDir(),'podview-radio-station-order-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+
+// Test 11 (iPad, 13/11): one player model. The player owns the speaker choice, browsing changes
+// nothing, the last started source owns the player and the picker works in every state.
+async function playerModelJourney(stations){
+ const host=fn=>page.locator('pv-widget-host').evaluate(fn);
+ const output=page.locator('#output'),dialog=page.locator('#rooms');
+ const openPicker=async()=>{
+  for(let n=0;!await dialog.evaluate(d=>d.open);n++){
+   if(n>5)throw Error('the speaker picker does not open');
+   await output.tap();
+   await page.waitForFunction(()=>document.getElementById('rooms').open,undefined,{timeout:2000}).catch(()=>{});
+  }
+ };
+ const choose=async name=>{
+  await openPicker();
+  await page.waitForFunction(name=>[...document.querySelectorAll('#room-options button')]
+   .some(row=>row.textContent.includes(name)&&!row.disabled),name,{timeout:15000});
+  await page.locator('#room-options button').filter({hasText:name}).first().tap();
+ };
+ const toOverview=async()=>{
+  if(!await page.locator('#home-music').isVisible())await page.locator('#header-title-action').tap();
+  await page.locator('#home-music').waitFor({state:'visible',timeout:10000});
+ };
+ // 1) The room's paused song moves to Soveværelse ("Frida"): the player's speaker is Soveværelse.
+ await toOverview();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.roomBinding,undefined,{timeout:15000});
+ await choose('Soveværelse');
+ for(let n=0;!(await state()).writes.some(row=>row.action==='move_existing_session');n++){
+  if(n>150)throw Error('move to Soveværelse not sent');await sleep(100);
+ }
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.roomBinding?.nativeHomepodId==='43',
+  undefined,{timeout:15000});
+ // Radio starts on the player's speaker, never on another one.
+ await page.locator('#home-radio').tap();
+ await stations.getByRole('button',{name:/P1/}).tap();
+ await page.waitForFunction(()=>{const r=document.querySelector('pv-widget-host')?.liveRadio;
+  return r?.value?.state?.status==='playing'&&r.value.state.stationId==='p1'&&!r.pending;},undefined,{timeout:15000});
+ assert.equal((await radio()).target_id,'43','radio plays on the player\'s speaker (Soveværelse)');
+ // 2) Browsing Find musik changes nothing: the player still shows the radio.
+ await toOverview();
+ await page.locator('#home-music').tap();
+ await page.locator('#result-list').waitFor({state:'attached',timeout:10000});
+ await sleep(1500);
+ assert.equal(await host(h=>h.liveRadio.ownsPlayer()),true,'Find musik does not take the player');
+ assert.equal((await page.locator('#track-name').innerText()).trim(),'P1');
+ // 3) Stopping keeps the stopped radio in the player (10 min rule), never an older Spotify song.
+ const titles=new Set();
+ await page.locator('#play-pause').tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='stopped',
+  undefined,{timeout:15000});
+ for(let n=0;n<30;n++){titles.add((await page.locator('#track-name').innerText()).trim());await sleep(100);}
+ assert.deepEqual([...titles],['P1'],'the stopped radio keeps the player');
+ // 5) The radio card says the last known station and state, not "Ikke opdateret".
+ await toOverview();
+ const card=(await page.locator('#home-radio small').innerText()).replace(/\s+/g,' ').trim();
+ assert.doesNotMatch(card,/Ikke opdateret/,card);
+ assert.match(card,/P1/);assert.match(card,/Stoppet/);
+ // 4) The picker works from radio: start again, then move the radio to Køkkenalrum.
+ await page.locator('#play-pause').tap();
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveRadio?.value?.state?.status==='playing',
+  undefined,{timeout:15000});
+ await choose('Køkkenalrum');
+ for(let n=0;(await radio()).target_id!=='42';n++){
+  if(n>150)throw Error('the picker cannot move the radio from radio mode');await sleep(100);
+ }
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',mode:'radio-player-model',bundleSHA}));
+}
 (async()=>{try{
  const testNonce=require('node:crypto').randomUUID();
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-radio-'));
@@ -311,6 +380,7 @@ async function stationOrderJourney(stations){
  if(startLatency){await radioStartLatencyJourney(stations);return;}
  if(volumeMode){await radioVolumeJourney(stations);return;}
  if(orderedStations){await stationOrderJourney(stations);return;}
+ if(playerModelMode){await playerModelJourney(stations);return;}
  await stations.getByRole('button',{name:/P3/}).tap();
  await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveRadio?.value?.state?.status==='playing'&&!h.liveRadio.pending&&h.liveRadio.value.state.stationId==='p3'&&document.querySelector('#track-name')?.textContent?.trim()==='P3'},undefined,{timeout:15000});
  assert.equal((await radio()).source_kind,'radio');assert.equal((await radio()).target_id,'42');
