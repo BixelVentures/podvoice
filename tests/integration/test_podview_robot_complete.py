@@ -407,3 +407,23 @@ async def test_real87_active_water_value_and_one_native_change(fixture):
     assert rig.writes == [
         ("services/select/select_option", {"entity_id": MOP, "option": "extreme"})
     ]
+
+
+@pytest.mark.parametrize("restore", [False, True])
+async def test_docked_robot_open_is_not_a_settings_failure(fixture, caplog, restore):
+    # Green 13 Nov 08:39:42: opening the robot panel while the robot was docked
+    # (vacuum state "docked") logged robot_setup_failed stage=settings error=value.
+    # Active-clean settings do not exist then; that is an expected state, not a failure.
+    # Restoring the last plan skips the transport read, so settings were read regardless.
+    rig, bridge, token = fixture
+    assert rig.states[ROBOT]["state"] == "docked"
+    extra = {}
+    if restore:
+        bridge.controls.policy["vacuum"][0]["actions"] += ["pause", "resume", "stop", "return"]
+        extra = {"restoreHistoryId": await seed(rig)}
+    with caplog.at_level("WARNING", logger="gatekeeper.podview_controls"):
+        offer = await bridge.controls.setup(setup_body(bridge, **extra), token)
+    assert offer["ok"], offer
+    assert "start" in [option["action"] for option in offer["options"]]
+    assert not [r for r in caplog.records if "robot_setup_failed" in r.getMessage()]
+    assert not rig.writes
