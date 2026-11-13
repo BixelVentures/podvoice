@@ -62,6 +62,8 @@ for(const journey of only.length?only:journeys){
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'document-scope')});
   runJourney(journey,{MUSIC_VOICE_JOURNEY_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'voice-queue')});
+  runJourney(journey,{MUSIC_COLD_PLAYER_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'cold-player')});
   runJourney(journey,{MUSIC_QUEUE_SKIP_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'queue-skip')});
   runJourney(journey,{MUSIC_QUEUE_IDENTITY_TEST:'1',
@@ -97,6 +99,8 @@ for(const journey of only.length?only:journeys){
  // Fejl 11/12 (13 Nov): a polling HA; the Tesla page and commands ask for the car's own data.
  if(journey==='vehicle_actual_e2e.cjs')runJourney('vehicle_fresh_actual_e2e.cjs');
  if(journey==='radio_actual_e2e.cjs'){
+  runJourney(journey,{RADIO_PLAYER_MODEL_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'radio-player-model')});
   runJourney(journey,{RADIO_TIMING_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'radio-timing')});
   for(const scenario of ['missing','mismatch','rotate']){

@@ -1505,6 +1505,8 @@
           "method:sourceFocused": 1,
           "method:sourceModel": 1,
           "method:sourceScope": 1,
+          "method:chooseSpeaker": 1,
+          "method:playerSpeaker": 1,
           "method:bindVolumeInput": 1,
           "method:beginVolumeGesture": 1,
           "method:volumeGestureCurrent": 1,

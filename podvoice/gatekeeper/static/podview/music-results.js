@@ -209,7 +209,7 @@ export function renderOverviewMediaValues(host){
  const radioExample=radioVM.exampleOnly===true||typeof radioVM.previewLabel==='string'&&/ingen lyd/i.test(radioVM.previewLabel);
  const values={
   'home-music':{title:known&&!radio?`${vm.fresh===false&&!vm.readOnly?'Ikke opdateret · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.readOnly?`${vm.playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`:vm.fresh===false?'Afspilningen er ikke opdateret':vm.playing?'Afspiller':'På pause'):''},
-  'home-radio':{title:radioKnown?`${radioVM.fresh===false&&!radioExample&&radioVM.loading!==true?'Ikke opdateret · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
+  'home-radio':{title:radioKnown?`${radioVM.fresh===false&&radioVM.playing&&!radioExample&&radioVM.loading!==true?'Ikke opdateret · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
  };
  for(const [id,value]of Object.entries(values)){
   const card=doc.getElementById(id);if(card?.dataset.mediaLayout==='media'){if(card.getAttribute('aria-description')!==null)card.removeAttribute('aria-description');continue;}const node=card?.querySelector('small');if(!node)continue;

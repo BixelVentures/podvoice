@@ -146,8 +146,13 @@ async def radio_action(request):
         assert body["station_id"] is None and body["target_id"] is None
         assert type(body["volume_percent"]) is int and 0 <= body["volume_percent"] <= 100
         radio["volume_percent"] = body["volume_percent"]
+    elif body["action"] == "move":
+        # Test 11: the speaker picker moves the playing radio to another room.
+        assert radio["state"] == "playing" and radio["source_kind"] == "radio"
+        assert body["target_id"] in {row["id"] for row in radio["targets"]}
+        radio["target_id"] = body["target_id"]
     else:
-        raise AssertionError("This bounded journey sends only Start, Volume and Stop")
+        raise AssertionError("This bounded journey sends only Start, Volume, Stop and Move")
     radio["generation"] += 1
     radio["revision"] += 1
     radio["owner_generation"] += 1
