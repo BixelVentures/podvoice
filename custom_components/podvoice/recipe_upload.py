@@ -15,6 +15,8 @@ _ADDON = "http://127.0.0.1:8098/internal/recipes"
 _MAX_BODY = 65536
 _MAX_RECEIPT = 4096
 _NO_STORE = {"Cache-Control": "no-store"}
+_WRONG_CODE = "Forkert upload-kode \u2013 åbn PodView \u2192 Opskrifter \u2192 Tilføj genvej"
+_UNAVAILABLE = "PodVoice svarer ikke lige nu \u2013 prøv igen om et minut"
 
 
 def _valid_bearer(request: web.Request) -> bool:
@@ -32,7 +34,7 @@ async def _relay(
 ) -> web.Response:
     authorization = request.headers.getall("Authorization", [])
     if not _valid_bearer(request):
-        return web.json_response({"message": "Adgang afvist"}, status=401, headers=_NO_STORE)
+        return web.json_response({"message": _WRONG_CODE}, status=401, headers=_NO_STORE)
 
     headers = {"Authorization": authorization[0], "Content-Type": "application/json"}
     version = request.headers.getall("X-PodView-Shortcut", [])
@@ -67,8 +69,9 @@ async def _relay(
                     ):
                         payload["message"] = {
                             "saved": "Gemt",
-                            "received": "Modtaget: importen afventer",
-                            "importing": "Modtaget: importerer opskriften",
+                            "duplicate": "Findes allerede",
+                            "received": "Modtaget \u2013 vises i PodView om lidt",
+                            "importing": "Modtaget \u2013 vises i PodView om lidt",
                             "rejected": "Opskriften kunne ikke importeres automatisk",
                             "failed": "Importen mislykkedes. Prøv igen",
                         }.get(
@@ -77,9 +80,7 @@ async def _relay(
                     return web.json_response(payload, status=response.status, headers=_NO_STORE)
     except (ClientError, TimeoutError, ValueError):
         pass
-    return web.json_response(
-        {"message": "Opskriftsmodtageren er ikke tilgængelig"}, status=503, headers=_NO_STORE
-    )
+    return web.json_response({"message": _UNAVAILABLE}, status=503, headers=_NO_STORE)
 
 
 class RecipeSubmissionView(HomeAssistantView):
@@ -98,7 +99,7 @@ class RecipeSubmissionView(HomeAssistantView):
                 {"message": "Ugyldig indsendelse"}, status=400, headers=_NO_STORE
             )
         if not _valid_bearer(request):
-            return web.json_response({"message": "Adgang afvist"}, status=401, headers=_NO_STORE)
+            return web.json_response({"message": _WRONG_CODE}, status=401, headers=_NO_STORE)
         try:
             async with asyncio.timeout(5):
                 body = bytearray()
