@@ -117,6 +117,11 @@ hvide indgangswidgets (musik, radio, opskrift, svar) · tryk på et nummer i Fin
 (standard: rummets, Køkkenalrum) og overtager uden spørgsmål, også hvis en anden bruger den; trykket er det bevidste valg
 (foreløbig, 12. nov.) · afspillerens 8 tilstande og svarkort efter lærredet v141.
 
+## Afspiller tilstand 4 (ejer 13. nov.)
+Højttaleren bruges af en anden: vis hvem/hvilken enhed (dæmpet cover eller AirPlay-ikon + kilde), ingen styring af
+deres indhold, ingen blind »Overtag«. Primær knap »Vælg musik« (åbner Find musik; valg af nummer/station overtager).
+Spiller brugerens egen musik et andet sted: primær knap »Flyt din musik hertil« i stedet.
+
 ## Genbesøges i redesignet
 - **Overtag ved tryk på nummer** (foreløbig regel ovenfor: tryk = overtag uden spørgsmål). Før redesignet låses:
   undersøg og sammenlign, hvordan andre løser »højttaleren er i brug af en anden«, og vælg derefter mellem
