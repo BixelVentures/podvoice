@@ -33,8 +33,8 @@ export class LiveMediaView{
  focusAccountChoice(){if(!this.canChooseAccount)return false;this.accounts.hidden=false;this.accounts.setAttribute('tabindex','-1');this.accounts.focus?.();return true;}
  setAccount(account){if(this.account===account)return;this.account=account;this.host.liveMusicAccountChanged?.(account);this.accounts.data={...this.accounts.data,selected:account};}
  selectAccount(account){const choices=this.accounts.data?.items||[];if(!choices.some(b=>b.id===account)||this.account===account)return;this.invalidate(true,true);this.setAccount(account);this.refresh();}
- invalidate(revoke=false,preserveChoices=false){this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;if(this.host.liveTransport?.recoveryBlocked===true)revoke=true;if(this.playback&&!roomObservationBound(this.playback,this.host.liveSnapshot,this.account))revoke=true;this.queueControls.invalidate(revoke);this.generation++;this.readState='offline';this.lastRead=0;this.pending=false;if(this.playback)this.playback={...this.playback,stale:true,displayRetained:!revoke};if(revoke){this.establishedReadScope=null;this.playback=null;this.queue=null;this.queueError=false;this.setAccount(null);if(!preserveChoices){this.accounts.data={items:[],selected:null,stateText:''};this.accounts.hidden=true;}$('queue').replaceChildren();this.rows.clear();}this.queuePending=false;if(this.queue)this.queue={...this.queue,stale:true};this.render();}
- clearRoom(){this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;this.establishedReadScope=null;this.generation++;this.pending=false;this.playback=null;this.queue=null;this.queuePending=false;this.queueError=false;this.rows.clear();this.queueControls.invalidate(true);this.host.liveControls?.invalidateMusic(undefined,false);}
+ invalidate(revoke=false,preserveChoices=false){this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;if(this.host.liveTransport?.recoveryBlocked===true)revoke=true;if(this.playback&&!roomObservationBound(this.playback,this.host.liveSnapshot,this.account))revoke=true;this.queueControls.invalidate(revoke);this.generation++;this.readState='offline';this.lastRead=0;this.pending=false;if(this.playback)this.playback={...this.playback,stale:true,displayRetained:!revoke};if(revoke){this.queueBindingId=null;this.establishedReadScope=null;this.playback=null;this.queue=null;this.queueError=false;this.setAccount(null);if(!preserveChoices){this.accounts.data={items:[],selected:null,stateText:''};this.accounts.hidden=true;}$('queue').replaceChildren();this.rows.clear();}this.queuePending=false;if(this.queue)this.queue={...this.queue,stale:true};this.render();}
+ clearRoom(){this.queueBindingId=null;this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;this.establishedReadScope=null;this.generation++;this.pending=false;this.playback=null;this.queue=null;this.queuePending=false;this.queueError=false;this.rows.clear();this.queueControls.invalidate(true);this.host.liveControls?.invalidateMusic(undefined,false);}
  scheduleRecovery(){
   const host=this.host,snap=host.liveSnapshot,transport=host.liveTransport,generation=this.generation,account=this.account;
   const scope=JSON.stringify([snap?.bootId,snap?.roomId,snap?.capabilities?.musicRead]);
@@ -116,9 +116,14 @@ export class LiveMediaView{
     if(starting)schedule(SETTLEMENT_READ_MS);
     this.render();return;
    }
-   const previousBinding=playbackBinding(this.playback,snap,account),nextBinding=playbackBinding(next,snap,account);
-   if(previousBinding?.bindingId!==nextBinding?.bindingId){
-    this.queueReadKey=null;this.queue=null;this.queueControls.invalidate(true);$('queue').replaceChildren();this.rows.clear();
+   const nextBinding=playbackBinding(next,snap,account),proven=nextBinding?.bindingId??null;
+   // A read without PodConnect's session (a stale snapshot) names no new owner: the known queue stays.
+   if(proven&&proven!==this.queueBindingId){
+    if(this.queueBindingId){
+     this.queueReadKey=null;this.queue=null;this.queueControls.invalidate(true);
+     $('queue').replaceChildren();this.rows.clear();
+    }
+    this.queueBindingId=proven;
    }
    const actualLabel=nextBinding?host.liveOutputs?.actualLabel?.(nextBinding)||'':'';
    if(actualLabel)next.actualTargetLabel=actualLabel;

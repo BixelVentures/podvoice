@@ -126,8 +126,17 @@ export class PlayerView{
  beginSourceFocus(kind,target=null){const previous=this.sourceFocus;this.focusSource(kind,target);return Object.freeze({previous,current:this.sourceFocus,scope:this.sourceScope()});}
  finishSourceFocus(ticket,outcome){if(outcome!=='rejected'||!ticket||this.sourceScope()!==ticket.scope||this.sourceFocus!==ticket.current)return false;this.sourceFocus=ticket.previous?.scope===ticket.scope?ticket.previous:null;return true;}
  sourceFocused(kind){const scope=this.sourceScope();if(this.sourceFocus&&this.sourceFocus.scope!==scope)this.sourceFocus=null;return !this.sourceFocus||this.sourceFocus.kind===kind;}
- radioHistorySuperseded(history){if(!history||history.scope!==this.sourceScope())return false;if(history.superseded)return true;const h=this.host,p=h.liveMedia?.playback,s=h.liveSnapshot,b=p?.state==='playing'&&playbackObservationCurrent(p,s)&&roomObservationCurrent(p,s)?playbackBinding(p,s,h.liveMedia?.account):null;if(b&&b.nativeRoomId===history.targetId&&Number.isFinite(history.observedAt)&&Date.parse(p.observedAt)>=(history.observedAt+1)*1000)history.superseded=true;return history.superseded;}
- sourceModel(kind){if(this.host.live!==true)return this.progressVM||{};return (kind==='radio'?this.host.liveRadio?.playerModel?.():this.host.liveMedia?.observedPlayerModel?.())||{};}
+ radioHistorySuperseded(history){if(!history||history.scope!==this.sourceScope())return false;if(history.superseded)return true;const h=this.host,p=h.liveMedia?.playback,s=h.liveSnapshot;
+  // The room's media_player is the room: music it shows now (also paused, also without a
+  // PodConnect session) replaces a stopped radio in the player (testnoter 13/11 fejl 13).
+  // A song paused before the radio stopped is older than the station and does not replace it.
+  if(p?.source==='spotify'&&['playing','paused','buffering'].includes(p.state)&&roomObservationCurrent(p,s)
+   &&(p.state!=='paused'||Date.parse(p.observedAt)>=(history.observedAt+1)*1000))return history.superseded=true;
+  const b=p?.state==='playing'&&playbackObservationCurrent(p,s)&&roomObservationCurrent(p,s)?playbackBinding(p,s,h.liveMedia?.account):null;if(b&&b.nativeRoomId===history.targetId&&Number.isFinite(history.observedAt)&&Date.parse(p.observedAt)>=(history.observedAt+1)*1000)history.superseded=true;return history.superseded;}
+ sourceModel(kind){if(this.host.live!==true)return this.progressVM||{};
+  // One truth: while the radio holds the player, the music card does not show an older song.
+  if(kind==='music'&&this.host.liveRadio?.ownsPlayer?.())return {};
+  return (kind==='radio'?this.host.liveRadio?.playerModel?.():this.host.liveMedia?.observedPlayerModel?.())||{};}
  updateCoverTone(sample=null){
   const cover=this.doc.getElementById('cover'),player=this.host.querySelector('.player'),source=this.progressVM?.active===true&&!cover?.classList.contains('live-art-fallback')?(cover?.currentSrc||cover?.src):null;let tone='transparent';
   if(this.coverToneRequest&&this.coverToneRequest.source!==source){this.coverToneRequest.image.onload=null;this.coverToneRequest.image.onerror=null;this.coverToneRequest.image.removeAttribute?.('src');this.coverToneRequest=null;}

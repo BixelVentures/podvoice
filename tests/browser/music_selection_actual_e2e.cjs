@@ -152,6 +152,18 @@ async function queueSkipJourney(){
  assert.equal((await page.request.post(base+'/lab/queue',{data:{condition:'autoplay'}})).ok(),true);
  await firstUpcoming('Køsang 41');
  assert.deepEqual(await upcoming(),['Køsang 41','Køsang 42','Køsang 43']);
+ // Testnoter 13/11 fejl 4: PodConnect's snapshot is stale for a while (the room plays on).
+ // The known queue stays as it is: never empty, no row redrawn.
+ await page.request.post(base+'/lab/state',{data:{snapshotStale:true}});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.owner_epoch===null,
+  undefined,{timeout:15000});
+ await sleep(1500);
+ assert.deepEqual(await upcoming(),['Køsang 41','Køsang 42','Køsang 43'],'a stale read keeps the known queue');
+ await page.request.post(base+'/lab/state',{data:{snapshotStale:false}});
+ await page.waitForFunction(()=>typeof document.querySelector('pv-widget-host')?.liveMedia?.playback?.owner_epoch==='string',
+  undefined,{timeout:15000});
+ await sleep(1000);
+ assert.deepEqual(await upcoming(),['Køsang 41','Køsang 42','Køsang 43']);
  const probe=await page.evaluate(()=>{window.stopQueueSkip=true;const p=window.queueSkipProbe;return {...p,texts:[...p.texts]};});
  const emptyFrames=probe.frames.filter(frame=>frame.upcoming+frame.placeholders===0);
  assert.deepEqual(emptyFrames,[],'the queue list is never empty');
