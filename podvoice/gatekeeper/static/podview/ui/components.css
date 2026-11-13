@@ -886,4 +886,11 @@ pv-widget-host #music-response #result-list>.result.pv-row[data-content-state=pe
 #answer-host>pv-answer[data-thread]~pv-answer[data-thread]{border-top-left-radius:0;border-top-right-radius:0}
 #answer-host>pv-answer[data-thread=earlier] :is(.dismiss,.answer-actions,.followups,.retry-answer){display:none!important}
 #answer-host>pv-answer[data-thread=earlier] .answer-meta{display:none}
+/* Svar (Green 13. nov., fejl 9): plads til indholdet. Afsnit på samme kort står tættere,
+   og "AI-forklaring" står i Kilder-linjen i stedet for på sin egen linje. */
+#answer-host>pv-answer.answer-widget.response-widget[data-thread=earlier]{padding-bottom:16px}
+#answer-host>pv-answer.answer-widget[data-thread]~pv-answer.answer-widget.response-widget[data-thread]{padding-top:20px}
+pv-widget-host[data-topbar=true] #answer-host>pv-answer.answer-widget[data-thread]~pv-answer.answer-widget[data-thread]>.response-heading{padding-bottom:12px}
+#answer-host>pv-answer.answer-widget .answer-content:has(>:is(.sources,.answer-source-menu):not([hidden]):not([open])){position:relative}
+#answer-host>pv-answer.answer-widget .answer-content:has(>:is(.sources,.answer-source-menu):not([hidden]):not([open]))>.answer-meta:not([hidden]){position:absolute;right:calc(var(--pv-s2) * 2 + var(--pv-icon-s));bottom:0;max-width:50%;min-height:var(--pv-hit);margin:0;display:flex;align-items:center;pointer-events:none}
 #open-history.header-history[data-device=offline]{color:var(--pv-ink-3)}
