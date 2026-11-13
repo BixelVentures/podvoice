@@ -4066,12 +4066,15 @@ body button:not(.is-pressed){transition-property:filter!important}
 /* iPad Robot (lærred v190 »A-Robot«, »Robot-*«, »Robot-Sticky*«, »W-robot-*«, issue 395): a 744×221 hero in #F6D8E1
    (#F6D3DE while a turn runs) with the title in 40/800, the product's line in 19/600 and the corner arcs to the right
    (assets/robot, generated from the canvas' own formulas: still at the base, breathing while a turn runs, grey and
-   broken on a fault, grey when unknown). The actions sit at the bottom right: the primary as a dark 56 pill (at least 132 wide,
-   so Pause ↔ Fortsæt keeps »Mere« in place) and »Mere ▾« (the product's base disclosure) to its left; the disclosure opens as a #F7F6F3 card under them. Rum is a
+   broken on a fault, grey when unknown). The actions sit at the bottom right: the primary as a dark 56 pill (at least
+   132 wide,
+   so Pause ↔ Fortsæt keeps »Mere« in place) and »Mere ▾« (the
+   product's base disclosure) to its left; the disclosure opens as a #F7F6F3 card under them. Rum is a
    section of 64-px tiles in four columns with a dot; Rengøringsvalg is one card of segmented rows (Type 56, the
    rest 44). The page fades out at the fold. When the hero has scrolled away, the 72-px line under the topbar
    (robot-control-panel.js buildStickyLine) repeats the title, line, primary and »Mere ▾«. The M widget has the arcs,
-   20/800 + 15 and a dark 56 pill. The view starts at the topbar (16 padding) so the line can sit under it; the line is fixed to the column
+   20/800 + 15 and a dark 56 pill. The view starts at the topbar (16 padding) so the line can sit under it; the line is
+   fixed to the column
    (an ancestor is its containing block, so left/top 0 is the column under the topbar). */
 @media (min-width:1000px){
  pv-widget-host[data-view=active] .responses>#device-view:not([hidden]):has(pv-robot-control-panel){
@@ -4079,122 +4082,183 @@ body button:not(.is-pressed){transition-property:filter!important}
    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent);
    mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent)}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>section,
- pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>#device-detail{margin-left:0!important;margin-right:0!important;
+ pv-widget-host
+   #device-view#device-view#device-view:has(pv-robot-control-panel)>#device-detail{margin-left:0!important;
+   margin-right:0!important;
    width:744px!important;max-width:744px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-control-panel,.robot-cleaning-form){
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-control-panel,.robot-cleaning-form){
    display:flex!important;flex-direction:column!important;gap:32px!important}
  /* The product hides what the current mode does not use; nothing below may show it again. */
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel [hidden][hidden][hidden][hidden]{
    display:none!important}
+ /* A setting the chosen type does not use keeps its row, so Rute and Antal gange never move under the finger. */
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-type-options>fieldset[hidden][hidden][hidden][hidden]{
+   display:block!important;visibility:hidden!important}
  /* Hero */
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]{position:relative!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]{position:relative!important;
    display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto 1fr auto auto!important;
-   min-height:221px!important;height:auto!important;max-height:none!important;padding:24px!important;box-sizing:border-box!important;margin:0!important;
+   min-height:221px!important;height:auto!important;max-height:none!important;padding:24px!important;
+   box-sizing:border-box!important;margin:0!important;
    border-radius:24px!important;background:#F6D8E1!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
    overflow:hidden!important;gap:0!important;border:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
    [data-resource-status=cleaning],[data-resource-status=paused],[data-resource-status=docking],
    [data-resource-status=returning]){background:#F6D3DE!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]::after{content:''!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]::after{content:''!important;
    display:block!important;position:absolute!important;right:0;top:0;width:420px;height:221px;pointer-events:none;
    z-index:0;background:url(assets/robot/robot-arcs-hero.svg) right top/420px 221px no-repeat;opacity:.55}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
    [data-resource-status=cleaning],[data-resource-status=docking],[data-resource-status=returning])::after{
    background-image:url(assets/robot/robot-arcs-hero-active.svg);opacity:1}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero][data-resource-status=paused]::after{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero][data-resource-status=paused]::after{
    opacity:.7}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
-   [data-resource-status=fault],[data-kit-state=error])::after{background-image:url(assets/robot/robot-arcs-hero-broken.svg);
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
+   [data-resource-status=fault],[data-kit-state=error])::after{
+   background-image:url(assets/robot/robot-arcs-hero-broken.svg);
    opacity:.45}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is(
    [data-resource-status=unknown],[data-kit-state=unavailable],[data-kit-state=stale])::after{
    background-image:url(assets/robot/robot-arcs-hero-grey.svg);opacity:.35}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>*{position:relative;z-index:1;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>*{position:relative;z-index:1;
    grid-column:1!important;margin:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.pv-content{grid-row:1!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.pv-content{grid-row:1!important;
    display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:12px!important;
    padding:0!important;width:auto!important;max-width:440px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero] .pv-instrument{display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero] .pv-resource-value{order:1;
-   margin:0!important;font-size:40px!important;line-height:1!important;font-weight:800!important;letter-spacing:-.035em!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero] .pv-instrument{display:none!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero] .pv-resource-value{order:1;
+   margin:0!important;font-size:40px!important;line-height:1!important;font-weight:800!important;
+   letter-spacing:-.035em!important;
    color:#17171A!important;position:static!important;inset:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is([data-resource-status=fault],[data-kit-state=error]) .pv-resource-value{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is([data-resource-status=fault],
+   [data-kit-state=error]) .pv-resource-value{
    color:#B0262A!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is([data-resource-status=unknown],[data-kit-state=unavailable],[data-kit-state=stale]) .pv-resource-value{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]:is([data-resource-status=unknown],
+   [data-kit-state=unavailable],[data-kit-state=stale]) .pv-resource-value{
    color:#5F5E5A!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero] .pv-content>.pv-meta{order:2;
-   margin:0!important;font-size:19px!important;line-height:28px!important;font-weight:600!important;color:#3F3E3B!important;
-   position:static!important;inset:auto!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress:not([hidden]){
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero] .pv-content>.pv-meta{order:2;
+   margin:0!important;font-size:19px!important;line-height:28px!important;font-weight:600!important;
+   color:#3F3E3B!important;
+   position:static!important;inset:auto!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+   max-width:100%}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress:not([hidden]){
    grid-row:3!important;display:flex!important;flex-direction:row-reverse!important;justify-content:flex-end!important;
    align-items:center!important;gap:12px!important;margin-top:16px!important;width:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress progress{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress progress{
    width:220px!important;height:8px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress .pv-meta{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress .pv-meta{
    font:500 16px 'IBM Plex Mono',ui-monospace,monospace!important;color:#17171A!important;margin:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.transport{grid-row:4!important;
-   display:flex!important;flex-direction:row-reverse!important;flex-wrap:wrap!important;justify-content:flex-start!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.transport{grid-row:4!important;
+   display:flex!important;flex-direction:row-reverse!important;flex-wrap:wrap!important;
+   justify-content:flex-start!important;
    align-items:center!important;gap:12px!important;margin-top:16px!important;width:auto!important;padding:0!important;
    position:relative!important;inset:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.robot-settings-context:empty{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.robot-settings-context:empty{
    display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>button{height:56px!important;min-height:56px!important;
-   width:auto!important;min-width:132px!important;justify-content:center!important;padding:0 26px!important;border-radius:999px!important;margin:0!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>button{height:56px!important;min-height:56px!important;
+   width:auto!important;min-width:132px!important;justify-content:center!important;padding:0
+   26px!important;border-radius:999px!important;margin:0!important;
    font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important;position:static!important;flex:none!important;
-   background:#17171A!important;color:#F7F6F3!important;box-shadow:none!important;border:0!important;inset:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>button[data-kit-variant=destructive]{background:#FFFFFF!important;
+   background:#17171A!important;color:#F7F6F3!important;box-shadow:none!important;border:0!important;
+   inset:auto!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>button[data-kit-variant=destructive]{background:#FFFFFF!important;
    color:#B0262A!important;box-shadow:inset 0 0 0 2px #B0262A!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>button>:is(img,.pv-icon){display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>.robot-dock-actions>[id$=-trigger]{height:56px!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>button>:is(img,.pv-icon){display:none!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>.robot-dock-actions>[id$=-trigger]{height:56px!important;
    min-height:56px!important;width:auto!important;padding:0 18px 0 14px!important;border-radius:999px!important;
    background:transparent!important;color:#17171A!important;box-shadow:inset 0 0 0 1.5px rgba(23,23,26,.14)!important;
-   border:0!important;margin:0!important;flex:none!important;gap:8px!important;position:static!important;inset:auto!important;
+   border:0!important;margin:0!important;flex:none!important;gap:8px!important;position:static!important;
+   inset:auto!important;
    grid-template-columns:0 auto 24px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>.robot-dock-actions>[id$=-trigger][aria-expanded=true]{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>.robot-dock-actions>[id$=-trigger][aria-expanded=true]{
    background:#FFFFFF!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>.robot-dock-actions>[id$=-trigger] [data-kit-slot=leading-icon]{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>.robot-dock-actions>[id$=-trigger] [data-kit-slot=leading-icon]{
    display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>.robot-dock-actions>[id$=-trigger] [data-kit-slot=copy]{flex:none!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>.robot-dock-actions>[id$=-trigger] [data-kit-slot=copy]{flex:none!important;
    width:auto!important;min-width:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>.robot-dock-actions>[id$=-trigger] strong{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>.robot-dock-actions>[id$=-trigger] strong{
    font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .transport>.robot-dock-actions>[id$=-panel]:not([hidden]){
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .transport>.robot-dock-actions>[id$=-panel]:not([hidden]){
    order:99;flex:1 0 100%!important;margin:4px 0 0!important;padding:16px!important;box-sizing:border-box!important;
    border-radius:20px!important;background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
    position:static!important;inset:auto!important;width:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel] .pv-actions{display:flex!important;
-   flex-wrap:wrap!important;justify-content:flex-start!important;gap:8px!important;margin:0!important;padding:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel] .pv-actions>button{height:56px!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel]
+   .pv-actions{display:flex!important;
+   flex-wrap:wrap!important;justify-content:flex-start!important;gap:8px!important;margin:0!important;
+   padding:0!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel]
+   .pv-actions>button{height:56px!important;
    min-height:56px!important;width:auto!important;padding:0 22px 0 16px!important;border-radius:999px!important;
    background:#FFFFFF!important;color:#17171A!important;box-shadow:inset 0 0 0 1.5px rgba(23,23,26,.14)!important;
    border:0!important;gap:10px!important;font:600 16px 'Schibsted Grotesk',system-ui,sans-serif!important;
    position:static!important;inset:auto!important;margin:0!important;flex:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel] .pv-actions>button[data-kit-variant=destructive]{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel]
+   .pv-actions>button[data-kit-variant=destructive]{
    color:#B0262A!important;box-shadow:inset 0 0 0 2px #B0262A!important}
  /* Rum */
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-cleaning-zone,.robot-current-rooms){background:transparent!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-cleaning-zone,.robot-current-rooms){background:transparent!important;
    box-shadow:none!important;border:0!important;padding:0!important;margin:0!important;display:flex!important;
    flex-direction:column!important;gap:16px!important;border-radius:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-room-heading,.robot-current-heading){display:flex!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-room-heading,.robot-current-heading){display:flex!important;
    justify-content:space-between!important;align-items:flex-end!important;padding:0 4px!important;margin:0!important;
    min-height:0!important;height:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-room-context,.robot-current-heading){display:flex!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-room-context,.robot-current-heading){display:flex!important;
    flex-direction:column!important;gap:2px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-current-heading{align-items:flex-start!important;justify-content:flex-start!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-cleaning-zone,.robot-current-rooms,.robot-settings-zone,
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-current-heading{align-items:flex-start!important;justify-content:flex-start!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-cleaning-zone,.robot-current-rooms,.robot-settings-zone,
    .robot-current-settings) h2{font-size:24px!important;line-height:30px!important;font-weight:800!important;
    letter-spacing:-.01em!important;margin:0!important;color:#17171A!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-map-meta{font-size:16px!important;color:#5F5E5A!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-map-meta{font-size:16px!important;color:#5F5E5A!important;
    margin:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-heading>button{height:44px!important;min-height:44px!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-room-heading>button{height:44px!important;min-height:44px!important;
    padding:0 18px!important;border-radius:999px!important;background:#F7F6F3!important;color:#17171A!important;
    font:600 16px 'Schibsted Grotesk',system-ui,sans-serif!important;box-shadow:none!important;border:0!important;
    width:auto!important;position:static!important;margin:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-heading>button>.pv-icon{display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(fieldset.choices.pv-tiles,.robot-current-room-list){
-   display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;padding:0!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-room-heading>button>.pv-icon{display:none!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(fieldset.choices.pv-tiles,.robot-current-room-list){
+   display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:10px!important;
+   padding:0!important;
    margin:0!important;border:0!important;min-width:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-tile{height:64px!important;min-height:64px!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-room-tile{height:64px!important;min-height:64px!important;
    padding:0 18px 0 38px!important;border-radius:20px!important;display:flex!important;align-items:center!important;
    justify-content:flex-start!important;gap:10px!important;width:auto!important;margin:0!important;border:0!important;
    font:600 16px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#17171A!important;text-align:left!important;
@@ -4203,120 +4267,176 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-tile[data-selected=true]{
    background:#F6D8E1 radial-gradient(circle at 23px 50%,#B23A62 5px,transparent 5.5px) no-repeat!important;
    box-shadow:inset 0 0 0 2px #B23A62!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-tile .robot-room-icon{display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-tile .robot-room-label{font:inherit!important;color:inherit!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-tile
+   .robot-room-icon{display:none!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-room-tile
+   .robot-room-label{font:inherit!important;color:inherit!important;
    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
  /* Rengøringsvalg */
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-settings-zone,.robot-current-settings){background:transparent!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-settings-zone,.robot-current-settings){background:transparent!important;
    box-shadow:none!important;border:0!important;padding:0!important;margin:0!important;display:flex!important;
    flex-direction:column!important;gap:16px!important;border-radius:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-settings-zone,.robot-current-settings)>h2{padding:0 4px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-cleaning-options,.robot-current-controls){display:flex!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-settings-zone,.robot-current-settings)>h2{padding:0 4px!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-cleaning-options,.robot-current-controls){display:flex!important;
    flex-direction:column!important;padding:12px 24px!important;margin:0!important;border-radius:24px!important;
    background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;gap:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-type-options{display:flex!important;flex-direction:column!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-type-options{display:flex!important;flex-direction:column!important;
    gap:0!important;margin:0!important;padding:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel :is(.robot-cleaning-options,.robot-type-options,.robot-current-controls)>fieldset{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   :is(.robot-cleaning-options,.robot-type-options,.robot-current-controls)>fieldset{
    display:block!important;padding:14px 0!important;margin:0!important;border:0!important;
-   border-bottom:1px solid rgba(23,23,26,.07)!important;width:auto!important;max-width:none!important;background:none!important;
+   border-bottom:1px solid
+   rgba(23,23,26,.07)!important;width:auto!important;max-width:none!important;background:none!important;
    box-shadow:none!important;border-radius:0!important;min-width:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept] fieldset{display:block!important;width:100%!important;max-width:none!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]
+   fieldset{display:block!important;width:100%!important;max-width:none!important;
    padding:0!important;margin:0!important;border:0!important;background:none!important;box-shadow:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]>legend{float:left;width:100%;padding:0!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   fieldset[data-setting-concept]>legend{float:left;width:100%;padding:0!important;
    margin:0 0 8px!important;font:600 15px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
    display:flex!important;align-items:center!important;gap:0!important;height:auto!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept=mode]>legend{font-size:20px!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   fieldset[data-setting-concept=mode]>legend{font-size:20px!important;
    font-weight:800!important;color:#17171A!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]>legend :is(img,.pv-icon){display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept] .pv-kit-choice-options{clear:both;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]>legend
+   :is(img,.pv-icon){display:none!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]
+   .pv-kit-choice-options{clear:both;
    display:grid!important;grid-template-columns:none!important;grid-auto-flow:column!important;
    grid-auto-columns:minmax(0,1fr)!important;gap:4px!important;
-   padding:4px!important;border-radius:999px!important;background:#E9E7E2!important;width:100%!important;max-width:none!important;
+   padding:4px!important;border-radius:999px!important;background:#E9E7E2!important;width:100%!important;
+   max-width:none!important;
    box-sizing:border-box!important;margin:0!important;
    box-shadow:none!important;border:0!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept] .pv-kit-choice-options>label{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]
+   .pv-kit-choice-options>label{
    height:44px!important;min-height:44px!important;border-radius:999px!important;background:transparent!important;
    color:#17171A!important;font:600 16px 'Schibsted Grotesk',system-ui,sans-serif!important;box-shadow:none!important;
    border:0!important;margin:0!important;padding:0 8px!important;display:flex!important;align-items:center!important;
    justify-content:center!important;width:auto!important;min-width:0!important;white-space:nowrap!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept=mode] .pv-kit-choice-options>label{
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept=mode]
+   .pv-kit-choice-options>label{
    height:56px!important;min-height:56px!important;font-size:17px!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept] .pv-kit-choice-options>label:has(input:checked){
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]
+   .pv-kit-choice-options>label:has(input:checked){
    background:#17171A!important;color:#F7F6F3!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept] .pv-kit-choice-options>label>*:not(input){
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]
+   .pv-kit-choice-options>label>*:not(input){
    color:inherit!important;font:inherit!important}
  /* Seneste hændelser and Vedligeholdelse as cards */
- pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>section.device-history:not(:has(pv-robot-control-panel)){
+ pv-widget-host
+   #device-view#device-view#device-view:has(pv-robot-control-panel)
+   >section.device-history:not(:has(pv-robot-control-panel)){
    padding:24px!important;box-sizing:border-box!important;border-radius:24px!important;background:#F7F6F3!important;
    box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;margin-top:32px!important}
- pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel) #device-history-title{font-size:24px!important;font-weight:800!important;
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)
+   #device-history-title{font-size:24px!important;font-weight:800!important;
    line-height:30px!important;margin:0 0 14px!important}
  /* Robot-Sticky */
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{position:fixed!important;left:0;top:0;z-index:6;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky{position:fixed!important;left:0;top:0;z-index:6;
    width:744px;height:72px;padding:0 12px 0 20px;box-sizing:border-box;border-radius:0 0 20px 20px;background:#F6D8E1;
    box-shadow:0 14px 28px -18px rgba(23,23,26,.55),inset 0 0 0 1px rgba(23,23,26,.06);display:flex;align-items:center;
    gap:16px;transition:transform .24s cubic-bezier(.2,.9,.3,1),opacity .24s ease,visibility 0s .24s}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky[data-shown=false]{transform:translateY(-100%);opacity:0;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky[data-shown=false]{transform:translateY(-100%);opacity:0;
    visibility:hidden;pointer-events:none}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky[data-shown=true]{transition-delay:0s}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-dot{width:12px;height:12px;border-radius:50%;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky[data-shown=true]{transition-delay:0s}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-dot{width:12px;height:12px;border-radius:50%;
    background:#B23A62;flex:none}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-copy{display:flex;flex-direction:column;flex:1;min-width:0}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-title{font-size:20px;line-height:26px;font-weight:800;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-copy{display:flex;flex-direction:column;flex:1;min-width:0}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-title{font-size:20px;line-height:26px;font-weight:800;
    color:#17171A!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-sub{font-size:15px;line-height:20px;color:#5F5E5A;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-sub{font-size:15px;line-height:20px;color:#5F5E5A;
    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky>:is(.robot-sticky-primary,.robot-sticky-more){height:44px!important;min-height:44px!important;
-   padding:0 20px!important;border-radius:999px!important;font:600 16px 'Schibsted Grotesk',system-ui,sans-serif!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky>:is(.robot-sticky-primary,.robot-sticky-more){height:44px!important;min-height:44px!important;
+   padding:0 20px!important;border-radius:999px!important;font:600 16px
+   'Schibsted Grotesk',system-ui,sans-serif!important;
    border:0!important;margin:0!important;width:auto!important;flex:none!important;display:inline-flex!important;
    align-items:center!important;box-sizing:border-box!important;cursor:pointer;user-select:none}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky>[data-disabled=true]{opacity:.45}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky>[hidden]{display:none!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-primary{background:#17171A!important;color:#F7F6F3!important}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-more{background:transparent!important;color:#17171A!important;
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky>[data-disabled=true]{opacity:.45}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky>[hidden]{display:none!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-primary{background:#17171A!important;color:#F7F6F3!important}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-more{background:transparent!important;color:#17171A!important;
    box-shadow:inset 0 0 0 1.5px rgba(23,23,26,.14)!important;padding:0 18px!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky [data-text]::before{
    content:attr(data-text)}
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky-more::after{content:'▾';margin-left:6px}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   .robot-sticky-more::after{content:'▾';margin-left:6px}
  /* W-robot (M in the overview) */
  pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]{position:relative!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview::after{content:''!important;display:block!important;
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview::after{content:''!important;display:block!important;
    position:absolute!important;right:0;top:0;width:250px;height:221px;pointer-events:none;z-index:0;opacity:.55;
-   background:url(assets/robot/robot-arcs-widget.svg) right top/250px 221px no-repeat!important;inset:0 0 auto auto!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=cleaning],
+   background:url(assets/robot/robot-arcs-widget.svg) right top/250px 221px no-repeat!important;inset:0 0 auto
+   auto!important}
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=cleaning],
    [data-resource-status=docking],[data-resource-status=returning])::after{
    background-image:url(assets/robot/robot-arcs-widget-active.svg)!important;opacity:1}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview[data-resource-status=paused]::after{opacity:.7}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=fault],
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview[data-resource-status=paused]::after{opacity:.7}
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=fault],
    [data-kit-state=error])::after{background-image:url(assets/robot/robot-arcs-widget-broken.svg)!important;opacity:.45}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=unknown],
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=unknown],
    [data-kit-state=unavailable],[data-resource-stale=true])::after{
    background-image:url(assets/robot/robot-arcs-widget-grey.svg)!important;opacity:.35}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview>.resource-label{z-index:1}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview>.resource-visual{position:absolute!important;inset:20px auto auto 20px!important;
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview>.resource-label{z-index:1}
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview>.resource-visual{position:absolute!important;inset:20px auto auto
+   20px!important;
    width:22px!important;height:22px!important;margin:0!important;z-index:1}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview>.resource-visual>img{width:22px!important;height:22px!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview strong{position:absolute!important;inset:18px 52px auto 50px!important;height:26px!important;
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-preview>.resource-visual>img{width:22px!important;height:22px!important}
+ pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview
+   strong{position:absolute!important;inset:18px 52px auto 50px!important;height:26px!important;
    width:auto!important;margin:0!important;font:600 17px/26px 'Schibsted Grotesk',system-ui,sans-serif!important;
    color:#17171A!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview .resource-value{position:absolute!important;
-   left:20px!important;bottom:44px!important;top:auto!important;right:20px!important;inset:auto 20px 44px 20px!important;
-   font-size:20px!important;line-height:26px!important;height:26px!important;font-weight:800!important;color:#17171A!important;
+ pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview
+   .resource-value{position:absolute!important;
+   left:20px!important;bottom:44px!important;top:auto!important;right:20px!important;inset:auto 20px 44px
+   20px!important;
+   font-size:20px!important;line-height:26px!important;height:26px!important;font-weight:800!important;
+   color:#17171A!important;
    white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview small{position:absolute!important;
+ pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-preview
+   small{position:absolute!important;
    inset:auto 20px 20px 20px!important;font-size:15px!important;line-height:20px!important;height:20px!important;
-   color:#5E4049!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]:has(>.resource-direct-action:not([hidden]))>.resource-preview
+   color:#5E4049!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;
+   margin:0!important}
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]:has(>.resource-direct-action:not([hidden]))>.resource-preview
    :is(.resource-value,small){right:calc(20px + var(--pv-robot-pill,120px) + 16px)!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-direct-action{position:absolute!important;
-   inset:auto 20px 20px auto!important;z-index:3!important;height:56px!important;min-height:56px!important;width:auto!important;
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-direct-action{position:absolute!important;
+   inset:auto 20px 20px
+   auto!important;z-index:3!important;height:56px!important;min-height:56px!important;width:auto!important;
    min-width:0!important;padding:0 24px!important;border-radius:999px!important;background:#17171A!important;
    color:#F7F6F3!important;font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important;box-shadow:none!important;
    border:0!important;margin:0!important;display:inline-flex!important;align-items:center!important;gap:0!important;
    clip-path:none!important;-webkit-mask-image:none!important;mask-image:none!important}
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-direct-action>:is(img,.pv-icon){display:none!important}
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-direct-action>:is(img,.pv-icon){display:none!important}
  pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-direct-action::before,
- pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=vacuum]>.resource-direct-action::after{display:none!important}
+ pv-widget-host #now-view#now-view#now-view#now-view
+   .resource-card[data-kind=vacuum]>.resource-direct-action::after{display:none!important}
 }
 @media (min-width:1000px) and (prefers-reduced-motion:reduce){
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{transition:none}
