@@ -57,9 +57,10 @@ Tjek (lydløst):
   HA-tilstanden tjekkes efter hvert trin, og Køkkenalrum sættes på pause til sidst, også ved fejl.
 
 Login:
-  Opret i HA: Profil → Sikkerhed → Langtidsholdbare adgangstokens → "green-check". Gem det i nøgleringen:
-    security add-generic-password -a "$USER" -s podvoice-green-check -w
-  eller sæt GREEN_HA_TOKEN. Tokenet skrives aldrig ud.
+  Opret i HA: Profil → Sikkerhed → Langtidsholdbare adgangstokens → "green-check", kopiér det, og gem det
+  i nøgleringen direkte fra udklipsholderen (prompten i "security -w" klipper ved 128 tegn):
+    security add-generic-password -U -a "$USER" -s podvoice-green-check -w "$(pbpaste)"
+  Ryd derefter udklipsholderen. Alternativt GREEN_HA_TOKEN. Tokenet skrives aldrig ud.
 Miljø:
   GREEN_HA_URL      (standard http://homeassistant.lan:8123)
   GREEN_PANEL       PodVoice-panelets sti (standard 23375871_podvoice/view)
@@ -407,7 +408,8 @@ function describeFlashes(found) {
 async function openPodView(page) {
   await page.goto(`${BASE}/${PANEL}`, {waitUntil: 'domcontentloaded', timeout: 30000});
   for (let n = 0; n < 200; n++) {
-    if (/\/auth\/authorize/.test(page.url())) throw new Error('HA viste loginsiden: tokenet blev ikke accepteret');
+    if (/\/auth\/authorize/.test(page.url()))
+      throw new Error('HA viste loginsiden: tokenet blev ikke accepteret (se --help under Login)');
     for (const frame of page.frames()) {
       if (!/\/api\/hassio_ingress\//.test(frame.url())) continue;
       if (await frame.locator('pv-widget-host').count().catch(() => 0)) {
@@ -860,6 +862,12 @@ async function main() {
   const out = option('--out') || fs.mkdtempSync(path.join(os.tmpdir(), 'green-check-'));
   fs.mkdirSync(out, {recursive: true});
   const ha = haClient(token);
+  try {
+    await ha.get('/api/');
+  } catch (error) {
+    console.error(`HA afviste tokenet eller svarede ikke (${error.message}). Se --help under Login.`);
+    return 2;
+  }
   const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
   const browser = await chromium.launch({
     headless: !flag('--headed'),
