@@ -18,7 +18,6 @@ import {PlayerView,localPlayerModel,localQueueModel,localControlModel} from './p
 import {attachTouchIntent} from './ui/touch-intent.js';
 import {ScreenLifecycle} from './ui/screen-lifecycle.js';
 import {ScrollEdges} from './ui/scroll-edges.js';
-import {liteMode,applyLiteMode} from './ui/lite.js';
 import {VoiceSurface,voicePresentation} from './voice-surface.js';
 import {AnswerAutoReturn} from './ui/answer-auto-return.js';
 import {LiveControlView} from './live-control-view.js';
@@ -49,12 +48,12 @@ import {initialScene,sceneTransition,focusedAnswer,deviceLabel,devicePresentatio
 import {answerCatalog} from './answer-widget.js';
 const detachedDemoNodes=new Map();
 const $=id=>document.getElementById(id)||detachedDemoNodes.get(id);
-// A redraw while a finger is down or the content still scrolls waits until ~160 ms after, so
+// A redraw while a finger is down waits until ~160 ms after, so
 // scrolling is not starved. A tap's own redraw runs after pointerup and is never delayed by this.
-// Strip mode defers every redraw, also during scroll; elsewhere only live data redraws (clock,
-// outputs) wait, and only while a finger is down, because they are not caused by the touch. The waiting kind is kept: a deferred live redraw stays light.
+// Only live data redraws (clock, outputs) wait, because they are not caused by the touch. The
+// waiting kind is kept: a deferred live redraw stays light.
 function deferForGesture(host,kind='render'){
- if(!host.touching&&Date.now()-(host.lastScrollAt||0)>=150)return false;
+ if(!host.touching)return false;
  host.renderPending=host.renderPending==='render'?'render':kind;clearTimeout(host.gestureTimer);
  host.gestureTimer=setTimeout(()=>{
   host.gestureTimer=null;const pending=host.renderPending;host.renderPending=false;
@@ -71,9 +70,7 @@ class WidgetHost extends HTMLElement {
   const label=`${title} · Tilbage`;if(this.headerTitleAction.getAttribute('aria-label')!==label)this.headerTitleAction.setAttribute('aria-label',label);
  }
  connectedCallback(){this.detachPressedState??=attachPressedState(this);
-  // Strip mode (ui/lite.js): weak wall screens skip decoration that blocked scroll on the main thread.
-  this.lite=liteMode();if(this.lite)applyLiteMode(this.ownerDocument);
-  this.live=/\/view\//.test(location.pathname);this.dataset.mode=this.live?'live':'demo';if(!this.state){this.previewStage=this.live?null:new URLSearchParams(location.search).get('stage');this.frozenPreview=previewStates.includes(this.previewStage);this.state=previewScene(this.live?'quiet':this.previewStage||'rest');if(this.live)this.state={...this.state,connected:false,devices:[unconfiguredLight()],answers:[],timer:null,extraTimers:[]};this.build();if(this.live)for(const id of ['demo','open-demo']){const node=$(id);if(node){for(const child of [node,...node.querySelectorAll('[id]')])detachedDemoNodes.set(child.id,child);node.inert=true;node.remove();}}}if(!this.journey)this.journey=this.live?{cancel(){},dispose(){},render(){},choose(){},start(){},receipt(){}}:new MusicJourney(this);if(!this.live)this.musicRefresh??=new LocalMusicRefresh(this);if(!this.lite){this.motion??=new SceneMotion(this);this.scrollEdges??=new ScrollEdges(this);this.scrollEdges.attach();this.robotMotion??=new RobotMotion(this);}if(this.live&&!this.liveMedia)this.liveMedia=new LiveMediaView(this);if(this.live&&!this.liveRadio)this.liveRadio=new LiveRadioView(this);if(this.live&&!this.liveAnswers)this.liveAnswers=new LiveAnswerView(this);if(this.live&&!this.liveControls)this.liveControls=new LiveControlView(this);if(!this.live&&!this.localRobot)this.localRobot=new LocalRobotView(this);if(this.live&&!this.liveStatus)this.liveStatus='connecting';this.render();if(!this.live&&this.previewStage==='visual-history')this.open('history',$('open-history'));if(!this.live&&this.previewStage==='screen-device-ready')this.openScreenSettings($('header-ro'));this.schedule();this.connectGestures();this.pageLifecycle??=new PageLifecycle(this);this.pageLifecycle.attach();if(this.live)this.connectPodVoice();}
+  this.live=/\/view\//.test(location.pathname);this.dataset.mode=this.live?'live':'demo';if(!this.state){this.previewStage=this.live?null:new URLSearchParams(location.search).get('stage');this.frozenPreview=previewStates.includes(this.previewStage);this.state=previewScene(this.live?'quiet':this.previewStage||'rest');if(this.live)this.state={...this.state,connected:false,devices:[unconfiguredLight()],answers:[],timer:null,extraTimers:[]};this.build();if(this.live)for(const id of ['demo','open-demo']){const node=$(id);if(node){for(const child of [node,...node.querySelectorAll('[id]')])detachedDemoNodes.set(child.id,child);node.inert=true;node.remove();}}}if(!this.journey)this.journey=this.live?{cancel(){},dispose(){},render(){},choose(){},start(){},receipt(){}}:new MusicJourney(this);if(!this.live)this.musicRefresh??=new LocalMusicRefresh(this);this.motion??=new SceneMotion(this);this.scrollEdges??=new ScrollEdges(this);this.scrollEdges.attach();this.robotMotion??=new RobotMotion(this);if(this.live&&!this.liveMedia)this.liveMedia=new LiveMediaView(this);if(this.live&&!this.liveRadio)this.liveRadio=new LiveRadioView(this);if(this.live&&!this.liveAnswers)this.liveAnswers=new LiveAnswerView(this);if(this.live&&!this.liveControls)this.liveControls=new LiveControlView(this);if(!this.live&&!this.localRobot)this.localRobot=new LocalRobotView(this);if(this.live&&!this.liveStatus)this.liveStatus='connecting';this.render();if(!this.live&&this.previewStage==='visual-history')this.open('history',$('open-history'));if(!this.live&&this.previewStage==='screen-device-ready')this.openScreenSettings($('header-ro'));this.schedule();this.connectGestures();this.pageLifecycle??=new PageLifecycle(this);this.pageLifecycle.attach();if(this.live)this.connectPodVoice();}
  applyConversationPreview(stage){
   if(this.live!==false||!this.state||this.isConnected===false||!conversationPreviewStates.includes(stage)||this.ownerDocument.querySelector('dialog[open]'))return false;
   const previous=this.state,example=previewScene(stage,previous.conversationPreviewAt??Date.now()),mode=stage.slice('conversation-'.length);
@@ -193,10 +190,9 @@ class WidgetHost extends HTMLElement {
    const dialog=$(id),actions=dialog.querySelector('.demo-scenarios');
    applyKitDialog(dialog,{header:dialog.querySelector('header')||dialog.querySelector('h2'),description:dialog.querySelector('p'),content:id==='rooms'?$('room-options'):id==='history'?$('retained'):id==='quick-sheet'?$('screen-settings-content'):actions,actions,close:dialog.querySelector('.dialog-close')});
   }
-  this.addEventListener('wheel',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();},{passive:true});this.addEventListener('scroll',()=>{const now=Date.now();this.lastInteractionAt=now;this.lastScrollAt=now;
+  this.addEventListener('wheel',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();},{passive:true});this.addEventListener('scroll',()=>{this.lastInteractionAt=Date.now();
    // One layout read per frame, not per scroll event.
-   // Strip mode: the scrolled-topbar shadow is gone, so skip its per-frame layout read and restyle.
-   if(this.lite||this.topbarScrollFrame)return;
+   if(this.topbarScrollFrame)return;
    this.topbarScrollFrame=requestAnimationFrame(()=>{this.topbarScrollFrame=0;this.renderTopbarScroll();});},true);
   this.addEventListener('pointerdown',()=>{this.touching=true;},true);
   for(const name of ['pointerup','pointercancel'])globalThis.addEventListener?.(name,()=>{this.touching=false;},true);this.addEventListener('pointerdown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.addEventListener('keydown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.voiceSurface=new VoiceSurface(this);const historyNote=document.createElement('p');historyNote.id='history-example-note';historyNote.className='history-example-note';historyNote.hidden=true;historyNote.textContent='Forhåndsvisning · påvirker ikke hjemmet';$('history').append(historyNote);const historyEmpty=document.createElement('pv-inline-status');historyEmpty.id='history-empty';historyEmpty.data={state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:this.live?'Når PodVoice viser et visuelt svar, kan du finde det her igen.':'Her samles dine visuelle svar.'};$('history').insertBefore(historyEmpty,$('retained'));this.resourceButtons=new Map();this.deviceNodes=new Map();this.deviceRows=new Map();this.pins=new Set();this.answerNodes=new Map();this.retainedNodes=new Map();this.openers=new Map();$('open-history').setAttribute('aria-label','Svar · Se tidligere svar');$('open-history').setAttribute('aria-controls','history');$('open-history').setAttribute('aria-expanded','false');
@@ -275,7 +271,7 @@ class WidgetHost extends HTMLElement {
   this.renderTopbarClock?.();
  }
 
- renderLive(){if((this.touching||this.lite&&Date.now()-(this.lastScrollAt||0)<150)&&deferForGesture(this,'renderLive'))return;this.renderTopbarClock?.();this.liveOutputs?.sync();
+ renderLive(){if(this.touching&&deferForGesture(this,'renderLive'))return;this.renderTopbarClock?.();this.liveOutputs?.sync();
   const connected=this.liveStatus==='connected', snapshot=this.liveSnapshot;
   this.renderVoice();
   this.renderConnectionNotice(connectionPresentation({status:this.liveStatus,snapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true,browserOffline:this.browserOffline===true}));
@@ -482,13 +478,8 @@ class WidgetHost extends HTMLElement {
   }catch(error){if(current())this.liveCatalogue?.failure(kind,error?.message);}finally{if(generation===this.liveMusicGeneration){clearTimeout(this.musicSlowTimer);this.liveCatalogue?.setBusy(false);}if(this.liveMusicReadCustody===custody){const drain=this.isConnected&&this.liveTransport===transport&&transport.connected&&transport.generation===transportGeneration&&generation===this.liveMusicGeneration&&ownerScope()===owner;this.liveMusicReadCustody=null;if(drain)this.screenLifecycle?.sync();}}
  }
  connectGestures(){this.detachGestures?.();
-  // Strip mode: no swipe gestures (back, next view, controls, edge preview). Buttons do it all, and the
-  // per-touch bookkeeping and layout reads cost frames on a Frameo frame.
-  if(this.lite){this.detachGestures=null;return;}
   this.detachGestures=attachGestures(this,{detail:()=>['weather','timers','radio','recipes','vehicle','player'].includes(this.state.focus)||this.state.devices.some(d=>d.id===this.state.focus),context:()=>`${this.state.focus}:${$('history').open}`,active:()=>this.state.focus!=='photo',navigate:(intent,gesture)=>{const a=focusedAnswer(this.state);if(a?.kind==='steps'&&gesture?.target.closest('pv-step-guide')&&['next-view','previous-view'].includes(intent)){this.dispatch({type:'answer-action',sessionId:this.state.sessionId,taskId:a.id,revision:a.revision,action:'step',optionId:intent==='next-view'?'next':'back'});return;}if(intent==='controls')return;if(intent==='back'||intent==='previous-view'){if($('history').open){$('history').close();return;}this.journey.cancel();this.dispatch(this.state.focus==='now'?{type:'show',id:'photo'}:{type:'back'});this.focusHeading();return;}if(intent==='next-view')return;const id=this.state.focus==='now'?(this.state.answers.filter(a=>!a.hidden).at(-1)?.id||'music'):'now';this.dispatch({type:'show',id});},customize:()=>{},preview:progress=>{
-   // Runs per finger move and on every lift. Root writes restyle the whole page, so write only on change;
-   // strip mode has no drag preview at all (the back gesture itself still works).
-   if(this.lite)return;
+   // Runs per finger move and on every lift. Root writes restyle the whole page, so write only on change.
    const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches||this.dataset.motion==='reduced';
    const drag=String(progress>0),value=String(reduced?0:progress);
    if(this.dataset.edgeDrag!==drag)this.dataset.edgeDrag=drag;
@@ -557,16 +548,6 @@ class WidgetHost extends HTMLElement {
  openScreenSettings(opener){this.renderScreenSettings();this.open('quick-sheet',opener);}
  scheduleClock(){clearTimeout(this.clockTimer);if(!this.isConnected)return;this.renderTopbarClock(new Date());this.alignClock();const now=Date.now();this.clockTimer=setTimeout(()=>this.scheduleClock(),60000-now%60000);}
  renderTopbarClock(now=new Date()){
-  // Strip mode: three Intl formats and a connection projection per call, called from every redraw; skip
-  // when the minute, connection and snapshot content (without its heartbeat time) are unchanged.
-  if(this.lite){
-   const snapshot=this.liveSnapshot?JSON.stringify({...this.liveSnapshot,observedAt:0}):'';
-   const key=JSON.stringify([Math.floor(now.getTime()/60000),this.liveStatus,this.browserOffline===true,
-    this.liveTransport?.recoveryBlocked===true,this.state?.connected,this.dataset.night,
-    $('quick-sheet')?.open===true,snapshot]);
-   if(key===this.topbarClockKey)return;
-   this.topbarClockKey=key;
-  }
   const time=now.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),rawDate=now.toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'}),date=rawDate.charAt(0).toLocaleUpperCase('da-DK')+rawDate.slice(1);
   const connection=connectionPresentation({...this.live?{status:this.liveStatus,snapshot:this.liveSnapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true}:this.state.connectionPreview||{status:this.state.connected?'connected':'disconnected',snapshot:this.state.connected?undefined:{}},browserOffline:this.browserOffline===true}),offline=['offline','denied'].includes(connection.state);
   for(const [id,value] of [['photo-date',connection.headerLabel||now.toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'})],['header-date',connection.headerLabel||date]]){const node=$(id);if(node.textContent!==value)node.textContent=value;for(const [key,value] of [['role','status'],['aria-live','polite'],['aria-atomic','true']])if(node.getAttribute?.(key)!==value)node.setAttribute?.(key,value);if(connection.headerLabel&&connection.text){if(node.getAttribute?.('aria-label')!==connection.text)node.setAttribute?.('aria-label',connection.text);}else if(node.getAttribute?.('aria-label')!==null)node.removeAttribute?.('aria-label');}
@@ -580,7 +561,7 @@ class WidgetHost extends HTMLElement {
   const s=this.state,historyOpen=$('history').open===true,answer=focusedAnswer(s),device=this.currentLightDevice()||s.devices.find(item=>item.id===s.focus),title=historyOpen||answer?'Svar':(device?devicePresentation(device,{connected:this.live?!!this.liveTransport?.connected:s.connected}).title:({photo:'Hjem',now:'Lige nu',music:'Find musik',player:'Afspiller',timers:'Timer',weather:'Vejr',radio:'Radio',recipes:this.recipeView?.title?.textContent||'Opskrifter',vehicle:'Tesla'})[s.focus]||'PodView');const shellView=historyOpen||s.focus!=='photo'?'active':'rest';if(this.dataset.view!==shellView)this.dataset.view=shellView;const level=historyOpen||!['photo','now'].includes(s.focus)?'detail':'home';if(this.dataset.level!==level)this.dataset.level=level;
   const overviewHeading=String(s.focus==='now'&&!historyOpen&&!answer);if(this.dataset.overviewHeading!==overviewHeading)this.dataset.overviewHeading=overviewHeading;
   const weather=$('header-weather'),pending=String(!this.browserOffline&&(this.live?this.liveStatus==='connecting':s.connectionPreview?.status==='connecting')&&weather.disabled===true);if(weather.getAttribute('aria-busy')!==pending)weather.setAttribute('aria-busy',pending);
-  const history=$('open-history'),active=String(historyOpen||!!answer&&!answer.hidden);if(history.dataset.active!==active)history.dataset.active=active;this.renderSvarDevice?.(history);if(history.getAttribute('aria-current')!==(active==='true'?'page':'false'))history.setAttribute('aria-current',active==='true'?'page':'false');if(!this.lite)this.renderTopbarScroll();if(this.dataset.topbar!=='true')this.dataset.topbar='true';const node=$('header-title');if(this.renderHeaderTitle)this.renderHeaderTitle(title,historyOpen||!['photo','now'].includes(s.focus));else if(node.textContent!==title){this.headerTitleAnimation?.cancel();node.textContent=title;}
+  const history=$('open-history'),active=String(historyOpen||!!answer&&!answer.hidden);if(history.dataset.active!==active)history.dataset.active=active;this.renderSvarDevice?.(history);if(history.getAttribute('aria-current')!==(active==='true'?'page':'false'))history.setAttribute('aria-current',active==='true'?'page':'false');this.renderTopbarScroll();if(this.dataset.topbar!=='true')this.dataset.topbar='true';const node=$('header-title');if(this.renderHeaderTitle)this.renderHeaderTitle(title,historyOpen||!['photo','now'].includes(s.focus));else if(node.textContent!==title){this.headerTitleAnimation?.cancel();node.textContent=title;}
   const back=$('show-photo'),rest=s.focus==='now'&&!historyOpen,hidden=!rest;if(back.hidden!==hidden)back.hidden=hidden;const icon=back.querySelector?.('img'),restLabel=back.querySelector?.('.rest-label');if(back.dataset.navigation!=='rest')back.dataset.navigation='rest';if(icon&&icon.getAttribute('src')!=='assets/icons/house.svg')icon.setAttribute('src','assets/icons/house.svg');if(restLabel&&restLabel.hidden)restLabel.hidden=false;if(restLabel&&restLabel.textContent!=='Hjem')restLabel.textContent='Hjem';if(back.getAttribute('aria-label')!=='Gå hjem')back.setAttribute('aria-label','Gå hjem');if(!$('header-history-count').hidden)$('header-history-count').hidden=true;this.renderTopbarClock();
  }
 
@@ -846,22 +827,14 @@ class WidgetHost extends HTMLElement {
   if(!d||!this.state.connected||d.stale||d.pending||d.presentationOnly||!['docked','stopped','complete'].includes(d.status)||this.live!==!!d.live||!controls?.allowed('vacuum')||controls.pending||controls.setupPending||controls.musicIntentPending)return;
   this.dispatch({type:'show',id:d.id});this.focusHeading?.();
  }
- focusHeading(){if(this.lite||this.state.conflict||$('history').open)return;const heading=this.state.focus==='photo'?$('photo-view'):$('header-title');heading?.focus({preventScroll:true});}
+ focusHeading(){if(this.state.conflict||$('history').open)return;const heading=this.state.focus==='photo'?$('photo-view'):$('header-title');heading?.focus({preventScroll:true});}
  alignOverview(){
   const radio=$('home-radio'),radioSize=$('timer-card')?.dataset.activityKind==='timer'?'m':'s';
   // Follow TimerView's actual broad activity; authored library sizes stay explicit.
   if(radio&&!radio.dataset.kitSize&&radio.dataset.overviewSize!==radioSize)radio.dataset.overviewSize=radioSize;
   const overviewVisible=this.state.focus==='now';
-  if(!overviewVisible)this.overviewSignature=null;
   if(overviewVisible){
    const priorities=overviewPriorities({timers:timersFor(this.state),devices:this.presentationDevices||this.state.devices,mediaActive:this.dataset.playback==='active'});
-   // Strip mode: an unchanged order needs no DOM moves and no scroll-position read.
-   const signature=this.lite?JSON.stringify(priorities.map(item=>{
-    const row=this.deviceRows?.get(item.id),present=Boolean(row?.overviewShell||row||$(item.id));
-    return [item.id,item.rank,item.priority,present];
-   })):null;
-   if(signature&&signature===this.overviewSignature)return;
-   this.overviewSignature=signature;
    const ordered=[];
    for(const item of priorities){const row=this.deviceRows?.get(item.id),node=row?.overviewShell||row||$(item.id);if(!node)continue;if(node.style.order!==String(item.rank))node.style.order=String(item.rank);if(node.dataset.overviewPriority!==item.priority)node.dataset.overviewPriority=item.priority;if(node.dataset.overviewRank!==String(item.rank))node.dataset.overviewRank=String(item.rank);ordered.push(node);}
    // Fixed visual slots and native keyboard/read order are the same.
@@ -936,7 +909,7 @@ class WidgetHost extends HTMLElement {
   }
  }
 
- render(){if(this.lite&&deferForGesture(this))return;/* Commit navigation before domain projection: a renderer failure must not strand the current scene. */this.renderTopbar();this.syncLightArea();if($('history').open&&this.historyOpenedFocus!==this.state.focus){this.sceneNavigation=true;$('history').close();}const resourceSignature=JSON.stringify([this.state.focus,timersFor(this.state).map(t=>[t.id,t.status,t.hidden]),this.state.devices.map(d=>[d.id,d.kind,d.hidden]),this.state.connected,this.state.vehicle?.charging?.status]),resourceBoxes=resourceSignature!==this.resourceLayoutSignature?this.motion?.resources():null,viewChanged=this.lastRenderedFocus!==this.state.focus;this.resourceLayoutSignature=resourceSignature;this.lastRenderedFocus=this.state.focus;const s=this.state,m=s.music;if(this.dataset.view!==String(s.focus==='photo'&&!$('history').open?'rest':'active'))this.dataset.view=s.focus==='photo'&&!$('history').open?'rest':'active';if(this.dataset.level!==String($('history').open||!['photo','now'].includes(s.focus)?'detail':'home'))this.dataset.level=$('history').open||!['photo','now'].includes(s.focus)?'detail':'home';if(!this.live)this.renderVoice();const backLabel=s.focus==='now'?'Gå hjem':'Tilbage til Lige nu';if($('show-photo').getAttribute('aria-label')!==backLabel)$('show-photo').setAttribute('aria-label',backLabel);const results=resultsFor(m);
+ render(){/* Commit navigation before domain projection: a renderer failure must not strand the current scene. */this.renderTopbar();this.syncLightArea();if($('history').open&&this.historyOpenedFocus!==this.state.focus){this.sceneNavigation=true;$('history').close();}const resourceSignature=JSON.stringify([this.state.focus,timersFor(this.state).map(t=>[t.id,t.status,t.hidden]),this.state.devices.map(d=>[d.id,d.kind,d.hidden]),this.state.connected,this.state.vehicle?.charging?.status]),resourceBoxes=resourceSignature!==this.resourceLayoutSignature?this.motion?.resources():null,viewChanged=this.lastRenderedFocus!==this.state.focus;this.resourceLayoutSignature=resourceSignature;this.lastRenderedFocus=this.state.focus;const s=this.state,m=s.music;if(this.dataset.view!==String(s.focus==='photo'&&!$('history').open?'rest':'active'))this.dataset.view=s.focus==='photo'&&!$('history').open?'rest':'active';if(this.dataset.level!==String($('history').open||!['photo','now'].includes(s.focus)?'detail':'home'))this.dataset.level=$('history').open||!['photo','now'].includes(s.focus)?'detail':'home';if(!this.live)this.renderVoice();const backLabel=s.focus==='now'?'Gå hjem':'Tilbage til Lige nu';if($('show-photo').getAttribute('aria-label')!==backLabel)$('show-photo').setAttribute('aria-label',backLabel);const results=resultsFor(m);
  if(!this.live&&s.focus==='weather'&&!this.localWeatherBuilt){renderLocalWeather(document,s.weatherPreview==='empty'?liveWeatherModel(null,{reason:homeConnectionPresentation(s.connectionPreview||{}).reason}):s.weatherPreview==='stale'?{...localWeatherModel(s.weatherFixture||WEATHER_CHANGE_EXAMPLE),sourceStale:true,subtitle:'Ikke opdateret',summary:''}:localWeatherModel(s.weatherFixture||WEATHER_CHANGE_EXAMPLE));this.localWeatherBuilt=true;}
  if($('photo-view').hidden!==!!(s.focus!=='photo'))$('photo-view').hidden=s.focus!=='photo';if(!this.live)if($('header-weather').hidden!==!weatherHeaderVisible(s.focus,s.weatherPreview!=='empty'))$('header-weather').hidden=!weatherHeaderVisible(s.focus,s.weatherPreview!=='empty');if(!this.live){if($('photo-weather').hidden!==!!(s.focus!=='photo'))$('photo-weather').hidden=s.focus!=='photo';if($('weather-view').hidden!==!!(s.focus!=='weather'))$('weather-view').hidden=s.focus!=='weather';}if($('music-detail').hidden!==(s.focus!=='player'))$('music-detail').hidden=s.focus!=='player';if($('recipe-view').hidden!==(s.focus!=='recipes'))$('recipe-view').hidden=s.focus!=='recipes';if(!this.recipeView){const background=s.focus!=='recipes';this.recipeView=new RecipeView($('recipe-view'),()=>{this.dispatch({type:'back'});$('home-recipes').focus({preventScroll:true});},()=>{
   const status = $('home-recipes').querySelector('small');

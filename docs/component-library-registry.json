@@ -2751,8 +2751,7 @@
         "dist/vehicle-preview-command.js",
         "dist/live-radio-view.js",
         "dist/owner-answers.js",
-        "dist/recipe-view.js",
-        "dist/ui/lite.js"
+        "dist/recipe-view.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -3415,24 +3414,6 @@
         "scope": "DOM-free refresh scheduling, visibility and disposal helpers in the existing RecipeView; retain category, focus and scroll. No DOM roots, component anatomy or family added. Real browser upload-to-catalogue and server restart checked on the isolated candidate.",
         "newComponentFamilies": false
       }
-    },
-    "dist/ui/lite.js": {
-      "status": "active-support",
-      "imports": [],
-      "surface": {
-        "customElementAccesses": 0,
-        "rendererCalls": {},
-        "definitions": {
-          "function:liteMode": 1,
-          "function:applyLiteMode": 1,
-          "function:instant": 1
-        },
-        "roots": [],
-        "registrations": {},
-        "customTags": [],
-        "dom": false
-      },
-      "reviewedScope": "Strip mode for weak wall screens (Chrome <111, e.g. Frameo): no scroll-edge fades, motion or painted effects."
     },
     "dist/ui/date-format.js": {
       "status": "active-support",

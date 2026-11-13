@@ -101,23 +101,3 @@ test('the first heartbeat after a disconnect is presented', () =>
       transport.close();
     }
   }));
-
-test('strip mode (Frameo) redraws an unchanged screen only once a minute', () =>
-  withClock(async (clock) => {
-    const previous = globalThis.document;
-    globalThis.document = { documentElement: { hasAttribute: (name) => name === 'data-lite' } };
-    const { transport, calls } = await fixture();
-    try {
-      for (let second = 1; second <= 59; second++) {
-        clock.advance(1000);
-        transport.accept(snapshot({ observedAt: 1000 + second }), clock.now());
-      }
-      assert.equal(calls.filter((call) => call === 'snapshot').length, 0);
-      clock.advance(1000);
-      transport.accept(snapshot({ observedAt: 1060 }), clock.now());
-      assert.equal(calls.filter((call) => call === 'snapshot').length, 1);
-    } finally {
-      transport.close();
-      globalThis.document = previous;
-    }
-  }));

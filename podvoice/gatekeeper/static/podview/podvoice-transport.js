@@ -60,9 +60,8 @@ const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admissio
 // Everything in a snapshot except the heartbeat's observation time.
 const heartbeatSignature=value=>JSON.stringify({...value,observedAt:undefined});
 
-// Aging labels ("Sidst kendt") redraw every 10 s; strip mode (Frameo) every 60 s, because one full
-// redraw costs ~0.6 s there and freezes a scroll or tap it lands on.
-const agingRedrawMs=()=>globalThis.document?.documentElement?.hasAttribute?.('data-lite')?60000:10000;
+// Aging labels ("Sidst kendt") redraw every 10 s.
+const agingRedrawMs=()=>10000;
 
 export class PodVoiceTransport {
  constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild, cookies = () => globalThis.document?.cookie || ''} = {}) {

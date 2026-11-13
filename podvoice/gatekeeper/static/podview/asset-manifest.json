@@ -511,7 +511,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "c4091cfae5b9622972c8e139e912319bb520b65ce8be54fbbdb0dd14a12db76a"
+      "sha256": "d8cbab2ce52fe110bb095b94268c3ddcc20dd4cf7aa1c54f701b8a9d6fd59b3c"
     },
     {
       "path": "library.css",
@@ -547,7 +547,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "901269aa3bc9c7a700f4a3a2f60271bbdf20316cd890ca251c8a382abf3f0c07"
+      "sha256": "a8770523a4c133f306f94d83ed7c9f8506769a6c6a83597919f11556578e08cc"
     },
     {
       "path": "live-music-selection-view.js",
@@ -639,15 +639,15 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "d8c1a2b97275ded2beb67ae4a7f7d6b473808cd69809166208e2c6e1bc42bcea"
+      "sha256": "991e8bbc2ff4c699ead0b6def309018da1977d1a682f052856356dc3b5493a94"
     },
     {
       "path": "podview.css",
-      "sha256": "ef2f494c46e83d7f4178258421d0d37a839c0c968e757210a7cee21eae92a514"
+      "sha256": "01cc413db045f9a785e66d3dca65580d769eeb87436f6e60f3f21982955cca29"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "06041d0804fefaf38f1e9921a9e3acacd9f3e1c9b50dd608495ddf4b79110f95"
+      "sha256": "1b8f6b517a9c4169f3303f634cd9aac89991b9564b5ee25be708f36ebe598a7b"
     },
     {
       "path": "podvoice-view.js",
@@ -751,7 +751,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "5f7ccdc0820775554892ac27e672a78d1f1e4bc5582f16ec8e9286de0cec859b"
+      "sha256": "3e20e107ab6431a4dfcdd75f2cd28177335ba8e6ab76db55494134541800db85"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -779,7 +779,7 @@
     },
     {
       "path": "ui/gestures.js",
-      "sha256": "4b36490a821b87dd0fd31d099c51892196dc25812672b10eccbc95d2ec436e17"
+      "sha256": "5f72bd3111df67c4d4eb01df9fe5f08f046884227abab87c37d176c26b0dd0b5"
     },
     {
       "path": "ui/kit.js",
@@ -810,10 +810,6 @@
       "sha256": "9fd9c09464c8d7b1be737bea586ed6335c8c73fcd5523a8b301f6ab1c87ca1d4"
     },
     {
-      "path": "ui/lite.js",
-      "sha256": "f2e581cd98cf765266e7d35220094d062173d7921947799aac95e29e7b88ef8a"
-    },
-    {
       "path": "ui/motion.js",
       "sha256": "0c82c29e2d6e569ed4d2f22593eae56c94b7c127761346d966a4320f5a45d522"
     },
@@ -827,7 +823,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "ac171ee29bedfd6b735d239ab31bb04f63c2868a2d945a9f7779571ad4f2b970"
+      "sha256": "1a4971b7a0784b134c855473ef62a3a2d497055b16ac5f4ec883953d922f94b8"
     },
     {
       "path": "ui/reconcile.js",
@@ -911,7 +907,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "99af0ce0ae0ad4b1283c6f08b070f5eb5196dd98b97eb5b3cb269285ee9a39e4"
+      "sha256": "3679f9b0d6a41a9e308749c37350aed5ed5002a7eb60e5bd35f3a8e741df1393"
     },
     {
       "path": "workshop.css",
