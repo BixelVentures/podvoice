@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 e26625b5e086251a4e6f628a7626be254e5802579fc5a89418242980b6ff98d6 */
+/* Source: ui-kit.css · SHA256 d989467200962eda35ab80484ca010e02a175ceb3b5384e8e0912985f930cfaf */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6872,4 +6872,206 @@ body button:not(.is-pressed){transition-property:filter!important}
 @keyframes pv-radio-live{0%,100%{opacity:1}50%{opacity:.5}}
 @media (prefers-reduced-motion:reduce){
  pv-widget-host #radio-view .radio-scale-needle{animation:none!important;transition:none!important}
+}
+
+/* iPad Vejr (lærred v190 »A-Vejr«, »Vejr-Gammel«, »Vejr-Ukendt«, »Vejr-Shadere«, »W-vejr-*«, issue 394): a 744×458
+   #DDE6FB hero with »<sted> · Vejret i dag« (17/600), the temperature in 150/500, the condition in 26/800 and the
+   range; the hour forecast fills the bottom of the hero in 156-wide columns with the kit's fade and snap. 32 under it
+   »De næste dage« (24/800) over one #F7F6F3 card of 64-px rows and the source line. The dot material follows the
+   weather type (assets/weather, generated from the canvas' own dot formulas, left fade included). Data past the
+   freshness rule shows its time as a chip on the place line; no data shows »—« and a faded material.
+   The heading, hero and hours overlap in one grid, so the product's DOM and reading order stay as they are. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] .responses>#weather-view:not([hidden]){display:grid!important;
+   grid-template-columns:744px!important;grid-template-rows:54px 260px 144px auto auto!important;
+   gap:0!important;padding:0!important;width:744px!important;max-width:744px!important;align-content:start;
+   -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent);
+   mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent)}
+ pv-widget-host #weather-view>*{grid-column:1;min-width:0;margin:0!important}
+ pv-widget-host #weather-view>[hidden][hidden][hidden]{display:none!important}
+ pv-widget-host #weather-view>.response-heading{grid-row:1;z-index:2;display:flex!important;align-items:flex-end;
+   align-self:stretch;padding:0 32px!important;min-height:0!important;position:static!important;
+   background:none!important;border:0!important}
+ pv-widget-host #weather-view>.response-heading>div{display:flex!important;flex-direction:row!important;
+   align-items:center;gap:0;width:100%;min-width:0;height:22px}
+ pv-widget-host #weather-view>.response-heading :is(h1,p){margin:0!important;padding:0!important;
+   font:600 17px/22px var(--pv-font)!important;letter-spacing:0!important;color:#3E4660!important;
+   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host #weather-view>.response-heading h1{display:block!important;flex:none;max-width:60%}
+ pv-widget-host #weather-view>.response-heading p:not(:empty)::before{content:" · ";white-space:pre}
+ pv-widget-host #weather-view>.response-heading p:empty{display:none}
+ /* K-Fresh: the time of old data as a solid chip at the right of the place line. */
+ pv-widget-host #weather-view:has(>.weather-current[data-weather-state=stale])>.response-heading p{
+   display:none!important}
+ pv-widget-host #weather-view>.weather-current[data-weather-state=stale] .weather-metadata:not([hidden]){
+   position:absolute;z-index:2;inset:-27px 0 auto auto;display:flex!important;align-items:center;gap:0;
+   height:32px;margin:0!important;padding:0 12px!important;border-radius:999px;background:#F7F6F3;
+   font:600 15px/32px var(--pv-font)!important;color:var(--pv-ink)!important;white-space:nowrap}
+ pv-widget-host #weather-view>.weather-current .weather-metadata>div{display:none!important}
+ pv-widget-host #weather-view>.weather-current .weather-metadata>:is([data-meta-id=weather-retrieved],
+   [data-meta-id=freshness]){display:flex!important;gap:4px;margin:0!important;padding:0!important}
+ pv-widget-host #weather-view>.weather-current .weather-metadata :is(dt,dd){margin:0!important;padding:0!important;
+   font:inherit!important;color:inherit!important}
+ pv-widget-host #weather-view>.weather-current .weather-metadata>[data-meta-id=freshness]>dt{display:none}
+
+ pv-widget-host #weather-view>.weather-current.weather-current{grid-row:1/4;position:relative;z-index:0;
+   box-sizing:border-box;display:block!important;height:458px!important;min-height:0!important;
+   padding:54px 32px 0!important;border:0!important;border-radius:24px!important;overflow:hidden;
+   background:#DDE6FB!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;color:var(--pv-ink)!important}
+ pv-widget-host #weather-view>.weather-current::before{content:""!important;position:absolute;z-index:0;
+   inset:0 0 auto auto!important;width:470px!important;height:360px!important;opacity:.45;pointer-events:none;
+   -webkit-mask:none!important;mask:none!important;filter:none!important;
+   background:url(assets/weather/weather-cloud.svg) right top/470px 360px no-repeat!important}
+ pv-widget-host #weather-view>.weather-current[data-weather-tone=clear]::before{width:380px!important;
+   height:300px!important;background:url(assets/weather/weather-sun.svg) right top/380px 300px no-repeat!important;
+   animation:pv-weather-glow 3s ease-in-out infinite}
+ pv-widget-host #weather-view>.weather-current[data-weather-tone=rain]::before{width:380px!important;
+   height:300px!important;background:url(assets/weather/weather-rain.svg) right top/380px 300px no-repeat!important}
+ pv-widget-host #weather-view>.weather-current[data-weather-tone=snow]::before{width:380px!important;
+   height:300px!important;background:url(assets/weather/weather-snow.svg) right top/380px 300px no-repeat!important}
+ pv-widget-host #weather-view>.weather-current[data-weather-tone=fog]::before{width:380px!important;
+   height:300px!important;background:url(assets/weather/weather-fog.svg) right top/380px 300px no-repeat!important;
+   animation:pv-weather-mist 7s ease-in-out infinite alternate}
+ pv-widget-host #weather-view>.weather-current[data-weather-tone=storm]::before{width:380px!important;
+   height:300px!important;background:url(assets/weather/weather-storm.svg) right top/380px 300px no-repeat!important;
+   animation:pv-weather-flash 4s steps(1) infinite}
+ pv-widget-host #weather-view>.weather-current:is([data-weather-tone=cloudy],[data-weather-tone=partlycloudy],
+   [data-weather-tone=wind])::before{animation:pv-weather-drift 6s ease-in-out infinite alternate}
+ pv-widget-host #weather-view>.weather-current[data-weather-state=empty]::before{opacity:.09;animation:none}
+ pv-widget-host #weather-view>.weather-current>img{display:none!important}
+ /* Big, condition and one sub line that flows from the range into the product's advice (at most two lines). */
+ pv-widget-host #weather-view>.weather-current>[data-kit-slot=copy]{position:relative;z-index:1;
+   display:block!important;width:auto!important;padding:8px 0 0!important;text-align:left}
+ pv-widget-host #weather-view>.weather-current>[data-kit-slot=copy]>[hidden]:not(strong){display:none!important}
+ pv-widget-host #weather-view>.weather-current strong{display:block!important;margin:0!important;
+   font:500 150px/.85 var(--pv-font)!important;letter-spacing:-.065em!important;color:#3A4560!important;
+   font-variant-numeric:normal}
+ pv-widget-host #weather-view>.weather-current[data-weather-state=empty] strong::before{content:"—";color:#5F5E5A}
+ pv-widget-host #weather-view>.weather-current [data-kit-slot=title]{margin:24px 0 0!important;
+   font:800 26px/32px var(--pv-font)!important;letter-spacing:0;color:var(--pv-ink)!important}
+ pv-widget-host #weather-view>.weather-current [data-kit-slot=title]{display:block}
+ pv-widget-host #weather-view>.weather-current [data-kit-slot=copy]>span[data-kit-slot=body]{display:inline;
+   margin:0!important}
+ pv-widget-host #weather-view>.weather-current [data-kit-slot=copy]>span[data-kit-slot=body]::before{content:"";
+   display:block;height:8px}
+ pv-widget-host #weather-view>.weather-current :is(span[data-kit-slot=body],.weather-summary){
+   font:400 17px/24px var(--pv-font)!important;color:#3E4660!important}
+ pv-widget-host #weather-view>.weather-current .weather-summary:not([hidden]){display:inline!important;
+   margin:0!important;
+   padding:0!important;background:none!important;border:0!important}
+ pv-widget-host #weather-view>.weather-current span[data-kit-slot=body]:not([hidden])+.weather-metadata+
+   .weather-summary:not(:empty)::before{content:" · "}
+ pv-widget-host #weather-view>.weather-current:not([data-weather-state=stale]) .weather-metadata{display:none!important}
+
+ pv-widget-host #weather-view>.weather-hours.weather-hours{grid-row:3;z-index:1;box-sizing:border-box;
+   display:grid!important;grid-auto-flow:column;grid-auto-columns:156px;grid-template-columns:none!important;
+   gap:0!important;height:144px;margin:0 0 0 32px!important;padding:20px 32px 28px 0!important;
+   border:0!important;border-top:1px solid rgba(23,23,26,.10)!important;border-radius:0!important;
+   background:none!important;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain;
+   scroll-snap-type:x mandatory!important;scrollbar-width:none;
+   -webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);mask-image:linear-gradient(90deg,#000 78%,
+     transparent)}
+ pv-widget-host #weather-view>.weather-hours::-webkit-scrollbar{display:none}
+ pv-widget-host #weather-view>.weather-hours>[role=group]{display:flex!important;flex-direction:column;
+   align-items:center;gap:8px!important;width:156px;min-width:0!important;padding:0!important;margin:0!important;
+   scroll-snap-align:start;background:none!important;border:0!important}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>span{font:500 16px/20px 'IBM Plex Mono',
+   ui-monospace,monospace!important;
+   color:#3E4660!important}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>img{width:28px!important;height:28px!important;
+   margin:0!important}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>strong{font:800 22px/28px var(--pv-font)!important;
+   color:#3A4560!important}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>small{display:none!important}
+
+ pv-widget-host #weather-view>.weather-days.weather-days{grid-row:4;display:flex!important;flex-direction:column;
+   gap:0!important;margin:32px 0 0!important;padding:0 0 8px!important;background:none!important;border:0!important}
+ pv-widget-host #weather-view>.weather-days>h2{margin:0 0 24px!important;padding:0 4px!important;
+   font:800 24px/30px var(--pv-font)!important;color:var(--pv-ink)!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]{box-sizing:border-box;display:grid!important;
+   grid-template-columns:120px 40px minmax(0,1fr) 60px 60px!important;align-items:center;gap:16px!important;
+   height:64px;min-height:0!important;margin:0!important;padding:0 24px!important;background:#F7F6F3!important;
+   border:0!important;border-bottom:1px solid rgba(23,23,26,.07)!important;border-radius:0!important}
+ pv-widget-host #weather-view>.weather-days>h2+[role=group]{border-radius:24px 24px 0 0!important;
+   box-shadow:0 -8px 0 #F7F6F3}
+ pv-widget-host #weather-view>.weather-days>[role=group]:last-child{border-radius:0 0 24px 24px!important;
+   box-shadow:0 8px 0 #F7F6F3}
+ pv-widget-host #weather-view>.weather-days>h2+[role=group]:last-child{border-radius:24px!important;box-shadow:none}
+ pv-widget-host #weather-view>.weather-days>[role=group]>*{margin:0!important;min-width:0}
+ pv-widget-host #weather-view>.weather-days>[role=group]>strong:first-child{grid-column:1;
+   font:700 18px/24px var(--pv-font)!important;color:var(--pv-ink)!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]>img{grid-column:2;width:28px!important;height:28px!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]>.temperature-range{grid-column:3;grid-row:1;
+   height:8px!important;
+   border-radius:4px!important;background:#E9E7E2!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]>.temperature-range::after{border-radius:4px!important;
+   background:linear-gradient(90deg,#8D9CBC,#3A4560)!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]>.temperature-range::before{content:none!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]>span:not(.temperature-range){grid-column:4;grid-row:1;
+   text-align:right;font:400 18px/24px var(--pv-font)!important;color:#5F5E5A!important}
+ pv-widget-host #weather-view>.weather-days>[role=group]>strong:last-child{grid-column:5;grid-row:1;text-align:right;
+   font:800 18px/24px var(--pv-font)!important;color:var(--pv-ink)!important}
+ pv-widget-host #weather-view>.weather-source{grid-row:5;margin:16px 0 64px!important;padding:0 4px!important;
+   background:none!important;border:0!important}
+ pv-widget-host #weather-view>.weather-source p{margin:0!important;font:400 15px/20px var(--pv-font)!important;
+   color:#5F5E5A!important;white-space:pre-line}
+}
+@keyframes pv-weather-drift{from{transform:translateX(0)}to{transform:translateX(14px)}}
+@keyframes pv-weather-glow{0%,100%{opacity:.32;transform:scale(.9)}50%{opacity:.45;transform:scale(1.08)}}
+@keyframes pv-weather-flash{0%,88%,100%{opacity:.16}90%,94%{opacity:.45}}
+@keyframes pv-weather-mist{from{opacity:.16}to{opacity:.38}}
+@media (prefers-reduced-motion:reduce){pv-widget-host #weather-view>.weather-current::before{animation:none!important}}
+
+/* W-vejr (K-Widget vejr, L 364×458): head (22-px icon, »Vejr« 17/600, chevron); 22 under it the temperature in
+   120/500; the condition in 20/800; the range 15 in #3E4660; the five hours at the bottom over a thin line, the hour
+   temperature 19/800 in #1A3FB8. The widget cloud material sits top right; without data it is faded to .2. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-weather{
+   position:relative;display:flex!important;flex-direction:column!important;align-items:stretch!important;
+   gap:0!important;box-sizing:border-box;padding:46px 20px 20px!important;color:var(--pv-ink)!important;
+   background:url(assets/weather/weather-cloud-widget.svg) right top/270px 290px no-repeat,#DDE6FB!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather:not(:has(.home-temperature:not(:empty))){
+   background:linear-gradient(rgba(221,230,251,.8),rgba(221,230,251,.8)),
+    url(assets/weather/weather-cloud-widget.svg) right top/270px 290px no-repeat,#DDE6FB!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather>img:first-child{position:absolute!important;inset:22px auto auto 20px!important;width:22px!important;
+   height:22px!important;margin:0!important;padding:0!important;filter:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather>img:last-child:not(:first-child){display:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-weather::before{
+   display:block!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-weather::after{
+   position:absolute!important;inset:20px 48px auto 50px!important;height:26px;margin:0!important;
+   font:600 17px/26px var(--pv-font)!important;color:var(--pv-ink)!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather :is(span,strong):not(.home-temperature,.home-condition,.home-forecast,.home-forecast-hour,
+  .home-forecast-hour *){display:contents!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-temperature{display:block!important;margin:22px 0 0!important;
+   font:500 120px/.85 var(--pv-font)!important;letter-spacing:-.06em!important;color:#17171A!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-temperature:empty::before{content:"—";color:#8C8A85}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-condition{display:block!important;margin:20px 0 0!important;min-height:0!important;
+   font:800 20px/26px var(--pv-font)!important;color:var(--pv-ink)!important;white-space:nowrap;overflow:hidden;
+   text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather:not(:has(.home-temperature:not(:empty))) .home-condition{color:#5F5E5A!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-weather small{
+   display:block!important;position:static!important;inset:auto!important;margin:4px 0 0!important;
+   padding:0!important;font:400 15px/20px var(--pv-font)!important;
+   color:#3E4660!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-forecast:not([hidden]){display:grid!important;grid-template-columns:repeat(5,minmax(0,
+    1fr))!important;
+   gap:0!important;margin:auto 0 0!important;padding:18px 0 0!important;border-top:1px solid rgba(23,23,26,.08)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-forecast-hour{display:flex!important;flex-direction:column;align-items:center;gap:8px!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-forecast-hour>span{font:400 15px/20px var(--pv-font)!important;color:#3E4660!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-forecast-hour>img{width:24px!important;height:24px!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-weather .home-forecast-hour>strong{font:800 19px/24px var(--pv-font)!important;color:#1A3FB8!important}
 }
