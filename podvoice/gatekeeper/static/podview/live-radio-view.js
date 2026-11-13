@@ -48,6 +48,13 @@ export class LiveRadioView{
   const v=this.value,s=this.host.liveSnapshot;
   return v&&s&&v.bootId===s.bootId&&v.roomId===s.roomId?configurationReason(v):null;
  }
+ // The speaker radio plays on: the observed target, else the default target PodConnect offers.
+ targetName(){
+  const v=this.value,s=this.host.liveSnapshot;
+  if(!v?.enabled||v.bootId!==s?.bootId||v.roomId!==s?.roomId||!Array.isArray(v.targets))return null;
+  const target=v.targets.find(t=>t.id===v.state?.targetId)||v.targets.find(t=>t.default);
+  return target?.name||null;
+ }
  current(){const v=this.value,h=this.host;return !!(v?.enabled&&h.liveTransport?.connected&&!h.liveTransport.recoveryBlocked&&!h.browserOffline&&v.bootId===h.liveSnapshot?.bootId&&v.roomId===h.liveSnapshot?.roomId&&v.validUntil*1000>Date.now());}
  presentsPlayer(){return this.host.playerView?.sourceFocused?.('radio')!==false&&!(this.knownStopped()&&!this.pendingStart()&&this.host.playerView?.radioHistorySuperseded?.(this.stoppedHistory)===true);}
  hasSource(){const s=this.value?.state;return !!(this.value?.enabled&&this.value.bootId===this.host.liveSnapshot?.bootId&&this.value.roomId===this.host.liveSnapshot?.roomId&&s?.sourceKind==='radio'&&Number.isSafeInteger(s.ownerGeneration)&&radioStation(s.stationId));}
