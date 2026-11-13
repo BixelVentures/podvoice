@@ -369,7 +369,7 @@ test('delivery includes the approved discovery composition for the renderer four
  const renderer=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/music-results.js',import.meta.url),'utf8');
  const catalogue=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/live-music-view.js',import.meta.url),'utf8');
  assert.match(catalogue,/discovery:true/,'live catalogue uses the same discovery composition as approved preview');
- assert.match(renderer,/mood:'Tid på dagen',feeling:'Vibe',top:'Din musik',recent:'Hør igen'/);
+ assert.match(renderer,/mood:'Tid på dagen',feeling:'Vibe',top:'Jeres playlister',recent:'Fortsæt'/);
  for(const selector of ['[data-discovery-header]','[data-discovery-collection=mood]','[data-discovery-collection=feeling]','[data-discovery-collection=top]','[data-discovery-collection=recent]'])assert.ok(css.includes(selector),`missing delivered music layout: ${selector}`);
  assert.match(css,/#music-response\[data-discovery-collection=mood\][^{]+\.pv-hero[^}]+grid-row:1 \/ span 2/,'featured option spans the two alternative rows');
  assert.match(css,/grid-template-columns:56px minmax\(0,1fr\) var\(--pv-hit\)/,'personal music and history use compact ListRow anatomy');
