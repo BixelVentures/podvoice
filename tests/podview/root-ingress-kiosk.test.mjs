@@ -121,3 +121,38 @@ test('iPad wake: kiosk full screen is requested again when PodView becomes visib
  assert.equal(docListeners.size,0);assert.equal(f.listeners.size,0);
  f.sent.length=0;f.emit('focus');assert.deepEqual(f.sent,[]);
 });
+
+// Fejl 14 (13 Nov): the iPad wall screen showed PodView inside HA with toolbar and sidebar after a
+// Core restart and a locked screen. HA's app panel (frontend ha-panel-app.ts) only enables kiosk
+// on subscribe-properties when HA is not already in kiosk, and only an unsubscribe from the panel
+// that enabled it turns it off.
+function haPanel(f){
+ const ha={hassKiosk:false,enabledByPanel:false,rebuilt(){this.enabledByPanel=false;rect.top=56;}};
+ const rect={top:0,left:0};
+ f.win.frameElement={getBoundingClientRect:()=>({...rect})};
+ const timers=[];f.win.setInterval=(fn,ms)=>{timers.push({fn,ms});return timers.length;};f.win.clearInterval=id=>{timers[id-1]=null;};
+ const post=f.parent.postMessage;
+ f.parent.postMessage=(message,target)=>{post(message,target);
+  if(message.type==='home-assistant/subscribe-properties'&&message.kioskMode&&!ha.hassKiosk){ha.hassKiosk=true;ha.enabledByPanel=true;rect.top=0;}
+  if(message.type==='home-assistant/unsubscribe-properties'&&ha.enabledByPanel){ha.hassKiosk=false;ha.enabledByPanel=false;rect.top=56;}};
+ return {ha,rect,tick(){for(const t of timers)t?.fn();}};
+}
+test('a rebuilt HA panel without kiosk gets full screen back by itself; taps in full screen send nothing',()=>{
+ const f=frame(panel+'/view','view/');f.win.document={visibilityState:'visible',addEventListener(){},removeEventListener(){}};
+ const h=haPanel(f);
+ const end=beginIngressKiosk(f.win);
+ assert.equal(h.rect.top,0,'first load is full screen');
+ // A tap into PodView (focus) while full screen: no message at all, so no toolbar flash.
+ const before=f.sent.length;f.emit('focus');f.emit('online');f.emit('resize');h.tick();
+ assert.equal(f.sent.length,before,'nothing is sent while full screen');
+ // Core restart or locked screen: the old panel's teardown turned HA's kiosk off and the
+ // rebuilt panel shows its toolbar. No tap follows on a wall screen; the watch restores it.
+ h.ha.rebuilt();h.ha.hassKiosk=false;
+ h.tick();
+ assert.equal(h.rect.top,0,'full screen again without any tap');
+ assert.deepEqual(f.sent.slice(before).map(x=>x.message.type),
+  ['home-assistant/unsubscribe-properties','home-assistant/subscribe-properties']);
+ // Within 10 s a still-missing kiosk is not hammered.
+ h.rect.top=56;const sent=f.sent.length;h.tick();assert.equal(f.sent.length,sent);
+ end();
+});

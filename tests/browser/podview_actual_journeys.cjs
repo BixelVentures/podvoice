@@ -29,6 +29,10 @@ for(const journey of only.length?only:journeys){
  runJourney(journey);
  // S3 through HA's transitional states: Pause/Fortsæt keep their slot and the row stays put.
  if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_transition_actual_e2e.cjs');
+ // Fejl 1 (13 Nov): the robot page opens and renews its offer without greying out a button.
+ if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_open_actual_e2e.cjs');
+ // Fejl 15 (13 Nov): Start says "Starter …" and switches once to the job's controls.
+ if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_start_actual_e2e.cjs');
  if(journey==='music_push_actual_e2e.cjs')runJourney(journey,{MUSIC_PUSH_OVERLAP_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'push-overlap')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_INSECURE_ORIGIN_TEST:'1',
@@ -88,6 +92,8 @@ for(const journey of only.length?only:journeys){
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'vehicle-recovery')});
  if(journey==='vehicle_actual_e2e.cjs')runJourney(journey,{VEHICLE_LIFECYCLE_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'vehicle-lifecycle')});
+ // Fejl 11/12 (13 Nov): a polling HA; the Tesla page and commands ask for the car's own data.
+ if(journey==='vehicle_actual_e2e.cjs')runJourney('vehicle_fresh_actual_e2e.cjs');
  if(journey==='radio_actual_e2e.cjs'){
   runJourney(journey,{RADIO_TIMING_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'radio-timing')});

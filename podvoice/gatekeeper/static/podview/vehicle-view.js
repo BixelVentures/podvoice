@@ -193,7 +193,8 @@ export class VehicleView{
   command.awaitingCar=!!field&&(historicalField(this.model,field,this.connected)||
    vehicleFieldValue(this.model,field)==null||['asleep','offline'].includes(this.model.connectionState));
   // A sleeping, offline or unknown car is woken by the command before it can answer.
-  if(command.awaitingCar)command.label='Sendt · vækker bilen…';
+  // One short line under the title; the switch itself shows the progress (fejl 11, 13 Nov).
+  if(command.awaitingCar)command.label='Vækker bilen…';
   this.liveVehicleCommands.set(family,command);
   this.liveVehicleFeedback.delete(family);
   assign(command.note,'');
@@ -321,7 +322,8 @@ export class VehicleView{
  renderLiveVehicleCommand(command){
   const {trigger,action,note,label}=command;
   const button=trigger?.tagName==='BUTTON';
-  const named=button&&trigger.dataset.kitVariant!=='icon';
+  // The climate switch shows progress itself; its status is one line under the title (fejl 11).
+  const named=button&&trigger.dataset.kitVariant!=='icon'&&trigger.dataset.kit!=='toggle';
   if(!named){note.dataset.state='pending';assign(note,label);}
   if(!button||!this.vehicleActions.includes(action))return;
   if(trigger===this.liveVehicleButtons[action]&&(action==='lock'||action==='unlock')){

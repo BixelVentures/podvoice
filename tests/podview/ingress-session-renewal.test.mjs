@@ -1,5 +1,5 @@
 // After an HA Core restart the Supervisor ingress session answers 401 until HA's app panel renews it.
-// PodView renews quietly once, and otherwise says "Forbindelsen mangler · Prøv igen", never a raw 401.
+// PodView renews quietly and keeps recovering by itself (a wall screen never needs a tap), never a raw 401.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
@@ -40,20 +40,25 @@ test('401 waits quietly for HA to renew the ingress session, then reconnects onc
  assert.deepEqual(h.state.statuses,['connecting','connected'],'no error state while renewing');
 }));
 
-test('a 401 that survives one renewal shows "Forbindelsen mangler · Prøv igen" and stops retrying',()=>rig(async h=>{
+// Fejl 14 (13 Nov): after a Core restart the iPad wall screen stayed "disconnected" until someone
+// left and re-entered the panel. A 401 that outlives one renewal is still HA's ingress session:
+// PodView shows the calm offline state and keeps recovering by itself, never needing a tap.
+test('a 401 that survives one renewal keeps recovering by itself until HA admits PodView again',()=>rig(async h=>{
  h.state.deny=2;
- const started=h.t.start(),failed=assert.rejects(started,/transport_access_denied/);await h.flush();
+ const started=h.t.start(),failed=assert.rejects(started,/ingress_session_expired/);await h.flush();
  for(let i=0;i<66;i++)await h.tick();
  await failed;
- assert.equal(h.state.reads,2,'exactly one quiet retry');
- assert.equal(h.t.recoveryBlocked,true);assert.equal(h.t.sessionExpired,true);
- assert.equal(h.jobs.size,0,'no hidden retry loop');
- const shown=connectionPresentation({status:'disconnected',blocked:h.t.recoveryBlocked,sessionExpired:h.t.sessionExpired});
- assert.deepEqual(shown,{state:'offline',headerLabel:'Forbindelsen mangler',text:'Forbindelsen mangler · Prøv igen.',retry:true});
- assert.doesNotMatch(JSON.stringify(shown),/401|Unauthorized/);
- // "Prøv igen" restarts the transport, which may renew quietly once more.
- h.state.deny=0;await h.t.restart(false,false);
- assert.equal(h.t.connected,true);assert.equal(h.t.sessionExpired,false);
+ assert.equal(h.state.reads,2,'one quiet retry inside the first attempt');
+ assert.equal(h.t.recoveryBlocked,false,'an expired ingress session is never a terminal denial');
+ assert.equal(h.t.sessionExpired,true);
+ const shown=connectionPresentation({status:'disconnected',snapshot:snap(),blocked:h.t.recoveryBlocked,sessionExpired:h.t.sessionExpired});
+ assert.equal(shown.state,'offline');assert.doesNotMatch(JSON.stringify(shown),/401|Unauthorized|Adgang/);
+ const recovery=[...h.jobs].find(([,x])=>x.ms<=30000);assert.equal(h.jobs.size,1,'only the recovery timer is armed');
+ assert.ok(recovery,'automatic recovery is armed');
+ // HA's panel renews the session (60 s tick); the armed recovery reconnects without any tap.
+ h.state.cookie='ingress_session=renewed';
+ h.jobs.delete(recovery[0]);recovery[1].job();await h.flush();await h.flush();
+ assert.equal(h.t.connected,true);assert.equal(h.t.sessionExpired,false);assert.equal(h.state.reads,3);
 }));
 
 test('PodVoice 403 stays a terminal access denial without waiting',()=>rig(async h=>{

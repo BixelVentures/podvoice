@@ -557,7 +557,7 @@ test('Klima with an unknown HA state is sent and waits for the car, then shows w
  assert.equal(sends,1);
  const command=view.liveVehicleCommands.get('climate');
  assert.equal(command.phase,'observing');
- assert.equal(command.label,'Sendt · vækker bilen…');
+ assert.equal(command.label,'Vækker bilen…');
  view.render(report('heat_cool',command.sentAt+5),options);
  assert.equal(view.climateFeedback.textContent,'Klimaet er tændt.');
  view.cleanup();
@@ -574,7 +574,7 @@ test('an older remembered lock value does not block Lås; the command waits for 
  await view.finishVehicle({confirmation:{action:'lock'},operation:{
   presentationCurrent:()=>true,observationCurrent:()=>true,
  }},view.liveVehicleButtons.lock);
- assert.equal(view.liveVehicleCommands.get('lock').label,'Sendt · vækker bilen…');
+ assert.equal(view.liveVehicleCommands.get('lock').label,'Vækker bilen…');
  view.cleanup();
 });
 
@@ -599,17 +599,17 @@ test('low battery shows a climate note with the observed percent, only while cli
  assert.equal(view.climateBatteryNote.hidden,true);
  view.cleanup();
 });
-test('a sleeping car says Sendt · vækker bilen… while the command is in flight and after acceptance',async()=>{
+test('a sleeping car says Vækker bilen… while the command is in flight and after acceptance',async()=>{
  const {root}=fixture();let release;
  const view=new VehicleView(root,{onVehicleSend:()=>new Promise(resolve=>{release=resolve;})});
  const now=Date.now()/1000;
  view.render(lowBatteryCar({stamp:now-600,battery:60}),{vehicleActions:['climateOn','climateOff']});
  const done=view.finishVehicle({confirmation:{action:'climateOn'},operation:{presentationCurrent:()=>true,
   observationCurrent:()=>true,waitForObservation:()=>()=>{}}},view.liveVehicleButtons.climateOn);
- assert.equal(view.liveVehicleCommands.get('climate').label,'Sendt · vækker bilen…');
+ assert.equal(view.liveVehicleCommands.get('climate').label,'Vækker bilen…');
  release({status:'accepted'});await done;
  const command=view.liveVehicleCommands.get('climate');
- assert.equal(command.phase,'observing');assert.equal(command.label,'Sendt · vækker bilen…');
+ assert.equal(command.phase,'observing');assert.equal(command.label,'Vækker bilen…');
  view.cleanup();
 });
 test('car online after the command with climate still off says what it did not do, not Udfald ukendt',async()=>{

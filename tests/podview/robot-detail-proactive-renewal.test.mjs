@@ -95,7 +95,9 @@ test('reopening the same valid robot keeps controls live until an authenticated 
 });
 
 test('reopening with changed authority or expired offer never uses the preservation path',async()=>{
- for(const changed of ['authority','expired']){const f=fixture();try{await open(f);inline(f);const old=f.view.task;if(changed==='authority')f.host.liveSnapshot.bootId='other';else old.expiresAt=Date.now()/1000-1;const reading=f.view.openRobot(new Node('button'));assert.notEqual(f.view.task,old);assert.equal(f.view.robotPanel.disabled,true);f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.writes(),0);}finally{f.view.cleanup();}}
+ for(const changed of ['authority','expired']){const f=fixture();try{await open(f);inline(f);const old=f.view.task;if(changed==='authority')f.host.liveSnapshot.bootId='other';else old.expiresAt=Date.now()/1000-1;const reading=f.view.openRobot(new Node('button'));assert.notEqual(f.view.task,old);
+ // Fejl 1 (13 Nov): an offer that only ran out keeps the live robot's panel usable while the fresh one is fetched.
+ assert.equal(f.view.robotPanel.disabled,changed==='authority');f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.writes(),0);}finally{f.view.cleanup();}}
 });
 
 test('pending and unknown states fence reopening without another read or any action',async()=>{
@@ -164,7 +166,7 @@ test('unknown for this robot before hidden expiry creates neither custody nor re
 });
 
 test('reopening robot setup leaves panel descendants to its own disabled gate',async()=>{
- const f=fixture();try{await open(f);inline(f);const panel=f.view.robotPanel,base=new Node('button'),outside=new Node('button');base.dataset={};outside.dataset={};base.disabled=false;panel.replaceChildren(base);panel.contains=node=>node===base;f.view.body.append(outside);let baseWrites=0,baseDisabled=false;Object.defineProperty(base,'disabled',{get:()=>baseDisabled,set:value=>{baseWrites++;baseDisabled=value;}});f.view.task=null;const read=f.view.open('vacuum',target,new Node('button'));assert.equal(baseWrites,0,'opening must not transiently disable panel-owned Base');assert.equal(outside.disabled,true,'non-panel controls remain disabled');assert.equal(panel.disabled,true,'panel owns task/direct-action gating');f.next.resolve(f.offer('fresh'));await read;assert.equal(f.writes(),0);}finally{f.view.cleanup();}
+ const f=fixture();try{await open(f);inline(f);const panel=f.view.robotPanel,base=new Node('button'),outside=new Node('button');base.dataset={};outside.dataset={};base.disabled=false;panel.replaceChildren(base);panel.contains=node=>node===base;f.view.body.append(outside);let baseWrites=0,baseDisabled=false;Object.defineProperty(base,'disabled',{get:()=>baseDisabled,set:value=>{baseWrites++;baseDisabled=value;}});f.view.task=null;const read=f.view.open('vacuum',target,new Node('button'));assert.equal(baseWrites,0,'opening must not transiently disable panel-owned Base');assert.equal(outside.disabled,true,'non-panel controls remain disabled');assert.equal(panel.disabled,false,'a live robot keeps its panel usable while setup is fetched (fejl 1)');f.next.resolve(f.offer('fresh'));await read;assert.equal(f.writes(),0);}finally{f.view.cleanup();}
 });
 // S2/S3: Pause tapped while Start is still in flight is queued and sent once Start settles.
 test('a robot transport tap during a pending Start is queued and sent once when Start settles',async()=>{
