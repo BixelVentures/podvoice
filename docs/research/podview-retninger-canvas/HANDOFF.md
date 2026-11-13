@@ -58,7 +58,7 @@ Fælles:
 - **Touch-feedback overalt (ejer 13. nov.):** alt trykbart giver synlig respons inden 100 ms, også før svaret fra HA:
   knapper/flader trykkes ind (skala ≈0,97 + let mørkere, kit-token), og fladetryk uden knap (fx Foto-Ro »tryk for at
   åbne«, nat-skærm) viser en blød cirkel ved fingeren, der udvider og toner ud (≈300 ms). Ingen lyd, ingen haptik
-  (webview). Touch-feedback er altid ens (ingen særregel for reduceret bevægelse).
+  (webview). Touch-feedback er altid ens.
 - **Tekster kommer fra produktet.** Lærredets `.dc.html` er reference og kopieres ikke ind.
 - **Tilbagerulning** = udgiv forrige version igen.
 - **Første merge til `main`** først når `docs/STATUS.md` ikke har åbne blokeringer (pt. Robot-UI visuel accept,
@@ -82,9 +82,9 @@ Script fra `.dc.html` + `canvas.json`, kun skærmtavler. Én række pr. tavle ×
 tavle → produktskærm + tilstand → Playwright-test → skærmbillede ved tavlen → status (match / afvigelse godkendt).
 Tavler uden produktmodstykke i dag (`Foto-Nat`, `Opskrifter-Bog`/Cover Flow, `Opskrift-TimerKoerer`,
 `Vejr-Shadere`, Foto-Ro-karrusel) er spor C.
-**Bevægelseskatalog:** alle `transition`, `@keyframes`/`animation`, `prefers-reduced-motion` fra tavlerne
+**Bevægelseskatalog:** alle `transition` og `@keyframes`/`animation` fra tavlerne
 (48 tavler). Hver post bliver en kit-bevægelse (token) med Playwright-test på styret ur: element, varighed,
-kurve, sluttilstand, `animation:none` ved reduceret bevægelse.
+kurve, sluttilstand. Ingen »Reducer bevægelse«-varianter (ejer 13. nov.): bevægelse er ens for alle.
 
 ## Rækkefølge og parallelle spor
 | Bølge | Spor 1 (lead) | Spor 2 | Spor 3 | Bevis |
