@@ -742,12 +742,11 @@ async function seekJourney(page,errors){
  await testEnv.touchRange(page,slider,57000);
  const lost=await effects(initial.writes.length+4);
  const lostPosition=lost.writes.at(-1).positionMs;
- await page.waitForFunction(()=>{
-  const controls=document.querySelector('pv-widget-host').liveControls;
-  return controls.player?.status?.startsWith('Højttaleren svarede ikke')&&!controls.player.busy();
- },undefined,{timeout:10000});
+ await page.waitForFunction(()=>!document.querySelector('pv-widget-host').liveControls.player?.busy(),
+  undefined,{timeout:10000});
  assert.equal(lostCount,1);
- assert.match(await page.locator('#playback-status').innerText(),/Højttaleren svarede ikke/);
+ // The owner applied the seek although its reply was lost: no text stays in the player (13/11).
+ assert.equal(await page.locator('pv-widget-host').evaluate(h=>h.liveControls.player.status),'');
  const observedAfterLoss=await change({externalPlaybackState:'paused'});
  await page.waitForFunction(({sequence,positionMs})=>{
   const p=document.querySelector('pv-widget-host').liveMedia.playback;
