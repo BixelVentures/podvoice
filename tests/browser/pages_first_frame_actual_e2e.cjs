@@ -13,9 +13,8 @@ const os = require('node:os');
 const port = Number(process.env.PAGES_FIRST_FRAME_TEST_PORT || 18992);
 const base = `http://127.0.0.1:${port}`;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-// Recipes still read their catalogue when opened (recipe_actual_e2e pins that cold read); not here yet.
 const pages = [['#timer-card', 'timers-view'], ['#home-weather', 'weather-view'],
-  ['#now-view > [data-kind="light"]', 'device-view']];
+  ['#now-view > [data-kind="light"]', 'device-view'], ['#home-recipes', 'recipe-view']];
 
 let server;
 let browser;

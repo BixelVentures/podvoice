@@ -3397,6 +3397,7 @@
           "method:page": 1,
           "method:catalog": 1,
           "method:refreshPublishedCatalog": 1,
+          "method:warmImages": 1,
           "method:refreshUploadHistory": 1,
           "method:checklist": 1,
           "method:recipe": 1,
