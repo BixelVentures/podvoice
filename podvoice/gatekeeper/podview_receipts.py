@@ -503,8 +503,18 @@ def _facts(
 
 
 def _same_answer(left: tuple, right: tuple) -> bool:
-    """One spoken answer: same owner, session, generation, task and input; turn may differ."""
-    return left[0] is right[0] and left[1:3] == right[1:3] and left[4:] == right[4:]
+    """One question: same owner, session, generation and user input.
+
+    Live may answer one question through several delegations (Green 13 Nov: four
+    searches for one match, each its own task), so turn and task may differ; the
+    user's input revision is what makes a new question and a new card.
+    """
+    return (
+        left[0] is right[0]
+        and left[1:3] == right[1:3]
+        and left[4] == right[4]
+        and left[6] == right[6]
+    )
 
 
 def _web_text(result: object) -> str | None:

@@ -255,3 +255,40 @@ async def test_card_without_any_usable_field_is_still_skipped_without_content(ca
     messages = [r.getMessage() for r in caplog.records if "podview card" in r.getMessage()]
     assert any("field=match.date rule=empty" in m for m in messages)
     assert any("stage=skip room=kitchen reason=InvalidPresentationField" in m for m in messages)
+
+
+async def test_one_question_answered_through_several_delegations_gives_one_updated_card():
+    """Green 13 Nov (fejl 7): "Italien-Frankrig" gave 4 searches, each in its own Live
+    delegation, and two near-identical cards. One question is one card, updated."""
+    owner, store = object(), VisualReceiptOwner()
+    fake = FakeSummarizer(SPORT)
+    store.configure_card_summarizer(fake)
+    for n in range(4):
+        search(
+            owner,
+            store,
+            call_id=f"search-{n}",
+            text=f"Kilde {n}: Barcelona 3-1.",
+            turn_id=f"live:1:response-{n}",
+            task_id=f"answer:delegation-{n}",
+            delegation_id=f"delegation-{n}",
+        )
+        await settle(store)  # Each search lands after the previous card was published.
+    assert len(store.snapshot("kitchen", owner)["items"]) == 1
+    assert len(store._history["kitchen"]["items"]) == 1
+    assert len(fake.calls[-1][1]) == 4  # The one card is updated from all four results.
+    # The next question gets its own card, newest first: cards follow the questions.
+    store.configure_card_summarizer(FakeSummarizer(FOLLOW_UP))
+    search(
+        owner,
+        store,
+        call_id="search-next",
+        question="Hvem scorede?",
+        turn_id="live:1:response-next",
+        task_id="answer:delegation-next",
+        delegation_id="delegation-next",
+        input_revision=2,
+    )
+    await settle(store)
+    titles = [item["title"] for item in store.history("kitchen", owner)["items"]]
+    assert titles == [FOLLOW_UP["title"], SPORT["title"]]
