@@ -2770,6 +2770,8 @@
           "updateResourceTile": 2
         },
         "definitions": {
+          "method:recipeArrivals": 1,
+          "method:showRecipeArrivals": 1,
           "arrow:currentObservation": 1,
           "arrow:observedArea": 1,
           "arrow:$": 1,

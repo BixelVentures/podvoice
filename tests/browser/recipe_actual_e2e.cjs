@@ -9,6 +9,7 @@ const os=require('node:os');
 const path=require('node:path');
 const assert=require('node:assert/strict');
 const {createHash}=require('node:crypto');
+const SHARE_HINT='Tilføj opskrift: Del → Home Assistant fra Safari eller Chrome på iPhone.';
 const root=testEnv.root, port=Number(process.env.RECIPE_TEST_PORT || 18972), base=`http://127.0.0.1:${port}`;
 const python=testEnv.python;
 const envBase=testEnv.pythonEnv({RECIPE_TEST_PORT:String(port)});
@@ -86,7 +87,8 @@ async function observeColdCatalog(page,widget,bundleSHA){
   await page.waitForFunction(()=>window.coldRecipeFrames?.length>0);
   const first=await page.evaluate(()=>window.coldRecipeFrames[0].state);
   assert.deepEqual(first.rows,[],'cold view has not received the held catalogue');
-  assert.deepEqual(first.messages,['Henter opskrifter …'],'first visible frame explicitly loads');
+  // Changed: the catalogue always says how to add a recipe (Del → Home Assistant).
+  assert.deepEqual(first.messages,['Henter opskrifter …',SHARE_HINT],'first visible frame explicitly loads');
   assert.notEqual(first.status,'ready');
  }finally{releaseRead();}
  const published=await response;
@@ -113,7 +115,7 @@ async function observeColdCatalog(page,widget,bundleSHA){
  const ready=frames.filter(({state})=>state.status==='ready');
  for(const {state} of ready){
   assert.deepEqual([...state.rows].sort(),titles,'every observed ready frame contains the catalogue');
-  assert.deepEqual(state.messages,[],'ready catalogue never shows a substitute message');
+  assert.deepEqual(state.messages,[SHARE_HINT],'ready catalogue never shows a substitute message');
  }
  const covers=ready.at(-1).state.covers;
  assert(covers.some(cover=>cover.title==='Burgerboller')&&covers.every(cover=>cover.loaded&&!cover.fallback));
