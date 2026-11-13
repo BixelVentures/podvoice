@@ -3553,6 +3553,12 @@ body button:not(.is-pressed){transition-property:filter!important}
    box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;}
  #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]>.result-art{
    width:72px!important;height:72px!important;border-radius:0!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]{
+   justify-content:flex-start!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]>.result-copy{
+   flex:1 1 0!important;width:auto!important;min-width:0!important;}
  /* Vibe: 120 tiles, the name on the tile. */
  #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]{
    width:120px!important;}

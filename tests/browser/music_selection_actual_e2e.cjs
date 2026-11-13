@@ -435,9 +435,20 @@ async function recentSessionJourney(){
  const expandedRows=await visibleRows();
  assert.equal(expandedRows.length,10);
  assert.deepEqual(expandedRows.slice(0,5),initialRows);
- await env.touchScroll(page,feed,{dy:320});
+ // On the iPad page (#392) Fortsæt wraps in three columns, so ten rows can fit without scrolling; then every
+ // expanded row must be inside the visible page instead.
+ const feedOverflows=await feed.evaluate(node=>node.scrollHeight>node.clientHeight+30);
+ if(feedOverflows){
+  await env.touchScroll(page,feed,{dy:320});
+  assert.ok(await scrollTop()>30,`touch scroll must move the expanded list (${await scrollTop()})`);
+ }else{
+  const outside=await list.locator('button[data-content-state=ready]').evaluateAll(buttons=>{
+   const view=buttons[0].closest('#music-response').getBoundingClientRect();
+   return buttons.filter(b=>{const r=b.getBoundingClientRect();return r.bottom>view.bottom||r.top<view.top;}).length;
+  });
+  assert.equal(outside,0,'every expanded row is visible without scrolling');
+ }
  const retainedScroll=await scrollTop();
- assert.ok(retainedScroll>30,`touch scroll must move the expanded list (${retainedScroll})`);
  await page.waitForResponse(response=>{
   const url=new URL(response.url());
   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
