@@ -2,7 +2,7 @@
 // iPad Musik-siden (issue 392, lærred v190 »A-MusikHjem«, »Musik-Starter«, »Musik-Spiller«, »Musik-Koe«):
 // one page without tabs. The collections are section headings in the canvas order (Til <ugedag> <tid> · Fortsæt ·
 // Vibe · Jeres playlister); the first mood card is the 744×252 »Lige nu« hero with an Afspil pill; the other cards
-// are a rail of 160 cards (Fortsæt 260×72, Vibe 120). A tap shows »starter« (scrim and dots) at once and »spiller«
+// are a rail of 160 cards (Fortsæt: 72-px rows in three columns, Vibe 120). A tap shows »starter« (scrim and dots) at once and »spiller«
 // (equalizer mark) when the player has it. The queue is one card of 72-px rows; the current track is in the accent.
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
@@ -82,7 +82,7 @@ async function open(stage){
  // Fortsæt: 260×72 rows; Vibe: 120 tiles with the name on the tile.
  await page.locator('[data-collection=recent]').click();await sleep(500);
  const recent=await box(page.locator('#result-list>.result').first());
- assert.deepEqual([recent.w,recent.h,recent.radius],[260,72,'16px'],'Fortsæt rows 260×72');
+ assert.deepEqual([recent.w,recent.h,recent.radius],[237,72,'16px'],'Fortsæt rows 72 high in three columns');
  assert.equal((await box(page.locator('#music-refinements'))).display,'contents');
  await page.locator('[data-collection=feeling]').click();await sleep(500);
  const vibe=await box(page.locator('#result-list>.result .result-art').first());

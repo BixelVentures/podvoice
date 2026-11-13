@@ -3512,6 +3512,10 @@ body button:not(.is-pressed){transition-property:filter!important}
    scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 24px 0 0!important;margin:0!important;
    -webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);
    mask-image:linear-gradient(90deg,#000 78%,transparent);}
+ /* Fortsæt can grow with »Se tidligere«: its rows wrap in three columns so the page scrolls down to them. */
+ #music-response[data-discovery-collection=recent] #result-list{
+   display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px!important;
+   overflow:visible!important;-webkit-mask-image:none;mask-image:none;padding:0!important;}
  #music-response[data-discovery-collection=mood] #result-list{
    flex-wrap:wrap!important;overflow:visible!important;-webkit-mask-image:none;mask-image:none;padding:0!important;}
  #music-response[data-discovery-preview] #result-list::-webkit-scrollbar{
