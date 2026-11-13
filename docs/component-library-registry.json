@@ -107,7 +107,8 @@
         "html:div:screen-device-label",
         "html:div:screen-device-network",
         "html:section:screen-device-brightness",
-        "html:div:screen-device-dimming"
+        "html:div:screen-device-dimming",
+        "html:button:move-here"
       ],
       "customTags": [
         "pv-activity-timeline",

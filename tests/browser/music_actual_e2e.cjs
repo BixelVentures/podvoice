@@ -533,12 +533,17 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  }
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
  // "Flyt til Køkkenalrum" takes the playback over from the phone at once (move_playback).
- const moveTap=await page.locator('#output').evaluate(node=>{
+ // iPad (lærred »Player-AndenEnhed«, issue 391): one primary button at the bottom of the card says so.
+ const moveHere=page.locator('#move-here');
+ assert.equal(await moveHere.isVisible(),true,'"Flyt til <rum>" is a visible button while the music plays elsewhere');
+ assert.equal((await moveHere.innerText()).trim(),'Flyt til Køkkenalrum HomePod');
+ const moveTap=await moveHere.evaluate(node=>{
   const start=performance.now(),state=document.getElementById('player-state');
   node.click();
-  return state.textContent==='Skifter til'?performance.now()-start:null;
+  const label=document.getElementById('move-here-label')?.textContent;
+  return state.textContent==='Skifter til'&&label==='Flytter til Køkkenalrum HomePod…'?performance.now()-start:null;
  });
- assert(moveTap!==null&&moveTap<100,`"Skifter til" shows within 100 ms: ${moveTap}`);
+ assert(moveTap!==null&&moveTap<100,`"Flytter til Køkkenalrum HomePod…" shows within 100 ms: ${moveTap}`);
  assert.equal(await page.locator('#rooms').evaluate(dialog=>dialog.open),false,'no chooser opens');
  const waitForKitchen=phase=>page.waitForFunction(value=>{
   const host=document.querySelector('pv-widget-host'),p=host?.liveMedia?.playback;
