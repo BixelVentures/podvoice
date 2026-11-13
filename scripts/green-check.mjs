@@ -70,7 +70,7 @@ Tilbagerulning (rollback):
   ~/.config/podvoice/green-check-last-green.json (ingen hemmeligheder).
   "rollback" viser planen uden at ændre noget:
     - add-ons (PodVoice, PodConnect Speakers): gendanner den delvise backup, som update.install med
-      backup: true lavede før den nuværende version (Supervisor-navn addon_<slug>_<version>).
+      backup: true lavede før den nuværende version (Supervisor-navn "<navn> <version>", fx "PodVoice 2.0.188").
     - HA-komponenter (PodVoice, PodConnect Control): update.install med version fra sidste grønne tjek
       eller --component update.x=1.2.3. Kræver HA-genstart, som kun sker kl. 08–18.
   "rollback --yes" udfører planen.
@@ -154,13 +154,16 @@ async function ourAddons(page) {
   ].filter(([, addon]) => addon);
 }
 
-async function ourComponents(ha) {
-  const states = await ha.get('/api/states');
-  return states.filter(
-    s => s.entity_id.startsWith('update.') &&
-      /podvoice|podconnect/i.test(`${s.entity_id} ${s.attributes.friendly_name || ''} ${s.attributes.title || ''}`) &&
-      !/add-?on|speakers/i.test(`${s.attributes.friendly_name || ''}`),
+// HA components (PodVoice, PodConnect Control) are update entities that Supervisor does not own.
+async function ourComponents(page, ha) {
+  const registry = await callWS(page, {type: 'config/entity_registry/list'});
+  const ids = new Set(
+    registry
+      .filter(e => e.entity_id.startsWith('update.') && e.platform !== 'hassio')
+      .filter(e => /podvoice|podconnect/i.test(e.entity_id))
+      .map(e => e.entity_id),
   );
+  return (await ha.get('/api/states')).filter(s => ids.has(s.entity_id));
 }
 
 async function readLogs(page, ha, addons) {
@@ -827,7 +830,7 @@ async function rollback(page, ha) {
   const {backups} = await supervisor(page, '/backups');
   const plan = [];
   for (const [name, addon] of await ourAddons(page)) {
-    const backup = rollbackBackup(backups, addon.slug, addon.version);
+    const backup = rollbackBackup(backups, addon);
     const wanted = lastGreen?.addons?.[addon.slug];
     if (!backup) plan.push({name, note: `ingen update-backup fundet (installeret ${addon.version})`});
     else if (wanted && backup.version !== wanted && addon.version === wanted)
@@ -840,7 +843,7 @@ async function rollback(page, ha) {
   const requested = Object.fromEntries(
     args.filter((a, i) => args[i - 1] === '--component').map(a => a.split('=')),
   );
-  for (const entity of await ourComponents(ha)) {
+  for (const entity of await ourComponents(page, ha)) {
     const installed = entity.attributes.installed_version;
     const wanted = requested[entity.entity_id] || lastGreen?.components?.[entity.entity_id];
     if (!wanted) plan.push({name: entity.entity_id, note: `ingen kendt grøn version (installeret ${installed})`});
@@ -881,7 +884,7 @@ async function rollback(page, ha) {
 async function rememberGreen(page, ha) {
   const addons = Object.fromEntries((await ourAddons(page)).map(([, a]) => [a.slug, a.version]));
   const components = Object.fromEntries(
-    (await ourComponents(ha)).map(s => [s.entity_id, s.attributes.installed_version]),
+    (await ourComponents(page, ha)).map(s => [s.entity_id, s.attributes.installed_version]),
   );
   fs.mkdirSync(path.dirname(LAST_GREEN), {recursive: true});
   fs.writeFileSync(LAST_GREEN, JSON.stringify({at: new Date().toISOString(), addons, components}, null, 2));

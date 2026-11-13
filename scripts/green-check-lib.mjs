@@ -68,14 +68,17 @@ export function soundAllowed(date = new Date()) {
 }
 
 // The add-on backup that `update.install` with `backup: true` made right before the current version.
-// Supervisor names these "addon_<slug>_<version>"; the newest one with an older version wins.
-export function rollbackBackup(backups, slug, installedVersion) {
+// Supervisor names it "<add-on name> <version>" (older: "addon_<slug>_<version>"); the newest one
+// with another version than the installed one wins. Backups with other names are never picked.
+export function rollbackBackup(backups, addon) {
+  const escape = text => String(text).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const named = new RegExp(`^(?:${escape(addon.name)} |addon_${escape(addon.slug)}_)(\\d+(?:\\.\\d+)+[\\w.-]*)$`, 'i');
   return (
     backups
-      .filter(b => b.type === 'partial' && (b.content?.addons || []).includes(slug))
-      .map(b => ({...b, version: String(b.name || '').match(/_(\d[^_]*)$/)?.[1] || null}))
-      .filter(b => b.version && b.version !== installedVersion)
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || null
+      .filter(b => b.type === 'partial' && (b.content?.addons || []).includes(addon.slug))
+      .map(b => ({...b, version: String(b.name || '').match(named)?.[1] || null}))
+      .filter(b => b.version && b.version !== addon.version)
+      .sort((x, y) => String(y.date).localeCompare(String(x.date)))[0] || null
   );
 }
 

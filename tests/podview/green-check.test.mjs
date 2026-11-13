@@ -57,17 +57,22 @@ test('sound only between 08 and 18 Copenhagen time', () => {
 });
 
 test('rollback picks the newest update backup of an older version', () => {
+  const podvoice = {name: 'PodVoice', slug: '23375871_podvoice'};
+  const part = (slug, name, date, addons = [podvoice.slug]) => ({slug, type: 'partial', name, date, content: {addons}});
   const backups = [
-    {slug: 'aa', type: 'partial', name: 'addon_23375871_podvoice_2.0.187', date: '2026-11-12T10:00:00Z',
-      content: {addons: ['23375871_podvoice']}},
-    {slug: 'bb', type: 'partial', name: 'addon_23375871_podvoice_2.0.188', date: '2026-11-13T07:30:00Z',
-      content: {addons: ['23375871_podvoice']}},
-    {slug: 'cc', type: 'full', name: 'Fuld', date: '2026-11-13T09:00:00Z', content: {addons: ['23375871_podvoice']}},
-    {slug: 'dd', type: 'partial', name: 'addon_other_1.0', date: '2026-11-13T09:00:00Z', content: {addons: ['other']}},
+    part('aa', 'PodVoice 2.0.187', '2026-11-12T10:00:00Z'),
+    part('bb', 'PodVoice 2.0.188', '2026-11-13T10:36:29Z'),
+    part('cc', 'Automatic backup 2026.8.2', '2026-11-13T12:00:00Z'),
+    part('dd', 'addon_23375871_podvoice_2.0.186', '2026-11-01T00:00:00Z'),
+    part('ee', 'PodConnect Speakers 0.26.99', '2026-11-13T11:00:56Z', ['85b5674b_podconnect']),
+    {slug: 'ff', type: 'full', name: 'PodVoice 2.0.185', date: '2026-11-13T13:00:00Z', content: {addons: []}},
   ];
-  assert.equal(rollbackBackup(backups, '23375871_podvoice', '2.0.189').slug, 'bb');
-  assert.equal(rollbackBackup(backups, '23375871_podvoice', '2.0.188').slug, 'aa');
-  assert.equal(rollbackBackup(backups, 'missing', '1'), null);
+  assert.equal(rollbackBackup(backups, {...podvoice, version: '2.0.189'}).slug, 'bb');
+  assert.equal(rollbackBackup(backups, {...podvoice, version: '2.0.188'}).slug, 'aa');
+  assert.equal(rollbackBackup(backups.slice(3, 4), {...podvoice, version: '2.0.189'}).slug, 'dd');
+  const speakers = {name: 'PodConnect Speakers', slug: '85b5674b_podconnect', version: '0.26.100'};
+  assert.equal(rollbackBackup(backups, speakers).version, '0.26.99');
+  assert.equal(rollbackBackup(backups, {name: 'X', slug: 'missing', version: '1'}), null);
 });
 
 test('the token never reaches output', () => {
