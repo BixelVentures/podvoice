@@ -465,6 +465,10 @@ async def room_player_service(request):
     room = ROOM_PLAYERS[args["entity_id"]][1]
     service_reads.append({"path": path, "requestId": None})
     await asyncio.sleep(state["delayMs"] / 1000)
+    if action == "pause" and state.pop("rejectNextPause", False):
+        # As Speakers on Green (13/11 11:41): the room says the pause failed.
+        state.setdefault("rejectedPauses", []).append(room)
+        return httpx.Response(500, json={"message": f"{room}: pause failed"})
     if action in {"pause", "resume"}:
         state["state"] = "paused" if action == "pause" else "playing"
     elif action in {"next", "previous"}:
@@ -1013,6 +1017,8 @@ async def lab_state(request):
                 raise web.HTTPBadRequest()
             state["volume"] = percent
             state["volumeRevision"] += 1
+        if "rejectNextPause" in args:
+            state["rejectNextPause"] = args["rejectNextPause"] is True
         if "snapshotStale" in args:
             state["snapshotStale"] = args["snapshotStale"] is True
         if "externalSong" in args:

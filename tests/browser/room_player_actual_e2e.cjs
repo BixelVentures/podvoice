@@ -89,14 +89,41 @@ let server,browser;
  assert.equal(volume.volume_level,0.5,'volume is clamped to the room maximum');
  assert.equal(volume.entity_id,'media_player.kokkenalrum');
 
- // e) A rejected call is shown honestly and never retried.
+ // e) A refused call whose effect did not happen: at most one short toast, never text that stays in
+ // the player or above the queue, and never a retry.
+ const refusedText=()=>page.evaluate(()=>({
+  toast:(()=>{const n=document.getElementById('playback-status');
+   return !!n?.checkVisibility()&&n.innerText.includes('Højttaleren afviste');})(),
+  player:[...document.querySelectorAll('.player,#music-detail')].some(n=>/afviste|svarede ikke/.test(n.innerText)),
+ }));
  await update({reject:true});
  const before=(await services()).length;
  await page.locator('#previous').tap();
- await page.waitForFunction(()=>document.body.innerText.includes('Højttaleren afviste handlingen'),
+ await page.waitForFunction(()=>document.getElementById('playback-status')?.innerText.includes('Højttaleren afviste'),
   undefined,{timeout:3000});
+ assert.equal((await refusedText()).player,false,'no refusal text in the player or queue');
  await sleep(500);
  assert.equal((await services()).length,before+1,'a rejected tap is sent exactly once');
+ await page.waitForFunction(()=>{const n=document.getElementById('playback-status');
+  return !n?.checkVisibility()||!n.innerText.includes('Højttaleren afviste');},undefined,{timeout:8000});
+ // e2) Green 13/11: Speakers reports a pause as failed although the room paused. Nothing is shown.
+ await page.waitForFunction(()=>document.querySelector('#play-pause')?.getAttribute('aria-label')==='Sæt musik på pause'
+  ||document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken',undefined,{timeout:3000});
+ if(await toggle.getAttribute('aria-label')==='Fortsæt musikken'){
+  await toggle.tap();
+  await page.waitForFunction(()=>document.querySelector('#play-pause')?.getAttribute('aria-label')==='Sæt musik på pause',
+   undefined,{timeout:3000});
+ }
+ await update({rejectAfterEffect:true});
+ await toggle.tap();
+ await page.waitForFunction(()=>document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken',
+  undefined,{timeout:3000});
+ for(let n=0;n<20;n++){
+  const shown=await refusedText();
+  assert(!shown.toast&&!shown.player,'a pause that happened shows no refusal: '+JSON.stringify(shown));
+  await sleep(100);
+ }
+ assert.equal((await state()).room.state,'paused');
 
  // f) The Spotify app changes the room; HA's state_changed reaches the screen without a reload.
  await until(async()=>(await state()).subscribed,'HA events not subscribed');

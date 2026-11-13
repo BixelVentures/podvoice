@@ -235,7 +235,9 @@ async def test_actual_touch_task_uses_fresh_exact_alias_and_consumes_move(
 
 
 @pytest.mark.asyncio
-async def test_unknown_move_keeps_all_other_music_effects_closed(monkeypatch):
+async def test_unknown_move_never_locks_the_next_explicit_music_choice(monkeypatch):
+    """Green 13/11 11:41: an unknown move is shown and never resent, but the room's
+    music controls stay open for the user's next explicit choice."""
     rig = Rig()
     session, _ = owner()
     bridge = PodViewBridge(
@@ -277,7 +279,7 @@ async def test_unknown_move_keeps_all_other_music_effects_closed(monkeypatch):
     result = await bridge.controls.action(action_body(setup, setup["options"][0]), token)
     assert result["outcome"] == "unknown" and result["retryAllowed"] is False
     assert bridge._music_move_fence == {("kitchen", "account")}
-    assert "music" not in bridge.controls.domains("kitchen", token)
+    assert "music" in bridge.controls.domains("kitchen", token)
     await rig.client.aclose()
 
 
@@ -441,7 +443,7 @@ async def test_effective_destination_requires_new_matching_account_alias_and_nat
 @pytest.mark.parametrize(
     "recovery", ["ready", "busy", "same_offer", "same_poll", "drift", "late_busy"]
 )
-async def test_unknown_move_only_new_explicit_ready_offer_can_recover(monkeypatch, recovery):
+async def test_unknown_move_never_holds_the_next_explicit_move(monkeypatch, recovery):
     from unit.test_podview_room_move import POLICY, prep, receipt
     from unit.test_podview_room_move import source as move_source
 
@@ -521,30 +523,24 @@ async def test_unknown_move_only_new_explicit_ready_offer_can_recover(monkeypatc
         assert "music" in snapshot["capabilities"]["controlSetup"]
         assert bridge.snapshot("kitchen")["capabilities"]["musicMoveRecovery"] == []
         assert await bridge.controls.action(first_action, token) == result
-        ordinary = {**body, "target": {k: v for k, v in body["target"].items() if k != "speakerId"}}
-        assert not (await bridge.controls.setup(ordinary, token))["ok"]
         assert calls.count("move_room_playback") == 1
         phase["recovery"] = True
+        # Last command wins: the user's next explicit move is set up like any move. Only the
+        # provider's own facts (busy, another room) can still refuse it; the unknown first
+        # command is never sent again.
         second = await bridge.controls.setup(body, token)
-        if recovery not in {"ready", "late_busy"}:
-            assert not second["ok"]
+        assert second["ok"], second
+        second_action = action_body(second, second["options"][0])
+        second_action["requestId"] = "new-explicit-request"
+        result2 = await bridge.controls.action(second_action, token)
+        if recovery in {"busy", "drift"}:
+            assert result2.get("outcome") == "rejected", result2
             assert calls.count("move_room_playback") == 1
-            assert ("kitchen", "account") in bridge._music_move_fence
         else:
-            assert second["ok"], second
-            second_action = action_body(second, second["options"][0])
-            second_action["requestId"] = "new-explicit-request"
-            result2 = await bridge.controls.action(second_action, token)
-            if recovery == "late_busy":
-                assert result2.get("outcome") == "rejected", result2
-                assert calls.count("move_room_playback") == 1
-                assert ("kitchen", "account") in bridge._music_move_fence
-            else:
-                assert result2.get("outcome") == "accepted", result2
-                assert calls.count("move_room_playback") == 2
-                assert ("kitchen", "account") not in bridge._music_move_fence
-                assert bridge.snapshot("kitchen", token)["capabilities"]["musicMoveRecovery"] == []
-                await bridge.controls.action(first_action, token)
-                assert calls.count("move_room_playback") == 2
+            assert result2.get("outcome") == "accepted", result2
+            assert calls.count("move_room_playback") == 2
+            assert ("kitchen", "account") not in bridge._music_move_fence
+        await bridge.controls.action(first_action, token)
+        assert calls.count("move_room_playback") == (1 if recovery in {"busy", "drift"} else 2)
     finally:
         await rig.client.aclose()
