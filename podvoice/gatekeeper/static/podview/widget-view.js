@@ -936,7 +936,7 @@ class WidgetHost extends HTMLElement {
   const value='var(--pv-player-inset)';if(this.style.getPropertyValue('--active-player-offset')!==value)this.style.setProperty('--active-player-offset',value);
  }
  renderOverviewMediaCards(vehicle=projectVehicle(this.state.vehicle)){
-  for(const [id,kind,title]of [['home-music','music','Find musik'],['home-radio','radio','Radio']]){
+  for(const [id,kind,title]of [['home-music','music','Musik'],['home-radio','radio','Radio']]){
    const vm=this.live?this.playerView?.sourceModel?.(kind)??this.playerView?.progressVM??{}:this.playerView?.progressVM||{},known=vm.active===true&&typeof vm.title==='string'&&!!vm.title.trim();
    const node=$(id),image=node.querySelector(':scope>img:first-child'),heading=node.querySelector('strong'),detail=node.querySelector('small'),size=node.dataset.kitSize||node.dataset.overviewSize,media=size==='m'||size==='l'||!size&&kind==='music',shown=media&&known&&(vm.sourceKind==='radio')===(kind==='radio'),layout=shown?'media':'compact';
    if(node.dataset.mediaLayout!==layout)node.dataset.mediaLayout=layout;

@@ -515,7 +515,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "ed9d2c49a6dae017a79e25e891deb977d054edf2b8078d06b60512e0f059e791"
+      "sha256": "46a42f1abf4cd9bf840fc4b211bb4bc0fe180291a1938aa716df3a0c09dc2655"
     },
     {
       "path": "ingress-kiosk.js",
@@ -659,11 +659,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "6a41133ab63ef9b3e117efa85a6724604bc482a8173e122bfa4645e6d929122b"
+      "sha256": "bf9cb62503a45f14829a012b1a48d12727988ac07605c41d82b72140b70a9b21"
     },
     {
       "path": "podview.css",
-      "sha256": "af37dc5811973c1eac593551e8d405a0cf6f392c388309beb31b72da9247583c"
+      "sha256": "9ff37a89be164543595b710b075092c408fc26f3bf057327d37db025e45c691c"
     },
     {
       "path": "podvoice-transport.js",
@@ -771,7 +771,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "51a74f9bb8ecdd26d3de1bd56ee86656c968053cfc9b0eb46664cf6d0739fc0c"
+      "sha256": "92ddeb9da0a0365cea88dbc2843471487c0114040677076cba40433be48632a9"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -931,7 +931,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "7178c55a2c44af0c615b90bfc6696a1d4516a5b9da8e3c50c7a3c9c4bd48ba25"
+      "sha256": "0a4f33efbaa3efb4a60209b8f7ba03f19b13c4620988a7ab1f88fb086c229f46"
     },
     {
       "path": "workshop.css",

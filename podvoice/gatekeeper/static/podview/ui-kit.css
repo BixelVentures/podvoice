@@ -3029,6 +3029,32 @@ body button:not(.is-pressed){transition-property:filter!important}
   #timer-card>.timer-shortcut>:is(.resource-facts,.resource-context){display:none!important}
 }
 
+/* Music or radio playing (data-media-layout=media): the product shows the track or station in the card.
+   K-Widget keeps the head »Musik«/»Radio«; the cover or station logo takes the 64-px icon surface, the title is
+   the primary line and the artist or state the context. The head is drawn in ::after (the tile is not needed). */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media]>img:first-child{position:absolute!important;
+  inset:66px 20px auto auto!important;width:64px!important;height:64px!important;border-radius:12px!important;
+  object-fit:cover;filter:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media]::after{content:var(--pv-entry-label);inset:20px auto auto 20px;
+  width:auto;height:26px;padding-left:30px;border-radius:0;font:600 17px/26px var(--pv-font);color:var(--pv-ink);
+  background:var(--pv-entry-head) left center/22px no-repeat}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-music{
+  --pv-entry-label:"Musik";--pv-entry-head:url(assets/icons/music-note-beamed.svg)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-radio{
+  --pv-entry-label:"Radio";--pv-entry-head:url(assets/icons/boombox.svg)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media] strong{grid-column:1/-1!important;grid-row:3!important;
+  font:800 18px/26px var(--pv-font)!important;letter-spacing:-.015em}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media] small{grid-row:4!important;height:20px!important;
+  font:400 15px/20px var(--pv-font)!important;letter-spacing:0;color:var(--pv-ink-3)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media]>:is(.resource-facts,.resource-context){display:none!important}
+}
+
 /* Running timer in its S slot (K-Widget timer »koerer«/»pause«/»faerdig«): head, 64-px ring at right 20 / top 66,
    count as the primary line and state as context. The whole widget opens the timer. Annuller stays on the
    overview (existing function) as a full-width pill under the context line; the canvas S timer has none. */
@@ -3065,8 +3091,10 @@ body button:not(.is-pressed){transition-property:filter!important}
   font:400 15px/20px var(--pv-font)!important;color:var(--pv-on-dark-2);white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
-  .timer-panel.pv-hero>.timer-open{position:absolute!important;inset:0!important;z-index:1;width:auto!important;
-  height:auto!important;min-height:0!important;margin:0!important;padding:0!important;border-radius:inherit!important;
+  .timer-panel.pv-hero>.timer-open{position:absolute!important;inset:0!important;z-index:1;width:100%!important;
+  height:100%!important;min-width:0!important;max-width:none!important;min-height:0!important;
+  max-height:none!important;grid-area:auto!important;margin:0!important;padding:0!important;
+  border-radius:inherit!important;
   background:transparent!important}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
   .timer-panel.pv-hero>.timer-open>.timer-chevron{position:absolute;inset:23px 20px auto auto;width:20px!important;
@@ -3082,7 +3110,8 @@ body button:not(.is-pressed){transition-property:filter!important}
 /* Recipe step bar (K-Widget »igang«): 6-px segments over the title; done, current, ahead. */
 .pv-step-bar[hidden]{display:none!important}
 @media (min-width:1000px){
- pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-recipes>.pv-step-bar{
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-recipes>.pv-step-bar{
   
   grid-column:1/-1;grid-row:2;align-self:end;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);
   gap:4px;margin:0 0 8px}

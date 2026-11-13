@@ -35,7 +35,7 @@ test('M radio only uses its selected known station logo; empty and unmatched row
 test('live artwork admission ignores local paths and arbitrary URLs, and clearing cancels a pending older decode',async()=>{
  const vm={active:true,title:'Observed song',artist:'Observed artist',uri:'spotify:track:0123456789ABCDEFGHIJKL',fixtureArt:'assets/kitchen.webp',artwork:{kind:'album_cover',provider:'spotify',url:'https://other.example/image/a'}},f=fixture({live:true,vm});f.render();assert.equal(f.probes.length,0);assert.equal(f.cards.get('home-music').image.src,'assets/icons/music-note-beamed.svg');
  f.host.playerView.progressVM={...vm,uri:'spotify:track:unbound',artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,0,'valid CDN path never grants an invalid source identity');
- f.host.playerView.progressVM={...vm,artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,1);const late=f.probes[0].onload;f.host.playerView.progressVM={active:false};f.render();assert.equal(f.probes[0].src,null);late();await flush();assert.equal(f.cards.get('home-music').image.src,'assets/icons/music-note-beamed.svg');assert.equal(f.cards.get('home-music').heading.textContent,'Find musik');
+ f.host.playerView.progressVM={...vm,artwork:{...vm.artwork,url:'https://i.scdn.co/image/actual'}};f.render();assert.equal(f.probes.length,1);const late=f.probes[0].onload;f.host.playerView.progressVM={active:false};f.render();assert.equal(f.probes[0].src,null);late();await flush();assert.equal(f.cards.get('home-music').image.src,'assets/icons/music-note-beamed.svg');assert.equal(f.cards.get('home-music').heading.textContent,'Musik');
 });
 test('S M L Tesla promote the same valid observed battery and omit unknown or invalid readings',()=>{
  const f=fixture(),card=f.cards.get('home-vehicle');f.render();const value=card.label.value;assert.equal(value.textContent,'72%');assert.equal(value.hidden,false);assert.equal(card.dataset.hasOverviewValue,'true');
@@ -56,7 +56,7 @@ test('full media and compact projections have one copy writer across empty/known
  const state=liveScene(initialScene(),snapshot),f=fixture({live:true,state,vm:{active:false}}),card=f.cards.get('home-music');
  assert.equal(state.connected,false,'live scene deliberately cannot authorize the local reducer');
  f.host.liveTransport={connected:true};f.render();
- assert.equal(card.heading.textContent,'Find musik');assert.equal(card.small.textContent,'Vælg musik');
+ assert.equal(card.heading.textContent,'Musik');assert.equal(card.small.textContent,'Vælg musik');
  assert.equal(liveLocalEvent({type:'show',id:'music'},state),true);
  assert.equal(liveTimerRequest(snapshot,true,{type:'timer-start',seconds:60,name:'test'}),null,'a connected transport alone supplies no command capability');
  f.host.liveTransport.connected=false;f.render();assert.equal(card.small.textContent,'Ikke forbundet');
