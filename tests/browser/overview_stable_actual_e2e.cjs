@@ -100,6 +100,18 @@ let browser;
     assert(!changed.some(([name]) => name !== 'vacuum'), `other cards are untouched: ${JSON.stringify(changed)}`);
     assert(!changed.some(([, kind, attr]) => kind === 'attr' && ['aria-busy', 'data-stale'].includes(attr)),
       `no busy or stale flash: ${JSON.stringify(changed)}`);
+    // 4. The screen behaves like an app, not a web page: no page rubber-band, zoom, tap flash,
+    // text selection or long-press callout (text fields keep their own selection).
+    const surface = await page.evaluate(() => {
+      const style = node => getComputedStyle(node);
+      const host = document.querySelector('pv-widget-host'), title = document.querySelector('#header-title');
+      return {html: style(document.documentElement).overscrollBehaviorY, body: style(document.body).overscrollBehaviorY,
+        tap: style(title).webkitTapHighlightColor, select: style(title).userSelect || style(title).webkitUserSelect,
+        touch: style(host).touchAction};
+    });
+    assert.deepEqual({...surface, touch: surface.touch.includes('pinch-zoom')},
+      {html: 'none', body: 'none', tap: 'rgba(0, 0, 0, 0)', select: 'none', touch: false},
+      `native surface: ${JSON.stringify(surface)}`);
     assert.deepEqual(errors, []);
     console.log(`PASS overview stable: 0 changes on unchanged data and reconnect, ${changed.length} on a robot change`);
   } catch (error) {

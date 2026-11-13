@@ -104,6 +104,8 @@ for(const journey of only.length?only:journeys){
  if(journey==='vehicle_actual_e2e.cjs')runJourney('vehicle_first_frame_actual_e2e.cjs');
  // Native feel (13 Nov): overview cards never blink on a background update or reconnect.
  if(journey==='home_events_actual_e2e.cjs')runJourney('overview_stable_actual_e2e.cjs');
+ // Native feel (13 Nov): timers, weather and light open complete within 60 ms.
+ if(journey==='home_events_actual_e2e.cjs')runJourney('pages_first_frame_actual_e2e.cjs');
  if(journey==='radio_actual_e2e.cjs'){
   runJourney(journey,{RADIO_TIMING_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'radio-timing')});
