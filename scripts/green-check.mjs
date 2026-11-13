@@ -335,9 +335,14 @@ class Check {
   }
 
   async home() {
-    for (let n = 0; n < 8; n++) {
+    for (let n = 0; n < 20; n++) {
       const focus = await this.focus();
       if (focus === 'now') return;
+      // Right after a reload the host exists before its scene does; wait instead of guessing a page.
+      if (focus === null) {
+        await sleep(300);
+        continue;
+      }
       if (await this.frame.locator('dialog[open]').count()) {
         await this.page.keyboard.press('Escape');
       } else if (focus === 'photo') {
@@ -474,6 +479,8 @@ async function silentChecks(check) {
   };
   const queue = async () => {
     const problems = [];
+    // Radio has no queue: while a station owns the player there is nothing to list.
+    if (await frame.evaluate(() => document.querySelector('pv-widget-host')?.liveRadio?.ownsPlayer?.() === true)) return [];
     const list = frame.locator('#queue');
     if (!(await list.isVisible())) return ['køen vises ikke i afspilleren'];
     const rows = await frame.locator('#queue button').count();

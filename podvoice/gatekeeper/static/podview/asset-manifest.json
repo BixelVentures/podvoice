@@ -563,11 +563,11 @@
     },
     {
       "path": "live-queue-view.js",
-      "sha256": "bfcaa65ef13db3c62346754e335e2ea8115343145b399ef9f51f18b46870e18f"
+      "sha256": "84131d295c48416c9e999a1b2c9b72c4cf5ab77122850ca1c3c77bbed78fe292"
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "d19e81685a6021afc7c80afa94bdb1bd242ee962280281a77fe6c40a91e1eec7"
+      "sha256": "a7a0b3fa3cdd5891d9a2e11fc14805ea9785f9e34c43413871859866c2e1be28"
     },
     {
       "path": "local-robot-view.js",
@@ -639,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "c2b05c34526ad1a849f0624a46576e56cf733ebd5dfbed8f5db93a7a48a53660"
+      "sha256": "157a628499a954060f9f7de119ac10cf8a71d419d0ad377a3548e1055134072b"
     },
     {
       "path": "podview.css",
@@ -691,7 +691,7 @@
     },
     {
       "path": "room-player-controls.js",
-      "sha256": "205810e3c9f15893c2c661f38eac6cb5a49c41fa08251471d10168a22869ce63"
+      "sha256": "89acc384c95460cbfe79abdbea1a92e6ac53d23b4a90e587cdaa1421672f3e8e"
     },
     {
       "path": "scene-model.js",
