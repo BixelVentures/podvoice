@@ -578,7 +578,9 @@ async function kitchenPlayer(page, ha) {
   const states = await ha.get('/api/states');
   const players = states.filter(s => s.entity_id.startsWith('media_player.'));
   const podconnect = new Set(registry.filter(e => e.platform === 'podconnect').map(e => e.entity_id));
-  const ours = players.filter(s => podconnect.has(s.entity_id));
+  // Control's hidden engine entity follows whichever room plays; it is not another room.
+  const hidden = new Set(registry.filter(e => e.platform === 'podconnect' && e.hidden_by).map(e => e.entity_id));
+  const ours = players.filter(s => podconnect.has(s.entity_id) && !hidden.has(s.entity_id));
   const kitchen = ours.find(s => KITCHEN.test(s.attributes.friendly_name || '')) ||
     players.find(s => KITCHEN.test(s.attributes.friendly_name || ''));
   const others = ours.map(s => s.entity_id).filter(id => id !== kitchen?.entity_id);
