@@ -44,6 +44,7 @@ let browser;
     await sleep(2000);
     await page.evaluate(() => {
       window.__frames = [];
+      document.addEventListener('click', event => { window.__tapped ??= event.timeStamp; }, {capture: true});
       const sample = () => {
         const view = document.querySelector('#vehicle-view');
         if (view && !view.hidden && view.offsetParent !== null) {
@@ -56,12 +57,11 @@ let browser;
       };
       sample();
     });
-    const tapped = await page.evaluate(() => performance.now());
     await card.tap();
     await sleep(1500);
-    const frames = await page.evaluate(() => {
+    const [frames, tapped] = await page.evaluate(() => {
       cancelAnimationFrame(window.__raf);
-      return window.__frames;
+      return [window.__frames, window.__tapped];
     });
     assert(frames.length, 'the Tesla page opened');
     const first = frames[0], log = JSON.stringify(frames.slice(0, 4));

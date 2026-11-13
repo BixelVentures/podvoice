@@ -66,7 +66,10 @@ let browser;
     const writes = (await lab()).robot.writes.length;
     await page.evaluate(() => {
       window.__shown = null;
+      window.__tapped = null;
       window.__pageWithoutRooms = 0;
+      // Measured from the tap itself (not from the test driver), as the user feels it.
+      document.addEventListener('click', event => { window.__tapped ??= event.timeStamp; }, {capture: true});
       const sample = () => {
         const panel = document.querySelector('pv-robot-control-panel');
         const visible = node => !!node && node.offsetParent !== null;
@@ -84,12 +87,11 @@ let browser;
       };
       requestAnimationFrame(sample);
     });
-    const tapped = await page.evaluate(() => performance.now());
     const before = setups.length;
     await card.tap();
     await page.waitForFunction(() => window.__shown !== null, null, {timeout: 5000}).catch(() => {});
-    const shown = await page.evaluate(() => window.__shown);
-    const firstFrameMs = shown === null ? null : Math.round(shown - tapped);
+    const [shown, tapped] = await page.evaluate(() => [window.__shown, window.__tapped]);
+    const firstFrameMs = shown === null || tapped === null ? null : Math.round(shown - tapped);
     if (shown === null || firstFrameMs >= 100) {
       await page.screenshot({path: path.join(testEnv.artifactDir(), 'podview-robot-first-frame-fail.png')});
     }
