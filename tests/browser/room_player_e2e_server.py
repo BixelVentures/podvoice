@@ -84,6 +84,7 @@ async def ha(request):
         if lab["reject"]:
             lab["reject"] = False
             return httpx.Response(400, json={"message": "Køkkenalrum: next failed"})
+        refused_after_effect = lab.pop("rejectAfterEffect", False)
         if service == "media_pause":
             room["state"] = "paused"
         elif service == "media_play":
@@ -99,6 +100,9 @@ async def ha(request):
         elif service == "volume_set":
             room["volume"] = body["volume_level"]
         await changed()
+        if refused_after_effect:
+            # As Speakers on Green: the room paused, yet the call reports a failure.
+            return httpx.Response(500, json={"message": "r0: pause failed"})
         return httpx.Response(200, json=[])
     raise AssertionError("Unexpected HA call " + path)
 
@@ -199,6 +203,8 @@ async def lab_state(request):
             release.set()
         if body.get("reject"):
             lab["reject"] = True
+        if body.get("rejectAfterEffect"):
+            lab["rejectAfterEffect"] = True
         if "external" in body:
             # The Spotify app (or HA) changes the room behind PodView's back.
             room.update(body["external"])

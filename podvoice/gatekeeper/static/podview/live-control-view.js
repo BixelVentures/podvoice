@@ -236,7 +236,9 @@ export class LiveControlView{
   transport?.recordDiagnostic?.('control_intent',{...diagnostic,code:'start'});
   const reject=code=>{transport?.recordDiagnostic?.('control_intent',{...diagnostic,code});return false;};
   const context=this.musicContext(true),snapshot=this.host.liveSnapshot,binding=context?.binding;
-  if(!context||!binding||!catalogueCurrent()||this.moveUnknownApplies(context)||this.musicUnknownBlocks(context))return reject('scope_changed');
+  if(!context||!binding||!catalogueCurrent())return reject('scope_changed');
+  // An earlier unknown move is shown, never resent, and never holds this explicit choice.
+  this.moveUnknownFence=null;
   
   // A move chosen while another music action runs, or before its effect is settled, waits for it (H1).
   const fence = this.musicFence;

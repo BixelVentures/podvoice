@@ -22,7 +22,7 @@ export class SpeakerOutputView{
   const h=this.host,s=h.liveSnapshot,account=h.liveMedia?.account,t=h.liveTransport,c=s?.capabilities;
   if(!h.isConnected||!t?.connected||!c?.musicRead?.includes('targets')||!text(account))return null;
   const bindingScope=Array.isArray(s.mediaRoomBindings)?s.mediaRoomBindings.filter(row=>!row?.accountId||row.accountId===account):s.mediaRoomBindings;
-  const grants={playback:c.musicRead.includes('playback'),control:c.controlSetup?.includes('music')===true,recovery:c.musicMoveRecovery?.includes(account)===true,selection:c.musicSelection===true};
+  const grants={playback:c.musicRead.includes('playback'),control:c.controlSetup?.includes('music')===true,selection:c.musicSelection===true};
   return {bootId:s.bootId,roomId:s.roomId,accountId:account,displayKey:JSON.stringify([s.bootId,s.roomId,account,mediaRoomBinding(s,account)]),hardKey:JSON.stringify([s.bootId,s.roomId,account,t.generation??null]),key:JSON.stringify([s.bootId,s.roomId,account,t.generation??null,bindingScope,grants]),grants,transport:t};
  }
 
@@ -67,7 +67,13 @@ export class SpeakerOutputView{
   const context=this.context();if(this.labelScope&&(!context||context.key!==this.labelScope.key||context.transport!==this.labelScope.transport))this.clearLabel(true);
   if(this.scope&&(!context||context.key!==this.scope.key||context.transport!==this.scope.transport)){
    const old=this.scope,same=context&&old.hardKey===context.hardKey&&old.transport===context.transport,revoked=same&&Object.keys(old.grants).some(key=>old.grants[key]&&!context.grants[key]);
-   if(!same||revoked)this.invalidate(undefined,true);
+   if(!same||revoked){
+    this.invalidate(undefined,true);
+    // An open picker never stays empty: it reads the list again under the new access.
+    if(context&&this.doc.getElementById('rooms').open===true)queueMicrotask(()=>{
+     if(this.doc.getElementById('rooms').open===true&&this.context()&&!this.readPending)void this.open();
+    });
+   }
    else{
     // Keep the visible rows only as presentation while a changed binding/policy
     // receives a fresh read. Existing row handlers recheck the new scope.
@@ -75,7 +81,7 @@ export class SpeakerOutputView{
     if(this.doc.getElementById('rooms').open===true&&!this.scopeRefreshScheduled){this.scopeRefreshScheduled=true;queueMicrotask(()=>{this.scopeRefreshScheduled=false;if(this.doc.getElementById('rooms').open===true&&this.scope&&this.context()?.key===this.scope.key&&!this.readPending)void this.open();});}
    }
   }
-  const controls=this.host.liveControls,music=controls?.musicContext(true),fenced=controls?.moveUnknownApplies?.(music)||(controls?.musicUnknownBlocks?controls.musicUnknownBlocks(music):music&&controls.musicFence?.key===music.key&&controls.musicFence.outcome==='unknown')?'unknown':music&&controls.musicFence?.key===music.key&&controls.musicFence.outcome==='accepted'&&!['confirmed','rejected','superseded'].includes(controls.musicFence.settlementStatus)?'accepted':null,busy=controls?.pending||controls?.setupPending||this.host.liveSelection?.pending;
+  const controls=this.host.liveControls,music=controls?.musicContext(true),fenced=/* an unknown outcome never greys a speaker: the next choice goes through */music&&controls.musicFence?.key===music.key&&controls.musicFence.outcome==='accepted'&&!['confirmed','rejected','superseded'].includes(controls.musicFence.settlementStatus)?'accepted':null,busy=controls?.pending||controls?.setupPending||this.host.liveSelection?.pending;
   const playback=this.host.liveMedia?.playback,snapshot=this.host.liveSnapshot;
   const binding=context&&roomObservationCurrent(playback,snapshot)
    &&playbackBinding(playback,snapshot,context.accountId);

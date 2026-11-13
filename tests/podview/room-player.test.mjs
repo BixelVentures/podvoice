@@ -82,8 +82,23 @@ test('a rejected call is shown honestly and never retried',async()=>{
  assert.equal(await sent,false);
  await flush();
  assert.deepEqual(calls,[['next',undefined]]);
- assert.equal(feedback.at(-1),'Højttaleren afviste handlingen. Prøv igen.');
- assert.equal(controls.status,'Højttaleren afviste handlingen. Prøv igen.');
+ // No text stays in the player; the next room read decides (Green 13/11).
+ assert.equal(controls.status,'');
+ assert.equal(feedback.filter(Boolean).length,0,'nothing before the room is read');
+ controls.observe({state:'playing',item:{uri:'spotify:track:'+'0'.repeat(22)}});
+ assert.equal(feedback.filter(Boolean).at(-1),'Højttaleren afviste handlingen. Prøv igen.','one short toast');
+ assert.equal(controls.status,'');
+});
+
+test('a refused pause that the room shows anyway shows nothing',async()=>{
+ const {controls,releases,feedback}=rig(()=>({outcome:'rejected'}));
+ const sent=controls.intent('pause');
+ releases.shift()();
+ assert.equal(await sent,false);
+ await flush();
+ controls.observe({state:'paused',item:{uri:'spotify:track:'+'0'.repeat(22)}});
+ assert.deepEqual(feedback.filter(Boolean),[]);
+ assert.equal(controls.status,'');
 });
 
 test('no grant means no actions: a tap sends nothing',async()=>{
