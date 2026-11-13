@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {speakerCatalogue,SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
 import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {playbackBinding,roomPlaybackObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {playbackBinding,roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
+// Authored scenes in the room player's wire shape (podview.room-player.v1).
+const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
 const context={bootId:'boot',roomId:'r0',accountId:'account'};
 function payload(){return {ok:true,schema:'podview.speaker-catalogue.v1',...context,status:'observed',catalogueId:'c'.repeat(64),retrievedAt:Date.now()/1000,source:'podconnect.get_targets',speakers:[{speakerId:'a'.repeat(64),accountId:'account',kind:'configured_alias',nativeRoomId:'r0',homepodId:'42',name:'Køkkenalrum HomePod',availability:'available',default:true,nativeSelected:true,outputSelected:true,selectable:false},{speakerId:'b'.repeat(64),accountId:'account',kind:'configured_alias',nativeRoomId:'r1',homepodId:'43',name:'Soveværelse',availability:'unknown',default:false,nativeSelected:false,outputSelected:null,selectable:false}],moveAvailable:false,physicalResultVerified:false};}
 
@@ -148,9 +151,6 @@ test('actual nondefault native output wins contradictory roster flags and only b
  const f=idleStartSurface();try{actualPlayback(f);f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence=null;f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});return p;};await f.view.open();const [defaultRow,actual]=f.ids['room-options'].children;assert.equal(defaultRow.speakerRow.outputSelected,true);assert.equal(actual.speakerRow.outputSelected,null);assert.equal(defaultRow.getAttribute('aria-pressed'),'false');assert.equal(defaultRow.children[2].textContent,'Standardrum');assert.equal(defaultRow.disabled,false);assert.equal(actual.getAttribute('aria-pressed'),'true');assert.equal(actual.children[2].textContent,'Aktuelt output');assert.equal(actual.disabled,true);assert.deepEqual(f.calls,[]);}finally{f.view.cleanup();}
 });
 
-test('provider metadata expiry before native route expiry revokes current badge and pressed state but retains genuine last-known custody',async()=>{
- const f=configuredSurface();try{actualPlayback(f);await f.view.open();await f.view.refreshConfiguredLabel();const [defaultRow,actual]=f.ids['room-options'].children;assert.equal(actual.getAttribute('aria-pressed'),'true');assert.equal(actual.children[2].textContent,'Aktuelt output');f.host.liveMedia.playback.expiresAt=Date.now()-1;assert.notEqual(playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account'),null);f.view.sync();assert.equal(f.view.observedDestination('b'.repeat(64)),false);assert.equal(actual.getAttribute('aria-pressed'),'true');assert.equal(actual.children[2].textContent,'Seneste output');assert.equal(defaultRow.getAttribute('aria-pressed'),'false');assert.equal(defaultRow.children[2].textContent,'Standardrum');assert.equal(f.view.actualLabel(playbackBinding(f.host.liveMedia.playback,f.host.liveSnapshot,'account')),'Soveværelse');}finally{f.view.cleanup();}
-});
 
 test('explicit next choice captures native identity independently of later catalogue expiry',async()=>{
  const f=idleStartSurface();try{await f.view.open();const row=f.ids['room-options'].children[1];row.listeners.click();const expected={accountId:row.speakerRow.accountId,nativeRoomId:row.speakerRow.nativeRoomId,nativeHomepodId:row.speakerRow.homepodId};assert.deepEqual(f.view.selectionWitness(),expected);assert.equal(Object.isFrozen(f.view.selectionWitness()),true);f.view.labelValue=null;f.view.validUntil=Date.now()-1;assert.deepEqual(f.view.selectionWitness(),expected);f.host.liveTransport.connected=false;assert.throws(()=>f.view.selectionWitness(),/expired/);}finally{f.view.cleanup();}
@@ -201,21 +201,6 @@ test('expired move reads fresh catalogue and sends exactly one admitted matching
  for(const change of ['missing','mismatch','actual','stale','remembered']){const f=idleStartSurface();f.host.liveSnapshot.mediaRoomBindings=configuredSurface().host.liveSnapshot.mediaRoomBindings;try{if(change==='missing')f.host.liveSnapshot.mediaRoomBindings=[];if(change==='mismatch')f.host.liveSnapshot.mediaRoomBindings[0].nativeHomepodId='999';if(change==='actual'||change==='stale')actualPlayback(f);if(change==='stale')f.host.liveMedia.playback.roomBinding.validUntil=Date.now()/1000-1;if(change==='remembered')f.view.actualDisplay={name:'Soveværelse'};await f.view.open();assert.equal(f.ids['room-options'].children[0].getAttribute('aria-pressed'),'false');assert.equal(f.view.nextDestination??null,null);assert.deepEqual(f.calls,['read']);}finally{f.view.cleanup();}}
  });
 
-test('fresh provider idle marks the configured speaker, and expired idle removes the mark',async()=>{
- const f=idleStartSurface();
- f.host.liveSnapshot.mediaRoomBindings=configuredSurface().host.liveSnapshot.mediaRoomBindings;
- try{
-  actualPlayback(f,{idle:true});
-  await f.view.open();
-  const [standard]=f.ids['room-options'].children;
-  assert.equal(standard.getAttribute('aria-pressed'),'true');
-  assert.equal(f.view.selectionDestination(),null);
-  f.host.liveMedia.playback.expiresAt=Date.now()-1;
-  f.view.sync();
-  assert.equal(standard.getAttribute('aria-pressed'),'false');
-  assert.deepEqual(f.calls,['read']);
- }finally{f.view.cleanup();}
-});
 
 test('terminal music receipts release only the completed speaker-move fence',async()=>{
  for(const action of ['pause','volume','move_existing_session'])for(const status of ['confirmed','rejected','superseded']){
@@ -243,16 +228,6 @@ test('confirmed MOVE admits a second explicit MOVE after actual output changes',
  }finally{f.view.cleanup();}
 });
 
-test('confirmed V3 MOVE then late binding update retains open rows and refreshes before return MOVE',async()=>{
- const f=idleStartSurface(),moves=[];try{
-  f.ids.rooms.open=true;f.host.liveSnapshot.mediaRoomBindings=[{accountId:'account',bindingId:'a'.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r0',nativeHomepodId:'42'}];actualPlayback(f,{nativeRoomId:'r0',nativeHomepodId:'42',version:3});assert.equal(f.host.liveMedia.playback.projectionVersion,3);
-  f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence=null;f.host.liveControls.moveSpeaker=(row,current)=>{moves.push({id:row.speakerId,current:current()});return Promise.resolve(true);};
-  const roster=()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});return p;};f.host.liveTransport.music=async()=>roster();await f.view.open();let [kitchen,bedroom]=f.ids['room-options'].children;bedroom.listeners.click();assert.equal(moves.length,1);
-  actualPlayback(f,{nativeRoomId:'r1',nativeHomepodId:'43',version:3});f.host.liveControls.musicFence={key:'music',action:'move_existing_session',outcome:'accepted',settlementStatus:'confirmed'};await f.view.open();[kitchen,bedroom]=f.ids['room-options'].children;assert.equal(kitchen.disabled,false);
-  f.host.liveSnapshot.sessionId='voice-2';f.host.liveSnapshot.taskId='task-2';f.host.liveSnapshot.inputRevision=7;f.host.liveSnapshot.providerGeneration=11;f.view.sync();assert.equal(f.ids['room-options'].children[0],kitchen);assert.equal(f.view.validUntil>Date.now(),true);
-  let finish,reads=0;f.host.liveTransport.music=()=>{reads++;return new Promise(resolve=>finish=resolve);};f.host.liveSnapshot.mediaRoomBindings=[{accountId:'account',bindingId:'b'.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r1',nativeHomepodId:'43'}];f.view.sync();await Promise.resolve();assert.equal(reads,1);assert.equal(f.ids['room-options'].children[0],kitchen);assert.equal(f.view.validUntil,0);const click=kitchen.listeners.click();assert.equal(reads,1);assert.equal(moves.length,1);const fresh=roster();fresh.speakers[0].default=false;fresh.speakers[1].default=true;finish(fresh);await click;assert.equal(f.ids['room-options'].children[0],kitchen);assert.deepEqual(moves,[{id:'b'.repeat(64),current:true},{id:'a'.repeat(64),current:true}]);
- }finally{f.view.cleanup();}
-});
 test('successive binding updates coalesce into one read for the latest scope',async()=>{
  const f=idleStartSurface();try{f.ids.rooms.open=true;f.host.liveSnapshot.mediaRoomBindings=[{accountId:'account',bindingId:'a'.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r0',nativeHomepodId:'42'}];await f.view.open();const row=f.ids['room-options'].children[1];let calls=0,resolve;f.host.liveTransport.music=()=>{calls++;return new Promise(r=>resolve=r);};
  for(const id of ['b','c']){f.host.liveSnapshot.mediaRoomBindings=[{accountId:'account',bindingId:id.repeat(64),roomId:'r0',targetId:'engine',nativeRoomId:'r1',nativeHomepodId:'43'}];f.view.sync();}await Promise.resolve();assert.equal(calls,1);assert.equal(f.ids['room-options'].children[1],row);const latest=payload();for(const item of latest.speakers)Object.assign(item,{availability:'available',startSelectable:true});resolve(latest);await new Promise(r=>setImmediate(r));assert.equal(f.view.scope.key,f.view.context().key);assert.equal(f.view.validUntil>Date.now(),true);

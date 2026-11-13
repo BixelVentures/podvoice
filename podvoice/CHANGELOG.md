@@ -1,3 +1,7 @@
+## 2.0.187
+
+- Musik, der er startet uden for PodView (med stemmen, fra Home Assistant eller i Spotify-appen), vises nu i den samme afspiller som musik startet fra PodView, og Pause, Afspil, Næste, Forrige, spoling og lydstyrke virker straks: hvert tryk går direkte til rummets PodConnect-afspiller i Home Assistant, viser sig med det samme og venter sin tur, hvis et andet tryk er i gang. »Højttaleren er ikke bekræftet« og låste knapper forsvinder, og afviser højttaleren et tryk, står det på skærmen uden at blive gentaget. Kræver PodConnect Control med én afspiller pr. rum.
+
 ## 2.0.186
 
 - PodView på en Frameo-ramme og andre ældre vægskærme (Chrome under 111) kører i en let tilstand: kortet markeres med det samme, du trykker (ca. 30 ms mod før ca. 1 sekund), og trykket annulleres, hvis du trækker fingeren væk. Scroll kører ca. 50 billeder i sekundet mod før ca. 14, og skift til en anden side tager under et sekund. Swipe-gestusser, bevægelse og skygger er slået fra der, så alt betjenes med knapperne. Home Assistants værktøjslinje blinker ikke længere frem, når du skifter side. iPad, Mac og nyere skærme opfører sig som før.

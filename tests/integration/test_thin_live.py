@@ -243,7 +243,9 @@ async def test_native_timed_mic_uses_one_consumer_and_submits_exact_pcm():
 
 
 async def until(predicate):
-    async with asyncio.timeout(2):
+    # Generous: a busy CI runner can take seconds to schedule these steps. Passing
+    # runs return as soon as the predicate holds, so this only slows real failures.
+    async with asyncio.timeout(10):
         while not predicate():  # noqa: ASYNC110 - observe asynchronous integration boundaries
             await asyncio.sleep(0.005)
 

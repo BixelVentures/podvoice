@@ -35,7 +35,6 @@ from unit.test_device_control import ROBOT
 from unit.test_device_control import Rig as RobotRig
 
 from gatekeeper import podview as module
-from gatekeeper import podview_controls as controls_module
 from gatekeeper import podview_queue as queue_module
 from gatekeeper.events import State
 from gatekeeper.hub import StatusHub
@@ -163,7 +162,7 @@ def timer_command(snap):
     }
 
 
-async def test_normal_ha_http_starts_robot_music_and_timer_once_without_cookies(ingress):
+async def test_normal_ha_http_starts_robot_and_timer_once_without_cookies(ingress):
     r = ingress
     snap = await snapshot(r)
     assert snap["admission"] == {"kind": "ha_ingress", "authenticated": True}
@@ -171,20 +170,6 @@ async def test_normal_ha_http_starts_robot_music_and_timer_once_without_cookies(
     assert set(snap["capabilities"]["controlSetup"]) == {"music", "vacuum"}
     assert snap["capabilities"]["timerActions"] == ["timer.start", "timer.cancel"]
     assert not r.client.session.cookie_jar
-    offer = await music_offer(r)
-    assert offer["ok"], offer
-    command = action_body(offer, offer["options"][0])
-    result = await post(r, "/view/api/control/actions", command)
-    assert result["outcome"] == "accepted" and result["physicalResultVerified"] is False
-    assert await post(r, "/view/api/control/actions", command) == result
-    sends = [c for c in r.music.calls if c[1].endswith("control_room_playback")]
-    assert len(sends) == 1
-    assert (sends[0][3]["room_id"], sends[0][3]["homepod_id"], sends[0][3]["target_id"]) == (
-        "native-room",
-        "42",
-        "device",
-    )
-
     offer = await post(r, "/view/api/control/setup", setup_body(r.bridge))
     assert offer["ok"], offer
     option = next(o for o in offer["options"] if o["action"] == "start")
@@ -423,51 +408,6 @@ async def test_http_identity_and_csrf_fail_closed(ingress, peer, headers):
     assert not r.robot.writes and not r.music.calls and r.manager.starts == 0
 
 
-@pytest.mark.parametrize("change", ["room", "task", "actor", "owner", "native"])
-async def test_music_task_actor_room_and_native_owner_fences(ingress, change):
-    r = ingress
-    if change == "native":
-        r.music.value["native"]["homepod_id"] = "other-homepod"
-        offer = await music_offer(r)
-        assert not offer["ok"]
-    else:
-        offer = await music_offer(r)
-        assert offer["ok"], offer
-        command = action_body(offer, offer["options"][0])
-        headers = HEADERS
-        if change == "room":
-            command["roomId"] = "other"
-        elif change == "task":
-            command["taskId"] = "other-task"
-        elif change == "actor":
-            headers = {**HEADERS, "X-Remote-User-Id": "b" * 32}
-        elif change == "owner":
-            r.music.tools._token = "replacement-server-token"
-        assert not (await post(r, "/view/api/control/actions", command, headers))["ok"]
-    assert not [c for c in r.music.calls if c[1].endswith("control_room_playback")]
-    assert not r.robot.writes and r.manager.starts == 0
-
-
-async def test_unknown_music_is_retained_across_requests_and_timer_outage_without_replay(ingress):
-    r = ingress
-    offer = await music_offer(r)
-    command = action_body(offer, offer["options"][0])
-    r.music.raw = b"not-json"
-    result = await post(r, "/view/api/control/actions", command)
-    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
-    r.music.raw = None
-    r.timers.ready.clear()
-    assert await post(r, "/view/api/control/actions", command) == result
-    assert not (await post(r, "/view/api/control/actions", {**command, "requestId": "new"}))["ok"]
-    assert not (
-        await post(
-            r, "/view/api/control/actions", command, {**HEADERS, "X-Remote-User-Id": "b" * 32}
-        )
-    )["ok"]
-    sends = [c for c in r.music.calls if c[1].endswith("control_room_playback")]
-    assert len(sends) == 1 and not r.robot.writes
-
-
 @pytest.mark.parametrize("replacement", ["owner", "binding"])
 async def test_held_timer_cannot_execute_after_owner_or_binding_replacement(ingress, replacement):
     r = ingress
@@ -509,56 +449,6 @@ async def test_normal_ha_old_setup_bookmark_opens_main_ui(ingress, query, locati
     assert not ingress.client.session.cookie_jar
 
 
-async def test_request_authority_ends_for_inherited_task_after_http_response(ingress):
-    r = ingress
-    release = asyncio.Event()
-    captured = []
-    tasks = []
-
-    async def read_hook():
-        if captured:
-            return
-        scope = module._HA_REQUEST.get()
-        token = next(iter(r.bridge._ha_actors))
-        captured.append(scope)
-        assert scope["active"] and r.bridge._grant_current("kitchen", token)
-
-        async def inherited():
-            await release.wait()
-            return r.bridge._grant_current("kitchen", token)
-
-        tasks.append(asyncio.create_task(inherited()))
-
-    r.music.hook = read_hook
-    try:
-        assert (await music_offer(r))["ok"]
-        assert len(captured) == 1 and captured[0]["active"] is False
-        release.set()
-        assert await asyncio.wait_for(tasks[0], 2) is False
-        assert module._HA_REQUEST.get() is None
-        assert not [c for c in r.music.calls if c[1].endswith("control_room_playback")]
-    finally:
-        release.set()
-        await asyncio.gather(*tasks)
-
-
-async def test_ha_identity_does_not_widen_configured_target_policy(ingress):
-    r = ingress
-    robot = {**setup_body(r.bridge), "target": {"entityId": "vacuum.ungranted"}}
-    assert (await post(r, "/view/api/control/setup", robot))["error"] == "target_not_granted"
-    music = {
-        **setup_body(r.bridge, "music"),
-        "target": {
-            "accountId": "account",
-            "kind": "spotify_device",
-            "targetId": "ungranted",
-            "expectedBindingId": ACTUAL_BINDING_ID,
-        },
-    }
-    assert (await post(r, "/view/api/control/setup", music))["error"] == "target_not_granted"
-    assert not r.robot.writes and not r.music.calls and r.manager.starts == 0
-
-
 async def test_supervisor_missing_identity_cannot_downgrade_to_valid_legacy_cookie(ingress):
     r = ingress
     grant = r.bridge.grant_timer_control("kitchen")
@@ -569,83 +459,6 @@ async def test_supervisor_missing_identity_cannot_downgrade_to_valid_legacy_cook
     )
     assert response.status == 403
     assert not r.robot.writes and not r.music.calls
-
-
-@pytest.mark.parametrize("change", ["removed_target", "removed_action"])
-async def test_prepared_target_and_action_policy_rechecked_after_native_read(ingress, change):
-    r = ingress
-    entered, release = asyncio.Event(), asyncio.Event()
-
-    async def held_read():
-        entered.set()
-        await release.wait()
-
-    r.music.hook = held_read
-    pending = asyncio.create_task(music_offer(r))
-    try:
-        await asyncio.wait_for(entered.wait(), 2)
-        if change == "removed_target":
-            # A second ready target must not keep the removed target's authority alive.
-            second = {**r.bridge.controls.policy["music"][0], "targetId": "second-device"}
-            r.bridge.controls.policy["music"] = [second]
-        else:
-            r.bridge.controls.policy["music"][0]["actions"].remove("next")
-    finally:
-        release.set()
-    assert not (await asyncio.wait_for(pending, 2))["ok"]
-    assert not [c for c in r.music.calls if c[1].endswith("control_room_playback")]
-    assert not r.robot.writes
-
-
-@pytest.mark.parametrize("change", ["removed_target", "removed_action"])
-async def test_prepared_action_loses_permission_before_dispatch(ingress, change):
-    r = ingress
-    offer = await music_offer(r)
-    assert offer["ok"]
-    command = action_body(offer, offer["options"][0])
-    if change == "removed_target":
-        second = {**r.bridge.controls.policy["music"][0], "targetId": "second-device"}
-        r.bridge.controls.policy["music"] = [second]
-    else:
-        r.bridge.controls.policy["music"][0]["actions"].remove("next")
-    result = await post(r, "/view/api/control/actions", command)
-    assert not result["ok"]
-    assert not [c for c in r.music.calls if c[1].endswith("control_room_playback")]
-    assert not r.robot.writes
-
-
-async def test_another_user_setup_preserves_task_and_unknown_receipt_without_replay(
-    ingress, monkeypatch
-):
-    r = ingress
-    other = {**HEADERS, "X-Remote-User-Id": "b" * 32}
-    offer = await music_offer(r)
-    assert offer["ok"]
-    setup = {
-        **setup_body(r.bridge, "music"),
-        "target": {
-            "accountId": "account",
-            "kind": "spotify_device",
-            "targetId": "device",
-            "expectedBindingId": ACTUAL_BINDING_ID,
-        },
-    }
-    assert (await post(r, "/view/api/control/setup", setup, other))["ok"]
-    command = action_body(offer, offer["options"][0])
-    r.music.raw = b"not-json"
-    result = await post(r, "/view/api/control/actions", command)
-    assert result["outcome"] == "unknown" and result["retryAllowed"] is False
-    r.music.raw = None
-    assert (await post(r, "/view/api/control/setup", setup, other))["ok"]
-    assert await post(r, "/view/api/control/actions", command) == result
-    controls = r.bridge.controls
-    deadline = controls.tasks[offer["taskId"]]["deadline"]
-    assert next(iter(controls.receipts.values()))[2] == deadline
-    monkeypatch.setattr(controls_module, "time", SimpleNamespace(monotonic=lambda: deadline + 1))
-    assert not (await post(r, "/view/api/control/actions", command))["ok"]
-    controls._retire_receipts()
-    assert not controls.receipts
-    assert len([c for c in r.music.calls if c[1].endswith("control_room_playback")]) == 1
 
 
 @pytest.mark.parametrize("commit_unknown", [False, True])

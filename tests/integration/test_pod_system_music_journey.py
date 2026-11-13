@@ -17,7 +17,6 @@ from dataclasses import replace
 import httpx
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
-from integration.test_podview_controls import action_body
 from integration.test_podview_music import Rig as ReadRig
 from integration.test_podview_music_control import Rig as ServiceRig
 from integration.test_podview_music_control import content_owner, controls, room_owner
@@ -28,16 +27,12 @@ from integration.test_podview_queue_occurrence import (
     accepted as queue_accepted,
 )
 from integration.test_podview_queue_occurrence import (
-    action as queue_action,
-)
-from integration.test_podview_queue_occurrence import (
     bound_source as queue_source,
 )
 from integration.test_podview_queue_occurrence import (
     staged as queue_staged,
 )
 
-from gatekeeper.execution_policy import ExecutionContext
 from gatekeeper.podview import BRIDGE
 from gatekeeper.podview_music import project_owner
 
@@ -317,188 +312,6 @@ async def selection_offer(client, bridge, headers):
     return result
 
 
-@pytest.mark.parametrize("choose_queue", [False, True])
-async def test_voice_selected_content_then_touch_pause_waits_for_independent_observation(
-    composed_owner,
-    choose_queue,
-):
-    read_rig, services, token = composed_owner
-    bridge = read_rig.app[BRIDGE]
-    headers = control_headers(token)
-    async with TestClient(TestServer(read_rig.app)) as client:
-
-        async def post(path, body):
-            response = await client.post(path, headers=headers, json=body)
-            assert response.status == 200
-            return await response.json()
-
-        async def playback(receipt=None):
-            path = "/view/api/music?kind=playback&account=account-alpha&include_controls=1"
-            if receipt:
-                path += "&receipt_request_id=" + receipt
-            response = await client.get(path, headers=headers)
-            assert response.status == 200
-            return await response.json()
-
-        offer = await selection_offer(client, bridge, headers)
-        proposal = ExecutionContext("s1", "live:1:proposal", "live")
-        options = await read_rig.router.dispatch(
-            "podview_music_options", {}, execution_context=proposal
-        )
-        assert options["data"]["options"] == offer["options"]
-        pending = await read_rig.router.dispatch(
-            "podview_music_select_option",
-            {
-                "taskId": offer["taskId"],
-                "revision": offer["revision"],
-                "optionId": offer["options"][1]["id"],
-                "confirmedVolumePercent": 35,
-            },
-            execution_context=proposal,
-        )
-        assert pending["needs_confirmation"], pending
-        assert services.accepted is None
-        approved = read_rig.router.execution_policy.confirm_live(
-            pending["approval"]["challenge_id"],
-            confirmation_context=ExecutionContext("s1", "live:1:confirmation", "live"),
-            expected_arguments_sha256=pending["arguments_sha256"],
-        )
-        assert approved is not None
-        played = await read_rig.router.dispatch(
-            approved.action,
-            approved.args,
-            execution_context=approved.context,
-            approval_token=approved.token,
-        )
-        assert played["ok"] and played["data"]["outcome"] == "accepted", played
-
-        async def start_settlement():
-            result = await read_rig.router.podview_read(
-                "playback",
-                "account-alpha",
-                include_output=True,
-                include_controls=True,
-                settlement_identity=services.accepted,
-            )
-            assert result["ok"], result
-            return result["data"]["settlement"]
-
-        assert (await playback())["data"]["playback"]["state"] == "paused"
-        assert (await start_settlement())["status"] == "pending"
-        uri = "spotify:track:" + "0" * 21 + "1"
-        services.observe("playing", uri)
-        observed = await playback()
-        assert observed["data"]["playback"]["state"] == "playing"
-        assert observed["data"]["playback"]["item"]["uri"] == uri
-        assert observed["data"]["physical_result_verified"] is False
-        start_confirmed = await start_settlement()
-        assert start_confirmed["status"] == "confirmed"
-        start_witness = services.start_witness
-        assert start_witness is not None
-        assert start_confirmed["observation"] == {
-            "source": "native_bound_state",
-            "effect_revision": start_witness["route"]["route_revision"],
-        }
-        start_binding = observed["binding"]["bindingId"]
-        assert start_binding == services.binding_id()
-        pause_binding = start_binding
-        start_uri = uri
-        if choose_queue:
-            queue_offer = await post(
-                "/view/api/music/queue/offer",
-                {
-                    "bootId": bridge.boot_id,
-                    "roomId": "kitchen",
-                    "accountId": "account-alpha",
-                    "targetId": "device-one",
-                    "expectedBindingId": start_binding,
-                },
-            )
-            assert queue_offer["ok"], queue_offer
-            # Same URI occurs twice: select the second opaque occurrence.
-            assert queue_offer["items"][0]["uri"] == queue_offer["items"][1]["uri"]
-            queue_body = queue_action(queue_offer, index=1, request="voice-journey-queue")
-            queued = await post("/view/api/music/queue/actions", queue_body)
-            assert queued["outcome"] == "accepted", (queued, services.calls)
-            assert await post("/view/api/music/queue/actions", queue_body) == queued
-            assert (await playback())["data"]["playback"]["item"]["uri"] == start_uri
-            uri = queue_offer["items"][1]["uri"]
-            services.observe("playing", uri)
-            queued_observed = await playback()
-            assert queued_observed["data"]["playback"]["item"]["uri"] == uri
-            pause_binding = queued_observed["binding"]["bindingId"]
-            assert pause_binding == services.binding_id() and pause_binding != start_binding
-        pause_offer = await post(
-            "/view/api/control/setup",
-            {
-                "bootId": bridge.boot_id,
-                "roomId": "kitchen",
-                "domain": "music",
-                "target": {
-                    "accountId": "account-alpha",
-                    "kind": "spotify_device",
-                    "targetId": "device-one",
-                    "expectedBindingId": pause_binding,
-                },
-            },
-        )
-        assert pause_offer["ok"], pause_offer
-        option = next(row for row in pause_offer["options"] if row["action"] == "pause")
-        action = action_body(pause_offer, option)
-        action["requestId"] = "music-journey-pause"
-        paused = await post("/view/api/control/actions", action)
-        assert paused["outcome"] == "accepted", paused
-        assert await post("/view/api/control/actions", action) == paused
-        pending_read = await playback(action["requestId"])
-        assert pending_read["data"]["playback"]["state"] == "playing"
-        assert pending_read["settlement"]["status"] == "pending"
-        services.observe("paused", uri)
-        final = await playback(action["requestId"])
-        assert final["data"]["playback"]["state"] == "paused"
-        assert final["data"]["playback"]["item"]["uri"] == uri
-        assert final["settlement"]["status"] == "confirmed"
-        assert final["settlement"]["requestId"] == action["requestId"]
-        effects = [
-            (name, body)
-            for name, body in services.calls
-            if name
-            in {
-                "start_room_selected_content",
-                "control_room_queue",
-                "control_room_playback",
-                "control_playback",
-            }
-        ]
-        assert [name for name, _ in effects] == [
-            "start_room_selected_content",
-            *(["control_room_queue"] if choose_queue else []),
-            "control_room_playback",
-        ]
-        start, pause = effects[0][1], effects[-1][1]
-        assert start["start_offer"]["offer_id"] == services.start_operation_id
-        if choose_queue:
-            queued_request = effects[1][1]
-            assert queued_request["args"]["occurrence_id"] == "0" * 23 + "1"
-            assert queued_request["args"]["session_id"] == start_witness["native"]["session_id"]
-            assert queued_request["native"] == start_witness["native"]
-            assert queued_request["route"] == start_witness["route"]
-        assert pause["native"] == start_witness["native"]
-        for field in ("process", "device_id", "device_incarnation", "session_epoch"):
-            assert pause["route"][field] == start_witness["route"][field]
-        assert start["action"] == "play_track"
-        assert start["args"] == {"track_uri": start_uri, "max_volume": 40}
-        assert pause["action"] == "pause" and pause["args"] == {}
-        assert all(body["config_entry_id"] == "account-alpha" for _, body in effects)
-        assert [body["command_sequence"] for _, body in effects] == list(range(1, len(effects) + 1))
-        assert len({body["owner_epoch"] for _, body in effects}) == 1
-        assert all(
-            body["target_id"] == "device-one"
-            and body["room_id"] == "native-room"
-            and body["homepod_id"] == "42"
-            for _, body in effects
-        )
-
-
 async def test_revoked_music_preparation_is_cancelled_before_a_new_explicit_start(composed_owner):
     read_rig, services, token = composed_owner
     bridge = read_rig.app[BRIDGE]
@@ -567,10 +380,3 @@ async def test_revoked_music_preparation_is_cancelled_before_a_new_explicit_star
         assert start["args"]["track_uri"] != old_prepare["args"]["track_uri"]
         assert services.observed_state == "paused"
         services.observe("playing", start["args"]["track_uri"])
-        playback = await (
-            await client.get(
-                "/view/api/music?kind=playback&account=account-alpha", headers=new_headers
-            )
-        ).json()
-        assert playback["data"]["playback"]["state"] == "playing"
-        assert playback["data"]["playback"]["item"]["uri"] == start["args"]["track_uri"]

@@ -17,6 +17,7 @@ from integration.test_cleaning_journal import bind
 from integration.test_podview_bridge import owner
 from integration.test_podview_music import payload, timestamp
 from integration.test_podview_music_control import Rig, room_owner
+from integration.test_podview_music_control import controls as device_controls
 from multidict import CIMultiDict
 from unit.test_device_control import MODE, MOP, ROBOT
 from unit.test_device_control import Rig as RobotRig
@@ -359,10 +360,226 @@ def observation(args):
     return value
 
 
+# PodConnect Control's room media_players: what each room's HomePod outputs right now.
+# entity -> (account config entry, PodConnect room id); unique_id is "<account>_room_<room>".
+ROOM_PLAYERS = {
+    "media_player.kokkenalrum": ("account", "native-room"),
+    "media_player.sovevaerelse": ("account", "bedroom"),
+}
+# A fixture may show another song for one account's room player (two accounts, one room).
+SONG_OVERRIDES: dict[str, int] = {}
+# Titles a fixture gives specific songs (default "Isoleret sang <n>").
+TRACK_TITLES: dict[int, str] = {}
+# Songs whose room player has a cover (HA media_player proxy image).
+TRACK_COVERS: set[int] = set()
+
+
+def room_entity_state(entity):
+    # The room player reports what the HomePod outputs (Speakers), which may lead Spotify's
+    # Web API observation: a fixture can set state["roomView"] for that native lead.
+    state = {**globals()["state"], **globals()["state"].get("roomView", {})}
+    room = ROOM_PLAYERS[entity][1]
+    here = (
+        room == state["room"]
+        and not state.get("externalDevice")
+        and state["state"] in {"playing", "paused"}
+    )
+    attributes = {"podconnect_source": "spotify" if here else None, "friendly_name": room}
+    if extended:
+        attributes["volume_level"] = state["volume"] / 100
+    if here:
+        attributes.update(
+            media_title=TRACK_TITLES.get(
+                SONG_OVERRIDES.get(entity, state["song"]),
+                "Isoleret sang " + str(SONG_OVERRIDES.get(entity, state["song"])),
+            ),
+            media_artist="Inert Artist",
+            media_content_id="spotify:track:"
+            + str(SONG_OVERRIDES.get(entity, state["song"])).zfill(22),
+            media_duration=123.0,
+            media_position=state["progressMs"] / 1000,
+            media_position_updated_at=datetime.now(UTC).isoformat(),
+        )
+        if (push_cover and state["song"] == 7) or state["song"] in TRACK_COVERS:
+            # HA proxies the room player's cover; PodVoice fetches it with its own access.
+            attributes["entity_picture"] = (
+                f"/api/media_player_proxy/{entity}?token=inert&cache={state['song']}"
+            )
+    return {
+        "entity_id": entity,
+        "state": state["state"] if here else "idle",
+        "attributes": attributes,
+    }
+
+
+async def emit_room_changed():
+    """HA's state_changed for every room player, as PodConnect's coordinator writes it."""
+    for entity in ROOM_PLAYERS:
+        event = {
+            "event_type": "state_changed",
+            "data": {
+                "entity_id": entity,
+                "old_state": None,
+                "new_state": room_entity_state(entity),
+            },
+            "origin": "LOCAL",
+            "time_fired": datetime.now(UTC).isoformat(),
+            "context": {"id": "inert-event", "parent_id": None, "user_id": None},
+        }
+        for websocket, subscriptions in list(ha_clients.items()):
+            for number, event_type in list(subscriptions.items()):
+                if event_type == "state_changed":
+                    await websocket.send_json({"id": number, "type": "event", "event": event})
+
+
+async def room_player_service(request):
+    """Inert HA REST surface for the room media_players: template, state and service calls."""
+    path = request.url.path
+    if path == "/core/api/template":
+        return httpx.Response(200, text=json.dumps(list(ROOM_PLAYERS)))
+    if path.startswith("/core/api/media_player_proxy/"):
+        cover = (
+            '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'
+            '<rect width="64" height="64" fill="teal"/></svg>'
+        )
+        return httpx.Response(
+            200, content=cover.encode(), headers={"content-type": "image/svg+xml"}
+        )
+    if path.startswith("/core/api/states/"):
+        entity = path.rsplit("/", 1)[1]
+        if entity not in ROOM_PLAYERS:
+            return httpx.Response(404, json={"message": "Entity not found."})
+        if state.get("externalAuthority") == "unknown":
+            return httpx.Response(503)
+        service_reads.append({"path": path, "requestId": None})
+        return httpx.Response(200, json=room_entity_state(entity))
+    args = json.loads(request.content)
+    action = {
+        "media_pause": "pause",
+        "media_play": "resume",
+        "media_next_track": "next",
+        "media_previous_track": "previous",
+        "media_seek": "seek",
+        "volume_set": "volume",
+    }[path.rsplit("/", 1)[1]]
+    room = ROOM_PLAYERS[args["entity_id"]][1]
+    service_reads.append({"path": path, "requestId": None})
+    await asyncio.sleep(state["delayMs"] / 1000)
+    if action in {"pause", "resume"}:
+        state["state"] = "paused" if action == "pause" else "playing"
+    elif action in {"next", "previous"}:
+        state["song"] += 1 if action == "next" else -1
+        state["progressMs"] = 1000
+    elif action == "seek":
+        assert seek_test
+        position = round(args["seek_position"] * 1000)
+        assert 0 <= position <= 123000
+        state["progressMs"] = position
+    elif action == "volume":
+        state["volume"] = round(args["volume_level"] * 100)
+        state["volumeRevision"] += 1
+    state["sequence"] += 1
+    state["writes"].append(
+        {
+            "action": action,
+            "room": room,
+            "homepod": {"native-room": "42", "bedroom": "43"}[room],
+            **({"percent": state["volume"]} if action == "volume" else {}),
+            **({"positionMs": state["progressMs"]} if action == "seek" else {}),
+        }
+    )
+    await emit_room_changed()
+    return httpx.Response(200, json=[])
+
+
+def device_service(path, args):
+    """PodConnect's direct control of the account's own Spotify device (iPhone, Tesla)."""
+    external = external_devices.get(state.get("externalDevice"))
+    target = args.get("target_id")
+    if not external or external[0] != target:
+        return httpx.Response(
+            200, json={"service_response": {"ok": False, "error_kind": "unavailable"}}
+        )
+    if path.endswith("get_playback_controls"):
+        value = device_controls()
+        value["target"].update(target_id=target, name=external[1])
+        value.update(
+            owner_epoch="a" * 32,
+            poll_sequence=state["sequence"],
+            next_command_sequence=state.setdefault("deviceSequence", 1),
+            actions=[
+                "pause" if state["state"] == "playing" else "resume",
+                "next",
+                "previous",
+                "volume",
+            ],
+            volume_percent=state["volume"],
+        )
+        return httpx.Response(200, json={"service_response": value})
+    action = args["action"]
+    if action in {"pause", "resume"}:
+        state["state"] = "paused" if action == "pause" else "playing"
+    elif action in {"next", "previous"}:
+        state["song"] += 1 if action == "next" else -1
+    elif action == "volume":
+        state["volume"] = args["args"]["percent"]
+    state["sequence"] += 1
+    state["deviceSequence"] += 1
+    state["writes"].append(
+        {
+            "action": action,
+            "device": target,
+            **({"percent": state["volume"]} if action == "volume" else {}),
+        }
+    )
+    receipt = {
+        "ok": True,
+        "schema": "podconnect.command.v1",
+        "config_entry_id": args["config_entry_id"],
+        "owner_epoch": args["owner_epoch"],
+        "request_id": args["request_id"],
+        "command_sequence": args["command_sequence"],
+        "action": action,
+        "target": {"kind": "spotify_device", "target_id": target},
+        "outcome": "accepted",
+        "provider_request_accepted": True,
+        "retry_allowed": False,
+        "physical_result_verified": False,
+    }
+    return httpx.Response(200, json={"service_response": receipt})
+
+
 async def native_service(request):
+    if request.url.path == "/core/api/template" or request.url.path.startswith(
+        (
+            "/core/api/states/media_player.",
+            "/core/api/services/media_player/",
+            "/core/api/media_player_proxy/",
+        )
+    ):
+        return await room_player_service(request)
     args = json.loads(request.content)
     path = request.url.path
     service_reads.append({"path": path, "requestId": args.get("request_id")})
+    if path.endswith("/services/podconnect/move_playback"):
+        # PodConnect Control's take-over: the account's playback moves to the room's speaker.
+        assert args["kind"] == "configured_alias" and args["config_entry_id"] == "account"
+        state.pop("externalDevice", None)
+        state.update(room=args["target_id"], state="playing")
+        state["homepod"] = {"native-room": "42", "bedroom": "43"}[args["target_id"]]
+        state["sequence"] += 1
+        state["writes"].append({"action": "move_playback", "target": args["target_id"]})
+        await emit_playback_changed()
+        await emit_room_changed()
+        return httpx.Response(200, json=[])
+    if (
+        path.endswith(("get_playback_controls", "control_playback"))
+        and args.get("target_id") != "device"
+    ):
+        response = device_service(path, args)
+        if path.endswith("control_playback"):
+            await emit_playback_changed()
+        return response
     if path.endswith("get_targets"):
         if extended and args.get("config_entry_id"):
             value = speaker_catalogue()
@@ -476,6 +693,7 @@ async def native_service(request):
         value["session_volume_percent"] = state["volume"]
         if multi_screen:
             await emit_playback_changed()
+        await emit_room_changed()
         return httpx.Response(200, json={"service_response": value})
     if extended and path.endswith("get_room_volume_controls"):
         value = copy.deepcopy(music.value)
@@ -541,10 +759,31 @@ music.client = httpx.AsyncClient(transport=httpx.MockTransport(native_service))
 music.tools._client = music.client
 if robot is not None:
     music.tools._device_control = robot.router._device_control
+registry_read = music.tools._device_control._ws_read
+
+
+async def room_registry(command):
+    """The room media_players' registry rows; every other registry read is the robot's."""
+    if command.get("type") == "config/entity_registry/get_entries" and set(
+        command["entity_ids"]
+    ) == set(ROOM_PLAYERS):
+        return {
+            entity: {
+                "entity_id": entity,
+                "unique_id": f"{account}_room_{room}",
+                "platform": "podconnect",
+                "disabled_by": None,
+            }
+            for entity, (account, room) in ROOM_PLAYERS.items()
+        }
+    return await registry_read(command)
+
+
+music.tools._device_control._ws_read = room_registry
 music.tools._discovery = replace(
     music.tools._discovery,
     podconnect_services=music.tools._discovery.podconnect_services
-    | {"get_playback_snapshot", "get_targets"}
+    | {"get_playback_snapshot", "get_targets", "get_playback_controls", "control_playback"}
     | (
         {
             "get_room_volume_controls",
@@ -797,6 +1036,7 @@ async def lab_state(request):
             "externalAuthority",
         } or (volume_drag and "externalVolume" in args):
             await emit_playback_changed()
+            await emit_room_changed()
         if robot is not None:
             if "robotBattery" in args:
                 robot.states[ROBOT]["attributes"]["battery_level"] = int(args["robotBattery"])

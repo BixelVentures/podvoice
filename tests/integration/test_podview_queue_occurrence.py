@@ -624,7 +624,6 @@ async def test_queue_read_is_independent_of_missing_playback_control_services(ri
         rig.router._discovery,
         podconnect_services=rig.router._discovery.podconnect_services - disabled,
     )
-    assert not bridge.controls.music.room_available
     assert bridge.queue.available
     offer = await bridge.queue.offer(request, "grant")
     assert offer["ok"] and len(offer["items"]) == 2

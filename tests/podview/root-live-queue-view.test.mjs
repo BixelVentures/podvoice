@@ -37,48 +37,11 @@ function actualQueueOutput(f){
  const binding={roomId:'kitchen',accountId:'account',targetId:'actual-device',nativeRoomId:'actual-room',nativeHomepodId:'77',bindingId:'c'.repeat(64),validUntil:Date.now()/1000+15};
  Object.assign(p,{projectionVersion:2,observationStatus:'observed',roomBound:true,readOnly:false,target:{id:binding.targetId},roomBinding:binding});return binding;
 }
-test('queue read uses actual non-default binding and target; an offer cannot silently echo the configured default',async()=>{
- const f=fixture();try{
-  const configured=structuredClone(f.host.liveSnapshot.mediaRoomBindings),binding=actualQueueOutput(f),read=f.host.liveTransport.queueOffer,requests=[];
-  f.host.liveTransport.queueOffer=async(...args)=>{requests.push(args);return {...await read(),targetId:binding.targetId,expectedBindingId:binding.bindingId};};
-  assert.equal(await f.view.load('account',f.host.liveMedia.playback),true);assert.deepEqual(requests,[['account','actual-device',binding.bindingId]]);assert.equal(f.view.offer.expectedBindingId,binding.bindingId);assert.equal(f.view.model('account',f.host.liveMedia.playback).items[0].selectable,true);
-  f.host.liveTransport.queueOffer=async()=>({...await read(),targetId:binding.targetId});assert.equal(await f.view.load('account',f.host.liveMedia.playback),false);assert.equal(f.view.offer,null);assert.deepEqual(f.host.liveSnapshot.mediaRoomBindings,configured);assert.equal(f.actions.length,0);
- }finally{f.close();}
-});
-test('queue metadata without actual route, expired binding and late binding replacement never admit an offer',async()=>{
- for(const change of ['account','expired','replacement']){const f=fixture();try{
-  const binding=actualQueueOutput(f),read=f.host.liveTransport.queueOffer;
-  if(change==='account')Object.assign(f.host.liveMedia.playback,{observationStatus:'account_observed',accountObserved:true,roomBound:false,readOnly:true,roomBinding:null});
-  if(change==='expired')binding.validUntil=Date.now()/1000-1;
-  if(change!=='replacement'){assert.equal(await f.view.load('account',f.host.liveMedia.playback),false);assert.equal(f.reads.length,0);}
-  else{let finish;f.host.liveTransport.queueOffer=()=>new Promise(resolve=>finish=resolve);const waiting=f.view.load('account',f.host.liveMedia.playback);f.host.liveMedia.playback={...f.host.liveMedia.playback,roomBinding:{...binding,bindingId:'d'.repeat(64)}};finish({...await read(),targetId:binding.targetId,expectedBindingId:binding.bindingId});assert.equal(await waiting,false);}
-  assert.equal(f.view.offer,null);assert.equal(f.actions.length,0);
- }finally{f.close();}}
-});
 
 test('a foreign account parameter cannot borrow an otherwise current actual output for a queue read',async()=>{
  const f=fixture();try{actualQueueOutput(f);assert.equal(await f.view.load('foreign-account',f.host.liveMedia.playback),false);assert.equal(f.reads.length,0);assert.equal(f.actions.length,0);}finally{f.close();}
 });
 
-test('late accepted refresh for source A cannot clear or duplicate the pending queue read for replacement B',async()=>{
- const f=fixture();let finishRefresh,finishB,enteredRefresh;
- const refreshStarted=new Promise(resolve=>enteredRefresh=resolve);
- try{
-  const a=actualQueueOutput(f),read=f.host.liveTransport.queueOffer;
-  f.host.liveTransport.queueOffer=async()=>({...await read(),targetId:a.targetId,expectedBindingId:a.bindingId});
-  await f.view.load('account',f.host.liveMedia.playback);const first=f.view.offer;
-  f.host.liveTransport.queueAction=async()=>({outcome:'accepted'});
-  f.host.liveMedia.refresh=()=>{enteredRefresh();return new Promise(resolve=>finishRefresh=resolve);};
-  const choosing=f.view.choose(first.items[0]);await refreshStarted;
-  const b={...a,bindingId:'d'.repeat(64),targetId:'replacement-device'};
-  f.host.liveMedia.playback={...f.host.liveMedia.playback,target:{id:b.targetId},roomBinding:b};f.view.invalidate();
-  let readsB=0;f.host.liveTransport.queueOffer=()=>{readsB++;return new Promise(resolve=>finishB=resolve);};
-  const loadingB=f.view.load('account',f.host.liveMedia.playback),generationB=f.view.generation;
-  assert.equal(f.view.pending,true);finishRefresh();await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(readsB,1,'old accepted continuation must not request a second B offer');assert.equal(f.view.generation,generationB);assert.equal(f.view.pending,true,'B retains its pending ownership');await choosing;
-  const offerB={...await read(),targetId:b.targetId,expectedBindingId:b.bindingId};finishB(offerB);assert.equal(await loadingB,true);assert.equal(f.view.offer.taskId,offerB.taskId);assert.equal(f.view.pending,false);
- }finally{finishRefresh?.();f.close();}
-});
 
 test('accepted queue choice with unchanged source still refreshes and obtains one fresh offer',async()=>{
  const f=fixture();try{

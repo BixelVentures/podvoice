@@ -475,7 +475,7 @@ async function recentSessionJourney(){
    const url=new URL(response.url());
    return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
   },{timeout:10000});
-  assert.notEqual((await oldRead.json()).data.playback.item.uri,uri);
+  assert.notEqual((await oldRead.json()).uri,uri);
   assert.deepEqual((await state()).writes,[]);
   assert.equal(await page.locator('#track-name').textContent(),title);
   assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
@@ -494,7 +494,7 @@ async function recentSessionJourney(){
   const b=document.querySelector('#play-pause');
   return Date.now()>=after&&playback?.roomBinding?.validUntil*1000>Date.now()
    &&playback.roomBinding.nativeRoomId==='native-room'&&playback.roomBinding.nativeHomepodId==='42'
-   &&playback.item?.uri===uri&&playback.state===phase&&b&&!b.disabled&&!host.liveControls.musicIntentPending
+   &&playback.item?.uri===uri&&playback.state===phase&&b&&!b.disabled&&!(host.liveControls.musicIntentPending||host.liveControls?.player?.busy())
    &&!host.liveSelection.pending&&document.querySelector('#track-name')?.textContent===title;
  },{uri,title,phase,after},{timeout:15000});
  await observed(page,'playing');
@@ -527,7 +527,8 @@ async function recentSessionJourney(){
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await env.openOverview(page);
  await observed(page,'paused');
- const reopenedCover=page.locator('#cover[src="'+coverUrl+'"]');
+ // After the start, the room player's own cover (HA's proxy image through PodVoice) is shown.
+ const reopenedCover=page.locator('#cover[src*="/view/api/music/player/artwork"]');
  await reopenedCover.waitFor({state:'visible'});
  await reopenedCover.evaluate(image=>image.decode());
  assert.deepEqual((await state()).writes,afterBurst.writes,'reopening does not replay the selection or controls');
@@ -535,8 +536,7 @@ async function recentSessionJourney(){
  await observed(page,'playing');
  const volume=page.locator('#volume');
  await env.touchRange(page,volume,55);
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.controls
-  ?.volume?.base_percent===55);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.volume===55);
  const final=await state();
  assert.equal(final.selections.length,1);
  assert.deepEqual(final.writes.map(row=>row.action),['play_track','pause','resume','pause','resume','volume']);
@@ -656,8 +656,7 @@ async function voiceQueueJourney(){
   await observe(23,'paused');
   const volume=page.locator('#volume');
   await env.touchRange(page,volume,55);
-  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.controls
-   ?.volume?.base_percent===55);
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.volume===55);
   await page.locator('#play-pause').tap();
   await observe(23,'playing');
   assert.equal(await page.evaluate(()=>performance.timeOrigin),documentStartedAt);
@@ -669,8 +668,10 @@ async function voiceQueueJourney(){
  assert.equal(final.queueSelections[0].index,1);
  const expectedActions=['play_track','play_queue_occurrence','pause','resume',...(renewal?.touchAfterDwell??[])];
  assert.deepEqual(final.writes.map(row=>row.action),expectedActions);
- const effects=final.nativeCalls.filter(row=>['start_room_selected_content','control_room_queue','control_room_playback','control_room_volume'].includes(row.service));
- assert.deepEqual(effects.map(row=>row.args.command_sequence),expectedActions.map((_,index)=>index+3));
+ // Start and queue choice use PodConnect's session commands; player taps are direct room
+ // media_player calls (recorded in writes above), not session commands.
+ const effects=final.nativeCalls.filter(row=>['start_room_selected_content','control_room_queue'].includes(row.service));
+ assert.deepEqual(effects.map(row=>row.args.command_sequence),[3,4]);
  assert.ok(effects.every(({args})=>args.config_entry_id==='account'&&args.target_id==='device'
   &&args.room_id==='native-room'&&args.homepod_id==='42'&&args.owner_epoch===effects[0].args.owner_epoch));
  assert.ok(effects.slice(1).every(({args})=>args.native.session_id===session
@@ -1849,9 +1850,10 @@ async function queuePersistenceJourney(){
  if(libraryBusy){await libraryBusyJourney();return;}
  if(defaultSpeakerProof){await defaultSpeakerJourney();return;}
  if(cold){
-  const initial=await (await page.request.get(base+'/view/api/music?kind=playback&account=account&include_controls=1')).json();
-  assert.equal(initial.ok,true);assert.equal(initial.status,'idle');
-  assert.equal(initial.data.playback.state,'no_active_playback');assert.equal(initial.data.playback.target,null);assert.equal(initial.data.playback.item,null);
+  // The room's own player: nothing plays in the room yet.
+  const initial=await (await page.request.get(base+'/view/api/music?kind=playback&account=account')).json();
+  assert.equal(initial.ok,true);assert.equal(initial.state,'idle');
+  assert.equal(initial.title,null);assert.equal(initial.uri,null);assert.equal(initial.session,null);
   const snapshot=await (await page.request.get(base+'/view/api/snapshot')).json();assert.equal(snapshot.voice.active,false);assert.equal(snapshot.voice.phase,'IDLE');assert.equal(snapshot.voice.sessionId,null);assert.equal(snapshot.admission.kind,'ha_ingress');assert.equal(snapshot.voice.turnId,null);for(const key of ['taskId','inputRevision','providerGeneration'])assert.equal(Object.hasOwn(snapshot.voice,key),false);for(const key of ['sessionId','turnId','taskId','inputRevision'])assert.equal(snapshot.answers[key],null);assert.deepEqual(snapshot.capabilities.musicActions,[]);assert.equal(snapshot.mediaRoomBindings.length,1);
   const targets=await (await page.request.get(base+'/view/api/music?kind=targets&account=account')).json();assert.deepEqual(targets.data.targets,[]);
   let previewArmed=false,initialMood=true,holdArmed=false,releaseMood,markHeld;const heldMood=new Promise(resolve=>{markHeld=resolve;}),moodGate=new Promise(resolve=>{releaseMood=resolve;});
@@ -1920,10 +1922,10 @@ async function queuePersistenceJourney(){
   assert.deepEqual(errors,[]);await page.screenshot({path:path.join(env.artifactDir(),'podview-cold-context-'+(rejectSetup?'rejected':'observed')+'.png')});
   await fs.writeFile(path.join(env.artifactDir(),'cold-context-'+(rejectSetup?'rejected':'observed')+'.json'),JSON.stringify({runtimeNonceVerified:true,bundleSHA,initialStatus:initial.status,voice:snapshot.voice,terminalVoice:terminalSnapshot.voice,trace:traceWitness,service:{state:value.state,prepareCount:prepares.length,commitCount:commits.length,effectCount:value.writes.length},visible:await page.locator('body').innerText()},null,2));
   if((repeatMood||previewRenew)&&!rejectSetup){
-   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.settlementStatus==='confirmed'&&h.liveMedia?.playback?.state==='playing'&&!h.liveControls?.musicIntentPending&&!h.liveSelection.pending;},undefined,{timeout:15000});
+   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.state==='playing'&&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&!h.liveSelection.pending;},undefined,{timeout:15000});
    await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-before-pause.png')});
    await page.locator('#play-pause').tap();
-   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveMedia?.playback?.state==='paused'&&!h.liveControls?.musicIntentPending&&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken';},undefined,{timeout:15000});
+   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveMedia?.playback?.state==='paused'&&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken';},undefined,{timeout:15000});
    assert.equal((await state()).state,'paused');await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-after-pause.png')});const firstUri=value.selections[0].uri,second=mood.data.tracks.find(track=>track.uri!==firstUri);assert(second?.themeTitle,'a genuinely different displayed mood playlist exists');
    const holdOldItem=async expected=>{
     let staleShown,release;
@@ -1954,7 +1956,7 @@ async function queuePersistenceJourney(){
     }finally{playlistHold.release();}
    }
    for(let n=0;(await state()).selections.length<2;n++){if(n>150)throw Error('second explicit mood selection has no native effect');await sleep(100);}
-   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.settlementStatus==='confirmed'&&h.liveMedia?.playback?.state==='playing'&&h.liveMedia.playback.item?.name==='Isoleret sang 12'&&!h.liveControls?.musicIntentPending&&!h.liveSelection.pending;},undefined,{timeout:15000});
+   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.state==='playing'&&h.liveMedia.playback.item?.name==='Isoleret sang 12'&&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&!h.liveSelection.pending;},undefined,{timeout:15000});
    const repeated=await state();if(holdPlayback)await page.locator('#track-name').filter({hasText:'Isoleret sang 12'}).waitFor({state:'visible',timeout:15000});assert.equal(repeated.selections.length,2);assert.equal(repeated.selections[1].uri,second.uri);assert.notEqual(repeated.selections[1].requestId,repeated.selections[0].requestId);assert.deepEqual(repeated.writes.map(row=>row.action),['play_context','pause','play_context']);assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,2);assert.deepEqual(errors,[]);
    await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-after-second-selection.png')});const repeatProof={outcome:'PASS',bundleSHA,repeatMood:true,firstObserved:true,pauseObserved:true,secondDistinctPlaylistObserved:true,effects:repeated.writes.map(row=>row.action),oneEffectPerInput:true,pageErrors:errors};await fs.writeFile(path.join(env.artifactDir(),'podview-mood-repeat.json'),JSON.stringify(repeatProof,null,2));console.log(JSON.stringify(repeatProof));
    if(holdPlayback){
@@ -2027,13 +2029,13 @@ async function queuePersistenceJourney(){
   return;
  }
  // Passive bounded CI evidence only: no method wrapping, synthetic events or upload.
- await page.evaluate(()=>{const ids=new WeakMap(),scopes=new Map(),events=[],mutations=[];let serial=0;const id=node=>{if(!node)return null;if(!ids.has(node))ids.set(node,++serial);return ids.get(node);},scope=h=>{const s=h?.liveSnapshot,key=JSON.stringify([s?.bootId,s?.roomId,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,s?.mediaRoomBindings]);if(!scopes.has(key))scopes.set(key,scopes.size+1);return scopes.get(key);},save=(list,row)=>{list.push(row);if(list.length>100)list.shift();};for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','click'])document.addEventListener(type,event=>{const h=document.querySelector('pv-widget-host'),v=h?.liveSelection,c=h?.liveCatalogue,e=c?.entries?.get(c.key()),point=event.changedTouches?.[0]||event,b=event.target.closest?.('#result-list button.result');save(events,{type,at:performance.now(),target:id(event.target),button:id(b),x:point.clientX??null,y:point.clientY??null,disabled:b?.disabled??null,connected:b?.isConnected??null,scope:scope(h),focus:h?.state?.focus,pending:v?.pending,used:v?.used,musicPending:!!h?.liveControls?.musicIntentPending,settlement:v?.feedback?.settlementStatus,selectionSpent:e?.selectionSpent,selectionConfirmed:e?.selectionConfirmed});},true);new MutationObserver(records=>{for(const record of records)if(record.type==='childList')save(mutations,{at:performance.now(),parent:id(record.target),added:[...record.addedNodes].map(id),removed:[...record.removedNodes].map(id)});else if(record.type==='attributes')save(mutations,{at:performance.now(),target:id(record.target),attribute:record.attributeName,oldValue:record.oldValue,value:record.target.getAttribute(record.attributeName)});}).observe(document.querySelector('#result-list'),{childList:true,subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled','hidden','inert','aria-disabled']});window.selectionCiEvidence={events,mutations};});
+ await page.evaluate(()=>{const ids=new WeakMap(),scopes=new Map(),events=[],mutations=[];let serial=0;const id=node=>{if(!node)return null;if(!ids.has(node))ids.set(node,++serial);return ids.get(node);},scope=h=>{const s=h?.liveSnapshot,key=JSON.stringify([s?.bootId,s?.roomId,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,s?.mediaRoomBindings]);if(!scopes.has(key))scopes.set(key,scopes.size+1);return scopes.get(key);},save=(list,row)=>{list.push(row);if(list.length>100)list.shift();};for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','click'])document.addEventListener(type,event=>{const h=document.querySelector('pv-widget-host'),v=h?.liveSelection,c=h?.liveCatalogue,e=c?.entries?.get(c.key()),point=event.changedTouches?.[0]||event,b=event.target.closest?.('#result-list button.result');save(events,{type,at:performance.now(),target:id(event.target),button:id(b),x:point.clientX??null,y:point.clientY??null,disabled:b?.disabled??null,connected:b?.isConnected??null,scope:scope(h),focus:h?.state?.focus,pending:v?.pending,used:v?.used,musicPending:!!(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy()),settlement:v?.feedback?.settlementStatus,selectionSpent:e?.selectionSpent,selectionConfirmed:e?.selectionConfirmed});},true);new MutationObserver(records=>{for(const record of records)if(record.type==='childList')save(mutations,{at:performance.now(),parent:id(record.target),added:[...record.addedNodes].map(id),removed:[...record.removedNodes].map(id)});else if(record.type==='attributes')save(mutations,{at:performance.now(),target:id(record.target),attribute:record.attributeName,oldValue:record.oldValue,value:record.target.getAttribute(record.attributeName)});}).observe(document.querySelector('#result-list'),{childList:true,subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled','hidden','inert','aria-disabled']});window.selectionCiEvidence={events,mutations};});
  for(const song of [11,12,11]){
   const row=rows.filter({hasText:`Katalogsang ${song}`});
   await row.tap();
   for(let n=0;(await state()).song!==song;n++){if(n>100)throw Error('selection effect missing '+song);await sleep(100)}
   await page.waitForFunction(s=>document.querySelector('#track-name')?.textContent?.trim()===`Isoleret sang ${s}`,song,{timeout:15000});
-  await page.waitForFunction(s=>{const h=document.querySelector('pv-widget-host');return !h?.liveControls?.musicIntentPending&&!h?.liveSelection?.pending&&h?.liveSelection?.feedback?.settlementStatus==='confirmed'&&h.liveMedia?.playback?.item?.uri===`spotify:track:${String(s).padStart(22,'0')}`},song,{timeout:15000});
+  await page.waitForFunction(s=>{const h=document.querySelector('pv-widget-host');return !(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy())&&!h?.liveSelection?.pending&&h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.item?.uri===`spotify:track:${String(s).padStart(22,'0')}`},song,{timeout:15000});
  }
  const result=await state();
  assert.deepEqual(result.selections.map(r=>Number(r.uri.split(':').pop())),[11,12,11]);
@@ -2065,6 +2067,6 @@ async function queuePersistenceJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-music-selection-trace.json'),JSON.stringify({bundleSHA,service:queued,actions,responses},null,2));
  await page.screenshot({path:path.join(env.artifactDir(),'podview-music-selection.png')});
  console.log(JSON.stringify({outcome:'PASS',packagedUI:true,bundleSHA,inertNativeService:true,catalogueSelections:[11,12,11],oneEffectPerExplicitChoice:true,queueProof:'opaque second occurrence → existing prepare/commit → observed song22',pageErrors:errors}));
- }catch(error){if(page){try{const evidence=await page.locator('pv-widget-host').evaluate(async h=>{const t=h.liveTransport,records=[];for(const row of t?.diagnostics?.().records||[]){let requestRef;if(row.requestId){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(row.requestId));requestRef=[...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('').slice(0,16);}records.push({seq:row.seq,atMs:row.atMs,generation:row.generation,stage:row.stage,code:row.code,domain:row.domain,endpoint:row.endpoint,current:row.current,...(requestRef?{requestRef}:{})});}const v=h.liveSelection,c=h.liveCatalogue,e=c?.entries?.get(c.key());return {events:window.selectionCiEvidence?.events||[],mutations:window.selectionCiEvidence?.mutations||[],records,dropped:t?.diagnosticDropped,scope:{focus:h.state?.focus,connected:t?.connected,generation:t?.generation,feedback:v?.feedback?.settlementStatus,pending:v?.pending,used:v?.used,musicPending:!!h.liveControls?.musicIntentPending,entry:e?{selectionSpent:e.selectionSpent,selectionExpired:e.selectionExpired,selectionUnavailable:e.selectionUnavailable,actionDispatched:e.actionDispatched,selectionConfirmed:e.selectionConfirmed,selectionSettlementStatus:e.selectionSettlementStatus}:null}};});await fs.writeFile(path.join(env.artifactDir(),'podview-music-selection-failure-evidence.json'),JSON.stringify(evidence,null,2));}catch(evidenceError){console.error('selection evidence unavailable',evidenceError.message);}console.log('failureState',JSON.stringify({service:await state(),responses,actions,ui:await page.locator('body').innerText(),selection:await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,account:h.liveMedia?.account,capabilities:h.liveSnapshot?.capabilities,feedback:h.liveSelection?.feedback&&{message:h.liveSelection.feedback.message,outcome:h.liveSelection.feedback.outcome},queueStatus:h.liveMedia?.queueControls?.status,note:h.liveSelection?.note?.textContent,offer:h.liveSelection?.offer}))}));await page.screenshot({path:path.join(env.artifactDir(),'podview-music-selection-failure.png')})}throw error;
+ }catch(error){if(page){try{const evidence=await page.locator('pv-widget-host').evaluate(async h=>{const t=h.liveTransport,records=[];for(const row of t?.diagnostics?.().records||[]){let requestRef;if(row.requestId){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(row.requestId));requestRef=[...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('').slice(0,16);}records.push({seq:row.seq,atMs:row.atMs,generation:row.generation,stage:row.stage,code:row.code,domain:row.domain,endpoint:row.endpoint,current:row.current,...(requestRef?{requestRef}:{})});}const v=h.liveSelection,c=h.liveCatalogue,e=c?.entries?.get(c.key());return {events:window.selectionCiEvidence?.events||[],mutations:window.selectionCiEvidence?.mutations||[],records,dropped:t?.diagnosticDropped,scope:{focus:h.state?.focus,connected:t?.connected,generation:t?.generation,feedback:v?.feedback?.settlementStatus,pending:v?.pending,used:v?.used,musicPending:!!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy()),entry:e?{selectionSpent:e.selectionSpent,selectionExpired:e.selectionExpired,selectionUnavailable:e.selectionUnavailable,actionDispatched:e.actionDispatched,selectionConfirmed:e.selectionConfirmed,selectionSettlementStatus:e.selectionSettlementStatus}:null}};});await fs.writeFile(path.join(env.artifactDir(),'podview-music-selection-failure-evidence.json'),JSON.stringify(evidence,null,2));}catch(evidenceError){console.error('selection evidence unavailable',evidenceError.message);}console.log('failureState',JSON.stringify({service:await state(),responses,actions,ui:await page.locator('body').innerText(),selection:await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,account:h.liveMedia?.account,capabilities:h.liveSnapshot?.capabilities,feedback:h.liveSelection?.feedback&&{message:h.liveSelection.feedback.message,outcome:h.liveSelection.feedback.outcome},queueStatus:h.liveMedia?.queueControls?.status,note:h.liveSelection?.note?.textContent,offer:h.liveSelection?.offer}))}));await page.screenshot({path:path.join(env.artifactDir(),'podview-music-selection-failure.png')})}throw error;
  }finally{if(browser)await browser.close();if(server&&server.exitCode===null){const done=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await done;}}
 })().catch(e=>{console.error(e);process.exitCode=1});

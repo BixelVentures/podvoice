@@ -2,7 +2,10 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {configuredSpeakerLabel,SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
 import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
 import {livePlayerModel,placeOutputHeader} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {roomPlaybackObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
+// Authored scenes in the room player's wire shape (podview.room-player.v1).
+const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
 const binding={accountId:'a',bindingId:'b'.repeat(64),nativeHomepodId:'42',nativeRoomId:'kitchen',roomId:'room',targetId:'engine'};
 const snapshot=()=>({bootId:'boot',roomId:'room',sessionId:'session',mediaRoomBindings:[{...binding}],capabilities:{musicRead:['targets','playback'],controlSetup:[]}});
 const payload=()=>({ok:true,schema:'podview.speaker-catalogue.v1',bootId:'boot',roomId:'room',accountId:'a',status:'observed',catalogueId:'c'.repeat(64),retrievedAt:Date.now()/1000,source:'podconnect.get_targets',speakers:[{speakerId:'d'.repeat(64),accountId:'a',kind:'configured_alias',nativeRoomId:'kitchen',homepodId:'42',name:'Køkkenalrum',availability:'available',default:true,nativeSelected:false,outputSelected:false,selectable:false}],moveAvailable:false,physicalResultVerified:false});
