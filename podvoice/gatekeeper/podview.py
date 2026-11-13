@@ -5711,10 +5711,22 @@ def mount(
         except OSError:
             _LOG.warning("recipe_import_recovery_failed code=storage_unavailable")
 
+    recipe_shares = None
+    recipe_share_task = None
+
     async def start_recipe_imports(_app):
-        nonlocal recipe_recovery_task
+        nonlocal recipe_recovery_task, recipe_shares, recipe_share_task
         if bridge.recipe_submissions is not None:
             recipe_recovery_task = asyncio.create_task(recover_recipe_uploads())
+            from .config import _supervisor_token
+            from .recipe_share import RecipeShares, supervisor_socket
+
+            # Share → Home Assistant on the phone; only inside Home Assistant.
+            if _supervisor_token():
+                recipe_shares = RecipeShares(
+                    bridge.recipe_submissions, _supervisor_token, supervisor_socket
+                )
+                recipe_share_task = asyncio.create_task(recipe_shares.run())
 
     async def start_home_events(_app):
         bridge.start_home_events()
@@ -5738,6 +5750,10 @@ def mount(
                 await recipe_recovery_task
             except asyncio.CancelledError:
                 pass
+        if recipe_share_task is not None and recipe_shares is not None:
+            recipe_share_task.cancel()
+            await asyncio.gather(recipe_share_task, return_exceptions=True)
+            await recipe_shares.aclose()
         await bridge.stop_vehicle_controls()
         radio_native = getattr(tools, "podview_radio_native", None)
         if radio_native is not None:

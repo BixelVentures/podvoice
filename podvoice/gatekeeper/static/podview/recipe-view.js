@@ -408,7 +408,9 @@ export class RecipeView {
    }
    renderUploads();
    renderShortcut();
-   entries.append(uploads.node,shortcutUpdate,shortcutBox.node);
+   // The everyday way to add a recipe; the upload-code shortcut stays as a fallback below.
+   entries.append(meta('Tilføj opskrift: Del → Home Assistant fra Safari eller Chrome på iPhone.'),
+    uploads.node,shortcutUpdate,shortcutBox.node);
   };
   index.append(marker);
   layout.append(entries,index);
