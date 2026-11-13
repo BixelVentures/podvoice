@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 d8715dd89991940a6112539486ae5b24fcafdf62934b72693e9095061af424cf */
+/* Source: ui-kit.css · SHA256 193c7cb8c53ffeab87e78e3b11240f5df5610fe2e9fb39a9e58a34de7085d291 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6310,3 +6310,140 @@ body button:not(.is-pressed){transition-property:filter!important}
  body pv-widget-host[data-view=rest][data-night=true] #resource-rail>.resource-preview[data-kind=timer] .resource-label>
   small{display:none!important}
 }
+
+/* iPad afspiller (lærred v190 »A-Player«, »Player-AndenEnhed«, »Player-AndetSted«, »Player-Radio«, »Player-Tom«,
+   »Player-Offline«, issue 391). One column in the 372×695 card: chip 44, cover 252 (196 away), title 24/800,
+   a 4-px progress line, transport 56/80/56, the volume row at the bottom; away adds a primary "Flyt til <rum>". */
+@media (min-width:1000px){
+ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){display:flex!important;
+  flex-direction:column;align-items:stretch;gap:0!important;padding:18px 24px 24px!important;
+  border-radius:26px!important;
+  background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);overflow:hidden;
+  --pv-volume-track-size:4px;--pv-volume-thumb-size:18px}
+ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #output{order:0;flex:none;
+  align-self:center;width:auto;max-width:100%;height:44px!important;min-height:44px!important;padding:0 14px;
+  margin:0;border-radius:999px;background:transparent}
+ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #output h2{position:static;
+  display:flex;align-items:center;height:44px}
+ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #output .output-room{position:static;
+  transform:none;gap:8px}
+ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #output .output-room>img{width:16px;
+  height:16px}
+ body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty) #player-room{font:700 18px/24px
+  var(--pv-font);color:#17171A}
+ /* Statuslinjen har ingen pil, når intet kan vælges (din musik spiller på en anden enhed). */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere] #output .output-room::after{
+  display:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.cover-button{order:1;flex:none;align-self:center;
+  width:252px!important;height:252px!important;max-width:none!important;max-height:none!important;margin:20px 0 0;
+  border-radius:14px;overflow:hidden;box-shadow:0 18px 36px -16px rgba(23,23,26,.45)}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]>.cover-button{
+  width:196px!important;height:196px!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-source-kind=radio]>.cover-button{border-radius:24px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.cover-button>.cover{width:100%;height:100%;
+  border-radius:inherit}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.track{order:2;flex:none;height:auto!important;
+  min-height:0!important;margin:28px 0 0!important;padding:0!important;align-items:flex-start}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.track strong{font:800 24px/1.15 var(--pv-font);
+  letter-spacing:-.02em;color:#17171A}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.track span{font:400 17px/24px var(--pv-font);
+  color:#5F5E5A}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live:not([hidden]){order:3;display:flex;
+  align-items:center;gap:10px;height:44px;margin:22px 0 0;font:600 15px/20px var(--pv-font);letter-spacing:.12em;
+  text-transform:uppercase;color:#3F3E3B}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live>i{width:10px;height:10px;border-radius:50%;
+  background:#8C8A85}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live[data-phase=live]>i{background:#E5261E;
+  animation:pv-live-pulse .9s ease-in-out infinite}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live[data-phase=starting]>i{background:#C9A227;
+  animation:pv-live-pulse .9s ease-in-out infinite}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.player-progress{order:3;flex:none;height:auto!important;
+  min-height:0!important;margin:22px 0 0!important;display:flex;flex-direction:column;gap:10px!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]>.player-progress{
+  margin-top:14px!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.player-progress #detail-seek:not([hidden]){
+  position:relative;inset:auto;height:18px!important;min-height:18px!important;padding:0!important;
+  margin:-7px 0!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card #detail-seek::-webkit-slider-runnable-track{height:4px;
+  border-radius:2px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card #detail-seek::-webkit-slider-thumb{opacity:1;width:18px;
+  height:18px;margin-top:-7px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.player-progress .player-progress-times{
+  position:static!important;
+  inset:auto!important;margin:0!important;display:flex;justify-content:space-between;
+  font:500 15px/20px var(--pv-font)!important;color:#5F5E5A;
+  font-variant-numeric:tabular-nums}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.player-progress .player-progress-times>span{
+  font:inherit!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport{order:4;flex:none;height:auto!important;
+  margin:14px 0 0!important;padding:0 12px!important;display:flex;align-items:center;justify-content:space-between}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-source-kind=radio]>.transport{justify-content:center}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport>:is(#previous,#next){width:56px!important;
+  min-width:56px!important;flex:0 0 56px;height:56px!important;min-height:56px!important;padding:0!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport>#play-pause{width:80px!important;
+  min-width:80px!important;flex:0 0 80px;height:80px!important;min-height:80px!important;padding:0!important;
+  background:#17171A}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport img{width:28px;height:28px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport>#play-pause img{width:26px;height:26px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume{order:5;flex:none;height:44px!important;
+  min-height:44px!important;margin:auto 0 8px;display:flex;align-items:center;gap:4px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume>#volume-mute{flex:0 0 44px;width:44px;height:44px;
+  min-height:44px;margin-left:-10px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume>#volume-mute>img{width:22px;height:22px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.volume>#volume{height:44px;min-height:44px}
+ /* Away without the device's own volume: no slider; the move button takes the bottom. */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]:not(:has(#volume:enabled))>
+  .volume{display:none!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here:not([hidden]){order:6;flex:none;display:flex;
+  align-items:center;justify-content:center;gap:10px;height:56px;min-height:56px;margin:4px 0 8px;padding:0 20px;
+  border:0;border-radius:999px;background:#17171A;color:#F7F6F3;font:600 17px/24px var(--pv-font)}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]:not(:has(#volume:enabled))>
+  .move-here{margin-top:auto}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>img{width:20px;height:20px;
+  filter:brightness(0) invert(1)}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots{display:none;
+  grid-template-columns:repeat(3,6px);gap:4px}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here[data-pending=true]>.move-here-dots{
+  display:grid}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here[data-pending=true]>img{display:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots>i{width:6px;height:6px;
+  border-radius:3px;background:#F7F6F3;animation:pv-live-pulse .9s ease-in-out infinite}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots>i:nth-child(2){
+  animation-delay:150ms}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots>i:nth-child(3){
+  animation-delay:300ms}
+ /* Coverets stemning: the product's cover tone (--player-cover-tone) as soft light behind the cover. */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card::before{content:"";position:absolute;left:-40px;
+  right:-40px;
+  top:-40px;height:470px;pointer-events:none;opacity:.42;filter:blur(44px);
+  background:radial-gradient(150px 150px at 30% 30%,var(--player-cover-tone,transparent),transparent 70%),
+   radial-gradient(140px 140px at 75% 45%,var(--player-cover-tone,transparent),transparent 70%);
+  -webkit-mask-image:linear-gradient(#000 45%,transparent);mask-image:linear-gradient(#000 45%,transparent)}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>*{position:relative}
+ /* Last known (offline / not confirmed): controls fade, no outline rings. */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card :is(.transport>button,#volume-mute):disabled{
+  border:0!important;
+  box-shadow:none!important;opacity:.4!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport>#play-pause:disabled{
+  background:#17171A!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card>.transport>#play-pause:disabled img{
+  filter:brightness(0) invert(1)}
+ /* Player-Tom / Player-Offline: a 324×220 placeholder, the product's own text as the title, a black pill. */
+ body pv-widget-host[data-view=active]>.frame>#player-empty:not([hidden])>.player-empty-art{order:1;flex:none;
+  width:324px!important;height:220px!important;margin:16px 0 0;border-radius:16px;background:#ECEAE5;
+  display:grid;place-items:center}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-art>img{width:64px;height:64px;opacity:.5}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-copy{order:2;flex:none;
+  margin:16px 0 0!important;
+  padding:0!important;text-align:left}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-copy>h2{display:none}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>.player-empty-copy>p{order:2;margin:16px 0 0!important;
+  font:800 22px/28px
+  var(--pv-font);letter-spacing:-.02em;color:#17171A;text-align:left}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>#empty-find-music{order:3;flex:none;display:flex;
+  align-items:center;justify-content:center;height:56px!important;min-height:56px!important;margin:auto 0 0;
+  border-radius:999px;background:#17171A;color:#F7F6F3;font:600 17px/24px var(--pv-font)}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>#empty-find-music>:is(img,.empty-find-context){
+  display:none}
+}
+@keyframes pv-live-pulse{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}

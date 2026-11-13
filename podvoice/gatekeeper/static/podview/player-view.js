@@ -211,6 +211,29 @@ if(item.sourceKind==='radio'&&/^assets\/radio-(p3|p1|p4-ostjylland|p6-beat|p8-ja
   placeOutputHeader(this,vm);if($('track').getAttribute?.('aria-label')!==null)$('track').removeAttribute('aria-label');if($('track').getAttribute?.('aria-description')!=='Åbn afspiller')$('track').setAttribute('aria-description','Åbn afspiller');for(const id of ['cover','detail-cover'])if($(id).style.visibility!=='')$(id).style.visibility='';for(const id of ['track','player-detail'])if($(id).disabled)$(id).disabled=false;
   for(const id of ['track-name','detail-track'])if($(id).textContent!==txt(vm.title))$(id).textContent=txt(vm.title);const artist=(txt(vm.artist)||(vm.sourceKind==='radio'?'Direkte radio':''))+(vm.exampleOnly===true&&vm.sourceKind==='radio'?' · ingen lyd':'');for(const id of ['track-artist','detail-artist'])if($(id).textContent!==artist)$(id).textContent=artist;const displayedTarget=txt(vm.selectedTarget)||txt(vm.target);if($('player-room').textContent!==displayedTarget)$('player-room').textContent=displayedTarget;const previewLabel=vm.exampleOnly===true&&vm.sourceKind==='radio'?txt(vm.previewLabel):'',connectionExplained=this.host.browserOffline===true||this.host.state?.connected===false||['offline','denied'].includes(this.host.connectionNotice?.state),playingLabel=vm.placement==='elsewhere'&&!txt(vm.target)?'Spiller et andet sted':'Spiller på',readOnlyLabel=vm.fresh===false&&!connectionExplained?(vm.playing?'Ikke opdateret':'Ikke opdateret · på pause'):vm.playing?playingLabel:'På pause',stateLabel=vm.selectedTarget?'Skifter til':vm.readOnly?[feedback,readOnlyLabel].filter(Boolean).join(' · '):feedback||controlStatus||(vm.emptyState==='error'?(connectionExplained?'Forbindelsen mangler':'Status kunne ikke hentes'):vm.exampleOnly===true&&vm.sourceKind==='radio'?'':(vm.fresh?(vm.playing?'Spiller på':''):connectionExplained?'':'Ikke opdateret')),detailLabel=vm.readOnly?[feedback,vm.fresh===false&&!connectionExplained?'Afspilningen er ikke opdateret':vm.playing?(vm.placement==='elsewhere'?(txt(vm.target)?`Spiller på ${txt(vm.target)}`:'Spiller et andet sted'):''):'På pause'].filter(Boolean).join(' · '):feedback||controlStatus||(vm.emptyState==='error'?(connectionExplained?'Forbindelsen mangler':'Status kunne ikke hentes'):vm.exampleOnly===true&&vm.sourceKind==='radio'?'':vm.fresh?'':connectionExplained?'':'Afspilningen er ikke opdateret');if($('player-state').getAttribute('data-routine-output')!==String(stateLabel==='Spiller på'))$('player-state').setAttribute('data-routine-output',String(stateLabel==='Spiller på'));if($('player-state').textContent!==stateLabel)$('player-state').textContent=stateLabel;if($('detail-title').textContent!=='Afspiller')$('detail-title').textContent='Afspiller';if($('detail-status')&&$('detail-status').textContent!==detailLabel)$('detail-status').textContent=detailLabel;for(const id of ['player-state','detail-status']){const node=$(id),hidden=vm.sourceKind==='radio';if(node.hidden!==hidden)node.hidden=hidden;}const detailRoom=$('detail-output').querySelector('span');if(detailRoom.textContent!==displayedTarget)detailRoom.textContent=displayedTarget;
   for(const id of ['output','detail-output']){const disabled=!vm.canOutput,label=[id==='output'?(stateLabel||(vm.exampleOnly===true&&vm.sourceKind==='radio'?previewLabel:vm.fresh&&!vm.playing?'På pause':'')):'',vm.selectedTarget?`Valgt: ${txt(vm.selectedTarget)} · skifter højttaler`:txt(vm.target),vm.canOutput?(vm.readOnly?(vm.placement==='elsewhere'&&txt(vm.configuredTarget)?`Flyt til ${txt(vm.configuredTarget)}`:'Vælg højttaler'):`${vm.selectedTarget?'Afventer bekræftelse':vm.fresh?'Aktuelt output':'Seneste output'} · Vælg højttaler`):''].filter(Boolean).join(' · ');if($(id).disabled!==disabled)$(id).disabled=disabled;if($(id).getAttribute?.('aria-label')!==label)$(id).setAttribute('aria-label',label);}
+  // f) Own music on another device (lærred »Player-AndenEnhed«): one primary "Flyt til <rum>" at the bottom of
+  // the card does what the chip does; it says "Flytter til <rum>…" until the room plays it.
+  const room=txt(vm.configuredTarget),away=vm.active===true&&vm.readOnly===true&&vm.placement==='elsewhere',
+   placement=away?'elsewhere':'room',move=$('move-here');
+  if(player.dataset.placement!==placement)player.dataset.placement=placement;
+  const kind=vm.sourceKind==='radio'?'radio':'music';if(player.dataset.sourceKind!==kind)player.dataset.sourceKind=kind;
+  if(move){
+   const hidden=!(away&&room&&vm.canOutput),moving=!hidden&&!!vm.selectedTarget,
+    label=moving?`Flytter til ${room}…`:`Flyt til ${room}`;
+   if(move.hidden!==hidden)move.hidden=hidden;
+   if(move.dataset.pending!==String(moving))move.dataset.pending=String(moving);
+   const text=$('move-here-label');if(text&&text.textContent!==label)text.textContent=label;
+  }
+  // Radio's live state (lærred »Player-Radio«): starting, playing live or stopped.
+  const live=$('radio-live');
+  if(live){
+   const radio=vm.active===true&&vm.sourceKind==='radio',
+    phase=vm.loading===true?'starting':vm.playing?'live':'stopped',
+    word={starting:'Forbinder',live:'Direkte',stopped:'Stoppet'}[phase];
+   if(live.hidden!==!radio)live.hidden=!radio;
+   if(live.dataset.phase!==phase)live.dataset.phase=phase;
+   const span=live.querySelector('span');if(span&&span.textContent!==word)span.textContent=word;
+  }
   const icon=`assets/icons/${vm.playing?(vm.sourceKind==='radio'?'stop':'pause'):'play'}-fill.svg`;for(const id of ['play-icon','detail-play-icon'])if($(id).getAttribute?.('src')!==icon)$(id).src=icon;for(const id of ['cover','detail-cover'])this.artwork($(id),vm);
  }
  // A range gesture belongs to the source that was visible at its first input.
