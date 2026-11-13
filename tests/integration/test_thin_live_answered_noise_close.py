@@ -21,9 +21,7 @@ async def answered(monkeypatch, *, last_turn_age):
     clock = [100.0]
     closes = []
     monkeypatch.setattr(thin_module, "time", SimpleNamespace(monotonic=lambda: clock[0]))
-    monkeypatch.setattr(
-        session, "_request_close", lambda reason, **kw: closes.append((reason, kw))
-    )
+    monkeypatch.setattr(session, "_request_close", lambda reason, **kw: closes.append((reason, kw)))
     # The answer was played and heard in the room.
     session._live_close_nonzero_output = True
     session._live_close_speech_played = True
@@ -60,7 +58,7 @@ async def test_noise_shortly_after_a_model_turn_keeps_the_conversation_open(monk
 
 @pytest.mark.asyncio
 async def test_noise_close_needs_a_heard_answer(monkeypatch):
-    session, sdk, link, clock, closes = await answered(monkeypatch, last_turn_age=15)
+    session, _sdk, link, clock, closes = await answered(monkeypatch, last_turn_age=15)
     session._live_close_speech_played = False
     try:
         for i in range(51):

@@ -273,9 +273,7 @@ async def test_room_player_friendly_name_starts_through_podview(voice_room_playe
     assert bridge.controls.music.setup_track.await_args.args[2:4] == ("r0", "42")
 
 
-async def test_music_options_without_a_card_is_logged_and_points_to_search_and_play(
-    voice, caplog
-):
+async def test_music_options_without_a_card_is_logged_and_points_to_search_and_play(voice, caplog):
     """Green 13 Nov: "spil musik" -> "musikvalg er ikke tilgængeligt", no tool line in the log.
 
     The card-options tool answered a bare stale_music_selection (no displayed music
