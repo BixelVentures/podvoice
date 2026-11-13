@@ -1,3 +1,18 @@
+# Overdragelse: PodView iPad-ombygning
+
+**Gældende fra 13. nov. 2026.** Main arbejder nu efter én-sides `AGENTS.md` (issue → test der fejler → ret → PR;
+ingen status-/plandokumenter, ingen admission). Ombygningen styres derfor som **ét issue pr. side**, og lærredet er
+facit, låst på **v190** (version id 1794569425-19b6): https://claude.ai/artifact/VE61waWj5UEaixa3wMLJ7t
+
+Rækkefølge: #387 kit-fundament → #388 iPad-layout/kiosk → #389 Overblik, #390 Foto-Ro → #391 afspiller → #392 Musik →
+#393 Radio, #394 Vejr, #395 Robot, #396 Lys, #397 Tesla, #398 Opskrifter/timer, #399 Svar.
+https://github.com/BixelVentures/podvoice/issues/387 … /399
+
+Afsnittene nedenfor er designbeslutninger og noter til issues. Proces-delene (STATUS-beslutningspost, integrationsgren,
+to admissions, nye gates) er **forældede** efter main-skiftet og gælder ikke længere.
+
+---
+
 # Overdragelse: PodView UI-ombygning (Codex eller Claude)
 
 Status 11. nov. 2026: design og UI-kit er færdige på lærredet (v122; ≈94 skærmtavler på siden *Skærme*,
