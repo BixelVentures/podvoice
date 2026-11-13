@@ -314,9 +314,10 @@ export class PodVoiceTransport {
    }
    let value = await response.json(),readAt=Date.now();
    if (generation !== this.generation) return;
-   if([401,403].includes(response.status)){
-    this.recoveryBlocked=true;this.sessionExpired=response.status===401;throw Error('transport_access_denied');
-   }
+   // A wall screen never needs a tap (fejl 14, 13 Nov): HA's ingress session (401) is renewed by its
+   // app panel, so recovery keeps going with backoff. Only PodVoice's own refusal (403) is terminal.
+   if(response.status===401){this.sessionExpired=true;throw Error('ingress_session_expired');}
+   if(response.status===403){this.recoveryBlocked=true;throw Error('transport_access_denied');}
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
    const normalHA=haIngress(value);
    const boot=value.bootId,room=value.roomId;
@@ -337,7 +338,7 @@ export class PodVoiceTransport {
       // but do not publish named proof or its light authority from it.
       const confirmed=renewed;renewed=false;
       const freshResponse=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'}),freshValue=await freshResponse.json();if(generation!==this.generation)return;
-      if([401,403].includes(freshResponse.status)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}
+      if(freshResponse.status===401){this.sessionExpired=true;throw Error('ingress_session_expired');}if(freshResponse.status===403){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}
       if(!freshResponse.ok)throw Error('post_renew_read_unavailable');
       response=freshResponse;value=freshValue;readAt=Date.now();
       if(named&&(value.bootId!==boot||value.roomId!==room||!haIngress(value))){this.namedRenewalDenied=true;this.forgetNamedIntent();throw Error('named_controller_owner_changed');}

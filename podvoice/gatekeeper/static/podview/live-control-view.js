@@ -62,7 +62,7 @@ export class LiveControlView{
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();
   const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!roomObservationCurrent(p,snapshot);this.musicButton.disabled=!!this.musicIntentPending;this.robotButton.hidden=!d?.live;this.robotButton.disabled=!!(this.pending||this.setupPending);const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
   if(d&&!d.stale){const activity=robotExperience(d).activity,key=JSON.stringify([d.id,d.status,activity]);this.robotObservedId=d.id;this.robotObservedState=key;this.robotObservedStatus=d.status;}const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard&&this.robotInline&&this.domain==='vacuum'&&this.target?.entityId!==d.id){this.opening++;if(this.expiredRobot?.offline)this.clearRobotRefresh();this.robotDeferredDraft=null;this.task=null;this.robotSuggestion=null;this.target={entityId:d.id};this.buildOptions();}if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';this.robotEntry.append(this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
-  if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&this.task.draft?.status!=='awaiting_water'&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotDirectOffer(device)?.pending??null});this.robotPanel.disabled=!(ready||this.robotPanelHeld(device));const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
+  if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&this.task.draft?.status!=='awaiting_water'&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:this.robotStartAwaiting(device)?.optionId??null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotDirectOffer(device)?.pending??null});this.robotPanel.disabled=!(ready||this.robotPanelHeld(device)||!!this.robotStartAwaiting(device));const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
   if(this.robotInline&&d){this.robotButton.hidden=!!(this.robotPanel||this.task||this.setupPending);if(robotCard&&this.robotPanel){robotCard.hidden=true;robotCard.inert=true;robotCard.parentNode.hidden=true;}}
   if(this.refreshButton)this.refreshButton.disabled=!this.canRefreshRobot();
   this.renderReceipt();this.renderMusicControls();
@@ -70,15 +70,17 @@ export class LiveControlView{
  }
  receiptText(row){if(row.domain==='music'){if(row.outcome==='unknown'||row.settlementStatus==='unknown')return 'Kunne ikke bekræfte ændringen. Tjek afspilleren.';if(row.outcome==='rejected'||row.settlementStatus==='rejected')return 'Ændringen blev ikke gennemført. Prøv igen.';if(row.settlementStatus==='confirmed')return ({pause:'Musikken er sat på pause.',resume:'Afspilningen er startet.',next:'Skiftet til næste nummer.',previous:'Skiftet til forrige nummer.',volume:'Lydstyrken er ændret.',move_existing_session:'Højttaleren er skiftet.'})[row.action]||'Ændringen er bekræftet.';if(row.settlementStatus==='superseded')return 'Et nyere valg har erstattet ændringen.';if(row.outcome==='accepted')return 'Venter på højttaleren…';}if(row.outcome==='accepted'&&row.settlementStatus)return row.settlementStatus==='confirmed'?'Handlingen er bekræftet af kilden.':row.settlementStatus==='rejected'?'Handlingen blev afvist af kilden.':row.settlementStatus==='superseded'?'Handlingen er afløst af en nyere handling.':row.settlementStatus==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':'Anmodningen er modtaget · afventer bekræftelse.';if(row.partial&&row.outcome!=='accepted')return 'Nogle indstillinger blev ændret. Rengøringen er ikke bekræftet startet.'+(row.outcome==='unknown'?' Udfaldet er ukendt · handlingen gentages ikke.':'');return row.outcome==='accepted'?'Anmodningen er modtaget.':row.outcome==='unknown'?'Udfaldet er ukendt · handlingen gentages ikke.':row.outcome==='pending'?(row.domain==='vacuum'?'Sender anmodning…':''):'Handlingen blev afvist.';}
  remember(operation,outcome,requestId,details){
-  try{this.host.liveTransport?.recordDiagnostic?.('control_action',{code:['accepted','unknown','rejected'].includes(outcome)?outcome:'start',requestId,pending:outcome==='pending'});}catch{/* Journal failure cannot prevent receipt custody. */}const row={...operation,outcome,requestId,...(operation.domain==='vacuum'?{...(typeof details?.partial==='boolean'?{partial:details.partial}:{}),...(Number.isInteger(details?.completedSteps)&&details.completedSteps>=0&&details.completedSteps<=64?{completedSteps:details.completedSteps}:{}),...(typeof details?.startSent==='boolean'?{startSent:details.startSent}:{})}:{})};this.receipts.delete(operation.key);this.receipts.set(operation.key,row);
+  try{this.host.liveTransport?.recordDiagnostic?.('control_action',{code:['accepted','unknown','rejected'].includes(outcome)?outcome:'start',requestId,pending:outcome==='pending'});}catch{/* Journal failure cannot prevent receipt custody. */}const row={...operation,outcome,requestId,startedAt:this.receipts.get(operation.key)?.startedAt??Date.now(),...(operation.domain==='vacuum'?{...(typeof details?.partial==='boolean'?{partial:details.partial}:{}),...(Number.isInteger(details?.completedSteps)&&details.completedSteps>=0&&details.completedSteps<=64?{completedSteps:details.completedSteps}:{}),...(typeof details?.startSent==='boolean'?{startSent:details.startSent}:{})}:{})};this.receipts.delete(operation.key);this.receipts.set(operation.key,row);
   while(this.receipts.size>16)this.receipts.delete(this.receipts.keys().next().value);
   if(this.host.isConnected)this.renderReceipt();
  }
  renderReceipt(){
   const s=this.host.liveSnapshot,target=JSON.stringify(this.target),row=[...this.receipts.values()].reverse().find(r=>r.bootId===s?.bootId&&r.roomId===s?.roomId&&r.domain===this.domain&&JSON.stringify(r.target)===target);
   const visible=!!(row&&row.outcome!=='pending'),text=visible?`${row.label}: ${this.receiptText(row)}`:'',inline=this.domain==='vacuum'&&this.robotInline&&typeof this.robotPanel?.observed==='function';this.receiptNote.hidden=!visible||inline;this.receiptNote.textContent=inline?'':text;this.note.hidden=inline||!!(row?.domain==='vacuum');if(inline){
+   const starting=row&&this.robotStartReceipt(row),active=robotExperience(this.robotDevice()||{}).jobActive===true;
    const controlFeedback=this.task?.draft?.status==='awaiting_water'
     ?{text:'Dine valg er bevaret. Start afventer en aktuel vandstatus.',state:'unknown'}
+    :starting&&active?null:starting?{text:'Starter …',state:'accepted'}
     :visible?{text,state:row.outcome==='rejected'?'error':row.outcome}:null;
    this.robotPanel.observed(this.robotView(this.robotDevice()),{controlFeedback});
   }if(this.domain==='vacuum')for(const button of this.robotPanel?.querySelectorAll?.('button')||[]){const busy=!!(row?.outcome==='pending'&&this.pending&&this.activeOperation?.key===row.key&&button.dataset.controlOptionId===row.optionId);const family=button.dataset.kit;if(button.dataset.controlOptionId&&button.dataset.directRobot!=='true'&&['button','chip','tile','toggle'].includes(family))applyKitComponent(button,family,{feedback:'progress',loading:busy});}
@@ -675,6 +677,19 @@ export class LiveControlView{
    globalThis.localStorage.setItem(this.robotDraftKey(this.target),JSON.stringify({savedAt:Date.now(),draft,modeDrafts:this.robotPanel.readModeDrafts?.()??null}));
   }catch{}
  }
+ // Fejl 15 (13 Nov): a Start is "Starter …" from the tap until the robot reports a job, never a
+ // technical receipt; the form stays as it was meanwhile and switches once to the job controls.
+ robotStartReceipt(row){
+  return row?.domain==='vacuum'&&row.action==='start'&&['pending','accepted'].includes(row.outcome)&&
+   !['rejected','superseded','unknown'].includes(row.settlementStatus)&&!row.partial;
+ }
+ robotStartAwaiting(device=this.robotDevice()){
+  const s=this.host.liveSnapshot,target=JSON.stringify(this.target);
+  if(this.domain!=='vacuum'||!device||robotExperience(device).jobActive===true)return null;
+  const row=[...this.receipts.values()].reverse().find(r=>r.bootId===s?.bootId&&r.roomId===s?.roomId&&
+   r.domain==='vacuum'&&JSON.stringify(r.target)===target);
+  return this.robotStartReceipt(row)&&Date.now()-(row.startedAt??Date.now())<120000?row:null;
+ }
  // Robot buttons never grey out while a live robot's offer is fetched or renewed (fejl 1, 13 Nov):
  // the shown offer only ran out. A spent offer, another boot/room or an unknown outcome still wait.
  robotPanelHeld(device=this.robotDevice()){
@@ -694,14 +709,16 @@ export class LiveControlView{
   if(!option)return false;
   const choices=option.argsSchema?.choices,choice=typeof args?.choiceId==='string'?choices?.find(row=>row.id===args.choiceId):null;
   this.robotHeldPress={target:JSON.stringify(this.target),at:Date.now(),action:option.action,
-   settingKey:option.settingKey??null,args,choiceLabel:choice?.label??null};
+   settingKey:option.settingKey??null,operation:option.argsSchema?.operation??null,args,
+   choiceLabel:choice?.label??null};
   return true;
  }
  replayHeldRobotPress(){
   const held=this.robotHeldPress;this.robotHeldPress=null;
   if(!held||held.target!==JSON.stringify(this.target))return;
   const task=this.task,option=Date.now()-held.at<20000&&task?.domain==='vacuum'?task.options.find(row=>
-   row.action===held.action&&(row.settingKey??null)===held.settingKey):null;
+   row.action===held.action&&(row.settingKey??null)===held.settingKey&&
+   (row.argsSchema?.operation??null)===held.operation):null;
   let args=held.args;
   if(option&&held.action==='start'&&option.argsSchema?.kind==='cleaning')args=this.robotPanel?.readCleaningDraft?.();
   else if(option&&held.choiceLabel!==null){

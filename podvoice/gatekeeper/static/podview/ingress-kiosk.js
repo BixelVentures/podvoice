@@ -170,19 +170,37 @@ export function beginIngressKiosk(win) {
   function onPageShow(event) {
     if (event.persisted && inPanel(frame)) { session.active = true; leaving = false; subscribe(); }
   }
-  // HA (e.g. the iPad Companion app after the screen was locked) can rebuild its
-  // panel and forget the kiosk request. Ask again whenever PodView comes back.
-  // Only ask; never unsubscribe first: between the two messages HA leaves kiosk mode and
-  // draws its toolbar, which flashed on every tap into PodView (focus) on a wall screen.
+  // Whether HA shows PodView full screen: its toolbar or sidebar moves the iframe in from the
+  // top or left (safe areas are padding inside the iframe). null when the frame cannot be seen.
+  function fullScreen() {
+    try {
+      const rect = win.frameElement?.getBoundingClientRect?.();
+      return rect ? rect.top < 40 && rect.left < 40 : null;
+    } catch (_) { return null; }
+  }
+  // HA (e.g. the iPad Companion app after a locked screen or a Core restart) can rebuild its
+  // panel and forget the kiosk request; it then ignores a repeated request (fejl 14, 13 Nov).
+  // Full screen: nothing is sent, so a tap (focus) never flashes HA's toolbar. Not full screen:
+  // ask again from a clean state, at most every 10 s. Unknown geometry: only ask again.
+  let renewedAt = -Infinity;
   function reassert() {
     if (leaving || !session.active || win.document?.visibilityState === "hidden" || !inPanel(frame)) return;
+    const full = fullScreen();
+    if (full === true) return;
+    if (full === null) { subscribed = send("home-assistant/subscribe-properties", {kioskMode: true}); return; }
+    if (Date.now() - renewedAt < 10000) return;
+    renewedAt = Date.now();
+    send("home-assistant/unsubscribe-properties");
     subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
   }
+  // A wall screen gets no tap after a Core restart: check every few seconds and on resize.
+  const watch = win.setInterval?.(reassert, 5000);
   win.addEventListener("message", onProperties);
   win.addEventListener("pagehide", onPageHide);
   win.addEventListener("pageshow", onPageShow);
   win.addEventListener("focus", reassert);
   win.addEventListener("online", reassert);
+  win.addEventListener("resize", reassert);
   win.document?.addEventListener?.("visibilitychange", reassert);
   subscribe();
   return () => {
@@ -194,6 +212,8 @@ export function beginIngressKiosk(win) {
     win.removeEventListener("pageshow", onPageShow);
     win.removeEventListener("focus", reassert);
     win.removeEventListener("online", reassert);
+    win.removeEventListener("resize", reassert);
+    win.clearInterval?.(watch);
     win.document?.removeEventListener?.("visibilitychange", reassert);
     session.active = false; if (kioskSessions.get(win) === session) kioskSessions.delete(win);
   };
