@@ -59,6 +59,9 @@ Fælles:
   knapper/flader trykkes ind (skala ≈0,97 + let mørkere, kit-token), og fladetryk uden knap (fx Foto-Ro »tryk for at
   åbne«, nat-skærm) viser en blød cirkel ved fingeren, der udvider og toner ud (≈300 ms). Ingen lyd, ingen haptik
   (webview). Touch-feedback er altid ens.
+- **Vandret scroll (kit-regel, ejer 13. nov.):** alle rækker, der fortsætter ud over kanten (timeprognose i Vejr,
+  omslag og vibes i Musik osv.), bruger samme fade-ud mod højre: `mask-image: linear-gradient(90deg, #000 78%, transparent)`
+  og scroll-snap pr. kort. Én kit-komponent, ikke lokale varianter.
 - **Tekster kommer fra produktet.** Lærredets `.dc.html` er reference og kopieres ikke ind.
 - **Tilbagerulning** = udgiv forrige version igen.
 - **Første merge til `main`** først når `docs/STATUS.md` ikke har åbne blokeringer (pt. Robot-UI visuel accept,
