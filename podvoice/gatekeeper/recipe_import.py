@@ -21,9 +21,15 @@ from aiohttp import (
 )
 from aiohttp.abc import AbstractResolver
 
-from .recipe_submissions import _recipe_id, _source_url, recipe_event
+from .recipe_submissions import (
+    _REJECTION_MESSAGES,
+    RECEIVED_MESSAGE,
+    _recipe_id,
+    _source_url,
+    recipe_event,
+)
 
-MAX_HTML = 2 * 1024 * 1024
+MAX_HTML = 5 * 1024 * 1024
 FETCH_SECONDS = 12
 _IMPORT_SLOTS = asyncio.Semaphore(2)
 
@@ -84,27 +90,44 @@ class PublicResolver(AbstractResolver):
         pass
 
 
+# Honest identification; a site that refuses it gets a clear "Siden afviste" message.
+USER_AGENT = (
+    "Mozilla/5.0 (compatible; PodView-opskrifter/1.0; +https://github.com/BixelVentures/podvoice)"
+)
+_REFUSED = {
+    401: "blocked",
+    403: "blocked",
+    451: "blocked",
+    402: "paywall",
+    404: "not_found",
+    410: "not_found",
+}
+
+
 async def fetch_html(url: str) -> tuple[str, str]:
+    """Follow at most five redirects, each target checked before connecting. A page larger
+    than MAX_HTML is read up to the limit; the recipe data is normally near the top."""
     connector = TCPConnector(resolver=PublicResolver(), use_dns_cache=False, limit=2)
     async with ClientSession(
         connector=connector,
         cookie_jar=DummyCookieJar(),
         trust_env=False,
-        auto_decompress=False,
+        auto_decompress=True,
         max_field_size=65536,
         max_line_size=65536,
         timeout=ClientTimeout(total=FETCH_SECONDS),
     ) as session:
         async with asyncio.timeout(FETCH_SECONDS):
-            for _ in range(5):
+            for _ in range(6):
                 public_url(url)
                 async with session.get(
                     url,
                     allow_redirects=False,
                     headers={
-                        "User-Agent": "PodView recipe importer",
-                        "Accept": "text/html",
-                        "Accept-Encoding": "identity",
+                        "User-Agent": USER_AGENT,
+                        "Accept": "text/html,application/xhtml+xml",
+                        "Accept-Language": "da, en;q=0.8",
+                        "Accept-Encoding": "gzip, deflate",
                     },
                 ) as response:
                     if response.status in {301, 302, 303, 307, 308}:
@@ -113,6 +136,8 @@ async def fetch_html(url: str) -> tuple[str, str]:
                             raise ImportRejected("unreadable")
                         url = urljoin(url, location)
                         continue
+                    if response.status in _REFUSED:
+                        raise ImportRejected(_REFUSED[response.status])
                     if response.status != 200:
                         raise OSError("source unavailable")
                     if response.content_type not in {"text/html", "application/xhtml+xml"}:
@@ -120,16 +145,24 @@ async def fetch_html(url: str) -> tuple[str, str]:
                     if response.headers.get("Content-Encoding", "identity").lower() not in {
                         "",
                         "identity",
+                        "gzip",
+                        "x-gzip",
+                        "deflate",
                     }:
                         raise ImportRejected("unreadable")
                     data = bytearray()
                     async for chunk in response.content.iter_chunked(16384):
                         data.extend(chunk)
-                        if len(data) > MAX_HTML:
-                            raise ImportRejected("unreadable")
+                        if len(data) >= MAX_HTML:
+                            del data[MAX_HTML:]
+                            break
                     try:
-                        return data.decode(response.charset or "utf-8"), url
-                    except (LookupError, UnicodeError) as exc:
+                        return data.decode(response.charset or "utf-8", errors="strict"), url
+                    except UnicodeDecodeError as exc:
+                        if len(data) >= MAX_HTML and exc.start >= MAX_HTML - 4:
+                            return data[: exc.start].decode(response.charset or "utf-8"), url
+                        raise ImportRejected("unreadable") from exc
+                    except LookupError as exc:
                         raise ImportRejected("unreadable") from exc
     raise ImportRejected("unreadable")
 
@@ -456,6 +489,176 @@ class RecipeMicrodata(HTMLParser):
         return result
 
 
+_INGREDIENTS = re.compile(
+    r"(?:ingredienser|ingrediens|ingredients?|du skal bruge|det skal du bruge|indkøbsliste)\b",
+    re.IGNORECASE,
+)
+_STEPS = re.compile(
+    r"(?:fremgangsmåde|sådan gør du|sådan laver du|tilberedning|instructions?|method"
+    r"|directions|preparation|trin for trin)\b",
+    re.IGNORECASE,
+)
+
+
+class PageOutline(HTMLParser):
+    """The visible headings, list items and paragraphs of a page, in source order.
+
+    Used only when a page has no structured recipe data: the page's own headings
+    ("Ingredienser", "Fremgangsmåde") decide what is copied; nothing is invented."""
+
+    _skip = frozenset(
+        "script style noscript template svg nav footer aside form button iframe".split()
+    )
+    _blocks = frozenset("h1 h2 h3 h4 h5 h6 li p dt".split())
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.blocks: list[tuple[str, str]] = []
+        self.meta: dict[str, str] = {}
+        self.skipping = 0
+        self.open: list[tuple[str, list[str]]] = []
+        self.in_title = False
+        self.title: list[str] = []
+
+    def handle_starttag(self, tag, attrs):
+        values = {key: value or "" for key, value in attrs}
+        if tag == "meta":
+            key = (values.get("property") or values.get("name") or "").lower()
+            if key in {"og:title", "og:url", "og:image", "og:description"}:
+                self.meta.setdefault(key, values.get("content", ""))
+            return
+        if tag == "link" and "canonical" in values.get("rel", "").lower().split():
+            self.meta.setdefault("canonical", values.get("href", ""))
+            return
+        if tag in self._skip:
+            self.skipping += 1
+            return
+        if tag == "title":
+            self.in_title = True
+        if self.skipping:
+            return
+        if tag == "br" and self.open:
+            self.open[-1][1].append("\n")
+        elif tag in self._blocks and not (tag == "p" and any(t == "li" for t, _ in self.open)):
+            self.open.append((tag, []))
+
+    def handle_endtag(self, tag):
+        if tag in self._skip:
+            self.skipping = max(0, self.skipping - 1)
+            return
+        if tag == "title":
+            self.in_title = False
+        if self.skipping:
+            return
+        for index in range(len(self.open) - 1, -1, -1):
+            if self.open[index][0] == tag:
+                for name, parts in reversed(self.open[index:]):
+                    self._close(name, parts)
+                del self.open[index:]
+                return
+
+    def _close(self, tag, parts):
+        value = "\n".join(" ".join(line.split()) for line in "".join(parts).split("\n"))
+        value = value.strip()
+        if value:
+            self.blocks.append((tag, value))
+
+    def handle_data(self, data):
+        if self.in_title:
+            self.title.append(data)
+        if not self.skipping and self.open:
+            self.open[-1][1].append(data)
+
+    def close(self):
+        super().close()
+        for name, parts in reversed(self.open):
+            self._close(name, parts)
+        self.open = []
+
+
+def _heading(tag: str, value: str, pattern: re.Pattern) -> bool:
+    return (
+        len(value) <= 60
+        and "\n" not in value
+        and pattern.match(value.lstrip("0123456789. ")) is not None
+        and (tag.startswith("h") or tag == "dt" or len(value) <= 40)
+    )
+
+
+def outline_recipe(html: str) -> dict | None:
+    """A recipe from the page's own "Ingredienser" and "Fremgangsmåde" sections, or None."""
+    page = PageOutline()
+    page.feed(html)
+    page.close()
+    blocks = page.blocks
+    start = next((i for i, (t, v) in enumerate(blocks) if _heading(t, v, _INGREDIENTS)), None)
+    steps_at = next(
+        (
+            i
+            for i, (t, v) in enumerate(blocks)
+            if start is not None and i > start and _heading(t, v, _STEPS)
+        ),
+        None,
+    )
+    if start is None or steps_at is None:
+        return None
+    level = int(blocks[start][0][1]) if blocks[start][0].startswith("h") else 7
+    groups: list[dict[str, Any]] = [{"title": "Ingredienser", "lines": []}]
+    for tag, value in blocks[start + 1 : steps_at]:
+        if tag.startswith("h") and int(tag[1]) <= level:
+            break
+        if tag.startswith("h") or (tag == "p" and value.endswith(":") and len(value) <= 40):
+            groups.append({"title": value.rstrip(":"), "lines": []})
+        elif tag == "li" or tag == "p":
+            groups[-1]["lines"].extend(line for line in value.split("\n") if line.strip())
+    groups = [group for group in groups if group["lines"]]
+    steps_level = int(blocks[steps_at][0][1]) if blocks[steps_at][0].startswith("h") else 7
+    items: list[str] = []
+    paragraphs: list[str] = []
+    for tag, value in blocks[steps_at + 1 :]:
+        if tag.startswith("h") and int(tag[1]) <= steps_level:
+            break
+        if _heading(tag, value, _INGREDIENTS):
+            break
+        if tag.startswith("h"):
+            continue
+        (items if tag == "li" else paragraphs).append(" ".join(value.split()))
+    steps = items or paragraphs
+    lines = sum(len(group["lines"]) for group in groups)
+    title = page.meta.get("og:title") or next((v for t, v in blocks if t == "h1"), "")
+    title = title or "".join(page.title)
+    if lines < 2 or not steps or lines > 200 or len(steps) > 60 or not text(title):
+        return None
+    return {
+        "@type": "Recipe",
+        "name": " ".join(title.split()),
+        "recipeIngredient": [line for group in groups for line in group["lines"]],
+        "recipeInstructions": steps,
+        "image": page.meta.get("og:image", ""),
+        "description": page.meta.get("og:description", ""),
+        "_groups": groups,
+    }
+
+
+def page_links(html: str, page_url: str) -> list[str]:
+    """The links a page gives for itself (redirect target, canonical, og:url)."""
+    page = PageOutline()
+    page.feed(html[:262144])
+    links = [page_url]
+    for key in ("canonical", "og:url"):
+        value = page.meta.get(key, "").strip()
+        if value:
+            links.append(urljoin(page_url, value))
+    return list(dict.fromkeys(links))
+
+
+def _paywalled(nodes: list) -> bool:
+    return any(
+        isinstance(node, dict) and str(node.get("isAccessibleForFree", "")).lower() == "false"
+        for node in nodes
+    )
+
+
 def extract_recipe(html: str, source_url: str) -> dict:
     parser = SourceParser()
     parser.feed(html)
@@ -495,10 +698,10 @@ def extract_recipe(html: str, source_url: str) -> dict:
             raise ImportRejected("not_recipe")
         microdata = RecipeMicrodata()
         microdata.feed(html)
-        recipe = microdata.finish()
+        recipe = microdata.finish() or outline_recipe(html)
         if recipe is None:
-            raise ImportRejected("not_recipe")
-        unique = {"microdata": recipe}
+            raise ImportRejected("paywall" if _paywalled(nodes) else "not_recipe")
+        unique = {"page": recipe}
     if len(unique) != 1:
         raise ImportRejected("ambiguous")
     recipe = next(iter(unique.values()))
@@ -570,7 +773,10 @@ def extract_recipe(html: str, source_url: str) -> dict:
         "description": text(recipe.get("description")),
         "portions": text(str(portions)) if portions else "",
         "categories": categories,
-        "groups": [{"title": "Ingredienser", "lines": [text(line) for line in ingredients]}],
+        "groups": [
+            {"title": text(group["title"]), "lines": [text(line) for line in group["lines"]]}
+            for group in recipe.get("_groups") or [{"title": "Ingredienser", "lines": ingredients}]
+        ],
         "steps": steps,
         "phases": headings,
         "image": next(iter(photos), ""),
@@ -581,8 +787,17 @@ def extract_recipe(html: str, source_url: str) -> dict:
     }
 
 
-async def import_link(store, url):
-    """An accepted upload is durable before fetching; only a durable publication says Gemt."""
+# The phone always gets an answer this fast; a slower import continues in the background
+# and its outcome is shown in PodView's upload history.
+REPLY_SECONDS = 6.0
+_RUNNING: dict[str, asyncio.Task] = {}
+
+
+async def import_link(store, url, *, reply_within: float | None = None):
+    """An accepted upload is durable before fetching; only a durable publication says Gemt.
+
+    reply_within (phone uploads): answer "Modtaget" if the import is not done by then. The
+    import itself is never cancelled by a caller that stops waiting."""
     try:
         url = _source_url(url)
     except (ValueError, TypeError):
@@ -592,57 +807,88 @@ async def import_link(store, url):
     try:
         receipt = await asyncio.to_thread(store.submit, url)
         recipe_event("submit", receipt["status"], recipe_id=recipe_id)
+        if receipt["status"] == "duplicate":
+            recipe_event("duplicate", "duplicate", recipe_id=recipe_id)
+            return receipt
         if receipt["status"] in {"saved", "rejected"}:
             recipe_event("duplicate", receipt["status"], recipe_id=recipe_id)
             return await asyncio.to_thread(store.phone_receipt, receipt["id"])
-        claimed = await asyncio.to_thread(store.begin_import, receipt["id"])
-        if not claimed:
-            pending = await asyncio.to_thread(store.receipt, receipt["id"])
-            recipe_event("duplicate", pending["status"], recipe_id=recipe_id)
-            return pending
-        recipe_event("import", "started", recipe_id=recipe_id)
-        phase = "fetch"
-        try:
-            async with asyncio.timeout(FETCH_SECONDS + 1), _IMPORT_SLOTS:
-                html, final_url = await fetch_html(url)
-                phase = "parse"
-                recipe = extract_recipe(html, final_url)
-            # Original shared URL stays the stable identity even after publisher redirects.
-            recipe["source"]["url"] = url
-            phase = "storage"
-            await asyncio.to_thread(store.publish, recipe)
-            return await asyncio.to_thread(store.phone_receipt, receipt["id"])
-        except asyncio.CancelledError:
-            await asyncio.shield(
-                asyncio.to_thread(store.import_failed, receipt["id"], "unavailable", False)
-            )
-            recipe_event("import", "failed", recipe_id=recipe_id, reason="cancelled")
-            raise
-        except ImportRejected as exc:
-            reason = str(exc)
-            result = await asyncio.to_thread(store.import_failed, receipt["id"], reason, True)
-            safe_reason = (
-                reason
-                if reason in {"not_recipe", "unreadable", "incomplete", "ambiguous", "unsafe_url"}
-                else "unreadable"
-            )
-            recipe_event("import", "rejected", recipe_id=recipe_id, reason=safe_reason)
-            return result
-        except (ClientError, OSError, TimeoutError, ValueError, RecursionError) as exc:
-            result = await asyncio.to_thread(
-                store.import_failed, receipt["id"], "unavailable", False
-            )
-            reason = (
-                "storage"
-                if phase == "storage"
-                else "timeout"
-                if isinstance(exc, TimeoutError)
-                else "network"
-                if phase == "fetch"
-                else "invalid_data"
-            )
-            recipe_event("import", "failed", recipe_id=recipe_id, reason=reason)
-            return result
+        # Check and register with no await in between: a second share of the same link
+        # waits for the same import instead of starting another.
+        task = _RUNNING.get(recipe_id)
+        if task is None:
+            task = asyncio.create_task(_claim_and_import(store, url, recipe_id))
+            _RUNNING[recipe_id] = task
+            task.add_done_callback(_forget(recipe_id))
+        if reply_within is None:
+            return await asyncio.shield(task)
+        done, _ = await asyncio.wait({task}, timeout=reply_within)
+        if task in done:
+            return task.result()
+        recipe_event("submit", "replied", recipe_id=recipe_id)
+        return {"id": recipe_id, "status": "importing", "message": RECEIVED_MESSAGE}
     except OSError:
         recipe_event("storage", "failed", recipe_id=recipe_id, reason="unavailable")
         raise
+
+
+def _forget(recipe_id: str):
+    def done(task: asyncio.Task) -> None:
+        if _RUNNING.get(recipe_id) is task:
+            del _RUNNING[recipe_id]
+        if not task.cancelled():
+            task.exception()  # Retrieved: a storage failure is already journaled.
+
+    return done
+
+
+async def _claim_and_import(store, url: str, recipe_id: str) -> dict:
+    if not await asyncio.to_thread(store.begin_import, recipe_id):
+        # Another add-on process holds the lease, or an administrator rejected it meanwhile.
+        pending = await asyncio.to_thread(store.receipt, recipe_id)
+        recipe_event("duplicate", pending["status"], recipe_id=recipe_id)
+        return pending
+    return await _run_import(store, url, recipe_id)
+
+
+async def _run_import(store, url: str, recipe_id: str) -> dict:
+    recipe_event("import", "started", recipe_id=recipe_id)
+    phase = "fetch"
+    try:
+        async with asyncio.timeout(FETCH_SECONDS + 1), _IMPORT_SLOTS:
+            html, final_url = await fetch_html(url)
+            phase = "parse"
+            recipe = extract_recipe(html, final_url)
+            aliases = page_links(html, final_url)
+        # Original shared URL stays the stable identity even after publisher redirects.
+        recipe["source"]["url"] = url
+        phase = "storage"
+        result = await asyncio.to_thread(store.publish, recipe, aliases)
+        if result["status"] == "duplicate":
+            return result
+        return await asyncio.to_thread(store.phone_receipt, recipe_id)
+    except asyncio.CancelledError:
+        await asyncio.shield(asyncio.to_thread(store.import_interrupted, recipe_id))
+        recipe_event("import", "failed", recipe_id=recipe_id, reason="cancelled")
+        raise
+    except ImportRejected as exc:
+        reason = str(exc) if str(exc) in _REJECTION_MESSAGES else "unreadable"
+        result = await asyncio.to_thread(store.import_failed, recipe_id, reason, True)
+        recipe_event("import", "rejected", recipe_id=recipe_id, reason=reason)
+        return result
+    except (ClientError, OSError, TimeoutError, ValueError, RecursionError) as exc:
+        timeout = isinstance(exc, TimeoutError) and phase != "storage"
+        result = await asyncio.to_thread(
+            store.import_failed, recipe_id, "timeout" if timeout else "unavailable", False
+        )
+        reason = (
+            "storage"
+            if phase == "storage"
+            else "timeout"
+            if timeout
+            else "network"
+            if phase == "fetch"
+            else "invalid_data"
+        )
+        recipe_event("import", "failed", recipe_id=recipe_id, reason=reason)
+        return result

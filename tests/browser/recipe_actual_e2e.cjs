@@ -457,7 +457,9 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
    return {status:response.status,message:(await response.json()).message};
   }));
  },{source,rejectedToken});
- assert.deepEqual(denied,[{status:401,message:'Adgang afvist'},{status:403,message:'Adgang afvist'}]);
+ // Changed: a refused code tells the user where to get the right one.
+ const wrongCode='Forkert upload-kode \u2013 åbn PodView \u2192 Opskrifter \u2192 Tilføj genvej';
+ assert.deepEqual(denied,[{status:401,message:wrongCode},{status:403,message:wrongCode}]);
  assert.doesNotMatch(productLog,/stage=submit/,'denied phone upload never reaches the submission store');
  const saved=await page.evaluate(async ({base,source})=>{const r=await fetch(base+'/api/podvoice/recipe-submissions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+'x'.repeat(32)},body:JSON.stringify({url:source})});return {status:r.status,body:await r.json()}},{base,source});
  assert.equal(saved.status,200);assert.equal(saved.body.status,'saved');assert.match(saved.body.message,/^Gemt: /);
@@ -592,7 +594,8 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
   assert.equal(await page.evaluate(()=>localStorage.getItem('podview.recipe-session.v1')),null);
  }
  const duplicate=await page.evaluate(async ({base,source})=>{const r=await fetch(base+'/api/podvoice/recipe-submissions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+'x'.repeat(32)},body:JSON.stringify({url:source+'?utm_source=test'})});return r.json()},{base,source});
- assert.equal(duplicate.id,saved.body.id);assert.equal(duplicate.status,'saved');
+ assert.equal(duplicate.id,saved.body.id);assert.equal(duplicate.status,'duplicate');
+ assert.match(duplicate.message,/^Findes allerede: /);
  const reference=createHash('sha256').update('podview-recipe-journal:'+saved.body.id).digest('hex').slice(0,24);
  if(sourceMode==='inert-fixture'){
   const failed=await page.evaluate(async base=>{const r=await fetch(base+'/api/podvoice/recipe-submissions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+'x'.repeat(32)},body:JSON.stringify({url:'https://example.com/podview-invalid'})});return r.json();},base);
@@ -613,7 +616,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  assert.equal(recoveredReceipt.status,'saved');assert.equal(recoveredReceipt.id,saved.body.id);
  assert.match(productLog,new RegExp(`recipe stage=submit outcome=received ref=${reference}`));
  assert.match(productLog,new RegExp(`recipe stage=import outcome=started ref=${reference}`));
- assert.match(productLog,new RegExp(`recipe stage=duplicate outcome=saved ref=${reference}`));
+ assert.match(productLog,new RegExp(`recipe stage=duplicate outcome=duplicate ref=${reference}`));
  const persisted=productLog.match(new RegExp(`recipe stage=catalog_persist outcome=saved ref=${reference} catalog=([a-f0-9]{24})`));assert(persisted,'persisted catalog reference must be logged');
  assert.match(productLog,new RegExp(`recipe stage=catalog_read outcome=observed ref=none catalog=${persisted[1]}`));
  if(sourceMode==='inert-fixture'){
