@@ -989,6 +989,9 @@ async def lab_state(request):
         for key in ("song", "delayMs", "witnessUnknownReads"):
             if key in args:
                 state[key] = int(args[key])
+        if args.get("forgetNativeCalls") is True and "nativeCalls" in state:
+            # A journey that empties the catalogue starts its native call count again.
+            state["nativeCalls"].clear()
         if output_transfer and "nextMoveOutcome" in args:
             if args["nextMoveOutcome"] not in {"rejected", "unknown"}:
                 raise web.HTTPBadRequest()

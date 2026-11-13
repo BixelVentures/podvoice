@@ -42,7 +42,7 @@ test('passive control refresh retains valid MOVE choices and explains missing co
  const {host,view,ids}=surface();host.ownerDocument.createElement=()=>{const n=new Node();n.addEventListener=()=>{};return n;};let music={key:'music'};
  host.liveControls={musicContext:()=>music,musicReadPending:true};host.liveTransport.music=async()=>{const v=payload();v.moveAvailable=true;v.speakers[1]={...v.speakers[1],availability:'available',outputSelected:false,selectable:true};return v;};actualPlayback({host},{nativeRoomId:'r0',nativeHomepodId:'42'});
  try{
-  await view.open();const rows=[...ids['room-options'].children];assert.equal(rows[0].disabled,true);assert.equal(rows[1].disabled,false);assert.match(ids.rooms.note.textContent,/aktuelle afspilning/);
+  await view.open();const rows=[...ids['room-options'].children];assert.equal(rows[0].disabled,false,'the current output is never locked (Green 13/11)');assert.equal(rows[1].disabled,false);assert.match(ids.rooms.note.textContent,/aktuelle afspilning/);
   music=null;view.sync();assert.equal(rows[1].disabled,true);assert.match(ids.rooms.note.textContent,/skal bekræftes/);assert.equal(rows[0].children[2].textContent,'Aktuelt output');
   music={key:'music'};host.liveControls.musicFence={key:'music',outcome:'unknown'};view.sync();assert.equal(rows[1].disabled,false,'an unknown outcome never greys a speaker');assert.doesNotMatch(ids.rooms.note.textContent,/ukendt/);
   host.liveControls.musicFence=null;view.validUntil=Date.now()-1;view.sync();assert.equal(rows[1].disabled,false);
@@ -149,7 +149,7 @@ test('native roster flags alone cannot mark current or last-known output rows',a
 });
 
 test('actual nondefault native output wins contradictory roster flags and only blocks moving to its exact row',async()=>{
- const f=idleStartSurface();try{actualPlayback(f);f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence=null;f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});return p;};await f.view.open();const [defaultRow,actual]=f.ids['room-options'].children;assert.equal(defaultRow.speakerRow.outputSelected,true);assert.equal(actual.speakerRow.outputSelected,null);assert.equal(defaultRow.getAttribute('aria-pressed'),'false');assert.equal(defaultRow.children[2].textContent,'Standardrum');assert.equal(defaultRow.disabled,false);assert.equal(actual.getAttribute('aria-pressed'),'true');assert.equal(actual.children[2].textContent,'Aktuelt output');assert.equal(actual.disabled,true);assert.deepEqual(f.calls,[]);}finally{f.view.cleanup();}
+ const f=idleStartSurface();try{actualPlayback(f);f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence=null;f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});return p;};await f.view.open();const [defaultRow,actual]=f.ids['room-options'].children;assert.equal(defaultRow.speakerRow.outputSelected,true);assert.equal(actual.speakerRow.outputSelected,null);assert.equal(defaultRow.getAttribute('aria-pressed'),'false');assert.equal(defaultRow.children[2].textContent,'Standardrum');assert.equal(defaultRow.disabled,false);assert.equal(actual.getAttribute('aria-pressed'),'true');assert.equal(actual.children[2].textContent,'Aktuelt output');assert.equal(actual.disabled,false);actual.listeners.click();assert.deepEqual(f.calls,[],'choosing the current output moves nothing');}finally{f.view.cleanup();}
 });
 
 
@@ -208,7 +208,7 @@ test('terminal music receipts release only the completed speaker-move fence',asy
   const f=idleStartSurface(),moves=[];try{
    actualPlayback(f,{nativeRoomId:'r0',nativeHomepodId:'42'});f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence={key:'music',action,outcome:'accepted',settlementStatus:status};f.host.liveControls.moveSpeaker=(row,current)=>{moves.push({id:row.speakerId,current:current()});return Promise.resolve(true);};
    f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});return p;};await f.view.open();const [actual,destination]=f.ids['room-options'].children;
-   assert.equal(actual.disabled,true,'current output stays disabled');assert.equal(destination.disabled,false,`${action}/${status} releases the completed fence`);destination.listeners.click();assert.deepEqual(moves,[{id:'b'.repeat(64),current:true}]);
+   assert.equal(actual.disabled,false,'current output is never locked');assert.equal(destination.disabled,false,`${action}/${status} releases the completed fence`);destination.listeners.click();assert.deepEqual(moves,[{id:'b'.repeat(64),current:true}]);
   }finally{f.view.cleanup();}
  }
 });
@@ -225,7 +225,7 @@ test('confirmed MOVE admits a second explicit MOVE after actual output changes',
  const f=idleStartSurface(),moves=[];try{
   actualPlayback(f,{nativeRoomId:'r0',nativeHomepodId:'42'});f.host.liveControls.musicContext=()=>({key:'music'});f.host.liveControls.musicFence=null;f.host.liveControls.moveSpeaker=(row,current)=>{moves.push({id:row.speakerId,current:current()});return Promise.resolve(true);};
   f.host.liveTransport.music=async()=>{const p=payload();p.moveAvailable=true;for(const row of p.speakers)Object.assign(row,{availability:'available',selectable:true});return p;};await f.view.open();const [first,second]=f.ids['room-options'].children;second.listeners.click();
-  actualPlayback(f,{nativeRoomId:'r1',nativeHomepodId:'43'});f.host.liveControls.musicFence={key:'music',action:'move_existing_session',outcome:'accepted',settlementStatus:'confirmed'};f.view.sync();assert.equal(second.disabled,true);assert.equal(first.disabled,false);first.listeners.click();assert.deepEqual(moves,[{id:'b'.repeat(64),current:true},{id:'a'.repeat(64),current:true}]);
+  actualPlayback(f,{nativeRoomId:'r1',nativeHomepodId:'43'});f.host.liveControls.musicFence={key:'music',action:'move_existing_session',outcome:'accepted',settlementStatus:'confirmed'};f.view.sync();assert.equal(second.disabled,false);second.listeners.click();assert.equal(first.disabled,false);first.listeners.click();assert.deepEqual(moves,[{id:'b'.repeat(64),current:true},{id:'a'.repeat(64),current:true}]);
  }finally{f.view.cleanup();}
 });
 

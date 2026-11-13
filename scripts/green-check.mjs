@@ -684,7 +684,7 @@ async function soundChecks(check, ha) {
       check.frame = await openPodView(check.page);
       await check.home();
       await openPlayer();
-      const room = await check.check.frame.locator('#player-room, #output').first().innerText().catch(() => '');
+      const room = await check.frame.locator('#player-room, #output').first().innerText().catch(() => '');
       return KITCHEN.test(room) ? [] : [`afspilleren står ikke på Køkkenalrum (${room.trim() || 'tom'})`];
     });
     const f = () => check.frame;
