@@ -404,7 +404,7 @@ class PodViewBridge:
         self._ha_actors: dict[str, dict] = {}
         self._music_destinations: dict[tuple[str, str], dict] = {}
         self._voice_move_tasks: dict[str, dict] = {}
-        self._music_move_fence: set[tuple[str, str]] = set()
+        self._music_move_fence: set[tuple[str, str]] = podview_room_media.MoveFence()
         from .podview_queue import QueueBroker
 
         self.queue = QueueBroker(self)
@@ -3533,11 +3533,11 @@ def _selection_policy_current(
     native_binding: tuple,
     action: str,
 ) -> bool:
-    """Exact configured destination/action; admission stays with each caller."""
+    """Exact configured destination/action; admission stays with each caller.
+    An explicit new choice is never held by the move fence: the last command wins."""
     rules = bridge.controls.policy.get("music")
     return bool(
-        not any(key[0] == room for key in bridge._music_move_fence)
-        and bridge.controls.policy.get("roomId") == room
+        bridge.controls.policy.get("roomId") == room
         and isinstance(rules, list)
         and any(
             isinstance(row, dict)

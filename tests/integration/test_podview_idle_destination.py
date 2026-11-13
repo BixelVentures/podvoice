@@ -541,3 +541,71 @@ async def test_cancellation_during_passive_retry_joins_read_and_keeps_uncertaint
     assert bridge.controls.music.execute_track.await_count == 1
 
     assert retired.is_set() and reads == 2
+
+
+async def test_stale_destination_proof_never_blocks_the_next_explicit_choice(
+    destination_rig, monkeypatch
+):
+    """Testnoter 13/11 fejl 6: Vibe → Frida while PodConnect's snapshot is stale. The next
+    explicit choice (Din musik, Hør igen, Tid på dagen: the same selection gate) still starts,
+    and the room's uncertainty fence ends after a short while."""
+    rig, bridge, native, speaker, _, _ = destination_rig
+    bridge.controls.music.observe_room = AsyncMock(
+        return_value={"ok": False, "error_kind": "stale"}
+    )
+
+    async def send(controls, uri, ceiling, current):
+        for row in native["targets"][:2]:
+            row["binding"]["room_id"] = "r1"
+        native["targets"][2]["selected"] = False
+        native["targets"][3]["selected"] = True
+        return {"outcome": "accepted", "accepted_selected_content": True}
+
+    bridge.controls.music.execute_track.side_effect = send
+    async with TestClient(TestServer(rig.app)) as client:
+        offer = await (await setup(client, bridge, speaker["speakerId"])).json()
+        first = await (
+            await client.post(
+                "/view/api/music/selection/actions", headers=HEADERS, json=action(bridge, offer)
+            )
+        ).json()
+        assert first["outcome"] == "accepted"
+        assert bridge._music_move_fence, "the unproven destination is recorded as uncertain"
+        # Last command wins: a new explicit choice gets an offer and starts.
+        read = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=hits", headers=HEADERS
+            )
+        ).json()
+        assert "candidateSet" in read
+        # This choice plays in the room itself (its configured HomePod).
+        bridge.controls.music.setup_track.return_value["data"].update(room_id="r0", homepod_id="42")
+        second = await client.post(
+            "/view/api/music/selection/setup",
+            headers=HEADERS,
+            json={
+                "bootId": bridge.boot_id,
+                "roomId": "kitchen",
+                "candidateSetId": read["candidateSet"]["candidateSetId"],
+                "target": {
+                    "accountId": "account-alpha",
+                    "kind": "spotify_device",
+                    "targetId": "device-one",
+                },
+            },
+        )
+        assert second.status == 200
+        offer = await second.json()
+        done = await (
+            await client.post(
+                "/view/api/music/selection/actions",
+                headers=HEADERS,
+                json={**action(bridge, offer), "requestId": "two"},
+            )
+        ).json()
+        assert done["outcome"] == "accepted"
+    assert bridge.controls.music.execute_track.await_count == 2
+    # A stale snapshot never keeps the room fenced.
+    later = time.monotonic() + podview_room_media.MOVE_FENCE_S + 1
+    monkeypatch.setattr(podview_room_media.time, "monotonic", lambda: later)
+    assert not bridge._music_move_fence

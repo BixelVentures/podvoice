@@ -1231,12 +1231,19 @@ pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-
    Its one finite reveal ends as a still pending mark, never as success. */
 .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{content:'';position:absolute;right:var(--pv-s1);top:50%;width:var(--pv-icon-s);height:var(--pv-icon-s);box-sizing:border-box;transform:translateY(-50%);border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-button-busy-reveal var(--pv-d-fast) var(--pv-ease) 1 both}
 .pv-kit.pv-kit-button:is([data-kit-variant=icon],.--icon)[aria-busy=true]:not(.result-play)::after{inset:var(--pv-s1);width:auto;height:auto;transform:none}
+/* A round player button keeps its icon; a centred ring turns while the room's call runs. */
+.pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{
+ inset:3px;width:auto;height:auto;transform:none;translate:none;
+ animation:pv-button-busy-reveal var(--pv-d-fast) var(--pv-ease) 1 both,pv-control-pending 900ms linear infinite;
+}
 .pv-kit.pv-kit-button:is([data-state=error],[aria-invalid=true]){background:var(--pv-danger-tint)!important;color:var(--pv-danger)!important;box-shadow:inset 0 0 0 2px var(--pv-danger)}
 .pv-kit.pv-kit-button:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){cursor:default;opacity:.56}
 @keyframes pv-button-busy-reveal{from{opacity:.35}to{opacity:1}}
 @media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-button{transition:none}.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}}
 [data-motion=reduced] .pv-kit.pv-kit-button{transition:none}
 [data-motion=reduced] .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}
+@media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{animation:none}}
+[data-motion=reduced] .pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{animation:none}
 
 /* Explicit Card sizes reuse the actual overview owners. Without data-kit-size
    the product keeps its normal grid. The running Timer remains its wide owner. */

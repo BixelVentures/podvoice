@@ -62,6 +62,8 @@ for(const journey of only.length?only:journeys){
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'document-scope')});
   runJourney(journey,{MUSIC_VOICE_JOURNEY_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'voice-queue')});
+  runJourney(journey,{MUSIC_QUEUE_SKIP_TEST:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'queue-skip')});
   runJourney(journey,{MUSIC_QUEUE_IDENTITY_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'queue-identity')});
   runJourney(journey,{MUSIC_RECENT_SESSION_TEST:'1',

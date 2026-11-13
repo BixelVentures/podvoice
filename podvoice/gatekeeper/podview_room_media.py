@@ -14,6 +14,60 @@ from . import podview_music, podview_speakers
 
 _LOG = logging.getLogger("podvoice.podview")
 
+# An unproven room route (a move or a start on another speaker whose PodConnect proof was stale)
+# holds the room's implicit effects (queue, move recovery) for a short while only.
+MOVE_FENCE_S = 10.0
+
+
+class MoveFence(set):
+    """Rooms whose music route is uncertain. An entry ends after MOVE_FENCE_S, so a stale
+    PodConnect snapshot never fences a room permanently (testnoter 13/11 fejl 6)."""
+
+    def __init__(self, *keys):
+        super().__init__()
+        self._until: dict = {}
+        for key in keys:
+            self.add(key)
+
+    def _expire(self) -> None:
+        now = time.monotonic()
+        for key in [key for key, until in self._until.items() if until <= now]:
+            del self._until[key]
+            super().discard(key)
+
+    def add(self, key) -> None:
+        self._until[key] = time.monotonic() + MOVE_FENCE_S
+        super().add(key)
+
+    def discard(self, key) -> None:
+        self._until.pop(key, None)
+        super().discard(key)
+
+    def clear(self) -> None:
+        self._until.clear()
+        super().clear()
+
+    def __iter__(self):
+        self._expire()
+        return iter(list(set.__iter__(self)))
+
+    def __contains__(self, key) -> bool:
+        self._expire()
+        return super().__contains__(key)
+
+    def __len__(self) -> int:
+        self._expire()
+        return super().__len__()
+
+    def __bool__(self) -> bool:
+        return len(self) > 0
+
+    def __eq__(self, other) -> bool:
+        self._expire()
+        return set(set.__iter__(self)) == other
+
+    __hash__ = None
+
 
 def _log_playback_failure(stage, error):
     """Log only fixed classifications, never owner or playback content."""

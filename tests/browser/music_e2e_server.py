@@ -614,6 +614,11 @@ async def native_service(request):
     if path.endswith("get_playback_snapshot"):
         if state.get("externalAuthority") == "unknown":
             return httpx.Response(503)
+        if state.get("snapshotStale"):
+            # As on Green: PodConnect's account snapshot is briefly stale while the room plays on.
+            return httpx.Response(
+                200, json={"service_response": {"ok": False, "error_kind": "stale"}}
+            )
         return httpx.Response(200, json={"service_response": observation(args)})
     if state.get("externalDevice") or state.get("externalAuthority"):
         return httpx.Response(
@@ -1008,6 +1013,8 @@ async def lab_state(request):
                 raise web.HTTPBadRequest()
             state["volume"] = percent
             state["volumeRevision"] += 1
+        if "snapshotStale" in args:
+            state["snapshotStale"] = args["snapshotStale"] is True
         if "externalSong" in args:
             state["song"] = int(args["externalSong"])
             if seek_test:
@@ -1034,6 +1041,7 @@ async def lab_state(request):
             "externalSong",
             "externalOutput",
             "externalAuthority",
+            "snapshotStale",
         } or (volume_drag and "externalVolume" in args):
             await emit_playback_changed()
             await emit_room_changed()

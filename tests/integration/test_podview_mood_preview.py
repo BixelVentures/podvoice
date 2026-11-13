@@ -365,12 +365,15 @@ async def test_mood_diagnostics_distinguishes_full_preview_and_invalid_trace(
         in caplog.text
     )
     bridge = mood_rig.app[BRIDGE]
+    # An uncertain route never holds an explicit new choice (testnoter 13/11 fejl 6).
     bridge._music_move_fence.add(("kitchen", "account-alpha"))
+    assert "candidateSet" in await read(mood_rig, cookie="grant")
+    monkeypatch.setattr(type(bridge.controls.music), "room_start_available", False, raising=False)
     preview = await read(mood_rig, cookie="grant", headers={"X-PodView-Trace": "private-invalid"})
     assert preview["schema"] == "podview.mood-preview.v1" and "candidateSet" not in preview
     assert (
-        "response=preview candidate_set_present=False selection_allowed=False selection_reason=move_fenced trace_ref=none"
-        in caplog.text
+        "response=preview candidate_set_present=False selection_allowed=False"
+        " selection_reason=room_start_unavailable trace_ref=none" in caplog.text
     )
     assert "private-invalid" not in caplog.text and trace not in caplog.text
     monkeypatch.setattr(

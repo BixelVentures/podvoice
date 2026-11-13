@@ -235,6 +235,11 @@ export class LiveQueueView{
    transport,generation:transport.generation,
   };
  }
+ retainedForRoom(account,playback){
+  const [boot,room,owner]=JSON.parse(this.retained?.displayKey||'[]');
+  return boot===this.host.liveSnapshot?.bootId&&room===this.host.liveSnapshot?.roomId&&owner===account
+   &&roomObservationCurrent(playback,this.host.liveSnapshot);
+ }
  sameChoiceScope(a,b){
   return !!(a&&b&&a.key===b.key&&a.transport===b.transport&&a.generation===b.generation);
  }
@@ -260,7 +265,10 @@ export class LiveQueueView{
    this.waitingChoices=[];
   }
   if(!this.retained)return null;
-  if(this.retained.displayKey!==displayScope(this.host,account,playback)){
+  // A read without PodConnect's session (a stale snapshot) names no other owner: the known rows
+  // stay as read-only display. Only another proven session or room replaces them.
+  if(this.retained.displayKey!==displayScope(this.host,account,playback)
+   &&(playback?.roomBinding||!this.retainedForRoom(account,playback))){
    this.retained=null;
    this.offer=null;
    return null;
