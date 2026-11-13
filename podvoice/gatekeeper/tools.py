@@ -86,6 +86,12 @@ _TOOLS_TTL_S = 600.0
 _PODVIEW_MUSIC_OPTIONS = "podview_music_options"
 _PODVIEW_MUSIC_SELECT = "podview_music_select_option"
 _PODVIEW_MUSIC_TOOLS = frozenset({_PODVIEW_MUSIC_OPTIONS, _PODVIEW_MUSIC_SELECT})
+# Green 13 Nov: "spil musik" reached the card-options tool, which only knows choices
+# already shown on a music card. Its bare refusal became "musikvalg er ikke tilgængeligt".
+_NO_MUSIC_CARD = (
+    "Der står intet musikkort med valg lige nu. Start ny musik med HassMediaSearchAndPlay "
+    "(search_query, og name=rummet, hvis et rum er nævnt)."
+)
 _RECOVERY_BACKOFF_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 # Realtime receives these declarations in every new session.  These caps leave bounded
 # room for Prompt V6, conversation audio/text and tool results while comfortably
@@ -407,6 +413,10 @@ class ToolRouter:
         self._vehicle_generation = 0
         self._vehicle_status_refresh = podview_vehicle.StatusRefresh()
         self._vehicle_status_task: asyncio.Task | None = None
+        self._vehicle_fresh = podview_vehicle.FreshRead()
+        self._vehicle_fresh_task: asyncio.Task | None = None
+        self._vehicle_online_state: str | None = None
+        self.on_vehicle_refreshed: Callable[[], None] | None = None
         self._vehicle_connection = podview_vehicle.ConnectionMemory(
             cleaning_journal_path.parent / "vehicle-sleep.json"
             if cleaning_journal_path is not None
@@ -1193,7 +1203,12 @@ class ToolRouter:
                 [
                     {
                         "name": _PODVIEW_MUSIC_OPTIONS,
-                        "description": "Læs aktuelle serverejede musikvalg. Uden argumenter: viste sangvalg. Med purpose=move_existing_session: præcise konfigurerede rum til at flytte den eksisterende afspilning.",
+                        "description": (
+                            "Læs valgene på et allerede vist PodView-musikkort. Uden argumenter: "
+                            "viste sangvalg. Med purpose=move_existing_session: præcise "
+                            "konfigurerede rum til at flytte den eksisterende afspilning. "
+                            "Start ikke ny musik herfra; brug HassMediaSearchAndPlay."
+                        ),
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -1479,13 +1494,17 @@ class ToolRouter:
                 return rejected
             return await radio_owner.voice(dispatch_args, execution_context, execution_guard)
         if name in _PODVIEW_MUSIC_TOOLS:
-            return await self._dispatch_podview_music(
+            result = await self._dispatch_podview_music(
                 name,
                 dispatch_args,
                 execution_context,
                 approval_token,
                 execution_guard,
             )
+            if result.get("error_kind") == "stale_music_selection" and "error" not in result:
+                result = {**result, "error": _NO_MUSIC_CARD}
+            self._log_tool(name, result, dispatch_args)
+            return result
         if name in DEVICE_TOOL_NAMES:
             return await self._dispatch_device(
                 name,
@@ -2810,6 +2829,9 @@ class ToolRouter:
                     "noEffect": response.status_code < 500,
                 }
             response.raise_for_status()
+            # HA's own state follows the next Fleet poll; ask for the car's answer now.
+            if scope is not None:
+                self._schedule_vehicle_fresh_after_command(scope.config_entry_id, scope.device_id)
             return {"outcome": "accepted"}
 
         return podview_vehicle_control.VehicleControl(
@@ -3012,6 +3034,69 @@ class ToolRouter:
             result.pop("connection", None)
         else:
             result["connection"] = remembered
+        self._vehicle_online_state = remembered.get("state") if remembered else None
+
+    def _vehicle_fresh_target(self, config_entry_id=None, device_id=None):
+        """The read scope's climate entity (else status) and the HA client, or None."""
+        scope, client, token = self._vehicle_scope, self._client, self._token
+        if scope is None or client is None or not token or not self.podview_vehicle_available():
+            return None
+        if config_entry_id is not None and (
+            scope.config_entry_id != config_entry_id or scope.device_id != device_id
+        ):
+            return None
+        entities = dict(scope.entities)
+        eid = entities.get("climate") or entities.get("status")
+        return (eid, client, token) if eid else None
+
+    def podview_vehicle_request_fresh(self) -> bool:
+        """The Tesla page opened: fetch the car's own data if it is online (fejl 12)."""
+        target = self._vehicle_fresh_target()
+        task = self._vehicle_fresh_task
+        if target is None or (task is not None and not task.done()):
+            return False
+        if not self._vehicle_fresh.open_due(self._vehicle_online_state, time.time()):
+            return False
+        self._vehicle_fresh_task = asyncio.create_task(self._vehicle_update_entity(*target))
+        return True
+
+    def _schedule_vehicle_fresh_after_command(self, config_entry_id, device_id) -> None:
+        """An accepted command: read the woken car a few times so its answer shows (fejl 11)."""
+        if self._vehicle_fresh_target(config_entry_id, device_id) is None:
+            return
+        if self._vehicle_fresh_task is not None:
+            self._vehicle_fresh_task.cancel()
+
+        async def run():
+            started = time.monotonic()
+            for at in podview_vehicle.FreshRead.AFTER_COMMAND:
+                await asyncio.sleep(max(0.0, at - (time.monotonic() - started)))
+                target = self._vehicle_fresh_target(config_entry_id, device_id)
+                if target is None:
+                    return
+                await self._vehicle_update_entity(*target)
+
+        self._vehicle_fresh_task = asyncio.create_task(run())
+
+    async def _vehicle_update_entity(self, eid: str, client, token: str) -> None:
+        if not self._vehicle_fresh.gap_ok(time.time()):
+            return
+        self._vehicle_fresh.sent(time.time())
+        try:
+            # HA answers when the coordinator refresh is done (about 10 s on Green).
+            async with asyncio.timeout(20):
+                response = await client.post(
+                    f"{C.SUPERVISOR_CORE_API}/services/homeassistant/update_entity",
+                    headers={"Authorization": f"Bearer {token}"},
+                    json={"entity_id": eid},
+                    timeout=httpx.Timeout(20.0, connect=3.0),
+                )
+                response.raise_for_status()
+            log.info("vehicle fresh read requested")
+            if self.on_vehicle_refreshed is not None:
+                self.on_vehicle_refreshed()
+        except Exception:  # Best effort; HA's own poll still follows.
+            log.info("vehicle fresh read unavailable")
 
     def podview_home_available(self) -> bool:
         owner = self._device_control

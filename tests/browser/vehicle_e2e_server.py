@@ -4,10 +4,11 @@ import asyncio
 import json
 import os
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
-from aiohttp import web
+from aiohttp import ClientSession, WSMsgType, web
 from integration.test_podview_bridge import owner
 from multidict import CIMultiDict
 
@@ -21,6 +22,8 @@ port = int(os.getenv("VEHICLE_TEST_PORT", "18980"))
 entity = "climate.car"
 lifecycle = os.getenv("VEHICLE_LIFECYCLE_TEST") == "1"
 recovery = os.getenv("VEHICLE_RECOVERY_TEST") == "1"
+# Tesla Fleet polls: HA learns the car's state only at a poll or homeassistant.update_entity.
+poll_lag = os.getenv("VEHICLE_POLL_LAG_TEST") == "1"
 event_transport = None
 fail_next_snapshot = False
 lifecycle_roles = {
@@ -50,7 +53,10 @@ control_fields = {
     )
 }
 state = {"climate": "off", "temperature": 20.0}
+car = {"climate": "off", "connection": "online"}  # The car itself (poll-lag mode only).
+ha_connection = "online"  # What HA last polled.
 writes = []
+fresh_reads = []
 snapshot_reads = []
 phase = "known"
 lock_state_override = None
@@ -140,7 +146,7 @@ def lifecycle_snapshot(body):
 
 
 async def ha(request):
-    global hold, read_hold, followup_hold
+    global hold, read_hold, followup_hold, ha_connection
     assert request.headers["Authorization"] == "Bearer test-token"
     path = request.url.path
     if lifecycle and path == "/core/api/services":
@@ -155,6 +161,15 @@ async def ha(request):
                 }
             ],
         )
+    if path == "/core/api/services/homeassistant/update_entity":
+        data = json.loads(request.content)
+        fresh_reads.append({"entityId": data["entity_id"], "at": time.time()})
+        if poll_lag:
+            await asyncio.sleep(0.3)  # HA answers when the coordinator refresh is done.
+            ha_connection = car["connection"]
+            if car["connection"] == "online":  # vehicle_data only for an online car
+                state["climate"] = car["climate"]
+        return httpx.Response(200, json=[])
     if path == "/core/api/services/podvoice/vehicle_snapshot":
         body = json.loads(request.content)
         if lifecycle:
@@ -193,6 +208,8 @@ async def ha(request):
             f"climate.{field}": stamp for field in snapshot["data"]["climate"]
         }
         snapshot["historicalFields"] = []
+        if poll_lag:
+            snapshot["connection"] = {"state": ha_connection, "since": None}
         if read_hold:
             read_hold = False
             read_started.set()
@@ -274,9 +291,15 @@ async def ha(request):
         data = json.loads(request.content)
         assert data["entity_id"] == entity and service in ("turn_on", "turn_off", "set_temperature")
         writes.append({"service": service, "body": data})
-        if service == "turn_on":
+        if poll_lag:
+            # The command wakes the car and reaches it; HA's state follows the next poll.
+            car["connection"] = "online"
+            car["climate"] = {"turn_on": "heat_cool", "turn_off": "off"}.get(
+                service, car["climate"]
+            )
+        elif service == "turn_on":
             state["climate"] = "heat_cool"
-        if service == "turn_off":
+        if service == "turn_off" and not poll_lag:
             state["climate"] = "off"
         if service == "set_temperature":
             state["temperature"] = data["temperature"]
@@ -289,7 +312,23 @@ async def ha(request):
 
 
 client = httpx.AsyncClient(transport=httpx.MockTransport(ha))
-tools = ToolRouter(None, client=client, supervisor_token="test-token")
+
+
+@asynccontextmanager
+async def connect_home_events():
+    async with ClientSession() as session:
+        async with session.ws_connect(f"http://127.0.0.1:{port}/lab/ha-websocket") as socket:
+            yield socket
+
+
+# Poll-lag mode runs with Green's HA event lane (subscribed, quiet: a Fleet refresh with
+# unchanged values sends no state_changed).
+tools = ToolRouter(
+    None,
+    client=client,
+    supervisor_token="test-token",
+    home_event_connect=connect_home_events if poll_lag else None,
+)
 tools.configure_podview_vehicle_read(
     json.dumps({"configEntryId": "entry-a", "deviceId": "device-a", "entities": fields})
 )
@@ -390,9 +429,14 @@ async def lab(request):
         phase_observed, \
         fail_next_snapshot, \
         charging_ends_at
-    global lock_state_override, lock_send_timeout, trunk_control_state
+    global lock_state_override, lock_send_timeout, trunk_control_state, ha_connection
     if request.method == "POST":
         body = await request.json()
+        if poll_lag and "car" in body:
+            car.update(body["car"])
+        if poll_lag and "ha" in body:
+            state["climate"] = body["ha"].get("climate", state["climate"])
+            ha_connection = body["ha"].get("connection", ha_connection)
         if recovery and "controlAvailable" in body:
             owner = app[BRIDGE]._vehicle_registry_owner
             assert owner is not None
@@ -445,6 +489,8 @@ async def lab(request):
             "state": state,
             "writes": writes,
             "snapshotReads": snapshot_reads,
+            "freshReads": fresh_reads,
+            "car": car,
             "intentHeld": started.is_set() and not release.is_set(),
             "readHeld": read_started.is_set() and not read_release.is_set(),
             "followupHeld": followup_started.is_set() and not followup_release.is_set(),
@@ -453,6 +499,28 @@ async def lab(request):
 
 
 app.router.add_route("*", "/lab/state", lab)
+
+
+async def ha_websocket(request):
+    socket = web.WebSocketResponse()
+    await socket.prepare(request)
+    await socket.send_json({"type": "auth_required", "ha_version": "2026.11.1"})
+    assert await socket.receive_json() == {"type": "auth", "access_token": "test-token"}
+    await socket.send_json({"type": "auth_ok", "ha_version": "2026.11.1"})
+    async for message in socket:
+        if message.type != WSMsgType.TEXT:
+            continue
+        command = json.loads(message.data)
+        if command["type"] == "subscribe_events":
+            await socket.send_json({"id": command["id"], "type": "result", "success": True})
+        else:
+            assert command["type"] == "ping"
+            await socket.send_json({"id": command["id"], "type": "pong"})
+    return socket
+
+
+if poll_lag:
+    app.router.add_get("/lab/ha-websocket", ha_websocket)
 
 
 async def cleanup(_app):

@@ -23,6 +23,7 @@ from contextvars import ContextVar, copy_context
 from pathlib import Path
 from urllib.parse import urlencode
 
+import aiohttp
 import httpx
 from aiohttp import web
 
@@ -42,8 +43,9 @@ from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry, log_screen_enrollment
 from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
-from .recipe_import import import_link
+from .recipe_import import REPLY_SECONDS, import_link
 from .recipe_submissions import (
+    RECEIVED_MESSAGE,
     RECIPE_SHORTCUT_VERSION,
     RecipeRejectedError,
     RecipeSubmissions,
@@ -441,6 +443,9 @@ class PodViewBridge:
         if robot_owner is not None:
             # A fresh robot map can reveal its room; wake readers like an HA vacuum event.
             robot_owner.on_robot_map_refreshed = lambda: self.home_events_changed({"vacuum"})
+        if hasattr(tools, "on_vehicle_refreshed"):
+            # HA fetched Tesla's data on request; its timestamps may change without an HA event.
+            tools.on_vehicle_refreshed = lambda: self.home_events_changed({"vehicle"})
         self._home_weather_interest: tuple[tuple, frozenset[str]] | None = None
         self._pairing_room = pairing_room
         self._pairing_hash = pairing_sha256 if re.fullmatch(r"[a-f0-9]{64}", pairing_sha256) else ""
@@ -1055,8 +1060,37 @@ class PodViewBridge:
                         break
             except (httpx.HTTPError, OSError, ValueError):
                 address = None
+            if address is None:
+                address = await self._recipe_cloud_address(token)
         self._recipe_shortcut_address = (now, address)
         return address
+
+    async def _recipe_cloud_address(self, token: str) -> str | None:
+        """Home Assistant Cloud's remote address, which also works away from home."""
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                async with session.ws_connect(
+                    "ws://supervisor/core/websocket", max_msg_size=65536
+                ) as ws:
+                    if (await ws.receive_json()).get("type") != "auth_required":
+                        return None
+                    await ws.send_json({"type": "auth", "access_token": token})
+                    if (await ws.receive_json()).get("type") != "auth_ok":
+                        return None
+                    await ws.send_json({"id": 1, "type": "cloud/status"})
+                    reply = await ws.receive_json()
+        except (aiohttp.ClientError, OSError, TimeoutError, ValueError):
+            return None
+        status = reply.get("result") if isinstance(reply, dict) else None
+        domain = status.get("remote_domain") if isinstance(status, dict) else None
+        if (
+            not isinstance(status, dict)
+            or status.get("logged_in") is not True
+            or not isinstance(domain, str)
+            or not re.fullmatch(r"[a-z0-9.-]{1,253}", domain)
+        ):
+            return None
+        return f"https://{domain}{_RECIPE_SHORTCUT_PATH}"
 
     def _controller_request_scope(self, room: str) -> tuple[ControllerRegistry, tuple, str]:
         registry = self._controller_registry
@@ -2549,8 +2583,17 @@ async def _phone_recipes(request: web.Request) -> web.Response:
         or len(auth) != 1
         or not hmac.compare_digest(auth[0].encode(), f"Bearer {token}".encode())
     ):
+        # Outcome only; the presented code is never logged or compared outside hmac.
+        from .recipe_submissions import recipe_event
+
+        recipe_event("phone", "rejected", reason="denied")
         return web.json_response(
-            {"error": "recipes_denied", "message": "Adgang afvist"},
+            {
+                "error": "recipes_denied",
+                "message": _WRONG_UPLOAD_CODE
+                if len(token) >= 32
+                else "Upload-koden er ikke sat i PodVoice. Åbn PodView \u2192 Opskrifter",
+            },
             status=403,
             headers={"Cache-Control": "no-store"},
         )
@@ -2589,6 +2632,7 @@ async def _phone_recipes(request: web.Request) -> web.Response:
     return web.json_response(payload, status=response.status, headers={"Cache-Control": "no-store"})
 
 
+_WRONG_UPLOAD_CODE = "Forkert upload-kode \u2013 åbn PodView \u2192 Opskrifter \u2192 Tilføj genvej"
 _SHORTCUT_UPDATE_NOTICE = " · Ny version af genvejen \u2013 hent den i PodView"
 
 
@@ -2677,8 +2721,10 @@ async def _recipe_operation(
                         status=400,
                         headers={"Cache-Control": "no-store"},
                     )
-                result = await import_link(store, url)
-                status = 202 if result["status"] in {"received", "importing"} else 200
+                result = await import_link(store, url, reply_within=REPLY_SECONDS)
+                if result["status"] in {"received", "importing"}:
+                    result = {**result, "message": RECEIVED_MESSAGE}
+                    status = 202
     except RecipeRejectedError:
         return web.json_response(
             {"error": "recipe_rejected", "message": "Opskriften kræver gennemgang og er ikke gemt"},
@@ -5146,6 +5192,12 @@ async def _home(request: web.Request) -> web.Response:
         for name in ("podview_home_read", "podview_home_binding", "podview_home_available")
     ):
         return _error("home_unavailable", 503)
+    if request.query.get("vehicleFresh") == "1" and "vehicle" in bridge.home_read_kinds(
+        room, _request_token(request, room)
+    ):
+        # The Tesla page opened: Tesla Fleet polls, so ask HA for the car's data now (fejl 12).
+        # The tools owner limits this to an online car, at most once a minute.
+        getattr(tools, "podview_vehicle_request_fresh", lambda: False)()
 
     def home_effect_revision_now():
         # Cache-ordering fences from the existing resource owner, never state.

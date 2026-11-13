@@ -44,6 +44,15 @@ let server,browser,data;
   const after=await sport.boundingBox();
   assert(Math.abs(after.y-before.y)<1,`the section being read did not move (${before.y}→${after.y})`);
   assert((await current.boundingBox()).y>after.y,'the new section is below the earlier one');
+  // Fejl 9 (Green 13 Nov): the card had no room; AI-forklaring took its own line under the
+  // sections and Kilder fell below the screen. AI-forklaring shares the Kilder row, and the
+  // two sections with Kilder fit on the iPad without scrolling.
+  const fit=await page.evaluate(()=>{const card=document.querySelector('#answer-host pv-answer[data-thread=current]');
+   const meta=card.querySelector('.answer-meta').getBoundingClientRect(),row=card.querySelector(':is(.sources,.answer-source-menu):not([hidden])>summary').getBoundingClientRect();
+   const list=document.querySelector('pv-widget-host .responses');
+   return {inRow:meta.top>=row.top-1&&meta.bottom<=row.bottom+1&&meta.right<=row.right,overflow:list.scrollHeight-list.clientHeight};});
+  assert.equal(fit.inRow,true,'AI-forklaring stands in the Kilder row');
+  assert(fit.overflow<=0,`both sections and Kilder fit on the iPad (overflow ${fit.overflow}px)`);
   // Touch targets: every control on the card and the Svar button is at least 44×44.
   const small=await page.evaluate(()=>[...document.querySelectorAll('#answer-host pv-answer:not([hidden]) :is(button,a,summary),#open-history')]
    .filter(n=>n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden')

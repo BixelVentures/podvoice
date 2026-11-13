@@ -52,7 +52,8 @@ def test_reviewed_recipe_can_be_published_and_phone_receipt_is_updated(tmp_path)
     saved = catalog.publish(recipe)
     assert saved == {"id": pending["id"], "status": "saved", "message": "Gemt"}
     assert catalog.receipt(pending["id"]) == saved
-    assert catalog.submit(recipe["source"]["url"]) == saved
+    # Changed: a link that is already in the catalog is reported as a duplicate.
+    assert catalog.submit(recipe["source"]["url"])["message"] == "Findes allerede: Rugbrød"
     assert catalog.list_submissions() == []
     assert json.loads(path.read_bytes())["recipes"][pending["id"]]["source"]["files"] == []
 

@@ -256,18 +256,28 @@ test('post-renew read denial remains terminal and cannot become a transient prof
  try{await assert.rejects(()=>h.transport.start());assert.equal(h.transport.connected,false);assert.equal(h.transport.recoveryBlocked,true);assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,true);assert.equal(h.store.getItem(h.key),null);assert.equal(announced,0);assert.equal(h.transport.recoveryTimer??null,null);assert.equal(h.transport.namedRenewTimer??null,null);}finally{h.transport.close();}
 });
 
-for(const status of [401,403])test(`native HTML ${status} after renewal remains an authoritative denial through the request decoder`,async()=>{
+for(const status of [401,403])test(`native HTML ${status} after renewal: 403 is an authoritative denial, 401 recovers by itself`,async()=>{
  let reads=0,announced=0;const h=rig({handler:path=>{
   if(path==='controller/renew')return reply(renewal());
   if(++reads===2)return {ok:false,status,json:async()=>{throw new SyntaxError('inert HTML denial');}};
   return reply(snapshot());
  }});h.store.setItem(h.key,JSON.stringify(intent()));h.transport.onControllerRenewed=()=>announced++;
  try{
+  if(status===401){
+   // Fejl 14 (13 Nov): a 401 is HA's ingress session, not PodVoice's answer. The wall screen keeps
+   // its named intent and recovers by itself once HA renews the session; it is never a denial.
+   // The independently verified first read stays shown, like any transient post-renew failure.
+   await h.transport.start().catch(()=>{});
+   assert.equal(h.transport.connected,true);assert.equal(h.transport.recoveryBlocked,false);
+   assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,false);
+   assert.notEqual(h.store.getItem(h.key),null);assert.equal(announced,0);
+  }else{
   await assert.rejects(()=>h.transport.start(),/transport_access_denied/);
   assert.equal(h.transport.connected,false);assert.equal(h.transport.recoveryBlocked,true);
   assert.equal(h.transport.namedControllerRenewed,false);assert.equal(h.transport.namedRenewalDenied,true);
   assert.equal(h.store.getItem(h.key),null);assert.equal(announced,0);
   assert.equal(h.transport.recoveryTimer??null,null);assert.equal(h.transport.namedRenewTimer??null,null);
+  }
   assert.deepEqual(h.calls.map(call=>call.path),['snapshot','controller/renew','snapshot']);
  }finally{h.transport.close();}
 });

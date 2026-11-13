@@ -314,9 +314,10 @@ export class PodVoiceTransport {
    }
    let value = await response.json(),readAt=Date.now();
    if (generation !== this.generation) return;
-   if([401,403].includes(response.status)){
-    this.recoveryBlocked=true;this.sessionExpired=response.status===401;throw Error('transport_access_denied');
-   }
+   // A wall screen never needs a tap (fejl 14, 13 Nov): HA's ingress session (401) is renewed by its
+   // app panel, so recovery keeps going with backoff. Only PodVoice's own refusal (403) is terminal.
+   if(response.status===401){this.sessionExpired=true;throw Error('ingress_session_expired');}
+   if(response.status===403){this.recoveryBlocked=true;throw Error('transport_access_denied');}
    if((value?.admission!==undefined||this.normalHAMode)&&!haIngress(value))throw Error('invalid_admission');
    const normalHA=haIngress(value);
    const boot=value.bootId,room=value.roomId;
@@ -337,7 +338,7 @@ export class PodVoiceTransport {
       // but do not publish named proof or its light authority from it.
       const confirmed=renewed;renewed=false;
       const freshResponse=await this.request(this.endpoint('snapshot'),{credentials:'same-origin',cache:'no-store'}),freshValue=await freshResponse.json();if(generation!==this.generation)return;
-      if([401,403].includes(freshResponse.status)){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}
+      if(freshResponse.status===401){this.sessionExpired=true;throw Error('ingress_session_expired');}if(freshResponse.status===403){if(named){this.namedRenewalDenied=true;this.forgetNamedIntent();}this.recoveryBlocked=true;throw Error('transport_access_denied');}
       if(!freshResponse.ok)throw Error('post_renew_read_unavailable');
       response=freshResponse;value=freshValue;readAt=Date.now();
       if(named&&(value.bootId!==boot||value.roomId!==room||!haIngress(value))){this.namedRenewalDenied=true;this.forgetNamedIntent();throw Error('named_controller_owner_changed');}
@@ -395,10 +396,10 @@ export class PodVoiceTransport {
   finally{if(!(read&&endpoint==='music'&&['mood','feeling'].includes(kind)&&diagnosticRequestId)||generation===this.generation&&originScope===this.diagnosticScope&&originBoot===this.snapshot?.bootId&&originRoom===this.snapshot?.roomId)this.recordReadDiagnostic('request',{code:code||'failure',endpoint,kind,localRequestSeq,requestId,httpStatus,durationMs:Math.min(120000,Math.max(0,Date.now()-started)),current:generation===this.generation},token);}
  }
 
- async home({lightArea,readDiagnostic}={}){
+ async home({lightArea,readDiagnostic,vehicleFresh=false}={}){
   if(!this.connected||!this.snapshot.capabilities.homeRead?.length)throw new Error('home_unavailable');
   if(lightArea!==undefined&&(!this.snapshot.capabilities.homeRead.includes('light')||typeof lightArea!=='string'||!lightArea||lightArea.length>128||/[\u0000-\u001f\u007f]/u.test(lightArea)))throw new Error('light_area_unavailable');
-  const response=await this.request(this.endpoint('home',lightArea===undefined?{}:{lightArea}),{credentials:'same-origin',cache:'no-store'},undefined,undefined,undefined,readDiagnostic);if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
+  const response=await this.request(this.endpoint('home',{...(lightArea===undefined?{}:{lightArea}),...(vehicleFresh===true?{vehicleFresh:'1'}:{})}),{credentials:'same-origin',cache:'no-store'},undefined,undefined,undefined,readDiagnostic);if(!response.ok){const error=new Error('home_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}return response.json();
  }
  async weatherAdvice(binding,{signal}={}){
   const snapshot=this.snapshot,generation=this.generation;

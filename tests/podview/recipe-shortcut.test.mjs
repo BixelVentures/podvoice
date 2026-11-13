@@ -45,3 +45,28 @@ test('the catalogue renders the entry with both import answers and a download', 
  assert.match(recipe, /'Ny version af genvejen'/);
  assert.match(recipe, /link\.download = fileName/);
 });
+
+test('upload history names every phone outcome, including duplicates', () => {
+ const begin = recipe.indexOf('  const renderUploads = () => {');
+ const end = recipe.indexOf('  this.renderUploadHistory', begin);
+ assert.ok(begin >= 0 && end > begin, 'canonical upload history render boundary');
+ const node = (tag,text='') => ({tag,text,children:[],append(...n){this.children.push(...n);},
+  replaceChildren(...n){this.children=n;}});
+ const textOf = n => [n.text,...n.children.map(textOf)].filter(Boolean).join(' ');
+ const panel = node('panel');
+ const uploads = {panel,setDescription(){}};
+ const render = new Function('uploads','kit','applyKitTextRole','element','meta','historyDate','action',
+  recipe.slice(begin,end)+'; return renderUploads;')
+  .call({uploads:[
+   {id:'a',status:'duplicate',message:'Findes allerede',title:'Boller',updatedAt:1},
+   {id:'b',status:'importing',message:'Henter opskriften fra siden',url:'https://example.com/x',updatedAt:1},
+   {id:'c',status:'rejected',message:'Ingen opskrift fundet på siden',url:'https://example.com/y',updatedAt:1},
+  ],uploadHistoryStatus:'ready'},uploads,()=>node('row'),e=>e,node,t=>node('meta',t),
+  {format:()=>'i dag'},()=>node('button'));
+ render();
+ assert.deepEqual(panel.children.map(textOf),[
+  'Boller i dag Findes allerede',
+  'https://example.com/x i dag Henter · Henter opskriften fra siden',
+  'https://example.com/y i dag Afvist · Ingen opskrift fundet på siden',
+ ]);
+});

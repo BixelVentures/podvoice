@@ -70,6 +70,10 @@ from .voicepe import NativeMicFrame
 LIVE_ACTIVITY_FRESHNESS_S = 0.2
 LIVE_CLOSE_GRACE_S = 6.0
 LIVE_IDLE_PRECLOSE_S = 2.0
+# Green 13 Nov: keyboard taps kept Voice PE's native input VAD "active" for a minute
+# after the answer, so the input-quiet idle close never came. Once the answer is heard,
+# native noise without any new model turn closes after this long on output quiet alone.
+LIVE_ANSWERED_NOISE_CLOSE_S = 12.0
 LIVE_CONFIRMATION_START_INSTRUCTION = (
     "Stil nu straks det korte, konkrete bekræftelsesspørgsmål om det allerede "
     "konfigurerede afventende forslag. Tal dansk. Vent ikke på, at brugeren taler først. "
@@ -681,6 +685,7 @@ class ThinSession:
         self._live_webrtc = False
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_last_turn_at = 0.0  # monotonic: last model work or transcribed input
         self._live_output_transcript_generation: int | None = None
         self._talk_output_text_revision = 0
         self._talk_text_observation_task: asyncio.Task | None = None
@@ -1605,6 +1610,7 @@ class ThinSession:
             raise RuntimeError("Live Alpha integration is unavailable")
         self._live_stream = None
         self._live_output_bytes = 0
+        self._live_last_turn_at = time.monotonic()
         self._live_output_transcript_generation = None
         self._retire_talk_text_observation()
         self._talk_output_text_revision = 0
@@ -3216,6 +3222,14 @@ class ThinSession:
                 and self._live_quiet_ready()
             ):
                 self._start_live_idle_preclose()
+            elif self._live_answered_noise_close_due(now):
+                self._trace_event("live_answered_noise_close")
+                self._goodbye = self._spawn(
+                    self._finalize_live_conversation(
+                        self._epoch, reason="app-idle-timeout", output_quiet=True
+                    ),
+                    "live-answered-noise-close",
+                )
             # _speaking means "the model is generating" — generation finishes long
             # before the device stops PLAYING, so closing on it alone truncated long
             # replies mid-sentence. Use the device's own playback truth, bounded.
@@ -3261,6 +3275,10 @@ class ThinSession:
             or getattr(ev, "generation", None) != self.brain._connection_generation
         ):
             return
+        if not isinstance(ev, (LiveSessionReady, LiveTransportReady, LiveUsage)) and not (
+            isinstance(ev, LiveAudioChunk) and not any(ev.pcm)
+        ):
+            self._live_last_turn_at = time.monotonic()
         if isinstance(ev, LiveSessionReady):
             if self._live_output_transcript_generation != ev.generation:
                 self._live_output_transcript_generation = None
@@ -5227,6 +5245,7 @@ class ThinSession:
         receipt: asyncio.Future[bool] | None = None,
         checked_attempt: LiveClosingAttempt | None = None,
         idle_preclose: tuple[int, tuple, int] | None = None,
+        output_quiet: bool = False,
     ) -> None:
         """One provider finalization and exact playback drain for quiet/semantic close."""
         if not self._active or self._epoch != epoch or self._transport_closing:
@@ -5263,6 +5282,9 @@ class ThinSession:
             self._live_idle_preclose_deadline = None
             self._live_idle_preclose_token += 1
             self._goodbye = task  # Stop/teardown joins the committed finalizer.
+        elif output_quiet:
+            if receipt is not None or not self._live_answered_noise_close_due(time.monotonic()):
+                return
         elif receipt is None and not self._live_quiet_ready(semantic=False):
             return
         # No suspension between the final currentness check and close ownership.
@@ -5302,9 +5324,45 @@ class ThinSession:
                 self._request_close(reason)
         except asyncio.CancelledError:
             raise
-        except Exception:
-            if self._active and self._epoch == epoch and not self._transport_closing:
-                self._request_close(failure_reason, error_kind=failure_kind)
+        except Exception as exc:
+            if not (self._active and self._epoch == epoch and not self._transport_closing):
+                return
+            if failure_reason == "live-drain-failed":
+                # The provider has closed and the answer was given. An unconfirmed
+                # speaker tail is a device diagnostic, not an error for the room:
+                # teardown still silences the speaker, and the ring goes dark, not red.
+                _LOG.info(
+                    "thin: live drain unconfirmed (%s) - closing quietly [room %s]",
+                    type(exc).__name__,
+                    self.room,
+                )
+                self._trace_event("live_drain_unconfirmed", cause=type(exc).__name__)
+                self._request_close(reason)
+                return
+            self._request_close(failure_reason, error_kind=failure_kind)
+
+    def _live_answered_noise_close_due(self, now: float) -> bool:
+        """The answer was heard, no model turn followed, and only native noise holds idle."""
+        return bool(
+            self.live_alpha
+            and self._active
+            and not self._live_webrtc
+            and self._live_close_judge is None
+            and self._live_idle_preclose_task is None
+            and not self._ending_conversation
+            and not self._live_finalizing
+            and not self._transport_closing
+            and (
+                self._goodbye is None
+                or self._goodbye.done()
+                or self._goodbye is asyncio.current_task()
+            )
+            and self._live_close_nonzero_output
+            and self._live_close_speech_played
+            and now - self._live_last_turn_at >= LIVE_ANSWERED_NOISE_CLOSE_S
+            and self._live_quiet_work_clear(semantic=False)
+            and self._live_quiet_ready(semantic=True)
+        )
 
     async def _submit_live_text(self, text: str, command_id: str) -> dict:
         """Thin accepts the command; Live exposes no separate item-accepted ACK."""

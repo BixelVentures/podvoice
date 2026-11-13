@@ -26,6 +26,7 @@ TEMPLATE = ROOT / "podvoice/shortcuts/opskrifter-til-podview.plist"
 SIGNED = ROOT / "podvoice/gatekeeper/static/podview/assets/opskrifter-til-podview.shortcut"
 URL = "https://example.com/opskrift/boller"
 TOKEN = "s3cret-upload-code-" + "x" * 20
+CURRENT = RECIPE_SHORTCUT_VERSION
 NOTICE = " · Ny version af genvejen \u2013 hent den i PodView"
 
 
@@ -67,7 +68,36 @@ def test_template_is_secret_free_and_matches_server_version():
     uuids = {a["WFWorkflowActionParameters"].get("UUID") for a in actions}
     raw = TEMPLATE.read_text()
     assert set(_output_uuids(template)) <= uuids
-    assert "Bearer " in raw and "/api/podvoice" not in raw
+    # Changed in version 2: any pasted Home Assistant address is normalised to the recipe
+    # endpoint on that host, so the path is in the template; no host and no code are.
+    assert "Bearer " in raw and "nabu.casa" not in raw
+    replaces = [
+        a["WFWorkflowActionParameters"]
+        for a in actions
+        if a["WFWorkflowActionIdentifier"] == "is.workflow.actions.text.replace"
+    ]
+    assert [r["WFReplaceTextReplace"] for r in replaces] == [
+        "https://",
+        "$1/api/podvoice/recipe-submissions",
+        "",
+    ]
+    assert (
+        post["WFURL"]["Value"]["attachmentsByRange"]["{0, 1}"]["OutputUUID"]
+        == (replaces[1]["UUID"])
+    )
+    code = authorization["attachmentsByRange"]["{7, 1}"]["OutputUUID"]
+    assert code == replaces[2]["UUID"]
+    assert (
+        replaces[2]["WFInput"]["Value"]["attachmentsByRange"]["{0, 1}"]["OutputUUID"]
+        == (actions[questions[1]["ActionIndex"]]["WFWorkflowActionParameters"]["UUID"])
+    )
+    # A reply without a message still tells the user what to do.
+    shown = [
+        a["WFWorkflowActionParameters"]["Text"]["Value"]["string"]
+        for a in actions
+        if a["WFWorkflowActionIdentifier"] == "is.workflow.actions.showresult"
+    ]
+    assert shown[-1].startswith("PodView svarede ikke")
 
 
 def _output_uuids(value):
@@ -169,12 +199,14 @@ async def test_old_shortcut_is_told_and_recorded_without_logging_the_code(tmp_pa
     caplog.set_level(logging.DEBUG)
     fetch = AsyncMock(return_value=(_html(), URL))
     with patch("gatekeeper.recipe_import.fetch_html", new=fetch):
-        current = await _phone_recipes(_request(bridge, {"url": URL, "shortcut": 1}, "1"))
+        current = await _phone_recipes(
+            _request(bridge, {"url": URL, "shortcut": CURRENT}, str(CURRENT))
+        )
         assert json.loads(current.text)["message"] == "Gemt: Boller"
         assert bridge.recipe_shortcut_outdated is None
 
         legacy = await _phone_recipes(_request(bridge, {"url": URL}))
-    assert json.loads(legacy.text)["message"] == "Gemt: Boller" + NOTICE
+    assert json.loads(legacy.text)["message"] == "Findes allerede: Boller" + NOTICE
     assert bridge.recipe_shortcut_outdated["version"] is None
     assert isinstance(bridge.recipe_shortcut_outdated["seenAt"], int)
 
@@ -190,7 +222,7 @@ async def test_old_shortcut_is_told_and_recorded_without_logging_the_code(tmp_pa
         "Der kom intet med fra delingen. Del opskriftens link igen." + NOTICE
     )
     with patch("gatekeeper.recipe_import.fetch_html", new=fetch):
-        await _phone_recipes(_request(bridge, {"url": URL, "shortcut": 1}, "1"))
+        await _phone_recipes(_request(bridge, {"url": URL, "shortcut": CURRENT}, str(CURRENT)))
     assert bridge.recipe_shortcut_outdated is None, "an updated iPhone clears the notice"
     assert TOKEN not in caplog.text and "Boller" not in caplog.text
     assert "recipe_shortcut version=none outdated=True" in caplog.text

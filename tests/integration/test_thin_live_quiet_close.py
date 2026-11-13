@@ -372,6 +372,12 @@ async def test_provider_close_failure_is_not_labelled_physical_drain(monkeypatch
 @pytest.mark.asyncio
 @pytest.mark.parametrize("stage", ["provider", "playback"])
 async def test_missing_close_ack_and_missing_playback_finish_are_distinct(monkeypatch, stage):
+    """A missing provider close is an error; an unconfirmed speaker tail after it is not.
+
+    Green 13 Nov (fejl 8): the answer was given and the provider closed, but the
+    5 s speaker drain was unconfirmed. That turned the ring red ("live-drain-failed").
+    The conversation now closes normally with its own reason; only the trace keeps it.
+    """
     from unittest.mock import AsyncMock
 
     session, _, _ = await setup()
@@ -390,7 +396,7 @@ async def test_missing_close_ack_and_missing_playback_finish_are_distinct(monkey
             expected = (
                 ("live-finalization-failed", {"error_kind": "connection"})
                 if stage == "provider"
-                else ("live-drain-failed", {"error_kind": "device"})
+                else ("idle-fallback", {})
             )
             assert closes == [expected]
             assert session._live_stream.finished is (stage == "playback")
