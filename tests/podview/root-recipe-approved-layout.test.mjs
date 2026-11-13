@@ -114,3 +114,9 @@ test('a recipe without a source is skipped and the rest of the catalogue is show
   assert.equal(view.catalogStatus,'ready','the catalogue stays available');
   assert.deepEqual(view.saved.map(r=>r.title),['Karry'],'only the well-formed recipe is shown');
 });
+
+test('the catalogue tells how to add a recipe: Share → Home Assistant',()=>{
+  const view={saved:[],active:null,sessions:new Map(),catalogCategory:'',history:[],catalogStatus:'ready'};
+  const {entries,render}=renderCatalogue(view);render();
+  assert.match(textOf(entries),/Tilføj opskrift: Del → Home Assistant fra Safari eller Chrome på iPhone\./);
+});

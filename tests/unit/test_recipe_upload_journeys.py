@@ -494,11 +494,14 @@ async def test_history_endpoint_shows_each_outcome(site, store):
     request = phone(store, {})
     request.method = "GET"
     rows = json.loads((await _recipe_operation(request, "recipe-upload-history")).text)["uploads"]
-    assert [(row["status"], row["message"]) for row in rows] == [
-        ("duplicate", "Findes allerede"),
-        ("rejected", "Ingen opskrift fundet på siden"),
-        ("saved", "Gemt"),
-    ]
+    # Uploads in the same millisecond have no defined order; compare the outcomes.
+    assert sorted((row["status"], row["message"]) for row in rows) == sorted(
+        [
+            ("duplicate", "Findes allerede"),
+            ("rejected", "Ingen opskrift fundet på siden"),
+            ("saved", "Gemt"),
+        ]
+    )
 
 
 # HA integration relay

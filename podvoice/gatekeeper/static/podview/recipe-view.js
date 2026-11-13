@@ -408,7 +408,9 @@ export class RecipeView {
    }
    renderUploads();
    renderShortcut();
-   entries.append(uploads.node,shortcutUpdate,shortcutBox.node);
+   // The everyday way to add a recipe; the upload-code shortcut stays as a fallback below.
+   entries.append(meta('Tilføj opskrift: Del → Home Assistant fra Safari eller Chrome på iPhone.'),
+    uploads.node,shortcutUpdate,shortcutBox.node);
   };
   index.append(marker);
   layout.append(entries,index);
@@ -490,7 +492,8 @@ export class RecipeView {
   const observer = new MutationObserver(visibility);
   observer.observe(this.root,{attributes:true,attributeFilter:['hidden']});
   document.addEventListener('visibilitychange',visibility);
-  this.catalogRefresh = {retryUploadHistory,dispose:()=>{
+  // now(): a recipe was just saved elsewhere (Del → Home Assistant); refresh this view at once.
+  this.catalogRefresh = {retryUploadHistory,now:()=>run(),dispose:()=>{
    clearTimeout(timer); abort.abort(); observer.disconnect();
    document.removeEventListener('visibilitychange',visibility);
   }};
