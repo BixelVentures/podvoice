@@ -499,7 +499,7 @@
     },
     {
       "path": "flow-controller.js",
-      "sha256": "98469acbe96242f71c74c97f6a0a192aecf1f2fc3fced09342a0f1f61b7672a6"
+      "sha256": "ccac4c48e0a0f49281e6fc0aad2aecdf03aa31c66fa0f0f71a83fdc10d493b18"
     },
     {
       "path": "frame-layout.css",
@@ -531,7 +531,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "151b97b0d223f963d80253f588ec55f2be4a7747119f792fbd655677145bf1af"
+      "sha256": "4fc8ffd062f987b75f743fddb0f14f3160fe4db1905545f683cb1e93b2d1d27d"
     },
     {
       "path": "library.css",
@@ -615,7 +615,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "a9a4f5451da9bda13f42ad17e2dbfcdac781b0c015b52c4561ece02d88db0e6c"
+      "sha256": "08b5dbdaf7d77d058d7e1ec43a6e9a9f057e7987cf4c074dfa559a60f6b443ab"
     },
     {
       "path": "music-selection-model.js",
@@ -659,11 +659,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "e4e248965f43ba616f05685b4d9a538e0e2b908aacb72b9a284975dcfe16dc35"
+      "sha256": "c6b3febbf8394dfa98211b139926ca55ed58064ff2606ac63f9245ed853d7f77"
     },
     {
       "path": "podview.css",
-      "sha256": "543444fb8f9a5dfc9d5cbb13ba9f678ba80d8ceb3b31bc12c10ef9afe629ff28"
+      "sha256": "525cd1cd8da7ae684055726916aca11edaa0332500d2487e37c5b1c0009f8af9"
     },
     {
       "path": "podvoice-transport.js",
@@ -771,7 +771,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "193c7cb8c53ffeab87e78e3b11240f5df5610fe2e9fb39a9e58a34de7085d291"
+      "sha256": "41913bf17afc385b8771b0c71d75d0c27cd2b1b19acc617a94dc980626fda43e"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -919,7 +919,7 @@
     },
     {
       "path": "widget-model.js",
-      "sha256": "64e0e85398031ee8a9e83330a96b5c4ef4debb01aadf0fda81558bb28bc7ef4f"
+      "sha256": "11f4d94d9c44c8739b37435de656be6f3c6f672cd1073d2c351710812afa2433"
     },
     {
       "path": "widget-redesign.css",
@@ -931,7 +931,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "324dd8315bf9cca746fd07d8bb0d4e82e585e8b04f369605093802d3a28f8d62"
+      "sha256": "a400164f1df8cb428349d810fad6a2291aa1231eafdf6fbd03a4d2faaeebe15a"
     },
     {
       "path": "workshop.css",

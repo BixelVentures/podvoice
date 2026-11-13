@@ -1371,7 +1371,8 @@
           "method:captureContent": 1,
           "method:create": 1,
           "method:fadeLoadingContent": 1,
-          "method:layoutRow": 1
+          "method:layoutRow": 1,
+          "arrow:discoverySectionLabel": 1
         },
         "roots": [],
         "registrations": {},

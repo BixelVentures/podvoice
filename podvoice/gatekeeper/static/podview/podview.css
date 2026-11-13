@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 193c7cb8c53ffeab87e78e3b11240f5df5610fe2e9fb39a9e58a34de7085d291 */
+/* Source: ui-kit.css · SHA256 41913bf17afc385b8771b0c71d75d0c27cd2b1b19acc617a94dc980626fda43e */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6447,3 +6447,305 @@ body button:not(.is-pressed){transition-property:filter!important}
   display:none}
 }
 @keyframes pv-live-pulse{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}
+
+/* iPad Musik-siden (lærred v190 »A-MusikHjem«, »Musik-Starter«, »Musik-Spiller«, issue 392): one page without tabs.
+   The collections are the section headings (Til <ugedag> <tid> · Fortsæt · Vibe · Jeres playlister); the open
+   section shows its cards under its heading: the first mood card is the 744×252 »Lige nu« hero, the rest are a
+   rail of 160 cards (Fortsæt: 260×72 rows, Vibe: 120 tiles) with the kit fade and snap. One section is open at a
+   time because one collection holds the play authority. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] .responses>#music-response[data-discovery-preview]:not([hidden]){
+   --pv-music-ink-2:#5F5E5A;display:flex!important;flex-direction:column!important;gap:0!important;
+   padding:0 0 32px!important;width:744px!important;max-width:744px!important;grid-template-columns:none!important;
+   grid-template-rows:none!important;}
+ #music-response[data-discovery-preview] #music-refinements{
+   display:contents!important;}
+ #music-response[data-discovery-preview] #music-refinements>[data-collection]{
+   order:var(--pv-section-order);flex:none;display:flex!important;align-items:center;justify-content:space-between;
+   width:100%!important;min-width:0!important;height:56px!important;min-height:56px!important;margin:0!important;
+   padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;
+   box-shadow:none!important;outline:0;color:var(--pv-ink)!important;font:800 22px/1.2 var(--pv-font)!important;
+   letter-spacing:-.015em;text-align:left;grid-column:auto!important;grid-row:auto!important;}
+ #music-response[data-discovery-preview] #music-refinements>[data-collection]::after{
+   content:'';flex:none;width:20px;height:20px;background:var(--pv-ink-2);opacity:.7;
+   -webkit-mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTMuNjYsMTAxLjY2bC04MCw4MGE4LDgsMCwwLDEtMTEuMzIsMGwtODAtODBBOCw4LDAsMCwxLDUzLjY2LDkwLjM0TDEyOCwxNjQuNjlsNzQuMzQtNzQuMzVhOCw4LDAsMCwxLDExLjMyLDExLjMyWiIvPjwvc3ZnPg==") center/20px no-repeat;
+   mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTMuNjYsMTAxLjY2bC04MCw4MGE4LDgsMCwwLDEtMTEuMzIsMGwtODAtODBBOCw4LDAsMCwxLDUzLjY2LDkwLjM0TDEyOCwxNjQuNjlsNzQuMzQtNzQuMzVhOCw4LDAsMCwxLDExLjMyLDExLjMyWiIvPjwvc3ZnPg==") center/20px no-repeat;}
+ #music-response[data-discovery-preview] #music-refinements>[aria-pressed=true]::after{
+   display:none;}
+ #music-response[data-discovery-preview] #music-refinements>[aria-pressed=false]{
+   border-top:1px solid rgba(23,23,26,.08)!important;}
+ #music-response[data-discovery-preview] [data-collection=mood]{
+   --pv-section-order:10;order:10;}
+ #music-response[data-discovery-preview] [data-collection=recent]{
+   --pv-section-order:20;order:20;}
+ #music-response[data-discovery-preview] [data-collection=feeling]{
+   --pv-section-order:30;order:30;}
+ #music-response[data-discovery-preview] [data-collection=top]{
+   --pv-section-order:40;order:40;}
+ #music-response[data-discovery-collection=mood]{
+   --pv-open:10;}
+ #music-response[data-discovery-collection=recent]{
+   --pv-open:20;}
+ #music-response[data-discovery-collection=feeling]{
+   --pv-open:30;}
+ #music-response[data-discovery-collection=top]{
+   --pv-open:40;}
+ #music-response[data-discovery-preview]>[data-discovery-header]{
+   order:calc(var(--pv-open) + 1);flex:none;display:flex!important;justify-content:flex-end;align-items:center;
+   height:0!important;min-height:0!important;margin:0!important;padding:0!important;overflow:visible;
+   position:relative;z-index:1;transform:translateY(-6px);grid-column:auto!important;grid-row:auto!important;}
+ #music-response[data-discovery-preview]>[data-discovery-header][hidden]{
+   display:none!important;}
+ #music-response[data-discovery-preview]>[data-discovery-header]>h2{
+   display:none;}
+ #music-response[data-discovery-preview] #music-refresh{
+   order:calc(var(--pv-open) + 4);flex:none;height:44px!important;min-height:44px!important;max-height:44px!important;
+   width:auto!important;min-width:0!important;padding:0 16px!important;margin:0!important;border:0!important;
+   border-radius:999px!important;background:transparent!important;box-shadow:none!important;outline:0;
+   color:var(--pv-music-ink-2)!important;font:600 15px/1 var(--pv-font)!important;gap:8px;grid-column:auto!important;
+   grid-row:auto!important;align-self:flex-end;justify-self:auto;}
+ #music-response[data-discovery-preview]>#music-refresh{
+   margin-top:4px!important;}
+ #music-response[data-discovery-preview] #results{
+   order:calc(var(--pv-open) + 2);flex:none;height:auto!important;width:100%!important;max-width:744px!important;
+   align-self:stretch!important;max-height:none!important;margin:0 0 24px!important;grid-column:auto!important;
+   grid-row:auto!important;}
+ #music-response[data-discovery-preview]>#empty{
+   order:calc(var(--pv-open) + 3);}
+ #music-response[data-discovery-preview] .result-inner{
+   height:auto!important;overflow:visible!important;width:100%!important;}
+ #music-response[data-discovery-preview] #result-list{
+   width:100%!important;box-sizing:border-box;}
+ /* The open section: a rail that fades out to the right and snaps (kit rule, as the weather forecast). */
+ #music-response[data-discovery-preview] #result-list{
+   display:flex!important;flex-wrap:nowrap!important;gap:16px!important;grid-template-columns:none!important;
+   grid-template-rows:none!important;height:auto!important;overflow-x:auto!important;overflow-y:hidden!important;
+   scroll-snap-type:x mandatory;scrollbar-width:none;padding:0 24px 0 0!important;margin:0!important;
+   -webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);
+   mask-image:linear-gradient(90deg,#000 78%,transparent);}
+ /* Fortsæt can grow with »Se tidligere«: its rows wrap in three columns so the page scrolls down to them. */
+ #music-response[data-discovery-collection=recent] #result-list{
+   display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px!important;
+   overflow:visible!important;-webkit-mask-image:none;mask-image:none;padding:0!important;}
+ #music-response[data-discovery-collection=mood] #result-list{
+   flex-wrap:wrap!important;overflow:visible!important;-webkit-mask-image:none;mask-image:none;padding:0!important;}
+ #music-response[data-discovery-preview] #result-list::-webkit-scrollbar{
+   display:none;}
+ #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]{
+   scroll-snap-align:start;flex:none;position:relative;display:flex!important;flex-direction:column!important;
+   gap:8px!important;width:160px!important;min-width:0!important;height:auto!important;min-height:0!important;
+   padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;
+   box-shadow:none!important;outline:0!important;text-align:left;grid-column:auto!important;grid-row:auto!important;
+   color:var(--pv-ink);}
+ #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-art{
+   position:static!important;inset:auto!important;width:160px!important;height:160px!important;
+   max-width:none!important;border-radius:14px!important;object-fit:cover;margin:0!important;grid-area:auto!important;
+   flex:none;background:#DCDAD4;}
+ #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-copy{
+   position:static!important;inset:auto!important;display:flex!important;flex-direction:column!important;
+   gap:0!important;min-width:0;margin:0!important;padding:0!important;grid-area:auto!important;}
+ #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-copy>*{
+   margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:unset!important;
+   display:block!important;}
+ #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-copy>h2{
+   font:700 16px/1.3 var(--pv-font)!important;color:var(--pv-ink)!important;}
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]>.result-copy>:is(p,small){
+   font:400 14px/1.35 var(--pv-font)!important;color:var(--pv-music-ink-2)!important;}
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]>.result-copy>small:empty{
+   display:none!important;}
+ #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-play{
+   display:none!important;}
+ /* Name and subtitle keep two fixed lines, so loading and ready cards have the same height. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]:not([data-kit=hero]):not([data-kit=card])>.result-copy{
+   height:40px!important;overflow:hidden!important;}
+ /* Fortsæt: 260×72 rows with the cover at the left. */
+ #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]{
+   flex-direction:row!important;align-items:center;width:260px!important;height:72px!important;gap:12px!important;
+   padding:0 12px 0 0!important;border-radius:16px!important;overflow:hidden;background:var(--pv-surface)!important;
+   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;}
+ #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]>.result-art{
+   width:72px!important;height:72px!important;border-radius:0!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]{
+   justify-content:flex-start!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]>.result-copy{
+   flex:1 1 0!important;width:auto!important;min-width:0!important;}
+ /* A missing cover keeps the 24-px music icon centred in the cover box. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:68px!important;box-sizing:border-box!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:24px!important;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:48px!important;}
+ /* Vibe: 120 tiles, the name on the tile. */
+ #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]{
+   width:120px!important;}
+ #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]>.result-art{
+   width:120px!important;height:120px!important;border-radius:18px!important;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state]>.result-copy{
+   position:absolute!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;height:120px;
+   justify-content:flex-end;padding:0 14px 12px!important;border-radius:18px;box-sizing:border-box;
+   background:linear-gradient(180deg,rgba(23,23,26,0) 35%,rgba(23,23,26,.6));}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state]>.result-copy>h2{
+   font:800 20px/1.05 var(--pv-font)!important;color:#F7F6F3!important;white-space:normal;
+   overflow-wrap:normal!important;word-break:normal!important;hyphens:auto;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state]>.result-copy>:is(p,small){
+   display:none!important;}
+ /* Lige nu: the first mood card, 744×252, dark, cover 212, name 36/800 and the Afspil pill. */
+ #music-response[data-discovery-collection=mood] #result-list>.result.result.result[data-content-state][data-kit=hero]{
+   flex-basis:100%!important;width:744px!important;height:252px!important;display:grid!important;
+   grid-template-columns:212px 1fr!important;grid-template-rows:1fr auto!important;column-gap:24px!important;
+   row-gap:0!important;padding:20px!important;box-sizing:border-box;border-radius:28px!important;overflow:hidden;
+   color:#F7F6F3;margin-bottom:16px;background:linear-gradient(135deg,#2B3A4A 0%,#3E5568 55%,#8FB3D9 140%)!important;}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-art{
+   grid-column:1!important;grid-row:1/3!important;width:212px!important;height:212px!important;
+   border-radius:16px!important;box-shadow:0 18px 36px -18px rgba(0,0,0,.7);}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy{
+   grid-column:2!important;grid-row:1!important;min-width:0;}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy::before{
+   content:attr(data-eyebrow);font:600 15px/1.3 var(--pv-font);color:rgba(247,246,243,.75);}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy>h2{
+   margin-top:6px!important;font:800 36px/1.02 var(--pv-font)!important;letter-spacing:-.03em;color:#F7F6F3!important;
+   white-space:normal;display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2!important;}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy>:is(p,small){
+   margin-top:6px!important;font:400 16px/1.35 var(--pv-font)!important;color:rgba(247,246,243,.85)!important;}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-play{
+   display:flex!important;grid-column:2!important;grid-row:2!important;justify-self:start;align-items:center;
+   justify-content:center;gap:10px;position:static!important;min-width:132px!important;width:auto!important;
+   height:56px!important;min-height:56px!important;padding:0 20px!important;border-radius:999px!important;
+   background:#F7F6F3!important;color:#17171A;font:700 17px/1 var(--pv-font);}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-play>img{
+   width:18px!important;height:18px!important;}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-play::after{
+   content:'Afspil';}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero][data-pending=true]>.result-play::after{
+   content:'Starter…';}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero][data-playing=true]>.result-play::after{
+   content:'Spiller';}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]:is([data-pending=true],
+    [data-playing=true])>.result-play>img{
+   display:none;}
+ #music-response[data-discovery-collection=mood]
+   #result-list>.result.result.result[data-content-state][data-kit=hero]:is([data-pending=true],
+    [data-playing=true])>.result-play::before{
+   content:'';width:24px;height:16px;flex:none;}
+ /* Afspil-flow: tap → Starter (scrim and three dots) → Spiller (equalizer mark). Last tap wins. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]:not([data-kit=hero]):is([data-pending=true],
+    [data-playing=true])::after{
+   content:'';position:absolute;pointer-events:none;animation:pv-music-fade .32s ease both;}
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]:not([data-kit=hero])[data-pending=true]::after{
+   left:0;top:0;width:160px;height:160px;border-radius:14px;
+   background:
+  radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) calc(50% - 14px) 50%/8px 8px no-repeat,
+  radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) 50% 50%/8px 8px no-repeat,
+  radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) calc(50% + 14px) 50%/8px 8px no-repeat,
+    rgba(23,23,26,.55);
+   animation:pv-music-fade .32s ease both,pv-music-pend .9s ease-in-out infinite;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state][data-pending=true]::after{
+   width:72px!important;height:72px!important;border-radius:0!important;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state][data-pending=true]::after{
+   width:120px!important;height:120px!important;border-radius:18px!important;}
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::after{
+   left:10px;top:114px;width:36px;height:36px;border-radius:50%;
+   background:
+  linear-gradient(#F7F6F3,#F7F6F3) 11px 100%/3px 14px no-repeat,
+    linear-gradient(#F7F6F3,#F7F6F3) 16.5px 100%/3px 14px no-repeat,
+  linear-gradient(#F7F6F3,#F7F6F3) 22px 100%/3px 14px no-repeat,
+    rgba(23,23,26,.8);
+   background-origin:content-box;padding:11px 0;box-sizing:border-box;
+   animation:pv-music-fade .32s ease both,pv-music-eq 1s ease-in-out infinite;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state][data-playing=true]::after{
+   top:26px!important;left:18px!important;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state][data-playing=true]::after{
+   top:10px!important;left:auto!important;right:10px;}
+}
+/* #389 leftover: in the small Musik slot the »Afspiller« context line sat on top of the »Musik« head while music
+   played. The head already names the widget and the title/artist say what plays, so the line is not shown there. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather) #home-music
+   .resource-context{
+   display:none!important;}
+}
+/* Kø (lærred v190 »Musik-Koe«, issue 392): »Kø« 24/800 over one #F7F6F3 card of 72-px rows with thin dividers;
+   the current track has the title and a ring round the cover in the accent. The player stays at the right. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] .responses>#music-detail:not([hidden]){
+   background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important;
+   width:744px!important;max-width:744px!important;}
+ #music-detail .detail-queue{
+   display:flex!important;flex-direction:column!important;gap:16px!important;margin:0!important;padding:0!important;
+   width:744px!important;background:transparent!important;box-shadow:none!important;
+   animation:pv-queue-rise .32s cubic-bezier(.2,.9,.3,1) both;}
+ #music-detail #queue-title{
+   height:32px;margin:0!important;font:800 24px/32px var(--pv-font)!important;color:var(--pv-ink)!important;}
+ #music-detail #queue{
+   display:flex!important;flex-direction:column!important;gap:0!important;padding:8px 20px!important;
+   border-radius:24px!important;background:#F7F6F3!important;box-sizing:border-box;width:744px!important;}
+ #music-detail #queue>.queue-track{
+   display:grid!important;grid-template-columns:32px 56px 1fr 44px!important;align-items:center;gap:14px!important;
+   height:72px!important;min-height:72px!important;margin:0 -12px!important;padding:0 12px!important;
+   border:0!important;border-top:1px solid rgba(23,23,26,.07)!important;border-radius:14px!important;
+   background:transparent!important;box-shadow:none!important;outline:0;}
+ #music-detail #queue>.queue-track:first-child{
+   border-top:0!important;}
+ #music-detail #queue>.queue-track:active{
+   background:#EFEDE8!important;}
+ #music-detail #queue>.queue-track>.queue-order{
+   width:32px!important;height:32px!important;min-width:0!important;display:flex!important;align-items:center;
+   justify-content:center;font:500 15px 'IBM Plex Mono',ui-monospace,monospace!important;color:#5F5E5A!important;
+   background:transparent!important;}
+ #music-detail #queue>.queue-track>.queue-order>img{
+   width:20px!important;height:20px!important;}
+ #music-detail #queue>.queue-track>.queue-cover{
+   width:56px!important;height:56px!important;border-radius:8px!important;object-fit:cover;
+   transition:box-shadow .25s ease;}
+ #music-detail #queue>.queue-track>.queue-copy{
+   min-width:0;}
+ #music-detail #queue>.queue-track>.queue-copy>strong{
+   font:700 17px/1.3 var(--pv-font)!important;color:var(--pv-ink)!important;transition:color .25s ease;}
+ #music-detail #queue>.queue-track>.queue-copy>small{
+   font:400 15px/1.3 var(--pv-font)!important;color:#5F5E5A!important;}
+ #music-detail #queue>.queue-track>.queue-play{
+   width:44px!important;height:44px!important;padding:12px!important;box-sizing:border-box;opacity:.55;}
+ #music-detail #queue>.queue-track[data-current=true]>.queue-copy>strong{
+   color:#B4532A!important;font-weight:800!important;}
+ #music-detail #queue>.queue-track[data-current=true]>.queue-cover{
+   box-shadow:0 0 0 2px #F7F6F3,0 0 0 4px #B4532A;}
+}
+@keyframes pv-queue-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+@keyframes pv-music-fade{from{opacity:0}to{opacity:1}}
+@keyframes pv-music-eq{0%,100%{background-size:3px 5px,3px 14px,3px 9px,auto}50%{background-size:3px 14px,3px 6px,3px 14px,auto}}
+@keyframes pv-music-pend{0%,100%{opacity:.55}50%{opacity:1}}
+@media (prefers-reduced-motion:reduce){
+ #music-response[data-discovery-preview] #result-list>.result::after{
+   animation:none!important;}
+}
+
