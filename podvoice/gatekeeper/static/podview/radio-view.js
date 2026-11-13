@@ -36,23 +36,33 @@ export class RadioView{
   this.feedback=createKitComponent('listrow',{document:doc,tag:'p',variant:'feedback'});this.feedback.dataset.kitSlot='feedback';this.feedback.hidden=true;this.feedback.setAttribute('role','status');this.feedback.setAttribute('aria-live','polite');copy.append(title,subtitle);header.append(copy);
   const list=doc.createElement('pv-choice-list');
   list.setAttribute('aria-label','Radiostationer');list.className='radio-station-tiles pv-tiles';list.dataset.detailZone='controls';
-  const hero=createKitComponent('hero',{document:doc,tag:'section',className:'radio-hero pv-hero',identity:'neutral',variant:'message',label:'Radio'});hero.dataset.detailZone='hero';hero.dataset.kitDensity='compact';
-  this.stationArt=doc.createElement('img');this.stationArt.className='radio-hero-art';this.stationArt.dataset.kitSlot='icon';this.stationArt.alt='';this.stationArt.width=144;this.stationArt.height=144;
-  this.stationStatusLine=doc.createElement('p');this.stationStatusLine.className='radio-hero-status';
-  this.stationTitle=doc.createElement('h2');this.stationTitle.dataset.kitSlot='title';
-  this.stationStatus=doc.createElement('p');this.stationStatus.className='pv-meta radio-hero-sub';this.stationStatus.dataset.kitSlot='body';
-  const stationCopy=doc.createElement('div');stationCopy.dataset.kitSlot='copy';stationCopy.append(this.stationStatusLine,this.stationTitle,this.stationStatus,this.feedback);
-  const top=doc.createElement('div');top.className='radio-hero-top';top.append(this.stationArt,stationCopy);
-  this.scale=doc.createElement('div');this.scale.className='radio-scale';this.scale.setAttribute('role','img');
-  const ticks=doc.createElement('div');ticks.className='radio-scale-ticks';
-  for(const height of TICKS){const tick=doc.createElement('i');tick.className='radio-scale-tick';tick.setAttribute('style',`height:${height}px`);ticks.append(tick);}
-  this.marks=stations.map(({label},index)=>{const mark=doc.createElement('span');mark.className='radio-scale-mark';mark.textContent=label.split(' ')[0];mark.setAttribute('style',`left:${stationPosition(index)}`);return mark;});
-  this.needle=doc.createElement('i');this.needle.className='radio-scale-needle';this.needle.hidden=true;
+  const hero=createKitComponent('hero',{document:doc,tag:'section',className:'radio-hero pv-hero',
+   identity:'neutral',variant:'message',label:'Radio'});
+  hero.dataset.detailZone='hero';hero.dataset.kitDensity='compact';
+  const element=(tag,className)=>{const node=doc.createElement(tag);if(className)node.className=className;return node;};
+  this.stationArt=element('img','radio-hero-art');
+  this.stationArt.dataset.kitSlot='icon';this.stationArt.alt='';this.stationArt.width=144;this.stationArt.height=144;
+  this.stationStatusLine=element('p','radio-hero-status');
+  this.stationTitle=element('h2');this.stationTitle.dataset.kitSlot='title';
+  this.stationStatus=element('p','pv-meta radio-hero-sub');this.stationStatus.dataset.kitSlot='body';
+  const stationCopy=element('div');stationCopy.dataset.kitSlot='copy';
+  stationCopy.append(this.stationStatusLine,this.stationTitle,this.stationStatus,this.feedback);
+  const top=element('div','radio-hero-top');top.append(this.stationArt,stationCopy);
+  this.scale=element('div','radio-scale');this.scale.setAttribute('role','img');
+  const ticks=element('div','radio-scale-ticks');
+  for(const height of TICKS){
+   const tick=element('i','radio-scale-tick');tick.setAttribute('style',`height:${height}px`);ticks.append(tick);
+  }
+  this.marks=stations.map(({label},index)=>{
+   const mark=element('span','radio-scale-mark');mark.textContent=label.split(' ')[0];
+   mark.setAttribute('style',`left:${stationPosition(index)}`);return mark;
+  });
+  this.needle=element('i','radio-scale-needle');this.needle.hidden=true;
   this.scale.append(ticks,...this.marks,this.needle);
   hero.append(top,this.scale);this.hero=hero;
-  const stationsHead=doc.createElement('div');stationsHead.className='radio-stations-head';
-  const stationsTitle=doc.createElement('h2');stationsTitle.className='radio-stations-title';stationsTitle.textContent='Radiostationer';
-  this.speakerLine=doc.createElement('span');this.speakerLine.className='radio-stations-speaker';this.speakerLine.hidden=true;
+  const stationsHead=element('div','radio-stations-head');
+  const stationsTitle=element('h2','radio-stations-title');stationsTitle.textContent='Radiostationer';
+  this.speakerLine=element('span','radio-stations-speaker');this.speakerLine.hidden=true;
   stationsHead.append(stationsTitle,this.speakerLine);
   this.playerButton=createKitComponent('listrow',{document:doc,tag:'button',className:'radio-open-player pv-button',label:'Se afspiller'});this.playerButton.textContent='Se afspiller';this.playerButton.type='button';this.playerButton.hidden=true;this.openPlayer=()=>{if(this.playerButton.hidden||!this.state.stationId)return;this.onOpenPlayer();};this.playerButton.addEventListener('click',this.openPlayer);this.root.replaceChildren(header,hero,stationsHead,list,this.playerButton);
   this.header=header;this.subtitle=subtitle;this.list=list;
@@ -70,7 +80,8 @@ export class RadioView{
     ?'PodConnect afviste radiotokenet. Kontrollér, at Speakers og PodVoice bruger samme radiotoken.'
     :null;
   this.subtitle.textContent=available?'Vælg eller skift station nedenfor.':blocked?'Adgang afvist. Dine stationer er bevaret. Kontrollér adgangen i Home Assistant.':!connected?'Ikke forbundet. Dine stationer er bevaret. Kontrollér forbindelsen i Home Assistant.':setupMessage||'Radioen er ikke klar på højttalerne endnu.';
-  this.renderHero({available,selected,playback,pendingStationId,speaker:typeof speaker==='string'&&speaker.trim()?speaker.trim():null});
+  const speakerName=typeof speaker==='string'&&speaker.trim()?speaker.trim():null;
+  this.renderHero({available,selected,playback,pendingStationId,speaker:speakerName});
   this.playerButton.hidden=true;this.list.data={
    items:stations.map(({id,label})=>({id,label,feedback:'label',loading:pendingStationId===id,detail:pendingStationId===id?'Starter…':(selected===id?(playback===true?'Valgt · ':playback===false?'Stoppet · ':'Valgt · '):'')+DESCRIPTIONS[id],icon:`radio-${id}`,current:false})),selected,
    connected:selectable,state:available?'ready':blocked||connected?'unsupported':'offline',
@@ -81,9 +92,11 @@ export class RadioView{
  // Hero (lærred »A-Radio«): status line, title and description for choose, starting, playing, stopped and
  // not available; the station's logo, colour and needle on the scale follow the station shown.
  renderHero({available,selected,playback,pendingStationId,speaker}){
-  const starting=available?radioStation(pendingStationId):null,station=starting||(available?radioStation(selected):null);
+  const starting=available?radioStation(pendingStationId):null;
+  const station=starting||(available?radioStation(selected):null);
   const index=station?stations.findIndex(({id})=>id===station.id):-1;
-  const phase=!available?'unavailable':starting?'starting':!station?'choose':playback===true?'playing':playback===false?'stopped':'chosen';
+  const phase=!available?'unavailable':starting?'starting':!station?'choose'
+   :playback===true?'playing':playback===false?'stopped':'chosen';
   const lines={
    choose:['Ingen station valgt','Vælg station',`${stations.length} stationer`],
    starting:[`Starter ${station?.label}…`,station?.label,DESCRIPTIONS[station?.id]],
@@ -99,7 +112,9 @@ export class RadioView{
   if(this.stationStatus.textContent!==lines[2])this.stationStatus.textContent=lines[2];
   // The station colour (hero tint, needle and tile ring) comes from radio CSS keyed by data-radio-station.
   const stationId=station?.id||'';
-  if((this.hero.dataset.radioStation||'')!==stationId){if(stationId)this.hero.dataset.radioStation=stationId;else delete this.hero.dataset.radioStation;}
+  if((this.hero.dataset.radioStation||'')!==stationId){
+   if(stationId)this.hero.dataset.radioStation=stationId;else delete this.hero.dataset.radioStation;
+  }
   const art=station?`assets/radio-${station.id}.svg`:'';
   this.stationArt.hidden=!station;
   if(art&&this.stationArt.getAttribute('src')!==art){
@@ -112,7 +127,9 @@ export class RadioView{
   this.needle.hidden=!station;
   const needleStyle=station?`left:${stationPosition(index)}`:'';
   if(station&&this.needle.getAttribute('style')!==needleStyle)this.needle.setAttribute('style',needleStyle);
-  this.marks.forEach((mark,position)=>{const current=String(position===index);if(mark.dataset.current!==current)mark.dataset.current=current;});
+  this.marks.forEach((mark,position)=>{
+   const current=String(position===index);if(mark.dataset.current!==current)mark.dataset.current=current;
+  });
   const label=station?`Stationsskala, valgt ${station.label}`:'Stationsskala';
   if(this.scale.getAttribute('aria-label')!==label)this.scale.setAttribute('aria-label',label);
   const speakerText=speaker?`Afspilles på ${speaker}`:'';

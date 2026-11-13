@@ -1699,7 +1699,8 @@
           "class:RadioView": 1,
           "method:build": 1,
           "method:destroy": 1,
-          "arrow:stationPosition": 1
+          "arrow:stationPosition": 1,
+          "arrow:element": 1
         },
         "roots": [
           "native:div:radio-hero-top",

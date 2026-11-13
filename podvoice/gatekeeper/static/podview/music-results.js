@@ -225,9 +225,11 @@ export function renderOverviewMediaValues(host){
  const radioCard=doc.getElementById('home-radio'),radioState=radioAvailable?'ready':'unavailable';
  if(radioCard&&radioCard.dataset.kitState!==radioState)radioCard.dataset.kitState=radioState;
  // W-radio »spiller«/»starter«: the station logo fills the widget's 64-px surface.
- const radioLogo=radioAvailable&&radioKnown&&/^assets\/radio-[a-z0-9-]+\.svg$/.test(radioVM.fixtureArt||'')?`url(${radioVM.fixtureArt})`:'';
+ const radioArt=radioAvailable&&radioKnown&&/^assets\/radio-[a-z0-9-]+\.svg$/.test(radioVM.fixtureArt||'');
+ const radioLogo=radioArt?`url(${radioVM.fixtureArt})`:'';
  if(radioCard?.style&&radioCard.style.getPropertyValue('--pv-radio-logo')!==radioLogo){
-  if(radioLogo)radioCard.style.setProperty('--pv-radio-logo',radioLogo);else radioCard.style.removeProperty('--pv-radio-logo');
+  if(radioLogo)radioCard.style.setProperty('--pv-radio-logo',radioLogo);
+  else radioCard.style.removeProperty('--pv-radio-logo');
   radioCard.toggleAttribute('data-radio-logo',!!radioLogo);
  }
  for(const [id,value]of Object.entries(values)){
