@@ -5,13 +5,22 @@ export function scrollEdgeState({position,viewport,content,threshold=1}){
  const maxPosition=Math.max(0,content-viewport),current=Math.min(maxPosition,Math.max(0,position));
  return maxPosition>1?[current>threshold?'start':'',current<maxPosition-threshold?'end':''].filter(Boolean).join(' '):'';
 }
+// Press feedback toggles is-pressed on every tap. It cannot change what scrolls, so it must not
+// trigger a rescan (a style read of every scroll container right as the tap is being painted).
+const PRESSED=/(^|\s)is-pressed(?=\s|$)/g;
+export function pressOnly(record){
+ if(record?.type!=='attributes'||record.attributeName!=='class'||record.oldValue==null)return false;
+ const now=record.target?.getAttribute?.('class');if(now==null)return false;
+ const strip=value=>value.replace(PRESSED,' ').trim().split(/\s+/).join(' ');
+ return strip(record.oldValue)===strip(now);
+}
 export class ScrollEdges {
  constructor(host){this.host=host;this.nodes=new Map();this.onChange=()=>this.refresh(false);this.discoveryDirty=true;}
- attach(){if(this.resize)return;this.resize=new ResizeObserver(this.onChange);this.mutations=new MutationObserver(records=>this.refresh(records.length===0||records.some(record=>record.type==='childList'||record.attributeName==='class')));
+ attach(){if(this.resize)return;this.resize=new ResizeObserver(this.onChange);this.mutations=new MutationObserver(records=>{const relevant=records.filter(record=>!pressOnly(record));if(records.length&&!relevant.length)return;this.refresh(relevant.length===0||relevant.some(record=>record.type==='childList'||record.attributeName==='class'));});
   // The canonical player dialog is a body sibling, not a child of WidgetHost.
   // Observe its real queue with the same owner, including native open/close.
   const detail=this.host.ownerDocument?.getElementById('music-detail');this.roots=[this.host];if(detail&&!this.host.contains(detail))this.roots.push(detail);
-  for(const root of this.roots){this.mutations.observe(root,{childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden','open'],subtree:true});this.resize.observe(root);root.addEventListener('load',this.onChange,true);}this.refresh();}
+  for(const root of this.roots){this.mutations.observe(root,{childList:true,characterData:true,attributes:true,attributeFilter:['class','style','hidden','open'],subtree:true,attributeOldValue:true});this.resize.observe(root);root.addEventListener('load',this.onChange,true);}this.refresh();}
  refresh(discover=true){if(discover)this.discoveryDirty=true;if(this.frame||!this.resize)return;this.frame=requestAnimationFrame(()=>{this.frame=0;this.scan();});}
  scan(){
   // Resizing or decoding an image cannot add a scroll container. Only query

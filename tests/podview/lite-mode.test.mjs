@@ -77,14 +77,14 @@ test('strip mode makes every Web Animation finish at once and disables zoom', as
 test('a redraw waits while the finger is down or content scrolls, and runs right after', async () => {
   const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
     'utf8');
-  const body = source.match(/function deferForGesture\(host\)\{([\s\S]*?)\n\}/)[1];
+  const body = source.match(/function deferForGesture\(host,kind='render'\)\{([\s\S]*?)\n\}/)[1];
   const timers = [];
   const host = {
     touching: false, lastScrollAt: 0, isConnected: true, renders: 0,
     render() { this.renders++; },
   };
-  const deferFn = new Function('host', 'Date', 'setTimeout', 'clearTimeout', body);
-  const defer = (clock, set, clear) => deferFn(host, clock, set, clear);
+  const deferFn = new Function('host', 'kind', 'Date', 'setTimeout', 'clearTimeout', body);
+  const defer = (clock, set, clear, kind = 'render') => deferFn(host, kind, clock, set, clear);
   const clock = { now: () => 10_000 };
   const run = () => defer(clock, (fn) => timers.push(fn), () => {});
   assert.equal(run(), false, 'idle: redraw now');
@@ -96,6 +96,23 @@ test('a redraw waits while the finger is down or content scrolls, and runs right
   host.lastScrollAt = 0;
   timers.at(-1)();
   assert.equal(host.renders, 1, 'the waiting redraw runs once afterwards');
+  host.lives = 0;host.renderLive = function () { this.lives++; };
+  host.touching = true;
+  assert.equal(defer(clock, (fn) => timers.push(fn), () => {}, 'renderLive'), true, 'live redraw waits too');
+  timers.at(-1)();
+  assert.deepEqual([host.renders, host.lives], [1, 1], 'a waiting live redraw stays a light live redraw');
+  defer(clock, (fn) => timers.push(fn), () => {}, 'renderLive');
+  defer(clock, (fn) => timers.push(fn), () => {}, 'render');
+  defer(clock, (fn) => timers.push(fn), () => {}, 'renderLive');
+  timers.at(-1)();
+  assert.deepEqual([host.renders, host.lives], [2, 1], 'a waiting full redraw is never downgraded');
+});
+
+test('on every screen, live data redraws wait for the finger; navigation redraws do not', async () => {
+  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+    'utf8');
+  assert.match(source, /renderLive\(\)\{if\(\(this\.touching\|\|Date\.now\(\)-\(this\.lastScrollAt\|\|0\)<150\)&&deferForGesture\(this,'renderLive'\)\)return;/);
+  assert.match(source, /render\(\)\{if\(this\.lite&&deferForGesture\(this\)\)return;/);
 });
 
 test('cached date formatting gives the same text as toLocaleTimeString', async () => {
@@ -190,13 +207,13 @@ test('edge-drag preview never writes the root in strip mode and only on change e
   assert.match(preview, /getPropertyValue\?\.\('--edge-progress'\)!==value/);
 });
 
-test('in strip mode the player refresh waits while a finger is down and runs right after', async () => {
+test('the player refresh waits while a finger is down and runs right after, on every screen', async () => {
   const { LiveMediaView } = await import('../../podvoice/gatekeeper/static/podview/live-media-view.js');
   const source = LiveMediaView.prototype.render.toString();
-  const waits = /this\.host\.lite&&\(this\.host\.touching\|\|Date\.now\(\)-\(this\.host\.lastScrollAt\|\|0\)<150\)/;
+  const waits = /if\(\(this\.host\.touching\|\|Date\.now\(\)-\(this\.host\.lastScrollAt\|\|0\)<150\)\)/;
   assert.match(source, waits);
   const view = Object.create(LiveMediaView.prototype);
-  view.host = { lite: true, touching: true };
+  view.host = { lite: false, touching: true };
   const realSetTimeout = globalThis.setTimeout;
   const timers = [];
   globalThis.setTimeout = (fn) => { timers.push(fn); return timers.length; };
