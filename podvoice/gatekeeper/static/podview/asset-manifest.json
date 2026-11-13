@@ -639,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "bddb6387a664095c026ed4c9ed6cb9be9be474d84c2140973c392f5bb38b5893"
+      "sha256": "4d51a10f7532d401526cde1b85809078fc711ca0b962407e79106b2bbc394e02"
     },
     {
       "path": "podview.css",
@@ -691,7 +691,7 @@
     },
     {
       "path": "room-player-controls.js",
-      "sha256": "ac525c6b2bcd57366db565564e567b67e4bee60c110c39e77d246bd6c52a876b"
+      "sha256": "2e892103e7d36df038c239f0f52c68c43faf4eb81fbcda37a326df615f8693c2"
     },
     {
       "path": "scene-model.js",

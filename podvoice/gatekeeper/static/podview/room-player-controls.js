@@ -95,9 +95,11 @@ export class RoomPlayerControls{
    if(result.outcome!=='accepted'){
     // An honest outcome, never an automatic retry. Waiting taps were meant for the state before.
     for(const waiting of this.queue)waiting.done(false);
-    this.queue=[];this.desired=null;this.status=FAILED[result.outcome]||FAILED.unknown;
-    this.failed={at:Date.now(),uri:this.playback()?.item?.uri??null,state:this.playback()?.state};
-    this.host.showFeedback?.(this.status,false,{source:'music-intent'});
+    // No text stays in the player or queue. The next room read decides: if the room shows what
+    // the user wished (the pause did happen), nothing is shown; otherwise one short toast.
+    this.queue=[];
+    this.failed={at:Date.now(),wish:this.desired,action:row.action,message:FAILED[result.outcome]||FAILED.unknown};
+    this.desired=null;
    }
   }
   this.render();this.host.liveMedia?.render?.();
@@ -105,10 +107,17 @@ export class RoomPlayerControls{
  }
  // A fresh room read: the optimistic wish yields once the room shows it, or after a short while.
  observe(next){
-  // The failure note stays until the room moves on (another song or state) or a short while passes.
+  // A refused tap whose effect the room shows anyway (Speakers may report a pause as failed) is
+  // silent. Only an effect that did not happen gives one short toast; nothing stays on screen.
   const f=this.failed;
-  if(f&&(next.item?.uri!==f.uri||next.state!==f.state||Date.now()-f.at>OPTIMISTIC_MS)){
-   this.failed=null;this.status='';
+  if(f){
+   this.failed=null;
+   const happened=typeof f.wish?.playing==='boolean'?(next.state==='playing')===f.wish.playing
+    :Number.isInteger(f.wish?.volume)?next.volume===f.wish.volume:false;
+   if(!happened&&Date.now()-f.at<=OPTIMISTIC_MS){
+    this.host.showFeedback?.('',false,{source:'music-toast'});
+    this.host.showFeedback?.(f.message,false,{source:'music-toast'});
+   }
   }
   // The first room read after accepted calls is their observed effect (diagnostics only).
   if(!this.busy()&&this.observing?.length){

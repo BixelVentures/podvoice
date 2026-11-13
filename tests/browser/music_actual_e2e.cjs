@@ -292,8 +292,10 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
  const explicit=await state();
  assert((await change({rejectNextPause:true})).ok);
  await page.locator('#play-pause').tap();
- await page.waitForFunction(()=>document.body.innerText.includes('Højttaleren afviste handlingen'),
+ await page.waitForFunction(()=>document.getElementById('playback-status')?.innerText.includes('Højttaleren afviste'),
   undefined,{timeout:10000});
+ assert.equal(await page.evaluate(()=>[...document.querySelectorAll('.player,#music-detail')]
+  .some(n=>/afviste|svarede ikke/.test(n.innerText))),false,'no refusal text stays in the player or queue');
  assert.equal((await state()).rejectedPauses.length,1);
  if(!await page.locator('#home-music').isVisible())await page.locator('#header-title-action').tap();
  await page.locator('#home-music').tap();
