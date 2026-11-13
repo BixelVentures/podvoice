@@ -1,3 +1,11 @@
+## 2.0.190
+
+- Musikafspilleren følger nu enkle regler: Afspilleren ejer højttalervalget, og radio og musik spiller altid på den valgte højttaler. At åbne Find musik eller radiosiden ændrer ikke afspilleren. Stoppet radio bliver i afspilleren i 10 min ligesom pauset musik. Højttalervælger, kø og Find musik låses aldrig, og "Højttaleren afviste handlingen" står ikke længere i afspiller eller kø. Pause/afspil, kold start og valg i køen sker roligt uden blink, og spole-slideren føles som lydstyrken.
+- PodView føles mere som en app: Robot-, Tesla-, vejr- og opskriftssiderne er klar, når de åbnes, fordi indholdet hentes i baggrunden. Forsidekortene blinker ikke ved opdatering, og skærmen kan ikke længere zoomes, markeres eller trækkes ud ved et uheld.
+- Robotten husker igen dine sidste rum og indstillinger, også efter en genstart. En dokket robot logges ikke længere som en fejl.
+- Opskrifter fra iPhone: Del → Home Assistant gemmer opskriften og sender "Gemt", "Findes allerede" eller "Ingen opskrift fundet" som besked til telefonen. Den nye opskrift vises med det samme på iPad'en.
+- Kræver PodConnect Speakers 0.26.101.
+
 ## 2.0.189
 
 - Rettelser efter testen 13. nov. (kræver PodConnect Speakers 0.26.99 og Control 0.10.45, og HA-komponenten 0.1.24):
