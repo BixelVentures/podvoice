@@ -2802,11 +2802,3 @@ pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-
  margin-block-start:var(--pv-control-section-gap);
 }
 
-/* Strip mode (ui/lite.js, html[data-lite]): weak wall screens such as a Frameo frame. Same layout,
-   functions and texts; no painted effects or motion, so scroll and taps are not starved. */
-html[data-lite] *,html[data-lite] *::before,html[data-lite] *::after{
- animation:none!important;transition:none!important;box-shadow:none!important;text-shadow:none!important;
- backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
- mask-image:none!important;-webkit-mask-image:none!important;scroll-behavior:auto!important}
-html[data-lite] :not(img){filter:none!important}
-html[data-lite]{touch-action:manipulation}
