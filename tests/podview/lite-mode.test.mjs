@@ -111,7 +111,7 @@ test('a redraw waits while the finger is down or content scrolls, and runs right
 test('on every screen, live data redraws wait for the finger; navigation redraws do not', async () => {
   const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
     'utf8');
-  assert.match(source, /renderLive\(\)\{if\(\(this\.touching\|\|Date\.now\(\)-\(this\.lastScrollAt\|\|0\)<150\)&&deferForGesture\(this,'renderLive'\)\)return;/);
+  assert.match(source, /renderLive\(\)\{if\(\(this\.touching\|\|this\.lite&&Date\.now\(\)-\(this\.lastScrollAt\|\|0\)<150\)&&deferForGesture\(this,'renderLive'\)\)return;/);
   assert.match(source, /render\(\)\{if\(this\.lite&&deferForGesture\(this\)\)return;/);
 });
 
@@ -210,7 +210,7 @@ test('edge-drag preview never writes the root in strip mode and only on change e
 test('the player refresh waits while a finger is down and runs right after, on every screen', async () => {
   const { LiveMediaView } = await import('../../podvoice/gatekeeper/static/podview/live-media-view.js');
   const source = LiveMediaView.prototype.render.toString();
-  const waits = /if\(\(this\.host\.touching\|\|Date\.now\(\)-\(this\.host\.lastScrollAt\|\|0\)<150\)\)/;
+  const waits = /if\(this\.host\.touching\|\|this\.host\.lite&&Date\.now\(\)-\(this\.host\.lastScrollAt\|\|0\)<150\)/;
   assert.match(source, waits);
   const view = Object.create(LiveMediaView.prototype);
   view.host = { lite: false, touching: true };

@@ -224,8 +224,8 @@ export class LiveMediaView{
  observedPlayerModel(){const p=roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account)?this.playback:null;return livePlayerModel(p,!!this.host.liveTransport?.connected,(['connecting','connected'].includes(this.host.liveStatus)&&!this.host.liveSnapshot&&!this.playback)?'loading':this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||'',this.host.liveOutputs?.actualLabel?.(playbackBinding(p,this.host.liveSnapshot,this.account))||p?.actualTargetLabel||'');}
 
  render(){
-  // A refresh redraw while a finger is down or content scrolls waits ~160 ms, as the host's live redraw.
-  if((this.host.touching||Date.now()-(this.host.lastScrollAt||0)<150)){
+  // A refresh redraw while a finger is down (strip mode: or content scrolls) waits ~160 ms, as the host's.
+  if(this.host.touching||this.host.lite&&Date.now()-(this.host.lastScrollAt||0)<150){
    clearTimeout(this.gestureRender);
    this.gestureRender=setTimeout(()=>{this.gestureRender=null;this.render();},160);return;
   }
