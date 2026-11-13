@@ -511,7 +511,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "c4091cfae5b9622972c8e139e912319bb520b65ce8be54fbbdb0dd14a12db76a"
+      "sha256": "fa5c872d779638d927e3325bf8baaa74f4c4a68c107e89c4852782b719aa4288"
     },
     {
       "path": "library.css",
@@ -539,7 +539,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "584fbc0b274107f99dad73cc4ddb454bf0ca04e1e4425fc336de3adeb95c3269"
+      "sha256": "d1b46e3e91e83ceefe245c6f0c0644e02234705d1ca833506aebfb229a3c3080"
     },
     {
       "path": "live-home-view.js",
@@ -639,11 +639,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "cadc7186c67218c3bb892009afc4c4ccab16a31b0668133890fab0b8160e63f9"
+      "sha256": "4892c9ff1c8ca2f9ae0987588464a068c2bbe25afb8339cd50f5c4c4ac6a08b1"
     },
     {
       "path": "podview.css",
-      "sha256": "d7360ce7563fb198de1a5901b1ebcb89f742d0a16403a17d0b2e51f68ced5736"
+      "sha256": "42d3c3154bdf5e49b9496cc01c370be489d037f092792db3eda0bdd870014c17"
     },
     {
       "path": "podvoice-transport.js",
@@ -751,7 +751,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "bd3342d30e39620c1d366cb72a940bb6538fe57ef490fa2d70dac2890d8f6496"
+      "sha256": "a0b2f91e1fb8237f1bb36d9ec67bd263bda5858a647c2a2d9bd1de28c463d671"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -895,7 +895,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "187f4151dc8a94d25e046763f789852ceed653233c4d30454f31331fd64f142a"
+      "sha256": "a80e7c5008c8f7e75bdb4d4d7bc5eeedc19c5d3e665d02bc896a6df1eb8cee95"
     },
     {
       "path": "widget-model.js",

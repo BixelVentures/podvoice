@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 bd3342d30e39620c1d366cb72a940bb6538fe57ef490fa2d70dac2890d8f6496 */
+/* Source: ui-kit.css · SHA256 a0b2f91e1fb8237f1bb36d9ec67bd263bda5858a647c2a2d9bd1de28c463d671 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -4860,7 +4860,7 @@ pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=prim
 
 /* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
-.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:rgba(27,29,28,0.12);background:color-mix(in srgb,currentColor 12%,transparent);animation:pv-connecting-sheen 1200ms ease-in-out 3;pointer-events:none}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:none;position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:rgba(27,29,28,0.12);background:color-mix(in srgb,currentColor 12%,transparent);animation:pv-connecting-sheen 1200ms ease-in-out 3;pointer-events:none}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before{top:4px;width:92%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation:pv-advice-ready var(--pv-fast,200ms) var(--pv-ease,cubic-bezier(.2,0,0,1)) both}
