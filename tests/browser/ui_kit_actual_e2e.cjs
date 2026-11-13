@@ -34,6 +34,7 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  page.on('pageerror',error=>errors.push(error.message));
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
 
+ const shot=(name,clip)=>page.screenshot({path:path.join(env.artifactDir(),`ui-kit-${name}.png`),clip});
  // One token set: canvas v2 colours, Schibsted + Plex Mono, three motion times.
  const tokens=await page.evaluate(async()=>{await document.fonts.ready;const css=getComputedStyle(document.documentElement);
   const v=name=>css.getPropertyValue(name).trim();
@@ -60,6 +61,7 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  assert(Math.abs(bar.centre-590)<=1,`Svar is centred: ${bar.centre}`);
  assert(Math.abs(bar.middle-36)<=1,`Svar is vertically centred: ${bar.middle}`);
 
+ await shot('topbar',{x:0,y:0,width:1180,height:72});
  // Svar press: shrink + darker within 100 ms of the finger landing.
  const svar=await page.locator('#open-history').boundingBox();
  const svarPress=pressLatency(page,'#open-history','scale');
@@ -67,6 +69,7 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  const svarMs=await svarPress;assert(svarMs<100,`Svar press visible in ${svarMs} ms`);await sleep(200);
  assert.deepEqual(await page.locator('#open-history').evaluate(n=>[getComputedStyle(n).scale,getComputedStyle(n).filter]),
   ['0.97','brightness(0.92)'],'held press settles at .97 and slightly darker');
+ await shot('svar-pressed',{x:390,y:0,width:400,height:72});
  await page.mouse.move(5,400);await page.mouse.up();
 
  // Widget sizes and flat press: a circle at the finger.
@@ -84,6 +87,8 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  assert.equal(sizes.mask,'linear-gradient(90deg, rgb(0, 0, 0) 78%, rgba(0, 0, 0, 0))');
  assert.equal(sizes.snap,'x mandatory');assert.equal(sizes.align,'start');
  await page.locator('#kit-m').scrollIntoViewIfNeeded();
+ const rowBox=await page.locator('#kit-row').boundingBox();
+ await shot('widgets-fade',{x:rowBox.x,y:rowBox.y,width:rowBox.width,height:rowBox.height});
  const widget=await page.locator('#kit-m').boundingBox();
  const flatPress=pressLatency(page,'#kit-m','circle');
  await page.mouse.move(widget.x+40,widget.y+60);await page.mouse.down();
@@ -93,10 +98,13 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
    left:after.left,top:after.top,radius:after.borderRadius,shrinks:!['none','1'].includes(getComputedStyle(w).scale)};
    });
  assert.deepEqual(circle,{left:'40px',top:'60px',radius:'50%',shrinks:false},'flat press is a circle at the finger');
+ await shot('widget-pressed',{x:widget.x,y:widget.y,width:widget.width,height:widget.height});
  await page.mouse.up();await sleep(400);
  assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#kit-m'),'::after').opacity),'0',
   'circle fades after release');
 
+ await page.locator('#kit-row').evaluate(row=>{row.scrollLeft=row.scrollWidth;});await sleep(300);
+ await shot('widgets-scrolled',{x:rowBox.x,y:rowBox.y,width:rowBox.width,height:rowBox.height});
  assert.deepEqual(errors,[]);
  await page.screenshot({path:path.join(env.artifactDir(),'ui-kit-1180x820.png')});
  console.log('ui kit: tokens, topbar, widget sizes, press <100 ms, horizontal fade ok');

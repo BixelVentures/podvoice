@@ -2852,12 +2852,17 @@ body{font-family:var(--pv-font)}
    color:var(--pv-ink);
   box-shadow:0 2px 0 rgba(23,23,26,.10),inset 0 0 0 1px rgba(23,23,26,.06);font:600 18px/22px var(--pv-font)}
  pv-widget-host>.view-nav #open-history strong{font:inherit}
+ body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history{width:auto;min-width:0;max-width:none}
+ body pv-widget-host>nav.view-nav #show-photo[data-navigation=rest] .rest-label{font:inherit}
  /* The voice surface keeps Svar inside .header-activity; then that slot is the centred box. */
  body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-left>.header-activity:has(>#open-history){inset:auto;
   position:absolute;left:50%;top:12px;translate:-50% 0;transform:none;width:auto;min-width:0;max-width:none;height:48px;
   margin:0;flex:none;overflow:visible}
  body pv-widget-host>nav.view-nav .header-activity>#open-history{position:static;translate:none}
  body pv-widget-host>nav.view-nav #header-date{font-family:var(--pv-font)}
+ /* Home: house icon + title, no pill (Kit-Topbar). Back on other pages keeps its own key. */
+ body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest]{min-width:0;width:auto;height:48px;
+  padding:0;gap:14px;background:none;box-shadow:none;font:600 22px/26px var(--pv-font);letter-spacing:-.01em}
  pv-widget-host>.view-nav #header-clock{font-size:20px;font-weight:500;letter-spacing:-.02em}
 }
 .pv-svar-grille{position:relative;display:block;flex:none;width:46px;height:22px}
