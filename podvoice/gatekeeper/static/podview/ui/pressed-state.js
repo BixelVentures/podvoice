@@ -1,11 +1,22 @@
 // Presentation-only press feedback; native click and keyboard activation keep ownership.
+const FLAT='.pv-widget,[data-pv-press=flat]';
 export function attachPressedState(surface){
  const doc=surface.ownerDocument||surface,root=doc.nodeType===9?doc:surface,win=doc.defaultView,feedback=new Map();let pressed=null,pointerId=null,origin=null,pointerFocus=null,pointerModality=false;
  const unavailable=target=>!target||target.disabled||target.getAttribute?.('aria-disabled')==='true'||target.closest?.('[inert]');
- let litePressed=null;
+ let litePressed=null,circle=null;
+ // Flat surfaces (widgets) answer a press with a circle under the finger instead of shrinking.
+ // The circle is the surface's own ::after, placed by custom properties; no nodes are added.
+ const markCircle=(target,event)=>{
+  const box=target.getBoundingClientRect(),x=event.clientX-box.left,y=event.clientY-box.top;
+  const size=2*Math.hypot(Math.max(x,box.width-x),Math.max(y,box.height-y));
+  target.style.setProperty('--pv-press-x',`${x}px`);target.style.setProperty('--pv-press-y',`${y}px`);
+  target.style.setProperty('--pv-press-size',`${size}px`);target.dataset.pvCircle='down';circle=target;
+ };
+ const releaseCircle=()=>{if(circle?.dataset)circle.dataset.pvCircle='up';circle=null;};
  const clearLite=()=>{if(!litePressed)return;litePressed.style.removeProperty('transform');
   litePressed.style.removeProperty('background-image');litePressed=null;};
- const clear=()=>{clearLite();if(!lite())pressed?.classList.remove('is-pressed');pressed=null;pointerId=null;origin=null;};
+ const clear=()=>{releaseCircle();clearLite();if(!lite())pressed?.classList.remove('is-pressed');pressed=null;
+  pointerId=null;origin=null;};
  const clearFocus=()=>{pointerFocus?.removeAttribute?.('data-pv-pointer-focus');pointerFocus=null;};
  const cancelFeedback=target=>{feedback.get(target)?.cancel();feedback.delete(target);};
  // 12 % of the button's own colour. Computed in JS instead of color-mix(), which Chrome < 111
@@ -53,6 +64,7 @@ export function attachPressedState(surface){
   // No style read here: it would force a style pass before the mark can paint. The resting shadow the
   // release animation returns to is read on release, once the mark is gone again.
   pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY};target.classList.add('is-pressed');
+  if(event.pointerId!=='keyboard'&&target.matches?.(FLAT))markCircle(target,event);
  };
  const up=event=>{
   if(event.pointerId!==pointerId)return;const target=pressed,shadow=origin?.shadow;

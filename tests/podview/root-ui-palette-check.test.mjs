@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {checkPaletteInventory,parseColor} from '../../scripts/check-ui-palette.mjs';
 const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
 const inventory=styles=>({schema:'podview.computed-ui.v1',elements:[{visible:true,selector:'.sample',view:'kit',styles}]});
-test('palette checker accepts kit base colors with original alpha and transparent backgrounds',()=>{assert.equal(checkPaletteInventory(inventory({color:'rgb(27 29 28 / .6)',backgroundColor:'transparent'}),css).ok,true);});
+test('palette checker accepts kit base colors with original alpha and transparent backgrounds',()=>{assert.equal(checkPaletteInventory(inventory({color:'rgb(23 23 26 / .6)',backgroundColor:'transparent'}),css).ok,true);});
 test('palette checker reports off-palette opaque and translucent colors',()=>{assert.equal(checkPaletteInventory(inventory({color:'rgb(0 255 0)',backgroundColor:'rgb(255 0 255 / .12)'}),css).violationCount,2);});
 test('palette checker cannot pass empty or missing computed evidence',()=>{assert.equal(checkPaletteInventory({schema:'podview.computed-ui.v1',elements:[]},css).ok,false);assert.equal(checkPaletteInventory(inventory({color:'rgb(27 29 28)'}),css).coverageErrorCount,1);});
 test('unsupported color spaces are missing coverage, not an implicit pass',()=>{assert.equal(checkPaletteInventory(inventory({color:'oklch(50% .1 40)',backgroundColor:'transparent'}),css).coverageErrorCount,1);});
