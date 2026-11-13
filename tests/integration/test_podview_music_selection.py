@@ -168,6 +168,57 @@ async def test_paired_search_choice_same_option_and_one_provider_send(rig, caplo
         assert "observedVolumePercent" not in offer
 
 
+async def test_podconnect_room_start_volume_reaches_the_choice_unchanged(rig):
+    # Green 13/11 16:56: an 8 % offer was rejected as native_unavailable; PodConnect owns the number.
+    data = rig.app[BRIDGE].controls.music.setup_track.return_value["data"]
+    data["start_offer"]["start_volume_percent"] = 8
+    rig.app[BRIDGE].controls.policy["music"][0]["maxVolume"] = 20
+    async with TestClient(TestServer(rig.app)) as client:
+        headers = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
+        body = await (
+            await client.get(
+                "/view/api/music?kind=search&account=account-alpha&query=jazz",
+                headers={"Cookie": "podview_control=grant"},
+            )
+        ).json()
+        bridge = rig.app[BRIDGE]
+        offer = await (
+            await client.post(
+                "/view/api/music/selection/setup",
+                headers=headers,
+                json={
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "candidateSetId": body["candidateSet"]["candidateSetId"],
+                    "target": {
+                        "accountId": "account-alpha",
+                        "kind": "spotify_device",
+                        "targetId": "device-one",
+                    },
+                },
+            )
+        ).json()
+        assert offer["ok"], offer
+        assert offer["startVolumePercent"] == 8
+        result = await (
+            await client.post(
+                "/view/api/music/selection/actions",
+                headers=headers,
+                json={
+                    "bootId": bridge.boot_id,
+                    "roomId": "kitchen",
+                    "taskId": offer["taskId"],
+                    "revision": offer["revision"],
+                    "optionId": offer["options"][0]["id"],
+                    "requestId": "12345678-1234-4234-8234-123456789abd",
+                    "confirmedVolumePercent": 8,
+                },
+            )
+        ).json()
+        assert result["outcome"] == "accepted", result
+        assert bridge.controls.music.execute_track.await_args.args[2] == 20
+
+
 async def test_trace_is_diagnostic_only_for_early_setup_rejection(rig, caplog):
     import hashlib
     import logging

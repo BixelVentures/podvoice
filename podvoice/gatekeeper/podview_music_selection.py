@@ -243,7 +243,8 @@ class MusicSelection:
         tracks = self.selected_tracks(source, candidate_ids)
         if tracks is None:
             return None
-        if type(approved_max_volume) is not int or not 35 <= approved_max_volume <= 100:
+        # The start volume belongs to PodConnect (Green 13/11); the room ceiling is only checked for shape.
+        if type(approved_max_volume) is not int or not 0 <= approved_max_volume <= 100:
             return None
         controls = observed_controls
         if (
@@ -272,8 +273,8 @@ class MusicSelection:
         if (
             action not in controls.get("actions", [])
             or not isinstance(start, dict)
-            or start.get("start_volume_percent") != 35
             or type(start.get("start_volume_percent")) is not int
+            or not 0 <= start["start_volume_percent"] <= 100
             or not all(
                 isinstance(start.get(key), str) and start[key]
                 for key in ("binding_id", "native_incarnation", "policy_revision")
@@ -311,7 +312,7 @@ class MusicSelection:
             "authority": authority,
             "account": account,
             "target": target,
-            "volume": 35,
+            "volume": start["start_volume_percent"],
             "nativeBinding": (controls["room_id"], controls["homepod_id"]),
             "startBinding": tuple(
                 start[key] for key in ("binding_id", "native_incarnation", "policy_revision")
@@ -347,7 +348,7 @@ class MusicSelection:
             "candidateSetId": identifier,
             "accountId": account,
             "target": {"kind": "spotify_device", "targetId": target},
-            "startVolumePercent": 35,
+            "startVolumePercent": task["volume"],
             "options": options,
             "expiresIn": max(0, int(task["deadline"] - time.monotonic())),
             **(
