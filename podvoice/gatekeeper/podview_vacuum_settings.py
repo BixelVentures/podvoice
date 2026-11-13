@@ -17,6 +17,10 @@ ROLES = {
 }
 
 
+class NoActiveCleaning(ValueError):
+    """The robot is not cleaning or paused, so no active-clean settings exist (expected)."""
+
+
 class ActiveVacuumSettings:
     def __init__(self, owner):
         self.owner = owner
@@ -60,7 +64,7 @@ class ActiveVacuumSettings:
         robot = await self.owner._state(vacuum)
         self._check(vacuum, current)
         if robot["state"] not in {"cleaning", "paused"}:
-            raise ValueError("no active cleaning settings")
+            raise NoActiveCleaning("no active cleaning settings")
         rows = []
         attrs = robot["attributes"]
         # HA vacuum feature SET_FAN_SPEED=32. A list alone grants nothing.

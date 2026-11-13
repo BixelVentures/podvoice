@@ -329,6 +329,8 @@ class RecipeSubmissions:
     def __init__(self, path: Path):
         self.path = path
         self._lock = threading.Lock()
+        # Publications since start; the screen fetches the catalogue when it grows.
+        self.published = 0
 
     def _read(self) -> dict:
         try:
@@ -623,6 +625,7 @@ class RecipeSubmissions:
                 )
                 state["recipes"][recipe_id]["source"]["uploadedAt"] = item["receivedAt"]
             self._write(state)
+            self.published += 1
             try:
                 catalog = recipe_catalog_reference(list(state["recipes"].values()))
             except (TypeError, ValueError, KeyError):
