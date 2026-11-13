@@ -1,3 +1,7 @@
+## 2.0.187
+
+- PodView føles glattere på iPad og Mac, uden at noget ser anderledes ud: uret, afspilleren og højttalerne opdateres først, når du har løftet fingeren eller er holdt op med at scrolle, så nye data ikke giver hak midt i en bevægelse. Et tryk på et kort skifter side lidt hurtigere, fordi trykmarkeringen og de bløde toninger i kanten af scroll-områderne laver mindre arbejde.
+
 ## 2.0.186
 
 - PodView på en Frameo-ramme og andre ældre vægskærme (Chrome under 111) kører i en let tilstand: kortet markeres med det samme, du trykker (ca. 30 ms mod før ca. 1 sekund), og trykket annulleres, hvis du trækker fingeren væk. Scroll kører ca. 50 billeder i sekundet mod før ca. 14, og skift til en anden side tager under et sekund. Swipe-gestusser, bevægelse og skygger er slået fra der, så alt betjenes med knapperne. Home Assistants værktøjslinje blinker ikke længere frem, når du skifter side. iPad, Mac og nyere skærme opfører sig som før.
