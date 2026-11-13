@@ -1,3 +1,7 @@
+## 2.0.192
+
+- Musik kan igen startes fra Find musik, køen og højttalervælgeren. PodVoice har ikke længere sin egen kopi af 35 %-reglen og bruger den startlydstyrke, PodConnect angiver (rummets egen lydstyrke, højst 35 %).
+
 ## 2.0.191
 
 - Rettelser fra Green-tjekket: Højttalervælgeren låses ikke længere kort under baggrundsopdateringer, så et tryk aldrig går tabt. Find musik er klar i baggrunden uden "Henter forslag", og forslagene er aldrig låste. Forsiden og fanerne blinker ikke. Robot- og vejrsiden er klar, når de åbnes.
