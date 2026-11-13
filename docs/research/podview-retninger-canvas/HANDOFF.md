@@ -123,8 +123,12 @@ hvide indgangswidgets (musik, radio, opskrift, svar) · tryk på et nummer i Fin
 
 ## Målenhed: iPad Air 5. gen på væg (ejer 13. nov. 2026)
 Erstatter Frameo som målenhed. 10,9", 1180×820 pt landskab (2360×1640 px), M1, 60 Hz.
-Kører i **Home Assistant Companion-appens kiosktilstand** (Labs, app ≥ 2026.4): skjuler system-UI, holder skærmen
-vågen, styrer lysstyrke og pauseskærm fra HA. Nat-/nærhedstilstand drives af HA (tidsplan, lys-/bevægelsessensor),
+**Delt iPad, der skifter rolle i vægholderen:** når den sættes i oplader, åbner en Genveje-automation (»Når iPad
+tilsluttes strøm«) HA Companion-appen og slår et »Væg«-fokus til (notifikationer fra andre apps slukket); taget ud er den
+en almindelig iPad. På væggen kører PodView i **HA Companion-appens kiosktilstand** (Labs, app ≥ 2026.4): skjuler
+system-UI, holder skærmen vågen, styrer lysstyrke og pauseskærm fra HA. Skal verificeres på enheden: kan kiosktilstand
+slås til/fra automatisk ved strøm, og forlader appen kiosk, når den tages af? PodView skal tåle at være væk (timere og
+svar lever i HA/Voice PE, ikke på skærmen). Afvejning accepteret: ingen Guided Access, personligt indhold et swipe væk. Nat-/nærhedstilstand drives af HA (tidsplan, lys-/bevægelsessensor),
 ikke af websiden. Lærredets tavler (1280×800) skal tilpasses 1180×820. Grundlag og prioriteret ændringsliste:
 `reports/PodView iPad vægskærm UX research.md`. Ikke verificeret på enheden endnu.
 
