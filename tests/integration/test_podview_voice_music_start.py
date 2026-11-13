@@ -206,3 +206,90 @@ async def test_other_targets_entity_is_not_this_rooms_speaker(destination_rig): 
     )
     assert result.get("data", {}).get("path") != "podview_room_start"
     bridge.controls.music.setup_track.assert_not_awaited()
+
+
+@pytest.fixture
+def voice_room_players(voice):
+    """Control 0.10.44 (Green 13 Nov): one HA media_player per PodConnect room.
+
+    The old per-Spotify-device entities are deleted, so the targets carry no
+    ``ha_context`` any more; the model names the room's own player instead.
+    """
+    rig, bridge = voice
+    bridge._room_player_entities.update(
+        {
+            "account-alpha_room_r0": "media_player.kokkenalrum_homepod",
+            "account-alpha_room_r1": "media_player.sovevaerelse",
+        }
+    )
+    return rig, bridge
+
+
+async def test_rooms_own_room_player_entity_starts_through_podview(voice_room_players):
+    rig, bridge = voice_room_players
+    result = await rig.router.dispatch(
+        "HassMediaSearchAndPlay",
+        {"search_query": "rolig musik", "name": "media_player.kokkenalrum_homepod"},
+        execution_context=CONTEXT,
+    )
+    assert result["ok"] is True, result
+    assert result["data"]["path"] == "podview_room_start"
+    assert result["data"]["room"] == "Køkkenalrum"
+    assert bridge.controls.music.setup_track.await_args.args[:4] == (
+        "account-alpha",
+        "device-one",
+        "r0",
+        "42",
+    )
+
+
+async def test_other_rooms_player_entity_starts_on_that_room(voice_room_players):
+    rig, bridge = voice_room_players
+    result = await rig.router.dispatch(
+        "HassMediaSearchAndPlay",
+        {"search_query": "rolig musik", "name": "media_player.sovevaerelse"},
+        execution_context=CONTEXT,
+    )
+    assert result["ok"] is True, result
+    assert result["data"]["room"] == "Soveværelse"
+    assert bridge.controls.music.setup_track.await_args.args[2:4] == ("r1", "43")
+
+
+async def test_room_player_friendly_name_starts_through_podview(voice_room_players, monkeypatch):
+    rig, bridge = voice_room_players
+    entity = _CanonicalEntity(
+        "media_player.kokkenalrum_homepod",
+        "media_player",
+        "idle",
+        {"friendly_name": "Køkkenalrum HP"},
+    )
+    monkeypatch.setattr(rig.router, "_resolve_entity", AsyncMock(return_value=entity))
+    result = await rig.router.dispatch(
+        "HassMediaSearchAndPlay",
+        {"search_query": "rolig musik", "name": "Køkkenalrum HP"},
+        execution_context=CONTEXT,
+    )
+    assert result["ok"] is True, result
+    assert bridge.controls.music.setup_track.await_args.args[2:4] == ("r0", "42")
+
+
+async def test_music_options_without_a_card_is_logged_and_points_to_search_and_play(
+    voice, caplog
+):
+    """Green 13 Nov: "spil musik" -> "musikvalg er ikke tilgængeligt", no tool line in the log.
+
+    The card-options tool answered a bare stale_music_selection (no displayed music
+    card) and was never logged. It must say how to start music and leave a log line.
+    """
+    rig, bridge = voice
+    session = next(iter(bridge.sessions.values()))
+    session._active = True
+    session._history_session = CONTEXT.session_id
+    caplog.set_level("INFO", logger="podvoice.tools")
+    result = await rig.router.dispatch("podview_music_options", {}, execution_context=CONTEXT)
+    assert result["ok"] is False
+    assert result["error_kind"] == "stale_music_selection"
+    assert "HassMediaSearchAndPlay" in result["error"]
+    assert any("podview_music_options" in record.getMessage() for record in caplog.records)
+    options = next(d for d in rig.router.declarations() if d["name"] == "podview_music_options")
+    assert "HassMediaSearchAndPlay" in options["description"]
