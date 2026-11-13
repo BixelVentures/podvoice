@@ -486,6 +486,34 @@
       "sha256": "6df89088a93eb4a8cd9596181fb364df3122328549ce4ff2aef2458da39fdb46"
     },
     {
+      "path": "assets/weather/weather-cloud-widget.svg",
+      "sha256": "ad40778895efaa4c6c390345be9c76e575d830f098a1fe9f8f60943eaa43ca05"
+    },
+    {
+      "path": "assets/weather/weather-cloud.svg",
+      "sha256": "8776ac0e5c832a04351563072165142f891d7ce7bab251f44fb99bdd3d23c40a"
+    },
+    {
+      "path": "assets/weather/weather-fog.svg",
+      "sha256": "339fd7c774749e5999d2953f506d0b0641e67d08f10a75e209b6f27bec33b12a"
+    },
+    {
+      "path": "assets/weather/weather-rain.svg",
+      "sha256": "6d1d3b29879a152790302114c88572c6c4e196baf0cedf67e75121870300f43d"
+    },
+    {
+      "path": "assets/weather/weather-snow.svg",
+      "sha256": "4c9b78e2e7ba5f434590f935c5d7040d7e59c8531ba002ae0fa7cfac2128fce9"
+    },
+    {
+      "path": "assets/weather/weather-storm.svg",
+      "sha256": "e6f9807fd64ce23f524af71ddbb49d45763a30292fac9a43f5e83a9840a77423"
+    },
+    {
+      "path": "assets/weather/weather-sun.svg",
+      "sha256": "50dd40a0b3afa0b349c88fa1983caf770f3f03e47b1a85f035c16b525db0eabb"
+    },
+    {
       "path": "components.html",
       "sha256": "92e558b8e1b4777a49d38d5c746728898cf5c6f9f741fc9316416dab12b90a1a"
     },
@@ -531,7 +559,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "4fc8ffd062f987b75f743fddb0f14f3160fe4db1905545f683cb1e93b2d1d27d"
+      "sha256": "3d020776befed266b31acb94e12c1e43b57588e2ba69fb2be917f0a43c8af285"
     },
     {
       "path": "library.css",
@@ -659,11 +687,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "4bc74b33dfa7159d6e0a48a996bb9029e437cd53226c30a41622dd56153bc5ef"
+      "sha256": "e65f96a44ef7a03b25b9288631afa75bec7d5b9256dddeef380857b7fa5a0b0b"
     },
     {
       "path": "podview.css",
-      "sha256": "9ae12c16a2ce31e70f6c6951c1de9a427bcf7e1e25124d1c632fce60215937a3"
+      "sha256": "6caea39c726fec175073a0b37f7d21e53669cced0bca53d20d3da324a76c125d"
     },
     {
       "path": "podvoice-transport.js",
@@ -771,7 +799,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "e26625b5e086251a4e6f628a7626be254e5802579fc5a89418242980b6ff98d6"
+      "sha256": "d989467200962eda35ab80484ca010e02a175ceb3b5384e8e0912985f930cfaf"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -915,7 +943,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "187f4151dc8a94d25e046763f789852ceed653233c4d30454f31331fd64f142a"
+      "sha256": "c299dc40377d3ec3c90e30704550660149b6a210900cd60704177fd06b70df32"
     },
     {
       "path": "widget-model.js",

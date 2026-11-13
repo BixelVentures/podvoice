@@ -3,7 +3,7 @@
 const {spawnSync}=require('node:child_process');
 const path=require('node:path');
 const {artifactDir}=require('./podview_actual_env.cjs');
-const journeys=['ui_kit_actual_e2e.cjs','ipad_layout_actual_e2e.cjs','ipad_overblik_actual_e2e.cjs','ipad_fotoro_actual_e2e.cjs','ipad_player_actual_e2e.cjs','ipad_musik_actual_e2e.cjs','ipad_radio_actual_e2e.cjs','robot_ux_actual_e2e.cjs','room_player_actual_e2e.cjs','music_push_actual_e2e.cjs','music_actual_e2e.cjs','music_selection_actual_e2e.cjs','radio_actual_e2e.cjs','robot_actual_e2e.cjs','light_actual_e2e.cjs','vehicle_actual_e2e.cjs','timer_actual_e2e.cjs','home_events_actual_e2e.cjs','answers_actual_e2e.cjs','recipe_actual_e2e.cjs'];
+const journeys=['ui_kit_actual_e2e.cjs','ipad_layout_actual_e2e.cjs','ipad_overblik_actual_e2e.cjs','ipad_fotoro_actual_e2e.cjs','ipad_player_actual_e2e.cjs','ipad_musik_actual_e2e.cjs','ipad_radio_actual_e2e.cjs','ipad_vejr_actual_e2e.cjs','robot_ux_actual_e2e.cjs','room_player_actual_e2e.cjs','music_push_actual_e2e.cjs','music_actual_e2e.cjs','music_selection_actual_e2e.cjs','radio_actual_e2e.cjs','robot_actual_e2e.cjs','light_actual_e2e.cjs','vehicle_actual_e2e.cjs','timer_actual_e2e.cjs','home_events_actual_e2e.cjs','answers_actual_e2e.cjs','recipe_actual_e2e.cjs'];
 const env={...process.env,MUSIC_EXTENDED:'1',PODVIEW_TEST_ARTIFACT_DIR:artifactDir()};
 // JOURNEY_SHARD=i/n (CI) splits one journey's variants across parallel jobs; all shards together
 // run exactly the full list. JOURNEY_BASE_ALONE=1 gives the slow first run a shard of its own.
