@@ -46,7 +46,24 @@ export class LiveMusicCatalogueView{
   }
   this.pendingRead=null;this.busy=false;
  }
- open(){if(this.host.state?.focus!=='music')return;this.ensureContext();if(this.pendingRead||this.entries.has(this.key())||!this.account||!this.connected||!this.supported())return;this.select(this.selected);}
+ open(){
+  if(this.host.state?.focus!=='music'){this.prefetch();return;}this.ensureContext();
+  // Entering Find musik: a background read of another tab yields to the tab the user left.
+  if(this.prefetchHome){const home=this.prefetchHome,pending=this.prefetchRequest;this.prefetchHome=null;this.prefetchRequest=null;
+   if(pending&&this.pendingRead===pending){this.prefetchTried?.delete(pending.key);if(pending.kind!==home)this.interrupt();}
+   if(this.selected!==home&&!(this.pendingRead&&this.pendingRead.kind===home)){this.selected=home;this.restore(this.entries.get(this.key()));this.render();}}
+  if(this.pendingRead||this.entries.has(this.key())||!this.account||!this.connected||!this.supported())return;this.select(this.selected);}
+ // Green 13/11: Find musik and its tabs are ready before they open. Off the music page, read each
+ // supported tab never read before once in the background, one at a time.
+ prefetch(){
+  this.ensureContext();const selection=this.host.liveSelection;
+  if(this.pendingRead||!this.connected||!this.account||this.host.liveTransport?.connected!==true||selection?.pending||selection?.active)return;
+  const tried=this.prefetchTried??=new Set(),kind=['mood','feeling','top','recent'].find(k=>this.supported(k)&&!this.entries.has(this.key(k))&&!tried.has(this.key(k)));
+  if(!kind){if(this.prefetchHome){const home=this.prefetchHome;this.prefetchHome=null;if(this.selected!==home){this.selected=home;this.restore(this.entries.get(this.key()));}}return;}
+  this.prefetchHome??=this.selected;tried.add(this.key(kind));this.selected=kind;this.restore(this.entries.get(this.key()));
+  this.beginRead(kind,'initial',null,{background:true});const request=this.pendingRead;if(!request)return;this.prefetchRequest=request;
+  Promise.resolve(request.done).catch(()=>{}).finally(()=>{if(this.prefetchRequest===request)this.prefetchRequest=null;setTimeout(()=>{if(this.host.isConnected!==false&&this.host.state?.focus!=='music')this.prefetch();},0);});
+ }
  renewRetained(renewal){
   if(!renewal?.owner||typeof renewal.owner!=='object'||!Number.isSafeInteger(renewal.generation)||renewal.generation<0)return;this.ensureContext();this.controllerRenewalSeen??=new WeakMap();const previous=this.controllerRenewalSeen.get(renewal.owner);if(previous!==undefined&&renewal.generation<=previous)return;this.controllerRenewalSeen.set(renewal.owner,renewal.generation);
   if(this.pendingRead?.reason==='initial'&&this.host.state?.focus==='music'&&this.connected&&this.account&&this.supported()&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&!this.host.liveSelection?.active&&!this.host.liveSelection?.pending){
@@ -96,7 +113,7 @@ export class LiveMusicCatalogueView{
   this.beginRead(kind,'initial');
  }
  invalidateAuthority(invalidateSelection=true){if(['renew','choice'].includes(this.pendingRead?.reason))this.pendingRead.renewalCancelled=true;this.finishCardRenewal(false,undefined,'renewal_owner_changed');this.deferredRenewal=null;clearTimeout(this.expiryTimer);for(const entry of this.entries.values())entry.source=null;if(invalidateSelection)this.host.liveSelection?.invalidate('Afspilningsvalget skal bekræftes igen.');}
- beginRead(kind,reason,diagnosticTrace=null){this.invalidateAuthority();const key=this.key(kind);if(!this.entries.has(key))this.entries.set(key,{kind,cards:[],sample:[],offset:0,status:''});const request=this.pendingRead={key,kind,sourceKind:this.readKind(kind),reason,account:this.account,scope:this.scope(),requestedAt:Date.now(),...(diagnosticTrace?{diagnosticTrace}:{})};if(['renew','choice'].includes(reason)){const ownerScope=()=>{const s=this.host.liveSnapshot;return JSON.stringify([this.renewalScope(),s?.voice,s?.sessionId,s?.taskId,s?.inputRevision]);},owner=ownerScope(),transport=this.host.liveTransport,authority=JSON.stringify([this.host.liveSnapshot?.capabilities?.musicRead,this.host.liveSnapshot?.capabilities?.musicSelection]);request.renewalCurrent=(presentation=false)=>!request.renewalCancelled&&JSON.stringify([this.host.liveSnapshot?.capabilities?.musicRead,this.host.liveSnapshot?.capabilities?.musicSelection])===authority&&ownerScope()===owner&&this.host.liveTransport===transport&&transport?.connected===true&&this.host.isConnected!==false&&((presentation&&request.readGeneration===undefined)||this.host.liveMusicGeneration===request.readGeneration)&&this.host.state?.focus==='music'&&this.connected&&this.supported(kind)&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&!this.host.liveSelection?.active&&!this.host.liveSelection?.pending;}this.loading(kind);this.onSelect(kind);request.readGeneration=this.host.liveMusicGeneration;if(reason==='renew')this.render();}
+ beginRead(kind,reason,diagnosticTrace=null,{background=false}={}){this.invalidateAuthority(!background);const key=this.key(kind);if(!this.entries.has(key))this.entries.set(key,{kind,cards:[],sample:[],offset:0,status:''});const request=this.pendingRead={key,kind,sourceKind:this.readKind(kind),reason,account:this.account,scope:this.scope(),requestedAt:Date.now(),...(diagnosticTrace?{diagnosticTrace}:{})};if(['renew','choice'].includes(reason)){const ownerScope=()=>{const s=this.host.liveSnapshot;return JSON.stringify([this.renewalScope(),s?.voice,s?.sessionId,s?.taskId,s?.inputRevision]);},owner=ownerScope(),transport=this.host.liveTransport,authority=JSON.stringify([this.host.liveSnapshot?.capabilities?.musicRead,this.host.liveSnapshot?.capabilities?.musicSelection]);request.renewalCurrent=(presentation=false)=>!request.renewalCancelled&&JSON.stringify([this.host.liveSnapshot?.capabilities?.musicRead,this.host.liveSnapshot?.capabilities?.musicSelection])===authority&&ownerScope()===owner&&this.host.liveTransport===transport&&transport?.connected===true&&this.host.isConnected!==false&&((presentation&&request.readGeneration===undefined)||this.host.liveMusicGeneration===request.readGeneration)&&this.host.state?.focus==='music'&&this.connected&&this.supported(kind)&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&!this.host.liveSelection?.active&&!this.host.liveSelection?.pending;}this.loading(kind);request.done=this.onSelect(kind);request.readGeneration=this.host.liveMusicGeneration;if(reason==='renew')this.render();}
  // A dropped refresh response may already be published. Read the owner's current
  // page on reentry before advancing, and never turn exact card renewal into resync.
  needsVibeResync(entry){return entry?.kind==='feeling'&&entry.cards.length>0&&(entry.vibeResync||entry.renewalScope!==this.renewalScope());}

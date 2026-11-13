@@ -64,7 +64,7 @@ export class LiveMediaView{
   clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.pending=true;
   const readJob={key:readKey(),account:this.account,transport:host.liveTransport,generation:this.generation};
   readJob.promise=new Promise(resolve=>readJob.resolve=resolve);this.activeRead=readJob;this.refreshInterval=8000;
-  if(!this.playback&&this.establishedReadScope!==readScope)this.readState='loading';
+  /* Green 13/11: a room already shown empty stays empty during the next read (no "Afventer data"). */if(!this.playback&&this.establishedReadScope!==readScope&&!(this.readState==='idle'&&this.idleBindingScope===bindingScope))this.readState='loading';
   try{this.render();}catch(error){if(this.activeRead===readJob)this.activeRead=null;this.pending=false;readJob.resolve();throw error;}
   this.lastRead=Date.now();
   const transport=host.liveTransport,generation=this.generation,boot=snap.bootId,room=snap.roomId,capabilities=JSON.stringify(allowed);
@@ -110,7 +110,7 @@ export class LiveMediaView{
    const expired=pauseExpired(snap.roomId,account,next)&&!host.liveSelection?.feedback?.pending;
    if(next.state==='idle'||expired){
     record({code:'empty',durationMs:Date.now()-diagnosticAt});
-    this.clearRoom();this.establishedReadScope=readScope;this.readState='idle';
+    this.clearRoom();this.establishedReadScope=readScope;this.readState='idle';this.idleBindingScope=bindingScope;
     if(next.state==='idle')host.liveCatalogue?.observeIdlePlayback?.(account);
     // While an accepted selection starts, the room is read again soon.
     if(starting)schedule(SETTLEMENT_READ_MS);
