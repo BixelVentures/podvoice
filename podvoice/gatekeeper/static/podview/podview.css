@@ -3003,7 +3003,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 fc3e63c8b0ec514e2a6a651d9ffd4ef385c960c718ec26805f6c6fe2b1d5f645 */
+/* Source: ui-kit.css · SHA256 bf54069a4f75a744842bc09c224ce156d60c04748408f44006b41a71b7f86418 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -3281,16 +3281,17 @@ pv-widget-host .player>.output,pv-widget-host .player>.track{height:var(--pv-hit
 /* VolumeSlider keeps its existing icon slot as an actual IconButton. */
 pv-widget-host .player .volume>.volume-mute{display:grid;place-items:center;flex:0 0 var(--pv-hit);width:var(--pv-hit);height:var(--pv-hit);min-height:var(--pv-hit);padding:0;margin:0;background:transparent;border-radius:var(--pv-r-pill)}
 pv-widget-host .player .volume>.volume-mute>img{width:var(--pv-icon-s);height:var(--pv-icon-s);margin:0;padding:0}
-pv-widget-host .player #detail-seek:not([hidden]){display:block;appearance:none;-webkit-appearance:none;width:100%;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;border:0;background:transparent;cursor:pointer;touch-action:pan-x}
+/* The seek slider has the volume slider's touch: same grip and track, the drag follows the finger. */
+pv-widget-host .player #detail-seek:not([hidden]){display:block;appearance:none;-webkit-appearance:none;width:100%;height:var(--pv-hit);min-height:var(--pv-hit);margin:0;padding:0;border:0;background:transparent;cursor:pointer;touch-action:pan-y}
 pv-widget-host .player>.player-progress{height:var(--pv-hit);min-height:var(--pv-hit);margin:0;position:relative}
 pv-widget-host .player>.player-progress:has(#detail-seek:not([hidden])){height:var(--pv-hit);min-height:var(--pv-hit);margin:0;position:relative}
 pv-widget-host .player>.player-progress #detail-seek:not([hidden]){position:absolute;inset:0;height:var(--pv-hit);padding-bottom:var(--pv-s3)}
 pv-widget-host .player>.player-progress:has(#detail-seek:not([hidden])) .player-progress-times{position:absolute;inset:auto 0 0;line-height:20px;pointer-events:none}
-pv-widget-host .player #detail-seek::-webkit-slider-runnable-track{height:5px;border-radius:var(--pv-r-s);background:linear-gradient(to right,var(--pv-volume-thumb) 0%,var(--pv-volume-thumb) var(--seek-progress,0%),var(--pv-volume-track) var(--seek-progress,0%),var(--pv-volume-track) 100%)}
-pv-widget-host .player #detail-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin-top:-5.5px;border:0;border-radius:var(--pv-screen-radius-pill);background:var(--pv-volume-thumb)}
-pv-widget-host .player #detail-seek::-moz-range-track{height:5px;border:0;border-radius:var(--pv-r-s);background:var(--pv-volume-track)}
-pv-widget-host .player #detail-seek::-moz-range-progress{height:5px;border:0;border-radius:var(--pv-r-s);background:var(--pv-volume-thumb)}
-pv-widget-host .player #detail-seek::-moz-range-thumb{width:16px;height:16px;border:0;border-radius:var(--pv-screen-radius-pill);background:var(--pv-volume-thumb)}
+pv-widget-host .player #detail-seek::-webkit-slider-runnable-track{height:var(--pv-volume-track-size,6px);border-radius:var(--pv-r-s);background:linear-gradient(to right,var(--pv-volume-thumb) 0%,var(--pv-volume-thumb) var(--seek-progress,0%),var(--pv-volume-track) var(--seek-progress,0%),var(--pv-volume-track) 100%)}
+pv-widget-host .player #detail-seek::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:var(--pv-volume-thumb-size,24px);height:var(--pv-volume-thumb-size,24px);margin-top:calc((var(--pv-volume-track-size,6px) - var(--pv-volume-thumb-size,24px))/2);border:0;border-radius:var(--pv-screen-radius-pill);background:var(--pv-volume-thumb)}
+pv-widget-host .player #detail-seek::-moz-range-track{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-s);background:var(--pv-volume-track)}
+pv-widget-host .player #detail-seek::-moz-range-progress{height:var(--pv-volume-track-size,6px);border:0;border-radius:var(--pv-r-s);background:var(--pv-volume-thumb)}
+pv-widget-host .player #detail-seek::-moz-range-thumb{width:var(--pv-volume-thumb-size,24px);height:var(--pv-volume-thumb-size,24px);border:0;border-radius:var(--pv-screen-radius-pill);background:var(--pv-volume-thumb)}
 pv-widget-host .player #detail-seek:focus-visible{outline:2px solid var(--pv-volume-thumb);outline-offset:2px;border-radius:var(--pv-r-s)}
 pv-widget-host .player #detail-seek:disabled{opacity:.45;cursor:not-allowed}
 /* Mobile Player is a centered flex column. Its absolute seek/timestamp children
