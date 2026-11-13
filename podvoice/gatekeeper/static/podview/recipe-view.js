@@ -492,7 +492,8 @@ export class RecipeView {
   const observer = new MutationObserver(visibility);
   observer.observe(this.root,{attributes:true,attributeFilter:['hidden']});
   document.addEventListener('visibilitychange',visibility);
-  this.catalogRefresh = {retryUploadHistory,dispose:()=>{
+  // now(): a recipe was just saved elsewhere (Del → Home Assistant); refresh this view at once.
+  this.catalogRefresh = {retryUploadHistory,now:()=>run(),dispose:()=>{
    clearTimeout(timer); abort.abort(); observer.disconnect();
    document.removeEventListener('visibilitychange',visibility);
   }};

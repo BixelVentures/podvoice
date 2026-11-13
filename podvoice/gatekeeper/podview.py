@@ -2204,6 +2204,10 @@ class PodViewBridge:
             result["homeRevision"] = self.home_source_revision(room, token)
             # Separate from homeRevision: a music change refreshes only the player.
             result["musicRevision"] = self._home_event_revisions["music"]
+        recipes = getattr(self, "recipe_submissions", None)
+        if recipes is not None:
+            # A count only, outside the room revision; the catalogue itself needs HA access.
+            result["recipeRevision"] = recipes.published
         return {**result, "revision": revision, "observedAt": time.time()}
 
     async def action(self, body: dict, token: str) -> dict:

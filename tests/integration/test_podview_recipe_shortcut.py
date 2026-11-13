@@ -72,3 +72,36 @@ async def test_old_shortcut_post_is_shown_to_admin(ingress, monkeypatch):  # noq
     ingress.bridge.recipe_upload_token = "short"
     response = await ingress.client.get("/view/api/recipe-shortcut", headers=HEADERS)
     assert (await response.json())["uploadCode"] is None
+
+
+async def test_snapshot_counts_saved_recipes_so_the_screen_refreshes(ingress, monkeypatch):  # noqa: F811
+    """The wall screen learns about a recipe shared from a phone through its live snapshot."""
+    import json as _json
+    from unittest.mock import AsyncMock
+
+    from integration.test_podview_ha_ingress60 import snapshot
+
+    from gatekeeper.recipe_import import import_link
+
+    page = (
+        '<script type="application/ld+json">'
+        + _json.dumps(
+            {
+                "@type": "Recipe",
+                "name": "Kanelsnegle",
+                "recipeIngredient": ["mel", "kanel"],
+                "recipeInstructions": ["Bag."],
+            }
+        )
+        + "</script>"
+    )
+    url = "https://example.com/kanelsnegle"
+    monkeypatch.setattr("gatekeeper.recipe_import.fetch_html", AsyncMock(return_value=(page, url)))
+    before = (await snapshot(ingress))["recipeRevision"]
+    store = ingress.bridge.recipe_submissions
+    assert (await import_link(store, url))["message"] == "Gemt: Kanelsnegle"
+    assert (await snapshot(ingress))["recipeRevision"] == before + 1
+    assert (await import_link(store, url + "?utm_source=x"))["status"] == "duplicate"
+    after = await snapshot(ingress)
+    assert after["recipeRevision"] == before + 1, "a duplicate is not a new recipe"
+    assert "Kanelsnegle" not in _json.dumps(after), "the snapshot carries a count, not recipes"
