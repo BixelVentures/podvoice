@@ -342,9 +342,9 @@ async function stationOrderJourney(stations){
  assert.equal(selectedBefore.name,'P3');
  assert.match(selectedBefore.logo,/(?:^|\/)assets\/radio-p3\.svg$/);
  assert.equal(selectedBefore.logoLoaded,true);
- assert.equal(selectedBefore.borderWidth,'2px');
- assert.equal(selectedBefore.borderStyle,'solid');
- assert.equal(selectedBefore.shadow,'none','the approved selected tile has a single edge');
+ // Lærred v190 »A-Radio« (issue 393): the selected tile has one 3-px inset ring in the station colour, no border.
+ assert.equal(selectedBefore.borderWidth,'0px');
+ assert.equal(selectedBefore.shadow,'rgb(77, 255, 77) 0px 0px 0px 3px inset','the selected tile has a single edge');
  const beforeReload=await page.evaluate(()=>performance.timeOrigin);
  const refreshedOwner=page.waitForResponse(response=>
   new URL(response.url()).pathname==='/view/api/radio'&&response.request().method()==='GET'&&response.ok());
@@ -357,7 +357,10 @@ async function stationOrderJourney(stations){
   return host?.liveRadio?.current()&&host.liveRadio.value.state.stationId==='p3'&&
    host.liveRadio.value.state.status==='playing'&&document.querySelector('#track-name')?.textContent?.trim()==='P3';
  });
- await p3.getByText(/Valgt/).waitFor({state:'visible'});
+ // Issue 393: the tile carries only logo and name; the hero names the station and that it plays.
+ await page.waitForFunction(()=>document.querySelector('#radio-view .radio-hero h2')?.textContent==='P3'&&
+  /^Spiller/.test(document.querySelector('#radio-view .radio-hero-status')?.textContent||''));
+ await p3.locator('img').waitFor({state:'visible'});
  await p3.locator('img').evaluate(image=>image.decode());
  assert.notEqual(await page.evaluate(()=>performance.timeOrigin),beforeReload,'reload uses a new document');
  assert.equal(await p3.getAttribute('aria-pressed'),'true');

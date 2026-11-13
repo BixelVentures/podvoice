@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 41913bf17afc385b8771b0c71d75d0c27cd2b1b19acc617a94dc980626fda43e */
+/* Source: ui-kit.css · SHA256 e26625b5e086251a4e6f628a7626be254e5802579fc5a89418242980b6ff98d6 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6749,3 +6749,127 @@ body button:not(.is-pressed){transition-property:filter!important}
    animation:none!important;}
 }
 
+
+/* iPad Radio (lærred v190 »A-Radio«, »Radio-Starter«, »Radio-Spiller«, »Radio-IkkeTilg«, issue 393): a 744×458 hero
+   with the station logo (144), status line, 56/800 title, description and a station scale with a needle; 32 under it
+   »Radiostationer« with »Afspilles på <højttaler>« and five logo tiles in one row. The station colour tints the hero
+   and rings the chosen tile; starting turns the needle yellow; not available fades the scale and greys the tiles. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] .responses>#radio-view:not([hidden]){
+   --pv-radio-ink-2:#3F3E3B;display:flex!important;flex-direction:column!important;gap:0!important;
+   padding:0!important;width:744px!important;max-width:744px!important;height:696px!important;
+   max-height:696px!important;overflow:hidden!important}
+ pv-widget-host #radio-view>.radio-hero.radio-hero{position:relative;box-sizing:border-box;display:flex!important;
+   flex-direction:column!important;align-items:stretch!important;gap:0!important;flex:none;height:458px!important;
+   min-height:0!important;margin:0!important;padding:32px!important;border:0!important;border-radius:24px!important;
+   background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
+   transition:background-color .5s ease}
+ pv-widget-host #radio-view>.radio-hero:is([data-radio-phase=playing],[data-radio-phase=stopped],
+   [data-radio-phase=chosen]){background:rgb(203,248,200)!important;background:color-mix(in srgb,var(--pv-radio-station) 26%,#F7F6F3)!important}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting]{
+   background:rgb(220,247,216)!important;
+   background:color-mix(in srgb,var(--pv-radio-station) 16%,#F7F6F3)!important}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]{background:#EEEDEA!important}
+ pv-widget-host #radio-view .radio-hero-top{display:flex!important;flex-direction:row!important;align-items:center;gap:24px!important;
+   min-height:144px!important;height:auto!important;padding:0!important;flex:none!important}
+ pv-widget-host #radio-view .radio-hero-top>*{position:static!important;inset:auto!important;grid-area:auto!important;
+   translate:none!important;transform:none}
+ pv-widget-host #radio-view .radio-hero .radio-hero-art.radio-hero-art{display:block;flex:none;box-sizing:border-box;
+   width:144px!important;height:144px!important;padding:0!important;border-radius:24px;object-fit:cover;
+   box-shadow:0 16px 32px -16px rgba(23,23,26,.45)}
+ pv-widget-host #radio-view .radio-hero .radio-hero-art[hidden]{display:none!important}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] .radio-hero-art{opacity:.7}
+ pv-widget-host #radio-view .radio-hero-top>[data-kit-slot=copy]{display:flex!important;flex-direction:column;
+   gap:8px!important;flex:1;min-width:0;min-height:0!important;justify-content:center}
+ pv-widget-host #radio-view .radio-hero-top>[data-kit-slot=copy]>*{margin:0!important;min-height:0!important}
+ pv-widget-host #radio-view .radio-hero-top>[data-kit-slot=copy]>[hidden]{display:none!important}
+ pv-widget-host #radio-view .radio-hero p.radio-hero-status{margin:0;font:600 17px/22px var(--pv-font)!important;
+   color:var(--pv-radio-ink-2)!important}
+ pv-widget-host #radio-view .radio-hero h2{margin:0;font:800 56px/1 var(--pv-font)!important;letter-spacing:-.035em;
+   color:var(--pv-ink);overflow-wrap:anywhere}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] h2{color:#5F5E5A}
+ pv-widget-host #radio-view .radio-hero p.radio-hero-sub{margin:0;font:400 20px/26px var(--pv-font)!important;
+   color:var(--pv-radio-ink-2)!important}
+ pv-widget-host #radio-view .radio-scale{position:relative;margin-top:auto;height:152px;flex:none}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] .radio-scale{opacity:.3}
+ pv-widget-host #radio-view .radio-scale-ticks{position:absolute;left:0;right:0;bottom:32px;display:flex;
+   justify-content:space-between;align-items:flex-end}
+ pv-widget-host #radio-view .radio-scale-tick{display:block;width:3px;border-radius:2px;background:var(--pv-ink);
+   opacity:.75}
+ pv-widget-host #radio-view .radio-scale-mark{position:absolute;bottom:0;translate:-50% 0;
+   font:700 17px/22px var(--pv-font);color:var(--pv-radio-ink-2)}
+ pv-widget-host #radio-view .radio-scale-mark[data-current=true]{color:var(--pv-ink)}
+ pv-widget-host #radio-view .radio-scale-needle{position:absolute;top:0;bottom:28px;display:block;width:4px;
+   margin-left:-2px;border-radius:2px;background:#E5261E;box-shadow:0 0 12px rgba(229,38,30,.5);
+   transition:left .5s cubic-bezier(.2,.9,.3,1)}
+ pv-widget-host #radio-view .radio-scale-needle[hidden]{display:none}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] .radio-scale-needle{background:#C9A227;
+   box-shadow:0 0 12px rgba(201,162,39,.4)}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=playing] .radio-scale-needle{
+   animation:pv-radio-live 2.4s ease-in-out infinite}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] .radio-scale-needle{display:none}
+ pv-widget-host #radio-view .radio-stations-head{display:flex;justify-content:space-between;align-items:baseline;
+   margin:32px 0 16px;flex:none}
+ pv-widget-host #radio-view .radio-stations-head>h2.radio-stations-title{margin:0;font:800 24px/30px var(--pv-font)!important;
+   color:var(--pv-ink)}
+ pv-widget-host #radio-view .radio-stations-speaker{font:400 15px/20px var(--pv-font);color:#5F5E5A}
+ pv-widget-host #radio-view .radio-stations-speaker[hidden]{display:none}
+ pv-widget-host #radio-view>pv-choice-list.radio-station-tiles{flex:1;min-height:0;margin:0!important}
+ pv-widget-host #radio-view .radio-station-tiles>.pv-content{height:100%}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list.pv-list{display:grid!important;
+   grid-template-columns:repeat(5,minmax(0,1fr))!important;grid-template-rows:minmax(0,1fr)!important;
+   grid-auto-rows:minmax(0,1fr)!important;gap:16px!important;height:100%}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button:nth-child(n){grid-column:auto!important;
+   display:flex!important;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:8px!important;
+   box-sizing:border-box;min-height:0!important;height:100%!important;max-height:100%!important;padding:16px!important;border:0!important;
+   border-radius:24px!important;background:#F7F6F3!important;color:var(--pv-ink)!important;text-align:left;
+   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-pressed=true]{
+   box-shadow:inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important}
+ /* Starting: the ring moves to the station being started (Radio-Starter). */
+ pv-widget-host #radio-view .radio-station-tiles .pv-list>button.pv-kit-button[aria-busy=true]{
+   box-shadow:inset 0 0 0 3px var(--pv-radio-station,var(--pv-ink))!important}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list:has(>button[aria-busy=true])>button[aria-pressed=true]:not([aria-busy=true]),
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button[aria-pressed=true]{
+   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list>button>img{width:56px!important;height:56px!important;
+   margin:0!important;border-radius:16px}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button>img{
+   filter:grayscale(1)}
+ pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable]~pv-choice-list .pv-list>button{opacity:.45!important}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list>button>strong{font:800 17px/22px var(--pv-font)!important;
+   white-space:normal!important;overflow:visible!important;text-overflow:clip!important;overflow-wrap:anywhere}
+ pv-widget-host #radio-view .radio-station-tiles .pv-list>button>.pv-meta{display:none!important}
+ pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p3],.pv-list>button[data-option-id=p3]){
+   --pv-radio-station:#4DFF4D}
+ pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p1],.pv-list>button[data-option-id=p1]){
+   --pv-radio-station:#FF6600}
+ pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p4-ostjylland],.pv-list>button[data-option-id=p4-ostjylland]){
+   --pv-radio-station:#FF9900}
+ pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p6-beat],.pv-list>button[data-option-id=p6-beat]){
+   --pv-radio-station:#4F4A4F}
+ pv-widget-host #radio-view :is(.radio-hero[data-radio-station=p8-jazz],.pv-list>button[data-option-id=p8-jazz]){
+   --pv-radio-station:#7E57C8}
+ /* W-radio »spiller«/»starter«: the station is the primary line, the product's status the 15/20 context line,
+    and the station logo fills the 64-px surface. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+   #home-radio[data-media-layout=compact] small:has(>.overview-media-artist:not([hidden])){grid-row:3/5!important;
+   height:auto!important;max-height:none!important;display:flex!important;flex-direction:column;justify-content:end}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+   #home-radio[data-media-layout=compact] small>:is(.overview-media-title,.overview-media-artist){display:block!important;
+   min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+   #home-radio[data-media-layout=compact] small>.overview-media-title{font:800 18px/26px var(--pv-font)!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+   #home-radio[data-media-layout=compact] small>.overview-media-artist:not([hidden]){margin-top:4px;
+   font:400 15px/20px var(--pv-font)!important;letter-spacing:0;color:#5F5E5A}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+   #home-radio[data-radio-logo]::after{background:var(--pv-radio-logo) center/cover no-repeat!important}
+ /* W-radio »ikketilg«: the small Radio widget greys its lines; its icon surface is dimmed above. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+   #home-radio[data-kit-state=unavailable] :is(strong,small){color:#8C8A85!important}
+}
+@keyframes pv-radio-live{0%,100%{opacity:1}50%{opacity:.5}}
+@media (prefers-reduced-motion:reduce){
+ pv-widget-host #radio-view .radio-scale-needle{animation:none!important;transition:none!important}
+}

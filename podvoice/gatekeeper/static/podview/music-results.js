@@ -215,12 +215,21 @@ export function renderOverviewMediaValues(host){
  const artist=known&&!radio&&typeof vm.artist==='string'?vm.artist.trim().replace(/\s+/g,' '):'';
  const emptyMusic={offline:'Ikke forbundet',error:'Kan ikke hentes','account-selection':'Vælg musikkonto',loading:'Afventer data'}[vm.emptyState]||(host.live&&host.liveTransport?.connected===false?'Ikke forbundet':'Vælg musik');
  const radioKnown=radioVM.active===true&&radioVM.sourceKind==='radio'&&typeof radioVM.title==='string'&&!!radioVM.title.trim()&&(!host.live||((host.liveRadio?.hasSource?.()??host.liveRadio?.ownsPlayer?.())===true||host.liveRadio?.knownStopped?.()===true)||radioVM.loading===true&&!!host.liveRadio?.pendingStart?.());
- const radioAvailable=!host.live||host.liveRadio?.current()===true;
+ const radioAvailable=host.live?host.liveRadio?.current()===true:host.state?.connected!==false;
  const radioExample=radioVM.exampleOnly===true||typeof radioVM.previewLabel==='string'&&/ingen lyd/i.test(radioVM.previewLabel);
  const values={
   'home-music':{title:known&&!radio?`${vm.fresh===false&&!vm.readOnly?'Ikke opdateret · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.readOnly?`${vm.playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`:vm.fresh===false?'Afspilningen er ikke opdateret':vm.playing?'Afspiller':'På pause'):''},
-  'home-radio':{title:radioKnown?`${radioVM.fresh===false&&!radioExample&&radioVM.loading!==true?'Ikke opdateret · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
+  'home-radio':{title:!radioAvailable?'Ikke tilgængelig':radioKnown?`${radioVM.fresh===false&&!radioExample&&radioVM.loading!==true?'Ikke opdateret · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioAvailable&&radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
  };
+ // W-radio »ikketilg«: the Radio widget is dimmed while radio cannot be chosen.
+ const radioCard=doc.getElementById('home-radio'),radioState=radioAvailable?'ready':'unavailable';
+ if(radioCard&&radioCard.dataset.kitState!==radioState)radioCard.dataset.kitState=radioState;
+ // W-radio »spiller«/»starter«: the station logo fills the widget's 64-px surface.
+ const radioLogo=radioAvailable&&radioKnown&&/^assets\/radio-[a-z0-9-]+\.svg$/.test(radioVM.fixtureArt||'')?`url(${radioVM.fixtureArt})`:'';
+ if(radioCard?.style&&radioCard.style.getPropertyValue('--pv-radio-logo')!==radioLogo){
+  if(radioLogo)radioCard.style.setProperty('--pv-radio-logo',radioLogo);else radioCard.style.removeProperty('--pv-radio-logo');
+  radioCard.toggleAttribute('data-radio-logo',!!radioLogo);
+ }
  for(const [id,value]of Object.entries(values)){
   const card=doc.getElementById(id);if(card?.dataset.mediaLayout==='media'){if(card.getAttribute('aria-description')!==null)card.removeAttribute('aria-description');continue;}const node=card?.querySelector('small');if(!node)continue;
   let title=node.querySelector('.overview-media-title'),secondary=node.querySelector('.overview-media-artist');

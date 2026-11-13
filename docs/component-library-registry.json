@@ -1698,9 +1698,14 @@
         "definitions": {
           "class:RadioView": 1,
           "method:build": 1,
-          "method:destroy": 1
+          "method:destroy": 1,
+          "arrow:stationPosition": 1
         },
         "roots": [
+          "native:div:radio-hero-top",
+          "native:div:radio-scale",
+          "native:div:radio-scale-ticks",
+          "native:div:radio-stations-head",
           "native:header:response-heading pv-topbar"
         ],
         "registrations": {},
