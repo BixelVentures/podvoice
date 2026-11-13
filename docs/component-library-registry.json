@@ -2812,6 +2812,7 @@
           "method:lightAreaContext": 1,
           "method:liveMusicAccountChanged": 1,
           "method:loadLiveHome": 1,
+          "method:deferConnecting": 1,
           "method:loadLiveMusic": 1,
           "method:music": 1,
           "method:open": 1,
