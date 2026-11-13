@@ -635,11 +635,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "039f27f24fba620d4719f75f14bb3992d59de1bd73be1e43acadb30f4bfd9a8f"
+      "sha256": "ac397434371769225bf26d839842366b1765f6c1ed23e526e3d24ec25bd82876"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "9c62facf3a23f8c3cd4b618bab5028468e57ebf815f248593322d2c34e35b77e"
+      "sha256": "4892c9ff1c8ca2f9ae0987588464a068c2bbe25afb8339cd50f5c4c4ac6a08b1"
     },
     {
       "path": "podview.css",

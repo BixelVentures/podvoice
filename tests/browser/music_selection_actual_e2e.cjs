@@ -1922,8 +1922,16 @@ async function queuePersistenceJourney(){
   let previewArmed=false,initialMood=true,holdArmed=false,releaseMood,markHeld;const heldMood=new Promise(resolve=>{markHeld=resolve;}),moodGate=new Promise(resolve=>{releaseMood=resolve;});
   if(holdMood)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(!holdArmed||url.searchParams.get('kind')!=='mood'||url.searchParams.get('renew')!=='1')return route.continue();holdArmed=false;const response=await route.fetch();markHeld();await moodGate;await route.fulfill({response});});
   if(previewRenew)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(url.searchParams.get('kind')!=='mood'||!initialMood&&!previewArmed)return route.continue();const response=await route.fetch(),body=await response.json();assert.equal(body.ok,true);assert.ok(body.candidateSet,'actual owner supplied playlist source');const tracks=body.data.tracks.map(({uri,name,artist,themeId,themeTitle,themeArt,artwork})=>({uri,name,artist,themeId,themeTitle,themeArt,...(artwork?{artwork}:{})}));const preview={ok:true,schema:'podview.mood-preview.v1',preview:{readOnly:true,bootId:snapshot.bootId,roomId:snapshot.roomId,configEntryId:'account',ownerEpoch:body.data.owner_epoch,source:'spotify_web_api',expiresIn:60,voiceSessionId:snapshot.voice.sessionId,voiceTurnId:snapshot.voice.turnId},data:{config_entry_id:'account',owner_epoch:body.data.owner_epoch,source:'spotify_web_api',tracks}};initialMood=false;previewArmed=false;await route.fulfill({response,json:preview});});
-  await env.openOverview(page);await page.locator('#home-music').tap();
+  await env.openOverview(page);
+  // CI 13/11: a background playback read greyed the speaker button for a frame, so the tap that
+  // landed then was lost and the picker never opened. Once usable, it stays usable in the empty room.
+  await page.locator('#output').evaluate(button=>{window.outputGreyed=[];new MutationObserver(()=>{
+   if(button.disabled&&document.querySelector('pv-widget-host')?.liveTransport?.connected)window.outputGreyed.push(button.getAttribute('aria-label'));
+  }).observe(button,{attributes:true,attributeFilter:['disabled']});});
+  await page.locator('#home-music').tap();
   await page.locator('#output').tap();await page.locator('#room-options button').filter({hasText:'Køkkenalrum HomePod'}).tap();
+  await page.waitForFunction(()=>!document.getElementById('rooms').open,undefined,{timeout:5000});await sleep(600);
+  assert.deepEqual(await page.evaluate(()=>window.outputGreyed),[],'the speaker button never greys during background reads');
   if(startLatencyMood){await moodLatencyJourney();return;}
   const row=page.locator('#result-list button.result').filter({hasText:'Kold jazz'}).first();await row.waitFor({state:'visible',timeout:20000});await row.tap();
   if(rejectSetup){
