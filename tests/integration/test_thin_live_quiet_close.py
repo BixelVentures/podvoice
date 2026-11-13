@@ -36,10 +36,29 @@ async def setup(**kwargs):
     return session, sdk, link
 
 
+_CLOCK: list[float] = [100.0]
+
+
+@pytest.fixture(autouse=True)
+def thin_clock(monkeypatch):
+    """One fake Thin clock from the first await of every test.
+
+    Close deadlines (``_finish_live_conversation``) are computed when the finish
+    coroutine starts. Installing the fake clock only before the native quiet
+    deliveries mixed two clocks: a deadline from the runner's real monotonic
+    time compared with fake times of ~104 s. On a freshly booted CI runner
+    (uptime < ~100 s) that closed as "live-close-output-quiet-unconfirmed"
+    instead of "model-close", and the provider never closed (TimeoutError).
+    """
+    _CLOCK[:] = [100.0]
+    clock_patch(monkeypatch, _CLOCK)
+    return _CLOCK
+
+
 def native_activity(session, link, patch):
     """Actual adapter parser/identity gate; simulated firmware, never room proof."""
     native, _, template = activity_fixture()
-    clock = [100.0]
+    clock = _CLOCK  # The test's one fake clock; never a second clock mid-test.
     clock_patch(patch, clock)
     patch.setattr(
         voicepe_module, "time", SimpleNamespace(monotonic=lambda: clock[0], time=time.time)
@@ -73,9 +92,8 @@ async def fresh_settled_quiet(session, link, monkeypatch, deliver=None):
     await until(lambda: session._test_backend_settled.is_set())
     await asyncio.sleep(0)  # Run the released finish coroutine through its reset.
     await until(lambda: session._live_quiet_work_clear(semantic=True))
-    # The fake clock stays installed until the test ends. Restoring the real clock here let a
-    # close deadline computed on the fake clock (~100 s) be compared with real monotonic time,
-    # which on a slow CI runner closed as "output-quiet-unconfirmed" instead of "model-close".
+    # The module's one fake clock (``thin_clock``) is installed for the whole test, so every
+    # close deadline and every quiet observation use the same time.
     first = 41
     if deliver is None:
         deliver, _ = native_activity(session, link, monkeypatch)
@@ -197,7 +215,7 @@ async def test_semantic_end_does_not_turn_native_quiet_into_another_followup(mon
     session, sdk, link = await setup()
     try:
         with monkeypatch.context() as patch:
-            clock = [100.0]
+            clock = _CLOCK
             clock_patch(patch, clock)
             if evidence != "missing":
                 row = observation(0)
@@ -519,7 +537,7 @@ async def test_configured_idle_is_only_a_fault_bound_for_known_pending_work(monk
     session._tool_tasks["known-work"] = held
     try:
         with monkeypatch.context() as patch:
-            clock = [100.0]
+            clock = _CLOCK
             clock_patch(patch, clock)
             patch.setattr(
                 session, "_request_close", lambda reason, **kw: closes.append((reason, kw))
