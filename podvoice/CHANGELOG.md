@@ -1,3 +1,8 @@
+## 2.0.191
+
+- Rettelser fra Green-tjekket: Højttalervælgeren låses ikke længere kort under baggrundsopdateringer, så et tryk aldrig går tabt. Find musik er klar i baggrunden uden "Henter forslag", og forslagene er aldrig låste. Forsiden og fanerne blinker ikke. Robot- og vejrsiden er klar, når de åbnes.
+- Kræver PodConnect Speakers 0.26.102 og Control 0.10.46.
+
 ## 2.0.190
 
 - Musikafspilleren følger nu enkle regler: Afspilleren ejer højttalervalget, og radio og musik spiller altid på den valgte højttaler. At åbne Find musik eller radiosiden ændrer ikke afspilleren. Stoppet radio bliver i afspilleren i 10 min ligesom pauset musik. Højttalervælger, kø og Find musik låses aldrig, og "Højttaleren afviste handlingen" står ikke længere i afspiller eller kø. Pause/afspil, kold start og valg i køen sker roligt uden blink, og spole-slideren føles som lydstyrken.
