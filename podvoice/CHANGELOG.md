@@ -1,3 +1,7 @@
+## 2.0.186
+
+- PodView på en Frameo-ramme og andre ældre vægskærme (Chrome under 111) kører i en let tilstand: kortet markeres med det samme, du trykker (ca. 30 ms mod før ca. 1 sekund), og trykket annulleres, hvis du trækker fingeren væk. Scroll kører ca. 50 billeder i sekundet mod før ca. 14, og skift til en anden side tager under et sekund. Swipe-gestusser, bevægelse og skygger er slået fra der, så alt betjenes med knapperne. Home Assistants værktøjslinje blinker ikke længere frem, når du skifter side. iPad, Mac og nyere skærme opfører sig som før.
+
 ## 2.0.185
 
 - Ny færdig iPhone-genvej »Opskrifter til PodView«: hent den i Opskrifter → »Tilføj opskrift-genvej til iPhone« (kun for HA-administrator), og indsæt den viste adresse og uploadkode én gang, når iPhonen spørger. Genvejen finder selv opskriftens link i det delte, og PodView siger til, når der findes en ny version af genvejen. Serveren forstår flere slags delinger og giver konkrete fejlbeskeder. Kræver HA-komponent 0.1.23 for versionsbeskeden gennem Home Assistant.
