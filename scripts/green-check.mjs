@@ -28,7 +28,8 @@
 //
 // Login: et langtidsholdbart HA-token, som brugeren selv opretter. Det læses fra $GREEN_HA_TOKEN eller
 // macOS-nøgleringen (tjenesten "podvoice-green-check") og skrives aldrig ud eller til disk.
-// Lydregler: kun Køkkenalrum, lydstyrke sættes til 8 % før afspilning, stop til sidst, aldrig 18–08.
+// Lydregler: kun Køkkenalrum, kun når brugeren beder om det, stop til sidst, aldrig 18–08.
+// Startlydstyrken ejes af PodConnect (35 %); tjekket sætter eller begrænser aldrig lydstyrken selv.
 // Robot, bil, lys og andre rum får aldrig en kommando. Tjekket trykker kun på læsende knapper uden --sound.
 
 import {execFileSync} from 'node:child_process';
@@ -52,7 +53,7 @@ Tjek (lydløst):
   første billede efter navigation; ingen knap blinker; ingen stående "afvist"/"ukendt udfald"/"kunne ikke
   genskabes"; højttalervælger, kø og Find musik er aldrig låst; robotten viser sidste opsætning; forsidekort
   genopbygges ikke; ingen nye WARNING/ERROR i PodVoice-, PodConnect- og HA-loggen (undtagen kendt liste).
---sound (kun 08–18, kun Køkkenalrum, lydstyrke 8 %):
+--sound (kun når brugeren beder om det, kun 08–18, kun Køkkenalrum; lydstyrken er PodConnects):
   kold start → afspil fra køen → pause → afspil → vælg højttaler → start fra Find musik → radio → stop.
   HA-tilstanden tjekkes efter hvert trin, og Køkkenalrum sættes på pause til sidst, også ved fejl.
 
@@ -605,13 +606,7 @@ async function soundChecks(check, ha) {
     check.record('lyd', 'A1 A2 H1 R1 R2', 'sprunget', `${busy.join(', ')} spiller; rører den ikke`);
     return;
   }
-  const quiet = () => ha.service('media_player', 'volume_set', {entity_id: kitchen, volume_level: 0.08});
   const guard = async () => {
-    const state = await ha.state(kitchen);
-    if ((state.attributes.volume_level ?? 0) > 0.1) {
-      await ha.service('media_player', 'media_pause', {entity_id: kitchen});
-      throw new Error(`lydstyrken var ${Math.round(state.attributes.volume_level * 100)} %; sat på pause`);
-    }
     for (const id of others)
       if ((await ha.state(id)).state === 'playing') {
         await ha.service('media_player', 'media_pause', {entity_id: id});
@@ -659,21 +654,6 @@ async function soundChecks(check, ha) {
     return {result, flash};
   };
 
-  // The volume must be at most 10 % before the first sound. If the speaker refuses a volume change
-  // while it is quiet, no sound is made at all.
-  try {
-    await quiet();
-  } catch {
-    // The refused volume call is our own; its log lines are not a product regression.
-    check.ownLogLines.push(/volume failed|Native route unavailable/i);
-  }
-  const level = (await waitState(ha, kitchen, s => (s.attributes.volume_level ?? 1) <= 0.1, 4000)).state;
-  if ((level?.attributes?.volume_level ?? 1) > 0.1) {
-    const percent = Math.round((level?.attributes?.volume_level ?? 1) * 100);
-    check.record('lyd', 'A1 A2 H1 R1 R2', 'sprunget',
-      `${kitchen} kan ikke sættes til ≤10 % før afspilning (står på ${percent} %); ingen lyd afspillet`);
-    return;
-  }
   try {
     if ((await ha.state(kitchen)).state === 'playing') {
       await ha.service('media_player', 'media_pause', {entity_id: kitchen});
@@ -697,7 +677,6 @@ async function soundChecks(check, ha) {
         await f().locator('#home-music').tap();
         const choice = f().locator('#result-list button.result:not([disabled])').first();
         await choice.waitFor({state: 'visible', timeout: 8000});
-        await quiet();
         await choice.tap();
         const first = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
         await guard();
@@ -708,7 +687,6 @@ async function soundChecks(check, ha) {
         await row.waitFor({state: 'visible', timeout: 6000}).catch(() => {});
         if (!(await row.count())) return ['køen viser ingen kommende sange efter start'];
       }
-      await quiet();
       const {result, flash} = await tapWatched('#queue button.queue-track:not([data-current="true"])', playing);
       await guard();
       await sleep(1500);
@@ -728,7 +706,6 @@ async function soundChecks(check, ha) {
       ];
     });
     await step('afspil', 'A2', async () => {
-      await quiet();
       const {result, flash} = await tapWatched('#play-pause', playing);
       await guard();
       return [
@@ -761,7 +738,6 @@ async function soundChecks(check, ha) {
       await f().locator('#home-music').tap();
       const choice = f().locator('#result-list button.result:not([disabled])');
       await choice.first().waitFor({state: 'visible', timeout: 5000});
-      await quiet();
       await choice.first().tap();
       const started = s => s.state === 'playing' && s.attributes.media_title !== title;
       const result = await waitState(ha, kitchen, started, 8000);
@@ -776,7 +752,6 @@ async function soundChecks(check, ha) {
       await f().locator('#home-radio').tap();
       const station = f().locator('#radio-view pv-choice-list button:not([disabled])');
       await station.first().waitFor({state: 'visible', timeout: 5000});
-      await quiet();
       await station.first().tap();
       const result = await waitState(ha, kitchen, s => s.state === 'playing', 8000);
       await sleep(1500);
