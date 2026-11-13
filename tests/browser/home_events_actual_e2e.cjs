@@ -288,7 +288,7 @@ async function offlineFeedbackJourney(page,errors){
  for(let n=0;(await state()).subscriptions<4;n++){if(n>100)throw Error('HA subscription ACKs missing');await sleep(100)}
  await sleep(300);
  assert(initialSetupHeld,'the first actual setup response is held');
- const baseButton=panel.getByRole('button',{name:'Base',exact:true});await baseButton.tap();await baseButton.focus();
+ const baseButton=panel.getByRole('button',{name:'Mere',exact:true});await baseButton.tap();await baseButton.focus();
  assert(await baseButton.evaluate(b=>b.ownerDocument.activeElement===b),'Base is focused before setup completion');
  assert.equal(await baseButton.getAttribute('aria-expanded'),'true','touch opens Base while setup is held');
  console.log('heldSetupBefore',await panel.evaluate(p=>({task:p.value?.task?.taskId,focused:document.activeElement===p.baseDisclosure?.trigger,expanded:p.baseDisclosure?.trigger.getAttribute('aria-expanded')})));
