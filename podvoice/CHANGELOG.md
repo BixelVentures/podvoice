@@ -1,3 +1,13 @@
+## 2.0.189
+
+- Rettelser efter testen 13. nov. (kræver PodConnect Speakers 0.26.99 og Control 0.10.45, og HA-komponenten 0.1.24):
+- Musik: Køen bliver ikke tom og flimrer ikke, når PodConnect er bagud. Afspil-knappens ventering drejer og sidder i midten. Højttalervælgeren og "Flyt" virker igen. Forsiden viser samme kilde i musikkortet og afspilleren. "Din musik", "Hør igen" og "Tid på dagen" i Find musik kan starte igen efter et skift til en anden højttaler.
+- Voice PE: Stemmen kan starte musik igen via rummets PodConnect-afspiller. Samtalen lukker pænt efter svaret i stedet for at hænge et minut og blive rød. Ét svarkort pr. spørgsmål, som opdateres i stedet for at blive gentaget, og bedre plads i kortet.
+- iPad som vægskærm: PodView kommer selv tilbage i fuld skærm og forbundet efter en Home Assistant-genstart, låst skærm eller netværksudfald, uden at nogen trykker.
+- Robot: Knapperne bliver ikke grå, når siden åbnes. Start viser straks "Starter …" og skifter roligt til støvsugning uden hop.
+- Tesla: Status står på én linje ("Vækker bilen…"), og bilens eget svar bekræftes ("Klimaet er tændt.") i stedet for "Udfald ukendt". Når Tesla-siden åbnes, hentes en frisk læsning, så ændringer fra Tesla-appen vises.
+- Opskrifter fra iPhone: Upload virker hele vejen med tydelige danske svar (Gemt, Findes allerede, Ingen opskrift fundet, Forkert upload-kode), dubletter oprettes ikke, og langsomme sider giver ikke timeout i genvejen.
+
 ## 2.0.188
 
 - PodView føles glattere på iPad og Mac, uden at noget ser anderledes ud: uret, afspilleren og højttalerne opdateres først, når du har løftet fingeren, så nye data ikke giver hak midt i et tryk. Et tryk på et kort skifter side lidt hurtigere, fordi trykmarkeringen og de bløde toninger i kanten af scroll-områderne laver mindre arbejde.
