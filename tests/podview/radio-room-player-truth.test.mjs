@@ -45,8 +45,8 @@ function fixture(playback) {
  return {radio, calls, host};
 }
 
-test('music in the room takes the player from a stopped radio, also without a PodConnect session', () => {
- const {radio, calls} = fixture(room());
+test('music playing in the room takes the player from a stopped radio, also without a PodConnect session', () => {
+ const {radio, calls} = fixture(room({state: 'playing'}));
  assert.equal(radio.knownStopped(), true, 'the radio history is still known');
  assert.equal(radio.ownsPlayer(), false, 'the room player shows the room');
  assert.equal(radio.renderPlayer(), false);
@@ -60,6 +60,11 @@ test('a song paused before the radio stopped does not replace the station; the m
  host.playerView.sourceModel = PlayerView.prototype.sourceModel;
  host.liveMedia.observedPlayerModel = () => ({active: true, title: 'In Da Club'});
  assert.deepEqual(host.playerView.sourceModel('music'), {}, 'the music card shows no older song');
+});
+
+test('test 11: a paused song never replaces a stopped radio (the last started source owns the player)', () => {
+ const {radio} = fixture(room());
+ assert.equal(radio.ownsPlayer(), true);
 });
 
 test('a stopped radio still shows when the room has nothing else', () => {

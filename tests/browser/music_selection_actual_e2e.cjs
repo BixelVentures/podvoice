@@ -537,7 +537,8 @@ async function recentSessionJourney(){
   assert.equal(await page.locator('#track-name').textContent(),title);
   assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
   assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
-  assert.match(await page.locator('#player-state').textContent(),/Starter afspilning/);
+  // A start is calm (13/11): the chosen song shows at once, no text over the speaker picker.
+  assert.equal(await page.locator('#player-state').textContent(),'');
   assert.equal(await row.getAttribute('aria-busy'),'true');
   assert.equal(await list.locator('button[aria-busy="true"]').count(),1,'only the selected row shows pending');
   assert.equal(await list.getAttribute('aria-busy'),'false','selection does not make the catalogue busy');
