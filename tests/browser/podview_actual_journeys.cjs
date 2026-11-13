@@ -35,6 +35,8 @@ for(const journey of only.length?only:journeys){
  if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_start_actual_e2e.cjs');
  // Native feel (13 Nov): the robot page opens complete from the background-prepared offer.
  if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_first_frame_actual_e2e.cjs');
+ // Green 13 Nov 11:45: the last chosen rooms and settings survive a restart and an expired offer.
+ if(journey==='robot_ux_actual_e2e.cjs')runJourney('robot_last_setup_actual_e2e.cjs');
  if(journey==='music_push_actual_e2e.cjs')runJourney(journey,{MUSIC_PUSH_OVERLAP_TEST:'1',
   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'push-overlap')});
  if(journey==='music_actual_e2e.cjs')runJourney(journey,{MUSIC_INSECURE_ORIGIN_TEST:'1',
