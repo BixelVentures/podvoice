@@ -15,7 +15,7 @@ import secrets
 from collections.abc import Callable
 from typing import Any
 
-from . import podview_room_media, podview_speakers, voice_rooms
+from . import podview_room_media, podview_room_player, podview_speakers, voice_rooms
 
 _LOGGER = logging.getLogger("podvoice.voice_music_start")
 _START_ACTIONS = ("play_track", "play_context")
@@ -125,6 +125,10 @@ async def resolve_target(bridge: Any, hint: str | None, current: Callable[[], bo
             if _room_entity_matches(data, scope, hint):
                 entities.append(_room_plan(room, scope, rows))
     matched, known = voice_rooms.resolve(hint, [row["name"] for _scope, row in speakers])
+    if matched is None and not entities:
+        plan = await _room_player_plan(bridge, room, bindings, speakers, hint, current)
+        if plan is not None:
+            return {"known": known, "plan": plan}
     if matched is None:
         # The room setup's own Spotify target, named by its exact HA media_player or
         # HA name, is this room's speaker: start it like "spil musik" without a room.
@@ -140,6 +144,54 @@ async def resolve_target(bridge: Any, hint: str | None, current: Callable[[], bo
             "name": voice_rooms.display_name(matched),
         },
     }
+
+
+async def _room_player_plan(
+    bridge: Any,
+    room: str,
+    bindings: list[dict],
+    speakers: list[tuple[dict, dict]],
+    hint: str,
+    current: Callable[[], bool],
+) -> dict | None:
+    """The hint is exactly one configured room's PodConnect room media_player.
+
+    Control 0.10.44 publishes one media_player per room (unique_id
+    ``<config_entry_id>_room_<room_id>``, the player PodView shows) and deleted the
+    per-Spotify-device entities that carried ``ha_context``. The model names that
+    room player, so it is matched by the same registry lookup as PodView's player.
+    """
+    if not hint.casefold().startswith("media_player."):
+        return None
+    folded = hint.strip().casefold()
+    for scope in bindings:
+        account = scope["accountId"]
+        rows = [row for row_scope, row in speakers if row_scope is scope]
+        rooms = [scope["nativeRoomId"]] + [
+            row["nativeRoomId"] for row in rows if row["nativeRoomId"] != scope["nativeRoomId"]
+        ]
+        for native_room in dict.fromkeys(rooms):
+            try:
+                entity = await podview_room_player.entity_id(bridge, account, native_room)
+            except Exception:  # A failed registry read is "no match", never a guess.
+                return None
+            if not current():
+                return None
+            if not isinstance(entity, str) or entity.casefold() != folded:
+                continue
+            if native_room == scope["nativeRoomId"]:
+                return _room_plan(room, scope, [(scope, row) for row in rows])
+            matches = [row for row in rows if row["nativeRoomId"] == native_room]
+            if len(matches) != 1:
+                return None
+            return {
+                "room": room,
+                "account": account,
+                "scope": scope,
+                "speaker": matches[0],
+                "name": voice_rooms.display_name(matches[0]["name"]),
+            }
+    return None
 
 
 def _fenced(bridge: Any, room: str) -> bool:
