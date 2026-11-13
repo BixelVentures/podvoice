@@ -58,7 +58,7 @@ Fælles:
 - **Touch-feedback overalt (ejer 13. nov.):** alt trykbart giver synlig respons inden 100 ms, også før svaret fra HA:
   knapper/flader trykkes ind (skala ≈0,97 + let mørkere, kit-token), og fladetryk uden knap (fx Foto-Ro »tryk for at
   åbne«, nat-skærm) viser en blød cirkel ved fingeren, der udvider og toner ud (≈300 ms). Ingen lyd, ingen haptik
-  (webview). `prefers-reduced-motion`: kun farveskift, ingen bevægelse.
+  (webview). Touch-feedback er altid ens (ingen særregel for reduceret bevægelse).
 - **Tekster kommer fra produktet.** Lærredets `.dc.html` er reference og kopieres ikke ind.
 - **Tilbagerulning** = udgiv forrige version igen.
 - **Første merge til `main`** først når `docs/STATUS.md` ikke har åbne blokeringer (pt. Robot-UI visuel accept,
