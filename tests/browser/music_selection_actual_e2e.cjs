@@ -27,6 +27,7 @@ const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const startLatency=process.env.MUSIC_START_LATENCY_TEST==='1';
 const startLatencyMood=process.env.MUSIC_START_LATENCY_TEST==='mood';
 const queueSkip=process.env.MUSIC_QUEUE_SKIP_TEST==='1';
+const coldPlayer=process.env.MUSIC_COLD_PLAYER_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
@@ -109,6 +110,50 @@ async function moodLatencyJourney(){
  // Spotify's own observation, because the room read is "idle" until then (needs Control, see PR).
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',mode:'mood-start-latency',...result}));
+}
+
+// Test 13/11 12:05: a start from an empty player is calm. Every frame of the player is recorded:
+// no text over the speaker picker, the title changes once to the chosen song, no layout jump.
+async function recordPlayer(){
+ await page.evaluate(()=>{
+  const read=()=>{const q=id=>document.getElementById(id),box=document.querySelector('.player')?.getBoundingClientRect();
+   return {state:q('player-state')?.textContent||'',track:q('track-name')?.textContent||'',
+    toggle:[q('play-pause')?.getAttribute('aria-label'),q('play-pause')?.disabled,q('play-pause')?.getAttribute('aria-busy')].join('|'),
+    output:q('output')?.disabled+'|'+(q('output')?.getBoundingClientRect().top|0),height:box?box.height|0:0};};
+  const probe=window.playerFrames={frames:[]};
+  const sample=()=>{probe.frames.push(read());if(!probe.stop)requestAnimationFrame(sample);};
+  requestAnimationFrame(sample);
+ });
+}
+const playerChanges=async()=>page.evaluate(()=>{const p=window.playerFrames;p.stop=true;const out={};
+ for(const key of Object.keys(p.frames[0]||{})){const seq=[];for(const f of p.frames)if(seq.at(-1)!==f[key])seq.push(f[key]);out[key]=seq;}
+ return out;});
+async function coldPlayerJourney(){
+ assert((await page.request.post(base+'/lab/state',{data:{externalPlaybackState:'idle'}})).ok());
+ await page.waitForFunction(()=>!['playing','paused'].includes(document.querySelector('pv-widget-host')?.liveMedia?.playback?.state),
+  undefined,{timeout:15000});
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="top"]').tap();
+ const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 12'});
+ await row.waitFor({state:'visible',timeout:15000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('#result-list button.result')]
+  .some(r=>r.textContent.includes('Katalogsang 12')&&!r.disabled),undefined,{timeout:15000});
+ await sleep(500);
+ await recordPlayer();
+ await row.tap();
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');
+  return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.state==='playing';},undefined,{timeout:20000});
+ await sleep(800);
+ const changes=await playerChanges();
+ console.log('coldPlayer',JSON.stringify(changes));
+ assert.deepEqual(changes.state.filter(text=>text&&!['Spiller på'].includes(text)),[],'no text over the speaker picker');
+ // The fixture's catalogue names a song differently from the room ("Katalogsang"/"Isoleret sang"):
+ // the chosen title shows at once, then only the room's own title; never back to empty or between.
+ assert.deepEqual(changes.track,['','Katalogsang 12','Isoleret sang 12'],'one calm title change');
+ assert.deepEqual(changes.output.length,1,'the speaker picker never flips');
+ assert(changes.toggle.length<=2,'play/pause changes once: '+JSON.stringify(changes.toggle));
+ assert(changes.height.length<=2,'no layout jumps: '+JSON.stringify(changes.height));
+ return changes;
 }
 // K2/K4: three fast Next taps and one autoplay context switch. The queue list is never empty,
 // never shows error text, keeps each row's DOM node while it stays listed and never reorders rows.
@@ -492,7 +537,8 @@ async function recentSessionJourney(){
   assert.equal(await page.locator('#track-name').textContent(),title);
   assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
   assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
-  assert.match(await page.locator('#player-state').textContent(),/Starter afspilning/);
+  // A start is calm (13/11): the chosen song shows at once, no text over the speaker picker.
+  assert.equal(await page.locator('#player-state').textContent(),'');
   assert.equal(await row.getAttribute('aria-busy'),'true');
   assert.equal(await list.locator('button[aria-busy="true"]').count(),1,'only the selected row shows pending');
   assert.equal(await list.getAttribute('aria-busy'),'false','selection does not make the catalogue busy');
@@ -1995,6 +2041,7 @@ async function queuePersistenceJourney(){
  if(accountRollover){await accountRolloverJourney();return;}
  if(queueIdentity){await queueIdentityJourney();return;}
  if(queueSkip){await queueSkipJourney();return;}
+ if(coldPlayer){await coldPlayerJourney();console.log(JSON.stringify({outcome:'PASS',mode:'cold-player'}));return;}
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}

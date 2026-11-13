@@ -11,7 +11,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from integration.test_podview_music_selection import rig as music_rig  # noqa: F401
 from unit.test_podview_speakers import payload
 
-from gatekeeper import podview_room_media, podview_speakers
+from gatekeeper import podview_room_media, podview_room_player, podview_speakers
 from gatekeeper.podview import BRIDGE
 
 HEADERS = {"Cookie": "podview_control=grant", "X-PodView-Request": "1"}
@@ -571,6 +571,10 @@ async def test_stale_destination_proof_never_blocks_the_next_explicit_choice(
         ).json()
         assert first["outcome"] == "accepted"
         assert bridge._music_move_fence, "the unproven destination is recorded as uncertain"
+        # Test 11: the player follows the speaker the user chose, also without PodConnect proof
+        # (Green 12:05: Frida played while the screen followed Køkkenalrum's idle player).
+        followed, _ = podview_room_player.player_target(bridge, "kitchen", "account-alpha")
+        assert (followed["nativeRoomId"], followed["nativeHomepodId"]) == ("r1", "43")
         # Last command wins: a new explicit choice gets an offer and starts.
         read = await (
             await client.get(

@@ -1008,7 +1008,7 @@ async def lab_state(request):
             session._external_turn_id = lambda: turn
         # External native-owner changes do not create a PodView command or receipt.
         if "externalPlaybackState" in args:
-            if args["externalPlaybackState"] not in {"playing", "paused"}:
+            if args["externalPlaybackState"] not in {"playing", "paused", "idle"}:
                 raise web.HTTPBadRequest()
             state["state"] = args["externalPlaybackState"]
         if volume_drag and "externalVolume" in args:
@@ -1017,6 +1017,9 @@ async def lab_state(request):
                 raise web.HTTPBadRequest()
             state["volume"] = percent
             state["volumeRevision"] += 1
+        if "queue" in args:
+            # A fresh upcoming queue for a later step of the same journey.
+            state["queue"] = [int(song) for song in args["queue"]]
         if "rejectNextPause" in args:
             state["rejectNextPause"] = args["rejectNextPause"] is True
         if "snapshotStale" in args:

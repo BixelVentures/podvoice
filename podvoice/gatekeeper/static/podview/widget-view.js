@@ -142,7 +142,9 @@ class WidgetHost extends HTMLElement {
     return;
    }
   }
-  if(event.type!=='tick')this.frozenPreview=false;const prev=this.state,next=sceneTransition(prev,event),sourceChanged=this.live&&event.type==='show'&&['music','radio'].includes(event.id)?this.playerView?.focusSource?.(event.id):false;if(next===prev){if(sourceChanged)this.liveMedia?.render?.();return;}
+  if(event.type!=='tick')this.frozenPreview=false;const prev=this.state,next=sceneTransition(prev,event);
+  // Browsing Find musik or radio never changes the player's source; only a play tap does (test 11).
+  if(next===prev)return;
   if(event.type==='music'&&['select','queue-select'].includes(event.event?.type)&&next!==prev)next.radioStationId=null;const changesView=next.focus!==prev.focus,oldPlayer=changesView?this.motion?.capture(prev.focus,next.focus):null;
   if(this.historyBrowse&&changesView&&(browse.scope!==JSON.stringify([this.liveSnapshot?.bootId,this.liveSnapshot?.roomId])||this.isConnected===false||!next.answers.some(a=>a.id===browse.id&&!a.hidden)||next.focus!==browse.id&&!(next.detailOrigin===browse.id&&next.navStack?.includes(browse.id)&&(next.focus==='weather'||next.focus==='timers'||next.devices.some(d=>d.id===next.focus&&!d.hidden)))))this.historyBrowse=null;this.state=next;this.musicRefresh?.sync();this.render();if(changesView)this.motion?.enter(prev.focus,next.focus,oldPlayer,['back','device-back'].includes(event.type));if(restoring)this.restoreAfterAnswer();
   if(event.type==='hide')this.focusHeading();

@@ -122,6 +122,30 @@ async function speakerRefreshJourney(page,errors){
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-speakers-refresh-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
+
+// No flashes (13/11): every music control changes state at most once per action. A control's state is
+// what the user sees: enabled or not, its text and its icon (a running spinner is not a state).
+async function startFlashProbe(page){
+ await page.evaluate(()=>{
+  // What is seen: enabled or not, the visible text and the icon.
+  const sig=n=>[n.disabled,n.getAttribute('aria-disabled'),n.getAttribute('aria-pressed'),n.textContent.trim(),
+   n.querySelector('img')?.getAttribute('src')].join('|');
+  const controls=()=>{const out={};for(const id of ['play-pause','previous','next','volume','output','detail-toggle',
+   'detail-previous','detail-next','detail-volume','detail-output'])if(document.getElementById(id))out[id]=document.getElementById(id);
+   for(const row of document.querySelectorAll('#queue button.queue-track[data-current=false]'))
+    if(row.dataset.placeholder!=='true')out['queue:'+row.dataset.trackId]=row;
+   return out;};
+  const probe=window.flashProbe={seen:{},stop:false};
+  const sample=()=>{for(const [key,node] of Object.entries(controls())){const value=sig(node),seq=probe.seen[key]??=[];
+   if(seq.at(-1)!==value)seq.push(value);}if(!probe.stop)requestAnimationFrame(sample);};
+  requestAnimationFrame(sample);
+ });
+}
+async function flashChanges(page,label){
+ const seen=await page.evaluate(()=>{window.flashProbe.stop=true;return window.flashProbe.seen;});
+ const flashes=Object.entries(seen).filter(([,seq])=>seq.length>2).map(([key,seq])=>({key,seq}));
+ assert.deepEqual(flashes,[],`${label}: a control changed state more than once`);
+}
 async function outputTransferJourney(page,errors,{composed=false}={}){
  const output=page.locator('#output'),dialog=page.locator('#rooms'),volume=page.locator('#volume');
  const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current=false]');
@@ -166,8 +190,7 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
      const label=output?.getAttribute('aria-label');
      const elapsedMs=performance.now()-startedAt;
      const visible={visibilityProperty:true,opacityProperty:true};
-     if(output?.checkVisibility(visible)&&status?.checkVisibility(visible)&&room?.checkVisibility(visible)
-       &&status.textContent==='Skifter til'&&room.textContent===name){
+     if(output?.checkVisibility(visible)&&room?.checkVisibility(visible)&&status&&room.textContent===name){
       window.h1PendingFeedback={elapsedMs,label,room:binding?.nativeRoomId,homepod:binding?.nativeHomepodId};
      }else if(elapsedMs<1000)requestAnimationFrame(sample);
     };
@@ -180,7 +203,9 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
    await page.waitForFunction(()=>window.h1PendingFeedback,undefined,{timeout:2500});
    pendingFeedback=await page.evaluate(()=>window.h1PendingFeedback);
    assert(pendingFeedback.elapsedMs<100,`H1 first visible pending feedback took ${pendingFeedback.elapsedMs} ms`);
-   assert.match(pendingFeedback.label,/Valgt: Soveværelse · skifter højttaler · Afventer bekræftelse/);
+   // The chosen speaker shows at once as the player's speaker (no in-between label, no flash).
+   assert.match(pendingFeedback.label,/Soveværelse/);
+   assert.doesNotMatch(pendingFeedback.label,/Afventer bekræftelse|skifter højttaler/);
    assert.doesNotMatch(pendingFeedback.label,/Aktuelt output/);
    assert.deepEqual([pendingFeedback.room,pendingFeedback.homepod],[kitchen.room,kitchen.homepod]);
    let owner;
@@ -192,7 +217,7 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
    }
    assert.deepEqual([owner.room,owner.homepod,owner.song],[kitchen.room,kitchen.homepod,before.song]);
    assert.deepEqual(owner.writes,before.writes,'pending feedback is visible before any owner effect');
-   assert.equal(await page.locator('#player-state').innerText(),'Skifter til');
+   assert.notEqual(await page.locator('#player-state').innerText(),'Skifter til','no in-between label');
    assert.equal(await page.locator('#player-room').innerText(),bedroom.name);
    assert.equal(await output.getAttribute('aria-label'),pendingFeedback.label);
    const movePosts=requests.slice(requestCount).filter(({body})=>body.action==='move_existing_session');
@@ -332,6 +357,32 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
   if(n>150)throw Error('a queue choice after unknown and rejected has no effect');
   await sleep(100);
  }
+ // No flashes: pause, play, switch speaker and choose from the queue, each one recorded.
+ const quiet=async(label,act,done)=>{await startFlashProbe(page);await act();await done();await sleep(800);
+  await flashChanges(page,label);};
+ const toggleTo=label=>page.waitForFunction(label=>document.getElementById('play-pause')?.getAttribute('aria-label')===label,
+  label,{timeout:15000});
+ if(await page.locator('#track').isVisible())await page.locator('#track').tap();
+ await sleep(1000);
+ await quiet('pause',()=>page.locator('#play-pause').tap(),()=>toggleTo('Fortsæt musikken'));
+ await quiet('play',()=>page.locator('#play-pause').tap(),()=>toggleTo('Sæt musik på pause'));
+ const playing=(await state()).song;
+ await quiet('speaker',async()=>{
+  for(let n=0;!await dialog.evaluate(d=>d.open);n++){if(n>5)throw Error('picker');await output.tap();
+   await page.waitForFunction(()=>document.getElementById('rooms').open,undefined,{timeout:2000}).catch(()=>{});}
+  await page.waitForFunction(name=>[...document.querySelectorAll('#room-options button')]
+   .some(row=>row.textContent.includes(name)&&!row.disabled),kitchen.name,{timeout:15000});
+  await move(kitchen);
+ },()=>observed(kitchen,playing));
+ assert((await change({queue:[41,42,43],externalSong:40})).ok);
+ await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track[data-current=false]')]
+  .some(row=>!row.disabled),undefined,{timeout:15000});
+ const queueBefore=(await state()).writes.length;
+ await quiet('queue',()=>rows.filter({hasText:'Køsang'}).first().tap(),async()=>{
+  for(let n=0;!(await state()).writes.slice(queueBefore).some(row=>row.action==='play_queue_occurrence');n++){
+   if(n>150)throw Error('queue choice');await sleep(100);}
+  await sleep(1500);
+ });
  assert.deepEqual(errors,[]);
  assert(servedBundleSHA);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
@@ -534,11 +585,11 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
  // "Flyt til Køkkenalrum" takes the playback over from the phone at once (move_playback).
  const moveTap=await page.locator('#output').evaluate(node=>{
-  const start=performance.now(),state=document.getElementById('player-state');
+  const start=performance.now(),room=document.getElementById('player-room');
   node.click();
-  return state.textContent==='Skifter til'?performance.now()-start:null;
+  return room.textContent==='Køkkenalrum HomePod'?performance.now()-start:null;
  });
- assert(moveTap!==null&&moveTap<100,`"Skifter til" shows within 100 ms: ${moveTap}`);
+ assert(moveTap!==null&&moveTap<100,`the chosen room shows within 100 ms: ${moveTap}`);
  assert.equal(await page.locator('#rooms').evaluate(dialog=>dialog.open),false,'no chooser opens');
  const waitForKitchen=phase=>page.waitForFunction(value=>{
   const host=document.querySelector('pv-widget-host'),p=host?.liveMedia?.playback;
@@ -686,6 +737,10 @@ async function seekJourney(page,errors){
   binding:h.liveMedia.playback.roomBinding.bindingId,
  }));
  assert.equal(await slider.evaluate(n=>n.type),'range');
+ // Test 11 (iPad): the seek slider has the volume slider's touch: same grip and track, no pan takeover.
+ const feel=await page.evaluate(()=>{const read=id=>({touch:getComputedStyle(document.getElementById(id)).touchAction});
+  return {seek:read('detail-seek'),volume:read('volume')};});
+ assert.deepEqual(feel.seek,feel.volume,'seek and volume sliders feel the same: '+JSON.stringify(feel));
  await slider.evaluate(n=>{
   window.seekProbe={input:[],changes:[]};
   n.addEventListener('input',event=>window.seekProbe.input.push([event.isTrusted,Number(n.value)]));

@@ -128,9 +128,12 @@ export class RoomPlayerControls{
   const d=this.desired;
   // A move is shown until the room plays (or a short while passes); then the room player decides.
   if(!d||this.busy())return;
+  // A seek is reached when the room reports the same song near the chosen position (no hop back).
+  const seekReached=!d.seek||next.item?.uri===d.seek.uri&&Number.isSafeInteger(next.progressMs)
+   &&next.progressMs>=d.seek.positionMs-1000&&next.progressMs<=d.seek.positionMs+4000;
   const reached=(!d.moving||next.elsewhere!==true)
    &&(typeof d.playing!=='boolean'||(next.state==='playing')===d.playing)
-   &&(!Number.isInteger(d.volume)||next.volume===d.volume)&&!d.seek;
+   &&(!Number.isInteger(d.volume)||next.volume===d.volume)&&seekReached;
   if(reached||Date.now()-d.at>(d.moving?MOVE_MS:OPTIMISTIC_MS))this.desired=null;
  }
  invalidate(){

@@ -186,6 +186,7 @@ def binding(bridge, room, account):
 
 async def confirm_move_destination(bridge, task, result, current):
     """Publish only after fresh account, configured alias and native owner agree."""
+    follow_player(bridge, task["room"], task["target"]["accountId"], task.get("rule"))
     confirmed = await _confirm_destination(
         bridge,
         task["room"],
@@ -240,6 +241,16 @@ def _selected_destination_changed(bridge, room, task):
     )
 
 
+def follow_player(bridge, room, account, rule):
+    """The player owns the speaker the user chose (test 11): its room player follows that
+    configured speaker from the accepted command on, also while PodConnect's proof is stale."""
+    keys = ("accountId", "targetId", "nativeRoomId", "nativeHomepodId")
+    targets = getattr(bridge, "_room_player_targets", None)
+    if isinstance(targets, dict) and isinstance(rule, dict):
+        if all(isinstance(rule.get(key), str) for key in keys):
+            targets[(room, account)] = {key: rule[key] for key in keys}
+
+
 async def finish_selected_destination(bridge, room, task, controls, result, current):
     """A START receipt is not room proof; uncertainty keeps further effects fenced."""
     destination = task["destination"]["speaker"]
@@ -248,6 +259,8 @@ async def finish_selected_destination(bridge, room, task, controls, result, curr
     key = (room, task["account"])
     if result.get("outcome") == "rejected":
         return
+    if result.get("outcome") == "accepted" and result.get("accepted_selected_content") is True:
+        follow_player(bridge, room, task["account"], task.get("destinationRule"))
     confirmed = False
     if result.get("outcome") == "accepted" and result.get("accepted_selected_content") is True:
         confirmed = await _confirm_destination(
