@@ -121,6 +121,13 @@ hvide indgangswidgets (musik, radio, opskrift, svar) · tryk på et nummer i Fin
   Amazon (Echo/Alexa, flere enheder), Google (Nest/Cast), Sonos, Spotify Connect (»sidste enhed vinder«).
   Fokus: advares den, der bliver afbrudt? Kan man fortryde? Skelnes der mellem egen og andres konto?
 
+## Målenhed: iPad Air 5. gen på væg (ejer 13. nov. 2026)
+Erstatter Frameo som målenhed. 10,9", 1180×820 pt landskab (2360×1640 px), M1, 60 Hz.
+Kører i **Home Assistant Companion-appens kiosktilstand** (Labs, app ≥ 2026.4): skjuler system-UI, holder skærmen
+vågen, styrer lysstyrke og pauseskærm fra HA. Nat-/nærhedstilstand drives af HA (tidsplan, lys-/bevægelsessensor),
+ikke af websiden. Lærredets tavler (1280×800) skal tilpasses 1180×820. Grundlag og prioriteret ændringsliste:
+`reports/PodView iPad vægskærm UX research.md`. Ikke verificeret på enheden endnu.
+
 ## Frameo
 Ikke købt/rootet (tænkt model Denver PFF-1037W, 10,1"). Uden for denne plan. Kittets konservative
 build-target gør, at den ikke er en forudsætning.
