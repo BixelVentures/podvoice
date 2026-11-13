@@ -49,14 +49,16 @@ import {initialScene,sceneTransition,focusedAnswer,deviceLabel,devicePresentatio
 import {answerCatalog} from './answer-widget.js';
 const detachedDemoNodes=new Map();
 const $=id=>document.getElementById(id)||detachedDemoNodes.get(id);
-// Strip mode: a redraw while a finger is down or the content still scrolls waits until ~160 ms after,
-// so scrolling is not starved. A tap's own redraw runs after pointerup and is never delayed by this.
-function deferForGesture(host){
+// A redraw while a finger is down or the content still scrolls waits until ~160 ms after, so
+// scrolling is not starved. A tap's own redraw runs after pointerup and is never delayed by this.
+// Strip mode defers every redraw, also during scroll; elsewhere only live data redraws (clock,
+// outputs) wait, and only while a finger is down, because they are not caused by the touch. The waiting kind is kept: a deferred live redraw stays light.
+function deferForGesture(host,kind='render'){
  if(!host.touching&&Date.now()-(host.lastScrollAt||0)>=150)return false;
- host.renderPending=true;clearTimeout(host.gestureTimer);
+ host.renderPending=host.renderPending==='render'?'render':kind;clearTimeout(host.gestureTimer);
  host.gestureTimer=setTimeout(()=>{
-  host.gestureTimer=null;
-  if(host.renderPending&&host.isConnected){host.renderPending=false;host.render();}
+  host.gestureTimer=null;const pending=host.renderPending;host.renderPending=false;
+  if(pending&&host.isConnected)host[pending]();
  },160);
  return true;
 }
@@ -273,7 +275,7 @@ class WidgetHost extends HTMLElement {
   this.renderTopbarClock?.();
  }
 
- renderLive(){if(this.lite&&deferForGesture(this))return;this.renderTopbarClock?.();this.liveOutputs?.sync();
+ renderLive(){if((this.touching||this.lite&&Date.now()-(this.lastScrollAt||0)<150)&&deferForGesture(this,'renderLive'))return;this.renderTopbarClock?.();this.liveOutputs?.sync();
   const connected=this.liveStatus==='connected', snapshot=this.liveSnapshot;
   this.renderVoice();
   this.renderConnectionNotice(connectionPresentation({status:this.liveStatus,snapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true,browserOffline:this.browserOffline===true}));

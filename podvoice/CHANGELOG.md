@@ -1,3 +1,7 @@
+## 2.0.188
+
+- PodView føles glattere på iPad og Mac, uden at noget ser anderledes ud: uret, afspilleren og højttalerne opdateres først, når du har løftet fingeren, så nye data ikke giver hak midt i et tryk. Et tryk på et kort skifter side lidt hurtigere, fordi trykmarkeringen og de bløde toninger i kanten af scroll-områderne laver mindre arbejde.
+
 ## 2.0.187
 
 - Musik, der er startet uden for PodView (med stemmen, fra Home Assistant eller i Spotify-appen), vises nu i den samme afspiller som musik startet fra PodView, og Pause, Afspil, Næste, Forrige, spoling og lydstyrke virker straks: hvert tryk går direkte til rummets PodConnect-afspiller i Home Assistant, viser sig med det samme og venter sin tur, hvis et andet tryk er i gang. »Højttaleren er ikke bekræftet« og låste knapper forsvinder, og afviser højttaleren et tryk, står det på skærmen uden at blive gentaget. Kræver PodConnect Control med én afspiller pr. rum.

@@ -21,7 +21,7 @@ export function attachPressedState(surface){
   const quiet=target.dataset?.pvPress==='quiet';
   const frames=quiet
    ?[{opacity:.64},{opacity:1}]
-   :[{boxShadow:`inset 0 0 0 999px ${pressOverlay(target)}`},{boxShadow:shadow||'none'}];
+   :[{boxShadow:`inset 0 0 0 999px ${pressOverlay(target)}`},{boxShadow:shadow||win?.getComputedStyle?.(target)?.boxShadow||'none'}];
   const animation=target.animate(frames,{duration:90,easing:'cubic-bezier(.2,0,0,1)'});feedback.set(target,animation);
   animation.finished?.catch(()=>{}).finally(()=>{if(feedback.get(target)===animation)feedback.delete(target);});
  };
@@ -50,7 +50,9 @@ export function attachPressedState(surface){
   // A nested native field owns its gesture and selection, not its card wrapper.
   if(index<0||path.slice(0,index+1).some(node=>node?.matches?.('input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])'))||unavailable(target))return;
   cancelFeedback(target);if(event.pointerId!=='keyboard'){clearFocus();pointerFocus=target;target.setAttribute?.('data-pv-pointer-focus','true');}
-  const shadow=win?.getComputedStyle?.(target)?.boxShadow||'none';pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY,shadow};target.classList.add('is-pressed');
+  // No style read here: it would force a style pass before the mark can paint. The resting shadow the
+  // release animation returns to is read on release, once the mark is gone again.
+  pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY};target.classList.add('is-pressed');
  };
  const up=event=>{
   if(event.pointerId!==pointerId)return;const target=pressed,shadow=origin?.shadow;

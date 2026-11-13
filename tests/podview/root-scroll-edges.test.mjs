@@ -96,3 +96,16 @@ test('nested detail scrolling reveals the shared top fade only after eight pixel
  const previous=globalThis.getComputedStyle;globalThis.getComputedStyle=()=>({scrollSnapType:'none',overflowY:'auto'});
  try{const node={dataset:{},classList:{contains:()=>false},clientHeight:400,scrollHeight:1000,scrollTop:8,getClientRects:()=>[{}]},edges=new ScrollEdges({});edges.measure(node);assert.equal(node.dataset.scrollEdge,'end');node.scrollTop=9;edges.measure(node);assert.equal(node.dataset.scrollEdge,'start end');node.scrollTop=592;edges.measure(node);assert.equal(node.dataset.scrollEdge,'start');}finally{globalThis.getComputedStyle=previous;}
 });
+
+test('press feedback class changes never rescan scroll containers', async () => {
+ const { pressOnly } = await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js');
+ const record = (oldValue, now, attributeName = 'class') => ({ type: 'attributes', attributeName, oldValue, target: { getAttribute: () => now } });
+ assert.equal(pressOnly(record('pv-card pv-kit', 'pv-card pv-kit is-pressed')), true);
+ assert.equal(pressOnly(record('pv-card is-pressed pv-kit', 'pv-card pv-kit')), true);
+ assert.equal(pressOnly(record('expandable', 'expandable collapsed')), false);
+ assert.equal(pressOnly(record('expandable is-pressed', 'expandable')), true);
+ assert.equal(pressOnly(record('a is-pressed', 'b')), false);
+ assert.equal(pressOnly(record(null, 'is-pressed')), false);
+ assert.equal(pressOnly(record('x', 'x', 'style')), false);
+ assert.equal(pressOnly({ type: 'childList' }), false);
+});
