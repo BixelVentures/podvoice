@@ -2900,3 +2900,14 @@ body button:not(.is-pressed){transition-property:filter!important}
   mask-image:linear-gradient(90deg,#000 78%,transparent)}
 .pv-hscroll::-webkit-scrollbar{display:none}
 .pv-hscroll>*{flex:none;scroll-snap-align:start}
+
+/* iPad layout (lærred v190, issue 388): 1180×820, 24 margin, left column 744 + 16 + player 372.
+   The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
+@media (min-width:1000px){
+ body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
+  grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-gap)}
+ body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
+  align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
+  height:calc(var(--pv-hero-l) + var(--pv-gap) + var(--pv-hero-s));max-height:none}
+}
+:root{--pv-player-w:372px}

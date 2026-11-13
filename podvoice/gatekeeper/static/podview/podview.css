@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 71be2e8960f4bc92906fee63189200c5f4d5f25d539e81664ea9eef3e3bc1d9b */
+/* Source: ui-kit.css · SHA256 0e2b3fc8b17d8372063389f31fbf96cc9219e07e166620e4a6e4b17df514b2bb */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5910,3 +5910,14 @@ body button:not(.is-pressed){transition-property:filter!important}
   mask-image:linear-gradient(90deg,#000 78%,transparent)}
 .pv-hscroll::-webkit-scrollbar{display:none}
 .pv-hscroll>*{flex:none;scroll-snap-align:start}
+
+/* iPad layout (lærred v190, issue 388): 1180×820, 24 margin, left column 744 + 16 + player 372.
+   The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
+@media (min-width:1000px){
+ body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
+  grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-gap)}
+ body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
+  align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
+  height:calc(var(--pv-hero-l) + var(--pv-gap) + var(--pv-hero-s));max-height:none}
+}
+:root{--pv-player-w:372px}
