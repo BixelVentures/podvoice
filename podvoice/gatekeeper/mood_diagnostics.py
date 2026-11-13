@@ -193,7 +193,6 @@ def selection_reason(bridge, room, token, writable):
         policy = bridge.controls.policy
         checks = (
             (not music.room_start_available, "room_start_unavailable"),
-            (any(key[0] == room for key in bridge._music_move_fence), "move_fenced"),
             (policy.get("roomId") != room, "policy_room_mismatch"),
             (not bridge._grant_current(room, token), "grant_not_current"),
             (music.tools is not bridge.tools, "tools_changed"),

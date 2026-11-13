@@ -420,8 +420,8 @@ class TouchControls:
 
     def selection_allowed(self, room: str, token: str, action: str | None = None) -> bool:
         return bool(
+            # An explicit new choice is never held by the move fence: the last command wins.
             getattr(self.music, "room_start_available", False)
-            and not any(key[0] == room for key in self.bridge._music_move_fence)
             and self.policy.get("roomId") == room
             and self.bridge._grant_current(room, token)
             and self.music.tools is self.bridge.tools
