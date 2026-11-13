@@ -1,7 +1,11 @@
 // Screen-only lifecycle. No HA controls, fabricated sun observation or permission
 // renewal. Night uses an explicit Copenhagen clock schedule until sun is admitted.
+// One formatter: building Intl.DateTimeFormat on every sync (every tap) cost ~0.3 s per few taps on Frameo.
+let screenClockFormat=null;
 export function screenClock(now){
- const parts=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',hourCycle:'h23',hour12:false}).formatToParts(now),get=type=>parts.find(part=>part.type===type)?.value;
+ screenClockFormat??=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',
+  day:'2-digit',hour:'2-digit',hourCycle:'h23',hour12:false});
+ const parts=screenClockFormat.formatToParts(now),get=type=>parts.find(part=>part.type===type)?.value;
  return {day:`${get('year')}-${get('month')}-${get('day')}`,hour:Number(get('hour'))%24};
 }
 export function screenBusy(host){
@@ -52,8 +56,16 @@ export class ScreenLifecycle{
  }
  sync(){
   if(!this.attached||!this.host.isConnected)return;this.syncDetail();this.syncIdle();this.syncWakeLock();const now=this.clock.now?.()??Date.now(),{day,hour}=screenClock(new Date(now)),host=this.host,rest=host.state?.focus==='photo';
-  host.dataset.night=String((host.previewStage==='night'||hour>=22||hour<6)&&now>=this.nightWakeUntil);host.dataset.nightSource=host.previewStage==='night'?'local-preview':'clock-schedule';
-  const drift=rest?[[0,0],[4,0],[0,4],[-4,0],[0,-4]][this.step%5]:[0,0];host.style.setProperty('--drift-x',`${drift[0]}px`);host.style.setProperty('--drift-y',`${drift[1]}px`);
+  // Write the root only on change: any write here (even the same value) restyles the whole page,
+  // ~0.1 s per tap on a Frameo frame, because these attributes and variables reach every element.
+  const night=String((host.previewStage==='night'||hour>=22||hour<6)&&now>=this.nightWakeUntil);
+  const nightSource=host.previewStage==='night'?'local-preview':'clock-schedule';
+  if(host.dataset.night!==night)host.dataset.night=night;
+  if(host.dataset.nightSource!==nightSource)host.dataset.nightSource=nightSource;
+  const drift=rest?[[0,0],[4,0],[0,4],[-4,0],[0,-4]][this.step%5]:[0,0];
+  for(const [name,value] of [['--drift-x',`${drift[0]}px`],['--drift-y',`${drift[1]}px`]]){
+   if(host.style.getPropertyValue?.(name)!==value)host.style.setProperty(name,value);
+  }
   if(this.wakeRequested&&(!screenBusy(host)||host.liveTransport?.connected!==true))this.refreshAfterWake();
   if(this.wakeSnapshot!==undefined&&host.liveStatus==='connected'&&host.liveSnapshot!==this.wakeSnapshot){this.wakeSnapshot=undefined;host.showFeedback?.('',false,{source:'wake'});}
   if(this.wakeSnapshot!==undefined&&['connecting','connected'].includes(host.liveStatus))host.showFeedback?.('Opdaterer…',true,{source:'wake'});

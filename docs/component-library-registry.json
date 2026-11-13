@@ -2604,7 +2604,9 @@
     "dist/updated-label.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/date-format.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2625,7 +2627,8 @@
       "imports": [
         "dist/weather-observation.js",
         "dist/ui/kit.js",
-        "dist/updated-label.js"
+        "dist/updated-label.js",
+        "dist/ui/date-format.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2751,7 +2754,8 @@
         "dist/vehicle-preview-command.js",
         "dist/live-radio-view.js",
         "dist/owner-answers.js",
-        "dist/recipe-view.js"
+        "dist/recipe-view.js",
+        "dist/ui/lite.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2845,7 +2849,8 @@
           "method:cancel": 1,
           "arrow:free": 1,
           "arrow:visible": 1,
-          "method:renderSvarDevice": 1
+          "method:renderSvarDevice": 1,
+          "function:deferForGesture": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3107,7 +3112,10 @@
           "arrow:visibility": 1,
           "function:attachPressedState": 1,
           "arrow:keydown": 1,
-          "arrow:keyup": 1
+          "arrow:keyup": 1,
+          "arrow:lite": 1,
+          "arrow:liteDown": 1,
+          "arrow:clearLite": 1
         },
         "roots": [],
         "registrations": {},
@@ -3410,6 +3418,40 @@
         "scope": "DOM-free refresh scheduling, visibility and disposal helpers in the existing RecipeView; retain category, focus and scroll. No DOM roots, component anatomy or family added. Real browser upload-to-catalogue and server restart checked on the isolated candidate.",
         "newComponentFamilies": false
       }
+    },
+    "dist/ui/lite.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:liteMode": 1,
+          "function:applyLiteMode": 1,
+          "function:instant": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "Strip mode for weak wall screens (Chrome <111, e.g. Frameo): no scroll-edge fades, motion or painted effects."
+    },
+    "dist/ui/date-format.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:formatDate": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "Cached Intl.DateTimeFormat for clock, weather hours and updated labels (same output as toLocale*String)."
     }
   },
   "sharedContracts": [

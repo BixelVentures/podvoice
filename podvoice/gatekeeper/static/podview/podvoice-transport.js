@@ -60,6 +60,10 @@ const haIngress = value => value?.admission?.kind==='ha_ingress'&&value.admissio
 // Everything in a snapshot except the heartbeat's observation time.
 const heartbeatSignature=value=>JSON.stringify({...value,observedAt:undefined});
 
+// Aging labels ("Sidst kendt") redraw every 10 s; strip mode (Frameo) every 60 s, because one full
+// redraw costs ~0.6 s there and freezes a scroll or tap it lands on.
+const agingRedrawMs=()=>globalThis.document?.documentElement?.hasAttribute?.('data-lite')?60000:10000;
+
 export class PodVoiceTransport {
  constructor({url = globalThis.location?.href, room, fetch = globalThis.fetch?.bind(globalThis), EventSource = globalThis.EventSource, onSnapshot = () => {}, onControllerRenewed = () => {}, onConnection = () => {}, locks = globalThis.navigator?.locks, BroadcastChannel = globalThis.window ? globalThis.BroadcastChannel : undefined, crypto = globalThis.crypto, screenEnrollment = false, namedIntentStorage, diagnosticStorage, diagnosticBuild, cookies = () => globalThis.document?.cookie || ''} = {}) {
   this.cookies = cookies;
@@ -251,7 +255,7 @@ export class PodVoiceTransport {
   // The server repeats an unchanged snapshot every second as a liveness heartbeat. Redrawing the
   // whole screen for it blocked taps for ~1 s on slow wall screens (Frameo, Chrome 107), so an
   // unchanged heartbeat only refreshes freshness; a redraw still happens every 10 s for aging labels.
-  const unchanged=this.connected===true&&this.presentedSnapshot===this.snapshot&&Date.now()-this.presentedAt<10000
+  const unchanged=this.connected===true&&this.presentedSnapshot===this.snapshot&&Date.now()-this.presentedAt<agingRedrawMs()
    &&heartbeatSignature(this.snapshot)===heartbeatSignature(value)
    // During a conversation every heartbeat still redraws: answer cards appear while she speaks.
    &&value?.voice?.active!==true;
