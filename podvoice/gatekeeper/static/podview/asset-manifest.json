@@ -770,6 +770,10 @@
       "sha256": "f310d760cb76494f984551788b00f8d8a363bd9cd4a9fcaaeefb43d5c57fde7e"
     },
     {
+      "path": "ui/date-format.js",
+      "sha256": "3d516b0e11d6c91125f38de63b399ef5a47499fadbca4d00a13c543bf632063e"
+    },
+    {
       "path": "ui/gestures.js",
       "sha256": "4b36490a821b87dd0fd31d099c51892196dc25812672b10eccbc95d2ec436e17"
     },
@@ -800,6 +804,10 @@
     {
       "path": "ui/library/visual-components.js",
       "sha256": "9fd9c09464c8d7b1be737bea586ed6335c8c73fcd5523a8b301f6ab1c87ca1d4"
+    },
+    {
+      "path": "ui/lite.js",
+      "sha256": "f2e581cd98cf765266e7d35220094d062173d7921947799aac95e29e7b88ef8a"
     },
     {
       "path": "ui/motion.js",
