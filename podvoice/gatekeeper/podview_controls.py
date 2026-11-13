@@ -19,7 +19,7 @@ from .podview_dock_control import DockTransport, validate_dock_controls
 from .podview_room_move import RoomMoveFacade
 from .podview_vacuum_control import VacuumTransport
 from .podview_vacuum_settings import ROLES as SETTING_LABELS
-from .podview_vacuum_settings import ActiveVacuumSettings
+from .podview_vacuum_settings import ActiveVacuumSettings, NoActiveCleaning
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1314,6 +1314,8 @@ class TouchControls:
                                         "settingKey": setting["role"],
                                     }
                                 )
+                        except NoActiveCleaning:
+                            pass  # Docked/idle robot: no active-clean settings to offer.
                         except Exception as error:
                             _robot_setup_error("settings", error)
                             pass  # An unavailable setting must not remove valid transport.
