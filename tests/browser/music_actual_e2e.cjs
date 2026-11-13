@@ -1080,7 +1080,8 @@ async function renewedControlsJourney(page,errors){
     const start=performance.now();
     const frame=()=>{
      const elapsedMs=performance.now()-start;
-     const pending=label?node.closest('.transport')?.getAttribute('aria-busy'):node.getAttribute('aria-busy');
+     // Transport taps show at once on the transport; a button's own ring is only for a slow call (Green 13/11).
+     const pending=percent===undefined?node.closest('.transport')?.getAttribute('aria-busy'):node.getAttribute('aria-busy');
      if(pending==='true'&&(!label||node.getAttribute('aria-label')===label)
        &&(percent===undefined||(Number(node.value)===percent&&document.getElementById('volume-value').textContent===percent+' %'))){
       window.controlRenewalPaint={elapsedMs,start};

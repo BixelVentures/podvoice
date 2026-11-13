@@ -1,5 +1,6 @@
 import {roomObservationDisplay} from './media-observation.js';
 import {renderPlayerControls} from './player-view.js';
+const RUNNING_RING_MS=800;
 
 // The player's buttons: each tap is one direct call to the room's media_player (via PodVoice).
 // A tap shows its effect at once, waits its turn behind a running call (never a locked button),
@@ -85,7 +86,8 @@ export class RoomPlayerControls{
   while(this.queue.length){
    const row=this.queue.shift();
    if(row.scope!==this.scope()){row.done(false);continue;}
-   this.running=row;this.render();
+   // Green 13/11: a quick call changes its button once; only a slow one (≥800 ms) shows the ring.
+   this.running=row;row.startedAt=Date.now();clearTimeout(this.busyTimer);this.busyTimer=setTimeout(()=>{if(this.running===row)this.render();},RUNNING_RING_MS);this.render();
    let result;
    try{result=await this.host.liveTransport.playerAction(row.account,row.action,row.value);}
    catch{result={outcome:'unknown'};}
@@ -150,20 +152,20 @@ export class RoomPlayerControls{
    gesture:this.host.liveControls?.musicVolumeGesture,
   });
   // A running call shows on its button; the buttons stay usable and further taps queue.
-  const active=this.running?.action??null;
+  const running=this.running?.action??null,active=this.running&&Date.now()-(this.running.startedAt??0)>=RUNNING_RING_MS?running:null;
   for(const [id,action]of [['play-pause',toggle],['detail-toggle',toggle],['previous','previous'],
    ['detail-previous','previous'],['next','next'],['detail-next','next']]){
    const node=document.getElementById(id);
    const busy=active===action||(id.endsWith('toggle')||id==='play-pause')&&['pause','resume'].includes(active);
    if(node&&node.getAttribute('aria-busy')!==String(busy))node.setAttribute('aria-busy',String(busy));
   }
-  const transportBusy=String(!!active&&!['volume','seek'].includes(active));
+  const transportBusy=String(!!running&&!['volume','seek'].includes(running));
   for(const selector of ['.player .transport','#music-detail .transport']){
    const node=this.host.querySelector?.(selector)||document.querySelector?.(selector);
    if(node&&node.getAttribute('aria-busy')!==transportBusy)node.setAttribute('aria-busy',transportBusy);
   }
   for(const id of ['volume','detail-volume']){
-   const node=document.getElementById(id),busy=String(active==='volume');
+   const node=document.getElementById(id),busy=String(running==='volume');
    if(node&&node.getAttribute('aria-busy')!==busy)node.setAttribute('aria-busy',busy);
   }
   return {transport:has('pause')||has('resume')||has('next')||has('previous'),canVolume};

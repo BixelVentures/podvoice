@@ -164,15 +164,16 @@ test('accepted selection retains known queue rows as inert display until fresh c
  }finally{f.close();}
 });
 
-for(const outcome of ['accepted','unknown','rejected'])test(`playback changes before the queue ${outcome} reply: only accepted may refresh queue metadata`,async()=>{
+for(const outcome of ['accepted','unknown','rejected'])test(`playback changes before the queue ${outcome} reply: accepted refreshes metadata, a refusal reads a fresh offer, unknown waits`,async()=>{
  const f=rig();let reply;try{
   const source=f.host.liveTransport.queueOffer,selectedUri='spotify:track:'+'9'.repeat(22);let song=null,effects=0;
   f.host.liveTransport.music=async()=>{const value=f.wire();if(song)value.data.playback.item.uri=song;return value;};
   f.host.liveTransport.queueOffer=async(...args)=>{const value=await source(...args);return {...value,items:[{id:String(f.reads.length).padStart(24,'0'),title:'Actual queue song',artist:'Artist',uri:selectedUri,artwork:null,order:1},{id:String(f.reads.length+50).padStart(24,'0'),title:'Following queue song',artist:'Artist',uri:'spotify:track:'+'8'.repeat(22),artwork:null,order:2}]};};
   f.host.liveTransport.queueAction=()=>{effects++;return new Promise(resolve=>reply=resolve);};
   await f.refresh();const q=f.media.queueControls,[old,follower]=q.model('account',f.media.playback).items,oldTask=q.offer.taskId,choosing=q.choose(old);await tick();song=selectedUri;await f.refresh();assert.deepEqual(q.model('account',f.media.playback).items.map(row=>row.id),[follower.id],'the playing song is not listed as upcoming (K2)');assert.equal(q.model('account',f.media.playback).items[0].selectable,false);assert.equal(f.reads.length,1);reply({outcome});await choosing;
-  assert.equal(effects,1);assert.equal(f.reads.length,outcome==='accepted'?2:1);const model=q.model('account',f.media.playback);assert.equal(model.items[0].title,follower.title);
-  if(outcome==='accepted'){assert.equal(model.items[0].selectable,true);assert.notEqual(q.offer.taskId,oldTask);}else{assert.equal(q.consumed,true);assert.equal(model.items[0].selectable,outcome==='unknown');await q.choose(old);await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,1);}
+  // Green 13/11: a refused choice spent its offer, so a fresh one is read and the queue stays usable.
+  assert.equal(effects,1);assert.equal(f.reads.length,outcome==='unknown'?1:2);const model=q.model('account',f.media.playback);assert.equal(model.items[0].title,follower.title);
+  if(outcome!=='unknown'){assert.equal(model.items[0].selectable,true);assert.notEqual(q.offer.taskId,oldTask);assert.equal(model.status==='error',false);}else{assert.equal(q.consumed,true);assert.equal(model.items[0].selectable,outcome==='unknown');await q.choose(old);await f.refresh();assert.equal(f.reads.length,1);assert.equal(effects,1);}
  }finally{reply?.({outcome:'unknown'});f.close();}
 });
 
