@@ -367,6 +367,8 @@ export class RecipeView {
      age >= 0 && age < 7*86400000 ? 'Ny · '+status : status),'meta'));
     row.append(copy);
     const thumb = element('img');
+    thumb.decoding = 'async'; // Full-size source photos: decode off the main thread, only near view.
+    thumb.loading = 'lazy';
     thumb.alt = '';
     thumb.referrerPolicy = 'no-referrer';
     thumb.src = recipe.image || 'assets/icons/image-square.svg';
