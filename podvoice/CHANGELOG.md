@@ -1,3 +1,7 @@
+## 2.0.193
+
+- Afspilleren: Et afvist køvalg bliver ikke stående som fejltekst, og køen låses ikke. Den aktuelle højttaler er aldrig låst i vælgeren. Afspil/pause-knappen blinker ikke "arbejder" ved pause.
+
 ## 2.0.192
 
 - Musik kan igen startes fra Find musik, køen og højttalervælgeren. PodVoice har ikke længere sin egen kopi af 35 %-reglen og bruger den startlydstyrke, PodConnect angiver (rummets egen lydstyrke, højst 35 %).
