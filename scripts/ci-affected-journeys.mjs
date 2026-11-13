@@ -4,20 +4,20 @@
 import {execFileSync} from 'node:child_process';
 import {appendFileSync} from 'node:fs';
 
-const ALL = ['robot_ux', 'music_push', 'music', 'music_selection', 'radio', 'robot', 'light',
+const ALL = ['robot_ux', 'room_player', 'music_push', 'music', 'music_selection', 'radio', 'robot', 'light',
   'vehicle', 'timer', 'home_events', 'answers', 'recipe', 'panel'];
 // Long journeys are split into parallel jobs (JOURNEY_SHARD); together they run every variant.
 // robot and music: the slow first run gets a shard of its own (JOURNEY_BASE_ALONE).
 const SHARDS = {robot: 3, music: 3, music_selection: 2};
 const BASE_ALONE = new Set(['robot', 'music']);
-const MUSIC = ['music', 'music_push', 'music_selection', 'radio'];
+const MUSIC = ['room_player', 'music', 'music_push', 'music_selection', 'radio'];
 const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty', 'setup_flow'];
 
 // PodView sources that only one feature's screens load. The built bundles are checked against
 // their sources by the `ui` job, so the sources decide.
 const PODVIEW_FEATURES = [
   [/^(robot-|local-robot-view\.js)/, ['robot', 'robot_ux']],
-  [/^(music-|live-music|live-queue-view|player-view|speaker-output-view|spotify-artwork|library)/,
+  [/^(music-|live-music|live-queue-view|player-view|room-player|speaker-output-view|spotify-artwork|library)/,
     MUSIC],
   [/^(radio-|live-radio-view)/, MUSIC],
   [/^light-/, ['light']],
@@ -32,7 +32,7 @@ const PODVIEW_BUILT = new Set(['podview.bundle.js', 'library.bundle.js', 'podvie
 const SERVER_FEATURES = [
   [/^(podview_robot|podview_vacuum_|podview_dock_control|robot_settings|cleaning_journal)/,
     ['robot', 'robot_ux']],
-  [/^(podview_music|podview_queue|podview_speakers|podview_room_media|podview_voice_music)/,
+  [/^(podview_music|podview_queue|podview_speakers|podview_room_media|podview_room_player|podview_voice_music)/,
     [...MUSIC, 'robot', 'robot_ux']],
   [/^(podview_mood|podview_theme_art)/,
     [...MUSIC, 'robot', 'robot_ux']],

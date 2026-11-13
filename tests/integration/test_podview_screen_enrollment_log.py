@@ -119,7 +119,7 @@ async def test_unpaired_control_command_is_logged(ingress, caplog):  # noqa: F81
     body = {
         "bootId": r.bridge.boot_id,
         "roomId": "kitchen",
-        "domain": "music",
+        "domain": "vacuum",
         "action": "pause",
         "target": {},
         "args": {},

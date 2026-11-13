@@ -840,14 +840,14 @@
       "domOwner": "LiveControlView admitted option forms",
       "factoryClassArgument": 2,
       "imports": [
-        "dist/player-view.js",
         "dist/control-model.js",
         "dist/media-observation.js",
         "dist/robot-control-panel.js",
         "dist/ui/kit.js",
         "dist/ha-home-observation.js",
         "dist/robot-observation.js",
-        "dist/home-model.js"
+        "dist/home-model.js",
+        "dist/room-player-controls.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -856,12 +856,10 @@
           "method:canQueueLightInput": 1,
           "method:submitLightInput": 1,
           "arrow:has": 1,
-          "arrow:hasExact": 1,
           "arrow:robotFocusLabel": 1,
           "method:moveUnknownApplies": 1,
           "method:musicUnknownBlocks": 1,
           "method:optimisticPlaying": 1,
-          "method:musicQueueCurrent": 1,
           "method:robotView": 1,
           "arrow:make": 1,
           "class:LiveControlView": 1,
@@ -877,12 +875,10 @@
           "method:moveSpeaker": 1,
           "method:musicContext": 1,
           "method:musicCurrent": 1,
-          "method:musicVolumeMeasurement": 1,
           "method:open": 1,
           "method:openLight": 1,
           "method:openMusic": 1,
           "method:openRobot": 1,
-          "method:prepareMusic": 1,
           "method:pruneSpent": 1,
           "method:receiptText": 1,
           "method:refreshRobot": 1,
@@ -898,8 +894,6 @@
           "method:showRobotDraft": 1,
           "method:renewRobotTask": 1,
           "method:scheduleRobotTaskExpiry": 1,
-          "method:currentVolumeOffer": 1,
-          "method:prepareVolume": 1,
           "method:beginMusicIntent": 1,
           "method:endMusicIntent": 1,
           "method:controlOpen": 1,
@@ -914,7 +908,6 @@
           "method:robotOverviewContext": 1,
           "method:robotOverviewCurrent": 1,
           "method:robotOverviewIntent": 1,
-          "method:musicReadonlyControls": 1,
           "method:musicSettlementReceipt": 1,
           "method:observeMusicSettlement": 1,
           "arrow:receiptCurrent": 2,
@@ -953,7 +946,10 @@
           "method:storedRobotDraft": 1,
           "method:robotOfflineDraftCurrent": 1,
           "method:setRobotRefresh": 1,
-          "method:sendLightOperation": 1
+          "method:sendLightOperation": 1,
+          "method:observePlayer": 1,
+          "method:playerStatus": 1,
+          "method:player": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -1074,7 +1070,8 @@
           "arrow:owner": 1,
           "arrow:readKey": 1,
           "method:observedPlayerModel": 1,
-          "function:pauseExpired": 1
+          "function:pauseExpired": 1,
+          "arrow:schedule": 1
         },
         "roots": [],
         "registrations": {},
@@ -3452,6 +3449,41 @@
         "dom": false
       },
       "reviewedScope": "Cached Intl.DateTimeFormat for clock, weather hours and updated labels (same output as toLocale*String)."
+    },
+    "dist/room-player-controls.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/media-observation.js",
+        "dist/player-view.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:RoomPlayerControls": 1,
+          "method:constructor": 1,
+          "method:playback": 1,
+          "method:scope": 1,
+          "method:can": 1,
+          "method:wish": 1,
+          "method:busy": 1,
+          "method:optimisticPlaying": 1,
+          "method:volume": 1,
+          "method:seekState": 1,
+          "method:intent": 1,
+          "method:drain": 1,
+          "method:observe": 1,
+          "method:invalidate": 1,
+          "method:render": 1,
+          "method:moving": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Room player taps: one direct media_player call per tap through PodVoice, optimistic presentation through the existing PlayerView controls (renderPlayerControls), queued behind a running call, never replayed. No new renderer, component family or authority."
     }
   },
   "sharedContracts": [

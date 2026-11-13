@@ -77,6 +77,9 @@ base.state.update(
 )
 if account_rollover:
     base.state.update(state="playing", song=30, queue=[31, 32])
+    # Two accounts in one room: each PodConnect account has its own room player.
+    base.ROOM_PLAYERS["media_player.kokkenalrum_b"] = ("account-b", "native-room")
+    base.SONG_OVERRIDES["media_player.kokkenalrum"] = 10
 if queue_skip:
     base.state.update(state="playing", song=20, queue=list(range(21, 29)))
 if recent_session:
@@ -89,6 +92,8 @@ if recent_session:
         },
     )
     original_recent_observation = base.observation
+    base.TRACK_TITLES[11] = tracks[0]["name"]
+    base.TRACK_COVERS.add(11)
 
     def recent_observation(args):
         observed = original_recent_observation(args)
@@ -201,6 +206,14 @@ def settle(args):
 
 
 async def native(request):
+    if request.url.path == "/core/api/template" or request.url.path.startswith(
+        (
+            "/core/api/states/media_player.",
+            "/core/api/services/media_player/",
+            "/core/api/media_player_proxy/",
+        )
+    ):
+        return await base.room_player_service(request)
     args = json.loads(request.content)
     service = request.url.path.rsplit("/", 1)[-1]
     base.state["nativeCalls"].append({"service": service, "args": args})
@@ -358,8 +371,12 @@ async def native(request):
                     await asyncio.sleep(SPEAKER_CONFIRMS_S)
                     settle(args)
                     base.state["speakerConfirmedAtMs"] = time.time() * 1000
+                    # The room player shows the HomePod's new output at the native confirmation.
+                    base.state["roomView"] = {"song": observation["song"], "state": "playing"}
+                    await base.emit_room_changed()
                     await asyncio.sleep(SPOTIFY_OBSERVES_S - SPEAKER_CONFIRMS_S)
                     base.state.update(observation)
+                    base.state.pop("roomView", None)
                     base.state["sequence"] += 1
                     await base.emit_playback_changed()
 

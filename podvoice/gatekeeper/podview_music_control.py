@@ -30,8 +30,6 @@ _TRACK_TIMEOUT_S = 16  # Native Control owns a bounded 14-second prepare/commit/
 _PREPARE_TIMEOUT_S = 35  # Detached metadata staging may take 30 seconds.
 _MAX_BYTES = 65536
 _SERVICES = frozenset({"get_playback_controls", "control_playback"})
-_ROOM_SERVICES = frozenset({"get_room_playback_controls", "control_room_playback"})
-_VOLUME_SERVICES = frozenset({"get_room_volume_controls", "control_room_volume"})
 _CONTENT_SERVICES = frozenset(
     {
         "get_room_content_controls",
@@ -41,20 +39,6 @@ _CONTENT_SERVICES = frozenset(
     }
 )
 _ROOM_ACTIONS = frozenset({"pause", "resume", "next", "previous", "seek"})
-_VOLUME_STATES = frozenset(
-    {
-        "prepared",
-        "pending_claim",
-        "reserved",
-        "pending",
-        "admitted_pending",
-        "protocol_accepted",
-        "rejected_before_admission",
-        "expired_before_admission",
-        "cancelled_before_admission",
-        "unknown",
-    }
-)
 _NATIVE_KEYS = frozenset(
     {
         "account_user_id",
@@ -104,10 +88,9 @@ _ROOM_KEYS = frozenset(
         "volume_unavailable_reason",
     }
 )
-_VOLUME_KEYS = (_ROOM_KEYS - {"volume_supported", "volume_unavailable_reason"}) | {"volume_state"}
 _CONTENT_SOURCE_ACTIONS = frozenset({"play_track", "play_context", "play_episode", "play_tracks"})
 _ACTIONS = frozenset(
-    {"pause", "resume", "next", "previous", "volume", "play_track", "play_context"}
+    {"pause", "resume", "next", "previous", "seek", "volume", "play_track", "play_context"}
 )
 _ERRORS = frozenset(
     {
@@ -318,98 +301,12 @@ def _room_projection(
     }
 
 
-def _room_controls(value, account, target, room, homepod, *, offered=False) -> dict:
-    """Executable offers retain their original readiness requirement."""
-    projected = _room_projection(value, account, target, room, homepod, offered=offered)
-    if not projected["actions"] or projected["status"] != "ready":
-        raise ValueError("invalid room owner")
-    return projected
-
-
 def _room_observation(value, account, target, room, homepod) -> dict:
     """Exact current route proof only; never return executable offer fields."""
     projected = _room_projection(value, account, target, room, homepod)
     return {
         key: projected[key]
         for key in ("owner_epoch", "poll_sequence", "valid_until", "native", "route")
-    }
-
-
-def _volume_controls(
-    value: Any, account: str, target: str, room: str, homepod: str, *, offered: bool = False
-) -> dict:
-    """Retain only the exact native volume owner, never generic Spotify volume."""
-    if not isinstance(value, dict) or value.get("volume_percent") is not None:
-        raise ValueError("invalid volume controls")
-    projected = _controls(
-        {**value, "volume_percent": 0},
-        account,
-        target,
-        offered=offered,
-        schema="podconnect.room_volume_controls.v1",
-    )
-    native, route, state = value.get("native"), value.get("route"), value.get("volume_state")
-    scope = {"target_id": target, "room_id": room, "homepod_id": homepod}
-    if (
-        set(value)
-        != (_VOLUME_KEYS | {"valid_until", "context_play_supported"} if offered else _VOLUME_KEYS)
-        or not isinstance(value.get("target"), dict)
-        or set(value["target"]) != {"kind", "target_id", "name"}
-        or not isinstance(value.get("observation"), dict)
-        or set(value["observation"]) != {"status", "observed_at", "age_ms", "max_age_ms", "source"}
-        or value.get("room_id") != room
-        or value.get("homepod_id") != homepod
-        or re.fullmatch(r"0|[1-9][0-9]{0,19}", homepod) is None
-        or int(homepod) >= 2**64
-        or value.get("track_play_supported") is not False
-        or not isinstance(native, dict)
-        or set(native) != _NATIVE_KEYS
-        or not isinstance(route, dict)
-        or set(route) != _ROUTE_KEYS
-        or any(native[k] != expected for k, expected in scope.items())
-        or not all(
-            isinstance(native[k], str) and 1 <= len(native[k]) <= 1024
-            for k in _NATIVE_KEYS - {"alias_revision"}
-        )
-        or type(native["alias_revision"]) is not int
-        or not 0 <= native["alias_revision"] < 2**53
-        or re.fullmatch(r"[a-f0-9]{64}", native["alias_registry"]) is None
-        or route.get("device_id") != homepod
-        or not isinstance(route.get("process"), str)
-        or str(uuid.UUID(route["process"])) != route["process"]
-        or any(
-            not isinstance(route[k], str)
-            or re.fullmatch(r"0|[1-9][0-9]{0,19}", route[k]) is None
-            or int(route[k]) >= 2**64
-            for k in _ROUTE_KEYS - {"process", "input_path_digest"}
-        )
-        or not isinstance(route.get("input_path_digest"), str)
-        or re.fullmatch(r"[a-f0-9]{64}", route["input_path_digest"]) is None
-        or not isinstance(state, dict)
-        or set(state)
-        != {"base_revision", "attention_revision", "base_percent", "effective_percent"}
-        or any(
-            not isinstance(state[k], str)
-            or re.fullmatch(r"0|[1-9][0-9]{0,19}", state[k]) is None
-            or int(state[k]) >= 2**64
-            for k in ("base_revision", "attention_revision")
-        )
-        or any(
-            type(state[k]) is not int or not 0 <= state[k] <= 100
-            for k in ("base_percent", "effective_percent")
-        )
-        or projected["actions"] != ["volume"]
-        or projected["status"] != "ready"
-    ):
-        raise ValueError("invalid volume owner")
-    return {
-        **projected,
-        "volume_percent": None,
-        "room_id": room,
-        "homepod_id": homepod,
-        "native": {key: native[key] for key in _NATIVE_KEYS},
-        "route": {key: route[key] for key in _ROUTE_KEYS},
-        "volume_state": dict(state),
     }
 
 
@@ -750,74 +647,6 @@ def _room_receipt(value: Any, identity: dict) -> dict:
     return result
 
 
-def _volume_receipt(value: Any, identity: dict) -> dict:
-    """Protocol acceptance is distinct from native AUDIO4 and WebAPI receipts."""
-    if isinstance(value, dict):
-        _integer(value.get("command_sequence"))
-    required = set(identity) | {
-        "ok",
-        "outcome",
-        "provider_request_accepted",
-        "retry_allowed",
-        "physical_result_verified",
-        "protocol_accepted",
-        "reservation_accepted",
-        "possible_effect",
-    }
-    optional = {"error_kind", "observe_after_poll_sequence", "volume_operation_state"}
-    if (
-        not isinstance(value, dict)
-        or not required <= set(value) <= required | optional
-        or any(value.get(k) != v for k, v in identity.items())
-        or value.get("outcome") not in {"accepted", "rejected", "unknown"}
-        or any(
-            type(value.get(k)) is not bool
-            for k in (
-                "ok",
-                "provider_request_accepted",
-                "retry_allowed",
-                "physical_result_verified",
-                "protocol_accepted",
-                "reservation_accepted",
-                "possible_effect",
-            )
-        )
-        or value["ok"] is not (value["outcome"] == "accepted")
-        or value["provider_request_accepted"] is not False
-        or value["retry_allowed"] is not False
-        or value["physical_result_verified"] is not False
-        or (value["outcome"] == "rejected" and value["possible_effect"] is True)
-        or (
-            value["outcome"] == "accepted"
-            and (
-                value["protocol_accepted"] is not True
-                or value["reservation_accepted"] is not True
-                or value["possible_effect"] is not True
-                or "error_kind" in value
-            )
-        )
-        or (
-            "volume_operation_state" in value
-            and value["volume_operation_state"] not in _VOLUME_STATES
-        )
-        or (
-            value["outcome"] == "accepted"
-            and "volume_operation_state" in value
-            and value["volume_operation_state"] != "protocol_accepted"
-        )
-    ):
-        raise ValueError("invalid volume receipt")
-    result = {key: value[key] for key in required}
-    if "observe_after_poll_sequence" in value:
-        result["observe_after_poll_sequence"] = _integer(value["observe_after_poll_sequence"], 0)
-    if "volume_operation_state" in value:
-        result["volume_operation_state"] = value["volume_operation_state"]
-    if value["outcome"] != "accepted":
-        kind = value.get("error_kind")
-        result["error_kind"] = kind if isinstance(kind, str) and kind in _ERRORS else "unavailable"
-    return result
-
-
 class MusicControlFacade:
     """A bounded transport, never a grant or a second command owner."""
 
@@ -845,27 +674,6 @@ class MusicControlFacade:
         return bool(
             self._transport_available
             and _SERVICES <= getattr(discovery, "podconnect_services", frozenset())
-        )
-
-    @property
-    def room_available(self) -> bool:
-        discovery = getattr(self.tools, "_discovery", None)
-        return bool(
-            self.available
-            and _ROOM_SERVICES <= getattr(discovery, "podconnect_services", frozenset())
-        )
-
-    @property
-    def seek_available(self) -> bool:
-        discovery = getattr(self.tools, "_discovery", None)
-        return self.room_available and getattr(discovery, "room_playback_seek", False) is True
-
-    @property
-    def volume_available(self) -> bool:
-        discovery = getattr(self.tools, "_discovery", None)
-        return bool(
-            self.available
-            and _VOLUME_SERVICES <= getattr(discovery, "podconnect_services", frozenset())
         )
 
     @property
@@ -961,199 +769,6 @@ class MusicControlFacade:
             return {"ok": True, "data": _controls(result, account, target)}
         except Exception:
             return _failure("unavailable")
-
-    async def setup_room(
-        self,
-        account: str,
-        target: str,
-        room: str,
-        homepod: str,
-        current: Callable[[], bool],
-    ) -> dict:
-        """Read the exact current room route; never offer generic WebAPI controls."""
-        try:
-            _text(account)
-            _text(target)
-            _text(room, 128)
-            _text(homepod, 128)
-            binding = self.binding()
-            if not self.room_available or not self._current(binding, current):
-                return _failure("unavailable")
-            client, token = self.tools._client, self.tools._token
-            async with asyncio.timeout(_TIMEOUT_S):
-                result = await self._read(
-                    client,
-                    token,
-                    "get_room_playback_controls",
-                    {
-                        "config_entry_id": account,
-                        "kind": "spotify_device",
-                        "target_id": target,
-                        "room_id": room,
-                        "homepod_id": homepod,
-                        **({"include_seek": True} if self.seek_available else {}),
-                    },
-                )
-            if not self._current(binding, current):
-                return _failure("owner_replaced")
-            return {"ok": True, "data": _room_controls(result, account, target, room, homepod)}
-        except Exception:
-            return _failure("unavailable")
-
-    async def execute_room(
-        self,
-        offered: dict,
-        action: str,
-        current: Callable[[], bool],
-        *,
-        receipt_current: Callable[[], bool] | None = None,
-        position_ms: int | None = None,
-    ) -> dict:
-        """Send one bound native AUDIO4 command and retain an unknown possible send."""
-        possible_send = False
-        identity: dict = {}
-        try:
-            account = _text(offered.get("config_entry_id"))
-            target = _text(offered.get("target", {}).get("target_id"))
-            room = _text(offered.get("room_id"), 128)
-            homepod = _text(offered.get("homepod_id"), 128)
-            if not self.room_available:
-                return _failure("unavailable")
-            value = _room_controls(offered, account, target, room, homepod, offered=True)
-            if action not in _ROOM_ACTIONS or action not in value["actions"]:
-                return _failure("unsupported_action")
-            args = {}
-            if action == "seek":
-                if not self.seek_available:
-                    return _failure("unsupported_action")
-                args["position_ms"] = _integer(position_ms, 0)
-            elif position_ms is not None:
-                return _failure("invalid_arguments")
-            sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
-            identity = {
-                "schema": "podconnect.command.v1",
-                "config_entry_id": account,
-                "owner_epoch": epoch,
-                "request_id": f"{epoch}:{sequence}",
-                "command_sequence": sequence,
-                "action": action,
-                "target": {"kind": "spotify_device", "target_id": target},
-            }
-            request = {
-                "config_entry_id": account,
-                "kind": "spotify_device",
-                "target_id": target,
-                "owner_epoch": epoch,
-                "expected_poll_sequence": value["poll_sequence"],
-                "request_id": identity["request_id"],
-                "command_sequence": sequence,
-                "action": action,
-                "args": args,
-                "room_id": room,
-                "homepod_id": homepod,
-                "native": value["native"],
-                "route": value["route"],
-            }
-            binding = self.binding()
-            client, token = self.tools._client, self.tools._token
-            async with asyncio.timeout(20):  # Control's same-room command owns up to 18s.
-                if not self._current(binding, current):
-                    return _failure("owner_replaced", identity=identity)
-                possible_send = True
-                result = await self._read(client, token, "control_room_playback", request)
-            if not self._current(binding, receipt_current or current):
-                return _failure("owner_replaced", possible_send=True, identity=identity)
-            return _room_receipt(result, identity)
-        except (Exception, asyncio.CancelledError):
-            return _failure("unavailable", possible_send=possible_send, identity=identity)
-
-    async def setup_volume(
-        self, account: str, target: str, room: str, homepod: str, current: Callable[[], bool]
-    ) -> dict:
-        try:
-            _text(account)
-            _text(target)
-            if not self.volume_available:
-                return _failure("unavailable")
-            binding = self.binding()
-            if not self._current(binding, current):
-                return _failure("unavailable")
-            async with asyncio.timeout(_TIMEOUT_S):
-                result = await self._read(
-                    self.tools._client,
-                    self.tools._token,
-                    "get_room_volume_controls",
-                    {
-                        "config_entry_id": account,
-                        "kind": "spotify_device",
-                        "target_id": target,
-                        "room_id": _text(room, 128),
-                        "homepod_id": _text(homepod, 128),
-                    },
-                )
-            if not self._current(binding, current):
-                return _failure("owner_replaced")
-            return {"ok": True, "data": _volume_controls(result, account, target, room, homepod)}
-        except Exception:
-            return _failure("unavailable")
-
-    async def execute_volume(
-        self,
-        offered: dict,
-        percent: int,
-        current: Callable[[], bool],
-        *,
-        receipt_current: Callable[[], bool] | None = None,
-    ) -> dict:
-        possible_send = False
-        identity: dict = {}
-        try:
-            account = _text(offered.get("config_entry_id"))
-            target = _text(offered.get("target", {}).get("target_id"))
-            room = _text(offered.get("room_id"), 128)
-            homepod = _text(offered.get("homepod_id"), 128)
-            if type(percent) is not int or not 0 <= percent <= 100 or not self.volume_available:
-                return _failure("unavailable")
-            value = _volume_controls(offered, account, target, room, homepod, offered=True)
-            sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
-            identity = {
-                "schema": "podconnect.command.v1",
-                "config_entry_id": account,
-                "owner_epoch": epoch,
-                "request_id": f"{epoch}:{sequence}",
-                "command_sequence": sequence,
-                "action": "volume",
-                "target": {"kind": "spotify_device", "target_id": target},
-            }
-            request = {
-                "config_entry_id": account,
-                "kind": "spotify_device",
-                "target_id": target,
-                "room_id": room,
-                "homepod_id": homepod,
-                "native": value["native"],
-                "route": value["route"],
-                "volume_state": value["volume_state"],
-                "owner_epoch": epoch,
-                "expected_poll_sequence": value["poll_sequence"],
-                "command_sequence": sequence,
-                "request_id": identity["request_id"],
-                "action": "volume",
-                "args": {"percent": percent},
-            }
-            binding = self.binding()
-            async with asyncio.timeout(20):
-                if not self._current(binding, current):
-                    return _failure("owner_replaced", identity=identity)
-                possible_send = True
-                result = await self._read(
-                    self.tools._client, self.tools._token, "control_room_volume", request
-                )
-            if not self._current(binding, receipt_current or current):
-                return _failure("owner_replaced", possible_send=True, identity=identity)
-            return _volume_receipt(result, identity)
-        except (Exception, asyncio.CancelledError):
-            return _failure("unavailable", possible_send=possible_send, identity=identity)
 
     async def setup_track(
         self,
@@ -1273,12 +888,13 @@ class MusicControlFacade:
             value = _controls(offered, account, target, offered=True)
             if value["status"] != "ready" or action not in value["actions"]:
                 return _failure("unsupported_action")
-            if not isinstance(args, dict) or set(args) != (
-                {"percent"} if action == "volume" else set()
-            ):
+            expected_args = {"volume": {"percent"}, "seek": {"position_ms"}}.get(action, set())
+            if not isinstance(args, dict) or set(args) != expected_args:
                 return _failure("invalid_arguments")
             if action == "volume":
                 _integer(args["percent"], 0, 100)
+            if action == "seek":
+                _integer(args["position_ms"], 0)
             sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
             identity = {
                 "schema": "podconnect.command.v1",
