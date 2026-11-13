@@ -23,6 +23,7 @@ from contextvars import ContextVar, copy_context
 from pathlib import Path
 from urllib.parse import urlencode
 
+import aiohttp
 import httpx
 from aiohttp import web
 
@@ -42,8 +43,9 @@ from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry, log_screen_enrollment
 from .podview_music_selection import MusicSelection, trace_event
 from .podview_vacuum_control import transport_actions
-from .recipe_import import import_link
+from .recipe_import import REPLY_SECONDS, import_link
 from .recipe_submissions import (
+    RECEIVED_MESSAGE,
     RECIPE_SHORTCUT_VERSION,
     RecipeRejectedError,
     RecipeSubmissions,
@@ -1058,8 +1060,37 @@ class PodViewBridge:
                         break
             except (httpx.HTTPError, OSError, ValueError):
                 address = None
+            if address is None:
+                address = await self._recipe_cloud_address(token)
         self._recipe_shortcut_address = (now, address)
         return address
+
+    async def _recipe_cloud_address(self, token: str) -> str | None:
+        """Home Assistant Cloud's remote address, which also works away from home."""
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=3)) as session:
+                async with session.ws_connect(
+                    "ws://supervisor/core/websocket", max_msg_size=65536
+                ) as ws:
+                    if (await ws.receive_json()).get("type") != "auth_required":
+                        return None
+                    await ws.send_json({"type": "auth", "access_token": token})
+                    if (await ws.receive_json()).get("type") != "auth_ok":
+                        return None
+                    await ws.send_json({"id": 1, "type": "cloud/status"})
+                    reply = await ws.receive_json()
+        except (aiohttp.ClientError, OSError, TimeoutError, ValueError):
+            return None
+        status = reply.get("result") if isinstance(reply, dict) else None
+        domain = status.get("remote_domain") if isinstance(status, dict) else None
+        if (
+            not isinstance(status, dict)
+            or status.get("logged_in") is not True
+            or not isinstance(domain, str)
+            or not re.fullmatch(r"[a-z0-9.-]{1,253}", domain)
+        ):
+            return None
+        return f"https://{domain}{_RECIPE_SHORTCUT_PATH}"
 
     def _controller_request_scope(self, room: str) -> tuple[ControllerRegistry, tuple, str]:
         registry = self._controller_registry
@@ -2552,8 +2583,17 @@ async def _phone_recipes(request: web.Request) -> web.Response:
         or len(auth) != 1
         or not hmac.compare_digest(auth[0].encode(), f"Bearer {token}".encode())
     ):
+        # Outcome only; the presented code is never logged or compared outside hmac.
+        from .recipe_submissions import recipe_event
+
+        recipe_event("phone", "rejected", reason="denied")
         return web.json_response(
-            {"error": "recipes_denied", "message": "Adgang afvist"},
+            {
+                "error": "recipes_denied",
+                "message": _WRONG_UPLOAD_CODE
+                if len(token) >= 32
+                else "Upload-koden er ikke sat i PodVoice. Åbn PodView \u2192 Opskrifter",
+            },
             status=403,
             headers={"Cache-Control": "no-store"},
         )
@@ -2592,6 +2632,7 @@ async def _phone_recipes(request: web.Request) -> web.Response:
     return web.json_response(payload, status=response.status, headers={"Cache-Control": "no-store"})
 
 
+_WRONG_UPLOAD_CODE = "Forkert upload-kode \u2013 åbn PodView \u2192 Opskrifter \u2192 Tilføj genvej"
 _SHORTCUT_UPDATE_NOTICE = " · Ny version af genvejen \u2013 hent den i PodView"
 
 
@@ -2680,8 +2721,10 @@ async def _recipe_operation(
                         status=400,
                         headers={"Cache-Control": "no-store"},
                     )
-                result = await import_link(store, url)
-                status = 202 if result["status"] in {"received", "importing"} else 200
+                result = await import_link(store, url, reply_within=REPLY_SECONDS)
+                if result["status"] in {"received", "importing"}:
+                    result = {**result, "message": RECEIVED_MESSAGE}
+                    status = 202
     except RecipeRejectedError:
         return web.json_response(
             {"error": "recipe_rejected", "message": "Opskriften kræver gennemgang og er ikke gemt"},

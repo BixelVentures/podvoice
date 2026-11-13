@@ -86,6 +86,12 @@ _TOOLS_TTL_S = 600.0
 _PODVIEW_MUSIC_OPTIONS = "podview_music_options"
 _PODVIEW_MUSIC_SELECT = "podview_music_select_option"
 _PODVIEW_MUSIC_TOOLS = frozenset({_PODVIEW_MUSIC_OPTIONS, _PODVIEW_MUSIC_SELECT})
+# Green 13 Nov: "spil musik" reached the card-options tool, which only knows choices
+# already shown on a music card. Its bare refusal became "musikvalg er ikke tilgængeligt".
+_NO_MUSIC_CARD = (
+    "Der står intet musikkort med valg lige nu. Start ny musik med HassMediaSearchAndPlay "
+    "(search_query, og name=rummet, hvis et rum er nævnt)."
+)
 _RECOVERY_BACKOFF_S = (1.0, 2.0, 5.0, 10.0, 30.0, 60.0)
 # Realtime receives these declarations in every new session.  These caps leave bounded
 # room for Prompt V6, conversation audio/text and tool results while comfortably
@@ -1197,7 +1203,12 @@ class ToolRouter:
                 [
                     {
                         "name": _PODVIEW_MUSIC_OPTIONS,
-                        "description": "Læs aktuelle serverejede musikvalg. Uden argumenter: viste sangvalg. Med purpose=move_existing_session: præcise konfigurerede rum til at flytte den eksisterende afspilning.",
+                        "description": (
+                            "Læs valgene på et allerede vist PodView-musikkort. Uden argumenter: "
+                            "viste sangvalg. Med purpose=move_existing_session: præcise "
+                            "konfigurerede rum til at flytte den eksisterende afspilning. "
+                            "Start ikke ny musik herfra; brug HassMediaSearchAndPlay."
+                        ),
                         "parameters": {
                             "type": "object",
                             "properties": {
@@ -1483,13 +1494,17 @@ class ToolRouter:
                 return rejected
             return await radio_owner.voice(dispatch_args, execution_context, execution_guard)
         if name in _PODVIEW_MUSIC_TOOLS:
-            return await self._dispatch_podview_music(
+            result = await self._dispatch_podview_music(
                 name,
                 dispatch_args,
                 execution_context,
                 approval_token,
                 execution_guard,
             )
+            if result.get("error_kind") == "stale_music_selection" and "error" not in result:
+                result = {**result, "error": _NO_MUSIC_CARD}
+            self._log_tool(name, result, dispatch_args)
+            return result
         if name in DEVICE_TOOL_NAMES:
             return await self._dispatch_device(
                 name,

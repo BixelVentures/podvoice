@@ -13,7 +13,11 @@ from gatekeeper.recipe_import import (
     import_link,
     public_url,
 )
-from gatekeeper.recipe_submissions import RecipeStorageError, RecipeSubmissions
+from gatekeeper.recipe_submissions import (
+    RECIPE_SHORTCUT_VERSION,
+    RecipeStorageError,
+    RecipeSubmissions,
+)
 
 URL = "https://example.test/recipe"
 RECIPE = {
@@ -118,7 +122,9 @@ async def test_automatic_save_receipt_dedup_restart_history(tmp_path):
     ) as fetch:
         saved = await import_link(store, URL)
         assert saved["status"] == "saved" and saved["message"] == "Gemt: Boller"
-        assert await import_link(store, URL) == saved
+        # Changed: sharing the same link again says so instead of repeating "Gemt".
+        again = await import_link(store, URL)
+        assert again["status"] == "duplicate" and again["message"] == "Findes allerede: Boller"
         assert fetch.await_count == 1
     reopened = RecipeSubmissions(path)
     assert reopened.phone_receipt(saved["id"]) == saved
@@ -169,11 +175,11 @@ async def test_inflight_duplicate_no_double_fetch_and_corrupt_store_preserved(tm
 
 @pytest.mark.asyncio
 async def test_fetch_checks_redirect_before_connect_and_bounds_decompressed_body():
-    from gatekeeper.recipe_import import fetch_html
+    from gatekeeper.recipe_import import MAX_HTML, fetch_html
 
     class Content:
         async def iter_chunked(self, size):
-            yield b"x" * (2 * 1024 * 1024 + 1)
+            yield b"x" * (MAX_HTML + 1)
 
     class Response:
         status = 302
@@ -209,9 +215,10 @@ async def test_fetch_checks_redirect_before_connect_and_bounds_decompressed_body
         with pytest.raises(ImportRejected):
             await fetch_html(URL)
         assert Session.calls == [URL]
+        # Changed: a very large page is read up to the limit instead of rejected.
         Response.status = 200
-        with pytest.raises(ImportRejected):
-            await fetch_html(URL)
+        page, _ = await fetch_html(URL)
+        assert len(page) == MAX_HTML
 
 
 @pytest.mark.asyncio
@@ -250,7 +257,12 @@ async def test_phone_operation_returns_real_saved_message_and_history(tmp_path):
     request = SimpleNamespace(
         app={BRIDGE: SimpleNamespace(recipe_submissions=store, recipe_upload_token="x" * 32)},
         remote="127.0.0.1",
-        headers=CIMultiDict({"Authorization": "Bearer " + "x" * 32, "X-PodView-Shortcut": "1"}),
+        headers=CIMultiDict(
+            {
+                "Authorization": "Bearer " + "x" * 32,
+                "X-PodView-Shortcut": str(RECIPE_SHORTCUT_VERSION),
+            }
+        ),
         method="POST",
         content_type="application/json",
         content=Content(),
@@ -334,7 +346,9 @@ async def test_cancelled_request_leaves_retryable_durable_state(tmp_path):
     ):
         with pytest.raises(asyncio.CancelledError):
             await import_link(store, URL)
-    assert store.upload_history()[0]["status"] == "failed"
+    # Changed: an interrupted import stays queued and is resumed after a restart.
+    assert store.upload_history()[0]["status"] == "received"
+    assert store.pending_urls() == [URL]
     with patch("gatekeeper.recipe_import.fetch_html", new=AsyncMock(return_value=(html(), URL))):
         assert (await import_link(store, URL))["status"] == "saved"
 
@@ -356,7 +370,7 @@ def test_conflicting_json_keys_do_not_silently_override_source():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("encoding,charset", [("gzip", "utf-8"), ("identity", "not-a-real-codec")])
+@pytest.mark.parametrize("encoding,charset", [("br", "utf-8"), ("identity", "not-a-real-codec")])
 async def test_fetch_rejects_unbounded_encoding_and_bad_charset(encoding, charset):
     from gatekeeper.recipe_import import fetch_html
 
@@ -384,7 +398,8 @@ async def test_fetch_rejects_unbounded_encoding_and_bad_charset(encoding, charse
     class Session:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
-            assert kwargs["auto_decompress"] is False
+            # Changed: gzip/deflate are decoded by aiohttp; the read limit counts decoded bytes.
+            assert kwargs["auto_decompress"] is True
 
         async def __aenter__(self):
             return self
@@ -393,7 +408,7 @@ async def test_fetch_rejects_unbounded_encoding_and_bad_charset(encoding, charse
             await self.kwargs["connector"].close()
 
         def get(self, url, **kwargs):
-            assert kwargs["headers"]["Accept-Encoding"] == "identity"
+            assert kwargs["headers"]["Accept-Encoding"] == "gzip, deflate"
             return response
 
     with patch("gatekeeper.recipe_import.ClientSession", Session), pytest.raises(ImportRejected):
@@ -449,7 +464,7 @@ async def test_recipe_import_and_durable_receipt_survive_failing_log_handler(tmp
     ):
         saved = await import_link(store, URL)
         assert saved["status"] == "saved" and saved["message"] == "Gemt: Boller"
-        assert await import_link(store, URL) == saved
+        assert (await import_link(store, URL))["message"] == "Findes allerede: Boller"
         reopened = RecipeSubmissions(store.path)
         assert reopened.phone_receipt(saved["id"]) == saved
         assert json.loads(store.path.read_text())["recipes"][saved["id"]]["title"] == "Boller"
@@ -595,7 +610,12 @@ async def test_phone_share_text_with_link_is_saved_and_no_link_explains(tmp_path
         return SimpleNamespace(
             app={BRIDGE: SimpleNamespace(recipe_submissions=store, recipe_upload_token="x" * 32)},
             remote="127.0.0.1",
-            headers=CIMultiDict({"Authorization": "Bearer " + "x" * 32, "X-PodView-Shortcut": "1"}),
+            headers=CIMultiDict(
+                {
+                    "Authorization": "Bearer " + "x" * 32,
+                    "X-PodView-Shortcut": str(RECIPE_SHORTCUT_VERSION),
+                }
+            ),
             method="POST",
             content_type="application/json",
             content=Content(),

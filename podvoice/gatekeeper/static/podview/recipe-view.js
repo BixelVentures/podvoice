@@ -231,7 +231,7 @@ export class RecipeView {
    expanded:this.uploadHistoryExpanded,onToggle:expanded=>{this.uploadHistoryExpanded=expanded;}});
   const renderUploads = () => {
    uploads.panel.replaceChildren();
-   const labels = {saved:'Gemt',received:'Modtaget',importing:'Importerer',rejected:'Afvist',failed:'Mislykkedes'};
+   const labels = {saved:'Gemt',duplicate:'Findes allerede',received:'Modtaget',importing:'Henter',rejected:'Afvist',failed:'Mislykkedes'};
    for (const upload of this.uploads) {
     const row = kit('listrow','',{tag:'div',variant:'read-only'});
     row.append(applyKitTextRole(element('h3',upload.title || upload.url || 'Opskriftslink'),'field-label'));

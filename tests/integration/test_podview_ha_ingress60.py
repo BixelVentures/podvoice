@@ -753,13 +753,17 @@ async def test_recipe_rejection_through_ha_ingress(ingress):
 
 async def test_phone_recipe_token_is_scoped_to_loopback_submit_and_receipt(ingress, monkeypatch):
     from gatekeeper import recipe_import
+    from gatekeeper.recipe_submissions import RECIPE_SHORTCUT_VERSION
 
     async def unavailable_source(_url):
         raise OSError("inert source unavailable")
 
     monkeypatch.setattr(recipe_import, "fetch_html", unavailable_source)
     ingress.bridge.recipe_upload_token = "x" * 32
-    headers = {"Authorization": "Bearer " + "x" * 32, "X-PodView-Shortcut": "1"}
+    headers = {
+        "Authorization": "Bearer " + "x" * 32,
+        "X-PodView-Shortcut": str(RECIPE_SHORTCUT_VERSION),
+    }
     path = "/internal/recipes/submissions"
     body = {"url": "https://example.org/shared"}
     assert (await ingress.client.post(path, headers=headers, json=body)).status == 403

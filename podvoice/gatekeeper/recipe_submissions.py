@@ -38,6 +38,7 @@ def recipe_event(
 ) -> None:
     # Stored data is untrusted too: close every logged field over known values.
     stages = {
+        "phone",
         "submit",
         "duplicate",
         "import",
@@ -55,6 +56,8 @@ def recipe_event(
         "queued",
         "started",
         "observed",
+        "duplicate",
+        "replied",
     }
     reasons = {
         "none",
@@ -71,6 +74,11 @@ def recipe_event(
         "network",
         "storage",
         "invalid_data",
+        "blocked",
+        "not_found",
+        "paywall",
+        "duplicate",
+        "denied",
     }
     stage = stage if isinstance(stage, str) and stage in stages else "other"
     outcome = outcome if isinstance(outcome, str) and outcome in outcomes else "other"
@@ -103,13 +111,19 @@ def recipe_event(
 
 
 _REJECTION_MESSAGES = {
-    "not_recipe": "Siden blev ikke vurderet som en opskrift",
+    "not_recipe": "Ingen opskrift fundet på siden",
     "unreadable": "Opskriften kunne ikke læses sikkert",
     "incomplete": "Opskriften mangler ingredienser eller trin og er ikke gemt",
     "ambiguous": "Siden indeholder flere opskrifter og skal gennemgås",
     "unsafe_url": "Linket kan ikke hentes sikkert",
+    "blocked": "Siden afviste at blive hentet af PodView",
+    "not_found": "Siden findes ikke (fejl 404). Tjek linket",
+    "paywall": "Siden kræver login eller abonnement",
     "unavailable": "Opskriften kunne ikke hentes. Del linket igen for at prøve igen",
+    "timeout": "Siden svarede ikke i tide. Del linket igen for at prøve igen",
 }
+
+RECEIVED_MESSAGE = "Modtaget \u2013 vises i PodView om lidt"
 
 
 class RecipeStorageError(OSError):
@@ -124,7 +138,7 @@ _SHARED_URL = re.compile(r"https?://[^\s<>\"'`«»“”]+", re.IGNORECASE)
 
 # The version of podvoice/shortcuts/opskrifter-til-podview.plist. Raise both together
 # when the shortcut changes; older shortcuts are told to fetch the new one in PodView.
-RECIPE_SHORTCUT_VERSION = 1
+RECIPE_SHORTCUT_VERSION = 2
 
 # Fields a share sheet or shortcut may send, in the order they are trusted for a link.
 _SHARED_FIELDS = ("url", "urls", "webpage", "page", "link", "text", "title")
@@ -224,12 +238,59 @@ def _recipe_id(url: str) -> str:
     return hashlib.sha256(url.encode()).hexdigest()
 
 
+# Query parameters that only say where a link was shared from, never which recipe it is.
+_TRACKING_PARAM = re.compile(
+    r"utm_.*|fbclid|gclid|gclsrc|dclid|gbraid|wbraid|msclkid|mc_cid|mc_eid|igshid|igsh|_ga|_gl"
+    r"|yclid|twclid|ttclid|li_fat_id|ref|ref_src|si|share|shared|cmpid|amp|outputtype|output",
+    re.IGNORECASE,
+)
+_MOBILE_HOST = re.compile(r"^(?:www|m|mobile|amp)\.", re.IGNORECASE)
+_AMP_CACHE = re.compile(r"^/(?:amp/s/|c/s/)([^/]+)(/.*)?$")
+
+
+def recipe_match_key(url: object) -> str:
+    """One page, however it was shared: https/http, www/m/amp host, /amp path, trailing slash,
+    Google AMP cache and tracking parameters all give the same key. Only used to find an
+    existing recipe; the stored identity stays _source_url."""
+    parts = urlsplit(_source_url(url))
+    host = (parts.hostname or "").lower()
+    path = parts.path
+    amp = _AMP_CACHE.match(path)
+    if (host.endswith(".cdn.ampproject.org") or host in {"www.google.com", "google.com"}) and amp:
+        host, path = amp.group(1).lower(), amp.group(2) or "/"
+    while _MOBILE_HOST.match(host) and host.count(".") > 1:
+        host = _MOBILE_HOST.sub("", host, count=1)
+    path = re.sub(r"(?:/amp)+/?$", "", path.rstrip("/"))
+    path = re.sub(r"^/amp(?=/)", "", path) or "/"
+    params = sorted(
+        (key, value)
+        for key, value in parse_qsl(parts.query, keep_blank_values=True)
+        if not _TRACKING_PARAM.fullmatch(key)
+    )
+    return host + path.rstrip("/") + ("?" + urlencode(params) if params else "")
+
+
+def _title_key(title: object) -> str:
+    return (
+        " ".join(re.sub(r"[^\w]+", " ", title.casefold()).split()) if isinstance(title, str) else ""
+    )
+
+
 def _now_ms() -> int:
     return time.time_ns() // 1_000_000
 
 
 def _saved(recipe_id: str) -> dict:
     return {"id": recipe_id, "status": "saved", "message": "Gemt"}
+
+
+def _duplicate(recipe_id: str, title: str) -> dict:
+    return {
+        "id": recipe_id,
+        "status": "duplicate",
+        "title": title,
+        "message": f"Findes allerede: {title}",
+    }
 
 
 def _receipt(submission: dict) -> dict:
@@ -252,7 +313,7 @@ def _receipt(submission: dict) -> dict:
     return {
         "id": submission["id"],
         "status": submission.get("status", "received"),
-        "message": submission.get("message", "Modtaget: opskriften afventer import"),
+        "message": submission.get("message", RECEIVED_MESSAGE),
     }
 
 
@@ -305,15 +366,57 @@ class RecipeSubmissions:
             finally:
                 pending.unlink(missing_ok=True)
 
+    @staticmethod
+    def _match(state: dict, urls: list[str], title: str = "") -> str | None:
+        """An already published recipe for these links, or with this title on the same site."""
+        wanted = set()
+        for url in urls:
+            try:
+                wanted.add(recipe_match_key(url))
+            except (ValueError, TypeError):
+                continue
+        hosts = {key.split("/", 1)[0] for key in wanted}
+        title = _title_key(title)
+        aliases = state.get("aliases", {})
+        for key in wanted:
+            if isinstance(aliases, dict) and aliases.get(key) in state["recipes"]:
+                return aliases[key]
+        for recipe_id, recipe in state["recipes"].items():
+            try:
+                key = recipe_match_key(recipe["source"]["url"])
+            except (ValueError, TypeError, KeyError):
+                continue
+            if key in wanted or (
+                title and key.split("/", 1)[0] in hosts and _title_key(recipe.get("title")) == title
+            ):
+                return recipe_id
+        return None
+
+    @staticmethod
+    def _record_duplicate(state: dict, recipe_id: str, url: str, existing: str) -> dict:
+        title = state["recipes"][existing]["title"]
+        now = _now_ms()
+        item = state["submissions"].setdefault(
+            recipe_id, {"id": recipe_id, "url": url, "receivedAt": now}
+        )
+        item.pop("rejection", None)
+        item.update(
+            status="duplicate",
+            message="Findes allerede",
+            title=title,
+            duplicateOf=existing,
+            updatedAt=now,
+        )
+        return _duplicate(existing, title)
+
     def submit(self, url: object) -> dict:
         url = _source_url(url)
         recipe_id = _recipe_id(url)
         with self._lock:
             state = self._read()
             if recipe_id in state["recipes"]:
-                state["submissions"].setdefault(
-                    recipe_id,
-                    {
+                if recipe_id not in state["submissions"]:
+                    state["submissions"][recipe_id] = {
                         "id": recipe_id,
                         "url": url,
                         "receivedAt": _now_ms(),
@@ -321,16 +424,24 @@ class RecipeSubmissions:
                         "status": "saved",
                         "message": "Gemt",
                         "title": state["recipes"][recipe_id]["title"],
-                    },
-                )
+                    }
+                    self._write(state)
+                return _duplicate(recipe_id, state["recipes"][recipe_id]["title"])
+            existing = self._match(state, [url])
+            if existing is not None:
+                receipt = self._record_duplicate(state, recipe_id, url, existing)
                 self._write(state)
-                return _saved(recipe_id)
-            if recipe_id not in state["submissions"]:
+                return receipt
+            item = state["submissions"].get(recipe_id)
+            if item is None or item.get("status") == "duplicate":
+                # A link whose earlier match was since deleted is a new upload.
                 state["submissions"][recipe_id] = {
                     "id": recipe_id,
                     "url": url,
                     "receivedAt": _now_ms(),
                     "updatedAt": _now_ms(),
+                    "status": "received",
+                    "message": RECEIVED_MESSAGE,
                 }
                 self._write(state)
             return _receipt(state["submissions"][recipe_id])
@@ -357,7 +468,7 @@ class RecipeSubmissions:
             return [
                 item
                 for item in self._read()["submissions"].values()
-                if item.get("status") != "saved"
+                if item.get("status") not in {"saved", "duplicate"}
             ]
 
     def pending_urls(self) -> list[str]:
@@ -389,7 +500,7 @@ class RecipeSubmissions:
             ):
                 return False
             item.update(
-                status="importing", message="Modtaget: importerer opskriften", updatedAt=_now_ms()
+                status="importing", message="Henter opskriften fra siden", updatedAt=_now_ms()
             )
             self._write(state)
             return True
@@ -409,6 +520,16 @@ class RecipeSubmissions:
                 item["rejection"] = {"reason": reason, "at": _now_ms()}
             self._write(state)
             return _receipt(item)
+
+    def import_interrupted(self, recipe_id: str) -> None:
+        """Shutdown during an import: the link stays queued and is resumed after restart."""
+        with self._lock:
+            state = self._read()
+            item = state["submissions"].get(recipe_id)
+            if item is None or recipe_id in state["recipes"] or item.get("rejection"):
+                return
+            item.update(status="received", message=RECEIVED_MESSAGE, updatedAt=_now_ms())
+            self._write(state)
 
     def upload_history(self) -> list[dict]:
         with self._lock:
@@ -444,7 +565,10 @@ class RecipeSubmissions:
                 self._write(state)
             return _receipt(submission)
 
-    def publish(self, recipe: dict) -> dict:
+    def publish(self, recipe: dict, aliases: list[str] | None = None) -> dict:
+        """aliases (automatic imports only): the page's own other links (redirect target,
+        canonical). A recipe already in the catalog under any of them, or with the same
+        title on the same site, is reported as a duplicate and not stored again."""
         source = recipe.get("source")
         url = _source_url(source.get("url") if isinstance(source, dict) else None)
         groups = recipe.get("groups")
@@ -473,6 +597,19 @@ class RecipeSubmissions:
             state = self._read()
             if state["submissions"].get(recipe_id, {}).get("rejection"):
                 raise RecipeRejectedError("rejected recipe cannot be published")
+            if aliases is not None and recipe_id not in state["recipes"]:
+                existing = self._match(state, [url, *aliases], recipe["title"])
+                if existing is not None:
+                    receipt = self._record_duplicate(state, recipe_id, url, existing)
+                    self._write(state)
+                    recipe_event("duplicate", "duplicate", recipe_id=recipe_id)
+                    return receipt
+                keys = state.setdefault("aliases", {})
+                for alias in aliases:
+                    try:
+                        keys.setdefault(recipe_match_key(alias), recipe_id)
+                    except (ValueError, TypeError):
+                        continue
             existing = state["recipes"].get(recipe_id, {})
             state["recipes"][recipe_id] = {
                 **recipe,
