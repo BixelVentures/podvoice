@@ -361,7 +361,7 @@ async function offlineFeedbackJourney(page,errors){
   await recordScroll(width,height,'after-passive-update');
   const geometry=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return {left:box.left,top:box.top,width:box.width,height:box.height,bottom:box.bottom,buttonTop:button.top,buttonBottom:button.bottom,scrollTop:d.scrollTop,padding:Number.parseFloat(getComputedStyle(d).paddingBottom)};});
   await shell.screenshot({path:path.join(testEnv.artifactDir(),`podview-next-screen-admin-${width}.png`)});
-  assert.equal(geometry.width,520);assert(Math.abs(geometry.left-(width-geometry.width)/2)<1);assert(Math.abs(geometry.top-(height-geometry.height)/2)<1);assert(geometry.scrollTop>0);assert(geometry.buttonTop>=geometry.top);assert(geometry.buttonBottom<=geometry.bottom-geometry.padding+1,'manual scroll reveals whole Administration control with bottom padding');
+  assert.equal(geometry.width,width>=1000?560:520,"Skærm og enhed is 560 wide on the iPad (A-Skaerm)");assert(Math.abs(geometry.left-(width-geometry.width)/2)<1);assert(Math.abs(geometry.top-(height-geometry.height)/2)<1);assert(geometry.scrollTop>0);assert(geometry.buttonTop>=geometry.top);assert(geometry.buttonBottom<=geometry.bottom-geometry.padding+1,'manual scroll reveals whole Administration control with bottom padding');
  }
  await shell.setViewportSize({width:1280,height:800});
  await admin.tap();

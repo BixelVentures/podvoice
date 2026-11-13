@@ -2854,7 +2854,8 @@
           "arrow:free": 1,
           "arrow:visible": 1,
           "method:renderSvarDevice": 1,
-          "function:deferForGesture": 1
+          "function:deferForGesture": 1,
+          "function:renderRecipeStepBar": 1
         },
         "roots": [
           "native:article:retained-answer",

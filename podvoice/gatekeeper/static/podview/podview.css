@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 0e2b3fc8b17d8372063389f31fbf96cc9219e07e166620e4a6e4b17df514b2bb */
+/* Source: ui-kit.css · SHA256 92ddeb9da0a0365cea88dbc2843471487c0114040677076cba40433be48632a9 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5921,3 +5921,222 @@ body button:not(.is-pressed){transition-property:filter!important}
   height:calc(var(--pv-hero-l) + var(--pv-gap) + var(--pv-hero-s));max-height:none}
 }
 :root{--pv-player-w:372px}
+
+/* iPad Overblik (lærred v190 »Main«, issue 389): fixed slots in a 4×3 grid of 174×221 beside the player.
+   Vejr L · Robot M · Lys S, Tesla S · Musik, Radio, Opskrifter, Timer S. State never moves a widget.
+   The :has() pair names the overview with its fixed slots and outranks the older responsive slot rules;
+   !important is used only where widget-redesign.css or the older kit layers already set it. */
+:root{--pv-entry:#FFFFFF;--pv-on-dark-2:#BDBBB5;--pv-recipe-step:#7A4A22;--pv-recipe-step-now:#C98A4E;
+  --pv-recipe-step-ahead:rgba(122,74,34,.18)}
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather){
+  grid-template-columns:repeat(4,var(--pv-widget-s));grid-template-rows:repeat(3,var(--pv-hero-s));
+  grid-auto-rows:0;gap:var(--pv-gap);align-content:start;margin:0;padding:0;overflow:visible}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>.response-heading{
+  display:none}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>:is(#home-weather,
+  .resource-card,.resource-preview,#home-vehicle,#home-music,#home-radio,#home-recipes,#timer-card){
+  box-sizing:border-box;width:100%;max-width:none;height:100%;min-height:0;max-height:none;margin:0;
+  align-self:stretch;justify-self:stretch}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-weather{
+  grid-column:1/3!important;grid-row:1/3!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  .resource-card[data-kind=vacuum]{grid-column:3/5!important;grid-row:1!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(.resource-card,.resource-preview)[data-kind=light]{grid-column:3!important;grid-row:2!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-vehicle{
+  grid-column:4!important;grid-row:2!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-music{
+  grid-column:1!important;grid-row:3!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-radio{
+  grid-column:2!important;grid-row:3!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-recipes{
+  grid-column:3!important;grid-row:3!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card{
+  grid-column:4!important;grid-row:3!important;padding:0;background:transparent}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#timer-card,.resource-card)>:not([hidden]){box-sizing:border-box;height:100%;min-height:0;max-height:none}
+
+ /* Every widget head ends in the same chevron (K-Widget: 20 px, right 20, centred on the 26-px head). */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-weather,.resource-preview,#home-vehicle,#home-music,#home-radio,#home-recipes,
+  #timer-card>button:not([hidden]))::before{content:"";position:absolute;z-index:2;inset:23px 20px auto auto;
+  width:20px;height:20px;background:currentColor;pointer-events:none;
+  -webkit-mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xODEuNjYsMTMzLjY2bC04MCw4MGE4LDgsMCwwLDEtMTEuMzItMTEuMzJMMTY0LjY5LDEyOCw5MC4zNCw1My42NmE4LDgsMCwwLDEsMTEuMzItMTEuMzJsODAsODBBOCw4LDAsMCwxLDE4MS42NiwxMzMuNjZaIi8+PC9zdmc+") center/20px no-repeat;
+  mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xODEuNjYsMTMzLjY2bC04MCw4MGE4LDgsMCwwLDEtMTEuMzItMTEuMzJMMTY0LjY5LDEyOCw5MC4zNCw1My42NmE4LDgsMCwwLDEsMTEuMzItMTEuMzJsODAsODBBOCw4LDAsMCwxLDE4MS42NiwxMzMuNjZaIi8+PC9zdmc+") center/20px no-repeat}
+
+ /* Music, radio and recipes are entries, not states: white surface; the domain lives in one 64-px icon surface. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio,#home-recipes){position:relative;color:var(--pv-ink);background:var(--pv-entry)!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio,#home-recipes)::after{content:"";position:absolute;z-index:1;inset:66px 20px auto auto;
+  width:64px;height:64px;border-radius:var(--pv-r-s);opacity:1;translate:none;scale:none;animation:none;
+  pointer-events:none;background:var(--pv-entry-tile) var(--pv-entry-icon) center/30px no-repeat}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-music{
+  --pv-entry-tile:var(--pv-music);--pv-entry-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTIuOTIsMTcuNjlhOCw4LDAsMCwwLTYuODYtMS40NWwtMTI4LDMyQTgsOCwwLDAsMCw3Miw1NlYxNjYuMDhBMzYsMzYsMCwxLDAsODgsMTk2VjExMC4yNWwxMTItMjh2NTEuODNBMzYsMzYsMCwxLDAsMjE2LDE2NFYyNEE4LDgsMCwwLDAsMjEyLjkyLDE3LjY5Wk01MiwyMTZhMjAsMjAsMCwxLDEsMjAtMjBBMjAsMjAsMCwwLDEsNTIsMjE2Wk04OCw5My43NVY2Mi4yNWwxMTItMjh2MzEuNVpNMTgwLDE4NGEyMCwyMCwwLDEsMSwyMC0yMEEyMCwyMCwwLDAsMSwxODAsMTg0WiIvPjwvc3ZnPg==")}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-radio{
+  --pv-entry-tile:var(--pv-radio);--pv-entry-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xMDQsMTY4YTgsOCwwLDAsMS04LDhINjRhOCw4LDAsMCwxLDAtMTZIOTZBOCw4LDAsMCwxLDEwNCwxNjhabS04LTQwSDY0YTgsOCwwLDAsMCwwLDE2SDk2YTgsOCwwLDAsMCwwLTE2Wm0wLTMySDY0YTgsOCwwLDAsMCwwLDE2SDk2YTgsOCwwLDAsMCwwLTE2Wk0yMzIsODBWMTkyYTE2LDE2LDAsMCwxLTE2LDE2SDQwYTE2LDE2LDAsMCwxLTE2LTE2VjcyYTgsOCwwLDAsMSw1LjctNy42NmwxNjAtNDhhOCw4LDAsMCwxLDQuNiwxNS4zM0w4Ni41MSw2NEgyMTZBMTYsMTYsMCwwLDEsMjMyLDgwWk0yMTYsMTkyVjgwSDQwVjE5MkgyMTZabS0xNi01NmE0MCw0MCwwLDEsMS00MC00MEE0MCw0MCwwLDAsMSwyMDAsMTM2Wm0tMTYsMGEyNCwyNCwwLDEsMC0yNCwyNEEyNCwyNCwwLDAsMCwxODQsMTM2WiIvPjwvc3ZnPg==")}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-recipes{
+  --pv-entry-tile:var(--pv-recipe);--pv-entry-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTYsNDBINDBBMTYsMTYsMCwwLDAsMjQsNTZWMjAwYTE2LDE2LDAsMCwwLDE2LDE2SDIxNmExNiwxNiwwLDAsMCwxNi0xNlY1NkExNiwxNiwwLDAsMCwyMTYsNDBaTTQwLDE1Mkg1NmE4LDgsMCwwLDAsMC0xNkg0MFYxMjBINTZhOCw4LDAsMCwwLDAtMTZINDBWODhINTZhOCw4LDAsMCwwLDAtMTZINDBWNTZIODBWMjAwSDQwWm0xNzYsNDhIOTZWNTZIMjE2VjIwMFoiLz48L3N2Zz4=")}
+ /* The radio entry shows its tile dimmed when radio is not available (K-Widget radio »ikketilg«). */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-radio:is([data-kit-state=unavailable],:disabled)::after{background-color:var(--pv-surface-2);opacity:.6}
+
+ /* Small anatomy (K-Widget): head on top (22-px icon, 17/600 label, chevron); at the bottom the primary
+    line 18/800 and a fixed 20-px context line. Cells: icon | label | chevron over primary and context. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle),
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut:not([hidden]){display:grid!important;
+  grid-template-columns:22px minmax(0,1fr) 20px!important;grid-template-rows:26px minmax(0,1fr) 26px 20px!important;
+  column-gap:8px!important;row-gap:4px!important;align-items:center!important;padding:20px!important;
+  border-radius:var(--pv-r-l);text-align:left}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut)>
+  span:not(.resource-facts,.resource-context,.resource-value){display:contents!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut)>img:first-child{
+  grid-column:1!important;grid-row:1!important;width:22px!important;height:22px!important;min-width:0;
+  padding:0!important;margin:0!important;background:none!important;border-radius:0}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut)>img:not(:first-child){
+  display:none!important}
+ /* Older layers place these cells absolutely; on the iPad they sit in the anatomy grid. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut) :is(img,strong,small,
+  .resource-value){position:static!important;inset:auto!important;translate:none!important;transform:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut>img:first-child{filter:brightness(0) invert(1)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut) strong{
+  grid-column:2!important;grid-row:1!important;align-self:center!important;margin:0!important;
+  font:600 17px/26px var(--pv-font)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut) small{
+  grid-column:1/-1!important;grid-row:3!important;align-self:end!important;display:block!important;
+  width:auto!important;max-width:none!important;height:26px!important;min-height:0!important;
+  max-height:26px!important;margin:0!important;
+  font:800 18px/26px var(--pv-font)!important;letter-spacing:-.015em;white-space:nowrap!important;
+  overflow:hidden!important;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio,#home-recipes) small{color:var(--pv-ink)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio) small>span:not([hidden]){display:inline}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-vehicle .resource-value:not([hidden]){grid-column:1/-1!important;grid-row:4!important;
+  margin:0!important;font:400 15px/20px var(--pv-font)!important;color:var(--pv-ink-3)}
+ /* A recipe in progress: its title is the primary line and the step (small) the context line. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-recipes .resource-value:not([hidden]){grid-column:1/-1!important;grid-row:3!important;display:block!important;
+  margin:0!important;font:800 18px/26px var(--pv-font)!important;letter-spacing:-.015em;color:var(--pv-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-recipes:has(.resource-value:not([hidden])) small{grid-row:4!important;height:20px!important;
+  font:400 15px/20px var(--pv-font)!important;letter-spacing:0;color:var(--pv-ink-3)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut{background:var(--pv-dark);color:var(--pv-on-dark)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut>:is(.resource-facts,.resource-context){display:none!important}
+}
+
+/* Music or radio playing (data-media-layout=media): the product shows the track or station in the card.
+   K-Widget keeps the head »Musik«/»Radio«; the cover or station logo takes the 64-px icon surface, the title is
+   the primary line and the artist or state the context. The head is drawn in ::after (the tile is not needed). */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media]>img:first-child{position:absolute!important;
+  inset:66px 20px auto auto!important;width:64px!important;height:64px!important;border-radius:12px!important;
+  object-fit:cover;filter:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media]::after{content:var(--pv-entry-label);inset:20px auto auto 20px;
+  width:auto;height:26px;padding-left:30px;border-radius:0;font:600 17px/26px var(--pv-font);color:var(--pv-ink);
+  background:var(--pv-entry-head) left center/22px no-repeat}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-music{
+  --pv-entry-label:"Musik";--pv-entry-head:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTIuOTIsMTcuNjlhOCw4LDAsMCwwLTYuODYtMS40NWwtMTI4LDMyQTgsOCwwLDAsMCw3Miw1NlYxNjYuMDhBMzYsMzYsMCwxLDAsODgsMTk2VjExMC4yNWwxMTItMjh2NTEuODNBMzYsMzYsMCwxLDAsMjE2LDE2NFYyNEE4LDgsMCwwLDAsMjEyLjkyLDE3LjY5Wk01MiwyMTZhMjAsMjAsMCwxLDEsMjAtMjBBMjAsMjAsMCwwLDEsNTIsMjE2Wk04OCw5My43NVY2Mi4yNWwxMTItMjh2MzEuNVpNMTgwLDE4NGEyMCwyMCwwLDEsMSwyMC0yMEEyMCwyMCwwLDAsMSwxODAsMTg0WiIvPjwvc3ZnPg==")}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#home-radio{
+  --pv-entry-label:"Radio";--pv-entry-head:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xMDQsMTY4YTgsOCwwLDAsMS04LDhINjRhOCw4LDAsMCwxLDAtMTZIOTZBOCw4LDAsMCwxLDEwNCwxNjhabS04LTQwSDY0YTgsOCwwLDAsMCwwLDE2SDk2YTgsOCwwLDAsMCwwLTE2Wm0wLTMySDY0YTgsOCwwLDAsMCwwLDE2SDk2YTgsOCwwLDAsMCwwLTE2Wk0yMzIsODBWMTkyYTE2LDE2LDAsMCwxLTE2LDE2SDQwYTE2LDE2LDAsMCwxLTE2LTE2VjcyYTgsOCwwLDAsMSw1LjctNy42NmwxNjAtNDhhOCw4LDAsMCwxLDQuNiwxNS4zM0w4Ni41MSw2NEgyMTZBMTYsMTYsMCwwLDEsMjMyLDgwWk0yMTYsMTkyVjgwSDQwVjE5MkgyMTZabS0xNi01NmE0MCw0MCwwLDEsMS00MC00MEE0MCw0MCwwLDAsMSwyMDAsMTM2Wm0tMTYsMGEyNCwyNCwwLDEsMC0yNCwyNEEyNCwyNCwwLDAsMCwxODQsMTM2WiIvPjwvc3ZnPg==")}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media] strong{grid-column:1/-1!important;grid-row:3!important;
+  font:800 18px/26px var(--pv-font)!important;letter-spacing:-.015em}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media] small{grid-row:4!important;height:20px!important;
+  font:400 15px/20px var(--pv-font)!important;letter-spacing:0;color:var(--pv-ink-3)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#home-music,#home-radio)[data-media-layout=media]>:is(.resource-facts,.resource-context){display:none!important}
+}
+
+/* Running timer in its S slot (K-Widget timer »koerer«/»pause«/»faerdig«): head, 64-px ring at right 20 / top 66,
+   count as the primary line and state as context. The whole widget opens the timer. Annuller stays on the
+   overview (existing function) as a full-width pill under the context line; the canvas S timer has none. */
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card>
+  .timer-active-list:not([hidden]){display:block;height:100%}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero{position:relative;box-sizing:border-box;display:grid!important;
+  grid-template-columns:22px minmax(0,1fr) 20px!important;
+  grid-template-rows:26px minmax(0,1fr) 26px 20px 44px!important;column-gap:8px!important;row-gap:4px!important;
+  align-items:center!important;width:100%;height:100%!important;
+  min-height:0!important;padding:20px!important;border-radius:var(--pv-r-l);background:var(--pv-dark);
+  color:var(--pv-on-dark)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero::before{content:"";grid-column:1;grid-row:1;width:22px;height:22px;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xMjgsNDBhOTYsOTYsMCwxLDAsOTYsOTZBOTYuMTEsOTYuMTEsMCwwLDAsMTI4LDQwWm0wLDE3NmE4MCw4MCwwLDEsMSw4MC04MEE4MC4wOSw4MC4wOSwwLDAsMSwxMjgsMjE2Wk0xNzMuNjYsOTAuMzRhOCw4LDAsMCwxLDAsMTEuMzJsLTQwLDQwYTgsOCwwLDAsMS0xMS4zMi0xMS4zMmw0MC00MEE4LDgsMCwwLDEsMTczLjY2LDkwLjM0Wk05NiwxNmE4LDgsMCwwLDEsOC04aDQ4YTgsOCwwLDAsMSwwLDE2SDEwNEE4LDgsMCwwLDEsOTYsMTZaIi8+PC9zdmc+") center/22px no-repeat;mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0xMjgsNDBhOTYsOTYsMCwxLDAsOTYsOTZBOTYuMTEsOTYuMTEsMCwwLDAsMTI4LDQwWm0wLDE3NmE4MCw4MCwwLDEsMSw4MC04MEE4MC4wOSw4MC4wOSwwLDAsMSwxMjgsMjE2Wk0xNzMuNjYsOTAuMzRhOCw4LDAsMCwxLDAsMTEuMzJsLTQwLDQwYTgsOCwwLDAsMS0xMS4zMi0xMS4zMmw0MC00MEE4LDgsMCwwLDEsMTczLjY2LDkwLjM0Wk05NiwxNmE4LDgsMCwwLDEsOC04aDQ4YTgsOCwwLDAsMSwwLDE2SDEwNEE4LDgsMCwwLDEsOTYsMTZaIi8+PC9zdmc+") center/22px no-repeat}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-instrument{position:absolute!important;inset:66px 20px auto auto!important;
+  width:64px!important;height:64px!important;margin:0!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-instrument>.timer-icon{display:none}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-copy{display:contents!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-copy>strong{grid-column:2!important;grid-row:1!important;margin:0!important;
+  font:600 17px/26px var(--pv-font)!important;color:var(--pv-on-dark)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-copy>.timer-count{grid-column:1/-1!important;grid-row:3!important;margin:0!important;
+  font:800 18px/26px var(--pv-font)!important;letter-spacing:-.015em;color:var(--pv-on-dark);white-space:nowrap}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero[data-status=done]>.timer-copy>.timer-count{color:var(--pv-timer-accent)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-copy>.timer-state{grid-column:1/-1!important;grid-row:4!important;margin:0!important;
+  font:400 15px/20px var(--pv-font)!important;color:var(--pv-on-dark-2);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-open{position:absolute!important;inset:0!important;z-index:1;width:100%!important;
+  height:100%!important;min-width:0!important;max-width:none!important;min-height:0!important;
+  max-height:none!important;grid-area:auto!important;margin:0!important;padding:0!important;
+  border-radius:inherit!important;
+  background:transparent!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-open>.timer-chevron{position:absolute;inset:23px 20px auto auto;width:20px!important;
+  height:20px!important;display:block!important;filter:brightness(0) invert(1)}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card
+  .timer-panel.pv-hero>.timer-finish{position:relative!important;z-index:2;grid-column:1/-1!important;
+  grid-row:5!important;
+  justify-self:stretch!important;width:auto!important;height:44px!important;min-height:44px!important;
+  padding:0 14px!important;
+  font:600 15px/1 var(--pv-font)!important}
+}
+
+/* Recipe step bar (K-Widget »igang«): 6-px segments over the title; done, current, ahead. */
+.pv-step-bar[hidden]{display:none!important}
+@media (min-width:1000px){
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #home-recipes>.pv-step-bar{
+  
+  grid-column:1/-1;grid-row:2;align-self:end;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);
+  gap:4px;margin:0 0 8px}
+ #home-recipes>.pv-step-bar>i{display:block;height:6px;border-radius:3px;background:var(--pv-recipe-step-ahead)}
+ #home-recipes>.pv-step-bar>i[data-step=done]{background:var(--pv-recipe-step)}
+ #home-recipes>.pv-step-bar>i[data-step=current]{background:var(--pv-recipe-step-now)}
+}
+
+/* A-Skaerm: Skærm og enhed is a centred 560-wide sheet (radius 28, padding 32) over the dimmed overview. */
+@media (min-width:1000px){
+ body>dialog#quick-sheet.pv-kit-dialog[open]{position:fixed!important;inset:0!important;margin:auto!important;
+  box-sizing:border-box;width:560px!important;max-width:560px!important;height:fit-content!important;
+  max-height:calc(100vh - 48px);
+  max-height:calc(100dvh - 48px);padding:32px!important;border:0;border-radius:28px!important;
+  background:var(--pv-surface);box-shadow:0 40px 80px -30px rgba(0,0,0,.5);translate:none!important;
+  transform:none!important}
+ body>dialog#quick-sheet.pv-kit-dialog::backdrop{background:rgba(23,23,26,.42)}
+}
