@@ -55,6 +55,10 @@ Fælles:
   (undtagen filerne på grænsevagtens navngivne undtagelsesliste); ingen rå farver/skrifter/varigheder uden for tokens; ingen nye CSS-filer uden
   for kittet; ingen `!important` uden begrundelse. Ingen eksisterende gate slækkes; komponent-gaten
   (`scripts/check-component-library.mjs`) omlægges én gang i fundamentet.
+- **Touch-feedback overalt (ejer 13. nov.):** alt trykbart giver synlig respons inden 100 ms, også før svaret fra HA:
+  knapper/flader trykkes ind (skala ≈0,97 + let mørkere, kit-token), og fladetryk uden knap (fx Foto-Ro »tryk for at
+  åbne«, nat-skærm) viser en blød cirkel ved fingeren, der udvider og toner ud (≈300 ms). Ingen lyd, ingen haptik
+  (webview). `prefers-reduced-motion`: kun farveskift, ingen bevægelse.
 - **Tekster kommer fra produktet.** Lærredets `.dc.html` er reference og kopieres ikke ind.
 - **Tilbagerulning** = udgiv forrige version igen.
 - **Første merge til `main`** først når `docs/STATUS.md` ikke har åbne blokeringer (pt. Robot-UI visuel accept,
