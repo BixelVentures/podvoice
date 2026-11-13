@@ -280,23 +280,61 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
   await target.waitFor({state:'visible',timeout:10000});
   assert.equal(await target.getAttribute('aria-pressed'),'false');
   assert.doesNotMatch(await target.getAttribute('aria-label'),/Aktuelt output/);
-  if(outcome==='unknown'){
-   await page.keyboard.press('Escape');
-   await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot
-    ?.capabilities?.queueSelection===false,undefined,{timeout:10000});
-   assert.equal(await rows.and(queue.locator('button:enabled')).count(),0,
-    'UNKNOWN transfer leaves no executable queue choice from the old session');
-  }
+  if(outcome==='unknown')await page.keyboard.press('Escape');
   const after=await state();
   assert.deepEqual(after.writes,before.writes,'failed transfer cannot replay or issue a queued effect');
   assert.equal(after.failedMoveAttempts.length,(before.failedMoveAttempts?.length||0)+1);
   assert.equal(requests.slice(requestsBefore).filter(row=>row.body?.action==='move_existing_session').length,1);
   failures.push({outcome,receipt,attempt:after.failedMoveAttempts.at(-1)});
  }
+ // Green 13/11 11:41: a pause the speaker rejects (500) after an UNKNOWN move never locks the music
+ // area. Each next explicit choice goes through: Din musik, another speaker, a song in the queue.
+ const explicit=await state();
+ assert((await change({rejectNextPause:true})).ok);
+ await page.locator('#play-pause').tap();
+ await page.waitForFunction(()=>document.body.innerText.includes('Højttaleren afviste handlingen'),
+  undefined,{timeout:10000});
+ assert.equal((await state()).rejectedPauses.length,1);
+ if(!await page.locator('#home-music').isVisible())await page.locator('#header-title-action').tap();
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="top"]').tap();
+ const song=page.locator('#result-list button.result').filter({hasText:'Katalogsang'}).first();
+ await page.waitForFunction(()=>[...document.querySelectorAll('#result-list button.result')]
+  .some(row=>/Katalogsang/.test(row.textContent)&&!row.disabled),undefined,{timeout:15000});
+ const selectionsBefore=(await state()).selections.length;
+ await song.tap();
+ for(let n=0;(await state()).selections.length===selectionsBefore;n++){
+  if(n>150)throw Error('Din musik does not start after unknown and rejected');
+  await sleep(100);
+ }
+ const started=(await state()).song;
+ await observed(kitchen,started);
+ // The failure notice may still slide in; a tap during that layout move is a cancelled press.
+ const pickerOpen=()=>dialog.evaluate(node=>node.open);
+ for(let n=0;!await pickerOpen();n++){
+  if(n>5)throw Error('the speaker picker does not open after a rejected pause');
+  await output.tap();
+  await page.waitForFunction(()=>document.getElementById('rooms').open,undefined,{timeout:2000}).catch(()=>{});
+ }
+ await page.waitForFunction(name=>[...document.querySelectorAll('#room-options button')]
+  .some(row=>row.textContent.includes(name)&&!row.disabled),bedroom.name,{timeout:15000});
+ const moved=await move(bedroom);
+ assert.equal(moved.outcome,'accepted','a speaker choice goes through after unknown and rejected');
+ await observed(bedroom,started);
+ if(!await queue.isVisible())await page.locator('#track').tap();
+ await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track[data-current=false]')]
+  .some(row=>!row.disabled),undefined,{timeout:15000});
+ await rows.filter({hasText:'Køsang'}).first().tap();
+ for(let n=0;!(await state()).writes.slice(explicit.writes.length)
+  .some(row=>row.action==='play_queue_occurrence');n++){
+  if(n>150)throw Error('a queue choice after unknown and rejected has no effect');
+  await sleep(100);
+ }
  assert.deepEqual(errors,[]);
  assert(servedBundleSHA);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(servedBundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
  const proof={outcome:'PASS',stories:['H1','H5','H8'],servedBundleSHA,pendingFeedback,destinationRenewals,effects,failures,
+  explicitAfterUnknown:['top','move','queue'],
   inertFinalService:true};
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-output-transfer.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));

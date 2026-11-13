@@ -241,11 +241,11 @@ class QueueBroker:
 
     def rules(self, room, token):
         policy = self.bridge.controls.policy
+        # An unknown earlier move never holds a queue choice: the read is the room's queue now.
         if (
             not self.available
             or policy.get("roomId") != room
             or not self.bridge._grant_current(room, token)
-            or any(key[0] == room for key in self.bridge._music_move_fence)
         ):
             return []
         return [

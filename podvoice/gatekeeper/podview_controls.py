@@ -347,11 +347,8 @@ class TouchControls:
                 and all(row.get(key) for key in ("nativeRoomId", "nativeHomepodId"))
                 for row in self.policy["music"]
             )
+            # An unknown earlier outcome never holds the next explicit tap (last command wins).
             and self.music.tools is self.bridge.tools
-            and (
-                not any(key[0] == room for key in self.bridge._music_move_fence)
-                or bool(self.fenced_music_accounts(room, token))
-            )
         ):
             result.append("music")
         owner = getattr(self.bridge.tools, "_device_control", None)
@@ -488,19 +485,6 @@ class TouchControls:
                         == task["id"]
                     )
                 )
-            )
-        if (
-            task["domain"] == "music"
-            and "move_destination" not in task
-            and task.get("move_recovery") is not True
-            and any(key[0] == task["room"] for key in self.bridge._music_move_fence)
-        ):
-            key = (task["room"], task["target"].get("accountId"))
-            domain_current = bool(
-                domain_current
-                and key in self.bridge._music_move_fence
-                and task.get("music_fence_witness") is not None
-                and task["music_fence_witness"] == self.move_unknown.get(key)
             )
         return bool(
             secrets.compare_digest(task["token"], token)
@@ -932,6 +916,12 @@ class TouchControls:
         recipe_id = body.get("recipeId", restore_history_id)
         account_id = target.get("accountId")
         recovery_key = (room, account_id if isinstance(account_id, str) else "")
+        if domain == "music":
+            # The user's next explicit choice ends an earlier unknown outcome: last command wins.
+            # The unknown command itself is never sent again.
+            for key in [key for key in self.bridge._music_move_fence if key[0] == room]:
+                self.bridge._music_move_fence.discard(key)
+                self.move_unknown.pop(key, None)
         recovery_move = bool(
             domain == "music"
             and "speakerId" in target
@@ -943,15 +933,6 @@ class TouchControls:
             and self.music.tools is self.bridge.tools
             and self.move.available
         )
-        if domain == "music" and any(key[0] == room for key in self.bridge._music_move_fence):
-            if (
-                not isinstance(target.get("accountId"), str)
-                or recovery_key not in self.bridge._music_move_fence
-                or recovery_key not in self.move_unknown
-            ):
-                return failure("scope_not_paired")
-            if "speakerId" in target and not recovery_move:
-                return failure("scope_not_paired")
         if domain not in self.domains(room, token) and not recovery_move:
             return failure("scope_not_paired")
         resource = self.resource_key(domain, target)

@@ -539,7 +539,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "26d99ca21f190683fe5c7bf45417482cde46b18a4706777582418b30fefc4b30"
+      "sha256": "6227adc940aae487e03503ebdd1d20053b461f6897ebe442cd728f0235cb71a3"
     },
     {
       "path": "live-home-view.js",
@@ -639,7 +639,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "5e9ce832fc483251b11d2754968fe920677080a37197dbb6e574ebef719b140d"
+      "sha256": "bddb6387a664095c026ed4c9ed6cb9be9be474d84c2140973c392f5bb38b5893"
     },
     {
       "path": "podview.css",
@@ -723,7 +723,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "c6d66dce376dafd1b990a60136781306bfe54103fbae53aff517316ea18479f1"
+      "sha256": "a2a440609f23ceca89203602d5db0476ab92619cf9cb6cd49a0223afd12c6a10"
     },
     {
       "path": "spotify-artwork.js",
