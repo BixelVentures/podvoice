@@ -3546,6 +3546,10 @@ body button:not(.is-pressed){transition-property:filter!important}
    display:none!important;}
  #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-play{
    display:none!important;}
+ /* Name and subtitle keep two fixed lines, so loading and ready cards have the same height. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]:not([data-kit=hero]):not([data-kit=card])>.result-copy{
+   height:40px!important;overflow:hidden!important;}
  /* Fortsæt: 260×72 rows with the cover at the left. */
  #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]{
    flex-direction:row!important;align-items:center;width:260px!important;height:72px!important;gap:12px!important;
@@ -3559,6 +3563,16 @@ body button:not(.is-pressed){transition-property:filter!important}
  #music-response[data-discovery-collection=recent]
    #result-list>.result.result.result[data-content-state]>.result-copy{
    flex:1 1 0!important;width:auto!important;min-width:0!important;}
+ /* A missing cover keeps the 24-px music icon centred in the cover box. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:68px!important;box-sizing:border-box!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:24px!important;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:48px!important;}
  /* Vibe: 120 tiles, the name on the tile. */
  #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]{
    width:120px!important;}

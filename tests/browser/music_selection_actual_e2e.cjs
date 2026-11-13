@@ -793,7 +793,8 @@ async function discoveryLoadingJourney(){
    assert.deepEqual(titles,source.body.data.tracks.slice(0,kits.length)
     .map(track=>track.themeTitle||track.name),kind);
    if(kind==='mood'){
-    assert.equal(ready.rows[0].titleLines,2,'exercise the approved two-line Hero title');
+    // The iPad Lige nu hero (#392) is 744 wide with a 36-px title: the fixture title fits on one line there.
+    assert([1,2].includes(ready.rows[0].titleLines),'the Hero title is clamped to at most two lines');
     assert(ready.rows.slice(1).some(row=>row.fallback),'exercise a real alternative without a decoded cover');
    }
    let completed=false;
@@ -934,12 +935,14 @@ async function discoveryCardHeight(){
   await page.setViewportSize(size);
   const {cards:[hero,first,second],bottom}=mood[index],vibe=await layout();
   const near=(a,b,label)=>assert.ok(Math.abs(a-b)<1,`${size.width}×${size.height}: ${label} (${a} vs ${b})`);
-  near(hero.height,vibe.cards[0].height,'the day Hero and Vibe card have the same visible height');
-  near(hero.bottom,bottom,'the Hero fits the day result area');
+  // iPad Musik-siden (#392): Lige nu is a 744×252 card over a rail of equal alternatives; Vibe tiles are 120.
+  near(hero.height,252,'the day Hero is the 252-high Lige nu card');
+  near(hero.right-hero.left,744,'the day Hero spans the 744 column');
   near(first.height,second.height,'the two alternatives have equal height');
-  near(second.bottom,hero.bottom,'the two columns end together');
-  near(first.top,hero.top,'the two columns start together');
-  assert.ok(hero.right<first.left,'the Hero is left of the alternatives');
+  near(first.top,second.top,'the two alternatives start together');
+  assert.ok(hero.bottom<first.top,'the alternatives sit under the Hero');
+  assert.ok(bottom>=second.bottom-1,'the alternatives fit the day result area');
+  assert.ok(vibe.cards.every(card=>Math.abs(card.height-vibe.cards[0].height)<1),'Vibe tiles have equal height');
  }
 }
 async function discoveryVibeJourney(){
@@ -1058,7 +1061,7 @@ async function discoveryCoverJourney(){
  assert.deepEqual(await fallback.evaluate(image=>{
   const style=getComputedStyle(image), rect=image.getBoundingClientRect();
   return [rect.width,rect.height,style.paddingTop,style.paddingLeft];
- }),[56,56,'16px','16px'],'a missing list cover reserves the approved 24px music icon');
+ }),[72,72,'24px','24px'],'a missing Fortsæt cover (72, #392) reserves the approved 24px music icon');
  const initial=await row.elementHandle();
  await row.evaluate(element=>{
   element.coverTransitions=0;

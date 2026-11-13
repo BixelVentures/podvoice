@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 dc09c6e30ca66c5d69a02f88152e01644992f8e4cf65dd10766bf302fb7a9ced */
+/* Source: ui-kit.css · SHA256 41913bf17afc385b8771b0c71d75d0c27cd2b1b19acc617a94dc980626fda43e */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6557,6 +6557,10 @@ body button:not(.is-pressed){transition-property:filter!important}
    display:none!important;}
  #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-play{
    display:none!important;}
+ /* Name and subtitle keep two fixed lines, so loading and ready cards have the same height. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]:not([data-kit=hero]):not([data-kit=card])>.result-copy{
+   height:40px!important;overflow:hidden!important;}
  /* Fortsæt: 260×72 rows with the cover at the left. */
  #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]{
    flex-direction:row!important;align-items:center;width:260px!important;height:72px!important;gap:12px!important;
@@ -6570,6 +6574,16 @@ body button:not(.is-pressed){transition-property:filter!important}
  #music-response[data-discovery-collection=recent]
    #result-list>.result.result.result[data-content-state]>.result-copy{
    flex:1 1 0!important;width:auto!important;min-width:0!important;}
+ /* A missing cover keeps the 24-px music icon centred in the cover box. */
+ #music-response[data-discovery-preview]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:68px!important;box-sizing:border-box!important;}
+ #music-response[data-discovery-collection=recent]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:24px!important;}
+ #music-response[data-discovery-collection=feeling]
+   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   padding:48px!important;}
  /* Vibe: 120 tiles, the name on the tile. */
  #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]{
    width:120px!important;}
