@@ -1158,9 +1158,14 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
    return new URL(url).origin===base?route.continue():route.abort();
   });
   surface.on('pageerror',error=>pageErrors.push(error.message));
+  // Changed 13 Nov: the recipe page now warms its catalogue photos at startup on purpose, so only
+  // those exact catalogue photos are left out; every other foreign image (all music art) still counts.
+  const recipePhotos=new Set(((await (await surface.request.get(base+'/view/api/recipes')).json()).recipes||[])
+   .map(recipe=>recipe?.image).filter(Boolean));
+  assert(recipePhotos.size>0&&!recipePhotos.has(failedCoverUrl),'only recipe photos are left out, never music art');
   surface.on('request',request=>{
    const url=request.url(),pathname=new URL(url).pathname;
-   if(new URL(url).origin!==base||pathname.startsWith('/view/theme-art/'))requests.push(url);
+   if(new URL(url).origin!==base&&!recipePhotos.has(url)||pathname.startsWith('/view/theme-art/'))requests.push(url);
    // Client diagnostics uploads are telemetry, never a music action.
    if(request.method()==='POST'&&pathname.startsWith('/view/api/')
     &&pathname!=='/view/api/music/queue/offer'&&pathname!=='/view/api/client-diagnostics')actionPosts.push(pathname);

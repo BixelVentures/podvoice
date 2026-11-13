@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 bf54069a4f75a744842bc09c224ce156d60c04748408f44006b41a71b7f86418 */
+/* Source: ui-kit.css · SHA256 bd3342d30e39620c1d366cb72a940bb6538fe57ef490fa2d70dac2890d8f6496 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#F7F5F0;--pv-surface:#FFFEFA;--pv-surface-2:#F2EFE9;--pv-line:#E6E2DA;--pv-ink:#1B1D1C;--pv-ink-2:#4A4741;--pv-ink-3:#6E6A63;--pv-on-dark:#F7F5F0;--pv-dark:#1B1D1C;--pv-danger:#C62828;--pv-danger-tint:#FCE8E8;--pv-on-danger:#FFFFFF;
@@ -4135,6 +4135,11 @@ pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focu
 @media(max-width:600px){pv-widget-host #music-response #result-list{grid-template-columns:minmax(0,1fr)}}
 
 /* Native controls share tactile feedback; readable body content stays selectable. */
+/* Native feel (13 Nov): a wall-screen app, not a web page. No page rubber-band, no zoom by pinch or
+   double tap (iOS ignores user-scalable=no), no tap flash, text selection or long-press callout. */
+html,body{overscroll-behavior:none;-webkit-text-size-adjust:100%}
+pv-widget-host{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;
+ -webkit-touch-callout:none;touch-action:pan-x pan-y}
 :is(button,a[href],summary,[role=button]){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 :is(input,textarea,[contenteditable]:not([contenteditable=false])){-webkit-user-select:text;user-select:text}
 :is(button,a[href],summary,[role=button]).is-pressed:not([disabled],[aria-disabled=true],[data-touch-cancelled=true]){box-shadow:inset 0 0 0 999px rgba(27,29,28,0.12)!important;box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)!important;filter:none!important;transform:none!important;scale:1!important}

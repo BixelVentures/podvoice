@@ -72,7 +72,9 @@ test('active recipe stays once above the alphabetical catalogue across category 
 });
 
 
-test('background owner avoids initial focus/eager refresh and restores the validated session once',async()=>{
+// Changed 13 Nov (native feel): the background owner now reads the catalogue once at startup, so the
+// page opens complete; it still never takes focus and restores the validated session once.
+test('background owner reads the catalogue once quietly, takes no focus and restores the validated session once',async()=>{
   const burger={title:'Burgerboller',steps:['Ælt','Bag'],ingredients:['Mel'],source:{url:'https://example.invalid/burger'}};
   const record={version:1,url:burger.source.url,signature:JSON.stringify([burger.steps,[{title:'Råvarer',lines:burger.ingredients}]]),
     savedAt:Date.now(),steps:['0'],ingredients:[],expanded:true,scroll:20};
@@ -92,11 +94,13 @@ test('background owner avoids initial focus/eager refresh and restores the valid
   assert.equal(foreground.initialRefresh,true,'normal constructor retains immediate catalogue refresh');
   assert.equal(focus,1,'normal constructor retains initial heading focus');
   const background=new RecipeView(mount(),()=>{},()=>{},{background:true});
-  assert.equal(background.initialRefresh,false,'background constructor does not start eager reads');
-  assert.equal(focus,1,'hidden heading never receives focus');assert.equal(reads,0);
+  assert.equal(background.initialRefresh,false,'background constructor does not start the polling refresh');
+  assert.equal(focus,1,'hidden heading never receives focus');
   assert.equal(background.active,undefined,'pending session is not trusted before catalogue validation');
   await background.refreshPublishedCatalog();
-  assert.equal(reads,1,'WidgetHost can hydrate through one existing catalogue read');
+  assert.equal(reads,1,'the quiet startup read and WidgetHost hydration share one catalogue read');
+  await background.backgroundCatalogRead;
+  assert.equal(reads,1);
   assert.equal(background.active,background.saved[0]);
   assert.equal(background.sessions.get(background.active).steps.has('0'),true);
   assert.equal(background.pendingSession,null);assert.equal(removed,0);

@@ -71,6 +71,32 @@ export class RecipeView {
   this.suppressPageFocus = background;
   this.catalog(!background);
   this.suppressPageFocus = false;
+  // Native feel (13 Nov): the catalogue and its first photos are ready before the page opens, so it
+  // never says "Henter opskrifter …" or fills in row by row and image by image.
+  this.backgroundCatalogRead = background ? this.refreshPublishedCatalog().then(changed => {
+   if (changed && this.root.hidden) {
+    this.suppressPageFocus = true;
+    this.catalog(false);
+    this.suppressPageFocus = false;
+   }
+   return changed;
+  }).catch(() => false) : null;
+ }
+
+ // Photos are the sources' own (often full-size) images: fetch and decode the first rows quietly.
+ warmImages() {
+  if (typeof globalThis.Image !== 'function') return;
+  this.warmed ??= new Set();
+  for (const recipe of this.saved.slice(0, 12)) {
+   const src = recipe.image;
+   if (typeof src !== 'string' || !src || this.warmed.has(src)) continue;
+   this.warmed.add(src);
+   const image = new globalThis.Image();
+   image.decoding = 'async';
+   image.referrerPolicy = 'no-referrer';
+   image.src = src;
+   image.decode?.().catch(() => {});
+  }
  }
 
  page(title, subtitle, back, ...actions) {
@@ -161,11 +187,16 @@ export class RecipeView {
    // A malformed row is skipped so the rest of the catalogue still shows (O1).
    const wellFormed = recipes.filter(recipe=>recipe && typeof recipe === 'object'
     && typeof recipe.title === 'string' && typeof recipe.source?.url === 'string');
-   this.saved = wellFormed.filter(recipe=>!this.deleted.has(recipe.source.url)).map(recipe=>{
+   const next = wellFormed.filter(recipe=>!this.deleted.has(recipe.source.url)).map(recipe=>{
     const existing = previous.get(recipe.source.url);
-    return existing && this.sessions.has(existing) ? existing : recipe;
+    // The open or active recipe keeps its identity even before its session is recorded.
+    return existing && (this.sessions.has(existing) || existing === this.active
+     || existing === this.readingRecipe) ? existing : recipe;
    });
+   // An unchanged catalogue keeps its objects: shown rows (and an open recipe) stay the catalogue's own.
+   if (JSON.stringify(next) !== before) this.saved = next;
    this.catalogStatus = 'ready';
+   this.warmImages();
    this.restoreSession();
   } catch {
    if (signal?.aborted) return false;
@@ -380,7 +411,8 @@ export class RecipeView {
     row.append(thumb);
     row.addEventListener('click',()=>{
      this.catalogScroll = entries.scrollTop;
-     this.recipe(recipe);
+     // The catalogue's current object for this recipe: a quiet refresh may have replaced the list.
+     this.recipe(this.saved.find(row=>row.source?.url === recipe.source?.url) || recipe);
     });
     groups.get(letter).append(row);
    }
