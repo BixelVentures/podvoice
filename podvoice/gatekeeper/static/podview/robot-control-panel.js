@@ -223,6 +223,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   if(!task?.options?.includes(option)||Number.isFinite(task.expiresAt)&&task.expiresAt*1000<=Date.now()&&this.value.loading!==true||this.value.connected===false||this.value.pendingOptionId||device?.pending||device?.stale||option.action==='pause'&&device?.status!=='cleaning'||option.action==='resume'&&device?.status!=='paused')return;this.emit('robot-control-action',{optionId:option.id,args});}
  disconnectedCallback(){
   clearTimeout(this.maintenanceTimer);
+  this.stickyObserver?.disconnect();this.stickyObserver=null;
   if(this.confirmation?.open)this.confirmation.close();
   this.baseExpanded=false;
   this.baseDisclosure?.setExpanded(false);
@@ -254,6 +255,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   if(keepDirectConfirmation)this.confirmationOpener=this.transportControls.querySelector(
    `[data-direct-robot=true][data-action-id=${this.confirmation.dataset.directAction}]`);
   this.syncDisabled();
+  this.buildStickyLine();
  }
  buildCleaning(option,mapName,historyDraft){
   this.cleaningOptionId=option.id;const schema=option.argsSchema,section=make('section',undefined,'device-history robot-cleaning-zone'),form=make('form',undefined,'robot-cleaning-form'),heading=make('div',undefined,'heading robot-room-heading'),roomContext=make('div',undefined,'robot-room-context');applyKitComponent(section,'card',{identity:'robot'});section.dataset.kitLayout='controls';form.id=`robot-cleaning-${++cleaningSerial}`;const title=make('h2','Rum','pv-section-header');applyKitComponent(title,'sectionheader');roomContext.append(title);this.buildMapSelector(roomContext,mapName);heading.append(roomContext);form.append(heading);const choices=make('fieldset',undefined,'choices pv-tiles');choices.append(make('legend','Vælg rum','robot-room-legend'));for(const area of schema.areas){const input=createKitComponent('tile',{document,tag:'button',className:'pv-button pv-tile choice robot-room-tile',identity:'robot',variant:'compact'});const icon=make('img',undefined,'robot-room-icon');icon.src=`assets/icons/${/køkken|kitchen/i.test(area.label)?'room-kitchen':/stue|living/i.test(area.label)?'room-sofa':/entré|entre|gang|door/i.test(area.label)?'room-door':'robot'}.svg`;icon.alt='';icon.width=32;icon.height=32;icon.draggable=false;input.append(icon,make('span',area.label,'robot-room-label'));input.type='button';input.name='areaIds';input.value=area.id;input.checked=false;input.setAttribute('aria-pressed','false');
@@ -350,7 +352,7 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
  }
  baseActions(){
   if(this.baseDisclosure)return this.baseDisclosure.panel.querySelector('.pv-actions');
-  const disclosure=createKitDisclosure({document,id:`robot-base-${++cleaningSerial}`,title:'Base',
+  const disclosure=createKitDisclosure({document,id:`robot-base-${++cleaningSerial}`,title:'Mere',
    leadingIcon:'assets/icons/house.svg'});
   this.baseDisclosure=disclosure;
   disclosure.node.classList.add('robot-dock-actions');
@@ -360,6 +362,52 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   disclosure.panel.append(actions);
   this.transportControls.append(disclosure.node);
   return actions;
+ }
+ // iPad (lærred »Robot-Sticky«): when the hero has scrolled away, a 72-px line under the topbar repeats the hero's
+ // title, line and primary action and offers »Mere«. It owns no state: both buttons hand the tap to the hero's own
+ // controls, so the hero's rules (queueing, confirmation, disabled) stay the only ones.
+ buildStickyLine(){
+  this.stickyObserver?.disconnect();this.stickyObserver=null;
+  const line=make('div',undefined,'robot-sticky'),dot=make('span',undefined,'robot-sticky-dot'),
+   copy=make('span',undefined,'robot-sticky-copy'),title=make('span',undefined,'robot-sticky-title'),
+   sub=make('span',undefined,'robot-sticky-sub'),primary=make('span',undefined,'robot-sticky-primary'),
+   more=make('span',undefined,'robot-sticky-more');
+  // A touch shortcut, not controls of its own: the hero keeps the only buttons and the only copy of each text
+  // (the line draws its texts from data-text in CSS and is hidden from assistive technology).
+  line.setAttribute('aria-hidden','true');line.dataset.shown='false';more.dataset.text='Mere';
+  copy.append(title,sub);line.append(dot,copy,primary,more);
+  primary.addEventListener('click',()=>{const target=this.stickyPrimaryTarget();
+   if(target&&!target.disabled)target.click();});
+  more.addEventListener('click',()=>{const trigger=this.baseDisclosure?.trigger;if(!trigger)return;
+   if(trigger.getAttribute('aria-expanded')!=='true')trigger.click();
+   this.observation?.scrollIntoView?.({block:'start',behavior:'smooth'});});
+  this.stickyLine={line,title,sub,primary,more};this.content.append(line);this.syncStickyLine();
+  if(globalThis.IntersectionObserver&&this.observation){
+   this.stickyObserver=new IntersectionObserver(entries=>{
+    line.dataset.shown=String(!entries[entries.length-1].isIntersecting);});
+   this.stickyObserver.observe(this.observation);}
+  if(!this.stickyMutations&&globalThis.MutationObserver){
+   this.stickyMutations=new MutationObserver(records=>{
+    if(records.every(record=>this.stickyLine?.line.contains(record.target)))return;
+    if(this.stickyFrame)return;
+    this.stickyFrame=requestAnimationFrame(()=>{this.stickyFrame=0;this.syncStickyLine();});});
+   this.stickyMutations.observe(this.content,{subtree:true,childList:true,characterData:true,attributes:true,
+    attributeFilter:['disabled','hidden']});}
+ }
+ stickyPrimaryTarget(){
+  return [...(this.transportControls?.children||[])].find(node=>node.tagName==='BUTTON'&&!node.hidden
+   &&node.dataset.kitVariant!=='destructive')||null;
+ }
+ syncStickyLine(){
+  const sticky=this.stickyLine;if(!sticky)return;
+  const set=(node,text)=>{if(node.dataset.text!==text)node.dataset.text=text;};
+  set(sticky.title,this.observation?.querySelector('.pv-resource-value')?.textContent?.trim()||'');
+  set(sticky.sub,this.observation?.querySelector('.pv-content>.pv-meta')?.textContent?.trim()||'');
+  const target=this.stickyPrimaryTarget();
+  sticky.primary.hidden=!target;if(target){set(sticky.primary,target.textContent.trim());
+   const disabled=String(!!target.disabled);
+   if(sticky.primary.dataset.disabled!==disabled)sticky.primary.dataset.disabled=disabled;}
+  sticky.more.hidden=!this.baseDisclosure;
  }
  compactActiveActions(){
   if(!['cleaning','paused'].includes(this.value?.device?.status))return;

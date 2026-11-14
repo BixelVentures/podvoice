@@ -470,6 +470,38 @@
       "sha256": "70078c12e7c53984a27dbf8f673f34aa9d60e46461af13c49b990d0f5edbae48"
     },
     {
+      "path": "assets/robot/robot-arcs-hero-active.svg",
+      "sha256": "a5bbc58bfb04909f71c997d5ad96b45a15bc4fcac51bb15171c653329118eb6a"
+    },
+    {
+      "path": "assets/robot/robot-arcs-hero-broken.svg",
+      "sha256": "e7211a2e4d09680b939c2a5bddbe2267d2765215536cafb8ee9738ed5330f4e1"
+    },
+    {
+      "path": "assets/robot/robot-arcs-hero-grey.svg",
+      "sha256": "eb3f27696377634d32842bf5d95ba62db7f3d0d977a98d2068711599d99decc9"
+    },
+    {
+      "path": "assets/robot/robot-arcs-hero.svg",
+      "sha256": "7f8a677116f304ee5f201f7ea719f3791b82e6404ac54933fae5f72ef6ecb227"
+    },
+    {
+      "path": "assets/robot/robot-arcs-widget-active.svg",
+      "sha256": "afddccb287f870e04d51efece9559b0c278afb573479c0742154e2080447b4ef"
+    },
+    {
+      "path": "assets/robot/robot-arcs-widget-broken.svg",
+      "sha256": "40fbb7b836379baea7490666cf9b798fdca7faa1d1b2e19b18fe72760955558a"
+    },
+    {
+      "path": "assets/robot/robot-arcs-widget-grey.svg",
+      "sha256": "0dd197f7f1aca781a88a13edb3603e849e8829fc07c1755595c1e4f6fc828416"
+    },
+    {
+      "path": "assets/robot/robot-arcs-widget.svg",
+      "sha256": "71c77512a714e69e19102b963d0ab14dd26eefc237c7632e903107b942c2e0fa"
+    },
+    {
       "path": "assets/vehicle-gray-model-y-2023.png",
       "sha256": "880ac901b41f8edca4b96983575c31362342af2d0987538ebf1ae5a1b4c54375"
     },
@@ -687,11 +719,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "e65f96a44ef7a03b25b9288631afa75bec7d5b9256dddeef380857b7fa5a0b0b"
+      "sha256": "9ed0413181fbede222f0b8a7ca4df8cad55264e5ba1394c4bb47ef587e289e2a"
     },
     {
       "path": "podview.css",
-      "sha256": "6caea39c726fec175073a0b37f7d21e53669cced0bca53d20d3da324a76c125d"
+      "sha256": "52ca99eed6cf692eea627857f32c2565e585a4ccbf1c5f212c88636950d1bd84"
     },
     {
       "path": "podvoice-transport.js",
@@ -731,7 +763,7 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "2bf56a77df16daff757539ca4800400095857ea32834d4f455100d1763777977"
+      "sha256": "29ea0bc8a09dc438813af38de6d5d2f69581a5fba6d2d6eefb07e3c806811851"
     },
     {
       "path": "robot-observation.js",
@@ -799,7 +831,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "d989467200962eda35ab80484ca010e02a175ceb3b5384e8e0912985f930cfaf"
+      "sha256": "31bb53f8e49c39f9884f2b478a331cb7338456ba59dd2df3fe45fd2a43f0b193"
     },
     {
       "path": "ui/answer-auto-return.js",

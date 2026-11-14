@@ -56,7 +56,7 @@ const assertRobotObservation=async(page,requests,action)=>{
   await card.getByText('Batteri 78 %',{exact:true}).waitFor({state:'visible',timeout:10000});
   await card.getByText('Robotstøvsuger',{exact:true}).tap();
   const panel=page.locator('pv-robot-control-panel');
-  const baseMenu=panel.getByRole('button',{name:'Base',exact:true});
+  const baseMenu=panel.getByRole('button',{name:'Mere',exact:true});
   const operations=panel.locator('button[data-dock-operation]');
   const ownerWrites=async()=>(await state()).robot.writes.filter(([service])=>service==='services/vacuum/send_command');
   if(process.env.ROBOT_DOCK_RECEIPT_TEST==='1'){

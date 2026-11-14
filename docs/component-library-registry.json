@@ -1794,7 +1794,11 @@
           "method:syncDirectTransport": 1,
           "arrow:foreignRobotPending": 1,
           "arrow:directConfirmationCurrent": 1,
-          "arrow:ownRobotPending": 1
+          "arrow:ownRobotPending": 1,
+          "arrow:set": 1,
+          "method:buildStickyLine": 1,
+          "method:stickyPrimaryTarget": 1,
+          "method:syncStickyLine": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1846,7 +1850,10 @@
           "factory:section:'robot-settings-zone'",
           "factory:section:'robot-current-rooms'",
           "factory:ul:'choices pv-tiles robot-current-room-list'",
-          "factory:div:'robot-type-options'"
+          "factory:div:'robot-type-options'",
+          "factory:div:'robot-sticky'",
+          "factory:span:'robot-sticky-more'",
+          "factory:span:'robot-sticky-primary'"
         ],
         "registrations": {
           "'pv-robot-control-panel'": 1
