@@ -426,6 +426,18 @@
       "sha256": "3f004651d9b75b067398e72bec8112a112cbbe4b4ca1d697bbefdbe86f4d51aa"
     },
     {
+      "path": "assets/light/light-bulb-widget-grey.svg",
+      "sha256": "ea0a399e0a099d5fcc7a8ec93a0e4cf2b5e360e20b4e79c4c2e9e81388863b44"
+    },
+    {
+      "path": "assets/light/light-bulb-widget.svg",
+      "sha256": "8a7cf25fb6e6f73b0d7121d1d6ef8178ed8d181aa03d21912d7209c50f70616b"
+    },
+    {
+      "path": "assets/light/light-glow-hero.svg",
+      "sha256": "ee06ad2eb7fcc618da5cc81b05c9eed1e3e1a8b16f9e110a7f8a9e753a88fddb"
+    },
+    {
       "path": "assets/morning-acoustic.png",
       "sha256": "82dff886987ef9fb7b2c6b500205b762569802060e4f6cc9a758b7ee19631d92"
     },
@@ -611,7 +623,7 @@
     },
     {
       "path": "light-room-view.js",
-      "sha256": "d2f22fa1aa328c14fd410edfdc44adff257971a002dcf71ae0b0b0120ec43514"
+      "sha256": "c1e87d1a4f7b6c58d241fe5a0b9e2d7db80b760f172cad82abd3c21678962d30"
     },
     {
       "path": "live-answer-view.js",
@@ -719,11 +731,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "9ed0413181fbede222f0b8a7ca4df8cad55264e5ba1394c4bb47ef587e289e2a"
+      "sha256": "2ddf514dbe548a48f292a05b30f573550866ba0c5337883d53df496ed47d1415"
     },
     {
       "path": "podview.css",
-      "sha256": "52ca99eed6cf692eea627857f32c2565e585a4ccbf1c5f212c88636950d1bd84"
+      "sha256": "1677997c0834ab22b2fdd70c5ee862c6df93700fa656e91a58ca490a14fd84a4"
     },
     {
       "path": "podvoice-transport.js",
@@ -831,7 +843,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "31bb53f8e49c39f9884f2b478a331cb7338456ba59dd2df3fe45fd2a43f0b193"
+      "sha256": "845b8de283e5d69e940f92ad3e424bf5043be2c770f9986215f70f75a76455c8"
     },
     {
       "path": "ui/answer-auto-return.js",
