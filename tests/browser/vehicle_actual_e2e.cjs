@@ -53,18 +53,24 @@ async function assertAccessPresentation(root, lockName, statusText, danger){
   return {
    fill:getComputedStyle(button).backgroundColor,danger,
    title: title.getBoundingClientRect().toJSON(),status: status.getBoundingClientRect().toJSON(),
-   heading: heading.getBoundingClientRect().toJSON(),
+   heading: heading.getBoundingClientRect().toJSON(),width:window.innerWidth,
   };
  });
  console.log('Tesla access presentation',JSON.stringify(rendered));
- if(danger)assert.equal(rendered.fill,rendered.danger,'unlock uses the canonical danger fill');
+ // iPad (#397, lærred K-ActionTile): the lock is an action surface showing the doors' state, not a red pill.
+ if(rendered.width>=1000){
+  assert.equal(await lock.getAttribute('data-tile-name'),'Døre');
+  assert.equal(await lock.getAttribute('data-tile-value'),statusText);
+  assert.equal(await lock.getAttribute('data-vehicle-tile'),statusText==='Ulåst'?'attention':'calm');
+ }else if(danger)assert.equal(rendered.fill,rendered.danger,'unlock uses the canonical danger fill');
  else assert.notEqual(rendered.fill,rendered.danger,'locking uses a neutral fill');
  assert(rendered.status.left>rendered.title.right);
  assert(Math.abs(rendered.status.right-rendered.heading.right)<1);
  assert(rendered.status.top<rendered.title.bottom);
  const icon=trunk.locator('[data-kit=icon][aria-hidden=true]');
  assert(await icon.isVisible());
- assert.match(await icon.getAttribute('style'),/assets\/icons\/car-front\.svg/);
+ // The trunk seen from the side (#397, lærred A-Tesla).
+ assert.match(await icon.getAttribute('style'),/assets\/icons\/car-trunk(-open)?\.svg/);
 }
 async function feedbackJourney(page,card,errors,commands){
  const root=page.locator('#vehicle-view'),dialog=root.locator('dialog.vehicle-confirmation');
@@ -300,21 +306,25 @@ async function lifecycleJourney(page,card,errors,commands){
   const metrics=[...node.querySelectorAll('.vehicle-metric:not([hidden])')].map(metric=>{
    const label=metric.querySelector('dt'),value=metric.querySelector('dd'),rect=metric.getBoundingClientRect();
    return {label:label.textContent,value:value.textContent,x:rect.x,right:rect.right,
-    labelY:label.getBoundingClientRect().y,valueY:value.getBoundingClientRect().y};
+    labelY:label.getBoundingClientRect().y,valueY:value.getBoundingClientRect().y,
+    labelX:label.getBoundingClientRect().x,valueX:value.getBoundingClientRect().x};
   });
-  return {width:window.innerWidth,metrics,artworkWidth:node.querySelector('.vehicle-artwork').getBoundingClientRect().width,
+  return {width:window.innerWidth,metrics,carWidth:node.querySelector('.vehicle-dots').getBoundingClientRect().width,
    expectedEta:new Date(endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})};
  },endsAt);
  assert.equal(chargingFacts.width,1280);
  assert.deepEqual(chargingFacts.metrics.map(({label,value})=>[label,value]),[
   ['Batteri','72 %'],['Rækkevidde','312 km'],['Ladeeffekt','11 kW'],['Forventet færdig',chargingFacts.expectedEta],
  ]);
- assert.equal(chargingFacts.artworkWidth,256,'newer canonical artwork slot');
- for(const [index,metric] of chargingFacts.metrics.entries()){
-  assert.equal(metric.labelY,chargingFacts.metrics[0].labelY);
-  assert(metric.valueY>metric.labelY);
-  if(index)assert(metric.x>=chargingFacts.metrics[index-1].right);
- }
+ // iPad (#397, lærred A-Tesla): the dot car replaces the photo; the battery stands alone top right, the range
+ // reads »312 km rækkevidde« under the status and the charge facts sit in one row at the bottom, value first.
+ assert.equal(chargingFacts.carWidth,270,'dot car slot');
+ const [batteryFact,rangeFact,powerFact,finishFact]=chargingFacts.metrics;
+ assert(rangeFact.valueX<rangeFact.labelX&&powerFact.valueX<powerFact.labelX,'value, then label');
+ assert(batteryFact.x>rangeFact.right,'battery top right');
+ assert.equal(powerFact.valueY,finishFact.valueY,'charge facts in one row');
+ assert(finishFact.x>=powerFact.right,'charge facts left to right');
+ assert(powerFact.valueY>rangeFact.valueY,'charge facts under the range');
  const chargingFields=await fieldTimes();
  for(const field of ['batteryPercent','rangeKm','charging.powerKw','charging.endsAt']){
   assert(Number.isFinite(chargingFields[field])&&chargingFields[field]>knownTimes.batteryPercent);
@@ -494,18 +504,22 @@ async function recoveryJourney(page,card,errors,requests){
  await card.tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='off',undefined,{timeout:15000});assert.deepEqual((await state()).writes,[]);console.log('vehicle initial',await page.locator('body').innerText());
  const up=page.getByRole('button',{name:'Hæv temperatur'});assert(await up.isDisabled(),'dependent temperature disabled when climate off');
- const seats=page.locator('#vehicle-seat-heat-trigger');
+ // iPad (#397, lærred A-Tesla): both seats are always shown in Klima; there is no »Sædevarme« disclosure to open.
+ const seats=page.locator('#vehicle-seat-heat-panel');
+ assert.equal(await page.locator('#vehicle-seat-heat-trigger').isVisible(),false,'no seat disclosure on iPad');
  const defrost=page.getByRole('button',{name:'Afrim ruder',exact:true});
  const assertDependentsOff=async()=>{
   const beforeWrites=(await state()).writes.length,beforeCommands=commands.length;
-  for(const control of [up,seats,defrost]){
+  const seatChoice=page.locator('input[name=vehicle-seat-driver][value="2"]').locator('..');
+  for(const control of [up,seatChoice,defrost]){
    await control.scrollIntoViewIfNeeded();
-   assert(await control.isDisabled(),'OFF must disable every climate dependent');
+   assert(control===seatChoice?await page.locator('input[name=vehicle-seat-driver][value="2"]').isDisabled():
+    await control.isDisabled(),'OFF must disable every climate dependent');
    const box=await control.boundingBox();
    assert(box,'disabled control remains visible');
    await page.touchscreen.tap(box.x+box.width/2,box.y+box.height/2);
   }
-  assert.equal(await seats.getAttribute('aria-expanded'),'false');
+  assert(await seats.isVisible(),'seats stay visible while disabled');
   assert(await page.locator('input[name=vehicle-seat-driver]').evaluateAll(rows=>
    rows.length>0&&rows.every(row=>row.disabled)));
   assert(await page.locator('input[name=vehicle-seat-passenger]').evaluateAll(rows=>
@@ -527,8 +541,7 @@ async function recoveryJourney(page,card,errors,requests){
  await update({voice:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.sessionId==='voice-next',undefined,{timeout:2500});await update({release:true});
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='heat_cool',undefined,{timeout:5000});assert.equal((await state()).writes.length,1);assert.deepEqual((await state()).writes[0],{service:'turn_on',body:{entity_id:'climate.car'}});
  assert(await up.isEnabled());
- assert(await seats.isEnabled());assert(await defrost.isEnabled());
- await seats.tap();
+ assert(await defrost.isEnabled());
  const driver=page.locator('input[name=vehicle-seat-driver][value="2"]');
  assert(await driver.isEnabled());
  await driver.locator('..').tap();
@@ -538,7 +551,6 @@ async function recoveryJourney(page,card,errors,requests){
  await dialog.getByRole('button',{name:'Annuller',exact:true}).tap();
  assert.equal((await state()).writes.length,1,'seat and defrost confirmation cancellation has no effect');
  assert.equal(commands.length,1,'no command POST before confirmation');
- await seats.tap();
  await sleep(5200); // Allow the existing five-second passive home cache to expire before holding a real source read.
  await update({holdRead:true});await page.locator('pv-widget-host').evaluate(h=>{void h.loadLiveHome()});for(let n=0;!(await state()).readHeld;n++){if(n>40)throw Error('pre-effect vehicle read not held');await sleep(20)}await up.tap();await dialog.waitFor({state:'visible'});console.log('temperature confirm',await dialog.innerText());await dialog.locator('button.pv-primary').tap();for(let n=0;(await state()).writes.length<2;n++){if(n>60)throw Error('temperature intent not sent');await sleep(20)}await update({holdFollowup:true});await update({releaseRead:true});for(let n=0;!(await state()).followupHeld;n++){if(n>60)throw Error('post-receipt follow-up not held');await sleep(20)}const between=await page.locator('pv-widget-host').evaluate(h=>({vehicleStale:h.state.vehicle?.stale??false,homeReadStatus:h.state.homeReadStatus,visible:document.querySelector('#vehicle-view')?.innerText}));console.log('betweenReads',JSON.stringify(between));assert.equal(between.vehicleStale,false,'superseded read must retain last observed vehicle while follow-up is pending');await update({releaseFollowup:true});await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.targetTemperatureC===20.5,undefined,{timeout:10000});assert.deepEqual((await state()).writes[1],{service:'set_temperature',body:{entity_id:'climate.car',temperature:20.5}});
  await page.locator('#vehicle-view [data-kit=toggle]:visible').first().tap();await dialog.waitFor({state:'visible'});await dialog.getByRole('button',{name:'Sluk klima',exact:true}).tap();await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.vehicle?.climate?.status==='off',undefined,{timeout:10000});assert.deepEqual((await state()).writes[2],{service:'turn_off',body:{entity_id:'climate.car'}});assert.equal((await state()).writes.length,3);assert(await up.isDisabled(),'temperature becomes disabled after observed climate off');assert.deepEqual(errors,[]);

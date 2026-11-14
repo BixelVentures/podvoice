@@ -166,6 +166,14 @@
       "sha256": "be8757b255ba0294ae73f6b79d0ab823efb3589be7333c83d525b677b01b47af"
     },
     {
+      "path": "assets/icons/car-trunk-open.svg",
+      "sha256": "34a01c9b18e335c4d91014fbba582ff380ce3ffe5bc17aac00a8aebb7cf3c459"
+    },
+    {
+      "path": "assets/icons/car-trunk.svg",
+      "sha256": "c4dbf58dcd0ba781dfb8488de0e68cd928a998ffd171bdd0a984f59cef209cf0"
+    },
+    {
       "path": "assets/icons/card.svg",
       "sha256": "d919f2b3fcfeae9a4ef61fba45f54e7d343ada48628585e38c5675782c6247ff"
     },
@@ -522,6 +530,62 @@
       "sha256": "9d18f1c3f0556cfc0c2bfb63f1b60959ed45fbd3b9edfb966b2ec3bc18abf534"
     },
     {
+      "path": "assets/vehicle/car-body-fill.svg",
+      "sha256": "efaa9085fd78357333f75c5947f5e2512661ef34ae5b15ab2c8fb26684e2a631"
+    },
+    {
+      "path": "assets/vehicle/car-body-flow.svg",
+      "sha256": "fcdcabc0d4288ede940c04c230053a1302279db9b1b8023f5e403c9d009ebfc3"
+    },
+    {
+      "path": "assets/vehicle/car-body.svg",
+      "sha256": "1de0b54726dd1b4e4a66ff9febeb69119258c066ff8e5be7ad4255f8410564ea"
+    },
+    {
+      "path": "assets/vehicle/car-cabin-warm.svg",
+      "sha256": "fa4b441febc7631d6a5051033c965ee840733618cb325683ea890e460b220a8f"
+    },
+    {
+      "path": "assets/vehicle/car-cabin.svg",
+      "sha256": "2515553f95e9ff25ae6a8cd60c063696bb965133f0e724e518f83a3d455fae08"
+    },
+    {
+      "path": "assets/vehicle/car-tires.svg",
+      "sha256": "71b4749f00ed200b683ef1b308ec847da0a11ad0f2efd8a15cc41eefd36b5958"
+    },
+    {
+      "path": "assets/vehicle/car-widget-body.svg",
+      "sha256": "8cb5653d43fb5fb3dbbfe968a484cfe0ab3609eba864e50d469e6d5b11cf6325"
+    },
+    {
+      "path": "assets/vehicle/car-widget-flow.svg",
+      "sha256": "8d57500269c7da17522426dfd22cf5f770486226aec0e43fa4e222f2f9d9109c"
+    },
+    {
+      "path": "assets/vehicle/car-widget-tires.svg",
+      "sha256": "ff0819f75ffa63d2669ddd0dbf9d46f087cee38b44770e62cb1ddceca857acbb"
+    },
+    {
+      "path": "assets/vehicle/car-widget-warm.svg",
+      "sha256": "d995662354ddd5e197932f735270692a4ea2fc30945dda3a8a1f4c52a912b6e2"
+    },
+    {
+      "path": "assets/vehicle/tile-icon-attention.svg",
+      "sha256": "17e550e05c05c01d8f8d7368a9eb2c9b0f07006a2e4739af45dbf3f81465baa1"
+    },
+    {
+      "path": "assets/vehicle/tile-icon-busy.svg",
+      "sha256": "d312f8d8224735dcf82e7dfc2f642abe06cf13472ed58565d9ed5bf358fb92ac"
+    },
+    {
+      "path": "assets/vehicle/tile-icon-calm.svg",
+      "sha256": "7f5d19f619e20867861e1ccbd5b46538058fb323790cdb656f9d2664d03ef844"
+    },
+    {
+      "path": "assets/vehicle/tile-icon-error.svg",
+      "sha256": "1f8a776b8ce2a54ae20d4ac714a7dc83d4407e8f2a2419c884072840cf66a639"
+    },
+    {
       "path": "assets/weather-sky-soft.png",
       "sha256": "61dddae898edf9da123f058a292bab2af80284a8881f13022a5d2a9ef212eac7"
     },
@@ -587,7 +651,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "6f568bd9cd27d197ac91660591f84c1dbcacff6d5f49b19d4fe54e7489c35191"
+      "sha256": "6fa980bee8fdc0991074f42a077bce0d4616aedce1036ea91c3523586161682f"
     },
     {
       "path": "ingress-kiosk.js",
@@ -731,11 +795,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "2ddf514dbe548a48f292a05b30f573550866ba0c5337883d53df496ed47d1415"
+      "sha256": "e25aca52781bb2d0145aa0ae82ec7a890c268a08380a0d64aa65c78164b92c2c"
     },
     {
       "path": "podview.css",
-      "sha256": "1677997c0834ab22b2fdd70c5ee862c6df93700fa656e91a58ca490a14fd84a4"
+      "sha256": "79d8f94668255b33ca59b4b525b34553387f886c25f89a723e389c490a00e1b4"
     },
     {
       "path": "podvoice-transport.js",
@@ -843,7 +907,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "845b8de283e5d69e940f92ad3e424bf5043be2c770f9986215f70f75a76455c8"
+      "sha256": "b96fe939f89248d38eb966fbd56579d9b8ff295d7be48a2b629066108ff06d55"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -959,7 +1023,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "e754ba414915237346dc449ab8074a1f81f181f22b943df96d61af3623f8d719"
+      "sha256": "be70b61876e32509e268e019e5e55369ab942e0699010704c228c2b137fd65d4"
     },
     {
       "path": "visual-content.js",
@@ -1003,7 +1067,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "09939311fb2fdfbfa385cffa761b55dd9a207fdb4c09d2e0c9a6d8f6604769b2"
+      "sha256": "a6d3bc67dab043a9a4eed0ca3cb267e572c2a0b5b665f36ce1e92fb7d24787ef"
     },
     {
       "path": "workshop.css",

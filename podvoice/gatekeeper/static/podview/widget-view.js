@@ -954,6 +954,12 @@ class WidgetHost extends HTMLElement {
   const carState=vehicle?.mode==='unconnected'?'unavailable':'ready';if(car.dataset.kitState!==carState)car.dataset.kitState=carState;
   let value=label.querySelector('.resource-value');if(!value){value=car.ownerDocument.createElement('span');value.className='resource-value';label.append(value);}
   if(value.textContent!==battery)value.textContent=battery;if(value.hidden!==!battery)value.hidden=!battery;const hasValue=String(!!battery);if(car.dataset.hasOverviewValue!==hasValue)car.dataset.hasOverviewValue=hasValue;
+  // The S widget's dot car (lærred K-Widget tesla, markup in index.html): filled to the known battery level.
+  const carTone=!vehicle?'none':vehicle.mode==='unconnected'||vehicle.stale===true?'unknown':
+   vehicle.charging?.status==='charging'?'charging':['heat','cool','auto','heat_cool','fan_only','dry']
+    .includes(vehicle.climate?.status)?'climate':'parked';
+  if(car.dataset.carTone!==carTone)car.dataset.carTone=carTone;
+  car.style?.setProperty?.('--pv-car-level',battery?String(Math.round(vehicle.batteryPercent)/100):'0');
   const charge=vehicleChargeUpdate(this.vehicleChargePresentation,vehicle,{...this.vehicleChargeContext,visible:this.state.focus==='now'});this.vehicleChargePresentation=charge;if(charge.cancel||charge.cue){this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;}if(charge.cue)this.vehicleChargeAnimation=this.motion?.animate(value,[{opacity:.65},{opacity:1}],120)||null;
  }
  renderOverviewFacts(vehicle=projectVehicle(this.state.vehicle)){
