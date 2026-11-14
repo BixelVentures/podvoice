@@ -33,7 +33,7 @@ let server,browser,data;
   // Design: scorers per team, one line each.
   assert.deepEqual(await sport.locator('.pv-visual-list .pv-visual-value').allTextContents(),["Lewandowski 12', 58'","Lukébakio 71'"]);
   const before=await sport.boundingBox();
-  // Rule 3: the spoken-only follow-up becomes a new section below, on the same card.
+  // Rule 3 (lærred »SvarK-Opfoelg«): the spoken-only follow-up becomes a new section at the top of the same card.
   assert.equal((await fetch(base+'/lab/svar-followup',{method:'POST'})).status,200);
   const followup='Pedri, til 1-0 i 12. minut';
   await answerHost.getByText(followup,{exact:true}).waitFor({state:'visible',timeout:10000});
@@ -42,8 +42,8 @@ let server,browser,data;
   const current=answerHost.locator('pv-answer[data-thread=current]:visible');
   assert.equal(await current.count(),1);assert.match(await current.textContent(),/Assist/);assert.doesNotMatch(await answerHost.textContent(),/lavede assisten/,'no transcript on any card');
   const after=await sport.boundingBox();
-  assert(Math.abs(after.y-before.y)<1,`the section being read did not move (${before.y}→${after.y})`);
-  assert((await current.boundingBox()).y>after.y,'the new section is below the earlier one');
+  assert(before.y>0,'the earlier section was on screen');
+  assert((await current.boundingBox()).y<after.y,'the new section opens the card above the earlier one');
   // Fejl 9 (Green 13 Nov): the card had no room; AI-forklaring took its own line under the
   // sections and Kilder fell below the screen. AI-forklaring shares the Kilder row, and the
   // two sections with Kilder fit on the iPad without scrolling.
@@ -88,7 +88,7 @@ let server,browser,data;
   assert.deepEqual(errors,[]);
   assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,0);
   console.log(JSON.stringify({outcome:'PASS',mode:'svar-ipad-thread',actualThin:true,inertProvider:true,coarsePointer:true,
-   sportCard:true,followupSection:true,readingPositionKept:true,historyCards:1,unreadMark:false,pageErrors:errors}));
+   sportCard:true,followupSection:true,followupOnTop:true,historyCards:1,unreadMark:false,pageErrors:errors}));
   return;
  }
  if(process.env.ANSWERS_LIVE_TEST==='1'){

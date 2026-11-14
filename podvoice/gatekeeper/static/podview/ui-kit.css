@@ -5419,3 +5419,118 @@ pv-widget-host .view-nav .header-context>#header-timer[hidden]{display:none}
  pv-widget-host #timers-view .timer-panel .timer-progress,pv-widget-host .view-nav
   #header-timer{animation:none!important}
 }
+
+/* iPad Svar (issue 399, lærred »Kit-SvarKnap«, »A-SvarKort«, »SvarK-*«). */
+pv-widget-host .voice-surface .voice-bars{display:none}
+@media (min-width:1000px){
+ /* The status is the Svar button: same box, five bars, the phase's own colours. */
+ body pv-widget-host[data-view=active]>.voice-surface.voice-surface{top:12px}
+ body pv-widget-host[data-view]>.voice-surface.voice-surface{width:auto;min-width:0;
+  max-width:none;height:48px;min-height:48px;max-height:48px;padding:0 22px 0 16px;gap:12px;border-radius:24px;
+  background:var(--pv-surface);color:var(--pv-ink);--pv-svar-bar:var(--pv-ink);
+  box-shadow:0 2px 0 rgba(23,23,26,.10),inset 0 0 0 1px rgba(23,23,26,.06)}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=listening]{background:#FBF3DE;--pv-svar-bar:#B07A06;
+  box-shadow:0 2px 0 rgba(23,23,26,.10),inset 0 0 0 2px #D8B25A}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=responding]{background:var(--pv-dark);
+  color:var(--pv-on-dark);
+  --pv-svar-bar:var(--pv-on-dark);box-shadow:0 2px 0 rgba(23,23,26,.10)}
+ body pv-widget-host[data-view]>.voice-surface .voice-mark.voice-mark{width:46px;height:22px;flex:0 0 46px}
+ body pv-widget-host[data-view]>.voice-surface .voice-mark>img{display:none}
+ body pv-widget-host[data-view]>.voice-surface .voice-bars{display:grid;grid-template-columns:repeat(5,6px);gap:4px;
+  align-items:center;width:46px;height:22px}
+ body pv-widget-host[data-view]>.voice-surface .voice-bars>i{display:block;width:6px;height:6px;border-radius:3px;
+  background:var(--pv-svar-bar)}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=listening] .voice-bars>i:nth-child(1),
+ body pv-widget-host[data-view]>.voice-surface[data-phase=listening] .voice-bars>i:nth-child(5){height:10px}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=listening] .voice-bars>i:nth-child(2),
+ body pv-widget-host[data-view]>.voice-surface[data-phase=listening] .voice-bars>i:nth-child(4){height:18px}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=listening] .voice-bars>i:nth-child(3){height:22px}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=responding] .voice-bars>i:nth-child(1),
+ body pv-widget-host[data-view]>.voice-surface[data-phase=responding] .voice-bars>i:nth-child(5){height:8px}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=responding] .voice-bars>i:nth-child(2),
+ body pv-widget-host[data-view]>.voice-surface[data-phase=responding] .voice-bars>i:nth-child(4){height:14px}
+ body pv-widget-host[data-view]>.voice-surface[data-phase=responding] .voice-bars>i:nth-child(3){height:20px}
+ body pv-widget-host[data-view]>.voice-surface .voice-copy.voice-copy{max-width:none;height:22px}
+ body pv-widget-host[data-view]>.voice-surface .voice-copy>strong{font:600 18px/22px var(--pv-font)}
+ /* The Svar button stays the tap target under the status. */
+ body pv-widget-host[data-voice-phase]>nav.view-nav #open-history.header-history{opacity:0}
+
+ /* A-SvarKort: one card, 744 wide, reaching the bottom of the player column. */
+ body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])){box-sizing:border-box;
+  display:flex;flex-direction:column;min-height:696px;margin:0;padding:0;border-radius:24px;
+  background:var(--pv-surface);box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);overflow:hidden}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget{position:relative;
+  box-sizing:border-box;
+  width:auto;margin:0!important;padding:24px 28px!important;border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget:last-of-type{flex:1 0 auto}
+ body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading{min-height:32px;padding:0!important;
+  align-items:center}
+ body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading h1{margin:0;
+  font:600 15px/20px var(--pv-font)!important;
+  color:#3F3E3B;letter-spacing:0}
+ body pv-widget-host #answer-host#answer-host>pv-answer .pv-answer-domain-icon{display:none!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer .pv-visual-lead{display:block;min-height:0}
+ body pv-widget-host #answer-host#answer-host>pv-answer .pv-visual-summary{display:block!important;margin:6px 0 0;
+  max-height:none!important;overflow:visible!important;-webkit-line-clamp:unset!important;
+  font:800 44px/1.05 var(--pv-font)!important;letter-spacing:-.03em;color:var(--pv-ink);
+  padding:0 0 6px!important}
+ /* SvarK-Opfoelg: the follow-up opens the card; a line, then the answer it follows, one step smaller. */
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]{order:-1;flex:0 0 auto;
+  padding-bottom:18px!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]::after{content:"";position:absolute;
+  left:28px;right:28px;bottom:0;height:1px;background:rgba(23,23,26,.12)}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier]{padding-top:18px!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier] .pv-visual-summary{
+  font-size:30px!important}
+ /* SvarK-Sport: one dark block; the score in 168 mono, each team's scorers under the team. */
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-body{display:flex!important;flex-direction:column;
+  row-gap:0!important;
+  min-height:100%}
+ body pv-widget-host #answer-host pv-sport-result .pv-sport-score{flex:1 0 auto;align-content:end}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-list{flex:1 0 auto;align-content:start}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-lead{margin-bottom:0!important}
+ body pv-widget-host #answer-host pv-sport-result .pv-sport-score{display:grid;
+  grid-template-columns:1fr 300px 1fr!important;
+  align-items:center;gap:0!important;margin:20px 0 0!important;padding:40px 32px 8px!important;
+  border-radius:20px 20px 0 0;background:var(--pv-dark);
+  color:var(--pv-on-dark)}
+ body pv-widget-host #answer-host pv-sport-result .pv-sport-team{font:700 24px/1.2 var(--pv-font)!important;
+  text-align:center;color:var(--pv-on-dark);padding:0!important;white-space:nowrap}
+ body pv-widget-host #answer-host pv-sport-result .pv-sport-result{font:500 168px/.85 var(--pv-font-mono)!important;
+  letter-spacing:-.08em;text-align:center;color:var(--pv-on-dark)}
+ body pv-widget-host #answer-host pv-sport-result .pv-sport-date{margin:0!important;padding:8px 32px!important;
+  background:var(--pv-dark);
+  font:400 15px/20px var(--pv-font);text-align:center;color:rgba(247,246,243,.7)}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-list{display:grid;
+  grid-template-columns:1fr 300px 1fr!important;
+  margin:0!important;padding:4px 32px 40px!important;border-radius:0 0 20px 20px;background:var(--pv-dark);
+  gap:0!important}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-list>li.pv-visual-item{grid-column:1;
+  min-height:0!important;padding:0!important;
+  border:0!important;background:transparent!important;box-shadow:none!important;text-align:center;
+  display:block!important}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-list>li.pv-visual-item:nth-child(2){grid-column:3}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-list .pv-visual-label{display:none}
+ /* Dagens svar: rows as on the »I dag« list, 76 high, radius 18, 10 between, from y 88. */
+ body pv-widget-host #history #retained#retained{padding-top:16px}
+ body pv-widget-host #history #retained .retained-answer{margin:0 0 10px;border:0}
+ body pv-widget-host #history #retained button.history-open.history-open{box-sizing:border-box;min-height:76px;
+  height:76px;
+  padding:0 16px!important;border-radius:18px!important;background:rgba(247,246,243,.7)!important;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;border:0!important}
+ body pv-widget-host #history #retained .history-open :is(.history-domain-icon,.history-chevron){
+  display:none!important}
+ body pv-widget-host #history #retained button.history-open.history-open{display:grid!important;
+  grid-template-columns:minmax(0,1fr)!important;align-items:center;text-align:left}
+ body pv-widget-host #history #retained .history-copy{grid-column:1!important;display:flex;flex-direction:column;
+  gap:0;
+  min-width:0;width:auto!important}
+ body pv-widget-host #history #retained .history-copy>strong{font:700 17px/22px var(--pv-font)!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ body pv-widget-host #history #retained .history-copy>small{font:400 15px/20px var(--pv-font)!important;color:#5F5E5A}
+ body pv-widget-host #answer-host pv-sport-result .pv-visual-list .pv-visual-value{display:block;width:100%;
+  margin:0!important;
+  font:400 15px/20px var(--pv-font)!important;color:rgba(247,246,243,.7)!important;text-align:center}
+}
