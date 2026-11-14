@@ -3006,7 +3006,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 b96fe939f89248d38eb966fbd56579d9b8ff295d7be48a2b629066108ff06d55 */
+/* Source: ui-kit.css · SHA256 97259a4bd7d25b83d19dd59599a6369cd5302a4e4ac12c048c0860536a26e610 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6121,9 +6121,9 @@ body button:not(.is-pressed){transition-property:filter!important}
 .pv-step-bar[hidden]{display:none!important}
 @media (min-width:1000px){
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
-  #home-recipes>.pv-step-bar{
-  
-  grid-column:1/-1;grid-row:2;align-self:end;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);
+  #home-recipes#home-recipes>span.pv-step-bar.pv-step-bar{
+  grid-column:1/-1;grid-row:2;align-self:end;display:grid!important;grid-auto-flow:column;
+  grid-auto-columns:minmax(0,1fr);
   gap:4px;margin:0 0 8px}
  #home-recipes>.pv-step-bar>i{display:block;height:6px;border-radius:3px;background:var(--pv-recipe-step-ahead)}
  #home-recipes>.pv-step-bar>i[data-step=done]{background:var(--pv-recipe-step)}
@@ -8054,4 +8054,380 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host
    #now-view#now-view#now-view#now-view>#home-vehicle[data-car-tone=climate]>.vehicle-dots>i[data-layer=cabin]{
    display:block;--pv-car-mask:url(assets/vehicle/car-widget-warm.svg);background:#FF7A5C}
+}
+
+/* iPad Opskrifter og timer (lærred v190 »A-Opskrifter«, »A-Opskrift«, »A-Timer«, »Timer-*«, »Timer-Alarm«,
+   »W-opskrift-*«, »W-timer-*«, issue 398). Recipes fill the width (1132, no player): the categories sit in one
+   #DCDAD4 track, recipes are 252-high cards in five columns (photo 140, name 2 lines, meta 1 line) and the active
+   recipe is a 96-high band in #F2E4D3. A recipe is a 221 hero in #F2E4D3 (photo 160, »Trin N af M · af <kilde>«,
+   the name in 40/800), ingredients in a 400 card and the steps beside them; the current step is #F2E4D3 with a
+   2-px #A8622C ring and a dark 32 number dot, finished steps a #7A4A22 dot with ✓. The timer page is a dark 744×458
+   hero with a 340 coral ring, the time in 88 mono and the state in 48/800. The finished timer is a full-screen alarm
+   with the title in 88/800 coral and Stop (coral, 88 high) before +1 min. A running timer is a chip in the topbar. */
+:root{--pv-recipe-ink:#7A4A22;--pv-recipe-meta:#6B4A2E;--pv-recipe-ring:#A8622C;--pv-recipe-track:#DCDAD4;
+  --pv-timer-track:#2E2E33;--pv-timer-coral:#FF7A5C;--pv-timer-dark-2:#2B2B30}
+@media (min-width:1000px){
+ pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame>:is(.player.pv-card,#player-empty){
+  display:none!important}
+ pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame{grid-template-columns:minmax(0,1fr)!important}
+ pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:1132px!important;
+  max-width:1132px!important;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
+ pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){
+  gap:16px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset{margin:0;padding:0;border:0;min-width:0}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset>legend{position:absolute;width:1px;height:1px;
+  overflow:hidden;clip-path:inset(50%)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset .pv-kit-choice-options{display:inline-flex!important;
+  flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
+  background:var(--pv-recipe-track)!important;overflow:visible!important;width:auto!important;max-width:100%}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset label{height:44px!important;min-height:44px!important;
+  padding:0 20px!important;border-radius:999px!important;background:transparent!important;color:var(--pv-ink)!important;
+  box-shadow:none!important;border:0!important;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
+  display:flex!important;align-items:center;flex:none!important;white-space:nowrap}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset
+  label:has(input:checked){background:var(--pv-ink)!important;
+  background-image:none!important;color:#F7F6F3!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset
+  label>input{position:absolute;opacity:0;pointer-events:none}
+ /* The catalog: one scroller, every recipe in a five-column grid; letter groups and the letter index fall away. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]{display:block!important;flex:1 1 0;
+  min-height:0;margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div{display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:auto;gap:16px!important;align-content:start;
+  height:100%;box-sizing:border-box;padding:0 0 24px!important;overflow-y:auto}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section:not(.pv-kit-disclosure){
+  display:contents!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section>h3,
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>nav{display:none!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>:not(section),
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section.pv-kit-disclosure{
+  grid-column:1/-1}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume]){
+  display:grid!important;grid-template-rows:140px 44px 20px;gap:12px!important;align-content:start;
+  height:252px!important;min-height:252px!important;padding:12px!important;box-sizing:border-box;
+  border-radius:24px!important;
+  background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;border:0!important;
+  width:auto!important;margin:0!important;color:var(--pv-ink)!important;text-align:left}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume])>span{
+  display:contents!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume])>img{
+  grid-row:1;width:100%!important;height:140px!important;border-radius:16px!important;object-fit:cover;
+  background:var(--pv-recipe);padding:0!important;box-sizing:border-box}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume])>img[data-recipe-fallback]{
+  object-fit:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume]) strong{
+  grid-row:2;font:800 18px/22px 'Schibsted Grotesk',system-ui,sans-serif!important;display:-webkit-box!important;
+  color:var(--pv-ink)!important;
+  -webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;white-space:normal!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume]) small{
+  grid-row:3;font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
+  white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;display:block!important}
+ /* The active recipe: a 96-high #F2E4D3 band with the photo 56 and the product's »Fortsæt« as a dark pill. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]{display:flex!important;
+  flex-direction:row-reverse!important;align-items:center;justify-content:flex-end!important;gap:18px!important;
+  height:96px!important;min-height:96px!important;padding:0 24px!important;box-sizing:border-box;
+  border-radius:24px!important;background:var(--pv-recipe)!important;color:var(--pv-ink)!important;border:0!important;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;width:auto!important;margin:0!important;grid-column:1/-1}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>img{width:56px!important;
+  height:56px!important;border-radius:16px!important;object-fit:cover;flex:none;padding:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span{display:grid!important;
+  gap:2px!important;flex:1;min-width:0;padding-inline-end:236px;position:relative}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span>small:first-child{
+  font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-recipe-ink)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span>strong{
+  font:800 22px/28px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-ink)!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span>small:last-child{
+  font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-recipe-meta)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]::after{
+  content:"Fortsæt madlavning" / "";position:absolute;right:24px;top:20px;height:56px;padding:0 24px;
+  border-radius:999px;background:var(--pv-ink);color:#F7F6F3;display:flex;align-items:center;
+  font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]{position:relative}
+ /* A recipe: hero 1132×221 in #F2E4D3. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro].pv-kit-hero{display:grid!important;
+  grid-template-columns:160px minmax(0,1fr) auto;align-items:center;gap:22px!important;height:221px!important;
+  min-height:221px!important;padding:24px!important;box-sizing:border-box;border-radius:24px!important;
+  background:var(--pv-recipe)!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;border:0!important;
+  color:var(--pv-ink)!important;flex:none!important;margin:0!important;width:100%!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=gallery-trigger]{position:relative;
+  width:160px!important;height:160px!important;min-height:0!important;padding:0!important;display:block!important;
+  border-radius:16px!important;overflow:hidden;background:#E8CBA6!important;box-shadow:none!important;grid-column:1;
+  grid-row:1}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=gallery-trigger]>img{width:160px!important;
+  height:160px!important;object-fit:cover!important;border-radius:16px!important;padding:0!important;display:block}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=gallery-trigger]>p{position:absolute;left:8px;
+  bottom:8px;margin:0;height:24px;padding:0 10px;border-radius:999px;background:rgba(247,246,243,.92);display:flex;
+  align-items:center;font:600 13px/1 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-ink)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=summary]{display:flex!important;
+  flex-wrap:wrap!important;align-items:baseline!important;align-content:center;justify-content:flex-start!important;
+  gap:4px 0!important;grid-column:2;grid-row:1;min-width:0}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=summary]>*{margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=summary]>[role=status]{order:1;
+  font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-recipe-ink)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=summary]>p[data-kit-text=meta]:not([role]){
+  order:2;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-recipe-ink)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view
+  [data-recipe-layout=summary]>p[data-kit-text=meta]:not([role])::before{
+  content:" · " / "";white-space:pre}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=summary]>[data-recipe-layout=title]{order:3;
+  flex-basis:100%;font:800 40px/1.05 'Schibsted Grotesk',system-ui,sans-serif!important;letter-spacing:-.025em;
+  color:var(--pv-ink)!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host #recipe-view#recipe-view#recipe-view
+  [data-recipe-layout=summary]>p[data-kit-text=section-title]:not([data-recipe-layout]),
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=summary]>p[data-kit-text=body]{order:4;
+  flex-basis:100%;font:400 16px/22px
+  'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-recipe-meta)!important;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro]>[data-recipe-layout=controls]{
+  grid-column:3;grid-row:1;display:flex!important;flex-direction:column;align-items:flex-end;gap:8px!important;
+  margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro]>[data-recipe-layout=controls]>button{
+  height:56px!important;min-height:56px!important;padding:0 24px!important;border-radius:999px!important;
+  font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important;box-shadow:none!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro]>[data-recipe-layout=controls]>
+  button[data-kit-variant=primary]{
+  background:var(--pv-ink)!important;background-image:none!important;color:#F7F6F3!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro]>[data-recipe-layout=controls]>
+  button[data-kit-variant=secondary]{
+  background:transparent!important;color:var(--pv-recipe-ink)!important;padding:0
+  18px!important;font-size:15px!important}
+ /* Ingredients 400 | steps. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=reading]{display:grid!important;
+  grid-template-columns:400px minmax(0,1fr)!important;gap:16px!important;align-items:start}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=reading]>[data-kit=card]{
+  padding:24px!important;
+  border-radius:24px!important;background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
+  border:0!important;box-sizing:border-box;gap:10px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=ingredients] #recipe-ingredients-trigger
+  strong,
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading]>[data-kit=card]>header h2{
+  font:800 24px/1.2 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-ink)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=ingredients] h3{
+  font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=ingredients] pv-checklist button{
+  min-height:48px!important;font:500 17px/1.3 'Schibsted Grotesk',system-ui,sans-serif!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] ol{gap:10px!important;
+  counter-reset:pv-recipe-step}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li{counter-increment:pv-recipe-step;
+  display:grid!important;grid-template-columns:36px
+  minmax(0,1fr)!important;column-gap:14px!important;row-gap:3px!important;
+  padding:6px 16px!important;border-radius:18px!important;background:transparent!important;box-shadow:none!important;
+  align-items:start}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li[aria-current=step]{
+  padding:16px!important;background:var(--pv-recipe)!important;box-shadow:inset 0 0 0 2px
+  var(--pv-recipe-ring)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li>[data-recipe-step-number]{
+  grid-row:1/span 3;width:36px;height:32px;font-size:0!important;line-height:0;display:flex;justify-content:center;
+  margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li>[data-recipe-step-number]::before{
+  content:counter(pv-recipe-step);width:32px;height:32px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;background:#ECEAE5;color:#5F5E5A;font:600 15px/1 'IBM Plex Mono',ui-monospace,monospace;
+  transition:background-color .25s ease}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading]
+  li[aria-current=step]>[data-recipe-step-number]::before{
+  background:var(--pv-ink);color:#F7F6F3}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading]
+  li[data-completed=true]>[data-recipe-step-number]::before{
+  content:"✓";background:var(--pv-recipe-ink);color:#F7F6F3}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li>[data-recipe-step-number]::after{
+  content:none!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li>h3{
+  font:800 17px/1.25 'Schibsted Grotesk',system-ui,sans-serif!important;margin:0!important;
+  color:var(--pv-ink)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading]
+  li[aria-current=step]>h3{font-size:22px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li>:is(p,button){
+  font:400 15px/1.4 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li[aria-current=step]>:is(p,button){
+  font-size:19px!important;color:#2B2B2E!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading] li>button.pv-kit-button:not([hidden]){
+  background:transparent!important;box-shadow:none!important;border:0!important;padding:0!important;min-height:44px;
+  text-align:left}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading]
+  li[data-completed=true]>:is(h3,p,button){
+  color:#5F5E5A!important;text-decoration:line-through;text-decoration-thickness:2px}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=reading]>[data-recipe-layout=source]{
+  grid-column:1/-1}
+
+ /* A-Timer: the dark 744×458 hero. */
+ pv-widget-host[data-view=active]
+  #timers-view#timers-view#timers-view:not([hidden]){padding:0!important;margin:0!important;
+  width:744px!important;max-width:744px!important;background:transparent!important;box-shadow:none!important;
+  display:flex!important;flex-direction:column;gap:16px!important}
+ pv-widget-host #timers-view#timers-view#timers-view>.response-heading{position:absolute!important;width:1px;height:1px;
+  overflow:hidden;clip-path:inset(50%);margin:0;padding:0}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-running>h2{position:absolute;width:1px;height:1px;
+  overflow:hidden;clip-path:inset(50%)}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-running,
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-running>.timer-active-list{margin:0!important;padding:0!important;
+  background:transparent!important;box-shadow:none!important;border:0!important;width:744px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel{position:relative!important;display:block!important;
+  width:744px!important;height:458px!important;min-height:458px!important;box-sizing:border-box;padding:32px!important;
+  border-radius:24px!important;background:var(--pv-ink)!important;background-image:none!important;
+  color:#F7F6F3!important;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;border:0!important;margin:0!important;overflow:hidden}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel::before{content:"";position:absolute;right:0;top:0;
+  width:520px;height:458px;background:url("assets/timer/timer-material.svg") right center/520px 458px no-repeat;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 200px);mask-image:linear-gradient(90deg,transparent
+  0,#000 200px);
+  opacity:.55;pointer-events:none}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=paused]::before{opacity:.3}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=running]::before{
+  animation:pv-timer-material 2.4s ease-in-out infinite}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel>.timer-open{position:relative;z-index:1;display:grid!important;
+  grid-template-columns:340px minmax(0,1fr)!important;align-items:center!important;gap:40px!important;height:394px;
+  padding:0!important;background:transparent!important;box-shadow:none!important;border:0!important;margin:0!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument{position:relative!important;
+  width:340px!important;height:340px!important;display:grid!important;place-items:center;margin:0!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument>svg{position:absolute;inset:0;
+  width:340px!important;height:340px!important;transform:rotate(-90deg)}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument
+  circle{fill:none;stroke-width:7.76px!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-track{stroke:var(--pv-timer-track)!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel
+  .timer-progress{stroke:var(--pv-timer-coral)!important;
+  stroke-linecap:round;stroke-dasharray:var(--progress,0) 100!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]
+  .timer-progress{stroke-dasharray:100 100!important;
+  animation:pv-timer-ring 1.6s ease-in-out infinite}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-count{position:relative;
+  font:500 88px/1 'IBM Plex Mono',ui-monospace,monospace!important;letter-spacing:-.06em!important;
+  color:#F7F6F3!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument[data-long=true]
+  .timer-count{font-size:60px!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-count{
+  font:800 36px/1.05 'Schibsted Grotesk',system-ui,sans-serif!important;letter-spacing:-.02em!important;
+  color:var(--pv-timer-coral)!important;text-align:center;max-width:240px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel
+  .timer-copy{display:flex!important;flex-direction:column;
+  gap:12px!important;padding-bottom:76px;align-items:flex-start;text-align:left;position:static!important;
+  inset:auto!important;
+  min-height:0!important;grid-column:2;grid-row:1}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument{grid-column:1;grid-row:1}
+ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card
+  .timer-progress{stroke:var(--pv-timer-coral)!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy>strong{order:1;
+  font:600 17px/1.2 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-on-dark-2)!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel
+  .timer-copy::after{content:attr(data-state-label);order:2;
+  font:800 48px/1.02 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:-.03em;color:#F7F6F3}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy:not([data-state-label]),
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy[data-state-label=""]{padding-bottom:76px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy>.timer-state{order:3;
+  font:400 18px/1.3 'Schibsted Grotesk',system-ui,sans-serif!important;color:#D9D7D1!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-copy[data-state-repeat=true]>.timer-state{
+  visibility:hidden}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions{position:absolute!important;z-index:1;
+  left:412px;top:calc(50% + 42px);display:flex!important;flex-wrap:wrap;gap:10px!important;margin:0!important;
+  padding:0!important;width:auto!important}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel>.timer-actions>button:not([hidden]):not(.timer-adjust){height:56px!important;
+  min-height:56px!important;min-width:56px;padding:0 24px!important;border-radius:999px!important;border:0!important;
+  box-shadow:none!important;background:var(--pv-timer-dark-2)!important;background-image:none!important;
+  color:#F7F6F3!important;font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important;width:auto!important}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel>.timer-actions>button[data-timer-action=toggle]:not([hidden]){
+  background:#F7F6F3!important;color:var(--pv-ink)!important}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel>.timer-actions>button.timer-adjust:not([hidden]){padding:0!important;
+  border-radius:999px!important;background:var(--pv-timer-dark-2)!important;border:0!important;
+  box-shadow:none!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions:not([hidden]){width:126px!important;
+  flex-wrap:nowrap}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button[data-timer-action=toggle]{
+  width:126px!important;padding:0!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-finish{position:absolute!important;z-index:1;
+  left:548px;top:calc(50% + 42px);height:56px!important;min-height:56px!important;width:auto!important;
+  padding:0 24px!important;margin:0!important;border-radius:999px!important;border:0!important;
+  box-shadow:none!important;
+  background:var(--pv-timer-dark-2)!important;background-image:none!important;color:#F7F6F3!important;
+  font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel:has(>.timer-actions[hidden])>.timer-finish{left:412px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions:has(>.timer-adjust:not([hidden])){
+  width:138px!important}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden]))>.timer-finish{
+  left:560px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish{
+  background:var(--pv-timer-coral)!important;color:var(--pv-ink)!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel
+  .timer-copy>strong:not([hidden]){display:block!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button.timer-adjust
+  img{filter:invert(1)}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-create{width:744px!important;min-height:458px!important;
+  box-sizing:border-box;border-radius:24px!important;background:var(--pv-ink)!important;margin:0!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent:not([hidden]){width:744px;box-sizing:border-box;
+  margin:16px 0 0!important;padding:24px!important;border-radius:24px;background:#F7F6F3;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent>h2{font:800 24px/1.2
+  'Schibsted Grotesk',system-ui,sans-serif!important}
+
+ /* Timer-Alarm: full screen, the title in 88/800 coral, Stop (coral, 88) before +1 min, »Luk visning« at the
+    bottom. */
+ #timer-alert#timer-alert[open]{display:block!important;inset:0;width:100vw!important;height:100vh!important;
+  padding:0!important;
+  background:var(--pv-ink)!important;color:#F7F6F3!important;overflow:hidden!important}
+ #timer-alert#timer-alert[open]::before{content:"";position:absolute;inset:0;
+  background:url("assets/timer/alarm-material.svg") center/1180px 820px no-repeat;opacity:.9;pointer-events:none}
+ #timer-alert#timer-alert[open][data-pulse=true]::before{animation:pv-timer-ring 1.6s ease-in-out infinite}
+ #timer-alert#timer-alert[open]::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(60% 70% at 50% 46%,rgba(23,23,26,.92) 30%,rgba(23,23,26,.2) 100%)}
+ #timer-alert#timer-alert[open]>*{position:absolute;z-index:1}
+ #timer-alert#timer-alert[open]>.notice-icon{display:none!important}
+ #timer-alert#timer-alert[open]>.notice-copy{left:0;right:0;top:150px;display:flex!important;flex-direction:column;
+  align-items:center;gap:20px!important;max-width:none!important;margin:0!important;text-align:center}
+ #timer-alert#timer-alert[open] #timer-alert-name{font:800 88px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
+  letter-spacing:-.04em;color:var(--pv-timer-coral)!important}
+ #timer-alert#timer-alert[open] .notice-copy>strong{font:500 64px/1 'IBM Plex Mono',ui-monospace,monospace!important;
+  letter-spacing:-.04em;color:#F7F6F3!important}
+ #timer-alert#timer-alert[open] #timer-alert-status{left:0;right:0;top:420px;margin:0 auto!important;max-width:640px;
+  text-align:center;font:400 18px/1.4 'Schibsted Grotesk',system-ui,sans-serif!important;color:#BDBBB5!important}
+ #timer-alert#timer-alert[open]
+  #timer-alert-dismiss{left:50%;bottom:120px;height:88px!important;min-height:88px!important;
+  width:auto!important;min-width:280px!important;padding:0
+  40px!important;border-radius:999px!important;border:0!important;
+  box-shadow:none!important;outline-offset:4px;background:var(--pv-timer-coral)!important;color:var(--pv-ink)!important;
+  font:800 26px/1 'Schibsted Grotesk',system-ui,sans-serif!important;transform:translateX(-50%)}
+ #timer-alert#timer-alert[open]:has(#timer-alert-add:not([hidden]))
+  #timer-alert-dismiss{transform:translateX(calc(-100% - 8px))}
+ #timer-alert#timer-alert[open] #timer-alert-add:not([hidden]){left:calc(50% + 8px);bottom:120px;height:88px!important;
+  min-height:88px!important;width:auto!important;min-width:200px!important;padding:0
+  32px!important;border-radius:999px!important;
+  border:0!important;box-shadow:none!important;background:var(--pv-timer-dark-2)!important;color:#F7F6F3!important;
+  font:700 24px/1 'Schibsted Grotesk',system-ui,sans-serif!important}
+ #timer-alert#timer-alert[open] #timer-alert-open{left:50%;bottom:48px;transform:translateX(-50%);height:44px!important;
+  min-height:44px!important;padding:0 20px!important;background:transparent!important;color:#BDBBB5!important;
+  font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;border:0!important;box-shadow:none!important}
+ #timer-alert#timer-alert[open] button:disabled{opacity:.5}
+
+ /* Topbar timer chip (»A-Topbar«): 44 high, dark, ring 24 in coral, the time in 18 mono. */
+ pv-widget-host .view-nav .header-context>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
+  height:44px;min-height:44px;padding:0 14px 0 10px;border-radius:22px;border:0;background:var(--pv-ink);color:#F7F6F3;
+  box-shadow:none;flex:none;animation:pv-topbar-in .32s cubic-bezier(.2,.9,.3,1) both;cursor:pointer}
+ pv-widget-host .view-nav .header-context>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
+ pv-widget-host .view-nav .header-context>#header-timer circle{fill:none;stroke-width:3px}
+ pv-widget-host .view-nav .header-context>#header-timer .timer-track{stroke:var(--pv-timer-track)}
+ pv-widget-host .view-nav .header-context>#header-timer
+  .timer-progress{stroke:var(--pv-timer-coral);stroke-linecap:round;
+  stroke-dasharray:var(--progress,100) 100}
+ pv-widget-host .view-nav .header-context>#header-timer>span{font:500 18px/1 'IBM Plex Mono',ui-monospace,monospace;
+  letter-spacing:-.03em}
+}
+pv-widget-host .view-nav .header-context>#header-timer[hidden]{display:none}
+@keyframes pv-timer-material{0%,100%{opacity:.4}50%{opacity:.6}}
+@keyframes pv-timer-ring{0%,100%{opacity:1}50%{opacity:.45}}
+@keyframes pv-topbar-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){
+ pv-widget-host #timers-view .timer-panel::before,#timer-alert[open]::before,
+ pv-widget-host #timers-view .timer-panel .timer-progress,pv-widget-host .view-nav
+  #header-timer{animation:none!important}
 }

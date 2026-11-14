@@ -626,6 +626,10 @@ export class RecipeView {
   intro.dataset.recipeLayout = 'intro';
   const summary = kit('sectionheader');
   summary.dataset.recipeLayout = 'summary';
+  const name = applyKitTextRole(element('p',recipe.title),'section-title');
+  name.dataset.recipeLayout = 'title';
+  name.setAttribute('aria-hidden','true');
+  summary.append(name);
   if (subtitle) summary.append(applyKitTextRole(element('p',subtitle),'section-title'));
   if (recipe.description) summary.append(applyKitTextRole(element('p',recipe.description),'body'));
   if (recipe.publisher) summary.append(meta('Af '+recipe.publisher));

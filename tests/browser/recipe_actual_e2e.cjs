@@ -240,15 +240,17 @@ async function readAndResumeBurgerboller(page){
  assert.match(await row.innerText(),/I gang\s+Burgerboller af Meyers\s+1 af 5 trin · Fortsæt/);
  const activeGeometry=await row.evaluate(el=>{
   const css=getComputedStyle(el),color=document.createElement('canvas').getContext('2d');
-  color.fillStyle=css.getPropertyValue('--pv-dark').trim();
-  const dark=color.fillStyle;
+  // Changed (issue 398, lærred »A-Opskrifter«): the active recipe is a 96-high band in the recipe tone #F2E4D3
+  // with a 56 photo, no longer the dark ListRow.
+  color.fillStyle=css.getPropertyValue('--pv-recipe').trim();
+  const tone=color.fillStyle;
   color.fillStyle=css.backgroundColor;
   const photo=el.querySelector('img').getBoundingClientRect();
-  return {dark:color.fillStyle===dark,rowHeight:el.getBoundingClientRect().height,photoWidth:photo.width,
+  return {recipe:color.fillStyle===tone,rowHeight:el.getBoundingClientRect().height,photoWidth:photo.width,
    photoHeight:photo.height};
  });
- assert.equal(activeGeometry.dark,true,'active row uses the canonical dark ListRow color');
- if(shot==='1280x800')assert.deepEqual(activeGeometry,{dark:true,rowHeight:128,photoWidth:96,photoHeight:96});
+ assert.equal(activeGeometry.recipe,true,'active row uses the recipe tone');
+ if(shot==='1280x800')assert.deepEqual(activeGeometry,{recipe:true,rowHeight:96,photoWidth:56,photoHeight:56});
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-burgerboller-active.png`)});
  await row.tap();
  assert.equal(await steps.nth(1).getAttribute('aria-current'),'step');

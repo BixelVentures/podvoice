@@ -2037,7 +2037,9 @@
           "method:completeStartNavigation": 1,
           "arrow:stop": 1,
           "method:presentationTimer": 1,
-          "method:renderTimerActions": 1
+          "method:renderTimerActions": 1,
+          "method:createHeaderTimer": 1,
+          "method:renderHeaderTimer": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -2056,7 +2058,8 @@
           "html:section:timer-running pv-detail-zone",
           "native:article:timer-panel pv-hero",
           "html:button:timer-open",
-          "html:div:timer-open"
+          "html:div:timer-open",
+          "native:button:header-timer"
         ],
         "registrations": {},
         "customTags": [
