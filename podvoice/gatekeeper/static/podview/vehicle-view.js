@@ -71,6 +71,11 @@ export class VehicleView{
   this.measurements=make('div','vehicle-measurements');this.measurements.append(this.metrics,this.rail);
   this.figure=make('figure','vehicle-artwork');this.image=make('img','vehicle-image');this.image.alt='';this.image.width=1280;this.image.height=853;this.figure.dataset.artworkRole='illustration';this.image.decoding='async';this.image.draggable=false;
   this.onImageError=()=>{this.image.hidden=true;this.figure.dataset.imageState='missing';this.heroIcon.hidden=false;};this.onImageLoad=()=>{if(this.figure.hidden)return;this.image.hidden=false;this.heroIcon.hidden=true;this.figure.dataset.imageState='ready';};this.image.addEventListener('error',this.onImageError);this.image.addEventListener('load',this.onImageLoad);this.figure.append(this.image,this.context);this.content.append(this.figure,this.measurements);this.context.className='vehicle-context';this.hero.append(this.status,this.connectionNote,this.content,this.heroIcon);this.next=make('button','text-control pv-button','Til overblikket');this.next.type='button';this.onNext=()=>{const host=this.root.closest('pv-widget-host');host?.dispatch({type:'show',id:'now'});host?.focusHeading();};this.next.addEventListener('click',this.onNext);this.next.hidden=true;
+  // The canvas' dot car: tyres, empty body, body filled to the battery level, cabin.
+  this.dots=make('div','vehicle-dots');this.dots.setAttribute('aria-hidden','true');this.hero.append(this.dots);
+  for(const layer of ['tires','empty','fill','cabin']){
+   const dot=make('i');dot.dataset.layer=layer;this.dots.append(dot);
+  }
   const disclosure=(title,rows,primary=false)=>{const detail=make(primary?'section':'details','device-history vehicle-disclosure pv-tile'),summary=make(primary?'h2':'summary',primary?'vehicle-section-heading pv-section-header':undefined),label=make('span',null,title),status=make('small');summary.append(label,status);const body=make('dl','vehicle-detail-values');const values=rows.map(([id,text])=>{const row=createKitComponent('listrow',{document:root.ownerDocument,tag:'div',className:'vehicle-fact-row'}),label=make('dt',null,text),value=make('dd');row.append(label,value);body.append(row);return {id,value};});applyKitTextRole(label,'section-title');applyKitTextRole(status,'body');detail.append(summary,body);return {detail,status,values,body};};
   this.climate=disclosure('Klima',[['state','Status'],['temperature','I kabinen'],['defrost','Afrimning'],['seats','Sædevarme']],true);
   this.climateBatteryNote=make('p','vehicle-climate-note');applyKitTextRole(this.climateBatteryNote,'meta');
@@ -123,6 +128,14 @@ export class VehicleView{
   const model=vehicleModel(value),configuredUnavailable=model.mode==='unconnected'&&chargeContext?.readGranted===true&&typeof chargeContext.scope==='string'&&chargeContext.scope!==''&&chargeContext.scope!=='local'&&chargeContext.scope===chargeContext.sourceScope;if(!this.draft||this.draftRevision!==model.revision){this.draft={temperatureC:model.climate.targetTemperatureC,seats:{...model.climate.seats}};this.draftRevision=model.revision;if(this.unknownRevision!==model.revision)this.unknownRevision=null;}this.model=model;this.reconcileLiveVehicleCommands();this.hero.dataset.charging=String(model.charging.status==='charging');this.root.dataset.vehicleMode=model.mode;this.root.dataset.example=String(model.mode==='fixture');this.hero.dataset.kitState=model.mode==='unconnected'?'unavailable':'ready';const message=model.mode==='unconnected'&&!configuredUnavailable;if(message){if(this.hero.getAttribute('data-kit-variant')!=='message')this.hero.setAttribute('data-kit-variant','message');}else if(this.hero.getAttribute('data-kit-variant')!==null)this.hero.removeAttribute('data-kit-variant');
   // Live artwork is a generic illustration only for a verified model.
   const showArtwork=model.modelName==='Model Y'&&(model.mode==='observed'||model.mode==='fixture'&&model.modelYear===2023);this.figure.hidden=!showArtwork;if(this.context.hidden!==!showArtwork)this.context.hidden=!showArtwork;this.heroIcon.hidden=showArtwork&&this.figure.dataset.imageState!=='missing';this.image.hidden=!showArtwork||this.figure.dataset.imageState==='missing';if(showArtwork){if(this.image.getAttribute('src')!==VEHICLE_ARTWORK)this.image.src=VEHICLE_ARTWORK;}else if(this.image.getAttribute('src')!==null){this.image.removeAttribute('src');this.figure.dataset.imageState='unavailable';}
+  // Dot car (lærred A-Tesla): body filled to the known battery level; tone follows the observed state.
+  const carTone=!showArtwork?'none':model.stale===true||connected===false?'unknown':
+   model.charging.status==='charging'?'charging':liveClimateActive(model)||model.mode==='fixture'&&
+   activeClimateModes.has(model.climate.status)?'climate':'parked';
+  if(this.hero.dataset.carTone!==carTone)this.hero.dataset.carTone=carTone;
+  const level=Number.isFinite(model.batteryPercent)?Math.max(0,Math.min(100,model.batteryPercent))/100:0;
+  const carLevel=`--pv-car-level:${level}`;
+  if(this.hero.getAttribute('style')!==carLevel)this.hero.setAttribute('style',carLevel);
   assign(this.title,model.title);assign(this.context,model.context);const status=model.status==='Lader'?'Bilen lader':model.status;const qualified=status;const trunk=model.mode==='observed'&&model.access?.rearTrunk==='open'?'Bagagerum åbent':null;assign(this.status,configuredUnavailable?'Status ukendt':trunk?`${qualified} · ${trunk}`:qualified);const updated=vehicleUpdatedLabel(model)||null;assign(this.connectionNote,updated||(connectionDetail||'Tilføj i Home Assistant'));this.connectionNote.hidden=!updated&&(model.mode!=='unconnected'||configuredUnavailable);this.content.hidden=model.mode==='unconnected';
   assign(this.batteryValue,model.batteryPercent===null?'—':`${model.batteryPercent} %`);this.batteryGroup.hidden=model.batteryPercent===null;assign(this.rangeValue,model.rangeKm===null?'—':`${model.rangeKm.toLocaleString('da-DK',{maximumFractionDigits:0})} km`);this.rangeGroup.hidden=model.rangeKm===null;
   const known=model.batteryPercent!==null;this.rail.dataset.known=String(known);this.rail.hidden=!known;this.meter.hidden=!known;
@@ -345,7 +358,29 @@ export class VehicleView{
   // A synchronous legacy preview callback is not proof of a vehicle outcome.
   if(result?.then)result.then(finish,()=>finish({status:'unknown'}));else if(result)finish(result);else{this.pending=null;this.dismissConfirmation();this.renderControls();}
  }
- renderControls(){
+ renderControls(){this.renderControlStates();this.renderAccessTiles();}
+ // Adgang as action surfaces (lærred K-ActionTile): what the button acts on and its observed state, drawn by CSS
+ // from data attributes, so the action label stays the button's only text and accessible name.
+ renderAccessTiles(){
+  const m=this.model;if(!m)return;
+  const defrost=m.climate?.defrost===true?'on':m.climate?.defrost===false?'off':'unknown';
+  if(this.defrostButton.dataset.defrost!==defrost)this.defrostButton.dataset.defrost=defrost;
+  const door=m.locked===true?'Låst':m.locked===false?'Ulåst':'Ukendt',trunk=m.access?.rearTrunk;
+  const trunkText=trunk==='open'?'Åbent':trunk==='closed'?'Lukket':'Ukendt';
+  const unlocked=m.locked===false,doors=[this.lockButton,this.liveVehicleButtons.lock,this.liveVehicleButtons.unlock];
+  const tiles=[...doors.map(button=>[button,'Døre',door,unlocked]),
+   [this.rearTrunkButton,'Bagagerum',trunkText,trunk==='open']];
+  // The trunk seen from the side (lærred A-Tesla), open or closed as observed; the action label is kept.
+  const trunkIcon=`assets/icons/${trunk==='open'?'car-trunk-open':'car-trunk'}.svg`;
+  const trunkLabel=this.rearTrunkButton.textContent;
+  if(trunkLabel)syncKitButtonContent(this.rearTrunkButton,{label:trunkLabel,icon:trunkIcon});
+  for(const [button,name,value,attention]of tiles){
+   const tone=attention?'attention':'calm';if(button.dataset.vehicleTile!==tone)button.dataset.vehicleTile=tone;
+   if(button.dataset.tileName!==name)button.dataset.tileName=name;
+   if(button.dataset.tileValue!==value)button.dataset.tileValue=value;
+  }
+ }
+ renderControlStates(){
   const m=this.model,liveEnabled=m?.mode==='observed'&&this.connected!==false&&!this.disposed,freshClimate=liveEnabled&&m.climate.status!==null,climateIntent=freshClimate?(m.climate.status==='off'?'climateOn':'climateOff'):null,useClimateToggle=!!climateIntent&&this.vehicleActions?.includes(climateIntent);for(const [action,button]of Object.entries(this.liveVehicleButtons)){const irrelevant=((action==='lock'&&m.locked===true)||(action==='unlock'&&m.locked===false)||(action==='climateOn'&&m.climate.status!==null&&m.climate.status!=='off')||(action==='climateOff'&&m.climate.status==='off'));button.hidden=!liveEnabled||!this.vehicleActions?.includes(action)||irrelevant||(useClimateToggle&&(action==='climateOn'||action==='climateOff')); if(action==='lock'||action==='unlock')applyKitComponent(button,'button',{
    variant:action==='unlock'?'primary':'secondary',tone:action==='unlock'?'danger':'neutral',loading:false});
   if(!button.hidden)syncKitButtonContent(button,{label:button.dataset.liveVehicleLabel,icon:`assets/icons/${action==='unlock'?'lock-open':action==='lock'?'lock':'power'}.svg`});button.disabled=this.vehicleActionBlocked(action);}if(liveEnabled&&this.vehicleActions?.some(x=>x==='lock'||x==='unlock'))this.access.detail.hidden=false;if(liveEnabled&&this.vehicleActions?.some(x=>x==='climateOn'||x==='climateOff'))this.climate.detail.hidden=false;const enabled=m?.mode==='fixture'&&m.controlsPreview===true,pending=!!this.pending,unknown=this.unknownRevision===m.revision;this.climate.detail.dataset.kitLayout=(enabled||liveEnabled&&['climateOn','climateOff'].some(action=>this.vehicleActions?.includes(action)))?'header-action':'default';this.controlsEnabled=enabled&&this.connected!==false&&!this.disposed&&!pending&&!unknown;this.settingsEnabled=this.controlsEnabled&&m.climate.status!=='off';
