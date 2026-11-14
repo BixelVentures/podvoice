@@ -4067,9 +4067,7 @@ body button:not(.is-pressed){transition-property:filter!important}
    (#F6D3DE while a turn runs) with the title in 40/800, the product's line in 19/600 and the corner arcs to the right
    (assets/robot, generated from the canvas' own formulas: still at the base, breathing while a turn runs, grey and
    broken on a fault, grey when unknown). The actions sit at the bottom right: the primary as a dark 56 pill (at least
-   132 wide,
-   so Pause ↔ Fortsæt keeps »Mere« in place) and »Mere ▾« (the
-   product's base disclosure) to its left; the disclosure opens as a #F7F6F3 card under them. Rum is a
+   160 wide, so Pause ↔ Fortsæt keeps »Mere« in place) and »Mere ▾« (the product's base disclosure) to its left; the disclosure opens as a #F7F6F3 card under them. Rum is a
    section of 64-px tiles in four columns with a dot; Rengøringsvalg is one card of segmented rows (Type 56, the
    rest 44). The page fades out at the fold. When the hero has scrolled away, the 72-px line under the topbar
    (robot-control-panel.js buildStickyLine) repeats the title, line, primary and »Mere ▾«. The M widget has the arcs,
@@ -4177,7 +4175,7 @@ body button:not(.is-pressed){transition-property:filter!important}
    display:none!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .transport>button{height:56px!important;min-height:56px!important;
-   width:auto!important;min-width:132px!important;justify-content:center!important;
+   width:auto!important;min-width:160px!important;justify-content:center!important;
    padding-block:0!important;--pv-button-content-inset:14px;border-radius:999px!important;margin:0!important;
    font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important;position:static!important;flex:none!important;
    background:#17171A!important;color:#F7F6F3!important;box-shadow:none!important;border:0!important;
