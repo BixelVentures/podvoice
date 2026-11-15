@@ -4,12 +4,12 @@ import {stations,radioStation,localRadioPlayerModel,localRadioTransition,localRa
 
 test('five named channels have stable, unique identifiers and no invented stream or artwork',()=>{
  assert.deepEqual(stations.map(({id,label})=>[id,label]),[
-  ['p3','P3'],['p1','P1'],['p4-ostjylland','P4 Østjylland'],['p6-beat','P6 Beat'],['p8-jazz','P8 Jazz'],
+  ['p1','P1'],['p3','P3'],['p4-ostjylland','P4 Østjylland'],['p6-beat','P6 Beat'],['p8-jazz','P8 Jazz'],
  ]);
  assert.ok(stations.every(station=>Object.isFrozen(station)));
  assert.ok(Object.isFrozen(stations));
  assert.ok(stations.every(station=>Object.keys(station).sort().join(',')==='id,label'));
- assert.equal(radioStation('p4-ostjylland'),stations[2]);
+ assert.equal(radioStation('p4-ostjylland'),stations[2]); // lærred A-Radio: P1, P3, P4 …
  assert.equal(radioStation('P3'),null);
  assert.equal(radioStation('__proto__'),null);
 });

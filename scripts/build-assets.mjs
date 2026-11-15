@@ -5,13 +5,15 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {addLegacyWebViewFallbacks} from './legacy-webview-css.mjs';
+import {resolveStage} from './stage-css.mjs';
 const root=fileURLToPath(new URL('../dist/',import.meta.url));
 export const stylesheetSources=['ui/components.css','widget-view.css','ui/library/library.css','frame-layout.css','widget-redesign.css','timer-notice.css','live-music.css','ui-kit.css'];
 export function composeStyles(sources,readSource,readAsset=()=>null){
  const sections=sources.map(source=>{
   const css=readSource(source);
   if(/@import\b/i.test(css))throw Error(`Unexpected CSS import in ${source}; add its owner to the ordered source list.`);
-  const rebased=css.replace(/url\(\s*(['"]?)([^)'"\s]+)\1\s*\)/g,(all,quote,url)=>{
+  // One layout: every size query and viewport unit is resolved for the 1180×820 stage.
+  const rebased=resolveStage(css).replace(/url\(\s*(['"]?)([^)'"\s]+)\1\s*\)/g,(all,quote,url)=>{
    if(/^(?:[a-z][a-z\d+.-]*:|\/|#)/i.test(url))return all;
    const rebased=path.posix.normalize(path.posix.join(path.posix.dirname(source),url));
    // Inline only small, exact bundled icon files. External/query URLs and larger

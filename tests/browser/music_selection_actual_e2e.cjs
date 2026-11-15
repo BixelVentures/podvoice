@@ -286,7 +286,7 @@ async function libraryBusyJourney(){
   status:result.status(),providerReads:final.libraryReads,oneBrowserRequest:true,effects:0}));
 }
 async function defaultSpeakerJourney(){
- const viewport={width:1194,height:834},controls=[];
+ const viewport={width:1180,height:820},controls=[];
  const record=surface=>surface.on('request',request=>{
   if(request.method()==='POST'&&/\/(control|music)\/.*actions$/.test(new URL(request.url()).pathname)){
    controls.push(request.postDataJSON()?.action);
@@ -593,7 +593,7 @@ async function recentSessionJourney(){
  await page.request.post(base+'/lab/state',{data:{delayMs:0}});
  const storageState=await page.context().storageState();
  await page.close();
- page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800},storageState});
+ page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820},storageState});
  page.on('pageerror',error=>errors.push(error.message));
  await coverRoutes(page);
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
@@ -978,7 +978,7 @@ async function discoveryRevisitJourney(){
  console.log(JSON.stringify(entryProof));
 }
 async function discoveryCardHeight(){
- const sizes=[{width:1270,height:1060},{width:1280,height:800}];
+ const sizes=[{width:1180,height:820},{width:1180,height:820}];
  const layout=()=>page.locator('#result-list').evaluate(list=>{
   const group=list.getBoundingClientRect();
   const cards=[...list.querySelectorAll('button[data-content-state=ready]')].map(card=>{
@@ -1177,7 +1177,7 @@ async function discoveryCoverJourney(){
  await discoveryGeneratedCover(failedCoverUrl,themes.cooking.themeArt);
 }
 async function discoveryGeneratedCover(failedCoverUrl,asset){
- const surface=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
+ const surface=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}});
  const assetUrl=new URL('/view/'+asset,base).href;
  const requests=[],receipts=[],actionPosts=[],pageErrors=[];
  let releaseSpotify;
@@ -1266,7 +1266,7 @@ async function personalPlaylistCoverJourney(asset){
  const spotify='https://i.scdn.co/image/InertFailedPersonalCover';
  const decoded={};
  for(const cachedFailure of [false,true]){
-  const surface=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}});
+  const surface=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}});
   const spotifyRequests=[],cachedResponses=[],effects=[];
   try{
    await surface.route('**/*',route=>{
@@ -1921,7 +1921,7 @@ async function queuePersistenceJourney(){
   options.args=['--mute-audio'];
  }
  browser=await chromium.launch(options);
- const surfaceOptions={hasTouch:true,viewport:{width:1280,height:800}};
+ const surfaceOptions={hasTouch:true,viewport:{width:1180,height:820}};
  page=documentScope?await (await browser.newContext(surfaceOptions)).newPage():await browser.newPage(surfaceOptions);
  if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
   ||discoveryPersonalCover||libraryBusy||voiceLongSession||documentScope){

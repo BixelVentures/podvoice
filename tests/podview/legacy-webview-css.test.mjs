@@ -73,7 +73,7 @@ test('the delivered podview.css gives Chrome 107 a usable value before every mod
       else unprotected.push(`${block[1].trim().slice(-60)} { ${property}:${value.slice(0, 60)} }`);
     });
   }
-  assert(guarded >= 70, `expected the known color-mix/dvh declarations, found ${guarded}`);
+  assert(guarded >= 55, `expected the known color-mix (dvh is resolved to stage px) declarations, found ${guarded}`);
   assert.deepEqual(unprotected, []);
 });
 

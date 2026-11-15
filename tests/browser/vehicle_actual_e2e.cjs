@@ -312,7 +312,7 @@ async function lifecycleJourney(page,card,errors,commands){
   return {width:window.innerWidth,metrics,carWidth:node.querySelector('.vehicle-dots').getBoundingClientRect().width,
    expectedEta:new Date(endsAt*1000).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})};
  },endsAt);
- assert.equal(chargingFacts.width,1280);
+ assert.equal(chargingFacts.width,1180);
  assert.deepEqual(chargingFacts.metrics.map(({label,value})=>[label,value]),[
   ['Batteri','72 %'],['Rækkevidde','312 km'],['Ladeeffekt','11 kW'],['Forventet færdig',chargingFacts.expectedEta],
  ]);
@@ -480,7 +480,7 @@ async function recoveryJourney(page,card,errors,requests){
 (async()=>{try{
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-vehicle-'));server=spawn(env.python,[path.join(__dirname,'vehicle_e2e_server.py')],{cwd:env.runtimeRoot,env:env.pythonEnv({VEHICLE_TEST_PORT:String(port),VEHICLE_TEST_DATA:data}),stdio:['ignore','pipe','pipe']});server.stderr.on('data',b=>process.stderr.write(b));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('server startup');await sleep(100)}
- browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1280,height:800}}),errors=[],commands=[];page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/view/api/control/actions')commands.push(r.postDataJSON());});page.setDefaultTimeout(7000);page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(/\/view\/api\/(home|control)/.test(r.url()))console.log('API',r.status(),r.url(),await r.text().catch(()=>''));});
+ browser=await chromium.launch(env.browserOptions());const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[],commands=[];page.on('request',r=>{if(r.method()==='POST'&&new URL(r.url()).pathname==='/view/api/control/actions')commands.push(r.postDataJSON());});page.setDefaultTimeout(7000);page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(/\/view\/api\/(home|control)/.test(r.url()))console.log('API',r.status(),r.url(),await r.text().catch(()=>''));});
  const requests=[];
  if(recovery){
   await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());

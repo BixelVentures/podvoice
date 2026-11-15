@@ -6,7 +6,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 const projectRoot=fileURLToPath(new URL('../',import.meta.url));
-export const scriptBundles=[{file:'dist/podview.bundle.js',html:'dist/index.html',sources:['ingress-kiosk.js','widget-view.js']},{file:'dist/library.bundle.js',html:'dist/library.html',sources:['library.js']}];
+export const scriptBundles=[{file:'dist/podview.bundle.js',html:'dist/index.html',sources:['ui/stage.js','ingress-kiosk.js','widget-view.js']},{file:'dist/library.bundle.js',html:'dist/library.html',sources:['library.js']}];
 export function composeScriptBundle(root,bundle){
  root=fs.realpathSync(root);
  if(version!=='0.28.2')throw Error(`Expected pinned esbuild 0.28.2; got ${version}`);

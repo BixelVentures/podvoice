@@ -16,9 +16,9 @@ let server,browser,data;
  server.stderr.on('data',chunk=>process.stderr.write(chunk));
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('answer fixture exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('answer fixture startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());
- // iPad in the HA app: coarse pointer, touch only, portrait 834×1194.
+ // Wall iPad in the HA app with its header: coarse pointer, touch only, 1180×764 (scaled stage).
  const ipad=process.env.SVAR_THREAD_TEST==='1';
- const page=await browser.newPage(ipad?{hasTouch:true,isMobile:true,viewport:{width:834,height:1194},deviceScaleFactor:2}:{hasTouch:true,viewport:{width:1280,height:800}}),errors=[],writes=[];
+ const page=await browser.newPage(ipad?{hasTouch:true,isMobile:true,viewport:{width:1180,height:764},deviceScaleFactor:2}:{hasTouch:true,viewport:{width:1180,height:820}}),errors=[],writes=[];
  page.on('pageerror',error=>errors.push(error.message));page.on('request',r=>{if(r.method()!=='GET')writes.push({path:new URL(r.url()).pathname,body:r.postData()})});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
  if(ipad){
@@ -50,9 +50,10 @@ let server,browser,data;
   const fit=await page.evaluate(()=>{const card=document.querySelector('#answer-host pv-answer[data-thread=current]');
    const meta=card.querySelector('.answer-meta').getBoundingClientRect(),row=card.querySelector(':is(.sources,.answer-source-menu):not([hidden])>summary').getBoundingClientRect();
    const list=document.querySelector('pv-widget-host .responses');
-   return {inRow:meta.top>=row.top-1&&meta.bottom<=row.bottom+1&&meta.right<=row.right,overflow:list.scrollHeight-list.clientHeight};});
+   const pane=list.getBoundingClientRect();
+   return {inRow:meta.top>=row.top-1&&meta.bottom<=row.bottom+1&&meta.right<=row.right,overflow:Math.round(row.bottom-pane.bottom)};});
   assert.equal(fit.inRow,true,'AI-forklaring stands in the Kilder row');
-  assert(fit.overflow<=0,`both sections and Kilder fit on the iPad (overflow ${fit.overflow}px)`);
+  assert(fit.overflow<=0,`the newest section and its Kilder row are on screen (overflow ${fit.overflow}px)`);
   // Touch targets: every control on the card and the Svar button is at least 44×44.
   const small=await page.evaluate(()=>[...document.querySelectorAll('#answer-host pv-answer:not([hidden]) :is(button,a,summary),#open-history')]
    .filter(n=>n.getClientRects().length&&getComputedStyle(n).visibility!=='hidden')

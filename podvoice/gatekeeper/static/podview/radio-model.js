@@ -1,8 +1,8 @@
 import {TARGETS} from './widget-model.js';
 // Station names are navigation choices, never stream URLs or playback authority.
 export const stations=Object.freeze([
- {id:'p3',label:'P3'},
  {id:'p1',label:'P1'},
+ {id:'p3',label:'P3'},
  {id:'p4-ostjylland',label:'P4 Østjylland'},
  {id:'p6-beat',label:'P6 Beat'},
  {id:'p8-jazz',label:'P8 Jazz'},
