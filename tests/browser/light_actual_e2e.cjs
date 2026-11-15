@@ -52,7 +52,9 @@ let server,browser;
  assert.deepEqual((await state()).writes.map(write=>write.name),['HassTurnOff','HassTurnOn']);
  assert.equal((await state()).light.state,'on');
  console.log('afterOn',await page.locator('#device-view').innerText());
- await page.locator('#light-lamps-trigger').tap();console.log('lamps',await page.locator('#device-view').innerText());
+ // Lærred »A-Lys«: a room with one or two lamps shows them at once; open »Lamper« only if folded.
+ assert.equal(await page.locator('#light-lamps-trigger').getAttribute('aria-expanded'),'true','one lamp opens by itself');
+ console.log('lamps',await page.locator('#device-view').innerText());
  const slider=page.locator('input[type=range]:visible').first();await slider.waitFor({timeout:5000});
  await update({holdIntent:true});
  await env.touchRange(page,slider,49,{thumbSize:32,beforeRelease:async()=>{
@@ -144,9 +146,10 @@ let server,browser;
  },undefined,{timeout:5000});
  assert.equal((await state()).writes.length,6,'a prior matching push cannot replace the failed post-action read');
  await page.unroute('**/view/api/home?*');
- await page.locator('input[type=radio][name=light-room][value=living-id]').locator('..').tap();
+ // Lærred »A-Lys«: no room chips; a tap on the room card chooses the room.
+ await page.locator('.light-room-select[aria-pressed="false"]').first().tap();
  const living=page.locator('.light-lamp-row[data-lamp-id="light.living_floor"]');
- await living.getByText('Tændt',{exact:true}).waitFor({state:'visible'});
+ await living.getByText(/^Tændt( · \d+ %)?$/).waitFor({state:'visible'});
  const foreignStarted=performance.now();
  await update({area:'living-id',externalLight:{state:'off'}});
  await living.getByText('Slukket',{exact:true}).waitFor({state:'visible',timeout:1500});
@@ -174,10 +177,10 @@ let server,browser;
   await page.waitForFunction(revision=>document.querySelector('pv-widget-host')?.liveHomeApplied?.revision>revision,
    previous,{timeout:1500});
  }finally{releaseScoped();}
- await living.getByText('Tændt',{exact:true}).waitFor({state:'visible',timeout:1500});
+ await living.getByText(/^Tændt( · \d+ %)?$/).waitFor({state:'visible',timeout:1500});
  assert.equal((await state()).writes.length,6,'foreign source observation is read only');
  // The real Python broker admits one action at a time per area, even for different target keys.
- await page.locator('input[type=radio][name=light-room][value=kitchen-id]').locator('..').tap();
+ await page.locator('.light-room-select[aria-pressed="false"]').first().tap();
  await page.waitForFunction(()=>{
   const host=document.querySelector('pv-widget-host');
   return host?.currentLightDevice()?.lightScope?.areaId==='kitchen-id'&&!host.lightAreaPending;

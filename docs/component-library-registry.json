@@ -2015,7 +2015,8 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/timer-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2072,7 +2073,8 @@
           "method:presentationTimer": 1,
           "method:renderTimerActions": 1,
           "method:createHeaderTimer": 1,
-          "method:renderHeaderTimer": 1
+          "method:renderHeaderTimer": 1,
+          "method:renderRecent": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -2092,7 +2094,9 @@
           "native:article:timer-panel pv-hero",
           "html:button:timer-open",
           "html:div:timer-open",
-          "native:button:header-timer"
+          "native:button:header-timer",
+          "html:div:timer-recent-list",
+          "native:button:timer-recent-choice"
         ],
         "registrations": {},
         "customTags": [
@@ -3321,7 +3325,9 @@
           "factory:div:'light-room-toolbar'",
           "factory:div:'light-room-navigation'",
           "factory:header:''",
-          "factory:section:'light-room-panel'"
+          "factory:section:'light-room-panel'",
+          "factory:button:'light-room-refresh'",
+          "factory:button:'light-room-select'"
         ],
         "registrations": {},
         "customTags": [],

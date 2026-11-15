@@ -1,5 +1,5 @@
 import {applyKitComponent,applyKitTemplate} from './ui/kit.js';
-import {timersFor,timerTime,timerStateLabel,timerFinishLabel,timerProgress,timerAdjustmentBounds,adjustTimerDuration,readTimerDuration} from './timer-model.js';
+import {timersFor,timerTime,timerDurationLabel,timerStateLabel,timerFinishLabel,timerProgress,timerAdjustmentBounds,adjustTimerDuration,readTimerDuration} from './timer-model.js';
 import {TimerNotice} from './timer-notice.js';
 export function timerPresentation(timers){
  const priority=t=>t.status==='done'?0:t.status==='running'?1:t.status==='paused'?2:3;
@@ -21,7 +21,9 @@ export class TimerView {
     <div class="timer-presets" role="group" aria-label="Faste tider">${[3,5,10,15].map(n=>`<button type="button" data-minutes="${n}" aria-pressed="false">${n} min</button>`).join('')}</div>
     <div class="timer-create-footer"><button type="submit" class="timer-start"><img src="assets/icons/play-fill.svg" alt="">Start timer</button></div>
     <div id="timer-exact" hidden><div class="timer-duration"><label>Timer<input name="hours" type="number" inputmode="numeric" min="0" max="24" value="0" required></label><label>Minutter<input name="minutes" type="number" inputmode="numeric" min="0" max="59" value="5" required></label><label>Sekunder<input name="seconds" type="number" inputmode="numeric" min="0" max="59" value="0" required></label></div><p class="timer-validation" role="status" hidden>Vælg mellem 1 sekund og 24 timer.</p></div>
-   </form><section class="timer-recent" hidden><h2>Senest brugt</h2><div></div></section>`;
+   </form><section class="timer-recent" hidden><h2>Tidligere timere</h2>
+   <span class="timer-recent-note">Justér før start</span><div class="timer-recent-list" role="group"
+   aria-label="Tidligere timere"></div></section>`;
   applyKitComponent(detail.querySelector('.timer-create'),'card');for(const button of detail.querySelectorAll('.timer-presets button'))applyKitComponent(button,'chip');for(const button of detail.querySelectorAll('.timer-adjust,.timer-start'))applyKitComponent(button,'button',{variant:button.classList.contains('timer-start')?'primary':'secondary'});this.form=detail.querySelector('form');this.inputs=this.form.elements;this.duration=300;
   this.form.addEventListener('input',()=>{this.duration=readTimerDuration(this.inputs.hours.value,this.inputs.minutes.value,this.inputs.seconds.value);this.updatePicker();});
   this.form.addEventListener('submit',e=>{e.preventDefault();if(!this.connected||this.duration===null||!this.canStart)return;const before=host.state.timer,token={sessionId:host.state.sessionId,generation:host.state.generation,bootId:host.liveSnapshot?.bootId,roomId:host.liveSnapshot?.roomId,epoch:host.liveSnapshot?.timers?.epoch};this.startNavigation=host.state.focus==='timers'?token:null;host.dispatch({type:'timer-start',seconds:this.duration,name:'',now:Date.now()});if(host.live)return;const current=host.state.timer;if(current&&current!==before&&current.status==='running'&&!current.stale)this.completeStartNavigation(token);else this.startNavigation=null;});
@@ -97,10 +99,10 @@ export class TimerView {
   t=this.presentationTimer(t);
   let node=this.nodes.get(key);if(!node){
    node=document.createElement('article');node.className='timer-panel pv-hero';node.dataset.kitTone='dark';applyKitComponent(node,'hero',{identity:'neutral'});const overview=key.startsWith('overview:');
-   const instrument=`<span class="timer-instrument" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="timer-track" cx="60" cy="60" r="54"/><circle class="timer-progress" cx="60" cy="60" r="54" pathLength="100"/></svg>${overview?'<img class="timer-icon" src="assets/icons/timer.svg" alt="">':'<span class="timer-count"></span>'}</span>`,copy=`<span class="timer-copy">${overview?'<span class="timer-count"></span>':''}<strong></strong><span class="timer-state"></span></span>`;
+   const instrument=`<span class="timer-instrument" aria-hidden="true"><svg viewBox="0 0 120 120"><circle class="timer-track" cx="60" cy="60" r="54"/><circle class="timer-progress" cx="60" cy="60" r="54" pathLength="100"/></svg>${overview?'<img class="timer-icon" src="assets/icons/timer.svg" alt="">':'<span class="timer-count"></span><span class="timer-total" hidden></span>'}</span>`,copy=`<span class="timer-copy">${overview?'<span class="timer-count"></span>':''}<strong></strong><span class="timer-state"></span></span>`;
    // Read-only content precedes the same two actions. Native tab order now
    // matches the right-hand controls: cancel, then the detail chevron.
-   node.innerHTML=overview?`${instrument}${copy}<button type="button" class="timer-finish"></button><button type="button" class="timer-open"><img class="timer-chevron" src="assets/icons/chevron-right.svg" alt=""></button>`:`<div class="timer-open" role="group">${instrument}${copy}</div><div class="timer-actions" role="group" aria-label="Betjen timer"><button type="button" data-timer-action="toggle">Pause</button><button type="button" class="timer-adjust" data-timer-action="adjust" data-delta-seconds="-60" aria-label="1 minut mindre" hidden><img src="assets/icons/dash.svg" alt=""></button><button type="button" class="timer-adjust" data-timer-action="adjust" data-delta-seconds="60" aria-label="1 minut mere" hidden><img src="assets/icons/plus.svg" alt=""></button></div><button class="timer-finish"></button>`;
+   node.innerHTML=overview?`${instrument}${copy}<button type="button" class="timer-finish"></button><button type="button" class="timer-open"><img class="timer-chevron" src="assets/icons/chevron-right.svg" alt=""></button>`:`<div class="timer-open" role="group">${instrument}${copy}</div><div class="timer-actions" role="group" aria-label="Betjen timer"><button type="button" data-timer-action="toggle">Pause</button><button type="button" class="timer-adjust" data-timer-action="adjust" data-delta-seconds="60" aria-label="1 minut mere" hidden>+1 min</button><button type="button" class="timer-adjust" data-timer-action="adjust" data-delta-seconds="-60" aria-label="1 minut mindre" hidden>−1 min</button></div><button class="timer-finish"></button>`;
    if(overview)applyKitComponent(node.querySelector('.timer-open'),'button');
    for(const button of node.querySelectorAll('.timer-actions button,.timer-finish'))applyKitComponent(button,'button',{variant:button.dataset.timerAction==='toggle'?'primary':'secondary'});node.querySelector('svg')?.classList.add('pv-illu');container.append(node);this.nodes.set(key,node);
    if(overview)node.querySelector('.timer-open').addEventListener('click',()=>{this.host.dispatch({type:'show',id:'timers'});this.host.focusHeading();});
@@ -110,15 +112,24 @@ export class TimerView {
     if(this.host.live||timer.ownerBootId||timer.stale||!['running','paused'].includes(timer.status))return;this.host.dispatch({type:'timer',id:timer.id,action:timer.status==='paused'?'resume':'pause',now:Date.now()});});
    node.querySelector('.timer-finish').addEventListener('click',()=>{if(!this.canCancel||this.accessModel?.cancelBlockedIds?.includes(node.dataset.timerId))return;this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'cancel'});this.host.focusHeading();});
   }
-  const progress=timerProgress(t);if(node.hidden)node.hidden=false;if(node.dataset.timerId!==t.id)node.dataset.timerId=t.id;if(node.dataset.status!==t.status)node.dataset.status=t.status;const stale=String(t.stale===true);if(node.dataset.stale!==stale)node.dataset.stale=stale;const known=String(progress!==null);if(node.dataset.progressKnown!==known)node.dataset.progressKnown=known;const progressValue=String(progress??0);if(node.style.getPropertyValue('--progress')!==progressValue)node.style.setProperty('--progress',progressValue);const count=node.querySelector('.timer-count'),time=t.status==='done'?'Tiden er gået':timerTime(t.remaining);if(count.textContent!==time)count.textContent=time;const instrument=node.querySelector('.timer-instrument'),long=String(t.remaining>=3600);if(instrument.dataset.long!==long)instrument.dataset.long=long;
+  const progress=timerProgress(t);if(node.hidden)node.hidden=false;if(node.dataset.timerId!==t.id)node.dataset.timerId=t.id;if(node.dataset.status!==t.status)node.dataset.status=t.status;const stale=String(t.stale===true);if(node.dataset.stale!==stale)node.dataset.stale=stale;const known=String(progress!==null);if(node.dataset.progressKnown!==known)node.dataset.progressKnown=known;const progressValue=String(progress??0);if(node.style.getPropertyValue('--progress')!==progressValue)node.style.setProperty('--progress',progressValue);const detail=key.startsWith('detail:'),count=node.querySelector('.timer-count'),time=t.status==='done'?detail?'0:00':'Tiden er gået':timerTime(t.remaining);
+  // Lærred »A-Timer«: the known total under the time (»af 10:00«), only on the timer page.
+  const totalNode=node.querySelector('.timer-total'),hasTotal=Number.isInteger(t.duration)&&t.duration>0,totalText=detail&&hasTotal?`af ${timerTime(t.duration)}`:'';
+  if(totalNode){if(totalNode.textContent!==totalText)totalNode.textContent=totalText;if(totalNode.hidden!==!totalText)totalNode.hidden=!totalText;}if(count.textContent!==time)count.textContent=time;const instrument=node.querySelector('.timer-instrument'),long=String(t.remaining>=3600);if(instrument.dataset.long!==long)instrument.dataset.long=long;
   // The detail title is the product's state label (»Tæller ned«, »På pause«).
   const copyNode=node.querySelector('.timer-copy');
-  const stateLabel=key.startsWith('detail:')&&t.status!=='done'?timerStateLabel(t):'';
+  const stateLabel=detail?timerStateLabel(t):'';
   if(copyNode?.dataset&&copyNode.dataset.stateLabel!==stateLabel)copyNode.dataset.stateLabel=stateLabel;
-  const title=node.querySelector('.timer-copy strong'),name=t.status==='done'?'':'Timer';if(title.textContent!==name)title.textContent=name;const titleHidden=t.status==='done';if(title.hidden!==titleHidden)title.hidden=titleHidden;const completion=this.notice?.completions?.get(String(t.id)),completedNote=t.status==='done'&&completion?.exhausted?`${completion.played?'Timeren ringede':'Timeren blev færdig'} kl. ${new Date(completion.at).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`:'';const rawStatus=completedNote||t.displayState||(t.stale||t.status!=='running'||!Number.isFinite(t.deadline)?timerStateLabel(t):`Slutter ${new Date(t.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`),status=rawStatus===time?'':rawStatus,state=node.querySelector('.timer-state');if(state.textContent!==status)state.textContent=status;if(state.hidden!==!status)state.hidden=!status;
+  const completion=this.notice?.completions?.get(String(t.id)),completedNote=t.status==='done'&&completion?.exhausted?`${completion.played?'Timeren ringede':'Timeren blev færdig'} kl. ${new Date(completion.at).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`:'';const clock=Number.isFinite(t.deadline)?new Date(t.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.'):'';
+  const running=t.status==='running'&&!t.stale&&clock;
+  // Detail (lærred »A-Timer«/»Timer-pause«/»Timer-faerdig«): kicker, the state as title, one plain line under it.
+  const kicker=!detail?(t.status==='done'?'':'Timer'):t.stale?'Timer':t.status==='paused'?'Timer på pause':t.status==='done'&&completedNote?completedNote:hasTotal?`Timer · ${timerDurationLabel(t.duration)}`:'Timer';
+  const title=node.querySelector('.timer-copy strong');if(title.textContent!==kicker)title.textContent=kicker;if(title.hidden!==!kicker)title.hidden=!kicker;
+  const ringing=t.status==='done'&&timerFinishLabel(t)==='Stop alarm';
+  const rawStatus=detail&&!t.stale?(running?`Færdig kl. ${clock}`:t.status==='paused'?'Ringen står stille, til du fortsætter.':t.status==='done'?(ringing?'Alarmen ringer, til du stopper den.':''):timerStateLabel(t)):completedNote||t.displayState||(t.stale||!running?timerStateLabel(t):`Slutter ${clock}`),status=rawStatus===time?'':rawStatus,state=node.querySelector('.timer-state');if(state.textContent!==status)state.textContent=status;if(state.hidden!==!status)state.hidden=!status;
   const repeat=String(!!stateLabel&&status===stateLabel);
   if(copyNode?.dataset&&copyNode.dataset.stateRepeat!==repeat)copyNode.dataset.stateRepeat=repeat;
-  const open=node.querySelector('.timer-open'),openLabel=['Timer',time,status,key.startsWith('overview:')?'Åbn timerdetaljer':''].filter(Boolean).join(' · ');if(open.getAttribute('aria-label')!==openLabel)open.setAttribute('aria-label',openLabel);
+  const open=node.querySelector('.timer-open'),openLabel=['Timer',t.status==='done'?'Tiden er gået':time,status,key.startsWith('overview:')?'Åbn timerdetaljer':''].filter(Boolean).join(' · ');if(open.getAttribute('aria-label')!==openLabel)open.setAttribute('aria-label',openLabel);
   this.renderTimerActions(node,t);
   const finish=node.querySelector('.timer-finish'),finishLabel=timerFinishLabel(t),finishAria=`${finishLabel} timer`;if(finish.textContent!==finishLabel)finish.textContent=finishLabel;if(finish.getAttribute('aria-label')!==finishAria)finish.setAttribute('aria-label',finishAria);return node;
  }
@@ -156,13 +167,33 @@ export class TimerView {
   const running=this.detail.querySelector('.timer-running'),runningTitle=running.querySelector?.('h2'),runningLabel=current?.stale?'Senest kendte timer':current?.status==='done'?'Afsluttet timer':current?.status==='paused'?'Timer på pause':'Aktuel timer';if(runningTitle&&runningTitle.textContent!==runningLabel)runningTitle.textContent=runningLabel;if(running.hidden!==!current)running.hidden=!current;const detailHidden=s.focus!=='timers';if(this.detail.hidden!==detailHidden)this.detail.hidden=detailHidden;this.renderAccess(this.host.live?(this.accessModel||{connected:false,canStart:false,canCancel:false}):{connected:s.connected});
   this.renderHeaderTimer?.(s);
   const demoStart=document.getElementById('start-timer');if(demoStart&&demoStart.disabled!==!this.canStart)demoStart.disabled=!this.canStart;
-  const history=(Array.isArray(s.timerHistory)?s.timerHistory:[]).filter(item=>item&&Number.isInteger(item.seconds)&&item.seconds>=1&&item.seconds<=86400),signature=JSON.stringify(history);if(signature!==this.history){
-   this.history=signature;const section=this.detail.querySelector('.timer-recent'),recent=section.querySelector('div');
-   if(!this.recentChoices){this.recentChoices=document.createElement('pv-choice-list');this.recentChoices.dataset.reuse='true';this.recentChoices.setAttribute('aria-label','Vælg tidligere timer');this.recentChoices.addEventListener('pv-action',event=>{event.stopPropagation();const item=this.recentRecipes.get(event.detail.option_id);if(event.detail.action_id!=='choose'||!item)return;this.fill(item);this.form.scrollIntoView({block:'nearest',behavior:'instant'});const target=this.form.querySelector('.timer-start');if(!target.disabled)target.focus({preventScroll:true});else this.form.querySelector('h2')?.focus({preventScroll:true});});recent.append(this.recentChoices);}
-   this.recentRecipes=new Map();for(const item of history){const key=JSON.stringify(item.seconds);if(!this.recentRecipes.has(key))this.recentRecipes.set(key,item);if(this.recentRecipes.size===3)break;}
-   this.recentChoiceModel={state:'ready',quietStatus:true,selected:null,items:[...this.recentRecipes].map(([id,item])=>({id,label:`Brug ${timerTime(item.seconds)} igen`,detail:'Justér før start'}))};this.recentChoices.data=this.recentChoiceModel;
+  this.renderRecent(s,current);
+ }
+ // Lærred »A-Timer« »Tidligere timere«: only the product's own timer history, newest first, five unique durations.
+ // A tap fills the new-timer draft (»Justér før start«); while a timer runs the history waits. No history: no card.
+ renderRecent(s,current){
+  const history=(Array.isArray(s.timerHistory)?s.timerHistory:[]).filter(item=>item&&Number.isInteger(item.seconds)
+   &&item.seconds>=1&&item.seconds<=86400),section=this.detail.querySelector('.timer-recent');
+  const unique=[];for(const item of history){if(!unique.some(row=>row.seconds===item.seconds))unique.push(item);
+   if(unique.length===5)break;}
+  const signature=JSON.stringify(unique.map(item=>item.seconds));
+  if(signature!==this.history){
+   this.history=signature;const list=section.querySelector('.timer-recent-list');this.recentItems=new Map();
+   const buttons=unique.map((item,index)=>{const button=document.createElement('button');button.type='button';
+    button.className='timer-recent-choice';button.dataset.recentSeconds=String(item.seconds);
+    const time=document.createElement('span'),label=document.createElement('span');time.className='timer-recent-time';
+    label.className='timer-recent-label';time.textContent=timerTime(item.seconds);
+    label.textContent=index===0?'Seneste':'Tidligere';button.append(time,label);
+    button.setAttribute('aria-label',`${timerTime(item.seconds)}, ${label.textContent}. Justér før start`);
+    button.addEventListener('click',()=>{if(button.disabled)return;this.fill({seconds:item.seconds});
+     this.form.scrollIntoView?.({block:'nearest',behavior:'instant'});const target=this.form.querySelector('.timer-start');
+     if(!target.disabled)target.focus({preventScroll:true});else this.form.querySelector('h2')?.focus({preventScroll:true});});
+    this.recentItems.set(item.seconds,button);return button;});
+   list.replaceChildren(...buttons);
   }
-  const recent=this.detail.querySelector('.timer-recent'),recentHidden=!!current||!history.length;if(recent.hidden!==recentHidden)recent.hidden=recentHidden;
+  const waiting=!!current||!this.connected;for(const button of this.recentItems?.values()||[])
+   if(button.disabled!==waiting)button.disabled=waiting;
+  const hidden=!unique.length;if(section.hidden!==hidden)section.hidden=hidden;
  }
  renderOverviewActivities(s){
   // The top overview slot belongs only to Timer. Other resources keep their fixed cards.
