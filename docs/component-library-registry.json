@@ -110,7 +110,9 @@
         "html:div:screen-device-network",
         "html:section:screen-device-brightness",
         "html:div:screen-device-dimming",
-        "html:button:move-here"
+        "html:button:move-here",
+        "html:aside:svar-today",
+        "html:div:svar-today-rows"
       ],
       "customTags": [
         "pv-activity-timeline",
@@ -2816,7 +2818,8 @@
         "dist/live-radio-view.js",
         "dist/owner-answers.js",
         "dist/recipe-view.js",
-        "dist/ui/lite.js"
+        "dist/ui/lite.js",
+        "dist/svar-today-view.js"
       ],
       "surface": {
         "customElementAccesses": 1,
@@ -2915,7 +2918,8 @@
           "arrow:visible": 1,
           "method:renderSvarDevice": 1,
           "function:deferForGesture": 1,
-          "function:renderRecipeStepBar": 1
+          "function:renderRecipeStepBar": 1,
+          "method:renderSvarToday": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3558,6 +3562,32 @@
         "dom": false
       },
       "compositionScope": "Room player taps: one direct media_player call per tap through PodVoice, optimistic presentation through the existing PlayerView controls (renderPlayerControls), queued behind a running call, never replayed. No new renderer, component family or authority."
+    },
+    "dist/svar-today-view.js": {
+      "status": "approved-renderer",
+      "domOwner": "SvarTodayView",
+      "compositionScope": "L\u00e6rred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority.",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/answer-widget.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:sameDay": 1,
+          "class:SvarTodayView": 1,
+          "function:svarTodayRows": 1,
+          "method:constructor": 1,
+          "method:render": 1
+        },
+        "roots": [
+          "native:button:svar-today-row"
+        ],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      }
     }
   },
   "sharedContracts": [

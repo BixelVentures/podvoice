@@ -70,6 +70,28 @@ const card=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComput
  assert.deepEqual(control.size,[52,52]);assert.equal(control.radius,'50%');assert.equal(control.bg,'rgb(23, 23, 26)');
  assert.equal(control.label,'Sæt musik på pause','music control pauses');
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-fotoro-aktiv-1180x820.png')});
+ // Every slot state keeps one 48-px chip, the two text lines and the round button: music on another device
+ // (»Flyt hertil«) or a radio live mark never adds a cell; a control that cannot act stays the dark disc, dimmed.
+ const cells=await page.evaluate(()=>{const p=document.querySelector('aside.player');
+  document.getElementById('move-here').hidden=false;document.getElementById('radio-live').hidden=false;
+  const play=document.getElementById('play-pause');play.disabled=true;
+  const shown=[...p.querySelectorAll('*')].filter(n=>{const b=n.getBoundingClientRect();
+   return b.width>0&&b.height>0&&getComputedStyle(n).visibility!=='hidden'&&n.parentElement===p;}).map(n=>n.id||n.className);
+  const s=getComputedStyle(play);const out={shown,bg:s.backgroundColor,opacity:Number(s.opacity)};play.disabled=false;
+  return out;});
+ assert.deepEqual(cells.shown.sort(),['player-detail','track','transport'],`rest music card cells: ${cells.shown}`);
+ assert.equal(cells.bg,'rgb(23, 23, 26)','a control that cannot act keeps the dark disc');
+ assert(cells.opacity<1&&cells.opacity>=.3,`and is dimmed (${cells.opacity})`);
+ await page.evaluate(()=>{document.getElementById('move-here').hidden=true;
+  document.getElementById('radio-live').hidden=true;});
+ // The button is the player's own control: a tap pauses (then plays) and stays on Foto-Ro.
+ await page.locator('#play-pause').tap();
+ await page.waitForFunction(()=>document.getElementById('play-pause').getAttribute('aria-label')!=='Sæt musik på pause',
+  null,{timeout:3000});
+ assert.equal(await host.getAttribute('data-view'),'rest','the control does not open the overview');
+ await page.locator('#play-pause').tap();
+ await page.waitForFunction(()=>document.getElementById('play-pause').getAttribute('aria-label')==='Sæt musik på pause',
+  null,{timeout:3000});
  // Tap anywhere: a circle at the finger, then the overview.
  await page.evaluate(()=>{const photo=document.getElementById('photo-view');window.circleAt=null;
   new MutationObserver(()=>{if(photo.dataset.pvCircle==='down')

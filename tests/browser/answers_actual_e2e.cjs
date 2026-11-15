@@ -76,11 +76,11 @@ let server,browser,data;
   const svar=page.locator('#open-history');
   assert.equal(await svar.getAttribute('data-unread'),null);
   await svar.tap();
-  const rows=page.locator('#retained .history-open:visible');
+  const rows=page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible');
   await rows.first().waitFor({state:'visible',timeout:10000});
   assert.equal(await rows.count(),1,'the follow-up is a section, not a separate history card');
   assert.match(await rows.first().textContent(),/FC Barcelona mod Sevilla/);
-  await rows.first().tap();
+  if(await rows.first().getAttribute('aria-current')!=='true')await rows.first().tap();
   await answerHost.getByText(followup,{exact:true}).waitFor({state:'visible'});
   await answerHost.locator('.pv-sport-result:visible').getByText('3–1',{exact:true}).waitFor({state:'visible'});
   await page.screenshot({path:path.join(env.artifactDir(),'svar-ipad-history.png')});
@@ -114,7 +114,10 @@ let server,browser,data;
   await page.reload({waitUntil:'domcontentloaded'});
   await env.openOverview(page);
   await page.locator('#open-history').tap();
-  await page.locator('#retained .history-open:visible').getByText('En forklaring',{exact:true}).tap({timeout:5000});
+  // Svar opens the Svar page on the newest answer when history is known, else »Tidligere svar«; the row is the same.
+  const row=page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').filter({hasText:'En forklaring'}).first();
+  await row.waitFor({state:'visible',timeout:5000});
+  if(await row.getAttribute('aria-current')!=='true')await row.tap();
   await answerHost.getByText(step,{exact:true}).waitFor({state:'visible'});
   assert.equal(await answerHost.getAttribute('data-history-group'),'true');
   assert.equal(await answerHost.locator('pv-answer:visible details.sources').isVisible(),false);
@@ -178,8 +181,8 @@ let server,browser,data;
 
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
- await page.locator('#open-history').tap();await page.locator('#retained .history-open:visible').first().waitFor();
- assert.equal(await page.locator('#retained .history-open:visible').count(),1);
+ await page.locator('#open-history').tap();await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').first().waitFor();
+ assert.equal(await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').count(),1);
  assert.equal((await state()).timers[0].id,timer.id);assert.equal((await state()).starts,1);
  assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,1,'only explicit timer start writes');assert.deepEqual(errors,[]);
  // A new current owner receipt uses the existing user-facing source disclosure.

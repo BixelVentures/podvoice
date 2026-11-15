@@ -1,6 +1,7 @@
 import {requestIngressAdmin} from './ingress-kiosk.js';
 import {LiveRadioView} from './live-radio-view.js';
 import {groupAnswerHistory,answerThread} from './owner-answers.js';
+import {SvarTodayView,svarTodayRows} from './svar-today-view.js';
 import {LightLampView} from './light-lamp-view.js';
 import {LightRoomView} from './light-room-view.js';
 import {syncKitButtonContent,applyKitTextRole,applyKitComponent,applyKitTemplate,applyKitDialog,createKitDisclosure,createKitSliderField} from './ui/kit.js';
@@ -253,7 +254,14 @@ class WidgetHost extends HTMLElement {
  $('player-back').addEventListener('click',()=>{this.dispatch({type:'back'});const opener=this.openers.get('music-detail');if(opener?.getClientRects().length)opener.focus({preventScroll:true});else this.focusHeading();});
  $('detail-volume').addEventListener('input',e=>{if(!this.live)this.music({type:'volume',value:e.target.value});});$('detail-output').addEventListener('click',()=>this.open('rooms',$('detail-output')));$('move-here')?.addEventListener('click',()=>this.open('rooms',$('move-here')));$('track').addEventListener('click',()=>this.open('music-detail',$('track')));
 
- $('open-history').addEventListener('click',()=>{if($('history').open)$('history').close();else this.open('history',$('open-history'));});
+ $('open-history').addEventListener('click',()=>{if($('history').open){$('history').close();return;}
+  // Svar opens the Svar page on the newest answer; with nothing saved it opens »Tidligere svar« (empty state).
+  const newest=this.dataset.svarPage!=='true'&&this.svarTodayRows?.[0];
+  if(newest&&!newest.live){this.historyOpenedFocus=this.state.focus;
+   this.retainedNodes.get(newest.id)?.querySelector('.history-open')?.click();return;}
+  this.open('history',$('open-history'));});
+ this.svarToday=new SvarTodayView($('svar-today'),id=>{this.historyOpenedFocus=this.historyBrowse?.origin??this.state.focus;
+  this.retainedNodes.get(id)?.querySelector('.history-open')?.click();});
  $('output').addEventListener('click',()=>this.open('rooms',$('output')));$('open-demo').addEventListener('click',()=>this.open('demo',$('open-demo')));$('player-detail').addEventListener('click',()=>this.open('music-detail',$('player-detail')));this.querySelector('.player').addEventListener('click',e=>{if(!e.target.closest('button,input,label'))this.open('music-detail',$('player-detail'));});
  for(const id of ['rooms','demo','conflict','quick-sheet','customize-sheet','history']){$(id).addEventListener('close',()=>{if($(id).dataset?.presentationClose==='true'){delete $(id).dataset.presentationClose;if(id==='history'){for(const [node,inert] of this.historySiblings||[])node.inert=inert;this.historySiblings=null;$('open-history').setAttribute('aria-expanded','false');}return;}if(id==='history'){for(const [node,inert] of this.historySiblings||[])if(node.inert!==inert)node.inert=inert;this.historySiblings=null;const responses=$('history').parentElement;if(responses.scrollTop!==this.historyScrollTop)responses.scrollTop=this.historyScrollTop||0;$('open-history').setAttribute('aria-expanded','false');this.renderTopbar?.();if(!this.sceneNavigation){this.historyBrowse=null;this.journey?.cancel();this.dispatch({type:'show',id:'now'});this.focusHeading();return;}}if(['demo','history'].includes(id)&&this.sceneNavigation){this.sceneNavigation=false;this.focusHeading();return;}if(id==='conflict'&&this.state.conflict)this.dispatch({type:'conflict',choice:'continue'});this.openers.get(id)?.focus();});}
  for(const b of document.querySelectorAll('[data-close]'))b.addEventListener('click',()=>$(b.dataset.close).close());
@@ -529,6 +537,13 @@ class WidgetHost extends HTMLElement {
    this.connectingGraceExpired=true;t.onConnection?.('connecting');
   },2000);
   return true;
+ }
+ // Svar page (lærred »A-SvarKort«): the answer card on the left, »I dag« in the player column.
+ renderSvarToday(s){
+  const svarPage=!$('history').open&&s.answers.some(a=>a.id===s.focus&&!a.hidden);
+  this.svarTodayRows=svarTodayRows(groupAnswerHistory(s.answers,this.liveAnswers),s.answers,s.focus);
+  if(this.dataset.svarPage!==String(svarPage))this.dataset.svarPage=String(svarPage);
+  this.svarToday?.render(this.svarTodayRows,svarPage);
  }
  customize(id){this.customized=id==='device'?this.state.focus:id;$('hide-widget').disabled=this.customized==='now';$('pin-widget').setAttribute('aria-pressed',String(this.pins.has(this.customized)));$('pin-widget').textContent=this.pins.has(this.customized)?'Frigør widget':'Fastgør widget';this.open('customize-sheet',$('quick-controls'));}
  alignClock(){const clock=$('photo-clock'),style=getComputedStyle(clock);if(!clock.offsetWidth)return;const ctx=document.createElement('canvas').getContext('2d');ctx.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;const value=`${ctx.measureText(clock.textContent).actualBoundingBoxLeft}px`;if(clock.style.getPropertyValue('--clock-optical-offset')!==value)clock.style.setProperty('--clock-optical-offset',value);}
@@ -1081,6 +1096,7 @@ class WidgetHost extends HTMLElement {
  const retainedRoot=$('retained'),ordered=groupAnswerHistory(s.answers,this.liveAnswers).map(group=>group.items.reduce((first,item)=>item.observedAt<first.observedAt?item:first));const historyGroupValue=String(!!this.historyBrowse),answerHost=$('answer-host');if(answerHost.dataset.historyGroup!==historyGroupValue)answerHost.dataset.historyGroup=historyGroupValue;
  for(const answer of s.answers){const retained=this.retainedNodes.get(answer.id);if(retained)retained.hidden=!ordered.some(row=>row.id===answer.id);}
  for(const [index,answer]of ordered.entries()){const retained=this.retainedNodes.get(answer.id);retained.querySelector('.history-session-heading')?.remove();if(retainedRoot.children[index]!==retained)retainedRoot.insertBefore(retained,retainedRoot.children[index]||null);}
+ this.renderSvarToday?.(s);
  this.timerView.renderOverviewActivities(s);this.renderResourceRail();const noticeTimer=this.timerView.currentTimer,noticeSignature=JSON.stringify([s.focus,this.live,$('playback-status').hidden===false,timersFor(s).map(timer=>[timer.id,timer.name,timer.status,timer.stale,timer.noticeDismissed])]);if(this.timerNoticeSignature!==noticeSignature){this.timerNoticeSignature=noticeSignature;this.timerView.renderNotice(s.focus,this.live,$('playback-status').hidden===false);}this.alignOverview();const historyAnswers=ordered,historyPresentation=this.live?this.liveAnswers?.historyPresentation?.():null;if(historyPresentation)$('history-empty').data=historyPresentation.data;const historyCount=historyAnswers.length?`${historyAnswers.length} svar`:'';if($('header-history-count').textContent!==historyCount)$('header-history-count').textContent=historyCount;for(const [id,hidden] of [['header-history-count',true],['history-empty',historyPresentation?historyPresentation.hidden:historyAnswers.length>0],['history-example-note',!historyAnswers.some(a=>a.exampleOnly)],['retained',!historyAnswers.length]])if($(id).hidden!==hidden)$(id).hidden=hidden;
  if($('restore-resources').hidden!==!!(!s.devices.some(d=>d.hidden)))$('restore-resources').hidden=!s.devices.some(d=>d.hidden);for(const b of document.querySelectorAll('[data-device-observe]'))if(b.disabled!==!!(!s.devices.some(d=>d.kind==='vacuum')))b.disabled=!s.devices.some(d=>d.kind==='vacuum');if($('demo-offline').textContent!==String(s.connected?'Afbryd forbindelsen':'Genopret forbindelsen'))$('demo-offline').textContent=s.connected?'Afbryd forbindelsen':'Genopret forbindelsen';for(const b of document.querySelectorAll('[data-scenario],[data-fault]'))if(b.disabled!==!!(!s.connected))b.disabled=!s.connected;
  this.journey?.render();this.localRobot?.render();if(this.live)this.renderLive();else {const connection=connectionPresentation({...s.connectionPreview||{status:s.connected?'connected':'disconnected',snapshot:s.connected?undefined:{}},browserOffline:this.browserOffline===true});if(!s.connectionPreview)connection.retry=false;this.renderConnectionNotice(connection);if($('home-music').disabled)$('home-music').disabled=false;if($('empty-find-music').disabled)$('empty-find-music').disabled=false;}const lightHistory=$('device-timeline').parentElement;if(light){const meaningful=light.timeline.some(item=>item.id!=='initial'&&item.id!=='light-initial');if(lightHistory.hidden!==!meaningful)lightHistory.hidden=!meaningful;}if(resourceBoxes)this.motion?.settleResources(resourceBoxes,viewChanged);if(s.conflict&&!this.presentationSuspended)this.open('conflict',$('open-demo'));this.robotMotion?.sync();this.scrollEdges?.refresh(false);this.screenLifecycle?.sync();this.renderOverviewFacts(vehicleModel);this.renderTopbar();
