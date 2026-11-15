@@ -24,6 +24,7 @@ const malformedPlaybackAnswer=new Set(['invalid_media_text','invalid_playback_st
 const $=id=>document.getElementById(id);
 // While a chosen song starts, the room is read again shortly (Green: ~2 s late otherwise).
 const SETTLEMENT_READ_MS=250,SETTLEMENT_READ_WINDOW_MS=15000,QUEUE_TROUBLE_MS=10000;
+const QUEUE_UNAVAILABLE='Køen kan ikke vises lige nu. Musikken spiller videre.';
 // A transient source read may retain the exact-bound display, never controls.
 // Explicit denials and invalid ownership clear it; unavailable is not idle.
 export class LiveMediaView{
@@ -227,16 +228,19 @@ export class LiveMediaView{
   if(this.playback&&!read.includes('playback'))this.clearRoom();
   const readable=read.includes('queue'),admitted=snapshot?.capabilities?.queueSelection===true;
   let items=[],status,empty,errorKind=null;
-  if(!readable||!roomObservationDisplay(this.playback,snapshot,this.account)||!roomObservationBound(this.playback,snapshot,this.account)){
+  // Music on another device has no queue for this room: it settles on the empty state at once (Musik-Koe).
+  const elsewhere=this.playback?.elsewhere===true;
+  if(!readable||elsewhere||!roomObservationDisplay(this.playback,snapshot,this.account)
+   ||!roomObservationBound(this.playback,snapshot,this.account)){
    // Access rules revoke at once. A briefly unconfirmed route keeps the known rows as read-only display.
    // An account-level observation is not this room's route: its queue is never shown here.
-   if(!readable||!this.playback||this.playback.accountObserved===true){
+   if(!readable||!this.playback||this.playback.accountObserved===true||elsewhere){
     if(queue.retained||queue.offer||queue.pending)queue.invalidate(true);
    }
    else if(queue.offer||queue.pending)queue.invalidate(false);
    if(queue.retained)items=upcomingQueueRows(queue.retained?.items||[],this.playback?.item).map(row=>({...row,selectable:false}));
    status=items.length?'stale':'unavailable';
-   empty=!readable?'Køen er ikke tilgængelig med den aktuelle adgang.':'';
+   empty=!readable?'Køen er ikke tilgængelig med den aktuelle adgang.':elsewhere?QUEUE_UNAVAILABLE:'';
   }else{
    const native=queue.model(this.account,this.playback);
    if(native){
@@ -251,7 +255,7 @@ export class LiveMediaView{
   // Known rows outlive a failed read as the last known queue; a read failure is not shown as an error.
   if(items.length&&status==='error'&&errorKind!=='choice'){status='stale';errorKind=null;}
   // Settled answers show at once: rows, an authoritative empty queue, a choice outcome or an access rule.
-  const settled=items.length>0||!readable||!admitted||['ready','unknown'].includes(status)||status==='error'&&errorKind==='choice'
+  const settled=items.length>0||!readable||!admitted||elsewhere||['ready','unknown'].includes(status)||status==='error'&&errorKind==='choice'
    ||status==='stale'&&queue.retained?.items?.length===0&&!queue.retained.metadataPending;
   if(settled){this.queueTroubleSince=null;clearTimeout(this.queueTroubleTimer);this.queueTroubleTimer=null;}
   else{
@@ -267,7 +271,7 @@ export class LiveMediaView{
     status='unavailable';errorKind=null;
     // Known songs that have all played, or an unresolved autoplay queue: more songs are on the way.
     empty=queue.previewPending||queue.retained?.items?.length>0?'Flere sange kommer…'
-     :'Køen kan ikke vises lige nu. Musikken spiller videre.';
+     :QUEUE_UNAVAILABLE;
    }
   }
   this.host.playerView.renderQueue(items,{status,empty,errorKind,placeholders:status==='loading'});

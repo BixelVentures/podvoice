@@ -3752,6 +3752,27 @@ body button:not(.is-pressed){transition-property:filter!important}
    color:#B4532A!important;font-weight:800!important;}
  #music-detail #queue>.queue-track[data-current=true]>.queue-cover{
    box-shadow:0 0 0 2px #F7F6F3,0 0 0 4px #B4532A;}
+ /* »Kø« with »N numre · <højttaler>« on the same line; the playing track has three accent equaliser bars. */
+ #music-detail .detail-queue{
+   position:relative;}
+ #music-detail #queue-meta{
+   position:absolute;top:0;right:0;max-width:560px;height:32px;margin:0!important;
+   font:400 15px/32px var(--pv-font)!important;color:#5F5E5A!important;white-space:nowrap;overflow:hidden;
+   text-overflow:ellipsis;}
+ #music-detail #queue>.queue-track>.queue-order>.queue-eq{
+   display:flex;gap:3px;align-items:flex-end;height:20px;}
+ #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
+   display:block;width:4px;height:5px;border-radius:2px;background:#B4532A;
+   animation:pv-queue-eq .9s ease-in-out infinite;}
+ #music-detail #queue>.queue-track>.queue-order>.queue-eq>i:nth-child(2){
+   animation-delay:.2s;}
+ #music-detail #queue>.queue-track>.queue-order>.queue-eq>i:nth-child(3){
+   animation-delay:.4s;}
+}
+@keyframes pv-queue-eq{0%,100%{height:5px}50%{height:16px}}
+@media (prefers-reduced-motion:reduce){
+ #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
+   animation:none;height:12px;}
 }
 @keyframes pv-queue-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
 @keyframes pv-music-fade{from{opacity:0}to{opacity:1}}
@@ -5087,27 +5108,27 @@ body button:not(.is-pressed){transition-property:filter!important}
   max-width:1132px!important;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){
   gap:16px!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset{margin:0;padding:0;border:0;min-width:0}
- pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset>legend{position:absolute;width:1px;height:1px;
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset{margin:0;padding:0;border:0;min-width:0}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset>legend{position:absolute;width:1px;height:1px;
   overflow:hidden;clip-path:inset(50%)}
- pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset .pv-kit-choice-options{display:inline-flex!important;
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset .pv-kit-choice-options{display:inline-flex!important;
   flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
   background:var(--pv-recipe-track)!important;overflow:visible!important;width:auto!important;max-width:100%}
- pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset label{height:44px!important;min-height:44px!important;
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset label{height:44px!important;min-height:44px!important;
   padding:0 20px!important;border-radius:999px!important;background:transparent!important;color:var(--pv-ink)!important;
   box-shadow:none!important;border:0!important;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
   display:flex!important;align-items:center;flex:none!important;white-space:nowrap}
- pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
   label:has(input:checked){background:var(--pv-ink)!important;
   background-image:none!important;color:#F7F6F3!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view>fieldset
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
   label>input{position:absolute;opacity:0;pointer-events:none}
  /* The catalog: one scroller, every recipe in a five-column grid; letter groups and the letter index fall away. */
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]{display:block!important;flex:1 1 0;
-  min-height:0;margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]{display:flex!important;
+  flex-direction:column;gap:20px;flex:1 1 0;min-height:0;margin:0!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div{display:grid!important;
   grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:auto;gap:16px!important;align-content:start;
-  height:100%;box-sizing:border-box;padding:0 0 24px!important;overflow-y:auto}
+  flex:1 1 0;min-height:0;box-sizing:border-box;padding:0 0 24px!important;overflow-y:auto}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section:not(.pv-kit-disclosure){
   display:contents!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section>h3,
@@ -5156,13 +5177,68 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span>strong{
   font:800 22px/28px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-ink)!important;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span>small:last-child{
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]>span>small:last-child:not(:first-child){
   font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-recipe-meta)!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]::after{
   content:"Fortsæt madlavning" / "";position:absolute;right:24px;top:20px;height:56px;padding:0 24px;
   border-radius:999px;background:var(--pv-ink);color:#F7F6F3;display:flex;align-items:center;
   font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]{position:relative}
+ /* The band slot over the toolbar, then one 52 toolbar: the categories on the left; »N opskrifter«,
+    »Tilføj opskrift« and »Udforsk« on the right (A-Opskrifter). */
+ pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=catalog]){
+  padding-top:16px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band]{flex:none;display:block;order:-2}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band]:empty{display:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band]>section{display:block;margin:0}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band]>section>h3{display:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band] [data-recipe]{width:100%!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]{flex:none;display:flex;order:-1;
+  justify-content:space-between;align-items:center;gap:16px;min-height:52px}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>div{display:flex;align-items:center;
+  gap:16px;flex:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] :is([data-recipe-count],
+  [data-recipe-explore-position]){font:500 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
+  white-space:nowrap}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>div>button{height:44px!important;
+  min-height:44px!important;padding:0 20px!important;border-radius:999px!important;background:#F7F6F3!important;
+  color:var(--pv-ink)!important;border:0!important;box-shadow:none!important;
+  font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;white-space:nowrap}
+ /* Udforsk (Opskrifter-Bog): a cover flow, the chosen photo 720×460 flat, the neighbours turned 55° away. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view[data-recipe-mode=explore]:not([hidden]){gap:0!important;
+  overflow:visible!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]{position:relative;flex:none;
+  height:470px;margin:12px -24px 0;perspective:1600px;touch-action:pan-y;outline:0}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{position:absolute;left:50%;top:0;
+  width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
+  border:0!important;border-radius:22px!important;overflow:hidden;background:#C9B79F!important;
+  transform-style:preserve-3d;transition:transform .6s cubic-bezier(.2,.9,.3,1),opacity .5s ease,filter .5s ease;
+  box-shadow:0 20px 40px -24px rgba(23,23,26,.5)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover][aria-current=true]{
+  box-shadow:0 40px 70px -30px rgba(23,23,26,.6)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img{display:block;width:100%;height:100%;
+  object-fit:cover}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img[data-recipe-fallback]{object-fit:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-badge]{position:absolute;left:16px;top:16px;
+  height:32px;padding:0 14px;border-radius:999px;background:#F7F6F3;color:var(--pv-ink);display:flex;
+  align-items:center;font:700 15px/1 'Schibsted Grotesk',system-ui,sans-serif}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{flex:none;margin-top:14px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:first-child{height:20px;
+  font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--pv-recipe-ink)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-title]{height:44px;max-width:900px;
+  font:800 36px/44px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:-.02em;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;color:var(--pv-ink)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:last-child{height:24px;
+  font:400 17px/24px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{flex:none;margin-top:30px;display:flex;
+  justify-content:center;align-items:center;gap:8px}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{display:block;width:8px;height:6px;
+  border-radius:3px;background:rgba(23,23,26,.22);transition:width .3s ease}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-current]{width:28px;
+  background:var(--pv-ink)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-edge]{width:5px;height:5px}
  /* A recipe: hero 1132×221 in #F2E4D3. */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro].pv-kit-hero{display:grid!important;
   grid-template-columns:160px minmax(0,1fr) auto;align-items:center;gap:22px!important;height:221px!important;

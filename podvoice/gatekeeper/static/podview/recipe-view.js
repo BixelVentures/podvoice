@@ -242,6 +242,8 @@ export class RecipeView {
  }
 
  catalog(refresh = true, {restoreScroll = !this.active} = {}) {
+  // Opskrifter-Bog: Udforsk is a mode of the catalogue; a recipe opened from it returns there.
+  if (this.catalogMode === 'explore') return this.explore();
   const entries = element('div');
   this.page('Opskrifter','',()=>{
    this.catalogScroll = entries.scrollTop;
@@ -389,13 +391,17 @@ export class RecipeView {
     if (recipe === activeRecipe) row.setAttribute('aria-current','true');
     const copy = element('span');
     const age = Date.now() - (recipe.source?.uploadedAt ?? recipe.createdAt);
-    const status = recipe === activeRecipe ? this.sessions.get(recipe).steps.size+' af '+recipe.steps.length+' trin · Fortsæt'
-     : [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ') || 'Gemt opskrift';
-    const title = recipe.publisher ? recipe.title+' af '+recipe.publisher : recipe.title;
-    if (recipe === activeRecipe) copy.append(applyKitTextRole(element('small','I gang'),'meta'));
-    copy.append(applyKitTextRole(element('strong',title),recipe === activeRecipe ? 'section-title' : 'field-label'));
-    copy.append(applyKitTextRole(element('small',
-     age >= 0 && age < 7*86400000 ? 'Ny · '+status : status),'meta'));
+    const status = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ') || 'Gemt opskrift';
+    // A-Opskrifter: the band names the current step (»Burgerboller · trin 2 af 5«); the cards show the name.
+    if (recipe === activeRecipe) {
+     const done = this.sessions.get(recipe).steps, next = recipe.steps.findIndex((_,i)=>!done.has(String(i)));
+     const step = next < 0 ? 'alle trin færdige' : 'trin '+(next+1)+' af '+recipe.steps.length;
+     copy.append(applyKitTextRole(element('small','I gang'),'meta'),
+      applyKitTextRole(element('strong',recipe.title+' · '+step),'section-title'));
+    } else {
+     copy.append(applyKitTextRole(element('strong',recipe.title),'field-label'),
+      applyKitTextRole(element('small',age >= 0 && age < 7*86400000 ? 'Ny · '+status : status),'meta'));
+    }
     row.append(copy);
     const thumb = element('img');
     thumb.decoding = 'async'; // Full-size source photos: decode off the main thread, only near view.
@@ -416,7 +422,10 @@ export class RecipeView {
     });
     groups.get(letter).append(row);
    }
-   if (groups.has('I gang')) entries.append(groups.get('I gang'));
+   // The band stands over the toolbar when the page has a slot for it (A-Opskrifter).
+   this.catalogBand?.replaceChildren();
+   if (groups.has('I gang')) (this.catalogBand || entries).append(groups.get('I gang'));
+   if (this.catalogCount) this.catalogCount.textContent = recipes.length+' opskrifter';
    alphabet.forEach((letter,i)=>{
     buttons[i].hidden = !groups.has(letter);
     if (groups.has(letter)) entries.append(groups.get(letter));
@@ -441,11 +450,30 @@ export class RecipeView {
    renderUploads();
    renderShortcut();
    // The everyday way to add a recipe; the upload-code shortcut stays as a fallback below.
-   entries.append(meta('Tilføj opskrift: Del → Home Assistant fra Safari eller Chrome på iPhone.'),
-    uploads.node,shortcutUpdate,shortcutBox.node);
+   const help = meta('Tilføj opskrift: Del → Home Assistant fra Safari eller Chrome på iPhone.');
+   help.id = 'recipe-add-help';
+   entries.append(help,uploads.node,shortcutUpdate,shortcutBox.node);
   };
   index.append(marker);
   layout.append(entries,index);
+  const band = element('aside'), toolbar = element('header'), tools = element('div');
+  band.dataset.recipeLayout = 'band';
+  toolbar.dataset.recipeLayout = 'toolbar';
+  this.catalogBand = band;
+  this.catalogCount = applyKitTextRole(element('span'),'meta');
+  this.catalogCount.dataset.recipeCount = '';
+  // »Tilføj opskrift« brings the Share → Home Assistant help and the upload history into view.
+  const add = action('Tilføj opskrift',()=>{
+   entries.querySelector('#recipe-add-help')?.scrollIntoView({block:'start',behavior:'smooth'});
+  });
+  const explore = action('Udforsk',()=>{
+   this.catalogScroll = entries.scrollTop;
+   this.catalogMode = 'explore';
+   this.explore();
+  });
+  tools.append(this.catalogCount,add,explore);
+  // The scroller stays the catalogue's first child; CSS orders the band and toolbar over it.
+  layout.append(band,toolbar);
   if (categories.length) {
    const filters = createKitChoiceGroup({
     id:'recipe-category',label:'Kategori',variant:'navigation',
@@ -458,8 +486,9 @@ export class RecipeView {
      updateIndex();
     },
    });
-   this.root.append(filters.node);
+   toolbar.append(filters.node);
   }
+  toolbar.append(tools);
   this.root.append(layout);
   render();
   updateIndex();
@@ -860,6 +889,129 @@ export class RecipeView {
   for (const file of source.files) panel.append(meta(file.name));
  }
 
+ // Opskrifter-Bog: Udforsk shows the same catalogue as a cover flow. The chosen photo stands flat (720×460);
+ // its neighbours turn 55° away. A swipe or a tap on a neighbour chooses; a tap on the chosen photo opens it.
+ explore() {
+  this.page('Opskrifter','',()=>this.back());
+  this.root.dataset.recipeMode = 'explore';
+  const active = this.saved.includes(this.active) && this.sessions.has(this.active) ? this.active : null;
+  const recipes = this.saved.filter(recipe=>recipe !== active).sort((a,b)=>collator.compare(a.title,b.title));
+  if (active) recipes.unshift(active);
+  const toolbar = element('header'), position = applyKitTextRole(element('span'),'meta');
+  toolbar.dataset.recipeLayout = 'toolbar';
+  position.dataset.recipeExplorePosition = '';
+  const modes = createKitChoiceGroup({id:'recipe-mode',label:'Visning',variant:'navigation',
+   choices:[{value:'catalog',label:'Katalog'},{value:'explore',label:'Udforsk'}],value:'explore',
+   onChange:value=>{
+    if (value !== 'catalog') return;
+    this.catalogMode = 'catalog';
+    this.catalog(false,{restoreScroll:true});
+   }});
+  toolbar.append(modes.node,position);
+  this.root.append(toolbar);
+  if (!recipes.length) {
+   this.root.append(meta(this.catalogStatus === 'unavailable'
+    ? 'Kataloget kunne ikke opdateres. Åbn Opskrifter igen for at prøve igen.' : 'Der er ingen opskrifter endnu.'));
+   return;
+  }
+  const flow = element('div'), info = element('div'), dots = element('div');
+  flow.dataset.recipeLayout = 'explore';
+  flow.setAttribute('aria-roledescription','karrusel');
+  flow.tabIndex = 0;
+  info.dataset.recipeLayout = 'explore-info';
+  dots.dataset.recipeExploreDots = '';
+  dots.setAttribute('aria-hidden','true');
+  const category = element('span'), title = element('span'), details = element('span');
+  title.dataset.recipeExploreTitle = '';
+  info.append(category,title,details);
+  info.setAttribute('aria-live','polite');
+  const covers = recipes.map(recipe=>{
+   const cover = element('button');
+   cover.type = 'button';
+   cover.dataset.recipeCover = recipe.title;
+   cover.setAttribute('aria-label',recipe.title);
+   const image = element('img');
+   image.alt = '';
+   image.decoding = 'async';
+   image.referrerPolicy = 'no-referrer';
+   image.src = recipe.image || 'assets/icons/image-square.svg';
+   if (!recipe.image) image.dataset.recipeFallback = '';
+   image.addEventListener('error',()=>{
+    image.dataset.recipeFallback = '';
+    image.src = 'assets/icons/image-square.svg';
+   },{once:true});
+   cover.append(image);
+   if (recipe === active) {
+    const done = this.sessions.get(recipe).steps, next = recipe.steps.findIndex((_,i)=>!done.has(String(i)));
+    const badge = element('span',next < 0 ? 'I gang' : 'I gang · trin '+(next+1)+' af '+recipe.steps.length);
+    badge.dataset.recipeExploreBadge = '';
+    cover.append(badge);
+   }
+   // A touch acts on the cover it went down on (3-D hit testing can name another cover for the click);
+   // the click remains for the keyboard.
+   cover.addEventListener('click',()=>{
+    if (Date.now() - (this.exploreTouchAt || 0) < 600) return;
+    activate(cover);
+   });
+   return cover;
+  });
+  flow.append(...covers);
+  this.root.append(flow,info,dots);
+  const choose = k => {
+   this.exploreIndex = Math.max(0,Math.min(recipes.length-1,k));
+   const i = this.exploreIndex, recipe = recipes[i];
+   covers.forEach((cover,k)=>{
+    const d = k - i, a = Math.abs(d), sign = Math.sign(d);
+    const x = d ? sign*(430+(a-1)*110) : 0, z = d ? -260-(a-1)*60 : 0, turn = d ? -sign*55 : 0;
+    cover.style.transform = `translateX(${x}px) translateZ(${z}px) rotateY(${turn}deg)`;
+    cover.style.opacity = a > 3 ? '0' : '1';
+    cover.style.zIndex = String(20-a);
+    cover.style.filter = d ? 'brightness(.82)' : '';
+    cover.tabIndex = d ? -1 : 0;
+    if (d) {cover.removeAttribute('aria-current'); cover.setAttribute('aria-hidden','true');}
+    else {cover.setAttribute('aria-current','true'); cover.removeAttribute('aria-hidden');}
+   });
+   category.textContent = (recipe.categories || [])[0] || '';
+   title.textContent = recipe.title;
+   details.textContent = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ');
+   position.textContent = (i+1)+' af '+recipes.length;
+   // At most seven dots in a sliding window; the dots at a cut edge are smaller.
+   const shown = 7, start = Math.max(0,Math.min(i-3,recipes.length-shown)), end = Math.min(recipes.length,start+shown);
+   dots.replaceChildren(...recipes.slice(start,end).map((_,o)=>{
+    const k = start+o, dot = element('i');
+    if (k === i) dot.dataset.current = '';
+    else if ((o === 0 && start > 0) || (o === end-start-1 && end < recipes.length)) dot.dataset.edge = '';
+    return dot;
+   }));
+  };
+  const activate = cover => {
+   const k = covers.indexOf(cover), recipe = recipes[k];
+   if (k < 0) return;
+   if (k !== this.exploreIndex) choose(k);
+   else this.recipe(this.saved.find(row=>row.source?.url === recipe.source?.url) || recipe);
+  };
+  let swipeX = null, downCover = null;
+  flow.addEventListener('pointerdown',event=>{
+   swipeX = event.clientX;
+   downCover = event.target.closest?.('[data-recipe-cover]') || null;
+  });
+  flow.addEventListener('pointerup',event=>{
+   if (swipeX === null) return;
+   const dx = event.clientX - swipeX, cover = downCover;
+   swipeX = null;
+   downCover = null;
+   this.exploreTouchAt = Date.now();
+   if (Math.abs(dx) >= 40) choose(this.exploreIndex + (dx < 0 ? 1 : -1));
+   else if (cover) activate(cover);
+  });
+  flow.addEventListener('pointercancel',()=>{swipeX = null; downCover = null;});
+  flow.addEventListener('keydown',event=>{
+   if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
+   event.preventDefault();
+   choose(this.exploreIndex + (event.key === 'ArrowRight' ? 1 : -1));
+  });
+  choose(this.exploreIndex ?? 0);
+ }
  inbox() {
   this.page('Indbakke','Lokale kilder',()=>this.catalog(),action('Tilføj kilde',()=>this.importSource(),'primary'));
   if (!this.sources.length) this.root.append(section('Ingen kilder endnu',meta('Tilføj et link eller billeder af en opskrift.')));
