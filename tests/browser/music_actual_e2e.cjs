@@ -584,12 +584,18 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
  }
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-external-output-readonly.png')});
  // "Flyt til Køkkenalrum" takes the playback over from the phone at once (move_playback).
- const moveTap=await page.locator('#output').evaluate(node=>{
+ // iPad (lærred »Player-AndenEnhed«, issue 391): one primary button at the bottom of the card says so.
+ const moveHere=page.locator('#move-here');
+ assert.equal(await moveHere.isVisible(),true,'"Flyt til <rum>" is a visible button while the music plays elsewhere');
+ assert.equal((await moveHere.innerText()).trim(),'Flyt til Køkkenalrum HomePod');
+ // Main's player state model (test 11): no in-between "Skifter til" label; the chosen room shows at once.
+ const moveTap=await moveHere.evaluate(node=>{
   const start=performance.now(),room=document.getElementById('player-room');
   node.click();
   return room.textContent==='Køkkenalrum HomePod'?performance.now()-start:null;
  });
  assert(moveTap!==null&&moveTap<100,`the chosen room shows within 100 ms: ${moveTap}`);
+ assert.notEqual(await page.locator('#player-state').innerText(),'Skifter til','no in-between label');
  assert.equal(await page.locator('#rooms').evaluate(dialog=>dialog.open),false,'no chooser opens');
  const waitForKitchen=phase=>page.waitForFunction(value=>{
   const host=document.querySelector('pv-widget-host'),p=host?.liveMedia?.playback;

@@ -1,3 +1,10 @@
+## 2.1.0
+
+- PodView er nu lavet til en iPad Air på væggen (1180×820, HA-appens kiosktilstand). Alle sider er bygget efter det nye design: overblik med faste pladser, Foto-Ro i fuld skærm med natskærm 21–7, afspilleren, én musikside uden faner, radio, vejr, robotstøvsuger, lys, Tesla, opskrifter og timer samt Svar.
+- Fælles UI-kit: samme skrifttyper, farver, knapper og widgetstørrelser overalt, synlig tryk-feedback på alt og blød kant på vandrette rækker.
+- I Foto-Ro har musik- og radiokortet en knap til pause og stop direkte i kortet.
+- Afspillerens regler fra 2.0.190–2.0.193 gælder fortsat i det nye design.
+
 ## 2.0.193
 
 - Afspilleren: Et afvist køvalg bliver ikke stående som fejltekst, og køen låses ikke. Den aktuelle højttaler er aldrig låst i vælgeren. Afspil/pause-knappen blinker ikke "arbejder" ved pause.

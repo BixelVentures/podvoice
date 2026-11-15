@@ -29,6 +29,28 @@ export class TimerView {
   for(const b of detail.querySelectorAll('[data-adjust]'))b.addEventListener('click',()=>this.fill({seconds:adjustTimerDuration(this.duration??300,Number(b.dataset.adjust))}));
   this.notice=new TimerNotice(host,document.getElementById('timer-alert'),{onElapsed:()=>{this.host.dispatch({type:'show',id:'now'});this.render(this.host.state);this.renderOverviewActivities(this.host.state);}});
   this.updatePicker();
+  this.headerTimer=this.createHeaderTimer?.()||null;
+ }
+ // Lærred »A-Topbar«: a running timer is a chip in the topbar on every page but Timer. A tap opens Timer.
+ createHeaderTimer(){
+  const context=this.host.querySelector?.('.view-nav .header-context');if(!context)return null;
+  const chip=this.host.ownerDocument.createElement('button');
+  chip.type='button';chip.id='header-timer';chip.className='header-timer';
+  chip.hidden=true;chip.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><circle class="timer-track" cx="12" '
+   +'cy="12" r="9"/><circle class="timer-progress" cx="12" cy="12" r="9" pathLength="100"/></svg><span></span>';
+  chip.addEventListener('click',()=>{this.host.dispatch({type:'show',id:'timers'});this.host.focusHeading?.();});
+  context.insertBefore(chip,context.querySelector('#header-weather')||context.firstChild);return chip;
+ }
+ renderHeaderTimer(s=this.host.state){
+  const chip=this.headerTimer;if(!chip||!s)return;
+  const current=timerPresentation(timersFor(s).filter(t=>!t.hidden)).current;
+  const shown=!!current&&['running','paused'].includes(current.status)&&!current.stale&&s.focus!=='timers';
+  if(chip.hidden!==!shown)chip.hidden=!shown;if(!shown)return;
+  const t=this.presentationTimer(current),time=timerTime(t.remaining),label=`Timer ${time}, ${timerStateLabel(t)}`;
+  const text=chip.querySelector('span');if(text.textContent!==time)text.textContent=time;
+  if(chip.getAttribute('aria-label')!==label)chip.setAttribute('aria-label',label);
+  const progress=String(timerProgress(t)??100);
+  if(chip.style.getPropertyValue('--progress')!==progress)chip.style.setProperty('--progress',progress);
  }
  completeStartNavigation(token,timerId){
   if(!token||this.startNavigation!==token)return;this.startNavigation=null;
@@ -58,7 +80,16 @@ export class TimerView {
   const elapsed=Math.max(0,now-anchor.at);anchor.displayed=Math.max(0,Math.ceil(anchor.sourceRemaining-elapsed/1000));
   if(anchor.displayed>0&&!this.presentationTick){
    const delay=Math.max(1,Math.ceil(1000-elapsed%1000));
-   this.presentationTick=setTimeout(()=>{this.presentationTick=null;if(host.isConnected===false){this.presentationAnchor=null;return;}const current=timerPresentation(timersFor(host.state||{})).current;if(!current){this.presentationAnchor=null;return;}for(const slot of ['overview','detail']){const card=this.nodes.get(`${slot}:${current.id}`);if(card&&!card.hidden)this.card(current,card.parentNode,`${slot}:${current.id}`);}host.renderResourceRail?.();},delay);
+   this.presentationTick=setTimeout(()=>{
+    this.presentationTick=null;if(host.isConnected===false){this.presentationAnchor=null;return;}
+    const current=timerPresentation(timersFor(host.state||{})).current;
+    if(!current){this.presentationAnchor=null;return;}
+    for(const slot of ['overview','detail']){
+     const card=this.nodes.get(`${slot}:${current.id}`);
+     if(card&&!card.hidden)this.card(current,card.parentNode,`${slot}:${current.id}`);
+    }
+    this.renderHeaderTimer?.();host.renderResourceRail?.();
+   },delay);
   }else if(anchor.displayed===0)stop();
   return anchor.displayed===t.remaining?t:{...t,remaining:anchor.displayed};
  }
@@ -80,7 +111,13 @@ export class TimerView {
    node.querySelector('.timer-finish').addEventListener('click',()=>{if(!this.canCancel||this.accessModel?.cancelBlockedIds?.includes(node.dataset.timerId))return;this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'cancel'});this.host.focusHeading();});
   }
   const progress=timerProgress(t);if(node.hidden)node.hidden=false;if(node.dataset.timerId!==t.id)node.dataset.timerId=t.id;if(node.dataset.status!==t.status)node.dataset.status=t.status;const stale=String(t.stale===true);if(node.dataset.stale!==stale)node.dataset.stale=stale;const known=String(progress!==null);if(node.dataset.progressKnown!==known)node.dataset.progressKnown=known;const progressValue=String(progress??0);if(node.style.getPropertyValue('--progress')!==progressValue)node.style.setProperty('--progress',progressValue);const count=node.querySelector('.timer-count'),time=t.status==='done'?'Tiden er gået':timerTime(t.remaining);if(count.textContent!==time)count.textContent=time;const instrument=node.querySelector('.timer-instrument'),long=String(t.remaining>=3600);if(instrument.dataset.long!==long)instrument.dataset.long=long;
+  // The detail title is the product's state label (»Tæller ned«, »På pause«).
+  const copyNode=node.querySelector('.timer-copy');
+  const stateLabel=key.startsWith('detail:')&&t.status!=='done'?timerStateLabel(t):'';
+  if(copyNode?.dataset&&copyNode.dataset.stateLabel!==stateLabel)copyNode.dataset.stateLabel=stateLabel;
   const title=node.querySelector('.timer-copy strong'),name=t.status==='done'?'':'Timer';if(title.textContent!==name)title.textContent=name;const titleHidden=t.status==='done';if(title.hidden!==titleHidden)title.hidden=titleHidden;const completion=this.notice?.completions?.get(String(t.id)),completedNote=t.status==='done'&&completion?.exhausted?`${completion.played?'Timeren ringede':'Timeren blev færdig'} kl. ${new Date(completion.at).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`:'';const rawStatus=completedNote||t.displayState||(t.stale||t.status!=='running'||!Number.isFinite(t.deadline)?timerStateLabel(t):`Slutter ${new Date(t.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`),status=rawStatus===time?'':rawStatus,state=node.querySelector('.timer-state');if(state.textContent!==status)state.textContent=status;if(state.hidden!==!status)state.hidden=!status;
+  const repeat=String(!!stateLabel&&status===stateLabel);
+  if(copyNode?.dataset&&copyNode.dataset.stateRepeat!==repeat)copyNode.dataset.stateRepeat=repeat;
   const open=node.querySelector('.timer-open'),openLabel=['Timer',time,status,key.startsWith('overview:')?'Åbn timerdetaljer':''].filter(Boolean).join(' · ');if(open.getAttribute('aria-label')!==openLabel)open.setAttribute('aria-label',openLabel);
   this.renderTimerActions(node,t);
   const finish=node.querySelector('.timer-finish'),finishLabel=timerFinishLabel(t),finishAria=`${finishLabel} timer`;if(finish.textContent!==finishLabel)finish.textContent=finishLabel;if(finish.getAttribute('aria-label')!==finishAria)finish.setAttribute('aria-label',finishAria);return node;
@@ -117,6 +154,7 @@ export class TimerView {
   const current=projection.current;this.currentTimer=current;if(!current){clearTimeout(this.presentationTick);this.presentationTick=null;this.presentationAnchor=null;}if(current){const node=this.card(current,this.overviewList,`overview:${current.id}`);if(this.overviewList.children[0]!==node)this.overviewList.insertBefore(node,this.overviewList.children[0]||null);}
   const list=this.detail.querySelector('.timer-active-list');if(current){const node=this.card(current,list,`detail:${current.id}`);if(list.children[0]!==node)list.insertBefore(node,list.children[0]||null);}
   const running=this.detail.querySelector('.timer-running'),runningTitle=running.querySelector?.('h2'),runningLabel=current?.stale?'Senest kendte timer':current?.status==='done'?'Afsluttet timer':current?.status==='paused'?'Timer på pause':'Aktuel timer';if(runningTitle&&runningTitle.textContent!==runningLabel)runningTitle.textContent=runningLabel;if(running.hidden!==!current)running.hidden=!current;const detailHidden=s.focus!=='timers';if(this.detail.hidden!==detailHidden)this.detail.hidden=detailHidden;this.renderAccess(this.host.live?(this.accessModel||{connected:false,canStart:false,canCancel:false}):{connected:s.connected});
+  this.renderHeaderTimer?.(s);
   const demoStart=document.getElementById('start-timer');if(demoStart&&demoStart.disabled!==!this.canStart)demoStart.disabled=!this.canStart;
   const history=(Array.isArray(s.timerHistory)?s.timerHistory:[]).filter(item=>item&&Number.isInteger(item.seconds)&&item.seconds>=1&&item.seconds<=86400),signature=JSON.stringify(history);if(signature!==this.history){
    this.history=signature;const section=this.detail.querySelector('.timer-recent'),recent=section.querySelector('div');

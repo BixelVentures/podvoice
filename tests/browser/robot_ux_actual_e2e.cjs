@@ -147,7 +147,7 @@ let browser;
         'S4 detail resume after ten minutes');
       await waitForRobot('cleaning');
       const panel = page.locator('pv-robot-control-panel');
-      await panel.getByRole('button', {name: 'Base', exact: true}).tap();
+      await panel.getByRole('button', {name: 'Mere', exact: true}).tap();
       await panel.getByRole('button', {name: 'Kør til basen', exact: true}).tap();
       const confirm = panel.locator('dialog.robot-action-confirm');
       await confirm.getByRole('button', {name: 'Kør til basen', exact: true}).tap();

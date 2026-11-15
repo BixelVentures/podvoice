@@ -58,7 +58,7 @@ export class ScreenLifecycle{
   if(!this.attached||!this.host.isConnected)return;this.syncDetail();this.syncIdle();this.syncWakeLock();const now=this.clock.now?.()??Date.now(),{day,hour}=screenClock(new Date(now)),host=this.host,rest=host.state?.focus==='photo';
   // Write the root only on change: any write here (even the same value) restyles the whole page,
   // ~0.1 s per tap on a Frameo frame, because these attributes and variables reach every element.
-  const night=String((host.previewStage==='night'||hour>=22||hour<6)&&now>=this.nightWakeUntil);
+  const night=String((host.previewStage==='night'||hour>=21||hour<7)&&now>=this.nightWakeUntil);
   const nightSource=host.previewStage==='night'?'local-preview':'clock-schedule';
   if(host.dataset.night!==night)host.dataset.night=night;
   if(host.dataset.nightSource!==nightSource)host.dataset.nightSource=nightSource;

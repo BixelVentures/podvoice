@@ -237,15 +237,17 @@ async function readAndResumeBurgerboller(page){
  assert.match(await row.innerText(),/I gang\s+Burgerboller af Meyers\s+1 af 5 trin · Fortsæt/);
  const activeGeometry=await row.evaluate(el=>{
   const css=getComputedStyle(el),color=document.createElement('canvas').getContext('2d');
-  color.fillStyle=css.getPropertyValue('--pv-dark').trim();
-  const dark=color.fillStyle;
+  // Changed (issue 398, lærred »A-Opskrifter«): the active recipe is a 96-high band in the recipe tone #F2E4D3
+  // with a 56 photo, no longer the dark ListRow.
+  color.fillStyle=css.getPropertyValue('--pv-recipe').trim();
+  const tone=color.fillStyle;
   color.fillStyle=css.backgroundColor;
   const photo=el.querySelector('img').getBoundingClientRect();
-  return {dark:color.fillStyle===dark,rowHeight:el.getBoundingClientRect().height,photoWidth:photo.width,
+  return {recipe:color.fillStyle===tone,rowHeight:el.getBoundingClientRect().height,photoWidth:photo.width,
    photoHeight:photo.height};
  });
- assert.equal(activeGeometry.dark,true,'active row uses the canonical dark ListRow color');
- if(shot==='1280x800')assert.deepEqual(activeGeometry,{dark:true,rowHeight:128,photoWidth:96,photoHeight:96});
+ assert.equal(activeGeometry.recipe,true,'active row uses the recipe tone');
+ if(shot==='1280x800')assert.deepEqual(activeGeometry,{recipe:true,rowHeight:96,photoWidth:56,photoHeight:56});
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-burgerboller-active.png`)});
  await row.tap();
  assert.equal(await steps.nth(1).getAttribute('aria-current'),'step');
@@ -254,7 +256,7 @@ async function readAndResumeBurgerboller(page){
  await back.tap();
  await catalog.waitFor({state:'visible'});
  await back.tap();
- await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ await widget.locator('.pv-step-bar:not([hidden])').waitFor({state:'visible'});
  assert.match(await widget.innerText(),/Burgerboller/);
  assert.deepEqual(await widgetStyle(widget),homeBaseline,'widget keeps its own style during cooking');
  await widget.tap();
@@ -281,7 +283,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  await catalog.waitFor({state:'visible'});
  assert.equal(await recipeRow.getAttribute('aria-current'),'true');
  await back.tap();
- await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ await widget.locator('.pv-step-bar:not([hidden])').waitFor({state:'visible'});
  await page.locator('#open-timers').tap();
  await page.getByRole('form',{name:'Ny timer'}).getByRole('button',{name:'Start timer'}).tap();
  const activeTimer=page.locator('#now-view .timer-active-list .timer-finish');
@@ -344,7 +346,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  assert.equal(catalogueBefore.substitute,false);
  await back.tap();
  await widget.getByText('Se katalog',{exact:true}).waitFor({state:'visible'});
- assert.equal(await widget.getByText('I gang',{exact:true}).count(),0);
+ assert.equal(await widget.locator('.pv-step-bar:not([hidden])').count(),0);
  assert.equal(await widget.locator('.resource-value').isVisible(),false);
  await activeTimer.waitFor({state:'visible'});
  assert.deepEqual(await timerState(),started,'recipe finish leaves the same running timer with its owner');
@@ -499,7 +501,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  const widget=page.locator('#home-recipes');
- await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ await widget.locator('.pv-step-bar:not([hidden])').waitFor({state:'visible'});
  assert.match(await widget.innerText(),/Nem chokoladekage i bradepande/);
  assert.notEqual(await widget.getAttribute('data-kit-variant'),'resume');
  assert.deepEqual(await widgetStyle(widget),homeBaseline,'active Home widget retains its approved visual styling');
@@ -515,7 +517,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  assert.equal(await page.evaluate(()=>document.querySelector('#recipe-view').contains(document.activeElement)),false);
  assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host')?.state?.focus),'photo');
  await testEnv.openOverview(page);
- await widget.getByText('I gang',{exact:true}).waitFor({state:'visible'});
+ await widget.locator('.pv-step-bar:not([hidden])').waitFor({state:'visible'});
  await sleep(1000);
  assert.equal(reads.length,1,'home hydration performs one catalogue read and no hidden polling');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-restored-home.png`)});
@@ -580,7 +582,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  assert.equal(await page.locator('#recipe-view [data-recipe][aria-current=true]').count(),0);
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
- assert.equal(await widget.getByText('I gang',{exact:true}).count(),0);
+ assert.equal(await widget.locator('.pv-step-bar:not([hidden])').count(),0);
  assert.equal(await widget.locator('.resource-value').isVisible(),false);
  await widget.tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});

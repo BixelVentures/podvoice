@@ -107,7 +107,8 @@
         "html:div:screen-device-label",
         "html:div:screen-device-network",
         "html:section:screen-device-brightness",
-        "html:div:screen-device-dimming"
+        "html:div:screen-device-dimming",
+        "html:button:move-here"
       ],
       "customTags": [
         "pv-activity-timeline",
@@ -1363,6 +1364,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:discoveryPeriodLabel": 1,
           "arrow:finish": 2,
           "arrow:make": 1,
           "arrow:ready": 1,
@@ -1378,7 +1380,8 @@
           "method:captureContent": 1,
           "method:create": 1,
           "method:fadeLoadingContent": 1,
-          "method:layoutRow": 1
+          "method:layoutRow": 1,
+          "arrow:discoverySectionLabel": 1
         },
         "roots": [],
         "registrations": {},
@@ -1706,9 +1709,15 @@
         "definitions": {
           "class:RadioView": 1,
           "method:build": 1,
-          "method:destroy": 1
+          "method:destroy": 1,
+          "arrow:stationPosition": 1,
+          "arrow:element": 1
         },
         "roots": [
+          "native:div:radio-hero-top",
+          "native:div:radio-scale",
+          "native:div:radio-scale-ticks",
+          "native:div:radio-stations-head",
           "native:header:response-heading pv-topbar"
         ],
         "registrations": {},
@@ -1796,7 +1805,11 @@
           "method:syncDirectTransport": 1,
           "arrow:foreignRobotPending": 1,
           "arrow:directConfirmationCurrent": 1,
-          "arrow:ownRobotPending": 1
+          "arrow:ownRobotPending": 1,
+          "arrow:set": 1,
+          "method:buildStickyLine": 1,
+          "method:stickyPrimaryTarget": 1,
+          "method:syncStickyLine": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1848,7 +1861,10 @@
           "factory:section:'robot-settings-zone'",
           "factory:section:'robot-current-rooms'",
           "factory:ul:'choices pv-tiles robot-current-room-list'",
-          "factory:div:'robot-type-options'"
+          "factory:div:'robot-type-options'",
+          "factory:div:'robot-sticky'",
+          "factory:span:'robot-sticky-more'",
+          "factory:span:'robot-sticky-primary'"
         ],
         "registrations": {
           "'pv-robot-control-panel'": 1
@@ -2032,7 +2048,9 @@
           "method:completeStartNavigation": 1,
           "arrow:stop": 1,
           "method:presentationTimer": 1,
-          "method:renderTimerActions": 1
+          "method:renderTimerActions": 1,
+          "method:createHeaderTimer": 1,
+          "method:renderHeaderTimer": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -2051,7 +2069,8 @@
           "html:section:timer-running pv-detail-zone",
           "native:article:timer-panel pv-hero",
           "html:button:timer-open",
-          "html:div:timer-open"
+          "html:div:timer-open",
+          "native:button:header-timer"
         ],
         "registrations": {},
         "customTags": [
@@ -2460,7 +2479,9 @@
           "method:renderLiveVehicleFeedback": 1,
           "method:vehicleActionBlocked": 1,
           "method:liveVehicleObservedSince": 1,
-          "arrow:vehicleFieldValue": 1
+          "arrow:vehicleFieldValue": 1,
+          "method:renderAccessTiles": 1,
+          "method:renderControlStates": 1
         },
         "roots": [
           "factory:button:'text-control pv-button'",
@@ -2482,7 +2503,8 @@
           "factory:button:'text-control pv-button pv-primary'",
           "factory:dialog:'vehicle-confirmation'",
           "factory:div:'vehicle-climate-actions'",
-          "factory:div:'vehicle-settings-actions'"
+          "factory:div:'vehicle-settings-actions'",
+          "factory:div:'vehicle-dots'"
         ],
         "registrations": {},
         "customTags": [
@@ -2866,7 +2888,8 @@
           "arrow:free": 1,
           "arrow:visible": 1,
           "method:renderSvarDevice": 1,
-          "function:deferForGesture": 1
+          "function:deferForGesture": 1,
+          "function:renderRecipeStepBar": 1
         },
         "roots": [
           "native:article:retained-answer",

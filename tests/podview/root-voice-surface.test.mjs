@@ -293,7 +293,7 @@ test('each actual voice phase owns its semantic icon and one static ellipsis onl
  const {surface}=fixture();
  const expected=[['LISTENING','Lytter…','mic'],['THINKING','Tænker…','chat-circle'],['AI_SPEAKING','Svarer…','soundwave'],['LOUNGE_WINDOW','Spørg videre','chat-circle'],['CLOSING','Afslutter…','chat-circle'],['UNKNOWN','Venter…','chat-circle']];
  for(const [phase,label,icon] of expected){surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase}));
-  assert.equal(surface.label.textContent,label);assert.equal(surface.icon.src,`assets/icons/${icon}.svg`);assert.equal(surface.mark.children.length,1);assert.equal(surface.node.querySelector('.voice-copy').children.length,2,'status uses its actual label and existing hidden detail, with no separate dots element');assert.equal((label.match(/…/g)||[]).length,phase==='LOUNGE_WINDOW'?0:1);
+  assert.equal(surface.label.textContent,label);assert.equal(surface.icon.src,`assets/icons/${icon}.svg`);assert.equal(surface.mark.children.length,2);assert.equal(surface.mark.children[1].className,'voice-bars');assert.equal(surface.mark.children[1].children.length,5,'Kit-SvarKnap: five bars');assert.equal(surface.node.querySelector('.voice-copy').children.length,2,'status uses its actual label and existing hidden detail, with no separate dots element');assert.equal((label.match(/…/g)||[]).length,phase==='LOUNGE_WINDOW'?0:1);
   const activity=surface.markAnimation;surface.update(voicePresentation({active:true,sessionId:'s',turnId:'t',phase}));assert.equal(surface.markAnimation,activity);
  }
  surface.update(null);assert.equal(surface.markAnimation,null);surface.cleanup();

@@ -34,14 +34,14 @@ export class LightRoomView{
     // Only a pending command for this room's own light blocks its tile (L1).
     const pending=controls?.lightActions?.get(JSON.stringify([row.areaId,null,null]))?.state?.pending;
     const enabled=permitted&&known&&(!pending||controls.canQueueLightInput?.({areaId:row.areaId},'toggle'));
-    return {id:row.areaId,name:row.areaName,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Ikke opdateret':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!enabled,live:true};
+    return {id:row.areaId,name:row.areaName,own:row.areaId===catalogue?.ownAreaId,selected:light.lightScope?.areaId===row.areaId,status:known?(on?'Tændt':'Slukket'):light.lightScope?.areaId===row.areaId&&(light.stale||!connected)?'Ikke opdateret':'Status ukendt',action:known?(on?'turn_off':'turn_on'):null,enabled:!!enabled,live:true};
    });
    return {live:true,rows,placement:items.find(row=>row.areaId===catalogue?.ownAreaId)?.areaName||'',globalEnabled:false};
   }
   if(!lightSelection(light))return null;
   const groups=new Map();for(const lamp of light.lights){if(!groups.has(lamp.roomId))groups.set(lamp.roomId,{id:lamp.roomId,name:lamp.roomName,lamps:[]});groups.get(lamp.roomId).lamps.push(lamp);}
   const selected=lightSelection(light).roomId,connected=this.host.state?.connected===true,known=connected&&!light.stale&&['on','off','mixed'].includes(light.status),enabled=known&&light.exampleOnly===true&&!light.pending&&this.host.state?.focus===light.id;
-  const rows=[...groups.values()].map(room=>{const on=room.lamps.filter(row=>row.on).length,roomKnown=room.lamps.every(row=>row.state===undefined||['on','off'].includes(row.state));return {id:room.id,name:room.name,selected:selected===room.id,status:!connected||light.stale?'Ikke opdateret':known&&roomKnown?(on?'Tændt':'Slukket'):'Status ukendt',action:known&&roomKnown?(on?'turn_off':'turn_on'):null,enabled:enabled&&roomKnown,live:false};});
+  const rows=[...groups.values()].map(room=>{const on=room.lamps.filter(row=>row.on).length,roomKnown=room.lamps.every(row=>row.state===undefined||['on','off'].includes(row.state));return {id:room.id,name:room.name,own:room.id===light.ownRoomId,selected:selected===room.id,status:!connected||light.stale?'Ikke opdateret':known&&roomKnown?(on?'Tændt':'Slukket'):'Status ukendt',action:known&&roomKnown?(on?'turn_off':'turn_on'):null,enabled:enabled&&roomKnown,live:false};});
   rows.sort((a,b)=>Number(b.id===light.ownRoomId)-Number(a.id===light.ownRoomId));
   return {live:false,rows,placement:groups.get(light.ownRoomId)?.name||'',globalRestore:lightHomeRestoreAvailable(this.host.state,light),globalEnabled:enabled&&rows.every(row=>row.action!==null)&&light.scope==='home'&&light.lights.some(row=>row.on)};
  }
@@ -50,14 +50,14 @@ export class LightRoomView{
   if(model.live){void Promise.resolve(this.host.readLightArea?.(id)).finally(()=>this.render(this.current()));this.render(d);}else this.host.dispatch({type:'light-select',...binding(this.host.state,d),optionId:`room:${id}`});
  }
  createRow(id){
-  const node=make('div','light-room-row'),copy=make('span','light-room-copy'),name=make('strong','light-room-name'),status=make('span','light-room-status'),power=make('button','light-room-power');applyKitTextRole(name,'group-title');applyKitTextRole(status,'body');power.type='button';applyKitComponent(power,'tile',{identity:'light',variant:'power'});power.dataset&&(power.dataset.pvPress='quiet');const icon=make('img','light-room-icon');icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');copy.append(name,status);power.append(icon,copy);node.append(power);
+  const node=make('div','light-room-row'),copy=make('span','light-room-copy'),tag=make('span','light-room-tag'),name=make('strong','light-room-name'),status=make('span','light-room-status'),power=make('button','light-room-power');applyKitTextRole(name,'group-title');applyKitTextRole(status,'body');power.type='button';applyKitComponent(power,'tile',{identity:'light',variant:'power'});power.dataset&&(power.dataset.pvPress='quiet');const icon=make('img','light-room-icon');icon.src='assets/icons/lightbulb.svg';icon.alt='';applyKitComponent(icon,'icon');copy.append(tag,name,status);power.append(icon,copy);node.append(power);
   power.addEventListener('click',()=>{
    const d=this.current(),model=this.model(d),row=model?.rows.find(row=>row.id===id);
    if(!row?.enabled||!row.action)return;
    if(model.live)this.host.actCurrentLight?.('toggle',{}, {areaId:id});
    else this.host.dispatch({type:'light-room-power',...binding(this.host.state,d),roomId:id,action:row.action});
   });
-  const entry={node,name,status,power};this.rows.set(id,entry);return entry;
+  const entry={node,tag,name,status,power};this.rows.set(id,entry);return entry;
  }
  revealSelection(id){
   const reveal=()=>{this.revealFrame=null;if(this.host.isConnected===false||this.selectedRoom!==id)return;revealKitItem(this.rows.get(id)?.node,this.list);revealKitItem(this.navigation.inputs.find(input=>input.checked)?.parentElement,this.navigation.node.children[1]);};
@@ -82,7 +82,7 @@ export class LightRoomView{
   }
   if(!this.node.parentNode)this.host.lightRooms?.after(this.node);if(this.node.hidden)this.node.hidden=false;
   const ids=new Set(model.rows.map(row=>row.id));for(const[id,entry]of this.rows)if(!ids.has(id)){entry.node.remove();this.rows.delete(id);}
-  model.rows.forEach((row,index)=>{const entry=this.rows.get(row.id)||this.createRow(row.id),command=this.host.lightCommandFeedback,busy=!!command&&command.target?.areaId===row.id&&!command.target.sceneId&&!command.target.entityId&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.power,'tile',{feedback:'progress',loading:busy});text(entry.name,row.name);text(entry.status,row.status);attr(entry.power,'data-power-on',row.action==='turn_off');if(row.action)attr(entry.power,'aria-pressed',row.action==='turn_off');else if(entry.power.getAttribute('aria-pressed')!==null)entry.power.removeAttribute?.('aria-pressed');attr(entry.node,'data-selected',row.selected);attr(entry.power,'aria-label',row.action?`${row.action==='turn_off'?'Sluk':'Tænd'} alle lys i ${row.name}`:`Lys i ${row.name} kræver aktuel status`);attr(entry.power,'aria-disabled',!row.enabled);if(entry.power.disabled!==!row.enabled)entry.power.disabled=!row.enabled;if(this.list.children[index]!==entry.node)this.list.insertBefore(entry.node,this.list.children[index]||null);});
+  model.rows.forEach((row,index)=>{const entry=this.rows.get(row.id)||this.createRow(row.id),command=this.host.lightCommandFeedback,busy=!!command&&command.target?.areaId===row.id&&!command.target.sceneId&&!command.target.entityId&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.power,'tile',{feedback:'progress',loading:busy});text(entry.tag,row.own?'Denne skærms rum':'Rum');text(entry.name,row.name);text(entry.status,row.status);attr(entry.power,'data-power-on',row.action==='turn_off');if(row.action)attr(entry.power,'aria-pressed',row.action==='turn_off');else if(entry.power.getAttribute('aria-pressed')!==null)entry.power.removeAttribute?.('aria-pressed');attr(entry.node,'data-selected',row.selected);attr(entry.power,'aria-label',row.action?`${row.action==='turn_off'?'Sluk':'Tænd'} alle lys i ${row.name}`:`Lys i ${row.name} kræver aktuel status`);attr(entry.power,'aria-disabled',!row.enabled);if(entry.power.disabled!==!row.enabled)entry.power.disabled=!row.enabled;if(this.list.children[index]!==entry.node)this.list.insertBefore(entry.node,this.list.children[index]||null);});
   const signature=JSON.stringify(model.rows.map(row=>[row.id,row.name]));if(this.navigationSignature!==signature){this.navigationSignature=signature;this.navigation?.node.remove();this.navigation=createKitChoiceGroup({document,id:'light-room',label:'Rum',variant:'navigation',choices:model.rows.map(row=>({value:row.id,label:row.name})),value:model.rows.find(row=>row.selected)?.id,onChange:id=>this.selectRoom(id)});this.navigationHost.append(this.navigation.node);}this.navigation.setValue(model.rows.find(row=>row.selected)?.id||'');
   const selected=model.rows.find(row=>row.selected);text(this.panelHeading,selected?.name||'Lys');if(selected&&this.selectedRoom!==selected.id){this.selectedRoom=selected.id;this.revealSelection(selected.id);}
   const hasScenes=!!this.host.lightScenes&&!this.host.lightScenes.hidden,lamps=this.host.inlineLamps?.node,hasLamps=!!lamps&&!lamps.hidden;
