@@ -66,6 +66,27 @@ let server,browser,data;
     &&!n.closest('.resource-facts,.resource-context,[hidden]')&&getComputedStyle(n).whiteSpace==='nowrap'
     &&n.scrollWidth>n.clientWidth+.5).map(n=>`${card.id||card.dataset.kind}: ${n.textContent.trim()}`));});
  assert.deepEqual(clipped,[],`no clipped widget labels: ${clipped.join(' | ')}`);
+ // W-radio-ikketilg / W-tesla-ikkeforbundet: the whole text stands inside the card's 20-px inset, left-aligned at
+ // x+20; the unconnected Tesla keeps the board's context line »Kræver tilslutning« under it.
+ const inset=await page.evaluate(()=>{
+  const radio=document.querySelector('#home-radio'),car=document.querySelector('#home-vehicle');
+  radio.dataset.kitState='unavailable';radio.querySelector('.overview-media-title').textContent='Ikke tilgængelig';
+  car.dataset.kitState='unavailable';car.dataset.hasOverviewValue='false';
+  document.querySelector('#home-vehicle-status').textContent='Ikke forbundet';
+  car.querySelector('.resource-value').hidden=true;
+  const text=n=>{const r=document.createRange();r.selectNodeContents(n);const b=r.getBoundingClientRect();
+   return {left:Math.round(b.left),right:Math.round(b.right),fits:n.scrollWidth<=n.clientWidth+.5};};
+  const rows=[];for(const [card,node] of [[radio,radio.querySelector('.overview-media-title')],
+   [car,document.querySelector('#home-vehicle-status')]]){const c=card.getBoundingClientRect(),t=text(node);
+   const box=node.closest('small')||node;
+   rows.push({id:card.id,left:t.left-Math.round(c.left),right:Math.round(c.right)-t.right,
+    fits:box.scrollWidth<=box.clientWidth+.5});}
+  return {rows,context:getComputedStyle(car,'::after').content};});
+ for(const row of inset.rows){assert.equal(row.left,20,`${row.id}: text starts 20 inside the card`);
+  assert(row.right>=20,`${row.id}: text ends inside the 20-px inset (${row.right})`);
+  assert(row.fits,`${row.id}: text is not cut`);}
+ assert.equal(inset.context,'"Kræver tilslutning"','unconnected Tesla context line');
+ await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);await sleep(500);
  // The canvas family name is a real webfont here, never a silent system fallback.
  assert(await page.evaluate(()=>[...document.fonts].some(f=>f.family.replace(/"/g,'')==='Schibsted Grotesk')),
   'Schibsted Grotesk is declared');

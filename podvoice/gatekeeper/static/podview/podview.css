@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 07817a92241cec5164dcd6eeaa790630e8abdc829883b6365ea0adcab3f744ea */
+/* Source: ui-kit.css · SHA256 28c8f697f202d405b988133af5e5611b07f1a4f9c7bc8603a1489317dbeee833 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -8519,4 +8519,117 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  #timer-alert#timer-alert[open] #timer-alert-kicker{position:static;font:600 20px/1.2
   'Schibsted Grotesk',system-ui,sans-serif;color:#BDBBB5}
  #timer-alert#timer-alert[open] #timer-alert-kicker:empty{display:none}
+
+
+/* W-radio-ikketilg, W-tesla-ikkeforbundet (K-Widget, S 174×221): the primary line 18/800 stands whole inside the
+   20-px inset at x+20; the unconnected Tesla carries the board's context line under it. */
+
+ pv-widget-host #now-view#now-view#now-view#now-view>#home-radio[data-kit-state=unavailable] .overview-media-title{
+  letter-spacing:-.035em}
+ pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle[data-has-overview-value=false]
+  #home-vehicle-status{grid-column:auto!important;grid-row:auto!important;inset:auto auto 44px 20px!important;
+  overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
+ pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle[data-kit-state=unavailable]::after{
+  content:"Kræver tilslutning";position:absolute;left:20px;bottom:20px;width:134px;height:20px;
+  font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A;white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis;pointer-events:none}
+
+
+/* A-FotoRo (v192+): the music slot is always chip, two lines and the round button. Music on another device
+   (»Flyt hertil«) and the radio live mark stay on the player page; a control that cannot act stays dark, dimmed. */
+
+ body pv-widget-host[data-view=rest] .player>:is(#move-here,#radio-live){display:none!important}
+ body pv-widget-host[data-view=rest] .player .transport .main-control:disabled{background:var(--pv-dark)!important;
+  opacity:.4!important;transition:none!important}
+
+
+/* Svar page (lærred »A-SvarKort«, »SvarK-Historik«): the answer card at 24/88, »I dag« in the 372 column. The header
+   is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), rows 76 high with radius 18 and 10 between; the answer being
+   read is white with a 3-px ink ring; the time sits right in 15 mono. */
+.svar-today[hidden]{display:none!important}
+
+ body pv-widget-host[data-view=active][data-svar-page=true]>.frame>:is(.player,#player-empty){display:none!important}
+ body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:not([hidden]){display:flex;
+  flex-direction:column;gap:10px;align-self:start;box-sizing:border-box;width:372px;height:696px;
+  margin-block-start:16px;padding:0;overflow:hidden;color:#17171A;font-family:'Schibsted Grotesk',system-ui,sans-serif}
+ #svar-today>header{display:flex;align-items:center;justify-content:space-between;height:32px;flex:none}
+ #svar-today>header>h2{margin:0;font:800 22px/32px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:0}
+ #svar-today>header>span{font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
+ #svar-today .svar-today-rows{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;
+  scrollbar-width:none}
+ #svar-today .svar-today-row{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
+  column-gap:12px;box-sizing:border-box;width:100%;height:76px;margin:0;padding:0 16px;border:0;border-radius:18px;
+  background:rgba(247,246,243,.7);box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;
+  cursor:pointer}
+ #svar-today .svar-today-row[aria-current=true]{background:#FFFFFF;box-shadow:inset 0 0 0 3px #17171A}
+ #svar-today .svar-today-copy{display:flex;flex-direction:column;min-width:0}
+ #svar-today .svar-today-copy>strong{font:700 17px/22px 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+ #svar-today .svar-today-copy>small{font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
+ #svar-today .svar-today-row>time{font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
+
+
+/* SvarK-Fakta: the facts stand as three white tiles in a row (radius 20, padding 20): label 15/600, the value in
+   56 mono (a word-value in 32/800 so the answer's own text fits), the detail 15. Actions are the board's 56-high
+   pills. */
+
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-list{display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:12px!important;margin:24px 0 0!important;padding:0!important}
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-item.pv-visual-item{display:flex!important;
+  flex-direction:column;justify-content:space-between;gap:12px;grid-column:auto!important;min-height:200px!important;
+  margin:0!important;padding:20px!important;border:0!important;border-radius:20px!important;background:#FFFFFF!important;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important}
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-label{margin:0;font:600 15px/20px var(--pv-font)!important;
+  color:#5F5E5A!important}
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-value{margin:0;font:800 32px/1.05 var(--pv-font)!important;
+  letter-spacing:-.03em;color:#17171A!important;overflow-wrap:anywhere}
+ body pv-widget-host #answer-host#answer-host pv-fact-card [data-value-kind=numeric] .pv-visual-value{
+  font:500 56px/.95 var(--pv-font-mono)!important;letter-spacing:-.06em}
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-detail{margin:0;font:400 15px/20px var(--pv-font)!important;
+  color:#3F3E3B!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer .answer-actions:not([hidden]){border:0!important;
+  margin-top:auto!important;padding-top:16px!important;display:flex;gap:12px}
+ body pv-widget-host #answer-host#answer-host>pv-answer .answer-actions>button:not([hidden]){height:56px!important;
+  min-height:56px!important;padding:0 28px!important;border:0!important;border-radius:999px!important;
+  background:#17171A!important;color:#F7F6F3!important;font:600 17px/1 var(--pv-font)!important}
+
+
+/* SvarK-Bygger: while the answer is built the card holds its place with two quiet blocks (48 % × 44, then the rest
+   of the card), radius 12, rgba(23,23,26,.07), pulsing; the phase itself is only on the Svar button. */
+@keyframes pv-svar-skeleton{0%,100%{opacity:.5}50%{opacity:1}}
+
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
+  [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,
+ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before{content:"";display:block;
+  width:48%;height:44px;margin:20px 0 0;border-radius:12px;background:rgba(23,23,26,.07);box-shadow:none;
+  animation:pv-svar-skeleton 1.4s ease-in-out infinite}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
+  [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::after,
+ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::after{content:"";display:block;
+  width:100%;height:500px;margin:14px 0 0;border-radius:12px;background:rgba(23,23,26,.07);
+  animation:pv-svar-skeleton 1.4s ease-in-out infinite}
+ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>:not(.pv-state-note){display:none!important}
+ body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>.pv-state-note{position:absolute;
+  width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+
+@media (prefers-reduced-motion:reduce){
+ body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::before,
+ body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::after{animation:none}
+}
+
+/* Kit-Topbar: on every page but home, back is its own 44×44 key (radius 14, #F7F6F3, 2-px drop) with a 22 arrow,
+   then the title in 22/600, 14 after it. */
+
+ body pv-widget-host>nav.view-nav #header-title-action.topbar-title-action{gap:14px!important;padding:0!important;
+  font:600 22px/26px var(--pv-font);letter-spacing:-.01em;background:none}
+ body pv-widget-host>nav.view-nav #header-title-action>.topbar-back-icon{box-sizing:border-box;width:44px;height:44px;
+  flex:0 0 44px;padding:11px;border-radius:14px;background:#F7F6F3;box-shadow:0 2px 0 rgba(23,23,26,.10)}
+ body pv-widget-host>nav.view-nav #header-title-action>.topbar-title-copy{font:inherit}
+
+
+/* Kit-SvarKnap: »Hvile« is the light key on every page, the Svar page included; phases colour the voice status. */
+
+ body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true]){
+  --pv-history-surface:var(--pv-surface);color:var(--pv-ink)}
+ body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true])>img{filter:none}
 

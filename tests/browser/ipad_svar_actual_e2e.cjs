@@ -100,15 +100,42 @@ let server,browser,data;
  assert.deepEqual(line,{h:'1px',bg:'rgba(23, 23, 26, 0.12)'},'a line separates the follow-up from the answer');
  assert.equal((await box(sport.locator('.pv-visual-summary'))).size,'30px','earlier answer steps down to 30');
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-svar-opfoelg.png')});
- // Dagens svar: rows as on the »I dag« list, 76 high with radius 18.
+ // Svar page (A-SvarKort): Svar opens the newest answer as the card; »I dag« stands in the player column,
+ // newest first, rows 76 high with radius 18, the answer being read white with a 3-px ink ring, time in mono.
  assert.equal((await fetch(base+'/lab/close-live-answer',{method:'POST'})).status,200);
  await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);
+ const today=page.locator('#svar-today');
+ for(let n=0;!(await page.evaluate(()=>!!document.querySelector('pv-widget-host').svarTodayRows?.length));n++){
+  if(n>100)throw Error('history rows not loaded');await sleep(100);}
  await page.locator('#open-history').tap();
- const row=page.locator('#retained .history-open:visible').first();await row.waitFor({state:'visible',timeout:10000});
- await sleep(600);
+ await today.waitFor({state:'visible',timeout:10000});await sleep(600);
+ const column=await box(today);
+ assert.deepEqual([column.x,column.y,column.w],[784,88,372],'I dag in the 372 player column at 784/88');
+ assert.equal(await page.locator('aside.player').isVisible(),false,'the player gives the column to I dag');
+ assert.equal((await today.locator('header>h2').innerText()).trim(),'I dag');
+ assert.equal((await today.locator('header>span').innerText()).trim(),'Nyeste øverst');
+ const heading=await box(today.locator('header>h2'));assert.equal(heading.size,'22px');assert.equal(heading.weight,'800');
+ const cardBox=await box(host);assert.deepEqual([cardBox.x,cardBox.y,cardBox.w],[24,88,744],'answer card beside it');
+ assert(await host.locator('pv-answer:visible').count()>0,'the newest answer is shown as the card');
+ const row=today.locator('.svar-today-row').first();
  const rowBox=await box(row);
- assert.equal(rowBox.h,76,'history row 76 high');assert.equal(rowBox.radius,'18px','history row radius 18');
- near(rowBox.y,88,'first row at 88');
+ assert.equal(rowBox.h,76,'row 76 high');assert.equal(rowBox.radius,'18px','row radius 18');
+ near(rowBox.y,130,'first row under the 32-px header and 10 gap');
+ assert.equal(await row.getAttribute('aria-current'),'true','the answer being read is marked');
+ assert.equal(rowBox.bg,'rgb(255, 255, 255)');assert.match(rowBox.shadow,/rgb\(23, 23, 26\) 0px 0px 0px 3px inset/);
+ const time=await box(row.locator('time'));assert.match(time.family,/IBM Plex Mono/);assert.equal(time.size,'15px');
+ assert.match(await row.locator('time').innerText(),/^\d\d\.\d\d$/,'today shows the time');
+ const title=await box(row.locator('strong'));assert.equal(title.size,'17px');assert.equal(title.weight,'700');
+ // Kit-SvarKnap: at rest the Svar button stays the light key on its own page; only »Svarer…« is dark.
+ const knap=await page.locator('#open-history').evaluate(n=>[getComputedStyle(n,'::before').backgroundColor,
+  getComputedStyle(n).color]);
+ assert.deepEqual(knap,['rgb(247, 246, 243)','rgb(23, 23, 26)'],'Svar button rests light on the Svar page');
+ // Kit-Topbar: back is its own 44×44 key (radius 14, #F7F6F3) at 28, then the title 22/600 14 after it.
+ const key=await box(page.locator('#header-title-action>.topbar-back-icon'));
+ assert.deepEqual([key.x,key.y,key.w,key.h],[28,14,44,44],'back key 44×44 at 28/14');
+ assert.equal(key.radius,'14px');assert.equal(key.bg,'rgb(247, 246, 243)');
+ const label=await box(page.locator('#header-title-action>.topbar-title-copy'));
+ assert.equal(label.x,86,'title 14 after the key');assert.equal(label.size,'22px');assert.equal(label.weight,'600');
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-svar-historik.png')});
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',journey:'ipad-svar',statusPhase:phase,statusWidth:pill.w,card,
