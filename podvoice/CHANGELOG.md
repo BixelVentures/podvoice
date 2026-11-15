@@ -1,3 +1,10 @@
+## 2.1.1
+
+- PodView fylder nu altid skærmen: hele designet skaleres ensartet til iPad'ens ramme, også med statuslinje, HA's sidemenu eller i portræt. Det gamle layout kan ikke længere dukke op, og der er ingen tomme huller mellem kort og afspiller.
+- Siderne er bygget færdige efter designet: Lys med scener, lysstyrke og lamper; Timer med »Tidligere timere«; Opskrifter med »Fortsæt madlavning« og den nye »Udforsk«; Køen med antal numre, højttaler og lydbjælker, og uden evig indlæsning; Svar viser nyeste svar som kort med dagens svar ved siden af.
+- Rettelser: albumcover vises, når musikken spiller på en anden enhed; robotkortet viser ikke længere en sort prik; tekster klippes ikke på Lys, Radio, Tesla og Opskrifter; timerkortet har sit mønster; radiostationerne står i rækkefølgen P1, P3, P4; tilbageknappen i topbaren følger designet.
+- Foto-Ro: musik- og radiokortet har en knap til pause og stop direkte i kortet.
+
 ## 2.1.0
 
 - PodView er nu lavet til en iPad Air på væggen (1180×820, HA-appens kiosktilstand). Alle sider er bygget efter det nye design: overblik med faste pladser, Foto-Ro i fuld skærm med natskærm 21–7, afspilleren, én musikside uden faner, radio, vejr, robotstøvsuger, lys, Tesla, opskrifter og timer samt Svar.
