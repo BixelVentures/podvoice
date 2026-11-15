@@ -13,7 +13,7 @@ const SHARE_HINT='Tilføj opskrift: Del → Home Assistant fra Safari eller Chro
 const root=testEnv.root, port=Number(process.env.RECIPE_TEST_PORT || 18972), base=`http://127.0.0.1:${port}`;
 const python=testEnv.python;
 const envBase=testEnv.pythonEnv({RECIPE_TEST_PORT:String(port)});
-const width=Number(process.env.RECIPE_VIEW_WIDTH || 1280),height=Number(process.env.RECIPE_VIEW_HEIGHT || 800);
+const width=Number(process.env.RECIPE_VIEW_WIDTH || 1180),height=Number(process.env.RECIPE_VIEW_HEIGHT || 820);
 const shot=`${width}x${height}`;
 const sourceMode=process.env.PODVIEW_RECIPE_LIVE_SOURCE==='1'?'public-live':'inert-fixture';
 const source=sourceMode==='public-live'?'https://www.arla.dk/opskrifter/nem-chokoladekage-i-bradepande/':'https://example.com/podview-recipe';
@@ -247,7 +247,7 @@ async function readAndResumeBurgerboller(page){
    photoHeight:photo.height};
  });
  assert.equal(activeGeometry.recipe,true,'active row uses the recipe tone');
- if(shot==='1280x800')assert.deepEqual(activeGeometry,{recipe:true,rowHeight:96,photoWidth:56,photoHeight:56});
+ if(shot==='1180x820')assert.deepEqual(activeGeometry,{recipe:true,rowHeight:96,photoWidth:56,photoHeight:56});
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-burgerboller-active.png`)});
  await row.tap();
  assert.equal(await steps.nth(1).getAttribute('aria-current'),'step');
