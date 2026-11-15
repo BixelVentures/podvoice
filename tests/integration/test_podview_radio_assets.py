@@ -84,8 +84,8 @@ async def test_actual_served_entry_and_canonical_module_asset_closure():
         assert value["schema"] == "podview.radio.v1"
         assert not value["enabled"] and value["actions"] == []
         assert [s["id"] for s in value["stations"]] == [
-            "p1",
             "p3",
+            "p1",
             "p4-ostjylland",
             "p6-beat",
             "p8-jazz",

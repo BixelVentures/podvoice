@@ -1,3 +1,7 @@
+## 2.1.2
+
+- Radio virker igen: stationerne står i samme rækkefølge som PodConnect sender dem (P3 først). Ændringen af rækkefølgen i 2.1.1 gjorde radioen utilgængelig.
+
 ## 2.1.1
 
 - PodView fylder nu altid skærmen: hele designet skaleres ensartet til iPad'ens ramme, også med statuslinje, HA's sidemenu eller i portræt. Det gamle layout kan ikke længere dukke op, og der er ingen tomme huller mellem kort og afspiller.
