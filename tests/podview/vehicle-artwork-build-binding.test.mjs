@@ -12,5 +12,6 @@ test('canonical vehicle artwork sizing is included in generated styles',async()=
  const generated=await readFile(new URL('podview.css',root),'utf8');
  const sha=createHash('sha256').update(source).digest('hex');
  assert.ok(generated.includes(`Source: ui-kit.css · SHA256 ${sha}`));
- for(const rule of ['.vehicle-artwork{min-height:160px;grid-template-rows:160px auto}', '.vehicle-artwork>.vehicle-image{max-height:160px}', '.vehicle-content{grid-template-columns:minmax(0,1fr) calc(4 * var(--pv-hit))}']) assert.ok(generated.includes(rule),rule);
+ // The min-width:1200px rule never matches the 1180×820 stage, so only the stage rules ship.
+ for(const rule of ['.vehicle-artwork{min-height:160px;grid-template-rows:160px auto}', '.vehicle-artwork>.vehicle-image{max-height:160px}']) assert.ok(generated.includes(rule),rule);
 });

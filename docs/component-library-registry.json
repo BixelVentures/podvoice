@@ -5,6 +5,7 @@
       "file": "dist/podview.bundle.js",
       "html": "dist/index.html",
       "sources": [
+        "ui/stage.js",
         "ingress-kiosk.js",
         "widget-view.js"
       ]
@@ -29,6 +30,7 @@
       "generatedStyle": "podview.css",
       "generatedScript": "podview.bundle.js",
       "scripts": [
+        "ui/stage.js",
         "ingress-kiosk.js",
         "widget-view.js"
       ],
@@ -598,6 +600,26 @@
     }
   },
   "modules": {
+    "dist/ui/stage.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:apply": 1,
+          "arrow:inset": 1,
+          "arrow:px": 1,
+          "function:installStage": 1,
+          "function:stageGeometry": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
     "dist/answer-widget.js": {
       "status": "approved-renderer",
       "domOwner": "AnswerWidget",
