@@ -459,6 +459,15 @@ async function silentChecks(check) {
 
   const picker = async () => {
     const problems = [];
+    // Music on another device (lærred »Player-AndenEnhed«) has no picker at the top, only »Flyt til <rum>«.
+    const away = await frame.evaluate(() => document.querySelector('.player')?.dataset.placement === 'elsewhere');
+    if (away) {
+      const move = frame.locator('#move-here');
+      if (!(await move.isVisible())) return ['»Flyt til«-knappen vises ikke, mens musikken spiller et andet sted'];
+      if ((await check.locked('#move-here')).length) return ['»Flyt til«-knappen er låst'];
+      const label = (await frame.locator('#move-here-label').innerText().catch(() => '')).trim();
+      return /^Flyt(ter)? til \S/.test(label) ? [] : [`»Flyt til«-knappen siger: "${label}"`];
+    }
     const output = frame.locator('#output');
     if (!(await output.isVisible())) return ['højttalervælgeren (#output) vises ikke'];
     const lockedOutput = await check.locked('#output');

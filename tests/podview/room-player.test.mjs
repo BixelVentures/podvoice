@@ -108,6 +108,17 @@ test('no grant means no actions: a tap sends nothing',async()=>{
  assert.deepEqual(calls,[]);
 });
 
+test('f) the away player shows the real Spotify cover PodConnect reports, never a guessed one',()=>{
+ const cover={kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/ab67616d0000b273'+'a'.repeat(24)};
+ const elsewhere={state:'playing',targetId:'mac',targetName:'MacBook Pro',title:'Let It Be',artist:'The Beatles',
+  uri:'spotify:track:'+'b'.repeat(22),positionMs:1000,positionAt:Date.now()-500,durationMs:243000,artwork:cover};
+ const p=roomPlayerObservation(body({state:'idle',actions:['pause'],maxVolume:null,elsewhere}),'account',snapshot);
+ assert.deepEqual(livePlayerModel(p,true,'ready',snapshot,'Køkkenalrum').artwork,cover);
+ const forged=roomPlayerObservation(body({state:'idle',actions:['pause'],maxVolume:null,
+  elsewhere:{...elsewhere,artwork:{...cover,url:'https://evil.example/x.jpg'}}}),'account',snapshot);
+ assert.equal(livePlayerModel(forged,true,'ready',snapshot,'Køkkenalrum').artwork,undefined);
+});
+
 test('f) the own account on another device keeps its controls and offers "Flyt til" the room',async()=>{
  const elsewhere={state:'playing',targetId:'iphone-id',targetName:'iPhone',title:'Let It Be',artist:'The Beatles',
   uri:null,positionMs:1000,positionAt:Date.now()-500,durationMs:243000};

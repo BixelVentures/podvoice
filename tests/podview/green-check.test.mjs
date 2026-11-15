@@ -88,3 +88,12 @@ test('summary is red when one check fails', () => {
   assert.equal(red.green, false);
   assert.match(red.line, /^RØD: 1 af 2/);
 });
+
+test('picker check accepts the away player and verifies »Flyt til« instead', () => {
+  const source = readFileSync(new URL('../../scripts/green-check.mjs', import.meta.url), 'utf8');
+  const picker = source.slice(source.indexOf('const picker = async'), source.indexOf('const queue = async'));
+  assert.match(picker, /placement === 'elsewhere'/, 'the away state is recognised');
+  assert.match(picker, /#move-here/, 'the move button is checked in the away state');
+  assert.ok(picker.indexOf('#move-here') < picker.indexOf("'#output'"), 'away is handled before the picker is opened');
+  assert.match(picker, /højttalerlisten åbnede ikke/, 'a real unopenable picker still fails');
+});

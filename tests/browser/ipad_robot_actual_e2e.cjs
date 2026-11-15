@@ -137,6 +137,13 @@ async function open(stage,{overview=false}={}){
  near(pill.y+pill.h,cbox.y+cbox.h-20,'pill 20 from the bottom');
  assert.deepEqual(page.errors,[]);
  await page.close();
+
+ // W-robot »oplader« (docked): only the arcs, no action pill. A hidden action must never paint as a dark blob (Green).
+ page=await open('robot-detail-docked',{overview:true});
+ const docked=page.locator('#now-view .resource-card[data-kind=vacuum]');
+ assert.equal(await docked.locator('.resource-direct-action').isVisible(),false,'no pill while docked');
+ assert.match((await material(docked.locator('.resource-preview'))).image,/robot-arcs-widget/,'docked widget arcs');
+ await page.close();
  console.log('ipad robot: ok');
 }catch(error){console.error(error);process.exitCode=1;}
 finally{await browser?.close();server?.kill();}})();

@@ -2838,6 +2838,11 @@ html[data-lite]{touch-action:manipulation}
  src:url(assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
  unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
   U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+/* The canvas names the family 'Schibsted Grotesk'; it is the same shipped file, never a system fallback. */
+@font-face{font-family:"Schibsted Grotesk";font-style:normal;font-display:swap;font-weight:400 900;
+ src:url(assets/fonts/schibsted-grotesk-latin-wght-normal.woff2) format("woff2-variations");
+ unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,
+  U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 @font-face{font-family:"IBM Plex Mono";font-style:normal;font-display:swap;font-weight:400;
  src:url(assets/fonts/ibm-plex-mono-latin-400-normal.woff2) format("woff2")}
 @font-face{font-family:"IBM Plex Mono";font-style:normal;font-display:swap;font-weight:500;
@@ -3033,6 +3038,19 @@ body button:not(.is-pressed){transition-property:filter!important}
   #timer-card>.timer-shortcut{background:var(--pv-dark);color:var(--pv-on-dark)}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
   #timer-card>.timer-shortcut>:is(.resource-facts,.resource-context){display:none!important}
+ /* K-Widget »W-timer-start«: the canvas' corner arcs in coral at .4 on the dark surface; text stays above them. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut{position:relative!important;overflow:hidden!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut::after{content:''!important;display:block!important;position:absolute!important;
+  inset:0 0 auto auto!important;width:250px!important;height:221px!important;pointer-events:none;z-index:0;
+  background:url(assets/timer/timer-arcs-widget.svg) right top/250px 221px no-repeat!important;opacity:.4!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  #timer-card>.timer-shortcut>:is(img,span){position:relative;z-index:1}
+ /* Canvas: the head label is one line and fits at 174; the chevron's own inner margin is the gap. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
+  :is(#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card>.timer-shortcut) strong{
+  margin-inline-end:-8px!important;letter-spacing:-.01em}
 }
 
 /* Music or radio playing (data-media-layout=media): the product shows the track or station in the card.
@@ -4431,7 +4449,7 @@ body button:not(.is-pressed){transition-property:filter!important}
    .resource-card[data-kind=vacuum]:has(>.resource-direct-action:not([hidden]))>.resource-preview
    :is(.resource-value,small){right:calc(20px + var(--pv-robot-pill,120px) + 16px)!important}
  pv-widget-host #now-view#now-view#now-view#now-view
-   .resource-card[data-kind=vacuum]>.resource-direct-action{position:absolute!important;
+   .resource-card[data-kind=vacuum]>.resource-direct-action:not([hidden]){position:absolute!important;
    inset:auto 20px 20px
    auto!important;z-index:3!important;height:56px!important;min-height:56px!important;width:auto!important;
    min-width:0!important;padding:0 24px!important;border-radius:999px!important;background:#17171A!important;
@@ -4687,7 +4705,7 @@ body button:not(.is-pressed){transition-property:filter!important}
    white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
  pv-widget-host #now-view#now-view#now-view#now-view .resource-card[data-kind=light]>.resource-preview .resource-value{
    position:absolute!important;inset:auto 20px 44px 20px!important;font-size:18px!important;line-height:26px!important;
-   height:26px!important;font-weight:800!important;color:#17171A!important;white-space:nowrap!important;
+   height:26px!important;font-weight:800!important;color:#17171A!important;letter-spacing:-.015em!important;white-space:nowrap!important;
    overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important}
  pv-widget-host #now-view#now-view#now-view#now-view
    .resource-card[data-kind=light]>.resource-preview:is([data-resource-status=on],[data-resource-status=mixed])
@@ -4725,8 +4743,9 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #now-view#now-view#now-view#now-view
    .resource-card[data-kind=light]>.resource-preview>.resource-label>small:not([hidden]){display:block!important;
    position:absolute!important;inset:auto 20px 44px 20px!important;height:26px!important;margin:0!important;
+   width:auto!important;max-width:none!important;padding:0!important;
    font:800 18px/26px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#6F6A5E!important;
-   white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;z-index:1}
+   letter-spacing:-.015em!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;z-index:1}
 }
 
 /* iPad Tesla (lærred v190 »A-Tesla«, »Tesla-*«, »W-tesla-*«, issue 397). A 744×221 hero in #D5EADD (#CDE8D8 while
