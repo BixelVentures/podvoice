@@ -47,6 +47,10 @@ export function timerTransition(s,e){
 }
 export const timerTime=seconds=>{const n=Math.max(0,Math.ceil(seconds)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),s=n%60;return h?`${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`:`${m}:${String(s).padStart(2,'0')}`;};
 
+// Lærred »A-Timer«: a whole number of minutes reads »10 min«; anything else is the clock form.
+export const timerDurationLabel=seconds=>Number.isInteger(seconds)&&seconds>0&&seconds<3600&&seconds%60===0
+ ?`${seconds/60} min`:timerTime(seconds);
+
 // Touch picker operates on a draft. It never changes an already running timer.
 export const adjustTimerDuration=(seconds,delta)=>Math.min(86400,Math.max(1,seconds+delta));
 export function readTimerDuration(hours,minutes,seconds){

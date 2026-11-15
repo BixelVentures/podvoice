@@ -46,7 +46,7 @@ test('successful timer start renders its countdown without a spurious start vali
  const {timerTransition}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
  const attrs=new Map(),blocked={dataset:{},hidden:true,getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){attrs.set(key,String(value));}},running={},list={children:[]},recent={hidden:true,querySelector:()=>({replaceChildren(){}})};
  const detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'#timers-live-note':blocked,'.timer-recent':recent})[selector]};
- const form={elements:[],setAttribute(){},append(node){node.parentNode=this;}},view={host:{live:false},renderAccess:TimerView.prototype.renderAccess,nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};
+ const form={elements:[],setAttribute(){},append(node){node.parentNode=this;}},view={host:{live:false},renderAccess:TimerView.prototype.renderAccess,renderRecent:TimerView.prototype.renderRecent,nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};
  const previous=globalThis.document;globalThis.document={getElementById:()=>null};
  try{
   let state={connected:true,focus:'timers',timer:null,extraTimers:[],timerHistory:[],timerSerial:0};
@@ -54,7 +54,7 @@ test('successful timer start renders its countdown without a spurious start vali
   state=timerTransition(state,{type:'timer-start',seconds:60,now:1000});
   // History rendering is covered separately; retain its signature here to
   // isolate the actual current-timer render path that generated the warning.
-  view.history=JSON.stringify(state.timerHistory);
+  view.history=JSON.stringify(state.timerHistory.map(item=>item.seconds));
   TimerView.prototype.render.call(view,state);
   assert.equal(view.currentTimer.remaining,60);
   assert.equal(form.hidden,true);

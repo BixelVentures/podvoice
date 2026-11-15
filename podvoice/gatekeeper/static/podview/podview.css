@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 fafd49c487d56527e6ea9db76748da79277bf28005de9c4a45a5ff2174d0635f */
+/* Source: ui-kit.css · SHA256 f102e4ab1e7f4a62255b0f5ad3554ac9403ad834ff0296770cf4b43a084a2316 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -8305,3 +8305,142 @@ html[data-pv-stage]>body{position:absolute;left:0;top:0;width:1180px;height:820p
 html[data-pv-stage] dialog:modal{scale:var(--pv-stage-scale,1)}
 html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:env(safe-area-inset-right,0px);
  --pv-safe-bottom:env(safe-area-inset-bottom,0px);--pv-safe-left:env(safe-area-inset-left,0px)}
+/* iPad Lys, rettet mod lærredet »A-Lys«/»Lys-*«: no room chips (the card chooses the room, its 56×34 switch is the
+   product's room power), the room card runs to the bottom of the column, the heading line carries »N af M lamper
+   tændt«, each scene its level in 15 mono, »Lamper« its count, the lamps in two columns. Not connected: the hero's
+   title »Ikke forbundet« and »Opdater lys« at its bottom. */
+
+ pv-widget-host #device-view#device-view#device-view .light-room-navigation{display:none!important}
+ pv-widget-host #device-view#device-view#device-view>section.light-room-view:not([hidden]):has(
+   >.light-room-list:not([hidden])){height:696px!important}
+ pv-widget-host #device-view#device-view#device-view>.light-room-view:has(>.light-room-list:not([hidden]))
+   >#light-room-controls{flex:1 1 0!important;min-height:0!important;overflow-y:auto!important;
+   overscroll-behavior:contain}
+ pv-widget-host[data-view=active] .responses>#device-view:not([hidden]):has(>.light-room-view:not([hidden])){
+   padding:0!important;-webkit-mask-image:none!important;mask-image:none!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row{position:relative!important;
+   overflow:hidden!important;background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
+   transition:background-color .5s ease!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row[data-power-on=true]{background:#FBEBC6!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row[data-selected=true]{
+   box-shadow:inset 0 0 0 3px #17171A!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-select{position:absolute!important;
+   inset:0!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;
+   width:100%!important;height:128px!important;padding:24px 96px 24px 24px!important;margin:0!important;border:0!important;
+   border-radius:24px!important;background:transparent!important;box-shadow:none!important;text-align:left!important;
+   color:#17171A!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-select>.light-room-copy{display:flex!important;
+   flex-direction:column!important;flex:1 1 auto!important;gap:0!important;height:auto!important;min-width:0!important;
+   margin:0!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row[data-power-on=true] :is(.light-room-tag,
+   .light-room-status){color:#7A5205!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power{position:absolute!important;
+   right:18px!important;bottom:19px!important;width:68px!important;height:44px!important;min-height:0!important;
+   padding:0!important;border-radius:22px!important;background:transparent!important;box-shadow:none!important;
+   z-index:1}
+ pv-widget-host #device-view#device-view#device-view .light-room-row[data-selected=true]>.light-room-power,
+ pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power[data-power-on=true]{
+   background:transparent!important;box-shadow:none!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power::after{right:6px!important;
+   bottom:5px!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power::before{right:31px!important;
+   bottom:8px!important}
+ pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power[aria-pressed=true]::before{
+   right:9px!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls>header{display:flex!important;
+   flex-wrap:wrap!important;justify-content:space-between!important;align-items:baseline!important;gap:0 16px!important;
+   align-self:stretch!important;width:auto!important;max-width:none!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls>header>[role=status]{flex:1 0 100%}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-panel-status{
+   font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;margin-left:auto}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-scene-choices>button{
+   display:flex!important;flex-direction:column!important;align-items:flex-start!important;
+   justify-content:center!important;gap:2px!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-scene-choices>button>span{
+   display:block!important;position:static!important;max-width:100%!important;height:auto!important;
+   min-height:0!important;margin:0!important;padding:0!important;border-radius:0!important;background:none!important;
+   box-shadow:none!important;color:inherit!important;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+   font:800 19px/24px 'Schibsted Grotesk',system-ui,sans-serif!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-scene-choices>button>.light-scene-level{
+   font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace!important;opacity:.75}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-scene-level[hidden]{
+   display:none!important}
+ pv-widget-host #device-view#device-view#device-view #light-lamps-trigger{display:flex!important;
+   align-items:center!important}
+ pv-widget-host #device-view#device-view#device-view #light-lamps-trigger .light-lamp-count{
+   font:500 15px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A;margin-left:auto}
+ pv-widget-host #device-view#device-view#device-view #light-lamps-trigger>[data-kit-slot=copy]{flex:1 1 auto}
+ pv-widget-host #device-view#device-view#device-view #light-lamps-trigger>[data-kit-slot=trailing-icon]{
+   transition:transform .2s ease}
+ pv-widget-host #device-view#device-view#device-view #light-lamps-trigger[aria-expanded=true]>[data-kit-slot=trailing-icon]{
+   transform:rotate(180deg)}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-lamp-list{display:grid!important;
+   grid-template-columns:repeat(2,minmax(0,1fr))!important;column-gap:24px!important;align-items:start!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-lamp-row:not([hidden]){
+   grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:auto!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-lamp-row>.light-lamp-toggle{
+   width:100%!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls
+   .light-lamp-row>.light-lamp-level:not([hidden]){grid-column:1!important;grid-row:2!important;margin:0 0 10px!important}
+ /* Not connected */
+ pv-widget-host #device-view#device-view#device-view>.light-room-view:has(>.light-room-list[hidden])
+   #light-room-controls>header{flex-direction:column!important;align-items:flex-start!important;gap:8px!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-kicker{
+   font:600 17px/22px 'Schibsted Grotesk',system-ui,sans-serif;color:#6F6A5E}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-kicker[hidden],
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-refresh[hidden],
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-panel-status[hidden]{
+   display:none!important}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-refresh{margin-top:auto!important;
+   align-self:flex-start;height:56px!important;min-height:0!important;padding:0 28px!important;border-radius:999px!important;
+   background:#17171A!important;color:#F7F6F3!important;font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important}
+
+/* iPad Timer, rettet mod lærredet »A-Timer«/»Timer-pause«/»Timer-faerdig«/»Timer-Alarm«: »af 10:00« under the time,
+   the finished page keeps »0:00« in the ring and »Tiden er gået« in coral as the title, the native actions read
+   »+1 min« (light), »−1 min« and »Annuller« (wrapping as on the canvas), and »Tidligere timere« fills the column
+   under the hero with the product's history as 56-px pills. */
+
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-instrument{align-content:center!important;
+  gap:6px!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-total{position:relative;
+  font:400 17px/1.2 'Schibsted Grotesk',system-ui,sans-serif;color:#BDBBB5}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-total[hidden]{display:none!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-count{
+  font:500 88px/1 'IBM Plex Mono',ui-monospace,monospace!important;letter-spacing:-.06em!important;
+  color:#F7F6F3!important;max-width:none}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-copy::after{
+  color:var(--pv-timer-coral)}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel>.timer-actions>button.timer-adjust:not([hidden]){height:56px!important;min-height:56px!important;
+  width:auto!important;min-width:0!important;max-width:none!important;aspect-ratio:auto!important;flex:none!important;
+  padding:0 24px!important;color:#F7F6F3!important;white-space:nowrap!important;overflow:visible!important;
+  text-overflow:clip!important;font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel>.timer-actions>button.timer-adjust[data-delta-seconds="60"]:not([hidden]){
+  background:#F7F6F3!important;color:var(--pv-ink)!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions:has(>.timer-adjust:not([hidden])){
+  width:300px!important;top:calc(50% + 7px);justify-content:flex-start!important}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden]))>.timer-finish{left:412px;
+  top:calc(50% + 73px)}
+ pv-widget-host #timers-view#timers-view#timers-view
+  .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden])) .timer-copy{padding-bottom:142px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent:not([hidden]){display:grid!important;
+  grid-template-columns:minmax(0,1fr) auto;align-content:start;align-items:baseline;gap:14px 16px;margin:0!important;
+  min-height:222px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent>h2{margin:0!important;color:#17171A}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent-note{font:400 15px/20px
+  'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent-list{grid-column:1/-1;display:flex;flex-wrap:wrap;
+  gap:10px}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent-choice{height:56px;min-height:56px;
+  padding:0 22px;border:0;border-radius:999px;background:#EFEDE8;display:flex;flex-direction:column;
+  justify-content:center;align-items:flex-start;color:#17171A}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent-time{font:600 18px/1.2 'IBM Plex Mono',ui-monospace,
+  monospace}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent-label{font:500 15px/1.2
+  'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
+ #timer-alert#timer-alert[open] #timer-alert-kicker{position:static;font:600 20px/1.2
+  'Schibsted Grotesk',system-ui,sans-serif;color:#BDBBB5}
+ #timer-alert#timer-alert[open] #timer-alert-kicker:empty{display:none}
+

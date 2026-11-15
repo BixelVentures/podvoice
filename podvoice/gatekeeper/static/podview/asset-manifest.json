@@ -663,7 +663,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "6fa980bee8fdc0991074f42a077bce0d4616aedce1036ea91c3523586161682f"
+      "sha256": "b368187ad30ee231abce74704efda4dd60669d9bf394343f8862813884f8fa79"
     },
     {
       "path": "ingress-kiosk.js",
@@ -679,7 +679,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "9fcd177ea155a0e39ebc35449e52c7828259e94eaabbd68b7a9dac93a9eae3ed"
+      "sha256": "b6808e3fcef0c6fcd9cc17bd663e6fcf13ba55324c964e1bb0d44d91f62bae0f"
     },
     {
       "path": "library.css",
@@ -695,11 +695,11 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "5c0adeb38a8be5f9c28430abfce645c53d240ba4182d1c5204f563c7c0c414be"
+      "sha256": "b37eee78969ec61034e89d9633e73949dfd2afa46e6be96cb87b94ff16e0b7d4"
     },
     {
       "path": "light-room-view.js",
-      "sha256": "c1e87d1a4f7b6c58d241fe5a0b9e2d7db80b760f172cad82abd3c21678962d30"
+      "sha256": "0a10a2af744e3a3dc3ba1916db7a6e3a896e225c0aff32eda6c0943e647b00d9"
     },
     {
       "path": "live-answer-view.js",
@@ -807,11 +807,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "9542f455a35615a42aaaecdef1e5b023c55a71f97b69c2766dc529753e99d10c"
+      "sha256": "59d0a344919befabb03b67161b1b2ea770ac70db0ba73c30a2937a3cc2e165ff"
     },
     {
       "path": "podview.css",
-      "sha256": "4e4dc851406944302723b96afd00ab50c4846de173bd6af7ec72e11402920001"
+      "sha256": "7f7de676e4ce6e819afb7ac76087257378edab2c526cd999e12dbd99d79db7a4"
     },
     {
       "path": "podvoice-transport.js",
@@ -903,7 +903,7 @@
     },
     {
       "path": "timer-model.js",
-      "sha256": "59e5026e5352ef824c04be66bc0cbcc202e718da6d204f32ab5ebd4213e874f1"
+      "sha256": "963ea632b4e608b620ca913c93ecadbef115f47f6ac9cdef02d81d582367c383"
     },
     {
       "path": "timer-notice.css",
@@ -911,15 +911,15 @@
     },
     {
       "path": "timer-notice.js",
-      "sha256": "4483877459bdc1543f7b741eb1a866fc9623bfd91d88d5b025de0ebab65f301c"
+      "sha256": "830605456b10e601a59c6b4c5fdfb6fdbcfde2a3848271806468cf65cd5091dd"
     },
     {
       "path": "timer-view.js",
-      "sha256": "8b7431646eb110bdf13db57debe511cb9594a9d372a975de3187995bdf25aa28"
+      "sha256": "d905e2aa0de27b57a67f241903a6ba64496176d26476380a1894a97fa2bd6f88"
     },
     {
       "path": "ui-kit.css",
-      "sha256": "fafd49c487d56527e6ea9db76748da79277bf28005de9c4a45a5ff2174d0635f"
+      "sha256": "f102e4ab1e7f4a62255b0f5ad3554ac9403ad834ff0296770cf4b43a084a2316"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1083,7 +1083,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "ce29ea46fa096ba6fbd8e8ab9160085a662f865056ae973366acdce302b56a19"
+      "sha256": "16259ee81ecff967b0dc80c0974a1bfb371aeaaa26e2b2a9fa603f9fd680ad90"
     },
     {
       "path": "workshop.css",

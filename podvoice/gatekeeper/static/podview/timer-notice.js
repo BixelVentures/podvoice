@@ -1,4 +1,5 @@
 import {applyKitComponent,applyKitDialog} from './ui/kit.js';
+import {timerDurationLabel} from './timer-model.js';
 // One canonical completion surface. Closing this view never claims to stop a
 // native alarm: only the existing, authority-checked timer action can do that.
 export class TimerNotice {
@@ -26,6 +27,12 @@ export class TimerNotice {
   if(changed&&!live&&!timer.ownerBootId)this.startAudio(timer);
   if(this.element.dataset.timerId!==id)this.element.dataset.timerId=id;
   const title='Timeren er færdig';if(this.name.textContent!==title)this.name.textContent=title;
+  // Lærred »Timer-Alarm«: »Timer · 10 min · ringede 14.39« over the title; »ringede« only after the bell played.
+  const kicker=this.element.querySelector('#timer-alert-kicker');if(kicker){const record=this.completions.get(id);
+   const at=record?.played&&Number.isFinite(record.at)?new Date(record.at).toLocaleTimeString('da-DK',
+    {hour:'2-digit',minute:'2-digit'}).replace(':','.'):'',text=['Timer',Number.isInteger(timer.duration)&&timer.duration>0
+    ?timerDurationLabel(timer.duration):'',at?`ringede ${at}`:''].filter(Boolean).join(' · ');
+   if(kicker.textContent!==text)kicker.textContent=text;}
   const nativeActive=live&&typeof timer.ownerBootId==='string'&&!timer.physicalStopped&&!timer.physicalDrained;
   this.allowed=access.canCancel===true&&!access.cancelBlockedIds?.includes(id);
   this.canAdd=!live&&!timer.ownerBootId&&this.allowed&&access.connected!==false;
