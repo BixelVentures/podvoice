@@ -299,6 +299,11 @@ def resolved(status, *, target_id="device-one", name="Køkkenalrum", binding=Non
             "name": "Let It Be",
             "artists": ["The Beatles"],
             "uri": "spotify:track:" + "b" * 22,
+            "artwork": {
+                "kind": "album_cover",
+                "provider": "spotify",
+                "url": "https://i.scdn.co/image/ab67616d0000b273" + "a" * 24,
+            },
         },
     }
     return {
@@ -320,6 +325,8 @@ async def test_own_account_on_another_device_keeps_its_device_controls(rig, monk
     assert body["state"] == "idle"
     assert body["elsewhere"]["targetName"] == "iPhone"
     assert body["elsewhere"]["title"] == "Let It Be"
+    # The real cover PodConnect reports for the other device's track; never a placeholder by omission.
+    assert body["elsewhere"]["artwork"]["url"].startswith("https://i.scdn.co/image/")
     # f) The own account is never without control: the device's own offered actions.
     assert body["actions"] == ["pause", "next", "previous", "move_here"]
     result = await podview_room_player.command(

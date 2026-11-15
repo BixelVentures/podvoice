@@ -17,7 +17,7 @@ import time
 from datetime import datetime
 
 from . import constants as C
-from . import podview_room_media
+from . import podview_music, podview_room_media
 
 _LOG = logging.getLogger("podvoice.podview")
 
@@ -265,6 +265,7 @@ async def _session(bridge, room, account, current):
             "positionMs": playback.get("progress_ms"),
             "positionAt": _timestamp_ms(observed),
             "durationMs": item.get("duration_ms"),
+            "artwork": podview_music._artwork(item.get("artwork")),
         }
     return {
         "binding": actual,

@@ -31,7 +31,7 @@ export function livePlayerModel(playback,connected,status,snapshot,configuredTar
   artist:shown?(item?.artists.join(', ')||''):'',
   target:!shown?'':away?txt(playback.target?.name)
    :(txt(actualTargetLabel)||txt(configuredTarget)||'Højttaleren i rummet'),
-  uri:shown?item?.uri??undefined:undefined,artwork:undefined,artworkUrl:shown?item?.artworkUrl??null:null,
+  uri:shown?item?.uri??undefined:undefined,artwork:shown?item?.artwork:undefined,artworkUrl:shown?item?.artworkUrl??null:null,
   canOutput:!!connected&&snapshot?.capabilities?.musicRead?.includes('targets')===true,
   canDiscover:!!connected&&Array.isArray(snapshot?.capabilities?.musicRead)&&snapshot.capabilities.musicRead
    .some(kind=>['mood','feeling','top','recent','search','account_playlists'].includes(kind)),

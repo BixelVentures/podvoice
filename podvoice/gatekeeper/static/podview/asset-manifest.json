@@ -526,6 +526,10 @@
       "sha256": "810202fe4c857902589be620130accf3734bcac36e6d2724ba86e3fa7daab224"
     },
     {
+      "path": "assets/timer/timer-arcs-widget.svg",
+      "sha256": "dd5689a279624a0883b00c0f564196fa0374d1e9854ae46150c0fd19d0a47928"
+    },
+    {
       "path": "assets/timer/timer-material.svg",
       "sha256": "16a83bd23e853852cce951a4160a3ed24e20d1b2871b88483e5c64246cb06b75"
     },
@@ -739,7 +743,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "855d6f5f1ae86b430b7385eb1a36957b9bbad457198d428769e8ecf6b1f146ac"
+      "sha256": "4271e270a70bf17526169fe0cbd79031da1b024fffb811cca6b2539ecc5e753e"
     },
     {
       "path": "model.js",
@@ -799,15 +803,15 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "55962e05538b4c6ec8003b70c1b5a8fa1c633a62e56622fbe9c04ee773190b29"
+      "sha256": "8ed85a8f91e52b01ce45ccd0e592fa2fd5a1761ad2fb1fd6773ce45d4ae9400c"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "478bc37d270ce735a88a6e05ec4376266eceb765220d1a3b18065d4d3b9ab147"
+      "sha256": "385c5d1c71e96c319405d0a868a12922b941b5090a10a44a14b80b1e19a868e4"
     },
     {
       "path": "podview.css",
-      "sha256": "b3e3605a16fe2d4871f5d0d1ed16da9e0db4a078ff18934820181173c00ff3b4"
+      "sha256": "f4ac40ce07ec925d880a01fe62187ca46bdb2eb398b5d728f5663eb6c67f428a"
     },
     {
       "path": "podvoice-transport.js",
@@ -915,7 +919,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "56687dcd7a7acf62d679c0fef5a50ddfa24e66ec85fd592740e8a9daca5d4391"
+      "sha256": "0d45761b1ec5163fba838838eea248b70de3dc42d2fafc4531a40c4f3c3b979d"
     },
     {
       "path": "ui/answer-auto-return.js",

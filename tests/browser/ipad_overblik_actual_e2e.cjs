@@ -50,6 +50,25 @@ let server,browser,data;
  for(const key of Object.keys(expected))assert(overview[key].chevron,`${key} head shows the chevron`);
  assert.deepEqual(await page.evaluate(()=>[document.documentElement.scrollWidth,document.documentElement.scrollHeight]),
   [1180,820],'the page never scrolls');
+ // K-Widget »W-timer-start«: the dark timer widget carries the coral arcs at .4 like the canvas, not a bare black card.
+ const timerArcs=await page.locator('#timer-card>.timer-shortcut').evaluate(n=>{const a=getComputedStyle(n,'::after');
+  return {image:a.backgroundImage,opacity:Number(a.opacity)};});
+ assert.match(timerArcs.image,/assets\/timer\/timer-arcs-widget\.svg/,'timer widget arcs');
+ assert(Math.abs(timerArcs.opacity-.4)<.01,`timer arcs at .4: ${timerArcs.opacity}`);
+ // Canvas rule: every label is one line and fits at 174/364 (Green: »Opskrif…«, »Ikke forbun…«).
+ const clipped=await page.evaluate(()=>{
+  const light=[...document.querySelectorAll('#now-view .resource-card[data-kind=light] :is(.resource-value,small)')]
+   .find(n=>n.getClientRects().length&&getComputedStyle(n).display!=='none');
+  if(light)light.textContent='Ikke forbundet';
+  const sel='#now-view :is(#home-weather,#home-music,#home-radio,#home-recipes,#home-vehicle,#timer-card,.resource-card)';
+  return [...document.querySelectorAll(sel)].flatMap(card=>[...card.querySelectorAll('strong,small,.resource-value')]
+   .filter(n=>n.getClientRects().length&&getComputedStyle(n).display!=='none'&&n.textContent.trim()
+    &&!n.closest('.resource-facts,.resource-context,[hidden]')&&getComputedStyle(n).whiteSpace==='nowrap'
+    &&n.scrollWidth>n.clientWidth+.5).map(n=>`${card.id||card.dataset.kind}: ${n.textContent.trim()}`));});
+ assert.deepEqual(clipped,[],`no clipped widget labels: ${clipped.join(' | ')}`);
+ // The canvas family name is a real webfont here, never a silent system fallback.
+ assert(await page.evaluate(()=>[...document.fonts].some(f=>f.family.replace(/"/g,'')==='Schibsted Grotesk')),
+  'Schibsted Grotesk is declared');
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-overblik-1180x820.png')});
 
  // A-Skaerm: the clock opens Skærm og enhed as a centred 560-wide sheet over the dimmed overview.
