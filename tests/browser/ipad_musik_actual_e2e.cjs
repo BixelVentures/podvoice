@@ -14,6 +14,8 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 // Monday 9 Nov 2026 14.10 Europe/Copenhagen: the afternoon period.
 const DAY=new Date('2026-11-09T13:10:00Z');
 let server,browser;
+const near=(actual,expected,label,tolerance=2)=>assert(Math.abs(actual-expected)<=tolerance,
+ `${label}: ${actual} ≠ ${expected}`);
 const box=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n);
  return {x:Math.round(b.x),y:Math.round(b.y),w:Math.round(b.width),h:Math.round(b.height),radius:s.borderTopLeftRadius,
   display:s.display,size:s.fontSize,weight:s.fontWeight,color:s.color,text:n.innerText?.trim()};});
@@ -101,6 +103,19 @@ async function open(stage){
  assert.equal(await first.getAttribute('data-current'),'true');
  assert.equal((await box(first.locator('strong'))).color,'rgb(180, 83, 42)','current title in the accent');
  assert.equal((await box(second.locator('strong'))).color,'rgb(23, 23, 26)');
+ // The head: »Kø« in 24/800 and »N numre · <højttaler>« on the right; the playing row has the accent equaliser.
+ const queueTitle=await box(page.locator('#queue-title'));
+ assert.equal(queueTitle.text,'Kø');assert.equal(queueTitle.size,'24px');assert.equal(queueTitle.weight,'800');
+ const rowsShown=await page.locator('#queue>.queue-track:not([data-placeholder])').count();
+ const queueMeta=await box(page.locator('#queue-meta'));
+ assert.equal(queueMeta.text,`${rowsShown} numre · ${await page.locator('#player-room').innerText()}`);
+ assert.equal(queueMeta.size,'15px');assert.equal(queueMeta.color,'rgb(95, 94, 90)');
+ near(queueMeta.x+queueMeta.w,768,'the count ends at the right edge of the queue card');
+ near(queueMeta.y+queueMeta.h/2,queueTitle.y+queueTitle.h/2,'count and title share a line',6);
+ const eq=page.locator('#queue>.queue-track[data-current=true] .queue-eq');
+ assert.equal(await eq.locator('i').count(),3,'three equaliser bars on the playing track');
+ assert.equal(await eq.locator('i').first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(180, 83, 42)');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-koe.png')});
  assert.deepEqual(page.errors,[]);await page.close();
 
  // #389 leftover: in the small Musik slot the context line no longer sits on the »Musik« head.

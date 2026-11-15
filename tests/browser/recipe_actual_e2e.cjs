@@ -231,10 +231,11 @@ async function readAndResumeBurgerboller(page){
  console.log(JSON.stringify({outcome:'PASS',story:'G4',catalogueDetailBack:true,
   catalogueOffset,category:'Alle',sameActiveRecipe:true,sourceMode}));
  await recipe.locator('input[type=radio][value="Aftensmad"]').locator('..').tap();
- assert.equal(await catalog.locator('[data-recipe]').first().getAttribute('data-recipe'),'Burgerboller');
+ // A-Opskrifter: the active recipe is pinned in the band over the toolbar, whatever the category.
+ assert.equal(await catalog.locator('[data-recipe-layout=band] [data-recipe]').getAttribute('data-recipe'),'Burgerboller');
  assert.equal(await row.getAttribute('aria-current'),'true');
  assert.equal(await row.getAttribute('data-kit-variant'),'resume');
- assert.match(await row.innerText(),/I gang\s+Burgerboller af Meyers\s+1 af 5 trin · Fortsæt/);
+ assert.match(await row.innerText(),/I gang\s+Burgerboller · trin 2 af 5/);
  const activeGeometry=await row.evaluate(el=>{
   const css=getComputedStyle(el),color=document.createElement('canvas').getContext('2d');
   // Changed (issue 398, lærred »A-Opskrifter«): the active recipe is a 96-high band in the recipe tone #F2E4D3
@@ -494,8 +495,8 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  await active.waitFor({state:'visible',timeout:16000});
  assert.equal(await active.count(),1);
  assert.equal(await active.getAttribute('data-kit-variant'),'resume');
- assert.match(await active.innerText(),/1 af 7 trin · Fortsæt/);
- assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] [data-recipe]').first().getAttribute('aria-current'),'true');
+ assert.match(await active.innerText(),/Nem chokoladekage i bradepande · trin 2 af 7/);
+ assert.equal(await page.locator('#recipe-view [data-recipe-layout=band] [data-recipe]').getAttribute('aria-current'),'true');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-active-filter.png`)});
  // The active widget retains its styling and opens the same cooking session directly.
  await page.locator('#header-title-action').tap();

@@ -82,7 +82,55 @@ async function stagePage(stage){
  assert.equal(xs.size,5,'five recipe columns');
  assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] h3:visible').count(),0,
   'no letter headings in the card grid');
+ // The toolbar: the category track on the left, »N opskrifter«, »Tilføj opskrift« and »Udforsk« on the right.
+ const toolbar=await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'));
+ assert.deepEqual([toolbar.x,toolbar.w],[24,1132],'one toolbar row over the cards');
+ assert(toolbar.y<first.y,'the toolbar sits over the cards');
+ near(toolbar.y,88,'the toolbar starts 16 under the topbar');
+ const shown=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] [data-recipe-count]'));
+ assert.equal(shown.text,`${await cards.count()} opskrifter`);assert.equal(shown.size,'16px');
+ const explore=await box(page.getByRole('button',{name:'Udforsk',exact:true}));
+ assert.equal(explore.h,44);assert.equal(explore.bg,'rgb(247, 246, 243)');near(explore.x+explore.w,1156,'Udforsk ends right');
+ const addButton=await box(page.getByRole('button',{name:'Tilføj opskrift',exact:true}));
+ assert.equal(addButton.h,44);near(addButton.y,explore.y,'Tilføj opskrift on the same row');
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter.png')});
+ // »Tilføj opskrift« brings the Share → Home Assistant help and the upload history into view.
+ await page.getByRole('button',{name:'Tilføj opskrift',exact:true}).tap();await sleep(700);
+ const help=page.locator('#recipe-add-help');
+ assert.match(await help.innerText(),/Del → Home Assistant/);
+ const helpBox=await box(help);assert(helpBox.y>=88&&helpBox.y+helpBox.h<=820,'the help is on screen');
+ assert(await page.locator('#recipe-upload-history-trigger').isVisible(),'upload history next to the help');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-tilfoej.png')});
+ // Opskrifter-Bog: Udforsk is a cover flow of the same catalogue.
+ await page.getByRole('button',{name:'Udforsk',exact:true}).tap();
+ const flow=page.locator('#recipe-view [data-recipe-layout=explore]');await flow.waitFor({state:'visible'});await sleep(800);
+ const mode=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset label:has(input:checked)'));
+ assert.equal(mode.text,'Udforsk');assert.equal(mode.bg,INK);
+ near((await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,88,'Udforsk toolbar 16 under the topbar');
+ const total=await cards.count()||9;
+ const position=page.locator('#recipe-view [data-recipe-explore-position]');
+ assert.match(await position.innerText(),/^1 af \d+$/);
+ const center=await box(flow.locator('[data-recipe-cover][aria-current=true]'));
+ assert.deepEqual([center.x,center.w,center.h],[230,720,460],'the chosen cover stands flat, 720×460, centred');
+ assert.equal(center.radius,'22px');
+ const info=await box(page.locator('#recipe-view [data-recipe-explore-title]'));
+ assert.equal(info.size,'36px');assert.equal(info.weight,'800');
+ assert.equal(info.text,await flow.locator('[data-recipe-cover][aria-current=true]').getAttribute('data-recipe-cover'));
+ assert(await page.locator('#recipe-view [data-recipe-explore-dots]>i').count()<=7,'at most seven dots');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-udforsk.png')});
+ // A tap on a neighbour chooses it; a tap on the chosen cover opens the recipe.
+ const neighbour=flow.locator('[data-recipe-cover]').nth(1),chosenName=await neighbour.getAttribute('data-recipe-cover');
+ await neighbour.tap();await sleep(800);
+ assert.match(await position.innerText(),/^2 af \d+$/);
+ assert.equal(await page.locator('#recipe-view [data-recipe-explore-title]').innerText(),chosenName);
+ await page.locator('#recipe-view [data-recipe-cover][aria-current=true]').tap();
+ await page.locator('#recipe-view [data-recipe-layout=intro]').waitFor({state:'visible'});
+ assert.equal(await page.locator('#recipe-view [data-recipe-layout=title]').innerText(),chosenName,'the cover opens its recipe');
+ assert(total>0);
+ await page.locator('#header-title-action').tap();
+ await page.locator('#recipe-view [data-recipe-layout=explore]').waitFor({state:'visible'});
+ await page.getByText('Katalog',{exact:true}).tap();
+ await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
 
  // A-Opskrift: hero, ingredients 400, steps.
  await page.locator('#recipe-view [data-recipe="Burgerboller"]').tap();
@@ -115,6 +163,11 @@ async function stagePage(stage){
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor();
  const band=await box(page.locator('#recipe-view [data-recipe][data-kit-variant=resume]'));
  assert.equal(band.h,96,'active recipe band 96 high');assert.equal(band.bg,RECIPE);assert.equal(band.w,1132);
+ // A-Opskrifter: the band comes first, over the toolbar, and names the current step.
+ near(band.y,88,'the band is the first thing under the topbar');
+ assert(band.y+band.h<=(await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,'band over the toolbar');
+ assert.match(band.text,/I gang\s+Burgerboller · trin 1 af 5/);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-igang.png')});
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');await sleep(400);
  // K-Widget: recipes are an entry, a white surface also while cooking (the step bar shows progress).

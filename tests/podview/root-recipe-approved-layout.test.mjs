@@ -61,7 +61,7 @@ test('active recipe stays once above the alphabetical catalogue across category 
   let rows=recipeRows(entries);
   assert.deepEqual(rows.map(r=>r.dataset.recipe),['Burgerboller','Karry']);
   assert.equal(rows[0].variant,'resume');assert.equal(rows[0].attributes['aria-current'],'true');
-  assert.match(textOf(rows[0]),/I gang.*1 af 2 trin · Fortsæt/);
+  assert.match(textOf(rows[0]),/I gang.*Burgerboller · trin 2 af 2/,'A-Opskrifter: the band names the current step');
   rows[0].events.click();assert.equal(view.opened,burger,'resume opens the same session object');
   view.catalogCategory='';render();rows=recipeRows(entries);
   assert.deepEqual(rows.map(r=>r.dataset.recipe),['Burgerboller','Karry'],'active recipe is not duplicated in B');

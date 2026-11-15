@@ -3472,7 +3472,10 @@
           "method:refreshShortcut": 1,
           "arrow:renderShortcut": 1,
           "arrow:download": 1,
-          "arrow:copyRow": 1
+          "arrow:copyRow": 1,
+          "method:explore": 1,
+          "arrow:choose": 1,
+          "arrow:activate": 1
         },
         "roots": [],
         "registrations": {},
