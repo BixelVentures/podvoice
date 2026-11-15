@@ -41,11 +41,10 @@ async function newRecipePage(browser){
  }
  return page;
 }
-async function observeColdCatalog(page,widget,bundleSHA){
- const catalogPath=url=>url.pathname==='/view/api/recipes';
- let releaseRead;
- const readGate=new Promise(resolve=>{releaseRead=resolve;});
- await page.route(catalogPath,async route=>{await readGate;await route.continue();},{times:1});
+// Changed 13 Nov (native feel): the catalogue is read quietly at startup and its first photos are
+// warmed, so the first visible frame after the tap already holds the whole catalogue (it used to
+// show "Henter opskrifter …" while a held first read was pending).
+async function observeColdCatalog(page,widget,bundleSHA,startupRead){
  await widget.evaluate(button=>button.addEventListener('click',event=>{
   if(!event.isTrusted)return;
   const clickedAt=performance.now(),frames=window.coldRecipeFrames=[];
@@ -79,20 +78,10 @@ async function observeColdCatalog(page,widget,bundleSHA){
   };
   requestAnimationFrame(sample);
  },{capture:true,once:true}));
- const request=page.waitForRequest(req=>req.method()==='GET'&&catalogPath(new URL(req.url())));
- const response=page.waitForResponse(res=>res.request().method()==='GET'&&catalogPath(new URL(res.url())));
- try{
-  await widget.tap();
-  await request;
-  await page.waitForFunction(()=>window.coldRecipeFrames?.length>0);
-  const first=await page.evaluate(()=>window.coldRecipeFrames[0].state);
-  assert.deepEqual(first.rows,[],'cold view has not received the held catalogue');
-  // Changed: the catalogue always says how to add a recipe (Del → Home Assistant).
-  assert.deepEqual(first.messages,['Henter opskrifter …',SHARE_HINT],'first visible frame explicitly loads');
-  assert.notEqual(first.status,'ready');
- }finally{releaseRead();}
- const published=await response;
- assert.equal(published.status(),200);
+ const published=await startupRead;
+ assert.equal(published.status(),200,'the catalogue was read in the background before the tap');
+ await widget.tap();
+ await page.waitForFunction(()=>window.coldRecipeFrames?.length>0);
  const recipes=(await published.json()).recipes;
  const titles=recipes.map(recipe=>recipe.title).sort();
  assert(titles.includes('Burgerboller')&&titles.length>1,'fixture catalogue contains known recipes');
@@ -109,8 +98,14 @@ async function observeColdCatalog(page,widget,bundleSHA){
   window.stopColdRecipeFrames=true;
   return window.coldRecipeFrames;
  });
- assert(frames.every(({state})=>!state.messages.includes('Der er ingen opskrifter endnu.')
-  &&(state.rows.length>0||state.messages.includes('Henter opskrifter …'))),
+ const first=frames[0].state;
+ assert.equal(first.status,'ready','the first visible frame already holds the catalogue');
+ assert.deepEqual([...first.rows].sort(),titles,'no row loads in after the page appears');
+ assert.deepEqual(first.messages,[SHARE_HINT],'never "Henter opskrifter …" for a catalogue read at startup');
+ const loaded=frames.find(({state})=>state.covers.length>0&&state.covers.every(cover=>cover.loaded));
+ assert(loaded&&loaded.elapsedMs-frames[0].elapsedMs<=60,
+  `warmed photos show within 60 ms of the page: ${loaded?Math.round(loaded.elapsedMs-frames[0].elapsedMs):'never'} ms`);
+ assert(frames.every(({state})=>!state.messages.includes('Der er ingen opskrifter endnu.')&&state.rows.length>0),
   'known content never appears empty or blank');
  const ready=frames.filter(({state})=>state.status==='ready');
  for(const {state} of ready){
@@ -124,11 +119,13 @@ async function observeColdCatalog(page,widget,bundleSHA){
  const screenshot=path.join(testEnv.artifactDir(),`podview-recipe-${shot}-cold-catalogue.png`);
  await page.screenshot({path:screenshot});
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-recipe-cold-catalogue-proof.json'),
-  JSON.stringify({outcome:'PASS',story:'O1',sourceMode,bundleSHA,heldFirstRead:true,viewport:shot,frames,screenshot},null,2));
+  JSON.stringify({outcome:'PASS',story:'O1',sourceMode,bundleSHA,startupRead:true,viewport:shot,frames,screenshot},null,2));
 }
 async function openCatalog(page,{observeCold=false}={}){
  const bundle=observeCold?page.waitForResponse(response=>
   new URL(response.url()).pathname==='/view/podview.bundle.js'&&response.ok()):null;
+ const startupRead=observeCold?page.waitForResponse(response=>response.request().method()==='GET'&&
+  new URL(response.url()).pathname==='/view/api/recipes'):null;
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});
  await testEnv.openOverview(page);
  const widget=page.locator('#home-recipes');
@@ -138,7 +135,7 @@ async function openCatalog(page,{observeCold=false}={}){
  if(bundle){
   const bundleSHA=createHash('sha256').update(await (await bundle).body()).digest('hex');
   if(process.env.RECIPE_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.RECIPE_EXPECTED_BUNDLE);
-  await observeColdCatalog(page,widget,bundleSHA);
+  await observeColdCatalog(page,widget,bundleSHA,startupRead);
  }else await widget.tap();
  await page.locator('#recipe-view [data-recipe-layout=catalog]').waitFor({state:'visible'});
  await page.locator('#recipe-view [data-recipe]').first().waitFor({state:'visible'});

@@ -398,8 +398,8 @@ def _content_controls(value: Any, account: str, target: str, room: str, homepod:
             or re.fullmatch(f"[a-f0-9]{{{length}}}", offer[key]) is None
         ):
             raise ValueError("invalid native start descriptor")
-    if type(offer["start_volume_percent"]) is not int or offer["start_volume_percent"] != 35:
-        raise ValueError("invalid fresh-start policy")
+    # PodConnect owns the start volume (the room's own, at most its policy); only its shape is checked.
+    _integer(offer["start_volume_percent"], 0, 100)
     expiry = _integer(offer["expires_after_ms"], 1, 5000)
     deadline = min(
         stamp.timestamp() + maximum / 1000, now + (maximum - age) / 1000, now + expiry / 1000
@@ -443,7 +443,7 @@ def _content_receipt(value: Any, identity: dict, room: str, homepod: str) -> dic
             not isinstance(operation, str)
             or re.fullmatch(r"[a-f0-9]{32}", operation) is None
             or type(volume) is not int
-            or volume != 35
+            or not 0 <= volume <= 100
             or "error_kind" in value
         ):
             raise ValueError("incomplete selected-content start")
@@ -453,7 +453,7 @@ def _content_receipt(value: Any, identity: dict, room: str, homepod: str) -> dic
     elif (
         operation is not None
         and (not isinstance(operation, str) or re.fullmatch(r"[a-f0-9]{32}", operation) is None)
-    ) or (volume is not None and (type(volume) is not int or volume != 35)):
+    ) or (volume is not None and (type(volume) is not int or not 0 <= volume <= 100)):
         raise ValueError("invalid unknown selected-content facts")
     result = {key: value[key] for key in required}
     if "observe_after_poll_sequence" in value:
@@ -1043,7 +1043,7 @@ class MusicControlFacade:
                 is None
             ):
                 return finish(_failure("invalid_arguments"))
-            if type(max_volume) is not int or not 35 <= max_volume <= 100:
+            if type(max_volume) is not int or not 0 <= max_volume <= 100:
                 return finish(_failure("volume_above_approved_limit"))
             sequence, epoch = value["next_command_sequence"], value["owner_epoch"]
             identity = {

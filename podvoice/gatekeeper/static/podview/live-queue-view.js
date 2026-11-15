@@ -417,8 +417,9 @@ export class LiveQueueView{
      :'Køvalget blev afvist. Den kendte sang bevares.',false,{source:'queue'});
     if(!(result.outcome==='accepted'&&readCurrent()))return;
    }
-   this.status=result.outcome==='accepted'?'accepted':result.outcome==='unknown'?'unknown':'error';
-   this.errorKind=this.status==='error'?'choice':null;
+   // Green 13/11: a refused choice is one vanishing toast; the queue stays usable and is read again.
+   this.status=result.outcome==='accepted'?'accepted':result.outcome==='unknown'?'unknown':'ready';
+   this.errorKind=null;
    if(result.outcome==='accepted')this.reconcilingChoice={scope:choiceScope,occurrenceId:selected.id};
    this.consumed=true;
    this.effectPending=false;
@@ -428,7 +429,7 @@ export class LiveQueueView{
    this.redraw();
    if(result.outcome!=='accepted')this.host.showFeedback?.(result.outcome==='unknown'?'Køvalg kunne ikke bekræftes · handlingen gentages ikke.':'Køvalget blev afvist. Den kendte sang bevares.',false,{source:'queue'});
    if(result.outcome==='accepted'){media.lastRead=0;await media.refresh();if(!current())return;}
-  }catch{outcome=sent?'unknown':'rejected';transport.recordDiagnostic?.('queue_action',{code:sent?'unknown':'rejected',current:current()});if(current()){this.offer=null;this.status=sent?'unknown':'error';this.errorKind=sent?null:'choice';if(sent)this.consumed=true;this.host.showFeedback?.(sent?'Køvalg kunne ikke bekræftes · handlingen gentages ikke.':'Køvalget kunne ikke klargøres. Den kendte sang bevares.',false,{source:'queue'});}}
+  }catch{outcome=sent?'unknown':'rejected';transport.recordDiagnostic?.('queue_action',{code:sent?'unknown':'rejected',current:current()});if(current()){this.offer=null;this.status=sent?'unknown':'ready';this.errorKind=null;if(sent)this.consumed=true;this.host.showFeedback?.(sent?'Køvalg kunne ikke bekræftes · handlingen gentages ikke.':'Køvalget kunne ikke klargøres. Den kendte sang bevares.',false,{source:'queue'});}}
   finally{
    if(generation===this.generation){
     this.effectPending=false;
@@ -448,6 +449,8 @@ export class LiveQueueView{
       &&this.sameChoiceScope(choiceScope,this.choiceScope(media.account,media.playback))){
       this.unknownChoice={scope:choiceScope,pollSequence};
      }
+     // A refused choice spent its offer: read a fresh one so the next tap works.
+     if(outcome==='rejected'&&readCurrent())void media.loadQueue?.();
      if(waiting.length&&outcome==='unknown'){
       this.host.showFeedback?.(
        'Køvalget kunne ikke bekræftes · dit næste valg blev ikke sendt.',false,{source:'queue'},

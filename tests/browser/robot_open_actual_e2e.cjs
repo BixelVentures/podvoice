@@ -32,6 +32,12 @@ async function watchGrey(page) {
         if (['pause', 'resume'].includes(id) || button.offsetParent === null) continue;
         if (button.disabled && !window.__grey.includes(id)) window.__grey.push(id);
       }
+      // Last-known content is shown as it is, never marked busy while a fresh offer is fetched.
+      for (const busy of document.querySelectorAll('#device-view [aria-busy="true"]')) {
+        if (busy.offsetParent === null || busy.dataset.controlOptionId) continue;
+        const key = 'busy:' + (busy.id || busy.className || busy.tagName);
+        if (!window.__grey.includes(key)) window.__grey.push(key);
+      }
       window.__greyRaf = requestAnimationFrame(sample);
     };
     sample();
@@ -64,6 +70,8 @@ let browser;
     await testEnv.openOverview(page);
     const card = '.resource-card[data-kind="vacuum"] .resource-direct-action';
     await page.locator(`${card}[data-action-id="pause"]`).waitFor({state: 'visible', timeout: 15000});
+    // The screen prepares the robot page in the background shortly after it shows the overview.
+    await sleep(3000);
 
     // Green's Home Assistant answers a control setup in about a second, not instantly.
     await page.route('**/control/setup*', async route => {

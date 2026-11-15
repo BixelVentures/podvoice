@@ -64,7 +64,7 @@ export class LiveMediaView{
   clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.pending=true;
   const readJob={key:readKey(),account:this.account,transport:host.liveTransport,generation:this.generation};
   readJob.promise=new Promise(resolve=>readJob.resolve=resolve);this.activeRead=readJob;this.refreshInterval=8000;
-  if(!this.playback&&this.establishedReadScope!==readScope)this.readState='loading';
+  /* Green 13/11: a room already shown empty stays empty during the next read (no "Afventer data"). */if(!this.playback&&this.establishedReadScope!==readScope&&!(this.readState==='idle'&&this.idleBindingScope===bindingScope))this.readState='loading';
   try{this.render();}catch(error){if(this.activeRead===readJob)this.activeRead=null;this.pending=false;readJob.resolve();throw error;}
   this.lastRead=Date.now();
   const transport=host.liveTransport,generation=this.generation,boot=snap.bootId,room=snap.roomId,capabilities=JSON.stringify(allowed);
@@ -110,7 +110,7 @@ export class LiveMediaView{
    const expired=pauseExpired(snap.roomId,account,next)&&!host.liveSelection?.feedback?.pending;
    if(next.state==='idle'||expired){
     record({code:'empty',durationMs:Date.now()-diagnosticAt});
-    this.clearRoom();this.establishedReadScope=readScope;this.readState='idle';
+    this.clearRoom();this.establishedReadScope=readScope;this.readState='idle';this.idleBindingScope=bindingScope;
     if(next.state==='idle')host.liveCatalogue?.observeIdlePlayback?.(account);
     // While an accepted selection starts, the room is read again soon.
     if(starting)schedule(SETTLEMENT_READ_MS);
@@ -296,12 +296,15 @@ export class LiveMediaView{
   if(currentStatus){if(this.selectionReceiptFeedback!==feedback){this.selectionReceiptFeedback=feedback;if(!this.host.feedbackMessage||this.host.feedbackMessage===feedback.message)this.host.showFeedback?.(feedback.message,false);}}else if(this.selectionReceiptFeedback!==feedback)this.selectionReceiptFeedback=null;
   const selection=this.host.liveSelection,playerFeedback=selection?.playerFeedback?.()??feedback,selected=selection?.pendingPlayer?.(playerFeedback),model=this.observedPlayerModel();if(model.active&&typeof model.playing==='boolean'&&this.host.liveControls?.optimisticPlaying)model.playing=this.host.liveControls.optimisticPlaying(model.playing);
   const controls=this.host.liveControls,controlStatus=!selected&&model.active?(controls?.playerStatus?.()||(this.host.liveTransport?.connected&&Array.isArray(this.host.liveSnapshot?.capabilities?.controlSetup)&&!this.host.liveSnapshot.capabilities.controlSetup.includes('music')?NO_ACCESS:'')):'';
+  // A chosen speaker shows at once as the player's speaker; its confirmation changes nothing (no flash).
   const pendingChoice=this.host.liveOutputs?.pendingChoiceLabel?.()
    ||(controls?.player?.moving?.()?this.host.liveOutputs?.configuredLabel?.()||'Højttaleren i rummet':'');
+    // A start from an empty player is calm (13/11): the chosen song shows at once, no text over the
+  // speaker picker, and the picker stays usable.
     // The speaker's native confirmation of this exact request plays the chosen item before
   // Spotify's observation names it. Controls still wait for that observation's authority.
   const confirmed=!!selected&&playerFeedback?.settlementStatus==='confirmed';
-  this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{selectedTarget:pendingChoice}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:confirmed,fresh:false,loading:!confirmed,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:false,feedback:confirmed?null:{...feedback,message:'Starter afspilning…',pending:true}}:{})});
+  this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{target:pendingChoice,targetPending:true}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:confirmed,fresh:true,loading:!confirmed,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:model.canOutput,feedback:null}:{})});
   if(!this.host.liveControls)this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true});
   this.renderQueue();this.host.liveControls?.render();if(selected)this.host.playerView.renderControls({playing:confirmed,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
  }

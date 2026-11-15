@@ -384,7 +384,7 @@ test('actual unavailable weather uses retained Hero message slots and restores n
 
 test('passive advice pending and ready retain the existing summary, Hero, forecast rows and scroll owner',()=>{
  const {node}=fixture(),model=localWeatherModel(),n=renderWeather(node,{...model,summary:'',summaryState:'pending',summaryLabel:'Et vejrråd er på vej'}),summary=n.summary,card=n.card,hour=n.hours.children[0];n.hours.scrollLeft=140;
- assert.equal(summary.getAttribute('data-kit-slot'),'body');assert.equal(summary.getAttribute('data-advice-state'),'pending');assert.equal(summary.getAttribute('aria-busy'),'true');assert.equal(summary.textContent,'');assert.equal(summary.hidden,false);
+ assert.equal(summary.getAttribute('data-kit-slot'),'body');assert.equal(summary.getAttribute('data-advice-state'),'pending');assert.equal(summary.getAttribute('aria-busy'),'false','a pending advice is quiet, not busy (native feel, 13 Nov)');assert.equal(summary.textContent,'');assert.equal(summary.hidden,false);
  const ready=renderWeather(node,{...model,summary:'Tag en trøje med – skyerne bliver hængende.',summaryState:'ready',summaryLabel:'AI-råd baseret på vejrudsigten'});
  assert.equal(ready.summary,summary);assert.equal(ready.card,card);assert.equal(ready.hours.children[0],hour);assert.equal(ready.hours.scrollLeft,140);assert.equal(summary.getAttribute('aria-busy'),'false');assert.equal(summary.getAttribute('data-advice-state'),'ready');assert.equal(summary.textContent,'Tag en trøje med – skyerne bliver hængende.');
  const empty=renderWeather(node,{...model,summary:'',summaryState:null,summaryLabel:''});assert.equal(empty.summary,summary);assert.equal(summary.hidden,true);assert.equal(summary.getAttribute('data-advice-state'),'none');assert.equal(summary.getAttribute('aria-description'),null);
@@ -397,7 +397,7 @@ test('idle reserves the summary and dispatched requesting uses the same pending 
  for(const status of ['requesting','pending','ready']){
   const receipt=status==='requesting'?null:{schema:'podview.passive-weather-advice.v1',bootId:cap.bootId,roomId:cap.roomId,weatherKey:cap.weatherKey,requestId:'b'.repeat(32),source:weather.source,sourceRetrievedAt:cap.sourceRetrievedAt,validUntil:cap.validUntil,status,summaryKind:'ai_advice',summary:status==='ready'?'Tag en jakke med – skyerne bliver hængende.':null,evidenceFactIds:status==='ready'?['current:temperature']:[]};
   const model=liveWeatherModel(weather,{now,passiveContext:cap,passiveAdvice:receipt,passiveStatus:status}),updated=renderWeather(node,model);
-  assert.equal(updated.summary,summary);assert.equal(summary.hidden,false);assert.equal(updated.card,card);assert.equal(updated.hours.children[0],hour);assert.equal(node.children.length,children);assert.equal(summary.getAttribute('data-advice-state'),status==='requesting'?'pending':status);assert.equal(summary.getAttribute('aria-busy'),String(['requesting','pending'].includes(status)));
+  assert.equal(updated.summary,summary);assert.equal(summary.hidden,false);assert.equal(updated.card,card);assert.equal(updated.hours.children[0],hour);assert.equal(node.children.length,children);assert.equal(summary.getAttribute('data-advice-state'),status==='requesting'?'pending':status);assert.equal(summary.getAttribute('aria-busy'),'false','a pending advice is quiet, not busy (native feel, 13 Nov)');
  }
 });
 
@@ -405,7 +405,7 @@ test('explicit local advice previews use the canonical summary slot and never cl
  const before=JSON.stringify(WEATHER_CHANGE_EXAMPLE),{node}=fixture();let summary,card,hour;
  for(const state of ['idle','pending','ready','error']){
   const example={...WEATHER_CHANGE_EXAMPLE,advicePreview:state},model=localWeatherModel(example),rendered=renderWeather(node,model);
-  summary??=rendered.summary;card??=rendered.card;hour??=rendered.hours.children[0];assert.equal(model.summaryState,state);assert.equal(model.source,'Eksempeldata');assert.equal(rendered.summary,summary);assert.equal(rendered.card,card);assert.equal(rendered.hours.children[0],hour);assert.equal(summary.hidden,false);assert.equal(summary.getAttribute('data-advice-state'),state);assert.equal(summary.getAttribute('aria-busy'),String(state==='pending'));
+  summary??=rendered.summary;card??=rendered.card;hour??=rendered.hours.children[0];assert.equal(model.summaryState,state);assert.equal(model.source,'Eksempeldata');assert.equal(rendered.summary,summary);assert.equal(rendered.card,card);assert.equal(rendered.hours.children[0],hour);assert.equal(summary.hidden,false);assert.equal(summary.getAttribute('data-advice-state'),state);assert.equal(summary.getAttribute('aria-busy'),'false','a pending advice is quiet, not busy (native feel, 13 Nov)');
   assert.equal('aiAdvice' in model,false);assert.equal('passiveAdvice' in model,false);assert.equal('receiptId' in model,false);
   if(['idle','pending'].includes(state))assert.equal(model.summary,'');else if(state==='ready'){assert.equal(model.summary,'Tag en trøje med – skyerne bliver hængende.');assert.equal(model.summaryLabel,'Forfattet eksempel – ikke genereret af AI');}else assert.equal(model.summary,'Vejrrådet er ikke tilgængeligt lige nu.');
  }

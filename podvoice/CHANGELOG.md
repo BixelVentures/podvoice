@@ -1,3 +1,24 @@
+## 2.0.193
+
+- Afspilleren: Et afvist køvalg bliver ikke stående som fejltekst, og køen låses ikke. Den aktuelle højttaler er aldrig låst i vælgeren. Afspil/pause-knappen blinker ikke "arbejder" ved pause.
+
+## 2.0.192
+
+- Musik kan igen startes fra Find musik, køen og højttalervælgeren. PodVoice har ikke længere sin egen kopi af 35 %-reglen og bruger den startlydstyrke, PodConnect angiver (rummets egen lydstyrke, højst 35 %).
+
+## 2.0.191
+
+- Rettelser fra Green-tjekket: Højttalervælgeren låses ikke længere kort under baggrundsopdateringer, så et tryk aldrig går tabt. Find musik er klar i baggrunden uden "Henter forslag", og forslagene er aldrig låste. Forsiden og fanerne blinker ikke. Robot- og vejrsiden er klar, når de åbnes.
+- Kræver PodConnect Speakers 0.26.102 og Control 0.10.46.
+
+## 2.0.190
+
+- Musikafspilleren følger nu enkle regler: Afspilleren ejer højttalervalget, og radio og musik spiller altid på den valgte højttaler. At åbne Find musik eller radiosiden ændrer ikke afspilleren. Stoppet radio bliver i afspilleren i 10 min ligesom pauset musik. Højttalervælger, kø og Find musik låses aldrig, og "Højttaleren afviste handlingen" står ikke længere i afspiller eller kø. Pause/afspil, kold start og valg i køen sker roligt uden blink, og spole-slideren føles som lydstyrken.
+- PodView føles mere som en app: Robot-, Tesla-, vejr- og opskriftssiderne er klar, når de åbnes, fordi indholdet hentes i baggrunden. Forsidekortene blinker ikke ved opdatering, og skærmen kan ikke længere zoomes, markeres eller trækkes ud ved et uheld.
+- Robotten husker igen dine sidste rum og indstillinger, også efter en genstart. En dokket robot logges ikke længere som en fejl.
+- Opskrifter fra iPhone: Del → Home Assistant gemmer opskriften og sender "Gemt", "Findes allerede" eller "Ingen opskrift fundet" som besked til telefonen. Den nye opskrift vises med det samme på iPad'en.
+- Kræver PodConnect Speakers 0.26.101.
+
 ## 2.0.189
 
 - Rettelser efter testen 13. nov. (kræver PodConnect Speakers 0.26.99 og Control 0.10.45, og HA-komponenten 0.1.24):

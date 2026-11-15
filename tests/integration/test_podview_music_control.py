@@ -124,7 +124,7 @@ class Rig:
                     {
                         "accepted_selected_content": True,
                         "start_operation_id": "d" * 32,
-                        "start_volume_percent": 35,
+                        "start_volume_percent": args["start_offer"]["start_volume_percent"],
                         "room_id": args["room_id"],
                         "homepod_id": args["homepod_id"],
                     }
@@ -560,7 +560,7 @@ async def test_selected_read_rejects_invalid_owner_without_command(rig, change):
 
 
 @pytest.mark.parametrize(
-    "change", ["expired", "boolean_limit", "low_ceiling", "wrong_uri", "bad_offer"]
+    "change", ["expired", "boolean_limit", "negative_ceiling", "wrong_uri", "bad_offer"]
 )
 async def test_selected_execute_rejects_without_send(rig, change):
     content_owner(rig)
@@ -572,8 +572,8 @@ async def test_selected_execute_rejects_without_send(rig, change):
         offer["valid_until"] = time.time() - 1
     elif change == "boolean_limit":
         ceiling = True
-    elif change == "low_ceiling":
-        ceiling = 34
+    elif change == "negative_ceiling":
+        ceiling = -1
     elif change == "wrong_uri":
         uri = "spotify:playlist:" + "A" * 22
     else:
@@ -581,6 +581,22 @@ async def test_selected_execute_rejects_without_send(rig, change):
     rig.calls.clear()
     result = await rig.facade.execute_track(offer, uri, ceiling, lambda: True)
     assert not result["ok"] and result["outcome"] == "rejected" and not rig.calls
+
+
+@pytest.mark.parametrize("percent", [8, 0, 35])
+async def test_podconnect_start_volume_is_passed_on_as_is(rig, percent):
+    # Green 13/11 16:56: PodConnect #164 offers the room's own volume (max 35); PodVoice owns no
+    # copy of the start volume and never rejects a start because of its number.
+    content_owner(rig)
+    rig.value["start_offer"]["start_volume_percent"] = percent
+    offer = await rig.facade.setup_track("account", "device", "native-room", "42", lambda: True)
+    assert offer["ok"], offer
+    uri = "spotify:track:" + "A" * 22
+    result = await rig.facade.execute_track(offer["data"], uri, 20, lambda: True)
+    assert result["ok"] and result["accepted_selected_content"] is True
+    assert result["start_volume_percent"] == percent
+    assert rig.calls[2][3]["start_offer"]["start_volume_percent"] == percent
+    assert rig.calls[2][3]["args"] == {"track_uri": uri, "max_volume": 20}
 
 
 async def test_selected_context_uses_same_native_service_and_playlist_only(rig):

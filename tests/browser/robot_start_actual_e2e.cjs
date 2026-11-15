@@ -10,7 +10,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 
-const port = Number(process.env.ROBOT_START_TEST_PORT || 18979);
+const port = Number(process.env.ROBOT_START_TEST_PORT || 18993);
 const base = `http://127.0.0.1:${port}`;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 const lab = body =>

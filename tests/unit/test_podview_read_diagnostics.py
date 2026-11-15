@@ -119,3 +119,18 @@ async def test_handler_exception_identity_and_context_reset(monkeypatch):
         await rd.observe_read(request, handler, "playback")
     assert caught.value is expected and calls == [True]
     assert rd.read_hash() == "none"
+
+
+@pytest.mark.parametrize("error", ["queue_offer_unavailable", "queue_preview_pending"])
+async def test_queue_reasons_are_named_not_other(caplog, error):
+    # Green 13/11: "podview_read kind=queue reason=other" hid which queue answer it was.
+    token = "12345678-1234-4abc-8abc-123456789abc"
+
+    async def handler(request):
+        return web.json_response({"ok": False, "error": error, "retryAllowed": False})
+
+    with caplog.at_level("WARNING", logger="podvoice.podview"):
+        await rd.observe_read(
+            SimpleNamespace(headers=CIMultiDict({"X-PodView-Read-Id": token})), handler, "queue"
+        )
+    assert f"reason={error}" in caplog.text and "reason=other" not in caplog.text

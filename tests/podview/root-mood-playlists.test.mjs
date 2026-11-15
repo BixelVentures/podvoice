@@ -16,7 +16,7 @@ test('metadata renewal rejection retains frozen inactive cards and requests expl
 
 test('closed theme metadata remains validated without inventing playlist names or source covers',()=>{for(const [themeId,themeTitle,themeArt] of [['morning_acoustic','En rolig morgen','assets/morning-acoustic.webp'],['evening_jazz','Rolig aften','assets/lake.webp']]){const value=body();Object.assign(value.data.tracks[0],{themeId,themeTitle,themeArt,artist:themeTitle,name:'Actual source playlist name'});const source=collectionSample(value,'account','mood',snapshot());assert.ok(source);const card=sourceMusicCards(source.tracks)[0];assert.equal(card.name,themeTitle);assert.equal(card.description,'Actual source playlist name');assert.equal(card.artwork,null);assert.equal(card.fixtureArt,undefined);assert.equal(card.fallbackArt,undefined);assert.equal(source.tracks.length,3);value.data.tracks[0].themeArt='assets/not-owned.png';assert.equal(collectionSample(value,'account','mood',snapshot()),null);}});
 
-test('actual account discovery waits for first music opening; scene navigation preserves tab and frozen cards',async()=>{
+test('actual account discovery is read in the background before music opens (Green 13/11); scene navigation preserves tab and frozen cards',async()=>{
  const previous={HTMLElement:globalThis.HTMLElement,customElements:globalThis.customElements,document:globalThis.document};
  class Node extends EventTarget{constructor(){super();this.children=[];this.dataset={};}prepend(){}append(...rows){this.children.push(...rows);}replaceChildren(...rows){this.children=rows;}setAttribute(){} }
  const classes=new Map();globalThis.HTMLElement=Node;globalThis.customElements={define:(name,Class)=>classes.set(name,Class),get:name=>classes.get(name)};globalThis.document={createElement:()=>new Node(),getElementById:()=>new Node()};
@@ -27,12 +27,13 @@ test('actual account discovery waits for first music opening; scene navigation p
   Object.assign(host,{live:true,isConnected:true,liveStatus:'connected',state:{...initialScene(),focus:'photo'},liveSnapshot:{...snapshot(),capabilities:{musicRead:['mood','top','targets','playback']}},musicResults:{render(){}},renderOverviewFacts(){},liveSelection:{ownerChanged(){},invalidate(){},leave(){}},playerView:{renderPlayer(){},renderControls(){},renderQueue(){}},scheduleReceipt(){},scheduleAnswer(){},scheduleDevices(){},scheduleTick(){},render(){this.liveCatalogue.open();},liveTransport:{connected:true,music:async kind=>{reads.push(kind);return kind==='targets'?{ok:true,data:{accounts:[{config_entry_id:'account',title:'Source account'}]}}:{ok:false};}}});
   view=new LiveMusicCatalogueView(host,kind=>reads.push(kind));host.liveCatalogue=view;view.updateCapabilities(true,host.liveSnapshot.capabilities.musicRead);host.liveMedia=new LiveMediaView(host);
   await host.liveMedia.refresh();assert.deepEqual(reads,['targets','playback']);assert.equal(view.account,'account');
-  host.dispatch({type:'show',id:'now'});assert.equal(reads.includes('mood'),false);
-  host.dispatch({type:'show',id:'music'});assert.equal(reads.filter(kind=>kind==='mood').length,1);
+  host.dispatch({type:'show',id:'now'});assert.equal(reads.filter(kind=>kind==='mood').length,1,'suggestions are read before Find musik opens');
+  host.dispatch({type:'show',id:'music'});assert.equal(reads.filter(kind=>kind==='mood').length,1,'opening reuses the background read');assert.equal(view.selected,'mood');
   view.tracks('mood',body(),'account');const cards=view.cards;
   for(let i=0;i<3;i++){host.dispatch({type:'show',id:'photo'});host.dispatch({type:'show',id:'now'});host.dispatch({type:'show',id:'music'});assert.equal(view.cards,cards);}
   assert.equal(reads.filter(kind=>kind==='mood').length,1);
-  view.select('top');view.failure('top');host.dispatch({type:'show',id:'now'});host.dispatch({type:'show',id:'music'});assert.equal(view.selected,'top');assert.equal(reads.filter(kind=>kind==='top').length,1);
+  // A background read left unfinished when Find musik opens is tried again later; the user's own tab read is one read.
+  const topBefore=reads.filter(kind=>kind==='top').length;view.select('top');view.failure('top');host.dispatch({type:'show',id:'now'});host.dispatch({type:'show',id:'music'});assert.equal(view.selected,'top');assert.equal(reads.filter(kind=>kind==='top').length,topBefore+1);
   view.select('mood');const before=reads.filter(kind=>kind==='mood').length;view.failure('mood');view.refresh();assert.equal(reads.filter(kind=>kind==='mood').length,before+1);
  }finally{clearTimeout(view?.expiryTimer);Object.assign(globalThis,previous);}
 });

@@ -185,3 +185,21 @@ test('a robot transport tap during a pending Start is queued and sent once when 
   assert.deepEqual(intents.map(row=>row.action),['pause'],'Pause is sent exactly once after Start');
  }finally{f.view.cleanup();}
 });
+
+// Green 13 Nov: a "last trip" (history) offer has no transport part, so a rebind to a fresh offer was
+// always refused (robot_rebind_denied offer_presence). It renews through its shown draft instead.
+test('a history offer renews without a rebind request',async()=>{
+ const f=fixture();try{await open(f);inline(f);const calls=[];const old=f.view.task;old.historyDraft={status:'restored'};
+  f.host.liveTransport.controlSetup=(...args)=>{calls.push(args);return f.next.promise;};
+  const reading=f.view.renewRobotTask(old);assert.equal(calls.length,1);
+  assert.equal(Object.hasOwn(calls[0][3]??{},'renewTaskId'),false,'no rebind for a history offer');
+  f.next.resolve(f.offer('fresh'));await reading;assert.equal(f.writes(),0);
+ }finally{f.view.cleanup();}
+});
+test('an ordinary offer still renews through a rebind request',async()=>{
+ const f=fixture();try{await open(f);inline(f);const calls=[];const old=f.view.task;
+  f.host.liveTransport.controlSetup=(...args)=>{calls.push(args);return f.next.promise;};
+  const reading=f.view.renewRobotTask(old);assert.equal(calls[0][3].renewTaskId,old.taskId);
+  f.next.resolve(f.offer('fresh'));await reading;
+ }finally{f.view.cleanup();}
+});

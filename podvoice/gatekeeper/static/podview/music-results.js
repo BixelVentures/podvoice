@@ -219,7 +219,7 @@ export function renderOverviewMediaValues(host){
  const radioExample=radioVM.exampleOnly===true||typeof radioVM.previewLabel==='string'&&/ingen lyd/i.test(radioVM.previewLabel);
  const values={
   'home-music':{title:known&&!radio?`${vm.fresh===false&&!vm.readOnly?'Ikke opdateret · ':''}${vm.title}`:emptyMusic,secondary:known&&!radio?artist:'',status:known&&!radio?(vm.readOnly?`${vm.playing?'Afspiller':'På pause'} · højttaler ikke bekræftet`:vm.fresh===false?'Afspilningen er ikke opdateret':vm.playing?'Afspiller':'På pause'):''},
-  'home-radio':{title:!radioAvailable?'Ikke tilgængelig':radioKnown?`${radioVM.fresh===false&&!radioExample&&radioVM.loading!==true?'Ikke opdateret · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioAvailable&&radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
+  'home-radio':{title:!radioAvailable?'Ikke tilgængelig':radioKnown?`${radioVM.fresh===false&&radioVM.playing&&!radioExample&&radioVM.loading!==true?'Ikke opdateret · ':''}${radioVM.title}`:radioAvailable?'Vælg station':'Ikke tilgængelig',secondary:radioAvailable&&radioKnown?(radioVM.loading===true?'Starter…':radioExample?'Ingen lyd':radioVM.playing?'Afspiller':'Stoppet'):'',status:''},
  };
  // W-radio »ikketilg«: the Radio widget is dimmed while radio cannot be chosen.
  const radioCard=doc.getElementById('home-radio'),radioState=radioAvailable?'ready':'unavailable';

@@ -94,6 +94,29 @@ class OwnedWireSDK(DiagnosticWireSDK):
             )
 
 
+_PRODUCTION_DEADLINES = {
+    name: getattr(thin, name)
+    for name in ("TEARDOWN_STEP_TIMEOUT_S", "TEARDOWN_TOTAL_TIMEOUT_S", "TEARDOWN_REARM_TIMEOUT_S")
+}
+
+
+def recover(monkeypatch, session, live, sdks):
+    """Release the held provider and wake the full teardown retry.
+
+    The fault under test is the FIRST close, which runs on tiny real-time deadlines.
+    The recovery retry ran on those same 0.25 s in total: on a busy CI runner it hit
+    "total-deadline", stayed incomplete, and the next retry came only after 10 s, past
+    ``until``. Recovery is not the fault under test, so it runs on production deadlines.
+    """
+    for name, value in _PRODUCTION_DEADLINES.items():
+        monkeypatch.setattr(thin, name, value)
+    live.timeout_s = 15
+    for sdk in sdks:
+        sdk.socket.release.set()
+        sdk.manager_release.set()
+    session._teardown_retry_wakeup.set()
+
+
 async def fixture(adapter, monkeypatch, *, held=True, attention=None, fault_deadlines=True):
     if fault_deadlines:
         monkeypatch.setattr("gatekeeper.thin.TEARDOWN_STEP_TIMEOUT_S", 0.04)
@@ -300,9 +323,7 @@ async def test_failed_provider_close_releases_music_but_keeps_readiness_blocked(
         await session.stop()
         assert operations == before  # Duplicate after owner completion is inert.
         broken[0] = None
-        sdk.socket.release.set()
-        sdk.manager_release.set()
-        session._teardown_retry_wakeup.set()
+        recover(monkeypatch, session, live, [sdk])
         await until(
             lambda: not session._teardown_incomplete and session._teardown_retry_task is None
         )
@@ -731,9 +752,7 @@ async def test_actual_reconnect_invalidates_suffix_permission_at_each_await_boun
         if adapter == "native":
             assert session._teardown_incomplete and live._local_close_pending
             assert link.rearm_calls == 0
-        sdks[0].socket.release.set()
-        sdks[0].manager_release.set()
-        session._teardown_retry_wakeup.set()
+        recover(monkeypatch, session, live, sdks[:1])
         await until(
             lambda: not session._teardown_incomplete and session._teardown_retry_task is None
         )
@@ -781,9 +800,7 @@ async def test_new_owned_work_after_heartbeat_join_cannot_use_saved_attention_pe
             # No Talk reserve is relaxed by the fresh check.
             assert len(session.attention.release_calls) == 1
         allow.set()
-        sdks[0].socket.release.set()
-        sdks[0].manager_release.set()
-        session._teardown_retry_wakeup.set()
+        recover(monkeypatch, session, live, sdks[:1])
         try:
             await until(
                 lambda: not session._teardown_incomplete and session._teardown_retry_task is None

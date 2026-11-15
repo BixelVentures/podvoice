@@ -55,6 +55,8 @@ async def observe_read(request, handler, kind):
             "invalid_queue_target",
             "queue_not_paired",
             "queue_unavailable",
+            "queue_offer_unavailable",
+            "queue_preview_pending",
             "music_unavailable",
         }
         reason = reason if isinstance(reason, str) and reason in allowed else "other"

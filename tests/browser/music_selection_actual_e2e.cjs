@@ -27,6 +27,7 @@ const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const startLatency=process.env.MUSIC_START_LATENCY_TEST==='1';
 const startLatencyMood=process.env.MUSIC_START_LATENCY_TEST==='mood';
 const queueSkip=process.env.MUSIC_QUEUE_SKIP_TEST==='1';
+const coldPlayer=process.env.MUSIC_COLD_PLAYER_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
@@ -109,6 +110,50 @@ async function moodLatencyJourney(){
  // Spotify's own observation, because the room read is "idle" until then (needs Control, see PR).
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',mode:'mood-start-latency',...result}));
+}
+
+// Test 13/11 12:05: a start from an empty player is calm. Every frame of the player is recorded:
+// no text over the speaker picker, the title changes once to the chosen song, no layout jump.
+async function recordPlayer(){
+ await page.evaluate(()=>{
+  const read=()=>{const q=id=>document.getElementById(id),box=document.querySelector('.player')?.getBoundingClientRect();
+   return {state:q('player-state')?.textContent||'',track:q('track-name')?.textContent||'',
+    toggle:[q('play-pause')?.getAttribute('aria-label'),q('play-pause')?.disabled,q('play-pause')?.getAttribute('aria-busy')].join('|'),
+    output:q('output')?.disabled+'|'+(q('output')?.getBoundingClientRect().top|0),height:box?box.height|0:0};};
+  const probe=window.playerFrames={frames:[]};
+  const sample=()=>{probe.frames.push(read());if(!probe.stop)requestAnimationFrame(sample);};
+  requestAnimationFrame(sample);
+ });
+}
+const playerChanges=async()=>page.evaluate(()=>{const p=window.playerFrames;p.stop=true;const out={};
+ for(const key of Object.keys(p.frames[0]||{})){const seq=[];for(const f of p.frames)if(seq.at(-1)!==f[key])seq.push(f[key]);out[key]=seq;}
+ return out;});
+async function coldPlayerJourney(){
+ assert((await page.request.post(base+'/lab/state',{data:{externalPlaybackState:'idle'}})).ok());
+ await page.waitForFunction(()=>!['playing','paused'].includes(document.querySelector('pv-widget-host')?.liveMedia?.playback?.state),
+  undefined,{timeout:15000});
+ await page.locator('#home-music').tap();
+ await page.locator('[data-collection="top"]').tap();
+ const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 12'});
+ await row.waitFor({state:'visible',timeout:15000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('#result-list button.result')]
+  .some(r=>r.textContent.includes('Katalogsang 12')&&!r.disabled),undefined,{timeout:15000});
+ await sleep(500);
+ await recordPlayer();
+ await row.tap();
+ await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');
+  return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.state==='playing';},undefined,{timeout:20000});
+ await sleep(800);
+ const changes=await playerChanges();
+ console.log('coldPlayer',JSON.stringify(changes));
+ assert.deepEqual(changes.state.filter(text=>text&&!['Spiller på'].includes(text)),[],'no text over the speaker picker');
+ // The fixture's catalogue names a song differently from the room ("Katalogsang"/"Isoleret sang"):
+ // the chosen title shows at once, then only the room's own title; never back to empty or between.
+ assert.deepEqual(changes.track,['','Katalogsang 12','Isoleret sang 12'],'one calm title change');
+ assert.deepEqual(changes.output.length,1,'the speaker picker never flips');
+ assert(changes.toggle.length<=2,'play/pause changes once: '+JSON.stringify(changes.toggle));
+ assert(changes.height.length<=2,'no layout jumps: '+JSON.stringify(changes.height));
+ return changes;
 }
 // K2/K4: three fast Next taps and one autoplay context switch. The queue list is never empty,
 // never shows error text, keeps each row's DOM node while it stays listed and never reorders rows.
@@ -309,16 +354,17 @@ async function documentScopeJourney(){
  const peer=await page.context().newPage();
  const localOnly=surface=>surface.route('**/*',route=>
   new URL(route.request().url()).origin===base?route.continue():route.abort());
+ // Tabs are read in the background before they open (Green 13/11); the page uses its latest read of the tab.
  const discovery=async(surface,kind)=>{
-  const reply=surface.waitForResponse(response=>{
-   const url=new URL(response.url());
-   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')===kind&&response.ok();
-  });
   await surface.locator('[data-collection="'+kind+'"]').tap();
-  const response=await reply, body=await response.json();
+  let response;for(let n=0;n<300&&!(response=surface.musicReads?.get(kind));n++)await sleep(50);
+  assert(response,'the tab was read');await sleep(300);response=surface.musicReads.get(kind);
+  const body=await response.json();
   assert.equal(body.candidateSet.sourceKind,kind);
   return {source:body.candidateSet,document:response.request().headers()['x-podview-music-document']};
  };
+ peer.musicReads=new Map();peer.on('response',response=>{const url=new URL(response.url());
+  if(url.pathname==='/view/api/music'&&response.ok()&&url.searchParams.get('kind'))peer.musicReads.set(url.searchParams.get('kind'),response);});
  await localOnly(peer);
  peer.on('pageerror',error=>errors.push(error.message));
  try{
@@ -426,9 +472,11 @@ async function recentSessionJourney(){
  try{
   await page.locator('pv-widget-host').evaluate(host=>{void host.liveMedia.refresh({immediate:true});});
   await Promise.race([playbackHeld,sleep(10000).then(()=>{throw Error('background playback read was not held');})]);
+  // The tab may already be read in the background (Green 13/11); expansion itself never reads again.
+  const readsBeforeExpansion=recentReads;assert(readsBeforeExpansion<=1,'the recent tab is read at most once');
   await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
   await list.getByText('Katalogsang 20',{exact:true}).waitFor();
-  assert.equal(recentReads,1,'expansion reuses the admitted source');
+  assert.equal(recentReads,readsBeforeExpansion,'expansion reuses the admitted source');
   assert.equal(await list.evaluate(node=>node.expansionDisabledWrites),0,'the existing five rows stay enabled throughout expansion');
   assert.ok(await priorButtons.evaluateAll(buttons=>buttons.every(button=>!button.disabled)));
  }finally{releasePlayback();await page.unroute('**/view/api/music?**',playbackRoute);}
@@ -503,7 +551,8 @@ async function recentSessionJourney(){
   assert.equal(await page.locator('#track-name').textContent(),title);
   assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
   assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
-  assert.match(await page.locator('#player-state').textContent(),/Starter afspilning/);
+  // A start is calm (13/11): the chosen song shows at once, no text over the speaker picker.
+  assert.equal(await page.locator('#player-state').textContent(),'');
   assert.equal(await row.getAttribute('aria-busy'),'true');
   assert.equal(await list.locator('button[aria-busy="true"]').count(),1,'only the selected row shows pending');
   assert.equal(await list.getAttribute('aria-busy'),'false','selection does not make the catalogue busy');
@@ -566,7 +615,7 @@ async function recentSessionJourney(){
  assert.equal(final.volume,55);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
  const expandedReadAges=[];
- let expandedRecentReads=0,explicitTargetReads=0,expandedChoicePressed=false;
+ let expandedRecentReads=0,expandedChoiceRenewals=0,explicitTargetReads=0,expandedChoicePressed=false;
  await page.route('**/view/api/music?**',async route=>{
   const url=new URL(route.request().url());
   if(!expandedChoicePressed||url.searchParams.get('kind')!=='targets'||!url.searchParams.has('account'))return route.fallback();
@@ -587,7 +636,7 @@ async function recentSessionJourney(){
   if(kind==='targets'&&body.coverage==='account_targets'&&Number.isFinite(body.observedAt)){
    expandedReadAges.push(Date.now()-body.observedAt*1000);
   }
-  if(kind==='recent'&&body.candidateSet)expandedRecentReads++;
+  if(kind==='recent'&&body.candidateSet){if(expandedChoicePressed)expandedChoiceRenewals++;else expandedRecentReads++;}
  });
  await page.locator('#home-music').tap();
  await page.locator('[data-collection="recent"]').tap();
@@ -598,7 +647,8 @@ async function recentSessionJourney(){
  const expandedChoice=await state();
  assert.deepEqual(expandedChoice.writes.slice(final.writes.length).map(row=>row.action),['play_track']);
  assert.equal(expandedChoice.selections.at(-1).uri,'spotify:track:'+String(20).padStart(22,'0'));
- assert.equal(expandedRecentReads,2,'initial sample and one exact choice renewal');
+ // The initial sample may already be read in the background before this listener (Green 13/11).
+ assert(expandedRecentReads<=1,'at most one initial sample');assert.equal(expandedChoiceRenewals,1,'one exact choice renewal');
  assert.equal(explicitTargetReads,2,'exactly one read-only refresh after the expired response');
  assert.equal(expandedReadAges.filter(age=>age>=10000).length,1);
  assert.ok(expandedReadAges.at(-1)>=0&&expandedReadAges.at(-1)<10000,
@@ -711,6 +761,13 @@ async function voiceQueueJourney(){
  await page.screenshot({path:path.join(env.artifactDir(),name+'.png')});
  console.log(JSON.stringify(proof));
 }
+// Find musik is read in the background as soon as PodView connects (Green 13/11). Journeys about the cold
+// read itself wait for that to finish and then empty the catalogue, as after an account change.
+async function coldCatalogue(surface){
+ await surface.waitForFunction(()=>{const c=document.querySelector('pv-widget-host')?.liveCatalogue;
+  return !!c&&!c.pendingRead&&!c.prefetchHome&&['mood','feeling','top','recent'].filter(kind=>c.supported(kind)).every(kind=>c.prefetchTried?.has(c.key(kind)));},undefined,{timeout:20000});
+ await surface.evaluate(()=>{const c=document.querySelector('pv-widget-host').liveCatalogue;c.entries.clear();c.selected='mood';c.restore(null);c.render();});
+}
 async function discoveryLoadingJourney(){
  const endpoint='**/view/api/music?**';
  const tabs=[
@@ -736,6 +793,9 @@ async function discoveryLoadingJourney(){
    }catch(error){markHeld({error});throw error;}
   };
   await page.route(endpoint,hold);
+  // Suggestions are read in the background as soon as PodView connects (Green 13/11). Open Find musik
+  // while that first read is still held to measure the cold layout a very early tap sees.
+  if(kind==='mood'){await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);}
   try{
    await button.evaluate((target,kind)=>{
     target.addEventListener('click',event=>{
@@ -846,6 +906,7 @@ async function discoveryRevisitJourney(){
   await gate;
   await route.fulfill({response}).catch(()=>{}); // An abandoned browser fetch may already be cancelled.
  });
+ await coldCatalogue(page);
  await entry.tap();
  await recent.tap();
  try{
@@ -1013,6 +1074,9 @@ async function discoveryCoverJourney(){
   const {pathname}=new URL(response.url());
   if(pathname.startsWith('/view/theme-art/'))themeArtResponses.push({pathname,status:response.status()});
  });
+ // Covers are routed from here; reload so the background read loads them through these routes.
+ await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);await coldCatalogue(page);
+ await fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({forgetNativeCalls:true})});
  const moodResponse=page.waitForResponse(response=>{
   const url=new URL(response.url());
   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='mood';
@@ -1095,9 +1159,11 @@ async function discoveryCoverJourney(){
  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
  const service=await state();
- assert.deepEqual(externalRequests,[failedCoverUrl,coverUrl]);
- assert.deepEqual(themeArtRequests,['/view/'+themes.cooking.themeArt]);
- assert.deepEqual(themeArtResponses,[{pathname:'/view/'+themes.cooking.themeArt,status:503}]);
+ // Recipe photos warm in the background and a failed cover may be retried after the reload; the music
+ // covers requested are exactly these two.
+ assert.deepEqual([...new Set(externalRequests.filter(url=>url.startsWith('https://i.scdn.co/')))],[failedCoverUrl,coverUrl]);
+ assert.deepEqual([...new Set(themeArtRequests)],['/view/'+themes.cooking.themeArt]);
+ assert.deepEqual([...new Set(themeArtResponses.map(row=>JSON.stringify(row)))].map(row=>JSON.parse(row)),[{pathname:'/view/'+themes.cooking.themeArt,status:503}]);
  assert.ok(service.retiredThemeArt);
  assert(!themeArtRequests.includes('/view/'+service.retiredThemeArt));
  assert.deepEqual(service.imageProviderCalls,[]);
@@ -1126,9 +1192,14 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
    return new URL(url).origin===base?route.continue():route.abort();
   });
   surface.on('pageerror',error=>pageErrors.push(error.message));
+  // Changed 13 Nov: the recipe page now warms its catalogue photos at startup on purpose, so only
+  // those exact catalogue photos are left out; every other foreign image (all music art) still counts.
+  const recipePhotos=new Set(((await (await surface.request.get(base+'/view/api/recipes')).json()).recipes||[])
+   .map(recipe=>recipe?.image).filter(Boolean));
+  assert(recipePhotos.size>0&&!recipePhotos.has(failedCoverUrl),'only recipe photos are left out, never music art');
   surface.on('request',request=>{
    const url=request.url(),pathname=new URL(url).pathname;
-   if(new URL(url).origin!==base||pathname.startsWith('/view/theme-art/'))requests.push(url);
+   if(new URL(url).origin!==base&&!recipePhotos.has(url)||pathname.startsWith('/view/theme-art/'))requests.push(url);
    // Client diagnostics uploads are telemetry, never a music action.
    if(request.method()==='POST'&&pathname.startsWith('/view/api/')
     &&pathname!=='/view/api/music/queue/offer'&&pathname!=='/view/api/client-diagnostics')actionPosts.push(pathname);
@@ -1138,19 +1209,20 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
     receipts.push({url:response.url(),status:response.status()});
    }
   });
+  // Suggestions load in the background from connect (Green 13/11), so watch from the first request.
+  const spotifyRequest=surface.waitForRequest(request=>request.url()===failedCoverUrl);
+  const graphicResponse=surface.waitForResponse(response=>response.url()===assetUrl);graphicResponse.catch(()=>{});spotifyRequest.catch(()=>{});
   await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
   const snapshot=await (await surface.request.get(base+'/view/api/snapshot')).json();
   assert.equal(snapshot.admission.kind,'ha_ingress');
   await env.openOverview(surface);
-  const spotifyRequest=surface.waitForRequest(request=>request.url()===failedCoverUrl);
-  const graphicResponse=surface.waitForResponse(response=>response.url()===assetUrl);
   await surface.locator('#home-music').tap();
   await spotifyRequest;
   const row=surface.locator('#result-list button.result').filter({hasText:'Musik til madlavningen'});
   const image=row.locator('img.result-art:not([data-content-transition])');
   await image.waitFor();
   const originalRow=await row.elementHandle(),originalImage=await image.elementHandle();
-  assert.deepEqual(requests,[failedCoverUrl],'generated art must wait for Spotify failure');
+  assert.deepEqual([...new Set(requests)],[failedCoverUrl],'generated art must wait for Spotify failure');
   releaseSpotify();
   const response=await graphicResponse;
   assert.equal(response.status(),200);
@@ -1171,8 +1243,9 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
   assert.deepEqual(decoded,{src:assetUrl,width:1024,height:1024,visible:true});
   assert(await row.evaluate((current,previous)=>current===previous,originalRow));
   assert(await image.evaluate((current,previous)=>current===previous,originalImage));
-  assert.deepEqual(requests,[failedCoverUrl,assetUrl]);
-  assert.deepEqual(receipts,[{url:failedCoverUrl,status:503},{url:assetUrl,status:200}]);
+  // The background read and the shown card may each ask for the same failed cover; order and kinds are what count.
+  assert.deepEqual([...new Set(requests)],[failedCoverUrl,assetUrl]);
+  assert.deepEqual([...new Set(receipts.map(row=>JSON.stringify(row)))].map(row=>JSON.parse(row)),[{url:failedCoverUrl,status:503},{url:assetUrl,status:200}]);
   assert.deepEqual(actionPosts,[]);
   assert.deepEqual(pageErrors,[]);
   const service=await state();
@@ -1216,7 +1289,7 @@ async function personalPlaylistCoverJourney(asset){
      &&pathname!=='/view/api/client-diagnostics')effects.push(pathname);
    });
    await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
-   await env.openOverview(surface);
+   await env.openOverview(surface);await coldCatalogue(surface);
    await surface.locator('#home-music').tap();
    const libraryRead=surface.waitForResponse(response=>{
     const url=new URL(response.url());
@@ -1234,7 +1307,7 @@ async function personalPlaylistCoverJourney(asset){
     return {src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight};
    })));
    assert.equal(images.length,2);
-   assert.deepEqual(spotifyRequests,[spotify]);
+   assert.deepEqual([...new Set(spotifyRequests)],[spotify],'only the one failed Spotify cover is requested');
    assert.ok(cachedResponses.length>=1&&cachedResponses.every(status=>status===(cachedFailure?503:200)));
    assert.deepEqual(effects,[]);
    if(cachedFailure)assert.equal(new Set(images.map(image=>image.src)).size,2);
@@ -1860,6 +1933,8 @@ async function queuePersistenceJourney(){
   });
  }
  page.on('pageerror',e=>errors.push(e.message));
+ page.musicReads=new Map();page.on('response',response=>{const url=new URL(response.url());
+  if(url.pathname==='/view/api/music'&&response.ok()&&url.searchParams.get('kind'))page.musicReads.set(url.searchParams.get('kind'),response);});
  page.on('response',async r=>{
   const url=r.url();
   if(url.endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');
@@ -1885,8 +1960,39 @@ async function queuePersistenceJourney(){
   let previewArmed=false,initialMood=true,holdArmed=false,releaseMood,markHeld;const heldMood=new Promise(resolve=>{markHeld=resolve;}),moodGate=new Promise(resolve=>{releaseMood=resolve;});
   if(holdMood)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(!holdArmed||url.searchParams.get('kind')!=='mood'||url.searchParams.get('renew')!=='1')return route.continue();holdArmed=false;const response=await route.fetch();markHeld();await moodGate;await route.fulfill({response});});
   if(previewRenew)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(url.searchParams.get('kind')!=='mood'||!initialMood&&!previewArmed)return route.continue();const response=await route.fetch(),body=await response.json();assert.equal(body.ok,true);assert.ok(body.candidateSet,'actual owner supplied playlist source');const tracks=body.data.tracks.map(({uri,name,artist,themeId,themeTitle,themeArt,artwork})=>({uri,name,artist,themeId,themeTitle,themeArt,...(artwork?{artwork}:{})}));const preview={ok:true,schema:'podview.mood-preview.v1',preview:{readOnly:true,bootId:snapshot.bootId,roomId:snapshot.roomId,configEntryId:'account',ownerEpoch:body.data.owner_epoch,source:'spotify_web_api',expiresIn:60,voiceSessionId:snapshot.voice.sessionId,voiceTurnId:snapshot.voice.turnId},data:{config_entry_id:'account',owner_epoch:body.data.owner_epoch,source:'spotify_web_api',tracks}};initialMood=false;previewArmed=false;await route.fulfill({response,json:preview});});
-  await env.openOverview(page);await page.locator('#home-music').tap();
+  await env.openOverview(page);
+  // CI 13/11: a background playback read greyed the speaker button for a frame, so the tap that
+  // landed then was lost and the picker never opened. Once usable, it stays usable in the empty room.
+  await page.locator('#output').evaluate(button=>{window.outputGreyed=[];window.homeFlash=[];new MutationObserver(()=>{
+   if(button.disabled&&document.querySelector('pv-widget-host')?.liveTransport?.connected)window.outputGreyed.push(button.getAttribute('aria-label'));
+  }).observe(button,{attributes:true,attributeFilter:['disabled']});
+   // Green 13/11: the empty room's next read never shows "Afventer data" or a busy player.
+   for(const id of ['home-music','player-empty'])new MutationObserver(()=>{const node=document.getElementById(id);
+    if(/Afventer data|Henter/.test(node.textContent)||node.getAttribute('aria-busy')==='true')window.homeFlash.push(id+': '+node.textContent.trim().slice(0,60));
+   }).observe(document.getElementById(id),{subtree:true,childList:true,characterData:true,attributes:true});});
+  // Rest on the overview past the next background playback read (8 s) while suggestions load behind it.
+  await sleep(9000);assert.deepEqual(await page.evaluate(()=>window.homeFlash),[],'the overview stays calm across background reads');
+  // Green 13/11: Find musik opens with its suggestions ready and usable in the first frame. Measured in the
+  // tap itself, after the scene renders and before any network reply could arrive (Green takes 2.5 s).
+  await page.evaluate(()=>window.addEventListener('click',event=>{if(!event.target.closest?.('#home-music'))return;
+   const rows=[...document.querySelectorAll('#result-list button.result')];
+   window.firstMusicFrame={rows:rows.length,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,
+    busy:document.getElementById('result-list')?.getAttribute('aria-busy'),loading:/Henter/.test(document.getElementById('music-response')?.innerText||'')};},{once:true}));
+  await page.locator('#home-music').tap();
+  const firstFrame=await page.evaluate(()=>window.firstMusicFrame);
+  assert.deepEqual(firstFrame,{rows:3,locked:0,busy:'false',loading:false},'suggestions are ready when Find musik opens');
+  // Green 13/11: every tab is ready when chosen; nothing says "Henter" and the refresh button never shows work.
+  await sleep(2500);
+  for(const tab of ['feeling','top','recent','mood']){
+   await page.evaluate(()=>window.addEventListener('click',()=>{const rows=[...document.querySelectorAll('#result-list button.result')],refresh=document.getElementById('music-refresh');
+    window.tabFrame={rows:rows.length>0,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,busy:document.getElementById('result-list')?.getAttribute('aria-busy'),
+     loading:/Henter/.test(document.getElementById('music-response')?.innerText||''),refreshWorking:refresh?.getAttribute('aria-busy')==='true'||/Henter/.test(refresh?.textContent||'')};},{once:true}));
+   await page.locator(`[data-collection="${tab}"]`).tap();
+   assert.deepEqual({tab,...await page.evaluate(()=>window.tabFrame)},{tab,rows:true,locked:0,busy:'false',loading:false,refreshWorking:false},'a Find musik tab is ready when chosen');
+  }
   await page.locator('#output').tap();await page.locator('#room-options button').filter({hasText:'Køkkenalrum HomePod'}).tap();
+  await page.waitForFunction(()=>!document.getElementById('rooms').open,undefined,{timeout:5000});await sleep(600);
+  assert.deepEqual(await page.evaluate(()=>window.outputGreyed),[],'the speaker button never greys during background reads');
   if(startLatencyMood){await moodLatencyJourney();return;}
   const row=page.locator('#result-list button.result').filter({hasText:'Kold jazz'}).first();await row.waitFor({state:'visible',timeout:20000});await row.tap();
   if(rejectSetup){
@@ -2009,6 +2115,7 @@ async function queuePersistenceJourney(){
  if(accountRollover){await accountRolloverJourney();return;}
  if(queueIdentity){await queueIdentityJourney();return;}
  if(queueSkip){await queueSkipJourney();return;}
+ if(coldPlayer){await coldPlayerJourney();console.log(JSON.stringify({outcome:'PASS',mode:'cold-player'}));return;}
  if(queueJourney){await queuePersistenceJourney();return;}
  if(discoveryLoading){await discoveryLoadingJourney();return;}
  if(discoveryRevisit){await discoveryRevisitJourney();return;}

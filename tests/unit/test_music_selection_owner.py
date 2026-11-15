@@ -121,14 +121,27 @@ class MusicSelectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(
             self.offer(observed_controls={k: v for k, v in CONTROLS.items() if k != "start_offer"})
         )
-        self.assertIsNone(
-            self.offer(
-                observed_controls={
-                    **CONTROLS,
-                    "start_offer": {**CONTROLS["start_offer"], "start_volume_percent": 34},
-                }
+        # PodConnect owns the start volume (Green 13/11): any whole percent is passed on as is,
+        # and only a malformed number blocks the offer.
+        for malformed in (True, 101, -1, 34.5):
+            self.assertIsNone(
+                self.offer(
+                    observed_controls={
+                        **CONTROLS,
+                        "start_offer": {
+                            **CONTROLS["start_offer"],
+                            "start_volume_percent": malformed,
+                        },
+                    }
+                )
             )
+        own = self.offer(
+            observed_controls={
+                **CONTROLS,
+                "start_offer": {**CONTROLS["start_offer"], "start_volume_percent": 34},
+            }
         )
+        self.assertEqual(own["startVolumePercent"], 34)
         offer = self.offer()
 
         async def high():

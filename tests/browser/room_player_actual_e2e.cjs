@@ -61,7 +61,10 @@ let server,browser;
  await until(async()=>(await state()).held,'pause call not held');
  const pauseMs=await page.evaluate(()=>window.pauseFeedbackMs);
  assert(pauseMs>=0&&pauseMs<100,`pause shows within 100 ms: ${pauseMs}`);
- // The running call turns a ring centred in the round button (testnoter 13/11 fejl 5).
+ // A quick call changes its button once (Green 13/11: no "arbejder" flash); a slow call (≥800 ms)
+ // turns a ring centred in the round button (testnoter 13/11 fejl 5).
+ assert.notEqual(await toggle.getAttribute('aria-busy'),'true','no working state while the call is quick');
+ await page.waitForFunction(()=>document.querySelector('#play-pause')?.getAttribute('aria-busy')==='true',undefined,{timeout:2000});
  const ring=await toggle.evaluate(button=>{
   const mark=getComputedStyle(button,'::after'),box=button.getBoundingClientRect();
   const left=parseFloat(mark.left),top=parseFloat(mark.top);
