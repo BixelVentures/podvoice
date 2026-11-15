@@ -49,8 +49,8 @@ def _radio_trace(stage, outcome, action, task_id, option_id):
 
 
 STATIONS = (
-    ("p1", "P1"),
     ("p3", "P3"),
+    ("p1", "P1"),
     ("p4-ostjylland", "P4 Østjylland"),
     ("p6-beat", "P6 Beat"),
     ("p8-jazz", "P8 Jazz"),
