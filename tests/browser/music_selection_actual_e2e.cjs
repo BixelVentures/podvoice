@@ -504,14 +504,18 @@ async function recentSessionJourney(){
  await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveMedia?.pending);
  assert.equal(await scrollTop(),retainedScroll,'passive playback read preserves the expanded scroll position');
  assert.deepEqual(await visibleRows(),expandedRows);
+ // The one-page Musik (#448) has one scroll for every section: a heading never moves the page by itself (Green-tjek
+ // F5). It only follows when the content above gets shorter than the scroll position.
  for(const [tab,title] of [['top','Coming Home'],['recent','Katalogsang 20']]){
+  const before=await scrollTop();
   await page.locator('[data-collection='+tab+']').evaluate(button=>button.focus({preventScroll:true}));
   await page.keyboard.press('Enter');
   await list.getByText(title,{exact:true}).waitFor();
+  const room=await feed.evaluate(node=>Math.max(0,node.scrollHeight-node.clientHeight));
+  assert.equal(await scrollTop(),Math.min(before,room),`a tap on ${tab} does not move the page`);
  }
  await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveCatalogue?.pendingRead);
  assert.deepEqual(await visibleRows(),expandedRows,'returning to Hør igen retains the expanded list');
- assert.equal(await scrollTop(),retainedScroll,'returning to Hør igen restores its scroll position');
  await row.scrollIntoViewIfNeeded();
  let release,markHeld;
  const gate=new Promise(resolve=>{release=resolve;});

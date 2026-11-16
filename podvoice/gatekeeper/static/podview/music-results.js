@@ -200,8 +200,18 @@ export class MusicResults{
   const grouped=cards.some(card=>card.group);if(this.list.dataset.grouped!==String(grouped))this.list.dataset.grouped=String(grouped);const groups=new Set(cards.map(card=>card.group).filter(Boolean));for(const [group,node]of this.groupHeadings)if(!groups.has(group)){node.remove();this.groupHeadings.delete(group);}let position=0;
   const showPlaceholders=busy&&!cards.length;
   if(!showPlaceholders)for(const row of this.placeholders||[])if(row.parentNode)row.remove();
-  const wanted=new Set(cards.map(card=>card.id));for(const[id,row]of this.rows)if(!wanted.has(id)){this.contentTransitions.get(row)?.();cancelArtwork(row.children[0]);row.remove();this.rows.delete(id);}
-  cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){row=this.create(card.id);this.rows.set(card.id,row);}const contentKey=JSON.stringify([card.name,card.description,card.detail,card.fixtureArt,card.artwork,card.uri,card.themeArt,card.cachedPlaylistArt]);const changed=row.contentKey!==undefined&&row.contentKey!==contentKey;if(changed&&!refreshCompleted)this.contentTransitions.get(row)?.();const retainedCover=preserveSourceCover&&card.uri&&row.musicCard?.uri===card.uri
+  // One page (lærred »A-Musik«): a card that leaves the chosen list goes on showing as its section's rail card, and a
+  // rail card that becomes the chosen list keeps its node, so a tap on a heading neither hides nor redraws a card.
+  const handOff=discoveryLayout&&!!this.listCollection&&this.listCollection!==collection;
+  const wanted=new Set(handOff?[]:cards.map(card=>card.id));for(const[id,row]of this.rows)if(!wanted.has(id)){
+   this.contentTransitions.get(row)?.();this.rows.delete(id);
+   if(handOff){this.retireToShelf(this.listCollection,id,row);continue;}
+   cancelArtwork(row.children[0]);row.remove();}
+  this.listCollection=collection;
+  cards.forEach((card,index)=>{let row=this.rows.get(card.id);if(!row){
+   const hero=discoveryLayout&&collection==='mood'&&index===0;
+   row=(discoveryLayout&&this.adoptShelfRow(collection,card.id,hero))||this.create(card.id);this.rows.set(card.id,row);}
+   const contentKey=JSON.stringify([card.name,card.description,card.detail,card.fixtureArt,card.artwork,card.uri,card.themeArt,card.cachedPlaylistArt]);const changed=row.contentKey!==undefined&&row.contentKey!==contentKey;if(changed&&!refreshCompleted)this.contentTransitions.get(row)?.();const retainedCover=preserveSourceCover&&card.uri&&row.musicCard?.uri===card.uri
     &&!card.artwork&&!card.themeArt&&!card.fixtureArt&&row.children[0].dataset.displayedArtwork;
    const reveal=refreshCompleted&&changed&&!retainedCover?this.captureContent(row):null;row.contentKey=contentKey;row.musicCard=card;if(row.dataset.contentState!=='ready')row.dataset.contentState='ready';if(card.action==='continue')applyKitComponent(row,'hero');
    if(row.dataset.musicGroup!==(card.group||''))row.dataset.musicGroup=card.group||'';
@@ -303,6 +313,21 @@ export class MusicResults{
    if(!used.has(row)){cancelArtwork(row.children[0]);row.remove();this.shelfRows.delete(key);}
   }
  }
+ retireToShelf(kind,id,row){
+  this.shelfRows??=new Map();
+  const key=JSON.stringify([kind,id,row.parentNode===this.heroSlot]);
+  if(this.shelfRows.has(key)){cancelArtwork(row.children[0]);row.remove();return;}
+  row.dataset.shelfKind=kind;delete row.contentKey;this.shelfRows.set(key,row);
+ }
+ adoptShelfRow(kind,id,hero){
+  const key=JSON.stringify([kind,id,hero]),row=this.shelfRows?.get(key);if(!row)return null;
+  this.shelfRows.delete(key);delete row.dataset.shelfKind;delete row.shelfArtKey;
+  row.removeAttribute('aria-description');
+  // A rail cover that failed is tried again by the list, as a new card would be; shown art stays as it is.
+  const art=row.children[0];
+  if(art.dataset.failedArtwork){cancelArtwork(art);delete art.dataset.artworkContent;}
+  return row;
+ }
  shelfRow(kind,card,index,hero){
   const key=JSON.stringify([kind,card.id,hero]);let row=this.shelfRows.get(key);
   if(!row){row=this.create(card.id);row.dataset.shelfKind=kind;this.shelfRows.set(key,row);}
@@ -310,6 +335,14 @@ export class MusicResults{
   if(row.dataset.contentState!=='ready')row.dataset.contentState='ready';
   if(row.dataset.pending!=='false')row.dataset.pending='false';
   if(row.dataset.playing!=='false')row.dataset.playing='false';
+  // A card handed over from the chosen list drops that list's state: rail cards are never locked or busy.
+  if(row.disabled)row.disabled=false;
+  if(row.hasAttribute('aria-disabled'))row.removeAttribute('aria-disabled');
+  if(row.hasAttribute('aria-busy'))row.removeAttribute('aria-busy');
+  if(row.classList.contains('recommended'))row.classList.remove('recommended');
+  if(row.children[2].textContent)row.children[2].textContent='';
+  const icon=row.children[3].children[0];
+  if(icon.getAttribute('src')!=='assets/icons/play-fill.svg')icon.src='assets/icons/play-fill.svg';
   this.layoutRow(row,kind,index,true);
   const plan=artworkPlan(card,kind);
   if(row.dataset.artworkRole!==plan.artworkRole)row.dataset.artworkRole=plan.artworkRole;

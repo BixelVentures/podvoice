@@ -104,7 +104,10 @@ export class LiveMusicCatalogueView{
  finishCardRenewal(success,request,reason='renewal_other'){const ticket=this.cardRenewal;if(!ticket||request&&ticket.request!==request)return;this.cardRenewal=null;const accepted=success===true&&ticket.current()&&collectionCurrent(ticket.entry.source,this.host.liveSnapshot,this.account);if(!accepted&&ticket.trace)try{ticket.trace.outcome=reason;}catch{}ticket.resolve(accepted);}
  select(kind){
   if(!['mood','feeling','top','recent'].includes(kind))return;this.ensureContext();const pending=this.pendingRead;if(kind===this.selected&&pending?.kind===kind&&pending.key===this.key(kind)&&pending.sourceKind===this.readKind(kind)&&pending.account===this.account&&pending.scope===this.scope()&&pending.readGeneration===this.host.liveMusicGeneration&&this.host.liveMusicReadCustody?.current?.()===true)return;
-  const pane=kind!==this.selected?this.host.querySelector?.('#music-response'):null;
+  // Per-collection scroll belongs to the old one-tab-at-a-time page. On the one-page Musik (every section open,
+  // [data-discovery-preview]) the collections share one scroll, and a tap on a heading never moves the page.
+  const response=kind!==this.selected?this.host.querySelector?.('#music-response'):null;
+  const pane=response&&!response.hasAttribute?.('data-discovery-preview')?response:null;
   const previous=this.entries.get(this.key());if(pane&&previous)previous.scrollTop=pane.scrollTop;
   this.interrupt();this.selected=kind;
   const entry=this.entries.get(this.key());if(entry){this.restore(entry);this.armExpiry(entry);this.render();if(pane)pane.scrollTop=entry.scrollTop??0;if(this.needsVibeResync(entry)){if(!entry.vibeRestart&&this.connected&&this.supported(kind))this.beginRead(kind,'initial');}else if(entry.cards.length&&!entry.actionDispatched&&entry.renewalScope===this.renewalScope()&&this.connected&&this.host.liveSnapshot?.capabilities?.musicSelection===true&&this.supported(kind)&&(!collectionCurrent(entry.source,this.host.liveSnapshot,this.account)||entry.selectionSpent))this.beginRead(kind,'renew');return;}
