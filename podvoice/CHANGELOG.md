@@ -1,3 +1,7 @@
+## 2.1.5
+
+- Topbaren: knappen øverst til venstre i overblikket hedder nu »Ro« med en måne (56 px pille, »Gå til Ro«) og åbner Foto-Ro; »Svar« viser »Offline« på grå, når Voice PE er offline; vejr og ur står højrestillet som på lærredet, og datoen bruger brødteksten.
+
 ## 2.1.4
 
 - Knapper: »Afspil« i musikdialogen, »Opdater liste« for højttalere og »Stop/Færdig/Stop alarm« på timeren viser nu indlæsning, tager ikke imod dobbelttryk og nulstiller altid – også når handlingen fejler.
