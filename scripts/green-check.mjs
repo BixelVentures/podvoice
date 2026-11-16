@@ -6,23 +6,24 @@
 //   node scripts/green-check.mjs rollback     viser, hvad der rulles tilbage (ændrer intet)
 //   node scripts/green-check.mjs --help       alle valg
 //
-// Dækning af docs/BRUGERHISTORIER.md (103 historier). S = lydløst, L = med lyd (--sound), M = kun manuelt.
+// Dækning af docs/BRUGERHISTORIER.md (110 aktive historier; G9 og K8 er fjernet). S = lydløst, L = med lyd (--sound),
+// M = ikke i dette tjek (manuelt, browserrejse eller enhedstest; se historiens kolonne Automatisk tjek).
 // | Område     | S (lydløst)        | L (--sound)      | M (manuelt, hvorfor)                                  |
 // |------------|--------------------|------------------|-------------------------------------------------------|
-// | Fælles G   | G1 G4              |                  | G2 G3 G5 G6 (dvale, race, visuel sammenligning)       |
-// | Afspiller A|                    | A1 A2 A11        | A3–A10 A12–A14 (Spotify-app, stemme, touch, net, tid) |
+// | Fælles G   | G1 G4              |                  | G2 G3 G5–G8 (dvale, race, visuel, +N, knap-busy)      |
+// | Afspiller A|                    | A1 A2 A11        | A3–A10 A12–A15 (Spotify-app, stemme, touch, Foto-Ro)  |
 // | Kø K       | K1 K7              | K3 K5            | K2 K4 K6 (sangskift, auto-fortsæt, dubletter)         |
-// | Find mus. F| F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, tid på dagen)      |
-// | Højttaler H| H4 H6              | H1 (Køkkenalrum) | H2 H3 H5 H7–H10 (andre rum, konti, AirPlay, Tesla)    |
+// | Musik F    | F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, tid på dagen)      |
+// | Højttaler H| H4 H6              | H1 (Køkkenalrum) | H2 H3 H5 H7–H11 (andre rum, konti, AirPlay, låsegrund)|
 // | Radio R    | R3 R5              | R1 R2            | R4 R6 (fejlende stream, forkert opsætning)            |
 // | Robot S    | S1 S12 S13         |                  | S2–S11 S14–S16 (fysisk robot får ingen kommandoer)    |
-// | Lys L      |                    |                  | L1–L3 (lys må ikke styres)                            |
+// | Lys L      |                    |                  | L1–L4 (lys må ikke styres)                            |
 // | Opskrift O | O1                 |                  | O2–O10 (start og upload ændrer data)                  |
-// | Timer T    |                    |                  | T1 T2 (start ændrer data, alarm giver lyd)            |
+// | Timer T    |                    |                  | T1–T3 (start ændrer data, alarm giver lyd)            |
 // | Vejr V     | V1 V4              |                  | V2 V3 (kræver fejlende kilde)                         |
 // | Bil B      |                    |                  | B1–B11 (bilen røres aldrig, heller ikke dens side)    |
-// | Svar Q     |                    |                  | Q1 Q2 (Voice PE-tale)                                 |
-// I alt: 17 lydløst, 10 med lyd, 76 manuelt. Tværgående for alle sider: første billede uden
+// | Svar Q     |                    |                  | Q1–Q3 (Voice PE-tale)                                 |
+// I alt: 17 lydløst, 10 med lyd, 83 uden for tjekket. Tværgående for alle sider: første billede uden
 // indlæsning, ingen blink (MutationObserver/rAF), ingen stående fejltekst, ingen låste vælgere,
 // forsidekort genopbygges ikke, ingen nye WARNING/ERROR i PodVoice-/PodConnect-/HA-loggen.
 //
