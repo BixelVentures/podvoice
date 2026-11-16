@@ -353,7 +353,10 @@ async function offlineFeedbackJourney(page,errors){
  for(const [width,height] of [[1180,820]]){
   await shell.setViewportSize({width,height});await dialog.evaluate(async d=>{await Promise.all(d.getAnimations({subtree:true}).filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{})));});await recordScroll(width,height,'initial');for(let swipe=0;swipe<4&&await dialog.evaluate(d=>d.scrollTop>0);swipe++){await testEnv.touchScroll(shell,dialog,{dy:-800});await recordScroll(width,height,`up-${swipe}`);}
   for(let gesture=0;gesture<4;gesture++){await testEnv.touchScroll(shell,dialog,{dy:800});await recordScroll(width,height,`down-${gesture}`);const fits=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return button.bottom<=box.bottom-Number.parseFloat(getComputedStyle(d).paddingBottom)+1;});if(fits)break;}
-  await shell.waitForFunction(()=>document.querySelector('#ha-frame')?.contentDocument?.querySelector('#quick-sheet')?.scrollTop>0,undefined,{timeout:5000});
+  // A-Skaerm: with »Om skærmen« as open rows the sheet may fit the screen; it only has to scroll when it overflows.
+  const overflows=await dialog.evaluate(d=>d.scrollHeight>d.clientHeight+1);
+  if(overflows)await shell.waitForFunction(()=>document.querySelector('#ha-frame')?.contentDocument
+   ?.querySelector('#quick-sheet')?.scrollTop>0,undefined,{timeout:5000});
   // A real same-owner HA event must not briefly remove admission-dependent content
   // and clamp the user's already successful touch scroll back to the top.
   const previousRead=await frame.locator('pv-widget-host').evaluate(h=>h.liveTransport.acceptedReadAt);await emit({state:(await state()).state});
@@ -361,7 +364,7 @@ async function offlineFeedbackJourney(page,errors){
   await recordScroll(width,height,'after-passive-update');
   const geometry=await dialog.evaluate(d=>{const a=[...d.querySelectorAll('a')].find(node=>node.textContent==='Administration'),box=d.getBoundingClientRect(),button=a.getBoundingClientRect();return {left:box.left,top:box.top,width:box.width,height:box.height,bottom:box.bottom,buttonTop:button.top,buttonBottom:button.bottom,scrollTop:d.scrollTop,padding:Number.parseFloat(getComputedStyle(d).paddingBottom)};});
   await shell.screenshot({path:path.join(testEnv.artifactDir(),`podview-next-screen-admin-${width}.png`)});
-  assert.equal(geometry.width,width>=1000?560:520,"Skærm og enhed is 560 wide on the iPad (A-Skaerm)");assert(Math.abs(geometry.left-(width-geometry.width)/2)<1);assert(Math.abs(geometry.top-(height-geometry.height)/2)<1);assert(geometry.scrollTop>0);assert(geometry.buttonTop>=geometry.top);assert(geometry.buttonBottom<=geometry.bottom-geometry.padding+1,'manual scroll reveals whole Administration control with bottom padding');
+  assert.equal(geometry.width,width>=1000?560:520,"Skærm og enhed is 560 wide on the iPad (A-Skaerm)");assert(Math.abs(geometry.left-(width-geometry.width)/2)<1);assert(Math.abs(geometry.top-(height-geometry.height)/2)<1);assert(!overflows||geometry.scrollTop>0);assert(geometry.buttonTop>=geometry.top);assert(geometry.buttonBottom<=geometry.bottom-geometry.padding+1,'manual scroll reveals whole Administration control with bottom padding');
  }
  await shell.setViewportSize({width:1180,height:820});
  await admin.tap();

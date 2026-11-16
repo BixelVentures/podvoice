@@ -35,7 +35,8 @@ async function open(stage){
   if(n>100)throw Error('static server startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());
 
- // A-MusikHjem: one page, the collections are section headings in the canvas order.
+ // A-Musik / Musik-Hjem-Hel: one page, the first mood card is the hero at 88, then every collection is open
+ // under its heading in the canvas order (Fortsæt · Til <ugedag> <tid> · Vibe · Jeres playlister).
  let page=await open('music-prototype-afternoon');
  assert.equal(await page.locator('#header-title').innerText(),'Musik','the topbar says Musik');
  assert.equal((await box(page.locator('#music-refinements'))).display,'contents','no tab bar');
@@ -43,43 +44,70 @@ async function open(stage){
   .map(n=>({id:n.dataset.collection,y:Math.round(n.getBoundingClientRect().y),text:n.textContent.trim(),
    size:getComputedStyle(n).fontSize,weight:getComputedStyle(n).fontWeight}))
   .sort((a,b)=>a.y-b.y));
- assert.deepEqual(heads.map(h=>h.text),['Til mandag eftermiddag','Fortsæt','Vibe','Jeres playlister'],
+ assert.deepEqual(heads.map(h=>h.text),['Fortsæt','Til mandag eftermiddag','Vibe','Jeres playlister'],
   'section headings in the canvas order');
  for(const h of heads){assert.equal(h.size,'22px');assert.equal(h.weight,'800');}
- assert.equal(heads[0].y,88,'the first heading starts 16 under the topbar');
+ assert.equal(heads[0].y,372,'Fortsæt starts 32 under the hero');
+ assert.equal(heads[1].y,515,'Til <ugedag> <tid> starts 32 under the Fortsæt rail');
+ // The heading's note is the product's own: mood is chosen from the hour and the room.
+ assert.equal(await page.locator('[data-collection=mood]').getAttribute('data-note'),'Ud fra tidspunkt og rum');
 
- // Lige nu: the first mood card is the 744×252 hero.
- const rows=page.locator('#result-list>.result');
- const hero=await box(rows.nth(0));
- assert.deepEqual([hero.x,hero.w,hero.h,hero.radius],[24,744,252,'28px'],'Lige nu hero 744×252, radius 28');
- assert.equal(await rows.nth(0).locator('.result-copy').getAttribute('data-eyebrow'),
-  'Til eftermiddagen · valgt til jer');
- const heroArt=await box(rows.nth(0).locator('.result-art'));assert.deepEqual([heroArt.w,heroArt.h],[212,212]);
- const heroName=await box(rows.nth(0).locator('h2'));
+ // Lige nu: the first mood card is the 744×252 hero at the top of the column, no heading above it.
+ const hero=page.locator('#music-hero>.result');
+ const heroBox=await box(hero);
+ assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h,heroBox.radius],[24,88,744,252,'28px'],
+  'Lige nu hero 744×252 at 88, radius 28');
+ assert.equal(await hero.locator('.result-copy').getAttribute('data-eyebrow'),'Til eftermiddagen · valgt til jer');
+ const heroArt=await box(hero.locator('.result-art'));assert.deepEqual([heroArt.w,heroArt.h],[212,212]);
+ const heroName=await box(hero.locator('h2'));
  assert.equal(heroName.size,'36px');
  assert.equal(heroName.weight,'800');
- const pill=await box(rows.nth(0).locator('.result-play'));
+ const pill=await box(hero.locator('.result-play'));
  assert.equal(pill.h,56,'Afspil pill 56 high');assert(pill.w>=132,'Afspil pill at least 132 wide');
- assert.equal(await rows.nth(0).locator('.result-play').evaluate(n=>getComputedStyle(n,'::after').content),'"Afspil"');
- const card=await box(rows.nth(1));assert.equal(card.w,160,'rail cards are 160 wide');
- const art=await box(rows.nth(1).locator('.result-art'));
+ assert.equal(await hero.locator('.result-play').evaluate(n=>getComputedStyle(n,'::after').content),'"Afspil"');
+ const rows=page.locator('#result-list>.result');
+ const card=await box(rows.nth(0));assert.equal(card.w,160,'rail cards are 160 wide');
+ assert.equal(card.y,573,'the mood rail starts 12 under its heading and note');
+ const art=await box(rows.nth(0).locator('.result-art'));
  assert.deepEqual([art.w,art.h,art.radius],[160,160,'14px'],'rail cover 160, radius 14');
- assert.equal(await rows.nth(1).locator('.result-play').evaluate(n=>getComputedStyle(n).display),'none',
+ assert.equal(await rows.nth(0).locator('.result-play').evaluate(n=>getComputedStyle(n).display),'none',
   'no play circle on rail cards');
 
+ // The other collections are open too: their last read as rails under their headings.
+ const fortsaet=page.locator('.music-shelf[data-music-shelf=recent]>.result');
+ const fortsaetBox=await box(fortsaet.first());
+ assert.deepEqual([fortsaetBox.x,fortsaetBox.y,fortsaetBox.w,fortsaetBox.h,fortsaetBox.radius],
+  [24,411,260,72,'16px'],'Fortsæt is an open rail of 260×72 rows');
+ const vibeShelf=page.locator('.music-shelf[data-music-shelf=feeling]>.result');
+ assert.deepEqual(await box(vibeShelf.first().locator('.result-art')).then(b=>[b.w,b.h,b.radius]),[120,120,'18px'],
+  'Vibe is an open rail of 120 tiles');
+ assert(await page.locator('.music-shelf[data-music-shelf=top]>.result').count()>0,'Jeres playlister is open');
+
  // Musik-Starter → Musik-Spiller: the tapped card shows starter at once, then spiller with the player on it.
- const tapped=await rows.nth(1).locator('h2').innerText();
- const started=Date.now();await rows.nth(1).click();
- await page.waitForFunction(()=>document.querySelectorAll('#result-list>.result')[1]?.dataset.pending==='true',null,
+ const tapped=await rows.nth(0).locator('h2').innerText();
+ const started=Date.now();await rows.nth(0).click();
+ await page.waitForFunction(()=>document.querySelectorAll('#result-list>.result')[0]?.dataset.pending==='true',null,
   {timeout:300});
  assert(Date.now()-started<300,'starter is visible within 300 ms');
- assert.notEqual(await rows.nth(1).evaluate(n=>getComputedStyle(n,'::after').content),'none',
+ assert.notEqual(await rows.nth(0).evaluate(n=>getComputedStyle(n,'::after').content),'none',
   'starter scrim on the cover');
- await page.waitForFunction(()=>document.querySelectorAll('#result-list>.result')[1]?.dataset.playing==='true',null,
+ await page.waitForFunction(()=>document.querySelectorAll('#result-list>.result')[0]?.dataset.playing==='true',null,
   {timeout:8000});
- assert.notEqual(await rows.nth(1).evaluate(n=>getComputedStyle(n,'::after').content),'none','equalizer mark');
- assert.equal(await rows.nth(0).getAttribute('data-playing'),'false','only the chosen card plays');
+ assert.notEqual(await rows.nth(0).evaluate(n=>getComputedStyle(n,'::after').content),'none','equalizer mark');
+ assert.equal(await hero.getAttribute('data-playing'),'false','only the chosen card plays');
  assert(tapped.length>0);
+
+ // A tap on a card in another open section chooses that collection and starts the card at once.
+ const vibeName0=await vibeShelf.first().locator('h2').innerText();
+ const shelfTap=Date.now();await vibeShelf.first().click();
+ await page.waitForFunction(name=>{
+  const row=[...document.querySelectorAll('#result-list>.result')].find(n=>n.querySelector('h2')?.textContent===name);
+  return document.querySelector('#music-response')?.dataset.discoveryCollection==='feeling'
+   &&row?.dataset.pending==='true';
+ },vibeName0,{timeout:300});
+ assert(Date.now()-shelfTap<300,'the shelf card starts within 300 ms');
+ assert.equal(await page.locator('#music-hero>.result h2').innerText(),heroName.text,'the hero stays at the top');
+ await page.locator('[data-collection=mood]').click();await sleep(400);
 
  // Fortsæt: 260×72 rows; Vibe: 120 tiles with the name on the tile.
  await page.locator('[data-collection=recent]').click();await sleep(500);
@@ -112,6 +140,15 @@ async function open(stage){
  assert.equal(queueMeta.size,'15px');assert.equal(queueMeta.color,'rgb(95, 94, 90)');
  near(queueMeta.x+queueMeta.w,768,'the count ends at the right edge of the queue card');
  near(queueMeta.y+queueMeta.h/2,queueTitle.y+queueTitle.h/2,'count and title share a line',6);
+ // The column ends on the 784 baseline like every other page; »Kø« opens it at 88, the card from 136.
+ assert.equal(queueTitle.y,88,'»Kø« at the top of the column');
+ assert.equal(queue.y,136,'the queue card 16 under »Kø«');
+ assert.equal(queue.y+queue.h,784,'the queue card ends on the 784 baseline');
+ // »Spiller på …« is not drawn above »Kø«: the player at the right already names the speaker.
+ await page.evaluate(()=>{document.getElementById('detail-status').textContent='Spiller på MacBook Pro';});
+ assert.equal(await page.locator('#music-detail>.response-heading').evaluate(n=>n.getBoundingClientRect().height),1,
+  'the status line is only for screen readers');
+ assert.equal((await box(page.locator('#queue-title'))).y,88,'»Kø« keeps its place with a status line');
  const eq=page.locator('#queue>.queue-track[data-current=true] .queue-eq');
  assert.equal(await eq.locator('i').count(),3,'three equaliser bars on the playing track');
  assert.equal(await eq.locator('i').first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(180, 83, 42)');

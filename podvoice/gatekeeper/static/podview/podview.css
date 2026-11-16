@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 36f2e5d2d970b3f6d15b140b228ca8beaa16c9f66ae631a3abe2f048d58e1add */
+/* Source: ui-kit.css · SHA256 cd36934e320b8c7b4b3bca9f0d37816a73c862cbb4337a9c97ecdf3e1c52cd4c */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5895,6 +5895,80 @@ body button:not(.is-pressed){transition-property:filter!important}
  body>dialog#quick-sheet.pv-kit-dialog::backdrop{background:rgba(23,23,26,.42)}
 
 
+/* A-Skaerm rows: a 44 close key, »Lysstyrke« as one 56-px row (label 120, slider, value in mono), »Automatisk
+   dæmpning« with the product's rule under it and a 56×34 switch, and »Om skærmen« as a small label over open rows.
+   Without a device adapter the switch is disabled with its knob in the middle: the state is not known. */
+
+ body>dialog#quick-sheet.pv-kit-dialog[open]{display:flex!important;flex-direction:column!important;gap:24px!important}
+ body>dialog#quick-sheet.pv-kit-dialog>.pv-dialog-header{display:flex!important;justify-content:space-between;
+  align-items:flex-start;gap:16px;min-height:0!important}
+ body>dialog#quick-sheet.pv-kit-dialog #quick-title{margin:0!important;font:800 28px/34px var(--pv-font)!important;
+  letter-spacing:-.02em;color:var(--pv-ink)}
+ body>dialog#quick-sheet.pv-kit-dialog>.pv-dialog-header>.dialog-close{box-sizing:border-box;flex:none;
+  width:44px!important;height:44px!important;min-width:44px!important;min-height:44px!important;padding:13px!important;
+  border:0!important;border-radius:999px!important;background:#EFEDE8!important;box-shadow:none!important;
+  outline-offset:3px}
+ body>dialog#quick-sheet.pv-kit-dialog>.pv-dialog-header>.dialog-close>img{width:18px!important;height:18px!important}
+ body>dialog#quick-sheet.pv-kit-dialog>#screen-device-note{margin:-20px 0 0!important;
+  font:400 16px/22px var(--pv-font)!important;color:#5F5E5A!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-settings-content{display:flex!important;flex-direction:column!important;
+  gap:0!important}
+ body>dialog#quick-sheet.pv-kit-dialog .screen-device-brightness{display:flex!important;align-items:center;
+   gap:16px!important;
+  min-height:56px;border-bottom:1px solid rgba(23,23,26,.07)}
+ body>dialog#quick-sheet.pv-kit-dialog .screen-device-brightness>.screen-device-label{display:contents!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-brightness-label{order:0;flex:none;width:120px;
+  font:600 17px/22px var(--pv-font)!important;color:var(--pv-ink)}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-brightness{order:1;flex:1 1 0;width:auto!important;min-width:0;
+  height:44px!important;min-height:44px!important;margin:0!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-brightness-value{order:2;flex:none;min-width:52px;
+  text-align:right;
+   
+  font:400 16px/22px 'IBM Plex Mono',ui-monospace,monospace!important;color:#5F5E5A!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-dimming{display:flex!important;justify-content:space-between;
+  align-items:center;gap:16px!important;min-height:56px!important;margin:0!important;padding:0!important;
+  border:0!important;
+  border-bottom:1px solid rgba(23,23,26,.07)!important;border-radius:0!important;background:transparent!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-dimming>span{display:flex;flex-direction:column;min-width:0}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-label{font:600 17px/22px var(--pv-font)!important;
+  color:var(--pv-ink)}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-dim-rule{font:400 15px/20px var(--pv-font)!important;
+  color:#5F5E5A!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim{position:relative;box-sizing:border-box;flex:none;
+  width:56px!important;height:44px!important;min-width:56px!important;min-height:44px!important;padding:0!important;
+  border:0!important;border-radius:17px!important;background:transparent!important;box-shadow:none!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim>#screen-device-auto-state{position:absolute;width:1px;
+  height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim::before{content:''!important;position:absolute;left:0;
+  top:5px;width:56px;height:34px;border-radius:17px;background:rgba(23,23,26,.16);transition:background-color .3s ease}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim::after{content:''!important;position:absolute;left:3px;
+  top:8px;width:28px;height:28px;border-radius:50%;background:#F7F6F3;box-shadow:0 1px 3px rgba(0,0,0,.25);
+  transition:left .25s ease}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim[aria-checked=true]::before{background:#17171A}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim[aria-checked=true]::after{left:25px}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim:disabled{opacity:.4}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim:disabled::after{left:14px}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-more{display:flex;flex-direction:column;gap:0;margin-top:24px}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-more-summary{display:block!important;min-height:0!important;
+  height:auto!important;margin:0 0 8px!important;padding:0!important;border:0!important;
+  background:transparent!important;
+  cursor:default;list-style:none;font:600 15px/20px var(--pv-font)!important;
+  color:#5F5E5A!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-more-summary::-webkit-details-marker{display:none}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-more-summary>img{display:none!important}
+ body>dialog#quick-sheet.pv-kit-dialog .screen-device-network{display:flex!important;flex-direction:column}
+ body>dialog#quick-sheet.pv-kit-dialog :is(.screen-device-network>.pv-kit-listrow,.screen-build-row):not([hidden]){
+  display:flex!important;justify-content:space-between;align-items:center;gap:16px!important;min-height:56px!important;
+  margin:0!important;padding:0!important;border:0!important;border-bottom:1px solid rgba(23,23,26,.07)!important;
+  border-radius:0!important;background:transparent!important}
+ body>dialog#quick-sheet.pv-kit-dialog :is(.screen-device-network>.pv-kit-listrow,.screen-build-row)>:first-child{
+  font:600 17px/22px var(--pv-font)!important;color:var(--pv-ink)!important}
+ body>dialog#quick-sheet.pv-kit-dialog :is(.screen-device-network>.pv-kit-listrow,.screen-build-row)>:last-child{
+  min-width:0;margin:0!important;padding:0!important;text-align:right;font:400 16px/22px var(--pv-font)!important;
+  color:#5F5E5A!important}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-more>.screen-build-row:not([hidden]){border-bottom:0!important}
+
+
 /* iPad Foto-Ro (lærred v192 »A-FotoRo«, v190 »FotoRo-Aktiv«, issue 390): the photo fills 1180×820.
    Clock and date top-left, weather top-right, activity cards always left, music always right (340×80 glass).
    Only music and radio get the round 52-px control; everything else keeps the chevron. */
@@ -6241,17 +6315,17 @@ body button:not(.is-pressed){transition-property:filter!important}
  #music-response[data-discovery-preview] #music-refinements>[aria-pressed=false]{
    border-top:1px solid rgba(23,23,26,.08)!important;}
  #music-response[data-discovery-preview] [data-collection=mood]{
-   --pv-section-order:10;order:10;}
- #music-response[data-discovery-preview] [data-collection=recent]{
    --pv-section-order:20;order:20;}
+ #music-response[data-discovery-preview] [data-collection=recent]{
+   --pv-section-order:10;order:10;}
  #music-response[data-discovery-preview] [data-collection=feeling]{
    --pv-section-order:30;order:30;}
  #music-response[data-discovery-preview] [data-collection=top]{
    --pv-section-order:40;order:40;}
  #music-response[data-discovery-collection=mood]{
-   --pv-open:10;}
- #music-response[data-discovery-collection=recent]{
    --pv-open:20;}
+ #music-response[data-discovery-collection=recent]{
+   --pv-open:10;}
  #music-response[data-discovery-collection=feeling]{
    --pv-open:30;}
  #music-response[data-discovery-collection=top]{
@@ -6297,132 +6371,150 @@ body button:not(.is-pressed){transition-property:filter!important}
    flex-wrap:wrap!important;overflow:visible!important;-webkit-mask-image:none;mask-image:none;padding:0!important;}
  #music-response[data-discovery-preview] #result-list::-webkit-scrollbar{
    display:none;}
- #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]{
+ #music-response[data-discovery-preview] :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]{
    scroll-snap-align:start;flex:none;position:relative;display:flex!important;flex-direction:column!important;
+   align-items:stretch;
    gap:8px!important;width:160px!important;min-width:0!important;height:auto!important;min-height:0!important;
    padding:0!important;border:0!important;border-radius:0!important;background:transparent!important;
    box-shadow:none!important;outline:0!important;text-align:left;grid-column:auto!important;grid-row:auto!important;
    color:var(--pv-ink);}
- #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-art{
+ #music-response[data-discovery-preview] :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]>.result-art{
    position:static!important;inset:auto!important;width:160px!important;height:160px!important;
    max-width:none!important;border-radius:14px!important;object-fit:cover;margin:0!important;grid-area:auto!important;
    flex:none;background:#DCDAD4;}
- #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-copy{
+ #music-response[data-discovery-preview] :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]>.result-copy{
    position:static!important;inset:auto!important;display:flex!important;flex-direction:column!important;
-   gap:0!important;min-width:0;margin:0!important;padding:0!important;grid-area:auto!important;}
- #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-copy>*{
+   gap:0!important;min-width:0;min-height:0!important;margin:0!important;padding:0!important;
+   grid-area:auto!important;text-shadow:none;}
+ #music-response[data-discovery-preview] :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]>.result-copy>*{
    margin:0!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;-webkit-line-clamp:unset!important;
    display:block!important;}
- #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-copy>h2{
+ #music-response[data-discovery-preview] :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]>.result-copy>h2{
    font:700 16px/1.3 var(--pv-font)!important;color:var(--pv-ink)!important;}
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]>.result-copy>:is(p,small){
+   :is(#result-list,.music-shelf,#music-hero)>.result.result.result[data-content-state]>.result-copy>:is(p,small){
    font:400 14px/1.35 var(--pv-font)!important;color:var(--pv-music-ink-2)!important;}
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]>.result-copy>small:empty{
+   :is(#result-list,.music-shelf,#music-hero)>.result.result.result[data-content-state]>.result-copy>small:empty{
    display:none!important;}
- #music-response[data-discovery-preview] #result-list>.result.result.result[data-content-state]>.result-play{
+ #music-response[data-discovery-preview] :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]>.result-play{
    display:none!important;}
  /* Name and subtitle keep two fixed lines, so loading and ready cards have the same height. */
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]:not([data-kit=hero]):not([data-kit=card])>.result-copy{
+   :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]:not([data-kit=hero]):not([data-kit=card])>.result-copy{
    height:40px!important;overflow:hidden!important;}
  /* Fortsæt: 260×72 rows with the cover at the left. */
- #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state]{
    flex-direction:row!important;align-items:center;width:260px!important;height:72px!important;gap:12px!important;
    padding:0 12px 0 0!important;border-radius:16px!important;overflow:hidden;background:var(--pv-surface)!important;
    box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;}
- #music-response[data-discovery-collection=recent] #result-list>.result.result.result[data-content-state]>.result-art{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state]>.result-art{
    width:72px!important;height:72px!important;border-radius:0!important;}
- #music-response[data-discovery-collection=recent]
-   #result-list>.result.result.result[data-content-state]{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state]{
    justify-content:flex-start!important;}
- #music-response[data-discovery-collection=recent]
-   #result-list>.result.result.result[data-content-state]>.result-copy{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state]>.result-copy{
    flex:1 1 0!important;width:auto!important;min-width:0!important;}
  /* A missing cover keeps the 24-px music icon centred in the cover box. */
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+   :is(#result-list,.music-shelf,#music-hero)>.result.result.result[data-content-state]>.result-art.live-art-fallback{
    padding:68px!important;box-sizing:border-box!important;}
- #music-response[data-discovery-collection=recent]
-   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])>.result.result.result[data-content-state]
+   >.result-art.live-art-fallback{
    padding:24px!important;}
- #music-response[data-discovery-collection=feeling]
-   #result-list>.result.result.result[data-content-state]>.result-art.live-art-fallback{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state]
+   >.result-art.live-art-fallback{
    padding:48px!important;}
  /* Vibe: 120 tiles, the name on the tile. */
- #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state]{
    width:120px!important;}
- #music-response[data-discovery-collection=feeling] #result-list>.result.result.result[data-content-state]>.result-art{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state]>.result-art{
    width:120px!important;height:120px!important;border-radius:18px!important;}
- #music-response[data-discovery-collection=feeling]
-   #result-list>.result.result.result[data-content-state]>.result-copy{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state]>.result-copy{
    position:absolute!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;height:120px;
    justify-content:flex-end;padding:0 14px 12px!important;border-radius:18px;box-sizing:border-box;
    background:linear-gradient(180deg,rgba(23,23,26,0) 35%,rgba(23,23,26,.6));}
- #music-response[data-discovery-collection=feeling]
-   #result-list>.result.result.result[data-content-state]>.result-copy>h2{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state]>.result-copy>h2{
    font:800 20px/1.05 var(--pv-font)!important;color:#F7F6F3!important;white-space:normal;
    overflow-wrap:normal!important;word-break:normal!important;hyphens:auto;}
- #music-response[data-discovery-collection=feeling]
-   #result-list>.result.result.result[data-content-state]>.result-copy>:is(p,small){
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])>.result.result.result[data-content-state]>.result-copy>:is(p,
+   small){
    display:none!important;}
  /* Lige nu: the first mood card, 744×252, dark, cover 212, name 36/800 and the Afspil pill. */
- #music-response[data-discovery-collection=mood] #result-list>.result.result.result[data-content-state][data-kit=hero]{
+ #music-response[data-discovery-preview] #music-hero>.result.result.result[data-content-state][data-kit=hero]{
    flex-basis:100%!important;width:744px!important;height:252px!important;display:grid!important;
    grid-template-columns:212px 1fr!important;grid-template-rows:1fr auto!important;column-gap:24px!important;
    row-gap:0!important;padding:20px!important;box-sizing:border-box;border-radius:28px!important;overflow:hidden;
    color:#F7F6F3;margin-bottom:16px;background:linear-gradient(135deg,#2B3A4A 0%,#3E5568 55%,#8FB3D9 140%)!important;}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-art{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-art{
    grid-column:1!important;grid-row:1/3!important;width:212px!important;height:212px!important;
    border-radius:16px!important;box-shadow:0 18px 36px -18px rgba(0,0,0,.7);}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-copy{
    grid-column:2!important;grid-row:1!important;min-width:0;}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy::before{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-copy::before{
    content:attr(data-eyebrow);font:600 15px/1.3 var(--pv-font);color:rgba(247,246,243,.75);}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy>h2{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-copy>h2{
    margin-top:6px!important;font:800 36px/1.02 var(--pv-font)!important;letter-spacing:-.03em;color:#F7F6F3!important;
    white-space:normal;display:-webkit-box!important;-webkit-box-orient:vertical;-webkit-line-clamp:2!important;}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-copy>:is(p,small){
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-copy>:is(p,small){
    margin-top:6px!important;font:400 16px/1.35 var(--pv-font)!important;color:rgba(247,246,243,.85)!important;}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-play{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-play{
    display:flex!important;grid-column:2!important;grid-row:2!important;justify-self:start;align-items:center;
    justify-content:center;gap:10px;position:static!important;min-width:132px!important;width:auto!important;
    height:56px!important;min-height:56px!important;padding:0 20px!important;border-radius:999px!important;
    background:#F7F6F3!important;color:#17171A;font:700 17px/1 var(--pv-font);}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-play>img{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-play>img{
    width:18px!important;height:18px!important;}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]>.result-play::after{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]>.result-play::after{
    content:'Afspil';}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero][data-pending=true]>.result-play::after{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero][data-pending=true]>.result-play::after{
    content:'Starter…';}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero][data-playing=true]>.result-play::after{
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero][data-playing=true]>.result-play::after{
    content:'Spiller';}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]:is([data-pending=true],
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]:is([data-pending=true],
     [data-playing=true])>.result-play>img{
    display:none;}
- #music-response[data-discovery-collection=mood]
-   #result-list>.result.result.result[data-content-state][data-kit=hero]:is([data-pending=true],
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]:is([data-pending=true],
     [data-playing=true])>.result-play::before{
    content:'';width:24px;height:16px;flex:none;}
  /* Afspil-flow: tap → Starter (scrim and three dots) → Spiller (equalizer mark). Last tap wins. */
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]:not([data-kit=hero]):is([data-pending=true],
+   :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]:not([data-kit=hero]):is([data-pending=true],
     [data-playing=true])::after{
    content:'';position:absolute;pointer-events:none;animation:pv-music-fade .32s ease both;}
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]:not([data-kit=hero])[data-pending=true]::after{
+   :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]:not([data-kit=hero])[data-pending=true]::after{
    left:0;top:0;width:160px;height:160px;border-radius:14px;
    background:
   radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) calc(50% - 14px) 50%/8px 8px no-repeat,
@@ -6430,14 +6522,17 @@ body button:not(.is-pressed){transition-property:filter!important}
   radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) calc(50% + 14px) 50%/8px 8px no-repeat,
     rgba(23,23,26,.55);
    animation:pv-music-fade .32s ease both,pv-music-pend .9s ease-in-out infinite;}
- #music-response[data-discovery-collection=recent]
-   #result-list>.result.result.result[data-content-state][data-pending=true]::after{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])
+   >.result.result.result[data-content-state][data-pending=true]::after{
    width:72px!important;height:72px!important;border-radius:0!important;}
- #music-response[data-discovery-collection=feeling]
-   #result-list>.result.result.result[data-content-state][data-pending=true]::after{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])
+   >.result.result.result[data-content-state][data-pending=true]::after{
    width:120px!important;height:120px!important;border-radius:18px!important;}
  #music-response[data-discovery-preview]
-   #result-list>.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::after{
+   :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::after{
    left:10px;top:114px;width:36px;height:36px;border-radius:50%;
    background:
   linear-gradient(#F7F6F3,#F7F6F3) 11px 100%/3px 14px no-repeat,
@@ -6446,11 +6541,13 @@ body button:not(.is-pressed){transition-property:filter!important}
     rgba(23,23,26,.8);
    background-origin:content-box;padding:11px 0;box-sizing:border-box;
    animation:pv-music-fade .32s ease both,pv-music-eq 1s ease-in-out infinite;}
- #music-response[data-discovery-collection=recent]
-   #result-list>.result.result.result[data-content-state][data-playing=true]::after{
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])
+   >.result.result.result[data-content-state][data-playing=true]::after{
    top:26px!important;left:18px!important;}
- #music-response[data-discovery-collection=feeling]
-   #result-list>.result.result.result[data-content-state][data-playing=true]::after{
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])
+   >.result.result.result[data-content-state][data-playing=true]::after{
    top:10px!important;left:auto!important;right:10px;}
 
 /* #389 leftover: in the small Musik slot the »Afspiller« context line sat on top of the »Musik« head while music
@@ -6521,6 +6618,71 @@ body button:not(.is-pressed){transition-property:filter!important}
    animation-delay:.2s;}
  #music-detail #queue>.queue-track>.queue-order>.queue-eq>i:nth-child(3){
    animation-delay:.4s;}
+
+/* Musik, every section open (lærred »A-Musik«/»Musik-Hjem-Hel«): the first mood card is the hero at the top (88),
+   then Fortsæt, Til <ugedag> <tid>, Vibe and Jeres playlister, each a heading (22/800, the product's note under it in
+   15) over its rail 12 below and 32 to the next heading. The chosen collection is the live list; the others show
+   their last read (.music-shelf). */
+
+ #music-response[data-discovery-preview] #music-hero{
+   order:1;flex:none;display:block;width:744px;}
+ #music-response[data-discovery-preview] #music-hero:empty{
+   display:none;}
+ #music-response[data-discovery-preview] #music-hero>.result.result.result[data-content-state][data-kit=hero]{
+   position:relative;display:grid!important;margin:0!important;border:0!important;outline:0!important;
+   text-align:left;}
+ #music-response[data-discovery-preview] #music-refinements>[data-collection]{
+   flex-direction:column!important;align-items:flex-start!important;justify-content:flex-start!important;
+   gap:0!important;height:auto!important;min-height:0!important;margin:32px 0 0!important;border-top:0!important;
+   font:800 22px/27px var(--pv-font)!important;}
+ #music-response[data-discovery-preview] #music-refinements>[data-collection]::after{
+   content:attr(data-note)!important;display:block!important;width:auto!important;height:auto!important;
+   background:none!important;opacity:1!important;-webkit-mask:none!important;mask:none!important;
+   font:400 15px/19px var(--pv-font);letter-spacing:0;color:var(--pv-music-ink-2);}
+ #music-response[data-discovery-preview] #music-refinements>[data-collection]:not([data-note])::after,
+ #music-response[data-discovery-preview] #music-refinements>[data-collection][data-note=""]::after{
+   display:none!important;}
+ #music-response[data-discovery-preview] #results{
+   margin:12px 0 0!important;}
+ #music-response[data-discovery-preview]>[data-discovery-header]{
+   transform:translateY(-11px)!important;}
+ #music-response[data-discovery-preview] .music-shelf{
+   order:calc(var(--pv-shelf-order) + 2);flex:none;display:flex;flex-wrap:nowrap;gap:16px;width:744px;
+   margin:12px 0 0;padding:0 24px 0 0;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;
+   scroll-snap-type:x mandatory;scrollbar-width:none;
+   -webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);mask-image:linear-gradient(90deg,#000 78%,
+   transparent);}
+ #music-response[data-discovery-preview] .music-shelf[hidden]{
+   display:none;}
+ #music-response[data-discovery-preview] .music-shelf::-webkit-scrollbar{
+   display:none;}
+ #music-response[data-discovery-preview] .music-shelf[data-music-shelf=recent]{
+   --pv-shelf-order:10;}
+ #music-response[data-discovery-preview] .music-shelf[data-music-shelf=mood]{
+   --pv-shelf-order:20;}
+ #music-response[data-discovery-preview] .music-shelf[data-music-shelf=feeling]{
+   --pv-shelf-order:30;}
+ #music-response[data-discovery-preview] .music-shelf[data-music-shelf=top]{
+   --pv-shelf-order:40;}
+
+/* Kø fits the column (lærred »Musik-Koe«): »Kø« at 88, the card from 136 to the 784 baseline, rows scroll inside it.
+   The »Spiller på …« status line is not drawn on the iPad: the player at the right already names the speaker. It
+   stays for screen readers and as the heading's focus target. */
+
+ pv-widget-host[data-view=active] .frame>.responses:has(>#music-detail:not([hidden])){
+   overflow:hidden!important;}
+ pv-widget-host[data-view=active] .responses>#music-detail#music-detail:not([hidden]){
+   height:696px!important;min-height:0!important;max-height:696px!important;flex:none!important;
+   overflow:hidden!important;}
+ pv-widget-host #music-detail#music-detail>.response-heading{
+   position:absolute!important;width:1px!important;height:1px!important;min-width:0!important;
+   min-height:0!important;margin:-1px!important;padding:0!important;
+   overflow:hidden!important;clip-path:inset(50%)!important;white-space:nowrap;border:0!important;}
+ pv-widget-host #music-detail#music-detail .detail-queue{
+   height:100%!important;min-height:0!important;box-sizing:border-box;}
+ pv-widget-host #music-detail#music-detail #queue{
+   flex:1 1 0!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain;
+   scrollbar-width:none;}
 
 @keyframes pv-queue-eq{0%,100%{height:5px}50%{height:16px}}
 @media (prefers-reduced-motion:reduce){
@@ -8557,6 +8719,15 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  pv-widget-host #device-view#device-view#device-view #light-room-controls .light-room-refresh{margin-top:auto!important;
    align-self:flex-start;height:56px!important;min-height:0!important;padding:0 28px!important;border-radius:999px!important;
    background:#17171A!important;color:#F7F6F3!important;font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important}
+
+/* Lys fits the column (lærred »A-Lys«): the page starts at 88 under the topbar and ends on the 784 baseline, so the
+   column never overflows and is never scrolled up under the topbar. */
+
+ pv-widget-host[data-view=active] .frame>.responses:has(>#device-view:not([hidden])>.light-room-view:not([hidden])){
+   overflow:hidden!important;}
+ pv-widget-host[data-view=active] .responses>#device-view#device-view:not([hidden]):has(
+   >.light-room-view:not([hidden])){
+   height:696px!important;min-height:0!important;max-height:696px!important;flex:none!important;}
 
 /* iPad Timer, rettet mod lærredet »A-Timer«/»Timer-pause«/»Timer-faerdig«/»Timer-Alarm«: »af 10:00« under the time,
    the finished page keeps »0:00« in the ring and »Tiden er gået« in coral as the title, the native actions read
