@@ -339,9 +339,85 @@ def test_return_to_configured_room_is_not_excluded_by_preference_or_roster(
                 assert rows["r0"]["selectable"] is (restriction == "none")
             assert rows["r0"]["default"] is True
             assert all(row["startSelectable"] is False for row in rows.values())
+            if restriction not in ("revoked", "move_off"):
+                assert (
+                    rows["r0"]["moveBlockedReason"]
+                    == {
+                        "none": None,
+                        "missing_grant": "no_rule",
+                        "duplicate_grant": "duplicate_rule",
+                        "unavailable": "unavailable",
+                    }[restriction]
+                )
             current_ids = {key: row["speakerId"] for key, row in rows.items()}
             if identities is not None:
                 assert current_ids == identities
             identities = current_ids
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    ("speaker", "matches", "expected"),
+    [
+        ({"availability": "available", "homepodId": "42"}, 1, None),
+        ({"availability": "available", "homepodId": "42"}, 0, "no_rule"),
+        ({"availability": "available", "homepodId": "42"}, 2, "duplicate_rule"),
+        ({"availability": "unknown", "homepodId": "42"}, 1, "unavailable"),
+        ({"availability": "unavailable", "homepodId": None}, 1, "no_homepod_id"),
+    ],
+)
+def test_blocked_reason_names_why_a_speaker_is_locked(speaker, matches, expected):
+    assert speakers.blocked_reason(speaker, matches) == expected
+
+
+@pytest.mark.parametrize("rule_count", [0, 1, 2])
+def test_start_blocked_reason_follows_exactly_one_rule(monkeypatch, rule_count):
+    async def run():
+        owner = object()
+        tools = SimpleNamespace(
+            podview_music_reads=lambda: ["targets"], podview_music_binding=lambda: owner
+        )
+        rule = {
+            "accountId": "account",
+            "targetId": "engine",
+            "nativeRoomId": "r1",
+            "nativeHomepodId": "43",
+            "actions": ["play_track"],
+        }
+        rules = [
+            {**rule, "nativeRoomId": "r0", "nativeHomepodId": "42", "default": True},
+            *[copy.deepcopy(rule) for _ in range(rule_count)],
+        ]
+        grant = object()
+        bridge = SimpleNamespace(
+            boot_id="boot",
+            tools=tools,
+            sessions={"r0": object()},
+            controls=SimpleNamespace(
+                policy={"roomId": "r0", "music": rules},
+                move=SimpleNamespace(available=False),
+                domains=lambda *_: [],
+                selection_allowed=lambda *_: True,
+            ),
+            _grant_for_token=lambda *_: grant,
+            _grant_current=lambda *_: True,
+        )
+
+        async def read(_tools, account):
+            return payload()
+
+        monkeypatch.setattr(speakers, "read_service", read)
+        result = await speakers.read_catalogue(
+            bridge, "r0", "account", lambda: owner, token="token"
+        )
+        rows = {row["nativeRoomId"]: row for row in result["speakers"]}
+        assert rows["r0"]["startBlockedReason"] is None
+        assert rows["r1"]["startSelectable"] is (rule_count == 1)
+        assert (
+            rows["r1"]["startBlockedReason"]
+            == {0: "no_rule", 1: None, 2: "duplicate_rule"}[rule_count]
+        )
+        assert "moveBlockedReason" not in rows["r1"]
 
     asyncio.run(run())
