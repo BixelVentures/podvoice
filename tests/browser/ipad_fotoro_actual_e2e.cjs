@@ -42,7 +42,10 @@ const card=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComput
  const clock=await page.locator('#photo-clock').evaluate(n=>{const s=getComputedStyle(n),b=n.getBoundingClientRect();
   return {size:s.fontSize,weight:s.fontWeight,x:Math.round(b.x),text:n.textContent};});
  assert.equal(clock.text,'14.30');assert.equal(clock.size,'168px');assert.equal(clock.weight,'600');
- assert(Math.abs(clock.x-48)<=8,`clock starts at 48 (${clock.x})`);
+ assert.equal(clock.x,48,'the clock box starts at 48, as on the canvas');
+ const white=await page.evaluate(()=>['photo-clock','photo-date','photo-weather'].map(id=>
+  getComputedStyle(document.getElementById(id)).color));
+ assert.deepEqual(white,['rgb(255, 255, 255)','rgb(255, 255, 255)','rgb(255, 255, 255)'],'#FFFFFF on the photo');
  assert.equal(await page.locator('#photo-date').evaluate(n=>getComputedStyle(n).fontSize),'26px');
  const weather=await page.locator('#photo-weather').evaluate(n=>{const b=n.getBoundingClientRect(),
   t=n.querySelector('strong');

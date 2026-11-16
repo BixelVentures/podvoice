@@ -1,4 +1,7 @@
 import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent, createKitChoiceGroup, createKitDisclosure} from './ui/kit.js';
+// Number ranges read with an en dash (»12–15 min.«, »kl. 14–15«), as on the canvas; dates stay untouched.
+const RANGE = /(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g;
+const rangeDash = text => String(text).replace(RANGE,'$1–$2');
 
 const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ#'];
 const collator = new Intl.Collator('da');
@@ -391,7 +394,8 @@ export class RecipeView {
     if (recipe === activeRecipe) row.setAttribute('aria-current','true');
     const copy = element('span');
     const age = Date.now() - (recipe.source?.uploadedAt ?? recipe.createdAt);
-    const status = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ') || 'Gemt opskrift';
+    const status = rangeDash([recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean)
+     .join(' · ')) || 'Gemt opskrift';
     // A-Opskrifter: the band names the current step (»Burgerboller · trin 2 af 5«); the cards show the name.
     if (recipe === activeRecipe) {
      const done = this.sessions.get(recipe).steps, next = recipe.steps.findIndex((_,i)=>!done.has(String(i)));
@@ -462,16 +466,14 @@ export class RecipeView {
   this.catalogBand = band;
   this.catalogCount = applyKitTextRole(element('span'),'meta');
   this.catalogCount.dataset.recipeCount = '';
-  // »Tilføj opskrift« brings the Share → Home Assistant help and the upload history into view.
-  const add = action('Tilføj opskrift',()=>{
-   entries.querySelector('#recipe-add-help')?.scrollIntoView({block:'start',behavior:'smooth'});
-  });
+  // A-Opskrifter: the toolbar holds the categories, the count and Udforsk only. How to add a recipe
+  // (Del → Home Assistant) and the upload history stay at the end of the catalogue.
   const explore = action('Udforsk',()=>{
    this.catalogScroll = entries.scrollTop;
    this.catalogMode = 'explore';
    this.explore();
   });
-  tools.append(this.catalogCount,add,explore);
+  tools.append(this.catalogCount,explore);
   // The scroller stays the catalogue's first child; CSS orders the band and toolbar over it.
   layout.append(band,toolbar);
   if (categories.length) {

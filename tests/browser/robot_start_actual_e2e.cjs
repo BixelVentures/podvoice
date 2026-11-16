@@ -93,7 +93,7 @@ let browser;
     assert(starting && starting.at - tapped < 300, `"Starter …" within 300 ms of the tap: ${log}`);
     assert(!frames.some(f => /Anmodning|modtaget/.test(f.status)), `no technical receipt text: ${log}`);
     const before = frames.filter(f => f.at >= tapped && !f.buttons.includes('Pause'));
-    assert(!before.some(f => f.buttons.some(b => /^(Køkkenalrum|Spisestue|Vælg alle rum)\[D\]$/.test(b))),
+    assert(!before.some(f => f.buttons.some(b => /^(Køkkenalrum|Spisestue|Vælg alle)\[D\]$/.test(b))),
       `the start form never greys out while starting: ${log}`);
     assert(!frames.some(f => f.buttons.includes('Pause') && f.buttons.some(b => b.startsWith('Start'))),
       `no frame mixes the start form with the job controls: ${log}`);

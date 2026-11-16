@@ -33,6 +33,15 @@ export function robotFacts(device,now=Date.now()/1000){
  for(const key of ['vacuum_error','dock_error']){const row=byKey.get(key);if(row&&fresh(row)&&!['none','no_error','ok','0'].includes(row.value.toLowerCase()))attention.push(`${labels[key]}: ${robotValue(row)}`);}
  const details=items.filter(row=>labels[row.key]).map(row=>({label:labels[row.key],value:robotValue(row),stale:!fresh(row),group:detailGroup.get(row.key)}));return {summary,history,attention,details};
 }
+// Vedligehold (lærred »A-Robot«): the robot's own care counters, in the product's order. Only reported rows;
+// no service interval is known, so no share of a lifetime is drawn. A counter at or below 0 is due.
+export function robotCare(device,now=Date.now()/1000){
+ const rows=device?.telemetry?.status==='observed'&&Array.isArray(device.telemetry.items)?device.telemetry.items:[];
+ const order=[...careKeys],stale=row=>!!device.stale||row.stale===true||now-row.updatedAt>300;
+ return rows.filter(row=>careKeys.has(row.key)&&Number.isFinite(row.value)&&Number.isFinite(row.updatedAt)
+  &&row.updatedAt<=now+1).sort((a,b)=>order.indexOf(a.key)-order.indexOf(b.key))
+  .map(row=>({key:row.key,label:labels[row.key],value:robotValue(row),due:row.value<=0,stale:stale(row)}));
+}
 // Display-only vocabulary matches the existing admitted setting choices.
 // Raw observations and action values remain owned by their source/transport.
 const settingLabels={

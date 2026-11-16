@@ -57,6 +57,19 @@ async function open(stage,{overview=false}={}){
  assert.equal(big.size,'150px');assert.equal(big.weight,'500');assert.equal(big.color,'rgb(58, 69, 96)');
  const line=await box(page.locator('#weather-view .weather-current [data-kit-slot=title]'));
  assert.equal(line.size,'26px');assert.equal(line.weight,'800');
+ // A-Vejr: the advice is part of the title (»Skyet · Tag en jakke med.«); the range is the meta line under it.
+ const advice=await box(page.locator('#weather-view .weather-current .weather-summary'));
+ assert.equal(advice.size,'26px');assert.equal(advice.weight,'800');assert.equal(advice.display,'inline');
+ assert.equal(await page.locator('#weather-view .weather-current .weather-summary').evaluate(n=>
+  getComputedStyle(n,'::before').content),'" · "');
+ const titleTop=await page.locator('#weather-view .weather-current [data-kit-slot=title]').evaluate(n=>
+  n.getClientRects()[0].top);
+ const adviceTop=await page.locator('#weather-view .weather-current .weather-summary').evaluate(n=>
+  n.getClientRects()[0].top);
+ assert.equal(Math.round(adviceTop),Math.round(titleTop),'the advice starts on the title line');
+ const meta=await box(page.locator('#weather-view .weather-current span[data-kit-slot=body]'));
+ assert.match(meta.text,/^Højst .* · Lavest /);assert.equal(meta.size,'17px');
+ assert(meta.y>advice.y,'the range under the title');
  assert.equal((await box(page.locator('#weather-view .weather-current>img'))).display,'none','material, not an icon');
  const mat=await material(heroNode);
  assert.match(mat.image,/assets\/weather\/weather-(cloud|sun|rain|snow|fog|storm)\.svg/,'dot material on the hero');
@@ -107,6 +120,7 @@ async function open(stage,{overview=false}={}){
  assert.equal(condition.size,'20px');assert.equal(condition.weight,'800');
  const range=await box(widget.locator('small'));
  assert.equal(range.size,'15px');assert.equal(range.color,'rgb(62, 70, 96)');
+ assert.match(range.text,/^Højst \S+ · lavest \S+$/,'K-Widget vejr: »Højst 17° · lavest 9°«');
  const wHour=await box(widget.locator('.home-forecast-hour strong').first());
  assert.equal(wHour.size,'19px');assert.equal(wHour.weight,'800');assert.equal(wHour.color,'rgb(26, 63, 184)');
  const forecast=await box(widget.locator('.home-forecast'));
