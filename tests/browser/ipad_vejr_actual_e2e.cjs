@@ -45,7 +45,8 @@ async function open(stage,{overview=false}={}){
  // A-Vejr »frisk«.
  let page=await open('weather');
  const heroNode=page.locator('#weather-view .weather-current'),hero=await box(heroNode);
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,458],'hero 744×458 at the top of the column');
+ // Vejr-Råd and Vejr-Timer grow the hero from 458 to 536: a reserved 2-line advice slot and two hour lines.
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,536],'hero 744×536 at the top of the column');
  assert.equal(hero.radius,'24px','hero radius 24');
  assert.equal(hero.bg,'rgb(221, 230, 251)','hero #DDE6FB');
  const place=await box(page.locator('#weather-title'));
@@ -57,19 +58,16 @@ async function open(stage,{overview=false}={}){
  assert.equal(big.size,'150px');assert.equal(big.weight,'500');assert.equal(big.color,'rgb(58, 69, 96)');
  const line=await box(page.locator('#weather-view .weather-current [data-kit-slot=title]'));
  assert.equal(line.size,'26px');assert.equal(line.weight,'800');
- // A-Vejr: the advice is part of the title (»Skyet · Tag en jakke med.«); the range is the meta line under it.
+ // Vejr-Råd: the advice is its own reserved 2-line slot (17/400) 8 under the title; the range follows it.
  const advice=await box(page.locator('#weather-view .weather-current .weather-summary'));
- assert.equal(advice.size,'26px');assert.equal(advice.weight,'800');assert.equal(advice.display,'inline');
- assert.equal(await page.locator('#weather-view .weather-current .weather-summary').evaluate(n=>
-  getComputedStyle(n,'::before').content),'" · "');
+ assert.equal(advice.size,'17px');assert.equal(advice.weight,'400');assert.equal(advice.display,'block');
+ assert.equal(advice.h,48,'two reserved advice lines');
  const titleTop=await page.locator('#weather-view .weather-current [data-kit-slot=title]').evaluate(n=>
   n.getClientRects()[0].top);
- const adviceTop=await page.locator('#weather-view .weather-current .weather-summary').evaluate(n=>
-  n.getClientRects()[0].top);
- assert.equal(Math.round(adviceTop),Math.round(titleTop),'the advice starts on the title line');
+ near(advice.y,Math.round(titleTop)+32+8,'the advice 8 under the title line',2);
  const meta=await box(page.locator('#weather-view .weather-current span[data-kit-slot=body]'));
  assert.match(meta.text,/^Højst .* · Lavest /);assert.equal(meta.size,'17px');
- assert(meta.y>advice.y,'the range under the title');
+ assert(meta.y>=advice.y+advice.h,'the range under the advice');
  assert.equal((await box(page.locator('#weather-view .weather-current>img'))).display,'none','material, not an icon');
  const mat=await material(heroNode);
  assert.match(mat.image,/assets\/weather\/weather-(cloud|sun|rain|snow|fog|storm)\.svg/,'dot material on the hero');
@@ -80,10 +78,17 @@ async function open(stage,{overview=false}={}){
  assert.equal(hour.w,156,'156-wide hour columns');
  const hourTemp=await box(page.locator('#weather-view .weather-hours>[role=group] strong').first());
  assert.equal(hourTemp.size,'22px');assert.equal(hourTemp.weight,'800');
- assert.equal((await box(page.locator('#weather-view .weather-hour-rain').first())).display,'none');
+ // Vejr-Timer: rain and wind as two 15/20 meta lines in the weather ink under the temperature, inside the hero.
+ const wind=await box(page.locator('#weather-view .weather-hours>[role=group]>.weather-hour-wind').first());
+ assert.equal(wind.display,'flex');assert.equal(wind.size,'15px');assert.equal(wind.h,20);
+ assert.equal(wind.color,'rgb(47, 93, 124)');assert.match(wind.text,/m\/s$/);
+ const rainLine=await box(page.locator('#weather-view .weather-hours>[role=group]>.weather-hour-rain').first());
+ assert.equal(rainLine.h,20,'the rain line keeps its row');near(wind.y,rainLine.y+20+4,'wind 4 under rain',1);
+ near(wind.y,hourTemp.y+28+8+20+4,'rain 8 under the temperature',1);
+ near(wind.y+wind.h,hero.y+hero.h-28,'the hour lines end 28 above the hero bottom',1);
  const daysTitle=await box(page.locator('#weather-view .weather-days>h2'));
  assert.equal(daysTitle.text,'De næste dage');assert.equal(daysTitle.size,'24px');assert.equal(daysTitle.weight,'800');
- near(daysTitle.y,88+458+32,'»De næste dage« 32 under the hero',4);
+ near(daysTitle.y,88+536+32,'»De næste dage« 32 under the hero',4);
  const day=await box(page.locator('#weather-view .weather-days>[role=group]').first());
  assert.equal(day.h,64,'64-px day rows');
  const view=await box(page.locator('#weather-view'));
@@ -102,7 +107,7 @@ async function open(stage,{overview=false}={}){
  page=await open('weather-connection-error');
  const emptyHero=page.locator('#weather-view .weather-current');
  const empty=await box(emptyHero);
- assert.deepEqual([empty.w,empty.h],[744,458],'the hero keeps its size without data');
+ assert.deepEqual([empty.w,empty.h],[744,536],'the hero keeps its size without data');
  const dash=await page.locator('#weather-view .weather-current strong').evaluate(n=>
   getComputedStyle(n).display!=='none'&&(n.textContent||getComputedStyle(n,'::before').content));
  assert.match(String(dash),/—/,'»—« in place of the temperature');

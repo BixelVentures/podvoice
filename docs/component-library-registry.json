@@ -2739,6 +2739,7 @@
           "function:renderWeather": 1,
           "function:rows": 1,
           "function:weatherMetrics": 1,
+          "function:hourPrecipitation": 1,
           "function:weatherOverviewDetail": 1,
           "function:weatherSourceLabel": 1,
           "arrow:weatherHeaderVisible": 1,

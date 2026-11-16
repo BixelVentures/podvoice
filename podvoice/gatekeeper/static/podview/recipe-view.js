@@ -436,6 +436,12 @@ export class RecipeView {
     } else {
      copy.append(applyKitTextRole(element('strong',recipe.title),'field-label'),
       applyKitTextRole(element('small',age >= 0 && age < 7*86400000 ? 'Ny · '+status : status),'meta'));
+     // The recipe's own publisher (or the importer's host fallback) as a label on the photo; none, no label.
+     if (typeof recipe.publisher === 'string' && recipe.publisher.trim()) {
+      const publisher = applyKitTextRole(element('small',recipe.publisher.trim()),'meta');
+      publisher.dataset.recipePublisher = '';
+      copy.append(publisher);
+     }
     }
     row.append(copy);
     const thumb = element('img');
