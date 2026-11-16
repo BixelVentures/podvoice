@@ -3511,7 +3511,9 @@
           "method:explore": 1,
           "arrow:choose": 1,
           "arrow:activate": 1,
-          "arrow:rangeDash": 1
+          "arrow:rangeDash": 1,
+          "arrow:decodePhoto": 1,
+          "arrow:showPhoto": 1
         },
         "roots": [],
         "registrations": {},
