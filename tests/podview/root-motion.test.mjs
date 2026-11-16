@@ -266,7 +266,7 @@ test('reduced Ro crossings preserve both routes with120ms pane fades and no play
 
 test('one notification enters, changes once, ignores repeated copy and retains content until its exit finishes',async()=>{
  const f=fixture(),animations=[],node={dataset:{source:'connection'},textContent:'Forbinder',hidden:true,getClientRects(){return this.hidden?[]:[box];},animate(frames,options){let finish;const a={frames,options,cancelled:0,finished:new Promise(done=>finish=done),cancel(){this.cancelled++;},finish(){finish();}};animations.push(a);return a;}};
- f.motion.feedback(node,true);assert.equal(node.hidden,false);assert.equal(animations.length,1);assert.equal(animations[0].options.duration,160);f.motion.feedback(node,true);assert.equal(animations.length,1,'unchanged queue observation never restarts feedback');
+ f.motion.feedback(node,true);assert.equal(node.hidden,false);assert.equal(animations.length,1);assert.equal(animations[0].options.duration,557);assert.match(animations[0].options.easing,/^linear\(/);f.motion.feedback(node,true);assert.equal(animations.length,1,'unchanged queue observation never restarts feedback');
  node.textContent='Offline';f.motion.feedback(node,true);assert.equal(animations.length,2);assert.equal(animations[0].cancelled,1);assert.equal(animations[1].options.duration,120);assert(animations[1].frames.every(frame=>Object.keys(frame).length===1),'notice replacement settles quietly without moving');
  f.motion.feedback(node,false);assert.equal(node.hidden,false);assert.equal(node.textContent,'Offline');const exit=animations.at(-1);f.motion.feedback(node,false);assert.equal(animations.at(-1),exit);exit.finish();await Promise.resolve();assert.equal(node.hidden,true);f.motion.cancel();
 });

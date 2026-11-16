@@ -145,6 +145,9 @@ export class Spring{
  }
 }
 
+const SNAPPY=springCurve(SPRING.snappy);
+const TOAST_IN=[{opacity:0,transform:'translateY(8px)',offset:0},{opacity:1,offset:.75},
+ {opacity:1,transform:'none',offset:1}];
 // Layout offsets exclude our active FLIP transform. Animation progress is not a new layout.
 const resourceLayout=node=>{if(typeof node.offsetLeft!=='number')return null;const values=[];for(let n=node,depth=0;n&&depth<64;n=n.offsetParent,depth++)values.push(n,n.offsetLeft,n.offsetTop,n.offsetWidth,n.offsetHeight);return values;};
 const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>value===b[index]);
@@ -162,7 +165,7 @@ export class SceneMotion {
   this.animations.get(node)?.cancel();this.animations.delete(node);
   if(this.reduced&&!options.fadeReduced||(!options.visible&&!node?.getClientRects().length)||this.host.isConnected===false||typeof node.animate!=='function'){if(!this.animations.size)this.cancel();return null;}
   if(this.reduced){frames=frames.map(frame=>({opacity:frame.opacity??1}));duration=120;options={};}
-  const animation=node.animate(frames,{duration,delay:options.delay||0,fill:'backwards',easing:'cubic-bezier(.2,0,0,1)'});this.animations.set(node,animation);
+  const animation=node.animate(frames,{duration,delay:options.delay||0,fill:'backwards',easing:options.easing||EASE.out});this.animations.set(node,animation);
   if(!this.listening&&this.media?.addEventListener){this.media.addEventListener('change',this.onPreference);this.listening=true;}
   animation.finished.catch(()=>{}).finally(()=>{if(this.animations.get(node)===animation){this.animations.delete(node);}if(!this.animations.size)this.cancel();});return animation;
  }
@@ -172,12 +175,19 @@ export class SceneMotion {
   for(let index=0;index<digits.length;index++){if(previous.value[index]===value[index])continue;digits[index].textContent=value[index];this.animate(digits[index],[{opacity:.25},{opacity:1}],180,{fadeReduced:true});}
   this.clocks.set(node,{value,digits});
  }
+ // P2 toast (§3.3): in from 8px on the snappy spring while the opacity reaches 1 at the quick duration
+ // (eased progress .75 of the snappy curve is ~150 ms); out is a quick fade that accelerates away.
  feedback(node,visible){
   if(!node)return;const previous=this.feedbackStates.get(node),signature=JSON.stringify([node.dataset?.source||'',node.textContent||'']);
   if(previous?.visible===visible&&(!visible||previous.signature===signature))return;
   const token={};this.feedbackTokens.set(node,token);this.feedbackStates.set(node,{visible,signature});
-  if(visible){node.hidden=false;this.animate(node,previous?.visible?[{opacity:.7},{opacity:1}]:[{opacity:0,transform:'translateY(4px)'},{opacity:1,transform:'none'}],previous?.visible?120:160,{fadeReduced:true});return;}
-  const animation=this.animate(node,[{opacity:1},{opacity:0}],120,{fadeReduced:true});if(!animation){node.hidden=true;return;}animation.finished.then(()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;},()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;});
+  if(visible){
+   node.hidden=false;
+   if(previous?.visible)this.animate(node,[{opacity:.7},{opacity:1}],120,{fadeReduced:true});
+   else this.animate(node,TOAST_IN,SNAPPY.ms,{fadeReduced:true,easing:SNAPPY.easing});
+   return;
+  }
+  const animation=this.animate(node,[{opacity:1},{opacity:0}],DUR.quick,{fadeReduced:true,easing:EASE.in});if(!animation){node.hidden=true;return;}animation.finished.then(()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;},()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;});
  }
  holdGeometry(){
   if(this.geometry.size)return;

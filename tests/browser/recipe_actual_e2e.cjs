@@ -186,6 +186,8 @@ async function readAndResumeBurgerboller(page){
  const gallery=page.getByRole('dialog',{name:'Billeder af Burgerboller'});
  await recipe.locator('[data-recipe-layout=gallery-trigger]').tap();
  await gallery.waitFor({state:'visible'});
+ // The dialog rises on the smooth spring (docs/MOTION.md §3.3); anchor positions are read once it has landed.
+ await gallery.evaluate(dialog=>Promise.all(dialog.getAnimations().map(a=>a.finished.catch(()=>{}))));
  const next=gallery.getByRole('button',{name:'Næste',exact:true});
  const previous=gallery.getByRole('button',{name:'Forrige',exact:true});
  const firstBox=await previous.boundingBox();

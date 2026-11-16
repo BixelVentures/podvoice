@@ -49,7 +49,8 @@
    They animate only opacity and the individual transform properties (rotate, scale, translate), so a node's own
    transform (positioning) is never overwritten. Loops run while their state lasts; reduced motion stops them. */
 @keyframes pv-spin{from{rotate:0turn}to{rotate:1turn}}
-@keyframes pv-busy-in{from{opacity:var(--pv-busy-from,.35)}}
+@keyframes pv-busy-in{from{opacity:var(--pv-busy-from,0)}}
+@keyframes pv-tick{30%{scale:1.04}}
 @keyframes pv-skeleton{0%,100%{opacity:var(--pv-skeleton-low,.5)}50%{opacity:var(--pv-skeleton-high,1)}}
 @keyframes pv-pulse{0%,100%{opacity:var(--pv-pulse-low,.4);scale:var(--pv-pulse-scale,.6)}50%{opacity:1;scale:1}}
 @keyframes pv-eq{0%,100%{scale:1 var(--pv-eq-low,.3)}50%{scale:1 1}}
@@ -702,7 +703,6 @@ pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-pane
 }
 /* Native controls inherit kit ink instead of platform black. */
 input[type=range],.pv-slider{color:var(--pv-ink)}
-#timer-alert[open]{animation-timing-function:var(--pv-ease)}
 /* Kit material geometry wins over legacy domain selectors. */
 .pv-kit:is(.pv-kit-card,.pv-kit-hero,.pv-kit-tile){border-radius:var(--pv-r-l)!important;box-shadow:var(--pv-shadow)}
 .pv-kit.pv-kit-tile{padding:var(--pv-s3)!important}
@@ -1268,18 +1268,19 @@ pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-
 .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play){position:relative;cursor:progress;opacity:1}
 /* The 24 px Icon-sized mark stays inside the Button's existing 32 px inset.
    Its one finite reveal ends as a still pending mark, never as success. */
-.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{content:'';position:absolute;right:var(--pv-s1);top:50%;width:var(--pv-icon-s);height:var(--pv-icon-s);box-sizing:border-box;transform:translateY(-50%);border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-busy-in var(--pv-d-fast) var(--pv-ease) both}
+.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{content:'';position:absolute;right:var(--pv-s1);top:50%;
+ width:var(--pv-icon-s);height:var(--pv-icon-s);box-sizing:border-box;transform:translateY(-50%);
+ border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;
+ border-radius:var(--pv-r-pill);pointer-events:none;animation:var(--pv-busy-spinner)}
 .pv-kit.pv-kit-button:is([data-kit-variant=icon],.--icon)[aria-busy=true]:not(.result-play)::after{inset:var(--pv-s1);width:auto;height:auto;transform:none}
 /* A round player button keeps its icon; a centred ring turns while the room's call runs. */
 .pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{
  inset:3px;width:auto;height:auto;transform:none;translate:none;
- animation:pv-busy-in var(--pv-d-fast) var(--pv-ease) both,pv-spin 900ms linear infinite;
+ animation:var(--pv-busy-spinner);
 }
 .pv-kit.pv-kit-button:is([data-state=error],[aria-invalid=true]){background:var(--pv-danger-tint)!important;color:var(--pv-danger)!important;box-shadow:inset 0 0 0 2px var(--pv-danger)}
 .pv-kit.pv-kit-button:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){cursor:default;opacity:.56}
 :root[data-pv-motion=reduced] .pv-kit.pv-kit-button{transition:none}
-:root[data-pv-motion=reduced] .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}
-:root[data-pv-motion=reduced] .pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{animation:none}
 
 /* Explicit Card sizes reuse the actual overview owners. Without data-kit-size
    the product keeps its normal grid. The running Timer remains its wide owner. */
@@ -1623,7 +1624,8 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home
 
 /* Button owns the only pending indicator. A retained leading icon reserves its
    normal slot but is replaced by the pending mark, never animated alongside it. */
-.pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer):not([data-feedback=progress])>img{visibility:hidden;animation:none!important;transform:none!important}
+.pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play):not(.music-refresh-footer):not([data-feedback=progress])>img{
+ --pv-busy-from:0;animation:var(--pv-busy-yield)!important;transform:none!important}
 .pv-kit.pv-kit-button[aria-busy=true]:has(>img):not(.result-play)::after{left:var(--pv-s2);right:auto}
 /* The Ro player uses one compact copy group centred beside its icon/chevron,
    with equal geometry for loading, offline and failure messages. */
@@ -2159,16 +2161,21 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>[data-kit-slot=label]{d
 .pv-kit.pv-kit-button[data-feedback=progress]:not([data-kit-variant=icon]):not(.--icon){--pv-progress-inset:var(--pv-button-content-inset);padding-inline:calc(var(--pv-progress-inset) + var(--pv-progress-size) + var(--pv-progress-gap))!important}
 .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress]{position:relative}
 .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]{cursor:progress;opacity:1!important}
-.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]::after{content:''!important;position:absolute;right:var(--pv-progress-inset,var(--pv-s3));left:auto;top:50%;width:var(--pv-progress-size);height:var(--pv-progress-size);box-sizing:border-box;translate:0 -50%;transform:none;border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-spin 900ms linear infinite;transform-origin:center}
+.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]::after{
+ content:''!important;position:absolute;right:var(--pv-progress-inset,var(--pv-s3));left:auto;top:50%;
+ width:var(--pv-progress-size);height:var(--pv-progress-size);box-sizing:border-box;translate:0 -50%;transform:none;
+ border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;
+ border-radius:var(--pv-r-pill);pointer-events:none;animation:var(--pv-busy-spinner);transform-origin:center}
 /* Override the older direct-img Button rule with the same trailing slot as mask icons. */
 .pv-kit.pv-kit-button[data-feedback=progress][aria-busy=true]::after{inset:auto var(--pv-progress-inset,var(--pv-s4)) auto auto!important;top:50%!important;width:var(--pv-progress-size);height:var(--pv-progress-size)}
 .pv-kit.pv-kit-button[data-feedback=progress][aria-busy=true]>:is(img,.pv-kit-icon){visibility:visible;animation:none!important;transform:none!important}
-.pv-kit.pv-kit-button[data-feedback=progress]:is([data-kit-variant=icon],.--icon)[aria-busy=true]>:is(img,.pv-kit-icon){visibility:hidden}
+.pv-kit.pv-kit-button[data-feedback=progress]:is([data-kit-variant=icon],.--icon)[aria-busy=true]>:is(img,.pv-kit-icon){
+ --pv-busy-from:0;animation:var(--pv-busy-yield)!important}
 .pv-kit.pv-kit-button[data-feedback=progress]:is([data-kit-variant=icon],.--icon)[aria-busy=true]::after{inset:auto!important;left:50%!important;top:50%!important;width:var(--pv-progress-size)!important;height:var(--pv-progress-size)!important;translate:-50% -50%}
-.pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]>img,.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]>img{visibility:hidden}
+.pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]>img,.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]>img{
+ --pv-busy-from:0;animation:var(--pv-busy-yield)!important}
 .pv-kit.pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]::after{left:calc(var(--pv-s2) + (var(--pv-icon-m) - var(--pv-progress-size))/2);right:auto}
 .pv-kit.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]::after{left:calc(var(--pv-s3) + (var(--pv-icon-m) - var(--pv-progress-size))/2);right:auto;top:calc(var(--pv-s3) + var(--pv-s1) + var(--pv-icon-m)/2)}
-:root[data-pv-motion=reduced] .pv-kit[data-feedback=progress][aria-busy=true]::after{animation:none!important}
 /* Robot reuses Tesla's default level group: label above the native scale.
    Intrinsic bounds prevent a lone scalar choice from becoming a full-card CTA. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting:not([data-setting-concept=mode]){width:100%;max-inline-size:384px}
@@ -2183,8 +2190,9 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-l
    Reserve an inline label slot; values and touch geometry never shift or clip. */
 .pv-kit-choice-group[data-choice-variant=level]>legend{display:flex;align-items:center;gap:var(--pv-control-label-gap)}
 .pv-kit-choice-group[data-choice-variant=level]>legend::after{content:'';display:block;flex:0 0 var(--pv-progress-size);width:var(--pv-progress-size);height:var(--pv-progress-size);box-sizing:border-box;border:2px solid transparent;border-radius:var(--pv-r-pill);visibility:hidden}
-.pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{visibility:visible;border-color:color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;animation:pv-spin 900ms linear infinite}
-:root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level]>legend::after{animation:none!important}
+.pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{visibility:visible;
+ border-color:color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;
+ animation:var(--pv-busy-spinner)}
 .pv-kit-listrow[data-kit-variant=read-only]>:is(h3,h4):has(>.pv-kit-icon){display:flex;align-items:center;gap:var(--pv-control-label-gap)}
 .pv-kit-listrow[data-kit-variant=read-only]>:is(h3,h4)>.pv-kit-icon{width:var(--pv-icon-s);height:var(--pv-icon-s);object-fit:contain}
 
@@ -2253,7 +2261,8 @@ pv-widget-host #vehicle-view .vehicle-climate-actions>button{width:100%;min-heig
 .pv-kit-toggle[data-kit-variant=power]:disabled:not([aria-busy=true])>[data-kit-slot=switch-track]{opacity:.45}
 .pv-kit-toggle[data-kit-variant=power][data-state=error]{background:var(--pv-danger-tint);box-shadow:inset 0 0 0 2px var(--pv-danger)}
 .pv-kit.pv-kit-toggle[data-kit-variant=power][data-feedback=progress][aria-busy=true]::after{position:absolute;left:calc(var(--pv-s2) + (var(--pv-icon-s) - var(--pv-progress-size))/2);right:auto;top:50%;translate:0 -50%}
-.pv-kit-toggle[data-kit-variant=power][aria-busy=true]>.pv-kit-icon{visibility:hidden}
+.pv-kit-toggle[data-kit-variant=power][aria-busy=true]>.pv-kit-icon{--pv-busy-from:0;
+ animation:var(--pv-busy-yield)!important}
 :root[data-pv-motion=reduced]
  .pv-kit-toggle[data-kit-variant=power]>[data-kit-slot=switch-track]>[data-kit-slot=switch-thumb]{
  transition:none}
@@ -2285,7 +2294,8 @@ pv-widget-host #vehicle-view .vehicle-control-tiles{container-type:inline-size;c
 }
 
 /* Existing Icon Button pending label slot from Hue v5. */
-.pv-kit.pv-kit-button[data-kit-variant=icon][data-feedback=progress][aria-busy=true]>[data-kit-slot=label]{visibility:hidden}
+.pv-kit.pv-kit-button[data-kit-variant=icon][data-feedback=progress][aria-busy=true]>[data-kit-slot=label]{
+ --pv-busy-from:0;animation:var(--pv-busy-yield)!important}
 
 /* The existing resource-widget action pill is shared with detail context
    actions. Shape changes neither command authority nor reserved progress slots. */
@@ -2933,6 +2943,31 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  animation:pv-press-circle var(--pv-dur-tap) var(--pv-ease-out) both}
 @keyframes pv-press-circle{from{scale:.2}to{scale:1}}
 
+/* P6 state (docs/MOTION.md §3.7), written by setKitButtonState in ui/kit.js. The chosen outcome shows at once;
+   a request that runs longer than 400 ms fades its spinner in (and the icon it replaces out), so fast commands
+   never show one. done: one tick, only for a confirmed outcome. error: back to the actual state with a colour
+   change in --pv-dur-base, never a shake. Reduced: the spinner is a static ring after the same delay, no tick. */
+:root{--pv-busy-delay:400ms;
+ --pv-busy-spinner:pv-busy-in var(--pv-dur-quick) var(--pv-ease-out) var(--pv-busy-delay) both,
+  pv-spin 900ms linear var(--pv-busy-delay) infinite;
+ --pv-busy-yield:pv-busy-in var(--pv-dur-quick) var(--pv-ease-in) var(--pv-busy-delay) reverse both}
+:root[data-pv-motion=reduced]{--pv-busy-spinner:pv-busy-in var(--pv-dur-reduced) linear var(--pv-busy-delay) both}
+/* The reduced catch-all (widget-view.css) stops animations; the delay is not motion, so the static ring keeps it. */
+:root[data-pv-motion=reduced] :is(.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play),
+ .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true])::after,
+:root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{
+ animation:var(--pv-busy-spinner)!important}
+body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state]:not(.is-pressed){
+ transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
+  background-color var(--pv-dur-quick) var(--pv-ease-out),color var(--pv-dur-quick) var(--pv-ease-out),
+  border-color var(--pv-dur-quick) var(--pv-ease-out)!important}
+body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.is-pressed){
+ transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
+  background-color var(--pv-dur-base) var(--pv-ease-out),color var(--pv-dur-base) var(--pv-ease-out),
+  border-color var(--pv-dur-base) var(--pv-ease-out)!important}
+.pv-kit[data-pv-state=done]{animation:pv-tick var(--pv-spring-snappy)}
+:root[data-pv-motion=reduced] .pv-kit[data-pv-state=done]{animation:none}
+
 /* Horizontal scroll: the weather's fade toward the right edge, with snap. */
 .pv-hscroll{display:flex;gap:var(--pv-gap);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;
  scrollbar-width:none;-webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);
@@ -3191,8 +3226,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  body>dialog#quick-sheet.pv-kit-dialog[open]{position:fixed!important;inset:0!important;margin:auto!important;
   box-sizing:border-box;width:560px!important;max-width:560px!important;height:fit-content!important;
   max-height:calc(100dvh - 48px);padding:32px!important;border:0;border-radius:28px!important;
-  background:var(--pv-surface);box-shadow:0 40px 80px -30px rgba(0,0,0,.5);translate:none!important;
-  transform:none!important}
+  background:var(--pv-surface);box-shadow:0 40px 80px -30px rgba(0,0,0,.5);transform:none!important}
  body>dialog#quick-sheet.pv-kit-dialog::backdrop{background:rgba(23,23,26,.42)}
 }
 
@@ -4683,10 +4717,11 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
    .robot-sticky{position:fixed!important;left:0;top:0;z-index:6;
    width:744px;height:72px;padding:0 12px 0 20px;box-sizing:border-box;border-radius:0 0 20px 20px;background:#F6D8E1;
    box-shadow:0 14px 28px -18px rgba(23,23,26,.55),inset 0 0 0 1px rgba(23,23,26,.06);display:flex;align-items:center;
-   gap:16px;transition:transform .24s cubic-bezier(.2,.9,.3,1),opacity .24s ease,visibility 0s .24s}
+   gap:16px;transition:transform var(--pv-spring-smooth),opacity var(--pv-dur-base) var(--pv-ease-out),visibility 0s}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .robot-sticky[data-shown=false]{transform:translateY(-100%);opacity:0;
-   visibility:hidden;pointer-events:none}
+   visibility:hidden;pointer-events:none;transition:transform var(--pv-dur-quick) var(--pv-ease-in),
+   opacity var(--pv-dur-quick) var(--pv-ease-in),visibility 0s var(--pv-dur-quick)}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .robot-sticky[data-shown=true]{transition-delay:0s}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
@@ -4782,7 +4817,10 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
 }
 @media (min-width:1000px){
  :root[data-pv-motion=reduced] pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{
-  transition:none}
+  transform:none;transition:opacity var(--pv-dur-reduced) linear,visibility 0s!important}
+ :root[data-pv-motion=reduced] pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+  .robot-sticky[data-shown=false]{
+  transition:opacity var(--pv-dur-reduced) linear,visibility 0s var(--pv-dur-reduced)!important}
 }
 @media (max-width:999px){
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{display:none!important}
@@ -5842,7 +5880,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  /* Topbar timer chip (»A-Topbar«): 44 high, dark, ring 24 in coral, the time in 18 mono. */
  pv-widget-host .view-nav .header-context>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
   height:44px;min-height:44px;padding:0 14px 0 10px;border-radius:22px;border:0;background:var(--pv-ink);color:#F7F6F3;
-  box-shadow:none;flex:none;--pv-enter-y:0;--pv-enter-scale:.9;
+  box-shadow:none;flex:none;--pv-enter-y:8px;
   animation:pv-enter-up var(--pv-spring-snappy) backwards;cursor:pointer}
  pv-widget-host .view-nav .header-context>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
  pv-widget-host .view-nav .header-context>#header-timer circle{fill:none;stroke-width:3px}
@@ -6192,7 +6230,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   height:44px;min-height:44px;margin:0;padding:0 18px 0 14px;border:0;border-radius:999px;background:#17171A;
   color:#F7F6F3;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;
   box-shadow:0 10px 24px -10px rgba(23,23,26,.55);cursor:pointer;
-  --pv-enter-y:-8px;animation:pv-enter-up var(--pv-spring-snappy) backwards}
+  --pv-enter-y:-12px;--pv-enter-scale:.96;animation:pv-enter-up var(--pv-spring-snappy) backwards}
 }
 :root[data-pv-motion=reduced] #svar-today>.svar-today-new{animation:none}
 #svar-today>.svar-today-new[hidden]{display:none!important}

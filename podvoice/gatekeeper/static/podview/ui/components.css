@@ -35,14 +35,29 @@ pv-widget-host :is(#device-activities,#resource-rail,#now-view)>.resource-previe
 body button{touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
 :root[data-pv-motion=reduced] .voice-mark{transition:none}
 /* Sheets keep their native modal/focus behavior; motion explains arrival only. */
-dialog{opacity:0;transform:translateY(10px);transition:opacity var(--pv-motion-feedback) var(--pv-screen-ease),transform 240ms var(--pv-ease-enter),display 240ms var(--pv-screen-ease) allow-discrete,overlay 240ms var(--pv-screen-ease) allow-discrete}
-dialog[open]{opacity:1;transform:none}
-dialog::backdrop{opacity:0;transition:opacity var(--pv-motion-feedback) var(--pv-screen-ease),display 240ms var(--pv-screen-ease) allow-discrete,overlay 240ms var(--pv-screen-ease) allow-discrete}
-dialog[open]::backdrop{opacity:1}
-@starting-style{dialog[open]{opacity:0;transform:translateY(10px)}dialog[open]::backdrop{opacity:0}}
-:root[data-pv-motion=reduced] body dialog,
-:root[data-pv-motion=reduced] body dialog::backdrop{transition:none;transform:none}
-:root[data-pv-motion=reduced] dialog,:root[data-pv-motion=reduced] dialog::backdrop{transition:none;transform:none}
+/* P2 sheet (docs/MOTION.md §3.3). In: up 24px on the smooth spring, opacity and backdrop in --pv-dur-base.
+   Out is shorter and accelerates away: down 16px and fade in --pv-dur-quick. A transition is read from the
+   destination state, and CSS retargets from the visible value, so a close during the opening (or the reverse)
+   turns around where it is. The individual translate property moves it, so positioning transforms stay intact. */
+dialog{opacity:0;translate:0 16px;
+ transition:opacity var(--pv-dur-quick) var(--pv-ease-in),translate var(--pv-dur-quick) var(--pv-ease-in),
+  display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete}
+dialog[open]{opacity:1;translate:none;
+ transition:opacity var(--pv-dur-base) var(--pv-ease-out),translate var(--pv-spring-smooth),
+  display var(--pv-dur-base) allow-discrete,overlay var(--pv-dur-base) allow-discrete}
+dialog::backdrop{opacity:0;transition:opacity var(--pv-dur-quick) var(--pv-ease-in),
+ display var(--pv-dur-quick) allow-discrete,overlay var(--pv-dur-quick) allow-discrete}
+dialog[open]::backdrop{opacity:1;transition:opacity var(--pv-dur-base) var(--pv-ease-out),
+ display var(--pv-dur-base) allow-discrete,overlay var(--pv-dur-base) allow-discrete}
+@starting-style{dialog[open]{opacity:0;translate:0 24px}dialog[open]::backdrop{opacity:0}}
+/* Reduced: the same open and close as a fade in --pv-dur-reduced; nothing moves. Important, because the
+   reduced catch-all in widget-view.css stops every other transition. */
+:root[data-pv-motion=reduced] dialog,:root[data-pv-motion=reduced] dialog[open]{translate:none;
+ transition:opacity var(--pv-dur-reduced) linear,display var(--pv-dur-reduced) allow-discrete,
+  overlay var(--pv-dur-reduced) allow-discrete!important}
+:root[data-pv-motion=reduced] dialog::backdrop,:root[data-pv-motion=reduced] dialog[open]::backdrop{
+ transition:opacity var(--pv-dur-reduced) linear,display var(--pv-dur-reduced) allow-discrete,
+  overlay var(--pv-dur-reduced) allow-discrete!important}
 
 /* Canonical overview family: all domains and states consume this one scale. */
 :root{--pv-overview-slot:64px;--pv-overview-icon:32px;--pv-overview-height:144px;--pv-overview-pad:24px;--pv-overview-inner-gap:var(--pv-s2);--pv-overview-row-gap:var(--pv-s3);--pv-overview-title:var(--pv-type-widget);--pv-overview-meta:var(--pv-type-secondary);--pv-overview-timer:var(--pv-ink-2);--pv-overview-timer-hover:var(--pv-ink-2);--pv-overview-timer-ink:var(--pv-surface);--pv-overview-timer-muted:var(--pv-line);--pv-overview-radio:var(--pv-surface-2);--pv-overview-vehicle:var(--pv-vehicle-surface);--pv-overview-weather:var(--pv-weather-surface);--pv-overview-music:var(--pv-neutral-category)}

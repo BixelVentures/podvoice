@@ -92,7 +92,7 @@ async function open(stage,{overview=false}={}){
  // Robot-Sticky: the hero leaves; the line slides down under the topbar.
  const sticky=page.locator('#device-view .robot-sticky');
  assert.equal(await sticky.getAttribute('data-shown'),'false','no line while the hero shows');
- await page.locator('#device-view').evaluate(n=>{n.scrollTop=420;});await sleep(500);
+ await page.locator('#device-view').evaluate(n=>{n.scrollTop=420;});await sleep(800);// the bar arrives on the smooth spring (661 ms)
  assert.equal(await sticky.getAttribute('data-shown'),'true','line once the hero is gone');
  const bar=await box(sticky);
  assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,72,744,72],'72-px line under the topbar');

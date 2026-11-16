@@ -255,7 +255,7 @@ pv-widget-host[data-view=active] .player[data-empty=true] .volume{visibility:hid
  pv-widget-host[data-view=active] .view-nav:has(.voice-surface:not([hidden])) .voice-copy span{display:block}
 }
 /* One finite acknowledgement on an actual initial read; no ambient activity. */
-#player-empty[aria-busy=true]>img{opacity:.72;
+#player-empty[aria-busy=true]>img{opacity:.72;--pv-busy-from:.35;
  animation:pv-busy-in var(--pv-dur-base) var(--pv-ease-out) backwards}
 :root[data-pv-motion=reduced] #player-empty[aria-busy=true]>img{animation:none}
 
