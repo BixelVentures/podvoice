@@ -1,3 +1,7 @@
+## 2.1.4
+
+- Knapper: »Afspil« i musikdialogen, »Opdater liste« for højttalere og »Stop/Færdig/Stop alarm« på timeren viser nu indlæsning, tager ikke imod dobbelttryk og nulstiller altid – også når handlingen fejler.
+
 ## 2.1.3
 
 - Afspilleren: play/pause låses ikke længere i op til 30 sekunder, når sangen allerede spiller, og køen bliver ikke hængende i indlæsning.
