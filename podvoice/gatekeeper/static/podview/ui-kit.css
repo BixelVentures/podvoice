@@ -2871,9 +2871,6 @@ body{font-family:var(--pv-font)}
   margin:0;flex:none;overflow:visible}
  body pv-widget-host>nav.view-nav .header-activity>#open-history{position:static;translate:none}
  body pv-widget-host>nav.view-nav #header-date{font-family:var(--pv-font)}
- /* Home: house icon + title, no pill (Kit-Topbar). Back on other pages keeps its own key. */
- body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest]{min-width:0;width:auto;height:48px;
-  padding:0;gap:14px;background:none;box-shadow:none;font:600 22px/26px var(--pv-font);letter-spacing:-.01em}
  pv-widget-host>.view-nav #header-clock{font-size:20px;font-weight:500;letter-spacing:-.02em}
 }
 .pv-svar-grille{position:relative;display:block;flex:none;width:46px;height:22px}
@@ -3423,6 +3420,14 @@ body button:not(.is-pressed){transition-property:filter!important}
   border:0;border-radius:999px;background:#17171A;color:#F7F6F3;font:600 17px/24px var(--pv-font)}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]:not(:has(#volume:enabled))>
   .move-here{margin-top:auto}
+ /* Anden konto (lærred »Player-AndenKonto«): their track, dimmed; no controls; »Vælg musik« at the bottom. */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account] #output .output-room::after{
+  display:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>.cover-button{
+  width:196px!important;height:196px!important;filter:grayscale(.6);opacity:.55;box-shadow:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>
+  :is(.player-progress,.transport,.volume){display:none!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>.move-here{margin-top:auto}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>img{width:20px;height:20px;
   filter:brightness(0) invert(1)}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots{display:none;
@@ -5983,3 +5988,32 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   --pv-history-surface:var(--pv-surface);color:var(--pv-ink)}
  body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true])>img{filter:none}
 }
+/* Kit-Topbar (lærred v194): overblikkets venstre element er genvejen til Ro, ikke »Hjem«.
+   Måne + »Ro« i samme pille som Svar, 56 px berøringsflade. Tilbage på undersider har sin egen tast. */
+body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest]{box-sizing:border-box;
+ display:flex;align-items:center;justify-content:center;width:auto;min-width:96px;height:56px;min-height:56px;
+ max-height:56px;padding:0 22px 0 16px;gap:10px;border:0;border-radius:var(--pv-r-pill);background:var(--pv-surface);
+ color:var(--pv-ink);box-shadow:0 2px 0 rgba(23,23,26,.10),inset 0 0 0 1px rgba(23,23,26,.06);
+ font:600 18px/22px var(--pv-font);letter-spacing:0}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest] img{width:24px!important;
+ height:24px!important;margin:0}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav #show-photo[data-navigation=rest] .rest-label{display:inline;
+ font:inherit}
+/* Kit-Topbar højre zone som lærredet: vejr og ur uden fyld, 28 px imellem, uret og datoen højrestillet mod
+   28 px-margenen. Datoen er brødtekst (ikke mono); kun klokkeslættet er mono. */
+body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-context{gap:28px}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-context>#header-weather{flex:none;width:auto;min-width:0;
+ max-width:none;padding:0;gap:10px}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-context>#header-ro{flex:none;width:auto;min-width:0;
+ max-width:none;padding:0;justify-items:end;text-align:right}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-context>#header-ro .header-date-line{
+ max-width:none;justify-content:flex-end}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav .header-context>#header-ro #header-date{max-width:none;
+ font-family:var(--pv-font);font-size:15px;font-weight:400;font-variant-numeric:normal;letter-spacing:0;color:#5F5E5A}
+/* Kit-SvarKnap: Svar i 18/600; Voice PE offline = »Offline« på grå #E2E0DB med grå grille. */
+body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history strong{font:600 18px/22px var(--pv-font)}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history[data-device=offline]{
+ --pv-history-surface:#E2E0DB;background:#E2E0DB;color:#5F5E5A;box-shadow:0 2px 0 rgba(23,23,26,.10)}
+body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history[data-device=offline] .pv-svar-grille>i{
+ background:#8C8A85}
+

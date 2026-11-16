@@ -192,6 +192,41 @@ async def test_radio_uses_the_same_player(rig):
     assert (body["source"], body["title"], body["state"]) == ("radio", "Radio", "playing")
 
 
+@pytest.mark.parametrize(
+    "attribute,expected",
+    [
+        ("own", "own"),
+        ("other", "other"),
+        ("unknown", "unknown"),
+        (None, "unknown"),
+        ("Sofie", "unknown"),
+    ],
+)
+def test_project_passes_podconnect_account_through(attribute, expected):
+    attributes = {} if attribute is None else {"podconnect_account": attribute}
+    projected = podview_room_player.project(state(attributes=attributes))
+    assert projected["account"] == expected
+
+
+async def test_other_account_shows_the_track_but_offers_no_controls(rig):
+    rig.state = state(attributes={"podconnect_account": "other"})
+    body = await podview_room_player.read(rig.bridge, "kitchen", "account-alpha", rig.token)
+    assert (body["account"], body["state"], body["title"]) == ("other", "playing", "Hey Jude")
+    assert body["actions"] == [] and body["maxVolume"] is None
+    result = await podview_room_player.command(
+        rig.bridge, "kitchen", "account-alpha", rig.token, "pause", None
+    )
+    assert result == {"outcome": "rejected", "error": "other_account"}
+    assert rig.services() == []
+
+
+async def test_unknown_account_keeps_todays_controls(rig):
+    rig.state = state(attributes={"podconnect_account": "unknown"})
+    body = await podview_room_player.read(rig.bridge, "kitchen", "account-alpha", rig.token)
+    assert body["account"] == "unknown"
+    assert body["actions"] == ["pause", "resume", "next", "previous", "seek", "volume"]
+
+
 async def test_no_grant_means_no_actions(rig):
     body = await podview_room_player.read(rig.bridge, "kitchen", "account-alpha", "not-a-grant")
     assert body["state"] == "playing"

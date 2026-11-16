@@ -43,7 +43,21 @@ let server,browser,data;
   // Touch lands on the scaled control the user sees.
   const hit=await page.evaluate(()=>{const b=document.querySelector('#show-photo').getBoundingClientRect();
    const at=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return !!at?.closest('#show-photo');});
-  assert(hit,`${width}×${height}: tapping Hjem hits Hjem`);
+  assert(hit,`${width}×${height}: tapping Ro hits Ro`);
+  // Kit-Topbar: the overview's left key is the Ro shortcut, a 56-px pill with moon + »Ro«.
+  const ro=await page.evaluate(()=>{const b=document.querySelector('#show-photo');
+   return {label:b.getAttribute('aria-label'),text:b.textContent.trim(),
+    icon:b.querySelector('img').getAttribute('src'),height:b.offsetHeight};});
+  assert.deepEqual(ro,{label:'Gå til Ro',text:'Ro',icon:'assets/icons/moon.svg',height:56},
+   `${width}×${height}: the topbar's left key reads as Ro`);
+  // Kit-Topbar right zone in stage px: clock and date right-aligned to x 1152, weather 28 px before them,
+  // the date in the body face (only the clock is mono).
+  const right=await page.evaluate(()=>{const stage=document.querySelector('.view-nav').getBoundingClientRect();
+   const k=stage.width/1180,x=s=>document.querySelector(s).getBoundingClientRect();
+   const edge=s=>Math.round((x(s).right-stage.x)/k),start=s=>Math.round((x(s).x-stage.x)/k);
+   return {clock:edge('#header-clock'),date:edge('#header-date'),gap:start('#header-ro')-edge('#header-weather'),
+    mono:/mono/i.test(getComputedStyle(document.querySelector('#header-date')).fontFamily)};});
+  assert.deepEqual(right,{clock:1152,date:1152,gap:28,mono:false},`${width}×${height}: right zone matches Kit-Topbar`);
   assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(env.artifactDir(),`ipad-stage-${width}x${height}.png`)});
   await page.close();

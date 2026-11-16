@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {roomPlayerObservation,roomObservationDisplay,playbackBinding}
  from '../../podvoice/gatekeeper/static/podview/media-observation.js';
 import {RoomPlayerControls} from '../../podvoice/gatekeeper/static/podview/room-player-controls.js';
-import {livePlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
+import {livePlayerModel,OTHER_ACCOUNT} from '../../podvoice/gatekeeper/static/podview/player-view.js';
 
 globalThis.document??={getElementById:()=>null};
 const snapshot={bootId:'boot',roomId:'kitchen',capabilities:{musicRead:['targets','playback']}};
@@ -145,4 +145,25 @@ test('f) the own account on another device keeps its controls and offers "Flyt t
  await flush();releases.shift()();
  assert.equal(await moved,true);
  assert.deepEqual(calls.at(-1),['move_here',undefined]);
+});
+
+test('anden konto: their track is shown read-only, without a name and without controls',()=>{
+ const p=roomPlayerObservation(body({account:'other',actions:[],maxVolume:null}),'account',snapshot);
+ assert.equal(p.otherAccount,true);
+ const discovering={...snapshot,capabilities:{musicRead:['targets','playback','mood']}};
+ const model=livePlayerModel(p,true,'ready',discovering,'Køkkenalrum');
+ assert.deepEqual([model.readOnly,model.placement,model.title,model.canOutput],
+  [true,'other-account','Hey Jude',false]);
+ assert.equal(model.canDiscover,true,'»Vælg musik« (own music) stays possible');
+ assert.deepEqual(p.controls,{actions:[],maxVolume:null});
+ assert.equal(OTHER_ACCOUNT,'En anden Spotify-konto spiller her');
+});
+
+test('anden konto: "unknown", "own" and no attribute behave exactly like today',()=>{
+ for(const account of ['unknown','own',undefined]){
+  const p=roomPlayerObservation(body({account}),'account',snapshot);
+  assert.equal(p.otherAccount,false);
+  const model=livePlayerModel(p,true,'ready',snapshot,'Køkkenalrum');
+  assert.deepEqual([model.readOnly,model.placement,model.canOutput],[false,'room',true]);
+ }
 });
