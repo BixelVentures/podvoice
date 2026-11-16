@@ -72,6 +72,23 @@ export function isReduced(node,media=reducedMotionQuery(node?.ownerDocument?.def
  }
  return false;
 }
+// The one writer of data-pv-motion (§3.0 rule 6). CSS asks only :root[data-pv-motion=reduced]; a shadow tree,
+// which cannot see :root, asks :host([data-pv-motion=reduced]) on its host instead.
+export function writeMotionAttribute(target,reduced){
+ const value=reduced?'reduced':'full';
+ if(target?.dataset&&target.dataset.pvMotion!==value)target.dataset.pvMotion=value;
+ return reduced;
+}
+// Keeps target's data-pv-motion equal to isReduced(source) when the system preference or source's data-motion
+// changes, also while nothing animates. Returns {sync, dispose}.
+export function mirrorReducedMotion(source,target=source?.ownerDocument?.documentElement??source){
+ const view=source?.ownerDocument?.defaultView||globalThis,media=reducedMotionQuery(view);
+ const sync=()=>writeMotionAttribute(target,isReduced(source,media));
+ sync();media?.addEventListener?.('change',sync);
+ const Observer=view.MutationObserver,observer=typeof Observer==='function'?new Observer(sync):null;
+ observer?.observe(source,{attributes:true,attributeFilter:['data-motion']});
+ return {sync,dispose(){media?.removeEventListener?.('change',sync);observer?.disconnect();}};
+}
 
 // Analytic damped spring with velocity handoff. Frame-rate independent and testable without a DOM.
 // Values are in the caller's units; velocity is units per second; time comes from now() in ms.
@@ -138,9 +155,7 @@ export class SceneMotion {
  get reduced(){return isReduced(this.host,this.media??null);}
  // CSS asks only :root[data-pv-motion=reduced]; this is the one writer. Written only when it changes.
  syncRoot(){
-  const root=this.host.ownerDocument?.documentElement,value=this.reduced?'reduced':'full';
-  if(root?.dataset&&root.dataset.pvMotion!==value)root.dataset.pvMotion=value;
-  return value==='reduced';
+  return writeMotionAttribute(this.host.ownerDocument?.documentElement,this.reduced);
  }
  cancel(){this.syncRoot();for(const animation of this.animations.values())animation.cancel();this.animations.clear();for(const [node,saved]of this.playerPaint){if(saved.value===undefined)delete node.dataset.scenePlayerMoving;else node.dataset.scenePlayerMoving=saved.value;}this.playerPaint.clear();if(this.listening){this.media.removeEventListener('change',this.onPreference);this.listening=false;}}
  animate(node,frames,duration=280,options={}){

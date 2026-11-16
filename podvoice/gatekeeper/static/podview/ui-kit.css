@@ -45,6 +45,16 @@
  --pv-spring-snappy:557ms var(--pv-spring-15);
 }
 /* motion-tokens:end */
+/* Shared keyframes (docs/MOTION.md §3.11). Screens choose one by name and tune it with custom properties.
+   They animate only opacity and the individual transform properties (rotate, scale, translate), so a node's own
+   transform (positioning) is never overwritten. Loops run while their state lasts; reduced motion stops them. */
+@keyframes pv-spin{from{rotate:0turn}to{rotate:1turn}}
+@keyframes pv-busy-in{from{opacity:var(--pv-busy-from,.35)}}
+@keyframes pv-skeleton{0%,100%{opacity:var(--pv-skeleton-low,.5)}50%{opacity:var(--pv-skeleton-high,1)}}
+@keyframes pv-pulse{0%,100%{opacity:var(--pv-pulse-low,.4);scale:var(--pv-pulse-scale,.6)}50%{opacity:1;scale:1}}
+@keyframes pv-eq{0%,100%{scale:1 var(--pv-eq-low,.3)}50%{scale:1 1}}
+@keyframes pv-enter-up{from{opacity:var(--pv-enter-opacity,0);translate:var(--pv-enter-x,0) var(--pv-enter-y,8px);
+ scale:var(--pv-enter-scale,1)}}
 
 /* Twelve shared component anatomies; domain selectors below bind existing owners. */
 :root{--pv-vejr:var(--pv-weather);--pv-vejr-strong:var(--pv-weather-strong);--pv-vejr-ink:var(--pv-weather-ink);
@@ -269,7 +279,7 @@ pv-widget-host .view-nav #open-history.header-history:focus-visible{outline:2px 
 }
 @media(max-width:480px){pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title:has(>#header-title-action){display:none}}
 @media(max-width:759px){.vehicle-control-tiles,pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){:root{--pv-d-fast:120ms;--pv-d-move:120ms}}
+:root[data-pv-motion=reduced]{--pv-d-fast:120ms;--pv-d-move:120ms}
 /* Output selection and title/artist navigation share their existing native
    Button owners. Each target reserves64px; no child extends over a neighbour. */
 pv-widget-host .player>.output,pv-widget-host .player>.track{height:var(--pv-hit);min-height:var(--pv-hit)}
@@ -1120,7 +1130,7 @@ pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focu
 #music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-play{grid-column:1/-1;grid-row:3;justify-self:end;align-self:end;position:relative;animation:none}
 #music-response #result-list>.result[data-artwork-role]:not([data-music-group="Fortsæt"])>.result-feedback{display:block;position:absolute;inset:auto;width:1px;height:1px;min-height:0;max-height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;text-shadow:none}
 #music-response #result-list>.result .result-play::before{content:none}
-#music-response #result-list>.result[data-pending=true][aria-busy=true] .result-play::before{content:'';position:absolute;inset:4px;border:3px solid var(--pv-line);border-top-color:var(--pv-ink);border-radius:var(--pv-r-pill);animation:pv-music-play-pending 1s linear infinite;pointer-events:none}
+#music-response #result-list>.result[data-pending=true][aria-busy=true] .result-play::before{content:'';position:absolute;inset:4px;border:3px solid var(--pv-line);border-top-color:var(--pv-ink);border-radius:var(--pv-r-pill);animation:pv-spin 900ms linear infinite;pointer-events:none}
 #music-response #result-list>.result[data-pending=true] .result-play>img{opacity:.65}
 /* The approved ListRow progress belongs only to the explicitly chosen track. */
 #music-detail #queue .queue-track>.queue-play,
@@ -1136,15 +1146,13 @@ pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focu
  border:3px solid var(--pv-line);
  border-top-color:var(--pv-ink);
  border-radius:var(--pv-r-pill);
- animation:pv-music-play-pending 1s linear infinite;
+ animation:pv-spin 900ms linear infinite;
  pointer-events:none;
 }
 #music-detail #queue .queue-track[aria-busy=true]>.queue-play{opacity:.65}
-@media(prefers-reduced-motion:reduce){#music-detail #queue .queue-track[aria-busy=true]::after{animation:none}}
-[data-motion=reduced] #music-detail #queue .queue-track[aria-busy=true]::after{animation:none}
-@keyframes pv-music-play-pending{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){#music-response #result-list>.result[data-pending=true] .result-play::before{animation:none}}
-[data-motion=reduced] #music-response #result-list>.result[data-pending=true] .result-play::before{animation:none}
+:root[data-pv-motion=reduced] #music-detail #queue .queue-track[aria-busy=true]::after{animation:none}
+:root[data-pv-motion=reduced] #music-response #result-list>.result[data-pending=true] .result-play::before{
+ animation:none}
 
 /* A narrow screen retains the same result Card with enough width for its
    cover, title and artist. The detail pane already owns native vertical scroll. */
@@ -1260,21 +1268,18 @@ pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-
 .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play){position:relative;cursor:progress;opacity:1}
 /* The 24 px Icon-sized mark stays inside the Button's existing 32 px inset.
    Its one finite reveal ends as a still pending mark, never as success. */
-.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{content:'';position:absolute;right:var(--pv-s1);top:50%;width:var(--pv-icon-s);height:var(--pv-icon-s);box-sizing:border-box;transform:translateY(-50%);border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-button-busy-reveal var(--pv-d-fast) var(--pv-ease) 1 both}
+.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{content:'';position:absolute;right:var(--pv-s1);top:50%;width:var(--pv-icon-s);height:var(--pv-icon-s);box-sizing:border-box;transform:translateY(-50%);border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-busy-in var(--pv-d-fast) var(--pv-ease) both}
 .pv-kit.pv-kit-button:is([data-kit-variant=icon],.--icon)[aria-busy=true]:not(.result-play)::after{inset:var(--pv-s1);width:auto;height:auto;transform:none}
 /* A round player button keeps its icon; a centred ring turns while the room's call runs. */
 .pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{
  inset:3px;width:auto;height:auto;transform:none;translate:none;
- animation:pv-button-busy-reveal var(--pv-d-fast) var(--pv-ease) 1 both,pv-control-pending 900ms linear infinite;
+ animation:pv-busy-in var(--pv-d-fast) var(--pv-ease) both,pv-spin 900ms linear infinite;
 }
 .pv-kit.pv-kit-button:is([data-state=error],[aria-invalid=true]){background:var(--pv-danger-tint)!important;color:var(--pv-danger)!important;box-shadow:inset 0 0 0 2px var(--pv-danger)}
 .pv-kit.pv-kit-button:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){cursor:default;opacity:.56}
-@keyframes pv-button-busy-reveal{from{opacity:.35}to{opacity:1}}
-@media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-button{transition:none}.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}}
-[data-motion=reduced] .pv-kit.pv-kit-button{transition:none}
-[data-motion=reduced] .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}
-@media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{animation:none}}
-[data-motion=reduced] .pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{animation:none}
+:root[data-pv-motion=reduced] .pv-kit.pv-kit-button{transition:none}
+:root[data-pv-motion=reduced] .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{animation:none}
+:root[data-pv-motion=reduced] .pv-kit.pv-kit-button.round[aria-busy=true]:not(.result-play)::after{animation:none}
 
 /* Explicit Card sizes reuse the actual overview owners. Without data-kit-size
    the product keeps its normal grid. The running Timer remains its wide owner. */
@@ -1862,7 +1867,7 @@ dialog.pv-kit-dialog:modal:not([data-kit-variant=toast]){height:fit-content;min-
 #quick-sheet.pv-kit-dialog .screen-explanation{font:var(--pv-t-meta);color:var(--pv-ink-2);margin:0}
 #quick-sheet.pv-kit-dialog #screen-device-info{padding-top:var(--pv-s2)}
 #quick-sheet.pv-kit-dialog #screen-device-more>.pv-kit-button{margin-top:var(--pv-s2)}
-@media(prefers-reduced-motion:reduce){summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transition:none}}
+:root[data-pv-motion=reduced] summary.pv-kit-listrow[data-kit-variant=disclosure]>img{transition:none}
 
 /* Full-screen modality: Dialog is centered in the viewport, not a content column. */
 dialog.pv-kit-dialog:modal{width:min(520px,calc(100vw - 2 * var(--pv-s4)));inset:0;margin:auto;transform:none}
@@ -1876,13 +1881,14 @@ pv-widget-host pv-robot-control-panel button.pv-kit-button[data-kit-variant=prim
 
 /* Existing Hero body: reserved asynchronous advice, driven only by admitted request state. */
 .pv-kit-hero [data-kit-slot=body][data-advice-state]:not([data-advice-state=none]){min-block-size:calc(3 * var(--pv-leading-body));position:relative}
-.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:none;position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);animation:pv-connecting-sheen 1200ms ease-in-out 3;pointer-events:none}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{content:none;position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);background:color-mix(in srgb,currentColor 12%,transparent);pointer-events:none}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before{top:4px;width:92%}
 .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
-.pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation:pv-advice-ready var(--pv-fast,200ms) var(--pv-ease,cubic-bezier(.2,0,0,1)) both}
-@keyframes pv-advice-pending{from{background-position:180% 0}to{background-position:-40% 0}}
-@keyframes pv-advice-ready{from{opacity:0}to{opacity:1}}
-@media(prefers-reduced-motion:reduce){.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,.pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{animation:none}.pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation-duration:120ms}}
+.pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{--pv-enter-y:0;
+ animation:pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards}
+:root[data-pv-motion=reduced] .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::before,
+:root[data-pv-motion=reduced] .pv-kit-hero [data-kit-slot=body][data-advice-state=pending]::after{animation:none}
+:root[data-pv-motion=reduced] .pv-kit-hero [data-kit-slot=body][data-advice-state=ready]{animation-duration:120ms}
 
 /* Existing primitives: compact status Hero, retained ListRow disclosure and native
    single-choice Chip composition. These roles share one owner in every consumer. */
@@ -1921,7 +1927,7 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong){white-
 .pv-kit-overview .resource-preview .resource-visual>svg,.pv-kit-overview .resource-chevron,.pv-kit-overview .resource-title-short{display:none}
 .pv-kit-overview .resource-preview .resource-title-full{display:inline}
 .pv-kit-overview .resource-card>.resource-direct-action{position:absolute;right:var(--pv-s3);width:var(--pv-card-action-width,128px);min-height:var(--pv-hit);z-index:1}
-@media(prefers-reduced-motion:reduce){.pv-kit-disclosure>.pv-kit-listrow:not(:has(>img))::after{transition:none}}
+:root[data-pv-motion=reduced] .pv-kit-disclosure>.pv-kit-listrow:not(:has(>img))::after{transition:none}
 
 /* Quiet is an existing Button role used by navigation and study review tools. */
 .pv-kit.pv-kit-button[data-kit-variant=quiet]{background:transparent;color:var(--pv-ink)}
@@ -1947,7 +1953,7 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>:is(span,strong){white-
 
 .pv-kit-disclosure>.pv-kit-listrow>img{width:var(--pv-icon-s);height:var(--pv-icon-s);flex:none;transition:transform var(--pv-d-fast) var(--pv-ease)}
 .pv-kit-disclosure>.pv-kit-listrow[aria-expanded=true]>img{transform:rotate(180deg)}
-@media(prefers-reduced-motion:reduce){.pv-kit-disclosure>.pv-kit-listrow>img{transition:none}}
+:root[data-pv-motion=reduced] .pv-kit-disclosure>.pv-kit-listrow>img{transition:none}
 
 /* Confirmed Chip selection in the compact Robot composition. Uses the same
    neutral selected recipe as shared Segmented; observation owns aria-pressed. */
@@ -2153,7 +2159,7 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>[data-kit-slot=label]{d
 .pv-kit.pv-kit-button[data-feedback=progress]:not([data-kit-variant=icon]):not(.--icon){--pv-progress-inset:var(--pv-button-content-inset);padding-inline:calc(var(--pv-progress-inset) + var(--pv-progress-size) + var(--pv-progress-gap))!important}
 .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress]{position:relative}
 .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]{cursor:progress;opacity:1!important}
-.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]::after{content:''!important;position:absolute;right:var(--pv-progress-inset,var(--pv-s3));left:auto;top:50%;width:var(--pv-progress-size);height:var(--pv-progress-size);box-sizing:border-box;translate:0 -50%;transform:none;border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-control-pending 900ms linear infinite;transform-origin:center}
+.pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true]::after{content:''!important;position:absolute;right:var(--pv-progress-inset,var(--pv-s3));left:auto;top:50%;width:var(--pv-progress-size);height:var(--pv-progress-size);box-sizing:border-box;translate:0 -50%;transform:none;border:2px solid color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;border-radius:var(--pv-r-pill);pointer-events:none;animation:pv-spin 900ms linear infinite;transform-origin:center}
 /* Override the older direct-img Button rule with the same trailing slot as mask icons. */
 .pv-kit.pv-kit-button[data-feedback=progress][aria-busy=true]::after{inset:auto var(--pv-progress-inset,var(--pv-s4)) auto auto!important;top:50%!important;width:var(--pv-progress-size);height:var(--pv-progress-size)}
 .pv-kit.pv-kit-button[data-feedback=progress][aria-busy=true]>:is(img,.pv-kit-icon){visibility:visible;animation:none!important;transform:none!important}
@@ -2162,9 +2168,7 @@ button.pv-kit.pv-kit-button:not([data-kit-variant=icon])>[data-kit-slot=label]{d
 .pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]>img,.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]>img{visibility:hidden}
 .pv-kit.pv-kit-toggle[data-kit-variant=row][data-feedback=progress][aria-busy=true]::after{left:calc(var(--pv-s2) + (var(--pv-icon-m) - var(--pv-progress-size))/2);right:auto}
 .pv-kit.pv-kit-tile[data-kit-variant=power][data-feedback=progress][aria-busy=true]::after{left:calc(var(--pv-s3) + (var(--pv-icon-m) - var(--pv-progress-size))/2);right:auto;top:calc(var(--pv-s3) + var(--pv-s1) + var(--pv-icon-m)/2)}
-@keyframes pv-control-pending{from{transform:rotate(0turn)}to{transform:rotate(1turn)}}
-@media(prefers-reduced-motion:reduce){.pv-kit[data-feedback=progress][aria-busy=true]::after{animation:none!important}}
-[data-motion=reduced] .pv-kit[data-feedback=progress][aria-busy=true]::after{animation:none!important}
+:root[data-pv-motion=reduced] .pv-kit[data-feedback=progress][aria-busy=true]::after{animation:none!important}
 /* Robot reuses Tesla's default level group: label above the native scale.
    Intrinsic bounds prevent a lone scalar choice from becoming a full-card CTA. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-level-setting:not([data-setting-concept=mode]){width:100%;max-inline-size:384px}
@@ -2179,9 +2183,8 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-l
    Reserve an inline label slot; values and touch geometry never shift or clip. */
 .pv-kit-choice-group[data-choice-variant=level]>legend{display:flex;align-items:center;gap:var(--pv-control-label-gap)}
 .pv-kit-choice-group[data-choice-variant=level]>legend::after{content:'';display:block;flex:0 0 var(--pv-progress-size);width:var(--pv-progress-size);height:var(--pv-progress-size);box-sizing:border-box;border:2px solid transparent;border-radius:var(--pv-r-pill);visibility:hidden}
-.pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{visibility:visible;border-color:color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;animation:pv-control-pending 900ms linear infinite}
-@media(prefers-reduced-motion:reduce){.pv-kit-choice-group[data-choice-variant=level]>legend::after{animation:none!important}}
-[data-motion=reduced] .pv-kit-choice-group[data-choice-variant=level]>legend::after{animation:none!important}
+.pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{visibility:visible;border-color:color-mix(in srgb,currentColor 28%,transparent);border-top-color:currentColor;animation:pv-spin 900ms linear infinite}
+:root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level]>legend::after{animation:none!important}
 .pv-kit-listrow[data-kit-variant=read-only]>:is(h3,h4):has(>.pv-kit-icon){display:flex;align-items:center;gap:var(--pv-control-label-gap)}
 .pv-kit-listrow[data-kit-variant=read-only]>:is(h3,h4)>.pv-kit-icon{width:var(--pv-icon-s);height:var(--pv-icon-s);object-fit:contain}
 
@@ -2208,7 +2211,7 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-l
 .pv-kit-disclosure>.pv-kit-listrow[data-leading-icon=true][aria-expanded=true]::after{transform:rotate(180deg)}
 .pv-kit-disclosure>.pv-kit-listrow[data-trailing-icon=true]::after{display:none}
 .pv-kit-disclosure>.pv-kit-listrow>[data-kit-slot=trailing-icon]{grid-column:-2;grid-row:1;justify-self:end}
-@media(prefers-reduced-motion:reduce){.pv-kit-disclosure>.pv-kit-listrow::after{transition:none!important}}
+:root[data-pv-motion=reduced] .pv-kit-disclosure>.pv-kit-listrow::after{transition:none!important}
 pv-widget-host #vehicle-view .vehicle-lock-controls>.pv-kit-button[data-kit-variant=primary]{grid-column:auto;min-height:var(--pv-hit);height:auto;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 pv-widget-host #vehicle-view .vehicle-lock-controls>.pv-kit-button:not([data-feedback=progress]){height:var(--pv-hit);padding:0 var(--pv-button-content-inset,var(--pv-s4))!important}
 pv-widget-host #vehicle-view .vehicle-lock-controls>.pv-kit-button[data-kit-variant=primary]{background:var(--pv-ink);color:var(--pv-on-dark)}
@@ -2251,8 +2254,9 @@ pv-widget-host #vehicle-view .vehicle-climate-actions>button{width:100%;min-heig
 .pv-kit-toggle[data-kit-variant=power][data-state=error]{background:var(--pv-danger-tint);box-shadow:inset 0 0 0 2px var(--pv-danger)}
 .pv-kit.pv-kit-toggle[data-kit-variant=power][data-feedback=progress][aria-busy=true]::after{position:absolute;left:calc(var(--pv-s2) + (var(--pv-icon-s) - var(--pv-progress-size))/2);right:auto;top:50%;translate:0 -50%}
 .pv-kit-toggle[data-kit-variant=power][aria-busy=true]>.pv-kit-icon{visibility:hidden}
-@media(prefers-reduced-motion:reduce){.pv-kit-toggle[data-kit-variant=power]>[data-kit-slot=switch-track]>[data-kit-slot=switch-thumb]{transition:none}}
-[data-motion=reduced] .pv-kit-toggle[data-kit-variant=power]>[data-kit-slot=switch-track]>[data-kit-slot=switch-thumb]{transition:none}
+:root[data-pv-motion=reduced]
+ .pv-kit-toggle[data-kit-variant=power]>[data-kit-slot=switch-track]>[data-kit-slot=switch-thumb]{
+ transition:none}
 
 
 /* Shared detail action rhythm: large control area + one secondary command. */
@@ -2348,8 +2352,13 @@ pv-widget-host .pv-kit-hero[data-kit-variant=message]:not([hidden]) [data-kit-sl
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{content:"";position:absolute;left:0;height:var(--pv-s2);border-radius:var(--pv-s1);pointer-events:none}
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before{top:4px;width:72%}
 .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{top:calc(var(--pv-leading-body) + 4px);width:48%}
-@media(prefers-reduced-motion:reduce){.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,.pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{animation:none}}
-pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,pv-widget-host[data-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{animation:none}
+:root[data-pv-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
+:root[data-pv-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
+:root[data-pv-motion=reduced] .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{animation:none}
+:root[data-pv-motion=reduced] pv-widget-host .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-cover,
+:root[data-pv-motion=reduced] pv-widget-host .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::before,
+:root[data-pv-motion=reduced] pv-widget-host .pv-kit.pv-kit-listrow[data-content-state=pending]>.queue-copy::after{
+ animation:none}
 /* About uses the shared read-only ListRow and restrained action affordances. */
 #quick-sheet .screen-build-row{grid-template-columns:max-content minmax(0,1fr);gap:var(--pv-s2)}
 #quick-sheet.pv-kit-dialog .screen-build-row>#screen-device-info{padding:0;margin:0;text-align:right;color:var(--pv-ink-2);overflow-wrap:anywhere}
@@ -3232,14 +3241,15 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim>#screen-device-auto-state{position:absolute;width:1px;
   height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim::before{content:''!important;position:absolute;left:0;
-  top:5px;width:56px;height:34px;border-radius:17px;background:rgba(23,23,26,.16);transition:background-color .3s ease}
+  top:5px;width:56px;height:34px;border-radius:17px;background:rgba(23,23,26,.16);
+  transition:background-color var(--pv-dur-quick) var(--pv-ease-out)}
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim::after{content:''!important;position:absolute;left:3px;
   top:8px;width:28px;height:28px;border-radius:50%;background:#F7F6F3;box-shadow:0 1px 3px rgba(0,0,0,.25);
-  transition:left .25s ease}
+  transition:transform var(--pv-spring-snappy)}
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim[aria-checked=true]::before{background:#17171A}
- body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim[aria-checked=true]::after{left:25px}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim[aria-checked=true]::after{transform:translateX(22px)}
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim:disabled{opacity:.4}
- body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim:disabled::after{left:14px}
+ body>dialog#quick-sheet.pv-kit-dialog #screen-device-auto-dim:disabled::after{transform:translateX(11px)}
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-more{display:flex;flex-direction:column;gap:0;margin-top:24px}
  body>dialog#quick-sheet.pv-kit-dialog #screen-device-more-summary{display:block!important;min-height:0!important;
   height:auto!important;margin:0 0 8px!important;padding:0!important;border:0!important;
@@ -3478,9 +3488,9 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live>i{width:10px;height:10px;border-radius:50%;
   background:#8C8A85}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live[data-phase=live]>i{background:#E5261E;
-  animation:pv-live-pulse .9s ease-in-out infinite}
+  animation:pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live[data-phase=starting]>i{background:#C9A227;
-  animation:pv-live-pulse .9s ease-in-out infinite}
+  animation:pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.player-progress{order:3;flex:none;height:auto!important;
   min-height:0!important;margin:22px 0 0!important;display:flex;flex-direction:column;gap:10px!important}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]>.player-progress{
@@ -3539,7 +3549,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   display:grid}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here[data-pending=true]>img{display:none}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots>i{width:6px;height:6px;
-  border-radius:3px;background:#F7F6F3;animation:pv-live-pulse .9s ease-in-out infinite}
+  border-radius:3px;background:#F7F6F3;animation:pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots>i:nth-child(2){
   animation-delay:150ms}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots>i:nth-child(3){
@@ -3578,7 +3588,6 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  body pv-widget-host[data-view=active]>.frame>#player-empty>#empty-find-music>:is(img,.empty-find-context){
   display:none}
 }
-@keyframes pv-live-pulse{0%,100%{transform:scale(.4);opacity:.4}50%{transform:scale(1);opacity:1}}
 
 /* iPad Musik-siden (lærred v190 »A-MusikHjem«, »Musik-Starter«, »Musik-Spiller«, issue 392): one page without tabs.
    The collections are the section headings (Til <ugedag> <tid> · Fortsæt · Vibe · Jeres playlister); the open
@@ -3803,7 +3812,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
    :is(#result-list,.music-shelf,#music-hero)
    >.result.result.result[data-content-state]:not([data-kit=hero]):is([data-pending=true],
     [data-playing=true])::after{
-   content:'';position:absolute;pointer-events:none;animation:pv-music-fade .32s ease both;}
+   content:'';position:absolute;pointer-events:none;--pv-enter-y:0;
+   animation:pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards;}
  #music-response[data-discovery-preview]
    :is(#result-list,.music-shelf,#music-hero)
    >.result.result.result[data-content-state]:not([data-kit=hero])[data-pending=true]::after{
@@ -3813,7 +3823,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) 50% 50%/8px 8px no-repeat,
   radial-gradient(circle,#F7F6F3 3.5px,transparent 4px) calc(50% + 14px) 50%/8px 8px no-repeat,
     rgba(23,23,26,.55);
-   animation:pv-music-fade .32s ease both,pv-music-pend .9s ease-in-out infinite;}
+   --pv-skeleton-low:.55;animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite;}
  :is(#music-response[data-discovery-collection=recent] #result-list,
    #music-response .music-shelf[data-music-shelf=recent])
    >.result.result.result[data-content-state][data-pending=true]::after{
@@ -3832,7 +3842,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   linear-gradient(#F7F6F3,#F7F6F3) 22px 100%/3px 14px no-repeat,
     rgba(23,23,26,.8);
    background-origin:content-box;padding:11px 0;box-sizing:border-box;
-   animation:pv-music-fade .32s ease both,pv-music-eq 1s ease-in-out infinite;}
+   animation:pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards,pv-music-eq 1s ease-in-out infinite;}
  :is(#music-response[data-discovery-collection=recent] #result-list,
    #music-response .music-shelf[data-music-shelf=recent])
    >.result.result.result[data-content-state][data-playing=true]::after{
@@ -3858,7 +3868,7 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  #music-detail .detail-queue{
    display:flex!important;flex-direction:column!important;gap:16px!important;margin:0!important;padding:0!important;
    width:744px!important;background:transparent!important;box-shadow:none!important;
-   animation:pv-queue-rise .32s cubic-bezier(.2,.9,.3,1) both;}
+   --pv-enter-y:16px;animation:pv-enter-up var(--pv-spring-snappy) backwards;}
  #music-detail #queue-title{
    height:32px;margin:0!important;font:800 24px/32px var(--pv-font)!important;color:var(--pv-ink)!important;}
  #music-detail #queue{
@@ -3904,12 +3914,12 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  #music-detail #queue>.queue-track>.queue-order>.queue-eq{
    display:flex;gap:3px;align-items:flex-end;height:20px;}
  #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
-   display:block;width:4px;height:5px;border-radius:2px;background:#B4532A;
-   animation:pv-queue-eq .9s ease-in-out infinite;}
+   display:block;width:4px;height:16px;border-radius:2px;background:#B4532A;transform-origin:50% 100%;
+   animation:pv-eq 900ms var(--pv-ease-inout) infinite;}
  #music-detail #queue>.queue-track>.queue-order>.queue-eq>i:nth-child(2){
-   animation-delay:.2s;}
+   animation-duration:1100ms;}
  #music-detail #queue>.queue-track>.queue-order>.queue-eq>i:nth-child(3){
-   animation-delay:.4s;}
+   animation-duration:1300ms;}
 }
 /* Musik, every section open (lærred »A-Musik«/»Musik-Hjem-Hel«): the first mood card is the hero at the top (88),
    then Fortsæt, Til <ugedag> <tid>, Vibe and Jeres playlister, each a heading (22/800, the product's note under it in
@@ -3976,19 +3986,15 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
    flex:1 1 0!important;min-height:0!important;overflow-y:auto!important;overscroll-behavior:contain;
    scrollbar-width:none;}
 }
-@keyframes pv-queue-eq{0%,100%{height:5px}50%{height:16px}}
-@media (prefers-reduced-motion:reduce){
- #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
+
+ :root[data-pv-motion=reduced] #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
    animation:none;height:12px;}
-}
-@keyframes pv-queue-rise{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
-@keyframes pv-music-fade{from{opacity:0}to{opacity:1}}
+
 @keyframes pv-music-eq{0%,100%{background-size:3px 5px,3px 14px,3px 9px,auto}50%{background-size:3px 14px,3px 6px,3px 14px,auto}}
-@keyframes pv-music-pend{0%,100%{opacity:.55}50%{opacity:1}}
-@media (prefers-reduced-motion:reduce){
- #music-response[data-discovery-preview] #result-list>.result::after{
+
+ :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::after{
    animation:none!important;}
-}
+
 
 
 /* iPad Radio (lærred v190 »A-Radio«, »Radio-Starter«, »Radio-Spiller«, »Radio-IkkeTilg«, issue 393): a 744×458 hero
@@ -4046,7 +4052,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  pv-widget-host #radio-view>.radio-hero[data-radio-phase=starting] .radio-scale-needle{background:#C9A227;
    box-shadow:0 0 12px rgba(201,162,39,.4)}
  pv-widget-host #radio-view>.radio-hero[data-radio-phase=playing] .radio-scale-needle{
-   animation:pv-radio-live 2.4s ease-in-out infinite}
+   --pv-pulse-low:.5;--pv-pulse-scale:1;
+   animation:pv-pulse calc(2 * var(--pv-dur-ambient)) var(--pv-ease-inout) infinite}
  pv-widget-host #radio-view>.radio-hero[data-radio-phase=unavailable] .radio-scale-needle{display:none}
  pv-widget-host #radio-view .radio-stations-head{display:flex;justify-content:space-between;align-items:baseline;
    margin:32px 0 16px;flex:none}
@@ -4109,10 +4116,10 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
    #home-radio[data-kit-state=unavailable] :is(strong,small){color:#8C8A85!important}
 }
-@keyframes pv-radio-live{0%,100%{opacity:1}50%{opacity:.5}}
-@media (prefers-reduced-motion:reduce){
- pv-widget-host #radio-view .radio-scale-needle{animation:none!important;transition:none!important}
-}
+
+ :root[data-pv-motion=reduced] pv-widget-host #radio-view .radio-scale-needle{
+  animation:none!important;transition:none!important}
+
 
 /* iPad Vejr (lærred v190 »A-Vejr«, »Vejr-Gammel«, »Vejr-Ukendt«, »Vejr-Shadere«, »W-vejr-*«, issue 394): a 744×458
    #DDE6FB hero with »<sted> · Vejret i dag« (17/600), the temperature in 150/500, the condition in 26/800 and the
@@ -4216,13 +4223,13 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
    background:linear-gradient(90deg,color-mix(in srgb,var(--pv-weather-ink) 10%,transparent) 0%,
      color-mix(in srgb,var(--pv-weather-ink) 20%,transparent) 50%,
      color-mix(in srgb,var(--pv-weather-ink) 10%,transparent) 100%) 0 0/200% 100%;
-   animation:pv-advice-pending 1.6s linear infinite}
+   animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=pending],
    [data-advice-state=idle])::before{top:4px;width:92%}
  pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=pending],
    [data-advice-state=idle])::after{top:28px;width:68%}
  pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind=ai]{
-   animation:pv-weather-advice-in 240ms cubic-bezier(.2,0,0,1) both!important}
+   --pv-enter-y:4px;animation:pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards!important}
  pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind=ai]::before{content:"AI" / "";
    display:inline-block;box-sizing:border-box;height:20px;margin:2px 8px 0 0;padding:0 8px;vertical-align:top;
    border-radius:999px;background:var(--pv-surface);font:600 15px/20px var(--pv-font);
@@ -4296,11 +4303,11 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
 @keyframes pv-weather-glow{0%,100%{opacity:.32;transform:scale(.9)}50%{opacity:.45;transform:scale(1.08)}}
 @keyframes pv-weather-flash{0%,88%,100%{opacity:.16}90%,94%{opacity:.45}}
 @keyframes pv-weather-mist{from{opacity:.16}to{opacity:.38}}
-@keyframes pv-weather-advice-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){pv-widget-host #weather-view>.weather-current::before{animation:none!important}
- pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind],
- pv-widget-host #weather-view>.weather-current .weather-summary::before,
- pv-widget-host #weather-view>.weather-current .weather-summary::after{animation:none!important}}
+:root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current::before{animation:none!important}
+ :root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind],
+ :root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current .weather-summary::before,
+ :root[data-pv-motion=reduced] pv-widget-host #weather-view>.weather-current .weather-summary::after{
+  animation:none!important}
 
 /* W-vejr (K-Widget vejr, L 364×458): head (22-px icon, »Vejr« 17/600, chevron); 22 under it the temperature in
    120/500; the condition in 20/800; the range 15 in #3E4660; the five hours at the bottom over a thin line, the hour
@@ -4773,8 +4780,9 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  pv-widget-host #now-view#now-view#now-view#now-view
    .resource-card[data-kind=vacuum]>.resource-direct-action::after{display:none!important}
 }
-@media (min-width:1000px) and (prefers-reduced-motion:reduce){
- pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{transition:none}
+@media (min-width:1000px){
+ :root[data-pv-motion=reduced] pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{
+  transition:none}
 }
 @media (max-width:999px){
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-sticky{display:none!important}
@@ -4861,14 +4869,15 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
    transform:none!important;margin:0!important;animation:none!important}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power::after{right:24px!important;
    bottom:24px!important;width:56px!important;height:34px!important;border-radius:17px!important;
-   background:rgba(23,23,26,.16)!important;transition:background-color .3s ease}
+   background:rgba(23,23,26,.16)!important;transition:background-color var(--pv-dur-quick) var(--pv-ease-out)}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power::before{z-index:1;
    right:49px!important;bottom:27px!important;width:28px!important;height:28px!important;border-radius:50%!important;
-   background:#F7F6F3!important;box-shadow:0 1px 3px rgba(0,0,0,.25)!important;transition:right .25s ease}
+   background:#F7F6F3!important;box-shadow:0 1px 3px rgba(0,0,0,.25)!important;
+   transition:transform var(--pv-spring-snappy)}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power[aria-pressed=true]::after{
    background:#17171A!important}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power[aria-pressed=true]::before{
-   right:27px!important}
+   transform:translateX(22px)!important}
  /* The chosen room's card */
  pv-widget-host #device-view#device-view#device-view>.light-room-view>#light-room-controls{order:2;
    display:flex!important;flex-direction:column!important;gap:24px!important;margin:0!important;padding:24px!important;
@@ -5554,9 +5563,13 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{flex:none;margin-top:30px;display:flex;
   justify-content:center;align-items:center;gap:8px}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{display:block;width:8px;height:6px;
-  border-radius:3px;background:rgba(23,23,26,.22);transition:width .3s ease}
+  border-radius:3px;background:rgba(23,23,26,.22)}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-current]{width:28px;
-  background:var(--pv-ink)}
+  background:var(--pv-ink);transition:scale var(--pv-spring-quick)}
+ /* The dots are rebuilt on every step, so the current one grows in with scale, never with width (layout). */
+ @starting-style{pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-current]{
+  scale:.3 1}}
+ :root[data-pv-motion=reduced] pv-widget-host #recipe-view>[data-recipe-explore-dots]>i{transition:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-edge]{width:5px;height:5px}
  /* A recipe: hero 1132×221 in #F2E4D3. */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro].pv-kit-hero{display:grid!important;
@@ -5689,7 +5702,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   opacity:.55;pointer-events:none}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=paused]::before{opacity:.3}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=running]::before{
-  animation:pv-timer-material 2.4s ease-in-out infinite}
+  --pv-skeleton-low:.4;--pv-skeleton-high:.6;
+  animation:pv-skeleton calc(2 * var(--pv-dur-ambient)) var(--pv-ease-inout) infinite}
  pv-widget-host #timers-view#timers-view#timers-view
   .timer-panel>.timer-open{position:relative;z-index:1;display:grid!important;
   grid-template-columns:340px minmax(0,1fr)!important;align-items:center!important;gap:40px!important;height:394px;
@@ -5706,7 +5720,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   stroke-linecap:round;stroke-dasharray:var(--progress,0) 100!important}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]
   .timer-progress{stroke-dasharray:100 100!important;
-  animation:pv-timer-ring 1.6s ease-in-out infinite}
+  --pv-pulse-low:.45;--pv-pulse-scale:1;
+  animation:pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel .timer-count{position:relative;
   font:500 88px/1 'IBM Plex Mono',ui-monospace,monospace!important;letter-spacing:-.06em!important;
   color:#F7F6F3!important}
@@ -5792,7 +5807,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   background:var(--pv-ink)!important;color:#F7F6F3!important;overflow:hidden!important}
  #timer-alert#timer-alert[open]::before{content:"";position:absolute;inset:0;
   background:url("assets/timer/alarm-material.svg") center/1180px 820px no-repeat;opacity:.9;pointer-events:none}
- #timer-alert#timer-alert[open][data-pulse=true]::before{animation:pv-timer-ring 1.6s ease-in-out infinite}
+ #timer-alert#timer-alert[open][data-pulse=true]::before{--pv-pulse-low:.45;--pv-pulse-scale:1;
+  animation:pv-pulse var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  #timer-alert#timer-alert[open]::after{content:"";position:absolute;inset:0;pointer-events:none;
   background:radial-gradient(60% 70% at 50% 46%,rgba(23,23,26,.92) 30%,rgba(23,23,26,.2) 100%)}
  #timer-alert#timer-alert[open]>*{position:absolute;z-index:1}
@@ -5826,7 +5842,8 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  /* Topbar timer chip (»A-Topbar«): 44 high, dark, ring 24 in coral, the time in 18 mono. */
  pv-widget-host .view-nav .header-context>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
   height:44px;min-height:44px;padding:0 14px 0 10px;border-radius:22px;border:0;background:var(--pv-ink);color:#F7F6F3;
-  box-shadow:none;flex:none;animation:pv-topbar-in .32s cubic-bezier(.2,.9,.3,1) both;cursor:pointer}
+  box-shadow:none;flex:none;--pv-enter-y:0;--pv-enter-scale:.9;
+  animation:pv-enter-up var(--pv-spring-snappy) backwards;cursor:pointer}
  pv-widget-host .view-nav .header-context>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
  pv-widget-host .view-nav .header-context>#header-timer circle{fill:none;stroke-width:3px}
  pv-widget-host .view-nav .header-context>#header-timer .timer-track{stroke:var(--pv-timer-track)}
@@ -5837,14 +5854,13 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
   letter-spacing:-.03em}
 }
 pv-widget-host .view-nav .header-context>#header-timer[hidden]{display:none}
-@keyframes pv-timer-material{0%,100%{opacity:.4}50%{opacity:.6}}
-@keyframes pv-timer-ring{0%,100%{opacity:1}50%{opacity:.45}}
-@keyframes pv-topbar-in{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
-@media (prefers-reduced-motion:reduce){
- pv-widget-host #timers-view .timer-panel::before,#timer-alert[open]::before,
- pv-widget-host #timers-view .timer-panel .timer-progress,pv-widget-host .view-nav
+
+ :root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel::before,
+ :root[data-pv-motion=reduced] #timer-alert[open]::before,
+ :root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel .timer-progress,
+ :root[data-pv-motion=reduced] pv-widget-host .view-nav
   #header-timer{animation:none!important}
-}
+
 
 /* iPad Svar (issue 399, lærred »Kit-SvarKnap«, »A-SvarKort«, »SvarK-*«). */
 pv-widget-host .voice-surface .voice-bars{display:none}
@@ -6011,7 +6027,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power::before{right:31px!important;
    bottom:8px!important}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power[aria-pressed=true]::before{
-   right:9px!important}
+   transform:translateX(22px)!important}
  pv-widget-host #device-view#device-view#device-view #light-room-controls>header{display:flex!important;
    flex-wrap:wrap!important;justify-content:space-between!important;align-items:baseline!important;gap:0 16px!important;
    align-self:stretch!important;width:auto!important;max-width:none!important}
@@ -6175,10 +6191,10 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  #svar-today>.svar-today-new.svar-today-new{position:absolute;z-index:3;left:50%;top:56px;transform:translateX(-50%);
   height:44px;min-height:44px;margin:0;padding:0 18px 0 14px;border:0;border-radius:999px;background:#17171A;
   color:#F7F6F3;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;
-  box-shadow:0 10px 24px -10px rgba(23,23,26,.55);cursor:pointer;animation:pv-svar-pill .36s cubic-bezier(.2,.9,.3,1) both}
+  box-shadow:0 10px 24px -10px rgba(23,23,26,.55);cursor:pointer;
+  --pv-enter-y:-8px;animation:pv-enter-up var(--pv-spring-snappy) backwards}
 }
-@keyframes pv-svar-pill{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
-@media (prefers-reduced-motion:reduce){#svar-today>.svar-today-new{animation:none}}
+:root[data-pv-motion=reduced] #svar-today>.svar-today-new{animation:none}
 #svar-today>.svar-today-new[hidden]{display:none!important}
 
 /* SvarK-Fakta: the facts stand as three white tiles in a row (radius 20, padding 20): label 15/600, the value in
@@ -6208,25 +6224,25 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
 
 /* SvarK-Bygger: while the answer is built the card holds its place with two quiet blocks (48 % × 44, then the rest
    of the card), radius 12, rgba(23,23,26,.07), pulsing; the phase itself is only on the Svar button. */
-@keyframes pv-svar-skeleton{0%,100%{opacity:.5}50%{opacity:1}}
 @media (min-width:1000px){
  body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
   [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::before,
  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::before{content:"";display:block;
   width:48%;height:44px;margin:20px 0 0;border-radius:12px;background:rgba(23,23,26,.07);box-shadow:none;
-  animation:pv-svar-skeleton 1.4s ease-in-out infinite}
+  animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget:is([data-answer-state=waiting],
   [data-answer-state=loading]):not(:has(.answer-visual)) .answer-scroll::after,
  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]::after{content:"";display:block;
   width:100%;height:500px;margin:14px 0 0;border-radius:12px;background:rgba(23,23,26,.07);
-  animation:pv-svar-skeleton 1.4s ease-in-out infinite}
+  animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>:not(.pv-state-note){display:none!important}
  body pv-widget-host #answer-host#answer-host .answer-visual[data-state=loading]>.pv-state-note{position:absolute;
   width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
 }
-@media (min-width:1000px) and (prefers-reduced-motion:reduce){
- body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::before,
- body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::after{animation:none}
+@media (min-width:1000px){
+ :root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::before,
+ :root[data-pv-motion=reduced] body pv-widget-host #answer-host#answer-host :is(.answer-scroll,.answer-visual)::after{
+  animation:none}
 }
 
 /* Kit-Topbar: on every page but home, back is its own 44×44 key (radius 14, #F7F6F3, 2-px drop) with a 22 arrow,

@@ -11,7 +11,6 @@
 .voice-surface{position:fixed;z-index:12;top:12px;left:50%;translate:-50% 0;width:280px;min-height:60px;padding:var(--pv-screen-space-2) var(--pv-screen-space-5);display:flex;align-items:center;gap:var(--pv-screen-space-4);border-radius:var(--pv-screen-radius);background:var(--pv-instrument);color:var(--pv-surface);box-shadow:0 8px 24px color-mix(in srgb,var(--pv-ink) 10.98%,transparent);pointer-events:none;isolation:isolate}
 .voice-surface[hidden]{display:none}.voice-mark{flex:none;width:40px;height:40px;border-radius:var(--pv-screen-radius-pill);display:grid;place-items:center;background:var(--pv-timer-accent);transition:background var(--pv-motion-feedback) var(--pv-screen-ease)}.voice-mark img{width:var(--pv-icon-s);height:var(--pv-icon-s)}.voice-copy{min-width:0;display:grid;gap:var(--pv-screen-space-1);min-height:42px;align-content:center}.voice-copy strong{font-size:var(--pv-type-body);line-height:1.25;font-weight:var(--pv-weight-semibold);letter-spacing:-.02em}.voice-copy span{font-size:var(--pv-type-caption);line-height:1.3;color:var(--pv-instrument-muted)}.voice-surface[data-phase=ready] .voice-mark{background:var(--pv-quiet-surface)}.voice-surface[data-phase=thinking] .voice-mark,.voice-surface[data-phase=waiting] .voice-mark{background:var(--pv-instrument-muted)}
 @media(max-width:759px){.voice-surface{top:auto;bottom:max(16px,env(safe-area-inset-bottom));width:260px;min-height:66px;padding:var(--pv-screen-space-3) var(--pv-screen-space-4)}}
-@media(prefers-reduced-motion:reduce){.voice-mark{transition:none}}
 :root{--pv-screen-paper:var(--pv-surface-2);--pv-screen-surface:var(--pv-surface);--pv-screen-ink:var(--pv-ink);--pv-screen-muted:var(--pv-ink-3);--pv-screen-accent:var(--pv-ink);--pv-screen-selection:var(--pv-surface-2);--pv-screen-radius:24px;--pv-screen-motion:240ms;--pv-screen-control:var(--pv-surface-2);--pv-screen-hover:var(--pv-line);--pv-screen-line:var(--pv-line);--pv-screen-action-ink:var(--pv-ink);--pv-screen-danger:var(--pv-danger);--pv-screen-danger-surface:var(--pv-danger-tint);--pv-screen-fast:120ms;--pv-screen-ease:cubic-bezier(.2,0,0,1);--pv-screen-type-small:var(--pv-type-meta);--pv-screen-type-body:var(--pv-type-body);--pv-screen-type-title:var(--pv-type-widget);--pv-screen-space-2:var(--pv-s1);--pv-screen-space-3:var(--pv-s2);--pv-screen-space-4:var(--pv-s2);--pv-screen-space-6:var(--pv-s3);--pv-screen-radius-control:24px;--pv-screen-radius-row:24px;--pv-screen-radius-field:var(--pv-r-s);--pv-screen-font:"Inter Variable",Arial,Helvetica,sans-serif}
 
 :root{--pv-screen-radius-frame:24px;--pv-screen-radius-art:16px;--pv-screen-radius-choice:16px;--pv-screen-outline:var(--pv-line);--pv-screen-photo-fallback:var(--pv-ink);--pv-screen-photo-scrim:color-mix(in srgb,var(--pv-ink) 50.196%,transparent);--pv-screen-photo-scrim-bottom:color-mix(in srgb,var(--pv-ink) 54.902%,transparent)}
@@ -34,15 +33,16 @@ pv-widget-host :is(#device-activities,#resource-rail,#now-view)>.resource-previe
 
 /* Press uses individual scale, leaving scene transform/translate to motion owners. */
 body button{touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
-[data-motion=reduced] .voice-mark{transition:none}
+:root[data-pv-motion=reduced] .voice-mark{transition:none}
 /* Sheets keep their native modal/focus behavior; motion explains arrival only. */
 dialog{opacity:0;transform:translateY(10px);transition:opacity var(--pv-motion-feedback) var(--pv-screen-ease),transform 240ms var(--pv-ease-enter),display 240ms var(--pv-screen-ease) allow-discrete,overlay 240ms var(--pv-screen-ease) allow-discrete}
 dialog[open]{opacity:1;transform:none}
 dialog::backdrop{opacity:0;transition:opacity var(--pv-motion-feedback) var(--pv-screen-ease),display 240ms var(--pv-screen-ease) allow-discrete,overlay 240ms var(--pv-screen-ease) allow-discrete}
 dialog[open]::backdrop{opacity:1}
 @starting-style{dialog[open]{opacity:0;transform:translateY(10px)}dialog[open]::backdrop{opacity:0}}
-body:has(pv-widget-host[data-motion=reduced]) dialog,body:has(pv-widget-host[data-motion=reduced]) dialog::backdrop{transition:none;transform:none}
-@media(prefers-reduced-motion:reduce){dialog,dialog::backdrop{transition:none;transform:none}}
+:root[data-pv-motion=reduced] body dialog,
+:root[data-pv-motion=reduced] body dialog::backdrop{transition:none;transform:none}
+:root[data-pv-motion=reduced] dialog,:root[data-pv-motion=reduced] dialog::backdrop{transition:none;transform:none}
 
 /* Canonical overview family: all domains and states consume this one scale. */
 :root{--pv-overview-slot:64px;--pv-overview-icon:32px;--pv-overview-height:144px;--pv-overview-pad:24px;--pv-overview-inner-gap:var(--pv-s2);--pv-overview-row-gap:var(--pv-s3);--pv-overview-title:var(--pv-type-widget);--pv-overview-meta:var(--pv-type-secondary);--pv-overview-timer:var(--pv-ink-2);--pv-overview-timer-hover:var(--pv-ink-2);--pv-overview-timer-ink:var(--pv-surface);--pv-overview-timer-muted:var(--pv-line);--pv-overview-radio:var(--pv-surface-2);--pv-overview-vehicle:var(--pv-vehicle-surface);--pv-overview-weather:var(--pv-weather-surface);--pv-overview-music:var(--pv-neutral-category)}
@@ -153,9 +153,9 @@ pv-widget-host #device-view #device-detail>pv-light-widget.pv-component[data-com
 
 /* App reduced motion reaches the actual body-sibling dialogs as well as the
    widget host. Remove optional press/edge movement, never semantic rotations. */
-body:has(>pv-widget-host[data-motion=reduced]) :is(button,summary){transition:none!important}
-body:has(>pv-widget-host[data-motion=reduced]) .vehicle-disclosure>summary::after{transition:none!important}
-pv-widget-host[data-motion=reduced]>.frame{translate:none;scale:none;transition:none}
+:root[data-pv-motion=reduced] body :is(button,summary){transition:none!important}
+:root[data-pv-motion=reduced] body .vehicle-disclosure>summary::after{transition:none!important}
+:root[data-pv-motion=reduced] pv-widget-host>.frame{translate:none;scale:none;transition:none}
 
 /* Tesla uses the same detail roles: two co-equal labelled energy metrics,
    clear secondary disclosures and a readable read-only history section. */
@@ -265,10 +265,10 @@ pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list b
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[aria-pressed=true]{border-color:var(--pv-light-ink)}
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch]{position:relative;grid-template-columns:40px minmax(0,1fr);grid-template-rows:40px 1fr;height:177px;min-height:177px;padding:var(--pv-screen-space-5);gap:var(--pv-screen-space-4)}
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch]::after{content:"";grid-column:2;grid-row:1;justify-self:end;align-self:center;width:64px;height:36px;border-radius:var(--pv-screen-radius-pill);background:var(--pv-ink-3)}
-pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch]::before{content:"";position:absolute;z-index:1;right:51px;top:40px;width:26px;height:26px;border-radius:var(--pv-screen-radius-pill);background:var(--pv-surface);transform:translateY(-50%);transition:right var(--pv-motion-feedback) var(--pv-screen-ease)}
+pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch]::before{content:"";position:absolute;z-index:1;right:51px;top:40px;width:26px;height:26px;border-radius:var(--pv-screen-radius-pill);background:var(--pv-surface);transform:translateY(-50%);transition:transform var(--pv-spring-snappy)}
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch][aria-checked=true]::after{background:var(--pv-light-ink)}
-pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch][aria-checked=true]::before{right:25px}
-@media(prefers-reduced-motion:reduce){pv-widget-host [role=switch]::before{transition:none}}
+pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list button[role=switch][aria-checked=true]::before{transform:translate(26px,-50%)}
+:root[data-pv-motion=reduced] pv-widget-host [role=switch]::before{transition:none}
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-choice-icon{display:block;grid-column:1;grid-row:1/3;width:40px;height:40px;align-self:center}
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list strong{grid-column:1/-1;grid-row:2;align-self:end}
 pv-widget-host pv-choice-list.pv-component[data-context-picker=lamps] .pv-list .pv-meta{grid-column:2;align-self:start}
@@ -488,20 +488,20 @@ pv-widget-host #music-response #result-list>.result[data-content-state=pending]>
 pv-widget-host #music-response #result-list>.result[data-content-state=pending]>.result-copy>[data-kit-slot]::after{top:calc(var(--pv-leading-body) + 4px);width:68%}
 /* The existing refresh Icon is the Button's activity mark. Its finite turn is
    owned by actual aria-busy; no duplicate mark or animation on the Card. */
-pv-widget-host #music-refresh[aria-busy=true]>img{opacity:1;animation:music-refresh-ack 900ms linear 8}
+pv-widget-host #music-refresh[aria-busy=true]>img{opacity:1;animation:pv-spin 900ms linear infinite}
 pv-widget-host #music-refresh[aria-busy=true]::after{content:none}
-@media(prefers-reduced-motion:reduce){
+
+ 
+
+:root[data-pv-motion=reduced]
  pv-widget-host #music-response #result-list>.result[data-content-state=pending]>.result-art,
+:root[data-pv-motion=reduced]
  pv-widget-host #music-response #result-list>.result>.result-art.live-art-fallback[data-artwork-pending=true],
+:root[data-pv-motion=reduced]
  pv-widget-host #music-response #result-list>.result[data-content-state=pending]>.result-copy>[data-kit-slot]::before,
+:root[data-pv-motion=reduced]
  pv-widget-host #music-response #result-list>.result[data-content-state=pending]>.result-copy>[data-kit-slot]::after,
- pv-widget-host #music-refresh[aria-busy=true]>img{animation:none}
-}
-pv-widget-host[data-motion=reduced] #music-response #result-list>.result[data-content-state=pending]>.result-art,
-pv-widget-host[data-motion=reduced] #music-response #result-list>.result>.result-art.live-art-fallback[data-artwork-pending=true],
-pv-widget-host[data-motion=reduced] #music-response #result-list>.result[data-content-state=pending]>.result-copy>[data-kit-slot]::before,
-pv-widget-host[data-motion=reduced] #music-response #result-list>.result[data-content-state=pending]>.result-copy>[data-kit-slot]::after,
-pv-widget-host[data-motion=reduced] #music-refresh[aria-busy=true]>img{animation:none}
+:root[data-pv-motion=reduced] pv-widget-host #music-refresh[aria-busy=true]>img{animation:none}
 
 /* Robot study composes canonical primitives; this block owns page layout only. */
 body:has(>#robot-study),body:has(>.robot-study){margin:0;background:var(--pv-bg)}

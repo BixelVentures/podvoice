@@ -45,10 +45,9 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 #queue>.queue-track[data-placeholder=true]>*{visibility:hidden}
 #queue>.queue-track[data-placeholder=true]::before{content:"";position:absolute;inset:var(--pv-screen-space-2);
  border-radius:var(--pv-screen-radius-field);background:linear-gradient(90deg,var(--pv-screen-control),
- var(--pv-screen-line),var(--pv-screen-control));background-size:200% 100%;
- animation:pv-queue-placeholder 1.4s ease-in-out infinite}
-@keyframes pv-queue-placeholder{from{background-position:100% 0}to{background-position:-100% 0}}
-@media (prefers-reduced-motion:reduce){
- #queue>.queue-track{transition:none}
- #queue>.queue-track[data-placeholder=true]::before{animation:none}
-}
+ var(--pv-screen-line),var(--pv-screen-control));
+ animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
+
+ :root[data-pv-motion=reduced] #queue>.queue-track{transition:none}
+ :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
+

@@ -2150,9 +2150,7 @@
     "dist/ui/gestures.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [
-        "dist/ui/motion.js"
-      ],
+      "imports": [],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2170,7 +2168,6 @@
           "function:atScrollTop": 1,
           "function:attachGestures": 1,
           "function:gestureIntent": 1,
-          "function:transitionContent": 1,
           "function:wheelGesture": 1
         },
         "roots": [],
@@ -2309,10 +2306,12 @@
           "arrow:resourceLayout": 1,
           "arrow:sameLayout": 1,
           "arrow:split": 1,
+          "arrow:sync": 1,
           "arrow:trimNumber": 1,
           "class:SceneMotion": 1,
           "class:Spring": 1,
           "function:isReduced": 1,
+          "function:mirrorReducedMotion": 1,
           "function:project": 1,
           "function:reducedMotionQuery": 1,
           "function:rubberBand": 1,
@@ -2321,6 +2320,7 @@
           "function:springCurve": 1,
           "function:springParams": 1,
           "function:stepResponse": 1,
+          "function:writeMotionAttribute": 1,
           "method:cancel": 1,
           "method:capture": 1,
           "method:constructor": 1,

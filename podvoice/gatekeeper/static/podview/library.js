@@ -1,12 +1,15 @@
 import {attachPressedState} from './ui/pressed-state.js';
 import {KIT_COMPONENTS,syncKitPowerToggle,createKitComponent,applyKitComponent,createKitTemplate,createKitDialog} from './ui/kit.js';
 import {productLibrary} from './library-catalog.js';
+import {mirrorReducedMotion} from './ui/motion.js';
 
 // Documentation staging only: primitive specimens import the same native DOM
 // factory as the product. Only composed screens load the product entrypoint.
 // Domain state, integrations and effect authority remain in their existing owners.
 const $=id=>document.getElementById(id);
 attachPressedState(document);
+// The specimens on this page read :root[data-pv-motion] like the product does.
+mirrorReducedMotion(document.documentElement);
 // Documentation controls decorate their retained native nodes. They use the same
 // Button/Chip primitives as specimens, while the existing shell keeps its density.
 for(const button of document.querySelectorAll('[data-library-level],#single-view,#compare-view,#isolate-component,#preview-motion,#touch-areas,#sizes-view'))applyKitComponent(button,'chip');
