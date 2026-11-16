@@ -460,14 +460,26 @@ async function silentChecks(check) {
 
   const picker = async () => {
     const problems = [];
-    // Music on another device (lærred »Player-AndenEnhed«) has no picker at the top, only »Flyt til <rum>«.
+    // Music on another device (lærred »Player-AndenEnhed«): »Flyt til <rum>« moves it. The speaker chip is still a
+    // picker: a tap opens the speaker list and moves nothing (the old chip moved the music at once).
     const away = await frame.evaluate(() => document.querySelector('.player')?.dataset.placement === 'elsewhere');
     if (away) {
       const move = frame.locator('#move-here');
       if (!(await move.isVisible())) return ['»Flyt til«-knappen vises ikke, mens musikken spiller et andet sted'];
       if ((await check.locked('#move-here')).length) return ['»Flyt til«-knappen er låst'];
       const label = (await frame.locator('#move-here-label').innerText().catch(() => '')).trim();
-      return /^Flyt(ter)? til \S/.test(label) ? [] : [`»Flyt til«-knappen siger: "${label}"`];
+      if (!/^Flyt(ter)? til \S/.test(label)) return [`»Flyt til«-knappen siger: "${label}"`];
+      const chip = frame.locator('#output');
+      if (!(await chip.isVisible())) return [];
+      await chip.tap();
+      const listed = await frame.locator('#rooms').evaluate(dialog => dialog.open).catch(() => false);
+      const stillAway = await frame.evaluate(() => document.querySelector('.player')?.dataset.placement === 'elsewhere');
+      await check.page.keyboard.press('Escape');
+      await sleep(500);
+      return [
+        ...(listed ? [] : ['højttalerchippen åbner ikke højttalerlisten, mens musikken spiller et andet sted']),
+        ...(stillAway ? [] : ['et tryk på højttalerchippen flyttede musikken']),
+      ];
     }
     const output = frame.locator('#output');
     if (!(await output.isVisible())) return ['højttalervælgeren (#output) vises ikke'];

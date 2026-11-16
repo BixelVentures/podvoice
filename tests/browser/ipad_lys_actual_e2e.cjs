@@ -139,6 +139,21 @@ async function open(stage,{overview=false}={}){
  const refresh=await box(page.locator('#device-view .light-room-refresh'));
  assert.equal(refresh.text,'Opdater lys');assert.equal(refresh.h,56);assert.equal(refresh.bg,'rgb(23, 23, 26)');
  near(refresh.y+refresh.h,88+221-24,'»Opdater lys« at the bottom of the hero');near(refresh.x,48,'left in the hero');
+ // The column runs from 88 to the 784 baseline and cannot scroll the hero up under the topbar.
+ const column=await box(page.locator('#device-view'));
+ assert.deepEqual([column.y,column.y+column.h],[88,784],'Lys column 88–784');
+ await page.locator('.responses').evaluate(n=>{n.scrollTop=40;});
+ assert.equal((await box(page.locator('#device-view #light-room-controls'))).y,88,'the hero stays at 88');
+ // »<rum> · denne skærms rum« above the title when Home Assistant names the screen's light area.
+ assert.equal(await page.locator('#light-room-controls .light-room-kicker').isVisible(),false,
+  'no eyebrow without a known area');
+ await page.evaluate(()=>{const h=document.querySelector('pv-widget-host');
+  h.state={...h.state,lightPlacement:{status:'bound',areaName:'Køkkenalrum'}};
+  h.lightRoomView.render(h.state.devices.find(d=>d.id===h.state.focus));});
+ const kicker=await box(page.locator('#light-room-controls .light-room-kicker'));
+ assert.equal(kicker.text,'Køkkenalrum · denne skærms rum');assert.equal(kicker.size,'17px');
+ assert.equal(kicker.weight,'600');assert.equal(kicker.color,'rgb(111, 106, 94)');
+ near(kicker.y,112,'the eyebrow opens the hero');
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-lys-ikkeforbundet.png')});
  await page.close();
  // Lys-Ukendt (stale): the rooms and lamps keep their place, nothing can be switched.

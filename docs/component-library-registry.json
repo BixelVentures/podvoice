@@ -1414,7 +1414,15 @@
           "method:create": 1,
           "method:fadeLoadingContent": 1,
           "method:layoutRow": 1,
-          "arrow:discoverySectionLabel": 1
+          "arrow:discoverySectionLabel": 1,
+          "arrow:play": 1,
+          "function:artworkPlan": 1,
+          "function:paintCardArtwork": 1,
+          "method:openShelfCard": 1,
+          "method:renderShelves": 1,
+          "method:sectionNotes": 1,
+          "method:shelfCards": 1,
+          "method:shelfRow": 1
         },
         "roots": [],
         "registrations": {},
@@ -2932,7 +2940,8 @@
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
           "method:updateHomeRevision": 1,
-          "method:renderOverviewOverflow": 1
+          "method:renderOverviewOverflow": 1,
+          "method:moveHere": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3585,7 +3594,7 @@
     "dist/svar-today-view.js": {
       "status": "approved-renderer",
       "domOwner": "SvarTodayView",
-      "compositionScope": "L\u00e6rred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill \u2191 1 nyt svar; tapping it opens the newest answer through the same history row.",
+      "compositionScope": "Lærred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill ↑ 1 nyt svar; tapping it opens the newest answer through the same history row.",
       "factoryClassArgument": 1,
       "imports": [
         "dist/answer-widget.js"

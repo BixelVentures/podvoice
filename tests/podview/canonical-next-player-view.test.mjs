@@ -378,3 +378,17 @@ test('unknown volume uses the neutral Slider state without inventing a value whi
  assert.equal(f.doc.getElementById('volume-value').textContent,'—');
  f.view.renderControls({volume:0,canVolume:true});assert.equal(f.doc.getElementById('volume').value,'0');assert.equal(f.doc.getElementById('volume-value').textContent,'0 %');assert.equal(f.doc.getElementById('volume').disabled,false);
 });
+
+// Music paused on another device: »På pause« is routine like »Spiller på«, so it is not squeezed above the chip;
+// the play key shows it and the chip's name still says it. A stale state is not routine and stays visible.
+test('paused elsewhere is routine output; a stale pause is not',()=>{
+ const f=surface({live:true}),vm={active:true,playing:false,fresh:true,readOnly:true,placement:'elsewhere',
+  title:'Morgensang',artist:'En kunstner',target:'MacBook Pro',canOutput:true};
+ f.view.renderPlayer(vm);
+ const state=f.nodes.get('player-state');
+ assert.equal(state.textContent,'På pause');
+ assert.equal(state.getAttribute('data-routine-output'),'true');
+ assert.ok(f.nodes.get('output').getAttribute('aria-label').includes('På pause'));
+ f.view.renderPlayer({...vm,fresh:false});
+ assert.equal(state.getAttribute('data-routine-output'),'false');
+});
