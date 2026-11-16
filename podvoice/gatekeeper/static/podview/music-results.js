@@ -323,6 +323,9 @@ export class MusicResults{
   const key=JSON.stringify([kind,id,hero]),row=this.shelfRows?.get(key);if(!row)return null;
   this.shelfRows.delete(key);delete row.dataset.shelfKind;delete row.shelfArtKey;
   row.removeAttribute('aria-description');
+  // A rail cover that failed is tried again by the list, as a new card would be; shown art stays as it is.
+  const art=row.children[0];
+  if(art.dataset.failedArtwork){cancelArtwork(art);delete art.dataset.artworkContent;}
   return row;
  }
  shelfRow(kind,card,index,hero){

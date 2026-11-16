@@ -771,7 +771,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "ca967c28bf95d568b84bcd061a921e51fc58a7aff9cb8f9ace561d093c9e7e11"
+      "sha256": "f594daa78b5495ffe35e28c3b2183527baa9577eb02b66a345cf99623a7a1475"
     },
     {
       "path": "music-selection-model.js",
@@ -819,7 +819,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "fc90f80ac579f60b0d38d0f77de7059c23e88be385f0c6b15e3e77621d30f6b2"
+      "sha256": "05a0e594bf1cec8ebbd46f0cb51eadb1b881ffc28e954c4673bb62c175e12da2"
     },
     {
       "path": "podview.css",
