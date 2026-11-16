@@ -1,5 +1,5 @@
 // The server repeats an unchanged snapshot every second as a liveness heartbeat (only observedAt
-// moves). Re-rendering the whole screen for each one blocked taps for ~1 s on a Frameo frame.
+// moves). Re-rendering the whole screen for each one blocked taps while it ran.
 // The heartbeat must keep the connection fresh without redrawing unchanged content.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -99,25 +99,5 @@ test('the first heartbeat after a disconnect is presented', () =>
       assert.deepEqual(calls, ['connection:connected', 'snapshot']);
     } finally {
       transport.close();
-    }
-  }));
-
-test('strip mode (Frameo) redraws an unchanged screen only once a minute', () =>
-  withClock(async (clock) => {
-    const previous = globalThis.document;
-    globalThis.document = { documentElement: { hasAttribute: (name) => name === 'data-lite' } };
-    const { transport, calls } = await fixture();
-    try {
-      for (let second = 1; second <= 59; second++) {
-        clock.advance(1000);
-        transport.accept(snapshot({ observedAt: 1000 + second }), clock.now());
-      }
-      assert.equal(calls.filter((call) => call === 'snapshot').length, 0);
-      clock.advance(1000);
-      transport.accept(snapshot({ observedAt: 1060 }), clock.now());
-      assert.equal(calls.filter((call) => call === 'snapshot').length, 1);
-    } finally {
-      transport.close();
-      globalThis.document = previous;
     }
   }));

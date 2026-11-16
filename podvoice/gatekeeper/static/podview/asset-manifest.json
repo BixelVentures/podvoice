@@ -683,11 +683,11 @@
     },
     {
       "path": "library-catalog.js",
-      "sha256": "b3868c082affd3740c2d962e635ba1126badc0201688a5528b8d5996f44f860e"
+      "sha256": "d670be504ae078dc2d4f2d98822c0a062d85185ddd1adb31a2f4ad38a6f85292"
     },
     {
       "path": "library.bundle.js",
-      "sha256": "6bea037cf520bbb4b5584d9a14fc8c45036f5fd596a54ada8ce0a8767a383de5"
+      "sha256": "b7b1a91b51bd85ad67556ff487b218f7dd112c3aef4e74725a3555088fe39d01"
     },
     {
       "path": "library.css",
@@ -723,7 +723,7 @@
     },
     {
       "path": "live-media-view.js",
-      "sha256": "7f48e3f1f0d9f960f26674f5fb976ff08ea9437c139ff14ba3c2dd55ccc4f713"
+      "sha256": "fc535c82ff3365bffd23cf654f9fba26d0deedd5ddbb83bc53fc7c140eff22c7"
     },
     {
       "path": "live-music-selection-view.js",
@@ -819,15 +819,15 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "91d44a97835a3fb742e28ca8279d8899c81061d755990bcda3956fb18c924200"
+      "sha256": "895632f168bf381afe4cc06de4349b6bfb55a2475eedcfe6d8e1b311945334d8"
     },
     {
       "path": "podview.css",
-      "sha256": "863b2a8192c0c321d7afd65243b7682bd0b273c234f4a58d09ea523ff68462ae"
+      "sha256": "433d9c34d632e5b6871a206db4e49fed72ca61081cc711bea0fbb29dbdf21bf8"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "d67953fb47e719d18e57975051a058bc7e2349faa1419b34571f2b2222555662"
+      "sha256": "3bcc7c092fbb9852ace6b7170aa3d422766fdc16430ebd8977b276a4272082f3"
     },
     {
       "path": "podvoice-view.js",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "e1869a8a2dd2084d80398c272ac7e12ac0a488595d0ea6535ca0edba0bb3d94b"
+      "sha256": "453017baf75a68cf2091f732bde7f95027ce7ad2122ee950063d2cca687cb679"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -951,7 +951,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "56a8dac048f838a629b42cc14b58931baa4a683f08669b7e5476a016b72949ea"
+      "sha256": "85d9c92c08e3272ec106b052e5b0c0b0785414647ed5e27628cd645b348f9867"
     },
     {
       "path": "ui/components.js",
@@ -963,11 +963,11 @@
     },
     {
       "path": "ui/date-format.js",
-      "sha256": "3d516b0e11d6c91125f38de63b399ef5a47499fadbca4d00a13c543bf632063e"
+      "sha256": "5cb371a0a5e64009cfb57e61f891ecc2db8f00ed39f6c92fcae7ba0f4143a4e5"
     },
     {
       "path": "ui/gestures.js",
-      "sha256": "4b36490a821b87dd0fd31d099c51892196dc25812672b10eccbc95d2ec436e17"
+      "sha256": "5f72bd3111df67c4d4eb01df9fe5f08f046884227abab87c37d176c26b0dd0b5"
     },
     {
       "path": "ui/kit.js",
@@ -998,10 +998,6 @@
       "sha256": "9fd9c09464c8d7b1be737bea586ed6335c8c73fcd5523a8b301f6ab1c87ca1d4"
     },
     {
-      "path": "ui/lite.js",
-      "sha256": "f2e581cd98cf765266e7d35220094d062173d7921947799aac95e29e7b88ef8a"
-    },
-    {
       "path": "ui/motion.js",
       "sha256": "0c82c29e2d6e569ed4d2f22593eae56c94b7c127761346d966a4320f5a45d522"
     },
@@ -1015,7 +1011,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "a557789ddc5ad23af3b6bb806bc829d09eb6edda85b124368ccecca82e2412f9"
+      "sha256": "1e2170755cb7f9babd6640b3dad0e9aa608a3258d5bf2e1cc1c293e07072b7d0"
     },
     {
       "path": "ui/reconcile.js",
@@ -1031,7 +1027,7 @@
     },
     {
       "path": "ui/screen-lifecycle.js",
-      "sha256": "0744e6e8b9daf7147ab51e8bcdcbb5a3cdbc754e6573304111b944c109347f95"
+      "sha256": "a4d92ba8c2e6a5eeca9eb438a224ee56ffc1d8f18a51eb1baba531f31ca0f88c"
     },
     {
       "path": "ui/scroll-edges.js",
@@ -1103,7 +1099,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "4072076146832b15119c5334ad21257736296a53e7895cdc526a892154e5971b"
+      "sha256": "34c29a5f56d1721fba9f3603b836b728151832a152fbebf81d9b8610eaf5e6a0"
     },
     {
       "path": "workshop.css",

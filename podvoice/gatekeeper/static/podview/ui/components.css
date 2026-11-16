@@ -575,7 +575,7 @@ body:has(>#robot-study)>:is(.robot-study-label,.robot-study-review){display:none
 .robot-study-actions>.robot-study-secondary{flex:0 1 auto}
 
 /* Robot compact composition: the same registered Hero, Tile, Chip and ListRow
-   anatomy as the accepted 1280 × 800 Frameo study. No command authority in CSS. */
+   anatomy as the accepted compact robot study. No command authority in CSS. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel{display:flex;flex-direction:column;gap:var(--pv-s2)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel>pv-vacuum-widget.pv-kit-hero[data-component]{min-height:0!important;padding:var(--pv-s3)!important;gap:var(--pv-s2)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact]>.robot-control-panel>pv-vacuum-widget.pv-kit-hero[data-component]>.pv-content{grid-template-columns: minmax(0,1fr) var(--pv-icon-l);gap:var(--pv-s1) var(--pv-s2)}
@@ -628,14 +628,14 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.rob
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-app-guidance-row,.robot-recipe-summary) :is(h3,p){margin:0}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-app-guidance>a.pv-button{display:flex;align-items:center;justify-content:center;min-height:64px;text-align:center;text-decoration:none;white-space:normal}
 /* All-room selection shares the section heading row; it owns no extra row in
-   the Frameo start path. Selected-recipe intent uses a compact read-only row. */
+   the start path. Selected-recipe intent uses a compact read-only row. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form>.robot-room-heading{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-room-heading>.pv-button{min-height:64px;flex:0 0 auto;max-width:100%;white-space:normal}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recipe-summary{padding-block:var(--pv-s1);gap:var(--pv-s1)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recipe-summary>h3{font:var(--pv-t-meta);font-weight:var(--pv-weight-semibold)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recipe-summary{grid-template-columns:128px minmax(0,1fr);align-items:baseline;column-gap:var(--pv-s2)}
-/* The canonical robot transport uses one equal-width action row on the native
-   Frameo composition. It spans the full Hero instead of a legacy text column. */
+/* The canonical robot transport uses one equal-width action row in the compact
+   composition. It spans the full Hero instead of a legacy text column. */
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget).pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport:not(:empty){display:grid;grid-column:1/-1;grid-row:auto;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;margin-inline:0;gap:var(--pv-s2)}
 pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-robot-control-panel[data-layout=compact] pv-vacuum-widget).pv-kit-hero[data-component]:not(:has(.pv-kit-disclosure[data-kit-layout=header-more]))>.pv-actions.transport>.pv-button{width:100%;min-width:0;min-height:64px;white-space:normal}
 
