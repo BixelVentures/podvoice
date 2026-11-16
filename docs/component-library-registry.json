@@ -1579,7 +1579,9 @@
           "method:toggleVolumeMute": 1,
           "method:updateCoverTone": 1,
           "method:volumeBinding": 1,
-          "method:volumeGestureCurrent": 1
+          "method:volumeGestureCurrent": 1,
+          "arrow:apply": 1,
+          "arrow:key": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"
@@ -2353,7 +2355,10 @@
           "function:showProgress": 1,
           "function:showValue": 1,
           "function:valueDirection": 1,
-          "method:roll": 1
+          "method:roll": 1,
+          "arrow:rows": 1,
+          "method:leave": 1,
+          "arrow:centreShift": 1
         },
         "roots": [],
         "registrations": {},

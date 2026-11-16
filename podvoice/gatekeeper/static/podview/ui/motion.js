@@ -146,6 +146,7 @@ export class Spring{
 }
 
 const SNAPPY=springCurve(SPRING.snappy),SMOOTH=springCurve(SPRING.smooth),QUICK=springCurve(SPRING.quick);
+const centreShift=(from,to)=>({dx:from.x+from.width/2-to.x-to.width/2,dy:from.y+from.height/2-to.y-to.height/2});
 // P5 digits (docs/MOTION.md §3.6). A value whose text is figures with separators, signs and units rolls; anything
 // with words is plain text. The sign of the change comes from the figures: up rolls the old figure up and away and
 // brings the new one from below; down is the reverse.
@@ -267,6 +268,62 @@ export class SceneMotion {
   }
   const animation=this.animate(node,[{opacity:1},{opacity:0}],DUR.quick,{fadeReduced:true,easing:EASE.in});if(!animation){node.hidden=true;return;}animation.finished.then(()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;},()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;});
  }
+ // P4 list (docs/MOTION.md §3.5). mutate() changes container's rows; list() reads every visible box before and
+ // after (all reads before any write) and animates the difference of their centres (a pressed row's scale does not
+ // move its centre). It animates the translate property: a button's :active rule holds transform:none!important. New rows enter from 8px below on the snappy
+ // spring, 30 ms apart for the first five and together after that. Removed rows leave where they stood (opacity
+ // and .98 scale, --pv-dur-quick, accelerating away) while their neighbours close the gap on the smooth spring.
+ // `track` names one element (the playing indicator) that travels from its old box to its new one as one, even
+ // when it now lives in another row. A running motion is retargeted from the visible box. Reduced: rows enter and
+ // leave with opacity only; reorder is immediate.
+ list(container,mutate,{items=':scope>*',stagger=30,track}={}){
+  if(!container?.isConnected||!container.getClientRects?.().length||this.host.isConnected===false){mutate();return;}
+  const rows=()=>[...container.querySelectorAll(items)].filter(node=>node.dataset?.pvLeave===undefined);
+  const before=new Map(rows().map(node=>[node,node.getBoundingClientRect()]));
+  const trackBefore=track?container.querySelector(track)?.getBoundingClientRect():null;
+  mutate();
+  const after=rows().filter(node=>node.getClientRects().length),frame=container.getBoundingClientRect();
+  const boxes=new Map(after.map(node=>[node,node.getBoundingClientRect()]));
+  const trackNode=track?container.querySelector(track):null,trackAfter=trackNode?.getBoundingClientRect();
+  const leaving=[...before].filter(([node])=>node.parentNode!==container);
+  const reduced=this.reduced,shift=new Map();let entered=0;
+  for(const [node,box]of boxes){
+   const old=before.get(node);
+   if(!old){
+    const delay=Math.min(entered++,5)*stagger;
+    this.animate(node,[{opacity:0,translate:'0 8px'},{opacity:1,translate:'0 0'}],SNAPPY.ms,
+     {visible:true,fadeReduced:true,easing:SNAPPY.easing,delay});
+    continue;
+   }
+   const {dx,dy}=centreShift(old,box);
+   if(Math.abs(dx)+Math.abs(dy)<=.5)continue;
+   shift.set(node,{dx,dy});
+   this.animate(node,[{translate:`${dx}px ${dy}px`},{translate:'0 0'}],SMOOTH.ms,
+    {visible:true,easing:SMOOTH.easing});
+  }
+  for(const [node,box]of leaving)this.leave(container,node,box,frame);
+  if(trackNode&&trackBefore&&trackAfter&&!reduced){
+   const owner=after.find(node=>node.contains?.(trackNode)),carried=shift.get(owner)||{dx:0,dy:0};
+   const travel=centreShift(trackBefore,trackAfter),dx=travel.dx-carried.dx,dy=travel.dy-carried.dy;
+   if(Math.abs(dx)+Math.abs(dy)>.5)this.animate(trackNode,[{translate:`${dx}px ${dy}px`},{translate:'0 0'}],
+    SMOOTH.ms,{visible:true,easing:SMOOTH.easing});
+  }
+ }
+ // A removed row is put back where it stood, out of the flow and out of reach, and fades away.
+ leave(container,node,box,frame){
+  if(typeof node.animate!=='function'||!box.width||!box.height)return;
+  const left=box.x-frame.x-(container.clientLeft||0)+(container.scrollLeft||0);
+  const top=box.y-frame.y-(container.clientTop||0)+(container.scrollTop||0);
+  node.dataset.pvLeave='';node.inert=true;node.setAttribute?.('aria-hidden','true');
+  Object.assign(node.style,{position:'absolute',left:`${left}px`,top:`${top}px`,width:`${box.width}px`,
+   height:`${box.height}px`,margin:'0',pointerEvents:'none'});
+  container.append(node);
+  const frames=this.reduced?[{opacity:1},{opacity:0}]
+   :[{opacity:1,transform:'none'},{opacity:0,transform:'scale(.98)'}];
+  const animation=node.animate(frames,{duration:this.reduced?DUR.reduced:DUR.quick,easing:EASE.in,fill:'forwards'});
+  animation.finished.catch(()=>{}).finally(()=>{
+   if(node.parentNode===container&&node.dataset.pvLeave!==undefined)node.remove();});
+ }
  holdGeometry(){
   if(this.geometry.size)return;
   // Freeze only existing layout boundaries; data and actions continue updating.
@@ -309,7 +366,9 @@ export class SceneMotion {
    const dx=a.x-b.x,dy=a.y-b.y;
    const timerResize=node.id==='timer-card'&&a.width>0&&a.height>0&&b.width>0&&b.height>0&&(Math.abs(a.width-b.width)+Math.abs(a.height-b.height)>.5);
    if(timerResize)this.animate(node,[{transformOrigin:'0 0',transform:`translate(${dx}px,${dy}px) scale(${a.width/b.width},${a.height/b.height})`},{transformOrigin:'0 0',transform:'none'}],240,{visible:true});
-   else if(Math.abs(dx)+Math.abs(dy)>.5)this.animate(node,[{transform:`translate(${dx}px,${dy}px)`},{transform:'none'}],240,{visible:true});
+   // P4 reorder (docs/MOTION.md §3.5): the Hjem cards slide on the smooth spring.
+   else if(Math.abs(dx)+Math.abs(dy)>.5)this.animate(node,[{transform:`translate(${dx}px,${dy}px)`},
+    {transform:'none'}],SMOOTH.ms,{visible:true,easing:SMOOTH.easing});
   }
   if(!this.animations.size)this.cancel();
  }

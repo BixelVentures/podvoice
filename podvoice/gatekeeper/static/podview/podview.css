@@ -2800,7 +2800,7 @@ dialog#timer-alert[open]{opacity:1;scale:none;
   overlay var(--pv-dur-reduced) allow-discrete!important}
 
 
-/* Source: live-music.css · SHA256 1a3d0a279ec0999e1cd19634bf17d3340f89423f106642886092ce13a84e73f9 */
+/* Source: live-music.css · SHA256 eb7d5ad5268e1a31e7263eb70eadec12e817da44a4f4f819aa1364b11aa39188 */
 /* Read-only Spotify source surfaces. Original covers stay square and unobscured. */
 #live-music .live-music-note{height:24px;min-height:24px;margin:10px 0 12px;font-size:var(--pv-type-caption);line-height:24px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #live-music .live-music-list{grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-s2);margin:0;align-items:start;min-height:260px}
@@ -2841,9 +2841,10 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 
 
 
-/* Queue (K2/K4): placeholder rows keep the real row size while a read runs; rows enter softly. */
-#queue>.queue-track{position:relative;transition:opacity .18s ease}
-@starting-style{#queue>.queue-track{opacity:0}}
+/* Queue (K2/K4): placeholder rows keep the real row size while a read runs. Rows enter, leave and move with
+   SceneMotion.list (P4, docs/MOTION.md §3.5); a leaving row stands out of the flow inside the queue. */
+#queue{position:relative}
+#queue>.queue-track{position:relative}
 #queue>.queue-track[data-placeholder=true]{pointer-events:none}
 #queue>.queue-track[data-placeholder=true]>*{visibility:hidden}
 #queue>.queue-track[data-placeholder=true]::before{content:"";position:absolute;inset:var(--pv-screen-space-2);
@@ -2851,7 +2852,6 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  var(--pv-screen-line),var(--pv-screen-control));
  animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
 
- :root[data-pv-motion=reduced] #queue>.queue-track{transition:none}
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 

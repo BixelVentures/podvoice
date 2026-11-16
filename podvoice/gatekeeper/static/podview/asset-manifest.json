@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "a4456c4ff82df3c9daef42d849738f7d96b18bc5b5664e8d9271fd47fbe0be9a"
+      "sha256": "175d1708357753c3795121b3661942c4b0e011bcbf68bb45ea59dd46192ea0d0"
     },
     {
       "path": "library.css",
@@ -735,7 +735,7 @@
     },
     {
       "path": "live-music.css",
-      "sha256": "1a3d0a279ec0999e1cd19634bf17d3340f89423f106642886092ce13a84e73f9"
+      "sha256": "eb7d5ad5268e1a31e7263eb70eadec12e817da44a4f4f819aa1364b11aa39188"
     },
     {
       "path": "live-queue-view.js",
@@ -815,15 +815,15 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "76d301c2dc7bc266811ebc7730043d1600d16456867cef93aa2247cffae8a43a"
+      "sha256": "9bd8af2a4f3b52b22fbbc6249f5b98cf065507f609aa661373d18b45eb07b466"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "f79275d22f7798e1761f47d3be3495b6c9128fdb7fb25c990ea733bdf182e8e2"
+      "sha256": "c3d1d439f1bdb19b55d5b64c3b901aa3e7c2d5053d2d11893622e8493ee04b52"
     },
     {
       "path": "podview.css",
-      "sha256": "11b97b999d2352700d1f2120629379dee24fd602fe21f3bc4d769f05efcbd8e4"
+      "sha256": "bde23b33acc2ada2f67ce680bbcfe8a2023680a28fbd3eedf31bd9d1d60112b1"
     },
     {
       "path": "podvoice-transport.js",
@@ -999,7 +999,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "379188931c191c3b12b3115d79f46a03e6dcb1c93996dadec4f378b8661474d3"
+      "sha256": "c13f7d5292d7dedfc16ce25ca4d555b3f29e3c45a5427c3a8fe98133728c719b"
     },
     {
       "path": "ui/notification-queue.js",
