@@ -81,8 +81,9 @@ const WEATHER=['pv-weather-drift','pv-weather-glow','pv-weather-flash','pv-weath
 test('keyframes are consolidated to the shared set (toward the 13 of §3.11)',()=>{
  const names=Object.keys(keyframes(bundled)).sort();
  // pv-music-eq still paints three bars on one pseudo; it needs <i> markup before it can become pv-eq.
- assert.deepEqual(names,[...SHARED,...WEATHER,'pv-music-eq'].sort());
- assert.ok(names.length<=15,'13 of §3.11 plus pv-press-circle (P3) and pv-music-eq');
+ // pv-shelf (MOTION.md §3.10.2, PR 11) scales shelf cards on a scroll-driven timeline where the engine has one.
+ assert.deepEqual(names,[...SHARED,...WEATHER,'pv-music-eq','pv-shelf'].sort());
+ assert.ok(names.length<=16,'13 of §3.11 plus pv-press-circle (P3), pv-music-eq and pv-shelf');
  for(const removed of ['pv-advice-pending','music-control-ack','pv-connecting-sheen','music-refresh-ack',
   'timer-alarm-ring','pv-queue-eq','pv-control-pending','pv-music-play-pending'])
   assert.doesNotMatch(bundled,new RegExp(`\\b${removed}\\b`),removed);

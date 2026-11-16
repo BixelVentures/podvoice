@@ -3026,6 +3026,17 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
 .pv-hscroll::-webkit-scrollbar{display:none}
 .pv-hscroll>*{flex:none;scroll-snap-align:start}
 
+/* P9 track A (docs/MOTION.md §3.10.2). Scrolling is the engine's own (WKWebView: a native UIScrollView with iOS
+   deceleration and rubber-band), never JS. Where scroll-driven animations exist, a card shrinks to .94 as it
+   enters and leaves a music shelf's edge and is full size everywhere inside; elsewhere nothing happens. It animates
+   transform, so the press feedback (the scale property) still composes. Reduced: off (the global reduced rule). */
+@keyframes pv-shelf{from{transform:scale(.94)}}
+@supports (animation-timeline:view(inline)){
+ #music-response .music-shelf>*{
+  animation:pv-shelf linear both,pv-shelf linear reverse forwards;animation-timeline:view(inline),view(inline);
+  animation-range:entry,exit}
+}
+
 /* iPad layout (lærred v190, issue 388): 1180×820, 24 margin, left column 744 + 16 + player 372.
    The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
 @media (min-width:1000px){
@@ -5520,14 +5531,16 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset .pv-kit-choice-options{display:inline-flex!important;
   flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
   background:var(--pv-recipe-track)!important;width:auto!important;max-width:100%;box-sizing:border-box;
-  /* More categories than the row holds: the track scrolls sideways, it never runs under the count. */
-  overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain}
+  /* More categories than the row holds: the track scrolls sideways, it never runs under the count. A fling
+     lands softly on a chip edge (proximity snap, P9 track A), never forced. */
+  overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain;
+  scroll-snap-type:x proximity;scroll-padding-inline:var(--pv-s3)}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
   .pv-kit-choice-options::-webkit-scrollbar{display:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset label{height:44px!important;min-height:44px!important;
   padding:0 20px!important;border-radius:999px!important;background:transparent!important;color:var(--pv-ink)!important;
   box-shadow:none!important;border:0!important;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-  display:flex!important;align-items:center;flex:none!important;white-space:nowrap}
+  display:flex!important;align-items:center;flex:none!important;white-space:nowrap;scroll-snap-align:start}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
   label:has(input:checked){background:var(--pv-ink)!important;
   background-image:none!important;color:#F7F6F3!important}

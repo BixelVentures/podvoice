@@ -560,6 +560,12 @@ export class RecipeView {
     },
    });
    toolbar.append(filters.node);
+   // The chosen category is always in view in its sideways track (P9 track A): smoothly after a choice, at once
+   // when the catalogue opens.
+   const reveal = smooth => filters.node.querySelector('input:checked')?.closest('label')?.scrollIntoView?.(
+    {inline:'nearest',block:'nearest',behavior:smooth && !isReduced(this.root) ? 'smooth' : 'auto'});
+   filters.node.addEventListener('change',()=>reveal(true));
+   requestAnimationFrame(()=>reveal(false));
   }
   toolbar.append(tools);
   this.root.append(layout);

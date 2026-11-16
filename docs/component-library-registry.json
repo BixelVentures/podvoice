@@ -3584,7 +3584,8 @@
           "function:exploreFrame": 1,
           "arrow:open": 1,
           "method:openFromCover": 1,
-          "arrow:chosen": 1
+          "arrow:chosen": 1,
+          "arrow:reveal": 1
         },
         "roots": [],
         "registrations": {},
