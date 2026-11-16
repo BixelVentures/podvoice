@@ -50,6 +50,8 @@ export function homeConnectionPresentation({status,blocked=false,sessionExpired=
  return {reason:known,detail:({setup:'Tilføj i Home Assistant',unavailable:'Home Assistant svarer ikke lige nu',denied:'PodView har ikke adgang – log ind i Home Assistant'})[known]||''};
 }
 export function connectionPresentation({status,snapshot,blocked=false,sessionExpired=false,browserOffline=false}={}){
+ // The grace period (reconnecting) keeps the last snapshot on screen exactly as it was.
+ if(status==='reconnecting'&&!blocked)status='connected';
  if(browserOffline)return {state:'offline',headerLabel:'Ingen netværksforbindelse',text:snapshot?'Ingen netværksforbindelse · viser det seneste.':'Ingen netværksforbindelse. Kontrollér skærmens forbindelse.',retry:false};
  if(status==='connecting')return {state:'connecting',headerLabel:snapshot?'Genopretter forbindelse…':'Forbinder…',text:snapshot?'Genopretter forbindelsen til hjemmet…':'Forbinder til Home Assistant…',retry:false};
  // HA's ingress session stayed invalid after one quiet renewal: a connection problem, never a raw 401.

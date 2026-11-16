@@ -1,5 +1,7 @@
 const validRobotDraftRequest=d=>!!d&&typeof d==='object'&&!Array.isArray(d)&&Object.keys(d).sort().join(',')==='areaIds,optionId,repeat,revision,settingChoices,taskId'&&typeof d.taskId==='string'&&d.taskId.length>0&&d.taskId.length<=120&&d.revision===1&&typeof d.optionId==='string'&&/^[a-f0-9]{24}$/.test(d.optionId)&&Array.isArray(d.areaIds)&&d.areaIds.length<=32&&new Set(d.areaIds).size===d.areaIds.length&&d.areaIds.every(id=>typeof id==='string'&&/^[a-f0-9]{24}$/.test(id))&&Number.isInteger(d.repeat)&&d.repeat>=1&&d.repeat<=3&&Array.isArray(d.settingChoices)&&d.settingChoices.length<=16&&new Set(d.settingChoices.map(row=>row?.settingId)).size===d.settingChoices.length&&d.settingChoices.every(row=>row&&typeof row==='object'&&!Array.isArray(row)&&Object.keys(row).sort().join(',')==='choiceId,settingId'&&/^[a-f0-9]{24}$/.test(row.settingId)&&/^[a-f0-9]{24}$/.test(row.choiceId));
 import {requestWithin} from './request-deadline.js';
+import {newConnection,connectionStep,connectionPhase,liveStatusOf,canAct,connectionBlocked,connectionSessionExpired}
+ from './connection-model.js';
 // A wall screen may open HA ingress over plain http on a LAN name (for example
 // http://homeassistant.lan:8123). That is not a secure context, so the browser
 // leaves out crypto.randomUUID while crypto.getRandomValues stays available.
@@ -96,7 +98,23 @@ export class PodVoiceTransport {
   this.namedControllerRenewed=false;this.namedLaneWanted=false;this.namedRenewalDenied=false;this.namedRenewalUnconfirmed=false;
   this.onSnapshot = onSnapshot; this.onControllerRenewed=onControllerRenewed; this.onConnection = onConnection;
   this.controllerRenewalOwner={}; this.snapshot = null; this.acceptedReadAt = null; this.connected = false; this.closed = true; this.generation = 0;
+  this.connection=newConnection(globalThis.navigator?.onLine===false);
  }
+ // One connection model (connection-model.js). blocked (403) survives restart(); only start() or
+ // an explicit retry() lifts it. The browser's network flag lives here too.
+ dispatchConnection(event){this.connection=connectionStep(this.connection||newConnection(),event);return this.connection;}
+ get phase(){return connectionPhase(this.connection);}
+ get liveStatus(){return liveStatusOf(this.connection);}
+ get canAct(){return canAct(this.connection)&&this.connected===true;}
+ get recoveryBlocked(){return connectionBlocked(this.connection);}
+ set recoveryBlocked(value){this.dispatchConnection({type:value?'denied':'unblock'});}
+ get sessionExpired(){return connectionSessionExpired(this.connection);}
+ set sessionExpired(value){this.dispatchConnection({type:value?'expired':'unexpire'});}
+ get browserOffline(){return this.connection?.browserOffline===true;}
+ setBrowserOffline(offline){this.dispatchConnection({type:'browser',offline});}
+ // The screen's grace period ran out while the transport still has no fresh snapshot.
+ graceExpired(){this.dispatchConnection({type:'grace-expired'});}
+ retry(){this.dispatchConnection({type:'unblock'});return this.restart(false,false);}
  // Content-free diagnostics never own authority, retries, UI state or dispatch.
  createReadDiagnostic(){
   const token=Object.freeze({});let id=null,hash=Promise.resolve(null);
@@ -267,12 +285,12 @@ export class PodVoiceTransport {
   clearTimeout(this.freshnessTimer);this.freshnessTimer=setTimeout(()=>{if(!this.closed){this.recordDiagnostic('freshness',{code:'expiry'});this.disconnected();}},Math.min(6000,Math.max(0,6000-(Date.now()-readAt))));
   if(unchanged){this.presentedSnapshot=value;return true;}
   this.presentedSnapshot=value;this.presentedAt=Date.now();
-  const generation=this.generation;this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
+  const generation=this.generation;this.dispatchConnection({type:'connected'});this.notify('onConnection','connected');if(!this.closed&&generation===this.generation&&this.snapshot===value)this.notify('onSnapshot',value);return true;
  }
  // Presentation observers may report their own error; they cannot turn a valid
  // server read into a transport failure or prevent the next heartbeat.
  notify(name,...args){try{this[name](...args);}catch(error){this.recordDiagnostic('observer',{code:'error'});try{if(typeof globalThis.reportError==='function')globalThis.reportError(error);else console.error('PodView presentation observer:',error);}catch{/* Reporting must not revoke the accepted read. */}}}
- async start() {this.controllerRenewalDenied=false;if(this.screenEnrollment)this.namedRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
+ async start() {this.dispatchConnection({type:'start'});this.controllerRenewalDenied=false;if(this.screenEnrollment)this.namedRenewalDenied=false;return this.restart(false,true,!this.requireLocalRenewal);}
  scheduleRecovery(){
   if(this.closed||this.recoveryBlocked||this.recoveryTimer)return;
   const generation=this.generation,attempt=this.recoveryAttempt||0;
@@ -298,13 +316,14 @@ export class PodVoiceTransport {
  }
  async restart(retrying=false,renew=true,coalesce=false){this.restartCount=(this.restartCount||0)+1;try{return await this.restartRead(retrying,renew,coalesce);}finally{this.restartCount--;this.schedulePeerRead();}}
  async restartRead(retrying=false,renew=true,coalesce=false) {
+  if(this.recoveryBlocked)throw Error('transport_access_denied');
   // Enrollment denial does not revoke verified reads; automatic recovery stays read-only.
   renew=renew&&!this.controllerRenewalDenied;
   const attempt=retrying?this.recoveryAttempt||0:0;
   const peerRevision=this.peerRevision||0,renewAt=this.controllerRenewAt;this.close(false); this.closed = false;this.recoveryAttempt=attempt;this.recoveryReadOnly=!renew;this.controllerRenewAt=renew?null:renewAt;
   const generation = this.generation;
   this.controller = new AbortController();
-  this.notify('onConnection','connecting');
+  this.dispatchConnection({type:'connecting'});this.notify('onConnection','connecting');
   try {
    let response = await this.request(this.endpoint('snapshot'), {credentials:'same-origin', cache:'no-store', signal:this.controller.signal});
    if(response.status===401&&generation===this.generation){
@@ -376,7 +395,7 @@ export class PodVoiceTransport {
    if(!normalHA&&value.controllerContinuity?.enabled===true&&value.controllerContinuity.available===true&&!renewed&&!this.cookieReadAuthority)this.scheduleRecovery();
   } catch (error) { if (generation === this.generation) { this.disconnected(); throw error; } }
  }
- disconnected() { this.recordDiagnostic('connection',{code:'disconnected'});this.connected = false; this.notify('onConnection','disconnected');this.scheduleRecovery(); }
+ disconnected() { this.recordDiagnostic('connection',{code:'disconnected'});this.connected = false;this.dispatchConnection({type:'lost'});this.notify('onConnection','disconnected');this.scheduleRecovery(); }
  async request(url,options,ms,signal=this.controller?.signal,diagnosticRequestId,readDiagnosticToken){
   const generation=this.generation,originScope=this.diagnosticScope,originBoot=this.snapshot?.bootId,originRoom=this.snapshot?.roomId,read=!options?.method||options.method==='GET',started=Date.now(),localRequestSeq=++this.diagnosticRequestSequence;let endpoint='other',kind='other',requestId=diagnosticRequestId,httpStatus,code;
   try{const target=new URL(url,this.base),path=target.origin===this.base.origin&&target.pathname.startsWith(this.base.pathname)?target.pathname.slice(this.base.pathname.length):'other';if(diagnosticEndpoints.has(path))endpoint=path;const candidate=target.searchParams.get('kind');if(diagnosticKinds.has(candidate))kind=candidate;
@@ -634,7 +653,7 @@ export class PodVoiceTransport {
  close(disposeCoordinator=true) {
   this.stopDiagnosticUpload();this.recordDiagnostic('lifecycle',{code:'cleanup'});clearTimeout(this.diagnosticUploadTimer);this.diagnosticUploadTimer=null;if(disposeCoordinator)this.flushDiagnostics();
   if(disposeCoordinator){this.coordinatorEpoch=(this.coordinatorEpoch||0)+1;this.coordinatorPromise=null;const channel=this.peerChannel;this.peerChannel=null;if(channel){channel.onmessage=null;if(!this.renewHttpPending)channel.close();}this.peerSeen.clear();this.peerReadPending=false;clearTimeout(this.peerReadTimer);this.peerReadTimer=null;this.controllerRenewAt=null;this.controllerRenewRetryAt=null;}
-  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;this.recoveryBlocked=false;this.sessionExpired=false;
+  clearTimeout(this.recoveryTimer);this.recoveryTimer=null;this.recoveryAttempt=0;if(disposeCoordinator)this.dispatchConnection({type:'close'});
   clearTimeout(this.ingressRenewalTimer);this.ingressRenewalTimer=null;
   const renewal=this.ingressRenewalDone;this.ingressRenewalDone=null;
   clearTimeout(this.namedRenewTimer);this.namedRenewTimer=null;this.namedControllerRenewed=false;

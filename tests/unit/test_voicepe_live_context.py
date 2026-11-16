@@ -254,3 +254,19 @@ async def test_previous_reply_fault_cannot_revoke_next_context_admission():
     await link.play_url("http://new", playback_id="new")
     link._on_reply_status(f"{previous}:fault")
     assert link._stop_playback_allowed
+
+
+@pytest.mark.parametrize("outcome", ["stopped", "stopped_word", "fault"])
+async def test_stopped_or_faulted_reply_clears_announcing_like_finished(outcome):
+    link = live_device()
+    await admit(link)
+    edges: list[tuple[bool, object]] = []
+    link.on_media_state = lambda active, playback_id: edges.append((active, playback_id))
+    await link.play_url("http://live", playback_id="current")
+    link._on_reply_status(f"{link._reply_token}:started")
+    assert link._announcing is True
+    link._on_reply_status(f"{link._reply_token}:{outcome}")
+    assert link._announcing is False
+    assert [active for active, _ in edges] == [True, False]
+    link._on_reply_status(f"{link._reply_token}:{outcome}")
+    assert [active for active, _ in edges] == [True, False]
