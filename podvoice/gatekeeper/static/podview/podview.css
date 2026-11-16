@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 180a8129aae43fa8b4e7365efa5c08d33cb8227d0955fd40b51ca835cc919107 */
+/* Source: ui-kit.css · SHA256 1917b6b96dba458dbf783ab30e51ff266d189c91aefd1467f97a58a7109d5050 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5754,8 +5754,11 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
 :root[data-pv-nav=pop]{--pv-page-in:-48px;--pv-page-out:24px}
 :root[data-pv-nav] pv-widget-host .responses{view-transition-name:pv-page}
 :root[data-pv-nav] pv-widget-host #header-title{view-transition-name:pv-title}
+/* The root is not captured: chrome and player stay live under the overlay, and capture costs only the page and
+   the title. */
+:root[data-pv-nav]{view-transition-name:none}
 ::view-transition{pointer-events:none}
-::view-transition-old(root),::view-transition-new(root),::view-transition-group(pv-page){animation:none}
+::view-transition-group(pv-page){animation:none}
 ::view-transition-old(pv-page),::view-transition-new(pv-page){mix-blend-mode:normal}
 ::view-transition-old(pv-page){animation:pv-page-out var(--pv-dur-quick) var(--pv-ease-in) both}
 ::view-transition-new(pv-page){--pv-busy-from:0;

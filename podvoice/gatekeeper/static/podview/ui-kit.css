@@ -2979,8 +2979,11 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
 :root[data-pv-nav=pop]{--pv-page-in:-48px;--pv-page-out:24px}
 :root[data-pv-nav] pv-widget-host .responses{view-transition-name:pv-page}
 :root[data-pv-nav] pv-widget-host #header-title{view-transition-name:pv-title}
+/* The root is not captured: chrome and player stay live under the overlay, and capture costs only the page and
+   the title. */
+:root[data-pv-nav]{view-transition-name:none}
 ::view-transition{pointer-events:none}
-::view-transition-old(root),::view-transition-new(root),::view-transition-group(pv-page){animation:none}
+::view-transition-group(pv-page){animation:none}
 ::view-transition-old(pv-page),::view-transition-new(pv-page){mix-blend-mode:normal}
 ::view-transition-old(pv-page){animation:pv-page-out var(--pv-dur-quick) var(--pv-ease-in) both}
 ::view-transition-new(pv-page){--pv-busy-from:0;
