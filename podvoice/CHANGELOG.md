@@ -1,3 +1,7 @@
+## 2.1.12
+
+- Robot: siden viser igen din seneste start (rum, antal gange og indstillinger), også når basen melder en fejl som »Snavset vandbeholder er fuld«, så hovedknappen hedder fx »Start · 2 rum« og kan bruges. En basefejl blokerer ikke Start – Home Assistant afgør, om robotten kan køre. Er der ingen kendt opsætning, hedder hovedknappen »Vælg rum« og fører til rumvælgeren i stedet for at stå som en låst »Start rengøring«.
+
 ## 2.1.11
 
 - Robot: batteri, Vedligehold (hovedbørste, sidebørste, filter, sensorer, dockfilter) og dockens beskeder vises igen. Når én af robottens sensorer forsvinder fra Home Assistant (fx dockens rengøringsbørste), blev hele robotten før vist uden data; nu findes hver sensor på robotten og docken efter hvad den måler, og kun den manglende skjules.
