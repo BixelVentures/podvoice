@@ -15,7 +15,7 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  const node=document.querySelector(selector);
  node.addEventListener('pointerdown',()=>{const start=performance.now();
   const frame=()=>{const css=getComputedStyle(node);
-   const done=check==='scale'?!['none','1'].includes(css.scale)&&css.filter.startsWith('brightness(')
+   const done=check==='scale'?!['none','1'].includes(css.scale)&&css.boxShadow.includes('999px')
     :node.dataset.pvCircle==='down'&&getComputedStyle(node,'::after').opacity==='1';
    if(done)resolve(performance.now()-start);else if(performance.now()-start>500)resolve(Infinity);
     else requestAnimationFrame(frame);};
@@ -62,13 +62,13 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  assert(Math.abs(bar.middle-36)<=1,`Svar is vertically centred: ${bar.middle}`);
 
  await shot('topbar',{x:0,y:0,width:1180,height:72});
- // Svar press: shrink + darker within 100 ms of the finger landing.
+ // Svar press (P3, docs/MOTION.md §3.4): shrink + overlay within 100 ms of the finger landing; no filter.
  const svar=await page.locator('#open-history').boundingBox();
  const svarPress=pressLatency(page,'#open-history','scale');
  await page.mouse.move(svar.x+svar.width/2,svar.y+svar.height/2);await page.mouse.down();
  const svarMs=await svarPress;assert(svarMs<100,`Svar press visible in ${svarMs} ms`);await sleep(200);
  assert.deepEqual(await page.locator('#open-history').evaluate(n=>[getComputedStyle(n).scale,getComputedStyle(n).filter]),
-  ['0.97','brightness(0.92)'],'held press settles at .97 and slightly darker');
+  ['0.98','none'],'held button press settles at .98 with the overlay, without a filter');
  await shot('svar-pressed',{x:390,y:0,width:400,height:72});
  await page.mouse.move(5,400);await page.mouse.up();
 

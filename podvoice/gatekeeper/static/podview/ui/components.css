@@ -33,10 +33,7 @@ pv-widget-host :is(#device-activities,#resource-rail,#now-view)>.resource-previe
 :root{--pv-timer-accent:var(--pv-on-dark);--pv-timer-control:var(--pv-ink-2);--pv-timer-control-hover:var(--pv-ink-2)}
 
 /* Press uses individual scale, leaving scene transform/translate to motion owners. */
-body button{touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent;transition:scale var(--pv-press-out) var(--pv-ease-press),filter var(--pv-press-out) var(--pv-ease-press)!important}
-body button:is(:active,.is-pressed):not(:disabled){scale:1;filter:brightness(.985);transition-duration:var(--pv-press-in)!important}
-@media(prefers-reduced-motion:reduce){body button:is(:active,.is-pressed):not(:disabled){scale:1}body button{transition:none!important}}
-body:has(pv-widget-host[data-motion=reduced]) button:is(:active,.is-pressed):not(:disabled){scale:1}
+body button{touch-action:manipulation;user-select:none;-webkit-tap-highlight-color:transparent}
 [data-motion=reduced] .voice-mark{transition:none}
 /* Sheets keep their native modal/focus behavior; motion explains arrival only. */
 dialog{opacity:0;transform:translateY(10px);transition:opacity var(--pv-motion-feedback) var(--pv-screen-ease),transform 240ms var(--pv-ease-enter),display 240ms var(--pv-screen-ease) allow-discrete,overlay 240ms var(--pv-screen-ease) allow-discrete}
@@ -157,7 +154,6 @@ pv-widget-host #device-view #device-detail>pv-light-widget.pv-component[data-com
 /* App reduced motion reaches the actual body-sibling dialogs as well as the
    widget host. Remove optional press/edge movement, never semantic rotations. */
 body:has(>pv-widget-host[data-motion=reduced]) :is(button,summary){transition:none!important}
-body:has(>pv-widget-host[data-motion=reduced]) button:is(:active,.is-pressed):not(:disabled){transform:none!important}
 body:has(>pv-widget-host[data-motion=reduced]) .vehicle-disclosure>summary::after{transition:none!important}
 pv-widget-host[data-motion=reduced]>.frame{translate:none;scale:none;transition:none}
 
