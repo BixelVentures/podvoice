@@ -19,7 +19,7 @@ test('history Back uses canonical Svar title then overview then Ro without stopp
  const openCode=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim(),closeStart=source.indexOf("$(id).addEventListener('close',()=>{")+"$(id).addEventListener('close',()=>{".length,closeCode=source.slice(closeStart,source.indexOf('});}',closeStart)),backCode=source.split("this.headerBackAction=()=>{")[1].split("};$('show-photo')")[0];
  for(const origin of ['music','now','photo']){
   const f=fixture(),timer={id:'retained',remaining:42},music={playback:{active:true}},history=f.$('history'),opener=f.$('open-history'),under={inert:false};f.host.state={...f.host.state,focus:origin,timer,music};f.host.openers=new Map();opener.getClientRects=()=>[{}];opener.focus=()=>{};history.parentElement={children:[under,history],scrollTop:91};history.show=()=>{history.open=true;};f.host.focusHeading=()=>{};f.host.journey={cancel(){}};f.host.dispatch=event=>{f.host.state=sceneTransition(f.host.state,event);f.host.renderTopbar();};const close=new Function('id','$',closeCode);history.close=()=>{history.open=false;close.call(f.host,'history',f.$);};const open=new Function('$','document',`return function ${openCode}`)(f.$,{}),back=new Function('$',`return function(){${backCode}}`)(f.$);
-  open.call(f.host,'history',opener);assert.equal(f.$('header-title').textContent,'Svar');assert.equal(f.$('show-photo').hidden,true);assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå hjem');assert.equal(f.host.dataset.view,'active');assert.equal(under.inert,true);assert.equal(f.host.state.focus,origin);
+  open.call(f.host,'history',opener);assert.equal(f.$('header-title').textContent,'Svar');assert.equal(f.$('show-photo').hidden,true);assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå til Ro');assert.equal(f.host.dataset.view,'active');assert.equal(under.inert,true);assert.equal(f.host.state.focus,origin);
   back.call(f.host);assert.equal(history.open,false);assert.equal(f.$('header-title').textContent,'Lige nu');assert.equal(f.host.dataset.view,'active');assert.equal(under.inert,false);assert.equal(history.parentElement.scrollTop,91);assert.equal(f.host.state.timer,timer);assert.equal(f.host.state.music,music);assert.equal(f.host.state.focus,'now');back.call(f.host);assert.equal(f.host.state.focus,'photo');assert.equal(f.host.state.timer,timer);assert.equal(f.host.state.music,music);
  }
 });
@@ -29,7 +29,7 @@ test('one native detail button contains arrow and title, retains the h1 and invo
  const heading=new Node('h1'),doc={createTextNode:value=>new Node('#text',value),createElement:tag=>new Node(tag)},code=source.slice(source.indexOf(' renderHeaderTitle('),source.indexOf(' connectedCallback(){')),render=new Function('$','document',`return function ${code.trim()}`)(id=>{assert.equal(id,'header-title');return heading;},doc),host={dataset:{level:'detail'},headerBackAction(){backClicks++;}};
  render.call(host,'Svar',true);const action=host.headerTitleAction,copy=host.headerTitleCopy;assert.equal(heading.tagName,'H1');assert.equal(action.tagName,'BUTTON');assert.equal(action.type,'button');assert.equal(action.dataset.pvPress,'quiet');assert.equal(action.parentNode,heading);assert.equal(heading.textContent,'Svar');assert.deepEqual(action.children.map(child=>child.tagName),['IMG','SPAN']);assert.equal(action.children[0].src,'assets/icons/arrow-left-long.svg');assert.equal(action.children[0].getAttribute('aria-hidden'),'true');assert.equal(action.children[1].children[0],copy);assert.equal(action.getAttribute('aria-label'),'Svar · Tilbage');action.click();assert.equal(backClicks,1);assert.deepEqual([...action.listeners.keys()],['click'],'native Enter/Space activation needs no custom keyboard handler');
  const before=writes;render.call(host,'Svar',true);assert.equal(writes,before);render.call(host,'Find musik',true);assert.equal(heading.textContent,'Find musik');assert.equal(host.headerTitleAction,action);assert.equal(host.headerTitleCopy,copy);action.click();assert.equal(backClicks,2);
- host.dataset.level='home';render.call(host,'Lige nu',false);assert.equal(heading.children[0],copy);assert.equal(action.parentNode,null);assert.equal(heading.textContent,'Lige nu');action.click();assert.equal(backClicks,2,'a detached detail button cannot act on the home destination');render.call(host,'Gå hjem',false);assert.equal(heading.textContent,'Gå hjem');
+ host.dataset.level='home';render.call(host,'Lige nu',false);assert.equal(heading.children[0],copy);assert.equal(action.parentNode,null);assert.equal(heading.textContent,'Lige nu');action.click();assert.equal(backClicks,2,'a detached detail button cannot act on the home destination');render.call(host,'Gå til Ro',false);assert.equal(heading.textContent,'Gå til Ro');
  host.dataset.level='detail';render.call(host,'Vejr',true);assert.equal(action.parentNode,heading);assert.equal(action.children.length,2);action.click();assert.equal(backClicks,3,'repeated navigation does not duplicate the shared listener');
 });
 
@@ -67,13 +67,55 @@ test('desktop header keeps its divider at80 and gives the scroll viewport the in
 test('retained connection states remain distinct in the header without changing resources or navigation',()=>{const f=fixture(),timer={id:'known',remaining:42},music={playback:{active:true}},answer={id:'answer-1',title:'Known answer'};Object.assign(f.host.state,{connected:false,timer,music,answers:[answer]});for(const [status,label,state]of [['connecting','Genopretter forbindelse…','connecting'],['disconnected','Forbindelsen er afbrudt','offline']]){f.host.state.connectionPreview={status,snapshot:{}};f.host.renderTopbarClock(new Date(2026,9,23,12,34));assert.equal(f.$('header-date').textContent,label);assert.equal(f.$('nav').dataset.connectionState,state);assert.equal(f.host.state.timer,timer);assert.equal(f.host.state.music,music);assert.equal(f.host.state.answers[0],answer);assert.equal(f.host.state.focus,'now');}f.host.browserOffline=true;f.host.renderTopbarClock(new Date());assert.equal(f.$('header-date').textContent,'Ingen netværksforbindelse');assert.equal(f.$('nav').dataset.connectionState,'offline');});
 
 
-test('only overview exposes the distinct Hjem button; detail uses its one arrow-and-title button',()=>{const f=fixture(),icon=f.$('navigation-icon'),label=f.$('rest-label');f.$('show-photo').querySelector=selector=>selector==='img'?icon:label;f.host.renderTopbar();assert.equal(f.$('show-photo').hidden,false);assert.equal(f.$('show-photo').dataset.navigation,'rest');assert.equal(icon.getAttribute('src'),'assets/icons/house.svg');assert.equal(label.hidden,false);assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå hjem');f.host.state.focus='music';f.host.renderTopbar();assert.equal(f.$('show-photo').hidden,true);assert.equal(f.$('show-photo').dataset.navigation,'rest');assert.equal(icon.getAttribute('src'),'assets/icons/house.svg');f.host.state.focus='photo';f.host.renderTopbar();assert.equal(f.$('show-photo').hidden,true);});
+test('only overview exposes the distinct Ro shortcut; detail uses its one arrow-and-title button',()=>{const f=fixture(),icon=f.$('navigation-icon'),label=f.$('rest-label');f.$('show-photo').querySelector=selector=>selector==='img'?icon:label;f.host.renderTopbar();assert.equal(f.$('show-photo').hidden,false);assert.equal(f.$('show-photo').dataset.navigation,'rest');assert.equal(icon.getAttribute('src'),'assets/icons/moon.svg');assert.equal(label.hidden,false);assert.equal(label.textContent,'Ro');assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå til Ro');f.host.state.focus='music';f.host.renderTopbar();assert.equal(f.$('show-photo').hidden,true);assert.equal(f.$('show-photo').dataset.navigation,'rest');assert.equal(icon.getAttribute('src'),'assets/icons/moon.svg');f.host.state.focus='photo';f.host.renderTopbar();assert.equal(f.$('show-photo').hidden,true);});
 
 
-test('home titles remain plain while detail and history titles keep Back, independently of the separate Hjem button',()=>{const f=fixture(),roles=[],music={playback:{active:true}},timer={id:'kept',remaining:41};f.host.state.music=music;f.host.state.timer=timer;f.host.renderHeaderTitle=(title,back)=>roles.push({title,back});for(const [focus,title,back]of [['now','Lige nu',false],['photo','Hjem',false],['music','Musik',true],['weather','Vejr',true]]){f.host.state.focus=focus;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title,back});assert.equal(f.host.state.music,music);assert.equal(f.host.state.timer,timer);}f.host.state.focus='now';f.$('history').open=true;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title:'Svar',back:true});f.$('history').open=false;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title:'Lige nu',back:false});assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå hjem');assert.equal(f.$('show-photo').hidden,false);});
+test('home titles remain plain while detail and history titles keep Back, independently of the separate Ro shortcut',()=>{const f=fixture(),roles=[],music={playback:{active:true}},timer={id:'kept',remaining:41};f.host.state.music=music;f.host.state.timer=timer;f.host.renderHeaderTitle=(title,back)=>roles.push({title,back});for(const [focus,title,back]of [['now','Lige nu',false],['photo','Ro',false],['music','Musik',true],['weather','Vejr',true]]){f.host.state.focus=focus;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title,back});assert.equal(f.host.state.music,music);assert.equal(f.host.state.timer,timer);}f.host.state.focus='now';f.$('history').open=true;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title:'Svar',back:true});f.$('history').open=false;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title:'Lige nu',back:false});assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå til Ro');assert.equal(f.$('show-photo').hidden,false);});
 
 
-test('initial markup preserves the focusable heading and only the separate Hjem control',()=>{const html=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');assert.match(html,/<h1 id="header-title" class="header-title" tabindex="-1">Lige nu<\/h1>/);assert.match(html,/<button id="show-photo" type="button" aria-label="Gå hjem" data-navigation="rest"><img src="assets\/icons\/house.svg" alt=""><span class="rest-label">Hjem<\/span><\/button>/);assert.equal((source.match(/addEventListener\('click',this.headerBackAction\)/g)||[]).length,1);assert.doesNotMatch(source,/back\.click\(\)/,'detail Back invokes the shared owner directly, never a second hidden target');});
+test('initial markup preserves the focusable heading and only the separate Ro shortcut',()=>{const html=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');assert.match(html,/<h1 id="header-title" class="header-title" tabindex="-1">Lige nu<\/h1>/);assert.match(html,/<button id="show-photo" type="button" aria-label="Gå til Ro" data-navigation="rest"><img src="assets\/icons\/moon.svg" alt=""><span class="rest-label">Ro<\/span><\/button>/);assert.equal((source.match(/addEventListener\('click',this.headerBackAction\)/g)||[]).length,1);assert.doesNotMatch(source,/back\.click\(\)/,'detail Back invokes the shared owner directly, never a second hidden target');});
+
+test('tapping the overview Ro shortcut opens Foto-Ro and keeps music and timer', () => {
+  const backCode = source.split('this.headerBackAction=()=>{')[1].split("};$('show-photo')")[0];
+  assert.match(source, /\$\('show-photo'\)\.addEventListener\('click',this\.headerBackAction\)/);
+  const f = fixture(), timer = {id: 'kept', remaining: 40}, music = {playback: {active: true}};
+  const icon = f.$('navigation-icon'), label = f.$('rest-label');
+  f.$('show-photo').querySelector = selector => selector === 'img' ? icon : label;
+  f.$('history').open = false;
+  f.host.state = {...f.host.state, focus: 'now', timer, music};
+  f.host.focusHeading = () => {};
+  f.host.journey = {cancel() {}};
+  f.host.dispatch = event => { f.host.state = sceneTransition(f.host.state, event); f.host.renderTopbar(); };
+  f.host.renderTopbar();
+  assert.equal(f.$('show-photo').hidden, false);
+  assert.equal(f.$('show-photo').getAttribute('aria-label'), 'Gå til Ro');
+  assert.equal(label.textContent, 'Ro');
+  assert.equal(icon.getAttribute('src'), 'assets/icons/moon.svg');
+  new Function('$', `return function(){${backCode}}`)(f.$).call(f.host);
+  assert.equal(f.host.state.focus, 'photo');
+  assert.equal(f.host.state.timer, timer);
+  assert.equal(f.host.state.music, music);
+  assert.equal(f.$('show-photo').hidden, true);
+});
+
+test('Svar shows the canvas offline pill »Offline« while Voice PE is offline and returns to Svar', () => {
+  const start = source.indexOf(' renderSvarDevice(button){'), end = source.indexOf('\n }\n', start) + 3;
+  const render = new Function(`return ({${source.slice(start, end)}}).renderSvarDevice`)();
+  const label = {textContent: 'Svar'}, attrs = {};
+  const button = {dataset: {}, querySelector: selector => selector === 'strong' ? label : null,
+    getAttribute: key => attrs[key] ?? null, setAttribute: (key, value) => { attrs[key] = value; },
+    removeAttribute: key => { delete attrs[key]; }};
+  const host = {live: true, liveSnapshot: {voice: {device: 'offline'}}};
+  render.call(host, button);
+  assert.equal(label.textContent, 'Offline');
+  assert.equal(button.dataset.device, 'offline');
+  assert.match(attrs['aria-description'], /Voice PE er offline/);
+  host.liveSnapshot = {voice: {device: 'online'}};
+  render.call(host, button);
+  assert.equal(label.textContent, 'Svar');
+  assert.equal(button.dataset.device, undefined);
+  assert.equal(attrs['aria-description'], undefined);
+});
 
 test('current navigation shell is committed before a failing domain render without swallowing the error',()=>{
  const f=fixture(),failure=new Error('authored light projection failure'),timer={id:'kept',remaining:42},music={playback:{active:true}};
