@@ -66,6 +66,22 @@ async def read_service(tools, account):
     return copy.deepcopy(data) if checked.get("ok") is True else None
 
 
+def blocked_reason(speaker, matches):
+    """Why a speaker cannot be chosen; None when exactly one policy rule admits it.
+
+    The acceptance rule is unchanged: available and exactly one matching rule.
+    """
+    if speaker["homepodId"] is None:
+        return "no_homepod_id"
+    if speaker["availability"] != "available":
+        return "unavailable"
+    if matches == 0:
+        return "no_rule"
+    if matches > 1:
+        return "duplicate_rule"
+    return None
+
+
 def project(data, *, boot, room, account, default_room):
     if not isinstance(data, dict) or data.get("config_entry_id") != account:
         raise ValueError("wrong account")
@@ -249,40 +265,38 @@ async def read_catalogue(bridge, room, account, owner_binding, *, token=""):
         )
         if start_paired and isinstance(scope.get("targetId"), str):
             for speaker in catalogue["speakers"]:
-                speaker["startSelectable"] = bool(
-                    speaker["availability"] == "available"
-                    and sum(
-                        row.get("accountId") == account
-                        and row.get("targetId") == scope["targetId"]
-                        and row.get("nativeRoomId") == speaker["nativeRoomId"]
-                        and row.get("nativeHomepodId") == speaker["homepodId"]
-                        and any(
-                            action in row.get("actions", [])
-                            and controls.selection_allowed(room, token, action)
-                            for action in ("play_track", "play_context")
-                        )
-                        for row in rules
+                matches = sum(
+                    row.get("accountId") == account
+                    and row.get("targetId") == scope["targetId"]
+                    and row.get("nativeRoomId") == speaker["nativeRoomId"]
+                    and row.get("nativeHomepodId") == speaker["homepodId"]
+                    and any(
+                        action in row.get("actions", [])
+                        and controls.selection_allowed(room, token, action)
+                        for action in ("play_track", "play_context")
                     )
-                    == 1
+                    for row in rules
                 )
+                reason = blocked_reason(speaker, matches)
+                speaker["startSelectable"] = reason is None
+                speaker["startBlockedReason"] = reason
         if paired and isinstance(scope.get("targetId"), str):
             any_available = False
             # The configured start preference does not identify the actual output.
             # The picker and MOVE setup independently revalidate that output.
             for speaker in catalogue["speakers"]:
-                allowed = (
-                    speaker["availability"] == "available"
-                    and sum(
-                        row.get("accountId") == account
-                        and row.get("targetId") == scope["targetId"]
-                        and row.get("nativeRoomId") == speaker["nativeRoomId"]
-                        and row.get("nativeHomepodId") == speaker["homepodId"]
-                        and "move_existing_session" in row.get("actions", [])
-                        for row in rules
-                    )
-                    == 1
+                matches = sum(
+                    row.get("accountId") == account
+                    and row.get("targetId") == scope["targetId"]
+                    and row.get("nativeRoomId") == speaker["nativeRoomId"]
+                    and row.get("nativeHomepodId") == speaker["homepodId"]
+                    and "move_existing_session" in row.get("actions", [])
+                    for row in rules
                 )
+                reason = blocked_reason(speaker, matches)
+                allowed = reason is None
                 speaker["selectable"] = allowed
+                speaker["moveBlockedReason"] = reason
                 any_available |= allowed
             catalogue["moveAvailable"] = any_available
         return catalogue
