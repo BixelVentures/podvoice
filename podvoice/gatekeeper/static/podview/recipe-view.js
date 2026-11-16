@@ -2,6 +2,45 @@ import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent,
 // Number ranges read with an en dash (»12–15 min.«, »kl. 14–15«), as on the canvas; dates stay untouched.
 const RANGE = /(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g;
 const rangeDash = text => String(text).replace(RANGE,'$1–$2');
+// Native feel: a page's first frame never waits on the network. A source photo is shown only once it
+// has decoded; until then the canvas placeholder stands in its place and the photo swaps in quietly.
+const placeholder = 'assets/icons/image-square.svg';
+const decodedPhotos = new Map(); // src → decoded Image, kept so the photo stays in the memory cache
+const photoLoads = new Map();
+const decodePhoto = src=>{
+ if (decodedPhotos.has(src)) return Promise.resolve(true);
+ if (typeof globalThis.Image !== 'function') return Promise.resolve(false);
+ if (!photoLoads.has(src)) {
+  const image = new globalThis.Image();
+  image.decoding = 'async';
+  image.referrerPolicy = 'no-referrer';
+  image.src = src;
+  const loaded = image.decode ? image.decode() : new Promise((resolve,reject)=>{
+   image.onload = resolve;
+   image.onerror = reject;
+  });
+  photoLoads.set(src,loaded.then(()=>{decodedPhotos.set(src,image);return true;},()=>false)
+   .finally(()=>photoLoads.delete(src)));
+ }
+ return photoLoads.get(src);
+};
+const showPhoto = (img,src)=>{
+ img.referrerPolicy = 'no-referrer';
+ img.dataset.recipePhoto = src || '';
+ if (src && decodedPhotos.has(src)) {
+  delete img.dataset.recipeFallback;
+  img.src = src;
+  return;
+ }
+ img.dataset.recipeFallback = '';
+ img.src = placeholder;
+ if (!src) return;
+ decodePhoto(src).then(ok=>{
+  if (!ok || img.dataset.recipePhoto !== src) return;
+  delete img.dataset.recipeFallback;
+  img.src = src;
+ });
+};
 
 const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ#'];
 const collator = new Intl.Collator('da');
@@ -88,17 +127,9 @@ export class RecipeView {
 
  // Photos are the sources' own (often full-size) images: fetch and decode the first rows quietly.
  warmImages() {
-  if (typeof globalThis.Image !== 'function') return;
-  this.warmed ??= new Set();
+  decodePhoto(placeholder);
   for (const recipe of this.saved.slice(0, 12)) {
-   const src = recipe.image;
-   if (typeof src !== 'string' || !src || this.warmed.has(src)) continue;
-   this.warmed.add(src);
-   const image = new globalThis.Image();
-   image.decoding = 'async';
-   image.referrerPolicy = 'no-referrer';
-   image.src = src;
-   image.decode?.().catch(() => {});
+   if (typeof recipe.image === 'string' && recipe.image) decodePhoto(recipe.image);
   }
  }
 
@@ -411,12 +442,10 @@ export class RecipeView {
     thumb.decoding = 'async'; // Full-size source photos: decode off the main thread, only near view.
     thumb.loading = 'lazy';
     thumb.alt = '';
-    thumb.referrerPolicy = 'no-referrer';
-    thumb.src = recipe.image || 'assets/icons/image-square.svg';
-    if (!recipe.image) thumb.dataset.recipeFallback = '';
+    showPhoto(thumb,recipe.image);
     thumb.addEventListener('error',()=>{
      thumb.dataset.recipeFallback = '';
-     thumb.src = 'assets/icons/image-square.svg';
+     thumb.src = placeholder;
     },{once:true});
     row.append(thumb);
     row.addEventListener('click',()=>{
@@ -703,13 +732,13 @@ export class RecipeView {
   {
    if (file) this.coverUrl = URL.createObjectURL(file);
    const picture = element('img');
-   picture.src = this.coverUrl || recipe.image || 'assets/icons/image-square.svg';
-   if (!file && !recipe.image) picture.dataset.recipeFallback = '';
+   if (this.coverUrl) picture.src = this.coverUrl;
+   else showPhoto(picture,recipe.image);
    picture.referrerPolicy = 'no-referrer';
    picture.addEventListener('error',()=>{
     picture.dataset.recipeFallback = '';
     picture.alt = '';
-    picture.src = 'assets/icons/image-square.svg';
+    picture.src = placeholder;
    },{once:true});
    picture.alt = file || recipe.image ? 'Originalt billede til '+recipe.title : '';
    const images = [...(recipe.source?.files || []),...new Set([recipe.image,...(recipe.images || [])].filter(Boolean))];
@@ -935,12 +964,10 @@ export class RecipeView {
    const image = element('img');
    image.alt = '';
    image.decoding = 'async';
-   image.referrerPolicy = 'no-referrer';
-   image.src = recipe.image || 'assets/icons/image-square.svg';
-   if (!recipe.image) image.dataset.recipeFallback = '';
+   showPhoto(image,recipe.image);
    image.addEventListener('error',()=>{
     image.dataset.recipeFallback = '';
-    image.src = 'assets/icons/image-square.svg';
+    image.src = placeholder;
    },{once:true});
    cover.append(image);
    if (recipe === active) {
