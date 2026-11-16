@@ -204,9 +204,12 @@ def project(row: dict | None) -> dict:
     volume = _number(attributes.get("volume_level"))
     picture = attributes.get("entity_picture")
     uri = _text(attributes.get("media_content_id"), 256)
+    # PodConnect says whose Spotify login the room's engine uses; never a name.
+    account = attributes.get("podconnect_account")
     return {
         "state": state,
         "source": source if source in {"spotify", "radio"} else None,
+        "account": account if account in {"own", "other"} else "unknown",
         "title": _text(attributes.get("media_title")) if active else None,
         "artist": _text(attributes.get("media_artist")) if active else None,
         "album": _text(attributes.get("media_album_name")) if active else None,
@@ -339,6 +342,10 @@ async def read(bridge, room: str, account: str, token: str, current=lambda: True
     projected = project(row)
     artwork = projected.pop("artwork")
     actions, limit = permissions(bridge, room, token, rule) if row is not None else ([], None)
+    if projected["account"] == "other":
+        # Another Spotify login plays here: this screen never steers that person's music.
+        # Starting own music (»Vælg musik«) stays an explicit, separate choice.
+        actions, limit = [], None
     body.update(
         projected,
         artworkUrl=_artwork_url(room, account, artwork),
@@ -400,6 +407,12 @@ async def command(bridge, room: str, account: str, token: str, action: str, valu
     if entity is None:
         return {"outcome": "rejected", "error": "room_unavailable"}
     tools = bridge.tools
+    try:
+        other = project(await _state(tools, entity))["account"] == "other"
+    except Exception:
+        other = False
+    if other:
+        return {"outcome": "rejected", "error": "other_account"}
     started = time.monotonic()
     try:
         async with asyncio.timeout(10):

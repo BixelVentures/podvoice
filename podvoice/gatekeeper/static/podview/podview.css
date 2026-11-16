@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 6a108e2ee8f895fd941cb308c0ff3632f28d9520abadbea4153dc6b75a807d1e */
+/* Source: ui-kit.css · SHA256 f18819802f87dd64a715546b67dd9784588b4b31cdec1cd176dc7dea955997a5 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6153,6 +6153,14 @@ body button:not(.is-pressed){transition-property:filter!important}
   border:0;border-radius:999px;background:#17171A;color:#F7F6F3;font:600 17px/24px var(--pv-font)}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]:not(:has(#volume:enabled))>
   .move-here{margin-top:auto}
+ /* Anden konto (lærred »Player-AndenKonto«): their track, dimmed; no controls; »Vælg musik« at the bottom. */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account] #output .output-room::after{
+  display:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>.cover-button{
+  width:196px!important;height:196px!important;filter:grayscale(.6);opacity:.55;box-shadow:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>
+  :is(.player-progress,.transport,.volume){display:none!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>.move-here{margin-top:auto}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>img{width:20px;height:20px;
   filter:brightness(0) invert(1)}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots{display:none;

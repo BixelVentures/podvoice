@@ -3416,6 +3416,14 @@ body button:not(.is-pressed){transition-property:filter!important}
   border:0;border-radius:999px;background:#17171A;color:#F7F6F3;font:600 17px/24px var(--pv-font)}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=elsewhere]:not(:has(#volume:enabled))>
   .move-here{margin-top:auto}
+ /* Anden konto (lærred »Player-AndenKonto«): their track, dimmed; no controls; »Vælg musik« at the bottom. */
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account] #output .output-room::after{
+  display:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>.cover-button{
+  width:196px!important;height:196px!important;filter:grayscale(.6);opacity:.55;box-shadow:none}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>
+  :is(.player-progress,.transport,.volume){display:none!important}
+ body pv-widget-host[data-view=active]>.frame>.player.pv-card[data-placement=other-account]>.move-here{margin-top:auto}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>img{width:20px;height:20px;
   filter:brightness(0) invert(1)}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.move-here>.move-here-dots{display:none;
