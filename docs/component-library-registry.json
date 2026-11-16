@@ -977,6 +977,7 @@
           "method:robotCleaningOption": 1,
           "method:saveRobotLastSetup": 1,
           "method:applyRobotLastSetup": 1,
+          "method:storedRobotLastSetup": 1,
           "method:prefetchRobotOfferNow": 1,
           "method:rememberRobotOffer": 1,
           "method:robotShownOffer": 1,
