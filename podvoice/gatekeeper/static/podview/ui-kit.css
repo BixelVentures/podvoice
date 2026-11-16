@@ -77,7 +77,6 @@ pv-widget-host #music-refinements>button[data-kit=chip]{height:var(--pv-hit);min
 .pv-icon.--24{width:var(--pv-icon-s);height:var(--pv-icon-s)}.pv-icon.--48{width:var(--pv-icon-l);height:var(--pv-icon-l)}
 .pv-clock{font-size:var(--pv-clock-size);font-weight:500;font-variant-numeric:tabular-nums}
 /* Press belongs to the nearest control, never a static container or its active child. */
-:is(button,a[href],summary,[role=button]):is(.pv-card,.pv-hero,.pv-tile,.pv-btn):is(:active,.is-pressed):not([disabled],[aria-disabled=true],[data-touch-cancelled=true]):not(:has(:is(button,a[href],summary,input,select,textarea,[role=button],[role=slider]):is(:active,.is-pressed))){transform:none;scale:1;filter:brightness(.985);transition:filter var(--pv-d-press) var(--pv-ease)}
 /* Shared detail rhythm uses content, never blank filler to reach a coordinate. */
 pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail){row-gap:var(--pv-s3);color:var(--pv-ink)}
 pv-widget-host :is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail) :is(h2,h3,legend){font:var(--pv-t-label);color:var(--pv-ink)}
@@ -270,7 +269,7 @@ pv-widget-host .view-nav #open-history.header-history:focus-visible{outline:2px 
 }
 @media(max-width:480px){pv-widget-host[data-topbar=true][data-view=active] .view-nav .header-title:has(>#header-title-action){display:none}}
 @media(max-width:759px){.vehicle-control-tiles,pv-widget-host #vehicle-view .vehicle-control-tiles{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){:root{--pv-d-fast:120ms;--pv-d-move:120ms}:is(button,a[href],summary,[role=button]):is(.pv-card,.pv-hero,.pv-tile,.pv-btn):is(:active,.is-pressed):not([disabled],[aria-disabled=true],[data-touch-cancelled=true]):not(:has(:is(button,a[href],summary,input,select,textarea,[role=button],[role=slider]):is(:active,.is-pressed))){transform:none;scale:1;filter:none;transition:none}}
+@media(prefers-reduced-motion:reduce){:root{--pv-d-fast:120ms;--pv-d-move:120ms}}
 /* Output selection and title/artist navigation share their existing native
    Button owners. Each target reserves64px; no child extends over a neighbour. */
 pv-widget-host .player>.output,pv-widget-host .player>.track{height:var(--pv-hit);min-height:var(--pv-hit)}
@@ -1159,7 +1158,7 @@ pv-widget-host{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;
  -webkit-touch-callout:none;touch-action:pan-x pan-y}
 :is(button,a[href],summary,[role=button]){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 :is(input,textarea,[contenteditable]:not([contenteditable=false])){-webkit-user-select:text;user-select:text}
-:is(button,a[href],summary,[role=button]).is-pressed:not([disabled],[aria-disabled=true],[data-touch-cancelled=true]){box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)!important;filter:none!important;transform:none!important;scale:1!important}
+:is(button,a[href],summary,[role=button]).is-pressed:not([disabled],[aria-disabled=true],[data-touch-cancelled=true]){box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)!important;transform:none!important}
 :is(button,a[href],summary,[role=button])[data-pv-pointer-focus=true]:focus{outline:none!important}
 /* Native :active on an ancestor must not multiply a child's press treatment. */
 :is(button,a[href],summary,[role=button]):active{filter:none!important;transform:none!important;scale:1!important}
@@ -2895,19 +2894,34 @@ body{font-family:var(--pv-font)}
 .pv-widget[data-size=m]{width:var(--pv-widget-m);height:var(--pv-hero-s)}
 .pv-widget[data-size=l]{width:var(--pv-widget-m);height:var(--pv-hero-l)}
 
-/* Press: visible on pointerdown (< 100 ms). Controls shrink and darken; flat surfaces draw a circle at the finger. */
-body :is(button,a[href],summary,[role=button]).is-pressed:not(:disabled,[aria-disabled=true],[data-touch-cancelled=true],.pv-widget,[data-pv-press=flat]){
- scale:.97!important;filter:brightness(.92)!important;
-  transition:scale var(--pv-d-press) var(--pv-ease),filter var(--pv-d-press) var(--pv-ease)!important}
-/* Release returns the scale at once (only the darkening fades), so no scale animation outlives the tap. */
-body button:not(.is-pressed){transition-property:filter!important}
+/* P3 press (docs/MOTION.md §3.4), the one owner of press motion. Down: scale in --pv-dur-tap, overlay at once.
+   Release and cancel: scale back on the quick spring, overlay out in --pv-dur-quick. A transition is read from
+   the destination state, so down and up each get their own curve. Tiles and cards .97, buttons .98, small icon
+   buttons no scale. Reduced motion keeps the overlay and drops the scale. Flat surfaces draw a circle instead. */
+body :is(button,a[href],summary,[role=button]){
+ transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out)!important}
+:where(button,a[href],summary,[role=button]){--pv-press-scale:.98}
+:where(.pv-tile,.pv-card,.pv-hero,.resource-preview,.result,.queue-track,.cover-button,.timer-shortcut,
+ .svar-today-row){
+ --pv-press-scale:.97}
+:where(.round:not(.main-control),.pv-dialog-close,.volume-mute,.pv-toggle:not(.light-lamp-toggle),
+ [data-pv-press=icon]){--pv-press-scale:1}
+:root[data-pv-motion=reduced] body :is(button,a[href],summary,[role=button]){--pv-press-scale:1}
+body :is(button,a[href],summary,[role=button]).is-pressed:not(:disabled,[aria-disabled=true],
+ [data-touch-cancelled=true],.pv-widget,[data-pv-press=flat]){
+ scale:var(--pv-press-scale)!important;transition:scale var(--pv-dur-tap) var(--pv-ease-out),box-shadow 0s!important}
+/* Quiet controls dim instead; the opacity follows the same in and out timing as the overlay. */
+body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:scale var(--pv-spring-quick),
+ box-shadow var(--pv-dur-quick) var(--pv-ease-out),opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
+body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:not(:disabled,[aria-disabled=true]){
+ transition:scale var(--pv-dur-tap) var(--pv-ease-out),box-shadow 0s,opacity 0s!important}
 [data-pv-press=flat]{position:relative;overflow:hidden}
 :is(.pv-widget,[data-pv-press=flat])::after{content:"";position:absolute;z-index:0;pointer-events:none;
  border-radius:50%;
  left:var(--pv-press-x,50%);top:var(--pv-press-y,50%);width:var(--pv-press-size,0);height:var(--pv-press-size,0);
- translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0;transition:opacity var(--pv-d-switch) var(--pv-ease)}
+ translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0;transition:opacity var(--pv-dur-quick) var(--pv-ease-out)}
 :is(.pv-widget,[data-pv-press=flat])[data-pv-circle=down]::after{opacity:1;transition:none;
- animation:pv-press-circle var(--pv-d-press) var(--pv-ease) both}
+ animation:pv-press-circle var(--pv-dur-tap) var(--pv-ease-out) both}
 @keyframes pv-press-circle{from{scale:.2}to{scale:1}}
 
 /* Horizontal scroll: the weather's fade toward the right edge, with snap. */
@@ -6145,9 +6159,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   scrollbar-width:none}
  #svar-today .svar-today-row{display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;width:100%;
   height:150px;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;
-  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;overflow:hidden;cursor:pointer;
-  transition:transform .12s ease,filter .12s ease}
- #svar-today .svar-today-row:active{transform:scale(.985);filter:brightness(.96)}
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;overflow:hidden;cursor:pointer}
  #svar-today .svar-today-row[data-domain=weather]{background:#DDE6FB}
  #svar-today .svar-today-row[data-domain=music]{background:#F6DCCB}
  #svar-today .svar-today-row[aria-current=true]{background:#FFFFFF;box-shadow:inset 0 0 0 3px #17171A}

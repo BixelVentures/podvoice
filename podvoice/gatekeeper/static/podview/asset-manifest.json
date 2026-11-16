@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "1abe09a44f499df2e5b07ba6b94b50b6ec844b9ecd427811311fe43707ecfd64"
+      "sha256": "53359900ad46622af7aedc5780556b1ec8c03a5073fb5d84df6dbc755a499364"
     },
     {
       "path": "library.css",
@@ -819,11 +819,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "6dbfd1d8b4b2649bbcf3902f1c64cc57ee4929d9f209f9eece3f59bd3842998e"
+      "sha256": "58a1cfe0457cc2452ec2505bbc721a83861a908166b298a10fee8543a3c9ed2b"
     },
     {
       "path": "podview.css",
-      "sha256": "e64c8d950c589f4b1da964ded969043c88781f205077c06a4c2fe9ca1c025aa1"
+      "sha256": "fa514dfa8e01f56d05d8c8f504a7ad83d39500a3f3efcee56001dff92d34ab07"
     },
     {
       "path": "podvoice-transport.js",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "379aa575586c878f175e20d1963f32d596cd5425713be7ebd7da6747bad2d69b"
+      "sha256": "0281cffd2c2141851d92041539a86c08b23abef014af18083611d5f2cdfe6f80"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -951,7 +951,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "85d9c92c08e3272ec106b052e5b0c0b0785414647ed5e27628cd645b348f9867"
+      "sha256": "73b133517b1b5ed4210cc7de26f850b2d537c3b02112a3aa0c9acf88b03bd06c"
     },
     {
       "path": "ui/components.js",
@@ -1011,7 +1011,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "1e2170755cb7f9babd6640b3dad0e9aa608a3258d5bf2e1cc1c293e07072b7d0"
+      "sha256": "63927435a8e9c3d67dc3b0cd6d5c4e8e747af932d0f56cdf0f6eaf79e7038310"
     },
     {
       "path": "ui/reconcile.js",
@@ -1091,11 +1091,11 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "1ec2ec56867f61c7281b1b73be9505494410e8ccc45ebe7e414b270741eaf879"
+      "sha256": "b19bc929cb7255490b36763b6f1e75f7962e7d6432b5920f518e425d77a5f53e"
     },
     {
       "path": "widget-view.css",
-      "sha256": "a1b947572f9cdf5359fbb1f49fd314acdf4214853b2a1682c48d1c6a2f8a698b"
+      "sha256": "4216b4d7876705f4429d2b640beb45c7507c0d73410ffb3d27c464ea6bd65058"
     },
     {
       "path": "widget-view.js",
