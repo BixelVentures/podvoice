@@ -19,7 +19,8 @@ test('care rows keep the product order and labels and flag a counter at or below
 });
 
 test('no telemetry, no care rows: nothing is invented for a robot that reports none', () => {
- assert.deepEqual(robotCare({id: 'vacuum.q', status: 'docked', telemetry: {status: 'unavailable', items: []}}, now), []);
+ const silent = {id: 'vacuum.q', status: 'docked', telemetry: {status: 'unavailable', items: []}};
+ assert.deepEqual(robotCare(silent, now), []);
  assert.deepEqual(robotCare(robot([row('battery', 80, '%')]), now), []);
 });
 

@@ -381,6 +381,8 @@ const assertRobotObservation=async(page,requests,action)=>{
    const button=operations.and(panel.locator(`[data-dock-operation=${operation}]`));
    const reply=page.waitForResponse(r=>r.url().endsWith('/view/api/control/actions')
     &&r.request().method()==='POST',{timeout:10000});
+   // A running operation's stop leads »Mere« (lærred A-Robot): open »Mere« when it has closed.
+   if(!await button.isVisible()){await baseMenu.tap();await button.waitFor({state:'visible',timeout:10000});}
    await button.tap();
    assert.equal((await (await reply).json()).outcome,'accepted');
    await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveHomePending);

@@ -139,8 +139,10 @@ export class VehicleView{
   assign(this.title,model.title);assign(this.context,model.context);const status=model.status==='Lader'?'Bilen lader':model.status;const qualified=status;const trunk=model.mode==='observed'&&model.access?.rearTrunk==='open'?'Bagagerum åbent':null;assign(this.status,configuredUnavailable?'Status ukendt':trunk?`${qualified} · ${trunk}`:qualified);const updated=vehicleUpdatedLabel(model)||null;assign(this.connectionNote,updated||(connectionDetail||'Tilføj i Home Assistant'));this.connectionNote.hidden=!updated&&(model.mode!=='unconnected'||configuredUnavailable);this.content.hidden=model.mode==='unconnected';
   // Lærred »A-Tesla«: the number in 64 mono, » %« half size beside it (one text, two sizes).
   const batteryText=model.batteryPercent===null?'—':`${model.batteryPercent} %`;
-  if(this.batteryValue.textContent!==batteryText){this.batteryValue.textContent=model.batteryPercent===null?'—':String(model.batteryPercent);
-   if(model.batteryPercent!==null){const unit=this.root.ownerDocument.createElement('span');unit.className='vehicle-battery-unit';
+  if(this.batteryValue.textContent!==batteryText){
+   this.batteryValue.textContent=model.batteryPercent===null?'—':String(model.batteryPercent);
+   if(model.batteryPercent!==null){const unit=this.root.ownerDocument.createElement('span');
+    unit.className='vehicle-battery-unit';
     unit.textContent=' %';this.batteryValue.append(unit);}}
   this.batteryGroup.hidden=model.batteryPercent===null;assign(this.rangeValue,model.rangeKm===null?'—':`${model.rangeKm.toLocaleString('da-DK',{maximumFractionDigits:0})} km`);this.rangeGroup.hidden=model.rangeKm===null;
   const known=model.batteryPercent!==null;this.rail.dataset.known=String(known);this.rail.hidden=!known;this.meter.hidden=!known;

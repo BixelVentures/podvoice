@@ -3,7 +3,8 @@ import {applyKitComponent,applyKitTemplate} from './ui/kit.js';
 import {conditionLabel,conditionIcon,weatherTemperature,forecastDayRows,localDayKey,hourlyWeather,weatherAiAdvice,weatherPassiveAdvice,weatherAppearance,weatherFreshUntil,windStrength,windFrom,weatherDisplayLocation} from './weather-observation.js';
 import {updatedLabel} from './updated-label.js';
 // Number ranges read with an en dash (»12–15 min.«, »kl. 14–15«), as on the canvas; dates stay untouched.
-const rangeDash = text => String(text).replace(/(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g,'$1–$2');
+const RANGE = /(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g;
+const rangeDash = text => String(text).replace(RANGE,'$1–$2');
 export function weatherSourceLabel(source){
  if(source==='Forhåndsvisning')return 'Eksempeldata';
  const provider=typeof source==='string'?source.replace(/^Home Assistant(?:\s*\/\s*|\s*$)/i,'').trim():'';

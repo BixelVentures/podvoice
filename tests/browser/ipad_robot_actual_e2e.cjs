@@ -122,7 +122,8 @@ async function open(stage,{overview=false}={}){
  page=await open('robot-detail-drying');
  const baseHero=page.locator(HERO);
  assert((await baseHero.locator('.transport>button:visible').count())<=1,'at most the primary beside »Mere«');
- assert.equal(await baseHero.locator('.transport>button[data-dock-operation]').count(),0,'no base stop in the hero row');
+ assert.equal(await baseHero.locator('.transport>button[data-dock-operation]').count(),0,
+  'no base stop in the hero row');
  await baseHero.locator('[id^=robot-base-][id$=-trigger]').tap();await sleep(400);
  const stop=baseHero.locator('[id^=robot-base-][id$=-panel] .pv-actions>button').first();
  assert.match(await stop.getAttribute('data-dock-operation'),/_stop$/,'the running operation\'s stop comes first');

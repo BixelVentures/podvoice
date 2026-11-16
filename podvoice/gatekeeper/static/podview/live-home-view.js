@@ -75,8 +75,10 @@ function renderRobotCare(historySection,device){
  let care=$('robot-care');
  if(!care&&!rows.length)return;
  if(!care){
-  care=make('section','robot-care');care.id='robot-care';care.hidden=true;care.setAttribute('aria-labelledby','robot-care-title');
-  const header=make('header','robot-care-heading'),title=make('h2','robot-care-title','Vedligehold');title.id='robot-care-title';
+  care=make('section','robot-care');care.id='robot-care';care.hidden=true;
+  care.setAttribute('aria-labelledby','robot-care-title');
+  const header=make('header','robot-care-heading'),title=make('h2','robot-care-title','Vedligehold');
+  title.id='robot-care-title';
   care.countNode=make('span','robot-care-count');care.listNode=make('ul','robot-care-list');
   header.append(title,care.countNode);care.append(header,care.listNode);
  }

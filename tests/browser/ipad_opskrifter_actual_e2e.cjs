@@ -91,14 +91,18 @@ async function stagePage(stage){
  assert.equal(shown.text,`${await cards.count()} opskrifter`);assert.equal(shown.size,'16px');
  const explore=await box(page.getByRole('button',{name:'Udforsk',exact:true}));
  assert.equal(explore.h,44);assert.equal(explore.bg,'rgb(247, 246, 243)');near(explore.x+explore.w,1156,'Udforsk ends right');
- assert.equal(await page.locator('#recipe-view [data-recipe-layout=toolbar] button',{hasText:'Tilføj opskrift'}).count(),0,
+ const toolbarAdd=page.locator('#recipe-view [data-recipe-layout=toolbar] button',{hasText:'Tilføj opskrift'});
+ assert.equal(await toolbarAdd.count(),0,
   'the toolbar has no »Tilføj opskrift« (canvas: categories, count, Udforsk)');
  // The category track never runs under the count, also with more categories than the canvas (e.g. »Kager«):
  // the track ends before »N opskrifter«, and labels past its edge scroll inside the track.
  const assertTrackFits=async label=>{
-  const fit=await page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options').evaluate(n=>{
-   const b=n.getBoundingClientRect(),count=document.querySelector('#recipe-view [data-recipe-count]').getBoundingClientRect();
-   return {right:b.right,count:count.left,overflow:getComputedStyle(n).overflowX,scroll:n.scrollWidth,client:n.clientWidth};});
+  const track=page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options');
+  const fit=await track.evaluate(n=>{
+   const b=n.getBoundingClientRect(),
+    count=document.querySelector('#recipe-view [data-recipe-count]').getBoundingClientRect();
+   return {right:b.right,count:count.left,overflow:getComputedStyle(n).overflowX,scroll:n.scrollWidth,
+    client:n.clientWidth};});
   assert(fit.right+16<=fit.count+1,`${label}: the track ends 16 before the count (${fit.right} / ${fit.count})`);
   assert(fit.scroll<=fit.client||fit.overflow==='auto',`${label}: overflowing categories scroll inside the track`);
   return fit;

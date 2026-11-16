@@ -156,7 +156,8 @@ export class RobotControlPanel extends (globalThis.HTMLElement||class{}){
   const eyebrow=['docked','charging'].includes(d?.status)?'Ved basen':['docking','returning'].includes(d?.status)
    ?'Kør til basen':['fault','error'].includes(d?.status)?'Robotfejl':['cleaning','paused'].includes(d?.status)&&mode
    ?mode:'Robotstøvsuger';
-  if(!this.heroEyebrow||this.heroEyebrow.parentNode!==this.observation){this.heroEyebrow=make('p','','robot-hero-eyebrow');
+  if(!this.heroEyebrow||this.heroEyebrow.parentNode!==this.observation){
+   this.heroEyebrow=make('p','','robot-hero-eyebrow');
    this.observation.prepend(this.heroEyebrow);}
   if(this.heroEyebrow.textContent!==eyebrow)this.heroEyebrow.textContent=eyebrow;
   const hidden=maintenanceHidden(d),recoverySignature=JSON.stringify({deviceId:d?.id,issues:experience.issues,maintenance:experience.maintenance,hidden});

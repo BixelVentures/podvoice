@@ -1,6 +1,7 @@
 import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent, createKitChoiceGroup, createKitDisclosure} from './ui/kit.js';
 // Number ranges read with an en dash (»12–15 min.«, »kl. 14–15«), as on the canvas; dates stay untouched.
-const rangeDash = text => String(text).replace(/(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g,'$1–$2');
+const RANGE = /(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g;
+const rangeDash = text => String(text).replace(RANGE,'$1–$2');
 
 const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ#'];
 const collator = new Intl.Collator('da');
@@ -393,7 +394,8 @@ export class RecipeView {
     if (recipe === activeRecipe) row.setAttribute('aria-current','true');
     const copy = element('span');
     const age = Date.now() - (recipe.source?.uploadedAt ?? recipe.createdAt);
-    const status = rangeDash([recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ')) || 'Gemt opskrift';
+    const status = rangeDash([recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean)
+     .join(' · ')) || 'Gemt opskrift';
     // A-Opskrifter: the band names the current step (»Burgerboller · trin 2 af 5«); the cards show the name.
     if (recipe === activeRecipe) {
      const done = this.sessions.get(recipe).steps, next = recipe.steps.findIndex((_,i)=>!done.has(String(i)));

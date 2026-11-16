@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 c320ef21c8c18237f85f2174604f364ff467323cf909f7d8b46a551920a60265 */
+/* Source: ui-kit.css · SHA256 6019c80aaa63eb09e010a327ae457f6fdf2eaca863b1782f4c163071b311004a */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -6926,7 +6926,8 @@ body button:not(.is-pressed){transition-property:filter!important}
    grid-column:1!important;margin:0!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.robot-hero-eyebrow{grid-row:1!important;
-   margin:0 0 14px!important;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
+   margin:0 0 14px!important;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;
+   color:#5F5E5A!important;
    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:440px}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.pv-content{grid-row:2!important;
@@ -7143,8 +7144,9 @@ body button:not(.is-pressed){transition-property:filter!important}
  /* The robot's old detail widgets are not drawn beside the panel; their empty wrapper takes no gap either. */
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>#device-detail:not(:has(
    >:not(pv-vacuum-widget,pv-light-widget))){display:none!important}
- pv-widget-host .responses>#device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden])){
-   flex-flow:row wrap!important;align-content:flex-start!important;align-items:stretch!important;column-gap:16px!important}
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden])){
+   flex-flow:row wrap!important;align-content:flex-start!important;align-items:stretch!important;
+   column-gap:16px!important}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden]))>*{
    flex:0 0 744px!important}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden]))
@@ -7153,13 +7155,15 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>#robot-care:not([hidden]){
    flex:0 0 calc((744px - 16px) * .4)!important;width:auto!important;max-width:none!important;min-width:0!important;
    display:flex!important;flex-direction:column!important;gap:14px!important}
- pv-widget-host #device-view#device-view#device-view:not(:has(pv-robot-control-panel))>#robot-care{display:none!important}
+ pv-widget-host #device-view#device-view#device-view:not(:has(pv-robot-control-panel))>#robot-care{
+   display:none!important}
  pv-widget-host #robot-care .robot-care-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
  pv-widget-host #robot-care .robot-care-title{margin:0;font:800 24px/30px 'Schibsted Grotesk',system-ui,sans-serif;
    color:#17171A}
  pv-widget-host #robot-care .robot-care-count{font:400 15px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A;
    white-space:nowrap}
- pv-widget-host #robot-care .robot-care-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+ pv-widget-host #robot-care .robot-care-list{list-style:none;margin:0;padding:0;display:flex;
+   flex-direction:column;gap:12px}
  pv-widget-host #robot-care .robot-care-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
    padding-bottom:12px;border-bottom:1px solid rgba(23,23,26,.07)}
  pv-widget-host #robot-care .robot-care-label{font:400 16px 'Schibsted Grotesk',system-ui,sans-serif;color:#17171A}
