@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 c75d1cf8d5087ac3102a7b8162ea40338e46456d644daa427ff992d6297fc349 */
+/* Source: ui-kit.css · SHA256 e426a37bbadba7a5be0274952cb9f04c0e744f461d286bdefc45a1a9e558e847 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5696,11 +5696,17 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
   .resource-card[data-overview-extra=true]{display:none!important}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
-  .resource-card>.overview-more:not([hidden]){position:absolute;z-index:3;top:18px;right:48px;height:32px;
-  min-width:44px;padding:0 12px;margin:0;border:0;border-radius:999px;background:var(--pv-ink);color:#F7F6F3;
-  box-shadow:none;font:500 15px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:-0.02em;cursor:pointer}
+  .resource-card>.overview-more:not([hidden]){position:absolute;z-index:3;top:20px;right:48px;box-sizing:border-box;
+  height:26px;min-width:26px;padding:0 8px;margin:0;border:0;border-radius:999px;background:rgba(23,23,26,.08);
+  color:var(--pv-ink);box-shadow:none;display:inline-flex;align-items:center;justify-content:center;
+  font:700 15px/1 'Schibsted Grotesk',system-ui,sans-serif;font-variant-numeric:tabular-nums;letter-spacing:0;
+  cursor:pointer}
+ /* K-Widget »more«: the 26-px pill keeps a 44-px touch area. */
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
-  :is(#timer-card,.resource-card)>:not([hidden]){box-sizing:border-box;height:100%;min-height:0;max-height:none}
+  .resource-card>.overview-more:not([hidden])::after{content:"";position:absolute;inset:-9px -4px}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  :is(#timer-card,.resource-card)>:not([hidden]):not(.overview-more){box-sizing:border-box;height:100%;min-height:0;
+  max-height:none}
 
  /* Every widget head ends in the same chevron (K-Widget: 20 px, right 20, centred on the 26-px head). */
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)
@@ -8565,34 +8571,46 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   opacity:.4!important;transition:none!important}
 
 
-/* Svar page (lærred »A-SvarKort«, »SvarK-Historik«): the answer card at 24/88, »I dag« in the 372 column. The header
-   is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), rows 76 high with radius 18 and 10 between; the answer being
-   read is white with a 3-px ink ring; the time sits right in 15 mono. */
+/* Svar page (lærred »A-SvarKort«, »SvarK-Spec« v193): the answer card at 24/88, »I dag« in the 372 column. The header
+   is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list; the list is four equal rows of 150 with 16
+   between (radius 20, padding 16): head 24 (icon 18 · kind 15/600 · time 15 mono), then the title 17/22/700 in at
+   most two lines, 8 under the head. The answer being read is white with a 3-px ink ring; the others carry their
+   domain tone. */
 .svar-today[hidden]{display:none!important}
 
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>:is(.player,#player-empty){display:none!important}
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:not([hidden]){display:flex;
-  flex-direction:column;gap:10px;align-self:start;box-sizing:border-box;width:372px;height:696px;
+  position:relative;flex-direction:column;gap:16px;align-self:start;box-sizing:border-box;width:372px;height:696px;
   margin-block-start:16px;padding:0;overflow:hidden;color:#17171A;font-family:'Schibsted Grotesk',system-ui,sans-serif}
  #svar-today>header{display:flex;align-items:center;justify-content:space-between;height:32px;flex:none}
  #svar-today>header>h2{margin:0;font:800 22px/32px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:0}
  #svar-today>header>span{font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
- #svar-today .svar-today-rows{display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;
+ #svar-today .svar-today-rows{display:grid;grid-auto-rows:150px;gap:16px;flex:1 1 auto;min-height:0;overflow-y:auto;
   scrollbar-width:none}
- #svar-today .svar-today-row{flex:none;display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;
-  column-gap:12px;box-sizing:border-box;width:100%;height:76px;margin:0;padding:0 16px;border:0;border-radius:18px;
-  background:rgba(247,246,243,.7);box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;
-  cursor:pointer}
+ #svar-today .svar-today-row{display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;width:100%;
+  height:150px;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;overflow:hidden;cursor:pointer;
+  transition:transform .12s ease,filter .12s ease}
+ #svar-today .svar-today-row:active{transform:scale(.985);filter:brightness(.96)}
+ #svar-today .svar-today-row[data-domain=weather]{background:#DDE6FB}
+ #svar-today .svar-today-row[data-domain=music]{background:#F6DCCB}
  #svar-today .svar-today-row[aria-current=true]{background:#FFFFFF;box-shadow:inset 0 0 0 3px #17171A}
- #svar-today .svar-today-copy{display:flex;flex-direction:column;min-width:0}
- #svar-today .svar-today-copy>strong{font:700 17px/22px 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;
-  overflow:hidden;text-overflow:ellipsis}
- #svar-today .svar-today-copy>small{font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
- #svar-today .svar-today-row>time{font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
- /* »↑ 1 nyt svar« (lærred »SvarK-Historik«): a 44-px dark pill between the header and the list. */
- #svar-today>.svar-today-new{flex:none;height:44px;margin:0;padding:0 16px;border:0;border-radius:999px;
-  background:#17171A;color:#F7F6F3;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer}
+ #svar-today .svar-today-head{display:flex;align-items:center;gap:8px;height:24px;flex:none}
+ #svar-today .svar-today-icon{width:18px;height:18px;flex:none}
+ #svar-today .svar-today-head>small{flex:1;min-width:0;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;
+  color:#3F3E3B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ #svar-today .svar-today-head>time{flex:none;font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
+ #svar-today .svar-today-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;
+  margin-top:8px;font:700 17px/22px 'Schibsted Grotesk',system-ui,sans-serif}
+ /* »1 nyt svar« (SvarK-Spec): K-Btn 44 primary with the up icon 18 and 8 to the text, floating 8 under the list's
+    top, centred; it never pushes the list. Shadow 0 10 24 −10, in over 360 ms. */
+ #svar-today>.svar-today-new.svar-today-new{position:absolute;z-index:3;left:50%;top:56px;transform:translateX(-50%);
+  height:44px;min-height:44px;margin:0;padding:0 18px 0 14px;border:0;border-radius:999px;background:#17171A;
+  color:#F7F6F3;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;
+  box-shadow:0 10px 24px -10px rgba(23,23,26,.55);cursor:pointer;animation:pv-svar-pill .36s cubic-bezier(.2,.9,.3,1) both}
 
+@keyframes pv-svar-pill{from{opacity:0;transform:translate(-50%,-8px)}to{opacity:1;transform:translate(-50%,0)}}
+@media (prefers-reduced-motion:reduce){#svar-today>.svar-today-new{animation:none}}
 #svar-today>.svar-today-new[hidden]{display:none!important}
 
 /* SvarK-Fakta: the facts stand as three white tiles in a row (radius 20, padding 20): label 15/600, the value in
@@ -8658,4 +8676,116 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true]){
   --pv-history-surface:var(--pv-surface);color:var(--pv-ink)}
  body pv-widget-host .view-nav #open-history.header-history:is([aria-expanded=true],[data-active=true])>img{filter:none}
+
+
+/* Lærred »PodView Retninger« v193 (16. nov.). */
+/* K-Btn icon slot: a leading icon of 20 px on a 56 button (10 to the text), 18 px on 44 (8), 28 px on the 88 alarm
+   key (14). The left inset is 4 px less than the right so icon and text sit optically centred. */
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"]{gap:10px}
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="44"]{gap:8px}
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="88"]{gap:14px}
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"]>.pv-kit-icon{flex:0 0 20px;
+ width:20px!important;height:20px!important;min-width:20px}
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="44"]>.pv-kit-icon{flex:0 0 18px;
+ width:18px!important;height:18px!important;min-width:18px}
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="88"]>.pv-kit-icon{flex:0 0 28px;
+ width:28px!important;height:28px!important;min-width:28px}
+.pv-kit.pv-kit-button[data-kit-content=icon-label][data-kit-size="56"]:has(>.pv-kit-icon:not([hidden])){
+ padding-inline:22px 26px}
+/* K-Btn »alarm«: coral with ink text, the finished timer's stop key. */
+.pv-kit.pv-kit-button[data-kit-variant=alarm]{background:#FF7A5C;color:#17171A}
+
+
+ /* Timer-faerdig: the finished hero keeps the canvas positions; title 209, »Stop alarm« 331, »Start igen« 397. */
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done] .timer-copy{align-self:start;
+  margin-top:57px!important;padding-bottom:0!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish{top:calc(50% + 14px)}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish[data-kit-variant=alarm]{
+  background:#FF7A5C!important;color:#17171A!important;padding:0 26px 0 22px!important}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:not([hidden]){top:calc(50% + 80px);
+  padding:0 26px 0 22px!important;background:var(--pv-timer-dark-2)!important;color:#F7F6F3!important;
+  border-radius:999px!important;height:56px!important;min-height:56px!important;
+  font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif!important}
+ /* Timer-Alarm: Stop carries the stop glyph, 28 px and 14 to the text. */
+ #timer-alert#timer-alert[open] .pv-kit-button[data-kit-size="88"]{display:inline-flex;align-items:center;
+  justify-content:center}
+
+ /* A-Player: »Vælg musik« leads with the music icon, 20 px and 10 to the text. */
+ body pv-widget-host[data-view=active]>.frame>#player-empty>#empty-find-music{gap:10px}
+ body pv-widget-host[data-view=active]>.frame>#player-empty>#empty-find-music::before{content:"";flex:0 0 20px;
+  width:20px;height:20px;background:currentColor;-webkit-mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTIuOTIsMTcuNjlhOCw4LDAsMCwwLTYuODYtMS40NWwtMTI4LDMyQTgsOCwwLDAsMCw3Miw1NlYxNjYuMDhBMzYsMzYsMCwxLDAsODgsMTk2VjExMC4yNWwxMTItMjh2NTEuODNBMzYsMzYsMCwxLDAsMjE2LDE2NFYyNEE4LDgsMCwwLDAsMjEyLjkyLDE3LjY5Wk01MiwyMTZhMjAsMjAsMCwxLDEsMjAtMjBBMjAsMjAsMCwwLDEsNTIsMjE2Wk04OCw5My43NVY2Mi4yNWwxMTItMjh2MzEuNVpNMTgwLDE4NGEyMCwyMCwwLDEsMSwyMC0yMEEyMCwyMCwwLDAsMSwxODAsMTg0WiIvPjwvc3ZnPg==") center/contain
+  no-repeat;mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTIuOTIsMTcuNjlhOCw4LDAsMCwwLTYuODYtMS40NWwtMTI4LDMyQTgsOCwwLDAsMCw3Miw1NlYxNjYuMDhBMzYsMzYsMCwxLDAsODgsMTk2VjExMC4yNWwxMTItMjh2NTEuODNBMzYsMzYsMCwxLDAsMjE2LDE2NFYyNEE4LDgsMCwwLDAsMjEyLjkyLDE3LjY5Wk01MiwyMTZhMjAsMjAsMCwxLDEsMjAtMjBBMjAsMjAsMCwwLDEsNTIsMjE2Wk04OCw5My43NVY2Mi4yNWwxMTItMjh2MzEuNVpNMTgwLDE4NGEyMCwyMCwwLDEsMSwyMC0yMEEyMCwyMCwwLDAsMSwxODAsMTg0WiIvPjwvc3ZnPg==") center/contain no-repeat}
+
+ /* Musik-Koe: rows are order 32 · cover 56 · copy; no trailing handle. Progress sits over the row's right edge. */
+ #music-detail #queue>.queue-track{grid-template-columns:32px 56px 1fr!important}
+ #music-detail #queue>.queue-track>.queue-play{display:none!important}
+ #music-detail #queue>.queue-track[aria-busy=true]::after{position:absolute!important;grid-area:auto!important;
+  right:12px;top:calc(50% - 16px);width:32px!important;height:32px!important}
+
+ /* A-Lys v193: each lamp's level sits beside its slider in 15 mono (48 wide, right), 12 between; a lamp that is off
+    or unknown keeps the slider at .4 and inert. */
+ pv-widget-host #device-view#device-view#device-view #light-room-controls
+  .light-lamp-row>.light-lamp-level:not([hidden]){grid-template-columns:minmax(0,1fr) 48px!important;
+  gap:0 12px!important;padding-left:24px!important;transition:opacity .2s ease}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls .light-lamp-level>output{
+  font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace!important;color:#17171A}
+ pv-widget-host #device-view#device-view#device-view #light-room-controls
+  .light-lamp-level[data-lamp-live=false]{opacity:.4;pointer-events:none}
+
+ /* SvarK-Spec: card 744 × 696, padding 32, radius 24, the answer's domain tone with the corner dots (280 × 120 top
+    right, 9-px grid, up to 6 px); header 32 (icon 20 · label 15/600 · time 15 mono, 8 between); 24 to the title
+    44/48/800; 24 to the media; actions K-Btn 56, 16 between, 24 above. */
+ body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])){position:relative;
+  background:#E9E6F4;--pv-svar-dot:#17171A;--pv-svar-dot-opacity:.22}
+ body pv-widget-host[data-view=active]
+  #answer-host#answer-host:has(>pv-answer[data-answer-domain=weather]:not([hidden])){
+  background:#DDE6FB;--pv-svar-dot:#1F55F0;--pv-svar-dot-opacity:.5}
+ body pv-widget-host[data-view=active] #answer-host#answer-host:has(pv-sourced-image[data-image-kind=album_cover]){
+  background:#F6DCCB;--pv-svar-dot:#B4532A;--pv-svar-dot-opacity:.5}
+ body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden]))::before{content:"";
+  position:absolute;top:0;right:0;width:280px;height:120px;pointer-events:none;background:var(--pv-svar-dot);
+  opacity:var(--pv-svar-dot-opacity);
+  -webkit-mask:url(assets/svar/corner-dots.svg) 0 0/280px 120px no-repeat,
+   radial-gradient(120% 100% at 100% 0,#000 35%,transparent 80%);-webkit-mask-composite:source-in;
+  mask:url(assets/svar/corner-dots.svg) 0 0/280px 120px no-repeat,
+   radial-gradient(120% 100% at 100% 0,#000 35%,transparent 80%);mask-composite:intersect}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget{padding:32px!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading{display:flex!important;align-items:center;
+  height:32px;min-height:32px;gap:8px}
+ body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading>.answer-canvas-icon{display:block!important;
+  width:20px;height:20px;flex:0 0 20px;margin:0;padding:0}
+ body pv-widget-host #answer-host#answer-host>pv-answer .answer-heading-target{display:flex!important;
+  flex:1 1 auto;align-items:center;gap:8px;min-width:0}
+ body pv-widget-host #answer-host#answer-host>pv-answer .answer-heading-target>h1{min-width:0;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+ body pv-widget-host #answer-host#answer-host>pv-answer .answer-time:not([hidden]){display:block;flex:none;
+  font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
+ /* 4 px of padding absorbs the 800 glyphs' overhang so the 48 line never reads as clipped; the negative margin
+    keeps the box 48 per line. Header → title 24 (16 from the card's flow + 8). */
+ body pv-widget-host #answer-host#answer-host>pv-answer .pv-visual-summary{margin:8px 0 -4px!important;
+  padding:0 0 4px!important;font:800 44px/48px var(--pv-font)!important;letter-spacing:-.03em}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]{padding-bottom:24px!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]::after{left:32px;right:32px}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier]{padding-top:24px!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier] .pv-visual-summary{
+  font-size:32px!important;line-height:36px!important}
+ /* Title → media 24: the visual body's 16 flow gap plus 8. */
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-list{gap:16px!important;margin-top:8px!important}
+ body pv-widget-host #answer-host#answer-host pv-fact-card .pv-visual-item.pv-visual-item{padding:24px!important}
+ body pv-widget-host #answer-host#answer-host>pv-answer .answer-actions:not([hidden]){padding-top:24px!important;
+  gap:16px}
+ /* SvarK »Musik«: a white media surface (radius 20, padding 32) with the 200 cover (radius 16) and the track
+    32/36/800; the credit stays as the source line. The room pill has no data in an album-cover answer. */
+ body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] .pv-answer-image{
+  display:grid;grid-template-columns:200px minmax(0,1fr);align-items:center;gap:32px;margin:24px 0 0;padding:32px;
+  border-radius:20px;background:#FFFFFF;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
+ body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] .pv-answer-image>img{
+  width:200px;height:200px;aspect-ratio:1;object-fit:cover;border-radius:16px;
+  box-shadow:0 24px 40px -20px rgba(124,102,80,.8)}
+ body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] figcaption{display:flex;
+  flex-direction:column;gap:8px;min-width:0;margin:0;padding:0}
+ body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] figcaption>p{margin:0;
+  font:800 32px/36px var(--pv-font);letter-spacing:-.025em;color:#17171A;overflow-wrap:anywhere}
+ body pv-widget-host #answer-host#answer-host pv-sourced-image[data-image-kind=album_cover] .pv-image-credit{
+  font:400 17px/24px var(--pv-font);color:#3F3E3B}
 
