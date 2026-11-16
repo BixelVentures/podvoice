@@ -659,7 +659,7 @@
     },
     {
       "path": "home-model.js",
-      "sha256": "c49967ae2299d714195ce7086e7408b55b9b51363b77929dd07b0cd1a8a70eac"
+      "sha256": "abbc22003f8d90eecbfbf23d49c9b48b24b3e520daa0c2fd15fe6d7b59a02989"
     },
     {
       "path": "index.html",
@@ -679,7 +679,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "458eb4707b0c7d6a2ccfb5cc34918d67fb4bb2bde7e1553f94068d9585f43af2"
+      "sha256": "f295f71bdde05d5b62f85e732bf049f5ca4dbce00f18e45b68cda45fd36a0391"
     },
     {
       "path": "library.css",
@@ -807,19 +807,19 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "1639ef84a9140d0f5cb07e7a3cf6bfffcbc067ac64ee94a2e910a1cfd89f19dd"
+      "sha256": "965b956a0a3f45a43e48be03a5da3855ffff478c64fa1412ba5122f38733e6dd"
     },
     {
       "path": "podview.css",
-      "sha256": "49b46b2d55ef7de5f8e38cd6c8ae1a046d71e89f89691f2bb9092b4d3497700b"
+      "sha256": "d1ca006b86be88f35f8163513ae02abe6772cee5d90344f529d67d885fab818c"
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "7f6ef179a77315a3a7ec374ecbe0711c000b346f1fcb5a137e5808e7e531122b"
+      "sha256": "a535c31e4fed58d78f5d7f9bd5b2172e40078155e1762a0a231f29086943e2fb"
     },
     {
       "path": "podvoice-view.js",
-      "sha256": "9603df0b4b94a0a18758ca8d1ec4c1103417c6dec5aced6bdc93e9a25b9ed586"
+      "sha256": "e31729c7e2313520514b08c52ef57f088b4172e66f68d0891d0124be98fc4ab3"
     },
     {
       "path": "preview-scenes.js",
@@ -907,7 +907,7 @@
     },
     {
       "path": "timer-model.js",
-      "sha256": "963ea632b4e608b620ca913c93ecadbef115f47f6ac9cdef02d81d582367c383"
+      "sha256": "947a7f7d7521368c7e6c335f73cac18766b4b9d6401030278843c472a4ea85db"
     },
     {
       "path": "timer-notice.css",
@@ -919,11 +919,11 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "d905e2aa0de27b57a67f241903a6ba64496176d26476380a1894a97fa2bd6f88"
+      "sha256": "c87eed6915d133a1b4baeb37121bff8108893a1794ee14b847284a33af72b10c"
     },
     {
       "path": "ui-kit.css",
-      "sha256": "28c8f697f202d405b988133af5e5611b07f1a4f9c7bc8603a1489317dbeee833"
+      "sha256": "6d4dd8fa8f34b8a0d698f977da18f6f4f0f750b26e22267b46ed14464d2b6098"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1087,7 +1087,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "aca6942c5d9589c9a6228790c4a9bdf8618a7adaede1be6e5c3a75b837f00b5e"
+      "sha256": "49c1502e25a00991a655add0e1cbd72c801da2fd345c6cb3924a1ed8b41dc20c"
     },
     {
       "path": "workshop.css",

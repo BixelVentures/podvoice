@@ -771,7 +771,8 @@
           "function:historyObservation": 1,
           "function:orderHomeDevices": 1,
           "function:scopedLightDevice": 1,
-          "function:validateHome": 1
+          "function:validateHome": 1,
+          "function:overviewGroupOverflow": 1
         },
         "roots": [],
         "registrations": {},
@@ -2076,7 +2077,8 @@
           "method:renderTimerActions": 1,
           "method:createHeaderTimer": 1,
           "method:renderHeaderTimer": 1,
-          "method:renderRecent": 1
+          "method:renderRecent": 1,
+          "method:renderRestart": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -2098,7 +2100,8 @@
           "html:div:timer-open",
           "native:button:header-timer",
           "html:div:timer-recent-list",
-          "native:button:timer-recent-choice"
+          "native:button:timer-recent-choice",
+          "html:button:timer-restart"
         ],
         "registrations": {},
         "customTags": [
@@ -2919,7 +2922,8 @@
           "method:renderSvarDevice": 1,
           "function:deferForGesture": 1,
           "function:renderRecipeStepBar": 1,
-          "method:renderSvarToday": 1
+          "method:renderSvarToday": 1,
+          "method:renderOverviewOverflow": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2936,7 +2940,8 @@
           "native:button:light-control-refresh",
           "native:div:light-brightness light-lamp-row",
           "native:div:light-scene-choices",
-          "native:section:light-scenes"
+          "native:section:light-scenes",
+          "native:button:overview-more"
         ],
         "registrations": {
           "'pv-widget-host'": 1

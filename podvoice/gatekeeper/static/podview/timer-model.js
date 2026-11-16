@@ -38,6 +38,8 @@ export function timerTransition(s,e){
   if(e.action==='show')return {...t,hidden:false};
   if(e.action==='cancel')return {...t,status:'cancelled',remaining:0};
   if(!s.connected||s.live||t.ownerBootId||t.stale)return t;
+  // »Start igen« (lærred »Timer-faerdig«): the same duration and label as a new countdown.
+  if(e.action==='restart'&&t.status==='done'&&Number.isInteger(t.duration)&&t.duration>=1&&t.duration<=86400&&Number.isFinite(e.now))return {...t,status:'running',remaining:t.duration,deadline:e.now+t.duration*1000,noticeDismissed:false};
   if(e.action==='add'&&t.status==='done'&&e.seconds===60&&Number.isFinite(e.now))return {...t,status:'running',remaining:60,duration:60,deadline:e.now+60000,noticeDismissed:false};
   if(e.action==='pause'&&t.status==='running'&&Number.isFinite(e.now)&&Number.isFinite(t.deadline)){const remaining=Math.max(0,Math.ceil((t.deadline-e.now)/1000));return {...t,status:remaining===0?'done':'paused',remaining};}
   if(e.action==='resume'&&t.status==='paused'&&Number.isFinite(e.now)&&Number.isFinite(t.remaining))return {...t,status:t.remaining===0?'done':'running',deadline:e.now+t.remaining*1000};

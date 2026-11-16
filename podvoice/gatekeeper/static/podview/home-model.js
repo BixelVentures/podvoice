@@ -85,3 +85,17 @@ function historyObservation(v){
  const ids=new Set(),items=[];for(const row of v.items){const r=row.recipe;if(typeof row.id!=='string'||!row.id||ids.has(row.id)||!Number.isFinite(row.recordedAt)||row.recordedAt<0||!['accepted_by_ha','unknown'].includes(row.outcome)||row.physicalResultVerified!==false||!Array.isArray(r?.areaIds)||r.areaIds.length<1||r.areaIds.length>32||r.areaIds.some(x=>typeof x!=='string'||x.length>128)||![1,2,3].includes(r.repeat))return unavailable;ids.add(row.id);items.push({id:row.id,recordedAt:row.recordedAt,outcome:row.outcome,recipe:{areaIds:r.areaIds,mapName:text(r.mapName),repeat:r.repeat,completeSetup:row.outcome==='accepted_by_ha'&&r.completeSetup===true}});}
  items.sort((a,b)=>b.recordedAt-a.recordedAt);return {status:'observed',items};
 }
+
+// Lærred »Main« has one robot slot and one light slot. Further devices of a group stay
+// out of the grid; the group's visible card counts them (»+N«) and opens the first of them.
+export function overviewGroupOverflow(entries=[]){
+ const result=new Map(),lead=new Map();
+ for(const entry of entries){
+  if(!['vacuum','light'].includes(entry?.kind)||entry.hidden)continue;
+  const head=lead.get(entry.kind);
+  if(!head){lead.set(entry.kind,entry.id);result.set(entry.id,{extra:false,more:0,openId:null});continue;}
+  result.set(entry.id,{extra:true,more:0,openId:null});
+  const card=result.get(head);card.more+=1;card.openId??=entry.id;
+ }
+ return result;
+}
