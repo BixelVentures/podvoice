@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 e935138c512f0da1154dd6296361136f270d5245473968059518b3f47fb3eb3b */
+/* Source: ui-kit.css · SHA256 1917b6b96dba458dbf783ab30e51ff266d189c91aefd1467f97a58a7109d5050 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5742,6 +5742,36 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
   border-color var(--pv-dur-base) var(--pv-ease-out)!important}
 .pv-kit[data-pv-state=done]{animation:pv-tick var(--pv-spring-snappy)}
 :root[data-pv-motion=reduced] .pv-kit[data-pv-state=done]{animation:none}
+
+/* P1 page (docs/MOTION.md §3.2), drawn by a same-document view transition (SceneMotion.page sets data-pv-nav for
+   its duration). Push: the old page leaves 24px to the left in --pv-dur-quick, accelerating away; the new page
+   comes 48px from the right on the smooth spring and fades in over --pv-dur-base. Pop is mirrored. The title
+   cross-fades with 8px; the topbar chrome and the player stay still (they snap with the root). Snapshots ignore
+   the pointer, so a touch reaches the live page and skips the rest. Reduced: the pages and the title only fade. */
+@keyframes pv-page-in{from{translate:var(--pv-page-in) 0}}
+@keyframes pv-page-out{to{translate:var(--pv-page-out) 0;opacity:0}}
+:root[data-pv-nav=push]{--pv-page-in:48px;--pv-page-out:-24px}
+:root[data-pv-nav=pop]{--pv-page-in:-48px;--pv-page-out:24px}
+:root[data-pv-nav] pv-widget-host .responses{view-transition-name:pv-page}
+:root[data-pv-nav] pv-widget-host #header-title{view-transition-name:pv-title}
+/* The root is not captured: chrome and player stay live under the overlay, and capture costs only the page and
+   the title. */
+:root[data-pv-nav]{view-transition-name:none}
+::view-transition{pointer-events:none}
+::view-transition-group(pv-page){animation:none}
+::view-transition-old(pv-page),::view-transition-new(pv-page){mix-blend-mode:normal}
+::view-transition-old(pv-page){animation:pv-page-out var(--pv-dur-quick) var(--pv-ease-in) both}
+::view-transition-new(pv-page){--pv-busy-from:0;
+ animation:pv-busy-in var(--pv-dur-base) var(--pv-ease-out) both,pv-page-in var(--pv-spring-smooth) both}
+::view-transition-group(pv-title){animation-duration:var(--pv-dur-base);animation-timing-function:var(--pv-ease-out)}
+::view-transition-old(pv-title){--pv-page-out:0px;animation:pv-page-out var(--pv-dur-quick) var(--pv-ease-in) both}
+::view-transition-new(pv-title){--pv-busy-from:0;--pv-page-in:8px;
+ animation:pv-busy-in var(--pv-dur-base) var(--pv-ease-out) both,pv-page-in var(--pv-dur-base) var(--pv-ease-out) both}
+:root[data-pv-motion=reduced]::view-transition-old(pv-page),
+:root[data-pv-motion=reduced]::view-transition-old(pv-title){--pv-page-out:0px;
+ animation:pv-page-out var(--pv-dur-reduced) linear both}
+:root[data-pv-motion=reduced]::view-transition-new(pv-page),
+:root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
 
 /* Horizontal scroll: the weather's fade toward the right edge, with snap. */
 .pv-hscroll{display:flex;gap:var(--pv-gap);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;

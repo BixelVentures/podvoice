@@ -139,24 +139,24 @@ function navigationFixture(){
 }
 test('the same player moves by its actual geometry both ways between Ro and active, never during detail navigation',()=>withMotionPreference(()=>{
  const f=navigationFixture();let y=300;f.player.getBoundingClientRect=()=>({x:876,y,width:376,height:650});
- const wake=f.motion.capture('photo','now');y=80;f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',wake);assert.equal(f.player.animations.length,1);assert.equal(f.player.animations[0].frames[0].transform,'translate(0px,220px)');assert.equal(f.player.animations[0].options.duration,200);assert.equal(f.motion.animations.size,2);f.motion.cancel();
- const old=f.motion.capture('now','photo');y=300;f.overview.hidden=true;f.photo.hidden=false;f.motion.enter('now','photo',old,true);assert.equal(f.player.animations.length,2);assert.equal(f.player.animations[1].frames[0].transform,'translate(0px,-220px)');assert.equal(f.player.animations[1].options.duration,200);assert(f.photo.animations[0].frames.every(frame=>Object.keys(frame).length===1));f.motion.cancel();
+ const wake=f.motion.capture('photo','now');y=80;f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',wake);assert.equal(f.player.animations.length,1);assert.equal(f.player.animations[0].frames[0].transform,'translate(0px,220px)');assert.equal(f.player.animations[0].options.duration,661);assert.equal(f.motion.animations.size,2);f.motion.cancel();
+ const old=f.motion.capture('now','photo');y=300;f.overview.hidden=true;f.photo.hidden=false;f.motion.enter('now','photo',old,true);assert.equal(f.player.animations.length,2);assert.equal(f.player.animations[1].frames[0].transform,'translate(0px,-220px)');assert.equal(f.player.animations[1].options.duration,661);assert(f.photo.animations[0].frames.every(frame=>Object.keys(frame).length===1));f.motion.cancel();
  f.photo.hidden=true;f.overview.hidden=false;const before=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',before);assert.equal(f.player.animations.length,2);assert.equal(f.motion.animations.has(f.player),false);f.motion.cancel();
 }));
 
 test('Ro to overview gently fades one pane in place without child stagger or an artwork wait',()=>withMotionPreference(()=>{
  const f=navigationFixture();f.player.querySelector=()=>{throw Error('navigation must not gate on cover decoding');};
  const before=f.motion.capture('photo','now');f.photo.hidden=true;f.overview.hidden=false;f.motion.enter('photo','now',before);
- assert.equal(f.motion.animations.size,1);assert.equal(f.overview.hidden,false);assert.equal(f.overview.animations.length,1);assert.equal(f.overview.animations[0].options.duration,200);assert.equal(f.overview.animations[0].options.delay,0);assert.deepEqual(f.overview.animations[0].frames,[{opacity:.65},{opacity:1}]);assert.equal(f.photo.hidden,true);assert.equal(f.photo.animations.length,0);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
+ assert.equal(f.motion.animations.size,1);assert.equal(f.overview.hidden,false);assert.equal(f.overview.animations.length,1);assert.equal(f.overview.animations[0].options.duration,240);assert.equal(f.overview.animations[0].options.delay,0);assert.deepEqual(f.overview.animations[0].frames,[{opacity:.65},{opacity:1}]);assert.equal(f.photo.hidden,true);assert.equal(f.photo.animations.length,0);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
 }));
 
 test('opening and returning move only the actual incoming pane at normal scale and full opacity',()=>withMotionPreference(()=>{
  const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;
  const open=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',open);
  assert.equal(f.motion.animations.size,1);assert.equal(f.heading.animations.length,0);assert.equal(f.overview.hidden,true);assert.equal(f.player.animations.length,0);
- const animation=f.detail.animations[0];assert.equal(animation.options.duration,200);assert.equal(animation.options.delay,0);assert.equal(animation.options.easing,'cubic-bezier(.2,0,0,1)');assert.deepEqual(animation.frames,[{opacity:1,transform:'translateX(16px)'},{opacity:1,transform:'none'}]);
+ const animation=f.detail.animations[0];assert.equal(animation.options.duration,661);assert.equal(animation.options.delay,0);assert.match(animation.options.easing,/^linear\(/);assert.deepEqual(animation.frames,[{opacity:.65,transform:'translateX(48px)',offset:0},{opacity:1,offset:.85},{opacity:1,transform:'none',offset:1}]);
  const back=f.motion.capture('weather','now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter('weather','now',back,true);
- assert.equal(f.feed.scrollTop,53);assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,1);assert.deepEqual(f.overview.animations[0].frames,[{opacity:1,transform:'translateX(-16px)'},{opacity:1,transform:'none'}]);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
+ assert.equal(f.feed.scrollTop,53);assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,1);assert.deepEqual(f.overview.animations[0].frames,[{opacity:.65,transform:'translateX(-48px)',offset:0},{opacity:1,offset:.85},{opacity:1,transform:'none',offset:1}]);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
 }));
 
 test('same-view requests keep scroll and do not animate, and older WebView without WAAPI still navigates',()=>withMotionPreference(()=>{
@@ -196,7 +196,7 @@ test('all detail content arrives in the pane without independent child animation
  const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;
  for(const node of [f.heading,...f.cards,f.detail,f.overview,f.player])node.getBoundingClientRect=()=>{throw Error('ordinary navigation needs no FLIP measurement');};
  const old=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',old);
- assert.equal(f.motion.animations.size,1);assert(f.detail.children.every(node=>node.animations.length===0));assert.equal(f.detail.animations[0].options.duration,200);f.motion.cancel();
+ assert.equal(f.motion.animations.size,1);assert(f.detail.children.every(node=>node.animations.length===0));assert.equal(f.detail.animations[0].options.duration,661);f.motion.cancel();
 }));
 
 test('interruption cancels the previous pane without reviving outgoing content or adding layers',()=>withMotionPreference(()=>{
@@ -246,9 +246,9 @@ test('geometry hold snapshots every height once before any layout write and rest
 test('all widgets preserve outer and nested scroll through the same complete-pane forward and back interaction',()=>withMotionPreference(()=>{
  for(const focus of ['weather','music','timers','radio','vehicle','robot','light','player']){
   const f=navigationFixture(),nested={scrollTop:77,scrollLeft:19};f.feed.querySelectorAll=()=>[nested];f.photo.hidden=true;f.overview.hidden=false;
-  const old=f.motion.capture('now',focus);f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now',focus,old);assert.equal(f.detail.animations.length,1,focus);assert.equal(f.detail.animations[0].frames[0].opacity,1,focus);
+  const old=f.motion.capture('now',focus);f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now',focus,old);assert.equal(f.detail.animations.length,1,focus);assert.equal(f.detail.animations[0].frames[0].opacity,.65,focus);
   nested.scrollTop=0;nested.scrollLeft=0;const back=f.motion.capture(focus,'now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter(focus,'now',back,true);
-  assert.equal(f.feed.scrollTop,53,focus);assert.equal(nested.scrollTop,77,focus);assert.equal(nested.scrollLeft,19,focus);assert.equal(f.motion.animations.size,1,focus);assert.equal(f.overview.animations[0].frames[0].transform,'translateX(-16px)',focus);assert.equal(f.heading.animations.length,0,focus);assert.equal(f.player.animations.length,0,focus);assert(f.cards.every(card=>card.animations.length===0),focus);f.motion.cancel();
+  assert.equal(f.feed.scrollTop,53,focus);assert.equal(nested.scrollTop,77,focus);assert.equal(nested.scrollLeft,19,focus);assert.equal(f.motion.animations.size,1,focus);assert.equal(f.overview.animations[0].frames[0].transform,'translateX(-48px)',focus);assert.equal(f.heading.animations.length,0,focus);assert.equal(f.player.animations.length,0,focus);assert(f.cards.every(card=>card.animations.length===0),focus);f.motion.cancel();
  }
 }));
 

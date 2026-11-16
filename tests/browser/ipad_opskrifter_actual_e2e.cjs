@@ -43,6 +43,8 @@ async function recipePage(){
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});await env.openOverview(page);
  await page.locator('#home-recipes').tap();
  await page.locator('#recipe-view [data-recipe="Burgerboller"]').waitFor({state:'visible',timeout:20000});
+ // The page arrives on the smooth spring (docs/MOTION.md §3.2, 661 ms); measure once it has landed.
+ await page.locator('#recipe-view').evaluate(view=>Promise.all(view.getAnimations().map(a=>a.finished.catch(()=>{}))));
  await sleep(400);return page;
 }
 async function stagePage(stage){

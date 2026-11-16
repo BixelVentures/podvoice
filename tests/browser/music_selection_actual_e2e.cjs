@@ -1984,11 +1984,18 @@ async function queuePersistenceJourney(){
   await sleep(9000);assert.deepEqual(await page.evaluate(()=>window.homeFlash),[],'the overview stays calm across background reads');
   // Green 13/11: Find musik opens with its suggestions ready and usable in the first frame. Measured in the
   // tap itself, after the scene renders and before any network reply could arrive (Green takes 2.5 s).
+  // The scene renders inside the page transition's update (docs/MOTION.md §3.2), a frame after the tap, so the
+  // reading is taken the moment Find musik is rendered visible.
   await page.evaluate(()=>window.addEventListener('click',event=>{if(!event.target.closest?.('#home-music'))return;
-   const rows=[...document.querySelectorAll(':is(#result-list,#music-hero) button.result')];
-   window.firstMusicFrame={rows:rows.length,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,
-    busy:document.getElementById('result-list')?.getAttribute('aria-busy'),loading:/Henter/.test(document.getElementById('music-response')?.innerText||'')};},{once:true}));
+   const view=document.getElementById('music-response');
+   const measure=()=>{const rows=[...document.querySelectorAll(':is(#result-list,#music-hero) button.result')];
+    window.firstMusicFrame={rows:rows.length,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,
+     busy:document.getElementById('result-list')?.getAttribute('aria-busy'),loading:/Henter/.test(view?.innerText||'')};};
+   if(!view.hidden){measure();return;}
+   const watch=new MutationObserver(()=>{if(view.hidden)return;watch.disconnect();measure();});
+   watch.observe(view,{attributes:true,attributeFilter:['hidden']});},{once:true}));
   await page.locator('#home-music').tap();
+  await page.waitForFunction(()=>window.firstMusicFrame!==undefined,null,{timeout:2000});
   const firstFrame=await page.evaluate(()=>window.firstMusicFrame);
   assert.deepEqual(firstFrame,{rows:3,locked:0,busy:'false',loading:false},'suggestions are ready when Find musik opens');
   // Green 13/11: every tab is ready when chosen; nothing says "Henter" and the refresh button never shows work.
