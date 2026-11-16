@@ -27,8 +27,7 @@ export function composeScriptBundle(root,bundle){
   bundle:true,
   format:'esm',
   platform:'browser',
-  // Oldest supported wall screen: Android System WebView 107 (Frameo, Android 6).
-  target:'chrome107',
+  target:'esnext',
   write:false,
   metafile:true,
   minify:true,

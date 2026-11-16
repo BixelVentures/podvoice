@@ -1988,7 +1988,7 @@ pv-widget-host[data-overview-heading=true] .view-nav #header-title{position:abso
 .pv-kit-choice-group[data-choice-layout=row]>.pv-kit-choice-options{min-width:0;width:100%}
 .pv-kit-choice-group[data-choice-layout=row] .pv-kit-choice-label{min-width:0;white-space:normal;text-align:center;line-height:var(--pv-leading-meta)}
 @media(max-width:759px){.pv-kit-choice-group[data-choice-layout=row]{grid-template-columns:104px minmax(0,1fr);column-gap:var(--pv-s1)}}
-/* Robot composes the shared level-row and Card anatomy. The default Frameo
+/* Robot composes the shared level-row and Card anatomy. The default
    path keeps ordinary settings visible; content grows naturally for more rooms. */
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-form{padding:0}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-cleaning-options{display:grid;gap:var(--pv-control-section-gap);margin:0;padding:0;border:0;background:transparent}
@@ -2823,15 +2823,6 @@ pv-widget-host :is(#device-view #device-detail>pv-vacuum-widget,#device-view pv-
  margin:0;
  margin-block-start:var(--pv-control-section-gap);
 }
-
-/* Strip mode (ui/lite.js, html[data-lite]): weak wall screens such as a Frameo frame. Same layout,
-   functions and texts; no painted effects or motion, so scroll and taps are not starved. */
-html[data-lite] *,html[data-lite] *::before,html[data-lite] *::after{
- animation:none!important;transition:none!important;box-shadow:none!important;text-shadow:none!important;
- backdrop-filter:none!important;-webkit-backdrop-filter:none!important;
- mask-image:none!important;-webkit-mask-image:none!important;scroll-behavior:auto!important}
-html[data-lite] :not(img){filter:none!important}
-html[data-lite]{touch-action:manipulation}
 
 /* iPad kit (lærred v190, issue 387): fonts, topbar, widget sizes, press feedback and horizontal fade. */
 @font-face{font-family:"Schibsted Grotesk Variable";font-style:normal;font-display:swap;font-weight:400 900;
