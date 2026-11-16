@@ -3271,7 +3271,8 @@
           "function:createKitSliderField": 1,
           "function:syncKitButtonContent": 1,
           "function:syncKitPowerToggle": 1,
-          "function:revealKitItem": 1
+          "function:revealKitItem": 1,
+          "function:runKitButtonAction": 1
         },
         "roots": [
           "native:section:pv-kit-disclosure",
