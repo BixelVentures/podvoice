@@ -667,7 +667,7 @@
     },
     {
       "path": "index.html",
-      "sha256": "76fa876f92093ecfdf830fbdb18c399d7e2f542d3674f4e96d65ac9da0e628f8"
+      "sha256": "1eab539b2085d1e7983d4ee7e2d0cdd366fbf42ae7cc0540792c5b26fc56dade"
     },
     {
       "path": "ingress-kiosk.js",
@@ -747,7 +747,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "4271e270a70bf17526169fe0cbd79031da1b024fffb811cca6b2539ecc5e753e"
+      "sha256": "dac9febe24b5cb1aad00a4da131fd19b17446ee7832fbb9c98e661c3094f60cb"
     },
     {
       "path": "model.js",
@@ -767,7 +767,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "d3daa5f8ebc852d2081851870ae9a3d27442f0a0d4a4a1f0a388e73f9caba6ff"
+      "sha256": "14f83c7d5ebca4d9a7143c4ffd4299a3dac1ff88a65e16b25e71f6395f50c405"
     },
     {
       "path": "music-selection-model.js",
@@ -811,15 +811,15 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "abad9afd187192f94ad0a4902f83a0310c0573997f00307c5e2a1f61345cce3f"
+      "sha256": "76d301c2dc7bc266811ebc7730043d1600d16456867cef93aa2247cffae8a43a"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "781cdd3db47c061afd09dd65460c3cafe8eaafcf7be1e69690a45290c17706fc"
+      "sha256": "6b9528116a5507db45ae78d99c8f803e0bbe091be58672e66030d600c0052cd8"
     },
     {
       "path": "podview.css",
-      "sha256": "5cb6f3271520ade291f95fe468308179aadac072989aa85035b3d1737345ee47"
+      "sha256": "5469d308c84cc3cd38edafa9b5d6efaeca0a182be1a2d83ec45845dfbe2db8ba"
     },
     {
       "path": "podvoice-transport.js",
@@ -935,7 +935,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "0011bf656573b22bd62a2b1901ba34c5aaf58d1a3cb071b722ada83bc78b1792"
+      "sha256": "92dc87109af753e3648a8b642b6d04aaf252bcabe8dc77ad4e560015db11e72f"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1099,7 +1099,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "4358f0f12b51743255db6ebe4245558c5226ed5cdf2e873b2e08780e6d43ce4d"
+      "sha256": "0fe8916a4186a3a901ee5d08f4947a9e3b5e33d79c3c83898d49e1ac848acd5d"
     },
     {
       "path": "workshop.css",

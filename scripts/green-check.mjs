@@ -32,7 +32,6 @@
 // Lydregler: kun Køkkenalrum, lydstyrke sættes til 8 % før afspilning, stop til sidst, aldrig 18–08.
 // Robot, bil, lys og andre rum får aldrig en kommando. Tjekket trykker kun på læsende knapper uden --sound.
 
-import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -41,6 +40,7 @@ import {
   PERSISTENT_ERROR, flashes, isProblemLine, newLogLines, newSystemLogEntries, redact, rollbackBackup,
   soundAllowed, summary,
 } from './green-check-lib.mjs';
+import {GREEN_BASE, greenBrowserContext, greenLaunchOptions, openGreenPodView, readGreenToken} from './green-login.mjs';
 
 const HELP = `Green-tjek for PodView på HA Green
 
@@ -81,25 +81,11 @@ Exitkode 0 = grøn, 1 = rød, 2 = kunne ikke køre (fx manglende token).`;
 const args = process.argv.slice(2);
 const flag = name => args.includes(name);
 const option = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const BASE = (process.env.GREEN_HA_URL || 'http://homeassistant.lan:8123').replace(/\/$/, '');
-const PANEL = (process.env.GREEN_PANEL || '23375871_podvoice/view').replace(/^\//, '');
+const BASE = GREEN_BASE;
 const LAST_GREEN = path.join(os.homedir(), '.config', 'podvoice', 'green-check-last-green.json');
 const KITCHEN = /Køkkenalrum/i;
 let SECRET = null; // set once in main(); only used to redact error text
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-function readToken() {
-  if (process.env.GREEN_HA_TOKEN) return process.env.GREEN_HA_TOKEN.trim();
-  if (process.platform !== 'darwin') return null;
-  try {
-    return execFileSync('security', ['find-generic-password', '-s', 'podvoice-green-check', '-w'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch {
-    return null;
-  }
-}
 
 function loadPlaywright() {
   const require = createRequire(new URL('../tests/browser/package.json', import.meta.url));
@@ -416,20 +402,9 @@ function describeFlashes(found) {
 }
 
 async function openPodView(page) {
-  await page.goto(`${BASE}/${PANEL}`, {waitUntil: 'domcontentloaded', timeout: 30000});
-  for (let n = 0; n < 200; n++) {
-    if (/\/auth\/authorize/.test(page.url()))
-      throw new Error('HA viste loginsiden: tokenet blev ikke accepteret (se --help under Login)');
-    for (const frame of page.frames()) {
-      if (!/\/api\/hassio_ingress\//.test(frame.url())) continue;
-      if (await frame.locator('pv-widget-host').count().catch(() => 0)) {
-        await frame.evaluate(installProbe);
-        return frame;
-      }
-    }
-    await sleep(150);
-  }
-  throw new Error('PodView-rammen blev ikke fundet i HA-panelet');
+  const frame = await openGreenPodView(page);
+  await frame.evaluate(installProbe);
+  return frame;
 }
 
 async function silentChecks(check) {
@@ -929,7 +904,7 @@ async function main() {
     console.log(HELP);
     return 0;
   }
-  const token = readToken();
+  const token = readGreenToken();
   SECRET = token;
   if (!token) {
     console.error('Intet HA-token. Se "node scripts/green-check.mjs --help" under Login.');
@@ -945,31 +920,9 @@ async function main() {
     console.error(`HA afviste tokenet eller svarede ikke (${error.message}). Se --help under Login.`);
     return 2;
   }
-  const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  const browser = await chromium.launch({
-    headless: !flag('--headed'),
-    ...(process.env.PODVIEW_TEST_CHROMIUM ? {executablePath: process.env.PODVIEW_TEST_CHROMIUM}
-      : process.platform === 'darwin' && fs.existsSync(mac) ? {executablePath: mac} : {}),
-  });
+  const browser = await chromium.launch(greenLaunchOptions(flag('--headed')));
   try {
-    const context = await browser.newContext({
-      viewport: {width: 1180, height: 820},
-      deviceScaleFactor: 2,
-      hasTouch: true,
-      locale: 'da-DK',
-      timezoneId: 'Europe/Copenhagen',
-    });
-    await context.addInitScript(
-      ([url, secret]) => {
-        if (location.origin !== new URL(url).origin || location.pathname.startsWith('/api/hassio_ingress/')) return;
-        if (localStorage.getItem('hassTokens')) return;
-        localStorage.setItem('hassTokens', JSON.stringify({
-          hassUrl: url, clientId: `${url}/`, access_token: secret, token_type: 'Bearer',
-          expires_in: 1800, expires: Date.now() + 365 * 864e5, refresh_token: '',
-        }));
-      },
-      [BASE, token],
-    );
+    const context = await greenBrowserContext(browser, token);
     const page = await context.newPage();
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(redact(error.message, token)));
