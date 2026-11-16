@@ -78,6 +78,18 @@ async function stagePage(stage){
  assert.equal(first.h,252,'recipe cards are 252 high');assert.equal(first.radius,'24px');
  const photo=await box(cards.first().locator('img'));
  assert.equal(photo.h,140,'photo 140 on top');near(photo.y,first.y+12,'photo 12 in');
+ // Opskrifter-kilde: the recipe's publisher is a 28-high label 8 inside the photo's lower left; the card stays 252.
+ const labelled=cards.filter({has:page.locator('[data-recipe-publisher]')});
+ assert(await labelled.count()>0,'recipes with a publisher show it');
+ const card=await box(labelled.first()),cardPhoto=await box(labelled.first().locator('img'));
+ const label=await box(labelled.first().locator('[data-recipe-publisher]'));
+ assert.equal(card.h,252,'the label does not change the card height');assert.equal(label.h,28);
+ assert.equal(label.size,'15px');assert.equal(label.weight,'600');assert.equal(label.bg,'rgb(247, 246, 243)');
+ near(label.x,cardPhoto.x+8,'label 8 from the photo edge',1);
+ near(label.y+label.h,cardPhoto.y+cardPhoto.h-8,'label 8 above the photo bottom',1);
+ assert(label.w<=cardPhoto.w-16,'long publishers end in an ellipsis inside the photo');
+ const unlabelled=await cards.evaluateAll(nodes=>nodes.filter(n=>!n.querySelector('[data-recipe-publisher]')).length);
+ assert.equal(await cards.count(),await labelled.count()+unlabelled,'every card is either labelled or plain');
  const xs=new Set(await cards.evaluateAll(nodes=>nodes.slice(0,8).map(n=>Math.round(n.getBoundingClientRect().x))));
  assert.equal(xs.size,5,'five recipe columns');
  assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] h3:visible').count(),0,

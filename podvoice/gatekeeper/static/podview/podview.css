@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 326dc99660b5ad162a6939b7cf69074bc735a4b3b382d5ac29ef8c8b9852b610 */
+/* Source: ui-kit.css · SHA256 453017baf75a68cf2091f732bde7f95027ce7ad2122ee950063d2cca687cb679 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -3266,6 +3266,8 @@ input,textarea{caret-color:var(--pv-ink)}
 .pv-kit-listrow[aria-pressed=true],#room-options>.pv-kit-listrow[aria-pressed=true],#music-detail #queue .queue-track[aria-current=true]{background:var(--pv-line);color:var(--pv-ink);box-shadow:none}
 .pv-kit-listrow[data-kit-variant=resume][aria-current=true]{background:var(--pv-dark);color:var(--pv-on-dark)}
 .pv-kit-listrow[data-kit-variant=resume][aria-current=true] :is(strong,small){color:inherit}
+/* Outside the iPad card grid the list row keeps its two lines; the publisher label belongs to the card. */
+#recipe-view [data-recipe-publisher]{display:none!important}
 #recipe-view .pv-kit-listrow[data-kit-variant=resume][aria-current=true]>img{width:var(--pv-card-art-m);height:var(--pv-card-art-m)}
 .pv-kit-sectionheader{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);color:var(--pv-ink)}
 .pv-kit-topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);color:var(--pv-ink)}
@@ -6829,7 +6831,7 @@ body button:not(.is-pressed){transition-property:filter!important}
    The heading, hero and hours overlap in one grid, so the product's DOM and reading order stay as they are. */
 
  pv-widget-host[data-view=active] .responses>#weather-view:not([hidden]){display:grid!important;
-   grid-template-columns:744px!important;grid-template-rows:54px 260px 144px auto auto!important;
+   grid-template-columns:744px!important;grid-template-rows:54px 290px 192px auto auto!important;
    gap:0!important;padding:0!important;width:744px!important;max-width:744px!important;align-content:start;
    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent);
    mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent)}
@@ -6861,7 +6863,7 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #weather-view>.weather-current .weather-metadata>[data-meta-id=freshness]>dt{display:none}
 
  pv-widget-host #weather-view>.weather-current.weather-current{grid-row:1/4;position:relative;z-index:0;
-   box-sizing:border-box;display:block!important;height:458px!important;min-height:0!important;
+   box-sizing:border-box;display:block!important;height:536px!important;min-height:0!important;
    padding:54px 32px 0!important;border:0!important;border-radius:24px!important;overflow:hidden;
    background:#DDE6FB!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;color:var(--pv-ink)!important}
  pv-widget-host #weather-view>.weather-current::before{content:""!important;position:absolute;z-index:0;
@@ -6902,16 +6904,44 @@ body button:not(.is-pressed){transition-property:filter!important}
    display:block;height:8px}
  pv-widget-host #weather-view>.weather-current span[data-kit-slot=body]{
    font:400 17px/24px var(--pv-font)!important;color:#3E4660!important}
- pv-widget-host #weather-view>.weather-current .weather-summary:not([hidden]){display:inline!important;
-   margin:0!important;
-   padding:0!important;background:none!important;border:0!important}
- pv-widget-host #weather-view>.weather-current [data-kit-slot=title]+.weather-summary:not(:empty)::before{
-   content:" · "}
+ /* Without AI prose the source's own rule sentence follows the condition on the title line (lærred »A-Vejr«). */
+ pv-widget-host #weather-view>.weather-current .weather-condition-advice:not([hidden]){display:inline;
+   font:800 26px/32px var(--pv-font)!important;color:var(--pv-ink)!important}
+ pv-widget-host #weather-view>.weather-current .weather-condition-advice::before{content:" · "}
+ /* Vejr-Råd: the advice is its own line under the condition, two lines reserved (48), so pending, the AI
+    sentence and the source's rule sentence never move the range or the hours. Pending is a quiet two-bar
+    shimmer; the AI sentence rises 4 px and fades in over 240 ms behind a small »AI« marker. */
+ pv-widget-host #weather-view>.weather-current .weather-summary:not([hidden]){display:block!important;
+   overflow:hidden;position:relative;box-sizing:border-box;
+   min-height:48px!important;max-height:48px;margin:8px 0 0!important;padding:0!important;
+   font:400 17px/24px var(--pv-font)!important;color:var(--pv-ink)!important;
+   background:none!important;border:0!important;animation:none}
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=pending]::before,
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=pending]::after,
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=idle]::before,
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-state=idle]::after{content:"";
+   position:absolute;left:0;height:16px;border-radius:8px;
+   background:linear-gradient(90deg,color-mix(in srgb,var(--pv-weather-ink) 10%,transparent) 0%,
+     color-mix(in srgb,var(--pv-weather-ink) 20%,transparent) 50%,
+     color-mix(in srgb,var(--pv-weather-ink) 10%,transparent) 100%) 0 0/200% 100%;
+   animation:pv-advice-pending 1.6s linear infinite}
+ pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=pending],
+   [data-advice-state=idle])::before{top:4px;width:92%}
+ pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=pending],
+   [data-advice-state=idle])::after{top:28px;width:68%}
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind=ai]{
+   animation:pv-weather-advice-in 240ms cubic-bezier(.2,0,0,1) both!important}
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind=ai]::before{content:"AI" / "";
+   display:inline-block;box-sizing:border-box;height:20px;margin:2px 8px 0 0;padding:0 8px;vertical-align:top;
+   border-radius:999px;background:var(--pv-surface);font:600 15px/20px var(--pv-font);
+   color:var(--pv-weather-ink)}
+ pv-widget-host #weather-view>.weather-current .weather-summary:is([data-advice-state=error],
+   [data-advice-state=unavailable]){color:#3E4660!important}
  pv-widget-host #weather-view>.weather-current:not([data-weather-state=stale]) .weather-metadata{display:none!important}
 
  pv-widget-host #weather-view>.weather-hours.weather-hours{grid-row:3;z-index:1;box-sizing:border-box;
    display:grid!important;grid-auto-flow:column;grid-auto-columns:156px;grid-template-columns:none!important;
-   gap:0!important;height:144px;margin:0 0 0 32px!important;padding:20px 32px 28px 0!important;
+   gap:0!important;height:192px;margin:0 0 0 32px!important;padding:20px 32px 28px 0!important;
    border:0!important;border-top:1px solid rgba(23,23,26,.10)!important;border-radius:0!important;
    background:none!important;overflow-x:auto!important;overflow-y:hidden!important;overscroll-behavior-x:contain;
    scroll-snap-type:x mandatory!important;scrollbar-width:none;
@@ -6928,7 +6958,15 @@ body button:not(.is-pressed){transition-property:filter!important}
    margin:0!important}
  pv-widget-host #weather-view>.weather-hours>[role=group]>strong{font:800 22px/28px var(--pv-font)!important;
    color:#3A4560!important}
- pv-widget-host #weather-view>.weather-hours>[role=group]>small{display:none!important}
+ /* Vejr-Timer: rain (the amount when some falls, the source's chance) and wind (m/s with the direction arrow)
+    as two 20-px meta lines under the temperature. The rain line keeps its height when an hour has none, so the
+    wind lines stay level across the strip. */
+ pv-widget-host #weather-view>.weather-hours>[role=group]>small{display:flex!important;align-items:center;
+   justify-content:center;gap:4px;height:20px;margin:0!important;font:var(--pv-t-meta)!important;
+   color:var(--pv-weather-ink)!important;white-space:nowrap}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>small.weather-hour-rain[hidden]{visibility:hidden}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>small.weather-hour-wind{margin-top:-4px!important}
+ pv-widget-host #weather-view>.weather-hours>[role=group]>small.weather-hour-wind[hidden]{visibility:hidden}
 
  pv-widget-host #weather-view>.weather-days.weather-days{grid-row:4;display:flex!important;flex-direction:column;
    gap:0!important;margin:32px 0 0!important;padding:0 0 8px!important;background:none!important;border:0!important}
@@ -6966,7 +7004,11 @@ body button:not(.is-pressed){transition-property:filter!important}
 @keyframes pv-weather-glow{0%,100%{opacity:.32;transform:scale(.9)}50%{opacity:.45;transform:scale(1.08)}}
 @keyframes pv-weather-flash{0%,88%,100%{opacity:.16}90%,94%{opacity:.45}}
 @keyframes pv-weather-mist{from{opacity:.16}to{opacity:.38}}
-@media (prefers-reduced-motion:reduce){pv-widget-host #weather-view>.weather-current::before{animation:none!important}}
+@keyframes pv-weather-advice-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){pv-widget-host #weather-view>.weather-current::before{animation:none!important}
+ pv-widget-host #weather-view>.weather-current .weather-summary[data-advice-kind],
+ pv-widget-host #weather-view>.weather-current .weather-summary::before,
+ pv-widget-host #weather-view>.weather-current .weather-summary::after{animation:none!important}}
 
 /* W-vejr (K-Widget vejr, L 364×458): head (22-px icon, »Vejr« 17/600, chevron); 22 under it the temperature in
    120/500; the condition in 20/800; the range 15 in #3E4660; the five hours at the bottom over a thin line, the hour
@@ -8124,7 +8166,7 @@ body button:not(.is-pressed){transition-property:filter!important}
   display:contents!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
   [data-recipe]:not([data-kit-variant=resume])>img{
-  grid-row:1;width:100%!important;height:140px!important;border-radius:16px!important;object-fit:cover;
+  grid-row:1;grid-column:1;width:100%!important;height:140px!important;border-radius:16px!important;object-fit:cover;
   background:var(--pv-recipe);padding:0!important;box-sizing:border-box}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
   [data-recipe]:not([data-kit-variant=resume])>img[data-recipe-fallback]{
@@ -8138,6 +8180,13 @@ body button:not(.is-pressed){transition-property:filter!important}
   [data-recipe]:not([data-kit-variant=resume]) small{
   grid-row:3;font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
   white-space:nowrap!important;overflow:hidden;text-overflow:ellipsis;display:block!important}
+ /* The publisher is a label on the photo's lower left, so the 252 card keeps its rows (Opskrifter-kilde). */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]
+  [data-recipe]:not([data-kit-variant=resume]) small[data-recipe-publisher]{
+  grid-row:1;grid-column:1;align-self:end;justify-self:start;z-index:1;box-sizing:border-box;
+  max-width:calc(100% - 16px);height:28px;margin:0 0 8px 8px!important;padding:4px 10px!important;
+  border-radius:999px;background:var(--pv-surface)!important;
+  font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:var(--pv-ink-2)!important}
  /* The active recipe: a 96-high #F2E4D3 band with the photo 56 and the product's »Fortsæt« as a dark pill. */
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe][data-kit-variant=resume]{display:flex!important;
   flex-direction:row-reverse!important;align-items:center;justify-content:flex-end!important;gap:18px!important;

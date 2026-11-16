@@ -15,7 +15,7 @@ function rig(){
 }
 test('held POST shows the pending slot without polling; server admission alone starts completion reads',async()=>{
  const h=rig();assert.equal(h.owner.sync(),null);assert.equal(h.calls.length,0);h.host.state.focus='weather';assert.equal(h.owner.sync()?.status,'requesting');assert.equal(h.model().summaryState,'pending');assert.equal(h.model().summary,'');assert.equal(h.calls.length,1);for(let i=0;i<5;i++)h.owner.sync();assert.equal(h.calls.length,1);assert.equal(h.timers.size,0);await h.tick(2500);assert.equal(h.host.reads||0,0);assert.equal(h.timers.size,0);assert.equal(h.host.state.weatherAdvice.status,'idle');assert.equal(h.model().summaryState,'pending');
- h.deferred[0].resolve(h.dto());await h.settle();assert.equal(h.model().summaryState,'pending');assert.equal(h.model().summary,'');assert.equal(h.model().current.temperature,'12°');assert.equal(h.model().hours[0].rain,'0 mm');assert.equal(h.timers.size,1);
+ h.deferred[0].resolve(h.dto());await h.settle();assert.equal(h.model().summaryState,'pending');assert.equal(h.model().summary,'');assert.equal(h.model().current.temperature,'12°');assert.equal(h.model().hours[0].rain,'');assert.equal(h.timers.size,1);
  h.host.onRead=()=>{h.host.state.weatherAdvice={...h.cap,status:'ready'};h.host.state.liveWeather={...h.host.state.liveWeather,passiveAdvice:h.dto('ready')};};
  await h.tick();assert.equal(h.host.reads,1);assert.equal(h.calls.length,1);assert.equal(h.model().summary,h.dto('ready').summary);assert.equal(h.model().summaryState,'ready');assert.equal(h.timers.size,0);h.owner.cleanup();
 });

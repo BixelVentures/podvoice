@@ -71,6 +71,23 @@ test('active recipe stays once above the alphabetical catalogue across category 
   assert.deepEqual(recipeRows(entries).map(r=>r.dataset.recipe),['Karry'],'no fabricated session for a stale active object');
 });
 
+test('a recipe card shows its own publisher as a photo label; none, no label; the active band has none',()=>{
+  const meyers={title:'Burgerboller',publisher:'Meyers',portions:'15 stk.',baking:'12–15 min. bagetid',
+    steps:['Ælt'],source:{url:'https://meyers.dk/burgerboller'}};
+  const plain={title:'Karry',publisher:'  ',steps:['Kog'],source:{url:'https://example.invalid/curry'}};
+  const view={saved:[meyers,plain],active:null,sessions:new Map(),catalogCategory:'',history:[],
+    catalogStatus:'ready',recipe(){}};
+  const {entries,render}=renderCatalogue(view);render();
+  const label=row=>row.children[0].children.find(child=>'recipePublisher' in child.dataset);
+  const [burger,curry]=recipeRows(entries);
+  assert.equal(label(burger).text,'Meyers');assert.equal(label(burger).tag,'small');
+  assert.equal(label(curry),undefined,'a blank publisher shows no label');
+  assert.match(textOf(burger.children[0]),/Burgerboller 15 stk\. · 12–15 min\. bagetid/,'title and meta unchanged');
+  view.active=meyers;view.sessions.set(meyers,{steps:new Set()});render();
+  assert.equal(label(recipeRows(entries)[0]),undefined,'the I gang band keeps its own lines');
+  assert.ok(/\[data-recipe\]:not\(\[data-kit-variant=resume\]\) small\[data-recipe-publisher\]\{[^}]*grid-row:1;/
+    .test(css),'the label sits on the photo row, so the 252 card keeps its rows');
+});
 
 // Changed 13 Nov (native feel): the background owner now reads the catalogue once at startup, so the
 // page opens complete; it still never takes focus and restores the validated session once.

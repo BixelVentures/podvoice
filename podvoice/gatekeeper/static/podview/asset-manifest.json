@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "210bf7e11ce028e90136308ccd6b41e71bf3d43be597a6cc9d070fb62b89bf75"
+      "sha256": "b7b1a91b51bd85ad67556ff487b218f7dd112c3aef4e74725a3555088fe39d01"
     },
     {
       "path": "library.css",
@@ -819,11 +819,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "c8bcc81f7de65bb213cf23c19f24e1d1be325ee99e4b9ddaa58e40d0d1808dc3"
+      "sha256": "895632f168bf381afe4cc06de4349b6bfb55a2475eedcfe6d8e1b311945334d8"
     },
     {
       "path": "podview.css",
-      "sha256": "1851c2ca068983a51e869b62f76bc3499b2fcf69bca6bc7cdf87cb5e22f29db6"
+      "sha256": "433d9c34d632e5b6871a206db4e49fed72ca61081cc711bea0fbb29dbdf21bf8"
     },
     {
       "path": "podvoice-transport.js",
@@ -851,7 +851,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "9c5d7bbc959c87b0c51504250ac1de9c886a3e3cf4d726cbcfb6ef1394343b2e"
+      "sha256": "5a085db4e8fe44ad7c040a87e14c47ba38795e88a149d3aebfa7afa0d02ed34b"
     },
     {
       "path": "references.json",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "326dc99660b5ad162a6939b7cf69074bc735a4b3b382d5ac29ef8c8b9852b610"
+      "sha256": "453017baf75a68cf2091f732bde7f95027ce7ad2122ee950063d2cca687cb679"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1083,7 +1083,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "972b3a80ef24121648581a25c04c39edba1af1d79f7613d1909c0fba1dd4a3b9"
+      "sha256": "8ef39d74968751b706de0b55614db137d34ee266101d3e8d5de08aceec813ef9"
     },
     {
       "path": "widget-model.js",
