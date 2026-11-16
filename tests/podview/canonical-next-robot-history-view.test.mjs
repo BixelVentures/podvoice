@@ -13,6 +13,8 @@ class Node {
  setAttribute(name,value){this.attributes[name]=value;}
  getAttribute(name){return this.attributes[name]??null;}
  remove(){if(this.parent){this.parent.children=this.parent.children.filter(node=>node!==this);this.parent=null;}}
+ after(node){const parent=this.parent;node.remove();node.parent=parent;parent.children.splice(parent.children.indexOf(this)+1,0,node);}
+ get previousElementSibling(){const siblings=this.parent?.children||[],index=siblings.indexOf(this);return index>0?siblings[index-1]:null;}
  insertBefore(node,before){node.remove();node.parent=this;const index=before?this.children.indexOf(before):this.children.length;this.children.splice(index,0,node);}
  addEventListener(name,handler){this.listeners[name]=handler;}
 }
