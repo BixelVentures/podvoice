@@ -2955,6 +2955,13 @@ body button:not(.is-pressed){transition-property:filter!important}
   grid-column:3!important;grid-row:3!important}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card{
   grid-column:4!important;grid-row:3!important;padding:0;background:transparent}
+ /* One slot per group: a second robot or light is not a 0-px card; its group's card says »+N«. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  .resource-card[data-overview-extra=true]{display:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  .resource-card>.overview-more:not([hidden]){position:absolute;z-index:3;top:18px;right:48px;height:32px;
+  min-width:44px;padding:0 12px;margin:0;border:0;border-radius:999px;background:var(--pv-ink);color:#F7F6F3;
+  box-shadow:none;font:500 15px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:-0.02em;cursor:pointer}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
   :is(#timer-card,.resource-card)>:not([hidden]){box-sizing:border-box;height:100%;min-height:0;max-height:none}
 
@@ -5457,6 +5464,12 @@ body button:not(.is-pressed){transition-property:filter!important}
   left:560px}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish{
   background:var(--pv-timer-coral)!important;color:var(--pv-ink)!important}
+ /* Lærred »Timer-faerdig«: the 300-px action column wraps »Start igen · 10 min« under »Stop alarm«. */
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:not([hidden]){
+  position:absolute;z-index:1;left:412px;top:calc(50% + 108px);height:56px;min-height:56px;width:auto;
+  padding:0 24px;margin:0;border-radius:999px;border:0;box-shadow:none;background:var(--pv-timer-dark-2);
+  color:#F7F6F3;font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;cursor:pointer}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:disabled{opacity:.45}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel
   .timer-copy>strong:not([hidden]){display:block!important}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button.timer-adjust

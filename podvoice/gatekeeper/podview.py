@@ -2225,7 +2225,7 @@ class PodViewBridge:
         def timer_trace(stage, outcome):
             try:
                 action = body.get("action")
-                if action not in ("timer.start", "timer.cancel", "timer.adjust"):
+                if action not in ("timer.start", "timer.cancel", "timer.adjust", "timer.restart"):
                     action = "other"
                 request_ref = hashlib.sha256(request_id.encode(errors="surrogatepass")).hexdigest()[
                     :16
@@ -2271,7 +2271,7 @@ class PodViewBridge:
             revision = body["revision"]
             revision_current = type(revision) is int and (
                 1 <= revision <= snap["revision"]
-                if body["action"] in ("timer.adjust", "timer.cancel")
+                if body["action"] in ("timer.adjust", "timer.cancel", "timer.restart")
                 else revision == snap["revision"]
             )
             # Adjust binds native revision; Cancel binds the exact native ID.
@@ -2299,6 +2299,21 @@ class PodViewBridge:
                 and set(args) == {"timer_id"}
                 and isinstance(args["timer_id"], str)
                 and args["timer_id"] in {r["id"] for r in snap["timers"]["items"]}
+            )
+            # »Start igen« (lærred »Timer-faerdig«): a finished timer's own duration and label,
+            # read from the observation, never from the screen.
+            restarted = next(
+                (row for row in snap["timers"]["items"] if row["id"] == args.get("timer_id")), None
+            )
+            valid |= (
+                action == "timer.restart"
+                and set(args) == {"timer_id"}
+                and restarted is not None
+                and restarted["status"] == "finished"
+                and type(restarted.get("durationSeconds")) is int
+                and 1 <= restarted["durationSeconds"] <= 86400
+                and isinstance(restarted.get("name"), str)
+                and len(restarted["name"]) <= 120
             )
             adjusted = next(
                 (row for row in snap["timers"]["items"] if row["id"] == args.get("timer_id")), None
@@ -2349,6 +2364,28 @@ class PodViewBridge:
                 )
 
             try:
+                if action == "timer.restart" and restarted is not None:
+                    # Stop the finished alarm first; the new timer goes through the start path.
+                    stopped = await asyncio.wait_for(
+                        owner.dispatch(
+                            "podvoice_cancel_timer",
+                            {"timer_id": args["timer_id"]},
+                            room,
+                            "podview:" + self.boot_id,
+                            request_id + ":stop",
+                            execution_guard=current,
+                        ),
+                        timeout=8,
+                    )
+                    if stopped.get("ok") is not True or not current():
+                        raise RuntimeError("timer_restart_stop_failed")
+                    action, args = (
+                        "timer.start",
+                        {
+                            "seconds": restarted["durationSeconds"],
+                            "name": restarted["name"],
+                        },
+                    )
                 result = await asyncio.wait_for(
                     owner.dispatch(
                         {

@@ -29,7 +29,7 @@ import {LiveMediaView} from './live-media-view.js';
 import {LiveMusicCatalogueView} from './live-music-view.js';
 import {LiveMusicSelectionView} from './live-music-selection-view.js';
 import {renderLiveWeather,renderRobotHistory} from './live-home-view.js';
-import {validateHome,applyHome,scopedLightDevice} from './home-model.js';
+import {validateHome,applyHome,scopedLightDevice,overviewGroupOverflow} from './home-model.js';
 import {lightAreasObservation,scopedLightsObservation} from './ha-home-observation.js';
 import {SceneMotion} from './ui/motion.js';
 import {robotExperience} from './robot-observation.js';
@@ -323,7 +323,7 @@ class WidgetHost extends HTMLElement {
   const awaitingTimerObservation=timerFences.length>0||this.liveActionPending||timerAwaiting
    ||this.liveTimerPhase==='unknown';
   const waiting=this.liveActionPending||timerAwaiting,feedback=waiting?'':this.liveActionFeedback||(timerFences.length?'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.':!canStart&&!canCancel?'Timerstyring er ikke tilgængelig lige nu.':'');
-  const timerAccess={connected,canStart,canCancel,canAdjust,adjustBlockedIds,adjustPending,allowIndependentCancel:!this.liveActionPending||!!adjustOperation,cancelBlockedIds,pending:!!this.liveActionPending,waiting:!!waiting,awaitingObservation:awaitingTimerObservation,feedback},timerAccessSignature=JSON.stringify(timerAccess);if(this.timerAccessSignature!==timerAccessSignature){this.timerAccessSignature=timerAccessSignature;this.timerView.renderAccess(timerAccess);}
+  const timerAccess={connected,canStart,canCancel,restartIds:(snapshot?.timers?.items||[]).filter(t=>liveTimerRequest(snapshot,connected,{type:'timer',action:'restart',id:t.id})).map(t=>t.id),canAdjust,adjustBlockedIds,adjustPending,allowIndependentCancel:!this.liveActionPending||!!adjustOperation,cancelBlockedIds,pending:!!this.liveActionPending,waiting:!!waiting,awaitingObservation:awaitingTimerObservation,feedback},timerAccessSignature=JSON.stringify(timerAccess);if(this.timerAccessSignature!==timerAccessSignature){this.timerAccessSignature=timerAccessSignature;this.timerView.renderAccess(timerAccess);}
   if($('results').hidden!==!!(false))$('results').hidden=false;if($('collapse').hidden!==!!(true))$('collapse').hidden=true;if($('results').inert!==!!(false))$('results').inert=false;if($('results').classList.contains('collapsed'))$('results').classList.remove('collapsed');
   // LiveMediaView owns account-picker visibility from validated choices.
   this.liveCatalogue??=new LiveMusicCatalogueView(this,kind=>this.loadLiveMusic(kind));this.liveCatalogue.updateCapabilities(connected,snapshot?.capabilities.musicRead||[]);this.liveCatalogue.open();this.liveSelection??=new LiveMusicSelectionView(this);this.liveSelection.setAccount(this.liveMedia?.account||null);this.liveSelection.onSnapshot();this.liveCatalogue.render();this.liveMedia?.render();this.liveControls?.render();renderLiveWeather(this);renderRobotHistory(this);
@@ -359,11 +359,11 @@ class WidgetHost extends HTMLElement {
   const adjusted=operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.receipt?.sourceRevision||operation.expectedRevision)||operation.outcome==='accepted'&&row.sourceRevision===operation.receipt?.sourceRevision&&row.durationSeconds===operation.receipt.durationSeconds&&row.status===operation.receipt.status&&Number.isInteger(row.secondsLeft)&&row.secondsLeft>=0&&(row.status==='paused'?row.secondsLeft===operation.receipt.secondsLeft:row.secondsLeft<=operation.receipt.secondsLeft));
   const observed=operation.action==='timer.cancel'?!row:operation.action==='timer.adjust'?adjusted:operation.outcome==='accepted'&&typeof operation.timerId==='string'&&operation.timerId.length>0&&!!row;
   if(!observed)return;
-  const actual=operation.action==='timer.start'?snapshot.timers.items.find(timer=>timer.id===operation.timerId)?.secondsLeft:false;operation.journal?.('control_observation',{code:operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.receipt?.sourceRevision||operation.expectedRevision))?'superseded':'observed',source:'snapshot',trust:'state_observation',...(operation.action!=='timer.adjust'&&(typeof actual==='boolean'||typeof actual==='number'&&Number.isFinite(actual)&&actual>=0&&actual<=86400)?{observedValue:actual}:{})});
+  const actual=['timer.start','timer.restart'].includes(operation.action)?snapshot.timers.items.find(timer=>timer.id===operation.timerId)?.secondsLeft:false;operation.journal?.('control_observation',{code:operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.receipt?.sourceRevision||operation.expectedRevision))?'superseded':'observed',source:'snapshot',trust:'state_observation',...(operation.action!=='timer.adjust'&&(typeof actual==='boolean'||typeof actual==='number'&&Number.isFinite(actual)&&actual>=0&&actual<=86400)?{observedValue:actual}:{})});
   const phase=this.liveTimerPhase;
   clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;this.liveActionFeedback='';
   this.liveTimerPhase=null;
-  if(operation.action==='timer.start'&&operation.outcome==='accepted'){
+  if(['timer.start','timer.restart'].includes(operation.action)&&operation.outcome==='accepted'){
    this.timerView?.completeStartNavigation(operation.uiReturnToken,operation.timerId);
   }
   // The next queued +1/−1 is sent now against the fresh revision; never after UNKNOWN (T1).
@@ -390,10 +390,10 @@ class WidgetHost extends HTMLElement {
    const queued=this.liveTimerAdjusts?.operation===running?this.liveTimerAdjusts:{operation:running,deltas:[]};
    queued.deltas.push(request.args.delta_seconds);this.liveTimerAdjusts=queued;this.renderLive();return;
   }
-  if(this.liveActionPending&&!(exactCancel&&this.liveTimerAction?.action==='timer.adjust')||fences.some(operation=>request.action==='timer.start'||operation.action==='timer.cancel'&&operation.timerId===request.args?.timer_id||request.action==='timer.adjust'&&operation.timerId===request.args?.timer_id))return;
+  if(this.liveActionPending&&!(exactCancel&&this.liveTimerAction?.action==='timer.adjust')||fences.some(operation=>['timer.start','timer.restart'].includes(request.action)||operation.action==='timer.cancel'&&operation.timerId===request.args?.timer_id||request.action==='timer.adjust'&&operation.timerId===request.args?.timer_id))return;
   if(this.liveTimerAction){if(!exactCancel||this.liveTimerAction.action==='timer.cancel'&&this.liveTimerAction.timerId===request.args?.timer_id)return;fences.push(this.liveTimerAction);this.liveTimerAction=null;}
   else if(!exactCancel&&['awaiting','unknown'].includes(this.liveTimerPhase))return;
-  const snapshot=this.liveSnapshot,transport=this.liveTransport,generation=this.liveTimerGeneration||0,operation={snapshot,bootId:snapshot.bootId,roomId:snapshot.roomId,epoch:snapshot.timers.epoch,action:request.action,timerId:request.args?.timer_id,deltaSeconds:request.args?.delta_seconds,expectedRevision:request.args?.expected_revision,outcome:null,waitUntil:null,uiReturnToken:request.action==='timer.start'?this.timerView?.startNavigation:null};
+  const snapshot=this.liveSnapshot,transport=this.liveTransport,generation=this.liveTimerGeneration||0,operation={snapshot,bootId:snapshot.bootId,roomId:snapshot.roomId,epoch:snapshot.timers.epoch,action:request.action,timerId:request.action==='timer.restart'?null:request.args?.timer_id,deltaSeconds:request.args?.delta_seconds,expectedRevision:request.args?.expected_revision,outcome:null,waitUntil:null,uiReturnToken:['timer.start','timer.restart'].includes(request.action)?this.timerView?.startNavigation:null};
   const diagnosticGeneration=transport.generation,diagnosticAuthority=JSON.stringify(snapshot.admission??null),diagnosticPermitted=snapshot.capabilities?.timerActions?.includes(operation.action)===true,requestedValue=request.action==='timer.cancel'?false:request.action==='timer.adjust'&&Number.isInteger(request.args?.delta_seconds)&&request.args.delta_seconds!==0&&Math.abs(request.args.delta_seconds)<=86400?request.args.delta_seconds:Number.isInteger(request.args?.seconds)&&request.args.seconds>=1&&request.args.seconds<=86400?request.args.seconds:undefined;
   operation.journal=(stage,fields={})=>{if(transport!==this.liveTransport||stage!=='control_action'&&transport.generation!==diagnosticGeneration||this.liveSnapshot?.bootId!==operation.bootId||this.liveSnapshot?.roomId!==operation.roomId||JSON.stringify(this.liveSnapshot.admission??null)!==diagnosticAuthority||!diagnosticPermitted||!this.liveSnapshot.capabilities?.timerActions?.includes(operation.action)||transport.recoveryBlocked===true||transport.controllerRenewalDenied===true)return;try{transport.recordDiagnostic?.(stage,{domain:'timer',action:operation.action,requestId:operation.requestId,resourceId:operation.timerId,...(requestedValue!==undefined?{requestedValue}:{}),...fields});}catch{/* Journal failure cannot alter timer control. */}};
   operation.dropQueued=()=>{
@@ -405,7 +405,7 @@ class WidgetHost extends HTMLElement {
   const current=()=>this.isConnected&&this.liveTimerAction===operation&&transport===this.liveTransport&&generation===(this.liveTimerGeneration||0);
   this.liveTimerAction=operation;this.liveActionPending=true;this.liveActionFeedback='';this.liveTimerPhase='sending';
   this.renderLive();clearTimeout(this.liveSlowTimer);
-  try{operation.requestId=crypto.randomUUID();operation.journal('control_intent',{code:'start'});operation.journal('control_action',{code:'start'});const result=await transport.action({...request,requestId:operation.requestId});operation.journal('control_action',{code:result?.ok?'accepted':result?.outcome==='unknown'?'unknown':'rejected',current:current()&&transport.generation===diagnosticGeneration,...(typeof result?.timerId==='string'?{resourceId:result.timerId}:{})});if(!current())return;operation.outcome=result.ok?'accepted':result.outcome==='unknown'?'unknown':'rejected';if(operation.action==='timer.adjust'&&operation.outcome==='accepted')operation.receipt=result;if(operation.action==='timer.start'&&operation.outcome==='accepted')operation.timerId=typeof result.timerId==='string'&&result.timerId.length>0&&result.timerId.length<=200?result.timerId:null;this.liveActionFeedback=operation.outcome==='accepted'?'Afventer opdateret timer':operation.outcome==='unknown'?'Udfald ukendt · handlingen gentages ikke':'Handlingen blev afvist · hent aktuel status';if(operation.outcome==='accepted'){operation.waitUntil=Date.now()+12000;this.showFeedback('Timeranmodningen er modtaget',false);}}catch{if(!current())return;operation.journal('control_action',{code:operation.requestId?'unknown':'failure'});operation.outcome='unknown';this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}finally{
+  try{operation.requestId=crypto.randomUUID();operation.journal('control_intent',{code:'start'});operation.journal('control_action',{code:'start'});const result=await transport.action({...request,requestId:operation.requestId});operation.journal('control_action',{code:result?.ok?'accepted':result?.outcome==='unknown'?'unknown':'rejected',current:current()&&transport.generation===diagnosticGeneration,...(typeof result?.timerId==='string'?{resourceId:result.timerId}:{})});if(!current())return;operation.outcome=result.ok?'accepted':result.outcome==='unknown'?'unknown':'rejected';if(operation.action==='timer.adjust'&&operation.outcome==='accepted')operation.receipt=result;if(['timer.start','timer.restart'].includes(operation.action)&&operation.outcome==='accepted')operation.timerId=typeof result.timerId==='string'&&result.timerId.length>0&&result.timerId.length<=200?result.timerId:null;this.liveActionFeedback=operation.outcome==='accepted'?'Afventer opdateret timer':operation.outcome==='unknown'?'Udfald ukendt · handlingen gentages ikke':'Handlingen blev afvist · hent aktuel status';if(operation.outcome==='accepted'){operation.waitUntil=Date.now()+12000;this.showFeedback('Timeranmodningen er modtaget',false);}}catch{if(!current())return;operation.journal('control_action',{code:operation.requestId?'unknown':'failure'});operation.outcome='unknown';this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}finally{
    if(!current())return;clearTimeout(this.liveSlowTimer);this.liveActionPending=false;
    this.liveTimerPhase=operation.outcome==='accepted'?'awaiting':operation.outcome==='unknown'?'unknown':'rejected';
    if(operation.outcome!=='accepted')operation.dropQueued();
@@ -713,6 +713,17 @@ class WidgetHost extends HTMLElement {
   if(status.textContent!==feedback.text)status.textContent=feedback.text;if(status.dataset.state!==feedback.state)status.dataset.state=feedback.state;
   const hidden=!feedback.text;if(status.hidden!==hidden)status.hidden=hidden;if(status.getAttribute('aria-hidden')!==String(hidden))status.setAttribute('aria-hidden',String(hidden));return status;
  }
+ renderOverviewOverflow(nodes){
+  const overflow=overviewGroupOverflow(nodes.map(node=>({id:node.dataset.target||node.firstElementChild?.dataset?.target,kind:node.dataset.kind,hidden:node.hidden,node})).filter(entry=>entry.id));
+  for(const node of nodes){
+   const id=node.dataset.target||node.firstElementChild?.dataset?.target,info=overflow.get(id),extra=String(info?.extra===true);if(node.dataset.overviewExtra!==extra)node.dataset.overviewExtra=extra;
+   const more=info?.more||0;let chip=node.overviewMore;
+   if(!more){if(chip&&!chip.hidden)chip.hidden=true;continue;}
+   if(!chip){chip=node.ownerDocument.createElement('button');chip.type='button';chip.className='overview-more';node.append(chip);node.overviewMore=chip;chip.addEventListener('click',()=>{const target=chip.dataset.openId;if(!target||chip.hidden)return;this.dispatch({type:'show',id:target});this.focusHeading?.();});}
+   const text=`+${more}`,noun=node.dataset.kind==='vacuum'?(more===1?'robot':'robotter'):'lys',aria=`${more} ${noun} mere · åbn`;
+   if(chip.textContent!==text)chip.textContent=text;if(chip.getAttribute('aria-label')!==aria)chip.setAttribute('aria-label',aria);if(chip.dataset.openId!==info.openId)chip.dataset.openId=info.openId;if(chip.hidden)chip.hidden=false;
+  }
+ }
  lightAreaContext(){
   const s=this.liveSnapshot,areas=this.state.lightAreas,placement=this.state.lightPlacement;
   if(!this.live||!this.isConnected||this.browserOffline||!this.liveTransport?.connected
@@ -954,6 +965,7 @@ class WidgetHost extends HTMLElement {
    this.overviewSignature=signature;
    const ordered=[];
    for(const item of priorities){const row=this.deviceRows?.get(item.id),node=row?.overviewShell||row||$(item.id);if(!node)continue;if(node.style.order!==String(item.rank))node.style.order=String(item.rank);if(node.dataset.overviewPriority!==item.priority)node.dataset.overviewPriority=item.priority;if(node.dataset.overviewRank!==String(item.rank))node.dataset.overviewRank=String(item.rank);ordered.push(node);}
+   this.renderOverviewOverflow?.(ordered);
    // Fixed visual slots and native keyboard/read order are the same.
    // Move the existing cards, not copies; retain the empty adapter containers.
    const overview=$('now-view'),feed=this.querySelector?.('.responses'),scroll=feed?.scrollTop,active=this.ownerDocument?.activeElement;
