@@ -48,7 +48,12 @@ async function open(stage,{overview=false}={}){
  assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,221],'hero 744×221 at the top of the column');
  assert.equal(hero.radius,'24px');assert.equal(hero.bg,'rgb(246, 216, 225)','hero #F6D8E1');
  assert.equal((await box(heroNode.locator('.pv-instrument'))).display,'none','arcs, not an icon');
+ // The eyebrow over the title (A-Robot »Ved basen«) in 15/600 #5F5E5A, 24 in.
+ const eyebrow=await box(heroNode.locator('.robot-hero-eyebrow'));
+ assert.equal(eyebrow.text,'Ved basen');assert.equal(eyebrow.size,'15px');assert.equal(eyebrow.weight,'600');
+ assert.equal(eyebrow.color,'rgb(95, 94, 90)');near(eyebrow.y,88+24,'eyebrow 24 in');
  const title=await box(heroNode.locator('.pv-resource-value'));
+ near(title.y,88+58,'title under the eyebrow (canvas y 146)');
  assert.equal(title.size,'40px');assert.equal(title.weight,'800');near(title.x,24+24,'title 24 from the left');
  const line=await box(heroNode.locator('.pv-content>.pv-meta'));
  assert.equal(line.size,'19px');assert.equal(line.weight,'600');assert.equal(line.color,'rgb(63, 62, 59)');
@@ -61,6 +66,12 @@ async function open(stage,{overview=false}={}){
  const more=await box(heroNode.locator('[id^=robot-base-][id$=-trigger]'));
  assert.equal(more.text,'Mere');assert.equal(more.h,56,'56 »Mere«');
  near(more.x+more.w,start.x-12,'»Mere« 12 left of the primary');
+ assert.equal(more.bg,'rgba(0, 0, 0, 0)','»Mere« is an outline, not a second dark button');
+ assert.equal(await heroNode.locator('.transport>button:visible').count(),1,'one dark button: the primary');
+ // The section gap under Rengøringsvalg is 32 (canvas), Seneste hændelser then starts.
+ const rooms=await box(page.locator('#device-view .robot-room-heading h2'));
+ assert.equal(rooms.text,'Rum');
+ assert.equal(await page.getByRole('button',{name:'Vælg alle',exact:true}).count(),1,'»Vælg alle« (canvas)');
  const roomsTitle=await box(page.locator('#device-view .robot-room-heading h2'));
  assert.equal(roomsTitle.text,'Rum');assert.equal(roomsTitle.size,'24px');assert.equal(roomsTitle.weight,'800');
  const tiles=page.locator('#device-view .robot-room-tile'),tile=await box(tiles.first());
@@ -105,6 +116,40 @@ async function open(stage,{overview=false}={}){
  await page.locator('#device-view').evaluate(n=>{n.scrollTop=420;});await sleep(500);
  await page.locator('#device-view .robot-sticky-more').tap();await sleep(500);
  assert.equal(await page.locator('#device-view [id^=robot-base-][id$=-trigger]').getAttribute('aria-expanded'),'true');
+ await page.close();
+
+ // A running base operation: its stop leads »Mere« in amber, the hero keeps Start + Mere (A-Robot base »vasker«).
+ page=await open('robot-detail-drying');
+ const baseHero=page.locator(HERO);
+ assert((await baseHero.locator('.transport>button:visible').count())<=1,'at most the primary beside »Mere«');
+ assert.equal(await baseHero.locator('.transport>button[data-dock-operation]').count(),0,
+  'no base stop in the hero row');
+ await baseHero.locator('[id^=robot-base-][id$=-trigger]').tap();await sleep(400);
+ const stop=baseHero.locator('[id^=robot-base-][id$=-panel] .pv-actions>button').first();
+ assert.match(await stop.getAttribute('data-dock-operation'),/_stop$/,'the running operation\'s stop comes first');
+ const stopBox=await box(stop);
+ assert.equal(stopBox.bg,'rgb(251, 231, 185)','amber #FBE7B9');assert.match(stopBox.shadow,/226, 176, 74/);
+ assert.deepEqual(page.errors,[]);await page.close();
+
+ // Vedligehold beside Seneste hændelser (1.5fr + 1fr), 32 under Rengøringsvalg, from the robot's care counters.
+ page=await open('robot-detail-care');
+ await page.locator('#device-view').evaluate(n=>{n.scrollTop=n.scrollHeight;});await sleep(400);
+ const events=await box(page.locator('#device-view>section.device-history:not(:has(pv-robot-control-panel))'));
+ const care=await box(page.locator('#robot-care'));
+ assert.deepEqual([events.x,events.w],[24,437],'Seneste hændelser 1.5fr');
+ assert.deepEqual([care.x,care.w],[477,291],'Vedligehold 1fr beside it');
+ assert.equal(care.y,events.y,'one row');assert.equal(care.bg,'rgb(247, 246, 243)');assert.equal(care.radius,'24px');
+ assert.match(care.text,/^Vedligehold/);
+ assert.match(care.text,/Hovedbørste[\s\S]*Sidebørste[\s\S]*Filter[\s\S]*Sensorer/,'the product\'s care rows');
+ const above=await page.locator('#device-view>section.device-history:has(pv-robot-control-panel)').evaluate(n=>
+  n.getBoundingClientRect().bottom);
+ near(events.y-above,32,'32 under Rengøringsvalg',1);
+ assert.deepEqual(page.errors,[]);await page.close();
+
+ // W-robot »oplader«: the M widget carries the battery and the last run (»Batteri 76 % · senest …«).
+ page=await open('robot-detail-docked',{overview:true});
+ const ctxLine=await page.locator('#now-view .resource-card[data-kind=vacuum] .resource-preview small').innerText();
+ assert.match(ctxLine,/^Batteri 76 % · senest 12,5 m² · 10 min$/,`robot widget context: ${ctxLine}`);
  await page.close();
 
  // Robot-Rengoer: the turn runs; the arcs breathe on #F6D3DE.

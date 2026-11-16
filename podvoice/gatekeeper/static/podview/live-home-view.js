@@ -1,7 +1,7 @@
 import {homeConnectionPresentation} from './podvoice-view.js';
 import {conditionLabel,weatherTemperature,weatherAdviceCapability,weatherPassiveAdvice,weatherAiAdvice} from './weather-observation.js';
 import {renderWeather,liveWeatherModel,weatherOverviewDetail,weatherHeaderVisible,renderOverviewForecast} from './weather-view.js';
-import {robotFacts,robotExperience} from './robot-observation.js';
+import {robotFacts,robotExperience,robotCare} from './robot-observation.js';
 const $=id=>document.getElementById(id),make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
 // One lazy request per server-admitted source binding. Completion is read only
 // through the existing home projection; navigation never replays a paid POST.
@@ -69,12 +69,41 @@ export function renderLiveWeather(host){
  const refreshAt=model.refreshAt||model.adviceUntil||null;if(refreshAt!==host.weatherAdviceAt||refreshAt&&!host.weatherAdviceTimer){globalThis.clearTimeout(host.weatherAdviceTimer);host.weatherAdviceTimer=null;host.weatherAdviceAt=refreshAt;if(refreshAt){let handle;handle=globalThis.setTimeout(()=>{if(host.weatherAdviceTimer!==handle)return;host.weatherAdviceTimer=null;if(host.isConnected)renderLiveWeather(host);},Math.min(2147483647,refreshAt-Date.now()+1));host.weatherAdviceTimer=handle;}}
 }
 
+// Vedligehold sits beside Seneste hændelser (lærred »A-Robot«: 1.5fr + 1fr). Hidden when the robot reports no counters.
+function renderRobotCare(historySection,device){
+ const rows=device?robotCare(device):[];
+ let care=$('robot-care');
+ if(!care&&!rows.length)return;
+ if(!care){
+  care=make('section','robot-care');care.id='robot-care';care.hidden=true;
+  care.setAttribute('aria-labelledby','robot-care-title');
+  const header=make('header','robot-care-heading'),title=make('h2','robot-care-title','Vedligehold');
+  title.id='robot-care-title';
+  care.countNode=make('span','robot-care-count');care.listNode=make('ul','robot-care-list');
+  header.append(title,care.countNode);care.append(header,care.listNode);
+ }
+ if(care.previousElementSibling!==historySection)historySection.after(care);
+ const due=rows.filter(row=>row.due&&!row.stale).length;
+ const signature=JSON.stringify(rows);
+ if(care.dataset.signature!==signature){
+  care.dataset.signature=signature;
+  care.countNode.textContent=due?`${due} ${due===1?'påmindelse':'påmindelser'}`:'';
+  care.listNode.replaceChildren(...rows.map(row=>{
+   const item=make('li','robot-care-row');item.dataset.careKey=row.key;item.dataset.due=String(row.due);
+   item.append(make('span','robot-care-label',row.label),
+    make('span','robot-care-value',row.value+(row.stale?' · ikke opdateret':'')));
+   return item;
+  }));
+ }
+ if(care.hidden!==!rows.length)care.hidden=!rows.length;
+}
+
 export function renderRobotHistory(host){
  const timeline=$('device-timeline'),historySection=timeline.closest('.device-history');
  const recent=$('robot-recent');if(recent){recent.hidden=true;if(recent.children.length)recent.replaceChildren();delete recent.robotHistoryNodes;}
  const canChoose=(device,record)=>{const local=!host.live&&!!host.localRobot&&device&&!device.live&&!device.presentationOnly,scope=host.liveSnapshot,read=!!(scope?.capabilities?.homeRead?.includes('vacuum')&&scope.bootId&&scope.roomId&&host.state.homeScope===JSON.stringify([scope.bootId,scope.roomId])&&!host.liveTransport?.recoveryBlocked&&device?.source==='home_assistant_state'),now=Date.now()/1000,experience=robotExperience(device),fresh=local||Number.isFinite(device?.observedAt)&&device.observedAt<=now&&now-device.observedAt<=300;return !!device&&host.state.focus===device.id&&(host.live?host.liveTransport?.connected===true:host.state.connected!==false)&&!device.stale&&!device.pending&&['docked','stopped','complete','idle'].includes(device.status)&&experience.jobActive!==true&&!experience.issues.length&&(experience.activity===null||['Oplader','Opladet'].includes(experience.activity))&&!device.localDockOperation&&fresh&&/^[a-f0-9]{32}$/.test(record?.id||'')&&Number.isFinite(record?.recordedAt)&&record.recordedAt>=0&&record.recordedAt<=now&&device.history?.status==='observed'&&device.history.items?.some(row=>row.id===record.id&&row.outcome===(local?'accepted_local':'accepted_by_ha'))&&record.recipe?.completeSetup===true&&(local?host.localRobot.allowed('vacuum'):device.live&&read&&host.isConnected===true&&host.liveControls?.allowed('vacuum'));};
  if(!timeline.robotHistoryListener){timeline.robotHistoryListener=true;timeline.addEventListener('pv-action',event=>{if(event.detail?.action_id!=='choose-history'||typeof event.detail.option_id!=='string'||!event.detail.option_id.startsWith('robot-request:'))return;const id=event.detail.option_id.slice('robot-request:'.length),device=host.state.devices.find(row=>row.id===host.state.focus&&row.kind==='vacuum'),record=device?.history?.items?.find(row=>row.id===id);if(!canChoose(device,record))return;(host.live?host.liveControls:host.localRobot)?.openRobot(event.target,id);});}
- const d=host.state.devices.find(x=>x.id===host.state.focus&&x.kind==='vacuum'),local=!!(!host.live&&host.localRobot&&d&&!d.live&&!d.presentationOnly),readAllowed=!!(host.liveSnapshot?.capabilities?.homeRead?.includes('vacuum')&&host.liveSnapshot.bootId&&host.liveSnapshot.roomId&&host.state.homeScope===JSON.stringify([host.liveSnapshot.bootId,host.liveSnapshot.roomId])&&!host.liveTransport?.recoveryBlocked&&d?.source==='home_assistant_state'),visible=!!(!d?.presentationOnly&&(local||d?.live&&readAllowed));if(!visible){if(d?.live||d?.presentationOnly){historySection.hidden=true;timeline.data={items:[],historyScope:null,state:'empty',stateText:'Hændelser er ikke tilgængelige lige nu.'};}else if(historySection.hidden)historySection.hidden=false;if(timeline.hidden)timeline.hidden=false;return;}
+ const d=host.state.devices.find(x=>x.id===host.state.focus&&x.kind==='vacuum'),local=!!(!host.live&&host.localRobot&&d&&!d.live&&!d.presentationOnly),readAllowed=!!(host.liveSnapshot?.capabilities?.homeRead?.includes('vacuum')&&host.liveSnapshot.bootId&&host.liveSnapshot.roomId&&host.state.homeScope===JSON.stringify([host.liveSnapshot.bootId,host.liveSnapshot.roomId])&&!host.liveTransport?.recoveryBlocked&&d?.source==='home_assistant_state'),visible=!!(!d?.presentationOnly&&(local||d?.live&&readAllowed));renderRobotCare(historySection,visible?d:null);if(!visible){if(d?.live||d?.presentationOnly){historySection.hidden=true;timeline.data={items:[],historyScope:null,state:'empty',stateText:'Hændelser er ikke tilgængelige lige nu.'};}else if(historySection.hidden)historySection.hidden=false;if(timeline.hidden)timeline.hidden=false;return;}
  const history=d.history||{status:'unavailable',items:[]},facts=robotFacts(d);
  const values=d.telemetry?.status==='observed'?d.telemetry.items:[],dates=['last_clean_start','last_clean_end'].map(key=>values.find(row=>row.key===key)).filter(Boolean);
  // Native start/end timestamps and control requests are separate facts in one history.

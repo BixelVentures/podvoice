@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 92dc87109af753e3648a8b642b6d04aaf252bcabe8dc77ad4e560015db11e72f */
+/* Source: ui-kit.css · SHA256 cd36934e320b8c7b4b3bca9f0d37816a73c862cbb4337a9c97ecdf3e1c52cd4c */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -2836,7 +2836,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  --pv-screen-radius:var(--pv-r-l);--pv-screen-radius-control:var(--pv-r-l);--pv-screen-radius-row:var(--pv-r-l);--pv-screen-radius-field:var(--pv-r-s);--pv-screen-radius-frame:var(--pv-r-l);--pv-screen-radius-art:var(--pv-r-s);--pv-screen-radius-choice:var(--pv-r-s);--pv-screen-radius-pill:var(--pv-r-pill);--pv-resource-radius:var(--pv-r-l);--pv-hit-radius:var(--pv-r-s);
  --pv-weight-regular:400;--pv-weight-medium:500;--pv-weight-semibold:600;--pv-weight-bold:var(--pv-weight-semibold);
  --pv-s1:8px;--pv-s2:16px;--pv-s3:24px;--pv-s4:32px;--pv-s5:40px;--pv-control-label-gap:var(--pv-s1);--pv-control-row-gap:var(--pv-s2);--pv-control-section-gap:var(--pv-s4);--pv-control-panel-gap:var(--pv-s3);--pv-control-card-inset:var(--pv-s3);
- --pv-r-s:14px;--pv-r-l:22px;--pv-r-hero:26px;--pv-r-pill:999px;
+ --pv-r-s:14px;--pv-r-l:22px;--pv-r-hero:26px;--pv-r-pill:999px;--pv-r-dialog:26px;
  --pv-icon-s:24px;--pv-icon-m:32px;--pv-icon-l:48px;--pv-icon-stroke:2px;
  --pv-shadow:0 1px 3px rgba(27,29,28,.04);--pv-scrim:rgba(27,29,28,.32);
  --pv-d-press:120ms;--pv-d-switch:240ms;--pv-d-in:400ms;--pv-d-fast:var(--pv-d-press);--pv-d-move:var(--pv-d-switch);
@@ -3270,7 +3270,7 @@ input,textarea{caret-color:var(--pv-ink)}
 .pv-kit-sectionheader{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);color:var(--pv-ink)}
 .pv-kit-topbar{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2);min-height:var(--pv-hit);color:var(--pv-ink)}
 .pv-kit-topbar :is(h1,h2){font:var(--pv-t-title);color:inherit;margin:0}
-.pv-kit-dialog{padding:var(--pv-s4);border:0;border-radius:var(--pv-r-l);background:var(--pv-surface);color:var(--pv-ink);box-shadow:var(--pv-shadow)}
+.pv-kit-dialog{padding:var(--pv-s4);border:0;border-radius:var(--pv-r-dialog);background:var(--pv-surface);color:var(--pv-ink);box-shadow:var(--pv-shadow)}
 .pv-kit-dialog[data-kit-variant=toast]{background:var(--pv-dark);color:var(--pv-on-dark)}
 .pv-kit-icon{display:inline-flex;align-items:center;justify-content:center}
 .pv-kit-icon>img{width:100%;height:100%;object-fit:contain}
@@ -5989,6 +5989,10 @@ body button:not(.is-pressed){transition-property:filter!important}
   text-shadow:0 1px 10px rgba(0,0,0,.45)}
  body pv-widget-host[data-view=rest] #photo-clock{font-size:168px;line-height:.9;font-weight:600;letter-spacing:-.05em}
  body pv-widget-host[data-view=rest] #photo-date{font-size:26px;line-height:32px;font-weight:600}
+ /* A-FotoRo: the clock's box starts at 48 like the canvas (no optical shift), clock, date and weather in #FFFFFF. */
+ body pv-widget-host[data-view=rest]:not([data-night=true]) #photo-clock{transform:none}
+ body pv-widget-host[data-view=rest]:not([data-night=true]) :is(.photo-time,#photo-clock,#photo-date,.photo-weather,
+   .photo-weather strong,.photo-weather>span){color:#FFFFFF}
  body pv-widget-host[data-view=rest] .photo-caption{display:block;position:absolute;left:0;right:0;bottom:14px;
   text-align:center;font:400 15px/20px var(--pv-font);color:var(--pv-on-dark);text-shadow:0 1px 10px rgba(0,0,0,.45)}
  body pv-widget-host[data-view=rest] .photo-weather{right:48px;top:44px;display:flex;flex-direction:column;
@@ -6884,28 +6888,28 @@ body button:not(.is-pressed){transition-property:filter!important}
    [data-weather-tone=wind])::before{animation:pv-weather-drift 6s ease-in-out infinite alternate}
  pv-widget-host #weather-view>.weather-current[data-weather-state=empty]::before{opacity:.09;animation:none}
  pv-widget-host #weather-view>.weather-current>img{display:none!important}
- /* Big, condition and one sub line that flows from the range into the product's advice (at most two lines). */
+ /* Big, then »<condition> · <the product's advice>« as the title and the range under it (lærred »A-Vejr«). */
  pv-widget-host #weather-view>.weather-current>[data-kit-slot=copy]{position:relative;z-index:1;
    display:block!important;width:auto!important;padding:8px 0 0!important;text-align:left}
  pv-widget-host #weather-view>.weather-current>[data-kit-slot=copy]>[hidden]:not(strong){display:none!important}
- pv-widget-host #weather-view>.weather-current strong{display:block!important;margin:0!important;
+ pv-widget-host #weather-view>.weather-current strong{display:block!important;margin:0 0 24px!important;
    font:500 150px/.85 var(--pv-font)!important;letter-spacing:-.065em!important;color:#3A4560!important;
    font-variant-numeric:normal}
  pv-widget-host #weather-view>.weather-current[data-weather-state=empty] strong::before{content:"—";color:#5F5E5A}
- pv-widget-host #weather-view>.weather-current [data-kit-slot=title]{margin:24px 0 0!important;
+ pv-widget-host #weather-view>.weather-current :is([data-kit-slot=title],.weather-summary){margin:0!important;
    font:800 26px/32px var(--pv-font)!important;letter-spacing:0;color:var(--pv-ink)!important}
- pv-widget-host #weather-view>.weather-current [data-kit-slot=title]{display:block}
+ pv-widget-host #weather-view>.weather-current [data-kit-slot=title]{display:inline}
  pv-widget-host #weather-view>.weather-current [data-kit-slot=copy]>span[data-kit-slot=body]{display:inline;
    margin:0!important}
  pv-widget-host #weather-view>.weather-current [data-kit-slot=copy]>span[data-kit-slot=body]::before{content:"";
    display:block;height:8px}
- pv-widget-host #weather-view>.weather-current :is(span[data-kit-slot=body],.weather-summary){
+ pv-widget-host #weather-view>.weather-current span[data-kit-slot=body]{
    font:400 17px/24px var(--pv-font)!important;color:#3E4660!important}
  pv-widget-host #weather-view>.weather-current .weather-summary:not([hidden]){display:inline!important;
    margin:0!important;
    padding:0!important;background:none!important;border:0!important}
- pv-widget-host #weather-view>.weather-current span[data-kit-slot=body]:not([hidden])+.weather-metadata+
-   .weather-summary:not(:empty)::before{content:" · "}
+ pv-widget-host #weather-view>.weather-current [data-kit-slot=title]+.weather-summary:not(:empty)::before{
+   content:" · "}
  pv-widget-host #weather-view>.weather-current:not([data-weather-state=stale]) .weather-metadata{display:none!important}
 
  pv-widget-host #weather-view>.weather-hours.weather-hours{grid-row:3;z-index:1;box-sizing:border-box;
@@ -7054,7 +7058,8 @@ body button:not(.is-pressed){transition-property:filter!important}
  /* Hero */
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]{position:relative!important;
-   display:grid!important;grid-template-columns:minmax(0,1fr)!important;grid-template-rows:auto 1fr auto auto!important;
+   display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+   grid-template-rows:auto auto 1fr auto auto!important;
    min-height:221px!important;height:auto!important;max-height:none!important;padding:24px!important;
    box-sizing:border-box!important;margin:0!important;
    border-radius:24px!important;background:#F6D8E1!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
@@ -7087,7 +7092,12 @@ body button:not(.is-pressed){transition-property:filter!important}
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>*{position:relative;z-index:1;
    grid-column:1!important;margin:0!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
-   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.pv-content{grid-row:1!important;
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.robot-hero-eyebrow{grid-row:1!important;
+   margin:0 0 14px!important;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;
+   color:#5F5E5A!important;
+   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:440px}
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.pv-content{grid-row:2!important;
    display:flex!important;flex-direction:column!important;align-items:flex-start!important;gap:12px!important;
    padding:0!important;width:auto!important;max-width:440px!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
@@ -7113,7 +7123,7 @@ body button:not(.is-pressed){transition-property:filter!important}
    max-width:100%}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress:not([hidden]){
-   grid-row:3!important;display:flex!important;flex-direction:row-reverse!important;justify-content:flex-end!important;
+   grid-row:4!important;display:flex!important;flex-direction:row-reverse!important;justify-content:flex-end!important;
    align-items:center!important;gap:12px!important;margin-top:16px!important;width:auto!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress progress{
@@ -7122,11 +7132,15 @@ body button:not(.is-pressed){transition-property:filter!important}
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress .pv-meta{
    font:500 16px 'IBM Plex Mono',ui-monospace,monospace!important;color:#17171A!important;margin:0!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
-   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.transport{grid-row:4!important;
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.transport{grid-row:5!important;
    display:flex!important;flex-direction:row-reverse!important;flex-wrap:wrap!important;
    justify-content:flex-start!important;
-   align-items:center!important;gap:12px!important;margin-top:16px!important;width:auto!important;padding:0!important;
+   align-items:center!important;gap:12px!important;margin-top:0!important;width:auto!important;padding:0!important;
    position:relative!important;inset:auto!important}
+ /* The canvas' 221 hero: eyebrow, title, line and the actions 3 under the line; a progress row keeps 16 above them. */
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
+   pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.player-progress:not([hidden])~.transport{
+   margin-top:16px!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    pv-vacuum-widget.pv-kit-hero.pv-kit-hero[data-detail-zone=hero]>.robot-settings-context:empty{
    display:none!important}
@@ -7181,6 +7195,10 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel]
    .pv-actions>button[data-kit-variant=destructive]{
    color:#B0262A!important;box-shadow:inset 0 0 0 2px #B0262A!important}
+ /* A running base operation's stop leads Mere in amber (lærred »A-Robot«, base »vasker«). */
+ pv-widget-host #device-view#device-view#device-view pv-robot-control-panel .robot-dock-actions>[id$=-panel]
+   .pv-actions>button[data-base-attention=true]{background:#FBE7B9!important;color:#4A3205!important;
+   box-shadow:inset 0 0 0 2px #E2B04A!important}
  /* Rum */
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    :is(.robot-cleaning-zone,.robot-current-rooms){background:transparent!important;
@@ -7284,12 +7302,41 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel fieldset[data-setting-concept]
    .pv-kit-choice-options>label>*:not(input){
    color:inherit!important;font:inherit!important}
- /* Seneste hændelser and Vedligeholdelse as cards */
+ /* Seneste hændelser and Vedligehold as cards in one row, 1.5fr + 1fr (lærred »A-Robot«), 32 under Rengøringsvalg. */
  pv-widget-host
    #device-view#device-view#device-view:has(pv-robot-control-panel)
-   >section.device-history:not(:has(pv-robot-control-panel)){
+   >:is(section.device-history:not(:has(pv-robot-control-panel)),#robot-care){
    padding:24px!important;box-sizing:border-box!important;border-radius:24px!important;background:#F7F6F3!important;
-   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;margin-top:32px!important}
+   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;margin-top:8px!important}
+ /* The robot's old detail widgets are not drawn beside the panel; their empty wrapper takes no gap either. */
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>#device-detail:not(:has(
+   >:not(pv-vacuum-widget,pv-light-widget))){display:none!important}
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden])){
+   flex-flow:row wrap!important;align-content:flex-start!important;align-items:stretch!important;
+   column-gap:16px!important}
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden]))>*{
+   flex:0 0 744px!important}
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden]))
+   >section.device-history:not(:has(pv-robot-control-panel)){flex:0 0 calc((744px - 16px) * .6)!important;
+   width:auto!important;max-width:none!important;min-width:0!important}
+ pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>#robot-care:not([hidden]){
+   flex:0 0 calc((744px - 16px) * .4)!important;width:auto!important;max-width:none!important;min-width:0!important;
+   display:flex!important;flex-direction:column!important;gap:14px!important}
+ pv-widget-host #device-view#device-view#device-view:not(:has(pv-robot-control-panel))>#robot-care{
+   display:none!important}
+ pv-widget-host #robot-care .robot-care-heading{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+ pv-widget-host #robot-care .robot-care-title{margin:0;font:800 24px/30px 'Schibsted Grotesk',system-ui,sans-serif;
+   color:#17171A}
+ pv-widget-host #robot-care .robot-care-count{font:400 15px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A;
+   white-space:nowrap}
+ pv-widget-host #robot-care .robot-care-list{list-style:none;margin:0;padding:0;display:flex;
+   flex-direction:column;gap:12px}
+ pv-widget-host #robot-care .robot-care-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;
+   padding-bottom:12px;border-bottom:1px solid rgba(23,23,26,.07)}
+ pv-widget-host #robot-care .robot-care-label{font:400 16px 'Schibsted Grotesk',system-ui,sans-serif;color:#17171A}
+ pv-widget-host #robot-care .robot-care-value{font:500 15px 'IBM Plex Mono',ui-monospace,monospace;color:#17171A;
+   text-align:right}
+ pv-widget-host #robot-care .robot-care-row[data-due=true] .robot-care-value{color:#B0262A}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)
    #device-history-title{font-size:24px!important;font-weight:800!important;
    line-height:30px!important;margin:0 0 14px!important}
@@ -7695,10 +7742,9 @@ body button:not(.is-pressed){transition-property:filter!important}
    as two action surfaces (K-ActionTile: what it acts on, its state, the product's action label), Klima with the
    switch, temperature, both seats and »Afrim ruder« Fra/Til under the seats. The S widget carries the small car. */
 
- pv-widget-host[data-view=active] .responses>#vehicle-view:not([hidden]){padding:0 0 48px!important;
-   row-gap:16px!important;
-   -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent);
-   mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent)}
+ /* The page fits in 820 (hero 221 + 16 + cards 459 = 696): no fold, no fade, nothing to scroll. */
+ pv-widget-host[data-view=active] .responses>#vehicle-view:not([hidden]){padding:0!important;
+   row-gap:16px!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero:not([data-kit-variant=message]){
    position:relative!important;display:block!important;box-sizing:border-box!important;width:744px!important;
    height:221px!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;
@@ -7747,8 +7793,14 @@ body button:not(.is-pressed){transition-property:filter!important}
    clip:rect(0 0 0 0)!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-metric:nth-child(1)>dd{
    font:500 64px/.85 var(--pv-font-mono)!important;letter-spacing:-.07em!important;color:var(--pv-car-title)!important}
+ pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-battery-unit{font-size:32px;
+   letter-spacing:-.07em}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-metric:nth-child(2){
    position:absolute!important;left:28px!important;top:100px!important;gap:5px!important}
+ pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-metric:nth-child(2)>.vehicle-cabin-value{
+   order:2}
+ pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-metric:nth-child(2)>[hidden]{
+   display:none!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero .vehicle-metric:nth-child(2)>:is(dt,dd){
    font:600 17px/22px 'Schibsted Grotesk',system-ui,sans-serif!important;letter-spacing:0!important;
    color:#3F3E3B!important}
@@ -7798,9 +7850,9 @@ body button:not(.is-pressed){transition-property:filter!important}
    font:400 15px/18px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important}
  /* Adgang: two action surfaces */
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-lock-controls:not([hidden]){display:grid!important;
-   grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:minmax(196px,1fr)!important;
-   gap:12px!important;
-   flex:1 1 auto!important;margin:0!important}
+   grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:196px!important;
+   gap:12px!important;align-content:start!important;
+   flex:none!important;margin:0!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-lock-controls>button:not([hidden]){
    position:relative!important;display:flex!important;flex-direction:column!important;align-items:flex-start!important;
    justify-content:flex-end!important;gap:0!important;box-sizing:border-box!important;width:100%!important;
@@ -7861,6 +7913,9 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section>[data-kit=toggle]>
    :is(.pv-kit-icon,[data-kit-slot=label],[data-kit-slot=icon]){position:absolute!important;width:1px!important;
    height:1px!important;overflow:hidden!important;clip:rect(0 0 0 0)!important}
+ /* »I kabinen« stands in the hero line (»· kabine 21°«), so the Klima card keeps the canvas' rows. */
+ pv-widget-host #vehicle-view#vehicle-view#vehicle-view
+   .vehicle-control-tiles>section:not([data-vehicle-section=access])>.vehicle-detail-values{display:none!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section>.vehicle-detail-values{order:4;
    margin:0!important;padding:8px 0!important;border-top:1px solid rgba(23,23,26,.07)}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section>.vehicle-detail-values[hidden],
@@ -7900,7 +7955,7 @@ body button:not(.is-pressed){transition-property:filter!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-temperature-controls>output{grid-area:1/3}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-temperature-controls>button:last-of-type{grid-area:1/4}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-temperature-controls>output{position:relative;
-   z-index:1;
+   z-index:1;align-self:center!important;
    height:48px!important;min-height:0!important;display:flex!important;align-items:center!important;
    justify-content:center!important;
    text-align:center!important;font:500 24px/1 var(--pv-font-mono)!important;letter-spacing:-.05em!important;
@@ -8027,12 +8082,17 @@ body button:not(.is-pressed){transition-property:filter!important}
   max-width:1132px!important;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){
   gap:16px!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset{margin:0;padding:0;border:0;min-width:0}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset{margin:0;padding:0;border:0;min-width:0;
+  flex:0 1 auto}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset>legend{position:absolute;width:1px;height:1px;
   overflow:hidden;clip-path:inset(50%)}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset .pv-kit-choice-options{display:inline-flex!important;
   flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
-  background:var(--pv-recipe-track)!important;overflow:visible!important;width:auto!important;max-width:100%}
+  background:var(--pv-recipe-track)!important;width:auto!important;max-width:100%;box-sizing:border-box;
+  /* More categories than the row holds: the track scrolls sideways, it never runs under the count. */
+  overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
+  .pv-kit-choice-options::-webkit-scrollbar{display:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset label{height:44px!important;min-height:44px!important;
   padding:0 20px!important;border-radius:999px!important;background:transparent!important;color:var(--pv-ink)!important;
   box-shadow:none!important;border:0!important;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;

@@ -1,7 +1,11 @@
-## 2.1.7
+## 2.1.8
 
 - Musik: heroen står øverst, og Fortsæt, Til <dag> <tid>, Vibe og Jeres playlister er åbne rækker; et tryk på et kort i en anden række starter det med det samme. Kø og Lys slutter på samme bundlinje som resten, »Spiller på …« skubber ikke længere »Kø« ned, og Lys viser »<rum> · denne skærms rum«, når rummet kendes.
 - Højttalerchippen åbner altid højttalerlisten – også når musikken spiller på en anden enhed – i stedet for at flytte musikken med det samme. »Skærm og enhed« har mindre lukkeknap, lysstyrke på én linje, en kontakt for automatisk dæmpning og »Om skærmen« som åbne rækker; »På pause« klemmes ikke længere ind over højttalerchippen.
+
+## 2.1.7
+
+- PodView som lærredet: Opskrifternes kategorispor løber ikke længere ind over antallet (ruller vandret ved mange kategorier; »Tilføj opskrift« står nu kun som vejledning nederst i kataloget). Robotten har »Ved basen« over titlen, »Mere ⌄« som outline ved siden af én primær knap (en kørende baseoperation som »Stop tørring« ligger først i »Mere«), »Vedligehold« ved siden af »Seneste hændelser« og »Vælg alle«. Tesla viser » %« i halv størrelse, adgangsfliserne er 196 høje, siden ruller ikke, kabinetemperaturen står i heroen, temperaturen er centreret og sædet hedder »Førersæde«; en offline bil viser sidst kendte batteri og lås i overblikket. Vejrrådet står i titlen, widgetten skriver »lavest«, talintervaller får tankestreg, dialoger har radius 26, og Foto-Ro-uret står ved x 48 i hvidt.
 
 ## 2.1.6
 

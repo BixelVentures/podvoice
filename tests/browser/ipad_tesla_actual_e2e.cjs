@@ -48,8 +48,16 @@ async function open(stage,{overview=false}={}){
  assert.equal(status.text,'Bilen lader');assert.equal(status.size,'40px');assert.equal(status.weight,'800');
  assert.equal(status.color,'rgb(23, 68, 47)');near(status.x,52,'status 28 in');
  const [battery,range,power,finish]=await Promise.all([1,2,3,4].map(n=>
-  box(hero.locator(`.vehicle-metric:nth-child(${n})>dd`))));
+  box(hero.locator(`.vehicle-metric:nth-child(${n})>dd`).first())));
  assert.equal(battery.text,'72 %');assert.equal(battery.size,'64px');assert.match(battery.family,/IBM Plex Mono/);
+ // »72« in 64 mono and » %« in 32 right beside it (lærred A-Tesla), not a second 64-px glyph 30 px away.
+ const unit=await box(hero.locator('.vehicle-battery-unit'));
+ assert.equal(unit.size,'32px','» %« at half size');
+ const numberRight=await hero.locator('.vehicle-battery-value').evaluate(n=>{const r=document.createRange();
+  r.selectNodeContents(n.firstChild);return r.getBoundingClientRect().right;});
+ const glyph=await hero.locator('.vehicle-battery-unit').evaluate(n=>{const r=document.createRange();
+  r.setStart(n.firstChild,1);r.setEnd(n.firstChild,2);return r.getBoundingClientRect().left;});
+ assert(glyph-numberRight<=20,`»%« sits beside the number (${Math.round(glyph-numberRight)} px)`);
  near(battery.x+battery.w,768-28,'battery 28 from the right',3);
  const rangeLabel=await box(hero.locator('.vehicle-metric:nth-child(2)>dt'));
  assert.equal(range.text,'312 km');assert(rangeLabel.x>range.x,'»312 km rækkevidde«: value, then the label');
@@ -76,7 +84,7 @@ async function open(stage,{overview=false}={}){
  const tiles=cards.first().locator('.vehicle-lock-controls>button:visible');
  assert.equal(await tiles.count(),2,'two action surfaces');
  const door=await box(tiles.first()),trunk=await box(tiles.nth(1));
- assert(door.h>=196,'tile at least 196 high');assert.equal(door.radius,'22px');assert.equal(door.y,trunk.y);
+ assert.equal(door.h,196,'tile 196 high (K-ActionTile), not stretched to the card');assert.equal(door.radius,'22px');assert.equal(door.y,trunk.y);
  const doorName=await box(tiles.first(),'::before'),doorValue=await box(tiles.first(),'::after');
  assert.equal(doorName.content,'"Døre" / ""');assert.equal(await tiles.first().getAttribute('data-tile-name'),'Døre');
  assert.equal(await tiles.first().getAttribute('data-tile-value'),'Låst');
@@ -103,9 +111,28 @@ async function open(stage,{overview=false}={}){
  assert.equal(await defrostButton.getAttribute('data-defrost'),'off');
  assert.equal((await box(defrostButton,'::before')).bg,'rgb(23, 23, 26)','»Fra« chosen');
  await page.getByRole('button',{name:'Afrim ruder',exact:true}).waitFor({state:'attached'});
+ assert.equal(await seats.first().locator('legend').innerText(),'Førersæde');
+ // The page fits in 820: nothing under the cards, nothing to scroll.
+ const fit=await page.locator('#vehicle-view').evaluate(n=>[n.scrollHeight,n.clientHeight]);
+ assert(fit[0]<=fit[1],`the Tesla page does not scroll (${fit})`);
+ near(access.y+access.h,784,'the cards end with the player',1);
  // An action surface acts on tap: »Lås op« asks first, as before.
  await tiles.first().tap();
  await page.locator('dialog.vehicle-confirmation').getByRole('heading',{name:'Lås bilen op?'}).waitFor({timeout:3000});
+ assert.deepEqual(page.errors,[]);await page.close();
+
+ // The admitted example: »21,5 °C« centred in its pill, cabin temperature on the hero line, still no scroll.
+ page=await open('vehicle-admitted-example');
+ const pill=await page.locator('#vehicle-view .vehicle-temperature-controls').evaluate(n=>{
+  const b=n.getBoundingClientRect(),a=getComputedStyle(n,'::after'),o=n.querySelector('output').getBoundingClientRect();
+  return {pill:b.y+parseFloat(a.top),output:o.y+o.height/2,
+   text:n.querySelector('output').textContent};});
+ assert.equal(pill.text,'21,5 °C');near(pill.output,pill.pill,'temperature centred in the pill',1);
+ assert.equal(await page.locator('#vehicle-view .vehicle-cabin-value').innerText(),'· kabine 20,5°');
+ assert.equal(await page.locator('#vehicle-view .vehicle-control-tiles .vehicle-detail-values:visible').count(),0,
+  'no »I kabinen« row under the seats');
+ const fitted=await page.locator('#vehicle-view').evaluate(n=>[n.scrollHeight,n.clientHeight]);
+ assert(fitted[0]<=fitted[1],`no scroll with the full Klima card (${fitted})`);
  assert.deepEqual(page.errors,[]);await page.close();
 
  // W-tesla-lader: the S widget.
@@ -116,10 +143,22 @@ async function open(stage,{overview=false}={}){
  assert.deepEqual([small.x-w.x,small.y-w.y,small.w,small.h],[20,80,133,48],'small dot car');
  assert.equal(await widget.getAttribute('data-car-tone'),'charging');
  const prim=await box(widget.locator('.resource-value'));
- assert.equal(prim.text,'72%');assert.equal(prim.size,'18px');assert.equal(prim.weight,'800');
+ assert.equal(prim.text,'72 %');assert.equal(prim.size,'18px');assert.equal(prim.weight,'800');
  near(prim.y+prim.h,w.y+w.h-44,'battery line');
  const ctx=await box(widget.locator('#home-vehicle-status'));
  assert.equal(ctx.text,'Lader');assert.equal(ctx.size,'15px');near(ctx.y+ctx.h,w.y+w.h-20,'status line');
+ assert.deepEqual(page.errors,[]);await page.close();
+ // W-tesla »sidstkendt«: an offline car keeps its last-known battery and access in the widget (»72 % / Låst«),
+ // never the battery over »Ikke forbundet«, which belongs to a car without data (»W-tesla-ikkeforbundet«).
+ page=await open('vehicle-stale',{overview:true});
+ await page.evaluate(()=>{const h=document.querySelector('pv-widget-host');
+  const charging={status:'disconnected',powerKw:0};
+  h.state={...h.state,vehicle:{...h.state.vehicle,connectionState:'offline',charging}};
+  h.render();});await sleep(300);
+ const lastKnown=page.locator('#home-vehicle');
+ assert.equal(await lastKnown.locator('.resource-value').innerText(),'72 %');
+ assert.equal(await lastKnown.locator('#home-vehicle-status').innerText(),'Låst',
+  'last-known access, not »Ikke forbundet«');
  assert.deepEqual(page.errors,[]);await page.close();
  console.log(JSON.stringify({outcome:'PASS',journey:'ipad_tesla'}));
 }catch(error){console.error(error);process.exitCode=1}finally{
