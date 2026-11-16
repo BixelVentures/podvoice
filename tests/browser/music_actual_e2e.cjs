@@ -1359,10 +1359,13 @@ async function longSession(page,errors){
  // A real read while the command is in flight must not undo the optimistic view or lock controls.
  await page.evaluate(()=>document.querySelector('pv-widget-host').liveMedia.refresh({immediate:true}));
  assert.match(await control.getAttribute('aria-label'),/^Fortsæt/,'refresh preserves the pending Pause intent');
- const pauseBox=await control.boundingBox();assert(pauseBox);
+ // The press release springs back over ~440 ms (P3); geometry is compared once it has landed.
+ const landed=()=>control.evaluate(button=>Promise.all(button.getAnimations()
+  .filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));
+ await landed(); const pauseBox=await control.boundingBox();assert(pauseBox);
  const pendingTouch=await control.evaluate(button=>{const host=document.querySelector('pv-widget-host');return {disabled:button.disabled,ariaBusy:button.getAttribute('aria-busy'),ariaLabel:button.getAttribute('aria-label'),feedback:button.dataset.feedback,html:button.outerHTML,ownerPending:(host?.liveControls?.musicIntentPending||host?.liveControls?.player?.busy())===true,status:host?.liveControls?.musicStatus?.textContent,feedbackMessage:host?.feedbackMessage};});
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-touch-pending-witness.json'),JSON.stringify(pendingTouch,null,2));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-touch-pending.png')});
- const duplicatePauseBox=await control.boundingBox();assert(duplicatePauseBox);
+ await landed(); const duplicatePauseBox=await control.boundingBox();assert(duplicatePauseBox);
  for(const key of ['x','y','width','height'])assert(Math.abs(duplicatePauseBox[key]-pauseBox[key])<1,'pending Pause geometry stays stable: '+key);
  const duplicatePoint={x:duplicatePauseBox.x+duplicatePauseBox.width/2,y:duplicatePauseBox.y+duplicatePauseBox.height/2};
  assert(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('#play-pause'),duplicatePoint),'duplicate touch targets the actual pending Pause control');
