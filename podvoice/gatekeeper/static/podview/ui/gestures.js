@@ -1,3 +1,4 @@
+import {isReduced} from './motion.js';
 // Navigation is recognition only. Resource/session ownership never lives in a gesture.
 export function gestureIntent({dx,dy,duration=500,edge=false,bottom=false,interactive=false,contentSwipe=false,detailDown=false,width=1024}){
  if(interactive||!Number.isFinite(dx)||!Number.isFinite(dy))return null;
@@ -28,7 +29,7 @@ export function attachGestures(surface,{navigate,customize,preview=()=>{},active
  return ()=>{cancel();surface.removeEventListener('touchstart',touchDown);surface.removeEventListener('touchmove',touchMove);surface.removeEventListener('touchend',touchEnd);surface.removeEventListener('touchcancel',cancel);surface.ownerDocument?.defaultView?.removeEventListener('blur',cancel);surface.removeEventListener('wheel',wheel);surface.removeEventListener('pointerdown',down);surface.removeEventListener('pointermove',move);surface.removeEventListener('pointerup',end);surface.removeEventListener('pointercancel',pointerCancel);surface.removeEventListener('lostpointercapture',pointerCancel);};
 }
 export function transitionContent(element,{direction=0,duration=240}={}){
- const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches||element.closest('[data-motion=reduced]');const opacity=getComputedStyle(element).opacity;const transform=getComputedStyle(element).transform;const previous=element.getAnimations().find(a=>a.id==='pv-content-transition');previous?.cancel();if(element.isConnected===false||typeof element.animate!=='function')return;const frames=reduced?[{opacity:Math.min(.72,Number(opacity))},{opacity:1}]:[{opacity:Math.min(.72,Number(opacity)),transform:transform==='none'?`translateX(${direction*14}px)`:transform},{opacity:1,transform:'translateX(0)'}];const animation=element.animate(frames,{duration:reduced?120:duration,easing:'cubic-bezier(.2,0,0,1)'});animation.id='pv-content-transition';return animation;
+ const reduced=isReduced(element);const opacity=getComputedStyle(element).opacity;const transform=getComputedStyle(element).transform;const previous=element.getAnimations().find(a=>a.id==='pv-content-transition');previous?.cancel();if(element.isConnected===false||typeof element.animate!=='function')return;const frames=reduced?[{opacity:Math.min(.72,Number(opacity))},{opacity:1}]:[{opacity:Math.min(.72,Number(opacity)),transform:transform==='none'?`translateX(${direction*14}px)`:transform},{opacity:1,transform:'translateX(0)'}];const animation=element.animate(frames,{duration:reduced?120:duration,easing:'cubic-bezier(.2,0,0,1)'});animation.id='pv-content-transition';return animation;
 }
 
 // Trackpads report horizontal wheel bursts; touch/mouse gestures use pointer events.

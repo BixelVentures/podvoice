@@ -722,7 +722,8 @@
       "imports": [
         "dist/visual-content.js",
         "dist/music-flow.js",
-        "dist/widget-model.js"
+        "dist/widget-model.js",
+        "dist/ui/motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1752,7 +1753,8 @@
       "factoryClassArgument": 1,
       "imports": [
         "dist/radio-model.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/ui/motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1996,7 +1998,9 @@
     "dist/spotify-artwork.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2045,7 +2049,8 @@
       "factoryClassArgument": 1,
       "imports": [
         "dist/ui/kit.js",
-        "dist/timer-model.js"
+        "dist/timer-model.js",
+        "dist/ui/motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2145,7 +2150,9 @@
     "dist/ui/gestures.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2305,7 +2312,9 @@
           "arrow:trimNumber": 1,
           "class:SceneMotion": 1,
           "class:Spring": 1,
+          "function:isReduced": 1,
           "function:project": 1,
+          "function:reducedMotionQuery": 1,
           "function:rubberBand": 1,
           "function:settleTime": 1,
           "function:simplify": 1,
@@ -2326,6 +2335,7 @@
           "method:schedule": 1,
           "method:settleResources": 1,
           "method:stop": 1,
+          "method:syncRoot": 1,
           "method:target": 1,
           "method:tick": 1,
           "method:updateClock": 1,
@@ -2405,7 +2415,9 @@
     "dist/ui/robot-motion.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2631,7 +2643,9 @@
       "status": "approved-renderer",
       "domOwner": "VoiceSurface",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -3150,7 +3164,9 @@
     "dist/ui/screen-lifecycle.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},

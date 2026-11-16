@@ -1,5 +1,6 @@
 import {createKitComponent,applyKitTemplate} from './ui/kit.js';
 import {stations,radioStation} from './radio-model.js';
+import {isReduced} from './ui/motion.js';
 
 // Editorial channel descriptions, not live programme metadata.
 // Source: https://kum.dk/kulturomraader/film-og-medier/public-service (19 Oct 2026).
@@ -120,7 +121,7 @@ export class RadioView{
   if(art&&this.stationArt.getAttribute('src')!==art){
    this.stationArt.src=art;
    // First choice or a new station: the logo pops in (500 ms, slight overshoot) unless motion is reduced.
-   const still=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+   const still=isReduced(this.stationArt);
    if(!still)this.stationArt.animate?.([{opacity:0,transform:'scale(.6) rotate(-6deg)'},{opacity:1,transform:'none'}],
     {duration:500,easing:'cubic-bezier(.2,1.3,.4,1)'});
   }

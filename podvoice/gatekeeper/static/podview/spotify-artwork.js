@@ -1,3 +1,4 @@
+import {isReduced} from './ui/motion.js';
 // Provider covers stay source-bound; thematic alternatives have closed owner paths.
 // Neither kind grants playback actions.
 const PLAYLIST_URI=/^spotify:playlist:[A-Za-z0-9]{22}$/;
@@ -29,7 +30,7 @@ export function cancelArtwork(image){
  const request=image.artworkRequest;if(!request)return;image.artworkRequest=null;request.cancelled=true;request.probe.onload=null;request.probe.onerror=null;request.probe.removeAttribute?.('src');delete image.dataset.artworkPending;
 }
 function revealArtwork(image){
- const view=image.ownerDocument?.defaultView,reduced=image.closest?.('[data-motion="reduced"]')||image.getRootNode?.()?.host?.dataset?.motion==='reduced'||view?.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+ const reduced=isReduced(image);
  if(reduced||image.isConnected===false||typeof image.animate!=='function')return;
  const animation=image.animate([{opacity:0},{opacity:1}],{duration:120,easing:'cubic-bezier(.2,0,0,1)',iterations:1});image.artworkAnimation=animation;
  Promise.resolve(animation.finished).catch(()=>{}).finally(()=>{if(image.artworkAnimation===animation)image.artworkAnimation=null;});

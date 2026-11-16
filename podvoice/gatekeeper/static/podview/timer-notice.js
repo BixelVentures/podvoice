@@ -1,5 +1,6 @@
 import {applyKitComponent,applyKitDialog,syncKitButtonContent} from './ui/kit.js';
 import {timerDurationLabel} from './timer-model.js';
+import {isReduced,reducedMotionQuery} from './ui/motion.js';
 // One canonical completion surface. Closing this view never claims to stop a
 // native alarm: only the existing, authority-checked timer action can do that.
 export class TimerNotice {
@@ -16,14 +17,14 @@ export class TimerNotice {
   this.onMotion=()=>{if(this.motion?.matches){this.clearExpiry();this.setPulse(false);}};
   this.attach();
  }
- attach(){if(this.attached)return;this.disposed=false;this.attached=true;this.stop.addEventListener('click',this.onStop);this.add?.addEventListener('click',this.onAdd);this.closeButton.addEventListener('click',this.onDismiss);this.element.addEventListener('cancel',this.onCancel);this.motion=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');this.motion?.addEventListener?.('change',this.onMotion);}
+ attach(){if(this.attached)return;this.disposed=false;this.attached=true;this.stop.addEventListener('click',this.onStop);this.add?.addEventListener('click',this.onAdd);this.closeButton.addEventListener('click',this.onDismiss);this.element.addEventListener('cancel',this.onCancel);this.motion=reducedMotionQuery();this.motion?.addEventListener?.('change',this.onMotion);}
  setPulse(active){const value=String(active);if(this.element.dataset.pulse!==value)this.element.dataset.pulse=value;}
  render(timer,focus,live,feedbackVisible=false,visibleTimerId=null,access={}){
   if(this.disposed)this.attach();
   const show=!!timer&&timer.status==='done'&&!timer.stale&&!timer.noticeDismissed,id=show?String(timer.id):null;
   if(!show){if(timer?.status==='running')this.completions.delete(String(timer.id));this.hide();return;}
   const changed=this.id!==id;
-  if(changed){this.clearExpiry();this.id=id;const pulse=!this.pulsedIds.has(id)&&!this.motion?.matches&&this.host.dataset?.motion!=='reduced';this.pulsedIds.add(id);this.setPulse(pulse);if(pulse)this.schedule(id,60000,()=>this.setPulse(false));}
+  if(changed){this.clearExpiry();this.id=id;const pulse=!this.pulsedIds.has(id)&&!isReduced(this.host,this.motion??null);this.pulsedIds.add(id);this.setPulse(pulse);if(pulse)this.schedule(id,60000,()=>this.setPulse(false));}
   if(changed&&!live&&!timer.ownerBootId)this.startAudio(timer);
   if(this.element.dataset.timerId!==id)this.element.dataset.timerId=id;
   const title='Timeren er færdig';if(this.name.textContent!==title)this.name.textContent=title;

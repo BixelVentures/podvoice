@@ -61,6 +61,18 @@ export function rubberBand(x,dimension,c=.55){return (1-1/(x*c/dimension+1))*dim
 // Distance a fling travels under UIScrollView deceleration (rate per ms).
 export function project(velocityPxPerS,rate=.998){return velocityPxPerS/1000*rate/(1-rate);}
 
+// Reduced motion has one source (docs/MOTION.md §3.0 rule 6): the system preference, or the node or an
+// ancestor (across shadow roots) marked data-motion=reduced. Pass a captured MediaQueryList to reuse it.
+export const REDUCED_MOTION_QUERY='(prefers-reduced-motion: reduce)';
+export function reducedMotionQuery(view=globalThis){return view?.matchMedia?.(REDUCED_MOTION_QUERY)??null;}
+export function isReduced(node,media=reducedMotionQuery(node?.ownerDocument?.defaultView||globalThis)){
+ if(media?.matches===true)return true;
+ for(let n=node,depth=0;n&&depth<32;n=n.getRootNode?.()?.host,depth++){
+  if(n.dataset?.motion==='reduced'||n.closest?.('[data-motion="reduced"]'))return true;
+ }
+ return false;
+}
+
 // Analytic damped spring with velocity handoff. Frame-rate independent and testable without a DOM.
 // Values are in the caller's units; velocity is units per second; time comes from now() in ms.
 export class Spring{
@@ -122,9 +134,15 @@ const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>va
 // One animation owner per element. Read its visible position before cancelling;
 // retarget from there, never combine old transforms with a new layout measurement.
 export class SceneMotion {
- constructor(host){this.host=host;this.animations=new Map();this.playerPaint=new Map();this.scroll=new Map();this.nestedScroll=new Map();this.geometry=new Map();this.clocks=new WeakMap();this.feedbackTokens=new WeakMap();this.feedbackStates=new WeakMap();this.media=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');this.onPreference=()=>{if(this.reduced)this.cancel();};this.listening=false;}
- get reduced(){return this.host.dataset.motion==='reduced'||this.media?.matches===true;}
- cancel(){for(const animation of this.animations.values())animation.cancel();this.animations.clear();for(const [node,saved]of this.playerPaint){if(saved.value===undefined)delete node.dataset.scenePlayerMoving;else node.dataset.scenePlayerMoving=saved.value;}this.playerPaint.clear();if(this.listening){this.media.removeEventListener('change',this.onPreference);this.listening=false;}}
+ constructor(host){this.host=host;this.animations=new Map();this.playerPaint=new Map();this.scroll=new Map();this.nestedScroll=new Map();this.geometry=new Map();this.clocks=new WeakMap();this.feedbackTokens=new WeakMap();this.feedbackStates=new WeakMap();this.media=reducedMotionQuery();this.onPreference=()=>{if(this.reduced)this.cancel();};this.listening=false;this.syncRoot();}
+ get reduced(){return isReduced(this.host,this.media??null);}
+ // CSS asks only :root[data-pv-motion=reduced]; this is the one writer. Written only when it changes.
+ syncRoot(){
+  const root=this.host.ownerDocument?.documentElement,value=this.reduced?'reduced':'full';
+  if(root?.dataset&&root.dataset.pvMotion!==value)root.dataset.pvMotion=value;
+  return value==='reduced';
+ }
+ cancel(){this.syncRoot();for(const animation of this.animations.values())animation.cancel();this.animations.clear();for(const [node,saved]of this.playerPaint){if(saved.value===undefined)delete node.dataset.scenePlayerMoving;else node.dataset.scenePlayerMoving=saved.value;}this.playerPaint.clear();if(this.listening){this.media.removeEventListener('change',this.onPreference);this.listening=false;}}
  animate(node,frames,duration=280,options={}){
   this.animations.get(node)?.cancel();this.animations.delete(node);
   if(this.reduced&&!options.fadeReduced||(!options.visible&&!node?.getClientRects().length)||this.host.isConnected===false||typeof node.animate!=='function'){if(!this.animations.size)this.cancel();return null;}
