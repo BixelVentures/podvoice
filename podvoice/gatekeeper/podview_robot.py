@@ -144,6 +144,44 @@ def parse_policy(raw: object) -> tuple[dict, ...]:
         return ()
 
 
+def _active(row: Any, entity: str) -> bool:
+    return (
+        isinstance(row, dict)
+        and row.get("entity_id") == entity
+        and row.get("platform") == "roborock"
+        and row.get("disabled_by") is None
+        and isinstance(row.get("device_id"), str)
+        and bool(row["device_id"])
+        and isinstance(row.get("config_entry_id"), str)
+        and bool(row["config_entry_id"])
+        and isinstance(row.get("unique_id"), str)
+        and bool(row["unique_id"])
+    )
+
+
+def _serves(binding: dict, vacuum: dict, key: str, entity: str, row: Any) -> bool:
+    """This active entity is the robot's own entity for the role, on the role's own device."""
+    expected_device = binding["dockDeviceId"] if key in DOCK_FIELDS else vacuum["device_id"]
+    # HA battery/charging descriptions omit translation_key; require the exact
+    # Roborock unique-id role prefix instead. Never classify by friendly name.
+    role = isinstance(row, dict) and (
+        row.get("translation_key") == key
+        or (
+            key in {"battery", "battery_charging"}
+            and isinstance(row.get("unique_id"), str)
+            and row["unique_id"].startswith(key + "_")
+        )
+    )
+    return bool(
+        role
+        and _ENTITY.fullmatch(entity)
+        and entity.split(".")[0] == FIELDS[key][0]
+        and _active(row, entity)
+        and row["device_id"] == expected_device
+        and row["config_entry_id"] == vacuum["config_entry_id"]
+    )
+
+
 def registry_identity(binding: dict, entries: object) -> str:
     """Same live exact device/config entry; disabled or changed entities fail closed."""
     if not isinstance(entries, dict):
@@ -151,50 +189,55 @@ def registry_identity(binding: dict, entries: object) -> str:
     if set(entries) != {binding["vacuumEntityId"], *(f["entityId"] for f in binding["fields"])}:
         raise ValueError("robot_registry_scope")
     vacuum = entries.get(binding["vacuumEntityId"])
-
-    def active(row: Any, entity: str) -> bool:
-        return (
-            isinstance(row, dict)
-            and row.get("entity_id") == entity
-            and row.get("platform") == "roborock"
-            and row.get("disabled_by") is None
-            and isinstance(row.get("device_id"), str)
-            and bool(row["device_id"])
-            and isinstance(row.get("config_entry_id"), str)
-            and bool(row["config_entry_id"])
-            and isinstance(row.get("unique_id"), str)
-            and bool(row["unique_id"])
-        )
-
-    if not active(vacuum, binding["vacuumEntityId"]):
+    if not _active(vacuum, binding["vacuumEntityId"]):
         raise ValueError("robot_registry_target")
     assert isinstance(vacuum, dict)
     records = [vacuum]
     for field in binding["fields"]:
         key, entity = field["key"], field["entityId"]
         row = entries.get(entity)
-        if not isinstance(row, dict):
-            raise ValueError("robot_registry_field")
-        expected_device = binding["dockDeviceId"] if key in DOCK_FIELDS else vacuum["device_id"]
-        # HA battery/charging descriptions omit translation_key; require the exact
-        # Roborock unique-id role prefix instead. Never classify by friendly name.
-        role = isinstance(row, dict) and (
-            row.get("translation_key") == key
-            or (
-                key in {"battery", "battery_charging"}
-                and isinstance(row.get("unique_id"), str)
-                and row["unique_id"].startswith(key + "_")
-            )
-        )
-        if (
-            not active(row, entity)
-            or not role
-            or row["device_id"] != expected_device
-            or row["config_entry_id"] != vacuum["config_entry_id"]
-        ):
+        if not isinstance(row, dict) or not _serves(binding, vacuum, key, entity, row):
             raise ValueError("robot_registry_field")
         records.append(row)
     return json.dumps(records, sort_keys=True, separators=(",", ":"))
+
+
+def resolve_binding(binding: dict, entries: object, listing: object = None) -> dict | None:
+    """The granted roles as the robot's devices have them in HA right now.
+
+    The admin grant names a vacuum, its dock device and the roles to read. Each role
+    is served by the one active Roborock entity on that vacuum's device (or the
+    granted dock) in the same config entry, found by translation_key, or by the
+    unique-id prefix HA uses for battery/charging. A granted entity id that still
+    serves its role is kept; otherwise ``listing`` (HA's entity registry) may name
+    the entity that does. A role HA no longer has, or has twice, is left out, so
+    the screen hides it instead of blanking every field.
+    """
+    if not isinstance(entries, dict):
+        return None
+    vacuum_id = binding["vacuumEntityId"]
+    vacuum = entries.get(vacuum_id)
+    if not _active(vacuum, vacuum_id):
+        return None
+    assert isinstance(vacuum, dict)
+    rows = {eid: row for eid, row in entries.items() if isinstance(row, dict)}
+    if isinstance(listing, list):
+        for row in listing:
+            if isinstance(row, dict) and isinstance(row.get("entity_id"), str):
+                rows.setdefault(row["entity_id"], row)
+    fields, used = [], {vacuum_id}
+    for field in binding["fields"]:
+        key, entity = field["key"], field["entityId"]
+        if not _serves(binding, vacuum, key, entity, rows.get(entity)):
+            found = [eid for eid, row in rows.items() if _serves(binding, vacuum, key, eid, row)]
+            if len(found) != 1:
+                continue
+            entity = found[0]
+        if entity in used:
+            continue
+        used.add(entity)
+        fields.append({"key": key, "entityId": entity})
+    return {**binding, "fields": fields}
 
 
 def _epoch(value: object) -> float | None:
