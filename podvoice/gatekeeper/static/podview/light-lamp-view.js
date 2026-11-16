@@ -34,7 +34,11 @@ export class LightLampView{
     ?{key,authorityKey,canQueueBrightness,local,sessionId:h.state.sessionId,taskId:light.id,
      revision:light.revision,optionId:id,transport:h.liveTransport,
      inputQueue:canQueueBrightness?controls.lightActions.get(JSON.stringify([area,id,null])).queue:null}:null;
-   rows.push({id,name,on,level,dimmable,binding,stale:light.stale===true||!connected||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
+   // A turn-on the user already asked for (this lamp or its room) is pending: the slider takes the level behind it.
+   const turningOn=key=>{const state=controls?.lightActions?.get(JSON.stringify(key))?.state;
+    return state?.pending===true&&state.action==='turn_on';};
+   const switchingOn=!local&&(turningOn([area,id,null])||turningOn([area,null,null]));
+   rows.push({id,name,on,level,dimmable,binding,switchingOn,stale:light.stale===true||!connected||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
   }
   return rows;
  }
@@ -78,15 +82,20 @@ export class LightLampView{
     &&!this.matchesQueuedBrightness(entry.binding,current))entry.field.cancelDraft();
    entry.binding=binding;if(entry.node.hidden)entry.node.hidden=false;
    if(entry.name.textContent!==row.name)entry.name.textContent=row.name;
-   const status=row.on===null?(row.unavailable?'Ikke tilgængelig':'Status ukendt'):row.stale?`${row.on?'Tændt':'Slukket'} · ikke opdateret`:row.on?(row.dimmable&&Number.isInteger(row.level)?`Tændt · ${row.level} %`:'Tændt'):'Slukket';if(entry.state.textContent!==status)entry.state.textContent=status;
+   const status=row.on===null?(row.unavailable?'Ikke tilgængelig':'Status ukendt'):row.stale?`${row.on?'Tændt':'Slukket'} · ikke opdateret`:row.on?'Tændt':'Slukket';if(entry.state.textContent!==status)entry.state.textContent=status;
    const command=this.host.lightCommandFeedback,busy=!!command&&command.target?.entityId===row.id&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.toggle,'toggle',{feedback:'progress',loading:busy,identity:'light',variant:'row',label:`Tænd/sluk ${row.name}`,disabled:!binding||binding.canQueueBrightness,...(row.on===null?{}:{selected:row.on})});if(row.on===null)entry.toggle.removeAttribute('aria-checked');
    if(entry.field.node.hidden!==!row.dimmable)entry.field.node.hidden=!row.dimmable;
    const pending=command?.action==='brightness'&&command.target?.entityId===row.id;
    const value=pending&&Number.isInteger(command.requestedPercent)?command.requestedPercent:row.level;
-   entry.model={value,valueText:value===null?'Niveau ukendt':`${value} %`,scope:'',
-    disabled:!binding||!row.dimmable||row.level===null,pending,
+   // Lærred »A-Lys« v193: the level sits beside the slider in mono; a lamp that is off or whose state is unknown
+   // keeps its slider dimmed and inert (switch it on first; a pending turn-on counts). Unknown »—«, off »0 %«.
+   const live=(row.on===true||row.switchingOn===true)&&!row.stale;
+   entry.model={value,valueText:value===null||row.stale?'—':`${value} %`,scope:'',
+    disabled:!binding||!row.dimmable||row.level===null||!live,pending,
     editableWhilePending:binding?.canQueueBrightness===true};
    entry.field.setModel(entry.model);
+   if(entry.field.node.dataset.lampLive!==String(live))entry.field.node.dataset.lampLive=String(live);
+   if(entry.field.node.inert!==!live)entry.field.node.inert=!live;
   }
   for(const [id,entry]of this.rows)if(!visible.has(id)){if(!entry.node.hidden)entry.node.hidden=true;entry.binding=null;entry.toggle.disabled=true;entry.field.cancelDraft();entry.field.setModel({...entry.model,disabled:true});}
   return this.node;

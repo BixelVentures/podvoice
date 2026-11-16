@@ -55,18 +55,20 @@ let server,browser;
  // Lærred »A-Lys«: a room with one or two lamps shows them at once; open »Lamper« only if folded.
  assert.equal(await page.locator('#light-lamps-trigger').getAttribute('aria-expanded'),'true','one lamp opens by itself');
  console.log('lamps',await page.locator('#device-view').innerText());
+ // The lamp slider is the kit Slider with a 24-px thumb; since lærred v193 its level sits beside it (48 + 12, inset
+ // 24), so the finger must aim with the real thumb size.
  const slider=page.locator('input[type=range]:visible').first();await slider.waitFor({timeout:5000});
  await update({holdIntent:true});
- await env.touchRange(page,slider,49,{thumbSize:32,beforeRelease:async()=>{
+ await env.touchRange(page,slider,49,{thumbSize:24,beforeRelease:async()=>{
   assert.equal(await slider.inputValue(),'49','active finger drag previews the selected level');
  }});
  for(let n=0;!(await state()).intentHeld;n++){if(n>100)throw Error('brightness intent not held');await sleep(25)}
  assert.equal(await slider.inputValue(),'49','released slider keeps selected brightness during the held response');
  assert.equal(await slider.locator('..').getAttribute('data-field-state'),'pending');
  assert.equal(await slider.isEnabled(),true,'the pending dimmer accepts another drag');
- await env.touchRange(page,slider,62,{thumbSize:32});
+ await env.touchRange(page,slider,62,{thumbSize:24});
  assert.equal(await slider.inputValue(),'62','shows the newly queued absolute choice');
- await env.touchRange(page,slider,37,{thumbSize:32});
+ await env.touchRange(page,slider,37,{thumbSize:24});
  assert.equal(await slider.inputValue(),'37','latest absolute choice supersedes the older queued choice');
  assert.equal((await state()).writes.length,3);
  await update({releaseIntent:true});
@@ -192,7 +194,7 @@ let server,browser;
   if(n>100)throw Error('same-area first intent not held');
   await sleep(25);
  }
- await env.touchRange(page,slider,45,{thumbSize:32});
+ await env.touchRange(page,slider,45,{thumbSize:24});
  assert.equal((await state()).writes.length,beforeLane+1,'lamp intent waits behind the room action');
  await update({releaseIntent:true});
  await page.waitForFunction(()=>{

@@ -647,6 +647,7 @@
           "method:connectedCallback": 1,
           "method:emit": 1,
           "method:renderAnswer": 1,
+          "method:renderAnswerTime": 1,
           "method:renderTranscript": 1,
           "method:renderTypedAnswer": 1,
           "method:renderVisualAnswer": 1,
@@ -3383,7 +3384,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "method:matchesQueuedBrightness": 1,
+          "arrow:turningOn": 1,
           "class:LightLampView": 1,
           "method:cleanup": 1,
           "method:commit": 1,
@@ -3391,6 +3392,7 @@
           "method:createRow": 1,
           "method:current": 1,
           "method:matches": 1,
+          "method:matchesQueuedBrightness": 1,
           "method:render": 1,
           "method:snapshot": 1,
           "method:toggle": 1
@@ -3602,16 +3604,18 @@
     "dist/svar-today-view.js": {
       "status": "approved-renderer",
       "domOwner": "SvarTodayView",
-      "compositionScope": "Lærred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill ↑ 1 nyt svar; tapping it opens the newest answer through the same history row.",
+      "compositionScope": "Lærred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill ↑ 1 nyt svar; tapping it opens the newest answer through the same history row. Lærred v193 (SvarK-Spec): each row is a small card (icon, kind, time, title) in its answer's domain tone; the pill is the kit Button 44 with the up icon and floats over the list.",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/answer-widget.js"
+        "dist/answer-widget.js",
+        "dist/ui/kit.js"
       ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
           "arrow:sameDay": 1,
+          "arrow:svarDomain": 1,
           "arrow:svarNewLabel": 1,
           "class:SvarTodayView": 1,
           "function:svarTodayRows": 1,

@@ -1,4 +1,4 @@
-import {applyKitComponent,applyKitTemplate} from './ui/kit.js';
+import {applyKitComponent,applyKitTemplate,syncKitButtonContent} from './ui/kit.js';
 import {timersFor,timerTime,timerDurationLabel,timerStateLabel,timerFinishLabel,timerProgress,timerAdjustmentBounds,adjustTimerDuration,readTimerDuration} from './timer-model.js';
 import {TimerNotice} from './timer-notice.js';
 export function timerPresentation(timers){
@@ -124,21 +124,35 @@ export class TimerView {
   const completion=this.notice?.completions?.get(String(t.id)),completedNote=t.status==='done'&&completion?.exhausted?`${completion.played?'Timeren ringede':'Timeren blev færdig'} kl. ${new Date(completion.at).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`:'';const clock=Number.isFinite(t.deadline)?new Date(t.deadline).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.'):'';
   const running=t.status==='running'&&!t.stale&&clock;
   // Detail (lærred »A-Timer«/»Timer-pause«/»Timer-faerdig«): kicker, the state as title, one plain line under it.
-  const kicker=!detail?(t.status==='done'?'':'Timer'):t.stale?'Timer':t.status==='paused'?'Timer på pause':t.status==='done'&&completedNote?completedNote:hasTotal?`Timer · ${timerDurationLabel(t.duration)}`:'Timer';
+  // Ringing: the native alarm (timerFinishLabel), or in the local preview the bell inside its own five-minute window.
+  const localRinging=this.host.live!==true&&!t.ownerBootId&&t.status==='done'&&!!completion&&!completion.exhausted;
+  const ringing=t.status==='done'&&(timerFinishLabel(t)==='Stop alarm'||localRinging);
+  // Lærred »Timer-faerdig«: »Timeren ringede 14.30« from the real finish time (the bell's record, else the deadline).
+  const rangAt=Number.isFinite(completion?.at)?completion.at:t.deadline,rang=ringing&&Number.isFinite(rangAt)
+   ?`Timeren ringede ${new Date(rangAt).toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}).replace(':','.')}`:'';
+  const kicker=!detail?(t.status==='done'?'':'Timer'):t.stale?'Timer':t.status==='paused'?'Timer på pause'
+   :t.status==='done'&&completedNote?completedNote:t.status==='done'&&rang?rang
+   :hasTotal?`Timer · ${timerDurationLabel(t.duration)}`:'Timer';
   const title=node.querySelector('.timer-copy strong');if(title.textContent!==kicker)title.textContent=kicker;if(title.hidden!==!kicker)title.hidden=!kicker;
-  const ringing=t.status==='done'&&timerFinishLabel(t)==='Stop alarm';
   const rawStatus=detail&&!t.stale?(running?`Færdig kl. ${clock}`:t.status==='paused'?'Ringen står stille, til du fortsætter.':t.status==='done'?(ringing?'Alarmen ringer, til du stopper den.':''):timerStateLabel(t)):completedNote||t.displayState||(t.stale||!running?timerStateLabel(t):`Slutter ${clock}`),status=rawStatus===time?'':rawStatus,state=node.querySelector('.timer-state');if(state.textContent!==status)state.textContent=status;if(state.hidden!==!status)state.hidden=!status;
   const repeat=String(!!stateLabel&&status===stateLabel);
   if(copyNode?.dataset&&copyNode.dataset.stateRepeat!==repeat)copyNode.dataset.stateRepeat=repeat;
   const open=node.querySelector('.timer-open'),openLabel=['Timer',t.status==='done'?'Tiden er gået':time,status,key.startsWith('overview:')?'Åbn timerdetaljer':''].filter(Boolean).join(' · ');if(open.getAttribute('aria-label')!==openLabel)open.setAttribute('aria-label',openLabel);
   this.renderTimerActions(node,t);this.renderRestart(node,t);
-  const finish=node.querySelector('.timer-finish'),finishLabel=timerFinishLabel(t),finishAria=`${finishLabel} timer`;if(finish.textContent!==finishLabel)finish.textContent=finishLabel;if(finish.getAttribute('aria-label')!==finishAria)finish.setAttribute('aria-label',finishAria);return node;
+  const finish=node.querySelector('.timer-finish'),finishLabel=ringing?'Stop alarm':timerFinishLabel(t),finishAria=`${finishLabel} timer`;
+  // K-Btn: »Stop alarm« is the alarm variant with the stop glyph; the overview keeps its plain label.
+  if(detail){syncKitButtonContent(finish,{label:finishLabel,icon:ringing?'assets/icons/stop-fill.svg':null,size:'56'});
+   applyKitComponent(finish,'button',{variant:ringing?'alarm':'secondary'});}
+  else if(finish.textContent!==finishLabel)finish.textContent=finishLabel;
+  if(finish.getAttribute('aria-label')!==finishAria)finish.setAttribute('aria-label',finishAria);return node;
  }
  // Lærred »Timer-faerdig«: »Start igen · 10 min« beside »Stop alarm«, only with a known duration.
  renderRestart(node,t){
   const button=node.querySelector('.timer-restart');if(!button)return;const access=this.accessModel||{},known=t?.status==='done'&&!t.stale&&Number.isInteger(t.duration)&&t.duration>=1&&t.duration<=86400,allowed=this.host.live===true?!!t?.ownerBootId&&access.restartIds?.includes(t.id)===true:!t?.ownerBootId,hidden=!known||!allowed;
   const label=known?`Start igen · ${timerDurationLabel(t.duration)}`:'',disabled=hidden||!this.connected||!!access.pending||!!access.awaitingObservation;
-  if(button.textContent!==label)button.textContent=label;if(button.hidden!==hidden)button.hidden=hidden;if(button.disabled!==disabled)button.disabled=disabled;
+  if(button.dataset.kit!=='button')applyKitComponent(button,'button',{variant:'secondary'});
+  syncKitButtonContent(button,{label,icon:label?'assets/icons/arrow-refresh.svg':null,size:'56'});
+  if(button.hidden!==hidden)button.hidden=hidden;if(button.disabled!==disabled)button.disabled=disabled;
  }
  renderTimerActions(node,t){
   const actions=node.querySelector('.timer-actions');if(!actions)return;
@@ -149,7 +163,7 @@ export class TimerView {
    if(adjust){
     // An adjustment in flight for this timer keeps +1/−1 tappable; the host queues the taps (T1).
     const disabled=!native||!this.connected||access.canAdjust!==true||blocked&&!pending||access.adjustBlockedIds?.includes(t?.id)||!bounds?.[delta<0?'minus':'plus'];if(button.disabled!==!!disabled)button.disabled=!!disabled;applyKitComponent(button,'button',{variant:'icon',feedback:'progress',loading:!!(pending&&pending.deltaSeconds===delta&&access.waiting)});}
-   else{const label=t?.status==='paused'?'Fortsæt':'Pause';if(button.textContent!==label)button.textContent=label;const disabled=!local||!this.connected||blocked||t?.stale;if(button.disabled!==!!disabled)button.disabled=!!disabled;}
+   else{const label=t?.status==='paused'?'Fortsæt':'Pause';syncKitButtonContent(button,{label,icon:label==='Fortsæt'?'assets/icons/play-fill.svg':null,size:'56'});const disabled=!local||!this.connected||blocked||t?.stale;if(button.disabled!==!!disabled)button.disabled=!!disabled;}
   }
  }
  renderAccess({connected,canStart=connected,canCancel=connected,restartIds=[],pending=false,waiting=pending,awaitingObservation=false,allowIndependentCancel=false,cancelBlockedIds=[],canAdjust=false,adjustBlockedIds=[],adjustPending=null,feedback=''}={}){
@@ -218,7 +232,12 @@ export class TimerView {
 
  renderNotice(focus=this.host.state.focus,live=this.host.live,feedbackVisible=document.getElementById('playback-status')?.hidden===false){
   const timer=timersFor(this.host.state||{}).find(t=>t.status==='done'&&!t.stale&&!t.noticeDismissed)||this.currentTimer;
+  const before=timer&&this.notice?.completions?.get?.(String(timer.id));
   this.notice.render(timer,focus,live,feedbackVisible,null,{...this.accessModel,canCancel:this.canCancel});
+  // The bell's record is what makes a local finished timer ring; its detail card reads it, so refresh it once.
+  const detail=timer&&this.nodes?.get(`detail:${timer.id}`);
+  if(detail&&!before&&this.notice?.completions?.get?.(String(timer.id))&&this.currentTimer?.id===timer.id)
+   this.card(this.currentTimer,detail.parentNode,`detail:${timer.id}`);
  }
  cleanup(){clearTimeout(this.presentationTick);this.presentationTick=null;this.presentationAnchor=null;this.startNavigation=null;this.activityAnimation?.cancel();if(this.activityPointer)this.activityPointer.target.style.transform='';this.activityPointer=null;this.notice?.cleanup();}
 }

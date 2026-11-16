@@ -42,8 +42,13 @@ export function applyKitTextRole(node,role){
 }
 /** Retained icon + label inside the existing Button. Scalar choices do not use it. */
 const buttonContents=new WeakMap();
-export function syncKitButtonContent(node,{label,icon}={}){
- const text=String(label??'');if(icon!==undefined&&!/^assets\/icons\/[a-z0-9-]+\.svg$/.test(icon))throw new TypeError('Button icon must be a canonical local asset');
+// K-Btn icon slot: `size` is the button height the icon is scaled for (56: 20 px, 10 gap; 44: 18 px, 8 gap;
+// 88: 28 px, 14 gap). `icon: null` clears a previous icon; undefined keeps it.
+export function syncKitButtonContent(node,{label,icon,size}={}){
+ const text=String(label??'');if(icon===null)icon='';
+ if(icon!==undefined&&icon!==''&&!/^assets\/icons\/[a-z0-9-]+\.svg$/.test(icon))throw new TypeError('Button icon must be a canonical local asset');
+ if(size!==undefined&&!['44','56','88'].includes(String(size)))throw new TypeError('Button icon size must be 44, 56 or 88');
+ if(size!==undefined)data(node,'kitSize',String(size));
  if(!node.ownerDocument?.createElement){if(node.textContent!==text)node.textContent=text;return node;}
  let parts=buttonContents.get(node);
  if(!parts||!Array.from(node.children||[]).includes(parts.label)){

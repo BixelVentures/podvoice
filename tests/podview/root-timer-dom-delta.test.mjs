@@ -119,6 +119,20 @@ test('completed timer retains actual alarm time in the existing card after bound
  try{const at=new Date(2026,9,20,18,5).getTime(),done={...timer,status:'done',remaining:0};f.view.notice={completions:new Map([[timer.id,{at,exhausted:true,played:true}]])};const card=f.view.card(done,f.list,`detail:${timer.id}`);assert.equal(card.querySelector('.timer-copy strong').textContent,'Timeren ringede kl. 18.05');f.view.notice.completions.get(timer.id).played=false;f.view.card(done,f.list,`detail:${timer.id}`);assert.equal(card.querySelector('.timer-copy strong').textContent,'Timeren blev færdig kl. 18.05');assert.equal(f.view.nodes.get(`detail:${timer.id}`),card);
  }finally{globalThis.document=prior;}
 });
+test('lærred »Timer-faerdig« v193: a ringing timer says when it rang, that it rings, and offers »Stop alarm« as the alarm key',()=>{
+ const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
+ try{f.view.host.live=false;const at=new Date(2026,9,20,18,5).getTime(),done={...timer,status:'done',remaining:0,ownerBootId:undefined};
+  f.view.notice={completions:new Map([[timer.id,{at,exhausted:false,played:true}]])};
+  const card=f.view.card(done,f.list,`detail:${timer.id}`),finish=card.querySelector('.timer-finish');
+  assert.equal(card.querySelector('.timer-copy strong').textContent,'Timeren ringede 18.05');
+  assert.equal(card.querySelector('.timer-state').textContent,'Alarmen ringer, til du stopper den.');
+  assert.equal(finish.textContent,'Stop alarm');assert.equal(finish.getAttribute('data-kit-variant'),'alarm');assert.equal(finish.getAttribute('data-kit-size'),'56');
+  // Without the bell's record the local timer is only finished: no ringing copy and no alarm key.
+  f.view.notice={completions:new Map()};f.view.card(done,f.list,`detail:${timer.id}`);
+  assert.notEqual(card.querySelector('.timer-copy strong').textContent,'Timeren ringede 18.05');
+  assert.notEqual(finish.textContent,'Stop alarm');assert.equal(finish.getAttribute('data-kit-variant'),'secondary');
+ }finally{globalThis.document=prior;}
+});
 test('running and paused timers hide creation and prevent draft changes until cancellation',()=>{
  const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
  try{f.view.host.live=false;for(const status of ['running','paused']){const current={...timer,status,ownerBootId:undefined};f.view.render({connected:true,focus:'timers',timer:current,timerHistory:[]});assert.equal(f.form.hidden,true);assert.equal(f.view.canStart,false);for(const button of f.form.querySelectorAll('[data-minutes]'))assert.equal(button.disabled,true);assert.equal(f.form.querySelector('.timer-start').disabled,true);const draft=f.view.duration;f.view.fill({seconds:180});assert.equal(f.view.duration,draft);assert.equal(f.view.currentTimer,current);}
