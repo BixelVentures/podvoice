@@ -683,7 +683,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "f295f71bdde05d5b62f85e732bf049f5ca4dbce00f18e45b68cda45fd36a0391"
+      "sha256": "d33e8a85d1273d161772386515c0d5272ce6067e3056aef4336dcb02831e4c65"
     },
     {
       "path": "library.css",
@@ -723,7 +723,7 @@
     },
     {
       "path": "live-music-selection-view.js",
-      "sha256": "0a81c200532c394ea1a6bfccf2d96d4696a80194ebe8c0bc1455885cd218964b"
+      "sha256": "2c524b7118b5a6d897d6fdadc92a8bb153ff2c6dfcfd692c3ec70e777138a138"
     },
     {
       "path": "live-music-view.js",
@@ -815,7 +815,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "fe35c5d18f4acc269de6c9eee3596ec76ddfbf826a57260e571150b4891d8dd7"
+      "sha256": "f859d36c972c0a7813be6e6932d8c5278883c0e1c719abab3708c1b72b9e16d2"
     },
     {
       "path": "podview.css",
@@ -903,7 +903,7 @@
     },
     {
       "path": "speaker-output-view.js",
-      "sha256": "18b3888182e7e683812bde95cc6497884f8f41f8aea5f8f315f1a67cf5be2222"
+      "sha256": "f24401a9d98bc28cabc78cb0fb94a142f1d7ca2542339cb13579708ee19412e6"
     },
     {
       "path": "spotify-artwork.js",
@@ -927,7 +927,7 @@
     },
     {
       "path": "timer-notice.js",
-      "sha256": "830605456b10e601a59c6b4c5fdfb6fdbcfde2a3848271806468cf65cd5091dd"
+      "sha256": "36aa1453802858632b2a9bcb5cce74b5d3fc49d27a6753a03a3e4307eac56334"
     },
     {
       "path": "timer-view.js",
@@ -967,7 +967,7 @@
     },
     {
       "path": "ui/kit.js",
-      "sha256": "8e45606eea6e0f7f60df5338b44ea4d4cb35e6605bdad16c0277332dcdb88211"
+      "sha256": "29c3c9b8140aa74c6d8e315b457eddf934da077b5ff113a9335c1e0b4365887a"
     },
     {
       "path": "ui/legacy-components.css",

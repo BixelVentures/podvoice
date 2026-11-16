@@ -81,6 +81,18 @@ export function applyKitComponent(node,type,options={}){
  if(type==='slider'){syncKitSlider(node);if(node.tagName?.toUpperCase()==='INPUT'&&!sliderBindings.has(node)){node.addEventListener('input',paintSliderInput);sliderBindings.add(node);}}
  return node;
 }
+// One busy contract for a kit Button whose tap starts a request: aria-busy and the kit spinner while it runs,
+// a second tap on the same button is ignored, and busy always clears. A failure leaves data-state=error,
+// which the next tap clears. Owners whose model already tracks pending pass loading via applyKitComponent.
+export async function runKitButtonAction(node,action){
+ if(node.getAttribute('aria-busy')==='true')return undefined;
+ if(node.dataset.feedback===undefined)data(node,'feedback','progress');
+ if(node.dataset.state==='error')delete node.dataset.state;
+ attribute(node,'aria-busy',true);
+ try{return await action();}
+ catch{data(node,'state','error');return undefined;}
+ finally{attribute(node,'aria-busy',false);}
+}
 export function createKitComponent(type,{document=globalThis.document,tag,className='',text,...options}={}){
  const node=document.createElement(tag||recipe(type).tag);
  if(className)node.className=className;
