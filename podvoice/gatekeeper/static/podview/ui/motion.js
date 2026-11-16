@@ -1,3 +1,121 @@
+// Motion tokens (docs/MOTION.md §3.1, §3.11). Four durations, three easings and the springs.
+// scripts/gen-motion-tokens.mjs writes the CSS custom properties in ui-kit.css from these values.
+export const DUR=Object.freeze({tap:100,quick:160,base:240,ambient:1400,reduced:150});
+export const SPRING=Object.freeze({
+ quick:Object.freeze({duration:.30,bounce:0}),
+ smooth:Object.freeze({duration:.45,bounce:0}),
+ snappy:Object.freeze({duration:.40,bounce:.15}),
+ flick:Object.freeze({duration:.50,bounce:.20}),
+});
+export const EASE=Object.freeze({
+ out:'cubic-bezier(.2,0,0,1)',in:'cubic-bezier(.4,0,1,1)',inout:'cubic-bezier(.45,0,.55,1)',
+});
+
+// Apple's duration/bounce model with mass 1: k=(2π/duration)², ζ=1−bounce, c=2ζω.
+export function springParams({duration,bounce=0}){
+ const omega=2*Math.PI/duration,zeta=1-bounce;
+ return {k:omega*omega,c:2*zeta*omega,zeta,omega};
+}
+// Normalised step response from 0 to 1, starting at rest. t in seconds.
+function stepResponse(spec){
+ const {omega,zeta}=springParams(spec);
+ if(zeta>=1)return t=>1-Math.exp(-omega*t)*(1+omega*t);
+ const damped=omega*Math.sqrt(1-zeta*zeta);
+ return t=>1-Math.exp(-zeta*omega*t)*(Math.cos(damped*t)+(zeta*omega/damped)*Math.sin(damped*t));
+}
+// Last time the response is further than eps from rest, sampled every 0.5 ms for up to 5 s.
+function settleTime(x,eps=.001){
+ let last=0;
+ for(let t=0;t<5;t+=.0005)if(Math.abs(x(t)-1)>eps)last=t;
+ return last;
+}
+// Ramer–Douglas–Peucker on the sampled curve, so linear() stays within the tolerance.
+function simplify(values,times,tolerance){
+ const keep=[0,values.length-1];
+ const split=(i,j)=>{
+  let best=-1,index=-1;
+  for(let k=i+1;k<j;k++){
+   const line=values[i]+(values[j]-values[i])*(times[k]-times[i])/(times[j]-times[i]);
+   const error=Math.abs(line-values[k]);
+   if(error>best){best=error;index=k;}
+  }
+  if(best>tolerance){keep.push(index);split(i,index);split(index,j);}
+ };
+ split(0,values.length-1);
+ return keep.sort((a,b)=>a-b);
+}
+const trimNumber=(value,digits)=>value.toFixed(digits).replace(/(\.\d*?)0+$/,'$1').replace(/\.$/,'');
+// CSS linear() approximation of a spring plus its settle time (to 0.1 %), which is the CSS duration.
+export function springCurve(spec,{tolerance=.004}={}){
+ const x=stepResponse(spec),settle=settleTime(x),samples=600;
+ const times=Array.from({length:samples+1},(_,i)=>settle*i/samples),values=times.map(x);
+ values[samples]=1;
+ const points=simplify(values,times,tolerance).map(i=>{
+  const value=trimNumber(values[i],3);
+  return i===0||i===samples?value:`${value} ${trimNumber(100*times[i]/settle,1)}%`;
+ });
+ return {easing:`linear(${points.join(', ')})`,ms:Math.round(settle*1000)};
+}
+// iOS rubber-band: resistance grows with overscroll x and never reaches the dimension.
+export function rubberBand(x,dimension,c=.55){return (1-1/(x*c/dimension+1))*dimension;}
+// Distance a fling travels under UIScrollView deceleration (rate per ms).
+export function project(velocityPxPerS,rate=.998){return velocityPxPerS/1000*rate/(1-rate);}
+
+// Analytic damped spring with velocity handoff. Frame-rate independent and testable without a DOM.
+// Values are in the caller's units; velocity is units per second; time comes from now() in ms.
+export class Spring{
+ constructor(spec,{value=0,velocity=0,onFrame,onRest,raf,now,precision=.001,restVelocity=.01}={}){
+  this.params=springParams(spec);this.onFrame=onFrame;this.onRest=onRest;
+  this.raf=raf||(callback=>globalThis.requestAnimationFrame(callback));
+  this.now=now||(()=>globalThis.performance.now());
+  this.precision=precision;this.restVelocity=restVelocity;
+  this.anchor={value,velocity,target:value,time:0};this.frame=null;this.running=false;
+ }
+ // Position and velocity at a time, solved in closed form from the last anchor.
+ sample(time){
+  const {value,velocity,target,time:start}=this.anchor;
+  if(!this.running)return {value,velocity};
+  const t=Math.max(0,(time-start)/1000),{omega,zeta}=this.params,x0=value-target;
+  if(zeta>=1){
+   const b=velocity+omega*x0,decay=Math.exp(-omega*t);
+   return {value:target+decay*(x0+b*t),velocity:decay*(velocity-omega*b*t)};
+  }
+  const a=zeta*omega,damped=omega*Math.sqrt(1-zeta*zeta),c=(velocity+a*x0)/damped;
+  const decay=Math.exp(-a*t),cos=Math.cos(damped*t),sin=Math.sin(damped*t);
+  return {value:target+decay*(x0*cos+c*sin),velocity:decay*(velocity*cos-(a*c+x0*damped)*sin)};
+ }
+ get value(){return this.sample(this.now()).value;}
+ get velocity(){return this.sample(this.now()).velocity;}
+ get target(){return this.anchor.target;}
+ get resting(){return !this.running;}
+ // Retarget from the visible value, keeping the current velocity unless one is given.
+ to(target,{velocity}={}){
+  const time=this.now(),current=this.sample(time);
+  this.anchor={value:current.value,velocity:velocity??current.velocity,target,time};this.running=true;
+  if(this.frame===null)this.schedule();
+  return this;
+ }
+ // Catch in flight: keep the visible value and drop the velocity.
+ stop(){
+  const time=this.now(),current=this.sample(time);
+  this.anchor={value:current.value,velocity:0,target:current.value,time};this.running=false;this.frame=null;
+  return this;
+ }
+ schedule(){
+  const frame={};this.frame=frame;
+  this.raf(()=>{if(this.frame===frame){this.frame=null;this.tick();}});
+ }
+ tick(){
+  if(!this.running)return;
+  const time=this.now(),{value,velocity}=this.sample(time),target=this.anchor.target;
+  if(Math.abs(value-target)<this.precision&&Math.abs(velocity)<this.restVelocity){
+   this.anchor={value:target,velocity:0,target,time};this.running=false;
+   this.onFrame?.(target,0);this.onRest?.(target);return;
+  }
+  this.onFrame?.(value,velocity);this.schedule();
+ }
+}
+
 // Layout offsets exclude our active FLIP transform. Animation progress is not a new layout.
 const resourceLayout=node=>{if(typeof node.offsetLeft!=='number')return null;const values=[];for(let n=node,depth=0;n&&depth<64;n=n.offsetParent,depth++)values.push(n,n.offsetLeft,n.offsetTop,n.offsetWidth,n.offsetHeight);return values;};
 const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>value===b[index]);
