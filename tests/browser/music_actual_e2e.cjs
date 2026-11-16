@@ -52,6 +52,8 @@ async function speakerRefreshJourney(page,errors){
  await dialog.waitFor({state:'visible'});
  await rows.nth(1).waitFor({state:'visible'});
  await page.waitForFunction(()=>document.querySelector('#rooms .speaker-list-refresh')?.disabled===false);
+ // The sheet rises on the smooth spring (docs/MOTION.md §3.3); row geometry is compared once it has landed.
+ await dialog.evaluate(node=>Promise.all(node.getAnimations().map(a=>a.finished.catch(()=>{}))));
  const inspect=()=>rows.evaluateAll(items=>items.map(row=>{
   const {x,y,width,height}=row.getBoundingClientRect(),style=getComputedStyle(row);
   return {name:row.querySelector('strong').textContent,pressed:row.getAttribute('aria-pressed'),

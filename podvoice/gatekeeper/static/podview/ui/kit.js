@@ -86,17 +86,30 @@ export function applyKitComponent(node,type,options={}){
  if(type==='slider'){syncKitSlider(node);if(node.tagName?.toUpperCase()==='INPUT'&&!sliderBindings.has(node)){node.addEventListener('input',paintSliderInput);sliderBindings.add(node);}}
  return node;
 }
-// One busy contract for a kit Button whose tap starts a request: aria-busy and the kit spinner while it runs,
-// a second tap on the same button is ignored, and busy always clears. A failure leaves data-state=error,
-// which the next tap clears. Owners whose model already tracks pending pass loading via applyKitComponent.
-export async function runKitButtonAction(node,action){
+// P6 request state of a kit control (docs/MOTION.md §3.7), written as data-pv-state; CSS does the motion.
+// busy: aria-busy at once, the spinner only after 400 ms (--pv-busy-delay), so fast commands never show one.
+// done: one tick, and only for a confirmed outcome. error: a colour change back to the actual state, never a
+// shake; data-state=error stays until the next tap. idle: nothing extra.
+export const KIT_STATES=Object.freeze(['idle','busy','done','error']);
+export function setKitButtonState(node,state){
+ if(!KIT_STATES.includes(state))throw new TypeError(`Unknown kit state: ${state}`);
+ attribute(node,'aria-busy',state==='busy');
+ if(state==='error')data(node,'state','error');else if(node.dataset.state==='error')delete node.dataset.state;
+ if(state==='idle'){if(node.dataset.pvState!==undefined)delete node.dataset.pvState;}else data(node,'pvState',state);
+ return node;
+}
+// One busy contract for a kit Button whose tap starts a request: busy while it runs, a second tap on the same
+// button is ignored, and busy always clears. A failure leaves error, which the next tap clears. The action's
+// result is done (with the tick) only when confirmed(result) says so; by default only a result of true, so an
+// unknown outcome is never shown as done. Owners whose model already tracks pending pass loading instead.
+export async function runKitButtonAction(node,action,{confirmed=result=>result===true}={}){
  if(node.getAttribute('aria-busy')==='true')return undefined;
  if(node.dataset.feedback===undefined)data(node,'feedback','progress');
- if(node.dataset.state==='error')delete node.dataset.state;
- attribute(node,'aria-busy',true);
- try{return await action();}
- catch{data(node,'state','error');return undefined;}
- finally{attribute(node,'aria-busy',false);}
+ setKitButtonState(node,'busy');
+ let outcome='idle';
+ try{const result=await action();if(confirmed(result))outcome='done';return result;}
+ catch{outcome='error';return undefined;}
+ finally{setKitButtonState(node,outcome);}
 }
 export function createKitComponent(type,{document=globalThis.document,tag,className='',text,...options}={}){
  const node=document.createElement(tag||recipe(type).tag);

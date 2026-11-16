@@ -57,13 +57,14 @@ const tap = (selector, wait = 500) => async page => {
   await sleep(wait);
 };
 // The kit's busy contract (ui/kit.js runKitButtonAction): data-feedback=progress and aria-busy while it runs,
-// data-state=error after a failed request. Set here on a real kit button to show what the user sees.
+// data-state=error after a failed request. Set here on a real kit button to show what the user sees. The
+// spinner appears only after 400 ms (docs/MOTION.md §3.7), so the busy picture waits past that.
 const kitButton = state => page => page.evaluate(state => {
   const button = document.querySelector('#empty-find-music');
   button.dataset.feedback = 'progress';
   if (state === 'busy') button.setAttribute('aria-busy', 'true');
   else button.dataset.state = 'error';
-}, state).then(() => sleep(250));
+}, state).then(() => sleep(state === 'busy' ? 800 : 250));
 
 // Each state: section, label, the ?stage= preview, an optional clock and an optional step on the page.
 const STATIC = [
@@ -366,13 +367,14 @@ const FLOWS = {
       await take('Dialoger', 'Højttaler-dialog (live)');
       // The kit's busy state on »Opdater liste«: the fixture answers at once, so the sweep holds the refresh
       // request for a moment and photographs the button while it is under way.
-      const hold = route => sleep(1200).then(() => route.continue()).catch(() => {});
+      // The spinner shows only after 400 ms, so the photograph is taken past that.
+      const hold = route => sleep(1600).then(() => route.continue()).catch(() => {});
       await page.route(/\/view\/api\//, hold);
       await page.getByRole('button', {name: 'Opdater liste', exact: true}).click();
-      await sleep(250);
+      await sleep(750);
       await take('Knaptilstande', 'Opdater liste · optaget');
       await page.unroute(/\/view\/api\//, hold);
-      await sleep(1100);
+      await sleep(1000);
       await page.keyboard.press('Escape');
       await change({externalPlaybackState: 'paused'});
       await player.locator('#play-pause[aria-label*="Afspil"], #play-pause[aria-label*="Genoptag"]').first()

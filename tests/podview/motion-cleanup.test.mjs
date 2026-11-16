@@ -75,7 +75,7 @@ test('the product host and the library page install the mirror',()=>{
  assert.match(read('library.js'),/^mirrorReducedMotion\(document\.documentElement\);$/m);
 });
 
-const SHARED=['pv-spin','pv-busy-in','pv-skeleton','pv-pulse','pv-eq','pv-enter-up','pv-press-circle'];
+const SHARED=['pv-spin','pv-busy-in','pv-skeleton','pv-pulse','pv-eq','pv-enter-up','pv-tick','pv-press-circle'];
 const WEATHER=['pv-weather-drift','pv-weather-glow','pv-weather-flash','pv-weather-mist'];
 test('keyframes are consolidated to the shared set (toward the 13 of §3.11)',()=>{
  const names=Object.keys(keyframes(bundled)).sort();

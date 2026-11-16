@@ -659,7 +659,7 @@
     },
     {
       "path": "frame-layout.css",
-      "sha256": "3ab053bd1f07655b8e2dd5f4484c16d6c2e8daced5ac8d1df1553ac865c1a82e"
+      "sha256": "0b6910b225d441f833a9099aec8642454f7289cc98bf494a82f849649a463575"
     },
     {
       "path": "ha-home-observation.js",
@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "881dd158231c8f28dbd08fb0e2d66b732089b25a3d798306276c7eaafcaf8b40"
+      "sha256": "dc5401ab45f5f7b801b72cc293c48b0b8c4458992e672a8de8801e974ed12df6"
     },
     {
       "path": "library.css",
@@ -819,11 +819,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "9efe9f8d30e4c6f2569c4adb7e87becb3b9488ae88f88d6f4fe715cddd59adab"
+      "sha256": "3458ca6b33b44d6bccdb3c51150681bc12580c07507e67ed4f419f76b1f70ae8"
     },
     {
       "path": "podview.css",
-      "sha256": "30eda87419fe79ca44ebc36d03ee4b63a0c405a07562518b429e9a313d8716df"
+      "sha256": "61a9610f8844a616598a40b32bb79682af17567e87f3218d39c5d46f2350cc1e"
     },
     {
       "path": "podvoice-transport.js",
@@ -927,7 +927,7 @@
     },
     {
       "path": "timer-notice.css",
-      "sha256": "0c51725be3ba254a0a1b6cc55e1ee743e10b87f90632b26a94a572b5b34a20bc"
+      "sha256": "a1d94127fa971b323507df2982b26b0672f4fd6e4cb4eb1c13ad93091031f09b"
     },
     {
       "path": "timer-notice.js",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "9584da6811da390955fd574a43ee7e3c920f62d85247e313ac8f82b4664bafb4"
+      "sha256": "e935138c512f0da1154dd6296361136f270d5245473968059518b3f47fb3eb3b"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -951,7 +951,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "f925ce3061ae8792455608f2090004f4095a4f3580f51ee0245eb7cf7e291ca2"
+      "sha256": "ae9d33f0c3c672cf121ab049c136b3004d715ccd717fa3907722b1e810dc3240"
     },
     {
       "path": "ui/components.js",
@@ -971,7 +971,7 @@
     },
     {
       "path": "ui/kit.js",
-      "sha256": "8b09d63f3d825bc0d48302b839e215de8b857c8c98a1242bab19348e09629aa3"
+      "sha256": "4a06c1fe074094b8c53ba2d2c839cc76e46ac4c461a9c30bea1ab8fa2effaa67"
     },
     {
       "path": "ui/legacy-components.css",
@@ -999,7 +999,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "e5d82e203d9af8a519fa6f80b012bdd1da5417650e921f872a9bb1e8f487c249"
+      "sha256": "220b7d9e6268b12a82904fd42cbbabb3281ce6471abf564df7a1d590ea3a0ce9"
     },
     {
       "path": "ui/notification-queue.js",
