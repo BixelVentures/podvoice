@@ -1,3 +1,8 @@
+## 2.1.7
+
+- Musik: heroen står øverst, og Fortsæt, Til <dag> <tid>, Vibe og Jeres playlister er åbne rækker; et tryk på et kort i en anden række starter det med det samme. Kø og Lys slutter på samme bundlinje som resten, »Spiller på …« skubber ikke længere »Kø« ned, og Lys viser »<rum> · denne skærms rum«, når rummet kendes.
+- Højttalerchippen åbner altid højttalerlisten – også når musikken spiller på en anden enhed – i stedet for at flytte musikken med det samme. »Skærm og enhed« har mindre lukkeknap, lysstyrke på én linje, en kontakt for automatisk dæmpning og »Om skærmen« som åbne rækker; »På pause« klemmes ikke længere ind over højttalerchippen.
+
 ## 2.1.6
 
 - Afspilleren: når rummets Spotify er logget ind med en anden konto (PodConnect `podconnect_account: other`), vises nummeret nedtonet med »En anden Spotify-konto spiller her« – uden navn, uden afspilningsknapper og lydstyrke – og »Vælg musik« til egen musik. Ukendt konto opfører sig som før.
