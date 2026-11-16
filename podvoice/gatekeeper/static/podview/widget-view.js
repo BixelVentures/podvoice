@@ -30,7 +30,7 @@ import {LiveMusicSelectionView} from './live-music-selection-view.js';
 import {renderLiveWeather,renderRobotHistory} from './live-home-view.js';
 import {validateHome,applyHome,scopedLightDevice,overviewGroupOverflow} from './home-model.js';
 import {lightAreasObservation,scopedLightsObservation} from './ha-home-observation.js';
-import {SceneMotion,mirrorReducedMotion} from './ui/motion.js';
+import {SceneMotion,mirrorReducedMotion,showValue} from './ui/motion.js';
 import {robotExperience} from './robot-observation.js';
 import {RobotMotion} from './ui/robot-motion.js';
 import {PodVoiceTransport} from './podvoice-transport.js';
@@ -669,9 +669,10 @@ class WidgetHost extends HTMLElement {
   const time=now.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),rawDate=now.toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'}),date=rawDate.charAt(0).toLocaleUpperCase('da-DK')+rawDate.slice(1);
   const connection=connectionPresentation({...this.live?{status:this.liveStatus,snapshot:this.liveSnapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true}:this.state.connectionPreview||{status:this.state.connected?'connected':'disconnected',snapshot:this.state.connected?undefined:{}},browserOffline:this.browserOffline===true}),offline=['offline','denied'].includes(connection.state);
   for(const [id,value] of [['photo-date',connection.headerLabel||now.toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'})],['header-date',connection.headerLabel||date]]){const node=$(id);if(node.textContent!==value)node.textContent=value;for(const [key,value] of [['role','status'],['aria-live','polite'],['aria-atomic','true']])if(node.getAttribute?.(key)!==value)node.setAttribute?.(key,value);if(connection.headerLabel&&connection.text){if(node.getAttribute?.('aria-label')!==connection.text)node.setAttribute?.('aria-label',connection.text);}else if(node.getAttribute?.('aria-label')!==null)node.removeAttribute?.('aria-label');}
-  if(this.motion)this.motion.updateClock($('photo-clock'),time);else if($('photo-clock').textContent!==time)$('photo-clock').textContent=time;
+  showValue(this.motion,$('photo-clock'),time,{direction:1});
   const ro=$('header-ro');if(ro.getAttribute('aria-label')!==null)ro.removeAttribute('aria-label');const description=connection.retry?'Åbn Skærm og enhed, vælg Om skærmen for at prøve forbindelsen igen':'Åbn Skærm og enhed';if(ro.getAttribute('aria-description')!==description)ro.setAttribute?.('aria-description',description);
-  const clock=$('header-clock');if(clock.textContent!==time){const previous=clock.textContent;this.headerClockAnimation?.cancel();clock.textContent=time;if(previous&&clock.animate){const reduced=this.motion?.reduced===true;this.headerClockAnimation=clock.animate([{opacity:0},{opacity:1}],{duration:reduced?120:200,easing:'ease-out'});}}
+  // P5: the header clock rolls only its changed minute/hour digits, like the Ro clock.
+  showValue(this.motion,$('header-clock'),time,{direction:1});
   const nav=this.querySelector('.view-nav');if(nav){for(const [key,value] of [['connectionState',connection.state],['offline',String(offline)],['night',String(this.dataset.night==='true')]])if(nav.dataset[key]!==value)nav.dataset[key]=value;}const dot=$('header-offline-dot'),showConnectionMark=offline||connection.state==='connecting';if(dot.hidden!==!showConnectionMark)dot.hidden=!showConnectionMark;if($('quick-sheet')?.open)this.renderScreenSettings?.();
  }
  renderTopbarScroll(){const nav=this.querySelector('.view-nav'),responses=this.querySelector('.responses');if(!nav||!responses)return;const recipe=responses.querySelector('#recipe-view:not([hidden])');const catalog=recipe?.querySelector('[data-recipe-layout=catalog]>div');const scrolled=String(responses.scrollTop>8||(catalog?.scrollTop??recipe?.scrollTop??0)>8);if(nav.dataset.scrolled!==scrolled)nav.dataset.scrolled=scrolled;}

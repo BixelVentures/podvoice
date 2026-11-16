@@ -1,6 +1,8 @@
 import {applyKitComponent,applyKitTemplate,syncKitButtonContent} from './ui/kit.js';
 import {timersFor,timerTime,timerDurationLabel,timerStateLabel,timerFinishLabel,timerProgress,timerAdjustmentBounds,adjustTimerDuration,readTimerDuration} from './timer-model.js';
 import {TimerNotice} from './timer-notice.js';
+import {showValue,showProgress,springCurve,SPRING} from './ui/motion.js';
+const USER_PROGRESS_MS=springCurve(SPRING.smooth).ms;
 export function timerPresentation(timers){
  const priority=t=>t.status==='done'?0:t.status==='running'?1:t.status==='paused'?2:3;
  const end=t=>Number.isFinite(t.deadline)?t.deadline:t.remaining;
@@ -49,10 +51,28 @@ export class TimerView {
   const shown=!!current&&['running','paused'].includes(current.status)&&!current.stale&&s.focus!=='timers';
   if(chip.hidden!==!shown)chip.hidden=!shown;if(!shown)return;
   const t=this.presentationTimer(current),time=timerTime(t.remaining),label=`Timer ${time}, ${timerStateLabel(t)}`;
-  const text=chip.querySelector('span');if(text.textContent!==time)text.textContent=time;
+  showValue(this.host.motion,chip.querySelector('span'),time,{still:2});
   if(chip.getAttribute('aria-label')!==label)chip.setAttribute('aria-label',label);
-  const progress=String(timerProgress(t)??100);
-  if(chip.style.getPropertyValue('--progress')!==progress)chip.style.setProperty('--progress',progress);
+  showProgress(chip,'--progress',String(timerProgress(t)??100),this.progressSource(chip,t));
+ }
+ // P5 progress (docs/MOTION.md §3.6): a running timer that counted down by about the time that passed is a tick and
+ // runs linear over the second; any other change of the same timer (+1 min, Start igen) is the user's and travels
+ // on the smooth spring; a new timer is drawn in place.
+ progressSource(node,t){
+  this.progressSeen??=new WeakMap();
+  const last=this.progressSeen.get(node),now=Date.now();
+  const same=last&&last.id===t.id&&last.remaining===t.remaining&&last.duration===t.duration&&last.status===t.status;
+  if(same)return last.result;
+  let result={source:'none'};
+  if(last&&last.id===t.id){
+   const step=last.remaining-t.remaining,elapsed=(now-last.at)/1000;
+   const tick=t.status==='running'&&last.status==='running'&&last.duration===t.duration&&step>0&&step<=elapsed+1.5;
+   // A tick inside a user change's spring stays on the spring, so the ring does not switch curves mid-travel.
+   const travelling=last.result.source==='user'&&now-last.at<USER_PROGRESS_MS;
+   result=tick&&!travelling?{source:'tick',interval:1000}:{source:'user'};
+  }
+  this.progressSeen.set(node,{id:t.id,remaining:t.remaining,duration:t.duration,status:t.status,at:now,result});
+  return result;
  }
  completeStartNavigation(token,timerId){
   if(!token||this.startNavigation!==token)return;this.startNavigation=null;
@@ -113,10 +133,10 @@ export class TimerView {
    node.querySelector('.timer-restart')?.addEventListener('click',e=>{if(e.currentTarget.disabled||e.currentTarget.hidden)return;this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'restart',now:Date.now()});});
    node.querySelector('.timer-finish').addEventListener('click',()=>{if(!this.canCancel||this.accessModel?.cancelBlockedIds?.includes(node.dataset.timerId))return;this.host.dispatch({type:'timer',id:node.dataset.timerId,action:'cancel'});this.host.focusHeading();});
   }
-  const progress=timerProgress(t);if(node.hidden)node.hidden=false;if(node.dataset.timerId!==t.id)node.dataset.timerId=t.id;if(node.dataset.status!==t.status)node.dataset.status=t.status;const stale=String(t.stale===true);if(node.dataset.stale!==stale)node.dataset.stale=stale;const known=String(progress!==null);if(node.dataset.progressKnown!==known)node.dataset.progressKnown=known;const progressValue=String(progress??0);if(node.style.getPropertyValue('--progress')!==progressValue)node.style.setProperty('--progress',progressValue);const detail=key.startsWith('detail:'),count=node.querySelector('.timer-count'),time=t.status==='done'?detail?'0:00':'Tiden er gået':timerTime(t.remaining);
+  const progress=timerProgress(t);if(node.hidden)node.hidden=false;if(node.dataset.timerId!==t.id)node.dataset.timerId=t.id;if(node.dataset.status!==t.status)node.dataset.status=t.status;const stale=String(t.stale===true);if(node.dataset.stale!==stale)node.dataset.stale=stale;const known=String(progress!==null);if(node.dataset.progressKnown!==known)node.dataset.progressKnown=known;showProgress(node,'--progress',String(progress??0),this.progressSource(node,t));const detail=key.startsWith('detail:'),count=node.querySelector('.timer-count'),time=t.status==='done'?detail?'0:00':'Tiden er gået':timerTime(t.remaining);
   // Lærred »A-Timer«: the known total under the time (»af 10:00«), only on the timer page.
   const totalNode=node.querySelector('.timer-total'),hasTotal=Number.isInteger(t.duration)&&t.duration>0,totalText=detail&&hasTotal?`af ${timerTime(t.duration)}`:'';
-  if(totalNode){if(totalNode.textContent!==totalText)totalNode.textContent=totalText;if(totalNode.hidden!==!totalText)totalNode.hidden=!totalText;}if(count.textContent!==time)count.textContent=time;const instrument=node.querySelector('.timer-instrument'),long=String(t.remaining>=3600);if(instrument.dataset.long!==long)instrument.dataset.long=long;
+  if(totalNode){if(totalNode.textContent!==totalText)totalNode.textContent=totalText;if(totalNode.hidden!==!totalText)totalNode.hidden=!totalText;}showValue(this.host.motion,count,time,{still:2});const instrument=node.querySelector('.timer-instrument'),long=String(t.remaining>=3600);if(instrument.dataset.long!==long)instrument.dataset.long=long;
   // The detail title is the product's state label (»Tæller ned«, »På pause«).
   const copyNode=node.querySelector('.timer-copy');
   const stateLabel=detail?timerStateLabel(t):'';
