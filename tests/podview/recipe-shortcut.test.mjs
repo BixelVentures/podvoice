@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const recipe = readFileSync(new URL('../../podvoice/gatekeeper/static/podview/recipe-view.js', import.meta.url), 'utf8');
 
 function recipeView(fetch) {
- const RecipeView = vm.runInNewContext(recipe.replace(/^import .*\n/,'')
+ const RecipeView = vm.runInNewContext(recipe.replace(/^import .*\n/gm,'').replace(/^export (const|function) /gm,'$1 ')
   .replace('export class RecipeView','class RecipeView')+'\nRecipeView',
  {Intl,Date,URL,JSON,document:{baseURI:'http://inert/view/'},fetch});
  return Object.assign(Object.create(RecipeView.prototype),{shortcut:null});

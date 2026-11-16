@@ -97,7 +97,7 @@ test('background owner reads the catalogue once quietly, takes no focus and rest
     savedAt:Date.now(),steps:['0'],ingredients:[],expanded:true,scroll:20};
   let focus=0,reads=0,removed=0;
   const create=(tag,text='')=>Object.assign(node(tag,text),{focus(){focus++;}});
-  const RecipeView=vm.runInNewContext(recipe.replace(/^import .*\n/,'').replace('export class RecipeView','class RecipeView')+'\nRecipeView',{
+  const RecipeView=vm.runInNewContext(recipe.replace(/^import .*\n/gm,'').replace(/^export (const|function) /gm,'$1 ').replace('export class RecipeView','class RecipeView')+'\nRecipeView',{
     Intl,Date,URL,document:{baseURI:'http://inert/',createElement:create},
     localStorage:{getItem:key=>key==='podview.recipe-session.v1'?JSON.stringify(record):null,removeItem(){removed++;}},
     createKitComponent:(type,options)=>create(type,options.text),applyKitTextRole:n=>n,
@@ -126,7 +126,7 @@ test('background owner reads the catalogue once quietly, takes no focus and rest
 // O1: one malformed catalogue row is skipped; the rest of the catalogue shows.
 test('a recipe without a source is skipped and the rest of the catalogue is shown',async()=>{
   const good={title:'Karry',steps:['Kog'],ingredients:['Ris'],source:{url:'https://example.invalid/karry'}};
-  const RecipeView=vm.runInNewContext(recipe.replace(/^import .*\n/,'').replace('export class RecipeView','class RecipeView')+'\nRecipeView',{
+  const RecipeView=vm.runInNewContext(recipe.replace(/^import .*\n/gm,'').replace(/^export (const|function) /gm,'$1 ').replace('export class RecipeView','class RecipeView')+'\nRecipeView',{
     Intl,Date,URL,document:{baseURI:'http://inert/'},
     fetch:async()=>({ok:true,json:async()=>({recipes:[{title:'Uden kilde',steps:[]},null,{title:'Tom',source:{}},structuredClone(good)]})}),
   });

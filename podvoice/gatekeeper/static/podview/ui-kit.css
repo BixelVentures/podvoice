@@ -5623,12 +5623,22 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{position:absolute;left:50%;top:0;
   width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
   border:0!important;border-radius:22px!important;overflow:hidden;background:#C9B79F!important;
-  transform-style:preserve-3d;transition:transform .6s cubic-bezier(.2,.9,.3,1),opacity .5s ease,filter .5s ease;
+  transform-style:preserve-3d;backface-visibility:hidden;
   box-shadow:0 20px 40px -24px rgba(23,23,26,.5)!important}
+ /* P9 (docs/MOTION.md §3.10.3): the flow is drawn from a fractional index in JS, no transition. Depth is a black
+    overlay (--shade), never filter: brightness; will-change only while the flow moves. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]::after{content:'';position:absolute;inset:0;
+  background:#000;opacity:var(--shade,0);pointer-events:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore][data-pv-moving]>[data-recipe-cover],
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore][data-pv-moving]>[data-recipe-cover]>img{
+  will-change:transform}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover][aria-current=true]{
   box-shadow:0 40px 70px -30px rgba(23,23,26,.6)!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img{display:block;width:100%;height:100%;
   object-fit:cover}
+ /* The photo is 48px wider than its cover so the parallax (±24px) never shows an edge. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img:not([data-recipe-fallback]){
+  width:calc(100% + 48px);margin-left:-24px}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img[data-recipe-fallback]{object-fit:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-badge]{position:absolute;left:16px;top:16px;
   height:32px;padding:0 14px;border-radius:999px;background:#F7F6F3;color:var(--pv-ink);display:flex;
@@ -5643,17 +5653,11 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
   overflow:hidden;text-overflow:ellipsis;color:var(--pv-ink)}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:last-child{height:24px;
   font:400 17px/24px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{flex:none;margin-top:30px;display:flex;
-  justify-content:center;align-items:center;gap:8px}
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{display:block;width:8px;height:6px;
-  border-radius:3px;background:rgba(23,23,26,.22)}
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-current]{width:28px;
-  background:var(--pv-ink);transition:scale var(--pv-spring-quick)}
- /* The dots are rebuilt on every step, so the current one grows in with scale, never with width (layout). */
- @starting-style{pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-current]{
-  scale:.3 1}}
- :root[data-pv-motion=reduced] pv-widget-host #recipe-view>[data-recipe-explore-dots]>i{transition:none}
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i[data-edge]{width:5px;height:5px}
+ /* Seven pooled dots: each weighs 1−|k−p| and is drawn with transform and opacity only (JS), never width. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{flex:none;margin:30px auto 0;
+  position:relative;height:6px}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{position:absolute;left:0;top:0;
+  display:block;width:8px;height:6px;border-radius:3px;background:var(--pv-ink);transform-origin:0 50%}
  /* A recipe: hero 1132×221 in #F2E4D3. */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro].pv-kit-hero{display:grid!important;
   grid-template-columns:160px minmax(0,1fr) auto;align-items:center;gap:22px!important;height:221px!important;
