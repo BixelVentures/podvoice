@@ -1,3 +1,10 @@
+## 2.1.11
+
+- Robot: batteri, Vedligehold (hovedbørste, sidebørste, filter, sensorer, dockfilter) og dockens beskeder vises igen. Når én af robottens sensorer forsvinder fra Home Assistant (fx dockens rengøringsbørste), blev hele robotten før vist uden data; nu findes hver sensor på robotten og docken efter hvad den måler, og kun den manglende skjules.
+- Opskrifter: udgiveren står igen på hvert opskriftskort, som et mærke nederst på billedet.
+- Vejr: regn (mm og chance) og vind (m/s med retning) står under hver time igen, og dit eget AI-vejrråd står under titlen. Det indlæses efter siden, holder pladsen mens det er på vej og toner ind; uden AI-råd står regelsætningen i titlen. En tør time uden regnchance viser ikke længere »0 mm«.
+- Frameo-tilstanden er fjernet: PodView er nu bygget til iPad, og de gamle særveje for Frameos webview (lite-tilstand og Chrome 107-understøttelse) er væk.
+
 ## 2.1.10
 
 - Musik: et tryk på en overskrift længere nede (fx Jeres playlister) får ikke længere siden til at hoppe, så kort og »Fortsæt« forsvinder ud af billedet og kommer igen. Kortene bliver stående, hvor de er: rækken, man vælger, beholder sine kort, og den forrige række viser de samme kort videre.
