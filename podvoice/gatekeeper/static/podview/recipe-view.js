@@ -1085,7 +1085,7 @@ export class RecipeView {
    const k = covers.indexOf(cover), recipe = recipes[k];
    if (k < 0) return;
    if (k !== Math.round(track.value)) track.to(k);
-   else this.recipe(this.saved.find(row=>row.source?.url === recipe.source?.url) || recipe);
+   else this.openFromCover(cover,this.saved.find(row=>row.source?.url === recipe.source?.url) || recipe);
   };
   // will-change only while the flow moves; the live text speaks only once it rests.
   const start = () => {flow.dataset.pvMoving = ''; info.setAttribute('aria-live','off');};
@@ -1098,6 +1098,20 @@ export class RecipeView {
    track.to(track.target() + (event.key === 'ArrowRight' ? 1 : -1));
   });
   settle(Math.round(track.value));
+ }
+ // P7 (docs/MOTION.md §3.8): the chosen Udforsk cover becomes the recipe's photo, and Tilbage flies it back.
+ openFromCover(cover,recipe) {
+  const motion = this.root.closest?.('pv-widget-host')?.motion, photo = () =>
+   this.root.querySelector('[data-recipe-layout=intro] img:not([hidden])');
+  if (typeof motion?.hero !== 'function') {this.recipe(recipe); return;}
+  const open = () => {
+   this.recipe(recipe);
+   const back = this.goBack;
+   const chosen = () => this.catalogMode === 'explore'
+    ? this.root.querySelector('[data-recipe-cover][aria-current=true]') : null;
+   this.goBack = () => motion.hero({source:photo(),back:true,present:back,target:chosen});
+  };
+  motion.hero({source:cover,target:photo,present:open});
  }
  inbox() {
   this.page('Indbakke','Lokale kilder',()=>this.catalog(),action('Tilføj kilde',()=>this.importSource(),'primary'));

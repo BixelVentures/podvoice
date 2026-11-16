@@ -2360,7 +2360,8 @@
           "method:roll": 1,
           "arrow:rows": 1,
           "method:leave": 1,
-          "arrow:centreShift": 1
+          "arrow:centreShift": 1,
+          "arrow:name": 1
         },
         "roots": [],
         "registrations": {},
@@ -3580,7 +3581,10 @@
           "arrow:reduced": 1,
           "arrow:settle": 1,
           "arrow:start": 1,
-          "function:exploreFrame": 1
+          "function:exploreFrame": 1,
+          "arrow:open": 1,
+          "method:openFromCover": 1,
+          "arrow:chosen": 1
         },
         "roots": [],
         "registrations": {},
