@@ -81,7 +81,7 @@ async function startLatencyJourney(){
 // F2: a Find musik suggestion (a mood playlist) shows its title at once and turns to playing at
 // the speaker's first native confirmation, not at Spotify's later observation (Green: 4.3 s).
 async function moodLatencyJourney(){
- const row=page.locator('#result-list button.result').filter({hasText:'Kold jazz'}).first();
+ const row=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:'Kold jazz'}).first();
  await row.waitFor({state:'visible',timeout:20000});
  await row.evaluate(node=>{
   node.addEventListener('click',event=>{
@@ -811,7 +811,9 @@ async function discoveryLoadingJourney(){
      function sample(){
       const scene=document.getElementById('music-response'),list=document.getElementById('result-list');
       if(visible(scene)&&document.querySelector('#music-refinements [aria-pressed=true]')?.dataset.collection===kind){
-       const rows=[...list.querySelectorAll(':scope > button.result')].filter(visible).map(row=>({
+       // iPad Musik (lærred »A-Musik«): the first mood card is the hero above the sections.
+       const hero=kind==='mood'?[...document.querySelectorAll('#music-hero > button.result')]:[];
+       const rows=[...hero,...list.querySelectorAll(':scope > button.result')].filter(visible).map(row=>({
         state:row.dataset.contentState,kit:row.dataset.kit,rect:geometry(row,list),
         cover:geometry(row.querySelector('.result-art'),row),title:row.querySelector('h2').textContent,
         hidden:row.getAttribute('aria-hidden')==='true',disabled:row.disabled,
@@ -981,7 +983,11 @@ async function discoveryCardHeight(){
  const sizes=[{width:1180,height:820},{width:1180,height:820}];
  const layout=()=>page.locator('#result-list').evaluate(list=>{
   const group=list.getBoundingClientRect();
-  const cards=[...list.querySelectorAll('button[data-content-state=ready]')].map(card=>{
+  // iPad Musik (lærred »A-Musik«): the first mood card is the hero above the sections; only the mood list
+  // owns it here (with Vibe chosen the hero slot shows the mood shelf, which is not this list).
+  const hero=list.closest('#music-response')?.dataset.discoveryCollection==='mood'
+   ?[...document.querySelectorAll('#music-hero > button[data-content-state=ready]')]:[];
+  const cards=[...hero,...list.querySelectorAll('button[data-content-state=ready]')].map(card=>{
    const {left,top,right,bottom,height}=card.getBoundingClientRect();
    return {left,top,right,bottom,height};
   });
@@ -1106,7 +1112,7 @@ async function discoveryCoverJourney(){
   'En rolig stund':'assets/lake.webp',
  };
  for(const [title,src] of Object.entries(localIllustrations)){
-  const art=page.locator('#result-list button.result').filter({hasText:title})
+  const art=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:title})
    .locator(`img.result-art[src="${src}"]:not([data-content-transition])`);
   await art.waitFor({state:'visible',timeout:15000});
   await art.evaluate(img=>img.decode());
@@ -1218,7 +1224,7 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
   await env.openOverview(surface);
   await surface.locator('#home-music').tap();
   await spotifyRequest;
-  const row=surface.locator('#result-list button.result').filter({hasText:'Musik til madlavningen'});
+  const row=surface.locator(':is(#result-list,#music-hero) button.result').filter({hasText:'Musik til madlavningen'});
   const image=row.locator('img.result-art:not([data-content-transition])');
   await image.waitFor();
   const originalRow=await row.elementHandle(),originalImage=await image.elementHandle();
@@ -1231,7 +1237,7 @@ async function discoveryGeneratedCover(failedCoverUrl,asset){
   const digest=createHash('sha256').update(await response.body()).digest('hex');
   assert.equal(path.basename(asset,'.webp'),digest);
   assert.equal(response.headers().etag,`"${digest}"`);
-  await surface.waitForFunction(url=>[...document.querySelectorAll('#result-list img.result-art')]
+  await surface.waitForFunction(url=>[...document.querySelectorAll(':is(#result-list,#music-hero) img.result-art')]
     .some(image=>image.currentSrc===url&&image.naturalWidth>0
     &&getComputedStyle(image).opacity==='1'
     &&image.checkVisibility({opacityProperty:true,visibilityProperty:true})),assetUrl);
@@ -1975,7 +1981,7 @@ async function queuePersistenceJourney(){
   // Green 13/11: Find musik opens with its suggestions ready and usable in the first frame. Measured in the
   // tap itself, after the scene renders and before any network reply could arrive (Green takes 2.5 s).
   await page.evaluate(()=>window.addEventListener('click',event=>{if(!event.target.closest?.('#home-music'))return;
-   const rows=[...document.querySelectorAll('#result-list button.result')];
+   const rows=[...document.querySelectorAll(':is(#result-list,#music-hero) button.result')];
    window.firstMusicFrame={rows:rows.length,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,
     busy:document.getElementById('result-list')?.getAttribute('aria-busy'),loading:/Henter/.test(document.getElementById('music-response')?.innerText||'')};},{once:true}));
   await page.locator('#home-music').tap();
@@ -1994,7 +2000,7 @@ async function queuePersistenceJourney(){
   await page.waitForFunction(()=>!document.getElementById('rooms').open,undefined,{timeout:5000});await sleep(600);
   assert.deepEqual(await page.evaluate(()=>window.outputGreyed),[],'the speaker button never greys during background reads');
   if(startLatencyMood){await moodLatencyJourney();return;}
-  const row=page.locator('#result-list button.result').filter({hasText:'Kold jazz'}).first();await row.waitFor({state:'visible',timeout:20000});await row.tap();
+  const row=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:'Kold jazz'}).first();await row.waitFor({state:'visible',timeout:20000});await row.tap();
   if(rejectSetup){
    await page.locator('#player-empty').getByText('Højttaleren i rummet kan ikke bruges lige nu.',{exact:true}).waitFor({state:'visible',timeout:15000});
    await sleep(1700);assert(await page.locator('#player-empty').getByText('Højttaleren i rummet kan ikke bruges lige nu.',{exact:true}).isVisible(),'setup failure survives normal snapshot');
@@ -2076,7 +2082,7 @@ async function queuePersistenceJourney(){
     return {stale,release,remove:()=>page.unroute('**/view/api/music?**',handler)};
    };
    const playlistHold=holdPlayback?await holdOldItem('Isoleret sang 12'):null;
-   const secondRow=page.locator('#result-list button.result').filter({hasText:second.themeTitle});await secondRow.waitFor({state:'visible',timeout:15000});if(previewRenew)previewArmed=true;if(holdMood)holdArmed=true;await secondRow.tap();
+   const secondRow=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:second.themeTitle});await secondRow.waitFor({state:'visible',timeout:15000});if(previewRenew)previewArmed=true;if(holdMood)holdArmed=true;await secondRow.tap();
    if(holdMood){await Promise.race([heldMood,sleep(10000).then(()=>{throw Error('actual second mood response not held');})]);const before=await page.locator('pv-widget-host').evaluate(h=>({readAt:h.liveTransport.acceptedReadAt,boot:h.liveSnapshot.bootId,room:h.liveSnapshot.roomId,voice:JSON.stringify(h.liveSnapshot.voice),binding:JSON.stringify(h.liveSnapshot.mediaRoomBindings),focus:h.state.focus}));await page.waitForFunction(readAt=>document.querySelector('pv-widget-host')?.liveTransport?.acceptedReadAt>readAt,before.readAt,{timeout:5000});const after=await page.locator('pv-widget-host').evaluate(h=>({readAt:h.liveTransport.acceptedReadAt,boot:h.liveSnapshot.bootId,room:h.liveSnapshot.roomId,voice:JSON.stringify(h.liveSnapshot.voice),binding:JSON.stringify(h.liveSnapshot.mediaRoomBindings),focus:h.state.focus}));assert.deepEqual({...after,readAt:0},{...before,readAt:0},'same-owner natural SSE arrived while actual renewal response held');const held=await page.locator('pv-widget-host').evaluate(h=>({pending:!!h.liveSelection.recovery,metadata:h.liveSelection.pendingPlayer()?.title??null}));assert.equal(held.pending,true,'explicit choice remains pending after normal SSE');assert(held.metadata,'selected metadata remains visible during renewal');assert.deepEqual((await state()).writes.map(row=>row.action),['play_context','pause'],'no second effect before renewal response');assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/setup')).length,1,'no second setup before renewal response');console.log('HELD_MOOD_SNAPSHOT',JSON.stringify({received:true,sameOwner:true,focus:after.focus,pending:true,metadataRetained:true,noSecondEffect:true}));releaseMood();}
    if(previewRenew){const feedback=page.locator('#player-state');await feedback.waitFor({state:'visible',timeout:15000});await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Musikvalget fejlede · prøv igen.',undefined,{timeout:15000});const readAt=await page.locator('pv-widget-host').evaluate(h=>h.liveTransport.acceptedReadAt);await page.waitForFunction(at=>document.querySelector('pv-widget-host')?.liveTransport?.acceptedReadAt>at,readAt,{timeout:5000});assert.equal(await feedback.textContent(),'Musikvalget fejlede · prøv igen.','preview feedback survives normal SSE');const denied=await state();assert.equal(denied.state,'paused');assert.equal(denied.selections.length,1);assert.deepEqual(denied.writes.map(row=>row.action),['play_context','pause']);assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,1);const terminal=await page.locator('pv-widget-host').evaluate(h=>h.liveTransport.diagnostics().records.filter(row=>row.stage==='control_intent'&&row.code==='renewal_readonly').at(-1));assert(terminal?.requestId,'explicit readonly branch emits its actual intent reason');assert.equal(moodRenewals.at(-1),terminal.requestId,'same touch UUID correlates the explicit renewal read');const renewalRef=createHash('sha256').update(terminal.requestId).digest('hex').slice(0,16);await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-preview-feedback.png')});const feedbackGeometry=[];const feedbackState=async stage=>console.log('FEEDBACK_STATE',stage,JSON.stringify(await page.locator('pv-widget-host').evaluate(h=>{const v=h.liveSelection,t=v?.resultTicket,d=document;return {message:v?.feedback?.message??null,scopeCurrent:v?.resultCurrent?.(t)??null,ticket:!!t,scopeEqual:t?.scope===v?.feedbackScope?.(),focusTicket:d.activeElement===t?.focus,focusBody:d.activeElement===d.body,activeTag:d.activeElement?.tagName,visible:d.visibilityState,view:h.state?.focus,playerText:d.querySelector('#player-state')?.textContent,sourcePresent:!!v?.source,connected:h.liveTransport?.connected};})));for(const [width,height]of [[980,800],[768,1024]]){await feedbackState('before-'+width);await page.setViewportSize({width,height});await feedbackState('after-resize-'+width);await page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})));});await feedbackState('after-animation-'+width);const geometry=await feedback.evaluate(node=>{const r=document.createRange();r.selectNodeContents(node);const text=r.getBoundingClientRect(),box=node.getBoundingClientRect(),player=node.closest('.player').getBoundingClientRect(),style=getComputedStyle(node);return {text:{left:text.left,right:text.right,top:text.top,bottom:text.bottom},box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},player:{left:player.left,right:player.right,top:player.top,bottom:player.bottom},scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,whiteSpace:style.whiteSpace};});feedbackGeometry.push({width,height,...geometry});console.log('FEEDBACK_GEOMETRY',JSON.stringify({width,height,...geometry}));await page.screenshot({path:path.join(env.artifactDir(),`podview-mood-preview-feedback-${width}.png`)});assert(geometry.text.left>=geometry.player.left-1&&geometry.text.right<=geometry.player.right+1&&geometry.text.top>=geometry.player.top-1&&geometry.text.bottom<=geometry.player.bottom+1,`feedback text stays in player at ${width}`);assert(geometry.scrollWidth<=geometry.clientWidth+1,`feedback is not horizontally clipped at ${width}`);}let persisted=null,mirrored=false,moodLogged=false;for(let attempt=0;attempt<21;attempt++){let after=0;for(let pageIndex=0;pageIndex<8;pageIndex++){const response=await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after);if(response.status()===429)break;assert.equal(response.status(),200);const body=await response.json();persisted=body.records.find(item=>item.row.stage==='control_intent'&&item.row.code==='renewal_readonly'&&item.row.requestRef===renewalRef)||persisted;if(!body.hasMore)break;after=body.nextAfter;}const lines=serverLog.split('\n');moodLogged=lines.some(line=>line.includes('mood_result ')&&line.includes('response=full')&&line.includes('trace_ref='+renewalRef));mirrored=!!persisted&&lines.some(line=>line.includes('client_diagnostics source=client ')&&line.includes('seq='+persisted.row.seq+' ')&&line.includes('requestRef='+renewalRef+' ')&&line.includes('code=renewal_readonly'));if(persisted&&moodLogged&&mirrored)break;if(attempt<20)await sleep(3000);}assert(persisted,'readonly terminal durably stored');assert(moodLogged,'original owner full response correlated before local preview fixture');assert(mirrored,'stored terminal mirrored once to owner log');const previewProof={outcome:'PASS',bundleSHA,explicitPreviewFeedback:true,visible:true,noNewAction:true,paused:true,readTraceRef:renewalRef,ownerResponse:'full',fixtureResponse:'preview',durableTerminal:true,serverMirror:true,feedbackGeometry,pageErrors:errors};await fs.writeFile(path.join(env.artifactDir(),'podview-mood-preview-feedback.json'),JSON.stringify(previewProof,null,2));console.log(JSON.stringify(previewProof));return;}
    if(holdPlayback){
@@ -2162,7 +2168,7 @@ async function queuePersistenceJourney(){
   return;
  }
  // Passive bounded CI evidence only: no method wrapping, synthetic events or upload.
- await page.evaluate(()=>{const ids=new WeakMap(),scopes=new Map(),events=[],mutations=[];let serial=0;const id=node=>{if(!node)return null;if(!ids.has(node))ids.set(node,++serial);return ids.get(node);},scope=h=>{const s=h?.liveSnapshot,key=JSON.stringify([s?.bootId,s?.roomId,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,s?.mediaRoomBindings]);if(!scopes.has(key))scopes.set(key,scopes.size+1);return scopes.get(key);},save=(list,row)=>{list.push(row);if(list.length>100)list.shift();};for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','click'])document.addEventListener(type,event=>{const h=document.querySelector('pv-widget-host'),v=h?.liveSelection,c=h?.liveCatalogue,e=c?.entries?.get(c.key()),point=event.changedTouches?.[0]||event,b=event.target.closest?.('#result-list button.result');save(events,{type,at:performance.now(),target:id(event.target),button:id(b),x:point.clientX??null,y:point.clientY??null,disabled:b?.disabled??null,connected:b?.isConnected??null,scope:scope(h),focus:h?.state?.focus,pending:v?.pending,used:v?.used,musicPending:!!(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy()),settlement:v?.feedback?.settlementStatus,selectionSpent:e?.selectionSpent,selectionConfirmed:e?.selectionConfirmed});},true);new MutationObserver(records=>{for(const record of records)if(record.type==='childList')save(mutations,{at:performance.now(),parent:id(record.target),added:[...record.addedNodes].map(id),removed:[...record.removedNodes].map(id)});else if(record.type==='attributes')save(mutations,{at:performance.now(),target:id(record.target),attribute:record.attributeName,oldValue:record.oldValue,value:record.target.getAttribute(record.attributeName)});}).observe(document.querySelector('#result-list'),{childList:true,subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled','hidden','inert','aria-disabled']});window.selectionCiEvidence={events,mutations};});
+ await page.evaluate(()=>{const ids=new WeakMap(),scopes=new Map(),events=[],mutations=[];let serial=0;const id=node=>{if(!node)return null;if(!ids.has(node))ids.set(node,++serial);return ids.get(node);},scope=h=>{const s=h?.liveSnapshot,key=JSON.stringify([s?.bootId,s?.roomId,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,s?.mediaRoomBindings]);if(!scopes.has(key))scopes.set(key,scopes.size+1);return scopes.get(key);},save=(list,row)=>{list.push(row);if(list.length>100)list.shift();};for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','click'])document.addEventListener(type,event=>{const h=document.querySelector('pv-widget-host'),v=h?.liveSelection,c=h?.liveCatalogue,e=c?.entries?.get(c.key()),point=event.changedTouches?.[0]||event,b=event.target.closest?.(':is(#result-list,#music-hero) button.result');save(events,{type,at:performance.now(),target:id(event.target),button:id(b),x:point.clientX??null,y:point.clientY??null,disabled:b?.disabled??null,connected:b?.isConnected??null,scope:scope(h),focus:h?.state?.focus,pending:v?.pending,used:v?.used,musicPending:!!(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy()),settlement:v?.feedback?.settlementStatus,selectionSpent:e?.selectionSpent,selectionConfirmed:e?.selectionConfirmed});},true);new MutationObserver(records=>{for(const record of records)if(record.type==='childList')save(mutations,{at:performance.now(),parent:id(record.target),added:[...record.addedNodes].map(id),removed:[...record.removedNodes].map(id)});else if(record.type==='attributes')save(mutations,{at:performance.now(),target:id(record.target),attribute:record.attributeName,oldValue:record.oldValue,value:record.target.getAttribute(record.attributeName)});}).observe(document.querySelector('#result-list'),{childList:true,subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled','hidden','inert','aria-disabled']});window.selectionCiEvidence={events,mutations};});
  for(const song of [11,12,11]){
   const row=rows.filter({hasText:`Katalogsang ${song}`});
   await row.tap();
