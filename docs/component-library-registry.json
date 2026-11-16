@@ -1062,10 +1062,14 @@
           "method:poll": 1,
           "method:start": 1,
           "method:sync": 1,
-          "arrow:canChoose": 1
+          "arrow:canChoose": 1,
+          "function:renderRobotCare": 1
         },
         "roots": [
-          "factory:section:'device-history robot-recent pv-component'"
+          "factory:header:'robot-care-heading'",
+          "factory:section:'device-history robot-recent pv-component'",
+          "factory:section:'robot-care'",
+          "factory:ul:'robot-care-list'"
         ],
         "registrations": {},
         "customTags": [
@@ -2735,7 +2739,8 @@
           "function:renderWeatherGraph": 1,
           "arrow:path": 1,
           "arrow:make": 1,
-          "function:revealWeatherGraph": 1
+          "function:revealWeatherGraph": 1,
+          "arrow:rangeDash": 1
         },
         "roots": [
           "factory:div:'weather-current'",
@@ -3498,7 +3503,8 @@
           "arrow:copyRow": 1,
           "method:explore": 1,
           "arrow:choose": 1,
-          "arrow:activate": 1
+          "arrow:activate": 1,
+          "arrow:rangeDash": 1
         },
         "roots": [],
         "registrations": {},

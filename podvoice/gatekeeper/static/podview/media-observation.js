@@ -88,6 +88,8 @@ export function roomPlayerObservation(body,account,snapshot){
   target:binding&&typeof session.targetId==='string'
    ?{id:session.targetId,name:typeof session.targetName==='string'?session.targetName:''}:null,
   roomBinding:binding,roomBound:true,
+  // PodConnect: another Spotify login plays in this room. Never a name (H10).
+  otherAccount:active&&body.account==='other',
  };
 }
 // Read access is checked where reads happen (LiveMediaView clears the player when it is revoked).

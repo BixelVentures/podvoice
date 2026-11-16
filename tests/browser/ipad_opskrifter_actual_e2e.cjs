@@ -82,7 +82,7 @@ async function stagePage(stage){
  assert.equal(xs.size,5,'five recipe columns');
  assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] h3:visible').count(),0,
   'no letter headings in the card grid');
- // The toolbar: the category track on the left, »N opskrifter«, »Tilføj opskrift« and »Udforsk« on the right.
+ // The toolbar: the category track on the left, »N opskrifter« and »Udforsk« on the right (A-Opskrifter).
  const toolbar=await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'));
  assert.deepEqual([toolbar.x,toolbar.w],[24,1132],'one toolbar row over the cards');
  assert(toolbar.y<first.y,'the toolbar sits over the cards');
@@ -91,16 +91,39 @@ async function stagePage(stage){
  assert.equal(shown.text,`${await cards.count()} opskrifter`);assert.equal(shown.size,'16px');
  const explore=await box(page.getByRole('button',{name:'Udforsk',exact:true}));
  assert.equal(explore.h,44);assert.equal(explore.bg,'rgb(247, 246, 243)');near(explore.x+explore.w,1156,'Udforsk ends right');
- const addButton=await box(page.getByRole('button',{name:'Tilføj opskrift',exact:true}));
- assert.equal(addButton.h,44);near(addButton.y,explore.y,'Tilføj opskrift on the same row');
+ const toolbarAdd=page.locator('#recipe-view [data-recipe-layout=toolbar] button',{hasText:'Tilføj opskrift'});
+ assert.equal(await toolbarAdd.count(),0,
+  'the toolbar has no »Tilføj opskrift« (canvas: categories, count, Udforsk)');
+ // The category track never runs under the count, also with more categories than the canvas (e.g. »Kager«):
+ // the track ends before »N opskrifter«, and labels past its edge scroll inside the track.
+ const assertTrackFits=async label=>{
+  const track=page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options');
+  const fit=await track.evaluate(n=>{
+   const b=n.getBoundingClientRect(),
+    count=document.querySelector('#recipe-view [data-recipe-count]').getBoundingClientRect();
+   return {right:b.right,count:count.left,overflow:getComputedStyle(n).overflowX,scroll:n.scrollWidth,
+    client:n.clientWidth};});
+  assert(fit.right+16<=fit.count+1,`${label}: the track ends 16 before the count (${fit.right} / ${fit.count})`);
+  assert(fit.scroll<=fit.client||fit.overflow==='auto',`${label}: overflowing categories scroll inside the track`);
+  return fit;
+ };
+ await assertTrackFits('catalogue');
+ // Stress: a longer category list in the same toolbar. The track scrolls; nothing overlaps.
+ await page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options').evaluate(n=>{
+  for(const label of ['Kager','Supper','Salater','Tilbehør','Drikke']){const clone=n.lastElementChild.cloneNode(true);
+   clone.querySelector('input').checked=false;clone.querySelector('input').name='stress';
+   clone.lastChild.textContent=label;n.append(clone);}});
+ const stressed=await assertTrackFits('many categories');
+ assert(stressed.scroll>stressed.client,'the stressed track really overflows and scrolls');
+ await page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options').evaluate(n=>{
+  for(const input of n.querySelectorAll('input[name=stress]'))input.closest('label').remove();});
+ // Number ranges in the card meta read with an en dash (»12–15 min.«), as on the canvas.
+ const metas=await cards.evaluateAll(nodes=>nodes.map(n=>n.querySelector('small')?.textContent||''));
+ assert(metas.some(text=>/\d–\d/.test(text)),'ranges are shown');
+ assert.deepEqual(metas.filter(text=>/\d-\d/.test(text)),[],'no hyphen between numbers');
+ // How to add a recipe stays in the catalogue, after the cards.
+ assert.match(await page.locator('#recipe-add-help').innerText(),/Del → Home Assistant/);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter.png')});
- // »Tilføj opskrift« brings the Share → Home Assistant help and the upload history into view.
- await page.getByRole('button',{name:'Tilføj opskrift',exact:true}).tap();await sleep(700);
- const help=page.locator('#recipe-add-help');
- assert.match(await help.innerText(),/Del → Home Assistant/);
- const helpBox=await box(help);assert(helpBox.y>=88&&helpBox.y+helpBox.h<=820,'the help is on screen');
- assert(await page.locator('#recipe-upload-history-trigger').isVisible(),'upload history next to the help');
- await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-tilfoej.png')});
  // Opskrifter-Bog: Udforsk is a cover flow of the same catalogue.
  await page.getByRole('button',{name:'Udforsk',exact:true}).tap();
  const flow=page.locator('#recipe-view [data-recipe-layout=explore]');await flow.waitFor({state:'visible'});await sleep(800);

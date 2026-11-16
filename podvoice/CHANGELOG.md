@@ -1,9 +1,17 @@
-## 2.1.6
+## 2.1.8
 
 - Svar følger lærredets mål (v193): kortet har 32 i polstring, svarets egen farvetone med hjørneprikker, ikon og klokkeslæt i hovedet og titlen i 44/48. »I dag« viser fire lige høje kort (150) med ikon, type, tid og titel, og »1 nyt svar« er en svævende knap med pil op, der ikke skubber listen. Et musiksvar med albumomslag vises med omslag og nummer; rum og hjemme-kort vises ikke, når svaret ikke har de data.
 - Knapper har ikon-plads som lærredet: afspil på »Fortsæt« og »Afspil«, stop på »Stop alarm«, genstart på »Start igen« og musik på »Vælg musik«.
 - Timer færdig: »Timeren ringede HH.MM«, »Alarmen ringer, til du stopper den.« og en orange »Stop alarm« står, hvor lærredet viser dem; »Start igen« sidder ikke længere for lavt.
 - Forsidens »+N« er en lille pille i kortets hoved før pilen og fylder ikke længere hele kortet. Lys: procenten står ved siden af lampens skyder, og skyderen er dæmpet og låst, når lampen er slukket eller ukendt. Køen har ikke længere en afspil-knap i hver række.
+
+## 2.1.7
+
+- PodView som lærredet: Opskrifternes kategorispor løber ikke længere ind over antallet (ruller vandret ved mange kategorier; »Tilføj opskrift« står nu kun som vejledning nederst i kataloget). Robotten har »Ved basen« over titlen, »Mere ⌄« som outline ved siden af én primær knap (en kørende baseoperation som »Stop tørring« ligger først i »Mere«), »Vedligehold« ved siden af »Seneste hændelser« og »Vælg alle«. Tesla viser » %« i halv størrelse, adgangsfliserne er 196 høje, siden ruller ikke, kabinetemperaturen står i heroen, temperaturen er centreret og sædet hedder »Førersæde«; en offline bil viser sidst kendte batteri og lås i overblikket. Vejrrådet står i titlen, widgetten skriver »lavest«, talintervaller får tankestreg, dialoger har radius 26, og Foto-Ro-uret står ved x 48 i hvidt.
+
+## 2.1.6
+
+- Afspilleren: når rummets Spotify er logget ind med en anden konto (PodConnect `podconnect_account: other`), vises nummeret nedtonet med »En anden Spotify-konto spiller her« – uden navn, uden afspilningsknapper og lydstyrke – og »Vælg musik« til egen musik. Ukendt konto opfører sig som før.
 
 ## 2.1.5
 

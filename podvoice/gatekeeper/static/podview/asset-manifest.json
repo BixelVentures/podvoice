@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "d7b3280c13abc06f909dae8d72d74b8032ad67b782cf98bc7d6668b622fbab8e"
+      "sha256": "e68ba33d74385cc2a56bae0bd7173d716ce56dfcc11bef9397bb342cbbf77520"
     },
     {
       "path": "library.css",
@@ -719,7 +719,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "dea5cbb7efd89731e07165e0a5f664c30065410613b92489a0920cff7baae55d"
+      "sha256": "f10ddffa37bb64fc728cb589519812a817c06e04659a536c614b79fde37718d1"
     },
     {
       "path": "live-media-view.js",
@@ -751,7 +751,7 @@
     },
     {
       "path": "media-observation.js",
-      "sha256": "4271e270a70bf17526169fe0cbd79031da1b024fffb811cca6b2539ecc5e753e"
+      "sha256": "dac9febe24b5cb1aad00a4da131fd19b17446ee7832fbb9c98e661c3094f60cb"
     },
     {
       "path": "model.js",
@@ -771,7 +771,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "ea4ada0766027c7dadcc4d9aa74844d92b09807f604a438a4bb5088cfb070135"
+      "sha256": "498ee831f92f0a55f8fd8a7386c0ec301b51e6570f6d49b4d9fa48965c140994"
     },
     {
       "path": "music-selection-model.js",
@@ -815,15 +815,15 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "4fc28af288c208542e7b1c5619927336e12bb124b5fc5f15e96407ebacef37c0"
+      "sha256": "4889a540f5a4383891b0b35c1bb43d3d0661e1ffe8c6c4f09bd696039ac3c23a"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "a2a1406361de029a6d491aa134bafe336493c4c6d89e65e6f4d22bb5bff84ec1"
+      "sha256": "b6edf27d81a2c87496722af9d6256436c16dc6c742d6c2bb8d517d49a4da4dd4"
     },
     {
       "path": "podview.css",
-      "sha256": "a5bc79a5c3d5444f56207b370843e11be578f32b3bc1000cde44a3b701608715"
+      "sha256": "4c6b04a35cfb686cfa1b3b74dc2b57ea5569f6b93afcd42790cfada07e288041"
     },
     {
       "path": "podvoice-transport.js",
@@ -851,7 +851,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "4046c9cc1ac321483b0686051447f9ef9438e0acf1d2cc5face921657cf9fa49"
+      "sha256": "4a5d48d4e5219a16a539db09763e040edeb71a9f73c2df4f2e639fbb69dcdba9"
     },
     {
       "path": "references.json",
@@ -867,11 +867,11 @@
     },
     {
       "path": "robot-control-panel.js",
-      "sha256": "29ea0bc8a09dc438813af38de6d5d2f69581a5fba6d2d6eefb07e3c806811851"
+      "sha256": "0963d6c18293c7c30ef0ee08a671c6e12a6cf3bcb6f91d8da053d4b54b18e411"
     },
     {
       "path": "robot-observation.js",
-      "sha256": "5f04419ada09ab5c99a006b9ce7043076163bfa04972da28e960ad6d0cf6e0df"
+      "sha256": "d13181102b36acac9e15868eabecaf837365bda4d989564cf1c6e55763cc875c"
     },
     {
       "path": "room-player-controls.js",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "2ae4924c91786f00aded73022be77380f40c37b20ae199479dc6e588a8e032e9"
+      "sha256": "dbe139cd962de43bd8352c0a98a367200bce312749b33c11eccba649251a6a91"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1023,7 +1023,7 @@
     },
     {
       "path": "ui/resource-tile.js",
-      "sha256": "d58bf47e12dfff7d53752b9681189d21421b6d2a52f7078938abc42c9571f606"
+      "sha256": "d61d4018b12497f287d6fcdcc9f0a4657876879a55e922642e14fb04920cf1d8"
     },
     {
       "path": "ui/robot-motion.js",
@@ -1059,7 +1059,7 @@
     },
     {
       "path": "vehicle-view.js",
-      "sha256": "be70b61876e32509e268e019e5e55369ab942e0699010704c228c2b137fd65d4"
+      "sha256": "630f3d388453662a7f59c79e050b255e18ef8c41d4a052bd0a905219adda27d7"
     },
     {
       "path": "visual-content.js",
@@ -1087,7 +1087,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "7c4a713907588ebadfba4e611c6fe371f9db41bc7c92914015aa03b82eef97d7"
+      "sha256": "972b3a80ef24121648581a25c04c39edba1af1d79f7613d1909c0fba1dd4a3b9"
     },
     {
       "path": "widget-model.js",
@@ -1103,7 +1103,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "7541c4e2764c1b267a9ea1146acf6c1629029a1923c1665d97ad6d1af5a813e0"
+      "sha256": "0aecea4055202e3adfa20dc147811248f6e9f19c79cc616a1ba6d92b55dcf932"
     },
     {
       "path": "workshop.css",
