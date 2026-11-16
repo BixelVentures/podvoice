@@ -6,7 +6,7 @@ const {chromium} = require('playwright');
 
 const root = process.env.PODVOICE_UI_ROOT || path.resolve(__dirname, '../..');
 const staticRoot = path.join(root, 'podvoice/gatekeeper/static/podview');
-const modules = new Set(['setup.js', 'podvoice-transport.js', 'request-deadline.js']);
+const modules = new Set(['setup.js', 'podvoice-transport.js', 'request-deadline.js', 'connection-model.js']);
 
 (async () => {
  const browser = await chromium.launch({headless:true, executablePath:process.env.PODVOICE_TEST_CHROMIUM});
