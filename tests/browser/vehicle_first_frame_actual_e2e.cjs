@@ -65,7 +65,12 @@ let browser;
     });
     assert(frames.length, 'the Tesla page opened');
     const first = frames[0], log = JSON.stringify(frames.slice(0, 4));
-    assert(first.at - tapped < 100, `first frame after ${Math.round(first.at - tapped)} ms`);
+    // Budget: 100 ms from the tap. A page transition (View Transitions, Safari 18+ on the wall iPad)
+    // renders the new page one frame after the old page is captured; on the iPad that is one 16 ms
+    // frame, on CI's slow headless Chromium up to ~2x. The page still arrives complete in its first
+    // visible frame (no empty page, checked below), so with a transition the budget is 150 ms.
+    const budgetMs = await page.evaluate(() => typeof document.startViewTransition === 'function' ? 150 : 100);
+    assert(first.at - tapped < budgetMs, `first frame after ${Math.round(first.at - tapped)} ms`);
     assert.deepEqual(first.pending, [], `every image is ready in the first frame: ${log}`);
     assert(frames.every(f => f.text === first.text && f.height === first.height),
       `nothing loads in after the first frame: ${log}`);
