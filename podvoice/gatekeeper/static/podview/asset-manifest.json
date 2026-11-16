@@ -771,7 +771,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "498ee831f92f0a55f8fd8a7386c0ec301b51e6570f6d49b4d9fa48965c140994"
+      "sha256": "14f83c7d5ebca4d9a7143c4ffd4299a3dac1ff88a65e16b25e71f6395f50c405"
     },
     {
       "path": "music-selection-model.js",
@@ -815,15 +815,15 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "4889a540f5a4383891b0b35c1bb43d3d0661e1ffe8c6c4f09bd696039ac3c23a"
+      "sha256": "76d301c2dc7bc266811ebc7730043d1600d16456867cef93aa2247cffae8a43a"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "b6edf27d81a2c87496722af9d6256436c16dc6c742d6c2bb8d517d49a4da4dd4"
+      "sha256": "08aaf925b3664bf11950d86bd44b58f6c21dd44803d26861750c51b7a41a6d46"
     },
     {
       "path": "podview.css",
-      "sha256": "4c6b04a35cfb686cfa1b3b74dc2b57ea5569f6b93afcd42790cfada07e288041"
+      "sha256": "db36ae7af0035939cccb50e224dea87d449350b27867849a42fd42c0e2dcf7d3"
     },
     {
       "path": "podvoice-transport.js",
@@ -851,7 +851,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "4a5d48d4e5219a16a539db09763e040edeb71a9f73c2df4f2e639fbb69dcdba9"
+      "sha256": "9c5d7bbc959c87b0c51504250ac1de9c886a3e3cf4d726cbcfb6ef1394343b2e"
     },
     {
       "path": "references.json",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "dbe139cd962de43bd8352c0a98a367200bce312749b33c11eccba649251a6a91"
+      "sha256": "8ef6b0665cd1e78da48ab8b82910d80d68f61bf250ec30003021b8998dc95abf"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1103,7 +1103,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "0aecea4055202e3adfa20dc147811248f6e9f19c79cc616a1ba6d92b55dcf932"
+      "sha256": "4072076146832b15119c5334ad21257736296a53e7895cdc526a892154e5971b"
     },
     {
       "path": "workshop.css",

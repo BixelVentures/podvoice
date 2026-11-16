@@ -96,4 +96,6 @@ test('picker check accepts the away player and verifies »Flyt til« instead', (
   assert.match(picker, /#move-here/, 'the move button is checked in the away state');
   assert.ok(picker.indexOf('#move-here') < picker.indexOf("'#output'"), 'away is handled before the picker is opened');
   assert.match(picker, /højttalerlisten åbnede ikke/, 'a real unopenable picker still fails');
+  assert.match(picker, /et tryk på højttalerchippen flyttede musikken/, 'the away chip must not move the music');
+  assert.match(picker, /#rooms/, 'the away chip opens the speaker list');
 });

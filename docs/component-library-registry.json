@@ -1419,7 +1419,15 @@
           "method:create": 1,
           "method:fadeLoadingContent": 1,
           "method:layoutRow": 1,
-          "arrow:discoverySectionLabel": 1
+          "arrow:discoverySectionLabel": 1,
+          "arrow:play": 1,
+          "function:artworkPlan": 1,
+          "function:paintCardArtwork": 1,
+          "method:openShelfCard": 1,
+          "method:renderShelves": 1,
+          "method:sectionNotes": 1,
+          "method:shelfCards": 1,
+          "method:shelfRow": 1
         },
         "roots": [],
         "registrations": {},
@@ -2938,7 +2946,8 @@
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
           "method:updateHomeRevision": 1,
-          "method:renderOverviewOverflow": 1
+          "method:renderOverviewOverflow": 1,
+          "method:moveHere": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3504,7 +3513,9 @@
           "method:explore": 1,
           "arrow:choose": 1,
           "arrow:activate": 1,
-          "arrow:rangeDash": 1
+          "arrow:rangeDash": 1,
+          "arrow:decodePhoto": 1,
+          "arrow:showPhoto": 1
         },
         "roots": [],
         "registrations": {},
