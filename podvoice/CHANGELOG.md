@@ -1,3 +1,8 @@
+## 2.1.13
+
+- Tryk føles som en app: knapper, fliser og kort trykkes hurtigt ned og fjedrer blødt tilbage, når du slipper (før sprang de tilbage på ét billede). Selv et meget hurtigt tryk når at vise sig. Med »Reducer bevægelse« slået til bliver flader kun mørkere, uden at skalere.
+- Bevægelse har nu ét fælles sæt værdier for tempo, kurver og fjedre, og »Reducer bevægelse« styres ét sted for hele PodView. Grundlaget for de næste trin: sideskift, paneler, lister og swipe i Udforsk.
+
 ## 2.1.12
 
 - Robot: siden viser igen din seneste start (rum, antal gange og indstillinger), også når basen melder en fejl som »Snavset vandbeholder er fuld«, så hovedknappen hedder fx »Start · 2 rum« og kan bruges. En basefejl blokerer ikke Start – Home Assistant afgør, om robotten kan køre. Er der ingen kendt opsætning, hedder hovedknappen »Vælg rum« og fører til rumvælgeren i stedet for at stå som en låst »Start rengøring«.
