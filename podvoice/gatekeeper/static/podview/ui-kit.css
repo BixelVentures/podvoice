@@ -4530,6 +4530,15 @@ body button:not(.is-pressed){transition-property:filter!important}
    grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:128px!important;gap:16px!important;
    min-height:0!important;overflow:visible!important;margin:0 0 32px!important;padding:0!important}
  pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-list[hidden]{display:none!important}
+ /* Lys-Ukendt (lærred »A-Lys«, state ukendt): compact info line under the rooms, K-Notice compact/info. */
+ pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-notice:not([hidden]){order:1;
+   display:inline-flex!important;align-self:flex-start;align-items:center;gap:10px;height:40px;max-width:744px;
+   margin:-8px 0 32px!important;padding:0 14px 0 8px;box-sizing:border-box;border-radius:12px;background:#E2E0DB;
+   color:#3F3E3B;font:800 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;overflow:hidden}
+ pv-widget-host #device-view#device-view#device-view .light-room-notice>i{flex:none;display:flex;align-items:center;
+   justify-content:center;width:24px;height:24px;border-radius:50%;background:#7A7873;color:#FFFFFF;
+   font:800 14px/1 'Schibsted Grotesk',system-ui,sans-serif;font-style:normal}
+ pv-widget-host #device-view#device-view#device-view .light-room-notice>span{overflow:hidden;text-overflow:ellipsis}
  pv-widget-host #device-view#device-view#device-view .light-room-row{display:block!important;height:128px!important;
    min-height:0!important;padding:0!important;border:0!important;border-radius:24px!important;background:none!important}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power{position:relative!important;
@@ -5831,7 +5840,11 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   overflow:hidden;text-overflow:ellipsis}
  #svar-today .svar-today-copy>small{font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
  #svar-today .svar-today-row>time{font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
+ /* »↑ 1 nyt svar« (lærred »SvarK-Historik«): a 44-px dark pill between the header and the list. */
+ #svar-today>.svar-today-new{flex:none;height:44px;margin:0;padding:0 16px;border:0;border-radius:999px;
+  background:#17171A;color:#F7F6F3;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer}
 }
+#svar-today>.svar-today-new[hidden]{display:none!important}
 
 /* SvarK-Fakta: the facts stand as three white tiles in a row (radius 20, padding 20): label 15/600, the value in
    56 mono (a word-value in 32/800 so the answer's own text fits), the detail 15. Actions are the board's 56-high
