@@ -1,6 +1,6 @@
 // Screen-only lifecycle. No HA controls, fabricated sun observation or permission
 // renewal. Night uses an explicit Copenhagen clock schedule until sun is admitted.
-// One formatter: building Intl.DateTimeFormat on every sync (every tap) cost ~0.3 s per few taps on Frameo.
+// One formatter: building Intl.DateTimeFormat on every sync (every tap) is needless work.
 let screenClockFormat=null;
 export function screenClock(now){
  screenClockFormat??=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Copenhagen',year:'numeric',month:'2-digit',
@@ -57,7 +57,7 @@ export class ScreenLifecycle{
  sync(){
   if(!this.attached||!this.host.isConnected)return;this.syncDetail();this.syncIdle();this.syncWakeLock();const now=this.clock.now?.()??Date.now(),{day,hour}=screenClock(new Date(now)),host=this.host,rest=host.state?.focus==='photo';
   // Write the root only on change: any write here (even the same value) restyles the whole page,
-  // ~0.1 s per tap on a Frameo frame, because these attributes and variables reach every element.
+  // because these attributes and variables reach every element.
   const night=String((host.previewStage==='night'||hour>=21||hour<7)&&now>=this.nightWakeUntil);
   const nightSource=host.previewStage==='night'?'local-preview':'clock-schedule';
   if(host.dataset.night!==night)host.dataset.night=night;
