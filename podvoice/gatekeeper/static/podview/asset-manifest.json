@@ -638,6 +638,10 @@
       "sha256": "92e558b8e1b4777a49d38d5c746728898cf5c6f9f741fc9316416dab12b90a1a"
     },
     {
+      "path": "connection-model.js",
+      "sha256": "6e41455125f8baf33684839ba3bbad86f6cb7802007af85d0bd7f146c61bb823"
+    },
+    {
       "path": "control-model.js",
       "sha256": "2f3f092c4d6955bb3ac1e433b2e20dfac73401ec8dd85b246ac68cb1ce9805a6"
     },
@@ -735,7 +739,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "3e57defea2538751237903b9fdc611e461c292052f72d927683e3f3c07d52709"
+      "sha256": "6cb6eafc5d5bc69e2a5b72ceafde1293e502689c2f6b0fa77d19c6b6cb5ab962"
     },
     {
       "path": "local-robot-view.js",
@@ -803,11 +807,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "8cd70ffdf43d2be4e3ab378e4ee13e786f00ccbe049b9e10c07871eb870998cf"
+      "sha256": "c028744b3d018ec13087e93371705a8aaf8732332c815af04d7633dea2c6ea43"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "1639ef84a9140d0f5cb07e7a3cf6bfffcbc067ac64ee94a2e910a1cfd89f19dd"
+      "sha256": "3c74ce06aa026a9b756fc6c6967866eb2fedf81919c577195c8f02374f21ee75"
     },
     {
       "path": "podview.css",
@@ -815,11 +819,11 @@
     },
     {
       "path": "podvoice-transport.js",
-      "sha256": "7f6ef179a77315a3a7ec374ecbe0711c000b346f1fcb5a137e5808e7e531122b"
+      "sha256": "a79419af99a6ec94daf7e3fb7ed9e8db27dbcc7bbd94914d65af7b6a97cba343"
     },
     {
       "path": "podvoice-view.js",
-      "sha256": "9603df0b4b94a0a18758ca8d1ec4c1103417c6dec5aced6bdc93e9a25b9ed586"
+      "sha256": "ff13f86fc69639044c6d5421c3af76d21d341b47bd3873468c9dc459f6c358f5"
     },
     {
       "path": "preview-scenes.js",
@@ -927,7 +931,7 @@
     },
     {
       "path": "ui/answer-auto-return.js",
-      "sha256": "612a1ea690b7db1665c259255fe840d1436f53a6f2dbd2a3b41463eb75e02447"
+      "sha256": "b3b2fee807e9cc506f053bd59a7798823d9da3fd61cee834a92fb69ee6190c52"
     },
     {
       "path": "ui/catalog.js",
@@ -1087,7 +1091,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "aca6942c5d9589c9a6228790c4a9bdf8618a7adaede1be6e5c3a75b837f00b5e"
+      "sha256": "19283bc169ff5044e497dc48aed933d4768439fb05bef068e78f5f165b935560"
     },
     {
       "path": "workshop.css",

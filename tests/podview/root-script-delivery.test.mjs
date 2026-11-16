@@ -27,7 +27,7 @@ test('compact delivery retains named canonical registration side effects and sou
 test('add-on version binds the embedded build and the real diagnostic transport',t=>{
  const {root,config}=deliveryFixture(t);
  const canonical=fileURLToPath(new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url));
- for(const name of ['podvoice-transport.js','request-deadline.js']){
+ for(const name of ['podvoice-transport.js','request-deadline.js','connection-model.js']){
   fs.copyFileSync(path.join(canonical,name),path.join(root,'dist',name));
  }
  const fixture=`

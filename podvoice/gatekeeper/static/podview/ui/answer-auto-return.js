@@ -23,10 +23,14 @@ export function autoReturnCandidate(host){
  }
  return {identity,eligible:connected&&complete&&!blocked&&(answer.readStatus||answer.status)==='ready',speaking};
 }
+// Only the most recent answers can come back into focus; older cancellations are forgotten
+// so the set never grows for the life of a wall screen.
+export const CANCELLED_LIMIT=32;
 export class AnswerAutoReturn{
  constructor(host,clock=globalThis){this.host=host;this.clock=clock;this.cancelled=new Set();this.timer=null;this.identity=null;this.attached=false;this.interact=()=>{this.cancel(true);this.sync();};this.visibility=()=>{if(this.host.ownerDocument?.visibilityState==='hidden')this.cancel(true);};}
  attach(){if(this.attached)return;this.attached=true;const doc=this.host.ownerDocument;for(const type of ['pointerdown','click','touchstart','wheel','keydown','scroll'])doc.addEventListener(type,this.interact,{capture:true,passive:true});doc.addEventListener('visibilitychange',this.visibility);}
- cancel(remember=false){if(remember){const key=autoReturnCandidate(this.host)?.identity||this.identity;if(key)this.cancelled.add(key);if(this.identity)this.cancelled.add(this.identity);}if(this.timer!==null)this.clock.clearTimeout(this.timer);this.timer=null;this.identity=null;}
+ cancel(remember=false){if(remember){const key=autoReturnCandidate(this.host)?.identity||this.identity;if(key)this.remember(key);if(this.identity)this.remember(this.identity);}if(this.timer!==null)this.clock.clearTimeout(this.timer);this.timer=null;this.identity=null;}
+ remember(key){this.cancelled.delete(key);this.cancelled.add(key);while(this.cancelled.size>CANCELLED_LIMIT)this.cancelled.delete(this.cancelled.values().next().value);}
  sync(){
   this.attach();const candidate=autoReturnCandidate(this.host),hidden=this.host.ownerDocument?.visibilityState==='hidden';
   if(!this.host.isConnected||hidden){this.cancel(true);return;}
@@ -37,7 +41,7 @@ export class AnswerAutoReturn{
   this.timer=this.clock.setTimeout(()=>{
    const expected=this.identity,current=autoReturnCandidate(this.host);this.timer=null;this.identity=null;
    if(!expected)return;
-   this.cancelled.add(expected);
+   this.remember(expected);
    if(!this.host.isConnected||this.host.ownerDocument?.visibilityState==='hidden'||!current?.eligible||current.identity!==expected)return;
    this.host.screenLifecycle?.resetIdle();
    // Return to the view the card was presented over (fx fotovisning), not always the overview.
