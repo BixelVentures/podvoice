@@ -205,6 +205,8 @@ class PreparedAction:
 
 _ROBOT_MAP_REFRESH_INTERVAL = 25.0
 _ROBOT_ROOM_MAX_AGE = 60.0
+# A granted role HA no longer has is looked up again in the full registry this often.
+_ROBOT_RESOLVE_INTERVAL = 300.0
 
 
 @dataclass(frozen=True)
@@ -234,6 +236,8 @@ class DeviceControl:
         self._enabled = False
         self._entities: tuple[str, ...] = ()
         self._robot_reads: tuple[dict, ...] = ()
+        # Per vacuum: the grant as HA's registry currently serves it, and when it was resolved.
+        self._robot_resolved: dict[str, tuple[dict, float]] = {}
         self._generation = 0
         self._robot_room_witnesses: dict[str, _RobotRoomWitness] = {}
         self._robot_read_times: dict[str, float] = {}
@@ -262,6 +266,7 @@ class DeviceControl:
             self._generation += 1
             self._robot_room_witnesses.clear()
             self._robot_read_times.clear()
+            self._robot_resolved.clear()
             self._tickets.clear()
             self._display_tickets.clear()
             self._enabled, self._entities = active, allowed
@@ -274,6 +279,7 @@ class DeviceControl:
         allowed = podview_robot.parse_policy(policy)
         if allowed != self._robot_reads:
             self._robot_reads = allowed
+            self._robot_resolved.clear()
             self._generation += 1
             self._robot_room_witnesses.clear()
             self._robot_read_times.clear()
@@ -339,10 +345,52 @@ class DeviceControl:
         except TimeoutError:
             return {"status": "unavailable", "items": []}
 
+    def _robot_binding(self, vacuum: str) -> dict | None:
+        """The admitted read binding, with roles as HA last served them for this robot."""
+        policy = next((b for b in self._robot_reads if b["vacuumEntityId"] == vacuum), None)
+        resolved = self._robot_resolved.get(vacuum)
+        return resolved[0] if policy is not None and resolved is not None else policy
+
+    async def _robot_binding_read(self, policy: dict, generation: int) -> tuple[dict, dict]:
+        """Resolve the grant's roles from the live registry; return the binding and its entries."""
+        vacuum = policy["vacuumEntityId"]
+
+        async def entries(binding: dict) -> object:
+            ids = [vacuum, *(f["entityId"] for f in binding["fields"])]
+            value = await self._ws_read(
+                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
+            )
+            self._check(generation)
+            return value
+
+        cached = self._robot_resolved.get(vacuum)
+        if cached is not None and time.monotonic() - cached[1] < _ROBOT_RESOLVE_INTERVAL:
+            start, resolved_at = cached
+        else:
+            start, resolved_at = policy, time.monotonic()
+        before = await entries(start)
+        binding = podview_robot.resolve_binding(start, before)
+        if binding is not None and binding["fields"] != start["fields"]:
+            # A granted entity is gone, disabled or renamed: find each role on the device.
+            listing = await self._ws_read({"type": "config/entity_registry/list"})
+            self._check(generation)
+            binding = podview_robot.resolve_binding(policy, before, listing)
+            if binding is not None:
+                before = await entries(binding)
+            resolved_at = time.monotonic()
+        if binding is None:
+            raise ValueError("robot_registry_target")
+        self._robot_resolved[vacuum] = (binding, resolved_at)
+        if not binding["fields"]:
+            raise ValueError("robot_registry_field")
+        assert isinstance(before, dict)
+        ids = {vacuum, *(f["entityId"] for f in binding["fields"])}
+        return binding, {eid: before.get(eid) for eid in ids}
+
     async def _robot_field_snapshot(self, vacuum: str, ids: list[str], generation: int) -> dict:
         """Read only admitted robot fields, including HA's actual report time."""
         self._check(generation)
-        binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == vacuum), None)
+        binding = self._robot_binding(vacuum)
         allowed = {f["entityId"] for f in binding["fields"]} if binding else set()
         if vacuum not in self._entities or len(ids) != len(set(ids)) or not set(ids) <= allowed:
             raise CapabilityError("Robotfelternes adgang er ændret")
@@ -375,15 +423,12 @@ class DeviceControl:
         optional_deadline = time.monotonic() + 4.5
         read_started = time.time()
         unavailable = {"status": "unavailable", "items": []}
-        binding = next((b for b in self._robot_reads if b["vacuumEntityId"] == entity_id), None)
-        if binding is None or entity_id not in self._entities:
+        policy = next((b for b in self._robot_reads if b["vacuumEntityId"] == entity_id), None)
+        if policy is None or entity_id not in self._entities:
             return unavailable
-        ids = [entity_id, *(f["entityId"] for f in binding["fields"])]
         try:
-            before = await self._ws_read(
-                {"type": "config/entity_registry/get_entries", "entity_ids": ids}
-            )
-            self._check(generation)
+            binding, before = await self._robot_binding_read(policy, generation)
+            ids = [entity_id, *(f["entityId"] for f in binding["fields"])]
             identity = podview_robot.registry_identity(binding, before)
             items = []
             cleaning_sample = None

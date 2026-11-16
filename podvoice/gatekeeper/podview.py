@@ -1924,7 +1924,8 @@ class PodViewBridge:
         owner = getattr(tools, "_device_control", None)
         if owner is not None and getattr(tools, "podview_home_available", lambda: False)():
             interests["vacuum"].update(owner._entities)
-            for binding in owner._robot_reads:
+            for policy in owner._robot_reads:
+                binding = owner._robot_binding(policy["vacuumEntityId"]) or policy
                 interests["vacuum"].add(binding["vacuumEntityId"])
                 interests["vacuum"].update(row["entityId"] for row in binding["fields"])
                 interests["vacuum:devices"].add(binding["dockDeviceId"])

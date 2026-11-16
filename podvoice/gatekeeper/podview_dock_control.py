@@ -154,10 +154,9 @@ class DockTransport:
 
     async def _observe_commands(self, vacuum, current):
         self._check(vacuum, current)
-        bindings = [row for row in self.owner._robot_reads if row["vacuumEntityId"] == vacuum]
-        if len(bindings) != 1 or not bindings[0]["dockDeviceId"]:
+        binding = self.owner._robot_binding(vacuum)
+        if binding is None or not binding["dockDeviceId"]:
             raise ValueError("missing admitted dock binding")
-        binding = bindings[0]
         required = {"status", "dock_error", "mop_drying_status"}
         fields = [row for row in binding["fields"] if row["key"] in required]
         if {row["key"] for row in fields} != required:

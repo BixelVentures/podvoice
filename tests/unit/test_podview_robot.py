@@ -12,7 +12,13 @@ import pytest
 
 from gatekeeper.device_control import DeviceControl
 from gatekeeper.podview import _home_vacuum
-from gatekeeper.podview_robot import field_value, parse_policy, project, registry_identity
+from gatekeeper.podview_robot import (
+    field_value,
+    parse_policy,
+    project,
+    registry_identity,
+    resolve_binding,
+)
 
 
 def test_panel_cannot_add_supervisor_read_grants(tmp_path, monkeypatch):
@@ -299,3 +305,83 @@ async def test_timeout_keeps_basic_vacuum_observation(monkeypatch):
             "status": "unavailable",
             "items": [],
         }
+
+
+BATTERY = "sensor.qrevo_batteri"
+BRUSH = "sensor.qrevo_dock_maintenance_brush_time_left"
+
+
+def green_policy():
+    # Green's grant: battery has no translation_key, and the dock brush role HA dropped.
+    return policy(
+        [
+            {"key": "cleaning_area", "entityId": AREA},
+            {"key": "clean_box_empty", "entityId": WATER},
+            {"key": "battery", "entityId": BATTERY},
+            {"key": "cleaning_brush_time_left", "entityId": BRUSH},
+        ]
+    )
+
+
+def green_registry():
+    entries = registry()
+    entries[BATTERY] = {
+        **entries[AREA],
+        "entity_id": BATTERY,
+        "unique_id": "battery_native",
+        "translation_key": None,
+    }
+    return entries
+
+
+def test_resolve_keeps_present_roles_drops_missing_and_finds_renamed_by_role():
+    binding = parse_policy(green_policy())[0]
+    entries = {**green_registry(), BRUSH: None}
+    resolved = resolve_binding(binding, entries)
+    assert [f["key"] for f in resolved["fields"]] == ["cleaning_area", "clean_box_empty", "battery"]
+    registry_identity(resolved, {k: v for k, v in entries.items() if k != BRUSH})
+    renamed = {**entries[AREA], "entity_id": "sensor.qrevo_areal_ny"}
+    listing = [renamed, {**entries[AREA], "entity_id": "sensor.other", "device_id": "robot-two"}]
+    entries[AREA] = None
+    resolved = resolve_binding(binding, entries, listing)
+    assert {"key": "cleaning_area", "entityId": "sensor.qrevo_areal_ny"} in resolved["fields"]
+    # Two entities claiming one role on the device: never guess, hide the role.
+    twin = {**renamed, "entity_id": "sensor.qrevo_areal_twin"}
+    resolved = resolve_binding(binding, entries, [renamed, twin])
+    assert "cleaning_area" not in [f["key"] for f in resolved["fields"]]
+
+
+async def test_missing_granted_entity_hides_only_that_role_not_battery():
+    """Green: one dock entity left HA; battery and the rest must still be read."""
+    entries = green_registry()
+    commands = []
+
+    async def ws_read(command):
+        commands.append(command["type"])
+        if command["type"] == "config/entity_registry/list":
+            return list(entries.values())
+        return {eid: copy.deepcopy(entries.get(eid)) for eid in command["entity_ids"]}
+
+    async def respond(request):
+        if request.url.path.endswith("/robot_observation_snapshot"):
+            return httpx.Response(404)
+        template = json.loads(request.content)["template"]
+        assert BRUSH not in template
+        return httpx.Response(
+            200, json=[raw(AREA), raw(WATER, "off", None), raw(BATTERY, "100", "%")]
+        )
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        owner = DeviceControl(client, "secret")
+        owner.configure(True, [VAC])
+        owner.configure_robot_reads(green_policy())
+        owner._ws_read = ws_read
+        observed = await owner._robot_observation(VAC, owner._generation)
+        assert observed["status"] == "observed"
+        values = {row["key"]: row["value"] for row in observed["items"]}
+        assert values == {"cleaning_area": 23.5, "clean_box_empty": False, "battery": 100.0}
+        assert commands.count("config/entity_registry/list") == 1
+        # The resolved grant is reused; the full registry is not listed on every read.
+        observed = await owner._robot_observation(VAC, owner._generation)
+        assert observed["status"] == "observed"
+        assert commands.count("config/entity_registry/list") == 1
