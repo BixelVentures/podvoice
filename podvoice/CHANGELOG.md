@@ -1,3 +1,14 @@
+## 2.1.6
+
+- Svar følger lærredets mål (v193): kortet har 32 i polstring, svarets egen farvetone med hjørneprikker, ikon og klokkeslæt i hovedet og titlen i 44/48. »I dag« viser fire lige høje kort (150) med ikon, type, tid og titel, og »1 nyt svar« er en svævende knap med pil op, der ikke skubber listen. Et musiksvar med albumomslag vises med omslag og nummer; rum og hjemme-kort vises ikke, når svaret ikke har de data.
+- Knapper har ikon-plads som lærredet: afspil på »Fortsæt« og »Afspil«, stop på »Stop alarm«, genstart på »Start igen« og musik på »Vælg musik«.
+- Timer færdig: »Timeren ringede HH.MM«, »Alarmen ringer, til du stopper den.« og en orange »Stop alarm« står, hvor lærredet viser dem; »Start igen« sidder ikke længere for lavt.
+- Forsidens »+N« er en lille pille i kortets hoved før pilen og fylder ikke længere hele kortet. Lys: procenten står ved siden af lampens skyder, og skyderen er dæmpet og låst, når lampen er slukket eller ukendt. Køen har ikke længere en afspil-knap i hver række.
+
+## 2.1.5
+
+- Topbaren: knappen øverst til venstre i overblikket hedder nu »Ro« med en måne (56 px pille, »Gå til Ro«) og åbner Foto-Ro; »Svar« viser »Offline« på grå, når Voice PE er offline; vejr og ur står højrestillet som på lærredet, og datoen bruger brødteksten.
+
 ## 2.1.4
 
 - Knapper: »Afspil« i musikdialogen, »Opdater liste« for højttalere og »Stop/Færdig/Stop alarm« på timeren viser nu indlæsning, tager ikke imod dobbelttryk og nulstiller altid – også når handlingen fejler.

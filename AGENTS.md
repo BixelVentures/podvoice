@@ -80,6 +80,14 @@ node tests/browser/podview_actual_journeys.cjs                     # brugerrejse
 npm run dev -- --host 127.0.0.1 --port 4173                        # PodView-preview med testdata
 ```
 
+### Visuelt overblik
+
+`npm run visual` fotograferer hver PodView-skærm og hver tilstand, testdata kan frembringe, i 1180×820
+(ca. 15 s) og skriver ét kontaktark (`index.html` + PNG'er, klik for at zoome) i en ny mappe under `$TMPDIR`;
+stien skrives til sidst. Svar, Opskrifter og live-afspilleren kommer fra browserrejsernes Python-fixtures og
+kræver `.venv` (eller `PODVIEW_TEST_PYTHON`); ellers står de som »ikke frembragt«. Valg: `--open`, `--out <mappe>`,
+`--only <tekst>`. `--green` tager de samme sider på HA Green, kun læsende, med green-check's login.
+
 ## Udgivelse (kun når det er bestilt)
 
 Bump versionen i `pyproject.toml`, `podvoice/config.yaml`, `podvoice/gatekeeper/__init__.py`

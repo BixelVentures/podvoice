@@ -113,7 +113,7 @@ test('v193 kit and page rules: icon slot sizes, alarm variant, +N pill, queue co
  assert.match(css,/\[data-kit-size="44"\]>\.pv-kit-icon\{flex:0 0 18px;\s*width:18px!important;height:18px!important/);
  assert.match(css,/\[data-kit-size="56"\]\{gap:10px\}/);assert.match(css,/\[data-kit-size="44"\]\{gap:8px\}/);
  assert.match(css,/\.pv-kit\.pv-kit-button\[data-kit-variant=alarm\]\{background:#FF7A5C;color:#17171A\}/);
- assert.match(css,/\.resource-card>\.overview-more:not\(\[hidden\]\)\{position:absolute;z-index:3;top:20px;right:48px;box-sizing:border-box;\s*height:26px;min-width:26px;padding:0 8px;[^}]*background:rgba\(23,23,26,\.08\)/);
+ assert.match(css,/\.resource-card>\.overview-more:not\(\[hidden\]\)\{position:absolute;z-index:3;top:20px;right:48px;box-sizing:border-box;\s*height:26px;min-height:0;max-height:26px;min-width:26px;padding:0 8px;[^}]*background:rgba\(23,23,26,\.08\)/);
  assert.match(css,/:is\(#timer-card,\.resource-card\)>:not\(\[hidden\]\):not\(\.overview-more\)\{box-sizing:border-box;height:100%/,'the chip keeps its own height');
  assert.doesNotMatch(css,/:is\(#timer-card,\.resource-card\)>:not\(\[hidden\]\)\{/);
  assert.match(css,/#music-detail #queue>\.queue-track\{grid-template-columns:32px 56px 1fr!important\}/);

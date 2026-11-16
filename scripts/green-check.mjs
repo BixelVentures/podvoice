@@ -6,23 +6,24 @@
 //   node scripts/green-check.mjs rollback     viser, hvad der rulles tilbage (ændrer intet)
 //   node scripts/green-check.mjs --help       alle valg
 //
-// Dækning af docs/BRUGERHISTORIER.md (103 historier). S = lydløst, L = med lyd (--sound), M = kun manuelt.
+// Dækning af docs/BRUGERHISTORIER.md (110 aktive historier; G9 og K8 er fjernet). S = lydløst, L = med lyd (--sound),
+// M = ikke i dette tjek (manuelt, browserrejse eller enhedstest; se historiens kolonne Automatisk tjek).
 // | Område     | S (lydløst)        | L (--sound)      | M (manuelt, hvorfor)                                  |
 // |------------|--------------------|------------------|-------------------------------------------------------|
-// | Fælles G   | G1 G4              |                  | G2 G3 G5 G6 (dvale, race, visuel sammenligning)       |
-// | Afspiller A|                    | A1 A2 A11        | A3–A10 A12–A14 (Spotify-app, stemme, touch, net, tid) |
+// | Fælles G   | G1 G4              |                  | G2 G3 G5–G8 (dvale, race, visuel, +N, knap-busy)      |
+// | Afspiller A|                    | A1 A2 A11        | A3–A10 A12–A15 (Spotify-app, stemme, touch, Foto-Ro)  |
 // | Kø K       | K1 K7              | K3 K5            | K2 K4 K6 (sangskift, auto-fortsæt, dubletter)         |
-// | Find mus. F| F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, tid på dagen)      |
-// | Højttaler H| H4 H6              | H1 (Køkkenalrum) | H2 H3 H5 H7–H10 (andre rum, konti, AirPlay, Tesla)    |
+// | Musik F    | F1 F5 F11          | F2 F10           | F3 F4 F6–F9 F12 (idé, visuelt, AI, tid på dagen)      |
+// | Højttaler H| H4 H6              | H1 (Køkkenalrum) | H2 H3 H5 H7–H11 (andre rum, konti, AirPlay, låsegrund)|
 // | Radio R    | R3 R5              | R1 R2            | R4 R6 (fejlende stream, forkert opsætning)            |
 // | Robot S    | S1 S12 S13         |                  | S2–S11 S14–S16 (fysisk robot får ingen kommandoer)    |
-// | Lys L      |                    |                  | L1–L3 (lys må ikke styres)                            |
+// | Lys L      |                    |                  | L1–L4 (lys må ikke styres)                            |
 // | Opskrift O | O1                 |                  | O2–O10 (start og upload ændrer data)                  |
-// | Timer T    |                    |                  | T1 T2 (start ændrer data, alarm giver lyd)            |
+// | Timer T    |                    |                  | T1–T3 (start ændrer data, alarm giver lyd)            |
 // | Vejr V     | V1 V4              |                  | V2 V3 (kræver fejlende kilde)                         |
 // | Bil B      |                    |                  | B1–B11 (bilen røres aldrig, heller ikke dens side)    |
-// | Svar Q     |                    |                  | Q1 Q2 (Voice PE-tale)                                 |
-// I alt: 17 lydløst, 10 med lyd, 76 manuelt. Tværgående for alle sider: første billede uden
+// | Svar Q     |                    |                  | Q1–Q3 (Voice PE-tale)                                 |
+// I alt: 17 lydløst, 10 med lyd, 83 uden for tjekket. Tværgående for alle sider: første billede uden
 // indlæsning, ingen blink (MutationObserver/rAF), ingen stående fejltekst, ingen låste vælgere,
 // forsidekort genopbygges ikke, ingen nye WARNING/ERROR i PodVoice-/PodConnect-/HA-loggen.
 //
@@ -31,7 +32,6 @@
 // Lydregler: kun Køkkenalrum, lydstyrke sættes til 8 % før afspilning, stop til sidst, aldrig 18–08.
 // Robot, bil, lys og andre rum får aldrig en kommando. Tjekket trykker kun på læsende knapper uden --sound.
 
-import {execFileSync} from 'node:child_process';
 import {createRequire} from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -40,6 +40,7 @@ import {
   PERSISTENT_ERROR, flashes, isProblemLine, newLogLines, newSystemLogEntries, redact, rollbackBackup,
   soundAllowed, summary,
 } from './green-check-lib.mjs';
+import {GREEN_BASE, greenBrowserContext, greenLaunchOptions, openGreenPodView, readGreenToken} from './green-login.mjs';
 
 const HELP = `Green-tjek for PodView på HA Green
 
@@ -80,25 +81,11 @@ Exitkode 0 = grøn, 1 = rød, 2 = kunne ikke køre (fx manglende token).`;
 const args = process.argv.slice(2);
 const flag = name => args.includes(name);
 const option = name => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const BASE = (process.env.GREEN_HA_URL || 'http://homeassistant.lan:8123').replace(/\/$/, '');
-const PANEL = (process.env.GREEN_PANEL || '23375871_podvoice/view').replace(/^\//, '');
+const BASE = GREEN_BASE;
 const LAST_GREEN = path.join(os.homedir(), '.config', 'podvoice', 'green-check-last-green.json');
 const KITCHEN = /Køkkenalrum/i;
 let SECRET = null; // set once in main(); only used to redact error text
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-
-function readToken() {
-  if (process.env.GREEN_HA_TOKEN) return process.env.GREEN_HA_TOKEN.trim();
-  if (process.platform !== 'darwin') return null;
-  try {
-    return execFileSync('security', ['find-generic-password', '-s', 'podvoice-green-check', '-w'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    }).trim();
-  } catch {
-    return null;
-  }
-}
 
 function loadPlaywright() {
   const require = createRequire(new URL('../tests/browser/package.json', import.meta.url));
@@ -415,20 +402,9 @@ function describeFlashes(found) {
 }
 
 async function openPodView(page) {
-  await page.goto(`${BASE}/${PANEL}`, {waitUntil: 'domcontentloaded', timeout: 30000});
-  for (let n = 0; n < 200; n++) {
-    if (/\/auth\/authorize/.test(page.url()))
-      throw new Error('HA viste loginsiden: tokenet blev ikke accepteret (se --help under Login)');
-    for (const frame of page.frames()) {
-      if (!/\/api\/hassio_ingress\//.test(frame.url())) continue;
-      if (await frame.locator('pv-widget-host').count().catch(() => 0)) {
-        await frame.evaluate(installProbe);
-        return frame;
-      }
-    }
-    await sleep(150);
-  }
-  throw new Error('PodView-rammen blev ikke fundet i HA-panelet');
+  const frame = await openGreenPodView(page);
+  await frame.evaluate(installProbe);
+  return frame;
 }
 
 async function silentChecks(check) {
@@ -916,7 +892,7 @@ async function main() {
     console.log(HELP);
     return 0;
   }
-  const token = readToken();
+  const token = readGreenToken();
   SECRET = token;
   if (!token) {
     console.error('Intet HA-token. Se "node scripts/green-check.mjs --help" under Login.');
@@ -932,31 +908,9 @@ async function main() {
     console.error(`HA afviste tokenet eller svarede ikke (${error.message}). Se --help under Login.`);
     return 2;
   }
-  const mac = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-  const browser = await chromium.launch({
-    headless: !flag('--headed'),
-    ...(process.env.PODVIEW_TEST_CHROMIUM ? {executablePath: process.env.PODVIEW_TEST_CHROMIUM}
-      : process.platform === 'darwin' && fs.existsSync(mac) ? {executablePath: mac} : {}),
-  });
+  const browser = await chromium.launch(greenLaunchOptions(flag('--headed')));
   try {
-    const context = await browser.newContext({
-      viewport: {width: 1180, height: 820},
-      deviceScaleFactor: 2,
-      hasTouch: true,
-      locale: 'da-DK',
-      timezoneId: 'Europe/Copenhagen',
-    });
-    await context.addInitScript(
-      ([url, secret]) => {
-        if (location.origin !== new URL(url).origin || location.pathname.startsWith('/api/hassio_ingress/')) return;
-        if (localStorage.getItem('hassTokens')) return;
-        localStorage.setItem('hassTokens', JSON.stringify({
-          hassUrl: url, clientId: `${url}/`, access_token: secret, token_type: 'Bearer',
-          expires_in: 1800, expires: Date.now() + 365 * 864e5, refresh_token: '',
-        }));
-      },
-      [BASE, token],
-    );
+    const context = await greenBrowserContext(browser, token);
     const page = await context.newPage();
     const pageErrors = [];
     page.on('pageerror', error => pageErrors.push(redact(error.message, token)));

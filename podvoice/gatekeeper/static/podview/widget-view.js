@@ -677,19 +677,31 @@ class WidgetHost extends HTMLElement {
  }
  renderTopbarScroll(){const nav=this.querySelector('.view-nav'),responses=this.querySelector('.responses');if(!nav||!responses)return;const recipe=responses.querySelector('#recipe-view:not([hidden])');const catalog=recipe?.querySelector('[data-recipe-layout=catalog]>div');const scrolled=String(responses.scrollTop>8||(catalog?.scrollTop??recipe?.scrollTop??0)>8);if(nav.dataset.scrolled!==scrolled)nav.dataset.scrolled=scrolled;}
  renderTopbar(){
-  const s=this.state,historyOpen=$('history').open===true,answer=focusedAnswer(s),device=this.currentLightDevice()||s.devices.find(item=>item.id===s.focus),title=historyOpen||answer?'Svar':(device?.kind==='light'?'Lys':device?devicePresentation(device,{connected:this.live?!!this.liveTransport?.connected:s.connected}).title:({photo:'Hjem',now:'Lige nu',music:'Musik',player:'Afspiller',timers:'Timer',weather:'Vejr',radio:'Radio',recipes:this.recipeView?.title?.textContent||'Opskrifter',vehicle:'Tesla'})[s.focus]||'PodView');const shellView=historyOpen||s.focus!=='photo'?'active':'rest';if(this.dataset.view!==shellView)this.dataset.view=shellView;const level=historyOpen||!['photo','now'].includes(s.focus)?'detail':'home';if(this.dataset.level!==level)this.dataset.level=level;
+  const s=this.state,historyOpen=$('history').open===true,answer=focusedAnswer(s),device=this.currentLightDevice()||s.devices.find(item=>item.id===s.focus),title=historyOpen||answer?'Svar':(device?.kind==='light'?'Lys':device?devicePresentation(device,{connected:this.live?!!this.liveTransport?.connected:s.connected}).title:({photo:'Ro',now:'Lige nu',music:'Musik',player:'Afspiller',timers:'Timer',weather:'Vejr',radio:'Radio',recipes:this.recipeView?.title?.textContent||'Opskrifter',vehicle:'Tesla'})[s.focus]||'PodView');const shellView=historyOpen||s.focus!=='photo'?'active':'rest';if(this.dataset.view!==shellView)this.dataset.view=shellView;const level=historyOpen||!['photo','now'].includes(s.focus)?'detail':'home';if(this.dataset.level!==level)this.dataset.level=level;
   const overviewHeading=String(s.focus==='now'&&!historyOpen&&!answer);if(this.dataset.overviewHeading!==overviewHeading)this.dataset.overviewHeading=overviewHeading;
   const weather=$('header-weather'),pending=String(!this.browserOffline&&(this.live?this.liveStatus==='connecting':s.connectionPreview?.status==='connecting')&&weather.disabled===true);if(weather.getAttribute('aria-busy')!==pending)weather.setAttribute('aria-busy',pending);
   const history=$('open-history'),active=String(historyOpen||!!answer&&!answer.hidden);if(history.dataset.active!==active)history.dataset.active=active;this.renderSvarDevice?.(history);if(history.getAttribute('aria-current')!==(active==='true'?'page':'false'))history.setAttribute('aria-current',active==='true'?'page':'false');if(!this.lite)this.renderTopbarScroll();if(this.dataset.topbar!=='true')this.dataset.topbar='true';const node=$('header-title');if(this.renderHeaderTitle)this.renderHeaderTitle(title,historyOpen||!['photo','now'].includes(s.focus));else if(node.textContent!==title){this.headerTitleAnimation?.cancel();node.textContent=title;}
-  const back=$('show-photo'),rest=s.focus==='now'&&!historyOpen,hidden=!rest;if(back.hidden!==hidden)back.hidden=hidden;const icon=back.querySelector?.('img'),restLabel=back.querySelector?.('.rest-label');if(back.dataset.navigation!=='rest')back.dataset.navigation='rest';if(icon&&icon.getAttribute('src')!=='assets/icons/house.svg')icon.setAttribute('src','assets/icons/house.svg');if(restLabel&&restLabel.hidden)restLabel.hidden=false;if(restLabel&&restLabel.textContent!=='Hjem')restLabel.textContent='Hjem';if(back.getAttribute('aria-label')!=='Gå hjem')back.setAttribute('aria-label','Gå hjem');if(!$('header-history-count').hidden)$('header-history-count').hidden=true;this.renderTopbarClock();
+  const back=$('show-photo'),rest=s.focus==='now'&&!historyOpen,hidden=!rest;if(back.hidden!==hidden)back.hidden=hidden;const icon=back.querySelector?.('img'),restLabel=back.querySelector?.('.rest-label');if(back.dataset.navigation!=='rest')back.dataset.navigation='rest';
+  // Kit-Topbar: the overview's left key is the Ro shortcut (moon + »Ro«); a tap opens Foto-Ro.
+  const ro={icon:'assets/icons/moon.svg',label:'Ro',aria:'Gå til Ro'};
+  if(icon&&icon.getAttribute('src')!==ro.icon)icon.setAttribute('src',ro.icon);
+  if(restLabel&&restLabel.hidden)restLabel.hidden=false;
+  if(restLabel&&restLabel.textContent!==ro.label)restLabel.textContent=ro.label;
+  if(back.getAttribute('aria-label')!==ro.aria)back.setAttribute('aria-label',ro.aria);
+  if(!$('header-history-count').hidden)$('header-history-count').hidden=true;this.renderTopbarClock();
  }
 
- // Svar button: U1 (user's choice c) has no unread mark; U2 shows Voice PE offline in grey.
+ // Svar button: U1 (user's choice c) has no unread mark; U2 shows »Offline« in grey when Voice PE is offline.
  renderSvarDevice(button){
   // U2: the room's Voice PE has no link to PodVoice. Tapping still opens the saved answers.
   const offline=this.live===true&&this.liveSnapshot?.voice?.device==='offline',label=button.querySelector?.('strong');
   const device=offline?'offline':'';if((button.dataset.device||'')!==device){if(offline)button.dataset.device='offline';else delete button.dataset.device;}
-  const text=offline?'Voice PE offline':'Svar';if(label&&label.textContent!==text)label.textContent=text;
+  // Kit-SvarKnap: the offline pill reads »Offline« on grey; the reason stays in the accessible description.
+  const text=offline?'Offline':'Svar';if(label&&label.textContent!==text)label.textContent=text;
+  const description=offline?'Voice PE er offline. Dagens svar kan stadig læses.':null;
+  if(button.getAttribute?.('aria-description')!==description){
+   if(description)button.setAttribute('aria-description',description);else button.removeAttribute?.('aria-description');
+  }
  }
  onLightActionStatus(state,operation){
   const context=this.lightAreaContext(),light=this.currentLightDevice();
