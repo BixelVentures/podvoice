@@ -34,7 +34,11 @@ export class LightLampView{
     ?{key,authorityKey,canQueueBrightness,local,sessionId:h.state.sessionId,taskId:light.id,
      revision:light.revision,optionId:id,transport:h.liveTransport,
      inputQueue:canQueueBrightness?controls.lightActions.get(JSON.stringify([area,id,null])).queue:null}:null;
-   rows.push({id,name,on,level,dimmable,binding,stale:light.stale===true||!connected||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
+   // A turn-on the user already asked for (this lamp or its room) is pending: the slider takes the level behind it.
+   const turningOn=key=>{const state=controls?.lightActions?.get(JSON.stringify(key))?.state;
+    return state?.pending===true&&state.action==='turn_on';};
+   const switchingOn=!local&&(turningOn([area,id,null])||turningOn([area,null,null]));
+   rows.push({id,name,on,level,dimmable,binding,switchingOn,stale:light.stale===true||!connected||light.live===true&&(!source||h.live&&h.liveTransport?.connected!==true)||local&&!['on','off','mixed'].includes(light.status),unavailable:!local&&row.state==='unavailable',scopeName});
   }
   return rows;
  }
@@ -84,8 +88,8 @@ export class LightLampView{
    const pending=command?.action==='brightness'&&command.target?.entityId===row.id;
    const value=pending&&Number.isInteger(command.requestedPercent)?command.requestedPercent:row.level;
    // Lærred »A-Lys« v193: the level sits beside the slider in mono; a lamp that is off or whose state is unknown
-   // keeps its slider dimmed and inert (switch it on first). Unknown reads »—«, off »0 %«.
-   const live=row.on===true&&!row.stale;
+   // keeps its slider dimmed and inert (switch it on first; a pending turn-on counts). Unknown »—«, off »0 %«.
+   const live=(row.on===true||row.switchingOn===true)&&!row.stale;
    entry.model={value,valueText:value===null||row.stale?'—':`${value} %`,scope:'',
     disabled:!binding||!row.dimmable||row.level===null||!live,pending,
     editableWhilePending:binding?.canQueueBrightness===true};

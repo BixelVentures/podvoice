@@ -703,7 +703,7 @@
     },
     {
       "path": "light-lamp-view.js",
-      "sha256": "60ee1a01d7fc3bb052da46a88a6a12050710495e7bcc21db66324633545a4da8"
+      "sha256": "32f535aa70ff076045515d72fc60624b1af3a061641dfbb93cf67c3c9670d51a"
     },
     {
       "path": "light-room-view.js",
@@ -819,7 +819,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "b58d96812da5744dce06f540574c7038310a1c963aba6927076abe6611e5f5b4"
+      "sha256": "a2a1406361de029a6d491aa134bafe336493c4c6d89e65e6f4d22bb5bff84ec1"
     },
     {
       "path": "podview.css",

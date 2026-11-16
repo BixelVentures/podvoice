@@ -3370,7 +3370,7 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "method:matchesQueuedBrightness": 1,
+          "arrow:turningOn": 1,
           "class:LightLampView": 1,
           "method:cleanup": 1,
           "method:commit": 1,
@@ -3378,6 +3378,7 @@
           "method:createRow": 1,
           "method:current": 1,
           "method:matches": 1,
+          "method:matchesQueuedBrightness": 1,
           "method:render": 1,
           "method:snapshot": 1,
           "method:toggle": 1
