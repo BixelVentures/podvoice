@@ -13,7 +13,8 @@
 @media(min-width:760px) and (max-height:640px){#music-response .response-heading{padding-bottom:var(--pv-screen-space-5)}#music-response h1{font-size:var(--pv-type-title)}.result{min-height:210px;padding:var(--pv-screen-space-4)}.result .result-copy h2{font-size:var(--pv-type-label)}.result .result-copy p{font-size:var(--pv-type-caption)}.result .result-play{margin-top:var(--pv-screen-space-3)}.resource-rail:not([hidden])~*{min-height:0}}
 @media(max-width:759px){[data-view=rest] .frame{display:block}.journey-status{position:fixed;left:20px;bottom:24px;max-width:calc(100% - 40px);font-size:var(--pv-type-caption)}.result{min-height:260px;padding:var(--pv-screen-space-4)}.result .result-copy h2{font-size:var(--pv-type-body)}.result .result-copy p{display:none}#result-list{gap:var(--pv-screen-space-2)}
 #music-response .response-heading{padding:var(--pv-screen-space-4) 0 var(--pv-screen-space-5)}#music-response h1{font-size:var(--pv-type-title)}.view-nav{flex-wrap:nowrap}.view-nav #open-history{font-size:var(--pv-type-caption)}.header-context{display:flex;gap:var(--pv-screen-space-2);font-size:var(--pv-type-caption)}.header-weather{display:none}.photo-view{margin:0}.responses{overflow:visible}}
-@media(prefers-reduced-motion:reduce){.result .result-art,.result{transition:none!important}}[data-motion=reduced] .result,[data-motion=reduced] .result-art{transition:none!important}
+:root[data-pv-motion=reduced] .result .result-art,:root[data-pv-motion=reduced] .result{transition:none!important}
+:root[data-pv-motion=reduced] .result,:root[data-pv-motion=reduced] .result-art{transition:none!important}
 #now-view #timer-card{padding:var(--pv-screen-space-6);background:var(--pv-instrument);border:0;border-radius:var(--pv-screen-radius);margin:var(--pv-screen-space-2) 0 var(--pv-screen-space-4)}#now-view #timer-card .pv-content{grid-template-columns:160px 1fr;gap:var(--pv-screen-space-2) var(--pv-screen-space-6)}#now-view #timer-card h3{grid-column:2;grid-row:1;align-self:end;font-size:var(--pv-type-label)}#now-view #timer-card .pv-meta{grid-column:2;grid-row:2;color:var(--pv-line)}#now-view #timer-card .pv-resource-value{margin:0;grid-column:auto;grid-row:auto;font-size:var(--pv-type-display)}#now-view #timer-card .pv-actions{grid-column:2;grid-row:3;margin:var(--pv-screen-space-2) 0 0}#device-detail .pv-resource-value{font-size:var(--pv-type-title);margin:var(--pv-screen-space-2) 0}#device-detail .pv-actions{margin-top:var(--pv-screen-space-6)}.answer-widget .answer-choices .pv-list .pv-choice-icon{width:30px;height:30px;margin:0}.answer-widget .answer-choices.pv-component .pv-list button{min-height:142px;gap:var(--pv-screen-space-2);background:var(--pv-surface-2)}.answer-widget .answer-choices.pv-component .pv-list button[aria-pressed=true]{background:var(--pv-line)}.answer-widget .answer-choices.pv-component .pv-list strong{font-weight:var(--pv-weight-medium)}.answer-widget .answer-actions .pv-button[aria-pressed=true]{background:var(--pv-instrument);color:var(--pv-on-dark)}.answer-widget .intro .pv-copy{margin-bottom:var(--pv-screen-space-3);font-size:var(--pv-type-caption);line-height:1.4}.response-heading h1{font-weight:var(--pv-weight-medium)}#device-view{background:transparent;padding:var(--pv-screen-space-2) 0}#device-view>.response-heading{padding:0 0 var(--pv-screen-space-6)}#device-detail{padding:0}#device-view .device-history{margin:var(--pv-screen-space-4)}.device-disclaimer{display:none}.resource-preview{border-radius:var(--pv-screen-radius-art);background:var(--pv-surface)}.resource-label strong{font-weight:var(--pv-weight-medium)}
 @media(max-width:759px){#now-view #timer-card .pv-content{grid-template-columns:110px 1fr;gap:var(--pv-screen-space-3)}#now-view #timer-card .pv-instrument{width:110px;height:110px}#now-view #timer-card .pv-actions{grid-column:1/-1}.answer-widget .answer-choices.pv-component .pv-list{grid-template-columns:1fr}.answer-widget .answer-choices.pv-component .pv-list button{min-height:110px;display:grid;grid-template-columns:48px 1fr}.answer-widget .answer-choices .pv-choice-icon{grid-column:1;grid-row:1/3}.answer-widget .answer-choices strong,.answer-widget .answer-choices span{grid-column:2}}
 #volume{accent-color:var(--pv-ink-2)}#collapse{display:none}[data-view=rest] #connection-note{position:absolute;left:32px;bottom:32px;top:auto;right:auto;transform:none;max-width:52%;z-index:4;border-radius:var(--pv-screen-radius);padding:var(--pv-screen-space-4) var(--pv-screen-space-5);background:var(--pv-surface);color:var(--pv-ink)}
@@ -67,7 +68,7 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 @media(min-width:760px) and (max-height:640px){#now-view>.response-heading{padding-bottom:var(--pv-screen-space-4)}#now-view #timer-card{padding:var(--pv-screen-space-5)}#now-view #timer-card .pv-content{grid-template-columns:120px minmax(0,1fr);gap:var(--pv-screen-space-1) var(--pv-screen-space-5)}#now-view #timer-card .pv-instrument{width:120px;height:120px}#now-view #timer-card .pv-resource-value{font-size:var(--pv-type-title)}#now-view #timer-card h3{font-size:var(--pv-type-label)}:is(#device-activities .resource-preview,:where(#now-view) .resource-preview){min-height:136px;padding:var(--pv-screen-space-4);grid-template-columns:60px minmax(0,1fr);gap:var(--pv-screen-space-3)}:is(#device-activities,:where(#now-view) .resource-preview) .resource-visual{width:60px;height:60px}
 :is(#device-activities,:where(#now-view) .resource-preview) .resource-chevron{display:none}}
 @media(max-width:759px){#device-activities{grid-template-columns:1fr}:is(#device-activities .resource-preview,:where(#now-view) .resource-preview){min-height:112px}#now-view #timer-card .pv-content{grid-template-columns:100px minmax(0,1fr);gap:var(--pv-screen-space-3)}#now-view #timer-card .pv-instrument{width:100px;height:100px}#now-view #timer-card .pv-actions{grid-column:1/-1}#now-view #timer-card h3{font-size:var(--pv-type-body)}.resource-rail{display:grid;grid-auto-flow:row;grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){.resource-preview{transition:none}}[data-motion=reduced] .resource-preview{transition:none}
+:root[data-pv-motion=reduced] .resource-preview{transition:none}
 @media(min-width:760px){#now-view .now-activities:has(:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview):not([hidden])) #timer-card{min-height:196px;display:grid;align-content:center}#now-view .now-activities #device-activities:has(>.resource-preview:not([hidden])){flex:1}:is(#device-activities .resource-preview,:where(#now-view) .resource-preview){height:100%}}
 @media(max-width:759px){#now-view #timer-card .pv-instrument{grid-column:1;grid-row:1/3}#now-view #timer-card .pv-actions{grid-row:3;grid-column:1/-1}#now-view #timer-card .pv-resource-value{grid-area:auto}}
 
@@ -88,7 +89,8 @@ button.track{display:block;width:100%;text-align:left;background:transparent;pad
 [data-view=rest]:has(.resource-rail:not([hidden])) .journey-status{left:auto;right:24px;bottom:160px;max-width:340px}}
 @media(min-width:760px) and (max-height:640px){#device-detail .pv-component{padding:var(--pv-screen-space-5)}#device-detail .pv-component .pv-content{grid-template-columns:116px minmax(0,1fr);gap:var(--pv-screen-space-4) var(--pv-screen-space-5)}#device-detail .pv-component .pv-instrument{width:116px;height:116px}#device-detail .pv-component .pv-instrument>img{width:100px;height:100px}#device-detail .pv-component .pv-resource-value{font-size:var(--pv-type-title)}}
 @media(max-width:759px){#device-detail .pv-component{padding:var(--pv-screen-space-6)}#device-detail .pv-component .pv-content{grid-template-columns:96px minmax(0,1fr);gap:var(--pv-screen-space-5)}#device-detail .pv-component .pv-instrument{width:96px;height:96px;grid-row:1}#device-detail .pv-component .pv-instrument>img{width:80px;height:80px}#device-detail .pv-component .pv-resource-value{font-size:var(--pv-type-title);align-self:center}#device-detail .pv-component .pv-actions{grid-column:1/-1}}
-@media(prefers-reduced-motion:reduce){#device-detail .pv-component,#device-detail .pv-instrument>img{transition:none}}[data-motion=reduced] #device-detail .pv-component,[data-motion=reduced] #device-detail .pv-instrument>img{transition:none}
+:root[data-pv-motion=reduced] #device-detail .pv-component,
+:root[data-pv-motion=reduced] #device-detail .pv-instrument>img{transition:none}
 #device-detail .pv-component[data-resource-status=fault],#device-detail .pv-component[data-resource-status=unknown]{background:var(--pv-screen-danger-surface);color:var(--pv-screen-danger)}
 
 /* Kitchen-frame contract: the LEFT stream can exceed the screen. Player is independent. */
@@ -185,7 +187,10 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:24px}
 @media(min-width:760px){[data-view=active] .player,[data-view=active] .player-empty{margin-top:var(--active-player-offset,0px);height:calc(100% - var(--active-player-offset,0px));min-height:0;align-self:stretch}[data-view=active][data-level=home] #now-view>.response-heading{padding-left:0;padding-right:0}.header-context{gap:var(--pv-screen-space-6)}}
 
 /* Edge drag moves the scene as one surface. Ordinary content never pans sideways. */
-.responses{translate:none!important;transition:none;overscroll-behavior-x:none}.frame{translate:calc(var(--edge-progress,0)*24px) 0;scale:calc(1 - var(--edge-progress,0)*.015);transition:translate 220ms var(--pv-ease-enter),scale 220ms var(--pv-ease-enter)}[data-edge-drag=true] .frame{transition:none}@media(prefers-reduced-motion:reduce){.frame{translate:none;scale:none;transition:none}}
+.responses{translate:none!important;transition:none;overscroll-behavior-x:none}
+.frame{translate:calc(var(--edge-progress,0)*24px) 0;scale:calc(1 - var(--edge-progress,0)*.015);transition:translate 220ms var(--pv-ease-enter),scale 220ms var(--pv-ease-enter)}
+[data-edge-drag=true] .frame{transition:none}
+:root[data-pv-motion=reduced] .frame{translate:none;scale:none;transition:none}
 
 .timer-panel[data-progress-known=false] .timer-progress{visibility:hidden}#live-music .result-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--pv-screen-space-3);height:auto;min-height:0;margin:var(--pv-screen-space-4) 0 0;align-items:stretch}#live-music .live-music-result{display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;gap:var(--pv-screen-space-4);min-width:0;min-height:0;padding:var(--pv-screen-space-4);background:var(--pv-bg);color:var(--pv-ink-2);border:1px solid var(--pv-screen-line);border-radius:var(--pv-screen-radius);text-align:left;box-shadow:none}#live-music .live-music-result::after{display:none}#live-music .live-track-art{position:static;display:grid;place-items:center;width:72px;height:72px;flex:none;background:var(--pv-line);border-radius:var(--pv-screen-radius-field);z-index:auto;transition:none}#live-music .live-track-art img{width:28px;height:28px;opacity:.58}#live-music .live-music-result .result-copy{width:100%;min-height:0}#live-music .live-music-result .result-copy h2{margin:0 0 var(--pv-screen-space-2);color:var(--pv-ink-2);font-size:var(--pv-type-body);line-height:1.18;overflow-wrap:anywhere}#live-music .live-music-result .result-copy p{margin:0;color:var(--pv-ink-3);font-size:var(--pv-type-caption);line-height:1.3;overflow-wrap:anywhere}#live-music .live-music-note{margin:var(--pv-screen-space-3) 0;color:var(--muted);font-size:var(--pv-type-caption);line-height:1.4}[data-mode=live] #timers-live-note{color:var(--muted);font-size:var(--pv-type-caption);line-height:1.5}
 @media(max-width:759px){#live-music .result-list{grid-auto-flow:column;grid-auto-columns:minmax(180px,72%);grid-template-columns:none;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding-bottom:var(--pv-screen-space-2)}#live-music .live-music-result{scroll-snap-align:start}}
@@ -211,7 +216,10 @@ body:has(#timer-alert:not([hidden])) .action-feedback{bottom:24px}
 .result{position:relative}.result-feedback{position:absolute;left:24px;right:24px;top:20px;min-height:24px;font-size:var(--pv-type-caption);line-height:24px;color:var(--pv-on-dark);text-shadow:0 1px 8px color-mix(in srgb,var(--pv-ink) 53.333%,transparent);pointer-events:none}.result-feedback:empty{visibility:hidden}.result[data-pending=true]{outline:3px solid var(--pv-screen-action-ink);outline-offset:-3px}
 
 button,.round,.refinements button,.resource-preview{transition:background-color var(--pv-screen-fast) var(--pv-screen-ease),color var(--pv-screen-fast) var(--pv-screen-ease),opacity var(--pv-screen-fast) var(--pv-screen-ease),transform var(--pv-screen-fast) var(--pv-screen-ease)}.result:is(:active,.is-pressed):not(:disabled){transform:none}
-[data-motion=reduced] button{transition:none}[data-motion=reduced] button:is(:active,.is-pressed):not(:disabled){transform:none}@media(prefers-reduced-motion:reduce){button{transition:none!important}button:is(:active,.is-pressed):not(:disabled){transform:none!important}}
+:root[data-pv-motion=reduced] button{transition:none}
+:root[data-pv-motion=reduced] button:is(:active,.is-pressed):not(:disabled){transform:none}
+:root[data-pv-motion=reduced] button{transition:none!important}
+:root[data-pv-motion=reduced] button:is(:active,.is-pressed):not(:disabled){transform:none!important}
 
 .live-art-fallback{background:var(--pv-screen-control);padding:28%;object-fit:contain}.live-queue-track{cursor:default;min-height:72px}.live-queue-note,.weather-source,.robot-history-note{color:var(--pv-screen-muted);font-size:var(--pv-type-caption);line-height:1.5}.live-accounts{display:flex;flex-wrap:wrap;gap:var(--pv-screen-space-3)}.robot-recent{margin-top:0}
 #robot-recent pv-choice-list .pv-list{display:flex;flex-wrap:wrap;gap:var(--pv-screen-space-3)}
@@ -255,8 +263,7 @@ pv-widget-host{--overview-lift:72px}
 /* VoiceSurface owns one finite acknowledgement per real phase change. */
 [data-view=rest] .voice-surface{top:var(--voice-rest-top,44%);left:var(--voice-rest-left,50%);bottom:auto;max-width:calc(100vw - 48px)}
 .voice-surface .voice-mark{animation:none}
-[data-motion=reduced] .voice-surface .voice-mark{animation:none}
-@media(prefers-reduced-motion:reduce){.voice-surface .voice-mark{animation:none}}
+:root[data-pv-motion=reduced] .voice-surface .voice-mark{animation:none}
 
 /* The clock/weather and Back share one fixed header slot across active pages. */
 @media(min-width:760px){
@@ -328,7 +335,8 @@ pv-widget-host[data-view=active] .frame::after{bottom:0;height:72px;background:l
 pv-widget-host[data-view=active] .frame:has(.responses[data-scroll-edge~="start"],#weather-view:not([hidden])[data-scroll-edge~="start"],#music-detail:not([hidden]) #queue[data-scroll-edge~="start"])::before{opacity:1}
 pv-widget-host[data-view=active] .frame:has(.responses[data-scroll-edge~="end"],#weather-view:not([hidden])[data-scroll-edge~="end"],#music-detail:not([hidden]) #queue[data-scroll-edge~="end"])::after{opacity:1}
 @media(max-width:759px){pv-widget-host[data-view=active] .frame::before,pv-widget-host[data-view=active] .frame::after{width:100%}}
-@media(prefers-reduced-motion:reduce){pv-widget-host[data-view=active] .frame::before,pv-widget-host[data-view=active] .frame::after{transition:none}}
+:root[data-pv-motion=reduced] pv-widget-host[data-view=active] .frame::before,
+:root[data-pv-motion=reduced] pv-widget-host[data-view=active] .frame::after{transition:none}
 
 /* A generous heading hit area without changing the heading's measured line box. */
 #now-rest{position:relative;min-height:0}
@@ -563,7 +571,12 @@ pv-robot-control-panel .robot-care-values dd{margin:0;overflow-wrap:anywhere;fon
 #radio-view pv-choice-list .pv-list>button .pv-meta{grid-column:1;grid-row:3;font-size:var(--pv-type-body);line-height:var(--pv-leading-body)}
 #radio-view pv-choice-list .pv-list>button[data-current=true]{background:var(--pv-neutral-category);border-color:var(--pv-screen-ink)}.vehicle-hero{background:var(--pv-surface-2)}.vehicle-view>.vehicle-history{margin-top:0;padding:var(--pv-screen-space-5)}.vehicle-battery-rail[data-known=false]{visibility:hidden}.history-preview:has(pv-answer[data-kind=concise]){display:flex;align-items:center}:is(.home-extensions button,:where(#home-radio,#home-vehicle))>img:first-child{background:transparent}.resource-preview[data-kind=light] .resource-visual{background:transparent;border-radius:0}#device-detail .pv-component[data-component=light-widget] .pv-instrument{background:transparent;border-radius:0}
 /* Keep vehicle's secondary rows visible within the landscape detail scroll. */
-.vehicle-artwork{aspect-ratio:auto;height:160px}.vehicle-image{max-height:160px}.vehicle-disclosure>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) 20px;align-items:center;cursor:pointer}.vehicle-disclosure>summary::-webkit-details-marker{display:none}.vehicle-disclosure>summary::after{content:"";grid-column:2;grid-row:1/3;width:20px;height:20px;background:url('assets/icons/chevron-right.svg') center/contain no-repeat;transition:transform 180ms var(--pv-screen-ease)}.vehicle-disclosure[open]>summary::after{transform:rotate(90deg)}.vehicle-disclosure summary small{grid-column:1}@media(prefers-reduced-motion:reduce){.vehicle-disclosure>summary::after{transition:none}}
+.vehicle-artwork{aspect-ratio:auto;height:160px}.vehicle-image{max-height:160px}
+.vehicle-disclosure>summary{list-style:none;display:grid;grid-template-columns:minmax(0,1fr) 20px;align-items:center;cursor:pointer}
+.vehicle-disclosure>summary::-webkit-details-marker{display:none}
+.vehicle-disclosure>summary::after{content:"";grid-column:2;grid-row:1/3;width:20px;height:20px;background:url('assets/icons/chevron-right.svg') center/contain no-repeat;transition:transform 180ms var(--pv-screen-ease)}
+.vehicle-disclosure[open]>summary::after{transform:rotate(90deg)}.vehicle-disclosure summary small{grid-column:1}
+:root[data-pv-motion=reduced] .vehicle-disclosure>summary::after{transition:none}
 
 /* Shared A overview anatomy. Family identity comes from surface and subject,
    never from a different text origin, icon slot or chevron inset. */
@@ -719,14 +732,13 @@ pv-widget-host #now-view :is(#now-music,#now-empty,#restore-resources,#restore-t
 #result-list>.result:focus-visible{outline:3px solid var(--pv-focus-ring);outline-offset:-4px}
 .result .result-play{transition:transform var(--pv-screen-fast) var(--pv-screen-ease),background-color var(--pv-screen-fast) var(--pv-screen-ease)}
 .result:is(:active,.is-pressed):not(:disabled) .result-play{transform:none}
-.result[data-pending=true] .result-play{animation:music-control-ack 180ms var(--pv-screen-ease) both}
 /* Pending feedback belongs to the shared Button, never a second refresh animation. */
-@keyframes music-control-ack{from{transform:none}to{transform:none}}
-@keyframes music-refresh-ack{from{transform:rotate(0)}to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){
- .result .result-play,#music-refresh>img{animation:none!important;transition:none!important;transform:none!important}
-}
-[data-motion=reduced] .result .result-play,[data-motion=reduced] #music-refresh>img{animation:none!important;transition:none!important;transform:none!important}
+
+ 
+
+:root[data-pv-motion=reduced] .result .result-play,
+:root[data-pv-motion=reduced] #music-refresh>img{
+ animation:none!important;transition:none!important;transform:none!important}
 
 /* Previous answers replace only the focused left pane. Its native nonmodal
    dialog keeps the persistent player and header available to the household. */
@@ -1165,10 +1177,11 @@ pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#queue,#device-detail
 #now-view>.resource-card>.resource-direct-action[hidden]{display:none}
 /* Connection feedback preserves the retained cards and ends when the connection resolves. */
 body:has(.connection-note[data-state=connecting]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card){position:relative;isolation:isolate}
-body:has(.connection-note[data-state=connecting]) pv-widget-host[data-view=active] #now-view:not([hidden])>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{content:"";display:block;position:absolute;inset:0;width:auto;height:auto;transform:none;border-radius:inherit;pointer-events:none;z-index:1;background:color-mix(in srgb,var(--pv-surface) 18%,transparent);opacity:0;animation:pv-connecting-sheen 1200ms ease-in-out 3}
-@keyframes pv-connecting-sheen{0%,100%{opacity:0}50%{opacity:1}}
-@media(prefers-reduced-motion:reduce){body:has(.connection-note[data-state=connecting]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{animation:none!important;opacity:0}}
-body:has(pv-widget-host[data-motion=reduced]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{animation:none!important;opacity:0}
+body:has(.connection-note[data-state=connecting]) pv-widget-host[data-view=active] #now-view:not([hidden])>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{content:"";display:block;position:absolute;inset:0;width:auto;height:auto;transform:none;border-radius:inherit;pointer-events:none;z-index:1;background:color-mix(in srgb,var(--pv-surface) 18%,transparent);opacity:0;--pv-skeleton-low:0;animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
+:root[data-pv-motion=reduced] body:has(.connection-note[data-state=connecting]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{animation:none!important;opacity:0}
+:root[data-pv-motion=reduced]
+ body #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{
+ animation:none!important;opacity:0}
 /* Fixed outer grid, shared card anatomy comes from the kit. */
 @media(min-width:760px) and (min-height:641px){
  pv-widget-host[data-view=active] #now-view:not([hidden])>.resource-card[data-kind=vacuum]{grid-column:3/5;grid-row:3;min-height:0;height:100%}

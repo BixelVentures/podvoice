@@ -1,6 +1,6 @@
 import {reconcile} from './reconcile.js';
 import {catalog} from './catalog.js';
-import {isReduced,reducedMotionQuery} from './motion.js';
+import {isReduced,reducedMotionQuery,mirrorReducedMotion} from './motion.js';
 const icons={check:'<path d="m5 12 4 4L19 6"/>',voice:'<path d="M4 10v4m4-7v10m4-13v16m4-13v10m4-7v4"/>',heart:'<path d="M20 5c-2-2-6-1-8 2-2-3-6-4-8-2-4 4 0 8 8 15 8-7 12-11 8-15Z"/>',play:'<path d="m8 4 12 8-12 8Z"/>',pause:'<path d="M8 4v16M16 4v16"/>',arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>',clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'};
 const icon=n=>`<svg aria-hidden="true" viewBox="0 0 24 24">${icons[n]||icons.check}</svg>`;
 const button=(text,action='toggle',extra='')=>`<button data-action="${action}" ${extra}>${text}</button>`;
@@ -8,8 +8,8 @@ const people=['Familien','Mads','Frida','Svend'];
 export class PodComponent extends HTMLElement{
  static observedAttributes=['kind','motion'];
  constructor(){super();this.attachShadow({mode:'open'});this.value=0;this.remaining=10;this.running=false;this.note='';this.shadowRoot.addEventListener('click',e=>{const b=e.target.closest('[data-action]');if(b)this.act(b.dataset.action,b.dataset.value);});this.shadowRoot.addEventListener('input',e=>{if(e.target.type==='range'){this.value=Number(e.target.value);this.shadowRoot.querySelector('output').textContent=this.value+' %';this.emit('level');}});}
- connectedCallback(){this.motionQuery??=reducedMotionQuery();this.onMotionChange??=()=>{if(this.motionQuery.matches)this.anim?.cancel();};this.motionQuery.addEventListener('change',this.onMotionChange);this.render();}
- disconnectedCallback(){this.stop();this.anim?.cancel();this.motionQuery?.removeEventListener('change',this.onMotionChange);}
+ connectedCallback(){this.motionMirror??=mirrorReducedMotion(this,this);this.motionQuery??=reducedMotionQuery();this.onMotionChange??=()=>{if(this.motionQuery.matches)this.anim?.cancel();};this.motionQuery.addEventListener('change',this.onMotionChange);this.render();}
+ disconnectedCallback(){this.motionMirror?.dispose();this.motionMirror=null;this.stop();this.anim?.cancel();this.motionQuery?.removeEventListener('change',this.onMotionChange);}
  attributeChangedCallback(name,oldValue,value){if(oldValue===value)return;if(name==='kind')this.reset();else if(name==='motion'&&value==='reduced')this.anim?.cancel();}
  reset(){this.anim?.cancel();this.stop();this.value=0;this.remaining=10;this.note='';this.render();}
  stop(){if(this.running&&this.deadline)this.remaining=Math.max(0,Math.ceil((this.deadline-performance.now())/1000));clearInterval(this.interval);this.interval=null;this.running=false;}

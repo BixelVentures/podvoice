@@ -72,7 +72,7 @@ let server,browser;
    dx:left+parseFloat(mark.width)/2-box.width/2,dy:top+parseFloat(mark.height)/2-box.height/2};
  });
  assert.equal(ring.busy,'true','the running pause shows on its button');
- assert.match(ring.animation,/pv-control-pending/,'the waiting ring turns');
+ assert.match(ring.animation,/pv-spin/,'the waiting ring turns');
  assert(Math.abs(ring.dx)<=1&&Math.abs(ring.dy)<=1,`the ring is centred: ${JSON.stringify(ring)}`);
  // c) While the call runs, buttons stay usable and a second tap waits its turn.
  assert.equal(await page.locator('#next').isDisabled(),false,'next stays usable during a running call');

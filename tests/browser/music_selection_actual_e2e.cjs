@@ -1694,7 +1694,7 @@ async function queuePersistenceJourney(){
    const title=label(row),started=performance.now();
    requestAnimationFrame(()=>{
     const spinners=[...node.querySelectorAll('button.queue-track')]
-     .filter(item=>getComputedStyle(item,'::after').animationName==='pv-music-play-pending')
+     .filter(item=>getComputedStyle(item,'::after').animationName.split(', ').includes('pv-spin'))
      .map(label);
     window.queueTapPaints.push({title,elapsedMs:performance.now()-started,spinners});
    });
@@ -1725,7 +1725,7 @@ async function queuePersistenceJourney(){
   const pendingRows=rows.and(queue.locator('[aria-busy="true"]'));
   assert.deepEqual(await pendingRows.locator('.queue-copy strong').allTextContents(),['Køsang 22']);
   const spinners=await rows.evaluateAll(items=>items
-   .filter(row=>getComputedStyle(row,'::after').animationName==='pv-music-play-pending')
+   .filter(row=>getComputedStyle(row,'::after').animationName.split(', ').includes('pv-spin'))
    .map(row=>row.querySelector('.queue-copy strong').textContent));
   assert.deepEqual(spinners,['Køsang 22'],'only the tapped occurrence renders a spinner');
   await assertNoEmpty();
@@ -1744,7 +1744,7 @@ async function queuePersistenceJourney(){
   await status('unknown');
   assert.equal(await queue.locator('button[aria-busy="true"]').count(),0,'UNKNOWN clears visible selection');
   assert.equal(await rows.evaluateAll(items=>items.some(
-   row=>getComputedStyle(row,'::after').animationName==='pv-music-play-pending',
+   row=>getComputedStyle(row,'::after').animationName.split(', ').includes('pv-spin'),
   )),false);
   assert.match(await page.locator('#playback-status').innerText(),/dit næste valg blev ikke sendt/);
   const unknown=await state(),priorEffects=queueUnknownUnchanged?[]:[22];

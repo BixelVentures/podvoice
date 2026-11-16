@@ -101,7 +101,7 @@ async function feedbackJourney(page,card,errors,commands){
   assert.equal(visual.tone,'neutral');
   assert.equal(visual.variant,'secondary');
   assert.equal(visual.busy,'true');
-  assert.equal(visual.animation,'pv-control-pending');
+  assert.match(visual.animation,/\bpv-spin\b/);
   assert.notEqual(visual.fill,'rgb(198, 40, 40)');
   assert.equal(await status.innerText(),'Låst');
   return visual;
