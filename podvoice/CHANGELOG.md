@@ -1,3 +1,9 @@
+## 2.1.14
+
+- Sideskift som en app: den side, du forlader, glider væk, og den nye glider og toner ind med en fjeder; topbar og afspiller står stille. Et tryk under overgangen springer resten over, så intet låses.
+- Dialoger og ark glider blødt op og lukker hurtigere, end de åbner; lukker du midt i en åbning, vender de om, hvor de er. Knapper viser først snurren efter 0,4 s (hurtige handlinger blinker ikke), et kort flueben når handlingen lykkedes, og en fejl vises med farve – aldrig rysten.
+- Oprydning i bevægelse: »Reducer bevægelse« gælder nu alle steder (kun toninger), kontakter, kø-udligner og opskrifternes prikker bevæger sig uden at flytte layoutet, løkker kører så længe tilstanden varer, og alarmen har én rolig puls.
+
 ## 2.1.13
 
 - Tryk føles som en app: knapper, fliser og kort trykkes hurtigt ned og fjedrer blødt tilbage, når du slipper (før sprang de tilbage på ét billede). Selv et meget hurtigt tryk når at vise sig. Med »Reducer bevægelse« slået til bliver flader kun mørkere, uden at skalere.
