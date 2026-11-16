@@ -1,6 +1,7 @@
 import {LiveQueueView,upcomingQueueRows} from './live-queue-view.js';
 import {roomPlayerObservation,roomObservationBound,roomObservationCurrent,roomObservationDisplay,playbackBinding,playbackObservationCurrent} from './media-observation.js';
 import {livePlayerModel,liveQueueModel} from './player-view.js';
+import {QUEUE_TROUBLE_MS,newQueuePresentation,queuePresentation,queueWaiting} from './queue-presentation-model.js';
 // A screen without control access says so where the controls are, never a silent lock or "unknown".
 export const NO_ACCESS='Skærmen har ikke adgang · Tilknyt';
 export const PAUSED_KEEP_MS=10*60*1000;
@@ -22,8 +23,13 @@ export function pauseExpired(room,account,playback,now=Date.now()){
 const malformedPlaybackAnswer=new Set(['invalid_media_text','invalid_playback_state','invalid_player_actions',
  'invalid_player_number']);
 const $=id=>document.getElementById(id);
+// A new room (clearRoom) starts the queue presentation over: no trouble time carries across.
+function resetQueuePresentation(view){
+ clearTimeout(view.queueTroubleTimer);view.queueTroubleTimer=null;view.queueTroubleSince=null;
+ view.queuePresentation=queuePresentation(view.queuePresentation??newQueuePresentation(),{type:'reset',key:null});
+}
 // While a chosen song starts, the room is read again shortly (Green: ~2 s late otherwise).
-const SETTLEMENT_READ_MS=250,SETTLEMENT_READ_WINDOW_MS=15000,QUEUE_TROUBLE_MS=10000;
+const SETTLEMENT_READ_MS=250,SETTLEMENT_READ_WINDOW_MS=15000;
 const QUEUE_UNAVAILABLE='Køen kan ikke vises lige nu. Musikken spiller videre.';
 // A transient source read may retain the exact-bound display, never controls.
 // Explicit denials and invalid ownership clear it; unavailable is not idle.
@@ -35,7 +41,7 @@ export class LiveMediaView{
  setAccount(account){if(this.account===account)return;this.account=account;this.host.liveMusicAccountChanged?.(account);this.accounts.data={...this.accounts.data,selected:account};}
  selectAccount(account){const choices=this.accounts.data?.items||[];if(!choices.some(b=>b.id===account)||this.account===account)return;this.invalidate(true,true);this.setAccount(account);this.refresh();}
  invalidate(revoke=false,preserveChoices=false){this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;if(this.host.liveTransport?.recoveryBlocked===true)revoke=true;if(this.playback&&!roomObservationBound(this.playback,this.host.liveSnapshot,this.account))revoke=true;this.queueControls.invalidate(revoke);this.generation++;this.readState='offline';this.lastRead=0;this.pending=false;if(this.playback)this.playback={...this.playback,stale:true,displayRetained:!revoke};if(revoke){this.queueBindingId=null;this.establishedReadScope=null;this.playback=null;this.queue=null;this.queueError=false;this.setAccount(null);if(!preserveChoices){this.accounts.data={items:[],selected:null,stateText:''};this.accounts.hidden=true;}$('queue').replaceChildren();this.rows.clear();}this.queuePending=false;if(this.queue)this.queue={...this.queue,stale:true};this.render();}
- clearRoom(){this.queueBindingId=null;this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;this.establishedReadScope=null;this.generation++;this.pending=false;this.playback=null;this.queue=null;this.queuePending=false;this.queueError=false;this.rows.clear();this.queueControls.invalidate(true);this.host.liveControls?.invalidateMusic(undefined,false);}
+ clearRoom(){this.queueBindingId=null;this.recoveryAttempts=0;clearTimeout(this.freshnessTimer);this.freshnessTimer=null;this.queueReadRetry=null;this.establishedReadScope=null;this.generation++;this.pending=false;this.playback=null;this.queue=null;this.queuePending=false;this.queueError=false;this.rows.clear();this.queueControls.invalidate(true);resetQueuePresentation(this);this.host.liveControls?.invalidateMusic(undefined,false);}
  scheduleRecovery(){
   const host=this.host,snap=host.liveSnapshot,transport=host.liveTransport,generation=this.generation,account=this.account;
   const scope=JSON.stringify([snap?.bootId,snap?.roomId,snap?.capabilities?.musicRead]);
@@ -205,6 +211,11 @@ export class LiveMediaView{
   // Consume before dispatch; no timer, repeated poll or failed retry can rearm it.
   if(recovering)retry.used=true;
   else this.queueReadRetry=null;
+  // Not readable yet (no current room binding): wait, and read once it is allowed. The key stays unread.
+  if(queue.allowed&&!queue.allowed(this.account,this.playback)){
+   this.queueReadKey=null;this.observeQueuePresentation('not-allowed');return false;
+  }
+  this.observeQueuePresentation('read');
   this.queueReadKey=key;
   this.queueReadTransport=transport;
   const loaded=await queue.load(this.account,this.playback,{
@@ -257,25 +268,45 @@ export class LiveMediaView{
   // Settled answers show at once: rows, an authoritative empty queue, a choice outcome or an access rule.
   const settled=items.length>0||!readable||!admitted||elsewhere||['ready','unknown'].includes(status)||status==='error'&&errorKind==='choice'
    ||status==='stale'&&queue.retained?.items?.length===0&&!queue.retained.metadataPending;
-  if(settled){this.queueTroubleSince=null;clearTimeout(this.queueTroubleTimer);this.queueTroubleTimer=null;}
-  else{
-   this.queueTroubleSince??=Date.now();
-   const remaining=this.queueTroubleSince+QUEUE_TROUBLE_MS-Date.now();
-   if(remaining>0){
-    status='loading';empty='';errorKind=null;
-    if(!this.queueTroubleTimer){
-     this.queueTroubleTimer=setTimeout(()=>{this.queueTroubleTimer=null;if(this.host.isConnected)this.renderQueue();},remaining);
-     this.queueTroubleTimer.unref?.();
-    }
-   }else{
-    status='unavailable';errorKind=null;
-    // Known songs that have all played, or an unresolved autoplay queue: more songs are on the way.
-    empty=queue.previewPending||queue.retained?.items?.length>0?'Flere sange kommer…'
-     :QUEUE_UNAVAILABLE;
+  // A queue choice (pending or accepted) is an answer of its own, never a loading queue.
+  const event=['pending','accepted'].includes(status)?'choice':settled?(items.length?'rows':'empty')
+   :queue.previewPending?'preview':'pending';
+  const now=Date.now(),presentation=this.observeQueuePresentation(event,now);
+  if(!queueWaiting(presentation))this.clearQueueTrouble();
+  if(queueWaiting(presentation)){
+   const remaining=presentation.troubleSince+QUEUE_TROUBLE_MS-now;
+   status='loading';empty='';errorKind=null;
+   if(!this.queueTroubleTimer){
+    const run=presentation.run;
+    this.queueTroubleTimer=setTimeout(()=>{
+     this.queueTroubleTimer=null;
+     this.queuePresentation=queuePresentation(this.queuePresentation,{type:'trouble',run,at:Date.now()});
+     if(this.host.isConnected)this.renderQueue();
+    },Math.max(0,remaining));
+    this.queueTroubleTimer.unref?.();
    }
+  }else if(presentation.phase==='unavailable'){
+   status='unavailable';errorKind=null;
+   // Known songs that have all played, or an unresolved autoplay queue: more songs are on the way.
+   empty=queue.previewPending||queue.retained?.items?.length>0?'Flere sange kommer…'
+    :QUEUE_UNAVAILABLE;
   }
   this.host.playerView.renderQueue(items,{status,empty,errorKind,placeholders:status==='loading'});
  }
+
+ // The queue's presentation state for this room's current song; a new song or room starts a new run.
+ queuePresentationKey(){return JSON.stringify([this.account,this.playback?.item?.uri??null]);}
+ observeQueuePresentation(type,at=Date.now()){
+  const key=this.queuePresentationKey();
+  let s=this.queuePresentation??=newQueuePresentation(key);
+  if(s.key!==key){s=queuePresentation(s,{type:'reset',key});this.clearQueueTrouble();}
+  s=queuePresentation(s,{type,run:s.run,at});
+  s=queuePresentation(s,{type:'trouble',run:s.run,at});
+  this.queuePresentation=s;
+  this.queueTroubleSince=s.troubleSince;
+  return s;
+ }
+ clearQueueTrouble(){clearTimeout(this.queueTroubleTimer);this.queueTroubleTimer=null;}
 
  observedPlayerModel(){const p=roomObservationDisplay(this.playback,this.host.liveSnapshot,this.account)?this.playback:null;return livePlayerModel(p,!!this.host.liveTransport?.connected,(['connecting','connected'].includes(this.host.liveStatus)&&!this.host.liveSnapshot&&!this.playback)?'loading':this.readState,this.host.liveSnapshot,this.host.liveOutputs?.configuredLabel()||'',this.host.liveOutputs?.actualLabel?.(playbackBinding(p,this.host.liveSnapshot,this.account))||p?.actualTargetLabel||'');}
 
@@ -310,6 +341,6 @@ export class LiveMediaView{
   const confirmed=!!selected&&playerFeedback?.settlementStatus==='confirmed';
   this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{target:pendingChoice,targetPending:true}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:confirmed,fresh:true,loading:!confirmed,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:model.canOutput,feedback:null}:{})});
   if(!this.host.liveControls)this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true});
-  this.renderQueue();this.host.liveControls?.render();if(selected)this.host.playerView.renderControls({playing:confirmed,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
+  this.renderQueue();if(this.host.liveControls)this.host.liveControls.render();else if(selected)this.host.playerView.renderControls({playing:confirmed,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
  }
 }

@@ -2767,6 +2767,12 @@ class VoicePELink:
                 self._revoke_live_admission()
             self._reply_phase = outcome
             self._reply_stopped.set()
+            # A stopped or faulted reply has ended just like a finished one: clear the
+            # announcing flag and emit the same single falling edge.
+            was_announcing = self._announcing
+            self._announcing = False
+            if was_announcing and self.on_media_state:
+                self._run_cb(self.on_media_state, False, self._reply_id)
             if outcome == "fault" and self.on_event and self._reply_id is not None:
                 self._run_cb(
                     self.on_event,

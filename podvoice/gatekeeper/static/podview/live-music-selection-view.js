@@ -2,6 +2,7 @@ import {applyKitComponent,applyKitDialog} from './ui/kit.js';
 import {observationFresh,mediaRoomBinding,playbackBinding,roomObservationCurrent,waitForMusicLane}
  from './media-observation.js';
 import {sourceMusicCards} from './music-results.js';
+import {controlsBlocked,musicSessionFromFeedback} from './music-session-model.js';
 import {NO_ACCESS} from './live-media-view.js';
 import {selectionRequestTargets,searchSample,selectionCurrent,selectionOffer,collectionCurrent,collectionCardIndex} from './music-selection-model.js';
 const LANE_WAITING = 'Dit valg sendes, når den igangværende handling er færdig.';
@@ -274,6 +275,19 @@ export class LiveMusicSelectionView{
    if(feedback.displayObserved||!Number.isFinite(feedback.requestedAt)||feedback.displayExpired||['rejected','superseded'].includes(feedback.settlementStatus)||this.selectionItemObserved(this.host.liveMedia?.playback,feedback,track.uri))return null;
   }else if(!(feedback.pending||feedback.awaitingObservation))return null;
   return {title:track.name||track.title||'',artist:track.artist||'',uri:track.uri,artwork:track.artwork,themeArt:/^spotify:playlist:/.test(track.uri)?sourceMusicCards([track],this.collectionEntry?.kind||this.host.liveCatalogue?.selected)[0]?.themeArt:null,themeId:track.themeId,target:feedback.destination?.name||this.host.liveOutputs?.nextDestinationLabel?.()||this.offer?.target?.name||this.host.liveOutputs?.configuredLabel?.()||'Højttaleren i rummet'};
+ }
+ // The chosen song's session phase; only a request on its way holds the player's buttons (one owner:
+ // RoomPlayerControls asks here). A confirmed settlement gives them back even before Spotify names the song.
+ session(feedback=this.playerFeedback()){
+  return musicSessionFromFeedback(feedback,{observed:!!feedback&&feedback.outcome==='accepted'
+   &&this.selectionItemObserved(this.host.liveMedia?.playback,feedback)});
+ }
+ controlHold(){
+  const feedback=this.playerFeedback();
+  if(!this.pendingPlayer(feedback))return null;
+  const session=this.session(feedback);
+  return {blocked:controlsBlocked(session),playing:session.phase==='confirmed'||session.phase==='playing',
+   phase:session.phase};
  }
  selectionItemObserved(playback,feedback,uri=feedback.uri){
   if(!roomObservationCurrent(playback,this.host.liveSnapshot)||!['playing','paused'].includes(playback.state)||playback.config_entry_id!==feedback.accountId||playback.target&&playback.target.id!==feedback.targetId)return false;

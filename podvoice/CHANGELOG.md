@@ -1,3 +1,11 @@
+## 2.1.3
+
+- Afspilleren: play/pause låses ikke længere i op til 30 sekunder, når sangen allerede spiller, og køen bliver ikke hængende i indlæsning.
+- Højttalere låses kun af musik (ikke af søgning, robot eller lys) og viser den rigtige grund, når en højttaler ikke kan vælges.
+- Forbindelsen: en adgangsspærring glemmes ikke ved genstart, og »forbundet« vises ikke, mens forbindelsen genoprettes. Radioen bliver ikke »ukendt« af en stemmekommando.
+- Timer har »Start igen« på en færdig timer; forsiden viser »+N«, når der er flere robotter eller lys end pladser.
+- Svar viser »↑ 1 nyt svar«; Lys viser »Status ukendt« og en infolinje, når lysene ikke kan hentes.
+
 ## 2.1.2
 
 - Radio virker igen: stationerne står i samme rækkefølge som PodConnect sender dem (P3 først). Ændringen af rækkefølgen i 2.1.1 gjorde radioen utilgængelig.

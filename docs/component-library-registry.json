@@ -167,7 +167,7 @@
       ],
       "variants": [
         "Stemning",
-        "Hum\u00f8r",
+        "Humør",
         "Topsange",
         "Senest"
       ],
@@ -771,7 +771,8 @@
           "function:historyObservation": 1,
           "function:orderHomeDevices": 1,
           "function:scopedLightDevice": 1,
-          "function:validateHome": 1
+          "function:validateHome": 1,
+          "function:overviewGroupOverflow": 1
         },
         "roots": [],
         "registrations": {},
@@ -1085,7 +1086,8 @@
       "imports": [
         "dist/live-queue-view.js",
         "dist/media-observation.js",
-        "dist/player-view.js"
+        "dist/player-view.js",
+        "dist/queue-presentation-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1110,7 +1112,11 @@
           "arrow:readKey": 1,
           "method:observedPlayerModel": 1,
           "function:pauseExpired": 1,
-          "arrow:schedule": 1
+          "arrow:schedule": 1,
+          "function:resetQueuePresentation": 1,
+          "method:clearQueueTrouble": 1,
+          "method:observeQueuePresentation": 1,
+          "method:queuePresentationKey": 1
         },
         "roots": [],
         "registrations": {},
@@ -1144,7 +1150,8 @@
         "dist/music-results.js",
         "dist/music-selection-model.js",
         "dist/ui/kit.js",
-        "dist/live-media-view.js"
+        "dist/live-media-view.js",
+        "dist/music-session-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1190,7 +1197,9 @@
           "method:showTracks": 1,
           "method:targetReadScope": 1,
           "method:settlementReceipt": 1,
-          "method:waitForSelectionLane": 1
+          "method:waitForSelectionLane": 1,
+          "method:controlHold": 1,
+          "method:session": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -1415,7 +1424,7 @@
       "requiredCalls": [
         "row\\.append\\(\\s*art\\s*,\\s*copy\\s*,\\s*feedback\\s*,\\s*play\\s*\\)"
       ],
-      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Forts\u00e6t, Stemning/Hum\u00f8r, and actual Senest/Topsange fixtures; no invented library or live authority.",
+      "reviewedDiscoveryComposition": "User-approved v31: existing result cards grouped into Fortsæt, Stemning/Humør, and actual Senest/Topsange fixtures; no invented library or live authority.",
       "reviewedField87Source": "Same existing card anatomy. Preserve closed generated themeArt for mood as editorial illustration, retain exact source identity, remove duplicate generic Spotify caption; one finite content-only loading cue plus existing replacement fade. No new family or action grant. Actual render review is separate."
     },
     "dist/music-recommendation-model.js": {
@@ -1509,7 +1518,11 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:$": 1,
+          "arrow:autoSourceFocus": 1,
           "arrow:fixtureArt": 1,
+          "arrow:format": 1,
+          "arrow:paint": 1,
+          "arrow:playerPreview": 1,
           "arrow:txt": 1,
           "class:PlayerView": 1,
           "function:livePlayerModel": 1,
@@ -1517,41 +1530,38 @@
           "function:localControlModel": 1,
           "function:localPlayerModel": 1,
           "function:localQueueModel": 1,
-          "function:renderPlayerControls": 1,
-          "method:artwork": 1,
-          "method:createRow": 1,
-          "method:renderControls": 1,
-          "method:renderPlayer": 1,
           "function:placeOutputHeader": 1,
-          "method:cleanup": 1,
+          "function:renderPlayerControls": 1,
           "function:renderPlayerProgress": 1,
-          "arrow:format": 1,
-          "arrow:playerPreview": 1,
-          "method:volumeBinding": 1,
-          "method:syncVolumeMute": 1,
-          "method:toggleVolumeMute": 1,
-          "method:updateCoverTone": 1,
-          "method:resume": 1,
-          "method:renderLiveProgress": 1,
+          "method:artwork": 1,
           "method:beginSourceFocus": 1,
+          "method:beginVolumeGesture": 1,
+          "method:bindVolumeInput": 1,
+          "method:chooseSpeaker": 1,
+          "method:cleanup": 1,
+          "method:commitVolumeInput": 1,
+          "method:createRow": 1,
+          "method:currentSourceFocus": 1,
           "method:finishSourceFocus": 1,
           "method:focusSource": 1,
+          "method:playerSpeaker": 1,
           "method:radioHistorySuperseded": 1,
+          "method:renderControls": 1,
+          "method:renderLiveProgress": 1,
+          "method:renderPlayer": 1,
           "method:renderRadioProgress": 1,
+          "method:renderTimeline": 1,
+          "method:resume": 1,
+          "method:sameSeek": 1,
+          "method:seekState": 1,
           "method:sourceFocused": 1,
           "method:sourceModel": 1,
           "method:sourceScope": 1,
-          "method:chooseSpeaker": 1,
-          "method:playerSpeaker": 1,
-          "method:bindVolumeInput": 1,
-          "method:beginVolumeGesture": 1,
-          "method:volumeGestureCurrent": 1,
-          "method:commitVolumeInput": 1,
-          "arrow:paint": 1,
-          "method:renderTimeline": 1,
-          "method:sameSeek": 1,
-          "method:seekState": 1,
-          "function:playbackPlacement": 1
+          "method:syncVolumeMute": 1,
+          "method:toggleVolumeMute": 1,
+          "method:updateCoverTone": 1,
+          "method:volumeBinding": 1,
+          "method:volumeGestureCurrent": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"
@@ -1569,7 +1579,8 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/request-deadline.js"
+        "dist/request-deadline.js",
+        "dist/connection-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2076,7 +2087,8 @@
           "method:renderTimerActions": 1,
           "method:createHeaderTimer": 1,
           "method:renderHeaderTimer": 1,
-          "method:renderRecent": 1
+          "method:renderRecent": 1,
+          "method:renderRestart": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -2098,7 +2110,8 @@
           "html:div:timer-open",
           "native:button:header-timer",
           "html:div:timer-recent-list",
-          "native:button:timer-recent-choice"
+          "native:button:timer-recent-choice",
+          "html:button:timer-restart"
         ],
         "registrations": {},
         "customTags": [
@@ -2832,25 +2845,32 @@
           "updateResourceTile": 2
         },
         "definitions": {
-          "method:recipeArrivals": 1,
-          "method:showRecipeArrivals": 1,
-          "arrow:currentObservation": 1,
-          "arrow:observedArea": 1,
           "arrow:$": 1,
           "arrow:cancel": 1,
           "arrow:commit": 1,
           "arrow:current": 4,
+          "arrow:currentObservation": 1,
           "arrow:fixture": 1,
+          "arrow:free": 1,
+          "arrow:observedArea": 1,
           "arrow:outside": 1,
           "arrow:paint": 1,
+          "arrow:reopen": 1,
           "arrow:result": 1,
           "arrow:send": 1,
+          "arrow:taskCurrent": 1,
+          "arrow:update": 1,
+          "arrow:visible": 1,
           "class:WidgetHost": 1,
+          "function:deferForGesture": 1,
+          "function:renderRecipeStepBar": 1,
           "method:alignClock": 1,
           "method:alignOverview": 1,
           "method:applyConversationPreview": 1,
+          "method:browserOffline": 2,
           "method:build": 1,
           "method:buildScreenSettings": 1,
+          "method:cancel": 1,
           "method:cleanup": 1,
           "method:closeLightDetail": 1,
           "method:connectGestures": 1,
@@ -2858,22 +2878,24 @@
           "method:connectedCallback": 1,
           "method:currentLightDevice": 1,
           "method:customize": 1,
+          "method:deferConnecting": 1,
           "method:disconnectedCallback": 1,
           "method:dispatch": 1,
+          "method:feedbackGeometry": 1,
           "method:focusHeading": 1,
           "method:invalidateLiveMusic": 1,
           "method:lightAreaContext": 1,
+          "method:lightLocalFeedback": 1,
           "method:liveMusicAccountChanged": 1,
-          "method:loadLiveHome": 1,
-          "method:deferConnecting": 1,
           "method:loadLiveMusic": 1,
           "method:music": 1,
+          "method:onLightActionStatus": 1,
           "method:open": 1,
           "method:openLightDetail": 1,
           "method:openLiveLightControl": 1,
           "method:openOverviewRobot": 1,
           "method:openScreenSettings": 1,
-          "method:readLightArea": 1,
+          "method:recipeArrivals": 1,
           "method:reconcileLiveTimer": 1,
           "method:refreshLightArea": 1,
           "method:render": 1,
@@ -2881,6 +2903,8 @@
           "method:renderHeaderTitle": 1,
           "method:renderLightAdjustments": 1,
           "method:renderLightDetail": 1,
+          "method:renderLightScenes": 1,
+          "method:renderLightStatus": 1,
           "method:renderLive": 1,
           "method:renderLiveLightControl": 1,
           "method:renderOverviewAction": 1,
@@ -2888,38 +2912,27 @@
           "method:renderOverviewMediaCards": 1,
           "method:renderResourceRail": 1,
           "method:renderScreenSettings": 1,
+          "method:renderSvarDevice": 1,
+          "method:renderSvarToday": 1,
           "method:renderTopbar": 1,
           "method:renderTopbarClock": 1,
           "method:renderTopbarScroll": 1,
           "method:renderVoice": 1,
+          "method:restoreAfterAnswer": 1,
           "method:schedule": 1,
           "method:scheduleAnswer": 1,
           "method:scheduleClock": 1,
           "method:scheduleDevices": 1,
+          "method:scheduleFeedbackGeometry": 1,
           "method:scheduleReceipt": 1,
           "method:scheduleTick": 1,
           "method:sendLiveTimer": 1,
+          "method:showRecipeArrivals": 1,
+          "method:suspendForAnswer": 1,
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
-          "method:renderLightScenes": 1,
-          "method:restoreAfterAnswer": 1,
-          "method:suspendForAnswer": 1,
-          "arrow:reopen": 1,
-          "arrow:taskCurrent": 1,
-          "method:onLightActionStatus": 1,
-          "method:lightLocalFeedback": 1,
-          "method:renderLightStatus": 1,
-          "arrow:update": 1,
-          "method:feedbackGeometry": 1,
-          "method:scheduleFeedbackGeometry": 1,
           "method:updateHomeRevision": 1,
-          "method:cancel": 1,
-          "arrow:free": 1,
-          "arrow:visible": 1,
-          "method:renderSvarDevice": 1,
-          "function:deferForGesture": 1,
-          "function:renderRecipeStepBar": 1,
-          "method:renderSvarToday": 1
+          "method:renderOverviewOverflow": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -2936,7 +2949,8 @@
           "native:button:light-control-refresh",
           "native:div:light-brightness light-lamp-row",
           "native:div:light-scene-choices",
-          "native:section:light-scenes"
+          "native:section:light-scenes",
+          "native:button:overview-more"
         ],
         "registrations": {
           "'pv-widget-host'": 1
@@ -2992,7 +3006,9 @@
           "arrow:text": 1,
           "class:SpeakerOutputView": 1,
           "function:configuredSpeakerLabel": 1,
+          "function:musicBusy": 1,
           "function:speakerCatalogue": 1,
+          "function:speakerRowState": 1,
           "method:actualLabel": 1,
           "method:armExpiry": 1,
           "method:cleanup": 1,
@@ -3533,7 +3549,8 @@
       "factoryClassArgument": 1,
       "imports": [
         "dist/media-observation.js",
-        "dist/player-view.js"
+        "dist/player-view.js",
+        "dist/music-session-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -3554,7 +3571,8 @@
           "method:observe": 1,
           "method:invalidate": 1,
           "method:render": 1,
-          "method:moving": 1
+          "method:moving": 1,
+          "method:expireWish": 1
         },
         "roots": [],
         "registrations": {},
@@ -3566,7 +3584,7 @@
     "dist/svar-today-view.js": {
       "status": "approved-renderer",
       "domOwner": "SvarTodayView",
-      "compositionScope": "L\u00e6rred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority.",
+      "compositionScope": "L\u00e6rred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill \u2191 1 nyt svar; tapping it opens the newest answer through the same history row.",
       "factoryClassArgument": 1,
       "imports": [
         "dist/answer-widget.js"
@@ -3576,18 +3594,88 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:sameDay": 1,
+          "arrow:svarNewLabel": 1,
           "class:SvarTodayView": 1,
           "function:svarTodayRows": 1,
+          "function:svarUnseenCount": 1,
+          "method:atTop": 1,
           "method:constructor": 1,
-          "method:render": 1
+          "method:jumpToNewest": 1,
+          "method:render": 1,
+          "method:updateNewer": 1
         },
         "roots": [
+          "native:button:svar-today-new",
           "native:button:svar-today-row"
         ],
         "registrations": {},
         "customTags": [],
         "dom": true
       }
+    },
+    "dist/connection-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:canAct": 1,
+          "arrow:connectionBlocked": 1,
+          "arrow:connectionSessionExpired": 1,
+          "arrow:newConnection": 1,
+          "function:connectionPhase": 1,
+          "function:connectionStep": 1,
+          "function:liveStatusOf": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/music-session-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:controlsBlocked": 1,
+          "arrow:newMusicSession": 1,
+          "arrow:step": 1,
+          "function:musicSession": 1,
+          "function:musicSessionFromFeedback": 1,
+          "function:playbackFreshness": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Pure music-session reducer (phase, run token) for one chosen song: only requesting/accepted hold the player buttons; playback freshness normalisation. No DOM, renderer, network or command authority."
+    },
+    "dist/queue-presentation-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:newQueuePresentation": 1,
+          "arrow:queueWaiting": 1,
+          "arrow:wait": 1,
+          "function:queuePresentation": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Pure queue-presentation reducer (phase, run token, trouble window) for the existing queue owner. No DOM, renderer, network or command authority."
     }
   },
   "sharedContracts": [
@@ -3677,11 +3765,11 @@
       "decisionSource": "docs/USER-DECISIONS-2026-10-16.md",
       "scope": "Extend existing canonical identities only; visual direction1 is selected for improvement, previous visual styling is not newly approved.",
       "variants": [
-        "Header Svar \u2192 vejr \u2192 ur, grouped right: header-history/header-left/header-navigation.",
+        "Header Svar → vejr → ur, grouped right: header-history/header-left/header-navigation.",
         "Visual history gallery: retained-answer article, inert history-preview containing pv-answer and history-open same-answer button. Empty history uses existing pv-inline-status.",
         "Robot observations and separately labelled requests reuse pv-activity-timeline; care/settings stay in existing details disclosure.",
         "Ten local QA formats reuse existing answer renderers; preview-scenes imports existing visual-examples. Normal/live history is not seeded.",
-        "Music tabs Stemning \u00b7 Hum\u00f8r \u00b7 Topsange \u00b7 Senest; no Likede promotion."
+        "Music tabs Stemning · Humør · Topsange · Senest; no Likede promotion."
       ]
     },
     {

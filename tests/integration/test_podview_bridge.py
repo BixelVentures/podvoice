@@ -1483,3 +1483,64 @@ async def test_exact_cancel_preempts_held_native_adjust_without_waiting_or_repla
     assert effects == ["adjust", "cancel"]
     assert await bridge.action(cancel, token) == receipt
     assert effects == ["adjust", "cancel"]
+
+
+def _finished_timer_bridge(stop_ok=True):
+    session, timers = owner()
+    timers.snapshots["kitchen"]["timers"] = []
+    timers.snapshots["kitchen"]["finished"] = [
+        {
+            "id": "done-1",
+            "name": "Pasta",
+            "seconds_left": 0,
+            "duration_seconds": 600,
+            "revision": "4",
+            "state": "finished",
+        }
+    ]
+    calls = []
+
+    async def dispatch(name, args, room, session_id, request_id, execution_guard=None):
+        calls.append((name, args, request_id))
+        if name == "podvoice_cancel_timer":
+            return {"ok": stop_ok}
+        return {"ok": True, "id": "created-timer"}
+
+    timers.dispatch = AsyncMock(side_effect=dispatch)
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    body = {**envelope(bridge), "action": "timer.restart", "args": {"timer_id": "done-1"}}
+    return bridge, token, body, calls
+
+
+async def test_restart_stops_finished_alarm_and_starts_same_duration_and_label():
+    bridge, token, body, calls = _finished_timer_bridge()
+    result = await bridge.action(body, token)
+    assert result["ok"] is True and result["outcome"] == "accepted"
+    assert result["timerId"] == "created-timer"
+    assert result["physicalResultVerified"] is False
+    assert [(name, args) for name, args, _ in calls] == [
+        ("podvoice_cancel_timer", {"timer_id": "done-1"}),
+        ("podvoice_start_timer", {"seconds": 600, "name": "Pasta"}),
+    ]
+    assert await bridge.action(body, token) == result
+    assert len(calls) == 2
+
+
+async def test_restart_is_unknown_when_alarm_stop_fails_and_never_starts():
+    bridge, token, body, calls = _finished_timer_bridge(stop_ok=False)
+    result = await bridge.action(body, token)
+    assert result["ok"] is False and result["outcome"] == "unknown"
+    assert [name for name, _, _ in calls] == ["podvoice_cancel_timer"]
+
+
+async def test_restart_only_applies_to_a_finished_timer_with_known_duration():
+    session, _timers = owner()
+    bridge = PodViewBridge({"kitchen": session})
+    token = bridge.grant_timer_control("kitchen")
+    running = {**envelope(bridge), "action": "timer.restart", "args": {"timer_id": "t1"}}
+    assert (await bridge.action(running, token))["error"] == "unsupported_action"
+    bridge, token, body, calls = _finished_timer_bridge()
+    forged = {**body, "args": {"timer_id": "done-1", "seconds": 5}}
+    assert (await bridge.action(forged, token))["error"] == "unsupported_action"
+    assert not calls

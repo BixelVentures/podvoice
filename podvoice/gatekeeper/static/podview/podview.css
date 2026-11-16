@@ -2817,7 +2817,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  #queue>.queue-track[data-placeholder=true]::before{animation:none}
 }
 
-/* Source: ui-kit.css · SHA256 28c8f697f202d405b988133af5e5611b07f1a4f9c7bc8603a1489317dbeee833 */
+/* Source: ui-kit.css · SHA256 c75d1cf8d5087ac3102a7b8162ea40338e46456d644daa427ff992d6297fc349 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5692,6 +5692,13 @@ body button:not(.is-pressed){transition-property:filter!important}
   grid-column:3!important;grid-row:3!important}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>#timer-card{
   grid-column:4!important;grid-row:3!important;padding:0;background:transparent}
+ /* One slot per group: a second robot or light is not a 0-px card; its group's card says »+N«. */
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  .resource-card[data-overview-extra=true]{display:none!important}
+ pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
+  .resource-card>.overview-more:not([hidden]){position:absolute;z-index:3;top:18px;right:48px;height:32px;
+  min-width:44px;padding:0 12px;margin:0;border:0;border-radius:999px;background:var(--pv-ink);color:#F7F6F3;
+  box-shadow:none;font:500 15px/1 'IBM Plex Mono',ui-monospace,monospace;letter-spacing:-0.02em;cursor:pointer}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>
   :is(#timer-card,.resource-card)>:not([hidden]){box-sizing:border-box;height:100%;min-height:0;max-height:none}
 
@@ -7266,6 +7273,15 @@ body button:not(.is-pressed){transition-property:filter!important}
    grid-template-columns:repeat(2,minmax(0,1fr))!important;grid-auto-rows:128px!important;gap:16px!important;
    min-height:0!important;overflow:visible!important;margin:0 0 32px!important;padding:0!important}
  pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-list[hidden]{display:none!important}
+ /* Lys-Ukendt (lærred »A-Lys«, state ukendt): compact info line under the rooms, K-Notice compact/info. */
+ pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-notice:not([hidden]){order:1;
+   display:inline-flex!important;align-self:flex-start;align-items:center;gap:10px;height:40px;max-width:744px;
+   margin:-8px 0 32px!important;padding:0 14px 0 8px;box-sizing:border-box;border-radius:12px;background:#E2E0DB;
+   color:#3F3E3B;font:800 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;overflow:hidden}
+ pv-widget-host #device-view#device-view#device-view .light-room-notice>i{flex:none;display:flex;align-items:center;
+   justify-content:center;width:24px;height:24px;border-radius:50%;background:#7A7873;color:#FFFFFF;
+   font:800 14px/1 'Schibsted Grotesk',system-ui,sans-serif;font-style:normal}
+ pv-widget-host #device-view#device-view#device-view .light-room-notice>span{overflow:hidden;text-overflow:ellipsis}
  pv-widget-host #device-view#device-view#device-view .light-room-row{display:block!important;height:128px!important;
    min-height:0!important;padding:0!important;border:0!important;border-radius:24px!important;background:none!important}
  pv-widget-host #device-view#device-view#device-view .light-room-row>.light-room-power{position:relative!important;
@@ -8184,6 +8200,12 @@ body button:not(.is-pressed){transition-property:filter!important}
   left:560px}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel[data-status=done]>.timer-finish{
   background:var(--pv-timer-coral)!important;color:var(--pv-ink)!important}
+ /* Lærred »Timer-faerdig«: the 300-px action column wraps »Start igen · 10 min« under »Stop alarm«. */
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:not([hidden]){
+  position:absolute;z-index:1;left:412px;top:calc(50% + 108px);height:56px;min-height:56px;width:auto;
+  padding:0 24px;margin:0;border-radius:999px;border:0;box-shadow:none;background:var(--pv-timer-dark-2);
+  color:#F7F6F3;font:600 17px/1 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;cursor:pointer}
+ pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-restart:disabled{opacity:.45}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel
   .timer-copy>strong:not([hidden]){display:block!important}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button.timer-adjust
@@ -8567,7 +8589,11 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   overflow:hidden;text-overflow:ellipsis}
  #svar-today .svar-today-copy>small{font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
  #svar-today .svar-today-row>time{font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
+ /* »↑ 1 nyt svar« (lærred »SvarK-Historik«): a 44-px dark pill between the header and the list. */
+ #svar-today>.svar-today-new{flex:none;height:44px;margin:0;padding:0 16px;border:0;border-radius:999px;
+  background:#17171A;color:#F7F6F3;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;cursor:pointer}
 
+#svar-today>.svar-today-new[hidden]{display:none!important}
 
 /* SvarK-Fakta: the facts stand as three white tiles in a row (radius 20, padding 20): label 15/600, the value in
    56 mono (a word-value in 32/800 so the answer's own text fits), the detail 15. Actions are the board's 56-high
