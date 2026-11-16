@@ -53,7 +53,8 @@ async def test_stopped_word_replaces_a_lost_detection_and_never_finishes_normall
     status(device, token, "stopped_word")
     status(device, token, "finished")
     assert [e.event_type for e in events] == ["wake_stop"]
-    assert playback == [(True, "p1")]
+    # The stop itself emits the single falling edge; the late "finished" adds nothing.
+    assert playback == [(True, "p1"), (False, "p1")]
 
 
 async def test_late_token_cannot_stop_next_playback():
