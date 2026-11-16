@@ -1086,7 +1086,8 @@
       "imports": [
         "dist/live-queue-view.js",
         "dist/media-observation.js",
-        "dist/player-view.js"
+        "dist/player-view.js",
+        "dist/queue-presentation-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1111,7 +1112,11 @@
           "arrow:readKey": 1,
           "method:observedPlayerModel": 1,
           "function:pauseExpired": 1,
-          "arrow:schedule": 1
+          "arrow:schedule": 1,
+          "function:resetQueuePresentation": 1,
+          "method:clearQueueTrouble": 1,
+          "method:observeQueuePresentation": 1,
+          "method:queuePresentationKey": 1
         },
         "roots": [],
         "registrations": {},
@@ -1145,7 +1150,8 @@
         "dist/music-results.js",
         "dist/music-selection-model.js",
         "dist/ui/kit.js",
-        "dist/live-media-view.js"
+        "dist/live-media-view.js",
+        "dist/music-session-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -1191,7 +1197,9 @@
           "method:showTracks": 1,
           "method:targetReadScope": 1,
           "method:settlementReceipt": 1,
-          "method:waitForSelectionLane": 1
+          "method:waitForSelectionLane": 1,
+          "method:controlHold": 1,
+          "method:session": 1
         },
         "roots": [
           "factory:button:'pv-button pv-ghost'",
@@ -3539,7 +3547,8 @@
       "factoryClassArgument": 1,
       "imports": [
         "dist/media-observation.js",
-        "dist/player-view.js"
+        "dist/player-view.js",
+        "dist/music-session-model.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -3560,7 +3569,8 @@
           "method:observe": 1,
           "method:invalidate": 1,
           "method:render": 1,
-          "method:moving": 1
+          "method:moving": 1,
+          "method:expireWish": 1
         },
         "roots": [],
         "registrations": {},
@@ -3622,6 +3632,48 @@
         "customTags": [],
         "dom": false
       }
+    },
+    "dist/music-session-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:controlsBlocked": 1,
+          "arrow:newMusicSession": 1,
+          "arrow:step": 1,
+          "function:musicSession": 1,
+          "function:musicSessionFromFeedback": 1,
+          "function:playbackFreshness": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Pure music-session reducer (phase, run token) for one chosen song: only requesting/accepted hold the player buttons; playback freshness normalisation. No DOM, renderer, network or command authority."
+    },
+    "dist/queue-presentation-model.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:newQueuePresentation": 1,
+          "arrow:queueWaiting": 1,
+          "arrow:wait": 1,
+          "function:queuePresentation": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "compositionScope": "Pure queue-presentation reducer (phase, run token, trouble window) for the existing queue owner. No DOM, renderer, network or command authority."
     }
   },
   "sharedContracts": [

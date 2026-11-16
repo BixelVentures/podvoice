@@ -1,5 +1,6 @@
 import {roomObservationDisplay} from './media-observation.js';
 import {renderPlayerControls} from './player-view.js';
+import {playbackFreshness} from './music-session-model.js';
 const RUNNING_RING_MS=800;
 
 // The player's buttons: each tap is one direct call to the room's media_player (via PodVoice).
@@ -23,8 +24,9 @@ export class RoomPlayerControls{
   return p?JSON.stringify([p.bootId,p.roomId,p.config_entry_id,this.host.liveTransport?.generation??null]):null;
  }
  can(action,p=this.playback()){
-  // A room that could not be read is shown as last known, never controlled.
-  return !!p&&p.stale!==true&&this.host.liveTransport?.connected===true&&p.controls.actions.includes(action);
+  // A room that could not be read (stale or a transient read failure) is shown as last known, never controlled.
+  return !!p&&playbackFreshness(p)==='fresh'&&this.host.liveTransport?.connected===true
+   &&p.controls.actions.includes(action);
  }
  wish(p=this.playback()){
   const d=this.desired;
@@ -71,7 +73,7 @@ export class RoomPlayerControls{
   if(action==='seek')wish.seek={uri:p.item?.uri,positionMs:value};
   if(action==='next'||action==='previous')delete wish.seek;
   if(action==='move_here')wish.moving=true;
-  this.desired=wish;this.status='';this.failed=null;
+  this.desired=wish;this.status='';this.failed=null;this.expireWish(wish);
   // An absolute value replaces the one still waiting; every toggle/skip tap is its own action.
   if(action==='volume'||action==='seek')this.queue=this.queue.filter(row=>row.action!==action);
   let done;const promise=new Promise(resolve=>done=resolve);
@@ -138,17 +140,32 @@ export class RoomPlayerControls{
    &&(!Number.isInteger(d.volume)||next.volume===d.volume)&&seekReached;
   if(reached||Date.now()-d.at>(d.moving?MOVE_MS:OPTIMISTIC_MS))this.desired=null;
  }
+ // The optimistic wish is cleared when its time runs out, also when no room read arrives.
+ expireWish(wish){
+  clearTimeout(this.wishTimer);
+  this.wishTimer=setTimeout(()=>{
+   this.wishTimer=null;
+   if(this.desired!==wish)return;
+   if(this.busy()){this.expireWish(wish);return;}
+   this.desired=null;this.render();this.host.liveMedia?.render?.();
+  },wish.moving?MOVE_MS:OPTIMISTIC_MS);
+  this.wishTimer.unref?.();
+ }
  invalidate(){
+  clearTimeout(this.wishTimer);this.wishTimer=null;
   for(const row of this.queue)row.done(false);
   this.queue=[];this.desired=null;this.status='';this.observing=[];
  }
  render(){
-  const p=this.playback(),playing=!!p&&this.optimisticPlaying(p.state==='playing');
+  // The only owner of the player's buttons. A chosen song on its way holds them (requesting/accepted);
+  // its confirmed settlement gives them back while the chosen song is still shown as playing.
+  const hold=this.host.liveSelection?.controlHold?.()??null,held=hold?.blocked===true;
+  const p=this.playback(),playing=hold?hold.playing:!!p&&this.optimisticPlaying(p.state==='playing');
   const toggle=playing?'pause':'resume',has=action=>this.can(action,p);
-  const volume=this.volume(p),canVolume=has('volume')&&Number.isInteger(volume);
+  const volume=held?null:this.volume(p),canVolume=!held&&has('volume')&&Number.isInteger(volume);
   renderPlayerControls(this.host,{
    playing,previous:has('previous'),next:has('next'),toggle:has(toggle),
-   blocked:!p,volumeBlocked:!p,volume,canVolume,min:0,max:p?.controls.maxVolume??100,
+   blocked:!p||held,volumeBlocked:!p||held,volume,canVolume,min:0,max:p?.controls.maxVolume??100,
    gesture:this.host.liveControls?.musicVolumeGesture,
   });
   // A running call shows on its button; the buttons stay usable and further taps queue.
@@ -168,6 +185,6 @@ export class RoomPlayerControls{
    const node=document.getElementById(id),busy=String(running==='volume');
    if(node&&node.getAttribute('aria-busy')!==busy)node.setAttribute('aria-busy',busy);
   }
-  return {transport:has('pause')||has('resume')||has('next')||has('previous'),canVolume};
+  return {transport:!held&&(has('pause')||has('resume')||has('next')||has('previous')),canVolume};
  }
 }
