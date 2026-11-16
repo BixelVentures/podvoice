@@ -46,7 +46,8 @@ async function openOverview(surface){
  // Ro -> overview moves the player on the smooth spring (docs/MOTION.md §3.2, 661 ms); measure after it lands.
  for(let n=0;n<60;n++){
   const moving=await host.evaluate(h=>h.ownerDocument.getAnimations().some(a=>a.playState==='running'&&
-   a.effect?.getTiming?.().iterations!==Infinity&&a.effect?.target?.closest?.('.player,.player-empty,#now-view')));
+   a.effect?.getTiming?.().iterations!==Infinity&&a.transitionProperty!=='stroke-dasharray'&&
+   a.effect?.target?.closest?.('.player,.player-empty,#now-view')));
   if(!moving)break;await new Promise(resolve=>setTimeout(resolve,50));
  }
  console.log('overviewTouch',JSON.stringify({initialNight:initial.night,taps:initial.night==='true'?2:1}));
