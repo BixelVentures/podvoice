@@ -567,9 +567,12 @@ export class LiveControlView{
   }
   if(recipeId===undefined&&this.expiredRobot){if(d.id===this.target?.entityId&&this.expiredRobot.target===JSON.stringify({entityId:d.id})){this.robotInline=true;this.mountRobotInline();if(this.canRefreshRobot()){await this.refreshRobot();return;}if(this.robotOfflineDraftCurrent(this.expiredRobot))return;}this.clearRobotRefresh();}
   // A journal ID only asks the existing source owner for a validated, editable offer.
+  // The last accepted start is only preselected. A dock report (full dirty-water tank) or dock work
+  // (washing, drying) does not hide it; Start still goes to HA, which accepts or refuses (S13).
   // No stored labels, service values or old opaque choice IDs become command authority.
-  const now=Date.now()/1000,experience=robotExperience(d),idle=experience.jobActive!==true&&!experience.issues.length&&(experience.activity===null||['Oplader','Opladet'].includes(experience.activity)),fresh=Number.isFinite(d.observedAt)&&d.observedAt<=now&&now-d.observedAt<=300,existing=this.target?.entityId===d.id?this.robotPanel:null;
-  const previous=recipeId===undefined&&!this.storedRobotDraft({entityId:d.id})&&['docked','stopped'].includes(d.status)&&idle&&fresh&&!existing?.cleaningDirty&&!existing?.value?.selectedAreaId&&!existing?.value?.task?.historyDraft&&d.history?.status==='observed'&&Array.isArray(d.history.items)&&d.history.items.length<=3?d.history.items.filter(row=>/^[a-f0-9]{32}$/.test(row.id)&&row.outcome==='accepted_by_ha'&&Number.isFinite(row.recordedAt)&&row.recordedAt>=0&&row.recordedAt<=now).sort((a,b)=>b.recordedAt-a.recordedAt)[0]:null;
+  const now=Date.now()/1000,experience=robotExperience(d),idle=experience.jobActive!==true,fresh=Number.isFinite(d.observedAt)&&d.observedAt<=now&&now-d.observedAt<=300,existing=this.target?.entityId===d.id?this.robotPanel:null;
+  const previous=recipeId===undefined&&!this.storedRobotDraft({entityId:d.id})&&
+   !this.storedRobotLastSetup({entityId:d.id})&&['docked','stopped'].includes(d.status)&&idle&&fresh&&!existing?.cleaningDirty&&!existing?.value?.selectedAreaId&&!existing?.value?.task?.historyDraft&&d.history?.status==='observed'&&Array.isArray(d.history.items)&&d.history.items.length<=3?d.history.items.filter(row=>/^[a-f0-9]{32}$/.test(row.id)&&row.outcome==='accepted_by_ha'&&Number.isFinite(row.recordedAt)&&row.recordedAt>=0&&row.recordedAt<=now).sort((a,b)=>b.recordedAt-a.recordedAt)[0]:null;
   this.robotInline=true;this.mountRobotInline();const context=this.robotControlContext({entityId:d.id}),reading=this.open('vacuum',{entityId:d.id},opener,recipeId,undefined,previous?.id),opening=this.opening,generation=this.generation;await reading;
   if(!previous||this.task?.historyDraft&&this.task.options.some(option=>option.action==='start'&&option.argsSchema.kind==='cleaning'))return;
   // At most one ordinary setup read after a denied/unavailable old recipe. Never retry an effect.
@@ -714,6 +717,13 @@ export class LiveControlView{
    globalThis.localStorage.setItem(this.robotSetupKey(this.target),
     JSON.stringify({savedAt:Date.now(),areas,repeat:draft.repeat,settings}));
   }catch{}
+ }
+ // This screen's own last choice wins over the last accepted start from history (S13).
+ storedRobotLastSetup(target){
+  try{
+   const saved=JSON.parse(globalThis.localStorage.getItem(this.robotSetupKey(target)));
+   return !!saved&&Array.isArray(saved.areas);
+  }catch{return false;}
  }
  applyRobotLastSetup(){
   const panel=this.robotPanel,option=this.robotCleaningOption(this.task);
