@@ -75,13 +75,14 @@ test('the product host and the library page install the mirror',()=>{
  assert.match(read('library.js'),/^mirrorReducedMotion\(document\.documentElement\);$/m);
 });
 
-const SHARED=['pv-spin','pv-busy-in','pv-skeleton','pv-pulse','pv-eq','pv-enter-up','pv-tick','pv-press-circle'];
+const SHARED=['pv-spin','pv-busy-in','pv-skeleton','pv-pulse','pv-eq','pv-enter-up','pv-tick','pv-page-in','pv-page-out',
+ 'pv-press-circle'];
 const WEATHER=['pv-weather-drift','pv-weather-glow','pv-weather-flash','pv-weather-mist'];
 test('keyframes are consolidated to the shared set (toward the 13 of §3.11)',()=>{
  const names=Object.keys(keyframes(bundled)).sort();
  // pv-music-eq still paints three bars on one pseudo; it needs <i> markup before it can become pv-eq.
  assert.deepEqual(names,[...SHARED,...WEATHER,'pv-music-eq'].sort());
- assert.ok(names.length<=13);
+ assert.ok(names.length<=15,'13 of §3.11 plus pv-press-circle (P3) and pv-music-eq');
  for(const removed of ['pv-advice-pending','music-control-ack','pv-connecting-sheen','music-refresh-ack',
   'timer-alarm-ring','pv-queue-eq','pv-control-pending','pv-music-play-pending'])
   assert.doesNotMatch(bundled,new RegExp(`\\b${removed}\\b`),removed);

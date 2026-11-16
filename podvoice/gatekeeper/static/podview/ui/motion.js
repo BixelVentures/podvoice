@@ -145,7 +145,7 @@ export class Spring{
  }
 }
 
-const SNAPPY=springCurve(SPRING.snappy);
+const SNAPPY=springCurve(SPRING.snappy),SMOOTH=springCurve(SPRING.smooth);
 const TOAST_IN=[{opacity:0,transform:'translateY(8px)',offset:0},{opacity:1,offset:.75},
  {opacity:1,transform:'none',offset:1}];
 // Layout offsets exclude our active FLIP transform. Animation progress is not a new layout.
@@ -236,7 +236,7 @@ export class SceneMotion {
   if(!this.animations.size)this.cancel();
  }
  capture(focus,next){
-  this.releaseGeometry(false);
+  this.skipPage();this.releaseGeometry(false);
   const feed=this.host.querySelector('.responses');this.scroll.set(focus,feed.scrollTop);
   this.nestedScroll.set(focus,[...(feed.querySelectorAll?.('[data-scroll-axis],#weather-view,#vehicle-view,#radio-view,#device-view,#timers-view,#music-response,.answer-scroll')||[])].map(node=>[node,node.scrollTop,node.scrollLeft]));
   // Crossing Ro carries the persistent player's geometry. Ordinary details need
@@ -244,16 +244,52 @@ export class SceneMotion {
   const player=focus==='photo'||next==='photo'?this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])'):null;
   const box=player?.getBoundingClientRect();this.cancel();return box||null;
  }
+ // P1 page (docs/MOTION.md §3.2). Push and pop run as a same-document view transition where the engine has
+ // one (Safari 18+): the old page leaves 24px in --pv-dur-quick while the new one comes 48px on the smooth spring
+ // and fades in over --pv-dur-base (ui-kit.css, :root[data-pv-nav]). present() renders inside the transition's
+ // update, so the old page is still there to leave. A new navigation or a touch skips a running transition.
+ // Ro <-> active (lateral) and engines without view transitions render at once, and enter() moves the pane.
+ page(previous,next,{back=false,present}){
+  const doc=this.host.ownerDocument,root=doc?.documentElement;
+  this.skipPage();
+  const lateral=previous==='photo'||next==='photo';
+  if(previous===next||lateral||this.immediateDepth||typeof doc?.startViewTransition!=='function'||
+   this.host.isConnected===false||
+   !root?.dataset){present();return null;}
+  root.dataset.pvNav=back?'pop':'push';
+  const update=()=>{this.inPageUpdate=true;try{present();}finally{this.inPageUpdate=false;}};
+  const transition=doc.startViewTransition(update);
+  this.pageTransition=transition;
+  const skip=()=>transition.skipTransition();
+  doc.addEventListener('pointerdown',skip,{capture:true,passive:true});
+  for(const step of [transition.ready,transition.updateCallbackDone])step?.catch?.(()=>{});
+  transition.finished.catch(()=>{}).finally(()=>{
+   doc.removeEventListener('pointerdown',skip,{capture:true});
+   if(this.pageTransition===transition){this.pageTransition=null;delete root.dataset.pvNav;}
+  });
+  return transition;
+ }
+ skipPage(){this.pageTransition?.skipTransition();}
+ // Navigations whose caller works on the new page's DOM straight after dispatch (focus, scroll) render at once
+ // and use the enter() motion instead of a view transition, whose update would run a frame later.
+ immediate(navigate){this.immediateDepth=(this.immediateDepth||0)+1;try{return navigate();}finally{this.immediateDepth--;}}
  enter(previous,next,oldPlayer,back=false){
   if(previous===next||this.host.isConnected===false)return;
   const feed=this.host.querySelector('.responses');feed.scrollTop=back?this.scroll.get(next)||0:0;
   if(back)for(const [node,top,left]of this.nestedScroll.get(next)||[]){node.scrollTop=top;node.scrollLeft=left;}
+  // Inside a view transition the snapshots carry the move; only the scroll position is ours.
+  if(this.inPageUpdate)return;
   const entering=next==='photo'?this.host.querySelector('#photo-view'):[...feed.children].find(node=>!node.hidden&&node.id!=='resource-rail'&&node.getClientRects().length);
-  const crossesRest=previous==='photo'||next==='photo',duration=this.reduced?120:200;
+  const crossesRest=previous==='photo'||next==='photo';
   if(this.reduced){if(entering)this.animate(entering,[{opacity:.65},{opacity:1}],120,{fadeReduced:true});return;}
-  // Ro and the active view stay in their own positions while their whole pane
-  // gently appears. Detail navigation keeps the same small directional move.
-  if(entering)this.animate(entering,crossesRest?[{opacity:.65},{opacity:1}]:[{opacity:1,transform:`translateX(${back?-16:16}px)`},{opacity:1,transform:'none'}],duration);
+  // Lateral: Ro and the active view stay in place while the pane fades over --pv-dur-base and the player
+  // travels on the smooth spring. Push/pop without a view transition: the pane comes 48px on the smooth spring;
+  // its opacity is full at eased .85 (~240 ms). It starts at .65, not 0, because the old page is already gone.
+  if(entering){
+   if(crossesRest)this.animate(entering,[{opacity:.65},{opacity:1}],DUR.base);
+   else this.animate(entering,[{opacity:.65,transform:`translateX(${back?-48:48}px)`,offset:0},{opacity:1,offset:.85},
+    {opacity:1,transform:'none',offset:1}],SMOOTH.ms,{easing:SMOOTH.easing});
+  }
   if(previous!=='photo'&&next!=='photo')return;
   const player=this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])');
   if(!player||player.hidden||!oldPlayer?.width)return;
@@ -264,7 +300,8 @@ export class SceneMotion {
    // and resume backdrop sampling only at the settled position.
    const saved={value:player.dataset.scenePlayerMoving};this.playerPaint.set(player,saved);player.dataset.scenePlayerMoving='true';
    const release=()=>{if(this.playerPaint.get(player)!==saved)return;if(saved.value===undefined)delete player.dataset.scenePlayerMoving;else player.dataset.scenePlayerMoving=saved.value;this.playerPaint.delete(player);};
-   const animation=this.animate(player,[{opacity:1,transform:`translate(${dx}px,${dy}px)`},{opacity:1,transform:'none'}],duration);
+   const animation=this.animate(player,[{opacity:1,transform:`translate(${dx}px,${dy}px)`},{opacity:1,transform:'none'}],
+    SMOOTH.ms,{easing:SMOOTH.easing});
    if(animation)animation.finished.catch(()=>{}).finally(release);else release();
   }
  }

@@ -43,6 +43,12 @@ async function openOverview(surface){
   await photo.waitFor({state:'visible'});await new Promise(resolve=>setTimeout(resolve,1100));await photo.tap();
  }
  await wait(s=>s.view==='active'&&!s.photoVisible&&s.overviewVisible,'touch did not open overview');
+ // Ro -> overview moves the player on the smooth spring (docs/MOTION.md §3.2, 661 ms); measure after it lands.
+ for(let n=0;n<60;n++){
+  const moving=await host.evaluate(h=>h.ownerDocument.getAnimations().some(a=>a.playState==='running'&&
+   a.effect?.getTiming?.().iterations!==Infinity&&a.effect?.target?.closest?.('.player,.player-empty,#now-view')));
+  if(!moving)break;await new Promise(resolve=>setTimeout(resolve,50));
+ }
  console.log('overviewTouch',JSON.stringify({initialNight:initial.night,taps:initial.night==='true'?2:1}));
 }
 // Actual touch events, including the native range/scroll gesture. These helpers
