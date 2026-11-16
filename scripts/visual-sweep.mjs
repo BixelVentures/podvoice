@@ -322,7 +322,9 @@ const FLOWS = {
       await page.locator('#recipe-view [data-recipe="Burgerboller"]').waitFor({state: 'visible'});
       await sleep(400);
       await take('Opskrifter · katalog');
-      await button('Tilføj opskrift').click();
+      // »Tilføj opskrift« is no longer a toolbar button (A-Opskrifter): the Del → Home Assistant help and the
+      // upload history stay at the end of the catalogue.
+      await page.locator('#recipe-add-help').scrollIntoViewIfNeeded();
       await sleep(600);
       await take('Opskrifter · Tilføj opskrift');
       await button('Udforsk').click();

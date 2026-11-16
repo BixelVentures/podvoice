@@ -1,3 +1,7 @@
+## 2.1.10
+
+- Musik: et tryk på en overskrift længere nede (fx Jeres playlister) får ikke længere siden til at hoppe, så kort og »Fortsæt« forsvinder ud af billedet og kommer igen. Kortene bliver stående, hvor de er: rækken, man vælger, beholder sine kort, og den forrige række viser de samme kort videre.
+
 ## 2.1.9
 
 - Svar følger lærredets mål (v193): kortet har 32 i polstring, svarets egen farvetone med hjørneprikker, ikon og klokkeslæt i hovedet og titlen i 44/48. »I dag« viser fire lige høje kort (150) med ikon, type, tid og titel, og »1 nyt svar« er en svævende knap med pil op, der ikke skubber listen. Et musiksvar med albumomslag vises med omslag og nummer; rum og hjemme-kort vises ikke, når svaret ikke har de data.

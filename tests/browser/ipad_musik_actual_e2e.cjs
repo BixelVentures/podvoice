@@ -121,6 +121,42 @@ async function open(stage){
  assert.equal(vibeName.color,'rgb(247, 246, 243)','the name sits on the tile');
  assert.deepEqual(page.errors,[]);await page.close();
 
+ // Green-tjek F5: a tap on a section heading keeps every shown card and heading in place. The rail cards of the chosen
+ // section become its list with the same nodes, the old list goes on as its rail, and the page does not scroll.
+ page=await open('music-prototype-afternoon');
+ await page.evaluate(()=>{
+  const pane=document.querySelector('#music-response');pane.scrollTop=200;
+  const shown=n=>{const b=n.getBoundingClientRect();return n.isConnected&&!n.closest('[hidden]')&&b.width>0
+   &&b.bottom>0&&b.top<innerHeight;};
+  document.querySelectorAll('#music-response .result').forEach((node,index)=>{node.dataset.f5=String(index);});
+  const watched=[...document.querySelectorAll('#music-response .result,#music-refinements>[data-collection]')]
+   .filter(shown);
+  const seen=new Map(watched.map(node=>[node,['shown']]));
+  window.__f5={seen,before:{
+   top:[...document.querySelectorAll('.music-shelf[data-music-shelf=top]>.result')].map(n=>n.dataset.f5),
+   mood:[...document.querySelectorAll('#result-list>.result')].map(n=>n.dataset.f5)}};
+  const sample=()=>{for(const [node,states] of seen){const state=shown(node)?'shown':'hidden';
+   if(states.at(-1)!==state)states.push(state);}window.__f5.raf=requestAnimationFrame(sample);};
+  document.addEventListener('click',()=>{window.__f5.scrollAtTap=pane.scrollTop;},{capture:true,once:true});
+  sample();
+ });
+ await page.locator('[data-collection=top]').click();await sleep(600);
+ const f5=await page.evaluate(()=>{cancelAnimationFrame(window.__f5.raf);
+  const pane=document.querySelector('#music-response');
+  return {chosen:pane.dataset.discoveryCollection,scrollAtTap:window.__f5.scrollAtTap,scroll:pane.scrollTop,
+   back:[...window.__f5.seen].filter(([,states])=>states.join()==='shown,hidden,shown')
+    .map(([node])=>node.textContent.trim().slice(0,30)),
+   list:[...document.querySelectorAll('#result-list>.result')].map(n=>n.dataset.f5),
+   moodRail:[...document.querySelectorAll('.music-shelf[data-music-shelf=mood]>.result')].map(n=>n.dataset.f5),
+   before:window.__f5.before};});
+ assert.equal(f5.chosen,'top','the heading chose Jeres playlister');
+ assert.equal(f5.scroll,f5.scrollAtTap,'the page does not scroll on a heading tap');
+ assert.deepEqual(f5.back,[],'no shown card or heading is hidden and shown again');
+ assert(f5.before.top.length>0,'the Jeres playlister rail was open');
+ assert.deepEqual(f5.list.slice(0,f5.before.top.length),f5.before.top,'the chosen rail cards keep their nodes');
+ assert.deepEqual(f5.moodRail,f5.before.mood,'the old list goes on as its rail with the same nodes');
+ assert.deepEqual(page.errors,[]);await page.close();
+
  // Musik-Koe: one card of 72-px rows; the current track is in the accent with a ring round the cover.
  page=await open('now');
  await page.locator('.player .cover-button').click();await sleep(700);

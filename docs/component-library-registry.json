@@ -1427,7 +1427,9 @@
           "method:renderShelves": 1,
           "method:sectionNotes": 1,
           "method:shelfCards": 1,
-          "method:shelfRow": 1
+          "method:shelfRow": 1,
+          "method:adoptShelfRow": 1,
+          "method:retireToShelf": 1
         },
         "roots": [],
         "registrations": {},

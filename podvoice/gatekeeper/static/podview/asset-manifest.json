@@ -731,7 +731,7 @@
     },
     {
       "path": "live-music-view.js",
-      "sha256": "4097fe31064c85a00e7b6a275d939908fdf029182894310937ae7894cd094bd4"
+      "sha256": "132bd0afe569231c80c8176b54afcfd0fb79e2c840aa6477bb218a1abd1fe3eb"
     },
     {
       "path": "live-music.css",
@@ -771,7 +771,7 @@
     },
     {
       "path": "music-results.js",
-      "sha256": "14f83c7d5ebca4d9a7143c4ffd4299a3dac1ff88a65e16b25e71f6395f50c405"
+      "sha256": "ca967c28bf95d568b84bcd061a921e51fc58a7aff9cb8f9ace561d093c9e7e11"
     },
     {
       "path": "music-selection-model.js",
@@ -819,7 +819,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "08aaf925b3664bf11950d86bd44b58f6c21dd44803d26861750c51b7a41a6d46"
+      "sha256": "fc90f80ac579f60b0d38d0f77de7059c23e88be385f0c6b15e3e77621d30f6b2"
     },
     {
       "path": "podview.css",
