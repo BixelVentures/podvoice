@@ -1,3 +1,4 @@
+import {isReduced,reducedMotionQuery} from './ui/motion.js';
 // Display-only conversation surface. PodVoice remains the sole speech owner.
 const phases={LISTENING:['listening','Lytter…','Tal bare'],THINKING:['thinking','Tænker…','Et øjeblik'],AI_SPEAKING:['responding','Svarer…',''],LOUNGE_WINDOW:['ready','Spørg videre',''],CLOSING:['closing','Afslutter…',''],UNKNOWN:['waiting','Venter…','']};
 export function voicePresentation(voice,connected=true,visualPending=null){
@@ -12,8 +13,8 @@ export class VoiceSurface{
  // Kit-SvarKnap: on the wall screen the mark is the Svar button's five bars (drawn by ui-kit.css).
  const bars=make('span','voice-bars');for(let i=0;i<5;i++)bars.append(make('i'));this.mark.append(bars);
  const copy=make('div','voice-copy');this.label=make('strong');this.detail=make('span');copy.append(this.label,this.detail);this.node.append(this.mark,copy);const slot=host.querySelector('.header-activity')||host,history=host.querySelector('#open-history');if(history&&history.parentNode!==slot)slot.append(history);host.append(this.node);}
- attach(){if(this.attached)return;this.attached=true;this.media??=matchMedia('(prefers-reduced-motion: reduce)');this.onPreference??=()=>{if(this.reduced){this.cancelAnimations();if(!this.value)this.node.hidden=true;}};this.media.addEventListener?.('change',this.onPreference);this.onVisibility??=()=>{if(this.document?.hidden)this.cancelAnimations();else{this.position();this.startActivity();}};this.document?.addEventListener?.('visibilitychange',this.onVisibility);this.window=this.document?.defaultView||globalThis.window;this.onResize??=()=>this.position();this.window?.addEventListener?.('resize',this.onResize);this.window?.visualViewport?.addEventListener?.('resize',this.onResize);}
- get reduced(){return this.host.dataset.motion==='reduced'||(this.media||matchMedia('(prefers-reduced-motion: reduce)')).matches;}
+ attach(){if(this.attached)return;this.attached=true;this.media??=reducedMotionQuery();this.onPreference??=()=>{if(this.reduced){this.cancelAnimations();if(!this.value)this.node.hidden=true;}};this.media.addEventListener?.('change',this.onPreference);this.onVisibility??=()=>{if(this.document?.hidden)this.cancelAnimations();else{this.position();this.startActivity();}};this.document?.addEventListener?.('visibilitychange',this.onVisibility);this.window=this.document?.defaultView||globalThis.window;this.onResize??=()=>this.position();this.window?.addEventListener?.('resize',this.onResize);this.window?.visualViewport?.addEventListener?.('resize',this.onResize);}
+ get reduced(){return isReduced(this.host,this.media||reducedMotionQuery());}
  cancelAnimations(position=true){this.animation?.cancel();this.copyAnimation?.cancel();this.markAnimation?.cancel();this.animation=null;this.copyAnimation=null;this.markAnimation=null;if(position){this.positionAnimation?.cancel();this.positionAnimation=null;}}
  animate(node,frames,duration,iterations=1){if(this.reduced||!this.host.isConnected||this.document?.hidden||typeof node?.animate!=='function')return null;return node.animate(frames,{duration,iterations,easing:'cubic-bezier(.2,0,0,1)'});}
  startActivity(){

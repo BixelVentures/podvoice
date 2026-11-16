@@ -1,3 +1,4 @@
+import {isReduced,reducedMotionQuery} from './motion.js';
 // Fresh cleaning animates only the robot glyph. Hjem retains a calm activity
 // motion; other views use a finite acknowledgement. Neither conveys progress.
 export function robotIsCleaning(device,{connected=true,live=false,now=Date.now()}={}){
@@ -13,7 +14,7 @@ const frames=[
  {transform:'translate(0, 0) rotate(0deg)',offset:1}
 ];
 export class RobotMotion{
- constructor(host,{document=globalThis.document,media=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)'),Observer=globalThis.MutationObserver,now=Date.now,setTimer=(...args)=>globalThis.setTimeout(...args),clearTimer=(...args)=>globalThis.clearTimeout(...args)}={}){
+ constructor(host,{document=globalThis.document,media=reducedMotionQuery(),Observer=globalThis.MutationObserver,now=Date.now,setTimer=(...args)=>globalThis.setTimeout(...args),clearTimer=(...args)=>globalThis.clearTimeout(...args)}={}){
   this.host=host;this.document=document;this.media=media;this.Observer=Observer;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.expiryTimer=null;this.expiryAt=null;this.animations=new Map();this.states=new Map();this.onChange=()=>this.sync();
  }
  attach(){if(this.attached)return;this.attached=true;this.media?.addEventListener('change',this.onChange);this.document?.addEventListener('visibilitychange',this.onChange);if(this.Observer){this.observer=new this.Observer(this.onChange);this.observer.observe(this.host,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','open','data-motion']});}}
@@ -26,7 +27,7 @@ export class RobotMotion{
  }
  sync(){
   if(!this.host.isConnected){this.cleanup();return;}this.attach();
-  const reduced=this.media?.matches||this.host.dataset.motion==='reduced'||this.document?.documentElement?.dataset.motion==='reduced';
+  const reduced=isReduced(this.host,this.media??null);
   const connected=this.host.live?!!this.host.liveTransport?.connected&&!this.host.liveTransport?.recoveryBlocked&&!this.host.browserOffline:this.host.state?.connected!==false,wanted=new Set(),now=this.now(),states=new Map(),scope=JSON.stringify([this.host.liveSnapshot?.bootId||null,this.host.liveSnapshot?.roomId||null]);let expiryAt=null;
   // Read semantic state even while hidden/reduced/offline. Returning to normal
   // must not replay an old cleaning cue or treat a refreshed timestamp as new.
