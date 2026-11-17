@@ -1,3 +1,12 @@
+## 2.1.15
+
+- Udforsk: opskrifterne swipes som et rigtigt katalog. Forsiden følger fingeren 1:1, et hurtigt svirp kaster flere opskrifter afsted og lander blødt med en fjeder, du kan gribe den i farten, og ved enden giver den efter som et gummibånd. Kanten til venstre er stadig »tilbage«.
+- Vælger du en opskrift i Udforsk, flyver billedet over i opskriften – og tilbage igen, når du trykker Tilbage.
+- Tal skifter som en app: ur, timer og temperaturer ruller kun de cifre, der ændrer sig, og timerringen glider jævnt.
+- Køen i Musik: nye numre glider ind, fjernede numre toner ud, og resten lukker hullet blødt; markeringen af det, der spiller, flytter sig som ét. Hjem-kortene skifter plads med samme fjeder.
+- Kategorierne i Opskrifter falder på plads, når du scroller, og den valgte holdes synlig; musikhylderne aftager blødt mod kanten.
+- Med »Reducer bevægelse« slået til tones alt blot, uden at flytte sig.
+
 ## 2.1.14
 
 - Sideskift som en app: den side, du forlader, glider væk, og den nye glider og toner ind med en fjeder; topbar og afspiller står stille. Et tryk under overgangen springer resten over, så intet låses.
