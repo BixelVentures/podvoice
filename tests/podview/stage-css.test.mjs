@@ -29,6 +29,6 @@ test('the stage keeps the canvas scale that fits and stretches to fill the frame
   assert.equal(p.width, 1180); assert.ok(Math.abs(p.height * p.scale - 1180) < 1e-9);
   // Safe areas never move the stage (Ro runs under the status bar); they come back in stage px.
   const s = stageGeometry(1180, 820, {top: 24, right: 0, bottom: 20, left: 0});
-  assert.equal(s.y, 0); assert.equal(s.scale, 776 / 820);
-  assert.ok(Math.abs(s.height * s.scale - 820) < 1e-9); assert.ok(Math.abs(s.safe.top - 24 / s.scale) < 1e-9);
+  assert.equal(s.y, 0); assert.equal(s.scale, 1, 'safe areas never shrink the scale: 1:1 at 1180×820');
+  assert.equal(s.height, 820); assert.equal(s.safe.top, 24); assert.equal(s.safe.bottom, 20);
 });

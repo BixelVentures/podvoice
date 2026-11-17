@@ -823,7 +823,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "cd777434fa6f0e2f98cf684cd54e07ab1be53efc713fb195d161243897c71d3f"
+      "sha256": "ca3cef0c6d25c716b73a1bb8c1747a614fb0d9d61b7bf82d8ef901c2fada26fd"
     },
     {
       "path": "podview.css",
@@ -1047,7 +1047,7 @@
     },
     {
       "path": "ui/stage.js",
-      "sha256": "d743dfe4345f262141f77c6ecdf9048fe4d9875a8d49abda5ac2ef13577a9aa7"
+      "sha256": "8438c32611a8182c2c36d55802c9c18907ed80d718b7a9ac465b17534bfc15d2"
     },
     {
       "path": "ui/touch-intent.js",

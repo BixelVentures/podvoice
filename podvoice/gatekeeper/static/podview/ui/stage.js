@@ -6,7 +6,9 @@
 export const STAGE_WIDTH=1180,STAGE_HEIGHT=820;
 export function stageGeometry(width,height,inset={top:0,right:0,bottom:0,left:0}){
  const w=Math.max(1,width),h=Math.max(1,height);
- const scale=Math.min(Math.max(1,w-inset.left-inset.right)/STAGE_WIDTH,Math.max(1,h-inset.top-inset.bottom)/STAGE_HEIGHT);
+ // Safe areas never shrink the scale: at 1180×820 the stage stays exactly 1:1 (no transform on <body>, crisp text,
+ // cheap compositing); the home indicator and status bar are absorbed by the layout's own top/bottom air.
+ const scale=Math.min(w/STAGE_WIDTH,h/STAGE_HEIGHT);
  return {scale,x:0,y:0,width:w/scale,height:h/scale,
   safe:{top:inset.top/scale,right:inset.right/scale,bottom:inset.bottom/scale,left:inset.left/scale}};
 }
