@@ -59,7 +59,7 @@ test('offline and stale Robot Hero explicitly marks last known activity without 
 });
 
 test('unknown Robot fault points to the app without inventing a cause or exposing capability jargon',()=>{
- const panel=new RobotControlPanel();panel.data={task:null,device:{...device,status:'fault'},connected:true};assert.equal(panel.availabilityNote.textContent,'Åbn Roborock-appen for at se fejlen og få hjælp.');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.recovery.hidden,true);assert.equal(panel.querySelectorAll('button').length,0);panel.data={task:null,device,connected:true};assert.equal(panel.availabilityNote.textContent,'Kun status er tilgængelig.');assert.ok(!panel.availabilityNote.textContent.includes('pleje'));
+ const panel=new RobotControlPanel();panel.data={task:null,device:{...device,status:'fault'},connected:true};assert.equal(panel.availabilityNote.textContent,'Åbn Roborock-appen for at se fejlen og få hjælp.');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.recovery,undefined);assert.equal(panel.querySelectorAll('button').length,0);panel.data={task:null,device,connected:true};assert.equal(panel.availabilityNote.textContent,'Kun status er tilgængelig.');assert.ok(!panel.availabilityNote.textContent.includes('pleje'));
 });
 
 test('normal pending feedback stays on its exact shared control and never adds a Hero feedback row',()=>{

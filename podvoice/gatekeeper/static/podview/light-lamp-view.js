@@ -83,7 +83,7 @@ export class LightLampView{
    entry.binding=binding;if(entry.node.hidden)entry.node.hidden=false;
    if(entry.name.textContent!==row.name)entry.name.textContent=row.name;
    const status=row.on===null?(row.unavailable?'Ikke tilgængelig':'Status ukendt'):row.stale?`${row.on?'Tændt':'Slukket'} · ikke opdateret`:row.on?'Tændt':'Slukket';if(entry.state.textContent!==status)entry.state.textContent=status;
-   const command=this.host.lightCommandFeedback,busy=!!command&&command.target?.entityId===row.id&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.toggle,'toggle',{feedback:'progress',loading:busy,identity:'light',variant:'row',label:`Tænd/sluk ${row.name}`,disabled:!binding||binding.canQueueBrightness,...(row.on===null?{}:{selected:row.on})});if(row.on===null)entry.toggle.removeAttribute('aria-checked');
+   const command=this.host.lightCommandFeedback,busy=!!command&&command.target?.entityId===row.id&&['turn_on','turn_off'].includes(command.action);applyKitComponent(entry.toggle,'toggle',{feedback:'progress',loading:busy&&!!binding,identity:'light',variant:'row',label:`Tænd/sluk ${row.name}`,disabled:!binding||binding.canQueueBrightness,...(row.on===null?{}:{selected:row.on})});if(row.on===null)entry.toggle.removeAttribute('aria-checked');
    if(entry.field.node.hidden!==!row.dimmable)entry.field.node.hidden=!row.dimmable;
    const pending=command?.action==='brightness'&&command.target?.entityId===row.id;
    const value=pending&&Number.isInteger(command.requestedPercent)?command.requestedPercent:row.level;

@@ -2458,22 +2458,6 @@ pv-widget-host[data-view=rest] #resource-rail>.resource-preview[data-kit-identit
  pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-type-options>[data-setting-concept=repeat]{grid-row:2;grid-column:2!important;max-inline-size:none}
 }
 
-/* Robot recovery: urgent faults and neutral maintenance have separate weight. */
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{padding:0;gap:var(--pv-s4);background:transparent;border-radius:0;box-shadow:none}
-.robot-urgent-issue{padding:var(--pv-s4);border-radius:var(--pv-r-l);background:var(--pv-screen-danger-surface)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-urgent-issue .robot-error-code{margin-top:var(--pv-s1)}
-.pv-kit-disclosure[data-kit-layout=maintenance]{width:100%;border-radius:var(--pv-r-l);background:var(--pv-surface);overflow:hidden}
-.pv-kit-disclosure[data-kit-layout=maintenance]>.pv-kit.pv-kit-listrow{width:100%;min-height:var(--pv-hit);padding:var(--pv-s3)!important;text-align:left;background:transparent;box-shadow:none}
-.pv-kit-disclosure[data-kit-layout=maintenance]>div:not([hidden]){display:grid;gap:0;padding:0 var(--pv-s3) var(--pv-s2)}
-.pv-kit-disclosure[data-kit-layout=maintenance-item]{border-top:1px solid var(--pv-line);background:transparent}
-.pv-kit-disclosure[data-kit-layout=maintenance-item]>.pv-kit.pv-kit-listrow{min-height:var(--pv-hit-min);padding:var(--pv-s2) 0!important;background:transparent;border-radius:0!important;box-shadow:none}
-.pv-kit-disclosure[data-kit-layout=maintenance-item]>button [data-kit-slot=title]{font:var(--pv-t-body)}
-.pv-kit-disclosure[data-kit-layout=maintenance-item]>div:not([hidden]){padding:0 0 var(--pv-s2)}
-.pv-kit-disclosure[data-kit-layout=maintenance-item] p{margin:0}
-pv-widget-host #device-view pv-robot-control-panel .robot-maintenance-dismiss.pv-kit-button[data-kit=button]{justify-self:start;width:auto;min-height:var(--pv-hit-min);padding:var(--pv-s1) 0;background:transparent;color:var(--pv-ink-2);font:var(--pv-t-meta);box-shadow:none;text-align:left}
-.robot-maintenance-snoozed{display:flex;align-items:center;flex-wrap:wrap;gap:var(--pv-s2)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-error-code>summary{width:fit-content;min-height:var(--pv-hit-min);font:var(--pv-t-meta);color:var(--pv-ink-2);cursor:pointer}
-.robot-error-code p{overflow-wrap:anywhere}
 
 /* Opskrifter assembles the existing detail, Card, ListRow and Checklist recipes. */
 pv-widget-host[data-view=active] #recipe-view:not([hidden]){display:flex;flex-direction:column;min-height:0;padding:0 var(--pv-s2) var(--pv-s3)}
@@ -4075,7 +4059,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
 /* iPad Radio (lærred v190 »A-Radio«, »Radio-Starter«, »Radio-Spiller«, »Radio-IkkeTilg«, issue 393): a 744×458 hero
    with the station logo (144), status line, 56/800 title, description and a station scale with a needle; 32 under it
-   »Radiostationer« with »Afspilles på <højttaler>« and five logo tiles in one row. The station colour tints the hero
+   »Radiostationer« and five logo tiles in one row. The station colour tints the hero
    and rings the chosen tile; starting turns the needle yellow; not available fades the scale and greys the tiles. */
 @media (min-width:1000px){
  pv-widget-host[data-view=active] .responses>#radio-view:not([hidden]){
@@ -4135,8 +4119,6 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    margin:32px 0 16px;flex:none}
  pv-widget-host #radio-view .radio-stations-head>h2.radio-stations-title{margin:0;font:800 24px/30px var(--pv-font)!important;
    color:var(--pv-ink)}
- pv-widget-host #radio-view .radio-stations-speaker{font:400 15px/20px var(--pv-font);color:#5F5E5A}
- pv-widget-host #radio-view .radio-stations-speaker[hidden]{display:none}
  pv-widget-host #radio-view>pv-choice-list.radio-station-tiles{flex:1;min-height:0;margin:0!important}
  pv-widget-host #radio-view .radio-station-tiles>.pv-content{height:100%}
  pv-widget-host #radio-view .radio-station-tiles .pv-list.pv-list{display:grid!important;
@@ -4784,7 +4766,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    border:0!important;margin:0!important;width:auto!important;flex:none!important;display:inline-flex!important;
    align-items:center!important;box-sizing:border-box!important;cursor:pointer;user-select:none}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
-   .robot-sticky>[data-disabled=true]{opacity:.45}
+   .robot-sticky>[data-disabled=true]{opacity:.45;cursor:default}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .robot-sticky>[hidden]{display:none!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel

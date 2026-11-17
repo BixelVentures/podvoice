@@ -319,15 +319,11 @@ test('typed current choice drives direct setting despite unrelated labels and ob
 test('all room shortcut explicitly selects offered areas and never emits native whole-home clean',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device,connected:true};const shortcut=panel.querySelectorAll('button').find(row=>row.textContent==='Vælg alle');emit(shortcut,'click');assert.deepEqual(actions,[]);assert.deepEqual(panel.readCleaningDraft(),{areaIds:['area-k','area-s'],repeat:1});emit(cleaningForm(panel),'submit');assert.equal(actions[0].optionId,'start-option');assert.deepEqual(actions[0].args.areaIds,['area-k','area-s']);emit(shortcut,'click');assert.deepEqual(panel.readCleaningDraft().areaIds,[]);
 });
-test('source-bound fault stays in the Hero with its code behind closed details',()=>{
+test('source-bound fault stays in the Hero without a technical-details accordion',()=>{
  const panel=new RobotControlPanel(),now=Date.now()/1000;panel.data={task:{domain:'vacuum',options:[]},device:{...device,status:'fault',telemetry:{status:'observed',items:[{key:'vacuum_error',value:'main_brush_jammed',updatedAt:now}]}},connected:true};assert.equal(panel.observation.data.text,'Hovedbørsten sidder fast');
- const details=panel.recovery.querySelector('details');
- assert.equal(details.open,false);
- assert.equal(details.querySelector('p').textContent,'Robot · main_brush_jammed');
- assert.equal(panel.recovery.children.length,1);
+ assert.equal(panel.querySelectorAll('details').length,0,'no technical-details accordion');
+ assert.equal(panel.querySelectorAll('p').some(row=>row.textContent.includes('main_brush_jammed')),false);
  assert.equal(panel.transportControls.parentNode,panel.observation);
- panel.observed(device);
- assert.equal(panel.recovery.hidden,true);
 });
 
 test('bound selected recipe summary remains distinct from observed settings beside status Hero Start',()=>{
@@ -433,7 +429,7 @@ test('offline and stale Robot Hero explicitly marks last known activity without 
 });
 
 test('unknown Robot fault points to the app without inventing a cause or exposing capability jargon',()=>{
- const panel=new RobotControlPanel();panel.data={task:null,device:{...device,status:'fault'},connected:true};assert.equal(panel.availabilityNote.textContent,'Åbn Roborock-appen for at se fejlen og få hjælp.');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.recovery.hidden,true);assert.equal(panel.querySelectorAll('button').length,0);panel.data={task:null,device,connected:true};assert.equal(panel.availabilityNote.textContent,'Kun status er tilgængelig.');assert.ok(!panel.availabilityNote.textContent.includes('pleje'));
+ const panel=new RobotControlPanel();panel.data={task:null,device:{...device,status:'fault'},connected:true};assert.equal(panel.availabilityNote.textContent,'Åbn Roborock-appen for at se fejlen og få hjælp.');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.recovery,undefined);assert.equal(panel.querySelectorAll('button').length,0);panel.data={task:null,device,connected:true};assert.equal(panel.availabilityNote.textContent,'Kun status er tilgængelig.');assert.ok(!panel.availabilityNote.textContent.includes('pleje'));
 });
 
 test('normal pending feedback stays on its exact shared control and never adds a Hero feedback row',()=>{
@@ -588,22 +584,8 @@ test('external active job shows only freshly observed current room and never gue
  panel.observed({...active,stale:true},{});assert.equal(panel.currentRoomsUnknown.textContent,'Valgte rum er ikke oplyst');
 });
 
-test('maintenance uses one disclosure while urgent water issues stay visible and are never dismissed',()=>{
- const panel=new RobotControlPanel(),now=Date.now()/1000,row=(key,value)=>({key,value,unit:key==='clean_box_empty'?null:'h',stale:false,updatedAt:now,retrievedAt:now});
- const active={...device,status:'cleaning',telemetry:{status:'observed',items:[row('main_brush_time_left',0),row('filter_time_left',0),row('clean_box_empty',true)]}};
- panel.data={task:{domain:'vacuum',options:[]},device:active,connected:true};const disclosure=panel.maintenanceDisclosure;assert.ok(disclosure);assert.equal(disclosure.trigger.getAttribute('aria-expanded'),'false');assert.equal(disclosure.panel.hidden,true);assert.equal(disclosure.trigger.querySelector('strong').textContent,'Vedligeholdelse');assert.match(disclosure.trigger.querySelector('small').textContent,/2 påmindelser/);assert.equal(panel.observation.data.text,'Rent vand mangler');assert.equal(panel.recovery.querySelectorAll('h3').length,0);assert.deepEqual(panel.maintenanceItems.map(item=>item.trigger.querySelector('strong').textContent),['Hovedbørste','Filter']);const rows=disclosure.panel.children.filter(node=>node.dataset.kitLayout==='maintenance-item');assert.equal(rows.length,2);for(const item of panel.maintenanceItems){assert.equal(item.panel.hidden,true);assert.equal(item.trigger.getAttribute('aria-controls'),item.panel.id);assert.equal(item.panel.getAttribute('aria-labelledby'),item.trigger.id);assert.ok(item.panel.querySelector('p').textContent);}assert.equal(panel.recovery.querySelectorAll('button').length,3);
- disclosure.setExpanded(true);panel.observed({...active,telemetry:{status:'observed',items:[row('main_brush_time_left',0),row('clean_box_empty',true)]}});assert.equal(panel.maintenanceDisclosure.trigger.getAttribute('aria-expanded'),'true');assert.equal(panel.observation.data.text,'Rent vand mangler');assert.equal(panel.recovery.querySelectorAll('h3').length,0);panel.observed(device);assert.equal(panel.recovery.hidden,true);
-});
 
-test('maintenance snooze is per robot until local midnight and never hides water faults',()=>{
- const saved=globalThis.localStorage,store=new Map();globalThis.localStorage={getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)};
- try{const panel=new RobotControlPanel(),now=Date.now()/1000,row=(key,value)=>({key,value,unit:key==='clean_box_empty'?null:'h',stale:false,updatedAt:now,retrievedAt:now}),active={...device,id:'vacuum.first',status:'cleaning',telemetry:{status:'observed',items:[row('filter_time_left',0),row('clean_box_empty',true)]}};panel.data={task:{domain:'vacuum',options:[]},device:active,connected:true};let buttons=panel.recovery.querySelectorAll('button'),hide=buttons.find(button=>button.textContent==='Skjul vedligeholdelse i dag');assert.ok(hide);emit(hide,'click');assert.equal(panel.maintenanceDisclosure,null);assert.equal(panel.observation.data.text,'Rent vand mangler');assert.equal(panel.recovery.querySelectorAll('h3').length,0);let show=panel.recovery.querySelectorAll('button').find(button=>button.textContent==='Vis igen');assert.ok(show);const expires=Number([...store.values()][0]),midnight=new Date();midnight.setHours(24,0,0,0);assert.equal(expires,midnight.getTime());panel.observed({...active,id:'vacuum.second'});assert.ok(panel.maintenanceDisclosure);panel.observed(active);show=panel.recovery.querySelectorAll('button').find(button=>button.textContent==='Vis igen');emit(show,'click');assert.ok(panel.maintenanceDisclosure);assert.equal(store.size,0);}
- finally{globalThis.localStorage=saved;}
-});
 
-test('maintenance stays visible when local storage is unavailable or has expired',()=>{
- const saved=globalThis.localStorage;try{globalThis.localStorage={getItem:()=>String(Date.now()-1000),setItem:()=>{throw Error('denied')},removeItem:()=>{throw Error('denied')}};const panel=new RobotControlPanel(),now=Date.now()/1000,active={...device,id:'vacuum.actual',status:'cleaning',telemetry:{status:'observed',items:[{key:'filter_time_left',value:0,unit:'h',stale:false,updatedAt:now,retrievedAt:now}]}};panel.data={task:{domain:'vacuum',options:[]},device:active,connected:true};const hide=panel.recovery.querySelectorAll('button').find(button=>button.textContent==='Skjul vedligeholdelse i dag');emit(hide,'click');assert.ok(panel.maintenanceDisclosure);}finally{globalThis.localStorage=saved;}
-});
 
 test('active robot hero shows only admitted fresh percent progress and removes it for stale, unknown or inactive state',()=>{
  const panel=new RobotControlPanel(),now=Date.now()/1000,item={key:'clean_percent',value:37,unit:'%',stale:false,updatedAt:now,retrievedAt:now},active={...device,status:'cleaning',telemetry:{status:'observed',items:[item]}};panel.data={task:{domain:'vacuum',options:[]},device:active,connected:true};assert.equal(panel.robotProgress.hidden,false);assert.equal(panel.robotProgressMeter.value,37);assert.equal(panel.robotProgressLabel.textContent,'37 % færdig');assert.equal(panel.robotProgressMeter.getAttribute('aria-label'),'Rengøringens fremdrift');
@@ -614,41 +596,19 @@ test('captured sanitized 14-option owner response decodes and renders admitted b
  const {readFile}=await import('node:fs/promises'),{controlTask}=await import('../../podvoice/gatekeeper/static/podview/control-model.js'),raw=JSON.parse(await readFile(new URL('./fixtures/robot-setup-captured-sanitized.json',import.meta.url),'utf8'));raw.expiresAt=Date.now()/1000+30;const admitted=controlTask(raw,{bootId:raw.bootId,roomId:raw.roomId},'vacuum'),panel=new RobotControlPanel(),effects=[];panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:admitted,device:{...device,status:'cleaning'},connected:true};panel.disabled=false;assert.equal(admitted.options.length,14);assert.equal(admitted.options.find(o=>o.action==='start').argsSchema.repeat.max,2);assert.ok(panel.baseDisclosure);assert.equal(panel.baseDisclosure.trigger.disabled,false);assert.ok(panel.baseDisclosure.panel.querySelectorAll('button').some(button=>button.dataset.dockOperation==='wash_start'));assert.ok(panel.settingControls.some(control=>control.option.settingKey==='mop_intensity'));assert.equal(panel.settingControls.find(control=>control.option.settingKey==='cleaning_mode').readOnly!==undefined,true);assert.deepEqual(effects,[]);
 });
 
-test('local maintenance disclosure and snooze stay available without robot control authority; water fault stays visible',()=>{
- const saved=globalThis.localStorage,store=new Map();globalThis.localStorage={getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)};try{const panel=new RobotControlPanel(),now=Date.now()/1000,row=(key,value)=>({key,value,unit:key==='clean_box_empty'?null:'h',stale:false,updatedAt:now,retrievedAt:now}),active={...device,id:'vacuum.actual',status:'cleaning',telemetry:{status:'observed',items:[row('filter_time_left',0),row('clean_box_empty',true)]}};panel.data={task:null,device:active,connected:false};panel.disabled=true;const disclosure=panel.maintenanceDisclosure;assert.equal(disclosure.trigger.disabled,false);const hide=disclosure.panel.querySelectorAll('button').find(button=>button.textContent==='Skjul vedligeholdelse i dag');assert.equal(hide.disabled,false);emit(hide,'click');const show=panel.recovery.querySelectorAll('button').find(button=>button.textContent==='Vis igen');assert.ok(show);assert.equal(show.disabled,false);assert.equal(panel.observation.data.text,'Ikke opdateret · Rent vand mangler');assert.equal(panel.recovery.querySelectorAll('h3').length,0);emit(show,'click');assert.ok(panel.maintenanceDisclosure);assert.equal(panel.maintenanceDisclosure.trigger.disabled,false);}finally{globalThis.localStorage=saved;}
-});
 
 
-test('maintenance item guidance stays open through changed polls but never crosses robot identity or dispatches a command',()=>{
- const panel=new RobotControlPanel(),effects=[],now=Date.now()/1000,row=(key,value)=>({key,value,unit:'h',stale:false,updatedAt:now,retrievedAt:now}),active={...device,id:'vacuum.first',telemetry:{status:'observed',items:[row('main_brush_time_left',0),row('filter_time_left',0)]}};
- panel.addEventListener('robot-control-action',event=>effects.push(event.detail));panel.data={task:null,device:active,connected:false};panel.disabled=true;
- emit(panel.maintenanceDisclosure.trigger,'click');emit(panel.maintenanceItems[0].trigger,'click');assert.equal(panel.maintenanceDisclosure.panel.hidden,false);assert.equal(panel.maintenanceItems[0].panel.hidden,false);assert.equal(panel.maintenanceItems[0].trigger.disabled,false);
- panel.observed({...active,telemetry:{status:'observed',items:[row('main_brush_time_left',-1),row('filter_time_left',0)]}});assert.equal(panel.maintenanceDisclosure.panel.hidden,false);assert.equal(panel.maintenanceItems[0].panel.hidden,false);assert.equal(panel.maintenanceItems[1].panel.hidden,true);
- panel.observed({...active,id:'vacuum.second'});assert.equal(panel.maintenanceDisclosure.panel.hidden,true);assert.ok(panel.maintenanceItems.every(item=>item.panel.hidden));assert.deepEqual(effects,[]);
-});
 
 
-test('fault changes keep the status Hero and transport while maintenance stays below cleaning settings',()=>{
+test('fault changes keep the status Hero and transport without the old maintenance accordion',()=>{
  const panel=new RobotControlPanel(),now=Date.now()/1000,row=(key,value)=>({key,value,unit:key==='filter_time_left'?'h':null,stale:false,updatedAt:now,retrievedAt:now}),active={...device,id:'vacuum.first',status:'cleaning',telemetry:{status:'observed',items:[row('dock_error','water_empty'),row('water_shortage',true),row('filter_time_left',0)]}};
  panel.data={task:task(),device:active,connected:true};const hero=panel.observation,transport=panel.transportControls,settings=panel.content.children.find(node=>node.className.includes('robot-current-settings'));
- assert.equal(hero.data.text,'Rent vand mangler');assert.equal(panel.recovery.querySelectorAll('h3').length,0);
- assert.equal(panel.recovery.querySelectorAll('details').length,1);
- assert.equal(panel.recovery.querySelector('details').open,false);
- assert.ok(panel.maintenanceDisclosure);assert(panel.content.children.indexOf(panel.recovery)>panel.content.children.indexOf(settings));
- panel.observed({...active,telemetry:{status:'observed',items:[row('vacuum_error','main_brush_jammed'),row('filter_time_left',0)]}});assert.equal(panel.observation,hero);assert.equal(panel.transportControls,transport);assert.equal(hero.data.text,'Hovedbørsten sidder fast');assert.equal(panel.recovery.querySelectorAll('h3').length,0);
- const idle=new RobotControlPanel();idle.data={task:task(),device:{...active,status:'docked'},connected:true};const form=cleaningForm(idle);assert.ok(form);assert(idle.content.children.indexOf(idle.recovery)>idle.content.children.indexOf(form),'maintenance follows the existing room/type form');
+ assert.equal(hero.data.text,'Rent vand mangler');assert.ok(settings);
+ assert.equal(panel.querySelectorAll('details').length,0,'no old maintenance or technical-details accordion');
+ panel.observed({...active,telemetry:{status:'observed',items:[row('vacuum_error','main_brush_jammed'),row('filter_time_left',0)]}});assert.equal(panel.observation,hero);assert.equal(panel.transportControls,transport);assert.equal(hero.data.text,'Hovedbørsten sidder fast');
+ const idle=new RobotControlPanel();idle.data={task:task(),device:{...active,status:'docked'},connected:true};const form=cleaningForm(idle);assert.ok(form);assert.equal(idle.querySelectorAll('details').length,0);
 });
 
-test('changed maintenance polls preserve owned focus without stealing other focus; snooze hands focus to its replacement',()=>{
- const saved=globalThis.localStorage,store=new Map();globalThis.localStorage={getItem:key=>store.get(key)??null,setItem:(key,value)=>store.set(key,value),removeItem:key=>store.delete(key)};
- try{const panel=new RobotControlPanel(),now=Date.now()/1000,row=(key,value)=>({key,value,unit:key==='filter_time_left'?'h':null,stale:false,updatedAt:now,retrievedAt:now}),deviceAt=n=>({...device,id:'vacuum.focus',telemetry:{status:'observed',items:[row('filter_time_left',n),row('dock_error','water_empty')]}});panel.data={task:null,device:deviceAt(0),connected:true};
- panel.maintenanceDisclosure.setExpanded(true);panel.maintenanceItems[0].setExpanded(true);panel.maintenanceItems[0].trigger.focus();panel.observed(deviceAt(-1));assert.equal(document.activeElement,panel.maintenanceItems[0].trigger);assert.equal(panel.maintenanceItems[0].panel.hidden,false);
- panel.maintenanceDisclosure.trigger.focus();panel.observed(deviceAt(-2));assert.equal(document.activeElement,panel.maintenanceDisclosure.trigger);
- const external=document.createElement('button');external.dataset.robotRecoveryFocus='maintenance';external.focus();panel.observed(deviceAt(-3));assert.equal(document.activeElement,external);
- const hide=panel.recovery.querySelectorAll('button').find(button=>button.textContent==='Skjul vedligeholdelse i dag');hide.focus();emit(hide,'click');const show=panel.recovery.querySelectorAll('button').find(button=>button.textContent==='Vis igen');assert.equal(document.activeElement,show);assert.equal(panel.observation.data.text,'Rent vand mangler');emit(show,'click');assert.equal(document.activeElement,panel.maintenanceDisclosure.trigger);assert.equal(panel.maintenanceDisclosure.panel.hidden,true);
- panel.maintenanceDisclosure.trigger.focus();const oldFocus=document.activeElement;panel.observed({...deviceAt(-4),id:'vacuum.another'});assert.notEqual(document.activeElement,panel.maintenanceDisclosure.trigger);assert.equal(document.activeElement,oldFocus,'minimal DOM does not emulate native detachment blur, but no cross-identity focus is assigned');
- }finally{globalThis.localStorage=saved;}
-});
 
 test('vacuum-only suction marks full-width layout and restores mode marker when switched',()=>{
  const admitted=task();admitted.options[0].argsSchema.settings=[{id:'fan',key:'suction',label:'Fan',current:'normal',choices:[{id:'normal',label:'balanced'},{id:'strong',label:'max'}]},{id:'mode',key:'cleaning_mode',label:'Mode',current:'both',choices:[{id:'both',label:'vacuum_and_mop'},{id:'vac',label:'vacuum'},{id:'mop',label:'mop'}]}];

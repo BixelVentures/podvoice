@@ -63,8 +63,7 @@ export class RadioView{
   hero.append(top,this.scale);this.hero=hero;
   const stationsHead=element('div','radio-stations-head');
   const stationsTitle=element('h2','radio-stations-title');stationsTitle.textContent='Radiostationer';
-  this.speakerLine=element('span','radio-stations-speaker');this.speakerLine.hidden=true;
-  stationsHead.append(stationsTitle,this.speakerLine);
+  stationsHead.append(stationsTitle);
   this.playerButton=createKitComponent('listrow',{document:doc,tag:'button',className:'radio-open-player pv-button',label:'Se afspiller'});this.playerButton.textContent='Se afspiller';this.playerButton.type='button';this.playerButton.hidden=true;this.openPlayer=()=>{if(this.playerButton.hidden||!this.state.stationId)return;this.onOpenPlayer();};this.playerButton.addEventListener('click',this.openPlayer);this.root.replaceChildren(header,hero,stationsHead,list,this.playerButton);
   this.header=header;this.subtitle=subtitle;this.list=list;
  }
@@ -84,7 +83,7 @@ export class RadioView{
   const speakerName=typeof speaker==='string'&&speaker.trim()?speaker.trim():null;
   this.renderHero({available,selected,playback,pendingStationId,speaker:speakerName});
   this.playerButton.hidden=true;this.list.data={
-   items:stations.map(({id,label})=>({id,label,feedback:'label',loading:pendingStationId===id,detail:pendingStationId===id?'Starter…':(selected===id?(playback===true?'Valgt · ':playback===false?'Stoppet · ':'Valgt · '):'')+DESCRIPTIONS[id],icon:`radio-${id}`,current:false})),selected,
+   items:stations.map(({id,label})=>({id,label,feedback:'label',loading:available&&pendingStationId===id,detail:available&&pendingStationId===id?'Starter…':(selected===id?(playback===true?'Valgt · ':playback===false?'Stoppet · ':'Valgt · '):'')+DESCRIPTIONS[id],icon:`radio-${id}`,current:false})),selected,
    connected:selectable,state:available?'ready':blocked||connected?'unsupported':'offline',
    stateText:'',quietStatus:true,
   };
@@ -133,9 +132,6 @@ export class RadioView{
   });
   const label=station?`Stationsskala, valgt ${station.label}`:'Stationsskala';
   if(this.scale.getAttribute('aria-label')!==label)this.scale.setAttribute('aria-label',label);
-  const speakerText=speaker?`Afspilles på ${speaker}`:'';
-  if(this.speakerLine.textContent!==speakerText)this.speakerLine.textContent=speakerText;
-  this.speakerLine.hidden=!speakerText;
  }
  destroy(){this.root.removeEventListener('pv-action',this.handleAction);this.playerButton?.removeEventListener('click',this.openPlayer);}
 }

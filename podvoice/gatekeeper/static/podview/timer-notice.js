@@ -39,7 +39,7 @@ export class TimerNotice {
   this.canAdd=!live&&!timer.ownerBootId&&this.allowed&&access.connected!==false;
   if(this.add){this.add.hidden=live||!!timer.ownerBootId;this.add.disabled=!this.canAdd;}
   const label=nativeActive?'Stop alarm':live?'Færdig':'Stop',busy=access.pending===true||access.waiting===true;
-  syncKitButtonContent(this.stop,{label,icon:label==='Færdig'?null:'assets/icons/stop-fill.svg',size:'88'});if(this.stop.disabled!==!this.allowed)this.stop.disabled=!this.allowed;applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy});
+  syncKitButtonContent(this.stop,{label,icon:label==='Færdig'?null:'assets/icons/stop-fill.svg',size:'88'});if(this.stop.disabled!==!this.allowed)this.stop.disabled=!this.allowed;applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy&&this.allowed});
   const message=access.feedback||this.audioFeedback||(busy?'Afventer timerens svar':!this.allowed?(nativeActive?'Alarmen kan ikke stoppes herfra lige nu. Luk visning stopper ikke alarmen.':'Timeren kan ikke afsluttes herfra lige nu.'):'');
   if(this.status){if(this.status.textContent!==message)this.status.textContent=message;if(this.status.hidden!==!message)this.status.hidden=!message;}
   if(this.element.hidden)this.element.hidden=false;

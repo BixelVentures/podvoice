@@ -61,5 +61,5 @@ test('async Buttons without an owner pending model use the kit busy contract',()
  const read=name=>readFileSync(new URL(name,root),'utf8');
  assert.ok(read('live-music-selection-view.js').includes('runKitButtonAction(this.confirmButton,()=>this.send())'));
  assert.ok(read('speaker-output-view.js').includes('runKitButtonAction(this.refresh,()=>this.open())'));
- assert.ok(read('timer-notice.js').includes("applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy})"));
+ assert.ok(read('timer-notice.js').includes("applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy&&this.allowed})"),'a Stop that cannot be used shows no spinner');
 });

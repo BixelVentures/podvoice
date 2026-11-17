@@ -339,7 +339,9 @@ export class LiveMediaView{
     // The speaker's native confirmation of this exact request plays the chosen item before
   // Spotify's observation names it. Controls still wait for that observation's authority.
   const confirmed=!!selected&&playerFeedback?.settlementStatus==='confirmed';
-  this.host.playerView.renderPlayer({...model,...(model.active&&pendingChoice?{target:pendingChoice,targetPending:true}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:confirmed,fresh:true,loading:!confirmed,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput:model.canOutput,feedback:null}:{})});
+  // The speaker chip opens a speaker list; without a music account there is no list to read, so it is disabled.
+  const canOutput=model.canOutput===true&&!!this.account;
+  this.host.playerView.renderPlayer({...model,canOutput,...(model.active&&pendingChoice?{target:pendingChoice,targetPending:true}:{}),controlStatus,nextDestinationLabel:!model.active&&!selected?this.host.liveOutputs?.nextDestinationLabel?.()||'':'',canChooseAccount:this.canChooseAccount,feedback:currentStatus?null:playerFeedback,...(selected?{...selected,active:true,playing:confirmed,fresh:true,loading:!confirmed,sourceKind:'music',progressMs:null,durationMs:null,positionFresh:false,canSeek:false,canOutput,feedback:null}:{})});
   if(!this.host.liveControls)this.host.playerView.renderControls({playing:p?.state==='playing',blocked:true});
   this.renderQueue();if(this.host.liveControls)this.host.liveControls.render();else if(selected)this.host.playerView.renderControls({playing:confirmed,blocked:true,volume:null,canVolume:false});this.host.liveCatalogue?.render();this.host.renderOverviewFacts?.();
  }

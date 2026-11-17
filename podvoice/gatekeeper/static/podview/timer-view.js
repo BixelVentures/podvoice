@@ -182,7 +182,7 @@ export class TimerView {
    const adjust=button.dataset.timerAction==='adjust',delta=Number(button.dataset.deltaSeconds),buttonHidden=adjust?!native:!local;if(button.hidden!==buttonHidden)button.hidden=buttonHidden;
    if(adjust){
     // An adjustment in flight for this timer keeps +1/−1 tappable; the host queues the taps (T1).
-    const disabled=!native||!this.connected||access.canAdjust!==true||blocked&&!pending||access.adjustBlockedIds?.includes(t?.id)||!bounds?.[delta<0?'minus':'plus'];if(button.disabled!==!!disabled)button.disabled=!!disabled;applyKitComponent(button,'button',{variant:'icon',feedback:'progress',loading:!!(pending&&pending.deltaSeconds===delta&&access.waiting)});}
+    const disabled=!native||!this.connected||access.canAdjust!==true||blocked&&!pending||access.adjustBlockedIds?.includes(t?.id)||!bounds?.[delta<0?'minus':'plus'];if(button.disabled!==!!disabled)button.disabled=!!disabled;applyKitComponent(button,'button',{variant:'icon',feedback:'progress',loading:!disabled&&!!(pending&&pending.deltaSeconds===delta&&access.waiting)});}
    else{const label=t?.status==='paused'?'Fortsæt':'Pause';syncKitButtonContent(button,{label,icon:label==='Fortsæt'?'assets/icons/play-fill.svg':null,size:'56'});const disabled=!local||!this.connected||blocked||t?.stale;if(button.disabled!==!!disabled)button.disabled=!!disabled;}
   }
  }
