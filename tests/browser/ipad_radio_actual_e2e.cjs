@@ -69,7 +69,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  assert.equal((await box(tiles.nth(0).locator('.pv-meta'))).display,'none','tiles carry only logo and name');
  assert.deepEqual(page.errors,[]);
  // A tap is answered at once in the hero, and the player takes the station.
- const tapAt=Date.now();await tiles.nth(1).click();
+ const tapAt=Date.now();await tiles.nth(0).click();
  await page.waitForFunction(()=>document.querySelector('#radio-view .radio-hero h2')?.textContent==='P1',undefined,
   {timeout:300});
  assert(Date.now()-tapAt<300,'own choice shown < 300 ms');

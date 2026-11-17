@@ -63,13 +63,13 @@ let server,browser,data;
  await sport.locator('.pv-sport-result').getByText('3–1',{exact:true}).waitFor({state:'visible',timeout:10000});
  await sleep(400);
  const column=await box(host),card=await box(sport);
- assert.deepEqual([column.x,column.y],[24,88],'cards start at 24/88');
+ assert.deepEqual([column.x,column.y],[24,104],'cards start at 24/104');
  assert.deepEqual([card.x,card.y,card.w],[column.x,column.y,column.w],'the card spans the card column');
  assert.equal(card.bg,CARD,'card is the neutral surface');assert.equal(card.radius,'24px','card radius 24');
  const content=await sport.evaluate(n=>Math.max(...[...n.children].filter(c=>c.getClientRects().length)
   .map(c=>c.getBoundingClientRect().bottom)));
  near(card.bottom,Math.round(content)+32,'the card ends 32 under its content',3);
- assert(card.h<696,`a short answer does not stretch to the bottom of the column (${card.h})`);
+ assert(card.h<692,`a short answer does not stretch to the bottom of the column (${card.h})`);
  const chip=await box(sport.locator('.answer-canvas-icon'));
  assert.deepEqual([chip.w,chip.h,chip.radius,chip.bg],[32,32,'999px',ANSWER],'the kind sits in its category chip');
  const kind=await box(sport.locator('h1'));
@@ -105,7 +105,7 @@ let server,browser,data;
  await current.getByText('Assist: Pedri',{exact:true}).waitFor({state:'visible',timeout:10000});
  await sleep(500);
  const top=await box(current),below=await box(host.locator('pv-answer[data-thread=earlier]:visible'));
- near(top.y,88,'the newest answer is the top card');
+ near(top.y,104,'the newest answer is the top card');
  assert.equal(below.y-top.bottom,16,'16 between the cards');
  for(const [label,item] of [['newest',top],['earlier',below]]){
   assert.equal(item.bg,CARD,`${label} answer is its own neutral card`);assert.equal(item.radius,'24px');}
@@ -122,7 +122,7 @@ let server,browser,data;
  await page.locator('#open-history').tap();
  await today.waitFor({state:'visible',timeout:10000});await sleep(600);
  const todayBox=await box(today);
- assert.deepEqual([todayBox.x,todayBox.y],[column.x+column.w+32,88],'I dag in the player column beside the cards');
+ assert.deepEqual([todayBox.x,todayBox.y],[column.x+column.w+32,104],'I dag in the player column beside the cards');
  assert.equal(await page.locator('aside.player').isVisible(),false,'the player gives the column to I dag');
  assert.equal((await today.locator('header>h2').innerText()).trim(),'I dag');
  assert.equal((await today.locator('header>span').innerText()).trim(),'Nyeste øverst');
@@ -133,7 +133,7 @@ let server,browser,data;
   'one row per answer, newest first');
  const row=rows.first(),rowBox=await box(row),other=await box(rows.nth(1));
  assert.equal(rowBox.h,64,'row 64 high');assert.equal(rowBox.radius,'18px','row radius 18');
- near(rowBox.y,136,'first row under the 32-px header and 16 gap');
+ near(rowBox.y,104+32+16,'first row under the 32-px header and 16 gap');
  assert.equal(other.y-rowBox.bottom,8,'8 between rows');
  assert.equal(await row.getAttribute('aria-current'),'true','the answer being read is marked');
  assert.equal(rowBox.bg,LINE,'the selected row has the kit selected fill');assert.equal(rowBox.shadow,'none');
@@ -170,10 +170,10 @@ let server,browser,data;
  // Kit-Topbar: back is its own 44×44 key (radius 14, #F7F6F3) at the 24 edge, centred on the 56-px keys (24 from the
  // top), then the title 22/600 14 after it.
  const key=await box(page.locator('#header-title-action>.topbar-back-icon'));
- assert.deepEqual([key.x,key.y,key.w,key.h],[EDGE,24+(56-44)/2,44,44],'back key 44×44 at 24/30');
+ assert.deepEqual([key.x,key.y,key.w,key.h],[24,24+(56-44)/2,44,44],'back key 44×44 at 24/30');
  assert.equal(key.radius,'14px');assert.equal(key.bg,'rgb(247, 246, 243)');
  const label=await box(page.locator('#header-title-action>.topbar-title-copy'));
- assert.equal(label.x,EDGE+44+14,'title 14 after the key');assert.equal(label.size,'22px');assert.equal(label.weight,'600');
+ assert.equal(label.x,24+44+14,'title 14 after the key');assert.equal(label.size,'22px');assert.equal(label.weight,'600');
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-svar-historik.png')});
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',journey:'ipad-svar',statusPhase:phase,statusWidth:pill.w,card,
