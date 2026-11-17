@@ -238,7 +238,7 @@ export class LiveMediaView{
   const snapshot=this.host.liveSnapshot,read=snapshot?.capabilities?.musicRead||[],queue=this.queueControls;
   if(this.playback&&!read.includes('playback'))this.clearRoom();
   const readable=read.includes('queue'),admitted=snapshot?.capabilities?.queueSelection===true;
-  let items=[],status,empty,errorKind=null;
+  let items=[],status,empty,errorKind=null,native=null;
   // Music on another device has no queue for this room: it settles on the empty state at once (Musik-Koe).
   const elsewhere=this.playback?.elsewhere===true;
   if(!readable||elsewhere||!roomObservationDisplay(this.playback,snapshot,this.account)
@@ -253,7 +253,7 @@ export class LiveMediaView{
    status=items.length?'stale':'unavailable';
    empty=!readable?'Køen er ikke tilgængelig med den aktuelle adgang.':elsewhere?QUEUE_UNAVAILABLE:'';
   }else{
-   const native=queue.model(this.account,this.playback);
+   native=queue.model(this.account,this.playback);
    if(native){
     status=native.status;errorKind=native.errorKind;
     empty=native.metadataPending?'Køens oplysninger er ikke tilgængelige endnu.':status==='ready'?'Ingen sange i køen.':status==='stale'?'Ingen sange i den seneste kø.':status==='error'?(queue.errorKind==='choice'?'Køvalget blev afvist.':''):status==='unknown'?'Køvalg kunne ikke bekræftes.':'';
@@ -265,6 +265,13 @@ export class LiveMediaView{
   }
   // Known rows outlive a failed read as the last known queue; a read failure is not shown as an error.
   if(items.length&&status==='error'&&errorKind!=='choice'){status='stale';errorKind=null;}
+  // Opening Kø re-reads a queue that is already known (owner 17/11: »reload-flash af køen«). The known rows and
+  // their »N numre · højttaler« line stay as they are while that read runs; only its answer patches them.
+  if(native&&items.length&&queue.pending&&['loading','stale'].includes(status))status='ready';
+  // An expired or used choice offer is no news about the songs either: the rows read for this same playback
+  // are still the queue. Only a failed read or another playback says »Køen er ikke opdateret«.
+  if(native&&items.length&&status==='stale'&&queue.retained?.key&&!queue.previewPending
+   &&['ready','stale'].includes(queue.status))status='ready';
   // Settled answers show at once: rows, an authoritative empty queue, a choice outcome or an access rule.
   const settled=items.length>0||!readable||!admitted||elsewhere||['ready','unknown'].includes(status)||status==='error'&&errorKind==='choice'
    ||status==='stale'&&queue.retained?.items?.length===0&&!queue.retained.metadataPending;

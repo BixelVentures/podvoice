@@ -3689,7 +3689,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 @media (min-width:1000px){
  pv-widget-host[data-view=active] .responses>#music-response[data-discovery-preview]:not([hidden]){
    --pv-music-ink-2:#5F5E5A;display:flex!important;flex-direction:column!important;gap:0!important;
-   padding:0 0 32px!important;width:var(--pv-column)!important;max-width:var(--pv-column)!important;grid-template-columns:none!important;
+   padding:0 0 32px!important;width:100%!important;max-width:none!important;grid-template-columns:none!important;
    grid-template-rows:none!important;}
  #music-response[data-discovery-preview] #music-refinements{
    display:contents!important;}
@@ -3740,7 +3740,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  #music-response[data-discovery-preview]>#music-refresh{
    margin-top:4px!important;}
  #music-response[data-discovery-preview] #results{
-   order:calc(var(--pv-open) + 2);flex:none;height:auto!important;width:100%!important;max-width:var(--pv-column)!important;
+   order:calc(var(--pv-open) + 2);flex:none;height:auto!important;width:100%!important;max-width:none!important;
    align-self:stretch!important;max-height:none!important;margin:0 0 24px!important;grid-column:auto!important;
    grid-row:auto!important;}
  #music-response[data-discovery-preview]>#empty{
@@ -3852,7 +3852,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    display:none!important;}
  /* Lige nu: the first mood card, 744×252, dark, cover 212, name 36/800 and the Afspil pill. */
  #music-response[data-discovery-preview] #music-hero>.result.result.result[data-content-state][data-kit=hero]{
-   flex-basis:100%!important;width:var(--pv-column)!important;height:252px!important;display:grid!important;
+   flex-basis:100%!important;width:100%!important;height:252px!important;display:grid!important;
    grid-template-columns:212px 1fr!important;grid-template-rows:1fr auto!important;column-gap:24px!important;
    row-gap:0!important;padding:20px!important;box-sizing:border-box;border-radius:28px!important;overflow:hidden;
    color:#F7F6F3;margin-bottom:16px;background:linear-gradient(135deg,#2B3A4A 0%,#3E5568 55%,#8FB3D9 140%)!important;}
@@ -4019,7 +4019,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    their last read (.music-shelf). */
 @media (min-width:1000px){
  #music-response[data-discovery-preview] #music-hero{
-   order:1;flex:none;display:block;width:var(--pv-column);}
+   order:1;flex:none;display:block;width:100%;}
  #music-response[data-discovery-preview] #music-hero:empty{
    display:none;}
  #music-response[data-discovery-preview] #music-hero>.result.result.result[data-content-state][data-kit=hero]{
@@ -4041,7 +4041,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  #music-response[data-discovery-preview]>[data-discovery-header]{
    transform:translateY(-11px)!important;}
  #music-response[data-discovery-preview] .music-shelf{
-   order:calc(var(--pv-shelf-order) + 2);flex:none;display:flex;flex-wrap:nowrap;gap:16px;width:var(--pv-column);
+   order:calc(var(--pv-shelf-order) + 2);flex:none;display:flex;flex-wrap:nowrap;gap:16px;width:100%;
    margin:12px 0 0;padding:0 24px 0 0;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;
    scroll-snap-type:x mandatory;scrollbar-width:none;
    -webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);mask-image:linear-gradient(90deg,#000 78%,
@@ -4058,6 +4058,40 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    --pv-shelf-order:30;}
  #music-response[data-discovery-preview] .music-shelf[data-music-shelf=top]{
    --pv-shelf-order:40;}
+ /* Lærred »A-MusikHjem«: the column ends in a 40-px fade over the page background instead of a hard cut. */
+ pv-widget-host[data-view=active] .responses>#music-response[data-discovery-preview]:not([hidden]){
+   -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 40px),transparent);
+   mask-image:linear-gradient(180deg,#000 calc(100% - 40px),transparent);}
+ /* Henter / tom / fejl: a section without cards takes no room. Without a hero the first heading opens the column
+   at 88, as the canvas column does. */
+ #music-response[data-discovery-preview] #results:not(:has(#result-list>.result)){
+   display:none!important;}
+ #music-response[data-discovery-preview]:has(>#music-hero:empty) #music-refinements>[data-collection=recent]{
+   margin-top:0!important;}
+ /* The column is a plain scroll area: no card corner may clip the first heading. */
+ pv-widget-host[data-view=active] .responses>#music-response[data-discovery-preview]:not([hidden]){
+   border-radius:0!important;}
+ /* »Kunne ikke hente forslag« (e.g. Spotify rate limit) and »Ingen nye forslag«: the kit's compact info line
+   (K-Notice compact/info, as Lys-Ukendt and Musik-IkkeTilg) 12 under the section heading it belongs to and above
+   its cards. Calm grey, never a red sentence floating in the column; »Prøv igen« stays the section's own action. */
+ pv-widget-host #music-response[data-discovery-preview]>#empty.music-refresh-message:not([hidden]){
+   order:calc(var(--pv-open) + 1);align-self:flex-start;display:inline-flex!important;align-items:center;gap:10px;
+   min-height:40px;max-width:100%;max-height:none;margin:12px 0 0!important;padding:8px 14px 8px 8px!important;
+   box-sizing:border-box;border-radius:12px;background:#E2E0DB;color:#3F3E3B!important;
+   font:800 15px/20px var(--pv-font)!important;overflow:visible;}
+ pv-widget-host #music-response[data-discovery-preview]>#empty.music-refresh-message:not([hidden])::before{
+   content:'i';flex:none;display:flex;align-items:center;justify-content:center;width:24px;height:24px;
+   border-radius:50%;background:#7A7873;color:#FFFFFF;font:800 14px/1 var(--pv-font);}
+ /* The Afspil pill carries the canvas's filled play triangle. */
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]:not([data-pending=true],[data-playing=true])
+   >.result-play>img{
+   display:none;}
+ #music-response[data-discovery-preview]
+   #music-hero>.result.result.result[data-content-state][data-kit=hero]:not([data-pending=true],[data-playing=true])
+   >.result-play::before{
+   content:'';flex:none;width:18px;height:18px;background:#17171A;
+   clip-path:polygon(29% 19%,29% 81%,79% 50%);}
 }
 /* Kø fits the column (lærred »Musik-Koe«): »Kø« at 104, the card from 152 to the 796 baseline, rows scroll
    inside it.

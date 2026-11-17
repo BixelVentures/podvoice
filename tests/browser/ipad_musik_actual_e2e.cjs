@@ -159,6 +159,50 @@ async function open(stage){
  assert.deepEqual(f5.moodRail,f5.before.mood,'the old list goes on as its rail with the same nodes');
  assert.deepEqual(page.errors,[]);await page.close();
 
+ // Kunne ikke hente forslag (Spotify rate limit, lærred »Musik-IkkeTilg« + K-Notice compact/info): the section keeps
+ // its heading and »Prøv igen«, the kit's calm grey 40-px line stands 12 under the heading and above its cards, and
+ // an empty section takes no room. Without a hero the column opens with the first heading at 88.
+ const notice=async()=>{
+  const line=await box(page.locator('#empty'));
+  assert.equal(line.display,'flex');assert.equal(line.h,40,'one 40-px line');assert.equal(line.x,24);
+  assert.equal(line.radius,'12px');assert.equal(line.size,'15px');assert.equal(line.weight,'800');
+  assert.equal(line.color,'rgb(63, 62, 59)','calm ink, not the danger red');
+  assert.equal(await page.locator('#empty').evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(226, 224, 219)');
+  const head=await box(page.locator('[data-collection=mood]'));
+  near(line.y,head.y+head.h+12,'the line is 12 under its heading');
+  assert.equal(await page.locator('#music-refresh [data-refresh-label]').innerText(),'Prøv igen');
+  return line;
+ };
+ const failRefresh=async(empty)=>{
+  page=await open('music-prototype-afternoon');
+  if(empty)await page.evaluate(()=>{const music=document.querySelector('pv-widget-host').state.music;
+   music.previewEmptyCollection='mood';music.previewEmptyPage=music.suggestionPage||0;});
+  await page.locator('#music-refresh').click();
+  await page.evaluate(()=>{const host=document.querySelector('pv-widget-host');
+   host.music({type:'refresh-result',...host.state.music.refreshPending,status:'error'});});
+  await sleep(500);
+ };
+ await failRefresh(true);
+ assert.equal(await page.locator('#empty').innerText(),'Kunne ikke hente forslag. Prøv igen.');
+ assert.equal(await page.locator('#music-hero').evaluate(n=>n.children.length),0,'no hero without suggestions');
+ assert.equal((await box(page.locator('[data-collection=recent]'))).y,104,'Fortsæt opens the column at 104');
+ const emptyLine=await notice();
+ assert.equal(await page.locator('#results').evaluate(n=>getComputedStyle(n).display),'none','no empty rail');
+ near((await box(page.locator('[data-collection=feeling]'))).y,emptyLine.y+emptyLine.h+32,'Vibe 32 under the line');
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-musik-fejl.png')});
+ assert.deepEqual(page.errors,[]);await page.close();
+ // With earlier suggestions the line says they are kept and stands above them; the column ends in a 40-px fade.
+ await failRefresh(false);
+ assert.equal(await page.locator('#empty').innerText(),'Kunne ikke hente nye forslag. De viste forslag er bevaret.');
+ const keptLine=await notice();
+ near((await box(page.locator('#result-list>.result').first())).y,keptLine.y+keptLine.h+12,'cards 12 under the line');
+ assert.match(await page.locator('#music-response').evaluate(n=>getComputedStyle(n).maskImage),/100% - 40px/);
+ // The Afspil pill has the canvas's filled triangle.
+ const play=page.locator('#music-hero>.result .result-play');
+ assert.equal(await play.locator('img').evaluate(n=>getComputedStyle(n).display),'none');
+ assert.notEqual(await play.evaluate(n=>getComputedStyle(n,'::before').clipPath),'none','filled play triangle');
+ assert.deepEqual(page.errors,[]);await page.close();
+
  // Musik-Koe: one card of 72-px rows; the current track is in the accent with a ring round the cover.
  page=await open('now');
  await page.locator('.player .cover-button').click();await sleep(700);
