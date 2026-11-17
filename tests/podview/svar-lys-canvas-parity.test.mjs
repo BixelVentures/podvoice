@@ -146,7 +146,7 @@ test('SvarK-Spec numbers: cards fit their content, 16 apart; compact rows of 64;
  assert.match(css,/#answer-host#answer-host>pv-answer\.answer-widget\.response-widget\{padding:32px!important;\s*--pv-svar-chip:var\(--pv-answer\)\}/);
  assert.match(css,/\.pv-visual-summary\{margin:8px 0 -4px!important;\s*padding:0 0 4px!important;font:800 44px\/48px var\(--pv-font\)!important;letter-spacing:-\.03em\}/);
  assert.doesNotMatch(css,/#answer-host#answer-host:has\([^{]*\)\{[^}]*background:#(E9E6F4|DDE6FB|F6DCCB)/,'no card tint per kind');
- assert.match(css,/#svar-today:not\(\[hidden\]\)\{display:flex;\s*position:relative;flex-direction:column;gap:16px;[^}]*width:372px;height:696px/);
+ assert.match(css,/#svar-today:not\(\[hidden\]\)\{display:flex;\s*position:relative;flex-direction:column;gap:16px;[^}]*width:var\(--pv-player-w\);height:var\(--pv-content-h\)/);
  assert.match(css,/#svar-today \.svar-today-rows\{display:grid;grid-auto-rows:64px;align-content:start;gap:8px;/);
  assert.match(css,/#svar-today \.svar-today-row\{display:grid;grid-template-columns:32px minmax\(0,1fr\) auto;[^}]*height:64px;[^}]*background:var\(--pv-surface\);/);
  assert.match(css,/#svar-today \.svar-today-row\[aria-current=true\]\{background:var\(--pv-line\);box-shadow:none\}/);
