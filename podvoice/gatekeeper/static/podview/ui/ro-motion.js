@@ -2,6 +2,11 @@
 // The Ro photo is a persistent cover inside the host (.pv-ro-cover): a round mask with the screen-sized photo inside.
 // Only transform and opacity animate, on the cover's own layers (WebKit does not composite clip-path, bug 185816):
 // the mask scales while the photo inside is counter-scaled, so the photo stands still and only the circle's edge moves.
+// No frame rasterizes: the mask draws nothing (it only clips), the stage keeps one raster scale (will-change), the
+// cover's photo looks like Ro's whichever screen is under it, and the touch-down that will start the motion arms the
+// cover (arm()), so the photo is rasterized before the release, not as the growing circle uncovers it.
+// Easing is the plain 'linear' keyword on sampled keyframes (never linear() points), so WebKit runs every animation
+// on Core Animation.
 // Hjem -> Ro: the circle grows from the moon button over Hjem, which is not rendered again until the circle covers it;
 // then Ro renders under the cover, its photo is decoded, and Ro's clock, caption and player fade in as the cover goes.
 // Ro -> Hjem: Ro's clock, caption and player fade out, Hjem renders under the cover, and one frame later the circle
@@ -10,7 +15,7 @@ export const RO_REVEAL=Object.freeze({ms:560,bezier:Object.freeze([.45,0,.2,1])}
 export const RO_CLOSE=Object.freeze({ms:480,bezier:Object.freeze([.4,0,.2,1])});
 export const RO_FOREGROUND=Object.freeze({out:120,in:200});
 export const REDUCED_MS=200;
-const STEPS=40,START_RADIUS=28,END_RADIUS=6;
+const STEPS=40,START_RADIUS=28,END_RADIUS=6,ARMED_MS=1500;
 // Ro's own content over the photo: it fades instead of being covered or uncovered at once.
 const FOREGROUND='#photo-view>:not(img),#photo-weather,#resource-rail,.player,#player-empty,.connection-note';
 
@@ -43,7 +48,14 @@ export function circleFrames({x,y,from,to,size,bezier,steps=STEPS}){
 }
 
 export class RoLayer {
- constructor(host){this.host=host;this.run=null;this.box=null;}
+ constructor(host){
+  this.host=host;this.run=null;this.box=null;
+  // A touch-down that will start Ro <-> Hjem (the moon, or anywhere on Ro) arms the cover before the release.
+  host.addEventListener?.('pointerdown',event=>{
+   if(this.run||!this.available())return;
+   if(event.target?.closest?.('#show-photo')||host.dataset?.view==='rest')this.arm();
+  },{capture:true,passive:true});
+ }
  get doc(){return this.host.ownerDocument;}
  get view(){return this.doc.defaultView||globalThis;}
  available(){return typeof this.host.animate==='function'&&this.host.isConnected!==false&&!!this.doc?.createElement;}
@@ -95,6 +107,22 @@ export class RoLayer {
   }
   return size;
  }
+ // The cover held at full size and opacity .001 (invisible; at 0 nothing would be drawn), so its photo is rasterized
+ // in the touch, before the release. The motion's animations play over these holds (later animations win), so the
+ // layers and their raster scale stay the same when the circle starts. Disarms itself when no motion takes it over
+ // (a touch that was not a tap, a control on Ro).
+ arm(){
+  this.view.clearTimeout?.(this.disarming);
+  this.disarming=this.view.setTimeout?.(()=>{if(!this.run)this.disarm();},ARMED_MS);
+  if(this.armed)return;
+  this.cover();const frame=this.frame(),size=this.place(frame),{x,y,to}=this.circle(frame,null);
+  this.armed=[this.node.animate({visibility:['visible','visible'],opacity:[.001,.001]},{duration:1e6,fill:'forwards'}),
+   ...this.still(x,y,to,size)];
+ }
+ disarm(){
+  this.view.clearTimeout?.(this.disarming);this.disarming=null;
+  for(const animation of this.armed||[])animation.cancel();this.armed=null;
+ }
  foreground(){
   return [...this.host.querySelectorAll(FOREGROUND)].filter(node=>!node.hidden&&node.getClientRects().length);
  }
@@ -107,8 +135,9 @@ export class RoLayer {
  open({point,present,reduced,done}){
   this.finish();this.cover();
   const frame=this.frame(),size=this.place(frame),{x,y,to}=this.circle(frame,point);
+  // A run lasts from here to end(run): the place to mark the screen busy (begin) and idle again (in end).
   const run={kind:'open',present,done,animations:[],fades:[],committed:false};this.run=run;
-  const show={visibility:['visible','visible']};
+  const show={visibility:['visible','visible'],opacity:[1,1]};
   let reveal;
   if(reduced){
    reveal=this.node.animate({...show,opacity:[0,1]},{duration:REDUCED_MS,easing:'linear',fill:'forwards'});
@@ -127,12 +156,14 @@ export class RoLayer {
  close({point,present,reduced,done}){
   this.finish();this.cover();this.remember();
   const frame=this.frame(),size=this.place(frame),{x,y,to}=this.circle(frame,point);
+  // As in open(): busy from here to end(run).
   const run={kind:'close',present,done,animations:[],committed:false,covered:false};this.run=run;
   run.fades=this.foreground().map(node=>node.animate({opacity:[1,0]},
    {duration:RO_FOREGROUND.out,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'}));
   run.cover=()=>{
    if(this.run!==run||run.covered)return;run.covered=true;
-   run.animations.push(this.node.animate({visibility:['visible','visible']},{duration:1e6,fill:'forwards'}),
+   run.animations.push(this.node.animate({visibility:['visible','visible'],opacity:[1,1]},
+    {duration:1e6,fill:'forwards'}),
     ...this.still(x,y,to,size));
    this.commit(run,{fadeIn:false,reduced});
    for(const animation of run.fades)animation.cancel();
@@ -187,7 +218,7 @@ export class RoLayer {
  end(run){
   if(this.run!==run)return;this.run=null;
   for(const animation of [...run.animations,...(run.fades||[])])animation.cancel();
-  run.done?.();
+  this.disarm();run.done?.();
  }
  // A new navigation, a touch or cancel(): the screen the state asks for, at once.
  finish(){
