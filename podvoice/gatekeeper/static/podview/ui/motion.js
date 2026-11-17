@@ -1,5 +1,6 @@
 // Motion tokens (docs/MOTION.md §3.1, §3.11). Four durations, three easings and the springs.
 // scripts/gen-motion-tokens.mjs writes the CSS custom properties in ui-kit.css from these values.
+import {RoLayer} from './ro-motion.js';
 export const DUR=Object.freeze({tap:100,quick:160,base:240,ambient:1400,reduced:150});
 export const SPRING=Object.freeze({
  quick:Object.freeze({duration:.30,bounce:0}),
@@ -134,9 +135,14 @@ const sameLayout=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((value,index)=>va
 // retarget from there, never combine old transforms with a new layout measurement.
 export class SceneMotion {
  constructor(host){this.host=host;this.animations=new Map();this.playerPaint=new Map();this.scroll=new Map();this.nestedScroll=new Map();this.geometry=new Map();this.clocks=new WeakMap();this.feedbackTokens=new WeakMap();this.feedbackStates=new WeakMap();this.media=reducedMotionQuery();this.onPreference=()=>{if(this.reduced)this.cancel();};this.listening=false;this.syncRoot();
-  // Where the last touch landed: the Ro ripple grows from it. Passive, on the host, so it lives as long as the host.
+  // Where the last touch landed: Ro shrinks into it (Ro -> Hjem). Passive, on the host, so it lives as long as
+  // the host.
   host.addEventListener?.('pointerdown',event=>{this.touch={x:event.clientX,y:event.clientY,at:event.timeStamp};},
-   {capture:true,passive:true});}
+   {capture:true,passive:true});
+  // The Ro layer's cover is mounted and its photo decoded once, while the screen is idle.
+  this.ro=new RoLayer(host);const view=host.ownerDocument?.defaultView;
+  const idle=view?.requestIdleCallback?.bind(view)??(view?.setTimeout?(work=>view.setTimeout(work,500)):null);
+  idle?.(()=>this.ro.prepare(),{timeout:2000});}
  get reduced(){return isReduced(this.host,this.media??null);}
  // CSS asks only :root[data-pv-motion=reduced]; this is the one writer. Written only when it changes.
  syncRoot(){
@@ -267,26 +273,50 @@ export class SceneMotion {
   this.skipPage();this.releaseGeometry(false);
   const feed=this.host.querySelector('.responses');this.scroll.set(focus,feed.scrollTop);
   this.nestedScroll.set(focus,[...(feed.querySelectorAll?.('[data-scroll-axis],#weather-view,#vehicle-view,#radio-view,#device-view,#timers-view,#music-response,.answer-scroll')||[])].map(node=>[node,node.scrollTop,node.scrollLeft]));
-  // Crossing Ro without a view transition carries the persistent player's geometry. The ripple needs none, and
-  // ordinary details need no card, heading or page rectangle and never touch player geometry.
+  // Crossing Ro without the Ro layer (immediate navigations) carries the persistent player's geometry. The Ro layer
+  // needs none (Ro's player fades), and ordinary details need no card, heading or page rectangle.
   const crossesRest=focus==='photo'||next==='photo';
-  const player=crossesRest&&!this.transitions()?
+  const player=crossesRest&&!this.layered()?
    this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])'):null;
   const box=player?.getBoundingClientRect();this.cancel();return box||null;
  }
+ layered(){return !this.immediateDepth&&this.ro.available();}
+ get moving(){return this.ro.moving||!!this.pageTransition;}
+ // Called first in every render: a render while Ro <-> Hjem runs waits for, or is drawn under, the Ro layer.
+ holdRender(){return this.ro.holdRender();}
  // P1 page (docs/MOTION.md §3.2). Push and pop run as a same-document view transition where the engine has
  // one (Safari 18+): the old page leaves 24px in --pv-dur-quick while the new one comes 48px on the smooth spring
  // and fades in over --pv-dur-base (ui-kit.css, :root[data-pv-nav]). present() renders inside the transition's
  // update, so the old page is still there to leave. A new navigation or a touch skips a running transition.
- // Ro <-> active (lateral) is a ripple: the new screen is revealed in a circle growing from the finger (ripple()).
- // Engines without view transitions render at once, and enter() moves the pane.
+ // Ro <-> active runs on two live layers, not a view transition (ro()). Engines without view transitions render at
+ // once, and enter() moves the pane.
  page(previous,next,{back=false,present}){
   this.skipPage();
+  if(previous!==next&&(previous==='photo'||next==='photo')&&this.layered())return this.roPage(next==='photo',present);
   if(previous===next||!this.transitions()){present();return null;}
-  if(previous==='photo'||next==='photo'){
-   return this.transition({kind:'ro',origin:this.rippleOrigin(),present});
-  }
   return this.transition({kind:back?'pop':'push',present});
+ }
+ // Ro <-> Hjem (ui/ro-motion.js). Hjem -> Ro grows from the moon button, Ro -> Hjem shrinks into the finger. present()
+ // renders inside the layer's commit, so enter() leaves the motion to it; focus waits for that render (afterPage).
+ // A touch anywhere ends the transition at once on the screen the state asks for.
+ roPage(toRo,present){
+  const doc=this.host.ownerDocument,reduced=this.reduced;this.updatePending=true;
+  const commit=()=>{this.inPageUpdate=true;try{present();}finally{this.inPageUpdate=false;this.flushAfterPage();}};
+  const skip=()=>this.ro.finish();
+  const done=()=>doc.removeEventListener('pointerdown',skip,{capture:true});
+  doc.addEventListener('pointerdown',skip,{capture:true,passive:true});
+  return toRo?this.ro.open({point:this.moonPoint(),present:commit,reduced,done}):
+   this.ro.close({point:this.touchPoint(),present:commit,reduced,done});
+ }
+ // Hjem -> Ro starts at the moon button; without a visible one (Ro after idle, from a detail), at the middle.
+ moonPoint(){
+  const button=this.host.querySelector('#show-photo'),box=button&&!button.hidden?button.getBoundingClientRect():null;
+  return box?.width?{x:box.left+box.width/2,y:box.top+box.height/2}:null;
+ }
+ touchPoint(){
+  const view=this.host.ownerDocument.defaultView||globalThis;
+  return this.touch&&typeof view.performance?.now==='function'&&view.performance.now()-this.touch.at<2000?
+   {x:this.touch.x,y:this.touch.y}:null;
  }
  transitions(){
   const doc=this.host.ownerDocument;
@@ -305,7 +335,7 @@ export class SceneMotion {
  }
  // data-pv-nav names the kind for the stylesheet. It is the only write on the root, and the direction's custom
  // properties live on ::view-transition, so setting and clearing it restyles the root alone, not the whole page.
- transition({kind,present,hero,origin}){
+ transition({kind,present,hero}){
   const doc=this.host.ownerDocument,root=doc.documentElement,named=[];
   const name=node=>{node.style.viewTransitionName='pv-hero';named.push(node);};
   const from=hero?.source?.isConnected&&hero.source.getClientRects?.().length?hero.source:null;
@@ -320,7 +350,6 @@ export class SceneMotion {
   };
   const transition=doc.startViewTransition(update);
   this.pageTransition=transition;
-  if(kind==='ro')this.ripple(transition,origin);
   const skip=()=>transition.skipTransition();
   doc.addEventListener('pointerdown',skip,{capture:true,passive:true});
   for(const step of [transition.ready,transition.updateCallbackDone])step?.catch?.(()=>{});
@@ -331,37 +360,13 @@ export class SceneMotion {
   });
   return transition;
  }
- // Ro ripple: the new screen (pv-ro's new snapshot) is revealed in a circle that grows from the last touch to the
- // farthest corner on the smooth spring, over the old screen, which stays still. Clip-path on the snapshot only: the
- // page itself is never faded, so there is no flash. The stylesheet clips the new snapshot fully until the circle
- // starts. Reduced: the stylesheet cross-fades the two snapshots in --pv-dur-reduced and no circle runs.
- // The ripple's centre: the last touch or, without one, the middle of the screen, in the host's own box (local), which
- // is the pv-ro snapshot's box (the stage may scale the host), and the radius that reaches its farthest corner.
- rippleOrigin(){
-  const doc=this.host.ownerDocument,view=doc.defaultView||globalThis,box=this.host.getBoundingClientRect();
-  const recent=this.touch&&typeof view.performance?.now==='function'&&view.performance.now()-this.touch.at<2000;
-  const x=recent?this.touch.x:box.x+box.width/2,y=recent?this.touch.y:box.y+box.height/2;
-  const width=this.host.offsetWidth||box.width,height=this.host.offsetHeight||box.height;
-  const scale=box.width?width/box.width:1,local={x:(x-box.x)*scale,y:(y-box.y)*scale};
-  const radius=Math.ceil(Math.hypot(Math.max(local.x,width-local.x),Math.max(local.y,height-local.y)));
-  return {local,radius};
- }
- ripple(transition,{local:{x,y},radius}){
-  const root=this.host.ownerDocument.documentElement;
-  transition.ready.then(()=>{
-   if(this.reduced||typeof root.animate!=='function')return;
-   const circle=root.animate({clipPath:[`circle(0px at ${x}px ${y}px)`,`circle(${radius}px at ${x}px ${y}px)`]},
-    {duration:SMOOTH.ms,easing:SMOOTH.easing,fill:'both',pseudoElement:'::view-transition-new(pv-ro)'});
-   transition.finished.finally(()=>circle.cancel()).catch(()=>{});
-  },()=>{});
- }
  // Work that needs the new page (focus) runs after the page transition's update has rendered it, or at once when
  // no update is waiting. Focusing before the update would restyle the old page in the tap, ahead of the capture.
  afterPage(work){if(this.updatePending)(this.afterUpdate??=[]).push(work);else work();}
  flushAfterPage(){
   this.updatePending=false;const work=this.afterUpdate||[];this.afterUpdate=[];for(const run of work)run();
  }
- skipPage(){this.pageTransition?.skipTransition();}
+ skipPage(){this.pageTransition?.skipTransition();this.ro?.finish();}
  // Navigations whose caller works on the new page's DOM straight after dispatch (focus, scroll) render at once
  // and use the enter() motion instead of a view transition, whose update would run a frame later.
  immediate(navigate){this.immediateDepth=(this.immediateDepth||0)+1;try{return navigate();}finally{this.immediateDepth--;}}

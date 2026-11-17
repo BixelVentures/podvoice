@@ -2303,18 +2303,22 @@
     "dist/ui/motion.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/ro-motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:commit": 1,
+          "arrow:done": 1,
           "arrow:isDigit": 1,
           "arrow:name": 1,
           "arrow:read": 1,
           "arrow:release": 1,
           "arrow:resourceLayout": 1,
           "arrow:sameLayout": 1,
-          "arrow:skip": 1,
+          "arrow:skip": 2,
           "arrow:split": 1,
           "arrow:sync": 1,
           "arrow:trimNumber": 1,
@@ -2333,6 +2337,7 @@
           "function:stepResponse": 1,
           "function:valueDirection": 1,
           "function:writeMotionAttribute": 1,
+          "method:afterPage": 1,
           "method:applyDeferredHold": 1,
           "method:cancel": 1,
           "method:capture": 1,
@@ -2340,18 +2345,22 @@
           "method:deferHold": 1,
           "method:enter": 1,
           "method:feedback": 1,
+          "method:flushAfterPage": 1,
           "method:holdGeometry": 1,
+          "method:holdRender": 1,
           "method:immediate": 1,
+          "method:layered": 1,
+          "method:moonPoint": 1,
+          "method:moving": 1,
           "method:reduced": 1,
           "method:releaseGeometry": 1,
           "method:resources": 1,
+          "method:roPage": 1,
           "method:roll": 1,
           "method:settleResources": 1,
           "method:skipPage": 1,
           "method:syncRoot": 1,
-          "method:afterPage": 1,
-          "method:flushAfterPage": 1,
-          "method:rippleOrigin": 1,
+          "method:touchPoint": 1,
           "method:transitions": 1
         },
         "roots": [],
@@ -2366,6 +2375,48 @@
         "scope": "Remove blanket withholding of fresh pointer input during pane transitions; keep existing interruptible animations and independently verified cancelled/outside touch intent. No CSS, animation family or command authority added. Actual browser exposed the swallowed immediate card click.",
         "newComponentFamilies": false
       }
+    },
+    "dist/ui/ro-motion.js": {
+      "status": "active-support",
+      "domOwner": "RoLayer (Ro <-> Hjem: one persistent, inert, aria-hidden cover of the existing Ro photo inside the host)",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:curve": 1,
+          "arrow:raf": 1,
+          "class:RoLayer": 1,
+          "function:circleFrames": 1,
+          "function:cubicBezier": 1,
+          "method:available": 1,
+          "method:circle": 1,
+          "method:constructor": 1,
+          "method:cover": 1,
+          "method:doc": 1,
+          "method:end": 1,
+          "method:finish": 1,
+          "method:foreground": 1,
+          "method:frame": 1,
+          "method:holdRender": 1,
+          "method:moving": 1,
+          "method:place": 1,
+          "method:prepare": 1,
+          "method:remember": 1,
+          "method:still": 1,
+          "method:view": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [
+          "pv-ro-cover",
+          "pv-ro-mask",
+          "pv-ro-stage"
+        ],
+        "dom": true
+      },
+      "reviewedScope": "2026-11-17 owner: Ro <-> Hjem without view transitions, both screens live. One cover made once and kept mounted: a round mask, a counter-scaled stage and a .photo-view box with the existing ambient photo (no clock, controls or new family). Only Web Animations on transform, opacity and visibility; no command authority."
     },
     "dist/ui/page-lifecycle.js": {
       "status": "active-support",

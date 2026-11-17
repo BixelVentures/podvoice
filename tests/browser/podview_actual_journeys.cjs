@@ -114,8 +114,11 @@ for(const journey of only.length?only:journeys){
  if(journey==='home_events_actual_e2e.cjs')runJourney('overview_stable_actual_e2e.cjs');
  // Native feel (13 Nov): timers, weather, light and recipes open complete within 60 ms.
  if(journey==='home_events_actual_e2e.cjs')runJourney('pages_first_frame_actual_e2e.cjs');
- // Navigation motion: transitions start <= 100 ms after release, Ro ripples from the finger; no press while scrolling.
+ // Navigation motion: transitions start <= 100 ms after release, Ro grows from the moon on live layers with no
+ // flash, pages slide over opaque pages; a card press only scales; no press while scrolling.
  if(journey==='home_events_actual_e2e.cjs')runJourney('navigation_motion_actual_e2e.cjs');
+ if(journey==='home_events_actual_e2e.cjs')runJourney('page_transition_actual_e2e.cjs');
+ if(journey==='home_events_actual_e2e.cjs')runJourney('press_actual_e2e.cjs');
  if(journey==='home_events_actual_e2e.cjs')runJourney('press_scroll_actual_e2e.cjs');
  if(journey==='radio_actual_e2e.cjs'){
   runJourney(journey,{RADIO_PLAYER_MODEL_TEST:'1',

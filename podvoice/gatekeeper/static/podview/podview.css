@@ -2851,7 +2851,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 9e660f294ea20289745209ea71aff07d026b1b8a8d5e9130404a406878deeaae */
+/* Source: ui-kit.css · SHA256 1ceba71f036a15395aad7c3477fc0ac1e357892e4d127be62a44efb3a573b451 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5711,50 +5711,46 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 :root[data-pv-motion=reduced] .pv-kit[data-pv-state=done]{animation:none}
 
 /* P1 page (docs/MOTION.md §3.2), drawn by a same-document view transition (SceneMotion.page sets data-pv-nav for
-   its duration). Push: the old page leaves 24px to the left in --pv-dur-quick, accelerating away; the new page
-   comes 48px from the right on the smooth spring and fades in over --pv-dur-base. Pop is mirrored. The title
-   cross-fades with 8px; the topbar chrome and the player stay still (they snap with the root). Snapshots ignore
-   the pointer, so a touch reaches the live page and skips the rest. Reduced: the pages and the title only fade.
+   its duration). As UINavigationController (Ionic ios.transition.ts): push slides the new page in from the right
+   edge over the old one, which moves a third to the left; pop slides the top page out to the right over the one
+   beneath, which comes from a third to the left. Both pages stay opaque (on the paper), so nothing shows through:
+   no dip, no flash. The page group clips, so the pages never pass over the player. The title cross-fades with 8px;
+   the topbar chrome and the player stay still. Snapshots ignore the pointer, so a touch reaches the live page and
+   skips the rest. Reduced: the pages and the title only fade.
    The direction's custom properties sit on ::view-transition, not on :root: a custom property on the root is
    inherited by every element, so setting data-pv-nav would restyle the whole page in the tap and again at the end. */
 @keyframes pv-page-in{from{translate:var(--pv-page-in) 0}}
-@keyframes pv-page-out{to{translate:var(--pv-page-out) 0;opacity:0}}
-:root[data-pv-nav=push]::view-transition{--pv-page-in:48px;--pv-page-out:-24px}
-:root[data-pv-nav=pop]::view-transition{--pv-page-in:-48px;--pv-page-out:24px}
+@keyframes pv-page-out{to{translate:var(--pv-page-out) 0;opacity:var(--pv-page-out-opacity,0)}}
+:root[data-pv-nav=push]::view-transition{--pv-page-in:100%;--pv-page-out:-33%}
+:root[data-pv-nav=pop]::view-transition{--pv-page-in:-33%;--pv-page-out:100%}
 :root:is([data-pv-nav=push],[data-pv-nav=pop]) pv-widget-host .responses{view-transition-name:pv-page}
 :root:is([data-pv-nav=push],[data-pv-nav=pop]) pv-widget-host #header-title{view-transition-name:pv-title}
 /* The root is not captured: chrome and player stay live under the overlay, and capture costs only the page and
    the title. */
 :root:is([data-pv-nav=push],[data-pv-nav=pop]){view-transition-name:none}
 ::view-transition{pointer-events:none}
-::view-transition-group(pv-page){animation:none}
-::view-transition-old(pv-page),::view-transition-new(pv-page){mix-blend-mode:normal}
-::view-transition-old(pv-page){animation:pv-page-out var(--pv-dur-quick) var(--pv-ease-in) both}
-::view-transition-new(pv-page){--pv-busy-from:0;
- animation:pv-busy-in var(--pv-dur-base) var(--pv-ease-out) both,pv-page-in var(--pv-spring-smooth) both}
+::view-transition-group(pv-page){animation:none;overflow:clip}
+::view-transition-old(pv-page),::view-transition-new(pv-page){mix-blend-mode:normal;background:var(--pv-screen-paper);
+ animation-duration:500ms;animation-timing-function:cubic-bezier(.32,.72,0,1);animation-fill-mode:both}
+::view-transition-old(pv-page){--pv-page-out-opacity:1;animation-name:pv-page-out}
+::view-transition-new(pv-page){animation-name:pv-page-in}
+:root[data-pv-nav=pop]:not([data-pv-motion=reduced])::view-transition-old(pv-page){z-index:1}
 ::view-transition-group(pv-title){animation-duration:var(--pv-dur-base);animation-timing-function:var(--pv-ease-out)}
 ::view-transition-old(pv-title){--pv-page-out:0px;animation:pv-page-out var(--pv-dur-quick) var(--pv-ease-in) both}
 ::view-transition-new(pv-title){--pv-busy-from:0;--pv-page-in:8px;
  animation:pv-busy-in var(--pv-dur-base) var(--pv-ease-out) both,pv-page-in var(--pv-dur-base) var(--pv-ease-out) both}
-:root[data-pv-motion=reduced]::view-transition-old(pv-page),
+:root[data-pv-motion=reduced]::view-transition-old(pv-page){animation:none}
 :root[data-pv-motion=reduced]::view-transition-old(pv-title){--pv-page-out:0px;
  animation:pv-page-out var(--pv-dur-reduced) linear both}
 :root[data-pv-motion=reduced]::view-transition-new(pv-page),
 :root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
-/* Ro <-> active (SceneMotion.ripple): the screen (pv-widget-host) is one group, pv-ro; the root is not captured (a
-   live root snapshot repaints the whole document every frame in WebKit). The old screen stays still and opaque; the
-   new one is revealed in a circle growing from the finger, animated by SceneMotion on the clip-path. It starts fully
-   clipped, so no frame shows the new screen before the circle. Nothing fades, so nothing flashes. Reduced: the new
-   screen fades in over the old one in --pv-dur-reduced. */
-:root[data-pv-nav=ro]{view-transition-name:none}
-:root[data-pv-nav=ro] pv-widget-host{view-transition-name:pv-ro}
-::view-transition-group(pv-ro){animation:none}
-::view-transition-old(pv-ro),::view-transition-new(pv-ro){animation:none;mix-blend-mode:normal}
-/* The host is transparent over the body's paper; the new snapshot carries that paper, so the old screen never shows
-   through the gaps between cards. */
-::view-transition-new(pv-ro){clip-path:circle(0px at 50% 50%);background:var(--pv-screen-paper)}
-:root[data-pv-motion=reduced]::view-transition-new(pv-ro){clip-path:none;
- animation:pv-busy-in var(--pv-dur-reduced) linear both}
+/* Ro <-> Hjem (ui/ro-motion.js): no view transition. The Ro photo is a persistent cover over the live screen,
+   hidden at rest; the Ro layer shows it with Web Animations only (visibility, opacity, and transform on the round
+   mask and the counter-scaled stage inside it). The photo box is .photo-view's own look (photo, scrim, night). */
+.pv-ro-cover{position:fixed;inset:0;z-index:60;visibility:hidden;pointer-events:none;overflow:hidden;contain:strict}
+.pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0}
+.pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0}
+.pv-ro-stage>.pv-ro-photo{position:absolute;margin:0;min-height:0;flex:none}
 
 /* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
    the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two

@@ -1,8 +1,13 @@
 'use strict';
 // P3 press feedback (docs/MOTION.md) with a real touch: a card shrinks to .97 and a button to .98 within 100 ms, and
-// on release the scale springs back to 1 on Motion's quick spring without a jump. The press is Web Animations on the
-// control: no class, attribute or inline style changes anywhere. No filter. Reduced motion keeps the overlay only.
-const {chromium}=require('playwright');
+// on release the scale springs back to 1 on Motion's critically damped quick spring: no jump, no overshoot. A card
+// only scales (as a UICollectionViewCell or a SwiftUI press): no overlay, shadow, colour or opacity change; a button
+// keeps its overlay. The press is Web Animations on the control: no class, attribute or inline style changes
+// anywhere. No filter. Reduced motion: a card dims to .8, a button keeps its overlay; nothing scales.
+// Per-frame timing (rAF deltas) through press and release is reported. PODVIEW_TEST_ENGINE=webkit runs it in WebKit
+// with a mouse for the finger.
+const playwright=require('playwright');
+const engine=process.env.PODVIEW_TEST_ENGINE||'chromium';
 const {spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
 const os=require('node:os');
@@ -12,7 +17,7 @@ const env=require('./podview_actual_env.cjs');
 const port=Number(process.env.PRESS_TEST_PORT||18989),base=`http://127.0.0.1:${port}`;
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 // Enabled in the live fixture overview: a card (tile .97) and a topbar button (.98).
-const targets=[['#home-radio',.97],['#header-ro',.98]];
+const targets=[['#home-radio',.97,'card'],['#header-ro',.98,'button']];
 let server,browser,data;
 
 // Samples the target's computed press styles every frame from pointerdown until well after release.
@@ -35,15 +40,19 @@ async function press(page,selector){
   const run={};window.pressRun=run;
   const loop=()=>{if(window.pressRun!==run)return;const style=getComputedStyle(node),scale=style.scale==='none'?1:Number.parseFloat(style.scale);
    window.pressSamples.push({t:performance.now(),scale,filter:style.filter,overlay:style.boxShadow.includes('999px'),
+    opacity:Number(style.opacity),shadow:style.boxShadow,background:style.backgroundColor,
     pressed:node.getAnimations().length>0});
    if(window.pressSamples.length<120)requestAnimationFrame(loop);};
   requestAnimationFrame(loop);
  },selector);
- // A real touch held for 250 ms, as on the wall iPad.
- const session=await page.context().newCDPSession(page),point=[{x:box.x+box.width/2,y:box.y+box.height/2,id:1,
-  radiusX:6,radiusY:6,force:1}];
- await sleep(50);await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:point});await sleep(250);
- await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await session.detach();await sleep(900);
+ // A real touch held for 250 ms, as on the wall iPad (a mouse in WebKit, which has no touch input to drive).
+ const x=box.x+box.width/2,y=box.y+box.height/2;
+ if(engine==='chromium'){
+  const session=await page.context().newCDPSession(page),point=[{x,y,id:1,radiusX:6,radiusY:6,force:1}];
+  await sleep(50);await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:point});await sleep(250);
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await session.detach();
+ }else{await page.mouse.move(x,y);await sleep(50);await page.mouse.down();await sleep(250);await page.mouse.up();}
+ await sleep(900);
  return page.evaluate(selector=>{const node=document.querySelector(selector);delete node.dataset.pressProbe;
   const {down,up}=window.pressTimes;window.pressObserver.disconnect();
   const samples=window.pressSamples.map(s=>({...s,sinceDown:s.t-down,sinceUp:s.t-up}));
@@ -51,11 +60,19 @@ async function press(page,selector){
   assert.deepEqual(result.mutations,[],`${selector}: the press writes no class, attribute or style`);return result.samples;});
 }
 
-function check(selector,expected,samples,{reduced=false}={}){
+function check(selector,expected,samples,{reduced=false,kind}={}){
  const held=samples.filter(s=>s.sinceDown>=0&&s.sinceUp<0),after=samples.filter(s=>s.sinceUp>=0);
  assert(held.length>5&&after.length>20,`${selector}: sampled the press and the release`);
  for(const s of samples)assert.equal(s.filter,'none',`${selector}: press never uses filter`);
- assert(held.some(s=>s.pressed&&s.overlay),`${selector}: the overlay shows while pressed`);
+ for(const s of samples)assert(s.scale<=1.0005,`${selector}: no overshoot (${s.scale})`);
+ if(kind==='card'){
+  // Only the scale moves: no colour, shadow or brightness change, so nothing jumps.
+  for(const s of samples){assert.equal(s.overlay,false,`${selector}: a card has no overlay`);
+   assert.equal(s.shadow,samples[0].shadow,`${selector}: the shadow never changes`);
+   assert.equal(s.background,samples[0].background,`${selector}: the colour never changes`);}
+  if(reduced)assert(Math.abs(held.at(-1).opacity-.8)<.01,`${selector}: reduced dims to .8 (${held.at(-1).opacity})`);
+  else for(const s of samples)assert.equal(s.opacity,1,`${selector}: a card does not dim`);
+ }else assert(held.some(s=>s.pressed&&s.overlay),`${selector}: the overlay shows while pressed`);
  const target=reduced?1:expected,last=held.at(-1).scale;
  assert(Math.abs(last-target)<.002,`${selector}: held scale ${last}, expected ${target}`);
  if(target<1){
@@ -81,21 +98,24 @@ function check(selector,expected,samples,{reduced=false}={}){
  for(let n=0;;n++){if(server.exitCode!==null)throw Error('fixture exited');try{
   if((await fetch(base+'/view/')).ok)break}catch{}
   if(n>100)throw Error('fixture startup');await sleep(100)}
- browser=await chromium.launch(env.browserOptions());
+ browser=await playwright[engine].launch(engine==='chromium'?env.browserOptions():{headless:true});
  for(const reduced of [false,true]){
   const context=await browser.newContext({hasTouch:true,viewport:{width:1180,height:820},reducedMotion:reduced?'reduce':'no-preference'});
   const page=await context.newPage(),errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);await sleep(600);
   assert.equal(await page.evaluate(()=>document.documentElement.dataset.pvMotion),reduced?'reduced':'full');
-  for(const [selector,expected]of targets){
-   const samples=await press(page,selector);check(selector,expected,samples,{reduced});
+  for(const [selector,expected,kind]of targets){
+   const samples=await press(page,selector);check(selector,expected,samples,{reduced,kind});
    const held=samples.filter(s=>s.sinceDown>=0&&s.sinceUp<0).at(-1).scale;
-   console.log('press',JSON.stringify({reduced,selector,held,
-    backAt:Math.round(samples.find(s=>s.sinceUp>=0&&Math.abs(s.scale-1)<.002)?.sinceUp??-1)}));
+   const deltas=[];for(let i=1;i<samples.length;i++)
+    if(samples[i].sinceDown>=0&&samples[i].sinceUp<600)deltas.push(samples[i].t-samples[i-1].t);
+   console.log('press',JSON.stringify({engine,reduced,selector,held,
+    backAt:Math.round(samples.find(s=>s.sinceUp>=0&&Math.abs(s.scale-1)<.002)?.sinceUp??-1),
+    frames:deltas.length,over20:deltas.filter(d=>d>20).length,maxFrame:Math.round(Math.max(...deltas))}));
   }
   assert.deepEqual(errors,[]);await context.close();
  }
- console.log('press: card .97, button .98, spring release, reduced overlay only ok');
+ console.log(`press (${engine}): card .97 scale only, button .98, critically damped release, reduced dims ok`);
 }catch(error){console.error(error);process.exitCode=1}finally{await browser?.close();
  if(server&&server.exitCode===null)server.kill('SIGTERM');
  if(data)await fs.rm(data,{recursive:true,force:true});}})();
