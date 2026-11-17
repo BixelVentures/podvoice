@@ -94,20 +94,22 @@ export function answerTopic(item){
  return `${item?.sessionId||''}|${weather?'weather':'answer'}`;
 }
 
-// The sections of the focused answer's card, oldest first: earlier answers on the same
-// topic in the same conversation, then the focused one. A follow-up becomes a new section.
+// The round of the focused answer, oldest first (Svar page: one card per answer, newest on top). A round is one
+// voice conversation: every answer the owner stored under the same sessionId (wake → close), whatever its topic,
+// so several questions asked in one go stand together. Answers from another session never join the round.
 export function answerThread(answers,focusId){
  const focus=answers.find(item=>item.id===focusId);
  if(!focus||focus.presentation!==true||!focus.sessionId||!Number.isFinite(focus.observedAt))return null;
- const topic=answerTopic(focus),byReceipt=new Map();
+ const byReceipt=new Map();
  for(const item of answers){
   if(item.id!==focus.id&&(item.hidden||item.transcriptSegment||item.presentation!==true||item.status!=='ready'
-   ||!Number.isFinite(item.observedAt)||item.observedAt>focus.observedAt||answerTopic(item)!==topic))continue;
+   ||!Number.isFinite(item.observedAt)||item.sessionId!==focus.sessionId))continue;
   const key=item.receiptId||item.id,known=byReceipt.get(key);
   if(!known||item.id===focus.id||(item.live&&!known.live&&known.id!==focus.id))byReceipt.set(key,item);
  }
  const items=[...byReceipt.values()].sort((a,b)=>a.observedAt-b.observedAt).slice(-6);
- return items.length>1?{sessionId:focus.sessionId,topic,items}:null;
+ if(!items.includes(focus))items.splice(0,1,focus),items.sort((a,b)=>a.observedAt-b.observedAt);
+ return items.length>1?{sessionId:focus.sessionId,items}:null;
 }
 
 // History contains finished visual answers with an explicit owner session identity.

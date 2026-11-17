@@ -6025,16 +6025,19 @@ pv-widget-host .voice-surface .voice-bars{display:none}
  /* The Svar button stays the tap target under the status. */
  body pv-widget-host[data-voice-phase]>nav.view-nav #open-history.header-history{opacity:0}
 
- /* A-SvarKort: one card, 744 wide, reaching the bottom of the player column. */
+ /* A-SvarKort: the column holds one card per answer of the round (owner-answers answerThread), newest on top,
+    16 between. Each card is as tall as its content; the column (.responses) scrolls when they do not fit. */
  body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])){box-sizing:border-box;
-  display:flex;flex-direction:column;min-height:696px;margin:0;padding:0;border-radius:24px;
-  background:var(--pv-surface);box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);overflow:hidden}
+  display:flex;flex:0 0 auto;flex-direction:column;gap:16px;min-height:0;margin:0;padding:0;border-radius:0;
+  background:transparent;box-shadow:none;overflow:visible}
  body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget{position:relative;
-  box-sizing:border-box;
-  width:auto;margin:0!important;padding:24px 28px!important;border-radius:0!important;
-  background:transparent!important;
-  box-shadow:none!important}
- body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget:last-of-type{flex:1 0 auto}
+  box-sizing:border-box;flex:0 0 auto;height:auto!important;min-height:0!important;max-height:none!important;
+  width:auto;margin:0!important;padding:24px 28px!important;border-radius:24px!important;
+  background:var(--pv-surface)!important;
+  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;overflow:hidden}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget
+  :is(.answer-content,.answer-scroll,.answer-visual,.pv-visual-body){flex:0 0 auto!important;min-height:0!important;
+  height:auto!important;max-height:none!important;overflow:visible!important}
  body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading{min-height:32px;padding:0!important;
   align-items:center}
  body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading h1{margin:0;
@@ -6046,24 +6049,18 @@ pv-widget-host .voice-surface .voice-bars{display:none}
   max-height:none!important;overflow:visible!important;-webkit-line-clamp:unset!important;
   font:800 44px/1.05 var(--pv-font)!important;letter-spacing:-.03em;color:var(--pv-ink);
   padding:0 0 6px!important}
- /* SvarK-Opfoelg: the follow-up opens the card; a line, then the answer it follows, one step smaller. */
- body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]{order:-1;flex:0 0 auto;
-  padding-bottom:18px!important}
- body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]::after{content:"";position:absolute;
-  left:28px;right:28px;bottom:0;height:1px;background:rgba(23,23,26,.12)}
- body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier]{padding-top:18px!important}
+ /* SvarK-Opfoelg: the answer being read keeps the full title; the round's other answers step down one size. */
  body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier] .pv-visual-summary{
   font-size:30px!important}
- /* SvarK-Sport: one dark block; the score in 168 mono, each team's scorers under the team. */
+ /* SvarK-Sport: one dark block as tall as its content, radius 20 and padding 32 like the kit's inner surfaces;
+    the score in 168 mono, each team's scorers under the team. */
  body pv-widget-host #answer-host pv-sport-result .pv-visual-body{display:flex!important;flex-direction:column;
-  row-gap:0!important;
-  min-height:100%}
- body pv-widget-host #answer-host pv-sport-result .pv-sport-score{flex:1 0 auto;align-content:end}
- body pv-widget-host #answer-host pv-sport-result .pv-visual-list{flex:1 0 auto;align-content:start}
+  row-gap:0!important;min-height:0}
+ body pv-widget-host #answer-host pv-sport-result :is(.pv-sport-score,.pv-visual-list){flex:0 0 auto}
  body pv-widget-host #answer-host pv-sport-result .pv-visual-lead{margin-bottom:0!important}
  body pv-widget-host #answer-host pv-sport-result .pv-sport-score{display:grid;
   grid-template-columns:1fr 300px 1fr!important;
-  align-items:center;gap:0!important;margin:20px 0 0!important;padding:40px 32px 8px!important;
+  align-items:center;gap:0!important;margin:24px 0 0!important;padding:32px 32px 8px!important;
   border-radius:20px 20px 0 0;background:var(--pv-dark);
   color:var(--pv-on-dark)}
  body pv-widget-host #answer-host pv-sport-result .pv-sport-team{font:700 24px/1.2 var(--pv-font)!important;
@@ -6075,7 +6072,7 @@ pv-widget-host .voice-surface .voice-bars{display:none}
   font:400 15px/20px var(--pv-font);text-align:center;color:rgba(247,246,243,.7)}
  body pv-widget-host #answer-host pv-sport-result .pv-visual-list{display:grid;
   grid-template-columns:1fr 300px 1fr!important;
-  margin:0!important;padding:4px 32px 40px!important;border-radius:0 0 20px 20px;background:var(--pv-dark);
+  margin:0!important;padding:4px 32px 32px!important;border-radius:0 0 20px 20px;background:var(--pv-dark);
   gap:0!important}
  body pv-widget-host #answer-host pv-sport-result .pv-visual-list>li.pv-visual-item{grid-column:1;
   min-height:0!important;padding:0!important;
@@ -6286,35 +6283,35 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   opacity:.4!important;transition:none!important}
 }
 
-/* Svar page (lærred »A-SvarKort«, »SvarK-Spec« v193): the answer card at 24/88, »I dag« in the 372 column. The header
-   is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list; the list is four equal rows of 150 with 16
-   between (radius 20, padding 16): head 24 (icon 18 · kind 15/600 · time 15 mono), then the title 17/22/700 in at
-   most two lines, 8 under the head. The answer being read is white with a 3-px ink ring; the others carry their
-   domain tone. */
+/* Svar page (lærred »A-SvarKort«, »SvarK-Spec« v193): the answer cards on the left, »I dag« / »Tidligere svar« in the
+   372 column. The header is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list. Each answer is one
+   compact row, 64 high, 8 between, radius 18, padding 0 16: the kind's icon in its 32 category chip, 12, the title
+   17/22/700 in one line, 12, the time 15 mono at the right. Colours follow the Svar colour rule (see SvarK-Spec
+   below): neutral rows, the kind only in the chip, the selected row in the kit's selected fill (--pv-line). */
 .svar-today[hidden]{display:none!important}
 @media (min-width:1000px){
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>:is(.player,#player-empty){display:none!important}
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:not([hidden]){display:flex;
   position:relative;flex-direction:column;gap:16px;align-self:start;box-sizing:border-box;width:372px;height:696px;
-  margin-block-start:16px;padding:0;overflow:hidden;color:#17171A;font-family:'Schibsted Grotesk',system-ui,sans-serif}
+  margin-block-start:16px;padding:0;overflow:hidden;color:var(--pv-ink);font-family:var(--pv-font)}
  #svar-today>header{display:flex;align-items:center;justify-content:space-between;height:32px;flex:none}
- #svar-today>header>h2{margin:0;font:800 22px/32px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:0}
- #svar-today>header>span{font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
- #svar-today .svar-today-rows{display:grid;grid-auto-rows:150px;gap:16px;flex:1 1 auto;min-height:0;overflow-y:auto;
-  scrollbar-width:none}
- #svar-today .svar-today-row{display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;width:100%;
-  height:150px;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;
-  box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;overflow:hidden;cursor:pointer}
- #svar-today .svar-today-row[data-domain=weather]{background:#DDE6FB}
- #svar-today .svar-today-row[data-domain=music]{background:#F6DCCB}
- #svar-today .svar-today-row[aria-current=true]{background:#FFFFFF;box-shadow:inset 0 0 0 3px #17171A}
- #svar-today .svar-today-head{display:flex;align-items:center;gap:8px;height:24px;flex:none}
- #svar-today .svar-today-icon{width:18px;height:18px;flex:none}
- #svar-today .svar-today-head>small{flex:1;min-width:0;font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;
-  color:#3F3E3B;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
- #svar-today .svar-today-head>time{flex:none;font:500 15px/20px 'IBM Plex Mono',ui-monospace,monospace;color:#5F5E5A}
- #svar-today .svar-today-title{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;
-  margin-top:8px;font:700 17px/22px 'Schibsted Grotesk',system-ui,sans-serif}
+ #svar-today>header>h2{margin:0;font:800 22px/32px var(--pv-font);letter-spacing:0}
+ #svar-today>header>span{font:600 15px/20px var(--pv-font);color:var(--pv-ink-3)}
+ #svar-today .svar-today-rows{display:grid;grid-auto-rows:64px;align-content:start;gap:8px;flex:1 1 auto;min-height:0;
+  overflow-y:auto;scrollbar-width:none}
+ #svar-today .svar-today-row{display:grid;grid-template-columns:32px minmax(0,1fr) auto;align-items:center;
+  column-gap:12px;box-sizing:border-box;width:100%;height:64px;margin:0;padding:0 16px;border:0;border-radius:18px;
+  background:var(--pv-surface);box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:var(--pv-ink);text-align:left;
+  overflow:hidden;cursor:pointer;--pv-svar-chip:var(--pv-answer)}
+ #svar-today .svar-today-row[data-domain=weather]{--pv-svar-chip:var(--pv-weather)}
+ #svar-today .svar-today-row[data-domain=music]{--pv-svar-chip:var(--pv-music)}
+ #svar-today .svar-today-row[aria-current=true]{background:var(--pv-line);box-shadow:none}
+ #svar-today .svar-today-chip{display:grid;place-items:center;width:32px;height:32px;border-radius:999px;
+  background:var(--pv-svar-chip)}
+ #svar-today .svar-today-icon{width:20px;height:20px}
+ #svar-today .svar-today-title{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font:700 17px/22px var(--pv-font)}
+ #svar-today .svar-today-row>time{font:500 15px/20px var(--pv-font-mono);color:var(--pv-ink-3);white-space:nowrap}
  /* »1 nyt svar« (SvarK-Spec): K-Btn 44 primary with the up icon 18 and 8 to the text, floating 8 under the list's
     top, centred; it never pushes the list. Shadow 0 10 24 −10, in over 360 ms. */
  #svar-today>.svar-today-new.svar-today-new{position:absolute;z-index:3;left:50%;top:56px;transform:translateX(-50%);
@@ -6445,28 +6442,33 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  pv-widget-host #device-view#device-view#device-view #light-room-controls
   .light-lamp-level[data-lamp-live=false]{opacity:.4;pointer-events:none}
 
- /* SvarK-Spec: card 744 × 696, padding 32, radius 24, the answer's domain tone with the corner dots (280 × 120 top
-    right, 9-px grid, up to 6 px); header 32 (icon 20 · label 15/600 · time 15 mono, 8 between); 24 to the title
-    44/48/800; 24 to the media; actions K-Btn 56, 16 between, 24 above. */
- body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])){position:relative;
-  background:#E9E6F4;--pv-svar-dot:#17171A;--pv-svar-dot-opacity:.22}
- body pv-widget-host[data-view=active]
-  #answer-host#answer-host:has(>pv-answer[data-answer-domain=weather]:not([hidden])){
-  background:#DDE6FB;--pv-svar-dot:#1F55F0;--pv-svar-dot-opacity:.5}
- body pv-widget-host[data-view=active] #answer-host#answer-host:has(pv-sourced-image[data-image-kind=album_cover]){
-  background:#F6DCCB;--pv-svar-dot:#B4532A;--pv-svar-dot-opacity:.5}
- body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden]))::before{content:"";
-  position:absolute;top:0;right:0;width:280px;height:120px;pointer-events:none;background:var(--pv-svar-dot);
-  opacity:var(--pv-svar-dot-opacity);
+ /* Svar colour rule (one rule for the answer cards and the »Tidligere svar« rows):
+    1. Cards and rows are neutral surfaces: --pv-surface on the --pv-bg page, never a full tint per kind.
+    2. The kind is shown only by its icon in a 32 round chip tinted with the home widgets' category colour:
+       --pv-answer for answers, --pv-weather for weather, --pv-music for music (svar-today-view svarDomain).
+    3. A selected row uses the kit's one selected treatment (.pv-kit-listrow[aria-pressed=true]: --pv-line).
+    4. The answer's own visual (the dark score block, fact tiles, the cover) is content and keeps its colours.
+    The corner dots are ink on every card, so they never carry a kind.
+    SvarK-Spec: padding 32, radius 24; header 32 (chip 32 · label 15/600 · time 15 mono, 8 between); 24 to the
+    title 44/48/800; 24 to the media; actions K-Btn 56, 16 between, 24 above. */
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget{padding:32px!important;
+  --pv-svar-chip:var(--pv-answer)}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget[data-answer-domain=weather]{
+  --pv-svar-chip:var(--pv-weather)}
+ body pv-widget-host
+  #answer-host#answer-host>pv-answer.answer-widget:has(pv-sourced-image[data-image-kind=album_cover]){
+  --pv-svar-chip:var(--pv-music)}
+ body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget::before{content:"";
+  position:absolute;top:0;right:0;width:280px;height:120px;pointer-events:none;background:var(--pv-ink);opacity:.18;
   -webkit-mask:url(assets/svar/corner-dots.svg) 0 0/280px 120px no-repeat,
    radial-gradient(120% 100% at 100% 0,#000 35%,transparent 80%);-webkit-mask-composite:source-in;
   mask:url(assets/svar/corner-dots.svg) 0 0/280px 120px no-repeat,
    radial-gradient(120% 100% at 100% 0,#000 35%,transparent 80%);mask-composite:intersect}
- body pv-widget-host #answer-host#answer-host>pv-answer.answer-widget.response-widget{padding:32px!important}
  body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading{display:flex!important;align-items:center;
   height:32px;min-height:32px;gap:8px}
  body pv-widget-host #answer-host#answer-host>pv-answer>.response-heading>.answer-canvas-icon{display:block!important;
-  width:20px;height:20px;flex:0 0 20px;margin:0;padding:0}
+  box-sizing:border-box;width:32px;height:32px;flex:0 0 32px;margin:0;padding:6px;border-radius:999px;
+  background:var(--pv-svar-chip)}
  body pv-widget-host #answer-host#answer-host>pv-answer .answer-heading-target{display:flex!important;
   flex:1 1 auto;align-items:center;gap:8px;min-width:0}
  body pv-widget-host #answer-host#answer-host>pv-answer .answer-heading-target>h1{min-width:0;white-space:nowrap;
@@ -6477,9 +6479,6 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
     keeps the box 48 per line. Header → title 24 (16 from the card's flow + 8). */
  body pv-widget-host #answer-host#answer-host>pv-answer .pv-visual-summary{margin:8px 0 -4px!important;
   padding:0 0 4px!important;font:800 44px/48px var(--pv-font)!important;letter-spacing:-.03em}
- body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]{padding-bottom:24px!important}
- body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=current]::after{left:32px;right:32px}
- body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier]{padding-top:24px!important}
  body pv-widget-host #answer-host#answer-host>pv-answer[data-thread=earlier] .pv-visual-summary{
   font-size:32px!important;line-height:36px!important}
  /* Title → media 24: the visual body's 16 flow gap plus 8. */

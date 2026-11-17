@@ -3653,11 +3653,12 @@
     "dist/svar-today-view.js": {
       "status": "approved-renderer",
       "domOwner": "SvarTodayView",
-      "compositionScope": "Lærred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill ↑ 1 nyt svar; tapping it opens the newest answer through the same history row. Lærred v193 (SvarK-Spec): each row is a small card (icon, kind, time, title) in its answer's domain tone; the pill is the kit Button 44 with the up icon and floats over the list.",
+      "compositionScope": "Lærred A-SvarKort/SvarK-Historik (human-owned canvas): while an answer card is shown, the player column lists the same answers as the existing Tidligere svar history, newest first; a row opens the answer through the existing history row. No new family, data or action authority. The real count of answers that arrived while an older answer is read or the list is scrolled away shows as the canvas pill ↑ 1 nyt svar; tapping it opens the newest answer through the same history row. Each saved answer is one compact row (category icon chip, one-line title, time); the answer being read uses the kit's selected fill, rows enter and close up with the shared list motion. The pill is the kit Button 44 with the up icon and floats over the list.",
       "factoryClassArgument": 1,
       "imports": [
         "dist/answer-widget.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/ui/list-motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -3667,12 +3668,14 @@
           "arrow:svarDomain": 1,
           "arrow:svarNewLabel": 1,
           "class:SvarTodayView": 1,
+          "function:svarTime": 1,
           "function:svarTodayRows": 1,
           "function:svarUnseenCount": 1,
           "method:atTop": 1,
           "method:constructor": 1,
           "method:jumpToNewest": 1,
           "method:render": 1,
+          "method:rowNode": 1,
           "method:updateNewer": 1
         },
         "roots": [

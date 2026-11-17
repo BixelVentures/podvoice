@@ -182,7 +182,8 @@ let server,browser,data;
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  await page.locator('#open-history').tap();await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').first().waitFor();
- assert.equal(await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').count(),1);
+ // Svar lists every saved answer as its own row (the two completed answers of the shared session).
+ assert.equal(await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').count(),2);
  assert.equal((await state()).timers[0].id,timer.id);assert.equal((await state()).starts,1);
  assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,1,'only explicit timer start writes');assert.deepEqual(errors,[]);
  // A new current owner receipt uses the existing user-facing source disclosure.

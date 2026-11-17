@@ -1101,8 +1101,8 @@ class WidgetHost extends HTMLElement {
  for(const a of s.answers){
   const completed=this.liveSnapshot?.answers?.readOnlyCompleted===true;
   const groups=(completed||this.historyBrowse)?groupAnswerHistory(s.answers,this.liveAnswers):[];
-  const readingGroup=this.historyBrowse?groups.find(group=>group.items.some(answer=>answer.id===s.focus))
-   :answerThread(s.answers,s.focus);
+  // The round (owner-answers answerThread) is the same whether the answer is live or opened from the list.
+  const readingGroup=answerThread(s.answers,s.focus);
   if(!this.answerNodes.has(a.id)){const node=document.createElement('pv-answer');$('answer-host').append(node);this.answerNodes.set(a.id,node);const retained=document.createElement('article');retained.className='retained-answer';const open=document.createElement('button');open.className='history-open';applyKitComponent(open,'listrow');const icon=document.createElement('img');icon.className='history-domain-icon';icon.alt='';icon.width=32;icon.height=32;const copy=document.createElement('span');copy.className='history-copy';const format=document.createElement('small');const title=document.createElement('strong');const excerpt=document.createElement('span');excerpt.className='history-excerpt';copy.append(title,excerpt,format);const chevron=document.createElement('img');chevron.className='history-chevron';chevron.src='assets/icons/chevron-right.svg';chevron.alt='';open.append(icon,copy,chevron);open.addEventListener('click',()=>{this.historyBrowse={id:a.id,origin:this.historyOpenedFocus,scrollTop:$('retained').scrollTop,scope:JSON.stringify([this.liveSnapshot?.bootId,this.liveSnapshot?.roomId])};this.sceneNavigation=true;this.dispatch({type:'show',id:a.id});if($('history').open)$('history').close();this.focusHeading();});retained.append(open);$('retained').append(retained);this.retainedNodes.set(a.id,retained);}
   const node=this.answerNodes.get(a.id),b=this.retainedNodes.get(a.id),scene={...s,connected:this.live?!!this.liveTransport?.connected:s.connected,connectionNoticeVisible:this.live?this.liveStatus!=='connected':!s.connected},readingAnswer=readingGroup?.items.find(item=>item.id===a.id);
   const historySelection=this.historyBrowse?.id===a.id;
@@ -1115,16 +1115,25 @@ class WidgetHost extends HTMLElement {
   const signature=JSON.stringify([{...displayedAnswer,observedAt},
    scene.connected,scene.sessionId,scene.connectionNoticeVisible,!!this.historyBrowse]);
   if(node.renderSignature!==signature){node.update(scene,displayedAnswer);node.renderSignature=signature;}
-  const threadRole=!this.historyBrowse&&readingAnswer&&readingGroup.items.length>1?(a.id===s.focus?'current':'earlier'):'';
+  const threadRole=readingAnswer&&readingGroup.items.length>1?(a.id===s.focus?'current':'earlier'):'';
   const nodeData=node.dataset;if(nodeData&&(nodeData.thread||'')!==threadRole){if(threadRole)nodeData.thread=threadRole;else delete nodeData.thread;}
   const open=b.querySelector('.history-open'),format=open.querySelector('small'),title=open.querySelector('strong'),excerpt=open.querySelector('.history-excerpt'),icon=open.querySelector('.history-domain-icon');const historyAnswer=(completed?groups.flatMap(group=>group.items).find(item=>item.id===a.id):null)||a;const excerptText=historyAnswer.historical?'':typeof a.content?.summary==='string'?a.content.summary:'';if(excerpt.textContent!==excerptText)excerpt.textContent=excerptText;if(excerpt.hidden!==!excerptText)excerpt.hidden=!excerptText;const iconSource=`assets/icons/${node.dataset?.answerIcon||'chat-circle'}.svg`;if(icon.getAttribute('src')!==iconSource)icon.setAttribute('src',iconSource);const formatText=(a.transcriptSegment?'Registreret tale':answerCatalog[a.kind]||'Visuelt svar')+(historyAnswer.historical&&Number.isFinite(historyAnswer.observedAt)?` · ${new Date(historyAnswer.observedAt*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'');if(format.textContent!==formatText)format.textContent=formatText;const historyTitle=a.title;if(title.textContent!==historyTitle)title.textContent=historyTitle;const label=`${formatText} · ${historyTitle} · Åbn svar`;if(open.getAttribute('aria-label')!==label)open.setAttribute('aria-label',label);
  }
- // A card's sections stand newest first (lærred »SvarK-Opfoelg«): a follow-up opens the card, the answer it
- // follows stays in the same card below it.
- const thread=!this.historyBrowse&&answerThread(s.answers,s.focus);
+ // Svar page: every answer of the round is its own card, newest on top; the one being read is »current«.
+ const thread=answerThread(s.answers,s.focus);
  if(thread){const host=$('answer-host');let after=null;
   for(const item of [...thread.items].reverse()){const node=this.answerNodes.get(item.id);if(!node)continue;
   const wanted=after?after.nextElementSibling:host.firstElementChild;if(wanted!==node)host.insertBefore(node,wanted);after=node;}}
+ // A newly chosen answer is brought into view in the card column; the newest card starts at the top.
+ if(this.answerScrollFocus!==s.focus){this.answerScrollFocus=s.focus;
+  const host=$('answer-host'),column=host.parentElement,node=this.answerNodes.get(s.focus);
+  // After the navigation has placed the new page at the top (ui/motion enter), in the same task.
+  if(node&&!node.hidden&&column)queueMicrotask(()=>{if(node.hidden||!node.isConnected)return;
+   const first=[...host.children].find(child=>!child.hidden);
+   // The stage may be scaled (ui/stage.js): the box difference is divided by the column's own scale.
+   const box=column.getBoundingClientRect(),scale=box.height&&column.offsetHeight?box.height/column.offsetHeight:1;
+   const top=node===first?0:Math.round(column.scrollTop+(node.getBoundingClientRect().top-box.top)/scale);
+   if(column.scrollTop!==top)column.scrollTop=top;});}
  const retainedRoot=$('retained'),ordered=groupAnswerHistory(s.answers,this.liveAnswers).map(group=>group.items.reduce((first,item)=>item.observedAt<first.observedAt?item:first));const historyGroupValue=String(!!this.historyBrowse),answerHost=$('answer-host');if(answerHost.dataset.historyGroup!==historyGroupValue)answerHost.dataset.historyGroup=historyGroupValue;
  for(const answer of s.answers){const retained=this.retainedNodes.get(answer.id);if(retained)retained.hidden=!ordered.some(row=>row.id===answer.id);}
  for(const [index,answer]of ordered.entries()){const retained=this.retainedNodes.get(answer.id);retained.querySelector('.history-session-heading')?.remove();if(retainedRoot.children[index]!==retained)retainedRoot.insertBefore(retained,retainedRoot.children[index]||null);}
