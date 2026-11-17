@@ -1528,16 +1528,19 @@
         "dist/music-results.js",
         "dist/spotify-artwork.js",
         "dist/media-observation.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/ui/list-motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
           "arrow:$": 1,
+          "arrow:apply": 1,
           "arrow:autoSourceFocus": 1,
           "arrow:fixtureArt": 1,
           "arrow:format": 1,
+          "arrow:key": 1,
           "arrow:paint": 1,
           "arrow:playerPreview": 1,
           "arrow:txt": 1,
@@ -1578,9 +1581,7 @@
           "method:toggleVolumeMute": 1,
           "method:updateCoverTone": 1,
           "method:volumeBinding": 1,
-          "method:volumeGestureCurrent": 1,
-          "arrow:apply": 1,
-          "arrow:key": 1
+          "method:volumeGestureCurrent": 1
         },
         "roots": [
           "native:button:queue-track pv-row pv-btn"
@@ -2154,9 +2155,7 @@
     "dist/ui/gestures.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [
-        "dist/ui/motion.js"
-      ],
+      "imports": [],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2166,6 +2165,7 @@
           "arrow:down": 1,
           "arrow:end": 1,
           "arrow:move": 1,
+          "arrow:ownedAway": 1,
           "arrow:pointerCancel": 1,
           "arrow:touchDown": 1,
           "arrow:touchEnd": 1,
@@ -2308,13 +2308,11 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
-          "arrow:centreShift": 1,
           "arrow:isDigit": 1,
           "arrow:name": 1,
           "arrow:read": 1,
           "arrow:release": 1,
           "arrow:resourceLayout": 1,
-          "arrow:rows": 1,
           "arrow:sameLayout": 1,
           "arrow:skip": 1,
           "arrow:split": 1,
@@ -2322,13 +2320,10 @@
           "arrow:trimNumber": 1,
           "arrow:update": 1,
           "class:SceneMotion": 1,
-          "class:Spring": 1,
           "function:isReduced": 1,
           "function:mirrorReducedMotion": 1,
-          "function:project": 1,
           "function:reducedMotionQuery": 1,
           "function:rollingDigits": 1,
-          "function:rubberBand": 1,
           "function:settleTime": 1,
           "function:showProgress": 1,
           "function:showValue": 1,
@@ -2347,22 +2342,13 @@
           "method:feedback": 1,
           "method:holdGeometry": 1,
           "method:immediate": 1,
-          "method:leave": 1,
           "method:reduced": 1,
           "method:releaseGeometry": 1,
           "method:resources": 1,
-          "method:resting": 1,
           "method:roll": 1,
-          "method:sample": 1,
-          "method:schedule": 1,
           "method:settleResources": 1,
           "method:skipPage": 1,
-          "method:stop": 1,
-          "method:syncRoot": 1,
-          "method:target": 1,
-          "method:tick": 1,
-          "method:value": 1,
-          "method:velocity": 1
+          "method:syncRoot": 1
         },
         "roots": [],
         "registrations": {},
@@ -3780,6 +3766,31 @@
         "dom": false
       },
       "reviewedScope": "The one module that imports Motion (npm motion, MIT; provenance in motion.source.txt). Reached only through the delivery bundles. No DOM construction."
+    },
+    "dist/ui/list-motion.js": {
+      "status": "active-support",
+      "domOwner": "animateList leave (P4: a removed queue row stays in its list, out of the flow, while it fades)",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/ui/motion.js",
+        "dist/ui/native-motion.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:centreShift": 1,
+          "arrow:rows": 1,
+          "function:animateList": 1,
+          "function:leave": 1,
+          "function:play": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "reviewedScope": "P4 list motion (queue rows come, go and reorder) as Web Animations timed by Motion springs; reads every box before any write. Reached only through the delivery bundle. No DOM construction."
     }
   },
   "externalModules": {

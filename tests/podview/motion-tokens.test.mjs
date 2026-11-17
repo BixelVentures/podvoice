@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
- DUR,EASE,SPRING,springParams,springCurve,rubberBand,project,
+ DUR,EASE,SPRING,springParams,springCurve,
 } from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
 import {KIT_CSS,motionTokenBlock,replaceBlock} from '../../scripts/gen-motion-tokens.mjs';
 
@@ -57,15 +57,3 @@ test('spring parameters follow the duration/bounce model',()=>{
  assert.ok(Math.abs(flick.k-157.9)<.1);assert.ok(Math.abs(flick.c-20.11)<.01);
 });
 
-test('rubber band starts at zero, grows monotonically and never reaches the dimension',()=>{
- assert.equal(rubberBand(0,40),0);
- let previous=0;
- for(const x of [1,10,40,100,1000,1e6]){const y=rubberBand(x,40);assert.ok(y>previous);assert.ok(y<40);previous=y;}
- assert.ok(40-rubberBand(1e9,40)<1e-4);
-});
-
-test('fling projection uses the UIScrollView deceleration rate',()=>{
- assert.ok(Math.abs(project(1000,.998)-499)<1e-9);
- assert.ok(Math.abs(project(1000)-499)<1e-9);
- assert.ok(Math.abs(project(1000,.99)-99)<1e-9);
-});

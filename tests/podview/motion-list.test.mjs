@@ -1,11 +1,13 @@
-// P4 list (docs/MOTION.md §3.5): rows enter from 8px on the snappy spring with a 30 ms stagger (max five), leave
-// where they stood while neighbours close the gap on the smooth spring, and the playing indicator travels as one.
-// All reads come before any write. Reduced: enter/leave fade, reorder is immediate.
+// P4 list (docs/MOTION.md; ui/list-motion.js, Motion springs): rows enter from 8px on the snappy spring with a
+// 30 ms stagger (max five), leave where they stood while neighbours close the gap on the smooth spring, and the
+// playing indicator travels as one. All reads come before any write. Reduced: enter/leave fade, reorder is immediate.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SceneMotion,springCurve,SPRING,DUR} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+import {SPRING,DUR} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+import {animateList} from '../../podvoice/gatekeeper/static/podview/ui/list-motion.js';
+import {springTiming} from '../../podvoice/gatekeeper/static/podview/ui/native-motion.js';
 
-const SNAPPY=springCurve(SPRING.snappy),SMOOTH=springCurve(SPRING.smooth),ROW=60;
+const SNAPPY=springTiming(SPRING.snappy),SMOOTH=springTiming(SPRING.smooth),ROW=60;
 function list(){
  const log=[];
  const container={isConnected:true,children:[],clientLeft:0,clientTop:0,scrollLeft:0,scrollTop:0,log,
@@ -27,8 +29,8 @@ function list(){
  const set=nodes=>{container.children=nodes;for(const node of nodes)node.parentNode=container;};
  return {container,row,set,log,animated};
 }
-const motion=({reduced=false}={})=>new SceneMotion({dataset:{motion:reduced?'reduced':'system'},isConnected:true,
- ownerDocument:{documentElement:{dataset:{}}}});
+const motion=({reduced=false}={})=>({list:(container,mutate,options={})=>animateList(container,mutate,
+ {...options,reduced})});
 
 test('new rows enter from 8px on the snappy spring, staggered 30 ms for the first five',()=>{
  const f=list(),m=motion(),rows=Array.from({length:8},(_,i)=>f.row(`r${i}`));f.set([]);
@@ -37,7 +39,7 @@ test('new rows enter from 8px on the snappy spring, staggered 30 ms for the firs
  assert.deepEqual(delays,[0,30,60,90,120,150,150,150]);
  for(const row of rows){
   assert.deepEqual(row.animations[0].frames,[{opacity:0,translate:'0 8px'},{opacity:1,translate:'0 0'}]);
-  assert.equal(row.animations[0].options.duration,SNAPPY.ms);assert.equal(row.animations[0].options.easing,SNAPPY.easing);
+  assert.equal(row.animations[0].options.duration,SNAPPY.duration);assert.equal(row.animations[0].options.easing,SNAPPY.easing);
   assert.equal(row.animations[0].options.fill,'backwards','a waiting row is held invisible');
  }
 });
@@ -49,7 +51,7 @@ test('a removed row leaves where it stood and the rows below close the gap on th
  assert(lastRead<firstWrite,'every box is read before the first write');
  assert.equal(a.animations.length,0,'a row that did not move is left alone');
  assert.deepEqual(c.animations[0].frames,[{translate:`0px ${ROW}px`},{translate:'0 0'}]);
- assert.equal(c.animations[0].options.duration,SMOOTH.ms);
+ assert.equal(c.animations[0].options.duration,SMOOTH.duration);
  assert.equal(b.parentNode,f.container,'the leaving row is shown again, out of the flow');
  assert.equal(b.dataset.pvLeave,'');assert.equal(b.inert,true);assert.equal(b['aria-hidden'],'true');
  assert.deepEqual([b.style.position,b.style.top,b.style.height,b.style.pointerEvents],['absolute','60px','60px','none']);
