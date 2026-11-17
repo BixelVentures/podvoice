@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "bdf70e6fb95676b6ccae6d69ea110efe6dfa1e59d22add39e7e46e838d39f25c"
+      "sha256": "eb11149a43e158035209fea96d3fd9a8c2ac678456cfcb6d09ece4d5b14a3a2c"
     },
     {
       "path": "library.css",
@@ -823,7 +823,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "ad44a29141eed623aa7d6b6757d37b82977f486a9c04402cbc3e400c3c4be941"
+      "sha256": "4a9f222154e89b57f2388650f13e8071c13d51b5a590116a1b7ceac81fd1bff6"
     },
     {
       "path": "podview.css",
@@ -1007,7 +1007,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "81324a592eb74c4c8b50bf7407dbca3e9640c2f2f426d9b573030467961be4f2"
+      "sha256": "f56e79bc4813f70361da0b37adbab0421e3b67d8af91a426e2a1714678b209ef"
     },
     {
       "path": "ui/native-motion.js",

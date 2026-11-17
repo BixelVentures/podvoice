@@ -296,16 +296,18 @@ export class SceneMotion {
   if(!this.layered()){present();return null;}
   if(previous==='photo'||next==='photo')return this.roPage(next==='photo',present);
   if(!this.pages.available()){present();return null;}
-  return this.layer(this.pages,run=>this.pages.go({back,reduced:this.reduced,...run}),present);
+  return this.layer(this.pages,run=>this.pages.go({back,reduced:this.reduced,...run}),present,{touch:false});
  }
  // Runs a live-layer transition: present() renders inside the layer's commit (enter() leaves the motion to it and
- // focus waits for it: afterPage); a touch anywhere finishes it at once on the screen the state asks for.
- layer(owner,start,present){
+ // focus waits for it: afterPage). Ro: a touch anywhere finishes it at once (the cover hides what is under it).
+ // Pages: a touch acts on what is under the finger, where it is drawn; jumping the pages to their end in the touch
+ // would move the control away between touch-down and release and lose the tap. A new navigation finishes it.
+ layer(owner,start,present,{touch=true}={}){
   const doc=this.host.ownerDocument;this.updatePending=true;
   const commit=()=>{this.inPageUpdate=true;try{present();}finally{this.inPageUpdate=false;this.flushAfterPage();}};
   const skip=()=>owner.finish();
-  const done=()=>doc.removeEventListener('pointerdown',skip,{capture:true});
-  doc.addEventListener('pointerdown',skip,{capture:true,passive:true});
+  const done=()=>{if(touch)doc.removeEventListener('pointerdown',skip,{capture:true});};
+  if(touch)doc.addEventListener('pointerdown',skip,{capture:true,passive:true});
   return start({present:commit,done});
  }
  // Ro <-> Hjem (ui/ro-motion.js). Hjem -> Ro grows from the moon button, Ro -> Hjem shrinks into the finger.
