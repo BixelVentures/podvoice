@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 c9905a92231dc0f95344e708381455d2d418a33dd4e14557972ff7ad37383511 */
+/* Source: ui-kit.css · SHA256 da64978d14c600f32b8d7adc642ac9abca80b214970b5d45a2ae3608b0b82b39 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 /* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
    Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
@@ -2894,7 +2894,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 :root{
  --pv-dur-tap:100ms;--pv-dur-quick:160ms;--pv-dur-base:240ms;--pv-dur-ambient:1400ms;--pv-dur-reduced:150ms;
  --pv-ease-out:cubic-bezier(.2,0,0,1);--pv-ease-in:cubic-bezier(.4,0,1,1);--pv-ease-inout:cubic-bezier(.45,0,.55,1);
- --pv-spring-0:cubic-bezier(.24,.36,.08,1.08);
+ --pv-spring-0:cubic-bezier(.3,.52,.04,1);
  --pv-spring-15:cubic-bezier(.26,.44,.08,1.16);
  --pv-spring-quick:441ms var(--pv-spring-0);
  --pv-spring-smooth:661ms var(--pv-spring-0);

@@ -14,10 +14,11 @@ export const END='/* motion-tokens:end */';
 const CSS_SPRINGS=['quick','smooth','snappy'];
 
 // One curve per bounce: the shape depends only on bounce, and duration only scales it. CSS gets a cubic-bezier fitted
-// to the spring (max error 2 %), not linear(): WebKit with Core Animation (the iPad) never accelerates a linear()
-// easing (KeyframeEffect::canBeAccelerated), so every transition on it would run on the main thread.
+// to the spring (max error 2.2 %), not linear(): WebKit with Core Animation (the iPad) never accelerates a linear()
+// easing (KeyframeEffect::canBeAccelerated), so every transition on it would run on the main thread. Bounce 0 is
+// critically damped: its curve keeps y2=1 and never passes the target (a hero or press must not overshoot).
 // Fitted with scratch least-max-error search against springCurve(); refit if SPRING bounces change.
-export const SPRING_BEZIER={'--pv-spring-0':'cubic-bezier(.24,.36,.08,1.08)','--pv-spring-15':'cubic-bezier(.26,.44,.08,1.16)'};
+export const SPRING_BEZIER={'--pv-spring-0':'cubic-bezier(.3,.52,.04,1)','--pv-spring-15':'cubic-bezier(.26,.44,.08,1.16)'};
 export function springCurves(){
  const byBounce=new Map(),durations={};
  for(const name of CSS_SPRINGS){

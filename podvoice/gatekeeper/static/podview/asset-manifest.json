@@ -827,7 +827,7 @@
     },
     {
       "path": "podview.css",
-      "sha256": "a7c2049773d0a89b9e2cff36e74f7049e0adbfb9770d536639591abd383bf5a1"
+      "sha256": "53e79d9fe69481d6a5d79e443385af9c1f7e3961ada85fed41c0c64aeb328837"
     },
     {
       "path": "podvoice-transport.js",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "c9905a92231dc0f95344e708381455d2d418a33dd4e14557972ff7ad37383511"
+      "sha256": "da64978d14c600f32b8d7adc642ac9abca80b214970b5d45a2ae3608b0b82b39"
     },
     {
       "path": "ui/answer-auto-return.js",

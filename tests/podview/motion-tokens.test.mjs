@@ -38,6 +38,8 @@ test('CSS springs are cubic-beziers fitted to the JS springCurve (WebKit never a
  for(const [name,key]of [['quick','--pv-spring-0'],['smooth','--pv-spring-0'],['snappy','--pv-spring-15']])
   for(let t=.02;t<1;t+=.02)assert.ok(Math.abs(bezierAt(SPRING_BEZIER[key],t)-springAt(springCurve(SPRING[name]).easing,t))<.03,
    `${name} at ${t.toFixed(2)} within 3 %`);
+ // Bounce 0 is critically damped: the curve never passes the target (hero_actual_e2e: »straight to the target«).
+ for(let t=0;t<=1;t+=.005)assert.ok(bezierAt(SPRING_BEZIER['--pv-spring-0'],t)<=1+1e-9,`spring-0 overshoots at ${t}`);
  assert.equal(token(kit,'--pv-spring-quick'),'441ms var(--pv-spring-0)');
  assert.equal(token(kit,'--pv-spring-smooth'),'661ms var(--pv-spring-0)');
  assert.equal(token(kit,'--pv-spring-snappy'),'557ms var(--pv-spring-15)');
