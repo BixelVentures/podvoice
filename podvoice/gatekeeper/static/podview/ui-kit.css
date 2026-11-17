@@ -2977,11 +2977,24 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 :root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
 /* Ro <-> Hjem (ui/ro-motion.js): no view transition. The Ro photo is a persistent cover over the live screen,
    hidden at rest; the Ro layer shows it with Web Animations only (visibility, opacity, and transform on the round
-   mask and the counter-scaled stage inside it). The photo box is .photo-view's own look (photo, scrim, night). */
+   mask and the counter-scaled stage inside it). The photo box is .photo-view's own look (photo, scrim, night).
+   No frame rasterizes: mask and stage are their own layers with one raster scale (will-change), and the touch-down
+   that will start the motion holds the cover at full size and opacity .001, so the photo is rasterized before the
+   release (RoLayer.arm). */
 .pv-ro-cover{position:fixed;inset:0;z-index:60;visibility:hidden;pointer-events:none;overflow:hidden;contain:strict}
-.pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0}
-.pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0}
+.pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0;will-change:transform}
+.pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
 .pv-ro-stage>.pv-ro-photo{position:absolute;margin:0;min-height:0;flex:none}
+/* The cover is drawn as Ro draws its photo (iPad Foto-Ro below), whichever screen is under it, so it is not restyled
+   and rasterized again when Ro renders under it, and Ro's own photo replaces it without a change. */
+@media (min-width:1000px){
+ .pv-ro-stage>.pv-ro-photo{padding:0}
+ .pv-ro-stage>.pv-ro-photo::before{background:linear-gradient(180deg,rgba(0,0,0,.42),transparent 280px),
+  linear-gradient(0deg,rgba(0,0,0,.35),transparent 260px)}
+ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo{background:#000}
+ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo>img,
+ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo::before{display:none}
+}
 /* Hjem's cards are pressed and leave with the page, so each is its own layer from the start (as a UIView): starting
    a press on a card that had none made WebKit re-layer and repaint the overview in the touch (a 78 ms frame). */
 pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-shortcut){will-change:transform}
