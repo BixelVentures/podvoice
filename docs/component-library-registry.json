@@ -2448,6 +2448,28 @@
         "dom": false
       }
     },
+    "dist/ui/css-flags.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "dist/ui/scroll-edges.js"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "class:CssFlags": 1,
+          "method:anchor": 1,
+          "method:attach": 1,
+          "method:constructor": 1,
+          "method:detach": 1,
+          "method:sync": 1
+        },
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
     "dist/ui/scroll-edges.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
@@ -2857,6 +2879,7 @@
         "dist/player-view.js",
         "dist/ui/touch-intent.js",
         "dist/ui/scroll-edges.js",
+        "dist/ui/css-flags.js",
         "dist/ui/screen-lifecycle.js",
         "dist/voice-surface.js",
         "dist/live-control-view.js",

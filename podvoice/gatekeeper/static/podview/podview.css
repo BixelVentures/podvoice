@@ -1333,9 +1333,11 @@ html[data-library-touch-areas=true] :is(button,a[href],summary,[role=button]):fo
 /* Existing native field, primary touch variant for standalone setup forms. */
 .pv-form-field{min-height:var(--pv-hit-primary);font:var(--pv-t-body)}
 
-/* Source: frame-layout.css · SHA256 0b6910b225d441f833a9099aec8642454f7289cc98bf494a82f849649a463575 */
+/* Source: frame-layout.css · SHA256 0f7ea7eb558b95125172616e44a09a9a4e0954b213c5d7edf72be4c5279feddc */
 /* A frame has a finite canvas. Only the focused content may scroll.
    Persistent resource previews and the independent player keep their geometry. */
+/* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
+   Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
 html{min-height:var(--pv-stage-h,820px);min-height:var(--pv-stage-h,820px);background:var(--pv-screen-paper)}
 body{min-height:var(--pv-stage-h,820px);min-height:var(--pv-stage-h,820px);background:var(--pv-screen-paper)}
 :root{--frame-gap:var(--pv-s2);--frame-inset:24px}
@@ -1376,7 +1378,7 @@ body{min-height:var(--pv-stage-h,820px);min-height:var(--pv-stage-h,820px);backg
 .photo-view>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:-2}.photo-view::before{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(180deg,var(--pv-screen-photo-scrim),transparent 65%,var(--pv-screen-photo-scrim-bottom))}.photo-view:hover:not(:disabled){background:var(--pv-screen-photo-fallback)}.photo-view:active:not(:disabled){transform:none}.photo-time{display:grid;gap:var(--pv-s2);translate:var(--drift-x,0px) var(--drift-y,0px);transition:translate 2s var(--pv-screen-ease)}#photo-clock{font-size:var(--pv-type-value);font-weight:var(--pv-weight-regular);letter-spacing:-.04em;line-height:1;font-variant-numeric:tabular-nums}#photo-date{font-size:var(--pv-type-body);line-height:1.3}.photo-caption{font-size:var(--pv-type-label);line-height:1.3;font-weight:var(--pv-weight-medium)}.photo-caption>span{display:flex;align-items:center;gap:var(--pv-s1);font-size:var(--pv-type-caption);font-weight:var(--pv-weight-regular);margin-top:12px}.photo-caption img{width:16px;height:16px;filter:invert(1)}
 /* Ambient state comes from the existing screen lifecycle owner. */
 
-html:has(pv-widget-host[data-view=rest][data-night=true]),body:has(pv-widget-host[data-view=rest][data-night=true]){background:var(--pv-ink)}
+html[data-pv-rest-night][data-pv-rest-night]:not(pv-z),body[data-pv-rest-night][data-pv-rest-night]:not(pv-z){background:var(--pv-ink)}
 pv-widget-host[data-night=true] .photo-view{background:var(--pv-ink)}
 pv-widget-host[data-night=true] .photo-view>img{opacity:1;filter:brightness(.25) saturate(.6)}
 pv-widget-host[data-night=true] .photo-time{color:var(--pv-ink-3);opacity:1}
@@ -1558,12 +1560,12 @@ pv-widget-host[data-view=active] .player[data-empty=true] .volume{visibility:hid
 
 /* Ro is one photo canvas: the same existing inset owns all four outer edges. */
 
- body:has(>pv-widget-host[data-view=rest]){height:var(--pv-stage-h,820px);min-height:0;padding:var(--pv-rest-outer-inset);overflow:hidden}
- body:has(>pv-widget-host[data-view=rest])>pv-widget-host{height:100%;min-height:0}
+ body[data-pv-rest]:not(pv-z){height:var(--pv-stage-h,820px);min-height:0;padding:var(--pv-rest-outer-inset);overflow:hidden}
+ body[data-pv-rest]:not(pv-z)>pv-widget-host{height:100%;min-height:0}
 
 
 /* One topbar owns navigation, the current scene title and household context. */
-body:has(>pv-widget-host[data-topbar=true][data-view=active]){padding-top:0}
+body[data-pv-topbar-active][data-pv-topbar-active]:not(pv-z){padding-top:0}
 pv-widget-host[data-topbar=true][data-view=active] .view-nav{position:relative;z-index:5;isolation:isolate;display:flex;align-items:center;justify-content:space-between;height:80px;min-height:80px;max-height:80px;margin:0 auto 12px;padding:0;background:var(--pv-screen-paper);gap:var(--pv-s4)}
 pv-widget-host[data-topbar=true] .view-nav>.header-left{display:flex;align-items:center;gap:var(--pv-s2);min-width:0;flex:1}
 pv-widget-host[data-topbar=true] .view-nav .header-navigation{flex:none;width:auto;min-width:0}
@@ -1615,8 +1617,10 @@ pv-widget-host .responses>#history .history-open{min-height:74px;padding:var(--p
 pv-widget-host .responses>#history .history-open strong{font-size:var(--pv-type-body);line-height:1.25}
 pv-widget-host .responses>#history>#history-empty{max-width:36ch;padding:var(--pv-screen-space-6) 0;background:transparent}
 
-/* Source: widget-redesign.css · SHA256 69c8170b53967fe2d23e57b64abb40e941ad6d0dd6a0689862e4d487c231d38c */
+/* Source: widget-redesign.css · SHA256 6b483ceb72c24e9f4061fab995778c7d769d2863cd9f415a8c27e5aac0c79d12 */
 /* Product surface. Test controls stay outside the product frame. */
+/* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
+   Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
 .view-nav #show-photo{display:flex;align-items:center;gap:var(--pv-screen-space-3);background:transparent;font-size:var(--pv-type-caption)}.view-nav #show-photo img{width:var(--pv-icon-s);height:var(--pv-icon-s)}.view-nav #show-photo[aria-pressed=true]{background:transparent}.view-nav #show-now,.view-nav #show-music,.view-nav #open-demo{display:none!important}
 [data-view=rest] .view-nav{display:none}.demo-note{display:none}.journey-status{position:absolute;z-index:5;left:40px;bottom:40px;max-width:52%;margin:0;padding:var(--pv-screen-space-5) var(--pv-screen-space-6);background:var(--pv-surface);color:var(--pv-ink);border-radius:var(--pv-screen-radius);font-size:var(--pv-type-body);line-height:1.3;box-shadow:0 8px 32px color-mix(in srgb,var(--pv-ink) 7.843%,transparent);pointer-events:none}.journey-status:empty{display:none}
 [data-view=active] .journey-status{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);font-size:var(--pv-type-caption);max-width:70%;background:var(--pv-ink);color:var(--pv-surface)}
@@ -1756,7 +1760,7 @@ button{border-radius:var(--pv-hit-radius);-webkit-tap-highlight-color:transparen
 #room-options button{padding:var(--pv-screen-space-4);gap:var(--pv-screen-space-4);border-radius:var(--pv-screen-radius);min-height:80px}#room-options button>img{width:28px;height:28px}.text-control{border-radius:var(--pv-hit-radius)}dialog{padding:var(--pv-screen-space-6);border-radius:var(--pv-screen-radius)}dialog header{margin-bottom:var(--pv-screen-space-5)}dialog header h2{line-height:1.2}dialog header .text-control{padding:var(--pv-screen-space-3) var(--pv-screen-space-4)}dialog .detail-output{border-radius:var(--pv-screen-radius-art);padding:var(--pv-screen-space-3)}
 .action-feedback{position:fixed;z-index:20;bottom:24px;left:calc(24px + (var(--pv-stage-w,1180px) - 64px) * .34615);transform:translateX(-50%);max-width:min(560px,calc((var(--pv-stage-w,1180px) - 64px) * .6923));margin:0;padding:var(--pv-screen-space-4) var(--pv-screen-space-6);border-radius:var(--pv-screen-radius);background:var(--pv-ink);color:var(--pv-surface);box-shadow:0 6px 24px color-mix(in srgb,var(--pv-ink) 12.549%,transparent);font-size:var(--pv-type-body);line-height:1.35;pointer-events:none}.action-feedback:empty{display:none}
 body #connection-note.connection-note:not([hidden]){position:fixed;top:auto;bottom:24px;left:calc(24px + (var(--pv-stage-w,1180px) - 64px) * .34615);right:auto;transform:translateX(-50%);width:max-content;max-width:min(560px,calc((var(--pv-stage-w,1180px) - 64px) * .6923));margin:0;padding:var(--pv-screen-space-4) var(--pv-screen-space-5);border-radius:var(--pv-screen-radius-art);z-index:20;background:var(--pv-screen-ink);color:var(--pv-screen-surface);font-size:var(--pv-type-body);line-height:1.4;pointer-events:none}
-body:has(.action-feedback:not([hidden])) .journey-status{display:none!important}
+body[data-pv-action-feedback][data-pv-action-feedback] .journey-status{display:none!important}
 
 @media (hover:hover){.output:hover:not(:disabled),.text-control:hover:not(:disabled),.header-weather:hover:not(:disabled){background:var(--pv-touch-wash)}.resource-preview:hover:not(:disabled){filter:brightness(.97)}.track:hover:not(:disabled){background:transparent;color:var(--pv-screen-action-ink)}.pv-timer .pv-button:hover:not(:disabled){filter:brightness(.9)}}
 .output{justify-content:flex-start;gap:var(--pv-screen-space-3)!important}.output>img{order:0}.output h2{order:1}.detail-output{justify-content:flex-start;gap:var(--pv-screen-space-3)}.detail-output span{font-weight:var(--pv-weight-bold)}.weather-hours{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:calc((100% - 48px)/6.4);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-width:thin;scrollbar-color:var(--pv-ink-3) var(--pv-line);touch-action:pan-x pan-y}.weather-hours>div{scroll-snap-align:start}.weather-summary small{display:block;font-size:var(--pv-type-caption);line-height:1.4;color:var(--pv-weather-ink);margin-top:var(--pv-screen-space-2)}.timer-alert{position:fixed;z-index:19;left:24px;bottom:24px;padding:var(--pv-screen-space-4) var(--pv-screen-space-6);background:var(--pv-ink);color:var(--pv-surface);border-radius:var(--pv-screen-radius);min-height:56px}#timer-card .pv-actions .pv-button{border-radius:var(--pv-hit-radius);min-height:48px}#timer-card .pv-actions .pv-button:hover:not(:disabled){background:var(--pv-ink-2);color:var(--pv-on-dark)}#timer-card .pv-actions .pv-button:first-child:hover:not(:disabled){background:var(--pv-surface-2);color:var(--pv-ink)}.response-heading h1:focus:not(:focus-visible){outline:none}
@@ -1778,7 +1782,7 @@ body:has(.action-feedback:not([hidden])) .journey-status{display:none!important}
 #timer-alert{position:fixed;display:flex;align-items:center;gap:var(--pv-screen-space-3);left:24px;bottom:max(20px,env(safe-area-inset-bottom));max-width:calc(var(--pv-stage-w,1180px) - 48px);padding:var(--pv-screen-space-3) var(--pv-screen-space-3) var(--pv-screen-space-3) var(--pv-screen-space-4);background:var(--pv-ink);color:var(--pv-surface);border-radius:var(--pv-screen-radius);box-shadow:0 8px 24px color-mix(in srgb,var(--pv-ink) 14.902%,transparent);min-height:80px}
 #timer-alert[hidden]{display:none}.notice-icon{width:40px;height:40px;display:grid;place-items:center;flex:none;background:var(--pv-ink-2);border-radius:var(--pv-screen-radius-field)}.notice-icon img{width:var(--pv-icon-s);height:var(--pv-icon-s);filter:invert(1)}.notice-copy{display:grid;gap:var(--pv-screen-space-1);min-width:0;margin-right:var(--pv-screen-space-2)}.notice-copy strong{font-size:var(--pv-type-focus);line-height:1.15;font-weight:var(--pv-weight-bold)}.notice-copy span{font-size:var(--pv-type-body);line-height:1.3;color:var(--pv-line)}
 #timer-alert button{min-height:48px;border-radius:var(--pv-screen-radius-field);padding:var(--pv-screen-space-3) var(--pv-screen-space-4);background:var(--pv-ink-2);color:var(--pv-surface);font-size:var(--pv-type-caption)}#timer-alert #timer-alert-dismiss{width:48px;padding:var(--pv-screen-space-3);background:transparent}#timer-alert-dismiss img{width:20px;height:20px;filter:invert(1)}#timer-alert button:hover:not(:disabled){background:var(--pv-ink-3);color:var(--pv-surface)}#timer-alert button:active:not(:disabled){background:var(--pv-ink-3);color:var(--pv-surface)}#timer-alert button:focus-visible{outline:2px solid var(--pv-line);outline-offset:2px}
-body:has(#timer-alert:not([hidden])) .action-feedback{bottom:24px}
+body[data-pv-timer-alert]:not(#pv-z) .action-feedback{bottom:24px}
 /* Align optical content while preserving generous touch padding. */
 #music-detail .detail-output{margin-left:-12px;width:calc(100% + 24px)}
 .response-heading h1:focus:not(:focus-visible){outline:none}.responses:focus:not(:focus-visible){outline:none}
@@ -1926,8 +1930,8 @@ pv-widget-host[data-view=active] .frame{position:relative}
 pv-widget-host[data-view=active] .frame::before,pv-widget-host[data-view=active] .frame::after{content:"";position:absolute;grid-column:1;grid-row:1;left:0;right:auto;width:calc((100% - var(--frame-gap,16px)) * .6923076923);z-index:4;pointer-events:none;opacity:0;transition:opacity var(--pv-motion-feedback) var(--pv-screen-ease)}
 pv-widget-host[data-view=active] .frame::before{top:0;height:48px;background:linear-gradient(color-mix(in srgb,var(--pv-screen-paper) 65%,transparent),transparent)}
 pv-widget-host[data-view=active] .frame::after{bottom:0;height:72px;background:linear-gradient(transparent,color-mix(in srgb,var(--pv-screen-paper) 65%,transparent))}
-pv-widget-host[data-view=active] .frame:has(.responses[data-scroll-edge~="start"],#weather-view:not([hidden])[data-scroll-edge~="start"],#music-detail:not([hidden]) #queue[data-scroll-edge~="start"])::before{opacity:1}
-pv-widget-host[data-view=active] .frame:has(.responses[data-scroll-edge~="end"],#weather-view:not([hidden])[data-scroll-edge~="end"],#music-detail:not([hidden]) #queue[data-scroll-edge~="end"])::after{opacity:1}
+pv-widget-host[data-view=active] .frame[data-pv-fade-start][data-pv-fade-start]:not(#pv-z):not(#pv-z)::before{opacity:1}
+pv-widget-host[data-view=active] .frame[data-pv-fade-end][data-pv-fade-end]:not(#pv-z):not(#pv-z)::after{opacity:1}
 
 :root[data-pv-motion=reduced] pv-widget-host[data-view=active] .frame::before,
 :root[data-pv-motion=reduced] pv-widget-host[data-view=active] .frame::after{transition:none}
@@ -2678,9 +2682,9 @@ pv-widget-host :is(.answer-scroll,.weather-hours,#retained,#queue,#device-detail
 #now-view>.resource-card>.resource-direct-action{position:absolute;right:var(--pv-s3);bottom:var(--pv-s3);top:auto}
 #now-view>.resource-card>.resource-direct-action[hidden]{display:none}
 /* Connection feedback preserves the retained cards and ends when the connection resolves. */
-body:has(.connection-note[data-state=connecting]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card){position:relative;isolation:isolate}
-body:has(.connection-note[data-state=connecting]) pv-widget-host[data-view=active] #now-view:not([hidden])>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{content:"";display:block;position:absolute;inset:0;width:auto;height:auto;transform:none;border-radius:inherit;pointer-events:none;z-index:1;background:color-mix(in srgb,var(--pv-surface) 18%,transparent);opacity:0;--pv-skeleton-low:0;animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
-:root[data-pv-motion=reduced] body:has(.connection-note[data-state=connecting]) #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{animation:none!important;opacity:0}
+body[data-pv-connecting][data-pv-connecting] #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card){position:relative;isolation:isolate}
+body[data-pv-connecting][data-pv-connecting] pv-widget-host[data-view=active] #now-view:not([hidden])>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{content:"";display:block;position:absolute;inset:0;width:auto;height:auto;transform:none;border-radius:inherit;pointer-events:none;z-index:1;background:color-mix(in srgb,var(--pv-surface) 18%,transparent);opacity:0;--pv-skeleton-low:0;animation:pv-skeleton var(--pv-dur-ambient) var(--pv-ease-inout) infinite}
+:root[data-pv-motion=reduced] body[data-pv-connecting][data-pv-connecting] #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{animation:none!important;opacity:0}
 :root[data-pv-motion=reduced]
  body #now-view>:is(#home-weather,#home-music,#home-radio,#home-vehicle,.resource-card)::before{
  animation:none!important;opacity:0}
@@ -2763,7 +2767,7 @@ pv-widget-host #device-detail>pv-light-widget.pv-component:is([data-resource-sta
 
 .history-session-heading{font-size:var(--pv-type-caption);color:var(--pv-ink-3);margin:0;padding:var(--pv-screen-space-4) var(--pv-screen-space-3) var(--pv-screen-space-2)}
 /* Weather's top scroll cue reaches the shared header divider. */
-pv-widget-host[data-view=active] .frame:has(#weather-view:not([hidden])[data-scroll-edge~="start"])::before{top:0;background:linear-gradient(var(--pv-screen-paper),transparent)}
+pv-widget-host[data-view=active] .frame[data-pv-weather-start][data-pv-weather-start]:not(#pv-z)::before{top:0;background:linear-gradient(var(--pv-screen-paper),transparent)}
 
 /* Source: timer-notice.css · SHA256 a1d94127fa971b323507df2982b26b0672f4fd6e4cb4eb1c13ad93091031f09b */
 /* The existing timer notice occupies the native top layer, including over details. */
@@ -2851,8 +2855,10 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 9e660f294ea20289745209ea71aff07d026b1b8a8d5e9130404a406878deeaae */
+/* Source: ui-kit.css · SHA256 d339a72659db0dde46adb4561009921c942f75f99c98dd11b2efdcf483a1633a */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
+/* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
+   Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
   --pv-ink-3:#5F5E5A;--pv-on-dark:#F7F6F3;--pv-dark:#17171A;--pv-danger:#B0262A;--pv-danger-tint:#F8DCDC;
@@ -3199,10 +3205,10 @@ pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{width:100%;g
  pv-widget-host[data-view=active] #device-view>[data-robot-rooms=true]{flex:0 0 auto;min-height:min-content;height:auto;max-height:none;overflow:visible}
 
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;grid-row:auto}
-pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"])::before{opacity:1}
+pv-widget-host[data-view=active] .frame[data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start]::before{opacity:1}
 /* The existing nested-scroll fade and topbar divider share the same observed edge. */
-pv-widget-host[data-view=active][data-topbar=true]:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"]) .view-nav::after{opacity:1}
-pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="end"])::after{opacity:1}
+pv-widget-host[data-view=active][data-topbar=true][data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start] .view-nav::after{opacity:1}
+pv-widget-host[data-view=active] .frame[data-pv-scroll-y-end][data-pv-scroll-y-end][data-pv-scroll-y-end]::after{opacity:1}
 pv-widget-host .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail)>:not([hidden]){flex-shrink:0}
 pv-widget-host #vehicle-view .vehicle-hero{height:auto;max-height:none;flex:0 0 auto;overflow:visible;display:flex;flex-direction:column;align-items:stretch}
 /* Player detail begins at its queue; only actual feedback keeps a header. */
@@ -3420,7 +3426,7 @@ pv-widget-host #device-view pv-vacuum-widget.pv-kit-hero .pv-meta{font:var(--pv-
 /* One canonical notification surface, wholly inside the response column. */
 body #playback-status.action-feedback{position:fixed;left:var(--pv-s3);right:auto;top:auto;bottom:var(--pv-s3);transform:none;translate:none;width:max-content;max-width:min(520px,calc((var(--pv-stage-w,1180px) - 48px - var(--pv-s3)) * .7));margin:0;display:grid;align-items:center;gap:var(--pv-s2);z-index:12;pointer-events:none;padding:var(--pv-s2) var(--pv-s3);border-radius:var(--pv-r-l);font:var(--pv-t-body)}
 pv-widget-host .responses{scroll-padding-bottom:88px}
-body:has(#playback-status:not([hidden])) pv-widget-host .responses{scroll-padding-bottom:88px}
+body[data-pv-playback-status]:not(#pv-z) pv-widget-host .responses{scroll-padding-bottom:88px}
 body #playback-status button{justify-self:start;min-height:var(--pv-hit);padding:var(--pv-s1) var(--pv-s3)}
 
 body #playback-status.action-feedback>button[data-kit=button]{pointer-events:auto}
@@ -3435,7 +3441,7 @@ pv-widget-host[data-view=rest] .photo-view{padding:var(--pv-rest-content-inset)}
 pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview){position:absolute;bottom:var(--pv-rest-content-inset);height:96px;min-height:96px;max-height:96px;margin:0;padding:var(--pv-s2)!important;gap:var(--pv-s2);align-items:center;background:var(--pv-rest-glass);color:var(--pv-ink);backdrop-filter:blur(16px);box-shadow:var(--pv-shadow);border-radius:var(--pv-r-l);translate:none;overflow:hidden}
 pv-widget-host[data-view=rest] :is(.player,#player-empty){right:var(--pv-rest-content-inset);top:auto;width:390px;display:grid;grid-template-columns:64px minmax(0,1fr) 48px;grid-template-rows:64px}
 /* A real visible Ro activity rail keeps its16px gap beside the same player. */
-pv-widget-host[data-view=rest]:has(#resource-rail:not([hidden])>.resource-preview:not([hidden])) :is(.player,#player-empty){width:min(390px,calc(100% - 2 * var(--pv-rest-content-inset) - 320px - var(--pv-s2)))}
+pv-widget-host[data-view=rest][data-pv-rail-preview][data-pv-rail-preview][data-pv-rail-preview]:not(#pv-z) :is(.player,#player-empty){width:min(390px,calc(100% - 2 * var(--pv-rest-content-inset) - 320px - var(--pv-s2)))}
 /* Only the finite moving player suspends backdrop sampling; settled Ro keeps glass. */
 pv-widget-host[data-view=rest] :is(.player,#player-empty)[data-scene-player-moving=true]{backdrop-filter:none;-webkit-backdrop-filter:none}
 pv-widget-host[data-view=rest] .player :is(.cover-button,.cover-button .cover){grid-column:1;grid-row:1;width:64px;height:64px;min-height:0;margin:0;align-self:center;border-radius:var(--pv-r-s)}
@@ -3473,7 +3479,7 @@ pv-widget-host[data-view=rest] .photo-weather:focus-visible{outline:2px solid va
 pv-widget-host[data-view=rest] .photo-weather>img{width:var(--pv-icon-m);height:var(--pv-icon-m);filter:brightness(0) invert(1)}
 pv-widget-host[data-view=rest] .photo-weather strong{font:var(--pv-t-title);color:inherit;letter-spacing:0}
 pv-widget-host[data-view=rest] .photo-weather>span{grid-column:1/-1;font:var(--pv-t-body);text-align:right;color:inherit}
-body:has(pv-widget-host[data-view=rest]) #playback-status.action-feedback{bottom:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset) + 96px + var(--pv-s2));max-width:calc(var(--pv-stage-w,1180px) - 2 * (var(--pv-rest-outer-inset) + var(--pv-rest-content-inset)));left:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset))}
+body[data-pv-rest-host]:not(pv-z) #playback-status.action-feedback{bottom:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset) + 96px + var(--pv-s2));max-width:calc(var(--pv-stage-w,1180px) - 2 * (var(--pv-rest-outer-inset) + var(--pv-rest-content-inset)));left:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset))}
 
 /* Ro uses compact glass rows; weather stays directly on the photograph. */
 :root{--pv-rest-glass:color-mix(in srgb,var(--pv-surface) 72%,transparent)}
@@ -5297,8 +5303,8 @@ pv-widget-host[data-view=active] #recipe-view:not([hidden]){display:flex;flex-di
 #recipe-view pv-checklist button{font:var(--pv-t-body);white-space:normal;overflow-wrap:anywhere;text-align:left}
 #recipe-view .pv-kit-disclosure pre{white-space:pre-wrap;font:var(--pv-t-body);padding:var(--pv-s2)}
 #recipe-view [data-kit=card]>button{justify-self:start}
-pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame{grid-template-columns:minmax(0,1fr)}
-pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame>aside{display:none}
+pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame{grid-template-columns:minmax(0,1fr)}
+pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame>aside{display:none}
 
 
 #recipe-view>.response-heading h1[tabindex="-1"]:focus{outline:none}
@@ -5320,7 +5326,7 @@ pv-widget-host[data-view=active] #recipe-view:not([hidden]){background:transpare
 #recipe-view [data-recipe]:has(>img){gap:var(--pv-control-row-gap)}
 #recipe-view [data-kit=card]>[data-kit=card]{padding:0;box-shadow:none;border:0;background:transparent}
 #recipe-view [data-kit=card]:has(>[data-kit=card]){gap:var(--pv-control-section-gap)}
-pv-widget-host[data-topbar=true][data-view=active]:has(#recipe-view:not([hidden])) .view-nav{position:sticky;top:0}
+pv-widget-host[data-topbar=true][data-view=active][data-pv-recipes]:not(#pv-z) .view-nav{position:sticky;top:0}
 #recipe-view [data-recipe-layout=reading]>[data-recipe-layout=source]{grid-column:1/-1}
 #recipe-view [data-recipe-layout=source]>div:not([hidden]){padding-inline:var(--pv-s2)}
 #recipe-view [data-recipe-layout=reading] ol{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-control-row-gap);margin:0;padding:0;list-style:none}
@@ -5344,8 +5350,8 @@ pv-widget-host[data-topbar=true][data-view=active]:has(#recipe-view:not([hidden]
 #recipe-view [data-recipe-layout=reading] li>button.pv-kit-button:not([hidden]):hover{background:var(--pv-surface-2)}
 #recipe-view [data-recipe-layout=reading] li>button.pv-kit-button[hidden]{display:none}
 
-pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::before,
-pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::after{width:100%}
+pv-widget-host[data-view=active] .frame[data-pv-recipes]:not(#pv-z)::before,
+pv-widget-host[data-view=active] .frame[data-pv-recipes]:not(#pv-z)::after{width:100%}
 
 #recipe-view img[data-recipe-fallback]{background:var(--pv-surface-2);object-fit:contain;padding:var(--pv-s2)}
 #recipe-view [data-recipe]>span{min-width:0;text-align:left}
@@ -5800,7 +5806,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    player and grid (--pv-content-h). The widgets take whatever width is left (174 at 1180); the 16 inside the grid is unchanged.
    The player is as tall as the widget grid: 3 rows of 220 + 2 gaps of 16 = 692, starting 16 under the topbar. */
 
- body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
+ body pv-widget-host[data-view][data-view=active]:not([data-pv-recipes]):not(#pv-z)>.frame{
   grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-player-gap)}
  body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
   align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
@@ -6140,7 +6146,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 .empty-find-context{display:none}
 
  :root{--pv-rest-glass:color-mix(in srgb,var(--pv-surface) 88%,transparent)}
- body:has(>pv-widget-host[data-view=rest]){padding:0!important}
+ body[data-pv-rest]:not(pv-z){padding:0!important}
  body pv-widget-host[data-view=rest] .photo-view{border-radius:0!important;padding:0!important}
  body pv-widget-host[data-view=rest] .photo-view::before{background:linear-gradient(180deg,rgba(0,0,0,.42),
    transparent 280px),
@@ -6261,7 +6267,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   width:18px;height:18px;filter:brightness(0)}
 
  /* Foto-Nat 21–7: black, no photo, dimmed warm clock and weather in the middle; only a running timer as a pill. */
- html:has(pv-widget-host[data-view=rest][data-night=true]),body:has(pv-widget-host[data-view=rest][data-night=true]){
+ html[data-pv-rest-night][data-pv-rest-night]:not(pv-z),body[data-pv-rest-night][data-pv-rest-night]:not(pv-z){
   background:#000}
  body pv-widget-host[data-view=rest][data-night=true] .photo-view{background:#000}
  body pv-widget-host[data-view=rest][data-night=true] .photo-view>img,
@@ -8318,9 +8324,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 :root{--pv-recipe-ink:#7A4A22;--pv-recipe-meta:#6B4A2E;--pv-recipe-ring:#A8622C;--pv-recipe-track:#DCDAD4;
   --pv-timer-track:#2E2E33;--pv-timer-coral:#FF7A5C;--pv-timer-dark-2:#2B2B30}
 
- pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame>:is(.player.pv-card,#player-empty){
+ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame>:is(.player.pv-card,#player-empty){
   display:none!important}
- pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame{grid-template-columns:minmax(0,1fr)!important}
+ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame{grid-template-columns:minmax(0,1fr)!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:100%!important;
   max-width:none!important;min-width:0;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){

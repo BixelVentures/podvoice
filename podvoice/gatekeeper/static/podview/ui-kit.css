@@ -1,4 +1,6 @@
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
+/* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
+   Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
   --pv-ink-3:#5F5E5A;--pv-on-dark:#F7F6F3;--pv-dark:#17171A;--pv-danger:#B0262A;--pv-danger-tint:#F8DCDC;
@@ -365,10 +367,10 @@ pv-widget-host #vehicle-view .vehicle-secondary>.vehicle-disclosure{width:100%;g
  pv-widget-host[data-view=active] #device-view>[data-robot-rooms=true]{flex:0 0 auto;min-height:min-content;height:auto;max-height:none;overflow:visible}
 }
 pv-widget-host #radio-view .radio-station-tiles .pv-list>button{grid-column:auto;grid-row:auto}
-pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"])::before{opacity:1}
+pv-widget-host[data-view=active] .frame[data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start]::before{opacity:1}
 /* The existing nested-scroll fade and topbar divider share the same observed edge. */
-pv-widget-host[data-view=active][data-topbar=true]:has(.responses [data-scroll-axis=y][data-scroll-edge~="start"]) .view-nav::after{opacity:1}
-pv-widget-host[data-view=active] .frame:has(.responses [data-scroll-axis=y][data-scroll-edge~="end"])::after{opacity:1}
+pv-widget-host[data-view=active][data-topbar=true][data-pv-scroll-y-start][data-pv-scroll-y-start][data-pv-scroll-y-start] .view-nav::after{opacity:1}
+pv-widget-host[data-view=active] .frame[data-pv-scroll-y-end][data-pv-scroll-y-end][data-pv-scroll-y-end]::after{opacity:1}
 pv-widget-host .responses>:is(#device-view,#vehicle-view,#radio-view,#weather-view,#timers-view,#music-response,#music-detail)>:not([hidden]){flex-shrink:0}
 pv-widget-host #vehicle-view .vehicle-hero{height:auto;max-height:none;flex:0 0 auto;overflow:visible;display:flex;flex-direction:column;align-items:stretch}
 /* Player detail begins at its queue; only actual feedback keeps a header. */
@@ -589,7 +591,7 @@ pv-widget-host #device-view pv-vacuum-widget.pv-kit-hero .pv-meta{font:var(--pv-
 /* One canonical notification surface, wholly inside the response column. */
 body #playback-status.action-feedback{position:fixed;left:var(--pv-s3);right:auto;top:auto;bottom:var(--pv-s3);transform:none;translate:none;width:max-content;max-width:min(520px,calc((100vw - 48px - var(--pv-s3)) * .7));margin:0;display:grid;align-items:center;gap:var(--pv-s2);z-index:12;pointer-events:none;padding:var(--pv-s2) var(--pv-s3);border-radius:var(--pv-r-l);font:var(--pv-t-body)}
 pv-widget-host .responses{scroll-padding-bottom:88px}
-body:has(#playback-status:not([hidden])) pv-widget-host .responses{scroll-padding-bottom:88px}
+body[data-pv-playback-status]:not(#pv-z) pv-widget-host .responses{scroll-padding-bottom:88px}
 body #playback-status button{justify-self:start;min-height:var(--pv-hit);padding:var(--pv-s1) var(--pv-s3)}
 
 body #playback-status.action-feedback>button[data-kit=button]{pointer-events:auto}
@@ -604,7 +606,7 @@ pv-widget-host[data-view=rest] .photo-view{padding:var(--pv-rest-content-inset)}
 pv-widget-host[data-view=rest] :is(.player,#player-empty,#resource-rail>.resource-preview){position:absolute;bottom:var(--pv-rest-content-inset);height:96px;min-height:96px;max-height:96px;margin:0;padding:var(--pv-s2)!important;gap:var(--pv-s2);align-items:center;background:var(--pv-rest-glass);color:var(--pv-ink);backdrop-filter:blur(16px);box-shadow:var(--pv-shadow);border-radius:var(--pv-r-l);translate:none;overflow:hidden}
 pv-widget-host[data-view=rest] :is(.player,#player-empty){right:var(--pv-rest-content-inset);top:auto;width:390px;display:grid;grid-template-columns:64px minmax(0,1fr) 48px;grid-template-rows:64px}
 /* A real visible Ro activity rail keeps its16px gap beside the same player. */
-pv-widget-host[data-view=rest]:has(#resource-rail:not([hidden])>.resource-preview:not([hidden])) :is(.player,#player-empty){width:min(390px,calc(100% - 2 * var(--pv-rest-content-inset) - 320px - var(--pv-s2)))}
+pv-widget-host[data-view=rest][data-pv-rail-preview][data-pv-rail-preview][data-pv-rail-preview]:not(#pv-z) :is(.player,#player-empty){width:min(390px,calc(100% - 2 * var(--pv-rest-content-inset) - 320px - var(--pv-s2)))}
 /* Only the finite moving player suspends backdrop sampling; settled Ro keeps glass. */
 pv-widget-host[data-view=rest] :is(.player,#player-empty)[data-scene-player-moving=true]{backdrop-filter:none;-webkit-backdrop-filter:none}
 pv-widget-host[data-view=rest] .player :is(.cover-button,.cover-button .cover){grid-column:1;grid-row:1;width:64px;height:64px;min-height:0;margin:0;align-self:center;border-radius:var(--pv-r-s)}
@@ -642,7 +644,7 @@ pv-widget-host[data-view=rest] .photo-weather:focus-visible{outline:2px solid va
 pv-widget-host[data-view=rest] .photo-weather>img{width:var(--pv-icon-m);height:var(--pv-icon-m);filter:brightness(0) invert(1)}
 pv-widget-host[data-view=rest] .photo-weather strong{font:var(--pv-t-title);color:inherit;letter-spacing:0}
 pv-widget-host[data-view=rest] .photo-weather>span{grid-column:1/-1;font:var(--pv-t-body);text-align:right;color:inherit}
-body:has(pv-widget-host[data-view=rest]) #playback-status.action-feedback{bottom:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset) + 96px + var(--pv-s2));max-width:calc(100vw - 2 * (var(--pv-rest-outer-inset) + var(--pv-rest-content-inset)));left:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset))}
+body[data-pv-rest-host]:not(pv-z) #playback-status.action-feedback{bottom:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset) + 96px + var(--pv-s2));max-width:calc(100vw - 2 * (var(--pv-rest-outer-inset) + var(--pv-rest-content-inset)));left:calc(var(--pv-rest-outer-inset) + var(--pv-rest-content-inset))}
 
 /* Ro uses compact glass rows; weather stays directly on the photograph. */
 :root{--pv-rest-glass:color-mix(in srgb,var(--pv-surface) 72%,transparent)}
@@ -2481,8 +2483,8 @@ pv-widget-host[data-view=active] #recipe-view:not([hidden]){display:flex;flex-di
 #recipe-view pv-checklist button{font:var(--pv-t-body);white-space:normal;overflow-wrap:anywhere;text-align:left}
 #recipe-view .pv-kit-disclosure pre{white-space:pre-wrap;font:var(--pv-t-body);padding:var(--pv-s2)}
 #recipe-view [data-kit=card]>button{justify-self:start}
-pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame{grid-template-columns:minmax(0,1fr)}
-pv-widget-host[data-view=active]:has(#recipe-view:not([hidden])) .frame>aside{display:none}
+pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame{grid-template-columns:minmax(0,1fr)}
+pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z) .frame>aside{display:none}
 @media(max-width:760px){#recipe-view [data-recipe-layout=detail]{grid-template-columns:minmax(0,1fr)}}
 
 #recipe-view>.response-heading h1[tabindex="-1"]:focus{outline:none}
@@ -2504,7 +2506,7 @@ pv-widget-host[data-view=active] #recipe-view:not([hidden]){background:transpare
 #recipe-view [data-recipe]:has(>img){gap:var(--pv-control-row-gap)}
 #recipe-view [data-kit=card]>[data-kit=card]{padding:0;box-shadow:none;border:0;background:transparent}
 #recipe-view [data-kit=card]:has(>[data-kit=card]){gap:var(--pv-control-section-gap)}
-pv-widget-host[data-topbar=true][data-view=active]:has(#recipe-view:not([hidden])) .view-nav{position:sticky;top:0}
+pv-widget-host[data-topbar=true][data-view=active][data-pv-recipes]:not(#pv-z) .view-nav{position:sticky;top:0}
 #recipe-view [data-recipe-layout=reading]>[data-recipe-layout=source]{grid-column:1/-1}
 #recipe-view [data-recipe-layout=source]>div:not([hidden]){padding-inline:var(--pv-s2)}
 #recipe-view [data-recipe-layout=reading] ol{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--pv-control-row-gap);margin:0;padding:0;list-style:none}
@@ -2528,8 +2530,8 @@ pv-widget-host[data-topbar=true][data-view=active]:has(#recipe-view:not([hidden]
 #recipe-view [data-recipe-layout=reading] li>button.pv-kit-button:not([hidden]):hover{background:var(--pv-surface-2)}
 #recipe-view [data-recipe-layout=reading] li>button.pv-kit-button[hidden]{display:none}
 
-pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::before,
-pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::after{width:100%}
+pv-widget-host[data-view=active] .frame[data-pv-recipes]:not(#pv-z)::before,
+pv-widget-host[data-view=active] .frame[data-pv-recipes]:not(#pv-z)::after{width:100%}
 
 #recipe-view img[data-recipe-fallback]{background:var(--pv-surface-2);object-fit:contain;padding:var(--pv-s2)}
 #recipe-view [data-recipe]>span{min-width:0;text-align:left}
@@ -3029,7 +3031,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    player and grid (--pv-content-h). The widgets take whatever width is left (174 at 1180); the 16 inside the grid is unchanged.
    The player is as tall as the widget grid: 3 rows of 220 + 2 gaps of 16 = 692, starting 16 under the topbar. */
 @media (min-width:1000px){
- body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
+ body pv-widget-host[data-view][data-view=active]:not([data-pv-recipes]):not(#pv-z)>.frame{
   grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-player-gap)}
  body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
   align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
@@ -3369,7 +3371,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 .empty-find-context{display:none}
 @media (min-width:1000px){
  :root{--pv-rest-glass:color-mix(in srgb,var(--pv-surface) 88%,transparent)}
- body:has(>pv-widget-host[data-view=rest]){padding:0!important}
+ body[data-pv-rest]:not(pv-z){padding:0!important}
  body pv-widget-host[data-view=rest] .photo-view{border-radius:0!important;padding:0!important}
  body pv-widget-host[data-view=rest] .photo-view::before{background:linear-gradient(180deg,rgba(0,0,0,.42),
    transparent 280px),
@@ -3490,7 +3492,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   width:18px;height:18px;filter:brightness(0)}
 
  /* Foto-Nat 21–7: black, no photo, dimmed warm clock and weather in the middle; only a running timer as a pill. */
- html:has(pv-widget-host[data-view=rest][data-night=true]),body:has(pv-widget-host[data-view=rest][data-night=true]){
+ html[data-pv-rest-night][data-pv-rest-night]:not(pv-z),body[data-pv-rest-night][data-pv-rest-night]:not(pv-z){
   background:#000}
  body pv-widget-host[data-view=rest][data-night=true] .photo-view{background:#000}
  body pv-widget-host[data-view=rest][data-night=true] .photo-view>img,
@@ -5549,9 +5551,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 :root{--pv-recipe-ink:#7A4A22;--pv-recipe-meta:#6B4A2E;--pv-recipe-ring:#A8622C;--pv-recipe-track:#DCDAD4;
   --pv-timer-track:#2E2E33;--pv-timer-coral:#FF7A5C;--pv-timer-dark-2:#2B2B30}
 @media (min-width:1000px){
- pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame>:is(.player.pv-card,#player-empty){
+ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame>:is(.player.pv-card,#player-empty){
   display:none!important}
- pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame{grid-template-columns:minmax(0,1fr)!important}
+ pv-widget-host[data-view=active][data-pv-recipes]:not(#pv-z)>.frame{grid-template-columns:minmax(0,1fr)!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:100%!important;
   max-width:none!important;min-width:0;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){

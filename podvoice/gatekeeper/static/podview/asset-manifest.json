@@ -659,7 +659,7 @@
     },
     {
       "path": "frame-layout.css",
-      "sha256": "0b6910b225d441f833a9099aec8642454f7289cc98bf494a82f849649a463575"
+      "sha256": "0f7ea7eb558b95125172616e44a09a9a4e0954b213c5d7edf72be4c5279feddc"
     },
     {
       "path": "ha-home-observation.js",
@@ -823,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "2167265290a62535e32dc6a3411f85f91af97c4b43f19392cd4bf97f9a9ffbc8"
+      "sha256": "97bb04dbc922a3e6c2c669f383936c35299d7f97c4987a8ecd6728beebdc3109"
     },
     {
       "path": "podview.css",
-      "sha256": "e1d6aa112dabd4a337d1dcc933eba5304b1209b5bb5381ee2f2af7cf4828e9d1"
+      "sha256": "d21e6d37a3cf15baa2d895897dda383573f47c1c3d2a6164cf206cda6a3724b2"
     },
     {
       "path": "podvoice-transport.js",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "9e660f294ea20289745209ea71aff07d026b1b8a8d5e9130404a406878deeaae"
+      "sha256": "d339a72659db0dde46adb4561009921c942f75f99c98dd11b2efdcf483a1633a"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -964,6 +964,10 @@
     {
       "path": "ui/conclusion-disclosure.js",
       "sha256": "f310d760cb76494f984551788b00f8d8a363bd9cd4a9fcaaeefb43d5c57fde7e"
+    },
+    {
+      "path": "ui/css-flags.js",
+      "sha256": "7ef10ffdc9a8fb295fbe12aa92578a601cb7816f795254aba391a10642421949"
     },
     {
       "path": "ui/date-format.js",
@@ -1103,7 +1107,7 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "69c8170b53967fe2d23e57b64abb40e941ad6d0dd6a0689862e4d487c231d38c"
+      "sha256": "6b483ceb72c24e9f4061fab995778c7d769d2863cd9f415a8c27e5aac0c79d12"
     },
     {
       "path": "widget-view.css",
@@ -1111,7 +1115,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "638cb8d9ef0cefaa57a72e4175978a43a6354764ce7e08ce5a8b3fd6444ba230"
+      "sha256": "02c8ab1a7d01a4fa4634f5aab7f95575568e9d89039133e7ebbe2d857e541afb"
     },
     {
       "path": "workshop.css",
