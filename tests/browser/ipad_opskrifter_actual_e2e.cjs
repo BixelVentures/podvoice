@@ -181,7 +181,7 @@ async function stagePage(stage){
  const name=await box(page.locator('#recipe-view [data-recipe-layout=title]'));
  assert.equal(name.text,'Burgerboller');assert.equal(name.size,'40px');assert.equal(name.weight,'800');
  const ingredients=await box(page.locator('#recipe-view [data-recipe-layout=ingredients]'));
- assert.equal(ingredients.w,400,'ingredients card 400 wide');near(ingredients.y,325,'16 under the hero');
+ assert.equal(ingredients.w,400,'ingredients card 400 wide');near(ingredients.y,341,'16 under the hero');
  await page.getByRole('button',{name:'Start opskrift',exact:true}).tap();await sleep(300);
  const current=page.locator('#recipe-view [data-recipe-layout=reading] li[aria-current=step]');
  const step=await box(current);

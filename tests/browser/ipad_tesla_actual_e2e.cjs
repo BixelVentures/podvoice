@@ -58,7 +58,7 @@ async function open(stage,{overview=false}={}){
  const glyph=await hero.locator('.vehicle-battery-unit').evaluate(n=>{const r=document.createRange();
   r.setStart(n.firstChild,1);r.setEnd(n.firstChild,2);return r.getBoundingClientRect().left;});
  assert(glyph-numberRight<=20,`»%« sits beside the number (${Math.round(glyph-numberRight)} px)`);
- near(battery.x+battery.w,768-28,'battery 28 from the right',3);
+ near(battery.x+battery.w,760-28,'battery 28 from the right',3);
  const rangeLabel=await box(hero.locator('.vehicle-metric:nth-child(2)>dt'));
  assert.equal(range.text,'312 km');assert(rangeLabel.x>range.x,'»312 km rækkevidde«: value, then the label');
  assert.equal(range.size,'17px');
@@ -67,7 +67,7 @@ async function open(stage,{overview=false}={}){
  assert(finish.x>power.x,'charge facts in one row');
  assert.equal((await box(hero.locator('.vehicle-image'))).display,'none','the dot car replaces the photo');
  const dots=await box(hero.locator('.vehicle-dots'));
- assert.deepEqual([dots.w,dots.h],[270,86]);near(dots.x+dots.w,768-20,'car 20 from the right');
+ assert.deepEqual([dots.w,dots.h],[270,86]);near(dots.x+dots.w,760-20,'car 20 from the right');
  near(dots.y+dots.h,309-16,'car 16 above the bottom');
  const fill=await box(hero.locator('.vehicle-dots>[data-layer=fill]'));
  assert.match(fill.mask,/car-body-flow\.svg/,'charging fill flows');assert.equal(fill.bg,'rgb(47, 122, 85)');
@@ -77,7 +77,7 @@ async function open(stage,{overview=false}={}){
  // Adgang and Klima side by side.
  const cards=page.locator('#vehicle-view .vehicle-control-tiles>section');
  const access=await box(cards.first()),climate=await box(cards.nth(1));
- assert.deepEqual([access.x,access.y,access.w],[24,325,364],'Adgang 16 under the hero');
+ assert.deepEqual([access.x,access.y,access.w],[24,341,360],'Adgang 16 under the hero');
  assert.deepEqual([climate.x,climate.y,climate.w],[404,325,364],'Klima beside it');
  assert.equal(access.radius,'24px');assert.equal(access.bg,'rgb(247, 246, 243)');
  assert(access.h>=459,'the cards fill the column');

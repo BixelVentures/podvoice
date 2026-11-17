@@ -41,7 +41,7 @@ let server,browser,data;
  assert.deepEqual(layout.player,[784,104,372,692],'player is 372×692 at x 784, y 104');
  const widgets=await page.evaluate(()=>[...document.querySelectorAll('.responses button')]
   .map(n=>n.getBoundingClientRect()).filter(b=>b.width>0).map(b=>Math.round(b.right)));
- assert(widgets.length>0&&Math.max(...widgets)<=768,`widgets stay inside the left column: ${widgets}`);
+ assert(widgets.length>0&&Math.max(...widgets)<=760,`widgets stay inside the left column: ${widgets}`);
  assert.deepEqual(errors,[]);
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-layout-1180x820.png')});
  console.log('ipad layout: 736 + 372 columns, no page scroll ok');

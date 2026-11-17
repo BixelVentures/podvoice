@@ -44,7 +44,7 @@ async function open(stage,{overview=false}={}){
  assert.equal(card.radius,'26px','card radius 26');
  assert.equal(card.bg,'rgb(247, 246, 243)','card surface #F7F6F3');
  const chip=await box(page.locator('#output'));
- near(chip.y,106,'chip starts 18 under the card top');near(chip.h,44,'chip is 44 high');
+ near(chip.y,124,'chip starts 20 under the card top');near(chip.h,44,'chip is 44 high');
  const cover=await box(page.locator('.player .cover-button'));
  assert.deepEqual([cover.w,cover.h],[252,252],'cover 252');near(cover.x,844,'cover is centred');
  near(cover.y,170,'cover 20 under the chip');assert.equal(cover.radius,'14px');

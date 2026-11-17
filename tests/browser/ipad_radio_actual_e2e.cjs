@@ -62,7 +62,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  const boxes=await Promise.all([0,1,2,3,4].map(index=>box(tiles.nth(index))));
  assert(boxes.every(tile=>tile.y===boxes[0].y),'five tiles in one row');
  assert(boxes.every(tile=>Math.abs(tile.w-136)<=2),`tiles share the width: ${boxes.map(tile=>tile.w)}`);
- near(boxes[4].x+boxes[4].w,768,'the row fills the column');
+ near(boxes[4].x+boxes[4].w,760,'the row fills the column');
  assert.equal(boxes[0].radius,'24px','tile radius 24');
  const logo=await box(tiles.nth(0).locator('img'));
  assert.deepEqual([logo.w,logo.h],[56,56],'56-px station logo');

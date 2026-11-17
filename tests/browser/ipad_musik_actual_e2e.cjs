@@ -47,7 +47,7 @@ async function open(stage){
  assert.deepEqual(heads.map(h=>h.text),['Fortsæt','Til mandag eftermiddag','Vibe','Jeres playlister'],
   'section headings in the canvas order');
  for(const h of heads){assert.equal(h.size,'22px');assert.equal(h.weight,'800');}
- assert.equal(heads[0].y,372,'Fortsæt starts 32 under the hero');
+ assert.equal(heads[0].y,388,'Fortsæt starts 32 under the hero');
  assert.equal(heads[1].y,515,'Til <ugedag> <tid> starts 32 under the Fortsæt rail');
  // The heading's note is the product's own: mood is chosen from the hour and the room.
  assert.equal(await page.locator('[data-collection=mood]').getAttribute('data-note'),'Ud fra tidspunkt og rum');
@@ -174,7 +174,7 @@ async function open(stage){
  const queueMeta=await box(page.locator('#queue-meta'));
  assert.equal(queueMeta.text,`${rowsShown} numre · ${await page.locator('#player-room').innerText()}`);
  assert.equal(queueMeta.size,'15px');assert.equal(queueMeta.color,'rgb(95, 94, 90)');
- near(queueMeta.x+queueMeta.w,768,'the count ends at the right edge of the queue card');
+ near(queueMeta.x+queueMeta.w,760,'the count ends at the right edge of the queue card');
  near(queueMeta.y+queueMeta.h/2,queueTitle.y+queueTitle.h/2,'count and title share a line',6);
  // The column ends on the 796 baseline like every other page; »Kø« opens it at 88, the card from 136.
  assert.equal(queueTitle.y,104,'»Kø« at the top of the column');

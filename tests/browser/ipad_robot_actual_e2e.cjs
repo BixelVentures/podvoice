@@ -136,7 +136,7 @@ async function open(stage,{overview=false}={}){
  await page.locator('#device-view').evaluate(n=>{n.scrollTop=n.scrollHeight;});await sleep(400);
  const events=await box(page.locator('#device-view>section.device-history:not(:has(pv-robot-control-panel))'));
  const care=await box(page.locator('#robot-care'));
- assert.deepEqual([events.x,events.w],[24,437],'Seneste hændelser 1.5fr');
+ assert.deepEqual([events.x,events.w],[24,432],'Seneste hændelser 1.5fr');
  assert.deepEqual([care.x,care.w],[477,291],'Vedligehold 1fr beside it');
  assert.equal(care.y,events.y,'one row');assert.equal(care.bg,'rgb(247, 246, 243)');assert.equal(care.radius,'24px');
  assert.match(care.text,/^Vedligehold/);

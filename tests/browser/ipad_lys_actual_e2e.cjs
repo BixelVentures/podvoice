@@ -47,7 +47,7 @@ async function open(stage,{overview=false}={}){
  const bar=await box(page.locator('#device-view .light-room-toolbar'));
  assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,104,736,44],'the »Rum« line first, 736×44 at the top of the column');
  const home=await box(page.locator('#device-view .light-home-power'));
- assert.equal(home.h,44,'»Sluk alt« 44');assert.equal(home.radius,'999px');near(home.x+home.w,768,'»Sluk alt« right');
+ assert.equal(home.h,44,'»Sluk alt« 44');assert.equal(home.radius,'999px');near(home.x+home.w,760,'»Sluk alt« right');
  assert.equal(home.bg,'rgb(247, 246, 243)','»Sluk alt« #F7F6F3');
  const rows=page.locator('#device-view .light-room-row'),own=await box(rows.first()),other=await box(rows.nth(1));
  assert.deepEqual([own.x,own.y,own.w,own.h],[24,148,364,128],'rooms 16 under the line, 364×128');

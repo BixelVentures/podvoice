@@ -100,7 +100,7 @@ async function open(stage,{overview=false}={}){
  page=await open('weather-stale');
  const chip=await box(page.locator('#weather-view .weather-metadata'));
  assert.notEqual(chip.display,'none','freshness chip shown');assert.match(chip.text,/(Opdateret|Ikke opdateret)/);
- near(chip.y,104+28,'chip on the place line',8);near(chip.x+chip.w,768-32,'chip right in the hero',3);
+ near(chip.y,104+28,'chip on the place line',8);near(chip.x+chip.w,760-32,'chip right in the hero',3);
  await page.close();
 
  // Vejr-Ukendt: no data shows »—«, a faded material and the product's reason.
