@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RadioView} from '../../podvoice/gatekeeper/static/podview/radio-view.js';
-import {stations} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {stations,ownerStationIds,radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
 import {readFileSync} from 'node:fs';
 
 class Node {
@@ -159,7 +159,7 @@ test('held live start retains exact logos, labels only requested card Starter an
  let radio;
  try{
   await import('../../podvoice/gatekeeper/static/podview/ui/library/components.js?radio-artwork-progress');const {LiveRadioView}=await import('../../podvoice/gatekeeper/static/podview/live-radio-view.js'),root=document.createElement('section'),view=new RadioView(root),frames=[],snapshot={bootId:'b',roomId:'r'},now=Date.now()/1000;
-  const dto=(stationId='p3',generation=1)=>({ok:true,schema:'podview.radio.v1',...snapshot,enabled:true,revision:generation,stations:stations.map(s=>({id:s.id,name:s.label})),targets:[{id:'a',name:'Stuen',selectable:true,availability:'available',default:true}],actions:['start','stop','move','volume'],state:{status:'playing',stationId,targetId:'a',generation,sourceKind:'radio',ownerGeneration:generation,volumePercent:37,observedAt:now},retrievedAt:now,validUntil:now+30,physicalResultVerified:false});
+  const dto=(stationId='p3',generation=1)=>({ok:true,schema:'podview.radio.v1',...snapshot,enabled:true,revision:generation,stations:ownerStationIds.map(id=>({id,name:radioStation(id).label})),targets:[{id:'a',name:'Stuen',selectable:true,availability:'available',default:true}],actions:['start','stop','move','volume'],state:{status:'playing',stationId,targetId:'a',generation,sourceKind:'radio',ownerGeneration:generation,volumePercent:37,observedAt:now},retrievedAt:now,validUntil:now+30,physicalResultVerified:false});
   let offerResolve,actionResolve,posts=0;const host={isConnected:true,liveSnapshot:snapshot,liveTransport:{connected:true,radioOffer:()=>new Promise(r=>offerResolve=r),radioAction:()=>{posts++;return new Promise(r=>actionResolve=r);},radio:async()=>dto('p1',2)},playerView:{renderPlayer:vm=>frames.push(vm),renderControls(){},renderQueue(){}},render(){view.render({live:true,connected:true,enabled:radio.current(),canStart:radio.can('start'),pending:radio.pending,stationId:radio.value.state.stationId,playing:radio.value.state.status==='playing',pendingStationId:radio.pendingStart()?.stationId,feedback:radio.feedback()});}};
   radio=new LiveRadioView(host);radio.value=dto();radio.lastConfirmed={...radio.value.state};radio.render();const buttons=view.list.querySelectorAll('button'),logos=buttons.map(button=>button.querySelector('img')),sources=logos.map(img=>img.getAttribute('src')),operation=radio.choose('p1');
   assert.equal(view.list.data.selected,'p3');assert.equal(frames.at(-1).title,'P1');assert.equal(frames.at(-1).playing,false);assert.equal(frames.at(-1).fresh,false);assert.equal(frames.at(-1).loading,true);assert.equal(frames.at(-1).volume,37);assert.deepEqual(buttons.filter(button=>button.getAttribute('aria-busy')==='true'),[buttons[0]]);assert.ok(buttons.every(button=>button.dataset.feedback==='label'));assert.equal(buttons[0].querySelector('span').textContent,'Starter…');assert.equal(buttons[1].getAttribute('aria-pressed'),'true');assert.deepEqual(buttons.map(button=>button.querySelector('img')),logos);assert.equal(buttons[0].querySelector('strong').textContent,'P1');assert.equal(view.feedback.hidden,true);

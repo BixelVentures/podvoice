@@ -5,13 +5,16 @@ import {TARGETS} from './widget-model.js';
 const channel=label=>{const match=/^P(\d+)\b/.exec(label);return match?Number(match[1]):Infinity;};
 export const orderStations=list=>list.map((station,index)=>({station,index}))
  .sort((a,b)=>channel(a.station.label)-channel(b.station.label)||a.index-b.index).map(row=>row.station);
-export const stations=Object.freeze(orderStations([
+const ownerStations=[
  {id:'p3',label:'P3'},
  {id:'p1',label:'P1'},
  {id:'p4-ostjylland',label:'P4 Østjylland'},
  {id:'p6-beat',label:'P6 Beat'},
  {id:'p8-jazz',label:'P8 Jazz'},
-]).map(station=>Object.freeze(station)));
+];
+// The radio owner's catalogue order (podview_radio.py STATIONS); an observation is checked against it as is.
+export const ownerStationIds=Object.freeze(ownerStations.map(station=>station.id));
+export const stations=Object.freeze(orderStations(ownerStations).map(station=>Object.freeze(station)));
 
 const byId=new Map(stations.map(station=>[station.id,station]));
 export function radioStation(id){return typeof id==='string'?byId.get(id)??null:null;}

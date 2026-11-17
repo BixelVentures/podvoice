@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "6b65480f8aab93c09726e829afc8d897ffed391aaef054dc356533b20b851667"
+      "sha256": "b26d062d0832b39afdfd77b3e4ca30c5def0268268fddb0407c335bfa0ac8903"
     },
     {
       "path": "library.css",
@@ -743,7 +743,7 @@
     },
     {
       "path": "live-radio-view.js",
-      "sha256": "7b1bdf572f658b319216ab34e4666ad30a7dcc23c646af6812edd11663c1f288"
+      "sha256": "fed7cfa112a9519cd4fac31b587baca402958b3e122698020ea727c8f81be758"
     },
     {
       "path": "local-robot-view.js",
@@ -823,7 +823,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "32e1d123e9498e025371885a7fbf865f0217c85535e8194a49732d4f5214562d"
+      "sha256": "70586ff395209a11d53474a38f211140c6655b997114a1bf122fcb344aa0fe49"
     },
     {
       "path": "podview.css",
@@ -847,7 +847,7 @@
     },
     {
       "path": "radio-model.js",
-      "sha256": "acd99e0bceabe83485cbe0341dbc39c6589ffae0638e7e7a866bf55c5a981a01"
+      "sha256": "5fc28e3ca800519b56aac39deebac5887590dd6a5b03c9084c4f1e879dbe8f32"
     },
     {
       "path": "radio-view.js",

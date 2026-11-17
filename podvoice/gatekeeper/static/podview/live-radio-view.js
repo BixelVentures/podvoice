@@ -1,4 +1,4 @@
-import {radioStation,stations,pendingRadioPlayerModel} from './radio-model.js';
+import {radioStation,ownerStationIds,pendingRadioPlayerModel} from './radio-model.js';
 // The native owner reports playing when audio flows; read it again soon after an accepted receipt.
 const RADIO_CONFIRM_READ_MS=200;
 // The server's validity window (podview_radio.py) and the user's 10-minute rule for a stopped station.
@@ -29,7 +29,7 @@ const configurationReason=value=>{
 };
 const id=value=>typeof value==='string'&&value.length>0&&value.length<=128;
 export function radioObservation(value,snapshot,previous=null,now=Date.now()){
- if(value?.schema!=='podview.radio.v1'||value.ok!==true||value.bootId!==snapshot?.bootId||value.roomId!==snapshot?.roomId||!Number.isSafeInteger(value.revision)||value.revision<0||typeof value.enabled!=='boolean'||value.physicalResultVerified!==false||!Array.isArray(value.actions)||value.actions.some(a=>!['start','stop','move','volume'].includes(a))||!Array.isArray(value.stations)||value.stations.length!==5||!stations.every((s,i)=>value.stations[i]?.id===s.id)||!Array.isArray(value.targets)||value.targets.length>64)return null;
+ if(value?.schema!=='podview.radio.v1'||value.ok!==true||value.bootId!==snapshot?.bootId||value.roomId!==snapshot?.roomId||!Number.isSafeInteger(value.revision)||value.revision<0||typeof value.enabled!=='boolean'||value.physicalResultVerified!==false||!Array.isArray(value.actions)||value.actions.some(a=>!['start','stop','move','volume'].includes(a))||!Array.isArray(value.stations)||value.stations.length!==5||!ownerStationIds.every((id,i)=>value.stations[i]?.id===id)||!Array.isArray(value.targets)||value.targets.length>64)return null;
  if(value.ownerProcessId!==undefined&&value.ownerProcessId!==null&&!id(value.ownerProcessId))return null;
  const seen=new Set();for(const t of value.targets){if(!id(t.id)||seen.has(t.id)||!id(t.name)||!['available','unavailable'].includes(t.availability)||typeof t.selectable!=='boolean'||typeof t.default!=='boolean')return null;seen.add(t.id);}
  const s=value.state;if(!s||!['idle','preparing','playing','stopped','error','unknown'].includes(s.status)||s.stationId!==null&&!radioStation(s.stationId)||s.targetId!==null&&!seen.has(s.targetId)||!Number.isSafeInteger(s.generation)||s.generation<0)return null;

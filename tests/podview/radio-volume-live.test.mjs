@@ -3,11 +3,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
-import {stations} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {stations,ownerStationIds,radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
 
 const now=Date.now(),snapshot={bootId:'boot',roomId:'room'};
 const value=()=>({ok:true,schema:'podview.radio.v1',...snapshot,revision:1,enabled:true,blockedReasons:[],
- stations:stations.map(s=>({id:s.id,name:s.label})),
+ stations:ownerStationIds.map(id=>({id,name:radioStation(id).label})),
  targets:[{id:'stuen',name:'Stuen',availability:'available',selectable:true,default:true}],
  actions:['start','stop','move','volume'],state:{status:'playing',stationId:'p3',targetId:'stuen',generation:1,
   sourceKind:'radio',ownerGeneration:1,volumePercent:30,observedAt:now/1000},
