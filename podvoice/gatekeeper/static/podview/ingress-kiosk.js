@@ -223,6 +223,22 @@ export function beginIngressKiosk(win) {
         el.style.setProperty("border", "0");
         pinned = true;
       }
+      // A transformed or contained HA ancestor turns »fixed« into »inside that box«, which left a light strip
+      // under PodView on the iPad. Measure where the frame really is and stretch it over HA's whole viewport;
+      // HA's own page behind it takes PodView's background, so no light edge can show through.
+      for (const node of [pdoc.documentElement, pdoc.body])
+        node.style.setProperty("background", "var(--pv-bg-frame, #E9E7E2)");
+      const vw = Math.max(pwin.innerWidth, pdoc.documentElement.clientWidth || 0);
+      const vh = Math.max(pwin.innerHeight, pwin.visualViewport?.height || 0, pdoc.documentElement.clientHeight || 0);
+      const box = el.getBoundingClientRect();
+      const top = (parseFloat(el.style.top) || 0) - box.top, left = (parseFloat(el.style.left) || 0) - box.left;
+      if (Math.abs(box.top) > 0.5 || Math.abs(box.left) > 0.5 || Math.abs(box.width - vw) > 0.5 || Math.abs(box.height - vh) > 0.5) {
+        el.style.setProperty("inset", "auto");
+        el.style.setProperty("top", `${top}px`);
+        el.style.setProperty("left", `${left}px`);
+        el.style.setProperty("width", `${vw}px`);
+        el.style.setProperty("height", `${vh}px`);
+      }
       // env() resolves when a custom property is computed: read the parent's safe areas without a probe node.
       const proot = pdoc.documentElement, root = win.document.documentElement;
       for (const side of ["top", "right", "bottom", "left"])
@@ -242,6 +258,7 @@ export function beginIngressKiosk(win) {
       for (const node of [el.ownerDocument.documentElement, el.ownerDocument.body]) {
         node.style.removeProperty("overscroll-behavior");
         node.style.removeProperty("overflow");
+        node.style.removeProperty("background");
       }
     } catch (_) {}
   }
