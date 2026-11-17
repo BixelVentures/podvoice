@@ -803,7 +803,7 @@
     },
     {
       "path": "owner-answers.js",
-      "sha256": "e58a4cc167d8a27ae1512cd48718988aa1b3c20cf9734a31bf19564837f901a0"
+      "sha256": "4ad38dde9d99dff5202d752f4e43ee19b876bbfa9c46cd726517b31eb2fcb37b"
     },
     {
       "path": "patterns.css",
@@ -823,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "70586ff395209a11d53474a38f211140c6655b997114a1bf122fcb344aa0fe49"
+      "sha256": "d7f9eaca29da23964abbea846153730119e2578df3ada9020a3b80e9235af437"
     },
     {
       "path": "podview.css",
-      "sha256": "668b02cfdbfc06e4c30e058f7413c91e9736c9ac3d9fe9cbf41c98b569f96142"
+      "sha256": "832ef3a68b732f291db95e3473ace3737a6293d2e0bd092ea5b0780f6b7a4ca9"
     },
     {
       "path": "podvoice-transport.js",
@@ -855,7 +855,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "5a5d35e98f6453135bb1534ffd3ae419da3e637dcd5bda564cd99845011ff2c6"
+      "sha256": "b406edfc51fc9d5afc614c34bcaa98375fc5c6c379207c35b98be6158177cf9c"
     },
     {
       "path": "references.json",
@@ -923,7 +923,7 @@
     },
     {
       "path": "svar-today-view.js",
-      "sha256": "810ce48e987015df4c35a2c1d9724ff7aecee6c7252134d7d68a00bd2ffe979d"
+      "sha256": "70559973312b68112a0a986480c9adc7ac918a4f606e9381f241d73d79fc4d46"
     },
     {
       "path": "timer-model.js",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "9105b652acceeb8798348ff68a15456ca1cb278c5809e4ac42653e6a4f0ba17f"
+      "sha256": "7f3c094cb22ec91a0cfbc706c0b66d4991d8292242705b700f14d448a88cf7da"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1111,7 +1111,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "9a9c18647f8855e0f7511a27357bbed92739e5f8853f8233bc90c42b6865612d"
+      "sha256": "d25d08304deb54165a355cf423527dc6e3039da8ec696b6d3fbc896f485dbd6e"
     },
     {
       "path": "workshop.css",
