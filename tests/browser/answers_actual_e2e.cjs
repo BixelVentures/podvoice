@@ -71,15 +71,15 @@ let server,browser,data;
   assert.equal(await page.locator('dialog[open]').count(),0,'scrolling did not open anything');
   await page.screenshot({path:path.join(env.artifactDir(),'svar-ipad-thread.png')});
   assert.equal((await fetch(base+'/lab/close-live-answer',{method:'POST'})).status,200);
-  // History: one card for the topic; opening it shows both sections. No unread mark (user's choice U1 c).
+  // History: one row per answer, newest first; opening either shows the whole round. No unread mark (user's choice U1 c).
   await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);
   const svar=page.locator('#open-history');
   assert.equal(await svar.getAttribute('data-unread'),null);
   await svar.tap();
   const rows=page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible');
   await rows.first().waitFor({state:'visible',timeout:10000});
-  assert.equal(await rows.count(),1,'the follow-up is a section, not a separate history card');
-  assert.match(await rows.first().textContent(),/FC Barcelona mod Sevilla/);
+  assert.deepEqual(await rows.locator('.svar-today-title').allTextContents(),['Assist','FC Barcelona mod Sevilla'],
+   'each answer of the round is its own row, newest first');
   if(await rows.first().getAttribute('aria-current')!=='true')await rows.first().tap();
   await answerHost.getByText(followup,{exact:true}).waitFor({state:'visible'});
   await answerHost.locator('.pv-sport-result:visible').getByText('3–1',{exact:true}).waitFor({state:'visible'});
@@ -89,7 +89,7 @@ let server,browser,data;
   assert.deepEqual(errors,[]);
   assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,0);
   console.log(JSON.stringify({outcome:'PASS',mode:'svar-ipad-thread',actualThin:true,inertProvider:true,coarsePointer:true,
-   sportCard:true,followupSection:true,followupOnTop:true,historyCards:1,unreadMark:false,pageErrors:errors}));
+   sportCard:true,followupSection:true,followupOnTop:true,historyRows:2,unreadMark:false,pageErrors:errors}));
   return;
  }
  if(process.env.ANSWERS_LIVE_TEST==='1'){
@@ -182,7 +182,8 @@ let server,browser,data;
  await page.locator('#header-title-action').tap();
  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.state?.focus==='now');
  await page.locator('#open-history').tap();await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').first().waitFor();
- assert.equal(await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').count(),1);
+ // Svar lists every saved answer as its own row (the two completed answers of the shared session).
+ assert.equal(await page.locator('#retained .history-open:visible, #svar-today .svar-today-row:visible').count(),2);
  assert.equal((await state()).timers[0].id,timer.id);assert.equal((await state()).starts,1);
  assert.equal(writes.filter(x=>x.path==='/view/api/actions').length,1,'only explicit timer start writes');assert.deepEqual(errors,[]);
  // A new current owner receipt uses the existing user-facing source disclosure.
