@@ -1,5 +1,5 @@
 import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent, createKitChoiceGroup, createKitDisclosure} from './ui/kit.js';
-import {isReduced,SPRING} from './ui/motion.js';
+import {DUR,isReduced,SPRING} from './ui/motion.js';
 import {springTiming} from './ui/native-motion.js';
 // Opskrifter-Bog cover flow as a pure function of the fractional index p (docs/MOTION.md, Udforsk). At whole p it
 // is the canvas: the chosen cover flat, neighbours ±(430+(a−1)·110) px, −260−(a−1)·60 px deep, turned 55° away
@@ -100,6 +100,19 @@ const showPhoto = (img,src)=>{
 
 const alphabet = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZÆØÅ#'];
 const collator = new Intl.Collator('da');
+// The catalogue's filter row holds »Alle« and at most this many categories; the rest are under »Flere«.
+export const RECIPE_FILTERS = 6;
+const recipeCount = count => count === 1 ? '1 opskrift' : count+' opskrifter';
+const categoriesOf = recipe => recipe.categories?.length ? recipe.categories : ['Øvrige'];
+// Every category of the catalogue with its number of recipes: most recipes first, ties alphabetically.
+export function rankCategories(recipes) {
+ const counts = new Map();
+ for (const recipe of recipes) {
+  for (const name of new Set(categoriesOf(recipe))) counts.set(name,(counts.get(name) || 0)+1);
+ }
+ return [...counts].map(([name,count])=>({name,count}))
+  .sort((a,b)=>b.count-a.count || collator.compare(a.name,b.name));
+}
 const deletedKey = 'podview.deleted-recipes';
 const historyKey = 'podview.recipe-history';
 const sessionKey = 'podview.recipe-session.v1';
@@ -453,9 +466,8 @@ export class RecipeView {
    if (index.hasPointerCapture(event.pointerId)) scrub(event);
   });
   index.addEventListener('lostpointercapture',()=>{marker.hidden=true;});
-  function categoriesOf(recipe) { return recipe.categories?.length ? recipe.categories : ['Øvrige']; }
-  const categories = [...new Set(this.saved.flatMap(categoriesOf))].sort(collator.compare);
-  if (!categories.includes(this.catalogCategory)) this.catalogCategory = '';
+  const categories = rankCategories(this.saved);
+  if (!categories.some(category=>category.name === this.catalogCategory)) this.catalogCategory = '';
   function updateIndex() {
    index.hidden = groups.size < 2 || entries.scrollHeight <= entries.clientHeight;
   }
@@ -520,7 +532,7 @@ export class RecipeView {
    // The band stands over the toolbar when the page has a slot for it (A-Opskrifter).
    this.catalogBand?.replaceChildren();
    if (groups.has('I gang')) (this.catalogBand || entries).append(groups.get('I gang'));
-   if (this.catalogCount) this.catalogCount.textContent = recipes.length+' opskrifter';
+   if (this.catalogCount) this.catalogCount.textContent = recipeCount(recipes.length);
    alphabet.forEach((letter,i)=>{
     buttons[i].hidden = !groups.has(letter);
     if (groups.has(letter)) entries.append(groups.get(letter));
@@ -557,42 +569,94 @@ export class RecipeView {
   this.catalogBand = band;
   this.catalogCount = applyKitTextRole(element('span'),'meta');
   this.catalogCount.dataset.recipeCount = '';
-  // A-Opskrifter: the toolbar holds the categories, the count and Udforsk only. How to add a recipe
-  // (Del → Home Assistant) and the upload history stay at the end of the catalogue.
-  const explore = action('Udforsk',()=>{
-   this.catalogScroll = entries.scrollTop;
-   this.catalogMode = 'explore';
-   this.explore();
-  });
-  tools.append(this.catalogCount,explore);
+  // A-Opskrifter: the toolbar holds the categories, the count and the Katalog | Udforsk switch only. How to add a
+  // recipe (Del → Home Assistant) and the upload history stay at the end of the catalogue.
+  tools.append(this.catalogCount,this.viewSwitch('catalog',()=>{this.catalogScroll = entries.scrollTop;}));
   // The scroller stays the catalogue's first child; CSS orders the band and toolbar over it.
   layout.append(band,toolbar);
+  let fit = null;
   if (categories.length) {
+   const choose = value => {
+    this.catalogCategory = value;
+    this.catalogScroll = 0;
+    filters.setValue(value);
+    render();
+    entries.scrollTop = 0;
+    updateIndex();
+    fit();
+   };
+   // The row never scrolls: »Alle«, the six categories with the most recipes, then »Flere« for the rest.
    const filters = createKitChoiceGroup({
     id:'recipe-category',label:'Kategori',variant:'navigation',
-    choices:[{value:'',label:'Alle'},...categories],value:this.catalogCategory,
-    onChange:value=>{
-     this.catalogCategory = value;
-     this.catalogScroll = 0;
-     render();
-     entries.scrollTop = 0;
-     updateIndex();
-    },
+    choices:[{value:'',label:'Alle'},...categories.slice(0,RECIPE_FILTERS).map(category=>category.name)],
+    value:this.catalogCategory,onChange:choose,
    });
-   toolbar.append(filters.node);
-   // The chosen category is always in view in its sideways track (P9 track A): smoothly after a choice, at once
-   // when the catalogue opens.
-   const reveal = smooth => filters.node.querySelector('input:checked')?.closest('label')?.scrollIntoView?.(
-    {inline:'nearest',block:'nearest',behavior:smooth && !isReduced(this.root) ? 'smooth' : 'auto'});
-   filters.node.addEventListener('change',()=>reveal(true));
-   requestAnimationFrame(()=>reveal(false));
+   const row = filters.node.querySelector('.pv-kit-choice-options');
+   const chips = filters.inputs.slice(1).map(input=>input.closest('label'));
+   const more = kit('chip','Flere',{tag:'button'});
+   more.type = 'button';
+   more.dataset.recipeMore = '';
+   more.setAttribute('aria-haspopup','dialog');
+   row.append(more);
+   const rest = () => categories.filter((category,n)=>n >= chips.length || chips[n].hidden);
+   // A category chosen under »Flere« is shown on »Flere« itself, so the choice is always in view.
+   const syncMore = () => {
+    const names = rest().map(category=>category.name);
+    const chosen = names.includes(this.catalogCategory);
+    more.hidden = !names.length;
+    more.textContent = chosen ? this.catalogCategory : 'Flere';
+    more.setAttribute('aria-pressed',String(chosen));
+   };
+   // A narrow stage holds fewer chips: the least used move under »Flere« until the row fits.
+   fit = () => {
+    if (!row.isConnected) return;
+    for (const chip of chips) chip.hidden = false;
+    syncMore();
+    for (let n = chips.length-1; n >= 0 && row.scrollWidth > row.clientWidth+1; n--) {
+     chips[n].hidden = true;
+     syncMore();
+    }
+   };
+   const sheet = element('dialog'), header = element('header'), heading = element('h2','Flere kategorier');
+   const list = element('div');
+   sheet.dataset.recipeLayout = 'categories';
+   heading.id = 'recipe-categories-title';
+   sheet.setAttribute('aria-labelledby',heading.id);
+   const close = kit('button','',{variant:'icon',label:'Luk'});
+   const closeIcon = kit('icon',undefined,{tag:'img'});
+   closeIcon.src = 'assets/icons/x-lg.svg';
+   closeIcon.alt = '';
+   close.append(closeIcon);
+   close.addEventListener('click',()=>sheet.close());
+   header.append(heading,close);
+   sheet.append(header,list);
+   applyKitDialog(sheet,{header,content:list,close});
+   more.addEventListener('click',()=>{
+    list.replaceChildren(...rest().sort((a,b)=>collator.compare(a.name,b.name)).map(category=>{
+     const option = kit('listrow');
+     option.type = 'button';
+     option.dataset.recipeCategory = category.name;
+     option.setAttribute('aria-pressed',String(category.name === this.catalogCategory));
+     option.append(applyKitTextRole(element('strong',category.name),'field-label'),
+      applyKitTextRole(element('small',recipeCount(category.count)),'meta'));
+     option.addEventListener('click',()=>{
+      sheet.close();
+      choose(category.name);
+     });
+     return option;
+    }));
+    sheet.showModal();
+   });
+   toolbar.append(filters.node,sheet);
   }
   toolbar.append(tools);
   this.root.append(layout);
   render();
   updateIndex();
-  this.catalogResize = new ResizeObserver(updateIndex);
+  fit?.();
+  this.catalogResize = new ResizeObserver(()=>{updateIndex(); fit?.();});
   this.catalogResize.observe(entries);
+  this.catalogResize.observe(toolbar);
   entries.scrollTop = restoreScroll ? this.catalogScroll || 0 : 0;
   // A single bounded refresh loop belongs to this mounted catalog, not the widget host.
   const abort = new AbortController();
@@ -1000,17 +1064,12 @@ export class RecipeView {
   const active = this.saved.includes(this.active) && this.sessions.has(this.active) ? this.active : null;
   const recipes = this.saved.filter(recipe=>recipe !== active).sort((a,b)=>collator.compare(a.title,b.title));
   if (active) recipes.unshift(active);
-  const toolbar = element('header'), position = applyKitTextRole(element('span'),'meta');
+  const toolbar = element('header'), tools = element('div'), position = applyKitTextRole(element('span'),'meta');
   toolbar.dataset.recipeLayout = 'toolbar';
   position.dataset.recipeExplorePosition = '';
-  const modes = createKitChoiceGroup({id:'recipe-mode',label:'Visning',variant:'navigation',
-   choices:[{value:'catalog',label:'Katalog'},{value:'explore',label:'Udforsk'}],value:'explore',
-   onChange:value=>{
-    if (value !== 'catalog') return;
-    this.catalogMode = 'catalog';
-    this.catalog(false,{restoreScroll:true});
-   }});
-  toolbar.append(modes.node,position);
+  // The switch stands where it stands in the catalogue: the right end of the toolbar.
+  tools.append(position,this.viewSwitch('explore'));
+  toolbar.append(tools);
   this.root.append(toolbar);
   if (!recipes.length) {
    this.root.append(meta(this.catalogStatus === 'unavailable'
@@ -1066,13 +1125,22 @@ export class RecipeView {
   dots.style.width = (dotPool.length*EXPLORE_DOT_PITCH+8)+'px';
   flow.append(edge,...slots);
   this.root.append(flow,info,dots);
-  let shown = -1, rested = -1, windowStart = -1, target = null, restTimer = null;
+  let shown = -1, rested = -1, windowStart = -1, target = null, restTimer = null, textMotion = null;
   const reduced = () => isReduced(this.root);
+  // Where the engine has scroll timelines the text follows the finger (ui-kit.css, pv-explore-title); otherwise
+  // the new text comes in softly from the side it is scrolled from, interrupted by the next change.
+  const scrollDriven = globalThis.CSS?.supports?.('animation-timeline','view()') === true;
   // The snap pitch is the slot width (430, or the wider flat slot without scroll-driven animations).
   const pitch = () => slots[0].offsetWidth || EXPLORE_PITCH;
   const nearest = () => Math.max(0,Math.min(recipes.length-1,Math.round(flow.scrollLeft/pitch())));
   const show = i => {
    if (i === shown) return;
+   if (shown >= 0 && !scrollDriven && typeof info.animate === 'function') {
+    const from = reduced() ? {opacity:0} : {opacity:0,translate:`${Math.sign(i-shown)*16}px 0`};
+    textMotion?.cancel();
+    textMotion = info.animate([from,{opacity:1,translate:'0 0'}],
+     {duration:reduced() ? DUR.reduced : DUR.base,easing:'cubic-bezier(.2,0,0,1)'});
+   }
    shown = i;
    this.exploreIndex = i;
    const recipe = recipes[i];
@@ -1137,6 +1205,21 @@ export class RecipeView {
   // Open on the cover chosen last time. The one layout read here happens before anything is drawn.
   flow.scrollLeft = Math.min(recipes.length-1,this.exploreIndex ?? 0)*pitch();
   rest();
+ }
+ // Katalog | Udforsk: one segmented switch with an icon per look, the same in both, so it reads as a change of view.
+ viewSwitch(mode,leave) {
+  const modes = createKitChoiceGroup({id:'recipe-mode',label:'Visning',variant:'navigation',
+   choices:[{value:'catalog',label:'Katalog'},{value:'explore',label:'Udforsk'}],value:mode,
+   onChange:value=>{
+    if (value === mode) return;
+    leave?.();
+    this.catalogMode = value;
+    if (value === 'explore') this.explore();
+    else this.catalog(false,{restoreScroll:true});
+   }});
+  modes.node.dataset.recipeViewSwitch = '';
+  for (const input of modes.inputs) input.closest('label').dataset.recipeView = input.value;
+  return modes.node;
  }
  // P7 (docs/MOTION.md §3.8): the chosen Udforsk cover becomes the recipe's photo, and Tilbage flies it back.
  openFromCover(cover,recipe) {

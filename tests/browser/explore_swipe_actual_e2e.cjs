@@ -24,6 +24,7 @@ const READ=()=>{
  const boxes=covers.map(cover=>{const r=cover.getBoundingClientRect();return {x:r.x+r.width/2-middle,w:r.width};});
  const info=document.querySelector('#recipe-view [data-recipe-layout=explore-info]');
  return {p:flow.scrollLeft/430,scrollLeft:flow.scrollLeft,boxes,text:Number(getComputedStyle(info).opacity),
+  slide:parseFloat(getComputedStyle(info).translate)||0,
   turn:new DOMMatrix(getComputedStyle(covers[1]).transform).m13,
   hidden:covers.map(c=>getComputedStyle(c).visibility==='hidden'),count:covers.length,
   current:covers.findIndex(c=>c.getAttribute('aria-current')==='true'),
@@ -66,7 +67,7 @@ async function run(reduced){
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});await env.openOverview(page);
  await page.locator('#home-recipes').tap();
  await page.locator('#recipe-view [data-recipe="Burgerboller"]').waitFor({state:'visible',timeout:20000});
- await page.getByRole('button',{name:'Udforsk',exact:true}).tap();
+ await page.locator('#recipe-view [data-recipe-view=explore]').tap();
  await page.locator('#recipe-view [data-recipe-layout=explore]').waitFor({state:'visible'});await sleep(900);
  const t=await touch(page);
  let s=await read(page);
@@ -80,16 +81,23 @@ async function run(reduced){
  // A slow drag past the half-way point: the covers follow the native scroll; no style is written per frame.
  await watch(page);
  await t.send('touchStart',800);
- for(let x=780;x>=560;x-=20){await t.send('touchMove',x);await sleep(30);}
+ let early;
+ for(let x=780;x>=560;x-=20){await t.send('touchMove',x);await sleep(30);if(x===680)early=await read(page);}
  s=await read(page);
  assert(s.p>.4&&s.p<.7,`the finger scrolls the flow (${s.p.toFixed(3)})`);
  const near=s.boxes[1];
  assert(Math.abs(near.x-(1-s.p)*430)<40,`cover 1 follows p (${near.x.toFixed(1)} vs ${((1-s.p)*430).toFixed(1)})`);
  if(Math.abs(s.p-.5)<.08)assert(s.text<.25,`the title fades at the crossing (${s.text} at p ${s.p.toFixed(3)})`);
+ // The text follows the finger: out the way the covers go, the next one in from the other side; reduced only fades.
+ assert(early.p>.1&&early.p<.4,`early in the drag (${early.p})`);
+ if(reduced)assert.equal(early.slide,0,'reduced: the text does not slide');
+ else assert(early.slide<-1&&early.text<1,
+  `the text slides out with the covers (${early.slide}, ${early.text} at ${early.p})`);
  assert.equal(s.writes,0,`no cover style is written while it moves (${s.writes})`);
  await sleep(250);await t.send('touchEnd');s=await settled(page);
  assert.equal(s.p,1,`a slow release past half-way snaps to the next cover (${s.p})`);
- assert.equal(s.text,1);assert.equal(s.position,`2 af ${s.count}`);assert.equal(s.current,1);
+ assert.equal(s.text,1);assert(Math.abs(s.slide)<.5,`at rest the text stands still (${s.slide} at ${s.p})`);
+ assert.equal(s.position,`2 af ${s.count}`);assert.equal(s.current,1);
 
  // A fling: the engine's momentum carries the flow on, and it snaps to a cover.
  await t.send('touchStart',900);for(let x=860;x>=500;x-=60){await t.send('touchMove',x);await sleep(8);}

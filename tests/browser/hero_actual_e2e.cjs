@@ -63,7 +63,7 @@ async function run(reduced){
  await page.goto(base+'/view/',{waitUntil:'domcontentloaded'});await env.openOverview(page);
  await page.locator('#home-recipes').tap();
  await page.locator('#recipe-view [data-recipe="Burgerboller"]').waitFor({state:'visible',timeout:20000});
- await page.getByRole('button',{name:'Udforsk',exact:true}).tap();
+ await page.locator('#recipe-view [data-recipe-view=explore]').tap();
  const cover=page.locator('#recipe-view [data-recipe-cover][aria-current=true]');
  await cover.waitFor({state:'visible'});await sleep(900);
  const coverWidth=await size(cover),name=await cover.getAttribute('data-recipe-cover');

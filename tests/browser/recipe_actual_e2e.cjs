@@ -211,7 +211,7 @@ async function readAndResumeBurgerboller(page){
  await scones.scrollIntoViewIfNeeded();
  const catalogueOffset=await entries.evaluate(node=>node.scrollTop);
  assert(catalogueOffset>0,'Scones is reached by scrolling the actual recipe catalogue');
- assert.equal(await recipe.locator('input[type=radio]:checked').inputValue(),'');
+ assert.equal(await recipe.locator('input[name=recipe-category]:checked').inputValue(),'');
  const readActiveSession=()=>page.evaluate(()=>{
   const raw=localStorage.getItem('podview.recipe-session.v1');
   if(!raw)return null;
@@ -227,7 +227,7 @@ async function readAndResumeBurgerboller(page){
  await catalog.waitFor({state:'visible'});
  assert.equal(await entries.evaluate(node=>node.scrollTop),catalogueOffset,
   'Tilbage restores the catalogue position even while another recipe is active');
- assert.equal(await recipe.locator('input[type=radio]:checked').inputValue(),'');
+ assert.equal(await recipe.locator('input[name=recipe-category]:checked').inputValue(),'');
  assert.equal(await row.getAttribute('aria-current'),'true');
  assert.deepEqual(await readActiveSession(),activeSession);
  console.log(JSON.stringify({outcome:'PASS',story:'G4',catalogueDetailBack:true,
@@ -468,7 +468,7 @@ async function finishRecipeWithTimer(page,widget,bundleSHA){
  const saved=await page.evaluate(async ({base,source})=>{const r=await fetch(base+'/api/podvoice/recipe-submissions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+'x'.repeat(32)},body:JSON.stringify({url:source})});return {status:r.status,body:await r.json()}},{base,source});
  assert.equal(saved.status,200);assert.equal(saved.body.status,'saved');assert.match(saved.body.message,/^Gemt: /);
  await page.locator('#recipe-view [data-recipe="Nem chokoladekage i bradepande"]').waitFor({state:'attached',timeout:16000});
- assert.equal(await page.locator('#recipe-view input[type=radio]:checked').inputValue(),'');
+ assert.equal(await page.locator('#recipe-view input[name=recipe-category]:checked').inputValue(),'');
  assert.deepEqual(await page.evaluate(()=>({name:document.activeElement.name,value:document.activeElement.value})),focusBefore);
  const after=await entries.evaluate(e=>e.scrollTop);assert.equal(after,before.scroll,'catalog scroll preserved');
  await page.screenshot({path:path.join(testEnv.artifactDir(),`podview-recipe-${shot}-catalog.png`)});

@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 45c6fa22d2fdc2ce9349229bdcb0ec99cfe3548bbd74dc8f4dba63d26b380893 */
+/* Source: ui-kit.css · SHA256 02fcd54f73dd86cafd64338d741ed0e041a3ca828bf1c429a2f7740522abf1eb */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5408,6 +5408,11 @@ pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::after{w
 
 
 #recipe-view [data-recipe-layout=gallery-trigger]{display:grid;justify-items:center;gap:var(--pv-s1);padding:0;background:transparent;border-radius:var(--pv-screen-radius-art)!important}
+/* »Flere kategorier«: one row per category, its name and how many recipes it holds; the chosen one is pressed. */
+dialog.pv-kit-dialog[data-recipe-layout=categories] .pv-dialog-content>button.pv-kit-listrow{
+  grid-template-columns:minmax(0,1fr) max-content;min-height:64px}
+dialog.pv-kit-dialog[data-recipe-layout=categories] .pv-dialog-content>button.pv-kit-listrow>strong{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 dialog.pv-kit-dialog[data-recipe-layout=gallery]:modal{
  width:min(1100px,calc(var(--pv-stage-w,1180px) - 2 * var(--pv-s4)));
 }
@@ -8260,7 +8265,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
 
 /* iPad Opskrifter og timer (lærred v190 »A-Opskrifter«, »A-Opskrift«, »A-Timer«, »Timer-*«, »Timer-Alarm«,
-   »W-opskrift-*«, »W-timer-*«, issue 398). Recipes fill the width (1132, no player): the categories sit in one
+   »W-opskrift-*«, »W-timer-*«, issue 398). Recipes fill the width (1132 at 1180, wider on a wider stage; no player):
+   the categories sit in one
    #DCDAD4 track, recipes are 252-high cards in five columns (photo 140, name 2 lines, meta 1 line) and the active
    recipe is a 96-high band in #F2E4D3. A recipe is a 221 hero in #F2E4D3 (photo 160, »Trin N af M · af <kilde>«,
    the name in 40/800), ingredients in a 400 card and the steps beside them; the current step is #F2E4D3 with a
@@ -8273,37 +8279,56 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame>:is(.player.pv-card,#player-empty){
   display:none!important}
  pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame{grid-template-columns:minmax(0,1fr)!important}
- pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:1132px!important;
-  max-width:1132px!important;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
+ pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:100%!important;
+  max-width:none!important;min-width:0;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){
   gap:16px!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset{margin:0;padding:0;border:0;min-width:0;
-  flex:0 1 auto}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset>legend{position:absolute;width:1px;height:1px;
-  overflow:hidden;clip-path:inset(50%)}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset .pv-kit-choice-options{display:inline-flex!important;
-  flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset{margin:0;padding:0;border:0;
+  min-width:0;flex:0 1 auto}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset>legend{position:absolute;
+  width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options{
+  display:inline-flex!important;flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
   background:var(--pv-recipe-track)!important;width:auto!important;max-width:100%;box-sizing:border-box;
-  /* More categories than the row holds: the track scrolls sideways, it never runs under the count. A fling
-     lands softly on a chip edge (proximity snap, P9 track A), never forced. */
-  overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain;
-  scroll-snap-type:x proximity;scroll-padding-inline:var(--pv-s3)}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
-  .pv-kit-choice-options::-webkit-scrollbar{display:none}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset label{height:44px!important;min-height:44px!important;
+  /* The row never scrolls: »Alle«, at most six categories and »Flere« (recipe-view.js fits them to the width). */
+  overflow:hidden!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
+  :is(label,[data-recipe-more]){height:44px!important;min-height:44px!important;
   padding:0 20px!important;border-radius:999px!important;background:transparent!important;color:var(--pv-ink)!important;
   box-shadow:none!important;border:0!important;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-  display:flex!important;align-items:center;flex:none!important;white-space:nowrap;scroll-snap-align:start}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
-  label:has(input:checked){background:var(--pv-ink)!important;
+  display:flex!important;align-items:center;gap:8px;flex:none!important;white-space:nowrap;margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
+  :is(label,[data-recipe-more])[hidden]{display:none!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
+  :is(label:has(input:checked),[data-recipe-more][aria-pressed=true]){background:var(--pv-ink)!important;
   background-image:none!important;color:#F7F6F3!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
   label>input{position:absolute;opacity:0;pointer-events:none}
- /* The catalog: one scroller, every recipe in a five-column grid; letter groups and the letter index fall away. */
+ /* »Flere« opens the rest of the categories; a chevron says it opens a list. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] [data-recipe-more]::after,
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label::before{content:'';flex:none;
+  width:20px;height:20px;background:currentColor;-webkit-mask:var(--pv-recipe-icon) center/contain no-repeat;
+  mask:var(--pv-recipe-icon) center/contain no-repeat}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] [data-recipe-more]{
+  --pv-recipe-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTMuNjYsMTAxLjY2bC04MCw4MGE4LDgsMCwwLDEtMTEuMzIsMGwtODAtODBBOCw4LDAsMCwxLDUzLjY2LDkwLjM0TDEyOCwxNjQuNjlsNzQuMzQtNzQuMzVhOCw4LDAsMCwxLDExLjMyLDExLjMyWiIvPjwvc3ZnPg==");padding-inline-end:16px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] [data-recipe-more]::after{
+  width:16px;height:16px}
+ /* Katalog | Udforsk: a segmented switch with an icon per look; the chosen look is dark. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label{
+  padding-inline-start:16px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label[data-recipe-view=catalog]{
+  --pv-recipe-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMTYsNDBINDBBMTYsMTYsMCwwLDAsMjQsNTZWMjAwYTE2LDE2LDAsMCwwLDE2LDE2SDIxNmExNiwxNiwwLDAsMCwxNi0xNlY1NkExNiwxNiwwLDAsMCwyMTYsNDBaTTQwLDE1Mkg1NmE4LDgsMCwwLDAsMC0xNkg0MFYxMjBINTZhOCw4LDAsMCwwLDAtMTZINDBWODhINTZhOCw4LDAsMCwwLDAtMTZINDBWNTZIODBWMjAwSDQwWm0xNzYsNDhIOTZWNTZIMjE2VjIwMFoiLz48L3N2Zz4=")}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label[data-recipe-view=explore]{
+  --pv-recipe-icon:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNTYgMjU2IiBmaWxsPSJjdXJyZW50Q29sb3IiPjxwYXRoIGQ9Ik0yMDgsMzJINDhBMTYsMTYsMCwwLDAsMzIsNDhWMjA4YTE2LDE2LDAsMCwwLDE2LDE2SDIwOGExNiwxNiwwLDAsMCwxNi0xNlY0OEExNiwxNiwwLDAsMCwyMDgsMzJaTTQ4LDQ4SDIwOHY3Ny4zOGwtMjQuNjktMjQuN2ExNiwxNiwwLDAsMC0yMi42MiwwTDUzLjM3LDIwOEg0OFpNMjA4LDIwOEg3Nmw5Ni05NiwzNiwzNnY2MFpNOTYsMTIwQTI0LDI0LDAsMSwwLDcyLDk2LDI0LDI0LDAsMCwwLDk2LDEyMFptMC0zMmE4LDgsMCwxLDEtOCw4QTgsOCwwLDAsMSw5Niw4OFoiLz48L3N2Zz4=")}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] .pv-kit-choice-options{
+  background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.08)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch]{flex:none}
+ /* The catalog: one scroller, every recipe in a fluid grid (five columns at 1180, more only on a much wider stage);
+    letter groups and the letter index fall away. */
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]{display:flex!important;
   flex-direction:column;gap:20px;flex:1 1 0;min-height:0;margin:0!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div{display:grid!important;
-  grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:auto;gap:16px!important;align-content:start;
+  grid-template-columns:repeat(auto-fill,minmax(208px,1fr));grid-auto-rows:auto;gap:16px!important;align-content:start;
   flex:1 1 0;min-height:0;box-sizing:border-box;padding:0 0 24px!important;overflow-y:auto}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section:not(.pv-kit-disclosure){
   display:contents!important}
@@ -8377,16 +8402,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band]>section>h3{display:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band] [data-recipe]{width:100%!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]{flex:none;display:flex;order:-1;
-  justify-content:space-between;align-items:center;gap:16px;min-height:52px}
+  justify-content:space-between;align-items:center;gap:16px;min-height:52px;min-width:0}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>div{display:flex;align-items:center;
-  gap:16px;flex:none}
+  gap:16px;flex:none;margin-inline-start:auto}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] :is([data-recipe-count],
   [data-recipe-explore-position]){font:500 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
   white-space:nowrap}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>div>button{height:44px!important;
-  min-height:44px!important;padding:0 20px!important;border-radius:999px!important;background:#F7F6F3!important;
-  color:var(--pv-ink)!important;border:0!important;box-shadow:none!important;
-  font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;white-space:nowrap}
  /* Udforsk (Opskrifter-Bog): a cover flow, the chosen photo 720×460 flat, the neighbours turned 55° away. The flow is
     a native scroll-snap scroller (iPadOS momentum and rubber-band); one 430px slot per cover, the first and last
     centred by the spacers. Each slot is the subject of a view timeline, and its cover is drawn from it on the
@@ -8430,11 +8451,13 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img:not([data-recipe-fallback]){
    animation:pv-explore-photo linear none;animation-timeline:--pv-cover;
    animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)}
-  /* The title fades through 0 at each crossing: one fade per 430px of scroll. A fade, so reduced keeps it. */
+  /* The text fades through 0 at each crossing: one step per 430px of scroll. Reduced keeps the fade, not the slide. */
   :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{
    animation:pv-explore-title linear both!important;animation-timeline:--pv-explore!important;
    animation-iteration-count:var(--pv-explore-steps,1)!important;
    animation-range:0px calc(var(--pv-explore-steps,1) * 430px)!important}
+  :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{
+   --pv-explore-shift:0px}
   /* Reduced: the covers stand flat and keep their depth overlay. The scroll moves them, not an animation, so they
      are exempt from the reduced catch-all (widget-view.css); the photos keep still. */
   :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{
@@ -9387,4 +9410,9 @@ body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-hi
  62.5%{transform:translateX(21px)}
  64.286%{transform:translateX(24px)}
  100%{transform:translateX(84px)}}
-@keyframes pv-explore-title{0%,100%{opacity:1}50%{opacity:0}}
+/* The Udforsk text follows the finger: it slides out the way the covers go and the next comes in from the other
+   side. It is gone for the middle fifth of a step, where the text changes; reduced keeps the fade only. */
+@keyframes pv-explore-title{0%,100%{opacity:1;translate:0 0}
+  0%{animation-timing-function:cubic-bezier(.4,0,1,1)}
+  40%{opacity:0;translate:calc(-1 * var(--pv-explore-shift,16px)) 0}
+  60%{opacity:0;translate:var(--pv-explore-shift,16px) 0;animation-timing-function:cubic-bezier(0,0,.2,1)}}
