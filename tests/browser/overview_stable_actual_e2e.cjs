@@ -43,11 +43,38 @@ let browser;
     const page = await browser.newPage({hasTouch: true, viewport: {width: 1180, height: 820}});
     const errors = [];
     page.on('pageerror', e => errors.push(e.message));
+    // 0. Home is open before the first home read lands (Green: a cleaning robot is read slowly). The robot's
+    // »Ikke forbundet« card becomes the robot in place: no Home card element is removed (green-check S12).
+    await lab({holdRead: true});
     await page.goto(base + '/view/?room=kitchen', {waitUntil: 'domcontentloaded'});
     await testEnv.openOverview(page);
+    const robotCard = '#now-view > .resource-card[data-kind="vacuum"]';
+    await page.waitForFunction(() => document.querySelector('#now-view > .resource-card[data-kind="vacuum"]'),
+      null, {timeout: 5000});
+    assert((await lab()).readHeld, 'the first robot read is still held while Home is open');
+    await page.evaluate(selector => {
+      const cards = '.resource-card, .resource-preview, [id^="home-"]';
+      window.__firstRead = {card: document.querySelector(selector), removed: []};
+      window.__firstRead.observer = new MutationObserver(records => {
+        for (const record of records)
+          for (const node of record.removedNodes)
+            if (node.nodeType === 1 && (node.matches(cards) || node.querySelector(cards)))
+              window.__firstRead.removed.push(node.id || node.className);
+      });
+      window.__firstRead.observer.observe(document.body, {childList: true, subtree: true});
+    }, robotCard);
+    await lab({releaseRead: true});
+    await page.waitForFunction(
+      selector => document.querySelector(selector)?.querySelector('.resource-preview')?.dataset.target === 'vacuum.qrevo',
+      robotCard, {timeout: 10000});
+    await sleep(1500);
+    const firstRead = await page.evaluate(selector => {
+      window.__firstRead.observer.disconnect();
+      return {removed: window.__firstRead.removed, same: window.__firstRead.card === document.querySelector(selector)};
+    }, robotCard);
+    assert.deepEqual(firstRead, {removed: [], same: true},
+      `the first home read patches the robot card in place: ${JSON.stringify(firstRead)}`);
     await page.locator('#home-weather:not([hidden])').waitFor({timeout: 15000});
-    await page.locator('#now-view .resource-card[data-kind="vacuum"], #now-view [data-kind="vacuum"]').first()
-      .waitFor({timeout: 15000});
     await sleep(4000);
     // Every element replacement and every presentation-state change on an overview card.
     await page.evaluate(() => {
