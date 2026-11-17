@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 61bb476560c738feab9c3dcf2acbf42e325c7a666b80fc18ec1d5f009f490f6c */
+/* Source: ui-kit.css · SHA256 45c6fa22d2fdc2ce9349229bdcb0ec99cfe3548bbd74dc8f4dba63d26b380893 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -8387,23 +8387,30 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   min-height:44px!important;padding:0 20px!important;border-radius:999px!important;background:#F7F6F3!important;
   color:var(--pv-ink)!important;border:0!important;box-shadow:none!important;
   font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;white-space:nowrap}
- /* Udforsk (Opskrifter-Bog): a cover flow, the chosen photo 720×460 flat, the neighbours turned 55° away. */
+ /* Udforsk (Opskrifter-Bog): a cover flow, the chosen photo 720×460 flat, the neighbours turned 55° away. The flow is
+    a native scroll-snap scroller (iPadOS momentum and rubber-band); one 430px slot per cover, the first and last
+    centred by the spacers. Each slot is the subject of a view timeline, and its cover is drawn from it on the
+    compositor: no JavaScript per frame (docs/MOTION.md, Udforsk). Depth is a black overlay, never a filter. */
  pv-widget-host #recipe-view#recipe-view#recipe-view[data-recipe-mode=explore]:not([hidden]){gap:0!important;
-  overflow:visible!important}
+  overflow:visible!important;timeline-scope:--pv-explore}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]{position:relative;flex:none;
-  height:470px;margin:12px -24px 0;perspective:1600px;touch-action:pan-y;outline:0}
+  display:flex;box-sizing:border-box;height:560px;margin:0 -24px -78px;padding:12px 0 88px;outline:0;
+  overflow:auto hidden;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;scrollbar-width:none;
+  touch-action:pan-x pan-y;scroll-timeline:--pv-explore inline}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::-webkit-scrollbar{display:none}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{content:'';flex:none;
+  width:calc(50% - 215px)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-edge]{position:sticky;left:0;z-index:40;
+  flex:none;width:36px;margin-right:-36px;touch-action:pan-y}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{position:relative;flex:none;
+  width:430px;height:460px;scroll-snap-align:center;view-timeline:--pv-cover inline}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{position:absolute;left:50%;top:0;
   width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
   border:0!important;border-radius:22px!important;overflow:hidden;background:#C9B79F!important;
-  transform-style:preserve-3d;backface-visibility:hidden;
-  box-shadow:0 20px 40px -24px rgba(23,23,26,.5)!important}
- /* P9 (docs/MOTION.md §3.10.3): the flow is drawn from a fractional index in JS, no transition. Depth is a black
-    overlay (--shade), never filter: brightness; will-change only while the flow moves. */
+  backface-visibility:hidden;box-shadow:0 20px 40px -24px rgba(23,23,26,.5)!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]::after{content:'';position:absolute;inset:0;
-  background:#000;opacity:var(--shade,0);pointer-events:none}
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore][data-pv-moving]>[data-recipe-cover],
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore][data-pv-moving]>[data-recipe-cover]>img{
-  will-change:transform}
+  background:#000;opacity:0;pointer-events:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover][aria-current=true]{
   box-shadow:0 40px 70px -30px rgba(23,23,26,.6)!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img{display:block;width:100%;height:100%;
@@ -8412,11 +8419,42 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img:not([data-recipe-fallback]){
   width:calc(100% + 48px);margin-left:-24px}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img[data-recipe-fallback]{object-fit:none}
+ /* d = +3.5 … −3.5 covers on either side of the centre: cover 50% is the slot centred in the flow. */
+ @supports (animation-timeline:view()){
+  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{visibility:hidden;
+   animation:pv-explore-cover linear none;animation-timeline:--pv-cover;
+   animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)}
+  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]::after{
+   animation:pv-explore-shade linear none;animation-timeline:--pv-cover;
+   animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)}
+  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img:not([data-recipe-fallback]){
+   animation:pv-explore-photo linear none;animation-timeline:--pv-cover;
+   animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)}
+  /* The title fades through 0 at each crossing: one fade per 430px of scroll. A fade, so reduced keeps it. */
+  :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{
+   animation:pv-explore-title linear both!important;animation-timeline:--pv-explore!important;
+   animation-iteration-count:var(--pv-explore-steps,1)!important;
+   animation-range:0px calc(var(--pv-explore-steps,1) * 430px)!important}
+  /* Reduced: the covers stand flat and keep their depth overlay. The scroll moves them, not an animation, so they
+     are exempt from the reduced catch-all (widget-view.css); the photos keep still. */
+  :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{
+   animation:pv-explore-cover-flat linear none!important;animation-timeline:--pv-cover!important;
+   animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)!important}
+  :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]::after{
+   animation:pv-explore-shade linear none!important;animation-timeline:--pv-cover!important;
+   animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)!important}
+ }
+ /* Without scroll-driven animations the flow is a flat snap carousel: covers side by side, 24 apart. */
+ @supports not (animation-timeline:view()){
+  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{width:744px}
+  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
+  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{width:calc(50% - 372px)}
+ }
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-badge]{position:absolute;left:16px;top:16px;
   height:32px;padding:0 14px;border-radius:999px;background:#F7F6F3;color:var(--pv-ink);display:flex;
   align-items:center;font:700 15px/1 'Schibsted Grotesk',system-ui,sans-serif}
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{flex:none;margin-top:14px;
-  display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{position:relative;flex:none;
+  margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:first-child{height:20px;
   font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;
   color:var(--pv-recipe-ink)}
@@ -8425,11 +8463,15 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   overflow:hidden;text-overflow:ellipsis;color:var(--pv-ink)}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:last-child{height:24px;
   font:400 17px/24px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
- /* Seven pooled dots: each weighs 1−|k−p| and is drawn with transform and opacity only (JS), never width. */
- pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{flex:none;margin:30px auto 0;
-  position:relative;height:6px}
+ /* Seven pooled dots for the nearest cover (1−|k−i| wide); between two covers CSS moves them on transform and
+    opacity, never width. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{position:relative;flex:none;
+  margin:30px auto 0;height:6px}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{position:absolute;left:0;top:0;
-  display:block;width:8px;height:6px;border-radius:3px;background:var(--pv-ink);transform-origin:0 50%}
+  display:block;width:8px;height:6px;border-radius:3px;background:var(--pv-ink);transform-origin:0 50%;
+  transition:transform var(--pv-dur-base) var(--pv-ease-out),opacity var(--pv-dur-base) var(--pv-ease-out)}
+ :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{
+  transition:none}
  /* A recipe: hero 1132×221 in #F2E4D3. */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=intro].pv-kit-hero{display:grid!important;
   grid-template-columns:160px minmax(0,1fr) auto;align-items:center;gap:22px!important;height:221px!important;
@@ -9263,3 +9305,86 @@ body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-hi
 body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history[data-device=offline] .pv-svar-grille>i{
  background:#8C8A85}
 
+/* Udforsk cover flow (recipe-view.js exploreKeyframes, sampled from exploreFrame; explore-render.test.mjs keeps them
+   identical). Offset 0 is a cover 3.5 to the right of the centre, 100% is 3.5 to the left. */
+@keyframes pv-explore-cover{
+ 0%{transform:translateX(-1505px) perspective(1600px) translate3d(705px,0,-410px) rotateY(-55deg);z-index:16;visibility:visible}
+ 35.714%{transform:translateX(-430px) perspective(1600px) translate3d(430px,0,-260px) rotateY(-55deg);z-index:19}
+ 37.5%{transform:translateX(-376.25px) perspective(1600px) translate3d(376.25px,0,-227.5px) rotateY(-52.637deg);z-index:19}
+ 39.286%{transform:translateX(-322.5px) perspective(1600px) translate3d(322.5px,0,-195px) rotateY(-46.406deg);z-index:19}
+ 41.071%{transform:translateX(-268.75px) perspective(1600px) translate3d(268.75px,0,-162.5px) rotateY(-37.598deg);z-index:19}
+ 42.857%{transform:translateX(-215px) perspective(1600px) translate3d(215px,0,-130px) rotateY(-27.5deg);z-index:19}
+ 44.643%{transform:translateX(-161.25px) perspective(1600px) translate3d(161.25px,0,-97.5px) rotateY(-17.402deg);z-index:20}
+ 46.429%{transform:translateX(-107.5px) perspective(1600px) translate3d(107.5px,0,-65px) rotateY(-8.594deg);z-index:20}
+ 48.214%{transform:translateX(-53.75px) perspective(1600px) translate3d(53.75px,0,-32.5px) rotateY(-2.363deg);z-index:20}
+ 50%{transform:translateX(0px) perspective(1600px) translate3d(0px,0,0px) rotateY(0deg);z-index:20}
+ 51.786%{transform:translateX(53.75px) perspective(1600px) translate3d(-53.75px,0,-32.5px) rotateY(2.363deg);z-index:20}
+ 53.571%{transform:translateX(107.5px) perspective(1600px) translate3d(-107.5px,0,-65px) rotateY(8.594deg);z-index:20}
+ 55.357%{transform:translateX(161.25px) perspective(1600px) translate3d(-161.25px,0,-97.5px) rotateY(17.402deg);z-index:20}
+ 57.143%{transform:translateX(215px) perspective(1600px) translate3d(-215px,0,-130px) rotateY(27.5deg);z-index:19}
+ 58.929%{transform:translateX(268.75px) perspective(1600px) translate3d(-268.75px,0,-162.5px) rotateY(37.598deg);z-index:19}
+ 60.714%{transform:translateX(322.5px) perspective(1600px) translate3d(-322.5px,0,-195px) rotateY(46.406deg);z-index:19}
+ 62.5%{transform:translateX(376.25px) perspective(1600px) translate3d(-376.25px,0,-227.5px) rotateY(52.637deg);z-index:19}
+ 64.286%{transform:translateX(430px) perspective(1600px) translate3d(-430px,0,-260px) rotateY(55deg);z-index:19}
+ 100%{transform:translateX(1505px) perspective(1600px) translate3d(-705px,0,-410px) rotateY(55deg);z-index:16;visibility:visible}}
+@keyframes pv-explore-cover-flat{
+ 0%{transform:translateX(-1505px) perspective(1600px) translate3d(705px,0,0px) rotateY(0deg);z-index:16;visibility:visible}
+ 35.714%{transform:translateX(-430px) perspective(1600px) translate3d(430px,0,0px) rotateY(0deg);z-index:19}
+ 37.5%{transform:translateX(-376.25px) perspective(1600px) translate3d(376.25px,0,0px) rotateY(0deg);z-index:19}
+ 39.286%{transform:translateX(-322.5px) perspective(1600px) translate3d(322.5px,0,0px) rotateY(0deg);z-index:19}
+ 41.071%{transform:translateX(-268.75px) perspective(1600px) translate3d(268.75px,0,0px) rotateY(0deg);z-index:19}
+ 42.857%{transform:translateX(-215px) perspective(1600px) translate3d(215px,0,0px) rotateY(0deg);z-index:19}
+ 44.643%{transform:translateX(-161.25px) perspective(1600px) translate3d(161.25px,0,0px) rotateY(0deg);z-index:20}
+ 46.429%{transform:translateX(-107.5px) perspective(1600px) translate3d(107.5px,0,0px) rotateY(0deg);z-index:20}
+ 48.214%{transform:translateX(-53.75px) perspective(1600px) translate3d(53.75px,0,0px) rotateY(0deg);z-index:20}
+ 50%{transform:translateX(0px) perspective(1600px) translate3d(0px,0,0px) rotateY(0deg);z-index:20}
+ 51.786%{transform:translateX(53.75px) perspective(1600px) translate3d(-53.75px,0,0px) rotateY(0deg);z-index:20}
+ 53.571%{transform:translateX(107.5px) perspective(1600px) translate3d(-107.5px,0,0px) rotateY(0deg);z-index:20}
+ 55.357%{transform:translateX(161.25px) perspective(1600px) translate3d(-161.25px,0,0px) rotateY(0deg);z-index:20}
+ 57.143%{transform:translateX(215px) perspective(1600px) translate3d(-215px,0,0px) rotateY(0deg);z-index:19}
+ 58.929%{transform:translateX(268.75px) perspective(1600px) translate3d(-268.75px,0,0px) rotateY(0deg);z-index:19}
+ 60.714%{transform:translateX(322.5px) perspective(1600px) translate3d(-322.5px,0,0px) rotateY(0deg);z-index:19}
+ 62.5%{transform:translateX(376.25px) perspective(1600px) translate3d(-376.25px,0,0px) rotateY(0deg);z-index:19}
+ 64.286%{transform:translateX(430px) perspective(1600px) translate3d(-430px,0,0px) rotateY(0deg);z-index:19}
+ 100%{transform:translateX(1505px) perspective(1600px) translate3d(-705px,0,0px) rotateY(0deg);z-index:16;visibility:visible}}
+@keyframes pv-explore-shade{
+ 0%{opacity:0.18}
+ 35.714%{opacity:0.18}
+ 37.5%{opacity:0.1575}
+ 39.286%{opacity:0.135}
+ 41.071%{opacity:0.1125}
+ 42.857%{opacity:0.09}
+ 44.643%{opacity:0.0675}
+ 46.429%{opacity:0.045}
+ 48.214%{opacity:0.0225}
+ 50%{opacity:0}
+ 51.786%{opacity:0.0225}
+ 53.571%{opacity:0.045}
+ 55.357%{opacity:0.0675}
+ 57.143%{opacity:0.09}
+ 58.929%{opacity:0.1125}
+ 60.714%{opacity:0.135}
+ 62.5%{opacity:0.1575}
+ 64.286%{opacity:0.18}
+ 100%{opacity:0.18}}
+@keyframes pv-explore-photo{
+ 0%{transform:translateX(-84px)}
+ 35.714%{transform:translateX(-24px)}
+ 37.5%{transform:translateX(-21px)}
+ 39.286%{transform:translateX(-18px)}
+ 41.071%{transform:translateX(-15px)}
+ 42.857%{transform:translateX(-12px)}
+ 44.643%{transform:translateX(-9px)}
+ 46.429%{transform:translateX(-6px)}
+ 48.214%{transform:translateX(-3px)}
+ 50%{transform:translateX(0px)}
+ 51.786%{transform:translateX(3px)}
+ 53.571%{transform:translateX(6px)}
+ 55.357%{transform:translateX(9px)}
+ 57.143%{transform:translateX(12px)}
+ 58.929%{transform:translateX(15px)}
+ 60.714%{transform:translateX(18px)}
+ 62.5%{transform:translateX(21px)}
+ 64.286%{transform:translateX(24px)}
+ 100%{transform:translateX(84px)}}
+@keyframes pv-explore-title{0%,100%{opacity:1}50%{opacity:0}}

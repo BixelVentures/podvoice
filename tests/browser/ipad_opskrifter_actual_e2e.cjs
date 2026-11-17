@@ -157,7 +157,8 @@ async function stagePage(stage){
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-udforsk.png')});
  // A tap on a neighbour chooses it; a tap on the chosen cover opens the recipe.
  const neighbour=flow.locator('[data-recipe-cover]').nth(1),chosenName=await neighbour.getAttribute('data-recipe-cover');
- await neighbour.tap();await sleep(800);
+ // A touch on its visible part: a locator tap would first scroll the native flow to it.
+ await page.touchscreen.tap(1060,380);await sleep(800);
  assert.match(await position.innerText(),/^2 af \d+$/);
  assert.equal(await page.locator('#recipe-view [data-recipe-explore-title]').innerText(),chosenName);
  await page.locator('#recipe-view [data-recipe-cover][aria-current=true]').tap();

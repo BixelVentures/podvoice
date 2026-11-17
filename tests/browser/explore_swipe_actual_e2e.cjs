@@ -1,12 +1,11 @@
 'use strict';
-// P9 Udforsk cover flow (docs/MOTION.md §3.10.3) with real touches, sampled every frame, with and without reduced
-// motion. The fractional index p is read back from the covers' own transforms (x = d·430 inside one cover).
-// - The finger scrubs 1:1 after the 10px slop; the title is invisible at the half-way crossing; will-change is on
-//   only while the flow moves and covers past 3.5 are hidden, not transparent.
-// - A slow release settles on the nearest cover. A fling travels on: v·0.499/430 covers ahead (±6 at most), with
-//   no jump between frames. A touch on the moving flow catches it where it is and opens nothing.
-// - Past the first cover the finger meets the rubber-band, and the release returns to it.
-// - Reduced: the covers stand flat, the finger still tracks 1:1, and a fling moves at most one cover.
+// Udforsk cover flow (docs/MOTION.md, Udforsk) with real touches, with and without reduced motion. The flow is a
+// native scroll-snap scroller; each cover is drawn by its view timeline. p = scrollLeft / 430.
+// - The finger scrolls the flow natively and the covers follow p: the nearest cover's box matches exploreFrame. No
+//   JavaScript writes a cover's style while it moves (MutationObserver), and the title is invisible at a crossing.
+// - A slow release snaps to the nearest cover; a fling travels on with the engine's momentum and snaps.
+// - A tap on a neighbour scrolls to it; the arrow keys step; the 36px back-edge zone never scrolls the flow.
+// - Reduced: the covers stand flat.
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
@@ -18,24 +17,27 @@ const port=Number(process.env.EXPLORE_TEST_PORT||19015),base=`http://127.0.0.1:$
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 let server,browser,dir;
 
-// p from the covers: the visible cover nearest the centre has x = (k − p)·430 when |k − p| ≤ 1.
 const READ=()=>{
  const flow=document.querySelector('#recipe-view [data-recipe-layout=explore]');
- const covers=[...flow.querySelectorAll('[data-recipe-cover]')];
- let best=null;
- covers.forEach((cover,k)=>{const style=getComputedStyle(cover);if(style.visibility==='hidden')return;
-  const m=new DOMMatrix(style.transform),x=m.m41;if(!best||Math.abs(x)<Math.abs(best.x))best={k,x,m13:m.m13};});
+ const covers=[...flow.querySelectorAll('[data-recipe-cover]')],centre=flow.getBoundingClientRect();
+ const middle=centre.x+centre.width/2;
+ const boxes=covers.map(cover=>{const r=cover.getBoundingClientRect();return {x:r.x+r.width/2-middle,w:r.width};});
  const info=document.querySelector('#recipe-view [data-recipe-layout=explore-info]');
- return {p:best.k-best.x/430,turn:best.m13,text:Number(getComputedStyle(info).opacity),
-  moving:flow.dataset.pvMoving!==undefined,willChange:getComputedStyle(covers[0]).willChange,
+ return {p:flow.scrollLeft/430,scrollLeft:flow.scrollLeft,boxes,text:Number(getComputedStyle(info).opacity),
+  turn:new DOMMatrix(getComputedStyle(covers[1]).transform).m13,
   hidden:covers.map(c=>getComputedStyle(c).visibility==='hidden'),count:covers.length,
-  recipe:!!document.querySelector('#recipe-view [data-recipe-layout=intro]')};
+  current:covers.findIndex(c=>c.getAttribute('aria-current')==='true'),
+  title:document.querySelector('#recipe-view [data-recipe-explore-title]').textContent,
+  position:document.querySelector('#recipe-view [data-recipe-explore-position]').textContent,
+  writes:window.exploreWrites?.length??0,recipe:!!document.querySelector('#recipe-view [data-recipe-layout=intro]')};
 };
 const read=page=>page.evaluate(`(${READ})()`);
-const sampling=page=>page.evaluate(`(()=>{const out=[];window.exploreSamples=out;const t0=performance.now();
- const loop=()=>{out.push({t:performance.now()-t0,...(${READ})()});if(out.length<90)requestAnimationFrame(loop);};
- requestAnimationFrame(loop);})()`);
-const samples=async page=>{await sleep(1600);return page.evaluate(()=>window.exploreSamples);};
+// Style or attribute writes on the covers or their slots while the flow moves (the title and dots may change).
+const watch=page=>page.evaluate(()=>{const flow=document.querySelector('#recipe-view [data-recipe-layout=explore]');
+ window.exploreWrites=[];window.exploreWatch?.disconnect();
+ window.exploreWatch=new MutationObserver(records=>{for(const r of records)if(r.target!==flow)
+  window.exploreWrites.push(`${r.target.dataset?.recipeCover??r.target.nodeName}[${r.attributeName}]`);});
+ window.exploreWatch.observe(flow,{attributes:true,subtree:true,attributeFilter:['style','class']});});
 
 async function touch(page){
  const session=await page.context().newCDPSession(page);
@@ -44,8 +46,11 @@ async function touch(page){
  return {send,close:()=>session.detach()};
 }
 async function settled(page){
- for(let n=0;n<60;n++){const s=await read(page);if(!s.moving)return s;await sleep(50);}
- throw Error('the flow did not come to rest');
+ let last=null;
+ for(let n=0;n<80;n++){const s=await read(page);
+  if(last&&s.scrollLeft===last.scrollLeft&&s.scrollLeft%430===0&&s.current===Math.round(s.p))return s;
+  last=s;await sleep(60);}
+ throw Error(`the flow did not come to rest: ${JSON.stringify(last)}`);
 }
 
 async function run(reduced){
@@ -65,59 +70,51 @@ async function run(reduced){
  await page.locator('#recipe-view [data-recipe-layout=explore]').waitFor({state:'visible'});await sleep(900);
  const t=await touch(page);
  let s=await read(page);
- assert(s.count>=6,`enough recipes to fling (${s.count})`);assert.equal(Math.round(s.p*1000)/1000,0);
- assert.equal(s.moving,false);assert.equal(s.willChange,'auto','no will-change at rest');
+ assert(s.count>=6,`enough recipes to fling (${s.count})`);assert.equal(s.p,0);assert.equal(s.current,0);
  assert.deepEqual(s.hidden.map((h,k)=>h===k>3.5),s.hidden.map(()=>true),'covers past 3.5 are hidden');
+ // At rest the canvas: the chosen cover flat and centred, its neighbour 430 to the right and turned away.
+ assert(Math.abs(s.boxes[0].x)<1&&Math.abs(s.boxes[0].w-720)<1,`chosen cover centred (${JSON.stringify(s.boxes[0])})`);
  if(reduced)assert(Math.abs(s.turn)<1e-6,'reduced: the covers stand flat');
+ else assert(Math.abs(s.turn)>.5,`the neighbour turns away (${s.turn})`);
 
- // 1:1 scrub: the lock happens at the first move past 10px (x 570); from there p follows the finger exactly.
- await t.send('touchStart',590);
- for(const x of [570,520,470,420,362]){await t.send('touchMove',x);await sleep(20);
-  s=await read(page);const expected=(570-x)/430;
-  assert(Math.abs(s.p-expected)<.003,`1:1 at x ${x}: p ${s.p.toFixed(4)} vs ${expected.toFixed(4)}`);}
- assert.equal(s.moving,true);assert.equal(s.willChange,'transform','will-change while moving');
- assert(s.text<.06,`the title is invisible at the crossing (${s.text})`);
- // A slow release: no velocity, so it settles on the nearest cover.
- await sleep(200);await t.send('touchEnd');s=await settled(page);
- assert.equal(Math.round(s.p*1000)/1000,0,`slow release returns to the nearest cover (${s.p})`);
- assert.equal(s.willChange,'auto');assert.equal(s.text,1);
+ // A slow drag past the half-way point: the covers follow the native scroll; no style is written per frame.
+ await watch(page);
+ await t.send('touchStart',800);
+ for(let x=780;x>=560;x-=20){await t.send('touchMove',x);await sleep(30);}
+ s=await read(page);
+ assert(s.p>.4&&s.p<.7,`the finger scrolls the flow (${s.p.toFixed(3)})`);
+ const near=s.boxes[1];
+ assert(Math.abs(near.x-(1-s.p)*430)<40,`cover 1 follows p (${near.x.toFixed(1)} vs ${((1-s.p)*430).toFixed(1)})`);
+ if(Math.abs(s.p-.5)<.08)assert(s.text<.25,`the title fades at the crossing (${s.text} at p ${s.p.toFixed(3)})`);
+ assert.equal(s.writes,0,`no cover style is written while it moves (${s.writes})`);
+ await sleep(250);await t.send('touchEnd');s=await settled(page);
+ assert.equal(s.p,1,`a slow release past half-way snaps to the next cover (${s.p})`);
+ assert.equal(s.text,1);assert.equal(s.position,`2 af ${s.count}`);assert.equal(s.current,1);
 
- // A fling: about 2500 px/s to the left.
- await sampling(page);
- await t.send('touchStart',800);for(let x=780;x>=600;x-=20){await t.send('touchMove',x);await sleep(8);}
- await t.send('touchEnd');
- const fling=await samples(page),end=fling.at(-1).p;
- const steps=fling.slice(1).map((f,i)=>Math.abs(f.p-fling[i].p));
- assert(Math.max(...steps)<.5,`no jump between frames (${Math.max(...steps).toFixed(3)})`);
- assert(Math.abs(end-Math.round(end))<.002,'it lands on a cover');
- if(reduced)assert(Math.round(end)<=1,`reduced: at most one cover (${end})`);
- else assert(Math.round(end)>=2,`the fling travels on past the finger (${end})`);
- s=await settled(page);const landed=Math.round(s.p);
+ // A fling: the engine's momentum carries the flow on, and it snaps to a cover.
+ await t.send('touchStart',900);for(let x=860;x>=500;x-=60){await t.send('touchMove',x);await sleep(8);}
+ await t.send('touchEnd');s=await settled(page);
+ assert(s.p>=2,`the fling travels on past the finger (${s.p})`);
+ const writes=await page.evaluate(()=>window.exploreWrites.filter(w=>!/^(I|SPAN)\[/.test(w)));
+ assert.deepEqual(writes,[],'only the title and dots change while the flow moves');
 
- // Catch in flight: a touch while it moves stops it where it is and opens nothing.
- if(!reduced){
-  await t.send('touchStart',800);for(let x=780;x>=640;x-=20){await t.send('touchMove',x);await sleep(8);}
-  await t.send('touchEnd');await sleep(90);
-  const before=await read(page);assert(before.moving,'still flying');
-  await t.send('touchStart',600);const caught=await read(page);await sleep(120);const held=await read(page);
-  assert(Math.abs(held.p-caught.p)<.002,`caught where it was (${caught.p} → ${held.p})`);
-  await t.send('touchEnd');s=await settled(page);
-  assert.equal(s.recipe,false,'a catching touch is never a tap');
-  assert(Math.abs(s.p-Math.round(caught.p))<.002,'it settles on the nearest cover');
- }
+ // The 36px back-edge zone never scrolls the flow.
+ const before=s.scrollLeft;
+ await t.send('touchStart',20);for(let x=60;x<=300;x+=40){await t.send('touchMove',x);await sleep(16);}
+ await t.send('touchEnd');await sleep(400);
+ assert.equal((await read(page)).scrollLeft,before,'a swipe from the edge leaves the flow');
 
- // Rubber-band past the first cover: travel back to 0, then pull right 400px.
- await page.evaluate(()=>{document.querySelector('#recipe-view [data-recipe-layout=explore]').focus();});
- for(let n=0;n<landed+3;n++){await page.keyboard.press('ArrowLeft');await sleep(30);}
- s=await settled(page);assert.equal(Math.round(s.p*1000)/1000,0,'the arrow keys travel back');
- await t.send('touchStart',400);for(let x=420;x<=800;x+=20){await t.send('touchMove',x);await sleep(8);}
- s=await read(page);const free=-(800-420)/430;
- assert(s.p<-.05&&s.p>free+.1,`resistance past the first cover (${s.p.toFixed(3)} vs free ${free.toFixed(3)})`);
- await sleep(150);await t.send('touchEnd');s=await settled(page);
- assert.equal(Math.round(s.p*1000)/1000,0,'it returns to the first cover');
+ // The arrow keys step one cover; a tap on a neighbour scrolls to it and opens nothing.
+ await page.evaluate(()=>document.querySelector('#recipe-view [data-recipe-layout=explore]').focus());
+ await page.keyboard.press('ArrowLeft');s=await settled(page);assert.equal(s.p,Math.round(before/430)-1,'arrow steps');
+ // A real touch on the visible part of the right neighbour (a locator tap would scroll it into view first).
+ const name=await page.locator('#recipe-view [data-recipe-cover]').nth(s.current+1).getAttribute('data-recipe-cover');
+ await t.send('touchStart',1060,380);await sleep(60);await t.send('touchEnd');s=await settled(page);
+ assert.equal(s.p,Math.round(before/430),'a tap on the neighbour scrolls to it');assert.equal(s.recipe,false);
+ assert.equal(s.title,name);
  await t.close();
  assert.deepEqual(errors,[]);await context.close();
- console.log('explore',JSON.stringify({reduced,flingLanded:landed}));
+ console.log('explore',JSON.stringify({reduced,landed:s.p}));
 }
 
 (async()=>{try{
@@ -129,6 +126,6 @@ async function run(reduced){
   if(n>150)throw Error('fixture startup');await sleep(100)}
  browser=await chromium.launch(env.browserOptions());
  for(const reduced of [false,true])await run(reduced);
- console.log('explore: 1:1 scrub, projected fling, catch, rubber-band, reduced flat ok');
+ console.log('explore: native scroll, compositor covers, snap, fling, edge, tap, reduced flat ok');
 }catch(error){console.error(error);process.exitCode=1}finally{await browser?.close();
  if(server&&server.exitCode===null)server.kill('SIGTERM');if(dir)await fs.rm(dir,{recursive:true,force:true});}})();
