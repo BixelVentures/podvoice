@@ -77,18 +77,30 @@ async def test_recipe_is_reconstructed_without_effect_then_uses_existing_owner(s
     assert result["data"]["physical_result_verified"] is False
 
 
-@pytest.mark.parametrize("change", ["map", "device", "areas", "setting"])
-async def test_changed_recipe_identity_or_supported_options_fails_closed(setup, change):
+@pytest.mark.parametrize("change", ["map", "areas"])
+async def test_changed_map_or_area_name_keeps_recipe_by_ha_area(setup, change):
+    """HA's area mapping is the room truth: a new robot map or renamed area keeps the area."""
     rig, owner = setup
     assert (await start(rig))["ok"]
     recipe = owner.cleaning_history()["items"][0]
     before = len(rig.writes)
     if change == "map":
         rig.maps[0]["rooms"]["16"] = "Changed map room"
-    elif change == "device":
-        rig.registry[ROBOT]["unique_id"] = "replacement"
-    elif change == "areas":
+    else:
         rig.areas[0]["name"] = "Changed area"
+    prepared = await owner.display_setup(ROBOT, OWNER, recipe["id"])
+    assert prepared["steps"][-1]["arguments"]["area_ids"] == ["kitchen"]
+    assert len(rig.writes) == before
+
+
+@pytest.mark.parametrize("change", ["device", "setting"])
+async def test_changed_recipe_identity_or_supported_options_fails_closed(setup, change):
+    rig, owner = setup
+    assert (await start(rig))["ok"]
+    recipe = owner.cleaning_history()["items"][0]
+    before = len(rig.writes)
+    if change == "device":
+        rig.registry[ROBOT]["unique_id"] = "replacement"
     else:
         rig.states[MOP]["attributes"]["options"] = ["extreme"]
     with pytest.raises(CapabilityError):

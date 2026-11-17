@@ -169,6 +169,13 @@ class CapabilityError(ValueError):
     """A capability is unavailable or no longer describes this exact device."""
 
 
+class StaleRecipeError(CapabilityError):
+    """An earlier accepted start no longer fits the robot or HA's current room mapping.
+
+    Expected after a re-map or pruned history: the caller offers an ordinary setup instead.
+    """
+
+
 @dataclass(frozen=True)
 class Capability:
     generation: int
@@ -1631,22 +1638,22 @@ class DeviceControl:
             history = self.cleaning_history()
             record = next((r for r in history["items"] if r["id"] == recipe_id), None)
             if record is None or record["outcome"] != "accepted_by_ha":
-                raise CapabilityError("Kun en bekræftet tidligere opsætning kan genbruges")
+                raise StaleRecipeError("Kun en bekræftet tidligere opsætning kan genbruges")
             recipe = record["recipe"]
             if recipe.get("extreme_water") is True and not cap.extreme_water:
-                raise CapabilityError("Extreme vand er ikke længere tilgængeligt")
-            expected = {
-                "vacuum_entity_id": cap.vacuum,
-                "device_identity": cap.identity,
-                "map_entity_id": cap.map_entity,
-                "map_fingerprint": cap.map_fingerprint,
-                "mapping_identity": cap.mapping_identity,
-            }
-            if any(recipe[key] != value for key, value in expected.items()):
-                raise CapabilityError("Robot eller kort er ændret siden den tidligere opsætning")
+                raise StaleRecipeError("Extreme vand er ikke længere tilgængeligt")
+            if (
+                recipe["vacuum_entity_id"] != cap.vacuum
+                or recipe["device_identity"] != cap.identity
+            ):
+                raise StaleRecipeError("Robotten er ændret siden den tidligere opsætning")
+            # HA's area mapping is the room truth. The recipe names HA areas; a new robot map
+            # or re-mapping keeps every area HA still maps on the active map, with its current
+            # segments (resolved again at prepare). Old segment IDs are never reused.
             areas = dict(cap.area_segments)
-            if any(area not in areas for area in recipe["area_ids"]):
-                raise CapabilityError("Et tidligere område findes ikke på det aktive kort")
+            area_ids = [area for area in recipe["area_ids"] if area in areas]
+            if not area_ids:
+                raise StaleRecipeError("Ingen tidligere områder findes på det aktive kort")
             controls = {row["entity_id"]: row for row in data["controls"]}
             values = {row["entity_id"]: row["value"] for row in recipe["verified_settings"]}
             ordered = sorted(
@@ -1668,7 +1675,7 @@ class DeviceControl:
                 elif entity in controls and value in controls[entity]["options"]:
                     action, arguments = "select.select_option", {"option": value}
                 else:
-                    raise CapabilityError("En tidligere indstilling understøttes ikke længere")
+                    raise StaleRecipeError("En tidligere indstilling understøttes ikke længere")
                 steps.append({"entity_id": entity, "action": action, "arguments": arguments})
                 if (
                     recipe.get("extreme_water") is True
@@ -1680,14 +1687,14 @@ class DeviceControl:
                     )
                     extreme_added = True
             if recipe.get("extreme_water") is True and not extreme_added:
-                raise CapabilityError("Extreme vandhistorik kan ikke bekræftes")
+                raise StaleRecipeError("Extreme vandhistorik kan ikke bekræftes")
             steps.append(
                 {
                     "entity_id": vacuum,
                     "action": "vacuum.send_command",
                     "arguments": {
                         "command": "app_segment_clean",
-                        "area_ids": list(recipe["area_ids"]),
+                        "area_ids": area_ids,
                         "repeat": recipe["repeat"],
                     },
                 }
