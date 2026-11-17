@@ -553,6 +553,12 @@ base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
 )
 if base.output_transfer:
     base.app[BRIDGE].controls.policy["music"][1]["actions"].append("play_queue_occurrence")
+if os.environ.get("MUSIC_START_ANY_SPEAKER") == "1":
+    # The other room's speaker may also start music (as Frida's on Green), so a start can target it.
+    policy = base.app[BRIDGE].controls.policy["music"]
+    for rule in policy[:2]:
+        wanted = [*policy[0]["actions"], "play_track", "play_context"]
+        rule["actions"].extend(a for a in dict.fromkeys(wanted) if a not in rule["actions"])
 if account_rollover:
     rule = copy.deepcopy(base.app[BRIDGE].controls.policy["music"][0])
     rule.update(accountId="account-b", default=False)

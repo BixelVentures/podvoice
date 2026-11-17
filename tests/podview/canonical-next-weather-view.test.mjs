@@ -241,6 +241,16 @@ test('live source age expires all weather labels together while retaining values
  for(const retrievedAt of ['bad',new Date(now+1).toISOString()])assert.equal(liveWeatherModel({...w,retrievedAt},{now}).sourceStale,true);
  assert.equal(localWeatherModel().subtitle,'');assert.equal(localWeatherModel().source,'Eksempeldata');assert.equal(localWeatherModel().current.temperature,'15°');
 });
+// Green-tjek F1 (17 Nov): the topbar showed »Opdateret: hh.mm« instead of »Skyet« for a moment. A connection
+// blip or one failed read does not age an observation: only its time decides the topbar's »Opdateret« line.
+test('a connection blip marks the source stale but not time-stale',()=>{
+ const w=projected(dualWeather()),fresh=Date.parse(w.retrievedAt)+60000,expiry=Date.parse(w.retrievedAt)+900000;
+ for(const options of [{connected:false},{readStatus:'error'}]){
+  const model=liveWeatherModel(w,{now:fresh,...options});
+  assert.equal(model.sourceStale,true);assert.equal(model.timeStale,false);
+ }
+ assert.equal(liveWeatherModel(w,{now:expiry}).timeStale,true);
+});
 test('scheduled source expiry updates header photo overview and detail without replacing retained weather nodes',()=>{
  const f=fixture(),previous={doc:globalThis.document,now:Date.now,set:globalThis.setTimeout,clear:globalThis.clearTimeout};let clock=now;const jobs=new Map();let serial=0;globalThis.document=f.doc;Date.now=()=>clock;globalThis.setTimeout=(fn,ms)=>{const id=++serial;jobs.set(id,{fn,ms});return id;};globalThis.clearTimeout=id=>jobs.delete(id);
  try{const source=dualWeather();source.hourly.advice=null;const w=projected(source),host={isConnected:true,live:true,liveTransport:{connected:true},state:{focus:'now',liveWeather:w}};host.state.focus='weather';renderLiveWeather(host);host.state.focus='now';renderLiveWeather(host);const nodes=host.weatherNodes,day=nodes.days.children[1],queued=jobs.get(host.weatherAdviceTimer);assert.equal(nodes.subtitle.textContent,'Vejret i dag');clock=Date.parse(w.retrievedAt)+900001;queued.fn();assert.equal(host.weatherNodes,nodes);assert.equal(nodes.days.children[1],day);assert.equal(nodes.value.textContent,'12°');assert.match(nodes.subtitle.textContent,/^Opdateret: /);assert.match(f.ids.get('home-weather').querySelector('.home-condition').textContent,/ · Opdateret: /);assert.match(f.ids.get('header-weather').querySelector('small').textContent,/^Opdateret: /);assert.match(f.ids.get('photo-weather').querySelector(':scope > span').textContent,/^Opdateret: /);assert.equal(nodes.hours.hidden,true);assert.equal(nodes.summary.hidden,true);
