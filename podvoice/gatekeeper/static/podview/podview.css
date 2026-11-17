@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 5ea4a899a3ca83a7efa8523e498a0b7429cf17830c4fc40439c3c77850c44538 */
+/* Source: ui-kit.css · SHA256 04cf092f73aa324294e95e77570df11af76bbc74ae8d5ec71f2c5f3f39228197 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -3003,8 +3003,6 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-r
  display:block;grid-column:2;grid-row:1;align-self:center;min-width:0;
  margin:0;padding:0;font:var(--pv-t-label);line-height:26px;
 }
-/* 24 everywhere leaves the S widgets 172 wide: their titles are 16 (not 17) so »Opskrifter« fits whole. */
-pv-widget-host[data-view=active] #now-view#now-view#now-view#now-view#now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview:not([data-kit-size=l],[data-kit-size=m]),.timer-shortcut)>:is(span,.resource-label)>strong{font-size:16px!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>small{
  display:block;grid-column:1/-1;grid-row:3;align-self:start;min-height:48px;max-height:48px;
  margin:0;padding:0;font:var(--pv-t-body);line-height:24px;overflow:hidden;text-wrap:pretty;
@@ -5796,10 +5794,10 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   animation-range:entry,exit}
 }
 
-/* iPad layout (lærred v190, issue 388; luft 17 Nov): one air everywhere, --pv-edge 24: edge · grid · 24 · player 372 · edge.
-   Vertically 24 above the topbar's keys and 24 under the player and grid (--pv-content-h).
-   The widgets take whatever width is left (172 at 1180); the 16 inside the grid is unchanged.
-   The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
+/* iPad layout (lærred v190, issue 388; luft 17 Nov): edges and vertical air 24 (--pv-edge), 32 between content
+   and player: edge 24 · grid · 32 · player 356 · edge 24. Vertically 24 above the topbar's keys and 24 under the
+   player and grid (--pv-content-h). The widgets take whatever width is left (174 at 1180); the 16 inside the grid is unchanged.
+   The player is as tall as the widget grid: 3 rows of 220 + 2 gaps of 16 = 692, starting 16 under the topbar. */
 
  body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
   grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-player-gap)}
@@ -5807,12 +5805,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
   height:var(--pv-content-h);max-height:none}
 
-:root{--pv-player-w:372px;--pv-edge:24px;--pv-player-gap:var(--pv-edge);
- /* The content column beside the player (736 at 1180): every page's column-wide parts use it, never a fixed 744. */
+:root{--pv-player-w:356px;--pv-edge:24px;--pv-player-gap:var(--pv-s4);
+ /* The content column beside the player (744 at 1180): every page's column-wide parts use it, never a fixed width. */
  /* Bottom of the topbar: everything that pins under it (sticky bars) starts here (88 at 820). */
  --pv-topbar-bottom:calc(var(--pv-safe-top-s,0px) + var(--pv-edge) - 8px + 72px);
  --pv-column:calc(var(--pv-stage-w,1180px) - var(--pv-safe-left-s,0px) - var(--pv-safe-right-s,0px) - 2 * var(--pv-edge) - var(--pv-player-gap) - var(--pv-player-w));
- /* 24 everywhere: the topbar's 56-px keys sit 24 under the top (8 inside the 72 bar), content starts 16 under
+ /* Vertical air 24: the topbar's 56-px keys sit 24 under the top (8 inside the 72 bar), content starts 16 under
     the bar and ends 24 above the bottom. 692 at 820. */
  --pv-content-h:calc(var(--pv-stage-h,820px) - var(--pv-safe-top-s,0px) - var(--pv-safe-bottom-s,0px) - var(--pv-edge) + 8px - 72px - var(--pv-gap) - var(--pv-edge))}
 
@@ -6309,7 +6307,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
 
 /* iPad afspiller (lærred v190 »A-Player«, »Player-AndenEnhed«, »Player-AndetSted«, »Player-Radio«, »Player-Tom«,
-   »Player-Offline«, issue 391). One column in the 372-wide card: chip 44 with 20 above and 20 below it, cover 252
+   »Player-Offline«, issue 391). One column in the 356-wide card: chip 44 with 20 above and 20 below it, cover 252
    (196 away), title 24/800, radio's »Direkte« centred over the transport,
    a 4-px progress line, transport 56/80/56, the volume row at the bottom; away adds a primary "Flyt til <rum>". */
 
@@ -6831,7 +6829,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  #music-response[data-discovery-preview] .music-shelf[data-music-shelf=top]{
    --pv-shelf-order:40;}
 
-/* Kø fits the column (lærred »Musik-Koe«): »Kø« at 88, the card from 136 to the 784 baseline, rows scroll inside it.
+/* Kø fits the column (lærred »Musik-Koe«): »Kø« at 104, the card from 152 to the 796 baseline, rows scroll
+   inside it.
    The »Spiller på …« status line is not drawn on the iPad: the player at the right already names the speaker. It
    stays for screen readers and as the heading's focus target. */
 
@@ -7952,7 +7951,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    as two action surfaces (K-ActionTile: what it acts on, its state, the product's action label), Klima with the
    switch, temperature, both seats and »Afrim ruder« Fra/Til under the seats. The S widget carries the small car. */
 
- /* The page fits in 820 (hero 221 + 16 + cards 459 = 696): no fold, no fade, nothing to scroll. */
+ /* The page fits in 820 (hero 221 + 16 + cards 455 = 692, --pv-content-h): no fold, no fade, nothing to scroll. */
  pv-widget-host[data-view=active] .responses>#vehicle-view:not([hidden]){padding:0!important;
    row-gap:16px!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero:not([data-kit-variant=message]){
@@ -8039,11 +8038,11 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-secondary{width:var(--pv-column)!important;margin:0!important;
    padding:0!important;gap:16px!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles{grid-template-columns:repeat(2,
-   364px)!important;
+   minmax(0,1fr))!important;
    gap:16px!important;align-items:stretch!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view
    .vehicle-control-tiles:has(.vehicle-lock-controls:not([hidden])){
-   min-height:459px!important}
+   min-height:calc(var(--pv-content-h) - 221px - var(--pv-gap))!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section{position:relative!important;
    display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:0!important;
    box-sizing:border-box!important;padding:24px!important;border:0!important;border-radius:24px!important;
@@ -8232,19 +8231,19 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    position:absolute!important;inset:80px auto auto 20px!important;width:133px!important;height:48px!important;
    margin:0!important;padding:0!important;pointer-events:none;z-index:0;--pv-car-fill:#5E6B63}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle #home-vehicle-status{display:block!important;
-   position:absolute!important;inset:auto auto 20px 20px!important;width:134px!important;height:20px!important;
+   position:absolute!important;inset:auto auto 20px 20px!important;width:calc(100% - 40px)!important;height:20px!important;
    margin:0!important;
    font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#2E4A3B!important;
    text-align:left!important;
    white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle[data-has-overview-value=false] #home-vehicle-status{
-   inset:auto auto 44px 20px!important;width:134px!important;height:26px!important;font:800 18px/26px
+   inset:auto auto 44px 20px!important;width:calc(100% - 40px)!important;height:26px!important;font:800 18px/26px
    'Schibsted Grotesk',system-ui,
    sans-serif!important;
    color:#5F5E5A!important;letter-spacing:-.01em!important}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle .resource-value:not([hidden]){
    display:block!important;
-   position:absolute!important;inset:auto auto 44px 20px!important;width:134px!important;height:26px!important;
+   position:absolute!important;inset:auto auto 44px 20px!important;width:calc(100% - 40px)!important;height:26px!important;
    margin:0!important;
    font:800 18px/26px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#17442F!important;
    white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
@@ -8463,7 +8462,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  @supports not (animation-timeline:view()){
   pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{width:var(--pv-column)}
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
-  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{width:calc(50% - 372px)}
+  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{
+   width:calc(50% - var(--pv-column) / 2)}
  }
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-badge]{position:absolute;left:16px;top:16px;
   height:32px;padding:0 14px;border-radius:999px;background:#F7F6F3;color:var(--pv-ink);display:flex;
@@ -8813,7 +8813,7 @@ pv-widget-host .voice-surface .voice-bars{display:none}
  /* The Svar button stays the tap target under the status. */
  body pv-widget-host[data-voice-phase]>nav.view-nav #open-history.header-history{opacity:0}
 
- /* A-SvarKort: one card, 744 wide, reaching the bottom of the player column. */
+ /* A-SvarKort: one card, column wide (--pv-column), reaching the bottom of the player column. */
  body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])){box-sizing:border-box;
   display:flex;flex-direction:column;min-height:var(--pv-content-h);margin:0;padding:0;border-radius:24px;
   background:var(--pv-surface);box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);overflow:hidden}
@@ -8994,7 +8994,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
    align-self:flex-start;height:56px!important;min-height:0!important;padding:0 28px!important;border-radius:999px!important;
    background:#17171A!important;color:#F7F6F3!important;font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important}
 
-/* Lys fits the column (lærred »A-Lys«): the page starts at 88 under the topbar and ends on the 784 baseline, so the
+/* Lys fits the column (lærred »A-Lys«): the page starts at 104 under the topbar and ends on the 796 baseline, so the
    column never overflows and is never scrolled up under the topbar. */
 
  pv-widget-host[data-view=active] .frame>.responses:has(>#device-view:not([hidden])>.light-room-view:not([hidden])){
@@ -9062,7 +9062,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   #home-vehicle-status{grid-column:auto!important;grid-row:auto!important;inset:auto auto 44px 20px!important;
   overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle[data-kit-state=unavailable]::after{
-  content:"Kræver tilslutning";position:absolute;left:20px;bottom:20px;width:134px;height:20px;
+  content:"Kræver tilslutning";position:absolute;left:20px;bottom:20px;width:calc(100% - 40px);height:20px;
   font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;pointer-events:none}
 
@@ -9075,24 +9075,26 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   opacity:.4!important;transition:none!important}
 
 
-/* Svar page (lærred »A-SvarKort«, »SvarK-Spec« v193): the answer card at 24/88, »I dag« in the 372 column. The header
-   is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list; the list is four equal rows of 150 with 16
-   between (radius 20, padding 16): head 24 (icon 18 · kind 15/600 · time 15 mono), then the title 17/22/700 in at
-   most two lines, 8 under the head. The answer being read is white with a 3-px ink ring; the others carry their
+/* Svar page (lærred »A-SvarKort«, »SvarK-Spec« v193): the answer card at 24/104, »I dag« in the player column (356).
+   The header is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list; the list is four equal rows
+   (149 at 820) with 16 between, filling the content height (radius 20, padding 16): head 24 (icon 18 · kind 15/600 ·
+   time 15 mono), then the title 17/22/700 in at most two lines, 8 under the head. The answer being read is white with a 3-px ink ring; the others carry their
    domain tone. */
 .svar-today[hidden]{display:none!important}
 
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>:is(.player,#player-empty){display:none!important}
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:not([hidden]){display:flex;
-  position:relative;flex-direction:column;gap:16px;align-self:start;box-sizing:border-box;width:372px;height:var(--pv-content-h);
+  position:relative;flex-direction:column;gap:16px;align-self:start;box-sizing:border-box;width:var(--pv-player-w);
+  height:var(--pv-content-h);
   margin-block-start:16px;padding:0;overflow:hidden;color:#17171A;font-family:'Schibsted Grotesk',system-ui,sans-serif}
  #svar-today>header{display:flex;align-items:center;justify-content:space-between;height:32px;flex:none}
  #svar-today>header>h2{margin:0;font:800 22px/32px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:0}
  #svar-today>header>span{font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
- #svar-today .svar-today-rows{display:grid;grid-auto-rows:150px;gap:16px;flex:1 1 auto;min-height:0;overflow-y:auto;
+ #svar-today .svar-today-rows{display:grid;grid-auto-rows:calc((100% - 3 * 16px) / 4);gap:16px;
+  flex:1 1 auto;min-height:0;overflow-y:auto;
   scrollbar-width:none}
  #svar-today .svar-today-row{display:flex;flex-direction:column;align-items:stretch;box-sizing:border-box;width:100%;
-  height:150px;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;
+  height:100%;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;
   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);color:#17171A;text-align:left;overflow:hidden;cursor:pointer}
  #svar-today .svar-today-row[data-domain=weather]{background:#DDE6FB}
  #svar-today .svar-today-row[data-domain=music]{background:#F6DCCB}
@@ -9234,8 +9236,8 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
  pv-widget-host #device-view#device-view#device-view #light-room-controls
   .light-lamp-level[data-lamp-live=false]{opacity:.4;pointer-events:none}
 
- /* SvarK-Spec: card 744 × 696, padding 32, radius 24, the answer's domain tone with the corner dots (280 × 120 top
-    right, 9-px grid, up to 6 px); header 32 (icon 20 · label 15/600 · time 15 mono, 8 between); 24 to the title
+ /* SvarK-Spec: card 744 × 692 (column × content height), padding 32, radius 24, the answer's domain tone with the
+    corner dots (280 × 120 top right, 9-px grid, up to 6 px); header 32 (icon 20 · label 15/600 · time 15 mono, 8 between); 24 to the title
     44/48/800; 24 to the media; actions K-Btn 56, 16 between, 24 above. */
  body pv-widget-host[data-view=active] #answer-host#answer-host:has(>pv-answer:not([hidden])){position:relative;
   background:#E9E6F4;--pv-svar-dot:#17171A;--pv-svar-dot-opacity:.22}

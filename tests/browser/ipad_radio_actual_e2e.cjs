@@ -1,6 +1,6 @@
 'use strict';
 // iPad Radio (issue 393, lærred v190 »A-Radio«, »Radio-Starter«, »Radio-Spiller«, »Radio-IkkeTilg«, »W-radio-*«):
-// a 736×458 hero with the station logo, status line, 56/800 title, description and a station scale with a needle;
+// a 744×458 hero with the station logo, status line, 56/800 title, description and a station scale with a needle;
 // under it »Radiostationer« with »Afspilles på <højttaler>« and five 56-px logo tiles in one row. Radio plays in the
 // right-hand media player. When radio is not available the hero says so, the scale fades and the tiles are grey;
 // the small Radio widget in the overview is dimmed and says »Ikke tilgængelig«.
@@ -43,7 +43,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  // A-Radio »vaelg«: no station chosen (stage radio-ready).
  let page=await open('radio-ready');
  const card=await box(hero(page));
- assert.deepEqual([card.x,card.y,card.w,card.h],[24,104,736,458],'hero 736×458 at the top of the column');
+ assert.deepEqual([card.x,card.y,card.w,card.h],[24,104,744,458],'hero 744×458 at the top of the column');
  assert.equal(card.radius,'24px','hero radius 24');
  assert.equal(card.bg,'rgb(247, 246, 243)','no station: plain #F7F6F3');
  assert.equal(await text(page,'.radio-hero-status'),'Ingen station valgt');
@@ -62,7 +62,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  const boxes=await Promise.all([0,1,2,3,4].map(index=>box(tiles.nth(index))));
  assert(boxes.every(tile=>tile.y===boxes[0].y),'five tiles in one row');
  assert(boxes.every(tile=>Math.abs(tile.w-136)<=2),`tiles share the width: ${boxes.map(tile=>tile.w)}`);
- near(boxes[4].x+boxes[4].w,760,'the row fills the column');
+ near(boxes[4].x+boxes[4].w,24+744,'the row fills the column');
  assert.equal(boxes[0].radius,'24px','tile radius 24');
  const logo=await box(tiles.nth(0).locator('img'));
  assert.deepEqual([logo.w,logo.h],[56,56],'56-px station logo');

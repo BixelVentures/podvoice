@@ -1,5 +1,5 @@
 'use strict';
-// iPad layout (issue 388, lærred v190): 1180×820 landscape, left column 736 + player 372, no page scroll.
+// iPad layout (issue 388, lærred v190): 1180×820 landscape, left column 744 + 32 + player 356, no page scroll.
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
@@ -36,15 +36,16 @@ let server,browser,data;
  console.log('ipad layout',JSON.stringify(layout));
  assert.deepEqual(layout.page,[1180,820],'the page itself never scrolls in 1180×820');
  assert.deepEqual(layout.topbar,[0,16,1180,72]);
- // 24 everywhere: edge 24, left column 736, 24, player 372, edge 24; topbar keys 24 from the top, content 16 under the bar, 24 above the bottom.
- assert.deepEqual([layout.left[0],layout.left[2]],[24,736],'left column is 736 wide at x 24');
- assert.deepEqual(layout.player,[784,104,372,692],'player is 372×692 at x 784, y 104');
+ // Edges 24: edge 24, left column 744, 32, player 356, edge 24; topbar keys 24 from the top, content 16 under the
+ // bar, 24 above the bottom.
+ assert.deepEqual([layout.left[0],layout.left[2]],[24,744],'left column is 744 wide at x 24');
+ assert.deepEqual(layout.player,[800,104,356,692],'player is 356×692 at x 800, y 104');
  const widgets=await page.evaluate(()=>[...document.querySelectorAll('.responses button')]
   .map(n=>n.getBoundingClientRect()).filter(b=>b.width>0).map(b=>Math.round(b.right)));
- assert(widgets.length>0&&Math.max(...widgets)<=760,`widgets stay inside the left column: ${widgets}`);
+ assert(widgets.length>0&&Math.max(...widgets)<=768,`widgets stay inside the left column: ${widgets}`);
  assert.deepEqual(errors,[]);
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-layout-1180x820.png')});
- console.log('ipad layout: 736 + 372 columns, no page scroll ok');
+ console.log('ipad layout: 744 + 356 columns, no page scroll ok');
 }catch(error){console.error(error);process.exitCode=1}finally{await browser?.close();
  if(server&&server.exitCode===null)server.kill('SIGTERM');
  if(data)await fs.rm(data,{recursive:true,force:true});}})();

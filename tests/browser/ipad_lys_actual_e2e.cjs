@@ -16,6 +16,8 @@ const port=Number(process.env.IPAD_LYS_TEST_PORT||19004),base=`http://127.0.0.1:
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const DAY=new Date('2026-11-09T13:10:00Z');
 let server,browser;
+// The iPad frame (ui-kit.css): edges 24, the content column 744 (--pv-column), 32, the player 356; y 104 to 796.
+const EDGE=24,COLUMN=744,TOP=104,BOTTOM=796,RIGHT=EDGE+COLUMN,GAP=16,ROOM_W=(COLUMN-GAP)/2,ROOMS_Y=TOP+44+GAP;
 const near=(actual,expected,label,tolerance=2)=>assert(Math.abs(actual-expected)<=tolerance,
  `${label}: ${actual} ≠ ${expected}`);
 const box=(node,pseudo=null)=>node.evaluate((n,pseudo)=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n,pseudo);
@@ -45,40 +47,40 @@ async function open(stage,{overview=false}={}){
  // Lys-Taendt: the product's Hue example (Køkken lit with the scene »Morgen«).
  let page=await open('hue-kitchen');
  const bar=await box(page.locator('#device-view .light-room-toolbar'));
- assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,104,736,44],'the »Rum« line first, 736×44 at the top of the column');
+ assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[EDGE,TOP,COLUMN,44],'the »Rum« line first, column×44 at the top');
  const home=await box(page.locator('#device-view .light-home-power'));
- assert.equal(home.h,44,'»Sluk alt« 44');assert.equal(home.radius,'999px');near(home.x+home.w,760,'»Sluk alt« right');
+ assert.equal(home.h,44,'»Sluk alt« 44');assert.equal(home.radius,'999px');near(home.x+home.w,RIGHT,'»Sluk alt« right');
  assert.equal(home.bg,'rgb(247, 246, 243)','»Sluk alt« #F7F6F3');
  const rows=page.locator('#device-view .light-room-row'),own=await box(rows.first()),other=await box(rows.nth(1));
- assert.deepEqual([own.x,own.y,own.w,own.h],[24,148,364,128],'rooms 16 under the line, 364×128');
- assert.deepEqual([other.x,other.y],[404,148],'two room columns 16 apart');
+ assert.deepEqual([own.x,own.y,own.w,own.h],[EDGE,ROOMS_Y,ROOM_W,128],'rooms 16 under the line, half-column×128');
+ assert.deepEqual([other.x,other.y],[EDGE+ROOM_W+GAP,ROOMS_Y],'two room columns 16 apart');
  const ownTile=await box(rows.first());
  assert.equal(ownTile.radius,'24px');assert.equal(ownTile.bg,'rgb(251, 235, 198)','lit room #FBEBC6');
  assert.match(ownTile.shadow,/rgb\(23, 23, 26\) 0px 0px 0px 3px inset/,'chosen room ringed 3 px');
  assert.doesNotMatch((await box(rows.nth(1))).shadow,/0px 0px 0px 3px/,'only the chosen');
  // The card chooses the room; the switch (a 44-px target bottom right) is the product's room power.
  const select=await box(rows.first().locator('.light-room-select'));
- assert.deepEqual([select.x,select.y,select.w,select.h],[24,148,364,128],'the whole card chooses the room');
+ assert.deepEqual([select.x,select.y,select.w,select.h],[EDGE,ROOMS_Y,ROOM_W,128],'the whole card chooses the room');
  const power=await box(rows.first().locator('.light-room-power'));
- assert(power.h>=44&&power.w>=56,'switch target at least 44 high');near(power.x+power.w,24+364-18,'switch right',2);
+ assert(power.h>=44&&power.w>=56,'switch target at least 44 high');near(power.x+power.w,EDGE+ROOM_W-18,'switch right',2);
  const tag=await box(rows.first().locator('.light-room-tag'));
  assert.equal(tag.text,'Denne skærms rum');assert.equal(tag.size,'15px');assert.equal(tag.color,'rgb(122, 82, 5)');
  assert.equal((await box(rows.nth(1).locator('.light-room-tag'))).text,'Rum');
  const name=await box(rows.first().locator('.light-room-name'));
  assert.equal(name.size,'26px');assert.equal(name.weight,'800');near(name.x,24+24,'name 24 in');
  const status=await box(rows.first().locator('.light-room-status'));
- assert.equal(status.size,'16px');near(status.y+status.h,148+128-24,'status at the bottom',3);
+ assert.equal(status.size,'16px');near(status.y+status.h,ROOMS_Y+128-24,'status at the bottom',3);
  assert.equal((await box(rows.first().locator('.light-room-icon'))).display,'none','a switch, not a bulb icon');
  const track=await box(rows.first().locator('.light-room-power'),'::after');
  assert.equal(track.pw,'56px');assert.equal(track.ph,'34px');assert.equal(track.bg,'rgb(23, 23, 26)','switch on');
  const panel=await box(page.locator('#device-view #light-room-controls'));
- assert.deepEqual([panel.x,panel.y,panel.w],[24,308,736],'room card 32 under the rooms');
+ assert.deepEqual([panel.x,panel.y,panel.w],[EDGE,ROOMS_Y+128+32,COLUMN],'room card 32 under the rooms');
  assert.equal(panel.radius,'24px');assert.equal(panel.bg,'rgb(247, 246, 243)');
  const heading=await box(page.locator('#device-view #light-room-panel-title'));
  assert.equal(heading.size,'24px');assert.equal(heading.weight,'800');assert.equal(heading.text,'Køkken');
  const scenes=page.locator('#device-view .light-scene-choices>button:not([hidden])');
  const first=await box(scenes.first()),second=await box(scenes.nth(1));
- assert.equal(first.h,72,'72-px scenes');assert.equal(first.radius,'20px');near(first.w,(736-48-24)/3,'three columns',1);
+ assert.equal(first.h,72,'72-px scenes');assert.equal(first.radius,'20px');near(first.w,(COLUMN-48-24)/3,'three columns',1);
  assert.equal(first.bg,'rgb(23, 23, 26)','chosen scene dark');assert.equal(second.bg,'rgb(251, 235, 198)','scene #FBEBC6');
  assert.equal(first.size,'19px');assert.equal(first.weight,'800');
  const level=await box(page.locator('#device-view .light-scenes>.pv-kit-slider-field'));
@@ -87,16 +89,16 @@ async function open(stage,{overview=false}={}){
  near(label.y,level.y+(44-label.h)/2,'label beside the slider',3);assert.equal(label.size,'17px');
  const lamps=await box(page.locator('#light-lamps-trigger'));
  assert.equal(lamps.h,56,'»Lamper« 56 line');assert.equal(lamps.bg,'rgba(0, 0, 0, 0)','no lamp box');
- assert.equal((await box(page.locator('#device-view'))).mask,'none','no fold fade: the card ends at 796 as on the canvas');
+ assert.equal((await box(page.locator('#device-view'))).mask,'none','no fold fade: the card ends at the 796 baseline');
  // A-Lys (PR lys/timer): topbar »Lys«, no room chips, the room card runs to the bottom of the column (796), the
  // header carries »N af M lamper tændt«, each scene its level in 15 mono, »Lamper« the count and opens itself for ≤2.
  assert.equal((await page.locator('#header-title').innerText()).trim(),'Lys','topbar heading »Lys«');
  assert.equal(await page.locator('#device-view .light-room-navigation:visible').count(),0,'no room chips');
- near(panel.y+panel.h,796,'room card fills the column to 796');
+ near(panel.y+panel.h,BOTTOM,'room card fills the column to the baseline');
  const panelStatus=await box(page.locator('#device-view .light-room-panel-status'));
  assert.equal(panelStatus.text,'2 af 2 lamper tændt');assert.equal(panelStatus.size,'15px');
  assert(panelStatus.y>=heading.y&&panelStatus.y+panelStatus.h<=heading.y+heading.h,'status on the heading line');
- near(panelStatus.x+panelStatus.w,760-24,'status at the right');
+ near(panelStatus.x+panelStatus.w,RIGHT-24,'status at the right');
  const sceneLevel=await box(scenes.first().locator('.light-scene-level'));
  assert.equal(sceneLevel.text,'60 %');assert.equal(sceneLevel.size,'15px');assert.match(sceneLevel.family,/IBM Plex Mono/);
  assert.equal((await box(scenes.nth(1).locator('.light-scene-level'))).text,'100 %');
@@ -104,7 +106,9 @@ async function open(stage,{overview=false}={}){
  assert.equal(await page.locator('#light-lamps-trigger').getAttribute('aria-expanded'),'true','two lamps open by default');
  const lampRows=page.locator('#device-view .light-lamp-row:not([hidden])');
  assert.equal(await lampRows.count(),2);
- assert.equal((await lampRows.first().locator('.light-lamp-state').innerText()).trim(),'Tændt · 60 %');
+ // v193: the state alone under the name; the level sits beside the lamp's slider in mono.
+ assert.equal((await lampRows.first().locator('.light-lamp-state').innerText()).trim(),'Tændt');
+ assert.equal((await lampRows.first().locator('.light-lamp-level output').innerText()).trim(),'60 %');
  const lampA=await box(lampRows.first()),lampB=await box(lampRows.nth(1));
  assert.equal(lampA.y,lampB.y,'lamps in two columns');assert(lampB.x>lampA.x+300,'second lamp in the right column');
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-lys-taendt.png')});
@@ -128,7 +132,7 @@ async function open(stage,{overview=false}={}){
  // Not connected: the card is the hero with the glow.
  page=await open('light-detail-empty');
  const hero=await box(page.locator('#device-view #light-room-controls'));
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,104,736,221],'736×221 hero');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[EDGE,TOP,COLUMN,221],'column×221 hero');
  assert.equal(hero.bg,'rgb(251, 235, 198)');
  assert.match((await box(page.locator('#device-view #light-room-controls'),'::after')).image,/light-glow-hero\.svg/);
  assert.equal((await box(page.locator('#light-room-panel-title'))).size,'40px');
@@ -138,12 +142,12 @@ async function open(stage,{overview=false}={}){
   'Forbind lys i Home Assistant for at se og styre dem her.');
  const refresh=await box(page.locator('#device-view .light-room-refresh'));
  assert.equal(refresh.text,'Opdater lys');assert.equal(refresh.h,56);assert.equal(refresh.bg,'rgb(23, 23, 26)');
- near(refresh.y+refresh.h,104+221-24,'»Opdater lys« at the bottom of the hero');near(refresh.x,48,'left in the hero');
- // The column runs from 88 to the 796 baseline and cannot scroll the hero up under the topbar.
+ near(refresh.y+refresh.h,TOP+221-24,'»Opdater lys« at the bottom of the hero');near(refresh.x,48,'left in the hero');
+ // The column runs from 104 to the 796 baseline and cannot scroll the hero up under the topbar.
  const column=await box(page.locator('#device-view'));
- assert.deepEqual([column.y,column.y+column.h],[104,796],'Lys column 104–796');
+ assert.deepEqual([column.y,column.y+column.h],[TOP,BOTTOM],'Lys column 104–796');
  await page.locator('.responses').evaluate(n=>{n.scrollTop=40;});
- assert.equal((await box(page.locator('#device-view #light-room-controls'))).y,104,'the hero stays at 104');
+ assert.equal((await box(page.locator('#device-view #light-room-controls'))).y,TOP,'the hero stays at 104');
  // »<rum> · denne skærms rum« above the title when Home Assistant names the screen's light area.
  assert.equal(await page.locator('#light-room-controls .light-room-kicker').isVisible(),false,
   'no eyebrow without a known area');
@@ -153,7 +157,7 @@ async function open(stage,{overview=false}={}){
  const kicker=await box(page.locator('#light-room-controls .light-room-kicker'));
  assert.equal(kicker.text,'Køkkenalrum · denne skærms rum');assert.equal(kicker.size,'17px');
  assert.equal(kicker.weight,'600');assert.equal(kicker.color,'rgb(111, 106, 94)');
- near(kicker.y,112,'the eyebrow opens the hero');
+ near(kicker.y,TOP+24,'the eyebrow opens the hero, 24 in');
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-lys-ikkeforbundet.png')});
  await page.close();
  // Lys-Ukendt (stale): the rooms and lamps keep their place, nothing can be switched.

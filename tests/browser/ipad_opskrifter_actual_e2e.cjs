@@ -3,7 +3,7 @@
 // »Timer-Alarm«, »W-opskrift-*«, »W-timer-*«). Recipes fill the whole width (1132, no player): category tabs in one
 // track, recipes as 252-high cards in five columns and the active recipe as a 96-high band in #F2E4D3. A recipe opens
 // to a 221 hero in #F2E4D3 (photo 160, »Trin N af M · af <kilde>«, the name in 40/800), ingredients in a 400 card and
-// the steps beside it with the current step in #F2E4D3 and a 2-px ring. The timer page is a dark 736×458 hero with a
+// the steps beside it with the current step in #F2E4D3 and a 2-px ring. The timer page is a dark 744×458 hero with a
 // 340 coral ring, the time in 88 mono and the state in 48/800. A running timer is a chip in the topbar on other pages.
 // The finished timer is a full-screen alarm: the title in 88/800 coral, Stop (coral, 88 high) before +1 min.
 const {chromium}=require('playwright');
@@ -217,11 +217,11 @@ async function stagePage(stage){
  assert(bar.y+bar.h<=value.y,'step bar over the title');
  assert.deepEqual(page.errors,[]);await page.close();
 
- // A-Timer: dark 736×458 hero with the coral ring.
+ // A-Timer: dark 744×458 hero with the coral ring.
  page=await stagePage('timer-detail-running');
  const panel=page.locator('#timers-view .timer-panel:not([hidden])');
  const timer=await box(panel);
- assert.deepEqual([timer.x,timer.y,timer.w,timer.h],[24,104,736,458],'timer hero 736×458');
+ assert.deepEqual([timer.x,timer.y,timer.w,timer.h],[24,104,744,458],'timer hero 744×458');
  assert.equal(timer.bg,INK);assert.equal(timer.radius,'24px');
  const ring=await box(panel.locator('.timer-instrument'));
  assert.deepEqual([ring.w,ring.h],[340,340],'ring 340');

@@ -96,13 +96,13 @@ test('svarDomain reads the tone from the answer\'s own data only',async()=>{
  assert.equal(svarDomain({kind:'fact-card',title:'Tænd lyset i køkkenet'}),'answer','no home card without home data');
 });
 
-test('SvarK-Spec numbers: card padding 32, title 44/48/800, I dag 372 with four rows of 150 and 16 between',()=>{
+test('SvarK-Spec numbers: card padding 32, title 44/48/800, I dag in the player column in four equal rows',()=>{
  const css=kitCss();
  assert.match(css,/#answer-host#answer-host>pv-answer\.answer-widget\.response-widget\{padding:32px!important\}/);
  assert.match(css,/\.pv-visual-summary\{margin:8px 0 -4px!important;\s*padding:0 0 4px!important;font:800 44px\/48px var\(--pv-font\)!important;letter-spacing:-\.03em\}/);
- assert.match(css,/#svar-today:not\(\[hidden\]\)\{display:flex;\s*position:relative;flex-direction:column;gap:16px;[^}]*width:372px;height:696px/);
- assert.match(css,/#svar-today \.svar-today-rows\{display:grid;grid-auto-rows:150px;gap:16px;/);
- assert.match(css,/#svar-today \.svar-today-row\{[^}]*height:150px;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;/);
+ assert.match(css,/#svar-today:not\(\[hidden\]\)\{display:flex;\s*position:relative;flex-direction:column;gap:16px;[^}]*width:var\(--pv-player-w\);\s*height:var\(--pv-content-h\)/);
+ assert.match(css,/#svar-today \.svar-today-rows\{display:grid;grid-auto-rows:calc\(\(100% - 3 \* 16px\) \/ 4\);gap:16px;/);
+ assert.match(css,/#svar-today \.svar-today-row\{[^}]*height:100%;margin:0;padding:16px;border:0;border-radius:20px;background:#E9E6F4;/);
  assert.match(css,/#svar-today \.svar-today-title\{[^}]*-webkit-line-clamp:2;[^}]*margin-top:8px;font:700 17px\/22px/);
  assert.match(css,/pv-sourced-image\[data-image-kind=album_cover\] \.pv-answer-image\{\s*display:grid;grid-template-columns:200px minmax\(0,1fr\)/);
 });

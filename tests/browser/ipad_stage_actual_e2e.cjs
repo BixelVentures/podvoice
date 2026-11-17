@@ -38,8 +38,8 @@ let server,browser,data;
   console.log('ipad stage',width,height,JSON.stringify(layout));
   assert(layout.page[0]<=width&&layout.page[1]<=height,`${width}×${height}: the page never scrolls`);
   assert.deepEqual(layout.topbar,[0,16,W,72],`${width}×${height}: topbar spans the full frame`);
-  assert.deepEqual([layout.left[0],layout.left[2]],[24,W-24-24-24-372],`${width}×${height}: left column fills to 24 before the player`);
-  assert.deepEqual(layout.player,[W-24-372,104,372,H-24-104],`${width}×${height}: player 372×692, 24 from the right and bottom edges`);
+  assert.deepEqual([layout.left[0],layout.left[2]],[24,W-24-32-356-24],`${width}×${height}: left column fills to 32 before the player`);
+  assert.deepEqual(layout.player,[W-24-356,104,356,H-24-104],`${width}×${height}: player 356 wide, 24 from the right and bottom edges`);
   // Touch lands on the scaled control the user sees.
   const hit=await page.evaluate(()=>{const b=document.querySelector('#show-photo').getBoundingClientRect();
    const at=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return !!at?.closest('#show-photo');});
