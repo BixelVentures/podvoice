@@ -26,7 +26,7 @@ function fixture({documentRoot=false,reduced=false}={}){
      finish(){if(this.playState!=='running')return;this.playState='finished';resolve(this);}};
     animations.push(animation);return animation;}};
  };
- const button=node('button','.pv-tile'),cleanup=attachPressedState(surface);
+ const button=node('button'),cleanup=attachPressedState(surface);
  const root=documentRoot?doc:surface;
  const event=(patch={})=>({type:'pointerdown',pointerId:1,clientX:150,clientY:60,button:0,isPrimary:true,
   composedPath:()=>[{},button,surface],...patch});
@@ -46,17 +46,36 @@ test('tiles .97, buttons .98, icons and flat surfaces none, reduced motion none'
  f.cleanup();
 });
 
+test('a card only scales (no overlay, shadow or colour) and springs back without overshoot; reduced dims it',async()=>{
+ const f=fixture(),card=f.node('button','.pv-card'),path=()=>[card,f.surface];
+ f.root.handlers.get('pointerdown')(f.event({composedPath:path}));
+ assert.deepEqual(card.animations.map(props),[['scale']],'touch-down is one compositor animation');
+ assert.deepEqual(card.animations[0].frames,[{scale:'1'},{scale:'0.97'}]);
+ assert.deepEqual([card.animations[0].options.duration,card.animations[0].options.easing],[100,'cubic-bezier(.2,0,0,1)']);
+ f.finishAll(card);f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
+ const release=f.running(card);
+ assert.deepEqual(release.map(props),[['scale']]);
+ const points=release[0].options.easing.slice(7,-1).split(',').map(part=>Number.parseFloat(part));
+ assert(points.every(value=>value<=1),'critically damped: the spring never passes 1');
+ f.finishAll(card);await flush();f.cleanup();
+ const r=fixture({reduced:true}),still=r.node('button','.pv-card');
+ r.root.handlers.get('pointerdown')(r.event({composedPath:()=>[still,r.surface]}));
+ assert.deepEqual(still.animations.map(props),[['opacity']]);
+ assert.deepEqual(still.animations[0].frames,[{opacity:1},{opacity:.8}]);
+ r.cleanup();
+});
+
 test('down scales in --pv-dur-tap with the overlay at once; release springs back on Motion\'s quick spring',async()=>{
  const f=fixture();f.root.handlers.get('pointerdown')(f.event());
  const [scale,overlay]=f.button.animations;
- assert.deepEqual(scale.frames,[{scale:'1'},{scale:'0.97'}]);
+ assert.deepEqual(scale.frames,[{scale:'1'},{scale:'0.98'}]);
  assert.deepEqual([scale.options.duration,scale.options.fill],[100,'forwards']);
  assert.match(overlay.frames[0].boxShadow,/inset 0 0 0 999px/);
  f.finishAll(f.button);
  f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  const release=f.running(f.button);
  assert.deepEqual(release.map(props),[['scale'],['boxShadow']]);
- assert.deepEqual(release[0].frames,[{scale:'0.97'},{scale:'1'}]);
+ assert.deepEqual(release[0].frames,[{scale:'0.98'},{scale:'1'}]);
  assert.match(release[0].options.easing,/^linear\(0, /,'the spring is a CSS linear() easing from Motion');
  assert(release[0].options.duration>300&&release[0].options.duration<1000,String(release[0].options.duration));
  assert.equal(release[1].frames[0].offset,0,'the overlay fades to the control\'s own shadow');
@@ -73,7 +92,7 @@ test('a tap released before the touch-down finished shows the whole press first'
  const release=f.button.animations.slice(2);
  assert.deepEqual(release.map(props),[['scale'],['boxShadow']],'the release exists at once');
  assert.deepEqual(release.map(a=>a.options.delay),[60,60],'and starts when the 100 ms touch-down ends');
- assert.deepEqual(release[0].frames[0],{scale:'0.97'});
+ assert.deepEqual(release[0].frames[0],{scale:'0.98'});
  f.cleanup();
 });
 
@@ -166,4 +185,10 @@ test('native disclosure summaries and delegated body-sibling controls share the 
  const f=fixture({documentRoot:true}),summary=f.node('summary');assert.equal(f.surface.handlers.size,0);
  f.doc.handlers.get('pointerdown')(f.event({composedPath:()=>[summary,f.doc]}));
  assert.equal(summary.animations.length,2);f.cleanup();assert.equal(f.doc.handlers.size,0);
+});
+
+test('a control whose transition is its feedback (data-pv-press=none, the Ro photo) shows no press',()=>{
+ const f=fixture(),photo=f.node('button','[data-pv-press=none]');
+ f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[photo,f.surface]}));
+ assert.equal(photo.animations.length,0);f.cleanup();
 });

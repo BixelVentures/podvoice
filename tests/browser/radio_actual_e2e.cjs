@@ -309,6 +309,10 @@ async function playerModelJourney(stations){
   await page.locator('#room-options button').filter({hasText:name}).first().tap();
  };
  const toOverview=async()=>{
+  // While a page slides in, the page it leaves is still drawn (docs/MOTION.md, pages on live layers): ask once it
+  // has landed.
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.motion?.moving===false,undefined,
+   {timeout:5000});
   if(!await page.locator('#home-music').isVisible())await page.locator('#header-title-action').tap();
   await page.locator('#home-music').waitFor({state:'visible',timeout:10000});
  };

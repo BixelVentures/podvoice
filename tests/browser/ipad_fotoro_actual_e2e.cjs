@@ -95,14 +95,16 @@ const card=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComput
  await page.locator('#play-pause').tap();
  await page.waitForFunction(()=>document.getElementById('play-pause').getAttribute('aria-label')==='Sæt musik på pause',
   null,{timeout:3000});
- // Tap anywhere: a circle at the finger, then the overview.
- await page.evaluate(()=>{const photo=document.getElementById('photo-view');window.circleAt=null;
-  // The press animates the photo's ::after; read where it was placed right after the press handler ran.
-  document.addEventListener('pointerdown',()=>{const circle=getComputedStyle(photo,'::after');
-   window.circleAt??=[circle.left,circle.top];},{once:true});});
+ // Tap anywhere: the overview, as the photo shrinks into the finger (ui/ro-motion.js: a scaled round mask).
+ await page.evaluate(()=>{window.circleAt=null;const host=document.querySelector('pv-widget-host');
+  const loop=()=>{const mask=host.querySelector('.pv-ro-mask'),m=mask&&/^matrix\(([^)]+)\)$/.exec(
+   getComputedStyle(mask).transform);
+   if(m&&host.dataset.view==='active'){const v=m[1].split(',').map(Number),half=mask.offsetWidth/2;
+    window.circleAt=[Math.round(v[4]+v[0]*half),Math.round(v[5]+v[0]*half)];return;}
+   requestAnimationFrame(loop);};requestAnimationFrame(loop);});
  await page.touchscreen.tap(600,420);
- await page.waitForFunction(()=>document.querySelector('pv-widget-host').dataset.view==='active');
- assert.deepEqual(await page.evaluate(()=>window.circleAt),['600px','420px'],'the circle starts at the finger');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host').dataset.view==='active'&&window.circleAt);
+ assert.deepEqual(await page.evaluate(()=>window.circleAt),[600,420],'the circle shrinks into the finger');
  assert.deepEqual(page.errors,[]);await page.close();
 
  // Radio direkte: stop control.
