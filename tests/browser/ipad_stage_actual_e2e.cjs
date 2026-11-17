@@ -26,8 +26,8 @@ let server,browser,data;
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
   await sleep(400);
-  const s=Math.min(width/1180,height/820),ox=(width-1180*s)/2,oy=(height-820*s)/2;
-  // Stage coordinates: map the on-screen box back into the 1180×820 design.
+  const s=Math.min(width/1180,height/820),ox=0,oy=0,W=Math.round(width/s);
+  // Stage coordinates: the stage keeps the canvas scale and stretches to fill the frame (never letterboxed).
   const box=sel=>page.evaluate(sel=>{const node=[...document.querySelectorAll(sel)]
    .find(n=>n.getBoundingClientRect().width>0);if(!node)return null;const b=node.getBoundingClientRect();
    return [b.x,b.y,b.width,b.height];},sel);
@@ -37,9 +37,9 @@ let server,browser,data;
    left:stage(await box('.responses')),player:stage(await box('.player,#player-empty'))};
   console.log('ipad stage',width,height,JSON.stringify(layout));
   assert(layout.page[0]<=width&&layout.page[1]<=height,`${width}×${height}: the page never scrolls`);
-  assert.deepEqual(layout.topbar,[0,0,1180,72],`${width}×${height}: topbar is the canvas topbar`);
-  assert.deepEqual([layout.left[0],layout.left[2]],[24,744],`${width}×${height}: left column 744 at x 24`);
-  assert.deepEqual(layout.player,[784,88,372,695],`${width}×${height}: player 372×695 at 784,88`);
+  assert.deepEqual(layout.topbar,[0,0,W,72],`${width}×${height}: topbar spans the full frame`);
+  assert.deepEqual([layout.left[0],layout.left[2]],[24,W-48-32-356],`${width}×${height}: left column fills to 32 before the player`);
+  assert.deepEqual(layout.player,[W-24-356,88,356,695],`${width}×${height}: player 356×695, 24 from the right edge`);
   // Touch lands on the scaled control the user sees.
   const hit=await page.evaluate(()=>{const b=document.querySelector('#show-photo').getBoundingClientRect();
    const at=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return !!at?.closest('#show-photo');});
@@ -53,16 +53,16 @@ let server,browser,data;
   // Kit-Topbar right zone in stage px: clock and date right-aligned to x 1152, weather 28 px before them,
   // the date in the body face (only the clock is mono).
   const right=await page.evaluate(()=>{const stage=document.querySelector('.view-nav').getBoundingClientRect();
-   const k=stage.width/1180,x=s=>document.querySelector(s).getBoundingClientRect();
+   const k=Math.min(innerWidth/1180,innerHeight/820),W=Math.round(stage.width/k),x=s=>document.querySelector(s).getBoundingClientRect();
    const edge=s=>Math.round((x(s).right-stage.x)/k),start=s=>Math.round((x(s).x-stage.x)/k);
    return {clock:edge('#header-clock'),date:edge('#header-date'),gap:start('#header-ro')-edge('#header-weather'),
     mono:/mono/i.test(getComputedStyle(document.querySelector('#header-date')).fontFamily)};});
-  assert.deepEqual(right,{clock:1152,date:1152,gap:28,mono:false},`${width}×${height}: right zone matches Kit-Topbar`);
+  assert.deepEqual(right,{clock:W-28,date:W-28,gap:28,mono:false},`${width}×${height}: right zone matches Kit-Topbar`);
   assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(env.artifactDir(),`ipad-stage-${width}x${height}.png`)});
   await page.close();
  }
- console.log('ipad stage: one scaled canvas layout in every frame ok');
+ console.log('ipad stage: one canvas layout filling every frame ok');
 }catch(error){console.error(error);process.exitCode=1}finally{await browser?.close();
  if(server&&server.exitCode===null)server.kill('SIGTERM');
  if(data)await fs.rm(data,{recursive:true,force:true});}})();

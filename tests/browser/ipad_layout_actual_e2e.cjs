@@ -36,9 +36,9 @@ let server,browser,data;
  console.log('ipad layout',JSON.stringify(layout));
  assert.deepEqual(layout.page,[1180,820],'the page itself never scrolls in 1180×820');
  assert.deepEqual(layout.topbar,[0,0,1180,72]);
- // Canvas: 24 margin, left column 744, 16 gap, player 372, 24 margin; content starts 16 under the topbar.
+ // Canvas: 24 margin, left column 744, 32 gap, player 356, 24 margin; content starts 16 under the topbar.
  assert.deepEqual([layout.left[0],layout.left[2]],[24,744],'left column is 744 wide at x 24');
- assert.deepEqual(layout.player,[784,88,372,695],'player is 372×695 at x 784, y 88');
+ assert.deepEqual(layout.player,[800,88,356,695],'player is 356×695 at x 800, y 88');
  const widgets=await page.evaluate(()=>[...document.querySelectorAll('.responses button')]
   .map(n=>n.getBoundingClientRect()).filter(b=>b.width>0).map(b=>Math.round(b.right)));
  assert(widgets.length>0&&Math.max(...widgets)<=768,`widgets stay inside the left column: ${widgets}`);

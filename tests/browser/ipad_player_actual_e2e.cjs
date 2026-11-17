@@ -40,7 +40,7 @@ async function open(stage,{overview=false}={}){
  // A-Player: own music in the room.
  let page=await open('now');
  const card=await box(page.locator('.player'));
- assert.deepEqual([card.x,card.y,card.w,card.h],[784,88,372,695],'the player card keeps the #388 frame');
+ assert.deepEqual([card.x,card.y,card.w,card.h],[800,88,356,695],'the player card keeps the #388 frame (356 wide, 32 from the content)');
  assert.equal(card.radius,'26px','card radius 26');
  assert.equal(card.bg,'rgb(247, 246, 243)','card surface #F7F6F3');
  const chip=await box(page.locator('#output'));

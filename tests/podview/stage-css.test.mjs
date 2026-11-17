@@ -9,7 +9,8 @@ test('size queries resolve for the 1180×820 stage; other queries survive', () =
     + '@media(min-width:1000px) and (prefers-reduced-motion:reduce){.c{x:3}}'
     + '@media(max-width:759px),(max-height:640px){.d{x:4}}@media(min-width:1000px) and (max-height:760px){.e{x:5}}';
   assert.equal(resolveStage(css), '.b{x:2}@media (prefers-reduced-motion:reduce){.c{x:3}}');
-  assert.equal(resolveStage('.f{height:calc(100dvh - 10px);width:50vw}'), '.f{height:calc(820px - 10px);width:590px}');
+  assert.equal(resolveStage('.f{height:calc(100dvh - 10px);width:50vw}'),
+    '.f{height:calc(var(--pv-stage-h,820px) - 10px);width:calc(var(--pv-stage-w,1180px) * 0.5)}');
 });
 
 test('the delivered stylesheet has no frame-dependent layout', async () => {
@@ -18,9 +19,13 @@ test('the delivered stylesheet has no frame-dependent layout', async () => {
   assert.doesNotMatch(css, /\d(d|s|l)?v(h|w)\b/);
 });
 
-test('the stage scales uniformly, as large as possible, centred', () => {
-  assert.deepEqual(stageGeometry(1180, 820), {scale: 1, x: 0, y: 0});
+test('the stage keeps the canvas scale that fits and stretches to fill the frame (never letterboxed)', () => {
+  assert.deepEqual(stageGeometry(1180, 820), {scale: 1, x: 0, y: 0, width: 1180, height: 820});
   const g = stageGeometry(1180, 764);
-  assert.equal(g.scale, 764 / 820); assert.equal(g.y, 0); assert.ok(Math.abs(g.x - (1180 - 1180 * g.scale) / 2) < 1e-9);
-  assert.equal(stageGeometry(820, 1180).x, 0);
+  assert.equal(g.scale, 764 / 820); assert.equal(g.x, 0); assert.equal(g.y, 0);
+  assert.equal(g.height, 820); assert.ok(Math.abs(g.width * g.scale - 1180) < 1e-9);
+  const p = stageGeometry(820, 1180);
+  assert.equal(p.width, 1180); assert.ok(Math.abs(p.height * p.scale - 1180) < 1e-9);
+  const s = stageGeometry(1180, 820, {top: 24, right: 0, bottom: 20, left: 0});
+  assert.equal(s.y, 24); assert.ok(Math.abs(s.width * s.scale - 1180) < 1e-9);
 });
