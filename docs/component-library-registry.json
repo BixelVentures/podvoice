@@ -2538,7 +2538,8 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/ui/scroll-edges.js"
+        "dist/ui/scroll-edges.js",
+        "dist/ui/motion-busy.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2549,6 +2550,7 @@
           "method:attach": 1,
           "method:constructor": 1,
           "method:detach": 1,
+          "method:schedule": 1,
           "method:sync": 1
         },
         "registrations": {},
@@ -2559,7 +2561,9 @@
     "dist/ui/scroll-edges.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion-busy.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2577,6 +2581,25 @@
           "method:scan": 1
         },
         "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/motion-busy.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:finish": 1,
+          "function:begin": 1,
+          "function:end": 1,
+          "function:isBusy": 1,
+          "function:onIdle": 1,
+          "function:settle": 1
+        },
         "registrations": {},
         "customTags": [],
         "dom": false
@@ -3907,7 +3930,9 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:centreShift": 1,
+          "arrow:round": 1,
           "arrow:rows": 1,
+          "arrow:slide": 1,
           "function:animateList": 1,
           "function:leave": 1,
           "function:play": 1
