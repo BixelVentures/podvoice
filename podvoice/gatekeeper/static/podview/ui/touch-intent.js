@@ -21,10 +21,12 @@ export function attachTouchIntent(surface,{window:events=surface.ownerDocument.d
  const clearExpiry=()=>{if(expiry!==null)events.clearTimeout(expiry);expiry=null;};
  const clearFeedback=()=>{press?.control.removeAttribute('data-touch-cancelled');};
  const clear=()=>{clearFeedback();press=null;released=null;clearExpiry();};
- const hit=(control,e)=>{
-  if(!available(control))return false;
-  const box=control.getBoundingClientRect();
-  if(e.clientX<box.left||e.clientX>=box.right||e.clientY<box.top||e.clientY>=box.bottom)return false;
+ // The control's rect is read once per press, at its first move; later moves only compare numbers (no layout, no hit
+ // test). Scrolling cancels the press on its own, so the rect stays valid while it lasts. Release adds the hit test.
+ const boxOf=press=>press.box??=press.control.getBoundingClientRect();
+ const inside=(box,e)=>e.clientX>=box.left&&e.clientX<box.right&&e.clientY>=box.top&&e.clientY<box.bottom;
+ const hit=(control,e,box)=>{
+  if(!available(control)||!inside(box,e))return false;
   // Rects alone include areas hidden by scrolling or another surface.
   let target=document.elementFromPoint?.(e.clientX,e.clientY);
   while(target?.shadowRoot?.elementFromPoint){const inner=target.shadowRoot.elementFromPoint(e.clientX,e.clientY);if(!inner||inner===target)break;target=inner;}
@@ -41,10 +43,10 @@ export function attachTouchIntent(surface,{window:events=surface.ownerDocument.d
   clear();
   if(!['touch','pen'].includes(e.pointerType)||e.button!==0)return;
   const control=controlFor(e);if(!control||!available(control))return;
-  press={control,id:e.pointerId,cancelled:false};
+  press={control,id:e.pointerId,cancelled:false,box:null};
  };
- const move=e=>{if(press&&e.pointerId===press.id&&!hit(press.control,e))cancel();};
- const up=e=>{if(!press||e.pointerId!==press.id)return;if(!hit(press.control,e))cancel();release();};
+ const move=e=>{if(press&&!press.cancelled&&e.pointerId===press.id&&!inside(boxOf(press),e))cancel();};
+ const up=e=>{if(!press||e.pointerId!==press.id)return;if(!hit(press.control,e,boxOf(press)))cancel();release();};
  const aborted=e=>{if(press&&e.pointerId===press.id){cancel();release();}};
  const scrolled=e=>{if(press&&(e.target===document||e.target.contains?.(press.control)))cancel();};
  const blur=()=>{cancel();release();};

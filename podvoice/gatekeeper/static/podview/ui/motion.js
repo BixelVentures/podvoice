@@ -324,8 +324,12 @@ export class SceneMotion {
   animation.finished.catch(()=>{}).finally(()=>{
    if(node.parentNode===container&&node.dataset.pvLeave!==undefined)node.remove();});
  }
+ // A touch defers the hold to the next render (applyDeferredHold), so a press reads and writes no layout: the
+ // freeze is only needed once something is about to re-render under the finger.
+ deferHold(){if(!this.geometry.size)this.holdPending=true;}
+ applyDeferredHold(){if(!this.holdPending)return;this.holdPending=false;this.holdGeometry();}
  holdGeometry(){
-  if(this.geometry.size)return;
+  this.holdPending=false;if(this.geometry.size)return;
   // Freeze only existing layout boundaries; data and actions continue updating.
   // Resolved CSS height preserves fractions and excludes FLIP transforms.
   // Rounded offsetHeight would move later rows when the2s hold is released.
@@ -335,7 +339,7 @@ export class SceneMotion {
   for(const {node,height,saved}of snapshots){this.geometry.set(node,saved);for(const key of Object.keys(saved))node.style.setProperty(key,height+'px','important');}
  }
  releaseGeometry(animate=true){
-  if(!this.geometry.size)return;
+  this.holdPending=false;if(!this.geometry.size)return;
   const before=new Map([...this.geometry.keys()].filter(n=>n.getClientRects().length).map(n=>[n,n.getBoundingClientRect()]));before.layouts=new Map([...before.keys()].map(n=>[n,resourceLayout(n)]));
   for(const [node,saved]of this.geometry)for(const [key,[value,priority]]of Object.entries(saved)){if(value)node.style.setProperty(key,value,priority);else node.style.removeProperty(key);}
   this.geometry.clear();if(animate)this.settleResources(before);

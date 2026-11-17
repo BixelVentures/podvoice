@@ -1,6 +1,7 @@
 'use strict';
-// P3 press feedback (docs/MOTION.md §3.4) with a real touch: a card shrinks to .97 and a button to .98 within
-// 100 ms, and on release the scale springs back to 1 within 500 ms without a jump. No filter is used. Reduced motion keeps the overlay and drops the scale.
+// P3 press feedback (docs/MOTION.md) with a real touch: a card shrinks to .97 and a button to .98 within 100 ms, and
+// on release the scale springs back to 1 on Motion's quick spring without a jump. The press is Web Animations on the
+// control: no class, attribute or inline style changes anywhere. No filter. Reduced motion keeps the overlay only.
 const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const fs=require('node:fs/promises');
@@ -26,10 +27,15 @@ async function press(page,selector){
   window.addEventListener('click',window.pressBlock,true);node.dataset.pressProbe='';
   addEventListener('pointerdown',()=>{window.pressTimes.down=performance.now();},{capture:true,once:true});
   addEventListener('pointerup',()=>{window.pressTimes.up=performance.now();},{capture:true,once:true});
+  // Any class, attribute or inline-style write on the control or an ancestor would invalidate selectors page-wide.
+  window.pressMutations=[];window.pressObserver?.disconnect();
+  window.pressObserver=new MutationObserver(records=>{for(const r of records)if(r.target.contains?.(node))
+   window.pressMutations.push(`${r.target.id||r.target.nodeName}[${r.attributeName}] ${r.target.getAttribute(r.attributeName)}`);});
+  window.pressObserver.observe(document.documentElement,{attributes:true,subtree:true});
   const run={};window.pressRun=run;
   const loop=()=>{if(window.pressRun!==run)return;const style=getComputedStyle(node),scale=style.scale==='none'?1:Number.parseFloat(style.scale);
    window.pressSamples.push({t:performance.now(),scale,filter:style.filter,overlay:style.boxShadow.includes('999px'),
-    pressed:node.classList.contains('is-pressed')});
+    pressed:node.getAnimations().length>0});
    if(window.pressSamples.length<120)requestAnimationFrame(loop);};
   requestAnimationFrame(loop);
  },selector);
@@ -39,8 +45,10 @@ async function press(page,selector){
  await sleep(50);await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:point});await sleep(250);
  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});await session.detach();await sleep(900);
  return page.evaluate(selector=>{const node=document.querySelector(selector);delete node.dataset.pressProbe;
-  const {down,up}=window.pressTimes;
-  return window.pressSamples.map(s=>({...s,sinceDown:s.t-down,sinceUp:s.t-up}));},selector);
+  const {down,up}=window.pressTimes;window.pressObserver.disconnect();
+  const samples=window.pressSamples.map(s=>({...s,sinceDown:s.t-down,sinceUp:s.t-up}));
+  samples.mutations=window.pressMutations;return {samples,mutations:window.pressMutations};},selector).then(result=>{
+  assert.deepEqual(result.mutations,[],`${selector}: the press writes no class, attribute or style`);return result.samples;});
 }
 
 function check(selector,expected,samples,{reduced=false}={}){

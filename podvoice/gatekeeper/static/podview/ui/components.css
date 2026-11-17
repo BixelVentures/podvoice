@@ -430,7 +430,7 @@ pv-widget-host[data-mode=demo][data-review-variant=previous-answer] pv-answer .a
  pv-widget-host .responses>#music-detail .queue-track strong{white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;font-size:var(--pv-type-body);font-weight:var(--pv-weight-regular);line-height:var(--pv-leading-body);color:var(--pv-screen-ink,var(--pv-ink))}
  pv-widget-host .responses>#music-detail .queue-track small{white-space:normal;overflow-wrap:anywhere;font-size:var(--pv-type-secondary);line-height:var(--pv-leading-secondary);color:var(--pv-screen-muted)}
  pv-widget-host .responses>#music-detail .queue-track:hover:not(:disabled){background:var(--pv-screen-control)}
- pv-widget-host .responses>#music-detail .queue-track:is(:active,.is-pressed):not(:disabled){background:var(--pv-screen-line)}
+ pv-widget-host .responses>#music-detail .queue-track:active:not(:disabled){background:var(--pv-screen-line)}
  pv-widget-host .responses>#music-detail .queue-track[data-current=true]:disabled{opacity:1;cursor:default}
  pv-widget-host .responses>#music-detail .queue-track:focus-visible{outline:2px solid var(--pv-volume-thumb);outline-offset:-2px}
  pv-widget-host .responses>#music-detail #player-back{display:none;place-items:center;flex:none;width:56px;height:56px;min-height:56px;padding:var(--pv-screen-space-3);background:var(--pv-screen-control);border-radius:var(--pv-screen-radius-pill)}

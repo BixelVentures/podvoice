@@ -75,23 +75,23 @@ test('the product host and the library page install the mirror',()=>{
  assert.match(read('library.js'),/^mirrorReducedMotion\(document\.documentElement\);$/m);
 });
 
-const SHARED=['pv-spin','pv-busy-in','pv-skeleton','pv-pulse','pv-eq','pv-enter-up','pv-tick','pv-page-in','pv-page-out',
- 'pv-press-circle'];
+// The press circle (P3) is a Web Animation from ui/pressed-state.js, not a keyframes rule.
+const SHARED=['pv-spin','pv-busy-in','pv-skeleton','pv-pulse','pv-eq','pv-enter-up','pv-tick','pv-page-in','pv-page-out'];
 const WEATHER=['pv-weather-drift','pv-weather-glow','pv-weather-flash','pv-weather-mist'];
 test('keyframes are consolidated to the shared set (toward the 13 of §3.11)',()=>{
  const names=Object.keys(keyframes(bundled)).sort();
  // pv-music-eq still paints three bars on one pseudo; it needs <i> markup before it can become pv-eq.
  // pv-shelf (MOTION.md §3.10.2, PR 11) scales shelf cards on a scroll-driven timeline where the engine has one.
  assert.deepEqual(names,[...SHARED,...WEATHER,'pv-music-eq','pv-shelf'].sort());
- assert.ok(names.length<=16,'13 of §3.11 plus pv-press-circle (P3), pv-music-eq and pv-shelf');
+ assert.ok(names.length<=15,'13 of §3.11 plus pv-music-eq and pv-shelf');
  for(const removed of ['pv-advice-pending','music-control-ack','pv-connecting-sheen','music-refresh-ack',
-  'timer-alarm-ring','pv-queue-eq','pv-control-pending','pv-music-play-pending'])
+  'timer-alarm-ring','pv-queue-eq','pv-control-pending','pv-music-play-pending','pv-press-circle'])
   assert.doesNotMatch(bundled,new RegExp(`\\b${removed}\\b`),removed);
 });
 
 test('the shared keyframes animate only opacity and individual transform properties',()=>{
  const frames=keyframes(bundled);
- for(const name of SHARED.filter(name=>name!=='pv-press-circle')){
+ for(const name of SHARED){
   const properties=[...frames[name].matchAll(/([a-z-]+)\s*:/g)].map(m=>m[1]);
   for(const property of properties)assert.ok(['opacity','rotate','scale','translate'].includes(property),
    `${name} animates ${property}`);
@@ -141,7 +141,8 @@ test('toggles move their thumb with transform, the queue EQ scales and the recip
 
 test('dead motion is gone and live motion stays',()=>{
  assert.equal('transitionContent' in gestures,false);
- // holdGeometry is still called by ScreenLifecycle on pointerdown, so it is not dead (MOTION.md §2.4 said so).
- assert.match(read('ui/screen-lifecycle.js'),/host\.motion\?\.holdGeometry\(\)/);
+ // A touch defers the hold to the next render, so the press itself reads and writes no layout.
+ assert.match(read('ui/screen-lifecycle.js'),/host\.motion\?\.deferHold\?\.\(\)/);
+ assert.match(read('widget-view.js'),/render\(\)\{[^]*?this\.motion\?\.applyDeferredHold\(\)/);
  assert.doesNotMatch(read('ui/legacy-components.css'),/@keyframes ack|pulse-once/);
 });

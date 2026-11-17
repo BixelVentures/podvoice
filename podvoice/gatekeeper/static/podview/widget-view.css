@@ -96,7 +96,7 @@ pv-widget-host{touch-action:pan-y pinch-zoom}.responses{transition:translate 180
   background:var(--overview-card-surface);color:var(--overview-card-ink);filter:none;
  }
 }
-#now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):is(:active,.is-pressed):not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-status=pending]){transform:none}
+#now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):active:not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-status=pending]){transform:none}
 #now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):focus-visible{outline:2px solid var(--pv-focus-ring);outline-offset:3px}
 #now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):is(:disabled,[aria-disabled=true]){opacity:.6;cursor:default;transform:none;filter:none}
 #now-view :is(:is(.home-shortcuts>button,:where(#home-weather,#home-music,#home-radio,#home-vehicle)),:is(#device-activities>.resource-preview,:where(#now-view) .resource-preview)):is([aria-busy=true],[data-status=pending]){cursor:progress;transform:none;filter:none;background:var(--overview-card-surface);color:var(--overview-card-ink)}

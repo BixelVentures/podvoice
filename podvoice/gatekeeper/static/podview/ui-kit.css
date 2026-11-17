@@ -1162,14 +1162,15 @@ pv-widget-host .responses>#history:focus,pv-widget-host .responses>#history:focu
 /* Native feel (13 Nov): a wall-screen app, not a web page. No page rubber-band, no zoom by pinch or
    double tap (iOS ignores user-scalable=no), no tap flash, text selection or long-press callout. */
 html,body{overscroll-behavior:none;-webkit-text-size-adjust:100%}
+/* No double-tap zoom anywhere: a tap is delivered at once, never held back to wait for a second one. */
+html{touch-action:manipulation}
 pv-widget-host{-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none;
  -webkit-touch-callout:none;touch-action:pan-x pan-y}
 :is(button,a[href],summary,[role=button]){-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
 :is(input,textarea,[contenteditable]:not([contenteditable=false])){-webkit-user-select:text;user-select:text}
-:is(button,a[href],summary,[role=button]).is-pressed:not([disabled],[aria-disabled=true],[data-touch-cancelled=true]){box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)!important;transform:none!important}
-:is(button,a[href],summary,[role=button])[data-pv-pointer-focus=true]:focus{outline:none!important}
+:is(button,a[href],summary,[role=button]):focus:not(:focus-visible){outline:none!important}
 /* Native :active on an ancestor must not multiply a child's press treatment. */
-:is(button,a[href],summary,[role=button]):active{filter:none!important;transform:none!important;scale:1!important}
+:is(button,a[href],summary,[role=button]):active{filter:none!important;transform:none!important}
 
 /* Robot detail: the same admitted form anatomy inside the detail and its dialog. */
 pv-widget-host pv-robot-control-panel>.robot-control-panel{display:flex;flex-direction:column;gap:var(--pv-s3);padding:0;background:transparent}
@@ -1245,8 +1246,6 @@ input.pv-kit.pv-kit-slider[data-kit-value-known=false]:not([aria-orientation=ver
 /* A station/status change consumes its reserved two-line S-card footer only. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio>span>small{height:48px;min-height:48px;max-height:48px;line-height:24px;overflow:hidden;overflow-wrap:normal;white-space:normal}
 
-/* Quiet title navigation acknowledges touch without painting a large rectangle. */
-[data-pv-press=quiet].is-pressed:not([disabled],[aria-disabled=true]){box-shadow:none!important;opacity:.64}
 
 /* Lamp Tiles retain one column, including a non-dimmable switch. */
 /* Lamp Tile geometry is owned by ui/components.css. */
@@ -2244,7 +2243,7 @@ pv-widget-host #vehicle-view .vehicle-control-tiles>.vehicle-disclosure:last-chi
 pv-widget-host #vehicle-view .vehicle-climate-actions{grid-template-columns:minmax(0,1fr)}
 pv-widget-host #vehicle-view .vehicle-climate-actions>button{width:100%;min-height:var(--pv-hit)}
 :root{--pv-button-hover-overlay:8%;--pv-button-press-overlay:12%;--pv-button-disabled-bg:var(--pv-surface-2);--pv-button-disabled-ink:var(--pv-ink-3)}
-@media(hover:hover){.pv-kit.pv-kit-button:is(:hover,[data-kit-preview=hover]):not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not(.is-pressed):not([data-state=error]):not([aria-invalid=true]){box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor var(--pv-button-hover-overlay),transparent)!important}}
+@media(hover:hover){.pv-kit.pv-kit-button:is(:hover,[data-kit-preview=hover]):not(:disabled):not([aria-disabled=true]):not([aria-busy=true]):not([data-state=error]):not([aria-invalid=true]){box-shadow:inset 0 0 0 999px color-mix(in srgb,currentColor var(--pv-button-hover-overlay),transparent)!important}}
 .pv-kit.pv-kit-button[data-kit=button]:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){--pv-action-primary-bg:var(--pv-button-disabled-bg);--pv-action-primary-ink:var(--pv-button-disabled-ink);--pv-action-secondary-bg:var(--pv-button-disabled-bg);--pv-action-secondary-ink:var(--pv-button-disabled-ink);background:var(--pv-button-disabled-bg)!important;color:var(--pv-button-disabled-ink)!important;opacity:1!important;box-shadow:none!important;cursor:default}
 .pv-kit.pv-kit-button[data-kit-variant=icon][data-feedback=progress]>[data-kit-slot=label]{grid-column:1;grid-row:1}
 /* Power Toggle: distinct from command Buttons. Track and thumb show observed
@@ -2913,35 +2912,16 @@ body{font-family:var(--pv-font)}
 .pv-widget[data-size=m]{width:var(--pv-widget-m);height:var(--pv-hero-s)}
 .pv-widget[data-size=l]{width:var(--pv-widget-m);height:var(--pv-hero-l)}
 
-/* P3 press (docs/MOTION.md §3.4), the one owner of press motion. Down: scale in --pv-dur-tap, overlay at once.
-   Release and cancel: scale back on the quick spring, overlay out in --pv-dur-quick. A transition is read from
-   the destination state, so down and up each get their own curve. Tiles and cards .97, buttons .98, small icon
-   buttons no scale. Reduced motion keeps the overlay and drops the scale. Flat surfaces draw a circle instead. */
+/* P3 press (docs/MOTION.md): ui/pressed-state.js animates the pressed control itself with Web Animations (scale,
+   12% overlay, quiet dim, flat circle) and writes no class or attribute, so no selector here depends on a press.
+   CSS keeps the resting transitions and the circle's shape; the animation places and grows it. */
 body :is(button,a[href],summary,[role=button]){
  transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out)!important}
-:where(button,a[href],summary,[role=button]){--pv-press-scale:.98}
-:where(.pv-tile,.pv-card,.pv-hero,.resource-preview,.result,.queue-track,.cover-button,.timer-shortcut,
- .svar-today-row){
- --pv-press-scale:.97}
-:where(.round:not(.main-control),.pv-dialog-close,.volume-mute,.pv-toggle:not(.light-lamp-toggle),
- [data-pv-press=icon]){--pv-press-scale:1}
-:root[data-pv-motion=reduced] body :is(button,a[href],summary,[role=button]){--pv-press-scale:1}
-body :is(button,a[href],summary,[role=button]).is-pressed:not(:disabled,[aria-disabled=true],
- [data-touch-cancelled=true],.pv-widget,[data-pv-press=flat]){
- scale:var(--pv-press-scale)!important;transition:scale var(--pv-dur-tap) var(--pv-ease-out),box-shadow 0s!important}
-/* Quiet controls dim instead; the opacity follows the same in and out timing as the overlay. */
 body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:scale var(--pv-spring-quick),
  box-shadow var(--pv-dur-quick) var(--pv-ease-out),opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
-body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:not(:disabled,[aria-disabled=true]){
- transition:scale var(--pv-dur-tap) var(--pv-ease-out),box-shadow 0s,opacity 0s!important}
 [data-pv-press=flat]{position:relative;overflow:hidden}
 :is(.pv-widget,[data-pv-press=flat])::after{content:"";position:absolute;z-index:0;pointer-events:none;
- border-radius:50%;
- left:var(--pv-press-x,50%);top:var(--pv-press-y,50%);width:var(--pv-press-size,0);height:var(--pv-press-size,0);
- translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0;transition:opacity var(--pv-dur-quick) var(--pv-ease-out)}
-:is(.pv-widget,[data-pv-press=flat])[data-pv-circle=down]::after{opacity:1;transition:none;
- animation:pv-press-circle var(--pv-dur-tap) var(--pv-ease-out) both}
-@keyframes pv-press-circle{from{scale:.2}to{scale:1}}
+ border-radius:50%;left:50%;top:50%;width:0;height:0;translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0}
 
 /* P6 state (docs/MOTION.md §3.7), written by setKitButtonState in ui/kit.js. The chosen outcome shows at once;
    a request that runs longer than 400 ms fades its spinner in (and the icon it replaces out), so fast commands
@@ -2957,11 +2937,11 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet].is-pressed:n
  .pv-kit:is(.pv-kit-button,.pv-kit-chip,.pv-kit-toggle,.pv-kit-tile)[data-feedback=progress][aria-busy=true])::after,
 :root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{
  animation:var(--pv-busy-spinner)!important}
-body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state]:not(.is-pressed){
+body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state]{
  transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
   background-color var(--pv-dur-quick) var(--pv-ease-out),color var(--pv-dur-quick) var(--pv-ease-out),
   border-color var(--pv-dur-quick) var(--pv-ease-out)!important}
-body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.is-pressed){
+body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
   background-color var(--pv-dur-base) var(--pv-ease-out),color var(--pv-dur-base) var(--pv-ease-out),
   border-color var(--pv-dur-base) var(--pv-ease-out)!important}
@@ -3382,7 +3362,6 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
  body pv-widget-host[data-view=rest] #photo-view::after{z-index:1;
    background:radial-gradient(circle,rgba(255,255,255,.55),
   rgba(255,255,255,0) 70%)}
- body pv-widget-host[data-view=rest] #photo-view{--pv-press-size:160px}
  body pv-widget-host[data-view=rest] .photo-time{position:absolute;left:48px;top:36px;display:flex;
    flex-direction:column;gap:10px;
   text-shadow:0 1px 10px rgba(0,0,0,.45)}
@@ -6090,6 +6069,7 @@ html[data-pv-stage]{width:100%;height:100%;min-height:0;overflow:hidden}
 html[data-pv-stage]>body{position:absolute;left:0;top:0;width:var(--pv-stage-w,1180px);height:var(--pv-stage-h,820px);min-height:0;margin:0;
  overflow:hidden;transform-origin:0 0;
  transform:translate(var(--pv-stage-x,0px),var(--pv-stage-y,0px)) scale(var(--pv-stage-scale,1))}
+html[data-pv-stage=flat]>body{left:var(--pv-stage-x,0px);top:var(--pv-stage-y,0px);transform:none}
 html[data-pv-stage] dialog:modal{scale:var(--pv-stage-scale,1)}
 html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:env(safe-area-inset-right,0px);
  --pv-safe-bottom:env(safe-area-inset-bottom,0px);--pv-safe-left:env(safe-area-inset-left,0px)}

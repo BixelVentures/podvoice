@@ -298,7 +298,10 @@ async function offlineFeedbackJourney(page,errors){
  assert.equal(await baseButton.getAttribute('aria-expanded'),'true','touch-open Base survives first setup completion');
  await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-robot-base-first-setup-retained.png')});
  robotRefresh.push(await observeRobotButtonRefresh(page,detailAction,'pause','cleaning'));
- await baseButton.tap();await baseButton.focus();const beforeGeometry=await baseButton.boundingBox();
+ await baseButton.tap();await baseButton.focus();
+ // The press springs back over ~600 ms (P3, Motion's quick spring); geometry is compared once it has landed.
+ await baseButton.evaluate(b=>Promise.all(b.getAnimations().filter(a=>a.effect?.getTiming().iterations!==Infinity)
+  .map(a=>a.finished.catch(()=>{}))));const beforeGeometry=await baseButton.boundingBox();
  await baseButton.evaluate(b=>{b.dataset.testContinuity='retained'});
  const before=await page.locator('pv-widget-host').evaluate(h=>h.liveSnapshot.homeRevision);
  const readsBefore=homeRequests.length;

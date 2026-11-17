@@ -309,7 +309,7 @@ pv-robot-control-panel form:has(>.heading)>.pv-meta{grid-column:1;grid-row:1;ali
 .library-touch-legend{margin:0;padding:var(--pv-s1) var(--pv-s4);font:var(--pv-t-meta);color:var(--pv-ink-2);background:var(--pv-surface-2)}
 html[data-library-touch-areas=true] :is(button,a[href],summary,label[for],input:not([type=hidden]),select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]){outline:2px dashed var(--pv-weather-ink)!important;outline-offset:-2px!important}
 html[data-library-touch-areas=true] :is(button,a[href],summary,input:not([type=hidden]),select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]):focus-visible{outline:3px solid var(--pv-ink)!important;outline-offset:-3px!important}
-html[data-library-touch-areas=true] :is(button,a[href],summary,input:not([type=hidden]),select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]):is(:active,.is-pressed):not(:disabled,[aria-disabled=true]){outline:3px solid var(--pv-robot-ink)!important;outline-offset:-3px!important}
+html[data-library-touch-areas=true] :is(button,a[href],summary,input:not([type=hidden]),select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]):active:not(:disabled,[aria-disabled=true]){outline:3px solid var(--pv-robot-ink)!important;outline-offset:-3px!important}
 html[data-library-touch-areas=true] :is(button,input,select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]):is(:disabled,[aria-disabled=true]),html[data-library-touch-areas=true] [inert] :is(button,a[href],summary,input,select,textarea,[role=button],[role=slider],[role=switch],[role=checkbox],[role=radio]){outline:1px dashed var(--pv-ink-3)!important;outline-offset:-1px!important}
 
 /* Documentation staging for actual retained product widgets, never a renderer.
@@ -335,7 +335,7 @@ pv-widget-host[data-library-widget-sizes=true]>.frame>:not(.responses),
 pv-widget-host[data-library-widget-sizes=true]>.voice-surface{visibility:hidden!important}
 /* Inspection keeps the area visible after an actual pointer focus; it still
    distinguishes keyboard focus and the existing active/pressed feedback. */
-html[data-library-touch-areas=true] :is(button,a[href],summary,[role=button])[data-pv-pointer-focus=true]:focus:not(:focus-visible):not(:active):not(.is-pressed){outline:2px dashed var(--pv-weather-ink)!important;outline-offset:-2px!important}
+html[data-library-touch-areas=true] :is(button,a[href],summary,[role=button]):focus:not(:focus-visible):not(:active){outline:2px dashed var(--pv-weather-ink)!important;outline-offset:-2px!important}
 
 /* Existing native field, primary touch variant for standalone setup forms. */
 .pv-form-field{min-height:var(--pv-hit-primary);font:var(--pv-t-body)}

@@ -97,9 +97,9 @@ const card=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComput
   null,{timeout:3000});
  // Tap anywhere: a circle at the finger, then the overview.
  await page.evaluate(()=>{const photo=document.getElementById('photo-view');window.circleAt=null;
-  new MutationObserver(()=>{if(photo.dataset.pvCircle==='down')
-   window.circleAt??=[photo.style.getPropertyValue('--pv-press-x'),
-   photo.style.getPropertyValue('--pv-press-y')];}).observe(photo,{attributes:true});});
+  // The press animates the photo's ::after; read where it was placed right after the press handler ran.
+  document.addEventListener('pointerdown',()=>{const circle=getComputedStyle(photo,'::after');
+   window.circleAt??=[circle.left,circle.top];},{once:true});});
  await page.touchscreen.tap(600,420);
  await page.waitForFunction(()=>document.querySelector('pv-widget-host').dataset.view==='active');
  assert.deepEqual(await page.evaluate(()=>window.circleAt),['600px','420px'],'the circle starts at the finger');
