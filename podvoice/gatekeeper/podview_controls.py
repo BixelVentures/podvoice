@@ -13,7 +13,7 @@ import time
 
 from . import podview_light_control as lights
 from . import podview_room_player, podview_speakers, podview_vehicle_control, robot_settings
-from .device_control import EXECUTE_ACTION
+from .device_control import EXECUTE_ACTION, StaleRecipeError
 from .execution_policy import ExecutionContext
 from .podview_dock_control import DockTransport, validate_dock_controls
 from .podview_room_move import RoomMoveFacade
@@ -1320,6 +1320,12 @@ class TouchControls:
                                 map_selection="map" in rule["actions"],
                                 settings_roles=tuple(rule.get("settingsRoles", ())),
                             )
+                        except StaleRecipeError:
+                            # An old start that no longer fits HA's room mapping is an ordinary
+                            # "nothing to restore", not a failure; the screen reads setup again.
+                            _LOGGER.debug("robot_setup_no_restore stage=display")
+                            if not public_options:
+                                raise
                         except Exception as error:
                             _robot_setup_error("display", error)
                             if not public_options:

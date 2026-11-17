@@ -332,6 +332,59 @@ async def test_automatic_history_and_explicit_recipe_keep_independent_dock_grant
     assert denied["error"] == "target_not_granted"
 
 
+@pytest.mark.parametrize("remap", ["kept", "renumbered", "dropped", "none_left"])
+async def test_history_restore_follows_ha_areas_after_robot_remap(fixture, caplog, remap):
+    """A new robot map re-maps segments to HA areas; the last start follows the areas."""
+    rig, bridge, token = fixture
+    rig.configure(entities=list(rig.registry))
+    rule = bridge.controls.policy["vacuum"][0]
+    rule["actions"].extend(["start", "reuse"])
+    record = await seed(rig)  # Kitchen = segment 16 on the old map.
+    mapping = rig.registry[ROBOT]["options"]["vacuum"]["area_mapping"]
+    if remap == "renumbered":
+        rig.maps[0]["rooms"] = {"21": "Kitchen", "22": "Dining"}
+        mapping.update(kitchen=["0_21"], dining=["0_22"])
+    elif remap in {"dropped", "none_left"}:
+        # Kitchen is no longer mapped to any segment on the active map.
+        rig.maps[0]["rooms"] = {"22": "Dining"}
+        mapping.update(dining=["0_22"])
+        del mapping["kitchen"]
+    else:
+        rig.maps[0]["rooms"]["18"] = "Hall"
+        rig.areas.append({"area_id": "hall", "name": "Gang", "aliases": []})
+        mapping["hall"] = ["0_18"]
+    if remap == "dropped":
+        journal = rig.router._device_control._cleaning_journal
+        recipe = copy.deepcopy(journal.history()["items"][0]["recipe"])
+        recipe.update(area_ids=["kitchen", "dining"], segments=[16, 17])
+        record = journal.begin(recipe)
+        journal.accepted(record)
+
+    caplog.set_level("DEBUG", logger="gatekeeper.podview_controls")
+    offer = await bridge.controls.setup(setup_body(bridge, restoreHistoryId=record), token)
+    assert not [r for r in caplog.records if r.levelname == "WARNING"], caplog.text
+    if remap == "none_left":
+        # Nothing to restore: the screen reads an ordinary setup and asks for rooms.
+        assert offer["error"] == "setup_unavailable", offer
+        assert "robot_setup_no_restore" in caplog.text
+        ordinary = await bridge.controls.setup(setup_body(bridge), token)
+        assert ordinary["ok"] and "historyDraft" not in ordinary["setup"], ordinary
+        assert not rig.writes
+        return
+    assert offer["ok"], offer
+    draft = offer["setup"]["historyDraft"]
+    start = next(row for row in offer["options"] if row["action"] == "start")
+    labels = {row["id"]: row["label"] for row in start["argsSchema"]["areas"]}
+    expected = "Spisestue" if remap == "dropped" else "Køkkenalrum"
+    assert [labels[area] for area in draft["areaIds"]] == [expected]
+    assert draft["repeat"] == 2
+    reuse = next(row for row in offer["options"] if row["action"] == "reuse")
+    result = await bridge.controls.action(action_body(offer, reuse), token)
+    assert result["outcome"] == "accepted", result
+    segments = rig.writes[-1][1]["params"][0]["segments"]
+    assert segments == {"kept": [16], "renumbered": [21], "dropped": [22]}[remap]
+
+
 @pytest.mark.parametrize("fail_at", [None, 2])
 async def test_real87_complete_recipe_edits_use_actual_device_prepare_execute_and_abort(
     fixture, fail_at
