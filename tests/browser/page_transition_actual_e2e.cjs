@@ -4,7 +4,7 @@
 // This journey covers what surrounds it:
 // 1. Push and pop leave exactly one page shown, with no layer styles, plate or dim left behind, and no view
 //    transition; the old page is hidden again and the heading is the new page's.
-// 2. A touch during a push finishes it at once and reaches the live page: the back tap is handled.
+// 2. A touch during a push acts on what is under the finger: the back tap is handled and finishes the push.
 // 3. A render while a page moves (new data) runs at once; the leaving page stays painted until the end.
 // Reduced motion: the same, with the cross-fade.
 const {chromium}=require('playwright');
@@ -59,7 +59,7 @@ const rest=page=>page.evaluate(()=>{
   await tap(page,'#home-radio');await settled('push','radio-view');assert.equal(await focus(),'radio');
   await tap(page,'.topbar-title-action');await settled('pop','now-view');assert.equal(await focus(),'now');
 
-  // A touch during a push finishes it at once and reaches the live page: the back tap is handled.
+  // A touch during a push acts on what is under the finger: the back tap is handled and ends the push.
   await tap(page,'#home-radio');await sleep(reduced?60:200);
   assert.equal(await page.evaluate(()=>document.querySelector('pv-widget-host').motion.moving),true,'push running');
   await tap(page,'.topbar-title-action');await settled('interrupted push','now-view');
@@ -78,7 +78,7 @@ const rest=page=>page.evaluate(()=>{
   assert.deepEqual(errors,[]);await context.close();
   console.log('page',JSON.stringify({reduced,ok:true}));
  }
- console.log('page transition: live layers end clean, a touch finishes them, renders keep the old page ok');
+ console.log('page transition: live layers end clean, a touch during them is handled, renders keep the old page ok');
 }catch(error){console.error(error);process.exitCode=1}finally{await browser?.close();
  if(server&&server.exitCode===null)server.kill('SIGTERM');
  if(data)await fs.rm(data,{recursive:true,force:true});}})();

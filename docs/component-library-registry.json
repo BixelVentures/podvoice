@@ -2350,7 +2350,6 @@
           "method:holdGeometry": 1,
           "method:holdRender": 1,
           "method:immediate": 1,
-          "method:layer": 1,
           "method:layered": 1,
           "method:moonPoint": 1,
           "method:moving": 1,
