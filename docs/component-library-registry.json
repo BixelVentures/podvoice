@@ -605,7 +605,9 @@
     "dist/ui/stage.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/frame-meter.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -3918,6 +3920,21 @@
         "dom": true
       },
       "reviewedScope": "P4 list motion (queue rows come, go and reorder) as Web Animations timed by Motion springs; reads every box before any write. Reached only through the delivery bundle. No DOM construction."
+    },
+    "dist/ui/frame-meter.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {},
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "On-device frame meter: passive capture listeners, a rAF loop only during a touch session, batched POST to /view/api/frames. No DOM construction, no geometry reads."
     }
   },
   "externalModules": {

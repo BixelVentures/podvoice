@@ -1164,6 +1164,28 @@ Web Inspector via kabel → Timelines → Frames).
 | **Gesture-konflikter** | Kant-back, træk-ned-tilbage, native scroll og P9 B på samme flade. | `data-pv-gesture-owner` som eneste mekanisme, 10 px akselås og tests pr. kombination i `swipe-track.test.mjs` og `root-gestures.test.mjs`. |
 | **Natteregel** | Visuelle tests af musik/timer kan udløse lyd på Green. | Motion-PR'er testes lokalt med fixtures. Green-sweep kun læsende (`--green`), og ingen lydprøver kl. 18–08. |
 
+### 5.4 Måling på iPad'en
+
+`ui/frame-meter.js` (importeret af `ui/stage.js`) måler altid på selve skærmen. Hvert tryk åbner en session fra
+fingeren ned, til bevægelsen er faldet til ro (højst 1,5 s efter slip): kun rAF-deltaer. Bevægelse ses generisk (Web Animations, CSS-transition/animation-events, scroll);
+arten udledes af værtens visning før og efter: `push`, `pop`, `ro-open` (Hjem → Ro), `ro-close` (Ro → Hjem),
+`scroll`, `press`, `tap` (intet bevægede sig). Motion-kode kan mærke en session med `begin(kind)`, `end()` og
+`moved()`. I tomgang koster måleren intet (ingen rAF eller timer), og den læser aldrig geometri.
+
+Sessionerne samles i hukommelsen og sendes (fetch `keepalive`) til `POST /view/api/frames` hvert 30. s og når siden
+skjules, aldrig midt i en bevægelse. Serveren holder de seneste 500 i `podview-client-diagnostics/frames.jsonl` i
+add-on'ets data. Læs dem i en browser, der er logget ind i HA (samme ingress-adgang som resten af PodView):
+
+```
+https://<ha>/api/hassio_ingress/<ingress-token>/view/api/frames?limit=100
+```
+
+Ingress-tokenet er det i PodView-panelets iframe-URL. Svaret har `sessions` (nyeste først: `kind`, `from`/`to`,
+`frames`, `over17`/`over20`/`over34`/`over50`, `maxFrameMs`, `p95FrameMs`, `startLatencyMs` (slip → første frame
+med bevægelse), `durationMs` (slip → sidste bevægelse), `ua`, `dpr`, `at`) og
+`aggregates` pr. art: `count`, `medianMaxFrameMs`, `p95MaxFrameMs`, `medianP95FrameMs`, `medianStartLatencyMs` og
+`pctOver34` (andel sessioner med mindst én frame over 34 ms). Ved 60 Hz er 16,7 ms en frame; over 34 ms er to tabte.
+
 ---
 
 ### Kilder

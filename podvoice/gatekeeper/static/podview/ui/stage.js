@@ -3,6 +3,8 @@
 // other direction, so the page always fills the frame edge to edge: never letterboxed. Safe areas do not
 // move the stage (Ro's photo runs under the status bar); they come back as --pv-safe-*-s in stage px,
 // and the topbar and the content keep clear of them.
+// Frame meter: installs itself on import (passive listeners; no work until a touch).
+import './frame-meter.js';
 export const STAGE_WIDTH=1180,STAGE_HEIGHT=820;
 export function stageGeometry(width,height,inset={top:0,right:0,bottom:0,left:0}){
  const w=Math.max(1,width),h=Math.max(1,height);
