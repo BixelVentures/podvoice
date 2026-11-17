@@ -365,13 +365,17 @@ class DeviceControl:
 
         cached = self._robot_resolved.get(vacuum)
         if cached is not None and time.monotonic() - cached[1] < _ROBOT_RESOLVE_INTERVAL:
-            start, resolved_at = cached
+            (start, resolved_at), fresh = cached, False
         else:
-            start, resolved_at = policy, time.monotonic()
+            start, resolved_at, fresh = policy, time.monotonic(), True
         before = await entries(start)
         binding = podview_robot.resolve_binding(start, before)
-        if binding is not None and binding["fields"] != start["fields"]:
-            # A granted entity is gone, disabled or renamed: find each role on the device.
+        if binding is not None and (
+            binding["fields"] != start["fields"]
+            or (fresh and podview_robot.needs_successor(binding))
+        ):
+            # A granted entity is gone, disabled or renamed, or HA has replaced a deprecated
+            # one (the mop drying switch): find each role on the device.
             listing = await self._ws_read({"type": "config/entity_registry/list"})
             self._check(generation)
             binding = podview_robot.resolve_binding(policy, before, listing)

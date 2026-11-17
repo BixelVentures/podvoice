@@ -2851,7 +2851,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 6318c66b5d0193ef8c2ae3637dc9f661e55f094c61a31683deaf990fd3c1496d */
+/* Source: ui-kit.css · SHA256 bad046d1f8d3f14fbe045ebbad204db0cfe085043f25ea6368b964f366ac1a80 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -3002,7 +3002,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-r
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>small{
  display:block;grid-column:1/-1;grid-row:3;align-self:start;min-height:48px;max-height:48px;
  margin:0;padding:0;font:var(--pv-t-body);line-height:24px;overflow:hidden;text-wrap:pretty;
-}
+;letter-spacing:-.01em}
 pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview .resource-value:not([hidden]){
  display:block;position:static;grid-column:1/-1;grid-row:3;align-self:start;
  transform:none;margin:0;padding:0;max-width:none;font:var(--pv-t-body);line-height:24px;text-wrap:pretty;
@@ -4545,7 +4545,7 @@ pv-widget-host[data-topbar=true] .view-nav #show-photo[data-navigation=rest] .re
 /* L keeps the same semantic reading cluster as S/M. Only scale and the lower
    factual budget change; the source primary value never becomes a hidden fact. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media]){position:relative;display:block!important;column-gap:var(--pv-s2)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>.resource-value:not([hidden]){display:block!important;position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;margin:0!important;padding:0!important;max-width:calc(100% - 48px)!important;height:34px;max-height:34px;font:var(--pv-t-title)!important;line-height:34px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media])>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>.resource-value:not([hidden]){display:block!important;position:absolute!important;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3)!important;margin:0!important;padding:0!important;max-width:calc(100% - 48px)!important;height:34px;max-height:34px;font:var(--pv-t-title)!important;line-height:34px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-label>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:106px var(--pv-s3) auto var(--pv-s3)!important;height:24px;max-height:24px!important;font:var(--pv-t-body)!important;line-height:24px!important;margin:0!important;white-space:nowrap!important;color:var(--pv-ink-2)}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-facts=true]>.resource-facts:not([hidden]){position:absolute!important;inset:170px var(--pv-s3) var(--pv-s3)!important;grid-area:auto!important;align-content:start}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-kind=light] .resource-fact[data-fact-id=on-count]{display:none!important}
@@ -4565,18 +4565,18 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data
 pv-widget-host #now-view :is(#home-recipes,#home-radio[data-media-layout=compact],#timer-card>#open-timers){--pv-card-status-font:var(--pv-t-label);--pv-card-status-leading:26px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])[data-has-overview-value=true]>.resource-label>small:not([hidden]){color:var(--pv-ink-2)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l])>.resource-facts{color:var(--pv-ink-2)}
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l])[data-kit-state=unavailable]>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>:is(.resource-value,small):not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;max-height:48px!important;height:auto!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-label)!important;line-height:26px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l])[data-kit-state=unavailable]>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>:is(.resource-value,small):not([hidden]){position:absolute!important;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3)!important;max-height:48px!important;height:auto!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-radio[data-kit-size=l][data-media-layout=compact]>span>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-label)!important;line-height:26px!important}
 /* An absent measurement has one neutral primary status in every size. */
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty){position:relative;display:block!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span{display:contents!important}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span>strong{position:absolute;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3);width:auto!important;display:block!important;min-height:0!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty)>span>strong{position:absolute;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3);width:auto!important;display:block!important;min-height:0!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-weather:has(.home-temperature:empty) .home-condition{position:static;display:block;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
 pv-widget-host #now-view :is(#home-radio[data-kit-size=l][data-media-layout=compact],#timer-card[data-kit-size=l]>#open-timers){--pv-card-status-font:var(--pv-t-label);--pv-card-status-leading:26px}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers{position:relative;display:block}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){position:absolute;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3);height:26px;max-height:26px;font:var(--pv-t-label)!important;line-height:26px!important;margin:0;padding:0}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span>small:not([hidden]){position:absolute;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3);height:26px;max-height:26px;font:var(--pv-t-label)!important;line-height:26px!important;margin:0;padding:0}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>.resource-context:not([hidden]){position:absolute;grid-area:auto!important;inset:106px var(--pv-s3) auto var(--pv-s3);height:auto;max-height:40px;margin:0;padding:0}
-pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context):not(.resource-visual)>.resource-value:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-value)!important;line-height:44px!important;height:44px!important;max-height:44px!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context):not(.resource-visual)>.resource-value:not([hidden]){position:absolute!important;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3)!important;font:var(--pv-t-value)!important;line-height:44px!important;height:44px!important;max-height:44px!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>span:not(.resource-facts):not(.resource-context):not(.resource-visual)>small{position:absolute!important;grid-area:auto!important;inset:124px var(--pv-s3) auto var(--pv-s3)!important;height:24px!important;max-height:24px!important;margin:0!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #home-vehicle[data-kit-size=l][data-has-overview-value=true]>.resource-facts:not([hidden]){display:grid!important;position:absolute!important;grid-area:auto!important;inset:210px var(--pv-s3) var(--pv-s3)!important;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:48px;gap:var(--pv-s2);margin:0!important;padding:0!important;align-content:start}
 pv-widget-host[data-view=active] #now-view:not([hidden]) #timer-card[data-kit-size=l]>#open-timers>span:not(.resource-facts):not(.resource-context):not(.resource-visual){display:contents!important}
@@ -4602,7 +4602,7 @@ pv-widget-host #weather-view .weather-wind-direction{order:-1}
 pv-widget-host .pv-kit-hero[data-kit-variant=message][data-kit-density=compact]:not([hidden]){padding-block:20px!important;row-gap:4px!important}
 
 /* Every empty/unknown Large resource keeps the same primary-status anchor. */
-pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media]):not([data-has-overview-value=true]):not(:has(>.resource-label>.resource-value:not([hidden])))>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:72px var(--pv-s3) auto var(--pv-s3)!important;width:auto!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
+pv-widget-host[data-view=active] #now-view:not([hidden]) :is(.resource-card[data-kit-size=l]>.resource-preview,.resource-preview[data-kit-size=l],#home-vehicle[data-kit-size=l]):not([data-media-layout=media]):not([data-has-overview-value=true]):not(:has(>.resource-label>.resource-value:not([hidden])))>:is(.resource-label,span:not(.resource-facts):not(.resource-context):not(.resource-visual))>small:not([hidden]){position:absolute!important;grid-area:auto!important;inset:var(--pv-topbar-bottom) var(--pv-s3) auto var(--pv-s3)!important;width:auto!important;height:auto!important;max-height:48px!important;margin:0!important;padding:0!important;font:var(--pv-t-body)!important;line-height:24px!important;color:var(--pv-ink-2)!important}
 
 /* Canonical action icon in the existing fixed overview Button. */
 pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=pause]::before,pv-widget-host #now-view>.resource-card>.resource-direct-action[data-action-id=resume]::before{content:'';width:20px;height:20px;flex:0 0 20px;background:currentColor;mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNyA0aDN2MTZIN3pNMTQgNGgzdjE2aC0zeiIvPjwvc3ZnPg==") center/contain no-repeat;-webkit-mask:url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJjdXJyZW50Q29sb3IiIHN0cm9rZS13aWR0aD0iMiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIj48cGF0aCBkPSJNNyA0aDN2MTZIN3pNMTQgNGgzdjE2aC0zeiIvPjwvc3ZnPg==") center/contain no-repeat}
@@ -5640,7 +5640,9 @@ body{font-family:var(--pv-font)}
 
  body pv-widget-host[data-topbar][data-view]>nav.view-nav,body pv-widget-host>nav.view-nav{position:relative;
   box-sizing:border-box;
-  width:var(--pv-stage-w,1180px);max-width:none;height:72px;min-height:72px;max-height:72px;margin-inline:calc(50% - calc(var(--pv-stage-w,1180px) * 0.5));padding:0 28px;
+  width:var(--pv-stage-w,1180px);max-width:none;height:72px;min-height:72px;max-height:72px;margin-inline:calc(50% - calc(var(--pv-stage-w,1180px) * 0.5));padding:0 var(--pv-edge);
+  --pv-top-air:calc(var(--pv-topbar-bottom) - 72px);
+  margin-block-start:var(--pv-top-air);box-shadow:0 calc(-1 * var(--pv-top-air)) 0 0 var(--pv-topbar);
   background:var(--pv-topbar);color:var(--pv-ink)}
  pv-widget-host>.view-nav .header-title{font:600 22px/26px var(--pv-font);letter-spacing:-.01em}
  pv-widget-host>.view-nav #open-history{position:absolute;left:50%;top:12px;translate:-50% 0;z-index:1;height:48px;
@@ -5793,17 +5795,25 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   animation-range:entry,exit}
 }
 
-/* iPad layout (lærred v190, issue 388; luft 17 Nov): 1180×820, 24 margin, left column 744 + 32 + player 356.
-   The 32 gap (twice the 16 between widgets) separates content from the player; spare stage width goes to the widgets.
-   The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
+/* iPad layout (lærred v190, issue 388; luft 17 Nov): edges and vertical air 24 (--pv-edge), 32 between content
+   and player: edge 24 · grid · 32 · player 356 · edge 24. Vertically 24 above the topbar's keys and 24 under the
+   player and grid (--pv-content-h). The widgets take whatever width is left (174 at 1180); the 16 inside the grid is unchanged.
+   The player is as tall as the widget grid: 3 rows of 220 + 2 gaps of 16 = 692, starting 16 under the topbar. */
 
  body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
   grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-player-gap)}
  body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
   align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
-  height:calc(var(--pv-hero-l) + var(--pv-gap) + var(--pv-hero-s));max-height:none}
+  height:var(--pv-content-h);max-height:none}
 
-:root{--pv-player-w:356px;--pv-player-gap:var(--pv-s4)}
+:root{--pv-player-w:356px;--pv-edge:24px;--pv-player-gap:var(--pv-s4);
+ /* The content column beside the player (744 at 1180): every page's column-wide parts use it, never a fixed width. */
+ /* Bottom of the topbar: everything that pins under it (sticky bars) starts here (88 at 820). */
+ --pv-topbar-bottom:calc(var(--pv-safe-top-s,0px) + var(--pv-edge) - 8px + 72px);
+ --pv-column:calc(var(--pv-stage-w,1180px) - var(--pv-safe-left-s,0px) - var(--pv-safe-right-s,0px) - 2 * var(--pv-edge) - var(--pv-player-gap) - var(--pv-player-w));
+ /* Vertical air 24: the topbar's 56-px keys sit 24 under the top (8 inside the 72 bar), content starts 16 under
+    the bar and ends 24 above the bottom. 692 at 820. */
+ --pv-content-h:calc(var(--pv-stage-h,820px) - var(--pv-safe-top-s,0px) - var(--pv-safe-bottom-s,0px) - var(--pv-edge) + 8px - 72px - var(--pv-gap) - var(--pv-edge))}
 
 /* iPad Overblik (lærred v190 »Main«, issue 389): fixed slots in a 4×3 grid of 174×221 beside the player.
    Vejr L · Robot M · Lys S, Tesla S · Musik, Radio, Opskrifter, Timer S. State never moves a widget.
@@ -5813,7 +5823,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   --pv-recipe-step-ahead:rgba(122,74,34,.18)}
 
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather){
-  grid-template-columns:repeat(4,minmax(var(--pv-widget-s),1fr));grid-template-rows:repeat(3,var(--pv-hero-s));
+  grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));height:var(--pv-content-h);
   grid-auto-rows:0;gap:var(--pv-gap);align-content:start;margin:0;padding:0;overflow:visible}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>.response-heading{
   display:none}
@@ -6298,11 +6308,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
 
 /* iPad afspiller (lærred v190 »A-Player«, »Player-AndenEnhed«, »Player-AndetSted«, »Player-Radio«, »Player-Tom«,
-   »Player-Offline«, issue 391). One column in the 372×695 card: chip 44, cover 252 (196 away), title 24/800,
+   »Player-Offline«, issue 391). One column in the 356-wide card: chip 44 with 20 above and 20 below it, cover 252
+   (196 away), title 24/800, radio's »Direkte« centred over the transport,
    a 4-px progress line, transport 56/80/56, the volume row at the bottom; away adds a primary "Flyt til <rum>". */
 
  body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){display:flex!important;
-  flex-direction:column;align-items:stretch;gap:0!important;padding:18px 24px 24px!important;
+  flex-direction:column;align-items:stretch;gap:0!important;padding:20px 24px 24px!important;
   border-radius:26px!important;
   background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);overflow:hidden;
   --pv-volume-track-size:4px;--pv-volume-thumb-size:18px}
@@ -6335,7 +6346,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.track span{font:400 17px/24px var(--pv-font);
   color:#5F5E5A}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live:not([hidden]){order:3;display:flex;
-  align-items:center;gap:10px;height:44px;margin:22px 0 0;font:600 15px/20px var(--pv-font);letter-spacing:.12em;
+  align-items:center;justify-content:center;gap:10px;height:44px;margin:22px 0 0;font:600 15px/20px var(--pv-font);letter-spacing:.12em;
   text-transform:uppercase;color:#3F3E3B}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live>i{width:10px;height:10px;border-radius:50%;
   background:#8C8A85}
@@ -6449,7 +6460,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
  pv-widget-host[data-view=active] .responses>#music-response[data-discovery-preview]:not([hidden]){
    --pv-music-ink-2:#5F5E5A;display:flex!important;flex-direction:column!important;gap:0!important;
-   padding:0 0 32px!important;width:744px!important;max-width:744px!important;grid-template-columns:none!important;
+   padding:0 0 32px!important;width:var(--pv-column)!important;max-width:var(--pv-column)!important;grid-template-columns:none!important;
    grid-template-rows:none!important;}
  #music-response[data-discovery-preview] #music-refinements{
    display:contents!important;}
@@ -6500,7 +6511,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  #music-response[data-discovery-preview]>#music-refresh{
    margin-top:4px!important;}
  #music-response[data-discovery-preview] #results{
-   order:calc(var(--pv-open) + 2);flex:none;height:auto!important;width:100%!important;max-width:744px!important;
+   order:calc(var(--pv-open) + 2);flex:none;height:auto!important;width:100%!important;max-width:var(--pv-column)!important;
    align-self:stretch!important;max-height:none!important;margin:0 0 24px!important;grid-column:auto!important;
    grid-row:auto!important;}
  #music-response[data-discovery-preview]>#empty{
@@ -6612,7 +6623,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    display:none!important;}
  /* Lige nu: the first mood card, 744×252, dark, cover 212, name 36/800 and the Afspil pill. */
  #music-response[data-discovery-preview] #music-hero>.result.result.result[data-content-state][data-kit=hero]{
-   flex-basis:100%!important;width:744px!important;height:252px!important;display:grid!important;
+   flex-basis:100%!important;width:var(--pv-column)!important;height:252px!important;display:grid!important;
    grid-template-columns:212px 1fr!important;grid-template-rows:1fr auto!important;column-gap:24px!important;
    row-gap:0!important;padding:20px!important;box-sizing:border-box;border-radius:28px!important;overflow:hidden;
    color:#F7F6F3;margin-bottom:16px;background:linear-gradient(135deg,#2B3A4A 0%,#3E5568 55%,#8FB3D9 140%)!important;}
@@ -6716,16 +6727,16 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
  pv-widget-host[data-view=active] .responses>#music-detail:not([hidden]){
    background:transparent!important;box-shadow:none!important;padding:0!important;border-radius:0!important;
-   width:744px!important;max-width:744px!important;}
+   width:var(--pv-column)!important;max-width:var(--pv-column)!important;}
  #music-detail .detail-queue{
    display:flex!important;flex-direction:column!important;gap:16px!important;margin:0!important;padding:0!important;
-   width:744px!important;background:transparent!important;box-shadow:none!important;
+   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;
    --pv-enter-y:16px;animation:pv-enter-up var(--pv-spring-snappy) backwards;}
  #music-detail #queue-title{
    height:32px;margin:0!important;font:800 24px/32px var(--pv-font)!important;color:var(--pv-ink)!important;}
  #music-detail #queue{
    display:flex!important;flex-direction:column!important;gap:0!important;padding:8px 20px!important;
-   border-radius:24px!important;background:#F7F6F3!important;box-sizing:border-box;width:744px!important;}
+   border-radius:24px!important;background:#F7F6F3!important;box-sizing:border-box;width:var(--pv-column)!important;}
  #music-detail #queue>.queue-track{
    display:grid!important;grid-template-columns:32px 56px 1fr 44px!important;align-items:center;gap:14px!important;
    height:72px!important;min-height:72px!important;margin:0 -12px!important;padding:0 12px!important;
@@ -6779,7 +6790,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    their last read (.music-shelf). */
 
  #music-response[data-discovery-preview] #music-hero{
-   order:1;flex:none;display:block;width:744px;}
+   order:1;flex:none;display:block;width:var(--pv-column);}
  #music-response[data-discovery-preview] #music-hero:empty{
    display:none;}
  #music-response[data-discovery-preview] #music-hero>.result.result.result[data-content-state][data-kit=hero]{
@@ -6801,7 +6812,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  #music-response[data-discovery-preview]>[data-discovery-header]{
    transform:translateY(-11px)!important;}
  #music-response[data-discovery-preview] .music-shelf{
-   order:calc(var(--pv-shelf-order) + 2);flex:none;display:flex;flex-wrap:nowrap;gap:16px;width:744px;
+   order:calc(var(--pv-shelf-order) + 2);flex:none;display:flex;flex-wrap:nowrap;gap:16px;width:var(--pv-column);
    margin:12px 0 0;padding:0 24px 0 0;box-sizing:border-box;overflow-x:auto;overflow-y:hidden;
    scroll-snap-type:x mandatory;scrollbar-width:none;
    -webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);mask-image:linear-gradient(90deg,#000 78%,
@@ -6819,14 +6830,15 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  #music-response[data-discovery-preview] .music-shelf[data-music-shelf=top]{
    --pv-shelf-order:40;}
 
-/* Kø fits the column (lærred »Musik-Koe«): »Kø« at 88, the card from 136 to the 784 baseline, rows scroll inside it.
+/* Kø fits the column (lærred »Musik-Koe«): »Kø« at 104, the card from 152 to the 796 baseline, rows scroll
+   inside it.
    The »Spiller på …« status line is not drawn on the iPad: the player at the right already names the speaker. It
    stays for screen readers and as the heading's focus target. */
 
  pv-widget-host[data-view=active] .frame>.responses:has(>#music-detail:not([hidden])){
    overflow:hidden!important;}
  pv-widget-host[data-view=active] .responses>#music-detail#music-detail:not([hidden]){
-   height:696px!important;min-height:0!important;max-height:696px!important;flex:none!important;
+   height:var(--pv-content-h)!important;min-height:0!important;max-height:var(--pv-content-h)!important;flex:none!important;
    overflow:hidden!important;}
  pv-widget-host #music-detail#music-detail>.response-heading{
    position:absolute!important;width:1px!important;height:1px!important;min-width:0!important;
@@ -6856,8 +6868,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
  pv-widget-host[data-view=active] .responses>#radio-view:not([hidden]){
    --pv-radio-ink-2:#3F3E3B;display:flex!important;flex-direction:column!important;gap:0!important;
-   padding:0!important;width:744px!important;max-width:744px!important;height:696px!important;
-   max-height:696px!important;overflow:hidden!important}
+   padding:0!important;width:var(--pv-column)!important;max-width:var(--pv-column)!important;height:var(--pv-content-h)!important;
+   max-height:var(--pv-content-h)!important;overflow:hidden!important}
  pv-widget-host #radio-view>.radio-hero.radio-hero{position:relative;box-sizing:border-box;display:flex!important;
    flex-direction:column!important;align-items:stretch!important;gap:0!important;flex:none;height:458px!important;
    min-height:0!important;margin:0!important;padding:32px!important;border:0!important;border-radius:24px!important;
@@ -6980,8 +6992,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    The heading, hero and hours overlap in one grid, so the product's DOM and reading order stay as they are. */
 
  pv-widget-host[data-view=active] .responses>#weather-view:not([hidden]){display:grid!important;
-   grid-template-columns:744px!important;grid-template-rows:54px 290px 192px auto auto!important;
-   gap:0!important;padding:0!important;width:744px!important;max-width:744px!important;align-content:start;
+   grid-template-columns:var(--pv-column)!important;grid-template-rows:54px 290px 192px auto auto!important;
+   gap:0!important;padding:0!important;width:var(--pv-column)!important;max-width:var(--pv-column)!important;align-content:start;
    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent);
    mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent)}
  pv-widget-host #weather-view>*{grid-column:1;min-width:0;margin:0!important}
@@ -7232,7 +7244,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host
    #device-view#device-view#device-view:has(pv-robot-control-panel)>#device-detail{margin-left:0!important;
    margin-right:0!important;
-   width:744px!important;max-width:744px!important}
+   width:var(--pv-column)!important;max-width:var(--pv-column)!important}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    :is(.robot-control-panel,.robot-cleaning-form){
    display:flex!important;flex-direction:column!important;gap:32px!important}
@@ -7503,12 +7515,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    flex-flow:row wrap!important;align-content:flex-start!important;align-items:stretch!important;
    column-gap:16px!important}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden]))>*{
-   flex:0 0 744px!important}
+   flex:0 0 var(--pv-column)!important}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel):has(>#robot-care:not([hidden]))
-   >section.device-history:not(:has(pv-robot-control-panel)){flex:0 0 calc((744px - 16px) * .6)!important;
+   >section.device-history:not(:has(pv-robot-control-panel)){flex:0 0 calc((var(--pv-column) - 16px) * .6)!important;
    width:auto!important;max-width:none!important;min-width:0!important}
  pv-widget-host #device-view#device-view#device-view:has(pv-robot-control-panel)>#robot-care:not([hidden]){
-   flex:0 0 calc((744px - 16px) * .4)!important;width:auto!important;max-width:none!important;min-width:0!important;
+   flex:0 0 calc((var(--pv-column) - 16px) * .4)!important;width:auto!important;max-width:none!important;min-width:0!important;
    display:flex!important;flex-direction:column!important;gap:14px!important}
  pv-widget-host #device-view#device-view#device-view:not(:has(pv-robot-control-panel))>#robot-care{
    display:none!important}
@@ -7531,7 +7543,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  /* Robot-Sticky */
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
    .robot-sticky{position:fixed!important;left:0;top:0;z-index:6;
-   width:744px;height:72px;padding:0 12px 0 20px;box-sizing:border-box;border-radius:0 0 20px 20px;background:#F6D8E1;
+   width:var(--pv-column);height:72px;padding:0 12px 0 20px;box-sizing:border-box;border-radius:0 0 20px 20px;background:#F6D8E1;
    box-shadow:0 14px 28px -18px rgba(23,23,26,.55),inset 0 0 0 1px rgba(23,23,26,.06);display:flex;align-items:center;
    gap:16px;transition:transform var(--pv-spring-smooth),opacity var(--pv-dur-base) var(--pv-ease-out),visibility 0s}
  pv-widget-host #device-view#device-view#device-view pv-robot-control-panel
@@ -7576,7 +7588,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    .resource-card[data-kind=vacuum]>.resource-preview::after{content:''!important;display:block!important;
    position:absolute!important;right:0;top:0;width:250px;height:221px;pointer-events:none;z-index:0;opacity:.55;
    background:url(assets/robot/robot-arcs-widget.svg) right top/250px 221px no-repeat!important;inset:0 0 auto
-   auto!important}
+   auto!important;
+   /* The arcs stay in the upper right; they fade out before the status text (bottom left) so text never sits on dots. */
+   -webkit-mask:radial-gradient(120% 95% at 100% 0%,#000 40%,transparent 78%);mask:radial-gradient(120% 95% at 100% 0%,#000 40%,transparent 78%)}
  pv-widget-host #now-view#now-view#now-view#now-view
    .resource-card[data-kind=vacuum]>.resource-preview:is([data-resource-status=cleaning],
    [data-resource-status=docking],[data-resource-status=returning])::after{
@@ -7653,8 +7667,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    -webkit-mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent);
    mask-image:linear-gradient(180deg,#000 calc(100% - 48px),transparent)}
  pv-widget-host #device-view#device-view#device-view>section.light-room-view:not([hidden]){
-   display:flex!important;flex-direction:column!important;gap:0!important;margin:0!important;width:744px!important;
-   max-width:744px!important;padding:0!important}
+   display:flex!important;flex-direction:column!important;gap:0!important;margin:0!important;width:var(--pv-column)!important;
+   max-width:var(--pv-column)!important;padding:0!important}
  pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-toolbar{order:0;
    display:flex!important;align-items:center!important;gap:12px!important;height:44px!important;min-height:0!important;
    margin:0 0 16px!important;padding:0!important}
@@ -7682,7 +7696,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-list[hidden]{display:none!important}
  /* Lys-Ukendt (lærred »A-Lys«, state ukendt): compact info line under the rooms, K-Notice compact/info. */
  pv-widget-host #device-view#device-view#device-view>.light-room-view>.light-room-notice:not([hidden]){order:1;
-   display:inline-flex!important;align-self:flex-start;align-items:center;gap:10px;height:40px;max-width:744px;
+   display:inline-flex!important;align-self:flex-start;align-items:center;gap:10px;height:40px;max-width:var(--pv-column);
    margin:-8px 0 32px!important;padding:0 14px 0 8px;box-sizing:border-box;border-radius:12px;background:#E2E0DB;
    color:#3F3E3B;font:800 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;white-space:nowrap;overflow:hidden}
  pv-widget-host #device-view#device-view#device-view .light-room-notice>i{flex:none;display:flex;align-items:center;
@@ -7734,7 +7748,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #device-view#device-view#device-view>.light-room-view>#light-room-controls{order:2;
    display:flex!important;flex-direction:column!important;gap:24px!important;margin:0!important;padding:24px!important;
    box-sizing:border-box!important;border:0!important;border-radius:24px!important;background:#F7F6F3!important;
-   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;width:744px!important}
+   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;width:var(--pv-column)!important}
  pv-widget-host
    #device-view#device-view#device-view>.light-room-view>#light-room-controls[hidden]{display:none!important}
  pv-widget-host #device-view#device-view#device-view #light-room-controls>header{margin:0!important;padding:0!important;
@@ -7936,11 +7950,11 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    as two action surfaces (K-ActionTile: what it acts on, its state, the product's action label), Klima with the
    switch, temperature, both seats and »Afrim ruder« Fra/Til under the seats. The S widget carries the small car. */
 
- /* The page fits in 820 (hero 221 + 16 + cards 459 = 696): no fold, no fade, nothing to scroll. */
+ /* The page fits in 820 (hero 221 + 16 + cards 455 = 692, --pv-content-h): no fold, no fade, nothing to scroll. */
  pv-widget-host[data-view=active] .responses>#vehicle-view:not([hidden]){padding:0!important;
    row-gap:16px!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-hero:not([data-kit-variant=message]){
-   position:relative!important;display:block!important;box-sizing:border-box!important;width:744px!important;
+   position:relative!important;display:block!important;box-sizing:border-box!important;width:var(--pv-column)!important;
    height:221px!important;min-height:0!important;margin:0!important;padding:0!important;border:0!important;
    border-radius:24px!important;background:#D5EADD!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;
    overflow:hidden!important;color:#17171A!important;
@@ -8020,14 +8034,14 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #vehicle-view .vehicle-hero[data-car-tone=climate]>.vehicle-dots>i[data-layer=cabin]{
    --pv-car-mask:url(assets/vehicle/car-cabin-warm.svg);background:#FF7A5C}
  /* Adgang and Klima side by side */
- pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-secondary{width:744px!important;margin:0!important;
+ pv-widget-host #vehicle-view#vehicle-view#vehicle-view>.vehicle-secondary{width:var(--pv-column)!important;margin:0!important;
    padding:0!important;gap:16px!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles{grid-template-columns:repeat(2,
-   364px)!important;
+   minmax(0,1fr))!important;
    gap:16px!important;align-items:stretch!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view
    .vehicle-control-tiles:has(.vehicle-lock-controls:not([hidden])){
-   min-height:459px!important}
+   min-height:calc(var(--pv-content-h) - 221px - var(--pv-gap))!important}
  pv-widget-host #vehicle-view#vehicle-view#vehicle-view .vehicle-control-tiles>section{position:relative!important;
    display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:0!important;
    box-sizing:border-box!important;padding:24px!important;border:0!important;border-radius:24px!important;
@@ -8216,19 +8230,19 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
    position:absolute!important;inset:80px auto auto 20px!important;width:133px!important;height:48px!important;
    margin:0!important;padding:0!important;pointer-events:none;z-index:0;--pv-car-fill:#5E6B63}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle #home-vehicle-status{display:block!important;
-   position:absolute!important;inset:auto auto 20px 20px!important;width:134px!important;height:20px!important;
+   position:absolute!important;inset:auto auto 20px 20px!important;width:calc(100% - 40px)!important;height:20px!important;
    margin:0!important;
    font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#2E4A3B!important;
    text-align:left!important;
    white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle[data-has-overview-value=false] #home-vehicle-status{
-   inset:auto auto 44px 20px!important;width:134px!important;height:26px!important;font:800 18px/26px
+   inset:auto auto 44px 20px!important;width:calc(100% - 40px)!important;height:26px!important;font:800 18px/26px
    'Schibsted Grotesk',system-ui,
    sans-serif!important;
    color:#5F5E5A!important;letter-spacing:-.01em!important}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle .resource-value:not([hidden]){
    display:block!important;
-   position:absolute!important;inset:auto auto 44px 20px!important;width:134px!important;height:26px!important;
+   position:absolute!important;inset:auto auto 44px 20px!important;width:calc(100% - 40px)!important;height:26px!important;
    margin:0!important;
    font:800 18px/26px 'Schibsted Grotesk',system-ui,sans-serif!important;color:#17442F!important;
    white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
@@ -8464,9 +8478,10 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  }
  /* Without scroll-driven animations the flow is a flat snap carousel: covers side by side, 24 apart. */
  @supports not (animation-timeline:view()){
-  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{width:744px}
+  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{width:var(--pv-column)}
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
-  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{width:calc(50% - 372px)}
+  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{
+   width:calc(50% - var(--pv-column) / 2)}
  }
  /* The same flat carousel where the engine claims scroll timelines but does not run them (recipe-view.js checks the
     covers at rest): no cover animation at all, the native scroll alone moves them. */
@@ -8615,7 +8630,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  /* A-Timer: the dark 744×458 hero. */
  pv-widget-host[data-view=active]
   #timers-view#timers-view#timers-view:not([hidden]){padding:0!important;margin:0!important;
-  width:744px!important;max-width:744px!important;background:transparent!important;box-shadow:none!important;
+  width:var(--pv-column)!important;max-width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;
   display:flex!important;flex-direction:column;gap:16px!important}
  pv-widget-host #timers-view#timers-view#timers-view>.response-heading{position:absolute!important;width:1px;height:1px;
   overflow:hidden;clip-path:inset(50%);margin:0;padding:0}
@@ -8624,9 +8639,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #timers-view#timers-view#timers-view .timer-running,
  pv-widget-host #timers-view#timers-view#timers-view
   .timer-running>.timer-active-list{margin:0!important;padding:0!important;
-  background:transparent!important;box-shadow:none!important;border:0!important;width:744px}
+  background:transparent!important;box-shadow:none!important;border:0!important;width:var(--pv-column)}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel{position:relative!important;display:block!important;
-  width:744px!important;height:458px!important;min-height:458px!important;box-sizing:border-box;padding:32px!important;
+  width:var(--pv-column)!important;height:458px!important;min-height:458px!important;box-sizing:border-box;padding:32px!important;
   border-radius:24px!important;background:var(--pv-ink)!important;background-image:none!important;
   color:#F7F6F3!important;
   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)!important;border:0!important;margin:0!important;overflow:hidden}
@@ -8727,9 +8742,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   .timer-copy>strong:not([hidden]){display:block!important}
  pv-widget-host #timers-view#timers-view#timers-view .timer-panel>.timer-actions>button.timer-adjust
   img{filter:invert(1)}
- pv-widget-host #timers-view#timers-view#timers-view .timer-create{width:744px!important;min-height:458px!important;
+ pv-widget-host #timers-view#timers-view#timers-view .timer-create{width:var(--pv-column)!important;min-height:458px!important;
   box-sizing:border-box;border-radius:24px!important;background:var(--pv-ink)!important;margin:0!important}
- pv-widget-host #timers-view#timers-view#timers-view .timer-recent:not([hidden]){width:744px;box-sizing:border-box;
+ pv-widget-host #timers-view#timers-view#timers-view .timer-recent:not([hidden]){width:var(--pv-column);box-sizing:border-box;
   margin:16px 0 0!important;padding:24px!important;border-radius:24px;background:#F7F6F3;
   box-shadow:inset 0 0 0 1px rgba(23,23,26,.06)}
  pv-widget-host #timers-view#timers-view#timers-view .timer-recent>h2{font:800 24px/1.2
@@ -8911,8 +8926,9 @@ pv-widget-host .voice-surface .voice-bars{display:none}
 
 /* One layout (lærredsmatch): the delivered stylesheet is resolved for the 1180×820 canvas
    (scripts/stage-css.mjs); ui/stage.js scales that stage uniformly and stretches it to fill any frame. */
-html[data-pv-stage]{width:100%;height:100%;min-height:0;overflow:hidden}
-html[data-pv-stage]>body{position:absolute;left:0;top:0;width:var(--pv-stage-w,1180px);height:var(--pv-stage-h,820px);min-height:0;margin:0;
+html[data-pv-stage]{width:100%;height:100%;min-height:0;overflow:hidden;overscroll-behavior:none}
+html[data-pv-stage]>body{position:absolute;left:0;top:0;width:var(--pv-stage-w,1180px);height:var(--pv-stage-h,820px);
+ padding-block:0;padding-inline:calc(var(--pv-edge) + var(--pv-safe-left-s,0px)) calc(var(--pv-edge) + var(--pv-safe-right-s,0px));min-height:0;margin:0;
  overflow:hidden;transform-origin:0 0;
  transform:translate(var(--pv-stage-x,0px),var(--pv-stage-y,0px)) scale(var(--pv-stage-scale,1))}
 html[data-pv-stage=flat]>body{left:var(--pv-stage-x,0px);top:var(--pv-stage-y,0px);transform:none}
@@ -8926,7 +8942,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
 
  pv-widget-host #device-view#device-view#device-view .light-room-navigation{display:none!important}
  pv-widget-host #device-view#device-view#device-view>section.light-room-view:not([hidden]):has(
-   >.light-room-list:not([hidden])){height:696px!important}
+   >.light-room-list:not([hidden])){height:var(--pv-content-h)!important}
  pv-widget-host #device-view#device-view#device-view>.light-room-view:has(>.light-room-list:not([hidden]))
    >#light-room-controls{flex:1 1 0!important;min-height:0!important;overflow-y:auto!important;
    overscroll-behavior:contain}
@@ -9009,14 +9025,14 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
    align-self:flex-start;height:56px!important;min-height:0!important;padding:0 28px!important;border-radius:999px!important;
    background:#17171A!important;color:#F7F6F3!important;font:600 17px 'Schibsted Grotesk',system-ui,sans-serif!important}
 
-/* Lys fits the column (lærred »A-Lys«): the page starts at 88 under the topbar and ends on the 784 baseline, so the
+/* Lys fits the column (lærred »A-Lys«): the page starts at 104 under the topbar and ends on the 796 baseline, so the
    column never overflows and is never scrolled up under the topbar. */
 
  pv-widget-host[data-view=active] .frame>.responses:has(>#device-view:not([hidden])>.light-room-view:not([hidden])){
    overflow:hidden!important;}
  pv-widget-host[data-view=active] .responses>#device-view#device-view:not([hidden]):has(
    >.light-room-view:not([hidden])){
-   height:696px!important;min-height:0!important;max-height:696px!important;flex:none!important;}
+   height:var(--pv-content-h)!important;min-height:0!important;max-height:var(--pv-content-h)!important;flex:none!important;}
 
 /* iPad Timer, rettet mod lærredet »A-Timer«/»Timer-pause«/»Timer-faerdig«/»Timer-Alarm«: »af 10:00« under the time,
    the finished page keeps »0:00« in the ring and »Tiden er gået« in coral as the title, the native actions read
@@ -9050,7 +9066,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   .timer-panel:has(>.timer-actions:not([hidden])>.timer-adjust:not([hidden])) .timer-copy{padding-bottom:142px}
  pv-widget-host #timers-view#timers-view#timers-view .timer-recent:not([hidden]){display:grid!important;
   grid-template-columns:minmax(0,1fr) auto;align-content:start;align-items:baseline;gap:14px 16px;margin:0!important;
-  min-height:222px}
+  min-height:calc(var(--pv-content-h) - 458px - var(--pv-gap))}
  pv-widget-host #timers-view#timers-view#timers-view .timer-recent>h2{margin:0!important;color:#17171A}
  pv-widget-host #timers-view#timers-view#timers-view .timer-recent-note{font:400 15px/20px
   'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A}
@@ -9077,7 +9093,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
   #home-vehicle-status{grid-column:auto!important;grid-row:auto!important;inset:auto auto 44px 20px!important;
   overflow:hidden!important;text-overflow:ellipsis!important;white-space:nowrap!important}
  pv-widget-host #now-view#now-view#now-view#now-view>#home-vehicle[data-kit-state=unavailable]::after{
-  content:"Kræver tilslutning";position:absolute;left:20px;bottom:20px;width:134px;height:20px;
+  content:"Kræver tilslutning";position:absolute;left:20px;bottom:20px;width:calc(100% - 40px);height:20px;
   font:400 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;color:#5F5E5A;white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis;pointer-events:none}
 
@@ -9091,7 +9107,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
 
 
 /* Svar page (lærred »A-SvarKort«, »SvarK-Spec« v193): the answer cards on the left, »I dag« / »Tidligere svar« in the
-   372 column. The header is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list. Each answer is one
+   player column (--pv-player-w). The header is 32 high (»I dag« 22/800, »Nyeste øverst« 15/600), 16 to the list. Each answer is one
    compact row, 64 high, 8 between, radius 18, padding 0 16: the kind's icon in its 32 category chip, 12, the title
    17/22/700 in one line, 12, the time 15 mono at the right. Colours follow the Svar colour rule (see SvarK-Spec
    below): neutral rows, the kind only in the chip, the selected row in the kit's selected fill (--pv-line). */
@@ -9099,7 +9115,7 @@ html[data-pv-stage]{--pv-safe-top:env(safe-area-inset-top,0px);--pv-safe-right:e
 
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>:is(.player,#player-empty){display:none!important}
  body pv-widget-host[data-view=active][data-svar-page=true]>.frame>#svar-today:not([hidden]){display:flex;
-  position:relative;flex-direction:column;gap:16px;align-self:start;box-sizing:border-box;width:372px;height:696px;
+  position:relative;flex-direction:column;gap:16px;align-self:start;box-sizing:border-box;width:var(--pv-player-w);height:var(--pv-content-h);
   margin-block-start:16px;padding:0;overflow:hidden;color:var(--pv-ink);font-family:var(--pv-font)}
  #svar-today>header{display:flex;align-items:center;justify-content:space-between;height:32px;flex:none}
  #svar-today>header>h2{margin:0;font:800 22px/32px var(--pv-font);letter-spacing:0}

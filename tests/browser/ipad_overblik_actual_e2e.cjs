@@ -37,9 +37,11 @@ let server,browser,data;
    tile:after.content==='none'?null:[after.right,after.top,after.width,after.height].join(' ')}];})),slots);
  const overview=await read();
  console.log('ipad overblik',JSON.stringify(overview));
- // Main board: 4 columns of 174 and 3 rows of 221 with 16 between, from x 24 / y 88.
- const expected={weather:[24,88,364,458],robot:[404,88,364,221],light:[404,325,174,221],tesla:[594,325,174,221],
-  music:[24,562,174,221],radio:[214,562,174,221],recipes:[404,562,174,221],timer:[594,562,174,221]};
+ // Main board: 4 columns of 174 and 3 rows of 220 with 16 between, from x 24 / y 104 (edges and vertical air 24).
+ const S=174,H=220,G=16,col=n=>24+n*(S+G),row=n=>104+n*(H+G);
+ const expected={weather:[col(0),row(0),2*S+G,2*H+G],robot:[col(2),row(0),2*S+G,H],light:[col(2),row(1),S,H],
+  tesla:[col(3),row(1),S,H],music:[col(0),row(2),S,H],radio:[col(1),row(2),S,H],recipes:[col(2),row(2),S,H],
+  timer:[col(3),row(2),S,H]};
  for(const [key,box] of Object.entries(expected))assert.deepEqual(overview[key]?.box,box,`${key} slot`);
  // Bottom row: music, radio and recipes are white entry widgets with one 64-px icon surface at right 20, top 66.
  for(const key of ['music','radio','recipes']){

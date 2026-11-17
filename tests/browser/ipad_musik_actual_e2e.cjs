@@ -14,6 +14,8 @@ const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 // Monday 9 Nov 2026 14.10 Europe/Copenhagen: the afternoon period.
 const DAY=new Date('2026-11-09T13:10:00Z');
 let server,browser;
+// The iPad frame (ui-kit.css): edges 24, the content column 744 (--pv-column), 32, the player 356; y 104 to 796.
+const EDGE=24,COLUMN=744,TOP=104,BOTTOM=796,RIGHT=EDGE+COLUMN,HERO_END=TOP+252;
 const near=(actual,expected,label,tolerance=2)=>assert(Math.abs(actual-expected)<=tolerance,
  `${label}: ${actual} ≠ ${expected}`);
 const box=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n);
@@ -47,16 +49,16 @@ async function open(stage){
  assert.deepEqual(heads.map(h=>h.text),['Fortsæt','Til mandag eftermiddag','Vibe','Jeres playlister'],
   'section headings in the canvas order');
  for(const h of heads){assert.equal(h.size,'22px');assert.equal(h.weight,'800');}
- assert.equal(heads[0].y,372,'Fortsæt starts 32 under the hero');
- assert.equal(heads[1].y,515,'Til <ugedag> <tid> starts 32 under the Fortsæt rail');
+ assert.equal(heads[0].y,HERO_END+32,'Fortsæt starts 32 under the hero');
+ assert.equal(heads[1].y,heads[0].y+143,'Til <ugedag> <tid> starts 32 under the Fortsæt rail');
  // The heading's note is the product's own: mood is chosen from the hour and the room.
  assert.equal(await page.locator('[data-collection=mood]').getAttribute('data-note'),'Ud fra tidspunkt og rum');
 
  // Lige nu: the first mood card is the 744×252 hero at the top of the column, no heading above it.
  const hero=page.locator('#music-hero>.result');
  const heroBox=await box(hero);
- assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h,heroBox.radius],[24,88,744,252,'28px'],
-  'Lige nu hero 744×252 at 88, radius 28');
+ assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h,heroBox.radius],[EDGE,TOP,COLUMN,252,'28px'],
+  'Lige nu hero column×252 at the top, radius 28');
  assert.equal(await hero.locator('.result-copy').getAttribute('data-eyebrow'),'Til eftermiddagen · valgt til jer');
  const heroArt=await box(hero.locator('.result-art'));assert.deepEqual([heroArt.w,heroArt.h],[212,212]);
  const heroName=await box(hero.locator('h2'));
@@ -67,7 +69,7 @@ async function open(stage){
  assert.equal(await hero.locator('.result-play').evaluate(n=>getComputedStyle(n,'::after').content),'"Afspil"');
  const rows=page.locator('#result-list>.result');
  const card=await box(rows.nth(0));assert.equal(card.w,160,'rail cards are 160 wide');
- assert.equal(card.y,573,'the mood rail starts 12 under its heading and note');
+ assert.equal(card.y,heads[1].y+58,'the mood rail starts 12 under its heading and note');
  const art=await box(rows.nth(0).locator('.result-art'));
  assert.deepEqual([art.w,art.h,art.radius],[160,160,'14px'],'rail cover 160, radius 14');
  assert.equal(await rows.nth(0).locator('.result-play').evaluate(n=>getComputedStyle(n).display),'none',
@@ -77,7 +79,7 @@ async function open(stage){
  const fortsaet=page.locator('.music-shelf[data-music-shelf=recent]>.result');
  const fortsaetBox=await box(fortsaet.first());
  assert.deepEqual([fortsaetBox.x,fortsaetBox.y,fortsaetBox.w,fortsaetBox.h,fortsaetBox.radius],
-  [24,411,260,72,'16px'],'Fortsæt is an open rail of 260×72 rows');
+  [EDGE,heads[0].y+39,260,72,'16px'],'Fortsæt is an open rail of 260×72 rows');
  const vibeShelf=page.locator('.music-shelf[data-music-shelf=feeling]>.result');
  assert.deepEqual(await box(vibeShelf.first().locator('.result-art')).then(b=>[b.w,b.h,b.radius]),[120,120,'18px'],
   'Vibe is an open rail of 120 tiles');
@@ -112,7 +114,7 @@ async function open(stage){
  // Fortsæt: 260×72 rows; Vibe: 120 tiles with the name on the tile.
  await page.locator('[data-collection=recent]').click();await sleep(500);
  const recent=await box(page.locator('#result-list>.result').first());
- assert.deepEqual([recent.w,recent.h,recent.radius],[237,72,'16px'],'Fortsæt rows 72 high in three columns');
+ assert.deepEqual([recent.w,recent.h,recent.radius],[Math.round((COLUMN-32)/3),72,'16px'],'Fortsæt rows 72 high in three columns');
  assert.equal((await box(page.locator('#music-refinements'))).display,'contents');
  await page.locator('[data-collection=feeling]').click();await sleep(500);
  const vibe=await box(page.locator('#result-list>.result .result-art').first());
@@ -161,7 +163,7 @@ async function open(stage){
  page=await open('now');
  await page.locator('.player .cover-button').click();await sleep(700);
  const queue=await box(page.locator('#queue'));
- assert.equal(queue.radius,'24px','the queue is one card');assert.equal(queue.x,24);assert.equal(queue.w,744);
+ assert.equal(queue.radius,'24px','the queue is one card');assert.equal(queue.x,EDGE);assert.equal(queue.w,COLUMN);
  const first=page.locator('#queue>.queue-track').first(),second=page.locator('#queue>.queue-track').nth(1);
  assert.equal((await box(first)).h,72,'queue rows are 72 high');
  assert.equal(await first.getAttribute('data-current'),'true');
@@ -174,17 +176,17 @@ async function open(stage){
  const queueMeta=await box(page.locator('#queue-meta'));
  assert.equal(queueMeta.text,`${rowsShown} numre · ${await page.locator('#player-room').innerText()}`);
  assert.equal(queueMeta.size,'15px');assert.equal(queueMeta.color,'rgb(95, 94, 90)');
- near(queueMeta.x+queueMeta.w,768,'the count ends at the right edge of the queue card');
+ near(queueMeta.x+queueMeta.w,RIGHT,'the count ends at the right edge of the queue card');
  near(queueMeta.y+queueMeta.h/2,queueTitle.y+queueTitle.h/2,'count and title share a line',6);
- // The column ends on the 784 baseline like every other page; »Kø« opens it at 88, the card from 136.
- assert.equal(queueTitle.y,88,'»Kø« at the top of the column');
- assert.equal(queue.y,136,'the queue card 16 under »Kø«');
- assert.equal(queue.y+queue.h,784,'the queue card ends on the 784 baseline');
+ // The column ends on the 796 baseline like every other page; »Kø« opens it at 104, the card from 152.
+ assert.equal(queueTitle.y,TOP,'»Kø« at the top of the column');
+ assert.equal(queue.y,TOP+48,'the queue card 16 under the 32-px »Kø« line');
+ assert.equal(queue.y+queue.h,BOTTOM,'the queue card ends on the 796 baseline');
  // »Spiller på …« is not drawn above »Kø«: the player at the right already names the speaker.
  await page.evaluate(()=>{document.getElementById('detail-status').textContent='Spiller på MacBook Pro';});
  assert.equal(await page.locator('#music-detail>.response-heading').evaluate(n=>n.getBoundingClientRect().height),1,
   'the status line is only for screen readers');
- assert.equal((await box(page.locator('#queue-title'))).y,88,'»Kø« keeps its place with a status line');
+ assert.equal((await box(page.locator('#queue-title'))).y,TOP,'»Kø« keeps its place with a status line');
  const eq=page.locator('#queue>.queue-track[data-current=true] .queue-eq');
  assert.equal(await eq.locator('i').count(),3,'three equaliser bars on the playing track');
  assert.equal(await eq.locator('i').first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(180, 83, 42)');

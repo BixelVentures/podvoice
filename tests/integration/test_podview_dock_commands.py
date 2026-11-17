@@ -16,7 +16,15 @@ from gatekeeper.podview_dock_control import DockTransport
 fixture = dock_fixture
 
 
-def command_catalog(rig, bridge, *, state="docked", status="charging", error="ok", drying=False):
+# HA Core 2026.11 deprecates the dock binary sensor mop_drying_status for the dock switch
+# mop_drying (home-assistant/core#178932): "binary" is HA before the switch, "both" is
+# 2026.11 with the deprecated sensor still present, "switch" is after HA removed it.
+DRYING_SHAPES = ("binary", "both", "switch")
+
+
+def command_catalog(
+    rig, bridge, *, state="docked", status="charging", error="ok", drying=False, shape="binary"
+):
     owner = rig.router._device_control
     fields = []
     now = datetime.now(UTC).isoformat()
@@ -24,8 +32,14 @@ def command_catalog(rig, bridge, *, state="docked", status="charging", error="ok
         ("status", "sensor", "robot-one", status),
         ("dock_error", "sensor", "dock-one", error),
         ("mop_drying_status", "binary_sensor", "dock-one", "on" if drying else "off"),
+        ("mop_drying", "switch", "dock-one", "on" if drying else "off"),
     ):
         entity = domain + ".fixture_" + role
+        fields.append({"key": role, "entityId": entity})
+        if (role == "mop_drying" and shape == "binary") or (
+            role == "mop_drying_status" and shape == "switch"
+        ):
+            continue
         rig.registry[entity] = {
             "entity_id": entity,
             "platform": "roborock",
@@ -36,7 +50,8 @@ def command_catalog(rig, bridge, *, state="docked", status="charging", error="ok
             "disabled_by": None,
         }
         rig.states[entity] = {"state": value, "attributes": {}, "last_reported": now}
-        fields.append({"key": role, "entityId": entity})
+    # The admin grant names the drying status sensor, as written before HA 2026.11.
+    fields.pop()
     rig.registry[ROBOT]["config_entry_id"] = "entry"
     rig.states[ROBOT]["state"] = state
     # Green's real feature mask supports SEND_COMMAND (256), but not MAP (2048).
@@ -65,13 +80,15 @@ def command_catalog(rig, bridge, *, state="docked", status="charging", error="ok
             "config_entries": ["entry"],
         },
     ]
-    owner._ws_read = AsyncMock(
-        side_effect=lambda command: (
-            copy.deepcopy(devices)
-            if command["type"] == "config/device_registry/list"
-            else {key: copy.deepcopy(rig.registry[key]) for key in command["entity_ids"]}
-        )
-    )
+
+    def ws_read(command):
+        if command["type"] == "config/device_registry/list":
+            return copy.deepcopy(devices)
+        if command["type"] == "config/entity_registry/list":
+            return copy.deepcopy(list(rig.registry.values()))
+        return {key: copy.deepcopy(rig.registry.get(key)) for key in command["entity_ids"]}
+
+    owner._ws_read = AsyncMock(side_effect=ws_read)
     controls = [
         {"transport": "vacuum_command", "role": role, "model": "Q Revo", "dockModel": "Q Revo Dock"}
         for role in ("mop_washing", "dust_emptying", "mop_drying")
@@ -93,11 +110,12 @@ def command_catalog(rig, bridge, *, state="docked", status="charging", error="ok
         ("dry_stop", "docked", "charging", True, "app_set_dryer_status", {"status": 0}),
     ],
 )
+@pytest.mark.parametrize("shape", DRYING_SHAPES)
 async def test_fixed_command_through_actual_touch_owner_once(
-    fixture, operation, state, status, drying, command, params
+    fixture, operation, state, status, drying, command, params, shape
 ):
     rig, bridge, token = fixture
-    command_catalog(rig, bridge, state=state, status=status, drying=drying)
+    command_catalog(rig, bridge, state=state, status=status, drying=drying, shape=shape)
     token = bridge.grant_timer_control("kitchen")
     offer = await bridge.controls.setup(setup_body(bridge), token)
     assert offer["ok"], offer
@@ -241,9 +259,10 @@ async def test_response_loss_unknown_has_no_replay(fixture):
     assert len(rig.writes) == 1
 
 
-async def test_live_drying_with_water_empty_offers_only_stop(fixture):
+@pytest.mark.parametrize("shape", DRYING_SHAPES)
+async def test_live_drying_with_water_empty_offers_only_stop(fixture, shape):
     rig, bridge, _ = fixture
-    command_catalog(rig, bridge, drying=True, error="water_empty")
+    command_catalog(rig, bridge, drying=True, error="water_empty", shape=shape)
     token = bridge.grant_timer_control("kitchen")
     offer = await bridge.controls.setup(setup_body(bridge), token)
     assert offer["ok"], offer
@@ -256,6 +275,23 @@ async def test_live_drying_with_water_empty_offers_only_stop(fixture):
             {"entity_id": ROBOT, "command": "app_set_dryer_status", "params": {"status": 0}},
         )
     ]
+    keys = {row["key"] for row in rig.router._device_control._robot_binding(ROBOT)["fields"]}
+    assert ("mop_drying" in keys, "mop_drying_status" in keys) == (
+        (shape != "binary"),
+        (shape == "binary"),
+    )
+
+
+async def test_switch_on_drives_drying_even_when_deprecated_sensor_lags(fixture):
+    """With both entities, the switch (HA's replacement) is the one PodView reads."""
+    rig, bridge, _ = fixture
+    command_catalog(rig, bridge, drying=True, shape="both")
+    rig.states["binary_sensor.fixture_mop_drying_status"]["state"] = "off"
+    token = bridge.grant_timer_control("kitchen")
+    offer = await bridge.controls.setup(setup_body(bridge), token)
+    assert offer["ok"], offer
+    assert [row["argsSchema"]["operation"] for row in offer["options"]] == ["dry_stop"]
+    assert not rig.writes
 
 
 def test_closed_command_policy_does_not_admit_arbitrary_commands():

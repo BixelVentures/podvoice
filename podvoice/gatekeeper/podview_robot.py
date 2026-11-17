@@ -211,7 +211,8 @@ def resolve_binding(binding: dict, entries: object, listing: object = None) -> d
     unique-id prefix HA uses for battery/charging. A granted entity id that still
     serves its role is kept; otherwise ``listing`` (HA's entity registry) may name
     the entity that does. A role HA no longer has, or has twice, is left out, so
-    the screen hides it instead of blanking every field.
+    the screen hides it instead of blanking every field. A role HA has replaced
+    (``SUCCESSORS``) is read from the replacement entity whenever HA has it.
     """
     if not isinstance(entries, dict):
         return None
@@ -226,10 +227,22 @@ def resolve_binding(binding: dict, entries: object, listing: object = None) -> d
             if isinstance(row, dict) and isinstance(row.get("entity_id"), str):
                 rows.setdefault(row["entity_id"], row)
     fields, used = [], {vacuum_id}
+    granted = {field["key"] for field in binding["fields"]}
+
+    def serving(key: str) -> list[str]:
+        return [eid for eid, row in rows.items() if _serves(binding, vacuum, key, eid, row)]
+
     for field in binding["fields"]:
         key, entity = field["key"], field["entityId"]
-        if not _serves(binding, vacuum, key, entity, rows.get(entity)):
-            found = [eid for eid, row in rows.items() if _serves(binding, vacuum, key, eid, row)]
+        successor = SUCCESSORS.get(key)
+        replacement = serving(successor) if successor else []
+        if len(replacement) == 1 and successor in granted:
+            continue  # The replacement is granted itself; never show the same state twice.
+        if len(replacement) == 1:
+            # HA has the entity that replaces this deprecated one: read that instead.
+            key, entity = successor, replacement[0]
+        elif not _serves(binding, vacuum, key, entity, rows.get(entity)):
+            found = serving(key)
             if len(found) != 1:
                 continue
             entity = found[0]
@@ -238,6 +251,18 @@ def resolve_binding(binding: dict, entries: object, listing: object = None) -> d
         used.add(entity)
         fields.append({"key": key, "entityId": entity})
     return {**binding, "fields": fields}
+
+
+# HA Core 2026.11 (home-assistant/core#178932) deprecates the Roborock dock binary
+# sensor "mop_drying_status" (unique id dry_status_<duid>) in favour of the dock switch
+# "mop_drying" (unique id mop_drying_<duid>). Both read the same status.dry_status data
+# point, so a grant to read the drying state is served by the switch when HA has it.
+SUCCESSORS = {"mop_drying_status": "mop_drying"}
+
+
+def needs_successor(binding: dict) -> bool:
+    """The binding still reads a role HA may have a successor entity for."""
+    return any(field["key"] in SUCCESSORS for field in binding["fields"])
 
 
 def _epoch(value: object) -> float | None:
