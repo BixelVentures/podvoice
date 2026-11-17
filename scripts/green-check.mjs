@@ -551,8 +551,22 @@ async function findMusicTabs(check) {
     const tabs = await frame.locator('[data-collection]').evaluateAll(nodes =>
       [...new Set(nodes.map(n => n.dataset.collection))]);
     for (const tab of [...tabs, ...tabs]) {
+      // Tap like a finger, once the heading takes touches: during the page's opening transition hit-testing
+      // misses it, and Playwright's own retry then scrolls the page, which read as a blink (17 Nov, F5).
+      const heading = frame.locator(`#music-refinements>[data-collection="${tab}"]`).first();
+      await heading.evaluate(n => {
+        const b = n.getBoundingClientRect();
+        if (b.top < 88 || b.bottom > innerHeight - 40) n.scrollIntoView({block: 'center'});
+      });
+      await frame.waitForFunction(tab => {
+        const n = document.querySelector(`#music-refinements>[data-collection="${tab}"]`);
+        const b = n?.getBoundingClientRect();
+        return !!b && b.height > 0
+          && document.elementFromPoint(b.x + 20, b.y + b.height / 2)?.closest('[data-collection]') === n;
+      }, tab, {timeout: 5000});
+      const box = await heading.boundingBox();
       await check.gc('begin', false);
-      await frame.locator(`[data-collection="${tab}"]`).first().tap();
+      await check.page.touchscreen.tap(box.x + 20, box.y + box.height / 2);
       await sleep(1500);
       const window = await check.gc('end');
       if (window.loading.length) problems.push(`${tab}: indlæsning synlig (${window.loading[0]})`);

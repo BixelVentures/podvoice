@@ -94,6 +94,8 @@ for(const journey of only.length?only:journeys){
   }
   // Status = speaker (owner 17/11): Find musik starts on the player's speaker; one tap moves the music.
   runJourney('music_speaker_target_actual_e2e.cjs');
+  // Green-tjek F5: a finger tap on a Find musik heading never hides a shown card or heading for a frame.
+  runJourney('musik_tab_frames_actual_e2e.cjs');
   for(const scenario of ['cold-tail','unknown','unknown-unchanged']){
    console.log(`Queue recovery scenario: ${scenario}`);
    runJourney(journey,{MUSIC_QUEUE_INTENTS:scenario,

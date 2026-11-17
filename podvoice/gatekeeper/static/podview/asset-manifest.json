@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "f6283f6d8c97eddeda85c972166509078d37ecac5d95bd15a4457e6e1043f094"
+      "sha256": "acc022b02f6ab77a3543265fac041c7e96e9113e4cdca6eefadf3d70a9549da1"
     },
     {
       "path": "library.css",
@@ -719,7 +719,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "b1179156fdd00adf24c21ae494a0d661752b12141a0805e408939e34b60f1d1c"
+      "sha256": "303b172dadb86cd815239125d481e4369a5682b8e27c85e525eb4c56fab5487f"
     },
     {
       "path": "live-media-view.js",
@@ -823,7 +823,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "b37e0cc1c665d4d4b72ec85070ededb3c9cc9e56542130d51208edc2753f7f28"
+      "sha256": "f66fb430f78f6193381b85fa52dd4a49d1735b503e4cb2a382fe9cb44bd81bad"
     },
     {
       "path": "podview.css",
@@ -1095,7 +1095,7 @@
     },
     {
       "path": "weather-view.js",
-      "sha256": "8ef39d74968751b706de0b55614db137d34ee266101d3e8d5de08aceec813ef9"
+      "sha256": "f84ed989541af93f6dedd210609b4a3c55a37187e832e36d1d9670ce71489662"
     },
     {
       "path": "widget-model.js",
