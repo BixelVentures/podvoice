@@ -63,3 +63,17 @@ test('async Buttons without an owner pending model use the kit busy contract',()
  assert.ok(read('speaker-output-view.js').includes('runKitButtonAction(this.refresh,()=>this.open())'));
  assert.ok(read('timer-notice.js').includes("applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy&&this.allowed})"),'a Stop that cannot be used shows no spinner');
 });
+
+test('a control the user cannot use is disabled without a spinner and re-enables with its dependency',()=>{
+ const root=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+ const read=name=>readFileSync(new URL(name,root),'utf8');
+ assert.ok(read('room-player-controls.js').includes('const busy=!node?.disabled&&('),'transport spinner only on usable buttons');
+ assert.ok(read('timer-view.js').includes('loading:!disabled&&!!(pending'),'timer ±1 min');
+ assert.ok(read('light-lamp-view.js').includes('loading:busy&&!!binding'),'lamp toggle');
+ assert.ok(read('light-room-view.js').includes('loading:busy&&row.enabled===true'),'room power tile');
+ assert.ok(read('radio-view.js').includes('loading:available&&pendingStationId===id'),'radio tile');
+ assert.ok(read('robot-control-panel.js').includes('const busy=!blocked&&value.directPendingAction===action'),'robot');
+ assert.ok(!read('speaker-output-view.js').includes('this.refresh.disabled=false'),'Opdater liste needs a list to read');
+ assert.ok(read('live-media-view.js').includes('const canOutput=model.canOutput===true&&!!this.account;'),'chip');
+ assert.ok(read('vehicle-view.js').includes("this.lockConfirm.disabled=this.connected===false||this.model?.mode!=='observed';"));
+});

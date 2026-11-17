@@ -116,7 +116,7 @@ export class SpeakerOutputView{
    else{
     // Keep the visible rows only as presentation while a changed binding/policy
     // receives a fresh read. Existing row handlers recheck the new scope.
-    this.generation++;this.readPending=false;this.refresh.disabled=false;clearTimeout(this.expiry);this.scope=context;this.validUntil=0;
+    this.generation++;this.readPending=false;this.refresh.disabled=!(this.context()||this.host.liveRadio?.outputOpen||this.host.liveRadio?.ownsPlayer?.());clearTimeout(this.expiry);this.scope=context;this.validUntil=0;
     if(this.doc.getElementById('rooms').open===true&&!this.scopeRefreshScheduled){this.scopeRefreshScheduled=true;queueMicrotask(()=>{this.scopeRefreshScheduled=false;if(this.doc.getElementById('rooms').open===true&&this.scope&&this.context()?.key===this.scope.key&&!this.readPending)void this.open();});}
    }
   }
