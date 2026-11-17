@@ -1,3 +1,7 @@
+## 2.1.21
+
+- Forsiden: robotkortet bliver opdateret på stedet, når robotten melder sig første gang (før blev det bygget om, så kortet blinkede – især mens robotten gjorde rent).
+
 ## 2.1.20
 
 - Sideskift som på iOS: den nye side glider ind over den gamle, som glider en tredjedel væk og dæmpes – begge sider er levende lag (ingen skærmbilleder af hele siden), så intet blinker, og bevægelsen starter med det samme, når du slipper.
