@@ -1,3 +1,12 @@
+## 2.1.18
+
+- Fuld skærm på væg-iPad'en: PodView fylder hele skærmen i HA-appens kiosktilstand (også under statuslinjen), åbner direkte i PodView i stedet for indstillingerne og kan ikke trækkes ned for at genindlæse. Luften er ens: 24 ved kanterne og i top og bund, 32 mellem indhold og afspiller.
+- Sideskift starter med det samme og hakker ikke; Ro ↔ Hjem åbner som en cirkel fra din finger; knapper i lister trykkes først ind, når du ikke scroller, så covers ikke hopper.
+- Musik starter altid på den højttaler, der er valgt i afspilleren (før kunne den falde tilbage til Køkkenalrum); køen blinker ikke, når den åbnes; Find musik viser en rolig linje, når forslag ikke kan hentes.
+- Opskrifter bruger hele bredden, viser »Alle« og højst seks kategorier (resten under »Flere«), har en tydelig Katalog/Udforsk-vælger, og teksten i Udforsk glider med fingeren.
+- Svar: hvert svar har sin egen højde, svar fra samme samtale ligger oven på hinanden, og listen til højre er kompakt med tidspunkt.
+- Robot: de gamle sektioner »Vedligeholdelse« og »Tekniske detaljer« er fjernet; »Moppe tørrer« læses fra HA's nye kontakt (med den gamle sensor som reserve). Radio: stationerne står i rækkefølge (P1, P3 …), og hjælpeteksten om højttaleren er væk. Knapper, der ikke kan bruges, er nu ægte deaktiverede.
+
 ## 2.1.17
 
 - Tryk reagerer med det samme: et tryk ændrer ikke længere siden, før knappen giver efter, så presset vises i første billede og fjedrer tilbage med Motion (motion.dev), et gennemtestet animationsbibliotek.
