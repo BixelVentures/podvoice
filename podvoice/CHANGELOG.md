@@ -1,3 +1,9 @@
+## 2.1.17
+
+- Tryk reagerer med det samme: et tryk ændrer ikke længere siden, før knappen giver efter, så presset vises i første billede og fjedrer tilbage med Motion (motion.dev), et gennemtestet animationsbibliotek.
+- Udforsk i Opskrifter bruger iPad'ens egen scroll: fart, opbremsning, snap og gummibånd er systemets, og der kører intet JavaScript, mens du swiper.
+- Køen bevæger sig med samme fjedre; de hjemmebyggede fjeder- og swipemotorer er fjernet.
+
 ## 2.1.16
 
 - PodView fylder hele skærmen: også når iPad'ens statuslinje eller HA's menu tager plads, strækker siden sig kant til kant i stedet for at blive skaleret ned med grå kanter. Ro-billedet går helt ud til kanten.
