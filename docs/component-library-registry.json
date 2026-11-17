@@ -741,7 +741,8 @@
           "method:render": 1,
           "method:start": 2,
           "method:sync": 1,
-          "method:cancelForSelection": 1
+          "method:cancelForSelection": 1,
+          "arrow:text": 1
         },
         "roots": [],
         "registrations": {},
@@ -991,7 +992,9 @@
           "method:sendLightOperation": 1,
           "method:observePlayer": 1,
           "method:playerStatus": 1,
-          "method:player": 1
+          "method:player": 1,
+          "arrow:setHidden": 1,
+          "arrow:setText": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -2402,7 +2405,13 @@
           "method:holdRender": 1,
           "method:moving": 1,
           "method:view": 1,
-          "method:visiblePage": 1
+          "method:visiblePage": 1,
+          "arrow:page": 1,
+          "method:expectedScroll": 1,
+          "method:keep": 1,
+          "method:place": 1,
+          "method:prepare": 1,
+          "arrow:commit": 1
         },
         "roots": [],
         "registrations": {},
@@ -3107,7 +3116,10 @@
           "method:suspendForAnswer": 1,
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
-          "method:updateHomeRevision": 1
+          "method:updateHomeRevision": 1,
+          "arrow:next": 1,
+          "arrow:queueTopbarScroll": 1,
+          "arrow:renderSoon": 1
         },
         "roots": [
           "native:article:retained-answer",
