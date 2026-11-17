@@ -185,7 +185,7 @@ async function open(stage){
  await failRefresh(true);
  assert.equal(await page.locator('#empty').innerText(),'Kunne ikke hente forslag. Prøv igen.');
  assert.equal(await page.locator('#music-hero').evaluate(n=>n.children.length),0,'no hero without suggestions');
- assert.equal((await box(page.locator('[data-collection=recent]'))).y,88,'Fortsæt opens the column at 88');
+ assert.equal((await box(page.locator('[data-collection=recent]'))).y,104,'Fortsæt opens the column at 104');
  const emptyLine=await notice();
  assert.equal(await page.locator('#results').evaluate(n=>getComputedStyle(n).display),'none','no empty rail');
  near((await box(page.locator('[data-collection=feeling]'))).y,emptyLine.y+emptyLine.h+32,'Vibe 32 under the line');
