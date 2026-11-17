@@ -2998,6 +2998,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
 :root[data-pv-motion=reduced]::view-transition-new(pv-page),
 :root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
 
+/* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
+   the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two
+   snapshots cross-fade inside it. Reduced never names a hero. */
+::view-transition-group(pv-hero){animation-duration:661ms;animation-timing-function:var(--pv-spring-0)}
+::view-transition-old(pv-hero),::view-transition-new(pv-hero){mix-blend-mode:normal;height:100%;object-fit:cover}
+
 /* P5 value (docs/MOTION.md §3.6). SceneMotion.value() puts each character of a figure in a slot; a changed digit
    rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was), so the text is
    always the value. Progress: data-pv-progress=tick runs linear over the tick, so a ring never stops or jumps;

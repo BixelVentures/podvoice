@@ -393,8 +393,33 @@ export class SceneMotion {
   if(previous===next||lateral||this.immediateDepth||typeof doc?.startViewTransition!=='function'||
    this.host.isConnected===false||
    !root?.dataset){present();return null;}
+  return this.transition({back,present});
+ }
+ // P7 hero (docs/MOTION.md §3.8): a push or pop page transition in which one element (source) flies to its
+ // counterpart on the new page (target(), looked up after present()) on the smooth spring while everything else
+ // moves as a page. The name pv-hero is on exactly one element at a time (two would abort the transition): on the
+ // source while the old page is captured, then on the target. Without view transitions it renders at once, as page()
+ // does. Reduced: no flight; the pages only fade.
+ hero({source,target,present,back=false}){
+  const doc=this.host.ownerDocument,root=doc?.documentElement;
+  this.skipPage();
+  if(this.immediateDepth||typeof doc?.startViewTransition!=='function'||this.host.isConnected===false||
+   !root?.dataset){present();return null;}
+  return this.transition({back,present,hero:this.reduced?null:{source,target}});
+ }
+ transition({back,present,hero}){
+  const doc=this.host.ownerDocument,root=doc.documentElement,named=[];
+  const name=node=>{node.style.viewTransitionName='pv-hero';named.push(node);};
+  const from=hero?.source?.isConnected&&hero.source.getClientRects?.().length?hero.source:null;
+  if(from)name(from);
   root.dataset.pvNav=back?'pop':'push';
-  const update=()=>{this.inPageUpdate=true;try{present();}finally{this.inPageUpdate=false;}};
+  const update=()=>{
+   this.inPageUpdate=true;try{present();}finally{this.inPageUpdate=false;}
+   if(!from)return;
+   from.style.viewTransitionName='';
+   const to=hero.target?.();
+   if(to&&to!==from&&to.isConnected&&to.getClientRects().length)name(to);
+  };
   const transition=doc.startViewTransition(update);
   this.pageTransition=transition;
   const skip=()=>transition.skipTransition();
@@ -402,6 +427,7 @@ export class SceneMotion {
   for(const step of [transition.ready,transition.updateCallbackDone])step?.catch?.(()=>{});
   transition.finished.catch(()=>{}).finally(()=>{
    doc.removeEventListener('pointerdown',skip,{capture:true});
+   for(const node of named)node.style.viewTransitionName='';
    if(this.pageTransition===transition){this.pageTransition=null;delete root.dataset.pvNav;}
   });
   return transition;

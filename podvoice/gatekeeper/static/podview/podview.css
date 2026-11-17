@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 8dd980cff28296b70dca6327bddcd13ae2eed009dacfcb3ac1e1cfec27964520 */
+/* Source: ui-kit.css · SHA256 0992bf4fa21072605b8e0dd67080ce163f2de844ec7a8b1051a5a44978e0bf52 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5772,6 +5772,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
  animation:pv-page-out var(--pv-dur-reduced) linear both}
 :root[data-pv-motion=reduced]::view-transition-new(pv-page),
 :root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
+
+/* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
+   the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two
+   snapshots cross-fade inside it. Reduced never names a hero. */
+::view-transition-group(pv-hero){animation-duration:661ms;animation-timing-function:var(--pv-spring-0)}
+::view-transition-old(pv-hero),::view-transition-new(pv-hero){mix-blend-mode:normal;height:100%;object-fit:cover}
 
 /* P5 value (docs/MOTION.md §3.6). SceneMotion.value() puts each character of a figure in a slot; a changed digit
    rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was), so the text is
