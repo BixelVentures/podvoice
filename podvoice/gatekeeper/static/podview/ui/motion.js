@@ -56,10 +56,6 @@ export function springCurve(spec,{tolerance=.004}={}){
  });
  return {easing:`linear(${points.join(', ')})`,ms:Math.round(settle*1000)};
 }
-// iOS rubber-band: resistance grows with overscroll x and never reaches the dimension.
-export function rubberBand(x,dimension,c=.55){return (1-1/(x*c/dimension+1))*dimension;}
-// Distance a fling travels under UIScrollView deceleration (rate per ms).
-export function project(velocityPxPerS,rate=.998){return velocityPxPerS/1000*rate/(1-rate);}
 
 // Reduced motion has one source (docs/MOTION.md §3.0 rule 6): the system preference, or the node or an
 // ancestor (across shadow roots) marked data-motion=reduced. Pass a captured MediaQueryList to reuse it.
@@ -90,63 +86,7 @@ export function mirrorReducedMotion(source,target=source?.ownerDocument?.documen
  return {sync,dispose(){media?.removeEventListener?.('change',sync);observer?.disconnect();}};
 }
 
-// Analytic damped spring with velocity handoff. Frame-rate independent and testable without a DOM.
-// Values are in the caller's units; velocity is units per second; time comes from now() in ms.
-export class Spring{
- constructor(spec,{value=0,velocity=0,onFrame,onRest,raf,now,precision=.001,restVelocity=.01}={}){
-  this.params=springParams(spec);this.onFrame=onFrame;this.onRest=onRest;
-  this.raf=raf||(callback=>globalThis.requestAnimationFrame(callback));
-  this.now=now||(()=>globalThis.performance.now());
-  this.precision=precision;this.restVelocity=restVelocity;
-  this.anchor={value,velocity,target:value,time:0};this.frame=null;this.running=false;
- }
- // Position and velocity at a time, solved in closed form from the last anchor.
- sample(time){
-  const {value,velocity,target,time:start}=this.anchor;
-  if(!this.running)return {value,velocity};
-  const t=Math.max(0,(time-start)/1000),{omega,zeta}=this.params,x0=value-target;
-  if(zeta>=1){
-   const b=velocity+omega*x0,decay=Math.exp(-omega*t);
-   return {value:target+decay*(x0+b*t),velocity:decay*(velocity-omega*b*t)};
-  }
-  const a=zeta*omega,damped=omega*Math.sqrt(1-zeta*zeta),c=(velocity+a*x0)/damped;
-  const decay=Math.exp(-a*t),cos=Math.cos(damped*t),sin=Math.sin(damped*t);
-  return {value:target+decay*(x0*cos+c*sin),velocity:decay*(velocity*cos-(a*c+x0*damped)*sin)};
- }
- get value(){return this.sample(this.now()).value;}
- get velocity(){return this.sample(this.now()).velocity;}
- get target(){return this.anchor.target;}
- get resting(){return !this.running;}
- // Retarget from the visible value, keeping the current velocity unless one is given.
- to(target,{velocity}={}){
-  const time=this.now(),current=this.sample(time);
-  this.anchor={value:current.value,velocity:velocity??current.velocity,target,time};this.running=true;
-  if(this.frame===null)this.schedule();
-  return this;
- }
- // Catch in flight: keep the visible value and drop the velocity.
- stop(){
-  const time=this.now(),current=this.sample(time);
-  this.anchor={value:current.value,velocity:0,target:current.value,time};this.running=false;this.frame=null;
-  return this;
- }
- schedule(){
-  const frame={};this.frame=frame;
-  this.raf(()=>{if(this.frame===frame){this.frame=null;this.tick();}});
- }
- tick(){
-  if(!this.running)return;
-  const time=this.now(),{value,velocity}=this.sample(time),target=this.anchor.target;
-  if(Math.abs(value-target)<this.precision&&Math.abs(velocity)<this.restVelocity){
-   this.anchor={value:target,velocity:0,target,time};this.running=false;
-   this.onFrame?.(target,0);this.onRest?.(target);return;
-  }
-  this.onFrame?.(value,velocity);this.schedule();
- }
-}
-
 const SNAPPY=springCurve(SPRING.snappy),SMOOTH=springCurve(SPRING.smooth),QUICK=springCurve(SPRING.quick);
-const centreShift=(from,to)=>({dx:from.x+from.width/2-to.x-to.width/2,dy:from.y+from.height/2-to.y-to.height/2});
 // P5 digits (docs/MOTION.md §3.6). A value whose text is figures with separators, signs and units rolls; anything
 // with words is plain text. The sign of the change comes from the figures: up rolls the old figure up and away and
 // brings the new one from below; down is the reverse.
@@ -267,62 +207,6 @@ export class SceneMotion {
    return;
   }
   const animation=this.animate(node,[{opacity:1},{opacity:0}],DUR.quick,{fadeReduced:true,easing:EASE.in});if(!animation){node.hidden=true;return;}animation.finished.then(()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;},()=>{if(this.feedbackTokens.get(node)===token&&this.feedbackStates.get(node)?.visible===false)node.hidden=true;});
- }
- // P4 list (docs/MOTION.md §3.5). mutate() changes container's rows; list() reads every visible box before and
- // after (all reads before any write) and animates the difference of their centres (a pressed row's scale does not
- // move its centre). It animates the translate property: a button's :active rule holds transform:none!important. New rows enter from 8px below on the snappy
- // spring, 30 ms apart for the first five and together after that. Removed rows leave where they stood (opacity
- // and .98 scale, --pv-dur-quick, accelerating away) while their neighbours close the gap on the smooth spring.
- // `track` names one element (the playing indicator) that travels from its old box to its new one as one, even
- // when it now lives in another row. A running motion is retargeted from the visible box. Reduced: rows enter and
- // leave with opacity only; reorder is immediate.
- list(container,mutate,{items=':scope>*',stagger=30,track}={}){
-  if(!container?.isConnected||!container.getClientRects?.().length||this.host.isConnected===false){mutate();return;}
-  const rows=()=>[...container.querySelectorAll(items)].filter(node=>node.dataset?.pvLeave===undefined);
-  const before=new Map(rows().map(node=>[node,node.getBoundingClientRect()]));
-  const trackBefore=track?container.querySelector(track)?.getBoundingClientRect():null;
-  mutate();
-  const after=rows().filter(node=>node.getClientRects().length),frame=container.getBoundingClientRect();
-  const boxes=new Map(after.map(node=>[node,node.getBoundingClientRect()]));
-  const trackNode=track?container.querySelector(track):null,trackAfter=trackNode?.getBoundingClientRect();
-  const leaving=[...before].filter(([node])=>node.parentNode!==container);
-  const reduced=this.reduced,shift=new Map();let entered=0;
-  for(const [node,box]of boxes){
-   const old=before.get(node);
-   if(!old){
-    const delay=Math.min(entered++,5)*stagger;
-    this.animate(node,[{opacity:0,translate:'0 8px'},{opacity:1,translate:'0 0'}],SNAPPY.ms,
-     {visible:true,fadeReduced:true,easing:SNAPPY.easing,delay});
-    continue;
-   }
-   const {dx,dy}=centreShift(old,box);
-   if(Math.abs(dx)+Math.abs(dy)<=.5)continue;
-   shift.set(node,{dx,dy});
-   this.animate(node,[{translate:`${dx}px ${dy}px`},{translate:'0 0'}],SMOOTH.ms,
-    {visible:true,easing:SMOOTH.easing});
-  }
-  for(const [node,box]of leaving)this.leave(container,node,box,frame);
-  if(trackNode&&trackBefore&&trackAfter&&!reduced){
-   const owner=after.find(node=>node.contains?.(trackNode)),carried=shift.get(owner)||{dx:0,dy:0};
-   const travel=centreShift(trackBefore,trackAfter),dx=travel.dx-carried.dx,dy=travel.dy-carried.dy;
-   if(Math.abs(dx)+Math.abs(dy)>.5)this.animate(trackNode,[{translate:`${dx}px ${dy}px`},{translate:'0 0'}],
-    SMOOTH.ms,{visible:true,easing:SMOOTH.easing});
-  }
- }
- // A removed row is put back where it stood, out of the flow and out of reach, and fades away.
- leave(container,node,box,frame){
-  if(typeof node.animate!=='function'||!box.width||!box.height)return;
-  const left=box.x-frame.x-(container.clientLeft||0)+(container.scrollLeft||0);
-  const top=box.y-frame.y-(container.clientTop||0)+(container.scrollTop||0);
-  node.dataset.pvLeave='';node.inert=true;node.setAttribute?.('aria-hidden','true');
-  Object.assign(node.style,{position:'absolute',left:`${left}px`,top:`${top}px`,width:`${box.width}px`,
-   height:`${box.height}px`,margin:'0',pointerEvents:'none'});
-  container.append(node);
-  const frames=this.reduced?[{opacity:1},{opacity:0}]
-   :[{opacity:1,transform:'none'},{opacity:0,transform:'scale(.98)'}];
-  const animation=node.animate(frames,{duration:this.reduced?DUR.reduced:DUR.quick,easing:EASE.in,fill:'forwards'});
-  animation.finished.catch(()=>{}).finally(()=>{
-   if(node.parentNode===container&&node.dataset.pvLeave!==undefined)node.remove();});
  }
  // A touch defers the hold to the next render (applyDeferredHold), so a press reads and writes no layout: the
  // freeze is only needed once something is about to re-render under the finger.

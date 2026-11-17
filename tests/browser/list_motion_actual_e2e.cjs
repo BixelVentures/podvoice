@@ -1,5 +1,6 @@
 'use strict';
-// P4 list (docs/MOTION.md §3.5) on the Musik queue, sampled every frame with a real touch. Tapping a later row
+// P4 list (docs/MOTION.md, ui/list-motion.js) on the Musik queue, sampled every frame with a real touch.
+// Tapping a later row
 // reorders the queue: the chosen row slides up on the smooth spring from where it stood (no jump), the rows it
 // passes slide down, and everything lands within ~700 ms; the playing indicator moves to the new current row as one
 // element and never jumps.

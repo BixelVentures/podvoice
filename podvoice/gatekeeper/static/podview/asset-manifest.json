@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "1745b3ef95fc4fc181aba8ec35f5507de24ff488581e0a0d69a11e744ce79f0a"
+      "sha256": "f6283f6d8c97eddeda85c972166509078d37ecac5d95bd15a4457e6e1043f094"
     },
     {
       "path": "library.css",
@@ -819,11 +819,11 @@
     },
     {
       "path": "player-view.js",
-      "sha256": "9bd8af2a4f3b52b22fbbc6249f5b98cf065507f609aa661373d18b45eb07b466"
+      "sha256": "2e8c50b9af2c89aee5f04cd86bc9c3170e8219677a665c44e466fda4007f7a30"
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "0985d1ce18dbc6d8a03df5f9eaac1e44fd1b1d6e8a415283ebcdeafc05487d66"
+      "sha256": "60cf49fa1dcf2a6fd9276e403923ec73785a485e07e5566e22b88542296ef10d"
     },
     {
       "path": "podview.css",
@@ -971,7 +971,7 @@
     },
     {
       "path": "ui/gestures.js",
-      "sha256": "71098d0fbf3dfa5ea72da53d297149cd0f7ac9eb74dc1b585a0f7b39bf3bfee2"
+      "sha256": "633553c8a86998dc73e64cedf4c633695e2962895c4412a866590af91c680c2d"
     },
     {
       "path": "ui/kit.js",
@@ -1002,8 +1002,12 @@
       "sha256": "9fd9c09464c8d7b1be737bea586ed6335c8c73fcd5523a8b301f6ab1c87ca1d4"
     },
     {
+      "path": "ui/list-motion.js",
+      "sha256": "94c12f9b10c297f550df96ec5482c8b5df8272054e7fc9504f597a0934bd85c4"
+    },
+    {
       "path": "ui/motion.js",
-      "sha256": "8a858744f190685a101e5d92fba05f0e961b4411c2a8f3c04dc040a070bb8083"
+      "sha256": "220a97fd910936373d0cc3931698cf14c1e7fdefa56e7fcfe2ade41ac1c796e3"
     },
     {
       "path": "ui/native-motion.js",

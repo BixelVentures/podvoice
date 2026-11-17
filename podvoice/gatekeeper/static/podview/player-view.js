@@ -1,3 +1,4 @@
+import {animateList} from './ui/list-motion.js';
 import {applyKitComponent,applyKitTemplate,syncKitSlider} from './ui/kit.js';
 import {TRACKS,LOCAL_POSITION_EXAMPLE} from './widget-model.js';
 import {fixtureArtwork,discoveryPeriodLabel} from './music-results.js';
@@ -371,9 +372,8 @@ if(item.sourceKind==='radio'&&/^assets\/radio-(p3|p1|p4-ostjylland|p6-beat|p8-ja
    if(placeholders&&status==='loading'&&!items.some(item=>!item.current)){this.placeholders??=[0,1,2,3].map(n=>{const row=this.createRow(`placeholder:${n}`);row.dataset.placeholder='true';row.setAttribute('aria-hidden','true');row.tabIndex=-1;row.disabled=true;return row;});for(const row of this.placeholders)if(row.parentNode!==this.queue)this.queue.append(row);}else for(const row of this.placeholders||[])row.remove();
    if(status!=='loading'&&!items.some(item=>!item.current)&&empty){this.empty??=this.doc.createElement('p');if(this.empty.className!=='queue-empty')this.empty.className='queue-empty';if(this.empty.textContent!==empty)this.empty.textContent=empty;if(this.empty.parentNode!==this.queue)this.queue.append(this.empty);}else this.empty?.remove();
   };
-  if(changed&&typeof this.host.motion?.list==='function')
-   this.host.motion.list(this.queue,apply,{items:':scope>.queue-track:not([data-placeholder])',
-    track:'.queue-eq'});
+  if(changed&&this.host.isConnected!==false)animateList(this.queue,apply,{
+   items:':scope>.queue-track:not([data-placeholder])',track:'.queue-eq'});
   else apply();
 
  }

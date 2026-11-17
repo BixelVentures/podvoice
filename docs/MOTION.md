@@ -14,6 +14,28 @@ Dokumentet har fem afsnit:
 Udstillingseksemplet er swipe i Opskrifter-kataloget. Det behandles som primitiv P9 i §3.10 og som
 mikrointeraktion i §4.
 
+## 0. Stakken (2026-11-17) — gælder før resten af dokumentet
+
+Al bevægelse kører på compositoren; JavaScript må ikke skrive stil pr. frame eller skrive klasser/attributter ved et
+tryk (stylesheetet har flere hundrede `:has()`-regler, så en klasse-skrivning kan restyle hele siden).
+
+| Hvad | Hvordan | Hvor |
+|---|---|---|
+| Fjedre | Motions `spring()` (npm `motion`, MIT, `motion.source.txt`) giver CSS `linear()` + varighed til Web Animations. Kun `ui/native-motion.js` importerer Motion, og kun bundlet kode må bruge den | `ui/native-motion.js` |
+| Tryk (P3) | Én delegeret capture-listener; Web Animations på den trykkede kontrol (skala .97/.98/1, 12 % overlay, dæmpning, cirkel). Ingen klasse, attribut eller inline-stil. Slip har en delay på resten af touch-down (100 ms) og fjedrer på `SPRING.quick` | `ui/pressed-state.js` |
+| Geometri-lås | Et tryk beder kun om låsen; næste `render()` måler og fryser | `SceneMotion.deferHold` |
+| Udforsk (P9) | Native scroll-snap; hvert cover følger sin slots view timeline (`animation-range: cover 50% ± 3,5·430px`); keyframes = `exploreFrame` samplet (`exploreKeyframes`). JS kun ved skift af nærmeste cover og ved `scrollend`. Uden `animation-timeline`: flad snap-karrusel | `recipe-view.js`, `ui-kit.css` |
+| Lister (P4) | FLIP: alle mål før alle skrivninger, Web Animations på `translate` med Motions fjedre | `ui/list-motion.js` |
+| Sider (P1/P7) | View Transitions (uændret) | `SceneMotion.page/hero` |
+| Reduced | `:root[data-pv-motion=reduced]`: kun fades. Udforsks covers står fladt (scrollen flytter dem, ikke en animation) | |
+| Global | `html{touch-action:manipulation}`; touch-intent læser kontrollens rect én gang pr. tryk | |
+
+Afløst og fjernet: `Spring`-klassen, `attachSwipeTrack`/`swipeTarget`/`swipeVelocity`, `rubberBand`/`project`,
+`.is-pressed`/`data-pv-pointer-focus`/`data-pv-circle`, `SceneMotion.list`. `springCurve` lever videre kun til at
+generere CSS-tokens (`scripts/gen-motion-tokens.mjs`). `@formkit/auto-animate` blev vurderet og fravalgt: den måler
+hver række hvert 2. sekund i baggrunden og lytter globalt på scroll. Afsnit 2–5 nedenfor beskriver forslaget fra
+2026-11-16 og er historik, hvor de strider mod tabellen.
+
 ---
 
 ## 1. Referenceanalyse: sådan bevæger iOS/iPadOS sig
