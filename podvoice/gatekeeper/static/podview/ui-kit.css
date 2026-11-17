@@ -2572,6 +2572,11 @@ pv-widget-host[data-view=active] .frame:has(#recipe-view:not([hidden]))::after{w
 @media(max-width:760px){#recipe-view [data-recipe-layout=source-columns]{grid-template-columns:minmax(0,1fr)}}
 
 #recipe-view [data-recipe-layout=gallery-trigger]{display:grid;justify-items:center;gap:var(--pv-s1);padding:0;background:transparent;border-radius:var(--pv-screen-radius-art)!important}
+/* »Flere kategorier«: one row per category, its name and how many recipes it holds; the chosen one is pressed. */
+dialog.pv-kit-dialog[data-recipe-layout=categories] .pv-dialog-content>button.pv-kit-listrow{
+  grid-template-columns:minmax(0,1fr) max-content;min-height:64px}
+dialog.pv-kit-dialog[data-recipe-layout=categories] .pv-dialog-content>button.pv-kit-listrow>strong{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 dialog.pv-kit-dialog[data-recipe-layout=gallery]:modal{
  width:min(1100px,calc(100vw - 2 * var(--pv-s4)));
 }
@@ -5469,7 +5474,8 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 }
 
 /* iPad Opskrifter og timer (lærred v190 »A-Opskrifter«, »A-Opskrift«, »A-Timer«, »Timer-*«, »Timer-Alarm«,
-   »W-opskrift-*«, »W-timer-*«, issue 398). Recipes fill the width (1132, no player): the categories sit in one
+   »W-opskrift-*«, »W-timer-*«, issue 398). Recipes fill the width (1132 at 1180, wider on a wider stage; no player):
+   the categories sit in one
    #DCDAD4 track, recipes are 252-high cards in five columns (photo 140, name 2 lines, meta 1 line) and the active
    recipe is a 96-high band in #F2E4D3. A recipe is a 221 hero in #F2E4D3 (photo 160, »Trin N af M · af <kilde>«,
    the name in 40/800), ingredients in a 400 card and the steps beside them; the current step is #F2E4D3 with a
@@ -5482,37 +5488,56 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame>:is(.player.pv-card,#player-empty){
   display:none!important}
  pv-widget-host[data-view=active]:has(#recipe-view:not([hidden]))>.frame{grid-template-columns:minmax(0,1fr)!important}
- pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:1132px!important;
-  max-width:1132px!important;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
+ pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]){width:100%!important;
+  max-width:none!important;min-width:0;box-sizing:border-box;padding:0 0 32px!important;gap:20px!important}
  pv-widget-host[data-view=active] #recipe-view#recipe-view#recipe-view:not([hidden]):has(>[data-recipe-layout=intro]){
   gap:16px!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset{margin:0;padding:0;border:0;min-width:0;
-  flex:0 1 auto}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset>legend{position:absolute;width:1px;height:1px;
-  overflow:hidden;clip-path:inset(50%)}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset .pv-kit-choice-options{display:inline-flex!important;
-  flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset{margin:0;padding:0;border:0;
+  min-width:0;flex:0 1 auto}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset>legend{position:absolute;
+  width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options{
+  display:inline-flex!important;flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
   background:var(--pv-recipe-track)!important;width:auto!important;max-width:100%;box-sizing:border-box;
-  /* More categories than the row holds: the track scrolls sideways, it never runs under the count. A fling
-     lands softly on a chip edge (proximity snap, P9 track A), never forced. */
-  overflow-x:auto!important;overflow-y:hidden!important;scrollbar-width:none;overscroll-behavior-x:contain;
-  scroll-snap-type:x proximity;scroll-padding-inline:var(--pv-s3)}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
-  .pv-kit-choice-options::-webkit-scrollbar{display:none}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset label{height:44px!important;min-height:44px!important;
+  /* The row never scrolls: »Alle«, at most six categories and »Flere« (recipe-view.js fits them to the width). */
+  overflow:hidden!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
+  :is(label,[data-recipe-more]){height:44px!important;min-height:44px!important;
   padding:0 20px!important;border-radius:999px!important;background:transparent!important;color:var(--pv-ink)!important;
   box-shadow:none!important;border:0!important;font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;
-  display:flex!important;align-items:center;flex:none!important;white-space:nowrap;scroll-snap-align:start}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
-  label:has(input:checked){background:var(--pv-ink)!important;
+  display:flex!important;align-items:center;gap:8px;flex:none!important;white-space:nowrap;margin:0!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
+  :is(label,[data-recipe-more])[hidden]{display:none!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
+  :is(label:has(input:checked),[data-recipe-more][aria-pressed=true]){background:var(--pv-ink)!important;
   background-image:none!important;color:#F7F6F3!important}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>fieldset
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
   label>input{position:absolute;opacity:0;pointer-events:none}
- /* The catalog: one scroller, every recipe in a five-column grid; letter groups and the letter index fall away. */
+ /* »Flere« opens the rest of the categories; a chevron says it opens a list. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] [data-recipe-more]::after,
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label::before{content:'';flex:none;
+  width:20px;height:20px;background:currentColor;-webkit-mask:var(--pv-recipe-icon) center/contain no-repeat;
+  mask:var(--pv-recipe-icon) center/contain no-repeat}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] [data-recipe-more]{
+  --pv-recipe-icon:url(assets/icons/chevron-down.svg);padding-inline-end:16px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] [data-recipe-more]::after{
+  width:16px;height:16px}
+ /* Katalog | Udforsk: a segmented switch with an icon per look; the chosen look is dark. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label{
+  padding-inline-start:16px!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label[data-recipe-view=catalog]{
+  --pv-recipe-icon:url(assets/icons/card.svg)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] label[data-recipe-view=explore]{
+  --pv-recipe-icon:url(assets/icons/image-square.svg)}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch] .pv-kit-choice-options{
+  background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.08)!important}
+ pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-view-switch]{flex:none}
+ /* The catalog: one scroller, every recipe in a fluid grid (five columns at 1180, more only on a much wider stage);
+    letter groups and the letter index fall away. */
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]{display:flex!important;
   flex-direction:column;gap:20px;flex:1 1 0;min-height:0;margin:0!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div{display:grid!important;
-  grid-template-columns:repeat(5,minmax(0,1fr));grid-auto-rows:auto;gap:16px!important;align-content:start;
+  grid-template-columns:repeat(auto-fill,minmax(208px,1fr));grid-auto-rows:auto;gap:16px!important;align-content:start;
   flex:1 1 0;min-height:0;box-sizing:border-box;padding:0 0 24px!important;overflow-y:auto}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=catalog]>div>section:not(.pv-kit-disclosure){
   display:contents!important}
@@ -5586,16 +5611,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band]>section>h3{display:none}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=band] [data-recipe]{width:100%!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]{flex:none;display:flex;order:-1;
-  justify-content:space-between;align-items:center;gap:16px;min-height:52px}
+  justify-content:space-between;align-items:center;gap:16px;min-height:52px;min-width:0}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>div{display:flex;align-items:center;
-  gap:16px;flex:none}
+  gap:16px;flex:none;margin-inline-start:auto}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] :is([data-recipe-count],
   [data-recipe-explore-position]){font:500 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;color:#5F5E5A!important;
   white-space:nowrap}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar]>div>button{height:44px!important;
-  min-height:44px!important;padding:0 20px!important;border-radius:999px!important;background:#F7F6F3!important;
-  color:var(--pv-ink)!important;border:0!important;box-shadow:none!important;
-  font:600 16px/1 'Schibsted Grotesk',system-ui,sans-serif!important;white-space:nowrap}
  /* Udforsk (Opskrifter-Bog): a cover flow, the chosen photo 720×460 flat, the neighbours turned 55° away. The flow is
     a native scroll-snap scroller (iPadOS momentum and rubber-band); one 430px slot per cover, the first and last
     centred by the spacers. Each slot is the subject of a view timeline, and its cover is drawn from it on the
@@ -5610,12 +5631,13 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{content:'';flex:none;
   width:calc(50% - 215px)}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-edge]{position:sticky;left:0;z-index:40;
-  flex:none;width:36px;margin-right:-36px;touch-action:pan-y}
+ /* The back-edge zone lies over the flow's first 36px, beside the scroller rather than a sticky child in it. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-edge]{position:relative;z-index:40;flex:none;
+  align-self:flex-start;width:36px;height:560px;margin:0 0 -560px -24px;touch-action:pan-y}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{position:relative;flex:none;
   width:430px;height:460px;scroll-snap-align:center;view-timeline:--pv-cover inline}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{position:absolute;left:50%;top:0;
-  width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
+  cursor:pointer;width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
   border:0!important;border-radius:22px!important;overflow:hidden;background:#C9B79F!important;
   backface-visibility:hidden;box-shadow:0 20px 40px -24px rgba(23,23,26,.5)!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]::after{content:'';position:absolute;inset:0;
@@ -5639,11 +5661,13 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]>img:not([data-recipe-fallback]){
    animation:pv-explore-photo linear none;animation-timeline:--pv-cover;
    animation-range:cover calc(50% - 1505px) cover calc(50% + 1505px)}
-  /* The title fades through 0 at each crossing: one fade per 430px of scroll. A fade, so reduced keeps it. */
+  /* The text fades through 0 at each crossing: one step per 430px of scroll. Reduced keeps the fade, not the slide. */
   :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{
    animation:pv-explore-title linear both!important;animation-timeline:--pv-explore!important;
    animation-iteration-count:var(--pv-explore-steps,1)!important;
    animation-range:0px calc(var(--pv-explore-steps,1) * 430px)!important}
+  :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{
+   --pv-explore-shift:0px}
   /* Reduced: the covers stand flat and keep their depth overlay. The scroll moves them, not an animation, so they
      are exempt from the reduced catch-all (widget-view.css); the photos keep still. */
   :root[data-pv-motion=reduced] pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{
@@ -5659,11 +5683,27 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{width:calc(50% - 372px)}
  }
+ /* The same flat carousel where the engine claims scroll timelines but does not run them (recipe-view.js checks the
+    covers at rest): no cover animation at all, the native scroll alone moves them. */
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-explore-slot]{
+  width:744px}
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat]::before,
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat]::after{width:calc(50% - 372px)}
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover],
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover]::after,
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover]>img,
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat][data-recipe-layout=explore-info]{
+  animation:none!important;visibility:visible}
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover]>img{
+  width:100%;margin-left:0}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-badge]{position:absolute;left:16px;top:16px;
   height:32px;padding:0 14px;border-radius:999px;background:#F7F6F3;color:var(--pv-ink);display:flex;
   align-items:center;font:700 15px/1 'Schibsted Grotesk',system-ui,sans-serif}
+ /* The text and dots change while the flow moves: fixed boxes with layout containment, so a new title never lays
+    out anything around the scroller (WebKit would re-resolve its snap). */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{position:relative;flex:none;
-  margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+  margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  height:106px;box-sizing:border-box;contain:layout style;overflow:clip;overflow-clip-margin:24px}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:first-child{height:20px;
   font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;
   color:var(--pv-recipe-ink)}
@@ -5675,7 +5715,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  /* Seven pooled dots for the nearest cover (1−|k−i| wide); between two covers CSS moves them on transform and
     opacity, never width. */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{position:relative;flex:none;
-  margin:30px auto 0;height:6px}
+  margin:24px auto 0;height:6px;contain:layout style}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{position:absolute;left:0;top:0;
   display:block;width:8px;height:6px;border-radius:3px;background:var(--pv-ink);transform-origin:0 50%;
   transition:transform var(--pv-dur-base) var(--pv-ease-out),opacity var(--pv-dur-base) var(--pv-ease-out)}
@@ -6595,4 +6635,9 @@ body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-hi
  62.5%{transform:translateX(21px)}
  64.286%{transform:translateX(24px)}
  100%{transform:translateX(84px)}}
-@keyframes pv-explore-title{0%,100%{opacity:1}50%{opacity:0}}
+/* The Udforsk text follows the finger: it slides out the way the covers go and the next comes in from the other
+   side. It is gone for the middle fifth of a step, where the text changes; reduced keeps the fade only. */
+@keyframes pv-explore-title{0%,100%{opacity:1;translate:0 0}
+  0%{animation-timing-function:cubic-bezier(.4,0,1,1)}
+  40%{opacity:0;translate:calc(-1 * var(--pv-explore-shift,16px)) 0}
+  60%{opacity:0;translate:var(--pv-explore-shift,16px) 0;animation-timing-function:cubic-bezier(0,0,.2,1)}}
