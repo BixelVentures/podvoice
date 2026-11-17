@@ -19,7 +19,9 @@ export function installStage(win=globalThis.window){
   const next=`${g.scale}|${g.x}|${g.y}|${g.width}|${g.height}`;if(next===last)return;last=next;
   root.style.setProperty('--pv-stage-scale',String(g.scale));
   root.style.setProperty('--pv-stage-x',`${g.x}px`);root.style.setProperty('--pv-stage-y',`${g.y}px`);
-  root.style.setProperty('--pv-stage-w',`${g.width}px`);root.style.setProperty('--pv-stage-h',`${g.height}px`);};
+  root.style.setProperty('--pv-stage-w',`${g.width}px`);root.style.setProperty('--pv-stage-h',`${g.height}px`);
+  // At exactly 1:1 the body carries no transform at all (ui-kit.css), so nothing is composited for the stage.
+  root.dataset.pvStage=g.scale===1?'flat':'';};
  apply();win.addEventListener('resize',apply);win.visualViewport?.addEventListener?.('resize',apply);
  win.addEventListener('orientationchange',apply);
 }

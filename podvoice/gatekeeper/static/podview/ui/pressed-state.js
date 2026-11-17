@@ -1,61 +1,119 @@
-// Presentation-only press feedback; native click and keyboard activation keep ownership.
-// P3 (docs/MOTION.md §3.4): this only sets .is-pressed; CSS owns the scale, overlay and their timing.
-const FLAT='.pv-widget,[data-pv-press=flat]';
+// P3 press feedback (docs/MOTION.md). Native click and keyboard activation keep ownership; this only paints.
+// One delegated capture listener finds the control; the feedback is Web Animations on that control alone: scale
+// (tiles .97, buttons .98, icons none), a 12% overlay, a dim for quiet controls and a circle under the finger for
+// flat surfaces. Down follows the finger in --pv-dur-tap; release springs back on Motion's quick spring. Nothing
+// writes a class, an attribute or an inline style, so a press never invalidates selectors elsewhere on the page
+// (the stylesheet has hundreds of :has() rules) and never wakes a MutationObserver. Reduced: no scale, no growth.
+import {DUR,EASE,SPRING} from './motion.js';
+import {springTiming} from './native-motion.js';
+
+const CONTROL='button,a[href],summary,[role="button"]';
+const FIELD='input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])';
+const FLAT='.pv-widget,[data-pv-press=flat]',QUIET='[data-pv-press=quiet]';
+const ICON='.round:not(.main-control),.pv-dialog-close,.volume-mute,.pv-toggle:not(.light-lamp-toggle),'+
+ '[data-pv-press=icon]';
+const TILE='.pv-tile,.pv-card,.pv-hero,.resource-preview,.result,.queue-track,.cover-button,.timer-shortcut,'+
+ '.svar-today-row';
+const OVERLAY='inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)';
+export function pressScale(node,reduced=false){
+ if(reduced||node.matches(FLAT)||node.matches(ICON))return 1;
+ return node.matches(TILE)?.97:.98;
+}
+// The control a press belongs to, or null when a native field inside it owns the gesture.
+function controlIn(path){
+ const index=path.findIndex(node=>node?.matches?.(CONTROL));
+ if(index<0||path.slice(0,index+1).some(node=>node?.matches?.(FIELD)))return null;
+ return path[index];
+}
 export function attachPressedState(surface){
- const doc=surface.ownerDocument||surface,root=doc.nodeType===9?doc:surface,win=doc.defaultView,held=new Map();
- let pressed=null,pointerId=null,origin=null,pointerFocus=null,pointerModality=false;
- const unavailable=target=>!target||target.disabled||target.getAttribute?.('aria-disabled')==='true'||target.closest?.('[inert]');
- let circle=null;
- // Flat surfaces (widgets) answer a press with a circle under the finger instead of shrinking.
- // The circle is the surface's own ::after, placed by custom properties; no nodes are added.
- const markCircle=(target,event)=>{
-  const box=target.getBoundingClientRect(),x=event.clientX-box.left,y=event.clientY-box.top;
-  const size=2*Math.hypot(Math.max(x,box.width-x),Math.max(y,box.height-y));
-  target.style.setProperty('--pv-press-x',`${x}px`);target.style.setProperty('--pv-press-y',`${y}px`);
-  target.style.setProperty('--pv-press-size',`${size}px`);target.dataset.pvCircle='down';circle=target;
- };
- const releaseCircle=()=>{if(circle?.dataset)circle.dataset.pvCircle='up';circle=null;};
- // A tap that ends before the press was painted keeps it for one painted frame, so the release
- // still has a pressed state to spring back from. A new press on the same control takes it over.
- const unpress=(target,release)=>{
-  const frame=held.get(target);held.delete(target);
-  if(!release||frame?.painted!==false||typeof win?.requestAnimationFrame!=='function'){
-   target?.classList.remove('is-pressed');return;
+ const doc=surface.ownerDocument||surface,root=doc.nodeType===9?doc:surface,win=doc.defaultView;
+ // Per control: the animations holding the pressed look, and a token that stale releases check.
+ const live=new Map();
+ let pressed=null,pointerId=null,origin=null;
+ const unavailable=target=>!target||target.disabled||target.getAttribute?.('aria-disabled')==='true'||
+  target.closest?.('[inert]');
+ const reduced=()=>doc.documentElement?.dataset?.pvMotion==='reduced';
+ const stop=target=>{const state=live.get(target);if(!state)return;live.delete(target);
+  for(const animation of [...state.hold,...state.release])animation.cancel();};
+ const press=(target,event)=>{
+  if(typeof target.animate!=='function')return;
+  // The circle is placed from one layout read, taken before anything is written.
+  const box=event.pointerId!=='keyboard'&&target.matches(FLAT)?target.getBoundingClientRect():null;
+  const previous=live.get(target),still=reduced(),scale=pressScale(target,still);
+  // A press that lands on a release still in flight starts from where the control is now.
+  const from=previous?.release.some(a=>a.playState==='running')?win.getComputedStyle(target).scale:'1';
+  stop(target);
+  const state={hold:[],release:[],scale,circle:null};live.set(target,state);
+  const hold={duration:DUR.tap,easing:EASE.out,fill:'forwards'};
+  if(scale<1)state.hold.push(target.animate([{scale:from==='none'?'1':from},{scale:String(scale)}],hold));
+  if(target.matches(QUIET))state.hold.push(target.animate([{opacity:.64},{opacity:.64}],{duration:1,fill:'forwards'}));
+  else state.hold.push(target.animate([{boxShadow:OVERLAY},{boxShadow:OVERLAY}],{duration:1,fill:'forwards'}));
+  if(box){
+   const x=event.clientX-box.left,y=event.clientY-box.top;
+   const size=`${2*Math.hypot(Math.max(x,box.width-x),Math.max(y,box.height-y))}px`;
+   state.circle={left:`${x}px`,top:`${y}px`,width:size,height:size};
+   state.hold.push(target.animate([{...state.circle,opacity:1,scale:still?1:.2},{...state.circle,opacity:1,scale:1}],
+    {...hold,pseudoElement:'::after'}));
   }
-  const token={};held.set(target,token);
-  win.requestAnimationFrame(()=>win.requestAnimationFrame(()=>{
-   if(held.get(target)!==token)return;held.delete(target);target.classList.remove('is-pressed');
-  }));
  };
- const clear=(release=false)=>{releaseCircle();if(pressed)unpress(pressed,release);pressed=null;
-  pointerId=null;origin=null;};
- const clearFocus=()=>{pointerFocus?.removeAttribute?.('data-pv-pointer-focus');pointerFocus=null;};
+ // Release lets the touch-down finish first, so even the fastest tap shows the press before it springs back.
+ const release=(target,animated)=>{
+  const state=live.get(target);if(!state)return;
+  if(!animated){stop(target);return;}
+  const down=state.hold[0],settled=down?.playState==='running'?down.finished:Promise.resolve();
+  settled.then(()=>{
+   if(live.get(target)!==state)return;
+   for(const animation of state.hold)animation.cancel();state.hold=[];
+   const fade={duration:reduced()?DUR.reduced:DUR.quick,easing:EASE.out};
+   if(state.scale<1)state.release.push(target.animate([{scale:String(state.scale)},{scale:'1'}],
+    springTiming(SPRING.quick)));
+   if(target.matches(QUIET))state.release.push(target.animate([{opacity:.64,offset:0}],fade));
+   else state.release.push(target.animate([{boxShadow:OVERLAY,offset:0}],fade));
+   if(state.circle)state.release.push(target.animate([{...state.circle,opacity:1,scale:1},
+    {...state.circle,opacity:0,scale:1}],{...fade,pseudoElement:'::after'}));
+   Promise.all(state.release.map(animation=>animation.finished)).then(()=>{
+    if(live.get(target)===state)live.delete(target);},()=>{});
+  },()=>{});
+ };
+ const clear=(animated=false)=>{if(pressed)release(pressed,animated);pressed=null;pointerId=null;origin=null;};
  const down=event=>{
-  if(event.isPrimary===false||event.button>0)return;if(event.pointerId!=='keyboard')pointerModality=true;clear();const path=event.composedPath?.()||[event.target],index=path.findIndex(node=>node?.matches?.('button,a[href],summary,[role="button"]')),target=path[index];
-  // A nested native field owns its gesture and selection, not its card wrapper.
-  if(index<0||path.slice(0,index+1).some(node=>node?.matches?.('input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])'))||unavailable(target))return;
-  if(event.pointerId!=='keyboard'){clearFocus();pointerFocus=target;target.setAttribute?.('data-pv-pointer-focus','true');}
-  // No style or layout read here: it would force a style pass before the press can paint.
-  pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY};held.delete(target);
-  target.classList.add('is-pressed');
-  if(typeof win?.requestAnimationFrame==='function'){
-   const frame={painted:false};held.set(target,frame);win.requestAnimationFrame(()=>{frame.painted=true;});
-  }
-  if(event.pointerId!=='keyboard'&&target.matches?.(FLAT))markCircle(target,event);
+  if(event.isPrimary===false||event.button>0)return;
+  clear();
+  const target=controlIn(event.composedPath?.()||[event.target]);
+  if(!target||unavailable(target))return;
+  pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY};
+  press(target,event);
  };
  const up=event=>{
   if(event.pointerId!==pointerId)return;
-  // Release keeps a fast tap visible for a frame; cancellation and lost capture end the press at once.
+  // Release springs back; cancellation and lost capture end the press at once.
   clear(event.type==='pointerup'||event.type===undefined);
  };
- const move=event=>{if(event.pointerId===pointerId&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)clear();};
- const keydown=event=>{pointerModality=false;clearFocus();if(event.repeat||!['Enter',' '].includes(event.key))return;down({...event,composedPath:()=>event.composedPath?.()||[event.target],isPrimary:true,button:0,pointerId:'keyboard',clientX:0,clientY:0});};
+ const move=event=>{
+  if(event.pointerId===pointerId&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)clear();
+ };
+ const keydown=event=>{
+  if(event.repeat||!['Enter',' '].includes(event.key))return;
+  down({composedPath:()=>event.composedPath?.()||[event.target],isPrimary:true,button:0,pointerId:'keyboard',
+   clientX:0,clientY:0});
+ };
  const keyup=event=>{if(pointerId==='keyboard'&&['Enter',' '].includes(event.key))clear(true);};
- const focusin=event=>{if(!pointerModality)return;const path=event.composedPath?.()||[event.target],index=path.findIndex(node=>node?.matches?.('button,a[href],summary,[role="button"]')),target=path[index];clearFocus();if(index<0||path.slice(0,index+1).some(node=>node?.matches?.('input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])'))||unavailable(target))return;pointerFocus=target;target.setAttribute?.('data-pv-pointer-focus','true');};
- const cancel=()=>{clear();for(const target of held.keys())target.classList.remove('is-pressed');held.clear();};
+ const cancel=()=>{clear();for(const target of [...live.keys()])stop(target);};
+ const scrolled=()=>{if(pressed)clear();};
  const visibility=()=>{if(doc.hidden)cancel();};
- root.addEventListener('focusin',focusin,true);root.addEventListener('keydown',keydown,true);win?.addEventListener('keyup',keyup,true);root.addEventListener('pointerdown',down,true);root.addEventListener('pointermove',move,true);
- for(const name of ['pointerup','pointercancel','lostpointercapture'])win?.addEventListener(name,up,true);
+ // iOS applies :active (used by a few row backgrounds) only on documents that listen for touches.
+ const touch=()=>{};
+ const rootEvents=[['keydown',keydown],['pointerdown',down],['pointermove',move],['touchstart',touch]];
+ const windowEvents=[['keyup',keyup],['pointerup',up],['pointercancel',up],['lostpointercapture',up]];
+ for(const [name,listener] of rootEvents)root.addEventListener(name,listener,{capture:true,passive:true});
+ for(const [name,listener] of windowEvents)win?.addEventListener(name,listener,true);
  win?.addEventListener('blur',cancel);doc.addEventListener?.('visibilitychange',visibility);
- return ()=>{cancel();clearFocus();root.removeEventListener('focusin',focusin,true);root.removeEventListener('keydown',keydown,true);win?.removeEventListener('keyup',keyup,true);root.removeEventListener('pointerdown',down,true);root.removeEventListener('pointermove',move,true);for(const name of ['pointerup','pointercancel','lostpointercapture'])win?.removeEventListener(name,up,true);win?.removeEventListener('blur',cancel);doc.removeEventListener?.('visibilitychange',visibility);};
+ doc.addEventListener?.('scroll',scrolled,{capture:true,passive:true});
+ return ()=>{
+  cancel();
+  for(const [name,listener] of rootEvents)root.removeEventListener(name,listener,{capture:true});
+  for(const [name,listener] of windowEvents)win?.removeEventListener(name,listener,true);
+  win?.removeEventListener('blur',cancel);doc.removeEventListener?.('visibilitychange',visibility);
+  doc.removeEventListener?.('scroll',scrolled,{capture:true});
+ };
 }

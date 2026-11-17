@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "b8495622921837c9b061ab3005efd197d00b86a02df556ca6b6394c2d6bdb474"
+      "sha256": "e1a9ee5ea23c372cc2afe1b6087c98cdce32fb91cef3ba863dd92f3773ef76fe"
     },
     {
       "path": "library.css",
@@ -758,6 +758,10 @@
       "sha256": "d4b8d4ed82a61aedc28d6643e4399ec7a4fbae79f1696582e5e4b67652848174"
     },
     {
+      "path": "motion.source.txt",
+      "sha256": "1d99fa71557a1693f856eb81f737e0ee8740a6f6e15f6f11d21f88a54daed046"
+    },
+    {
       "path": "music-fixture.js",
       "sha256": "1e3e2fd31eef31c2a9382e7cc4ae7b072eef4c59f5b8cd566915f0c08a45d809"
     },
@@ -819,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "51c7e48dfc0e14560a557e9c90ccbc326d8f090aaabf88d0879add4cea1a34f2"
+      "sha256": "38bd46e3651123c861f861f8b9ec1c7de053d3c5be97d7852456e2b3ceb9bdce"
     },
     {
       "path": "podview.css",
-      "sha256": "a2f0e44393570bf1d38836219a0f71415e8350f1576aee1565731aa2dd941003"
+      "sha256": "4c29bbcc4e17d2c4f1b7dbd26efe2dac2b1558a79359a857b07eb06bd7395986"
     },
     {
       "path": "podvoice-transport.js",
@@ -939,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "f7e006ddbdfc7c7a7c7e163f6dfbf4a3fbb272b616b41da92f4af81ae9edafdb"
+      "sha256": "61bb476560c738feab9c3dcf2acbf42e325c7a666b80fc18ec1d5f009f490f6c"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -951,7 +955,7 @@
     },
     {
       "path": "ui/components.css",
-      "sha256": "ae9d33f0c3c672cf121ab049c136b3004d715ccd717fa3907722b1e810dc3240"
+      "sha256": "6b1f9125d99b393153cf1d467f5c47f64927f8b6e55c9537a6c433cd99c1aad2"
     },
     {
       "path": "ui/components.js",
@@ -987,7 +991,7 @@
     },
     {
       "path": "ui/library/library.css",
-      "sha256": "52578d5d18cec6fa24bfbf287df719a392838625bb5087fa36b9c9e81fe779c3"
+      "sha256": "6a794fddd75db1503b34963cb00f26e103e16d669d56e17e53d06476cb5d64ca"
     },
     {
       "path": "ui/library/types.d.ts",
@@ -999,7 +1003,11 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "334df3895bf088663a1a7455279b86c30388614590dad862b21e32ca6939b07e"
+      "sha256": "8a858744f190685a101e5d92fba05f0e961b4411c2a8f3c04dc040a070bb8083"
+    },
+    {
+      "path": "ui/native-motion.js",
+      "sha256": "a419a2f40fb7efa5071fd861e18f809ef228e834d9f029a98cadf35a6b264364"
     },
     {
       "path": "ui/notification-queue.js",
@@ -1011,7 +1019,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "63927435a8e9c3d67dc3b0cd6d5c4e8e747af932d0f56cdf0f6eaf79e7038310"
+      "sha256": "d5e4a8940b0ce10635c6b8e12094e64971ff47c926b3cbeb0c867b4377b343df"
     },
     {
       "path": "ui/reconcile.js",
@@ -1027,7 +1035,7 @@
     },
     {
       "path": "ui/screen-lifecycle.js",
-      "sha256": "5d77199f4d73e2b863963c6082cefe4df107c8ec570cba145e391f839bb806f9"
+      "sha256": "6af8515cf99c4db5a0999f37e5093830a0bc502913f30dfb0e9337abf46c2dc7"
     },
     {
       "path": "ui/scroll-edges.js",
@@ -1035,11 +1043,11 @@
     },
     {
       "path": "ui/stage.js",
-      "sha256": "76e6ab2e4d754ec21ddfe3a2908beee5a78cbf393786767d9f09eebb018d574b"
+      "sha256": "66bbb745acd332bdb7c92c928da82c2c64bcb134e051a86d152cec8ec10b1811"
     },
     {
       "path": "ui/touch-intent.js",
-      "sha256": "1947c9032ef4ab26b524b34c25d77f60b54e3b755ec4cdbc477014385fe92eb3"
+      "sha256": "8cc5a336173fdf1722dcbdfc9227ca84cd51223a8f12c90e0ccd823c2500da84"
     },
     {
       "path": "updated-label.js",
@@ -1091,15 +1099,15 @@
     },
     {
       "path": "widget-redesign.css",
-      "sha256": "f2cca39b07ed5b48448a07a598aefb4883e30d274397a92434db03f84210da46"
+      "sha256": "69c8170b53967fe2d23e57b64abb40e941ad6d0dd6a0689862e4d487c231d38c"
     },
     {
       "path": "widget-view.css",
-      "sha256": "06b35a3abfa1682e9c6fd9f2ef5975f9e8b452668b6eda42747eb685d862de14"
+      "sha256": "4b183d169af3a1014dba03081733cc82ff45285109bb375b74f431aa2207cb78"
     },
     {
       "path": "widget-view.js",
-      "sha256": "4c7c8466a2709f4b375275158360c212271079bc7e10fa0376342b0ded087f92"
+      "sha256": "9a9c18647f8855e0f7511a27357bbed92739e5f8853f8233bc90c42b6865612d"
     },
     {
       "path": "workshop.css",

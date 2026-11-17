@@ -186,6 +186,14 @@ test('timer72→112 FLIPs every retained overview sibling40px without animating 
  assert.equal(weather.animations[1].frames[0].transform,'translate(0px,40px)');
  f.host.dataset.motion='reduced';f.motion.settleResources(f.motion.resources());assert.equal(f.motion.animations.size,0);
 }));
+test('a touch only asks for the hold; the next render measures and freezes, a release before it does nothing',()=>withMotionPreference(()=>{
+ const f=resourceFixture(),tile=f.tile(180),values=new Map();let reads=0;tile.style={getPropertyValue:k=>values.get(k)?.[0]||'',getPropertyPriority:k=>values.get(k)?.[1]||'',setProperty:(k,v,p)=>values.set(k,[v,p]),removeProperty:k=>values.delete(k)};
+ Object.defineProperty(tile,'offsetHeight',{get(){reads++;return Number.parseFloat(values.get('height')?.[0])||72;}});f.host.state={timer:null};
+ f.motion.deferHold();assert.equal(reads,0,'pointerdown reads no layout');assert.equal(values.size,0,'and writes none');
+ f.motion.applyDeferredHold();assert.equal(f.motion.geometry.size,1);assert.equal(values.get('height')[0],'72px');
+ f.motion.applyDeferredHold();assert.equal(f.motion.geometry.size,1);f.motion.releaseGeometry(false);
+ f.motion.deferHold();f.motion.releaseGeometry(false);f.motion.applyDeferredHold();assert.equal(f.motion.geometry.size,0);f.motion.cancel();
+}));
 test('touch geometry hold retains measured height and releases with FLIP; alarm bypasses immediately',()=>withMotionPreference(()=>{
  const f=resourceFixture(),tile=f.tile(180),values=new Map();let natural=72;tile.id='timer-card';tile.style={getPropertyValue:k=>values.get(k)?.[0]||'',getPropertyPriority:k=>values.get(k)?.[1]||'',setProperty:(k,v,p)=>values.set(k,[v,p]),removeProperty:k=>values.delete(k)};
  Object.defineProperty(tile,'offsetHeight',{get(){return Number.parseFloat(values.get('height')?.[0])||natural;}});tile.getBoundingClientRect=()=>({x:0,y:180,width:200,height:tile.offsetHeight});f.host.state={timer:null};

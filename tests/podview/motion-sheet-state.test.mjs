@@ -76,7 +76,7 @@ test('P6: done ticks 1 → 1.04 → 1 on the snappy spring; error fades colour i
  assert.match(css,/@keyframes pv-tick\{30%\{scale:1\.04\}\}/);
  assert.equal(rule('.pv-kit[data-pv-state=done]'),'animation:pv-tick var(--pv-spring-snappy)');
  assert.equal(rule(':root[data-pv-motion=reduced] .pv-kit[data-pv-state=done]'),'animation:none');
- const error=rule('body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]'+':not(.is-pressed)');
+ const error=rule('body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]');
  assert.match(error,/background-color var\(--pv-dur-base\) var\(--pv-ease-out\)/);
  assert.doesNotMatch(css,/@keyframes pv-shake|translate[XY]?\(-?\d+px\)[^}]*\[data-pv-state=error\]/);
  inOrder(css,[':root[data-pv-motion=reduced]{--pv-busy-spinner:',

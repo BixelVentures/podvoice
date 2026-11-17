@@ -612,7 +612,6 @@
         "definitions": {
           "arrow:apply": 1,
           "arrow:inset": 1,
-          "arrow:px": 1,
           "function:installStage": 1,
           "function:stageGeometry": 1
         },
@@ -2309,8 +2308,13 @@
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
+          "arrow:centreShift": 1,
+          "arrow:isDigit": 1,
+          "arrow:name": 1,
+          "arrow:read": 1,
           "arrow:release": 1,
           "arrow:resourceLayout": 1,
+          "arrow:rows": 1,
           "arrow:sameLayout": 1,
           "arrow:skip": 1,
           "arrow:split": 1,
@@ -2323,24 +2327,32 @@
           "function:mirrorReducedMotion": 1,
           "function:project": 1,
           "function:reducedMotionQuery": 1,
+          "function:rollingDigits": 1,
           "function:rubberBand": 1,
           "function:settleTime": 1,
+          "function:showProgress": 1,
+          "function:showValue": 1,
           "function:simplify": 1,
           "function:springCurve": 1,
           "function:springParams": 1,
           "function:stepResponse": 1,
+          "function:valueDirection": 1,
           "function:writeMotionAttribute": 1,
+          "method:applyDeferredHold": 1,
           "method:cancel": 1,
           "method:capture": 1,
           "method:constructor": 1,
+          "method:deferHold": 1,
           "method:enter": 1,
           "method:feedback": 1,
           "method:holdGeometry": 1,
           "method:immediate": 1,
+          "method:leave": 1,
           "method:reduced": 1,
           "method:releaseGeometry": 1,
           "method:resources": 1,
           "method:resting": 1,
+          "method:roll": 1,
           "method:sample": 1,
           "method:schedule": 1,
           "method:settleResources": 1,
@@ -2350,18 +2362,7 @@
           "method:target": 1,
           "method:tick": 1,
           "method:value": 1,
-          "method:velocity": 1,
-          "arrow:isDigit": 1,
-          "arrow:read": 1,
-          "function:rollingDigits": 1,
-          "function:showProgress": 1,
-          "function:showValue": 1,
-          "function:valueDirection": 1,
-          "method:roll": 1,
-          "arrow:rows": 1,
-          "method:leave": 1,
-          "arrow:centreShift": 1,
-          "arrow:name": 1
+          "method:velocity": 1
         },
         "roots": [],
         "registrations": {},
@@ -2494,6 +2495,7 @@
           "arrow:aborted": 1,
           "arrow:available": 1,
           "arrow:blur": 1,
+          "arrow:boxOf": 1,
           "arrow:cancel": 1,
           "arrow:clear": 1,
           "arrow:clearExpiry": 1,
@@ -2502,6 +2504,7 @@
           "arrow:controlFor": 1,
           "arrow:down": 1,
           "arrow:hit": 1,
+          "arrow:inside": 1,
           "arrow:move": 1,
           "arrow:path": 1,
           "arrow:release": 1,
@@ -2915,8 +2918,6 @@
           "updateResourceTile": 2
         },
         "definitions": {
-          "arrow:navigateNow": 1,
-          "arrow:present": 2,
           "arrow:$": 1,
           "arrow:cancel": 1,
           "arrow:commit": 1,
@@ -2924,9 +2925,11 @@
           "arrow:currentObservation": 1,
           "arrow:fixture": 1,
           "arrow:free": 1,
+          "arrow:navigateNow": 1,
           "arrow:observedArea": 1,
           "arrow:outside": 1,
           "arrow:paint": 1,
+          "arrow:present": 2,
           "arrow:reopen": 1,
           "arrow:result": 1,
           "arrow:send": 1,
@@ -2960,6 +2963,7 @@
           "method:lightLocalFeedback": 1,
           "method:liveMusicAccountChanged": 1,
           "method:loadLiveMusic": 1,
+          "method:moveHere": 1,
           "method:music": 1,
           "method:onLightActionStatus": 1,
           "method:open": 1,
@@ -2982,6 +2986,7 @@
           "method:renderOverviewAction": 1,
           "method:renderOverviewFacts": 1,
           "method:renderOverviewMediaCards": 1,
+          "method:renderOverviewOverflow": 1,
           "method:renderResourceRail": 1,
           "method:renderScreenSettings": 1,
           "method:renderSvarDevice": 1,
@@ -3003,9 +3008,7 @@
           "method:suspendForAnswer": 1,
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
-          "method:updateHomeRevision": 1,
-          "method:renderOverviewOverflow": 1,
-          "method:moveHere": 1
+          "method:updateHomeRevision": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3254,33 +3257,39 @@
     "dist/ui/pressed-state.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js",
+        "dist/ui/native-motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
           "arrow:cancel": 1,
           "arrow:clear": 1,
-          "arrow:clearFocus": 1,
           "arrow:down": 1,
-          "arrow:focusin": 1,
           "arrow:keydown": 1,
           "arrow:keyup": 1,
-          "arrow:markCircle": 1,
           "arrow:move": 1,
-          "arrow:releaseCircle": 1,
+          "arrow:press": 1,
+          "arrow:reduced": 1,
+          "arrow:release": 1,
+          "arrow:scrolled": 1,
+          "arrow:stop": 1,
+          "arrow:touch": 1,
           "arrow:unavailable": 1,
-          "arrow:unpress": 1,
           "arrow:up": 1,
           "arrow:visibility": 1,
-          "function:attachPressedState": 1
+          "function:attachPressedState": 1,
+          "function:controlIn": 1,
+          "function:pressScale": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": false
       },
-      "reviewedScope": "Direct user brief 6: pointer-held feedback and finite90ms release acknowledgement only. Reviewed21Oct helpers guard disabled/inert/disconnected controls, leave nested native fields to their owner, scope pointer focus markers to pointer modality and cancel animations/listeners on background, blur and cleanup. The existing library specimens bind this same helper; native click and keyboard activation retain authority. No DOM construction, import edge or new component family."
+      "reviewedScope": "Press feedback as Web Animations on the pressed control only (scale, overlay, quiet dim, flat circle); no class, attribute or inline style writes. Guards disabled/inert controls, leaves nested native fields to their owner and cancels animations/listeners on background, blur, scroll and cleanup. Native click and keyboard activation retain authority. No DOM construction."
     },
     "dist/ui/conclusion-disclosure.js": {
       "status": "approved-renderer",
@@ -3750,6 +3759,33 @@
         "dom": false
       },
       "compositionScope": "Pure queue-presentation reducer (phase, run token, trouble window) for the existing queue owner. No DOM, renderer, network or command authority."
+    },
+    "dist/ui/native-motion.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [
+        "motion"
+      ],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "function:springTiming": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "The one module that imports Motion (npm motion, MIT; provenance in motion.source.txt). Reached only through the delivery bundles. No DOM construction."
+    }
+  },
+  "externalModules": {
+    "motion": {
+      "version": "14.9.0",
+      "license": "MIT",
+      "source": "https://www.npmjs.com/package/motion",
+      "provenance": "podvoice/gatekeeper/static/podview/motion.source.txt"
     }
   },
   "sharedContracts": [

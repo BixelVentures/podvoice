@@ -16,7 +16,7 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  node.addEventListener('pointerdown',()=>{const start=performance.now();
   const frame=()=>{const css=getComputedStyle(node);
    const done=check==='scale'?!['none','1'].includes(css.scale)&&css.boxShadow.includes('999px')
-    :node.dataset.pvCircle==='down'&&getComputedStyle(node,'::after').opacity==='1';
+    :getComputedStyle(node,'::after').opacity==='1';
    if(done)resolve(performance.now()-start);else if(performance.now()-start>500)resolve(Infinity);
     else requestAnimationFrame(frame);};
   requestAnimationFrame(frame);},{once:true});

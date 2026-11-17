@@ -1,46 +1,167 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {attachPressedState} from '../../podvoice/gatekeeper/static/podview/ui/pressed-state.js';
-function fixture({documentRoot=false,raf=false}={}){
- const events=()=>({handlers:new Map(),addEventListener(n,f){this.handlers.set(n,f);},removeEventListener(n){this.handlers.delete(n);}}),win=events(),frames=[];if(raf)win.requestAnimationFrame=callback=>frames.push(callback);const frame=()=>{for(const callback of frames.splice(0))callback();};const doc=Object.assign(events(),{defaultView:win,nodeType:documentRoot?9:undefined}),surface=Object.assign(events(),{ownerDocument:doc});
- const node=(kind='button')=>{const classes=new Set(),attributes=new Map(),animations=[];return {kind,classes,attributes,animations,disabled:false,isConnected:true,matches:selector=>selector.startsWith('button,')?['button','summary','a','rolebutton'].includes(kind):['input','select','textarea','slider','editable'].includes(kind),getAttribute:n=>attributes.get(n)??null,setAttribute:(n,v)=>attributes.set(n,String(v)),removeAttribute:n=>attributes.delete(n),closest:()=>null,classList:{add:n=>classes.add(n),remove:n=>classes.delete(n)},animate(frames,options){let finish;const animation={frames,options,cancelled:0,finished:new Promise(done=>finish=done),cancel(){this.cancelled++;},finish(){finish();}};animations.push(animation);return animation;}};};
- const button=node(),cleanup=attachPressedState(surface),event=(patch={})=>({type:'pointerdown',pointerId:1,clientX:0,clientY:0,button:0,isPrimary:true,composedPath:()=>[{},button,surface],...patch}),root=documentRoot?doc:surface;return {win,doc,surface,root,button,classes:button.classes,cleanup,event,node,frame};
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {attachPressedState,pressScale} from '../../podvoice/gatekeeper/static/podview/ui/pressed-state.js';
+
+// P3 press (docs/MOTION.md): Web Animations on the pressed control only. The fake nodes have no classList,
+// setAttribute or style, so any class, attribute or inline-style write would throw.
+const flush=()=>new Promise(resolve=>setImmediate(resolve));
+function fixture({documentRoot=false,reduced=false}={}){
+ const target=()=>({handlers:new Map(),addEventListener(n,f){this.handlers.set(n,f);},
+  removeEventListener(n){this.handlers.delete(n);}});
+ const win=target(),computed=[];
+ win.getComputedStyle=node=>{computed.push(node);return {scale:'0.985'};};
+ const doc=Object.assign(target(),{defaultView:win,nodeType:documentRoot?9:undefined,
+  documentElement:{dataset:{pvMotion:reduced?'reduced':'full'}}});
+ const surface=Object.assign(target(),{ownerDocument:doc});
+ const node=(...tokens)=>{
+  const set=new Set(tokens.length?tokens:['button']),animations=[];
+  return {tokens:set,animations,disabled:false,attributes:new Map(),
+   matches:selector=>selector.split(',').some(part=>set.has(part.trim())),
+   getAttribute(name){return this.attributes.get(name)??null;},closest:()=>null,
+   getBoundingClientRect:()=>({left:100,top:50,width:200,height:100}),
+   animate(frames,options){
+    let resolve,reject;const finished=new Promise((a,b)=>{resolve=a;reject=b;});finished.catch(()=>{});
+    const animation={frames,options,playState:'running',finished,
+     cancel(){if(this.playState==='running')reject(new Error('cancel'));this.playState='idle';},
+     finish(){if(this.playState!=='running')return;this.playState='finished';resolve(this);}};
+    animations.push(animation);return animation;}};
+ };
+ const button=node('button','.pv-tile'),cleanup=attachPressedState(surface);
+ const root=documentRoot?doc:surface;
+ const event=(patch={})=>({type:'pointerdown',pointerId:1,clientX:150,clientY:60,button:0,isPrimary:true,
+  composedPath:()=>[{},button,surface],...patch});
+ const running=n=>n.animations.filter(a=>a.playState!=='idle');
+ const finishAll=n=>{for(const a of n.animations)a.finish();};
+ return {win,doc,surface,root,button,node,cleanup,event,running,finishAll,computed};
 }
-// P3 (docs/MOTION.md §3.4): CSS owns press motion. JS sets .is-pressed and never animates box-shadow or opacity.
-test('press is immediate and pointerup clears it without any JS animation',()=>{
- const f=fixture();f.root.handlers.get('pointerdown')(f.event());assert(f.classes.has('is-pressed'));assert.equal(f.button.getAttribute('data-pv-pointer-focus'),'true');f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert.equal(f.classes.size,0);assert.equal(f.button.animations.length,0);f.cleanup();
+const props=animation=>Object.keys(animation.frames[0]).filter(key=>key!=='offset');
+
+test('tiles .97, buttons .98, icons and flat surfaces none, reduced motion none',()=>{
+ const f=fixture();
+ assert.equal(pressScale(f.node('button','.pv-card')),.97);
+ assert.equal(pressScale(f.node('button')),.98);
+ assert.equal(pressScale(f.node('button','.round:not(.main-control)')),1);
+ assert.equal(pressScale(f.node('button','[data-pv-press=flat]')),1);
+ assert.equal(pressScale(f.node('button','.pv-card'),true),1);
+ f.cleanup();
 });
-test('a tap released before its press was painted stays pressed for one painted frame, then springs back',()=>{
- const f=fixture({raf:true});f.root.handlers.get('pointerdown')(f.event());f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
- assert(f.classes.has('is-pressed'),'held until painted');f.frame();assert(f.classes.has('is-pressed'));f.frame();assert.equal(f.classes.size,0);
- f.root.handlers.get('pointerdown')(f.event());f.frame();f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert.equal(f.classes.size,0,'a painted press releases at once');
- assert.equal(f.button.animations.length,0);f.cleanup();
+
+test('down scales in --pv-dur-tap with the overlay at once; release springs back on Motion\'s quick spring',async()=>{
+ const f=fixture();f.root.handlers.get('pointerdown')(f.event());
+ const [scale,overlay]=f.button.animations;
+ assert.deepEqual(scale.frames,[{scale:'1'},{scale:'0.97'}]);
+ assert.deepEqual([scale.options.duration,scale.options.fill],[100,'forwards']);
+ assert.match(overlay.frames[0].boxShadow,/inset 0 0 0 999px/);
+ f.finishAll(f.button);
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
+ const release=f.running(f.button);
+ assert.deepEqual(release.map(props),[['scale'],['boxShadow']]);
+ assert.deepEqual(release[0].frames,[{scale:'0.97'},{scale:'1'}]);
+ assert.match(release[0].options.easing,/^linear\(0, /,'the spring is a CSS linear() easing from Motion');
+ assert(release[0].options.duration>300&&release[0].options.duration<1000,String(release[0].options.duration));
+ assert.equal(release[1].frames[0].offset,0,'the overlay fades to the control\'s own shadow');
+ assert.equal(release[1].options.duration,160);
+ assert.equal(release.some(a=>a.options.fill),false,'nothing is left behind after the release');
+ f.cleanup();
 });
-test('a new press during the held frame keeps its own pressed state; cancel ends a press at once',()=>{
- const f=fixture({raf:true});f.root.handlers.get('pointerdown')(f.event());f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
- f.root.handlers.get('pointerdown')(f.event());f.frame();f.frame();assert(f.classes.has('is-pressed'),'stale release cannot clear the new press');
- f.win.handlers.get('pointercancel')(f.event({type:'pointercancel'}));assert.equal(f.classes.size,0);f.cleanup();
+
+test('a tap released before the touch-down finished shows the whole press first',async()=>{
+ const f=fixture();f.root.handlers.get('pointerdown')(f.event());
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
+ assert.equal(f.button.animations.length,2,'no release yet');
+ f.button.animations[0].finish();await flush();
+ assert.deepEqual(f.running(f.button).map(props),[['scale'],['boxShadow']]);
+ assert.deepEqual(f.running(f.button)[0].frames[0],{scale:'0.97'});
+ f.cleanup();
 });
-test('scroll drag, pointer cancellation, lost capture, blur and cleanup cannot leave held or release feedback',()=>{
- for(const reason of ['move','pointercancel','lostpointercapture','blur','cleanup']){const f=fixture();f.root.handlers.get('pointerdown')(f.event());if(reason==='move')f.root.handlers.get('pointermove')(f.event({type:'pointermove',clientY:30}));else if(reason==='cleanup')f.cleanup();else f.win.handlers.get(reason)(f.event({type:reason}));assert.equal(f.classes.size,0,reason);assert.equal(f.button.animations.length,0,reason);f.cleanup();}
+
+test('a new press on a releasing control starts from where it is',async()=>{
+ const f=fixture();f.root.handlers.get('pointerdown')(f.event());f.finishAll(f.button);
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
+ f.root.handlers.get('pointerdown')(f.event());
+ assert.deepEqual(f.computed,[f.button]);
+ assert.deepEqual(f.running(f.button).map(a=>a.frames[0].scale??'overlay'),['0.985','overlay']);
+ f.cleanup();
 });
-test('disabled, aria-disabled and inert controls never acknowledge, including a control disabled during its press',()=>{
- for(const denied of ['disabled','aria','inert']){const f=fixture();if(denied==='disabled')f.button.disabled=true;if(denied==='aria')f.button.setAttribute('aria-disabled','true');if(denied==='inert')f.button.closest=()=>({inert:true});f.root.handlers.get('pointerdown')(f.event());assert.equal(f.classes.size,0);f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert.equal(f.button.animations.length,0);f.cleanup();}
- const f=fixture();f.root.handlers.get('pointerdown')(f.event());f.button.disabled=true;f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert.equal(f.classes.size,0);assert.equal(f.button.animations.length,0);f.cleanup();
+
+test('quiet controls dim instead of the overlay; flat surfaces grow a circle under the finger',async()=>{
+ const f=fixture(),quiet=f.node('button','[data-pv-press=quiet]'),flat=f.node('button','[data-pv-press=flat]');
+ f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[quiet,f.surface]}));
+ assert.deepEqual(quiet.animations.map(props),[['scale'],['opacity']]);
+ assert.equal(quiet.animations[1].frames[0].opacity,.64);
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
+ f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[flat,f.surface]}));
+ const circle=flat.animations.find(a=>a.options.pseudoElement==='::after');
+ assert.deepEqual([circle.frames[0].left,circle.frames[0].top,circle.frames[0].scale],['50px','10px',.2]);
+ assert.equal(circle.frames[0].width,`${2*Math.hypot(150,90)}px`);
+ assert.equal(flat.animations.some(a=>props(a).includes('scale')&&!a.options.pseudoElement),false,'flat never shrinks');
+ f.finishAll(flat);f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
+ const out=f.running(flat).find(a=>a.options.pseudoElement==='::after');
+ assert.deepEqual([out.frames[0].opacity,out.frames[1].opacity],[1,0]);
+ f.cleanup();
 });
-test('secondary pointers cannot replace or cancel the primary press',()=>{
- const f=fixture();f.root.handlers.get('pointerdown')(f.event());f.root.handlers.get('pointerdown')(f.event({pointerId:2,isPrimary:false}));f.win.handlers.get('pointercancel')(f.event({type:'pointercancel',pointerId:2}));assert(f.classes.has('is-pressed'));f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert.equal(f.classes.size,0);assert.equal(f.button.animations.length,0);f.cleanup();
+
+test('reduced motion keeps the overlay and the circle and drops scale and growth',()=>{
+ const f=fixture({reduced:true}),flat=f.node('button','[data-pv-press=flat]');
+ f.root.handlers.get('pointerdown')(f.event());
+ assert.deepEqual(f.button.animations.map(props),[['boxShadow']]);
+ f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[flat,f.surface]}));
+ assert.equal(flat.animations.find(a=>a.options.pseudoElement).frames[0].scale,1);
+ f.cleanup();
 });
-test('keyboard press preserves native activation and restores visible focus after pointer input',()=>{
- const f=fixture();f.root.handlers.get('pointerdown')(f.event());f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));f.root.handlers.get('keydown')(f.event({type:'keydown',key:'Tab'}));assert.equal(f.button.getAttribute('data-pv-pointer-focus'),null);f.root.handlers.get('keydown')(f.event({type:'keydown',key:' ',repeat:false}));assert(f.classes.has('is-pressed'));f.win.handlers.get('keyup')(f.event({type:'keyup',key:' '}));assert.equal(f.classes.size,0);assert.equal(f.button.animations.length,0);f.root.handlers.get('keydown')(f.event({type:'keydown',key:'Enter',repeat:true}));assert.equal(f.classes.size,0);f.cleanup();assert.equal(f.root.handlers.size,0);assert.equal(f.win.handlers.size,0);
+
+test('scroll drag, cancellation, lost capture, scroll, blur, background and cleanup end a press at once',async()=>{
+ for(const reason of ['move','pointercancel','lostpointercapture','scroll','blur','background','cleanup']){
+  const f=fixture();f.root.handlers.get('pointerdown')(f.event());
+  if(reason==='move')f.root.handlers.get('pointermove')(f.event({type:'pointermove',clientY:80}));
+  else if(reason==='cleanup')f.cleanup();
+  else if(reason==='scroll')f.doc.handlers.get('scroll')();
+  else if(reason==='background'){f.doc.hidden=true;f.doc.handlers.get('visibilitychange')();}
+  else f.win.handlers.get(reason)(f.event({type:reason}));
+  await flush();
+  assert.equal(f.running(f.button).length,0,reason);assert.equal(f.button.animations.length,2,reason);
+  f.cleanup();
+ }
 });
-test('native fields and sliders inside an interactive card retain their gesture and text-selection ownership',()=>{
- for(const kind of ['input','select','textarea','slider','editable']){const f=fixture(),field=f.node(kind);f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[field,f.button,f.surface]}));assert.equal(f.classes.size,0,kind);f.root.handlers.get('keydown')(f.event({key:' ',composedPath:()=>[field,f.button,f.surface]}));assert.equal(f.classes.size,0,kind);assert.equal(f.button.animations.length,0,kind);f.cleanup();}
+
+test('disabled, aria-disabled and inert controls never acknowledge',()=>{
+ for(const denied of ['disabled','aria','inert']){
+  const f=fixture();
+  if(denied==='disabled')f.button.disabled=true;
+  if(denied==='aria')f.button.attributes.set('aria-disabled','true');
+  if(denied==='inert')f.button.closest=()=>({inert:true});
+  f.root.handlers.get('pointerdown')(f.event());assert.equal(f.button.animations.length,0,denied);f.cleanup();
+ }
 });
+
+test('secondary pointers cannot replace or cancel the primary press',async()=>{
+ const f=fixture();f.root.handlers.get('pointerdown')(f.event());
+ f.root.handlers.get('pointerdown')(f.event({pointerId:2,isPrimary:false}));
+ f.win.handlers.get('pointercancel')(f.event({type:'pointercancel',pointerId:2}));
+ assert.equal(f.running(f.button).length,2);f.cleanup();
+});
+
+test('Enter and Space press and release like a pointer; a repeat is ignored',async()=>{
+ const f=fixture();
+ f.root.handlers.get('keydown')(f.event({type:'keydown',key:'Enter',repeat:false}));
+ assert.equal(f.button.animations.length,2);f.finishAll(f.button);
+ f.root.handlers.get('keydown')(f.event({type:'keydown',key:'Enter',repeat:true}));
+ assert.equal(f.button.animations.length,2);
+ f.win.handlers.get('keyup')(f.event({type:'keyup',key:'Enter'}));await flush();
+ assert.deepEqual(f.running(f.button).map(props),[['scale'],['boxShadow']]);
+ f.cleanup();assert.equal(f.root.handlers.size,0);assert.equal(f.win.handlers.size,0);
+});
+
+test('native fields and sliders inside an interactive card keep their gesture',()=>{
+ for(const kind of ['input','select','textarea']){
+  const f=fixture(),field=f.node(kind);
+  f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[field,f.button,f.surface]}));
+  assert.equal(f.button.animations.length,0,kind);f.cleanup();
+ }
+});
+
 test('native disclosure summaries and delegated body-sibling controls share the same press owner',()=>{
- const f=fixture({documentRoot:true}),summary=f.node('summary');assert.equal(f.surface.handlers.size,0);f.doc.handlers.get('pointerdown')(f.event({composedPath:()=>[summary,f.doc]}));assert(summary.classes.has('is-pressed'));f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert.equal(summary.classes.size,0);f.cleanup();assert.equal(f.doc.handlers.size,0);
-});
-test('pointer modality follows programmatic destination focus; keyboard navigation removes the pointer-only marker',()=>{
- const f=fixture(),photo=f.node();f.root.handlers.get('pointerdown')(f.event());f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));f.root.handlers.get('focusin')(f.event({type:'focusin',composedPath:()=>[photo,f.surface]}));assert.equal(f.button.getAttribute('data-pv-pointer-focus'),null);assert.equal(photo.getAttribute('data-pv-pointer-focus'),'true');f.root.handlers.get('keydown')(f.event({type:'keydown',key:'Tab',composedPath:()=>[photo,f.surface]}));assert.equal(photo.getAttribute('data-pv-pointer-focus'),null);f.cleanup();
-});
-test('background and disconnect cleanup end a held fast tap instead of leaving a pressed control',()=>{
- for(const stop of ['background','cleanup']){const f=fixture({raf:true});f.root.handlers.get('pointerdown')(f.event());f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));assert(f.classes.has('is-pressed'));if(stop==='background'){f.doc.hidden=true;f.doc.handlers.get('visibilitychange')();}else f.cleanup();assert.equal(f.classes.size,0);f.frame();f.frame();assert.equal(f.classes.size,0);f.cleanup();}
+ const f=fixture({documentRoot:true}),summary=f.node('summary');assert.equal(f.surface.handlers.size,0);
+ f.doc.handlers.get('pointerdown')(f.event({composedPath:()=>[summary,f.doc]}));
+ assert.equal(summary.animations.length,2);f.cleanup();assert.equal(f.doc.handlers.size,0);
 });

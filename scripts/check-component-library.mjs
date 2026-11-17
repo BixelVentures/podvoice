@@ -109,7 +109,12 @@ function validateComponentLibrary({root=process.cwd(),registryPath='docs/compone
   if(JSON.stringify(actual.registrations)!==JSON.stringify(expected.registrations))errors.push(`${file}: custom element ownership changed`);
   const dependencies=staticImports(source);if(dependencies.unsupported.length)errors.push(`${file}: unsupported import syntax requires explicit graph review`);
   for(const specifier of dependencies.imports){
-   if(!specifier.startsWith('.')){errors.push(`${file}: external module ${specifier} needs review`);continue;}
+   if(!specifier.startsWith('.')){
+    // A reviewed npm package (registry.externalModules) may be imported by the modules that register the edge.
+    if(!registry.externalModules?.[specifier])errors.push(`${file}: external module ${specifier} needs review`);
+    else if(!rule.imports.includes(specifier))errors.push(`${file}: unregistered import edge to ${specifier}`);
+    continue;
+   }
    const target=path.posix.normalize(path.posix.join(path.posix.dirname(file),specifier));
    if(!target.startsWith('dist/')){errors.push(`${file}: import escapes product dist`);continue;}
    if(!rule.imports.includes(target))errors.push(`${file}: unregistered renderer/import edge to ${target}`);walk(target);
