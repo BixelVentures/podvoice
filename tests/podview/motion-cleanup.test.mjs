@@ -134,7 +134,8 @@ test('toggles move their thumb with transform, the queue EQ scales and the recip
  assert.match(bundled,/button\[role=switch\]\[aria-checked=true\]::before\{transform:translate\(26px,-50%\)\}/);
  assert.match(bundled,
   /\.queue-eq>i\{\s*display:block;width:4px;height:16px;[^}]*transform-origin:50% 100%;\s*animation:pv-eq 900ms/);
- assert.match(bundled,/@starting-style\{[^{}]*\[data-recipe-explore-dots\]>i\[data-current\]\{\s*scale:\.3 1\}\}/);
+ // P9 (MOTION.md §3.10.3): the dots are a fixed pool drawn with transform and opacity from p; no width, no rebuild.
+ assert.doesNotMatch(bundled,/\[data-recipe-explore-dots\]>i[^{]*\{[^}]*(transition|[^-]width:28px)/);
 });
 
 test('dead motion is gone and live motion stays',()=>{

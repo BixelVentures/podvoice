@@ -1,4 +1,40 @@
 import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent, createKitChoiceGroup, createKitDisclosure} from './ui/kit.js';
+import {attachSwipeTrack} from './ui/gestures.js';
+import {isReduced,springCurve,SPRING} from './ui/motion.js';
+// Opskrifter-Bog cover flow as a pure function of the fractional index p (docs/MOTION.md §3.10.3). At whole p it
+// is the canvas: the chosen cover flat, neighbours ±(430+(a−1)·110) px, −260−(a−1)·60 px deep, turned 55° away
+// and shaded .18 (an overlay, not a filter). Between whole values every number is continuous; the turn eases in
+// with a smoothstep so it does not kink at the centre. Covers past 3.5 are hidden. The title cross-fades through
+// 0 at the half-way point; the dots weigh 1−|k−p|. Reduced: the covers stand flat and the photos keep still.
+export const EXPLORE_PITCH=430,EXPLORE_DOTS=7,EXPLORE_DOT_PITCH=16;
+export function exploreFrame(p,count,{reduced=false}={}){
+ const index=Math.max(0,Math.min(count-1,Math.round(p)));
+ const covers=Array.from({length:count},(_,k)=>{
+  const d=k-p,a=Math.abs(d),s=Math.sign(d);
+  if(a>3.5)return {visibility:'hidden',d};
+  const near=a<=1,ease=a*a*(3-2*a);
+  const x=near?d*EXPLORE_PITCH:s*(EXPLORE_PITCH+(a-1)*110),z=reduced?0:near?-260*a:-260-(a-1)*60;
+  const turn=reduced?0:near?-s*55*ease:-s*55,shade=near?.18*a:.18;
+  return {visibility:'visible',d,z:20-Math.round(a),shade:Number(shade.toFixed(4)),
+   transform:`translate3d(${x}px,0,${z}px) rotateY(${turn}deg)`,
+   parallax:reduced?'none':`translateX(${-d*24}px)`};
+ });
+ const textOpacity=Math.abs(2*(p-Math.floor(p))-1);
+ const shown=Math.min(EXPLORE_DOTS,count),start=Math.max(0,Math.min(index-3,count-shown));
+ const items=Array.from({length:shown},(_,o)=>{
+  const k=start+o,w=Math.max(0,1-Math.abs(k-p)),edge=(o===0&&start>0)||(o===shown-1&&start+shown<count);
+  return {k,w,edge};
+ });
+ // A wider dot pushes the ones after it: x is the sum of the widths before (8 + 16·w each, 8 apart).
+ let x=0;
+ const dots=items.map(({k,w,edge})=>{
+  const scale=1+2*w,at=x;x+=8*scale+8;
+  return {k,transform:`translateX(${at}px) scale(${(edge?.6:1)*scale},${edge?.6:1})`,
+   opacity:Number((.35+.65*w).toFixed(4))};
+ });
+ return {index,covers,textOpacity:Number(textOpacity.toFixed(4)),dots:{start,items:dots}};
+}
+
 // Number ranges read with an en dash (»12–15 min.«, »kl. 14–15«), as on the canvas; dates stay untouched.
 const RANGE = /(?<![\d.,:-])(\d{1,3}(?:[.,]\d+)?) ?- ?(\d{1,3}(?:[.,]\d+)?)(?![\d-])/g;
 const rangeDash = text => String(text).replace(RANGE,'$1–$2');
@@ -927,7 +963,8 @@ export class RecipeView {
  }
 
  // Opskrifter-Bog: Udforsk shows the same catalogue as a cover flow. The chosen photo stands flat (720×460);
- // its neighbours turn 55° away. A swipe or a tap on a neighbour chooses; a tap on the chosen photo opens it.
+ // its neighbours turn 55° away. The finger scrubs the flow 1:1 and a fling carries on (P9, attachSwipeTrack);
+ // a tap on a neighbour travels to it; a tap on the chosen photo opens it.
  explore() {
   this.page('Opskrifter','',()=>this.back());
   this.root.dataset.recipeMode = 'explore';
@@ -953,6 +990,7 @@ export class RecipeView {
   }
   const flow = element('div'), info = element('div'), dots = element('div');
   flow.dataset.recipeLayout = 'explore';
+  flow.dataset.pvGestureOwner = '';
   flow.setAttribute('aria-roledescription','karrusel');
   flow.tabIndex = 0;
   info.dataset.recipeLayout = 'explore-info';
@@ -982,70 +1020,84 @@ export class RecipeView {
     badge.dataset.recipeExploreBadge = '';
     cover.append(badge);
    }
-   // A touch acts on the cover it went down on (3-D hit testing can name another cover for the click);
-   // the click remains for the keyboard.
-   cover.addEventListener('click',()=>{
-    if (Date.now() - (this.exploreTouchAt || 0) < 600) return;
-    activate(cover);
-   });
+   // A pointer tap is decided by the swipe track (on the cover it went down on); the click is the keyboard's.
+   cover.addEventListener('click',()=>activate(cover));
    return cover;
   });
+  // Seven dots in a fixed pool; only transform and opacity are written.
+  const dotPool = Array.from({length:Math.min(7,recipes.length)},()=>element('i'));
+  dots.append(...dotPool);
   flow.append(...covers);
   this.root.append(flow,info,dots);
-  const choose = k => {
-   this.exploreIndex = Math.max(0,Math.min(recipes.length-1,k));
-   const i = this.exploreIndex, recipe = recipes[i];
-   covers.forEach((cover,k)=>{
-    const d = k - i, a = Math.abs(d), sign = Math.sign(d);
-    const x = d ? sign*(430+(a-1)*110) : 0, z = d ? -260-(a-1)*60 : 0, turn = d ? -sign*55 : 0;
-    cover.style.transform = `translateX(${x}px) translateZ(${z}px) rotateY(${turn}deg)`;
-    cover.style.opacity = a > 3 ? '0' : '1';
-    cover.style.zIndex = String(20-a);
-    cover.style.filter = d ? 'brightness(.82)' : '';
+  dots.style.width = (dotPool.length*16+8)+'px';
+  let shown = -1, windowStart = -1, track = null;
+  const reduced = () => isReduced(this.root);
+  // Everything is drawn from the fractional index p (exploreFrame, a pure function of p).
+  const draw = p => {
+   const frame = exploreFrame(p,recipes.length,{reduced:reduced()});
+   frame.covers.forEach((c,k)=>{
+    const cover = covers[k];
+    if (cover.style.visibility !== c.visibility) cover.style.visibility = c.visibility;
+    if (c.visibility === 'hidden') return;
+    cover.style.transform = c.transform;
+    cover.style.zIndex = String(c.z);
+    cover.style.setProperty('--shade',String(c.shade));
+    cover.firstChild.style.transform = c.parallax;
+   });
+   info.style.opacity = String(frame.textOpacity);
+   const i = frame.index;
+   if (i !== shown) {
+    shown = i;
+    this.exploreIndex = i;
+    const recipe = recipes[i];
+    category.textContent = (recipe.categories || [])[0] || '';
+    title.textContent = recipe.title;
+    details.textContent = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ');
+    position.textContent = (i+1)+' af '+recipes.length;
+   }
+   if (frame.dots.start !== windowStart) {
+    const step = windowStart < 0 ? 0 : frame.dots.start - windowStart;
+    windowStart = frame.dots.start;
+    const quick = springCurve(SPRING.quick);
+    if (step && !reduced()) dots.animate?.([{translate:`${step*16}px 0`},{translate:'0 0'}],
+     {duration:quick.ms,easing:quick.easing});
+   }
+   frame.dots.items.forEach((dot,o)=>{
+    const node = dotPool[o];
+    node.style.transform = dot.transform;
+    node.style.opacity = String(dot.opacity);
+   });
+   if (!flow.isConnected) track?.dispose();
+  };
+  // Focus, aria and the live text follow the settled cover only.
+  const settle = k => {
+   covers.forEach((cover,n)=>{
+    const d = n - k;
     cover.tabIndex = d ? -1 : 0;
     if (d) {cover.removeAttribute('aria-current'); cover.setAttribute('aria-hidden','true');}
     else {cover.setAttribute('aria-current','true'); cover.removeAttribute('aria-hidden');}
    });
-   category.textContent = (recipe.categories || [])[0] || '';
-   title.textContent = recipe.title;
-   details.textContent = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ');
-   position.textContent = (i+1)+' af '+recipes.length;
-   // At most seven dots in a sliding window; the dots at a cut edge are smaller.
-   const shown = 7, start = Math.max(0,Math.min(i-3,recipes.length-shown)), end = Math.min(recipes.length,start+shown);
-   dots.replaceChildren(...recipes.slice(start,end).map((_,o)=>{
-    const k = start+o, dot = element('i');
-    if (k === i) dot.dataset.current = '';
-    else if ((o === 0 && start > 0) || (o === end-start-1 && end < recipes.length)) dot.dataset.edge = '';
-    return dot;
-   }));
+   delete flow.dataset.pvMoving;
+   info.setAttribute('aria-live','polite');
+   title.replaceChildren(document.createTextNode(recipes[k].title));
   };
   const activate = cover => {
    const k = covers.indexOf(cover), recipe = recipes[k];
    if (k < 0) return;
-   if (k !== this.exploreIndex) choose(k);
+   if (k !== Math.round(track.value)) track.to(k);
    else this.recipe(this.saved.find(row=>row.source?.url === recipe.source?.url) || recipe);
   };
-  let swipeX = null, downCover = null;
-  flow.addEventListener('pointerdown',event=>{
-   swipeX = event.clientX;
-   downCover = event.target.closest?.('[data-recipe-cover]') || null;
-  });
-  flow.addEventListener('pointerup',event=>{
-   if (swipeX === null) return;
-   const dx = event.clientX - swipeX, cover = downCover;
-   swipeX = null;
-   downCover = null;
-   this.exploreTouchAt = Date.now();
-   if (Math.abs(dx) >= 40) choose(this.exploreIndex + (dx < 0 ? 1 : -1));
-   else if (cover) activate(cover);
-  });
-  flow.addEventListener('pointercancel',()=>{swipeX = null; downCover = null;});
+  // will-change only while the flow moves; the live text speaks only once it rests.
+  const start = () => {flow.dataset.pvMoving = ''; info.setAttribute('aria-live','off');};
+  track = attachSwipeTrack(flow,{pitch:EXPLORE_PITCH,count:recipes.length,
+   index:Math.min(recipes.length-1,this.exploreIndex ?? 0),reduced,onFrame:draw,onSettle:settle,onStart:start,
+   onTap:target=>{const cover = target.closest?.('[data-recipe-cover]'); if (cover) activate(cover);}});
   flow.addEventListener('keydown',event=>{
    if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
    event.preventDefault();
-   choose(this.exploreIndex + (event.key === 'ArrowRight' ? 1 : -1));
+   track.to(track.target() + (event.key === 'ArrowRight' ? 1 : -1));
   });
-  choose(this.exploreIndex ?? 0);
+  settle(Math.round(track.value));
  }
  inbox() {
   this.page('Indbakke','Lokale kilder',()=>this.catalog(),action('Tilføj kilde',()=>this.importSource(),'primary'));

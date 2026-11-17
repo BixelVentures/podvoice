@@ -2155,7 +2155,9 @@
     "dist/ui/gestures.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -3519,7 +3521,9 @@
       "domOwner": "RecipeView composes the existing Detail, Card, ListRow, SectionHeader, Button and Checklist roles with the existing published catalogue owner.",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/ui/gestures.js",
+        "dist/ui/motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -3571,7 +3575,12 @@
           "arrow:activate": 1,
           "arrow:rangeDash": 1,
           "arrow:decodePhoto": 1,
-          "arrow:showPhoto": 1
+          "arrow:showPhoto": 1,
+          "arrow:draw": 1,
+          "arrow:reduced": 1,
+          "arrow:settle": 1,
+          "arrow:start": 1,
+          "function:exploreFrame": 1
         },
         "roots": [],
         "registrations": {},
