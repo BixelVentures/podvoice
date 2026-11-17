@@ -14,6 +14,8 @@ const port=Number(process.env.IPAD_TESLA_TEST_PORT||19006),base=`http://127.0.0.
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const DAY=new Date('2026-11-09T13:10:00Z');
 let server,browser;
+// The iPad frame (ui-kit.css): edges 24, the content column 744 (--pv-column), 32, the player 356; y 104 to 796.
+const EDGE=24,COLUMN=744,TOP=104,BOTTOM=796,RIGHT=EDGE+COLUMN,HERO_END=TOP+221,HALF=(COLUMN-16)/2;
 const near=(actual,expected,label,tolerance=2)=>assert(Math.abs(actual-expected)<=tolerance,
  `${label}: ${actual} ≠ ${expected}`);
 const box=(node,pseudo=null)=>node.evaluate((n,pseudo)=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n,pseudo);
@@ -42,7 +44,7 @@ async function open(stage,{overview=false}={}){
  // Tesla-Lader: the product's charging example.
  let page=await open('vehicle-charging');
  const hero=page.locator('#vehicle-view>.vehicle-hero'),heroBox=await box(hero);
- assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h],[24,88,744,221],'hero 744×221 at the top of the column');
+ assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h],[EDGE,TOP,COLUMN,221],'hero column×221 at the top of the column');
  assert.equal(heroBox.radius,'24px');assert.equal(heroBox.bg,'rgb(205, 232, 216)','charging hero #CDE8D8');
  const status=await box(hero.locator('.vehicle-status'));
  assert.equal(status.text,'Bilen lader');assert.equal(status.size,'40px');assert.equal(status.weight,'800');
@@ -58,17 +60,17 @@ async function open(stage,{overview=false}={}){
  const glyph=await hero.locator('.vehicle-battery-unit').evaluate(n=>{const r=document.createRange();
   r.setStart(n.firstChild,1);r.setEnd(n.firstChild,2);return r.getBoundingClientRect().left;});
  assert(glyph-numberRight<=20,`»%« sits beside the number (${Math.round(glyph-numberRight)} px)`);
- near(battery.x+battery.w,768-28,'battery 28 from the right',3);
+ near(battery.x+battery.w,RIGHT-28,'battery 28 from the right',3);
  const rangeLabel=await box(hero.locator('.vehicle-metric:nth-child(2)>dt'));
  assert.equal(range.text,'312 km');assert(rangeLabel.x>range.x,'»312 km rækkevidde«: value, then the label');
  assert.equal(range.size,'17px');
  assert(range.y>status.y+status.h-4,'range under the status');
- assert.equal(power.size,'22px');assert.match(power.family,/IBM Plex Mono/);near(power.y+power.h,309-24,'facts at the bottom',3);
+ assert.equal(power.size,'22px');assert.match(power.family,/IBM Plex Mono/);near(power.y+power.h,HERO_END-24,'facts at the bottom',3);
  assert(finish.x>power.x,'charge facts in one row');
  assert.equal((await box(hero.locator('.vehicle-image'))).display,'none','the dot car replaces the photo');
  const dots=await box(hero.locator('.vehicle-dots'));
- assert.deepEqual([dots.w,dots.h],[270,86]);near(dots.x+dots.w,768-20,'car 20 from the right');
- near(dots.y+dots.h,309-16,'car 16 above the bottom');
+ assert.deepEqual([dots.w,dots.h],[270,86]);near(dots.x+dots.w,RIGHT-20,'car 20 from the right');
+ near(dots.y+dots.h,HERO_END-16,'car 16 above the bottom');
  const fill=await box(hero.locator('.vehicle-dots>[data-layer=fill]'));
  assert.match(fill.mask,/car-body-flow\.svg/,'charging fill flows');assert.equal(fill.bg,'rgb(47, 122, 85)');
  const clip=await hero.locator('.vehicle-dots>[data-layer=fill]').evaluate(n=>getComputedStyle(n).clipPath);
@@ -77,10 +79,10 @@ async function open(stage,{overview=false}={}){
  // Adgang and Klima side by side.
  const cards=page.locator('#vehicle-view .vehicle-control-tiles>section');
  const access=await box(cards.first()),climate=await box(cards.nth(1));
- assert.deepEqual([access.x,access.y,access.w],[24,325,364],'Adgang 16 under the hero');
- assert.deepEqual([climate.x,climate.y,climate.w],[404,325,364],'Klima beside it');
+ assert.deepEqual([access.x,access.y,access.w],[EDGE,HERO_END+16,HALF],'Adgang 16 under the hero');
+ assert.deepEqual([climate.x,climate.y,climate.w],[EDGE+HALF+16,HERO_END+16,HALF],'Klima beside it');
  assert.equal(access.radius,'24px');assert.equal(access.bg,'rgb(247, 246, 243)');
- assert(access.h>=459,'the cards fill the column');
+ assert(access.h>=BOTTOM-HERO_END-16,'the cards fill the column');
  const tiles=cards.first().locator('.vehicle-lock-controls>button:visible');
  assert.equal(await tiles.count(),2,'two action surfaces');
  const door=await box(tiles.first()),trunk=await box(tiles.nth(1));
@@ -115,7 +117,7 @@ async function open(stage,{overview=false}={}){
  // The page fits in 820: nothing under the cards, nothing to scroll.
  const fit=await page.locator('#vehicle-view').evaluate(n=>[n.scrollHeight,n.clientHeight]);
  assert(fit[0]<=fit[1],`the Tesla page does not scroll (${fit})`);
- near(access.y+access.h,784,'the cards end with the player',1);
+ near(access.y+access.h,BOTTOM,'the cards end with the player',1);
  // An action surface acts on tap: »Lås op« asks first, as before.
  await tiles.first().tap();
  await page.locator('dialog.vehicle-confirmation').getByRole('heading',{name:'Lås bilen op?'}).waitFor({timeout:3000});

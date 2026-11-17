@@ -26,7 +26,7 @@ let server,browser,data;
   page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});await env.openOverview(page);
   await sleep(400);
-  const s=Math.min(width/1180,height/820),ox=0,oy=0,W=Math.round(width/s);
+  const s=Math.min(width/1180,height/820),ox=0,oy=0,W=Math.round(width/s),H=Math.round(height/s);
   // Stage coordinates: the stage keeps the canvas scale and stretches to fill the frame (never letterboxed).
   const box=sel=>page.evaluate(sel=>{const node=[...document.querySelectorAll(sel)]
    .find(n=>n.getBoundingClientRect().width>0);if(!node)return null;const b=node.getBoundingClientRect();
@@ -37,9 +37,9 @@ let server,browser,data;
    left:stage(await box('.responses')),player:stage(await box('.player,#player-empty'))};
   console.log('ipad stage',width,height,JSON.stringify(layout));
   assert(layout.page[0]<=width&&layout.page[1]<=height,`${width}×${height}: the page never scrolls`);
-  assert.deepEqual(layout.topbar,[0,0,W,72],`${width}×${height}: topbar spans the full frame`);
-  assert.deepEqual([layout.left[0],layout.left[2]],[24,W-48-32-356],`${width}×${height}: left column fills to 32 before the player`);
-  assert.deepEqual(layout.player,[W-24-356,88,356,695],`${width}×${height}: player 356×695, 24 from the right edge`);
+  assert.deepEqual(layout.topbar,[0,16,W,72],`${width}×${height}: topbar spans the full frame`);
+  assert.deepEqual([layout.left[0],layout.left[2]],[24,W-24-32-356-24],`${width}×${height}: left column fills to 32 before the player`);
+  assert.deepEqual(layout.player,[W-24-356,104,356,H-24-104],`${width}×${height}: player 356 wide, 24 from the right and bottom edges`);
   // Touch lands on the scaled control the user sees.
   const hit=await page.evaluate(()=>{const b=document.querySelector('#show-photo').getBoundingClientRect();
    const at=document.elementFromPoint(b.x+b.width/2,b.y+b.height/2);return !!at?.closest('#show-photo');});
@@ -57,7 +57,7 @@ let server,browser,data;
    const edge=s=>Math.round((x(s).right-stage.x)/k),start=s=>Math.round((x(s).x-stage.x)/k);
    return {clock:edge('#header-clock'),date:edge('#header-date'),gap:start('#header-ro')-edge('#header-weather'),
     mono:/mono/i.test(getComputedStyle(document.querySelector('#header-date')).fontFamily)};});
-  assert.deepEqual(right,{clock:W-28,date:W-28,gap:28,mono:false},`${width}×${height}: right zone matches Kit-Topbar`);
+  assert.deepEqual(right,{clock:W-24,date:W-24,gap:28,mono:false},`${width}×${height}: right zone matches Kit-Topbar`);
   assert.deepEqual(errors,[]);
   await page.screenshot({path:path.join(env.artifactDir(),`ipad-stage-${width}x${height}.png`)});
   await page.close();

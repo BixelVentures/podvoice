@@ -109,7 +109,7 @@ async function stagePage(stage){
  const toolbar=await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'));
  assert.deepEqual([toolbar.x,toolbar.w],[24,1132],'one toolbar row over the cards');
  assert(toolbar.y<first.y,'the toolbar sits over the cards');
- near(toolbar.y,88,'the toolbar starts 16 under the topbar');
+ near(toolbar.y,104,'the toolbar starts 16 under the topbar');
  const shown=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] [data-recipe-count]'));
  assert.equal(shown.text,`${await cards.count()} opskrifter`);assert.equal(shown.size,'16px');
  // »Udforsk« reads as a change of look: a segmented switch with an icon per look, Katalog chosen (dark) here.
@@ -160,7 +160,7 @@ async function stagePage(stage){
  assert.equal(mode.text,'Udforsk');assert.equal(mode.bg,INK);
  const switched=await box(page.locator('#recipe-view [data-recipe-view=explore]'));
  near(switched.x+switched.w,udforsk.x+udforsk.w,'the switch stays in place when the look changes',1);
- near((await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,88,'Udforsk toolbar 16 under the topbar');
+ near((await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,104,'Udforsk toolbar 16 under the topbar');
  const total=await cards.count()||9;
  const position=page.locator('#recipe-view [data-recipe-explore-position]');
  assert.match(await position.innerText(),/^1 af \d+$/);
@@ -191,14 +191,14 @@ async function stagePage(stage){
  await page.locator('#recipe-view [data-recipe="Burgerboller"]').tap();
  await page.locator('#recipe-ingredients-trigger').waitFor({state:'visible'});await sleep(300);
  const hero=await box(page.locator('#recipe-view [data-recipe-layout=intro]'));
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,1132,221],'recipe hero 1132×221 at the top');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,104,1132,221],'recipe hero 1132×221 at the top');
  assert.equal(hero.bg,RECIPE);assert.equal(hero.radius,'24px');
  const cover=await box(page.locator('#recipe-view [data-recipe-layout=gallery-trigger] img'));
  assert.deepEqual([cover.w,cover.h],[160,160],'photo 160');
  const name=await box(page.locator('#recipe-view [data-recipe-layout=title]'));
  assert.equal(name.text,'Burgerboller');assert.equal(name.size,'40px');assert.equal(name.weight,'800');
  const ingredients=await box(page.locator('#recipe-view [data-recipe-layout=ingredients]'));
- assert.equal(ingredients.w,400,'ingredients card 400 wide');near(ingredients.y,325,'16 under the hero');
+ assert.equal(ingredients.w,400,'ingredients card 400 wide');near(ingredients.y,341,'16 under the hero');
  await page.getByRole('button',{name:'Start opskrift',exact:true}).tap();await sleep(300);
  const current=page.locator('#recipe-view [data-recipe-layout=reading] li[aria-current=step]');
  const step=await box(current);
@@ -219,7 +219,7 @@ async function stagePage(stage){
  const band=await box(page.locator('#recipe-view [data-recipe][data-kit-variant=resume]'));
  assert.equal(band.h,96,'active recipe band 96 high');assert.equal(band.bg,RECIPE);assert.equal(band.w,1132);
  // A-Opskrifter: the band comes first, over the toolbar, and names the current step.
- near(band.y,88,'the band is the first thing under the topbar');
+ near(band.y,104,'the band is the first thing under the topbar');
  assert(band.y+band.h<=(await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,'band over the toolbar');
  assert.match(band.text,/I gang\s+Burgerboller · trin 1 af 5/);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-igang.png')});
@@ -288,7 +288,7 @@ async function stagePage(stage){
  page=await stagePage('timer-detail-running');
  const panel=page.locator('#timers-view .timer-panel:not([hidden])');
  const timer=await box(panel);
- assert.deepEqual([timer.x,timer.y,timer.w,timer.h],[24,88,744,458],'timer hero 744×458');
+ assert.deepEqual([timer.x,timer.y,timer.w,timer.h],[24,104,744,458],'timer hero 744×458');
  assert.equal(timer.bg,INK);assert.equal(timer.radius,'24px');
  const ring=await box(panel.locator('.timer-instrument'));
  assert.deepEqual([ring.w,ring.h],[340,340],'ring 340');

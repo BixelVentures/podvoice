@@ -43,7 +43,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  // A-Radio »vaelg«: no station chosen (stage radio-ready).
  let page=await open('radio-ready');
  const card=await box(hero(page));
- assert.deepEqual([card.x,card.y,card.w,card.h],[24,88,744,458],'hero 744×458 at the top of the column');
+ assert.deepEqual([card.x,card.y,card.w,card.h],[24,104,744,458],'hero 744×458 at the top of the column');
  assert.equal(card.radius,'24px','hero radius 24');
  assert.equal(card.bg,'rgb(247, 246, 243)','no station: plain #F7F6F3');
  assert.equal(await text(page,'.radio-hero-status'),'Ingen station valgt');
@@ -56,13 +56,13 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  assert.equal((await box(page.locator('#radio-view .radio-hero-art'))).display,'none','no logo without a station');
  const heading=await box(page.locator('#radio-view .radio-stations-title'));
  assert.equal(heading.text,'Radiostationer');assert.equal(heading.size,'24px');assert.equal(heading.weight,'800');
- near(heading.y,88+458+32,'the list starts 32 under the hero',4);
+ near(heading.y,104+458+32,'the list starts 32 under the hero',4);
  const tiles=page.locator('#radio-view .radio-station-tiles .pv-list>button');
  assert.equal(await tiles.count(),5);
  const boxes=await Promise.all([0,1,2,3,4].map(index=>box(tiles.nth(index))));
  assert(boxes.every(tile=>tile.y===boxes[0].y),'five tiles in one row');
  assert(boxes.every(tile=>Math.abs(tile.w-136)<=2),`tiles share the width: ${boxes.map(tile=>tile.w)}`);
- near(boxes[4].x+boxes[4].w,768,'the row fills the column');
+ near(boxes[4].x+boxes[4].w,24+744,'the row fills the column');
  assert.equal(boxes[0].radius,'24px','tile radius 24');
  const logo=await box(tiles.nth(0).locator('img'));
  assert.deepEqual([logo.w,logo.h],[56,56],'56-px station logo');

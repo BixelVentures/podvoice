@@ -14,6 +14,9 @@ const port=Number(process.env.IPAD_VEJR_TEST_PORT||18998),base=`http://127.0.0.1
 const sleep=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 const DAY=new Date('2026-11-09T13:10:00Z');
 let server,browser;
+// The iPad frame (ui-kit.css): edges 24, the content column 744 (--pv-column), 32, the player 356; y 104 to 796.
+// Overblik slots 174×220, gap 16.
+const EDGE=24,COLUMN=744,TOP=104,RIGHT=EDGE+COLUMN,SLOT_W=174,SLOT_H=220,GAP=16;
 const near=(actual,expected,label,tolerance=2)=>assert(Math.abs(actual-expected)<=tolerance,
  `${label}: ${actual} ≠ ${expected}`);
 const box=node=>node.evaluate(n=>{const b=n.getBoundingClientRect(),s=getComputedStyle(n);
@@ -46,12 +49,12 @@ async function open(stage,{overview=false}={}){
  let page=await open('weather');
  const heroNode=page.locator('#weather-view .weather-current'),hero=await box(heroNode);
  // Vejr-Råd and Vejr-Timer grow the hero from 458 to 536: a reserved 2-line advice slot and two hour lines.
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,536],'hero 744×536 at the top of the column');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[EDGE,TOP,COLUMN,536],'hero column×536 at the top of the column');
  assert.equal(hero.radius,'24px','hero radius 24');
  assert.equal(hero.bg,'rgb(221, 230, 251)','hero #DDE6FB');
  const place=await box(page.locator('#weather-title'));
  assert.equal(place.text,'Mårslet');assert.equal(place.size,'17px');assert.equal(place.weight,'600');
- near(place.y,88+32,'place line 32 inside the hero',4);near(place.x,24+32,'place line 32 from the left',2);
+ near(place.y,TOP+32,'place line 32 inside the hero',4);near(place.x,EDGE+32,'place line 32 from the left',2);
  // The preview fixture has no subtitle; live data says »Vejret i dag« (liveWeatherModel), shown after » · «.
  assert.equal((await box(page.locator('#weather-view>.response-heading p'))).display,'none','empty subtitle: no » · «');
  const big=await box(page.locator('#weather-view .weather-current strong'));
@@ -88,7 +91,7 @@ async function open(stage,{overview=false}={}){
  near(wind.y+wind.h,hero.y+hero.h-28,'the hour lines end 28 above the hero bottom',1);
  const daysTitle=await box(page.locator('#weather-view .weather-days>h2'));
  assert.equal(daysTitle.text,'De næste dage');assert.equal(daysTitle.size,'24px');assert.equal(daysTitle.weight,'800');
- near(daysTitle.y,88+536+32,'»De næste dage« 32 under the hero',4);
+ near(daysTitle.y,TOP+536+32,'»De næste dage« 32 under the hero',4);
  const day=await box(page.locator('#weather-view .weather-days>[role=group]').first());
  assert.equal(day.h,64,'64-px day rows');
  const view=await box(page.locator('#weather-view'));
@@ -100,14 +103,14 @@ async function open(stage,{overview=false}={}){
  page=await open('weather-stale');
  const chip=await box(page.locator('#weather-view .weather-metadata'));
  assert.notEqual(chip.display,'none','freshness chip shown');assert.match(chip.text,/(Opdateret|Ikke opdateret)/);
- near(chip.y,88+28,'chip on the place line',8);near(chip.x+chip.w,768-32,'chip right in the hero',3);
+ near(chip.y,TOP+28,'chip on the place line',8);near(chip.x+chip.w,RIGHT-32,'chip right in the hero',3);
  await page.close();
 
  // Vejr-Ukendt: no data shows »—«, a faded material and the product's reason.
  page=await open('weather-connection-error');
  const emptyHero=page.locator('#weather-view .weather-current');
  const empty=await box(emptyHero);
- assert.deepEqual([empty.w,empty.h],[744,536],'the hero keeps its size without data');
+ assert.deepEqual([empty.w,empty.h],[COLUMN,536],'the hero keeps its size without data');
  const dash=await page.locator('#weather-view .weather-current strong').evaluate(n=>
   getComputedStyle(n).display!=='none'&&(n.textContent||getComputedStyle(n,'::before').content));
  assert.match(String(dash),/—/,'»—« in place of the temperature');
@@ -118,7 +121,7 @@ async function open(stage,{overview=false}={}){
  // W-vejr »frisk« in the overview.
  page=await open('weather',{overview:true});
  const widget=page.locator('#home-weather'),wbox=await box(widget);
- assert.deepEqual([wbox.w,wbox.h],[364,458],'L widget');
+ assert.deepEqual([wbox.w,wbox.h],[2*SLOT_W+GAP,2*SLOT_H+GAP],'L widget: 2×2 slots');
  const temp=await box(widget.locator('.home-temperature'));
  assert.equal(temp.size,'120px');assert.equal(temp.weight,'500');assert.equal(temp.color,'rgb(23, 23, 26)');
  const condition=await box(widget.locator('.home-condition'));

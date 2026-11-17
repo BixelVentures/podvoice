@@ -167,12 +167,13 @@ let server,browser,data;
  const knap=await page.locator('#open-history').evaluate(n=>[getComputedStyle(n,'::before').backgroundColor,
   getComputedStyle(n).color]);
  assert.deepEqual(knap,['rgb(247, 246, 243)','rgb(23, 23, 26)'],'Svar button rests light on the Svar page');
- // Kit-Topbar: back is its own 44×44 key (radius 14, #F7F6F3) at 28, then the title 22/600 14 after it.
+ // Kit-Topbar: back is its own 44×44 key (radius 14, #F7F6F3) at the 24 edge, centred on the 56-px keys (24 from the
+ // top), then the title 22/600 14 after it.
  const key=await box(page.locator('#header-title-action>.topbar-back-icon'));
- assert.deepEqual([key.x,key.y,key.w,key.h],[28,14,44,44],'back key 44×44 at 28/14');
+ assert.deepEqual([key.x,key.y,key.w,key.h],[EDGE,24+(56-44)/2,44,44],'back key 44×44 at 24/30');
  assert.equal(key.radius,'14px');assert.equal(key.bg,'rgb(247, 246, 243)');
  const label=await box(page.locator('#header-title-action>.topbar-title-copy'));
- assert.equal(label.x,86,'title 14 after the key');assert.equal(label.size,'22px');assert.equal(label.weight,'600');
+ assert.equal(label.x,EDGE+44+14,'title 14 after the key');assert.equal(label.size,'22px');assert.equal(label.weight,'600');
  await page.screenshot({path:path.join(env.artifactDir(),'ipad-svar-historik.png')});
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',journey:'ipad-svar',statusPhase:phase,statusWidth:pill.w,card,
