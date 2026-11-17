@@ -1,10 +1,10 @@
-// P9 Udforsk (docs/MOTION.md §3.10.3): the cover flow is a pure function of the fractional index p. At whole p it
+// Udforsk (docs/MOTION.md): the cover flow is a pure function of the fractional index p. At whole p it
 // is the canvas (Opskrifter-Bog); between whole values it is continuous, the title fades through 0 at .5 and the
 // dots weigh 1−|k−p|. Reduced stands flat.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {exploreFrame} from '../../podvoice/gatekeeper/static/podview/recipe-view.js';
+import {exploreFrame,exploreKeyframes} from '../../podvoice/gatekeeper/static/podview/recipe-view.js';
 
 const parse=transform=>{
  const m=/translate3d\((-?[\d.e-]+)px,0,(-?[\d.e-]+)px\) rotateY\((-?[\d.e-]+)deg\)/.exec(transform);
@@ -54,13 +54,34 @@ test('seven dots weigh 1−|k−p| and push each other, the window starts at rou
  assert.equal(exploreFrame(0,3).dots.items.length,3);
 });
 
-test('CSS: covers have no transition and no filter; shade is an overlay; will-change only while moving',()=>{
+test('the stylesheet carries exactly the sampled keyframes, and covers move only with the scroll',()=>{
  const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
- const cover=css.slice(css.indexOf('#recipe-view#recipe-view#recipe-view [data-recipe-cover]{'));
- assert.doesNotMatch(cover.slice(0,cover.indexOf('}')),/transition|filter/);
- assert.match(css,/\[data-recipe-cover\]::after\{content:'';position:absolute;inset:0;\s*background:#000;opacity:var\(--shade,0\)/);
- assert.match(css,/\[data-recipe-layout=explore\]\[data-pv-moving\]>\[data-recipe-cover\],/);
+ const rule=(name,frames,body)=>`@keyframes ${name}{\n`+frames.map(f=>` ${f.offset}%{${body(f)}}`).join('\n')+'}';
+ const cover=f=>`transform:${f.transform};z-index:${f.z}`+(Math.abs(f.d)===3.5?';visibility:visible':'');
+ const full=exploreKeyframes(),flat=exploreKeyframes({reduced:true});
+ assert.ok(css.includes(rule('pv-explore-cover',full,cover)),'pv-explore-cover');
+ assert.ok(css.includes(rule('pv-explore-cover-flat',flat,cover)),'pv-explore-cover-flat');
+ assert.ok(css.includes(rule('pv-explore-shade',full,f=>`opacity:${f.shade}`)),'pv-explore-shade');
+ assert.ok(css.includes(rule('pv-explore-photo',full,f=>`transform:${f.photo}`)),'pv-explore-photo');
+ // A native snap scroller; each slot is a view-timeline subject, the range ±3.5 covers around the centre.
+ assert.match(css,/scroll-snap-type:x mandatory/);assert.match(css,/view-timeline:--pv-cover inline/);
+ assert.match(css,/animation-range:cover calc\(50% - 1505px\) cover calc\(50% \+ 1505px\)/);
+ assert.match(css,/@supports not \(animation-timeline:view\(\)\)/,'a flat snap carousel without scroll timelines');
+ const cover0=css.slice(css.indexOf('#recipe-view#recipe-view#recipe-view [data-recipe-cover]{'));
+ assert.doesNotMatch(cover0.slice(0,cover0.indexOf('}')),/transition|filter|will-change/);
  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/recipe-view.js',import.meta.url),'utf8');
- assert.doesNotMatch(source,/exploreTouchAt|brightness\(/,'the 600 ms tap hack and the filter are gone');
+ assert.doesNotMatch(source,/attachSwipeTrack|requestAnimationFrame\(draw|pvMoving|brightness\(/);
+ assert.match(source,/flow\.addEventListener\('scroll',scrolled,\{passive:true\}\)/);
  assert.match(source,/flow\.dataset\.pvGestureOwner = ''/);
+});
+
+test('at whole d the keyframes are the canvas, measured from the flow centre',()=>{
+ const at=d=>exploreKeyframes().find(f=>f.d===d);
+ assert.equal(at(0).transform,'translateX(0px) perspective(1600px) translate3d(0px,0,0px) rotateY(0deg)');
+ assert.equal(at(1).transform,'translateX(-430px) perspective(1600px) translate3d(430px,0,-260px) rotateY(-55deg)');
+ assert.equal(at(-3.5).transform,'translateX(1505px) perspective(1600px) translate3d(-705px,0,-410px) rotateY(55deg)');
+ assert.deepEqual([at(0).offset,at(1).offset,at(3.5).offset,at(-3.5).offset],[50,35.714,0,100]);
+ assert.deepEqual([at(0).z,at(1).z,at(3.5).z],[20,19,16]);assert.deepEqual([at(0).shade,at(1).shade],[0,.18]);
+ assert.equal(exploreKeyframes({reduced:true}).find(f=>f.d===1).transform,
+  'translateX(-430px) perspective(1600px) translate3d(430px,0,0px) rotateY(0deg)');
 });

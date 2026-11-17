@@ -1,7 +1,7 @@
 import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent, createKitChoiceGroup, createKitDisclosure} from './ui/kit.js';
-import {attachSwipeTrack} from './ui/gestures.js';
-import {isReduced,springCurve,SPRING} from './ui/motion.js';
-// Opskrifter-Bog cover flow as a pure function of the fractional index p (docs/MOTION.md §3.10.3). At whole p it
+import {isReduced,SPRING} from './ui/motion.js';
+import {springTiming} from './ui/native-motion.js';
+// Opskrifter-Bog cover flow as a pure function of the fractional index p (docs/MOTION.md, Udforsk). At whole p it
 // is the canvas: the chosen cover flat, neighbours ±(430+(a−1)·110) px, −260−(a−1)·60 px deep, turned 55° away
 // and shaded .18 (an overlay, not a filter). Between whole values every number is continuous; the turn eases in
 // with a smoothstep so it does not kink at the centre. Covers past 3.5 are hidden. The title cross-fades through
@@ -33,6 +33,26 @@ export function exploreFrame(p,count,{reduced=false}={}){
    opacity:Number((.35+.65*w).toFixed(4))};
  });
  return {index,covers,textOpacity:Number(textOpacity.toFixed(4)),dots:{start,items:dots}};
+}
+
+// The flow scrolls natively (scroll-snap) and each cover follows its own view timeline (ui-kit.css): the keyframes
+// are exploreFrame sampled over d = k − p from +3.5 (offset 0) to −3.5 (offset 100%), every eighth of a cover
+// within |d| ≤ 1; beyond it every value is linear in d. The cover already sits d·430px from the centre in the scroll
+// layout, so its transform first moves the perspective back to the flow's centre (translateX(−d·430px)
+// perspective(1600px)), then applies the canvas position translate3d(x,0,z) and the turn. ui-kit.css carries the
+// result; tests/podview/explore-render.test.mjs keeps the two identical.
+export const EXPLORE_RANGE=3.5,EXPLORE_PERSPECTIVE=1600;
+export function exploreKeyframes({reduced=false}={}){
+ const ds=[EXPLORE_RANGE,...Array.from({length:17},(_,i)=>1-i/8),-EXPLORE_RANGE];
+ const round=n=>Number(n.toFixed(3))+0;
+ return ds.map(d=>{
+  const cover=exploreFrame(-d,1,{reduced}).covers[0];
+  const [x,z,turn]=/translate3d\((.+)px,0,(.+)px\) rotateY\((.+)deg\)/.exec(cover.transform).slice(1).map(Number);
+  return {offset:round((EXPLORE_RANGE-d)/(2*EXPLORE_RANGE)*100),d,z:20-Math.round(Math.abs(d)),shade:cover.shade,
+   transform:`translateX(${round(-d*EXPLORE_PITCH)}px) perspective(${EXPLORE_PERSPECTIVE}px) `+
+    `translate3d(${round(x)}px,0,${round(z)}px) rotateY(${round(turn)}deg)`,
+   photo:reduced?'none':`translateX(${round(-d*24)}px)`};
+ });
 }
 
 // Number ranges read with an en dash (»12–15 min.«, »kl. 14–15«), as on the canvas; dates stay untouched.
@@ -968,9 +988,12 @@ export class RecipeView {
   for (const file of source.files) panel.append(meta(file.name));
  }
 
- // Opskrifter-Bog: Udforsk shows the same catalogue as a cover flow. The chosen photo stands flat (720×460);
- // its neighbours turn 55° away. The finger scrubs the flow 1:1 and a fling carries on (P9, attachSwipeTrack);
- // a tap on a neighbour travels to it; a tap on the chosen photo opens it.
+ // Opskrifter-Bog: Udforsk shows the same catalogue as a cover flow. The chosen photo stands flat (720×460); its
+ // neighbours turn 55° away. The flow is a native scroll-snap scroller, so iPadOS's own momentum and rubber-band
+ // move it, and every cover is drawn by its view timeline on the compositor (ui-kit.css, exploreKeyframes). No
+ // JavaScript runs per frame: a passive scroll listener only notices when the nearest cover changes (title, dots,
+ // position) and when the scroll rests (focus, aria, live text). A tap on a neighbour scrolls to it; a tap on the
+ // chosen photo opens it. Without scroll-driven animations the flow is a flat snap carousel.
  explore() {
   this.page('Opskrifter','',()=>this.back());
   this.root.dataset.recipeMode = 'explore';
@@ -994,12 +1017,17 @@ export class RecipeView {
     ? 'Kataloget kunne ikke opdateres. Åbn Opskrifter igen for at prøve igen.' : 'Der er ingen opskrifter endnu.'));
    return;
   }
-  const flow = element('div'), info = element('div'), dots = element('div');
+  const flow = element('div'), info = element('div'), dots = element('div'), edge = element('div');
   flow.dataset.recipeLayout = 'explore';
   flow.dataset.pvGestureOwner = '';
   flow.setAttribute('aria-roledescription','karrusel');
   flow.tabIndex = 0;
+  // The 36px back-edge zone stays with the back gesture: the scroller cannot start a pan there.
+  edge.dataset.recipeExploreEdge = '';
+  edge.setAttribute('aria-hidden','true');
   info.dataset.recipeLayout = 'explore-info';
+  // The title fades through 0 at every crossing: one iteration of its scroll-driven fade per cover step.
+  info.style.setProperty('--pv-explore-steps',String(Math.max(1,recipes.length-1)));
   dots.dataset.recipeExploreDots = '';
   dots.setAttribute('aria-hidden','true');
   const category = element('span'), title = element('span'), details = element('span');
@@ -1026,84 +1054,89 @@ export class RecipeView {
     badge.dataset.recipeExploreBadge = '';
     cover.append(badge);
    }
-   // A pointer tap is decided by the swipe track (on the cover it went down on); the click is the keyboard's.
    cover.addEventListener('click',()=>activate(cover));
    return cover;
   });
-  // Seven dots in a fixed pool; only transform and opacity are written.
-  const dotPool = Array.from({length:Math.min(7,recipes.length)},()=>element('i'));
+  // One snap slot per cover: the slot is the view-timeline subject, the cover inside it is what moves.
+  const slots = covers.map(cover=>{const slot = element('div'); slot.dataset.recipeExploreSlot = ''; slot.append(cover);
+   return slot;});
+  // Seven dots in a fixed pool, drawn for the nearest cover only; CSS moves them between two such states.
+  const dotPool = Array.from({length:Math.min(EXPLORE_DOTS,recipes.length)},()=>element('i'));
   dots.append(...dotPool);
-  flow.append(...covers);
+  dots.style.width = (dotPool.length*EXPLORE_DOT_PITCH+8)+'px';
+  flow.append(edge,...slots);
   this.root.append(flow,info,dots);
-  dots.style.width = (dotPool.length*16+8)+'px';
-  let shown = -1, windowStart = -1, track = null;
+  let shown = -1, rested = -1, windowStart = -1, target = null, restTimer = null;
   const reduced = () => isReduced(this.root);
-  // Everything is drawn from the fractional index p (exploreFrame, a pure function of p).
-  const draw = p => {
-   const frame = exploreFrame(p,recipes.length,{reduced:reduced()});
-   frame.covers.forEach((c,k)=>{
-    const cover = covers[k];
-    if (cover.style.visibility !== c.visibility) cover.style.visibility = c.visibility;
-    if (c.visibility === 'hidden') return;
-    cover.style.transform = c.transform;
-    cover.style.zIndex = String(c.z);
-    cover.style.setProperty('--shade',String(c.shade));
-    cover.firstChild.style.transform = c.parallax;
-   });
-   info.style.opacity = String(frame.textOpacity);
-   const i = frame.index;
-   if (i !== shown) {
-    shown = i;
-    this.exploreIndex = i;
-    const recipe = recipes[i];
-    category.textContent = (recipe.categories || [])[0] || '';
-    title.textContent = recipe.title;
-    details.textContent = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ');
-    position.textContent = (i+1)+' af '+recipes.length;
-   }
+  // The snap pitch is the slot width (430, or the wider flat slot without scroll-driven animations).
+  const pitch = () => slots[0].offsetWidth || EXPLORE_PITCH;
+  const nearest = () => Math.max(0,Math.min(recipes.length-1,Math.round(flow.scrollLeft/pitch())));
+  const show = i => {
+   if (i === shown) return;
+   shown = i;
+   this.exploreIndex = i;
+   const recipe = recipes[i];
+   category.textContent = (recipe.categories || [])[0] || '';
+   title.textContent = recipe.title;
+   details.textContent = [recipe.portions,recipe.totalTime || recipe.baking].filter(Boolean).join(' · ');
+   position.textContent = (i+1)+' af '+recipes.length;
+   const frame = exploreFrame(i,recipes.length,{reduced:reduced()});
    if (frame.dots.start !== windowStart) {
     const step = windowStart < 0 ? 0 : frame.dots.start - windowStart;
     windowStart = frame.dots.start;
-    const quick = springCurve(SPRING.quick);
-    if (step && !reduced()) dots.animate?.([{translate:`${step*16}px 0`},{translate:'0 0'}],
-     {duration:quick.ms,easing:quick.easing});
+    if (step && !reduced()) dots.animate?.([{transform:`translateX(${step*EXPLORE_DOT_PITCH}px)`},{transform:'none'}],
+     springTiming(SPRING.quick));
    }
    frame.dots.items.forEach((dot,o)=>{
-    const node = dotPool[o];
-    node.style.transform = dot.transform;
-    node.style.opacity = String(dot.opacity);
+    dotPool[o].style.transform = dot.transform;
+    dotPool[o].style.opacity = String(dot.opacity);
    });
-   if (!flow.isConnected) track?.dispose();
   };
-  // Focus, aria and the live text follow the settled cover only.
-  const settle = k => {
+  // Focus, aria and the live text follow the cover the scroll rests on.
+  const rest = () => {
+   restTimer = null;
+   const k = nearest();
+   show(k);
+   if (target === k) target = null;
+   if (k === rested) return;
+   rested = k;
    covers.forEach((cover,n)=>{
-    const d = n - k;
-    cover.tabIndex = d ? -1 : 0;
-    if (d) {cover.removeAttribute('aria-current'); cover.setAttribute('aria-hidden','true');}
+    cover.tabIndex = n === k ? 0 : -1;
+    if (n !== k) {cover.removeAttribute('aria-current'); cover.setAttribute('aria-hidden','true');}
     else {cover.setAttribute('aria-current','true'); cover.removeAttribute('aria-hidden');}
    });
-   delete flow.dataset.pvMoving;
    info.setAttribute('aria-live','polite');
    title.replaceChildren(document.createTextNode(recipes[k].title));
+  };
+  let frame = 0;
+  const scrolled = () => {
+   if (!flow.isConnected) {flow.removeEventListener('scroll',scrolled); return;}
+   if (info.getAttribute('aria-live') !== 'off') info.setAttribute('aria-live','off');
+   if (!frame) frame = requestAnimationFrame(()=>{frame = 0; if (flow.isConnected) show(nearest());});
+   // scrollend where the engine has it; otherwise the scroll rests 150 ms after its last event.
+   clearTimeout(restTimer);
+   restTimer = 'onscrollend' in flow ? null : setTimeout(rest,150);
+  };
+  flow.addEventListener('scroll',scrolled,{passive:true});
+  flow.addEventListener('scrollend',rest);
+  const go = k => {
+   target = Math.max(0,Math.min(recipes.length-1,k));
+   flow.scrollTo({left:target*pitch(),behavior:reduced() ? 'auto' : 'smooth'});
   };
   const activate = cover => {
    const k = covers.indexOf(cover), recipe = recipes[k];
    if (k < 0) return;
-   if (k !== Math.round(track.value)) track.to(k);
+   if (k !== nearest()) go(k);
    else this.openFromCover(cover,this.saved.find(row=>row.source?.url === recipe.source?.url) || recipe);
   };
-  // will-change only while the flow moves; the live text speaks only once it rests.
-  const start = () => {flow.dataset.pvMoving = ''; info.setAttribute('aria-live','off');};
-  track = attachSwipeTrack(flow,{pitch:EXPLORE_PITCH,count:recipes.length,
-   index:Math.min(recipes.length-1,this.exploreIndex ?? 0),reduced,onFrame:draw,onSettle:settle,onStart:start,
-   onTap:target=>{const cover = target.closest?.('[data-recipe-cover]'); if (cover) activate(cover);}});
   flow.addEventListener('keydown',event=>{
    if (!['ArrowLeft','ArrowRight'].includes(event.key)) return;
    event.preventDefault();
-   track.to(track.target() + (event.key === 'ArrowRight' ? 1 : -1));
+   go((target ?? nearest()) + (event.key === 'ArrowRight' ? 1 : -1));
   });
-  settle(Math.round(track.value));
+  // Open on the cover chosen last time. The one layout read here happens before anything is drawn.
+  flow.scrollLeft = Math.min(recipes.length-1,this.exploreIndex ?? 0)*pitch();
+  rest();
  }
  // P7 (docs/MOTION.md §3.8): the chosen Udforsk cover becomes the recipe's photo, and Tilbage flies it back.
  openFromCover(cover,recipe) {

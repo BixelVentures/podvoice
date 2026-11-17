@@ -82,8 +82,11 @@ test('keyframes are consolidated to the shared set (toward the 13 of §3.11)',()
  const names=Object.keys(keyframes(bundled)).sort();
  // pv-music-eq still paints three bars on one pseudo; it needs <i> markup before it can become pv-eq.
  // pv-shelf (MOTION.md §3.10.2, PR 11) scales shelf cards on a scroll-driven timeline where the engine has one.
- assert.deepEqual(names,[...SHARED,...WEATHER,'pv-music-eq','pv-shelf'].sort());
- assert.ok(names.length<=15,'13 of §3.11 plus pv-music-eq and pv-shelf');
+ // The Udforsk cover flow is scroll-driven (MOTION.md, Udforsk): its keyframes are positions along the scroll, sampled
+ // from exploreFrame, not timed motion.
+ const EXPLORE=['pv-explore-cover','pv-explore-cover-flat','pv-explore-shade','pv-explore-photo','pv-explore-title'];
+ assert.deepEqual(names,[...SHARED,...WEATHER,...EXPLORE,'pv-music-eq','pv-shelf'].sort());
+ assert.ok(names.length<=20,'13 of §3.11 plus pv-music-eq, pv-shelf and the five scroll-driven Udforsk keyframes');
  for(const removed of ['pv-advice-pending','music-control-ack','pv-connecting-sheen','music-refresh-ack',
   'timer-alarm-ring','pv-queue-eq','pv-control-pending','pv-music-play-pending','pv-press-circle'])
   assert.doesNotMatch(bundled,new RegExp(`\\b${removed}\\b`),removed);
@@ -111,7 +114,9 @@ test('loops last while their state lasts: no counted iterations',()=>{
    assert.ok(counts.every(count=>count==='1'),`counted loop in "${item.trim()}"`);
   }
  }
- for(const value of declarations(bundled,'animation-iteration-count'))assert.match(value,/^(1|infinite)$/);
+ // The one exception is scroll-driven: the Udforsk title fades once per cover step along the scroll, not in time.
+ for(const value of declarations(bundled,'animation-iteration-count'))
+  assert.match(value,/^(1|infinite|var\(--pv-explore-steps,1\)!important)$/);
 });
 
 test('the timer alarm runs one pulse, on its surface, and the hidden icon carries none',()=>{
@@ -135,8 +140,8 @@ test('toggles move their thumb with transform, the queue EQ scales and the recip
  assert.match(bundled,/button\[role=switch\]\[aria-checked=true\]::before\{transform:translate\(26px,-50%\)\}/);
  assert.match(bundled,
   /\.queue-eq>i\{\s*display:block;width:4px;height:16px;[^}]*transform-origin:50% 100%;\s*animation:pv-eq 900ms/);
- // P9 (MOTION.md §3.10.3): the dots are a fixed pool drawn with transform and opacity from p; no width, no rebuild.
- assert.doesNotMatch(bundled,/\[data-recipe-explore-dots\]>i[^{]*\{[^}]*(transition|[^-]width:28px)/);
+ // Udforsk: the dots are a fixed pool moved with transform and opacity between covers; no width, no rebuild.
+ assert.doesNotMatch(bundled,/\[data-recipe-explore-dots\]>i[^{]*\{[^}]*(transition:[^;}]*width|[^-]width:28px)/);
 });
 
 test('dead motion is gone and live motion stays',()=>{
