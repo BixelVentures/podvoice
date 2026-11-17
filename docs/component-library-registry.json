@@ -2386,7 +2386,9 @@
       "status": "active-support",
       "domOwner": "PageLayer (page push/pop: one hidden paper plate and one hidden dim inside the page area, made once)",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion-busy.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},

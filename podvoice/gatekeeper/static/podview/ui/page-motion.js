@@ -14,6 +14,8 @@
 // the first frame. The plate and dim are made ahead of time (prepare(), while idle), and the images on hidden pages
 // are decoded then too, so a tap neither inserts nodes nor waits for a decode. While a run is moving nothing else
 // renders (holdRender(); the host renders once when it has ended).
+import {begin as beginBusy} from './motion-busy.js';
+
 export const PAGE_MOTION=Object.freeze({ms:500,easing:'cubic-bezier(.32,.72,0,1)',under:-33,dim:.1});
 const REDUCED_MS=200,DECODE_WAIT=120;
 // Inline properties the layer sets on a page while it moves; all are removed at the end.
@@ -59,9 +61,9 @@ export class PageLayer {
   const area=feed.getBoundingClientRect(),scale=area.width?feed.offsetWidth/area.width:1;
   const geometry={left:(box.left-area.left)*scale-feed.clientLeft,top:(box.top-area.top)*scale-feed.clientTop,
    width:box.width*scale,height:box.height*scale,viewWidth:feed.clientWidth,viewHeight:feed.clientHeight};
-  const run={back,reduced,present,done,old,display,geometry,animations:[],committed:false,held:[]};this.run=run;
-  // Busy from here until end() (the one place a run stops: its motion finished, or finish()). Integration point for
-  // a shared busy signal: begin() here, its end function in end().
+  const run={back,reduced,present,done,old,display,geometry,animations:[],committed:false,held:[],idle:beginBusy()};
+  this.run=run;
+  // Busy (ui/motion-busy.js) from here until end(), the one place a run stops: its motion finished, or finish().
   if(!reduced){
    // The leaving page moves in the next frame: under to -33 % (push), or out to 100 % (pop).
    const to=back?'100%':`${PAGE_MOTION.under}%`;
@@ -154,6 +156,7 @@ export class PageLayer {
  }
  end(run){
   if(this.run!==run)return;this.run=null;// Not busy any more (see go()).
+  run.idle?.();
   for(const animation of run.animations)animation.cancel();
   for(const node of run.held)for(const name of HELD)node.style.removeProperty(name);
   run.release?.();
