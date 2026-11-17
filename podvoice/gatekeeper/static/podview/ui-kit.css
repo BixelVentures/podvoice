@@ -5649,12 +5649,13 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{content:'';flex:none;
   width:calc(50% - 215px)}
- pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-edge]{position:sticky;left:0;z-index:40;
-  flex:none;width:36px;margin-right:-36px;touch-action:pan-y}
+ /* The back-edge zone lies over the flow's first 36px, beside the scroller rather than a sticky child in it. */
+ pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-edge]{position:relative;z-index:40;flex:none;
+  align-self:flex-start;width:36px;height:560px;margin:0 0 -560px -24px;touch-action:pan-y}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-slot]{position:relative;flex:none;
   width:430px;height:460px;scroll-snap-align:center;view-timeline:--pv-cover inline}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]{position:absolute;left:50%;top:0;
-  width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
+  cursor:pointer;width:720px!important;height:460px!important;min-height:0!important;margin:0 0 0 -360px!important;padding:0!important;
   border:0!important;border-radius:22px!important;overflow:hidden;background:#C9B79F!important;
   backface-visibility:hidden;box-shadow:0 20px 40px -24px rgba(23,23,26,.5)!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-cover]::after{content:'';position:absolute;inset:0;
@@ -5700,11 +5701,27 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::before,
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{width:calc(50% - 372px)}
  }
+ /* The same flat carousel where the engine claims scroll timelines but does not run them (recipe-view.js checks the
+    covers at rest): no cover animation at all, the native scroll alone moves them. */
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-explore-slot]{
+  width:744px}
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat]::before,
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat]::after{width:calc(50% - 372px)}
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover],
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover]::after,
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover]>img,
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat][data-recipe-layout=explore-info]{
+  animation:none!important;visibility:visible}
+ :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-cover]>img{
+  width:100%;margin-left:0}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-explore-badge]{position:absolute;left:16px;top:16px;
   height:32px;padding:0 14px;border-radius:999px;background:#F7F6F3;color:var(--pv-ink);display:flex;
   align-items:center;font:700 15px/1 'Schibsted Grotesk',system-ui,sans-serif}
+ /* The text and dots change while the flow moves: fixed boxes with layout containment, so a new title never lays
+    out anything around the scroller (WebKit would re-resolve its snap). */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]{position:relative;flex:none;
-  margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+  margin-top:14px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;
+  height:106px;box-sizing:border-box;contain:layout style;overflow:clip;overflow-clip-margin:24px}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore-info]>span:first-child{height:20px;
   font:600 15px/20px 'Schibsted Grotesk',system-ui,sans-serif;letter-spacing:.08em;text-transform:uppercase;
   color:var(--pv-recipe-ink)}
@@ -5716,7 +5733,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  /* Seven pooled dots for the nearest cover (1−|k−i| wide); between two covers CSS moves them on transform and
     opacity, never width. */
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]{position:relative;flex:none;
-  margin:30px auto 0;height:6px}
+  margin:24px auto 0;height:6px;contain:layout style}
  pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-dots]>i{position:absolute;left:0;top:0;
   display:block;width:8px;height:6px;border-radius:3px;background:var(--pv-ink);transform-origin:0 50%;
   transition:transform var(--pv-dur-base) var(--pv-ease-out),opacity var(--pv-dur-base) var(--pv-ease-out)}

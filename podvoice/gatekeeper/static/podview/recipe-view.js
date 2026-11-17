@@ -1081,7 +1081,8 @@ export class RecipeView {
   flow.dataset.pvGestureOwner = '';
   flow.setAttribute('aria-roledescription','karrusel');
   flow.tabIndex = 0;
-  // The 36px back-edge zone stays with the back gesture: the scroller cannot start a pan there.
+  // The 36px back-edge zone stays with the back gesture: an overlay beside the scroller (never a sticky child in it),
+  // so a pan cannot start there.
   edge.dataset.recipeExploreEdge = '';
   edge.setAttribute('aria-hidden','true');
   info.dataset.recipeLayout = 'explore-info';
@@ -1093,9 +1094,11 @@ export class RecipeView {
   title.dataset.recipeExploreTitle = '';
   info.append(category,title,details);
   info.setAttribute('aria-live','polite');
+  // A cover is a link-like element, not a button: a pan that starts on it gets no press feedback, so nothing but
+  // its view timeline ever animates it while the flow moves (WebKit keeps the scroll on the compositor).
   const covers = recipes.map(recipe=>{
-   const cover = element('button');
-   cover.type = 'button';
+   const cover = element('div');
+   cover.setAttribute('role','link');
    cover.dataset.recipeCover = recipe.title;
    cover.setAttribute('aria-label',recipe.title);
    const image = element('img');
@@ -1114,6 +1117,11 @@ export class RecipeView {
     cover.append(badge);
    }
    cover.addEventListener('click',()=>activate(cover));
+   cover.addEventListener('keydown',event=>{
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    activate(cover);
+   });
    return cover;
   });
   // One snap slot per cover: the slot is the view-timeline subject, the cover inside it is what moves.
@@ -1123,13 +1131,28 @@ export class RecipeView {
   const dotPool = Array.from({length:Math.min(EXPLORE_DOTS,recipes.length)},()=>element('i'));
   dots.append(...dotPool);
   dots.style.width = (dotPool.length*EXPLORE_DOT_PITCH+8)+'px';
-  flow.append(edge,...slots);
-  this.root.append(flow,info,dots);
+  flow.append(...slots);
+  this.root.append(edge,flow,info,dots);
   let shown = -1, rested = -1, windowStart = -1, target = null, restTimer = null, textMotion = null;
   const reduced = () => isReduced(this.root);
   // Where the engine has scroll timelines the text follows the finger (ui-kit.css, pv-explore-title); otherwise
   // the new text comes in softly from the side it is scrolled from, interrupted by the next change.
-  const scrollDriven = globalThis.CSS?.supports?.('animation-timeline','view()') === true;
+  let scrollDriven = globalThis.CSS?.supports?.('animation-timeline','view()') === true;
+  // The covers follow their view timelines only if the engine really runs them. At rest the chosen cover stands flat
+  // in the centre and its neighbour is turned; otherwise the flow becomes the flat snap carousel for good.
+  const timelineRuns = k => {
+   // Judged only where the flow stands exactly on a cover.
+   if (Math.abs(flow.scrollLeft-k*pitch()) > 1 || typeof DOMMatrix !== 'function') return true;
+   const at = n => new DOMMatrix(getComputedStyle(covers[n]).transform);
+   const chosen = at(k), neighbour = covers[k+1] ? k+1 : covers[k-1] ? k-1 : -1;
+   if (Math.abs(chosen.m41) > 4 || Math.abs(chosen.m13) > .02) return false;
+   return reduced() || neighbour < 0 || Math.abs(at(neighbour).m13) > .3;
+  };
+  const flatten = k => {
+   scrollDriven = false;
+   flow.dataset.recipeExploreFlat = info.dataset.recipeExploreFlat = '';
+   flow.scrollLeft = k*pitch();
+  };
   // The snap pitch is the slot width (430, or the wider flat slot without scroll-driven animations).
   const pitch = () => slots[0].offsetWidth || EXPLORE_PITCH;
   const nearest = () => Math.max(0,Math.min(recipes.length-1,Math.round(flow.scrollLeft/pitch())));
@@ -1160,10 +1183,13 @@ export class RecipeView {
     dotPool[o].style.opacity = String(dot.opacity);
    });
   };
-  // Focus, aria and the live text follow the cover the scroll rests on.
-  const rest = () => {
+  // Focus, aria and the live text follow the cover the scroll rests on. They are written only once the flow has been
+  // still for a moment after scrollend (a snap can still be settling), never while it moves.
+  const settle = () => {clearTimeout(restTimer); restTimer = setTimeout(rest,120);};
+  const rest = (check = true) => {
    restTimer = null;
    const k = nearest();
+   if (check && scrollDriven && !timelineRuns(k)) flatten(k);
    show(k);
    if (target === k) target = null;
    if (k === rested) return;
@@ -1186,7 +1212,7 @@ export class RecipeView {
    restTimer = 'onscrollend' in flow ? null : setTimeout(rest,150);
   };
   flow.addEventListener('scroll',scrolled,{passive:true});
-  flow.addEventListener('scrollend',rest);
+  flow.addEventListener('scrollend',settle);
   const go = k => {
    target = Math.max(0,Math.min(recipes.length-1,k));
    flow.scrollTo({left:target*pitch(),behavior:reduced() ? 'auto' : 'smooth'});
@@ -1204,7 +1230,11 @@ export class RecipeView {
   });
   // Open on the cover chosen last time. The one layout read here happens before anything is drawn.
   flow.scrollLeft = Math.min(recipes.length-1,this.exploreIndex ?? 0)*pitch();
-  rest();
+  rest(false);
+  // The first check waits for the timelines' first frames.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+   if (flow.isConnected && scrollDriven && restTimer === null && !timelineRuns(nearest())) flatten(nearest());
+  }));
  }
  // Katalog | Udforsk: one segmented switch with an icon per look, the same in both, so it reads as a change of view.
  viewSwitch(mode,leave) {

@@ -823,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "da7ba7205d6b4136ce3113e457dd4d2579cfdef1e0402cf7aeb4ddbae58c02d4"
+      "sha256": "35b27c5ea65810a3545c6751eceb4982672be84b7a9e1342ced0d54c3dfe2604"
     },
     {
       "path": "podview.css",
-      "sha256": "d6c5854555550398571818f7b0a99748ecc38e62fd61f47fe8eb00d775cf1348"
+      "sha256": "d60ba1f2cca7cbd54e8727b65a4f9d4fbbd8baaabe868003b39f12c90158df50"
     },
     {
       "path": "podvoice-transport.js",
@@ -855,7 +855,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "13bc3662deca307b6c349ec871884d087ce923abed83b3ba10efd8674b6f1873"
+      "sha256": "b406edfc51fc9d5afc614c34bcaa98375fc5c6c379207c35b98be6158177cf9c"
     },
     {
       "path": "references.json",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "02fcd54f73dd86cafd64338d741ed0e041a3ca828bf1c429a2f7740522abf1eb"
+      "sha256": "9f06d179d4559c4b97a287b18b5f8478226781f58f4d0c18dee48aa5388d54d1"
     },
     {
       "path": "ui/answer-auto-return.js",
