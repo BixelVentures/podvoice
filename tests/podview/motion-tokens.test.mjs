@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {
  DUR,EASE,SPRING,springParams,springCurve,
 } from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
-import {KIT_CSS,motionTokenBlock,replaceBlock} from '../../scripts/gen-motion-tokens.mjs';
+import {KIT_CSS,SPRING_BEZIER,motionTokenBlock,replaceBlock} from '../../scripts/gen-motion-tokens.mjs';
 
 const kit=readFileSync(KIT_CSS,'utf8');
 const delivered=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/podview.css',import.meta.url),'utf8');
@@ -21,10 +21,23 @@ test('ui-kit.css holds exactly the block the generator writes from ui/motion.js'
  assert.ok(delivered.includes(motionTokenBlock()),'podview.css carries the same block');
 });
 
-test('CSS spring curves match the JS springCurve byte for byte',()=>{
- assert.equal(token(kit,'--pv-spring-0'),springCurve(SPRING.quick).easing);
- assert.equal(token(kit,'--pv-spring-0'),springCurve(SPRING.smooth).easing);
- assert.equal(token(kit,'--pv-spring-15'),springCurve(SPRING.snappy).easing);
+// A CSS cubic-bezier's progress at time t (0..1), by bisection on x.
+const bezierAt=(easing,t)=>{const [x1,y1,x2,y2]=easing.slice(13,-1).split(',').map(Number);let lo=0,hi=1,s=0;
+ for(let k=0;k<40;k++){s=(lo+hi)/2;const x=3*(1-s)**2*s*x1+3*(1-s)*s*s*x2+s**3;if(x<t)lo=s;else hi=s;}
+ return 3*(1-s)**2*s*y1+3*(1-s)*s*s*y2+s**3;};
+// The spring's linear() points as [time, progress]; a point without a position sits evenly between its neighbours.
+const springAt=(easing,t)=>{const parts=easing.slice(7,-1).split(', ').map(p=>p.split(' '));
+ const pts=parts.map(([v,pos],i)=>[pos?parseFloat(pos)/100:i/(parts.length-1),Number(v)]);
+ for(let i=1;i<pts.length;i++)if(t<=pts[i][0]){const [a,b]=[pts[i-1],pts[i]];return a[1]+(b[1]-a[1])*(t-a[0])/((b[0]-a[0])||1);}
+ return 1;};
+
+test('CSS springs are cubic-beziers fitted to the JS springCurve (WebKit never accelerates linear())',()=>{
+ assert.equal(token(kit,'--pv-spring-0'),SPRING_BEZIER['--pv-spring-0']);
+ assert.equal(token(kit,'--pv-spring-15'),SPRING_BEZIER['--pv-spring-15']);
+ assert.ok(!motionTokenBlock().includes('linear('),'no linear() easing in the CSS tokens');
+ for(const [name,key]of [['quick','--pv-spring-0'],['smooth','--pv-spring-0'],['snappy','--pv-spring-15']])
+  for(let t=.02;t<1;t+=.02)assert.ok(Math.abs(bezierAt(SPRING_BEZIER[key],t)-springAt(springCurve(SPRING[name]).easing,t))<.03,
+   `${name} at ${t.toFixed(2)} within 3 %`);
  assert.equal(token(kit,'--pv-spring-quick'),'441ms var(--pv-spring-0)');
  assert.equal(token(kit,'--pv-spring-smooth'),'661ms var(--pv-spring-0)');
  assert.equal(token(kit,'--pv-spring-snappy'),'557ms var(--pv-spring-15)');

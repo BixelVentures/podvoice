@@ -2417,7 +2417,9 @@
       "status": "active-support",
       "domOwner": "RoLayer (Ro <-> Hjem: one persistent, inert, aria-hidden cover of the existing Ro photo inside the host)",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion-busy.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},

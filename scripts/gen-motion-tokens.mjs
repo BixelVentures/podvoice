@@ -13,14 +13,17 @@ export const END='/* motion-tokens:end */';
 // flick is only used by JS springs after a gesture, so it has no CSS token.
 const CSS_SPRINGS=['quick','smooth','snappy'];
 
-// One linear() per bounce: the curve shape depends only on bounce, and duration only scales it.
+// One curve per bounce: the shape depends only on bounce, and duration only scales it. CSS gets a cubic-bezier fitted
+// to the spring (max error 2 %), not linear(): WebKit with Core Animation (the iPad) never accelerates a linear()
+// easing (KeyframeEffect::canBeAccelerated), so every transition on it would run on the main thread.
+// Fitted with scratch least-max-error search against springCurve(); refit if SPRING bounces change.
+export const SPRING_BEZIER={'--pv-spring-0':'cubic-bezier(.24,.36,.08,1.08)','--pv-spring-15':'cubic-bezier(.26,.44,.08,1.16)'};
 export function springCurves(){
  const byBounce=new Map(),durations={};
  for(const name of CSS_SPRINGS){
   const spec=SPRING[name],curve=springCurve(spec),key=`--pv-spring-${Math.round(spec.bounce*100)}`;
-  const known=byBounce.get(key);
-  if(known&&known!==curve.easing)throw Error(`${name} does not share the ${key} curve`);
-  byBounce.set(key,curve.easing);durations[name]={ms:curve.ms,curve:key};
+  if(!SPRING_BEZIER[key])throw Error(`${name}: no fitted cubic-bezier for ${key}`);
+  byBounce.set(key,SPRING_BEZIER[key]);durations[name]={ms:curve.ms,curve:key};
  }
  return {byBounce,durations};
 }

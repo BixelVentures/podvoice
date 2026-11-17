@@ -11,6 +11,8 @@
 // then Ro renders under the cover, its photo is decoded, and Ro's clock, caption and player fade in as the cover goes.
 // Ro -> Hjem: Ro's clock, caption and player fade out, Hjem renders under the cover, and one frame later the circle
 // shrinks into the finger. Reduced: the cover cross-fades in REDUCED_MS.
+import {begin as beginBusy} from './motion-busy.js';
+
 export const RO_REVEAL=Object.freeze({ms:560,bezier:Object.freeze([.45,0,.2,1])});
 export const RO_CLOSE=Object.freeze({ms:480,bezier:Object.freeze([.4,0,.2,1])});
 export const RO_FOREGROUND=Object.freeze({out:120,in:200});
@@ -135,8 +137,8 @@ export class RoLayer {
  open({point,present,reduced,done}){
   this.finish();this.cover();
   const frame=this.frame(),size=this.place(frame),{x,y,to}=this.circle(frame,point);
-  // A run lasts from here to end(run): the place to mark the screen busy (begin) and idle again (in end).
-  const run={kind:'open',present,done,animations:[],fades:[],committed:false};this.run=run;
+  // A run lasts from here to end(run): the screen is busy (ui/motion-busy.js) until end().
+  const run={kind:'open',present,done,animations:[],fades:[],committed:false,idle:beginBusy()};this.run=run;
   const show={visibility:['visible','visible'],opacity:[1,1]};
   let reveal;
   if(reduced){
@@ -157,7 +159,7 @@ export class RoLayer {
   this.finish();this.cover();this.remember();
   const frame=this.frame(),size=this.place(frame),{x,y,to}=this.circle(frame,point);
   // As in open(): busy from here to end(run).
-  const run={kind:'close',present,done,animations:[],committed:false,covered:false};this.run=run;
+  const run={kind:'close',present,done,animations:[],committed:false,covered:false,idle:beginBusy()};this.run=run;
   run.fades=this.foreground().map(node=>node.animate({opacity:[1,0]},
    {duration:RO_FOREGROUND.out,easing:'cubic-bezier(.4,0,1,1)',fill:'forwards'}));
   run.cover=()=>{
@@ -218,7 +220,7 @@ export class RoLayer {
  end(run){
   if(this.run!==run)return;this.run=null;
   for(const animation of [...run.animations,...(run.fades||[])])animation.cancel();
-  this.disarm();run.done?.();
+  this.disarm();run.idle?.();run.done?.();
  }
  // A new navigation, a touch or cancel(): the screen the state asks for, at once.
  finish(){

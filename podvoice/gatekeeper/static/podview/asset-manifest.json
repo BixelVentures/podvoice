@@ -675,7 +675,7 @@
     },
     {
       "path": "ingress-kiosk.js",
-      "sha256": "53a2addf7c48704e18560deae30a9778c0f03fe0424d2bd675e79a72fb57e95d"
+      "sha256": "0167f1ebfa5efcc81a193334c5cc011f9594d69fcb2e671deb7eee2de3e8927c"
     },
     {
       "path": "legacy.html",
@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "eb11149a43e158035209fea96d3fd9a8c2ac678456cfcb6d09ece4d5b14a3a2c"
+      "sha256": "a3795ac38c62513aa0983978186a86896f24a9526699ea8a67dd4f53750f8f7f"
     },
     {
       "path": "library.css",
@@ -823,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "1760a9701c8340244bb35e70dedf5624833f89aa0b2a37f2556660888b25e562"
+      "sha256": "5ec63b6e33f8cb6b8643cbc56a3fecd5a842d9e1028cd95fd8e543dfe98c09d3"
     },
     {
       "path": "podview.css",
-      "sha256": "759bde2050697e7f6f30ca24bbfde19c13d7a58dbce2969933006a4c286e3b4f"
+      "sha256": "47e2c46928af2e01feb0425344bcfb115264420711f5b995b976f1e6b55a0b33"
     },
     {
       "path": "podvoice-transport.js",
@@ -855,7 +855,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "b406edfc51fc9d5afc614c34bcaa98375fc5c6c379207c35b98be6158177cf9c"
+      "sha256": "d3964426fcc0560b22f369bbd9198439126f25c2dfe6b16ef7ab38575534ab60"
     },
     {
       "path": "references.json",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "09403b22d6ebf6a02b4b57ee726730947732417cdecd1edd4f4af5166b12a65a"
+      "sha256": "b86265bf64ed278a069212ea07cee9c011209b3068efe40b1baec9310d04261d"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1003,7 +1003,7 @@
     },
     {
       "path": "ui/list-motion.js",
-      "sha256": "94c12f9b10c297f550df96ec5482c8b5df8272054e7fc9504f597a0934bd85c4"
+      "sha256": "3870767f14c1fa52123595f3623a0dda7d07574b6d97062fcadcc9f86c777d3a"
     },
     {
       "path": "ui/motion.js",
@@ -1011,7 +1011,7 @@
     },
     {
       "path": "ui/native-motion.js",
-      "sha256": "a419a2f40fb7efa5071fd861e18f809ef228e834d9f029a98cadf35a6b264364"
+      "sha256": "aff6cd7f2d3a845ba7084f82280cef80e06512f916cdaf8aa73d1aeb4ec7190c"
     },
     {
       "path": "ui/notification-queue.js",
@@ -1027,7 +1027,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "4147585d2c97bf507d66f5c9ffa859b51361e2ee4eba4007fb134a95f8c0c590"
+      "sha256": "8ee1c681751ce72c1cb86ed45dd4538b4557742014c95a8f1c2babf4ad02d1ec"
     },
     {
       "path": "ui/reconcile.js",
@@ -1039,7 +1039,7 @@
     },
     {
       "path": "ui/ro-motion.js",
-      "sha256": "5df25ded735408ce7aa25c6503176be98f0806c9f0d8a61c62d12906330e4155"
+      "sha256": "2af6d89d50b2bf9972bbb1f1f95303f0d9a2ee3f55db705baa4fb0784c1623b2"
     },
     {
       "path": "ui/robot-motion.js",
@@ -1051,11 +1051,11 @@
     },
     {
       "path": "ui/scroll-edges.js",
-      "sha256": "1eb02900ab4041dc45f119a1ac6632975b910516c37f99f57256a606640a97c3"
+      "sha256": "4f1085051d227ee85d4cbac94722bf6716921eda8b40086ef75c8836ceed1440"
     },
     {
       "path": "ui/stage.js",
-      "sha256": "8438c32611a8182c2c36d55802c9c18907ed80d718b7a9ac465b17534bfc15d2"
+      "sha256": "e79e7c2890d0eb9351c28bc51a57c075956bf6fb035f0484da727b8944b49061"
     },
     {
       "path": "ui/touch-intent.js",
@@ -1131,7 +1131,15 @@
     },
     {
       "path": "ui/css-flags.js",
-      "sha256": "7ef10ffdc9a8fb295fbe12aa92578a601cb7816f795254aba391a10642421949"
+      "sha256": "d1632e2284010463da155be2bc509996cba39d0557b7971d6c228f47337d9a9c"
+    },
+    {
+      "path": "ui/frame-meter.js",
+      "sha256": "a6c3d1feb30f4ca9041bf0d3d6b36d0565c482218e3cac6d96c71a95275cef8b"
+    },
+    {
+      "path": "ui/motion-busy.js",
+      "sha256": "7a2b8f7df13668f1ef3aa56e53cbc7d8b4ba25c3956164eb0c5bd79294494109"
     }
   ]
 }
