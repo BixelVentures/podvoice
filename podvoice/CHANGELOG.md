@@ -1,3 +1,8 @@
+## 2.1.19
+
+- Væg-iPad'en: PodView vises i præcis 1:1 uden skalering (skarpere tekst og lettere animationer), og den lyse stribe i bunden af kiosktilstanden er væk – HA's side bagved har samme baggrund som PodView.
+- Robot: efter et nyt kort finder siden igen din seneste start ud fra HA's rum, så »Start · N rum« virker uden at vælge forfra; en forældet start giver ikke længere en advarsel i loggen.
+
 ## 2.1.18
 
 - Fuld skærm på væg-iPad'en: PodView fylder hele skærmen i HA-appens kiosktilstand (også under statuslinjen), åbner direkte i PodView i stedet for indstillingerne og kan ikke trækkes ned for at genindlæse. Luften er ens: 24 ved kanterne og i top og bund, 32 mellem indhold og afspiller.
