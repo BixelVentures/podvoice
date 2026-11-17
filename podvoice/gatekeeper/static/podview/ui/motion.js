@@ -1,5 +1,6 @@
 // Motion tokens (docs/MOTION.md §3.1, §3.11). Four durations, three easings and the springs.
 // scripts/gen-motion-tokens.mjs writes the CSS custom properties in ui-kit.css from these values.
+import {PageLayer} from './page-motion.js';
 import {RoLayer} from './ro-motion.js';
 export const DUR=Object.freeze({tap:100,quick:160,base:240,ambient:1400,reduced:150});
 export const SPRING=Object.freeze({
@@ -140,7 +141,7 @@ export class SceneMotion {
   host.addEventListener?.('pointerdown',event=>{this.touch={x:event.clientX,y:event.clientY,at:event.timeStamp};},
    {capture:true,passive:true});
   // The Ro layer's cover is mounted and its photo decoded once, while the screen is idle.
-  this.ro=new RoLayer(host);const view=host.ownerDocument?.defaultView;
+  this.ro=new RoLayer(host);this.pages=new PageLayer(host);const view=host.ownerDocument?.defaultView;
   const idle=view?.requestIdleCallback?.bind(view)??(view?.setTimeout?(work=>view.setTimeout(work,500)):null);
   idle?.(()=>this.ro.prepare(),{timeout:2000});}
  get reduced(){return isReduced(this.host,this.media??null);}
@@ -281,32 +282,37 @@ export class SceneMotion {
   const box=player?.getBoundingClientRect();this.cancel();return box||null;
  }
  layered(){return !this.immediateDepth&&this.ro.available();}
- get moving(){return this.ro.moving||!!this.pageTransition;}
- // Called first in every render: a render while Ro <-> Hjem runs waits for, or is drawn under, the Ro layer.
- holdRender(){return this.ro.holdRender();}
- // P1 page (docs/MOTION.md §3.2). Push and pop run as a same-document view transition where the engine has
- // one (Safari 18+): the old page leaves 24px in --pv-dur-quick while the new one comes 48px on the smooth spring
- // and fades in over --pv-dur-base (ui-kit.css, :root[data-pv-nav]). present() renders inside the transition's
- // update, so the old page is still there to leave. A new navigation or a touch skips a running transition.
- // Ro <-> active runs on two live layers, not a view transition (ro()). Engines without view transitions render at
- // once, and enter() moves the pane.
+ get moving(){return this.ro.moving||this.pages.moving||!!this.pageTransition;}
+ // Called first in every render: a render while Ro <-> Hjem or a page moves waits for the layer's own render, or
+ // (Ro -> Hjem) is drawn under the Ro layer.
+ holdRender(){return this.ro.holdRender()||this.pages.holdRender();}
+ // P1 page (docs/MOTION.md §3.2). Push and pop run on live layers (ui/page-motion.js): the old page moves in the
+ // next frame, the new one renders once off-screen and slides in, and the old stays painted until the end. Ro <->
+ // active also runs on live layers (roPage()). Neither uses a view transition; hero() still does. Without Web
+ // Animations, or for immediate navigations, the page renders at once and enter() moves the pane.
  page(previous,next,{back=false,present}){
   this.skipPage();
-  if(previous!==next&&(previous==='photo'||next==='photo')&&this.layered())return this.roPage(next==='photo',present);
-  if(previous===next||!this.transitions()){present();return null;}
-  return this.transition({kind:back?'pop':'push',present});
+  if(previous===next){present();return null;}
+  if(!this.layered()){present();return null;}
+  if(previous==='photo'||next==='photo')return this.roPage(next==='photo',present);
+  if(!this.pages.available()){present();return null;}
+  return this.layer(this.pages,run=>this.pages.go({back,reduced:this.reduced,...run}),present);
  }
- // Ro <-> Hjem (ui/ro-motion.js). Hjem -> Ro grows from the moon button, Ro -> Hjem shrinks into the finger. present()
- // renders inside the layer's commit, so enter() leaves the motion to it; focus waits for that render (afterPage).
- // A touch anywhere ends the transition at once on the screen the state asks for.
- roPage(toRo,present){
-  const doc=this.host.ownerDocument,reduced=this.reduced;this.updatePending=true;
+ // Runs a live-layer transition: present() renders inside the layer's commit (enter() leaves the motion to it and
+ // focus waits for it: afterPage); a touch anywhere finishes it at once on the screen the state asks for.
+ layer(owner,start,present){
+  const doc=this.host.ownerDocument;this.updatePending=true;
   const commit=()=>{this.inPageUpdate=true;try{present();}finally{this.inPageUpdate=false;this.flushAfterPage();}};
-  const skip=()=>this.ro.finish();
+  const skip=()=>owner.finish();
   const done=()=>doc.removeEventListener('pointerdown',skip,{capture:true});
   doc.addEventListener('pointerdown',skip,{capture:true,passive:true});
-  return toRo?this.ro.open({point:this.moonPoint(),present:commit,reduced,done}):
-   this.ro.close({point:this.touchPoint(),present:commit,reduced,done});
+  return start({present:commit,done});
+ }
+ // Ro <-> Hjem (ui/ro-motion.js). Hjem -> Ro grows from the moon button, Ro -> Hjem shrinks into the finger.
+ roPage(toRo,present){
+  const reduced=this.reduced;
+  return this.layer(this.ro,run=>toRo?this.ro.open({point:this.moonPoint(),reduced,...run}):
+   this.ro.close({point:this.touchPoint(),reduced,...run}),present);
  }
  // Hjem -> Ro starts at the moon button; without a visible one (Ro after idle, from a detail), at the middle.
  moonPoint(){
@@ -366,7 +372,7 @@ export class SceneMotion {
  flushAfterPage(){
   this.updatePending=false;const work=this.afterUpdate||[];this.afterUpdate=[];for(const run of work)run();
  }
- skipPage(){this.pageTransition?.skipTransition();this.ro?.finish();}
+ skipPage(){this.pageTransition?.skipTransition();this.ro?.finish();this.pages?.finish();}
  // Navigations whose caller works on the new page's DOM straight after dispatch (focus, scroll) render at once
  // and use the enter() motion instead of a view transition, whose update would run a frame later.
  immediate(navigate){this.immediateDepth=(this.immediateDepth||0)+1;try{return navigate();}finally{this.immediateDepth--;}}

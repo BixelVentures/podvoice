@@ -1,7 +1,7 @@
 'use strict';
 // Navigation motion with a real touch, sampled every frame (docs/MOTION.md §0, §3.2).
-// 1. A card tap (Hjem -> Radio) and the back tap start their page transition within 100 ms of the finger lifting.
-//    Setting data-pv-nav puts no custom property on the root, and the heading is focused once the new page is there.
+// 1. A card tap (Hjem -> Radio) and the back tap move the pages (live layers) within 100 ms of the finger lifting.
+//    The heading is focused once the new page is there.
 // 2. Ro <-> Hjem runs on two live layers, not a view transition. Hjem -> Ro: the Ro photo grows in a circle from the
 //    moon button within 100 ms of the release and for at least 450 ms, over Hjem, which is not rendered again until
 //    the circle covers it. Ro -> Hjem: Hjem is rendered under the full photo, which then shrinks into the finger.
@@ -9,7 +9,7 @@
 // 3. No flash: no frame is lighter or darker than both the screen before and the screen after (pixels, sampled from
 //    every frame the compositor draws, in Chromium), and the Ro button changes only when the page changes.
 // 4. Per-frame timing is reported: rAF deltas from the release, frames over 20 ms and the longest frame.
-// Reduced motion: the Ro photo cross-fades in 200 ms; pages only fade.
+// Reduced motion: the Ro photo cross-fades in 200 ms; the new page fades in over the old one.
 // PODVIEW_TEST_ENGINE=webkit runs the same journey in WebKit (Safari's engine), with a mouse for the finger and no
 // pixel capture (WebKit has no per-frame screencast); NAVIGATION_CPU_THROTTLE=4 slows Chromium's CPU.
 const playwright=require('playwright');
@@ -45,10 +45,17 @@ const startSampling=page=>page.evaluate(()=>{
   return {visible:style.visibility==='visible',opacity:Number(style.opacity),radius:a*size,x:e+a*size,y:f+a*size,
    clip:mask.clipPath};
  };
+ // A page's horizontal offset as a percentage of its width, whether it is painted, and its opacity.
+ const pageAt=id=>{const node=document.getElementById(id),style=getComputedStyle(node);
+  const m=/^matrix\(([^)]+)\)$/.exec(style.transform),x=m?Number(m[1].split(',')[4]):0;
+  return {x:node.offsetWidth?100*x/node.offsetWidth:0,painted:style.display!=='none'&&!!node.getClientRects().length,
+   opacity:Number(style.opacity),hidden:node.hidden,inline:node.getAttribute('style')||''};};
  const loop=()=>{if(window.navRun!==run)return;
   const animations=document.getAnimations().filter(a=>a.effect?.pseudoElement?.startsWith('::view-transition'));
   const style=getComputedStyle(ro),photo=document.getElementById('photo-view');
   window.navSamples.push({t:performance.now(),nav:animations.length?root.dataset.pvNav||null:null,
+   now:pageAt('now-view'),radio:pageAt('radio-view'),
+   plate:getComputedStyle(host.querySelector('[data-pv-page-layer=plate]')||root).display,
    rootPageIn:root.dataset.pvNav?getComputedStyle(root).getPropertyValue('--pv-page-in'):'',layer:layer(),
    view:host.dataset.view,mounted:document.getElementById('now-view')?.isConnected===true&&photo?.isConnected===true,
    fore:Number(getComputedStyle(photo.querySelector('.photo-time')).opacity),
@@ -101,11 +108,12 @@ async function luminance(context,capture,box){
 }
 // No flash: every drawn frame lies between the screen before and the screen after (within tol), and with
 // `monotonic` it only ever moves from the one to the other. Ro's tolerance (25) covers the photo drawn alone for a
-// few frames while its clock and player fade; a flash of the paper (~230) or a blank frame is far outside it.
-function checkFlash(name,values,{tol=5,monotonic=false}={}){
+// few frames while its clock and player fade; a page may go up to 25 darker under its 10 % dim. A flash of the
+// paper (lighter than both screens) or a blank frame is outside both.
+function checkFlash(name,values,{tol=5,darker=tol,monotonic=false}={}){
  if(!values)return null;
  assert(values.length>=8,`${name}: frames captured (${values.length})`);
- const first=values[0],last=values.at(-1),low=Math.min(first,last)-tol,high=Math.max(first,last)+tol;
+ const first=values[0],last=values.at(-1),low=Math.min(first,last)-darker,high=Math.max(first,last)+tol;
  for(const [i,v]of values.entries())assert(v>=low&&v<=high,
   `${name}: frame ${i} luminance ${v.toFixed(1)} outside ${first.toFixed(1)}..${last.toFixed(1)} (a flash)`);
  if(monotonic){const sign=Math.sign(last-first);
@@ -134,19 +142,43 @@ async function tap(page,selector){
  return point;
 }
 
-function checkPage({samples},kind,from){
- const during=samples.filter(s=>s.nav===kind);
- assert(during.length>10,`${kind}: a page transition ran (${during.length} frames)`);
- // WebKit captures both page snapshots before the first frame (97-165 ms measured on an M-series Mac); the
- // limit there records today's cost instead of hiding it. Chromium: 100 ms.
- const limit=chromium?100:200;
- assert(during[0].t<=limit,
-  `${kind}: first transition frame ${Math.round(during[0].t)} ms after the finger lifted (<= ${limit})`);
- for(const s of samples.filter(s=>s.t<during[0].t))
-  assert.equal(s.dom,from,`${kind}: no page change before the transition`);
- for(const s of samples.filter(s=>s.nav))assert.equal(s.rootPageIn,'',`${kind}: no custom property on the root`);
- assert.equal(samples.at(-1).nav,null,`${kind}: the transition has ended`);
- return {start:Math.round(during[0].t),...timing(samples)};
+// Push (Hjem -> Radio) and pop run on live layers (ui/page-motion.js), no view transition. The leaving page moves
+// within 100 ms of the release and stays painted, opaque and mounted until the new page has arrived; the new page
+// starts off-screen (push 100 %, pop -33 %) and only moves towards 0; neither ever fades (no flash). At the end the
+// leaving page is hidden again and both carry no layer styles. Reduced: nothing moves; the new page fades in.
+function checkPage({samples},kind,reduced){
+ const [leaving,entering]=kind==='push'?['now','radio']:['radio','now'];
+ for(const s of samples)assert.equal(s.nav,null,`${kind}: no view transition`);
+ const moving=samples.filter(s=>s.t>=0&&(Math.abs(s[leaving].x)>.05||s[entering].painted&&s[leaving].painted));
+ assert(moving.length>8,`${kind}: the pages moved (${moving.length} frames)`);
+ const start=moving[0];
+ // Reduced has nothing to move before the new page renders, so its first frame waits for that one render
+ // (~100 ms in WebKit on an M-series Mac).
+ const limit=reduced&&!chromium?150:100;
+ assert(start.t<=limit,
+  `${kind}: first moving frame ${Math.round(start.t)} ms after the finger lifted (<= ${limit})`);
+ const both=samples.filter(s=>s[entering].painted&&s[leaving].painted);
+ for(const s of both){
+  assert.equal(s[leaving].opacity,1,`${kind}: the leaving page stays opaque (${s[leaving].opacity})`);
+  if(!reduced)assert.equal(s[entering].opacity,1,`${kind}: the new page is opaque (${s[entering].opacity})`);
+ }
+ const arrived=samples.findIndex(s=>s[entering].painted&&Math.abs(s[entering].x)<.5&&s[entering].opacity>.99);
+ assert(arrived>=0,`${kind}: the new page arrived`);
+ // Until it has arrived, the leaving page is on screen in every frame: no frame without a page.
+ for(const s of samples.slice(0,arrived).filter(s=>s.t>=0))
+  assert(s[leaving].painted,`${kind}: the leaving page stays painted until the new one is in place`);
+ if(!reduced){
+  const from=kind==='push'?100:-33,sign=Math.sign(from),xs=both.map(s=>s[entering].x);
+  assert(Math.abs(xs[0]-from)<12,`${kind}: the new page starts at ${from}% (${xs[0]})`);
+  for(let i=1;i<xs.length;i++)assert(sign*(xs[i]-xs[i-1])<=.05,`${kind}: the new page only moves in`);
+  const olds=samples.filter(s=>s[leaving].painted).map(s=>s[leaving].x),to=kind==='push'?-33:100;
+  for(let i=1;i<olds.length;i++)assert(Math.sign(to)*(olds[i]-olds[i-1])>=-.05,`${kind}: the old page only leaves`);
+ }
+ const end=samples.at(-1);
+ assert(!end[leaving].painted&&end[leaving].hidden,`${kind}: the leaving page is hidden at the end`);
+ assert.equal(end.plate,'none',`${kind}: the page layer's plate is hidden at the end`);
+ assert(!/z-index|position/.test(end[entering].inline),`${kind}: no layer styles left (${end[entering].inline})`);
+ return {start:Math.round(start.t),arrived:Math.round(samples[arrived].t),...timing(samples)};
 }
 function checkRo({samples,mutations},point,{to,reduced}){
  const name=to==='photo'?'Hjem->Ro':'Ro->Hjem',shown=samples.filter(s=>s.layer.visible);
@@ -231,9 +263,9 @@ function checkRo({samples,mutations},point,{to,reduced}){
    result.pixels=checkFlash(selector,await luminance(context,frames,box),flash);return result;
   };
 
-  report.push=await step('#home-radio',run=>checkPage(run,'push','now'),pageBox);
+  report.push=await step('#home-radio',run=>checkPage(run,'push',reduced),pageBox,{darker:25});
   assert.equal(await focused(),'header-title');
-  report.pop=await step('.topbar-title-action',run=>checkPage(run,'pop','detail'),pageBox);
+  report.pop=await step('.topbar-title-action',run=>checkPage(run,'pop',reduced),pageBox,{darker:25});
   report.toRo=await step('#show-photo',(run,point)=>checkRo(run,point,{to:'photo',reduced}),screen,
    {monotonic:true,tol:25});
   assert.equal(await focused(),'photo-view');

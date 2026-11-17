@@ -2304,6 +2304,7 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
+        "dist/ui/page-motion.js",
         "dist/ui/ro-motion.js"
       ],
       "surface": {
@@ -2349,6 +2350,7 @@
           "method:holdGeometry": 1,
           "method:holdRender": 1,
           "method:immediate": 1,
+          "method:layer": 1,
           "method:layered": 1,
           "method:moonPoint": 1,
           "method:moving": 1,
@@ -2375,6 +2377,40 @@
         "scope": "Remove blanket withholding of fresh pointer input during pane transitions; keep existing interruptible animations and independently verified cancelled/outside touch intent. No CSS, animation family or command authority added. Actual browser exposed the swallowed immediate card click.",
         "newComponentFamilies": false
       }
+    },
+    "dist/ui/page-motion.js": {
+      "status": "active-support",
+      "domOwner": "PageLayer (page push/pop: one hidden paper plate and one hidden dim inside the page area, made once)",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:add": 1,
+          "arrow:frame": 1,
+          "arrow:hold": 1,
+          "arrow:make": 1,
+          "class:PageLayer": 1,
+          "method:available": 1,
+          "method:commit": 1,
+          "method:constructor": 1,
+          "method:doc": 1,
+          "method:end": 1,
+          "method:feed": 1,
+          "method:finish": 1,
+          "method:helpers": 1,
+          "method:holdRender": 1,
+          "method:moving": 1,
+          "method:view": 1,
+          "method:visiblePage": 1
+        },
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": true
+      },
+      "reviewedScope": "2026-11-17 owner: page push/pop without view transitions, both pages live (UINavigationController). Keeps the leaving page painted out of the flow until the motion ends; two inert helpers (plate, dim). Only Web Animations on transform and opacity plus temporary inline placement; no new family, no command authority."
     },
     "dist/ui/ro-motion.js": {
       "status": "active-support",

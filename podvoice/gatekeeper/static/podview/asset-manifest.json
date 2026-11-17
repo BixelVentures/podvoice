@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "b927b7b6dc398982d794fb6dd70b0c5b9c859f692357a01eb7d89ed4e753b3af"
+      "sha256": "bdf70e6fb95676b6ccae6d69ea110efe6dfa1e59d22add39e7e46e838d39f25c"
     },
     {
       "path": "library.css",
@@ -823,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "3f5a482fac942769dca34504f118d64aa38118f3f8ad7e390ac74d7cc37de91b"
+      "sha256": "ad44a29141eed623aa7d6b6757d37b82977f486a9c04402cbc3e400c3c4be941"
     },
     {
       "path": "podview.css",
-      "sha256": "4432a3a596ca4d2e99921e47da4ab8c6c690a9b67b6b8dda1b83ba4a4356aacb"
+      "sha256": "3813141e19844868d0e4212918d41f7067204dec8b315d2413e5a938dc3c8ab0"
     },
     {
       "path": "podvoice-transport.js",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "1ceba71f036a15395aad7c3477fc0ac1e357892e4d127be62a44efb3a573b451"
+      "sha256": "e6fff88adebfe6204b8715b62a3142a13a7320612cd716d5144b7ddb9b1583ce"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1007,7 +1007,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "479b24a277d0d52ce86442b99adf7d0f484edd1025d2e318f0adc0db165ac59a"
+      "sha256": "81324a592eb74c4c8b50bf7407dbca3e9640c2f2f426d9b573030467961be4f2"
     },
     {
       "path": "ui/native-motion.js",
@@ -1020,6 +1020,10 @@
     {
       "path": "ui/page-lifecycle.js",
       "sha256": "9c894ecaafe81f9e2934b062852836b8f8cc69a9673973abcdd4c698961bd626"
+    },
+    {
+      "path": "ui/page-motion.js",
+      "sha256": "28acf9d27408d731663d825bada78a6cc73436627da5ef9201d8c4846968cdef"
     },
     {
       "path": "ui/pressed-state.js",

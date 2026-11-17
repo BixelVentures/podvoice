@@ -2851,7 +2851,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 1ceba71f036a15395aad7c3477fc0ac1e357892e4d127be62a44efb3a573b451 */
+/* Source: ui-kit.css · SHA256 e6fff88adebfe6204b8715b62a3142a13a7320612cd716d5144b7ddb9b1583ce */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5751,6 +5751,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 .pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0}
 .pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0}
 .pv-ro-stage>.pv-ro-photo{position:absolute;margin:0;min-height:0;flex:none}
+/* Hjem's cards are pressed and leave with the page, so each is its own layer from the start (as a UIView): starting
+   a press on a card that had none made WebKit re-layer and repaint the overview in the touch (a 78 ms frame). */
+pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-shortcut){will-change:transform}
 
 /* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
    the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two

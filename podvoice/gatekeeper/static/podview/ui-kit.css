@@ -2980,6 +2980,9 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 .pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0}
 .pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0}
 .pv-ro-stage>.pv-ro-photo{position:absolute;margin:0;min-height:0;flex:none}
+/* Hjem's cards are pressed and leave with the page, so each is its own layer from the start (as a UIView): starting
+   a press on a card that had none made WebKit re-layer and repaint the overview in the touch (a 78 ms frame). */
+pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-shortcut){will-change:transform}
 
 /* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
    the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two
