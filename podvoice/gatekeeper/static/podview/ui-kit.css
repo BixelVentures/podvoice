@@ -2985,6 +2985,13 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 /* Hjem's cards are pressed and leave with the page, so each is its own layer from the start (as a UIView): starting
    a press on a card that had none made WebKit re-layer and repaint the overview in the touch (a 78 ms frame). */
 pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-shortcut){will-change:transform}
+/* Page containers (ui/page-motion.js) are their own compositing layers for good, so a push or pop never creates a
+   layer in its first frame; a hidden page costs nothing (display:none). contain keeps a page's own layout and style
+   changes inside it. #device-view is left out: the robot's sticky bar is position:fixed against the screen, and a
+   layer or containment would pin it to the page instead. */
+pv-widget-host .responses>:is(#now-view,#radio-view,#timers-view,#weather-view,#vehicle-view,#music-detail,
+ #music-response,#recipe-view,#answer-host){will-change:transform;contain:layout style}
+pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;contain:strict}
 
 /* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
    the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two
