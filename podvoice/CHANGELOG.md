@@ -1,3 +1,10 @@
+## 2.1.20
+
+- Sideskift som på iOS: den nye side glider ind over den gamle, som glider en tredjedel væk og dæmpes – begge sider er levende lag (ingen skærmbilleder af hele siden), så intet blinker, og bevægelsen starter med det samme, når du slipper.
+- Ro ↔ Hjem: en cirkel vokser fra månen (ca. en halv sekund, så den kan ses), og Ro trækker sig sammen ind i din finger, når du går hjem.
+- Tryk på kort: kortet trykkes blødt ind og fjedrer roligt tilbage uden farve- eller skygge-hop.
+- Lettere for iPad'en: PodView beregner langt mindre stil ved hvert tryk, ur og timer (fx uret fra 32 til 3 ms pr. tik).
+
 ## 2.1.19
 
 - Væg-iPad'en: PodView vises i præcis 1:1 uden skalering (skarpere tekst og lettere animationer), og den lyse stribe i bunden af kiosktilstanden er væk – HA's side bagved har samme baggrund som PodView.
