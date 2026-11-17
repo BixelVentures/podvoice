@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stations,radioStation,localRadioPlayerModel,localRadioTransition,localRadioControlModel} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {stations,orderStations,radioStation,localRadioPlayerModel,localRadioTransition,localRadioControlModel} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
 
 test('five named channels have stable, unique identifiers and no invented stream or artwork',()=>{
  assert.deepEqual(stations.map(({id,label})=>[id,label]),[
-  ['p3','P3'],['p1','P1'],['p4-ostjylland','P4 Østjylland'],['p6-beat','P6 Beat'],['p8-jazz','P8 Jazz'],
+  ['p1','P1'],['p3','P3'],['p4-ostjylland','P4 Østjylland'],['p6-beat','P6 Beat'],['p8-jazz','P8 Jazz'],
  ]);
  assert.ok(stations.every(station=>Object.isFrozen(station)));
  assert.ok(Object.isFrozen(stations));
@@ -12,6 +12,12 @@ test('five named channels have stable, unique identifiers and no invented stream
  assert.equal(radioStation('p4-ostjylland'),stations[2]);
  assert.equal(radioStation('P3'),null);
  assert.equal(radioStation('__proto__'),null);
+});
+
+test('stations follow their DR channel number; unnumbered stations keep their order after them',()=>{
+ const row=(id,label)=>({id,label});
+ assert.deepEqual(orderStations([row('a','Radio A'),row('p8','P8 Jazz'),row('p3','P3'),row('b','Radio B'),row('p1','P1'),
+  row('p4','P4 Østjylland'),row('p4k','P4 København')]).map(station=>station.id),['p1','p3','p4','p4k','p8','a','b']);
 });
 
 test('local selection changes only source content of the shared player model',()=>{

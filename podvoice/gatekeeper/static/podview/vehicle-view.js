@@ -194,6 +194,8 @@ export class VehicleView{
   syncKitButtonContent(this.lockConfirm,{label:c.label});
   syncKitButtonContent(this.lockCancel,{label:'Annuller'});
   this.lockConfirm.hidden=false;
+  // A live confirmation can only be sent while the car is observed and PodVoice is connected.
+  this.lockConfirm.disabled=this.connected===false||this.model?.mode!=='observed';
   this.lockCancel.hidden=false;
   this.confirmation.showModal();
  }
@@ -203,7 +205,7 @@ export class VehicleView{
  }
  async finishVehicle(proposal,trigger){
   const {action,args={}}=proposal.confirmation;
-  if(this.vehicleActionBlocked(action)||this.disposed)return;
+  if(this.vehicleActionBlocked(action)||this.disposed||this.connected===false)return;
   const family=vehicleActionFamily(action);
   const [field,wanted,read,label,confirmation]=liveVehicleEffects[action]||[];
   const command={family,operation:proposal.operation,trigger,action,args,field,expected:wanted?.(args),read,
@@ -390,6 +392,9 @@ export class VehicleView{
   }
  }
  renderControlStates(){
+  // An open live confirmation follows its dependency: disabled while disconnected or not observed.
+  if(this.vehicleProposal&&this.lockConfirm){const off=this.connected===false||this.model?.mode!=='observed';
+   if(this.lockConfirm.disabled!==off)this.lockConfirm.disabled=off;}
   const m=this.model,liveEnabled=m?.mode==='observed'&&this.connected!==false&&!this.disposed,freshClimate=liveEnabled&&m.climate.status!==null,climateIntent=freshClimate?(m.climate.status==='off'?'climateOn':'climateOff'):null,useClimateToggle=!!climateIntent&&this.vehicleActions?.includes(climateIntent);for(const [action,button]of Object.entries(this.liveVehicleButtons)){const irrelevant=((action==='lock'&&m.locked===true)||(action==='unlock'&&m.locked===false)||(action==='climateOn'&&m.climate.status!==null&&m.climate.status!=='off')||(action==='climateOff'&&m.climate.status==='off'));button.hidden=!liveEnabled||!this.vehicleActions?.includes(action)||irrelevant||(useClimateToggle&&(action==='climateOn'||action==='climateOff')); if(action==='lock'||action==='unlock')applyKitComponent(button,'button',{
    variant:action==='unlock'?'primary':'secondary',tone:action==='unlock'?'danger':'neutral',loading:false});
   if(!button.hidden)syncKitButtonContent(button,{label:button.dataset.liveVehicleLabel,icon:`assets/icons/${action==='unlock'?'lock-open':action==='lock'?'lock':'power'}.svg`});button.disabled=this.vehicleActionBlocked(action);}if(liveEnabled&&this.vehicleActions?.some(x=>x==='lock'||x==='unlock'))this.access.detail.hidden=false;if(liveEnabled&&this.vehicleActions?.some(x=>x==='climateOn'||x==='climateOff'))this.climate.detail.hidden=false;const enabled=m?.mode==='fixture'&&m.controlsPreview===true,pending=!!this.pending,unknown=this.unknownRevision===m.revision;this.climate.detail.dataset.kitLayout=(enabled||liveEnabled&&['climateOn','climateOff'].some(action=>this.vehicleActions?.includes(action)))?'header-action':'default';this.controlsEnabled=enabled&&this.connected!==false&&!this.disposed&&!pending&&!unknown;this.settingsEnabled=this.controlsEnabled&&m.climate.status!=='off';

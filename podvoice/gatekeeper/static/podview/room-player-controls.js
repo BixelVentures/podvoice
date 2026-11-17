@@ -173,7 +173,9 @@ export class RoomPlayerControls{
   for(const [id,action]of [['play-pause',toggle],['detail-toggle',toggle],['previous','previous'],
    ['detail-previous','previous'],['next','next'],['detail-next','next']]){
    const node=document.getElementById(id);
-   const busy=active===action||(id.endsWith('toggle')||id==='play-pause')&&['pause','resume'].includes(active);
+   // A button the user cannot use (no playback, offline, action not offered) shows no spinner.
+   const busy=!node?.disabled&&(active===action||(id.endsWith('toggle')||id==='play-pause')
+    &&['pause','resume'].includes(active));
    if(node&&node.getAttribute('aria-busy')!==String(busy))node.setAttribute('aria-busy',String(busy));
   }
   const transportBusy=String(!!running&&!['volume','seek'].includes(running));

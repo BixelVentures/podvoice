@@ -31,11 +31,20 @@ async function waitFor(url){
   if(n>150)throw Error('server startup '+url);await sleep(100)
  }
 }
-async function recipePage(){
- const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[];
+const CATEGORIES='#recipe-view fieldset:has([name=recipe-category])';
+// More categories than the row holds: the fixture's recipes each get one of these as well (test data only).
+const EXTRA=['Kager','Supper','Salater','Tilbehør','Drikke','Desserter'];
+async function recipePage({width=1180,extraCategories=false}={}){
+ const page=await browser.newPage({hasTouch:true,viewport:{width,height:820}}),errors=[];
  page.on('pageerror',error=>errors.push(error.message));page.errors=errors;
- await page.context().route(/^https?:\/\//,route=>{
-  if(new URL(route.request().url()).origin===base)return route.continue();
+ await page.context().route(/^https?:\/\//,async route=>{
+  const url=new URL(route.request().url());
+  if(url.origin===base&&extraCategories&&url.pathname.endsWith('/api/recipes')){
+   const response=await route.fetch(),body=await response.json();
+   body.recipes.forEach((recipe,n)=>{recipe.categories=[...(recipe.categories||[]),EXTRA[n%EXTRA.length]];});
+   return route.fulfill({response,json:body});
+  }
+  if(url.origin===base)return route.continue();
   if(route.request().resourceType()!=='image')return route.abort();
   return route.fulfill({contentType:'image/svg+xml',body:
    '<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80"><rect width="120" height="80" fill="tan"/></svg>'});
@@ -70,10 +79,10 @@ async function stagePage(stage){
  assert.deepEqual([view.x,view.w],[24,1132],'recipes use the full 1132 width');
  assert.equal(await page.locator('.frame>.player.pv-card:visible,.frame>#player-empty:visible').count(),0,
   'no player beside the recipes');
- const track=await box(page.locator('#recipe-view fieldset .pv-kit-choice-options'));
+ const track=await box(page.locator(CATEGORIES+' .pv-kit-choice-options'));
  assert.equal(track.bg,'rgb(220, 218, 212)','category tabs sit in one #DCDAD4 track');
  assert.equal(track.radius,'999px');
- const chosen=await box(page.locator('#recipe-view fieldset label:has(input:checked)'));
+ const chosen=await box(page.locator(CATEGORIES+' label:has(input:checked)'));
  assert.equal(chosen.h,44);assert.equal(chosen.bg,INK,'the chosen category is dark');
  const cards=page.locator('#recipe-view [data-recipe-layout=catalog] [data-recipe]:not([data-kit-variant=resume])');
  const first=await box(cards.first());
@@ -96,41 +105,47 @@ async function stagePage(stage){
  assert.equal(xs.size,5,'five recipe columns');
  assert.equal(await page.locator('#recipe-view [data-recipe-layout=catalog] h3:visible').count(),0,
   'no letter headings in the card grid');
- // The toolbar: the category track on the left, »N opskrifter« and »Udforsk« on the right (A-Opskrifter).
+ // The toolbar: the category track on the left, »N opskrifter« and the Katalog | Udforsk switch on the right.
  const toolbar=await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'));
  assert.deepEqual([toolbar.x,toolbar.w],[24,1132],'one toolbar row over the cards');
  assert(toolbar.y<first.y,'the toolbar sits over the cards');
  near(toolbar.y,88,'the toolbar starts 16 under the topbar');
  const shown=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] [data-recipe-count]'));
  assert.equal(shown.text,`${await cards.count()} opskrifter`);assert.equal(shown.size,'16px');
- const explore=await box(page.getByRole('button',{name:'Udforsk',exact:true}));
- assert.equal(explore.h,44);assert.equal(explore.bg,'rgb(247, 246, 243)');near(explore.x+explore.w,1156,'Udforsk ends right');
+ // »Udforsk« reads as a change of look: a segmented switch with an icon per look, Katalog chosen (dark) here.
+ const views=page.locator('#recipe-view [data-recipe-view-switch]');
+ assert.deepEqual(await views.locator('label').allInnerTexts(),['Katalog','Udforsk']);
+ const katalog=await box(views.locator('[data-recipe-view=catalog]')),udforsk=await box(views.locator('[data-recipe-view=explore]'));
+ assert.equal(katalog.bg,INK,'the chosen look is dark');assert.equal(udforsk.h,44);
+ assert.notEqual(udforsk.bg,INK,'the other look is not chosen');
+ for(const look of [katalog,udforsk]){
+  const icon=await views.locator(`[data-recipe-view=${look===katalog?'catalog':'explore'}]`).evaluate(n=>{
+   const s=getComputedStyle(n,'::before');return {w:s.width,mask:s.maskImage||s.webkitMaskImage};});
+  assert.equal(icon.w,'20px');assert.match(icon.mask,/url\(/,'each look has its icon');
+ }
+ near(udforsk.x+udforsk.w,1156-4,'the switch ends at the right edge',2);
  const toolbarAdd=page.locator('#recipe-view [data-recipe-layout=toolbar] button',{hasText:'Tilføj opskrift'});
  assert.equal(await toolbarAdd.count(),0,
-  'the toolbar has no »Tilføj opskrift« (canvas: categories, count, Udforsk)');
- // The category track never runs under the count, also with more categories than the canvas (e.g. »Kager«):
- // the track ends before »N opskrifter«, and labels past its edge scroll inside the track.
- const assertTrackFits=async label=>{
-  const track=page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options');
-  const fit=await track.evaluate(n=>{
-   const b=n.getBoundingClientRect(),
-    count=document.querySelector('#recipe-view [data-recipe-count]').getBoundingClientRect();
-   return {right:b.right,count:count.left,overflow:getComputedStyle(n).overflowX,scroll:n.scrollWidth,
-    client:n.clientWidth};});
-  assert(fit.right+16<=fit.count+1,`${label}: the track ends 16 before the count (${fit.right} / ${fit.count})`);
-  assert(fit.scroll<=fit.client||fit.overflow==='auto',`${label}: overflowing categories scroll inside the track`);
+  'the toolbar has no »Tilføj opskrift« (canvas: categories, count, the view switch)');
+ // The category row never scrolls and never runs under the count: »Alle«, at most six categories, »Flere«.
+ const assertRowFits=async(page,label)=>{
+  const fit=await page.locator(CATEGORIES+' .pv-kit-choice-options').evaluate(n=>{
+   const b=n.getBoundingClientRect(),view=document.querySelector('#recipe-view').getBoundingClientRect(),
+    count=document.querySelector('#recipe-view [data-recipe-count]').getBoundingClientRect(),
+    tools=[...document.querySelectorAll('#recipe-view [data-recipe-layout=toolbar] *')].map(x=>[x,x.getBoundingClientRect()])
+     .filter(([x,r])=>r.width&&!x.closest('legend,dialog')&&x.tagName!=='INPUT').map(([,r])=>r);
+   return {right:b.right,count:count.left,scroll:n.scrollWidth,client:n.clientWidth,
+    chips:[...n.querySelectorAll('label:not([hidden])')].length,overflow:getComputedStyle(n).overflowX,
+    outside:tools.filter(r=>r.right>view.right+0.5||r.left<view.left-0.5).length};});
+  assert(fit.right+16<=fit.count+1,`${label}: the row ends 16 before the count (${fit.right} / ${fit.count})`);
+  assert.equal(fit.scroll,fit.client,`${label}: the row does not scroll`);
+  assert.notEqual(fit.overflow,'auto',`${label}: the row is not a scroller`);
+  assert(fit.chips<=7,`${label}: »Alle« and at most six categories`);
+  assert.equal(fit.outside,0,`${label}: nothing in the toolbar is clipped at the edge`);
   return fit;
  };
- await assertTrackFits('catalogue');
- // Stress: a longer category list in the same toolbar. The track scrolls; nothing overlaps.
- await page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options').evaluate(n=>{
-  for(const label of ['Kager','Supper','Salater','Tilbehør','Drikke']){const clone=n.lastElementChild.cloneNode(true);
-   clone.querySelector('input').checked=false;clone.querySelector('input').name='stress';
-   clone.lastChild.textContent=label;n.append(clone);}});
- const stressed=await assertTrackFits('many categories');
- assert(stressed.scroll>stressed.client,'the stressed track really overflows and scrolls');
- await page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options').evaluate(n=>{
-  for(const input of n.querySelectorAll('input[name=stress]'))input.closest('label').remove();});
+ await assertRowFits(page,'catalogue');
+ assert.equal(await page.locator(CATEGORIES+' [data-recipe-more]:visible').count(),0,'four categories: no »Flere«');
  // Number ranges in the card meta read with an en dash (»12–15 min.«), as on the canvas.
  const metas=await cards.evaluateAll(nodes=>nodes.map(n=>n.querySelector('small')?.textContent||''));
  assert(metas.some(text=>/\d–\d/.test(text)),'ranges are shown');
@@ -139,10 +154,12 @@ async function stagePage(stage){
  assert.match(await page.locator('#recipe-add-help').innerText(),/Del → Home Assistant/);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter.png')});
  // Opskrifter-Bog: Udforsk is a cover flow of the same catalogue.
- await page.getByRole('button',{name:'Udforsk',exact:true}).tap();
+ await page.locator('#recipe-view [data-recipe-view=explore]').tap();
  const flow=page.locator('#recipe-view [data-recipe-layout=explore]');await flow.waitFor({state:'visible'});await sleep(800);
  const mode=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset label:has(input:checked)'));
  assert.equal(mode.text,'Udforsk');assert.equal(mode.bg,INK);
+ const switched=await box(page.locator('#recipe-view [data-recipe-view=explore]'));
+ near(switched.x+switched.w,udforsk.x+udforsk.w,'the switch stays in place when the look changes',1);
  near((await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,88,'Udforsk toolbar 16 under the topbar');
  const total=await cards.count()||9;
  const position=page.locator('#recipe-view [data-recipe-explore-position]');
@@ -216,6 +233,56 @@ async function stagePage(stage){
  assert.equal(bar.display,'grid','the step bar is one row of segments');
  assert(bar.y+bar.h<=value.y,'step bar over the title');
  assert.deepEqual(page.errors,[]);await page.close();
+
+ // The stage is elastic: on a wider frame the catalogue fills the width, and with more categories than the row holds
+ // the least used are under »Flere« (a sheet), never a sideways scroll. Measured at 1180 and 1215.
+ for(const width of [1180,1215]){
+  page=await recipePage({width,extraCategories:true});
+  const content=await box(page.locator('.frame>.responses'));
+  const wide=await box(page.locator('#recipe-view'));
+  assert.deepEqual([wide.x,wide.w],[content.x,content.w],`${width}: recipes fill the content width`);
+  const grid=await box(page.locator('#recipe-view [data-recipe-layout=catalog]>div'));
+  assert.equal(grid.w,wide.w,`${width}: the card grid fills the width`);
+  const edges=await page.locator('#recipe-view [data-recipe-layout=catalog] [data-recipe]').evaluateAll(nodes=>
+   nodes.map(n=>n.getBoundingClientRect().right));
+  near(Math.max(...edges),wide.x+wide.w,`${width}: the last column ends at the right edge`,1);
+  const row=await assertRowFits(page,`${width}, many categories`);
+  assert(row.chips>=2,`${width}: »Alle« and the most used categories stay in the row`);
+  const more=page.locator(CATEGORIES+' [data-recipe-more]');
+  assert.equal(await more.innerText(),'Flere');assert.equal(await more.getAttribute('aria-pressed'),'false');
+  const inRow=await page.locator(CATEGORIES+' label:not([hidden])').allInnerTexts();
+  assert.equal(inRow[0],'Alle');
+  await more.tap();
+  const sheet=page.locator('dialog[data-recipe-layout=categories]');await sheet.waitFor({state:'visible'});
+  const rest=await sheet.locator('[data-recipe-category]').evaluateAll(nodes=>nodes.map(n=>n.dataset.recipeCategory));
+  assert(rest.length>=1,`${width}: the sheet lists the categories not in the row`);
+  assert.deepEqual(rest.filter(name=>inRow.includes(name)),[],`${width}: no category is both in the row and the sheet`);
+  assert.deepEqual([...rest].sort(new Intl.Collator('da').compare),rest,'the sheet is alphabetical');
+  await page.screenshot({path:path.join(env.artifactDir(),`podview-ipad-opskrifter-flere-${width}.png`)});
+  const pick=rest.at(-1);
+  await sheet.locator(`[data-recipe-category="${pick}"]`).tap();
+  await sheet.waitFor({state:'hidden'});
+  assert.equal(await more.innerText(),pick,'a category chosen under »Flere« is shown on it');
+  assert.equal(await more.getAttribute('aria-pressed'),'true');
+  assert.equal((await box(more)).bg,INK,'and it is dark like a chosen chip');
+  assert.equal(await page.locator(CATEGORIES+' input:checked').count(),0,'no other chip is chosen');
+  const filtered=await page.locator('#recipe-view [data-recipe-layout=catalog] [data-recipe]').count();
+  assert.equal(await page.locator('#recipe-view [data-recipe-count]').innerText(),
+   filtered===1?'1 opskrift':`${filtered} opskrifter`,'the count follows the chosen category');
+  await assertRowFits(page,`${width}, chosen under »Flere«`);
+  await page.locator(CATEGORIES+' label',{hasText:'Alle'}).tap();
+  assert.equal(await more.innerText(),'Flere');
+  // Udforsk at this width: the switch fits and keeps its place.
+  const switchEdge=await box(page.locator('#recipe-view [data-recipe-view=explore]'));
+  near(switchEdge.x+switchEdge.w,wide.x+wide.w-4,`${width}: the switch ends at the right edge`,2);
+  await page.locator('#recipe-view [data-recipe-view=explore]').tap();
+  await page.locator('#recipe-view [data-recipe-layout=explore]').waitFor({state:'visible'});await sleep(600);
+  const there=await box(page.locator('#recipe-view [data-recipe-view=explore]'));
+  near(there.x+there.w,switchEdge.x+switchEdge.w,`${width}: the switch stays in place in Udforsk`,1);
+  const cover=await box(page.locator('#recipe-view [data-recipe-cover][aria-current=true]'));
+  near(cover.x+cover.w/2,wide.x+wide.w/2,`${width}: the chosen cover is centred`,2);
+  assert.deepEqual(page.errors,[]);await page.close();
+ }
 
  // A-Timer: dark 744×458 hero with the coral ring.
  page=await stagePage('timer-detail-running');

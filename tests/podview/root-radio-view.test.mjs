@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {RadioView} from '../../podvoice/gatekeeper/static/podview/radio-view.js';
-import {stations} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {stations,ownerStationIds,radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
 import {readFileSync} from 'node:fs';
 
 class Node {
@@ -33,7 +33,7 @@ test('radio detail reuses response heading and existing choice-list with authore
  assert.equal(root.children[0].children[0].children[0].textContent,'Radio');
  const list=view.list;assert.equal(list.data.connected,true);
  assert.equal(list.data.selected,'p3');
- assert.deepEqual(list.data.items.slice(0,5).map(({id,label})=>({id,label})),stations.map(({id,label})=>({id,label})));assert.match(list.data.items[0].detail,/^Valgt/);assert.equal(list.data.items[4].detail,'Jazz');
+ assert.deepEqual(list.data.items.slice(0,5).map(({id,label})=>({id,label})),stations.map(({id,label})=>({id,label})));assert.match(list.data.items[1].detail,/^Valgt/);assert.equal(list.data.items[4].detail,'Jazz');
  const heading=view.header;view.render({live:false,connected:true,stationId:'p8-jazz'});
  assert.equal(root.children[0],heading);assert.equal(view.list,list);
  assert.equal(list.data.selected,'p8-jazz');
@@ -60,7 +60,7 @@ test('live and disconnected render remain visibly present but cannot select a st
  view.render({live:false,connected:false,stationId:'p3'});
  assert.equal(list.data.connected,false);root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.equal(calls.length,0);
  view.render({live:false,connected:true,stationId:'p3'});root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);
- assert.deepEqual(calls,[["p1",stations[1]]]);
+ assert.deepEqual(calls,[["p1",stations[0]]]);
 });
 
 test('unchanged radio snapshots retain the exact list projection and disconnected state keeps selected context',()=>{
@@ -71,14 +71,14 @@ test('unchanged radio snapshots retain the exact list projection and disconnecte
 test('station identities reuse sourced DR marks and playback indication follows only the local owner model',()=>{
  const {view}=fixture();view.render({live:false,connected:true,stationId:'p3',playing:true});
  assert.deepEqual(view.list.data.items.slice(0,5).map(item=>item.icon),stations.map(station=>`radio-${station.id}`));
- assert.equal(view.list.data.items[0].current,false);assert.match(view.list.data.items[0].detail,/^Valgt/);assert.equal(view.list.data.items.filter(item=>item.current).length,0);
+ assert.equal(view.list.data.items[1].current,false);assert.match(view.list.data.items[1].detail,/^Valgt/);assert.equal(view.list.data.items.filter(item=>item.current).length,0);
  const list=view.list,projection=list.data;view.render({live:false,connected:true,stationId:'p3',playing:true});assert.equal(list.data,projection);
- view.render({live:false,connected:true,stationId:'p3',playing:false});assert.equal(view.list,list);assert.equal(list.data.items[0].current,false);assert.match(list.data.items[0].detail,/^Stoppet/);
+ view.render({live:false,connected:true,stationId:'p3',playing:false});assert.equal(view.list,list);assert.equal(list.data.items[1].current,false);assert.match(list.data.items[1].detail,/^Stoppet/);
  view.render({live:true,connected:true,stationId:'p3',playing:true});assert.equal(list.data.selected,null);assert.ok(list.data.items.every(item=>item.current===false));assert.ok(list.data.items.every(item=>!/^Spiller|^Valgt|^Stoppet/.test(item.detail)));
 });
 
 // Lærred v190 »A-Radio« (issue 393): the hero shows the station shown, its description and whether it plays or stopped.
-test('radio hero shows the chosen station while selected tiles distinguish playing-model selection and stop',()=>{const {view}=fixture();for(const playing of [true,false]){view.render({live:false,connected:true,stationId:'p3',playing});assert.equal(view.subtitle.textContent,'Vælg eller skift station nedenfor.');assert.equal(view.stationTitle.textContent,'P3');assert.equal(view.stationStatus.textContent,'Musik og underholdning');assert.equal(view.stationStatusLine.textContent,playing?'Spiller':'Stoppet');assert.match(view.list.data.items[0].detail,playing?/^Valgt/:/^Stoppet/);}view.render({live:true,connected:true,stationId:'p3',playing:true});assert.match(view.stationStatus.textContent,/ikke klar på højttalerne/);assert.doesNotMatch(view.subtitle.textContent,/P3|Stoppet|Valgt i afspilleren/);});
+test('radio hero shows the chosen station while selected tiles distinguish playing-model selection and stop',()=>{const {view}=fixture();for(const playing of [true,false]){view.render({live:false,connected:true,stationId:'p3',playing});assert.equal(view.subtitle.textContent,'Vælg eller skift station nedenfor.');assert.equal(view.stationTitle.textContent,'P3');assert.equal(view.stationStatus.textContent,'Musik og underholdning');assert.equal(view.stationStatusLine.textContent,playing?'Spiller':'Stoppet');assert.match(view.list.data.items[1].detail,playing?/^Valgt/:/^Stoppet/);}view.render({live:true,connected:true,stationId:'p3',playing:true});assert.match(view.stationStatus.textContent,/ikke klar på højttalerne/);assert.doesNotMatch(view.subtitle.textContent,/P3|Stoppet|Valgt i afspilleren/);});
 
 test('station assets retain verified DR Design source bytes instead of recreated lettering',async()=>{
  const {readFile}=await import('node:fs/promises'),{createHash}=await import('node:crypto'),sources=JSON.parse(await readFile(new URL('../../docs/RADIO-LOGO-SOURCES.json',import.meta.url),'utf8'));
@@ -109,7 +109,7 @@ test('connected denial retains known station context, blocks forged selection, a
  const {root,view,calls}=fixture();view.render({live:false,connected:true,stationId:'p6-beat',playing:false});const list=view.list,hero=view.hero,art=view.stationArt;
  view.render({live:false,connected:true,blocked:true,stationId:'p6-beat',playing:false});assert.equal(list.data.connected,false);assert.equal(list.data.state,'unsupported');assert.equal(list.data.selected,'p6-beat');assert.equal(view.stationTitle.textContent,'Radio');assert.match(view.stationStatus.textContent,/Adgang afvist/);assert.match(list.data.items[3].detail,/^Stoppet/);assert.match(view.subtitle.textContent,/Adgang afvist/);assert.doesNotMatch(view.subtitle.textContent,/Ikke forbundet/);root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.deepEqual(calls,[]);
  const denied=list.data;view.render({live:false,connected:true,blocked:true,stationId:'p6-beat',playing:false});assert.equal(list.data,denied);assert.equal(view.hero,hero);assert.equal(view.stationArt,art);
- view.render({live:false,connected:true,blocked:false,stationId:'p6-beat',playing:false});assert.equal(list.data.connected,true);root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.deepEqual(calls,[[stations[1].id,stations[1]]]);assert.equal(list.data.selected,'p1');
+ view.render({live:false,connected:true,blocked:false,stationId:'p6-beat',playing:false});assert.equal(list.data.connected,true);root.emit('pv-action',{action_id:'choose',option_id:'p1'},list);assert.deepEqual(calls,[[stations[0].id,stations[0]]]);assert.equal(list.data.selected,'p1');
 });
 
 // This adapter executes the real choice-list renderer and native disabled
@@ -139,7 +139,7 @@ test('first-denied, connected denial and live-unsupported Radio all disable actu
   await import('../../podvoice/gatekeeper/static/podview/ui/library/components.js?radio-native-disabled');const {previewScene}=await import('../../podvoice/gatekeeper/static/podview/preview-scenes.js'),scene=previewScene('first-denied'),root=document.createElement('section'),calls=[],view=new RadioView(root,{onSelect:id=>calls.push(id)});
   const cases=[{live:false,connected:scene.connected},{live:false,connected:true,blocked:true},{live:true,connected:true},{live:true,connected:true,enabled:true,canStart:false,status:'unknown'}];let retained;
   for(const input of cases){view.render(input);const buttons=view.list.querySelectorAll('button');assert.equal(buttons.length,stations.length);assert.ok(buttons.every(button=>button.disabled===true));if(retained)assert.deepEqual(buttons,retained);retained=buttons;for(const button of buttons)button.click();root.emit('pv-action',{action_id:'choose',option_id:'p3'},view.list);assert.deepEqual(calls,[]);assert.equal(view.list.data.selected,null);}
-  view.render({live:false,connected:true});const buttons=view.list.querySelectorAll('button');assert.deepEqual(buttons,retained);assert.ok(buttons.every(button=>button.disabled===false));buttons[0].click();buttons[0].click();assert.deepEqual(calls,['p3']);assert.equal(view.list.data.selected,'p3');view.destroy();
+  view.render({live:false,connected:true});const buttons=view.list.querySelectorAll('button');assert.deepEqual(buttons,retained);assert.ok(buttons.every(button=>button.disabled===false));buttons[1].click();buttons[1].click();assert.deepEqual(calls,['p3']);assert.equal(view.list.data.selected,'p3');view.destroy();
  }finally{Object.assign(globalThis,previous);}
 });
 
@@ -159,11 +159,11 @@ test('held live start retains exact logos, labels only requested card Starter an
  let radio;
  try{
   await import('../../podvoice/gatekeeper/static/podview/ui/library/components.js?radio-artwork-progress');const {LiveRadioView}=await import('../../podvoice/gatekeeper/static/podview/live-radio-view.js'),root=document.createElement('section'),view=new RadioView(root),frames=[],snapshot={bootId:'b',roomId:'r'},now=Date.now()/1000;
-  const dto=(stationId='p3',generation=1)=>({ok:true,schema:'podview.radio.v1',...snapshot,enabled:true,revision:generation,stations:stations.map(s=>({id:s.id,name:s.label})),targets:[{id:'a',name:'Stuen',selectable:true,availability:'available',default:true}],actions:['start','stop','move','volume'],state:{status:'playing',stationId,targetId:'a',generation,sourceKind:'radio',ownerGeneration:generation,volumePercent:37,observedAt:now},retrievedAt:now,validUntil:now+30,physicalResultVerified:false});
+  const dto=(stationId='p3',generation=1)=>({ok:true,schema:'podview.radio.v1',...snapshot,enabled:true,revision:generation,stations:ownerStationIds.map(id=>({id,name:radioStation(id).label})),targets:[{id:'a',name:'Stuen',selectable:true,availability:'available',default:true}],actions:['start','stop','move','volume'],state:{status:'playing',stationId,targetId:'a',generation,sourceKind:'radio',ownerGeneration:generation,volumePercent:37,observedAt:now},retrievedAt:now,validUntil:now+30,physicalResultVerified:false});
   let offerResolve,actionResolve,posts=0;const host={isConnected:true,liveSnapshot:snapshot,liveTransport:{connected:true,radioOffer:()=>new Promise(r=>offerResolve=r),radioAction:()=>{posts++;return new Promise(r=>actionResolve=r);},radio:async()=>dto('p1',2)},playerView:{renderPlayer:vm=>frames.push(vm),renderControls(){},renderQueue(){}},render(){view.render({live:true,connected:true,enabled:radio.current(),canStart:radio.can('start'),pending:radio.pending,stationId:radio.value.state.stationId,playing:radio.value.state.status==='playing',pendingStationId:radio.pendingStart()?.stationId,feedback:radio.feedback()});}};
   radio=new LiveRadioView(host);radio.value=dto();radio.lastConfirmed={...radio.value.state};radio.render();const buttons=view.list.querySelectorAll('button'),logos=buttons.map(button=>button.querySelector('img')),sources=logos.map(img=>img.getAttribute('src')),operation=radio.choose('p1');
-  assert.equal(view.list.data.selected,'p3');assert.equal(frames.at(-1).title,'P1');assert.equal(frames.at(-1).playing,false);assert.equal(frames.at(-1).fresh,false);assert.equal(frames.at(-1).loading,true);assert.equal(frames.at(-1).volume,37);assert.deepEqual(buttons.filter(button=>button.getAttribute('aria-busy')==='true'),[buttons[1]]);assert.ok(buttons.every(button=>button.dataset.feedback==='label'));assert.equal(buttons[1].querySelector('span').textContent,'Starter…');assert.equal(buttons[0].getAttribute('aria-pressed'),'true');assert.deepEqual(buttons.map(button=>button.querySelector('img')),logos);assert.equal(buttons[1].querySelector('strong').textContent,'P1');assert.equal(view.feedback.hidden,true);
-  radio.render();assert.deepEqual(view.list.querySelectorAll('button'),buttons);assert.equal(buttons[1].getAttribute('aria-busy'),'true');assert.equal(posts,0);offerResolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await Promise.resolve();await Promise.resolve();assert.equal(posts,1);assert.equal(frames.at(-1).title,'P1');assert.equal(radio.value.state.stationId,'p3');assert.equal(buttons[1].getAttribute('aria-busy'),'true');actionResolve({status:'accepted'});await operation;
+  assert.equal(view.list.data.selected,'p3');assert.equal(frames.at(-1).title,'P1');assert.equal(frames.at(-1).playing,false);assert.equal(frames.at(-1).fresh,false);assert.equal(frames.at(-1).loading,true);assert.equal(frames.at(-1).volume,37);assert.deepEqual(buttons.filter(button=>button.getAttribute('aria-busy')==='true'),[buttons[0]]);assert.ok(buttons.every(button=>button.dataset.feedback==='label'));assert.equal(buttons[0].querySelector('span').textContent,'Starter…');assert.equal(buttons[1].getAttribute('aria-pressed'),'true');assert.deepEqual(buttons.map(button=>button.querySelector('img')),logos);assert.equal(buttons[0].querySelector('strong').textContent,'P1');assert.equal(view.feedback.hidden,true);
+  radio.render();assert.deepEqual(view.list.querySelectorAll('button'),buttons);assert.equal(buttons[0].getAttribute('aria-busy'),'true');assert.equal(posts,0);offerResolve({...snapshot,taskId:'t',optionId:'o',expiresAt:Date.now()/1000+5});await Promise.resolve();await Promise.resolve();assert.equal(posts,1);assert.equal(frames.at(-1).title,'P1');assert.equal(radio.value.state.stationId,'p3');assert.equal(buttons[0].getAttribute('aria-busy'),'true');actionResolve({status:'accepted'});await operation;
   assert.equal(view.list.data.selected,'p1');assert.equal(frames.at(-1).title,'P1');assert.ok(buttons.every(button=>button.getAttribute('aria-busy')==='false'));assert.deepEqual(buttons.map(button=>button.querySelector('img')),logos);assert.deepEqual(logos.map(img=>img.getAttribute('src')),sources);
   view.destroy();
  }finally{clearTimeout(radio?.expiry);Object.assign(globalThis,previous);}

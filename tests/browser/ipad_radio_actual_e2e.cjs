@@ -1,7 +1,7 @@
 'use strict';
 // iPad Radio (issue 393, lærred v190 »A-Radio«, »Radio-Starter«, »Radio-Spiller«, »Radio-IkkeTilg«, »W-radio-*«):
 // a 744×458 hero with the station logo, status line, 56/800 title, description and a station scale with a needle;
-// under it »Radiostationer« with »Afspilles på <højttaler>« and five 56-px logo tiles in one row. Radio plays in the
+// under it »Radiostationer« and five 56-px logo tiles in one row. Radio plays in the
 // right-hand media player. When radio is not available the hero says so, the scale fades and the tiles are grey;
 // the small Radio widget in the overview is dimmed and says »Ikke tilgængelig«.
 const {chromium}=require('playwright');
@@ -89,10 +89,11 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  const needle=await box(page.locator('#radio-view .radio-scale-needle'));
  assert.equal(needle.bg,'rgb(229, 38, 30)','live needle is red');
  const scale=await box(page.locator('#radio-view .radio-scale'));
- near(needle.x+needle.w/2,scale.x+scale.w*0.1,'needle at the first station',3);
+ near(needle.x+needle.w/2,scale.x+scale.w*0.3,'needle at P3, the second station after P1',3);
  const selected=await box(page.locator('#radio-view .pv-list>button[aria-pressed=true]'));
  assert.match(selected.shadow,/^rgb\(77, 255, 77\) 0px 0px 0px 3px inset$/,'selected tile has a 3-px ring in the station colour');
- assert.match(await text(page,'.radio-stations-speaker'),/^Afspilles på .+/);
+ // The owner removed the »Afspilles på <højttaler>« helper line; the player's speaker chip shows the speaker.
+ assert.equal(await page.locator('#radio-view .radio-stations-speaker').count(),0);
  await page.close();
 
  // Radio-Starter: the needle turns yellow and the hero says »Starter …«.

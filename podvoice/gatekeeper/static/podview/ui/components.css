@@ -629,10 +629,6 @@ pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] fieldset
 /* A renewed Robot offer keeps the user's scroll position; browser anchoring to
    replaced controls must not move the observed status out of view. */
 pv-widget-host #device-view:has(pv-robot-control-panel[data-layout=compact]){overflow-anchor:none}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery{display:grid;gap:var(--pv-s2);padding:var(--pv-s3);background:var(--pv-screen-danger-surface);border-radius:var(--pv-r-l)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery-row{display:grid;gap:var(--pv-s1)}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-recovery :is(h3,p){margin:0}
-pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-error-code>summary{min-height:64px;align-content:center;font:var(--pv-t-body);cursor:pointer}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-app-guidance{border-top:1px solid var(--pv-line);padding-block:var(--pv-s1)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] .robot-app-guidance>summary{min-height:64px;align-content:center;cursor:pointer;font:var(--pv-t-body);font-weight:var(--pv-weight-semibold)}
 pv-widget-host #device-view pv-robot-control-panel[data-layout=compact] :is(.robot-app-guidance-row,.robot-recipe-summary){padding-block:var(--pv-s2);display:grid;gap:var(--pv-s1)}

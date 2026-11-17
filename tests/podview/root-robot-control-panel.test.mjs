@@ -320,15 +320,11 @@ test('typed current choice drives direct setting despite unrelated labels and ob
 test('all room shortcut explicitly selects offered areas and never emits native whole-home clean',()=>{
  const panel=new RobotControlPanel(),actions=[];panel.addEventListener('robot-control-action',event=>actions.push(event.detail));panel.data={task:task(),device,connected:true};const shortcut=panel.querySelectorAll('button').find(row=>row.textContent==='Vælg alle');emit(shortcut,'click');assert.deepEqual(actions,[]);assert.deepEqual(panel.readCleaningDraft(),{areaIds:['area-k','area-s'],repeat:1});emit(cleaningForm(panel),'submit');assert.equal(actions[0].optionId,'start-option');assert.deepEqual(actions[0].args.areaIds,['area-k','area-s']);emit(shortcut,'click');assert.deepEqual(panel.readCleaningDraft().areaIds,[]);
 });
-test('source-bound fault stays in the Hero with its code behind closed details',()=>{
+test('source-bound fault stays in the Hero without a technical-details accordion',()=>{
  const panel=new RobotControlPanel(),now=Date.now()/1000;panel.data={task:{domain:'vacuum',options:[]},device:{...device,status:'fault',telemetry:{status:'observed',items:[{key:'vacuum_error',value:'main_brush_jammed',updatedAt:now}]}},connected:true};assert.equal(panel.observation.data.text,'Hovedbørsten sidder fast');
- const details=panel.recovery.querySelector('details');
- assert.equal(details.open,false);
- assert.equal(details.querySelector('p').textContent,'Robot · main_brush_jammed');
- assert.equal(panel.recovery.children.length,1);
+ assert.equal(panel.querySelectorAll('details').length,0,'no technical-details accordion');
+ assert.equal(panel.querySelectorAll('p').some(row=>row.textContent.includes('main_brush_jammed')),false);
  assert.equal(panel.transportControls.parentNode,panel.observation);
- panel.observed(device);
- assert.equal(panel.recovery.hidden,true);
 });
 
 test('bound selected recipe summary remains distinct from observed settings beside status Hero Start',()=>{
@@ -456,7 +452,7 @@ test('offline and stale Robot Hero explicitly marks last known activity without 
 });
 
 test('unknown Robot fault points to the app without inventing a cause or exposing capability jargon',()=>{
- const panel=new RobotControlPanel();panel.data={task:null,device:{...device,status:'fault'},connected:true};assert.equal(panel.availabilityNote.textContent,'Åbn Roborock-appen for at se fejlen og få hjælp.');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.recovery.hidden,true);assert.equal(panel.querySelectorAll('button').length,0);panel.data={task:null,device,connected:true};assert.equal(panel.availabilityNote.textContent,'Kun status er tilgængelig.');assert.ok(!panel.availabilityNote.textContent.includes('pleje'));
+ const panel=new RobotControlPanel();panel.data={task:null,device:{...device,status:'fault'},connected:true};assert.equal(panel.availabilityNote.textContent,'Åbn Roborock-appen for at se fejlen og få hjælp.');assert.equal(panel.availabilityNote.hidden,false);assert.equal(panel.recovery,undefined);assert.equal(panel.querySelectorAll('button').length,0);panel.data={task:null,device,connected:true};assert.equal(panel.availabilityNote.textContent,'Kun status er tilgængelig.');assert.ok(!panel.availabilityNote.textContent.includes('pleje'));
 });
 
 test('normal pending feedback stays on its exact shared control and never adds a Hero feedback row',()=>{
