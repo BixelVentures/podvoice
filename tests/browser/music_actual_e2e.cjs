@@ -134,7 +134,7 @@ async function startFlashProbe(page){
    n.querySelector('img')?.getAttribute('src')].join('|');
   const controls=()=>{const out={};for(const id of ['play-pause','previous','next','volume','output','detail-toggle',
    'detail-previous','detail-next','detail-volume','detail-output'])if(document.getElementById(id))out[id]=document.getElementById(id);
-   for(const row of document.querySelectorAll('#queue button.queue-track[data-current=false]'))
+   for(const row of document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])[data-current=false]'))
     if(row.dataset.placeholder!=='true')out['queue:'+row.dataset.trackId]=row;
    return out;};
   const probe=window.flashProbe={seen:{},stop:false};
@@ -150,7 +150,7 @@ async function flashChanges(page,label){
 }
 async function outputTransferJourney(page,errors,{composed=false}={}){
  const output=page.locator('#output'),dialog=page.locator('#rooms'),volume=page.locator('#volume');
- const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current=false]');
+ const queue=page.locator('#queue'),rows=queue.locator('button.queue-track:not([data-pv-leave])[data-current=false]');
  const kitchen={name:'Køkkenalrum HomePod',room:'native-room',homepod:'42'};
  const bedroom={name:'Soveværelse',room:'bedroom',homepod:'43'};
  const observed=(target,song)=>page.waitForFunction(({name,room,homepod,song})=>{
@@ -351,7 +351,7 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
  assert.equal(moved.outcome,'accepted','a speaker choice goes through after unknown and rejected');
  await observed(bedroom,started);
  if(!await queue.isVisible())await page.locator('#track').tap();
- await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track[data-current=false]')]
+ await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])[data-current=false]')]
   .some(row=>!row.disabled),undefined,{timeout:15000});
  await rows.filter({hasText:'Køsang'}).first().tap();
  for(let n=0;!(await state()).writes.slice(explicit.writes.length)
@@ -377,7 +377,7 @@ async function outputTransferJourney(page,errors,{composed=false}={}){
   await move(kitchen);
  },()=>observed(kitchen,playing));
  assert((await change({queue:[41,42,43],externalSong:40})).ok);
- await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track[data-current=false]')]
+ await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])[data-current=false]')]
   .some(row=>!row.disabled),undefined,{timeout:15000});
  const queueBefore=(await state()).writes.length;
  await quiet('queue',()=>rows.filter({hasText:'Køsang'}).first().tap(),async()=>{
@@ -565,7 +565,7 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   assert.equal((await state()).externalDevice,target);
   if(composed){
    assert.equal(await host.evaluate(h=>h.liveMedia.queueControls.offer),null,'external output revokes the old queue offer');
-   assert.equal(await page.locator('#queue button.queue-track[data-current=false]:enabled').count(),0);
+   assert.equal(await page.locator('#queue button.queue-track:not([data-pv-leave])[data-current=false]:enabled').count(),0);
   }
   // Pause, resume and next act on that device directly (PodConnect's direct device control).
   const song=(await state()).song;
@@ -623,7 +623,7 @@ async function externalOutputJourney(page,errors,{composed=false}={}){
   renewedQueue=await readHomeQueue(oldQueue.taskId);
   assert.equal(renewedQueue.ownerEpoch,oldQueue.ownerEpoch);
   assert.equal(renewedQueue.accountId,oldQueue.accountId);
-  const row=queue.locator('button.queue-track[data-current=false]').filter({hasText:'Køsang 24'});
+  const row=queue.locator('button.queue-track:not([data-pv-leave])[data-current=false]').filter({hasText:'Køsang 24'});
   const submit=page.waitForRequest(r=>r.url().endsWith('/music/queue/actions')&&r.method()==='POST');
   await row.tap();
   const body=(await submit).postDataJSON();
@@ -1359,10 +1359,13 @@ async function longSession(page,errors){
  // A real read while the command is in flight must not undo the optimistic view or lock controls.
  await page.evaluate(()=>document.querySelector('pv-widget-host').liveMedia.refresh({immediate:true}));
  assert.match(await control.getAttribute('aria-label'),/^Fortsæt/,'refresh preserves the pending Pause intent');
- const pauseBox=await control.boundingBox();assert(pauseBox);
+ // The press release springs back over ~440 ms (P3); geometry is compared once it has landed.
+ const landed=()=>control.evaluate(button=>Promise.all(button.getAnimations()
+  .filter(a=>a.effect?.getTiming().iterations!==Infinity).map(a=>a.finished.catch(()=>{}))));
+ await landed(); const pauseBox=await control.boundingBox();assert(pauseBox);
  const pendingTouch=await control.evaluate(button=>{const host=document.querySelector('pv-widget-host');return {disabled:button.disabled,ariaBusy:button.getAttribute('aria-busy'),ariaLabel:button.getAttribute('aria-label'),feedback:button.dataset.feedback,html:button.outerHTML,ownerPending:(host?.liveControls?.musicIntentPending||host?.liveControls?.player?.busy())===true,status:host?.liveControls?.musicStatus?.textContent,feedbackMessage:host?.feedbackMessage};});
  await fs.writeFile(path.join(testEnv.artifactDir(),'podview-music-touch-pending-witness.json'),JSON.stringify(pendingTouch,null,2));await page.screenshot({path:path.join(testEnv.artifactDir(),'podview-music-touch-pending.png')});
- const duplicatePauseBox=await control.boundingBox();assert(duplicatePauseBox);
+ await landed(); const duplicatePauseBox=await control.boundingBox();assert(duplicatePauseBox);
  for(const key of ['x','y','width','height'])assert(Math.abs(duplicatePauseBox[key]-pauseBox[key])<1,'pending Pause geometry stays stable: '+key);
  const duplicatePoint={x:duplicatePauseBox.x+duplicatePauseBox.width/2,y:duplicatePauseBox.y+duplicatePauseBox.height/2};
  assert(await page.evaluate(({x,y})=>!!document.elementFromPoint(x,y)?.closest('#play-pause'),duplicatePoint),'duplicate touch targets the actual pending Pause control');

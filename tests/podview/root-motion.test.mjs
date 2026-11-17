@@ -43,7 +43,8 @@ test('adding a resource fades it in and FLIP-shifts an existing resource below i
  existing.y=300;
  f.motion.settleResources(before);
  assert.equal(existing.animations.length,1);
- assert.equal(existing.animations[0].options.duration,240);
+ // P4 reorder (docs/MOTION.md §3.5): neighbours slide on the smooth spring (661 ms CSS settle).
+ assert.equal(existing.animations[0].options.duration,661);
  assert.deepEqual(existing.animations[0].frames,[{transform:'translate(0px,-80px)'},{transform:'none'}]);
  assert.equal(added.animations.length,1);
  assert.equal(added.animations[0].options.duration,120);
@@ -176,7 +177,7 @@ test('timer72→112 FLIPs every retained overview sibling40px without animating 
  const before=f.motion.resources();assert.match(selector,/#now-view>\[data-overview-rank\]/);
  timer.offsetHeight=112;for(const node of f.nodes.slice(1))node.y+=40;f.motion.settleResources(before);
  assert.equal(timer.animations[0].options.duration,240);assert.match(timer.animations[0].frames[0].transform,/scale\(1,0\.642857/);
- for(const node of [weather,robot,light,vehicle,music,radio]){assert.equal(node.animations[0].options.duration,240);assert.equal(node.animations[0].frames[0].transform,'translate(0px,-40px)');}
+ for(const node of [weather,robot,light,vehicle,music,radio]){assert.equal(node.animations[0].options.duration,661);assert.equal(node.animations[0].frames[0].transform,'translate(0px,-40px)');}
  for(const node of f.nodes)for(const frame of node.animations[0].frames)assert(Object.keys(frame).every(key=>['transform','transformOrigin','opacity'].includes(key)));
  const same=f.motion.resources();f.motion.settleResources(same);for(const node of f.nodes)assert.equal(node.animations.length,1,'unchanged ticks/finished state must not replay');
  // Reverse while the first transition is still running, with one owner each.

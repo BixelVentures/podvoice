@@ -159,10 +159,10 @@ async function coldPlayerJourney(){
 // never shows error text, keeps each row's DOM node while it stays listed and never reorders rows.
 async function queueSkipJourney(){
  await page.locator('#track').tap();
- const upcoming=()=>page.evaluate(()=>[...document.querySelectorAll('#queue button.queue-track[data-current="false"]')]
+ const upcoming=()=>page.evaluate(()=>[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])[data-current="false"]')]
   .filter(row=>row.dataset.placeholder!=='true').map(row=>row.querySelector('.queue-copy strong').textContent));
  const firstUpcoming=title=>page.waitForFunction(title=>{
-  const row=[...document.querySelectorAll('#queue button.queue-track[data-current="false"]')]
+  const row=[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])[data-current="false"]')]
    .find(node=>node.dataset.placeholder!=='true');
   return row?.querySelector('.queue-copy strong')?.textContent===title;
  },title,{timeout:15000});
@@ -171,7 +171,7 @@ async function queueSkipJourney(){
   const queue=document.getElementById('queue'),probe=window.queueSkipProbe={frames:[],identity:[],order:[],texts:new Set()};
   let previous=new Map();
   const sample=()=>{
-   const rows=[...queue.querySelectorAll('button.queue-track')],real=rows.filter(row=>row.dataset.placeholder!=='true');
+   const rows=[...queue.querySelectorAll('button.queue-track:not([data-pv-leave])')],real=rows.filter(row=>row.dataset.placeholder!=='true');
    const upcoming=real.filter(row=>row.dataset.current==='false');
    const placeholders=rows.length-real.length,ids=real.map(row=>row.dataset.trackId),now=new Map(real.map(row=>[row.dataset.trackId,row]));
    for(const [id,node] of now)if(previous.has(id)&&previous.get(id)!==node)probe.identity.push(id);
@@ -695,7 +695,7 @@ async function voiceQueueJourney(){
  const {session}=await step('observe');
  const startedBinding=await observe(11,'playing');
  await page.locator('#player-detail').tap();
- const repeated=page.locator('#queue button.queue-track[data-current="false"]').filter({hasText:'Køsang 22'});
+ const repeated=page.locator('#queue button.queue-track:not([data-pv-leave])[data-current="false"]').filter({hasText:'Køsang 22'});
  await repeated.nth(1).waitFor();
  assert.equal(await repeated.count(),2);
  await repeated.nth(1).tap();
@@ -1360,7 +1360,7 @@ async function accountRolloverJourney(){
  const host=page.locator('pv-widget-host');
  const accounts=page.locator('pv-choice-list[aria-label="Musikkonto"]');
  const queue=page.locator('#queue');
- const rows=queue.locator('button.queue-track[data-current="false"]');
+ const rows=queue.locator('button.queue-track:not([data-pv-leave])[data-current="false"]');
  const names=()=>rows.locator('.queue-copy strong').allTextContents();
  const playback=()=>host.evaluate(h=>{
   const {account,playback:p}=h.liveMedia;
@@ -1447,7 +1447,7 @@ async function accountRolloverJourney(){
  console.log(JSON.stringify(proof));
 }
 async function queueIdentityJourney(){
- const queue=page.locator('#queue'),rows=queue.locator('button.queue-track[data-current="false"]');
+ const queue=page.locator('#queue'),rows=queue.locator('button.queue-track:not([data-pv-leave])[data-current="false"]');
  const track=page.locator('#track'),host=page.locator('pv-widget-host');
  const endpoint='**/view/api/music/queue/offer';
  const mutate=async condition=>assert((await page.request.post(base+'/lab/queue',{data:{condition}})).ok());
@@ -1563,7 +1563,7 @@ async function queueIdentityJourney(){
     const queue=document.getElementById('queue');
     const elapsed=performance.now()-start;
     if(queue?.checkVisibility(visibility)){
-     const rows=[...queue.querySelectorAll('button.queue-track[data-current="false"]')]
+     const rows=[...queue.querySelectorAll('button.queue-track:not([data-pv-leave])[data-current="false"]')]
       .filter(row=>row.checkVisibility(visibility)).map(row=>row.querySelector('.queue-copy strong').textContent);
      const placeholder=!!queue.querySelector('.queue-empty')?.checkVisibility(visibility);
      window.knownQueueTiming={firstVisibleFrameMs:elapsed,frames,rows,placeholder};
@@ -1615,7 +1615,7 @@ async function queueIdentityJourney(){
  // K2: song 32 now plays, so the last-known rows 31 and 32 have played and are not upcoming.
  assert.deepEqual(await names(),[],'played rows of the last-known queue are not listed as upcoming');
  assert.equal(await rows.and(queue.locator('button:enabled')).count(),0,'last-known rows grant no actions');
- assert.equal(await queue.locator('button[data-current="true"] strong').innerText(),'Isoleret sang 32');
+ assert.equal(await queue.locator('button:not([data-pv-leave])[data-current="true"] strong').innerText(),'Isoleret sang 32');
  assert.match(await page.locator('#detail-toggle').getAttribute('aria-label'),/pause/i);
  await mutate('autoplay-with-queue');
  await observed(33,'bedroom','43');
@@ -1636,7 +1636,7 @@ async function queueIdentityJourney(){
 }
 async function queuePersistenceJourney(){
  const queue=page.locator('#queue');
- const rows=queue.locator('button.queue-track[data-current="false"]');
+ const rows=queue.locator('button.queue-track:not([data-pv-leave])[data-current="false"]');
  const title=page.locator('#queue-title');
  const open=async()=>page.locator('#track').tap();
  const close=async()=>page.locator('#header-title-action').tap();
@@ -1688,12 +1688,12 @@ async function queuePersistenceJourney(){
  if(queueIntents)await queue.evaluate(node=>{
   window.queueTapPaints=[];
   document.addEventListener('click',event=>{
-   const row=event.target.closest?.('button.queue-track[data-current="false"]');
+   const row=event.target.closest?.('button.queue-track:not([data-pv-leave])[data-current="false"]');
    if(!event.isTrusted||!node.contains(row))return;
    const label=item=>item.querySelector('.queue-copy strong').textContent;
    const title=label(row),started=performance.now();
    requestAnimationFrame(()=>{
-    const spinners=[...node.querySelectorAll('button.queue-track')]
+    const spinners=[...node.querySelectorAll('button.queue-track:not([data-pv-leave])')]
      .filter(item=>getComputedStyle(item,'::after').animationName.split(', ').includes('pv-spin'))
      .map(label);
     window.queueTapPaints.push({title,elapsedMs:performance.now()-started,spinners});
@@ -1709,7 +1709,7 @@ async function queuePersistenceJourney(){
   window.queueFrameProbe=list;
   const watch=()=>{
    if(list.stopped)return;
-   const visible=[...node.querySelectorAll('button.queue-track[data-current="false"]')]
+   const visible=[...node.querySelectorAll('button.queue-track:not([data-pv-leave])[data-current="false"]')]
     .filter(row=>row.getClientRects().length>0).length;
    list.minimum=Math.min(list.minimum,visible);
    list.frames++;
@@ -1897,7 +1897,7 @@ async function queuePersistenceJourney(){
  await status('ready');
  await assertNames([]);
  assert.equal(await queue.locator('.queue-empty').innerText(),'Ingen sange i køen.');
- assert.equal(await queue.locator('button[data-current="true"] strong').innerText(),'Isoleret sang 22');
+ assert.equal(await queue.locator('button:not([data-pv-leave])[data-current="true"] strong').innerText(),'Isoleret sang 22');
  assert.equal((await state()).writes.length,sourceBefore.writes.length+1);
  assert.deepEqual(errors,[]);
  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
@@ -2192,9 +2192,9 @@ async function queuePersistenceJourney(){
  assert.equal(new Set(result.selections.map(r=>r.requestId)).size,3);
  assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,3);
  await page.locator('#track').tap();
- const queueRow=page.locator('#queue button.queue-track').filter({hasText:'Køsang 22'});
+ const queueRow=page.locator('#queue button.queue-track:not([data-pv-leave])').filter({hasText:'Køsang 22'});
  await queueRow.waitFor({state:'visible',timeout:15000});
- await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track')].some(b=>b.textContent.includes('Køsang 22')&&!b.disabled),undefined,{timeout:15000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])')].some(b=>b.textContent.includes('Køsang 22')&&!b.disabled),undefined,{timeout:15000});
  // A voice answer must not revoke an unchanged music queue (A12/K7).
  const queueBeforeVoice=await page.locator('#queue').innerText();
  await page.request.post(base+'/lab/state',{data:{unrelatedVoiceTurn:'s1:unrelated-answer'}});
