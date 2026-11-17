@@ -21,7 +21,7 @@ function fixture({documentRoot=false,reduced=false}={}){
    getBoundingClientRect:()=>({left:100,top:50,width:200,height:100}),
    animate(frames,options){
     let resolve,reject;const finished=new Promise((a,b)=>{resolve=a;reject=b;});finished.catch(()=>{});
-    const animation={frames,options,playState:'running',finished,
+    const animation={frames,options,playState:'running',currentTime:40,finished,
      cancel(){if(this.playState==='running')reject(new Error('cancel'));this.playState='idle';},
      finish(){if(this.playState!=='running')return;this.playState='finished';resolve(this);}};
     animations.push(animation);return animation;}};
@@ -30,7 +30,7 @@ function fixture({documentRoot=false,reduced=false}={}){
  const root=documentRoot?doc:surface;
  const event=(patch={})=>({type:'pointerdown',pointerId:1,clientX:150,clientY:60,button:0,isPrimary:true,
   composedPath:()=>[{},button,surface],...patch});
- const running=n=>n.animations.filter(a=>a.playState!=='idle');
+ const running=n=>n.animations.filter(a=>a.playState==='running');
  const finishAll=n=>{for(const a of n.animations)a.finish();};
  return {win,doc,surface,root,button,node,cleanup,event,running,finishAll,computed};
 }
@@ -53,31 +53,33 @@ test('down scales in --pv-dur-tap with the overlay at once; release springs back
  assert.deepEqual([scale.options.duration,scale.options.fill],[100,'forwards']);
  assert.match(overlay.frames[0].boxShadow,/inset 0 0 0 999px/);
  f.finishAll(f.button);
- f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  const release=f.running(f.button);
  assert.deepEqual(release.map(props),[['scale'],['boxShadow']]);
  assert.deepEqual(release[0].frames,[{scale:'0.97'},{scale:'1'}]);
  assert.match(release[0].options.easing,/^linear\(0, /,'the spring is a CSS linear() easing from Motion');
  assert(release[0].options.duration>300&&release[0].options.duration<1000,String(release[0].options.duration));
  assert.equal(release[1].frames[0].offset,0,'the overlay fades to the control\'s own shadow');
- assert.equal(release[1].options.duration,160);
- assert.equal(release.some(a=>a.options.fill),false,'nothing is left behind after the release');
+ assert.deepEqual([release[1].options.duration,release[1].options.delay],[160,0]);
+ f.finishAll(f.button);await flush();
+ assert.equal(f.running(f.button).length,0,'press and release end together');
+ assert.equal(f.button.animations.every(a=>a.playState==='idle'),true,'nothing is left behind');
  f.cleanup();
 });
 
 test('a tap released before the touch-down finished shows the whole press first',async()=>{
  const f=fixture();f.root.handlers.get('pointerdown')(f.event());
- f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
- assert.equal(f.button.animations.length,2,'no release yet');
- f.button.animations[0].finish();await flush();
- assert.deepEqual(f.running(f.button).map(props),[['scale'],['boxShadow']]);
- assert.deepEqual(f.running(f.button)[0].frames[0],{scale:'0.97'});
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
+ const release=f.button.animations.slice(2);
+ assert.deepEqual(release.map(props),[['scale'],['boxShadow']],'the release exists at once');
+ assert.deepEqual(release.map(a=>a.options.delay),[60,60],'and starts when the 100 ms touch-down ends');
+ assert.deepEqual(release[0].frames[0],{scale:'0.97'});
  f.cleanup();
 });
 
 test('a new press on a releasing control starts from where it is',async()=>{
  const f=fixture();f.root.handlers.get('pointerdown')(f.event());f.finishAll(f.button);
- f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
+ f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  f.root.handlers.get('pointerdown')(f.event());
  assert.deepEqual(f.computed,[f.button]);
  assert.deepEqual(f.running(f.button).map(a=>a.frames[0].scale??'overlay'),['0.985','overlay']);

@@ -56,24 +56,23 @@ export function attachPressedState(surface){
     {...hold,pseudoElement:'::after'}));
   }
  };
- // Release lets the touch-down finish first, so even the fastest tap shows the press before it springs back.
+ // Release starts when the touch-down has finished (a delay, not a wait), so even the fastest tap shows the whole
+ // press before it springs back, and the release exists from the moment of release. The press holds until the
+ // release takes over; both end together, at the control's resting style.
  const release=(target,animated)=>{
   const state=live.get(target);if(!state)return;
   if(!animated){stop(target);return;}
-  const down=state.hold[0],settled=down?.playState==='running'?down.finished:Promise.resolve();
-  settled.then(()=>{
-   if(live.get(target)!==state)return;
-   for(const animation of state.hold)animation.cancel();state.hold=[];
-   const fade={duration:reduced()?DUR.reduced:DUR.quick,easing:EASE.out};
-   if(state.scale<1)state.release.push(target.animate([{scale:String(state.scale)},{scale:'1'}],
-    springTiming(SPRING.quick)));
-   if(target.matches(QUIET))state.release.push(target.animate([{opacity:.64,offset:0}],fade));
-   else state.release.push(target.animate([{boxShadow:OVERLAY,offset:0}],fade));
-   if(state.circle)state.release.push(target.animate([{...state.circle,opacity:1,scale:1},
-    {...state.circle,opacity:0,scale:1}],{...fade,pseudoElement:'::after'}));
-   Promise.all(state.release.map(animation=>animation.finished)).then(()=>{
-    if(live.get(target)===state)live.delete(target);},()=>{});
-  },()=>{});
+  const down=state.hold[0];
+  const delay=down?.playState==='running'?Math.max(0,DUR.tap-(Number(down.currentTime)||0)):0;
+  const fade={duration:reduced()?DUR.reduced:DUR.quick,easing:EASE.out,delay,fill:'forwards'};
+  if(state.scale<1)state.release.push(target.animate([{scale:String(state.scale)},{scale:'1'}],
+   {...springTiming(SPRING.quick),delay,fill:'forwards'}));
+  if(target.matches(QUIET))state.release.push(target.animate([{opacity:.64,offset:0}],fade));
+  else state.release.push(target.animate([{boxShadow:OVERLAY,offset:0}],fade));
+  if(state.circle)state.release.push(target.animate([{...state.circle,opacity:1,scale:1},
+   {...state.circle,opacity:0,scale:1}],{...fade,pseudoElement:'::after'}));
+  Promise.all(state.release.map(animation=>animation.finished)).then(()=>{
+   if(live.get(target)===state)stop(target);},()=>{});
  };
  const clear=(animated=false)=>{if(pressed)release(pressed,animated);pressed=null;pointerId=null;origin=null;};
  const down=event=>{

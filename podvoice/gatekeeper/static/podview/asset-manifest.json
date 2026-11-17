@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "e1a9ee5ea23c372cc2afe1b6087c98cdce32fb91cef3ba863dd92f3773ef76fe"
+      "sha256": "1745b3ef95fc4fc181aba8ec35f5507de24ff488581e0a0d69a11e744ce79f0a"
     },
     {
       "path": "library.css",
@@ -823,7 +823,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "38bd46e3651123c861f861f8b9ec1c7de053d3c5be97d7852456e2b3ceb9bdce"
+      "sha256": "94b09cad2cd456151ba1d10499ecba168c37c31fd187a1b2fc15f0ddc7002d2d"
     },
     {
       "path": "podview.css",
@@ -1019,7 +1019,7 @@
     },
     {
       "path": "ui/pressed-state.js",
-      "sha256": "d5e4a8940b0ce10635c6b8e12094e64971ff47c926b3cbeb0c867b4377b343df"
+      "sha256": "89df629b27213548cfef02136bcb0787c374e4d06068a2c6a68e9f0360fb31de"
     },
     {
       "path": "ui/reconcile.js",
