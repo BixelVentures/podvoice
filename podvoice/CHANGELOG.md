@@ -1,3 +1,8 @@
+## 2.1.16
+
+- PodView fylder hele skærmen: også når iPad'ens statuslinje eller HA's menu tager plads, strækker siden sig kant til kant i stedet for at blive skaleret ned med grå kanter. Ro-billedet går helt ud til kanten.
+- Mere luft mellem indholdet og afspilleren (32 i stedet for 16); kortene til venstre får den ekstra bredde.
+
 ## 2.1.15
 
 - Udforsk: opskrifterne swipes som et rigtigt katalog. Forsiden følger fingeren 1:1, et hurtigt svirp kaster flere opskrifter afsted og lander blødt med en fjeder, du kan gribe den i farten, og ved enden giver den efter som et gummibånd. Kanten til venstre er stadig »tilbage«.
