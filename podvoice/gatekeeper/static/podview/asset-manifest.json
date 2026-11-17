@@ -819,11 +819,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "4c69b6466a6ecc765416c9f1463d03b389daefe5d181e6cc6c814cbbfd7ebdfb"
+      "sha256": "b07e1aca5381b678d0b5cef78c799b79cfc1d328b3de62c36c718f8a988d2867"
     },
     {
       "path": "podview.css",
-      "sha256": "b784efedf4a28a29fd16ecb7772ce90023d3410da57eeb7db4f87757c433e4cd"
+      "sha256": "a2f0e44393570bf1d38836219a0f71415e8350f1576aee1565731aa2dd941003"
     },
     {
       "path": "podvoice-transport.js",
@@ -939,7 +939,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "66eda163c955038d9cad9807d05d0abf47027958504261258d9836fd6a394c7b"
+      "sha256": "f7e006ddbdfc7c7a7c7e163f6dfbf4a3fbb272b616b41da92f4af81ae9edafdb"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1035,7 +1035,7 @@
     },
     {
       "path": "ui/stage.js",
-      "sha256": "5f6524a9caf2b5d8091244814547402093258c0cc323bc15d213fd1026c7dd17"
+      "sha256": "76e6ab2e4d754ec21ddfe3a2908beee5a78cbf393786767d9f09eebb018d574b"
     },
     {
       "path": "ui/touch-intent.js",

@@ -110,7 +110,7 @@ let server,browser,data;
  await page.locator('#open-history').tap();
  await today.waitFor({state:'visible',timeout:10000});await sleep(600);
  const column=await box(today);
- assert.deepEqual([column.x,column.y,column.w],[784,88,372],'I dag in the 372 player column at 784/88');
+ assert.deepEqual([column.x,column.y,column.w],[800,88,356],'I dag in the 356 player column at 800/88');
  assert.equal(await page.locator('aside.player').isVisible(),false,'the player gives the column to I dag');
  assert.equal((await today.locator('header>h2').innerText()).trim(),'I dag');
  assert.equal((await today.locator('header>span').innerText()).trim(),'Nyeste øverst');

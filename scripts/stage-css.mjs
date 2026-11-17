@@ -65,12 +65,13 @@ export function resolveStageMedia(css,stage=STAGE){
  return out+css.slice(at);
 }
 
-// Viewport units mean the stage, not the browser frame.
+// Viewport units mean the stage, not the browser frame. The stage is elastic (ui/stage.js): it keeps the
+// 1180×820 scale and grows in whichever direction the frame has room, so units read its live size.
 export function resolveStageUnits(css,stage=STAGE){
- const unit={vw:stage.width/100,vh:stage.height/100,vmin:Math.min(stage.width,stage.height)/100,
-  vmax:Math.max(stage.width,stage.height)/100};
+ const w=`var(--pv-stage-w,${stage.width}px)`,h=`var(--pv-stage-h,${stage.height}px)`;
+ const unit={vw:w,vh:h,vmin:`min(${w},${h})`,vmax:`max(${w},${h})`};
  return css.replace(/(^|[^\w.#-])(-?\d*\.?\d+)[dsl]?(vmin|vmax|vw|vh)\b/g,(all,lead,number,name)=>
-  `${lead}${+(Number(number)*unit[name]).toFixed(3)}px`);
+  +number===100?`${lead}${unit[name]}`:`${lead}calc(${unit[name]} * ${+(Number(number)/100).toFixed(5)})`);
 }
 
 export function resolveStage(css,stage=STAGE){

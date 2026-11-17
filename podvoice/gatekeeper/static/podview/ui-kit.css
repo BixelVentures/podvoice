@@ -3037,16 +3037,17 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
   animation-range:entry,exit}
 }
 
-/* iPad layout (lærred v190, issue 388): 1180×820, 24 margin, left column 744 + 16 + player 372.
+/* iPad layout (lærred v190, issue 388; luft 17 Nov): 1180×820, 24 margin, left column 744 + 32 + player 356.
+   The 32 gap (twice the 16 between widgets) separates content from the player; spare stage width goes to the widgets.
    The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
 @media (min-width:1000px){
  body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
-  grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-gap)}
+  grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-player-gap)}
  body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
   align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
   height:calc(var(--pv-hero-l) + var(--pv-gap) + var(--pv-hero-s));max-height:none}
 }
-:root{--pv-player-w:372px}
+:root{--pv-player-w:356px;--pv-player-gap:var(--pv-s4)}
 
 /* iPad Overblik (lærred v190 »Main«, issue 389): fixed slots in a 4×3 grid of 174×221 beside the player.
    Vejr L · Robot M · Lys S, Tesla S · Musik, Radio, Opskrifter, Timer S. State never moves a widget.
@@ -3056,7 +3057,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
   --pv-recipe-step-ahead:rgba(122,74,34,.18)}
 @media (min-width:1000px){
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather){
-  grid-template-columns:repeat(4,var(--pv-widget-s));grid-template-rows:repeat(3,var(--pv-hero-s));
+  grid-template-columns:repeat(4,minmax(var(--pv-widget-s),1fr));grid-template-rows:repeat(3,var(--pv-hero-s));
   grid-auto-rows:0;gap:var(--pv-gap);align-content:start;margin:0;padding:0;overflow:visible}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>.response-heading{
   display:none}
@@ -6084,9 +6085,9 @@ pv-widget-host .voice-surface .voice-bars{display:none}
 }
 
 /* One layout (lærredsmatch): the delivered stylesheet is resolved for the 1180×820 canvas
-   (scripts/stage-css.mjs); ui/stage.js scales that stage uniformly into any frame. */
+   (scripts/stage-css.mjs); ui/stage.js scales that stage uniformly and stretches it to fill any frame. */
 html[data-pv-stage]{width:100%;height:100%;min-height:0;overflow:hidden}
-html[data-pv-stage]>body{position:absolute;left:0;top:0;width:1180px;height:820px;min-height:0;margin:0;
+html[data-pv-stage]>body{position:absolute;left:0;top:0;width:var(--pv-stage-w,1180px);height:var(--pv-stage-h,820px);min-height:0;margin:0;
  overflow:hidden;transform-origin:0 0;
  transform:translate(var(--pv-stage-x,0px),var(--pv-stage-y,0px)) scale(var(--pv-stage-scale,1))}
 html[data-pv-stage] dialog:modal{scale:var(--pv-stage-scale,1)}
