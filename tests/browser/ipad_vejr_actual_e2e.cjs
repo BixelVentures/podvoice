@@ -1,5 +1,5 @@
 'use strict';
-// iPad Vejr (issue 394, lærred v190 »A-Vejr«, »Vejr-Ukendt«, »Vejr-Shadere«, »W-vejr-*«): a 744×458 #DDE6FB hero with
+// iPad Vejr (issue 394, lærred v190 »A-Vejr«, »Vejr-Ukendt«, »Vejr-Shadere«, »W-vejr-*«): a 736×458 #DDE6FB hero with
 // »<sted> · Vejret i dag«, the temperature in 150/500, the condition in 26/800 and the range; the hour forecast sits in
 // the bottom of the hero in 156-wide columns with the kit's right fade and snap. 32 under it »De næste dage« (24/800)
 // over one #F7F6F3 card of 64-px rows. The dot material follows the weather type. Data older than the freshness rule
@@ -46,12 +46,12 @@ async function open(stage,{overview=false}={}){
  let page=await open('weather');
  const heroNode=page.locator('#weather-view .weather-current'),hero=await box(heroNode);
  // Vejr-Råd and Vejr-Timer grow the hero from 458 to 536: a reserved 2-line advice slot and two hour lines.
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,536],'hero 744×536 at the top of the column');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,104,736,536],'hero 736×536 at the top of the column');
  assert.equal(hero.radius,'24px','hero radius 24');
  assert.equal(hero.bg,'rgb(221, 230, 251)','hero #DDE6FB');
  const place=await box(page.locator('#weather-title'));
  assert.equal(place.text,'Mårslet');assert.equal(place.size,'17px');assert.equal(place.weight,'600');
- near(place.y,88+32,'place line 32 inside the hero',4);near(place.x,24+32,'place line 32 from the left',2);
+ near(place.y,104+32,'place line 32 inside the hero',4);near(place.x,24+32,'place line 32 from the left',2);
  // The preview fixture has no subtitle; live data says »Vejret i dag« (liveWeatherModel), shown after » · «.
  assert.equal((await box(page.locator('#weather-view>.response-heading p'))).display,'none','empty subtitle: no » · «');
  const big=await box(page.locator('#weather-view .weather-current strong'));
@@ -88,7 +88,7 @@ async function open(stage,{overview=false}={}){
  near(wind.y+wind.h,hero.y+hero.h-28,'the hour lines end 28 above the hero bottom',1);
  const daysTitle=await box(page.locator('#weather-view .weather-days>h2'));
  assert.equal(daysTitle.text,'De næste dage');assert.equal(daysTitle.size,'24px');assert.equal(daysTitle.weight,'800');
- near(daysTitle.y,88+536+32,'»De næste dage« 32 under the hero',4);
+ near(daysTitle.y,104+536+32,'»De næste dage« 32 under the hero',4);
  const day=await box(page.locator('#weather-view .weather-days>[role=group]').first());
  assert.equal(day.h,64,'64-px day rows');
  const view=await box(page.locator('#weather-view'));
@@ -100,14 +100,14 @@ async function open(stage,{overview=false}={}){
  page=await open('weather-stale');
  const chip=await box(page.locator('#weather-view .weather-metadata'));
  assert.notEqual(chip.display,'none','freshness chip shown');assert.match(chip.text,/(Opdateret|Ikke opdateret)/);
- near(chip.y,88+28,'chip on the place line',8);near(chip.x+chip.w,768-32,'chip right in the hero',3);
+ near(chip.y,104+28,'chip on the place line',8);near(chip.x+chip.w,768-32,'chip right in the hero',3);
  await page.close();
 
  // Vejr-Ukendt: no data shows »—«, a faded material and the product's reason.
  page=await open('weather-connection-error');
  const emptyHero=page.locator('#weather-view .weather-current');
  const empty=await box(emptyHero);
- assert.deepEqual([empty.w,empty.h],[744,536],'the hero keeps its size without data');
+ assert.deepEqual([empty.w,empty.h],[736,536],'the hero keeps its size without data');
  const dash=await page.locator('#weather-view .weather-current strong').evaluate(n=>
   getComputedStyle(n).display!=='none'&&(n.textContent||getComputedStyle(n,'::before').content));
  assert.match(String(dash),/—/,'»—« in place of the temperature');

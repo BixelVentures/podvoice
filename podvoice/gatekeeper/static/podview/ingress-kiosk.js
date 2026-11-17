@@ -134,7 +134,25 @@ export function beginIngressRoot(win, link = win.document?.querySelector(".podvi
   win.__podviewRootIngressLifecycle = stop;
   send("home-assistant/unsubscribe-properties");
   subscribe();
+  // The wall iPad opens the add-on panel in the HA app's kiosk mode, which lands on this settings page.
+  // The first time per app start (the parent page's session), go straight on to PodView; afterwards the
+  // settings stay reachable from PodView as before.
+  if (wallStart(win, frame) && send("home-assistant/navigate", {path: viewPath})) enteringView = false;
   return stop;
+}
+
+// The HA Companion app on a touch screen, opened on the bare panel, once per app session.
+export function wallStart(win, frame) {
+  try {
+    const companion = /Home ?Assistant\//i.test(win.navigator?.userAgent || "");
+    const touch = !!win.matchMedia?.("(pointer: coarse)")?.matches;
+    if (!companion || !touch) return false;
+    if (![frame.panelPath, frame.panelPath + "/"].includes(frame.parent.location.pathname)) return false;
+    const store = frame.parent.sessionStorage, key = "podview-wall-start";
+    if (store.getItem(key)) return false;
+    store.setItem(key, "1");
+    return true;
+  } catch (_) { return false; }
 }
 
 export function beginIngressKiosk(win) {
@@ -162,6 +180,7 @@ export function beginIngressKiosk(win) {
     leaving = true;
     session.active = false;
     unsubscribe();
+    unpin();
     if (path === frame.panelPath || path === frame.panelPath + "/") {
       replaceWhenAdmitted(win, new URL("../", win.location.href).href);
     }
@@ -177,6 +196,54 @@ export function beginIngressKiosk(win) {
       const rect = win.frameElement?.getBoundingClientRect?.();
       return rect ? rect.top < 40 && rect.left < 40 : null;
     } catch (_) { return null; }
+  }
+  // Full screen means the whole screen: HA keeps its own padding for the iPad's status bar and home
+  // indicator around the iframe, which showed as light strips above and below PodView. In kiosk full
+  // screen the iframe is pinned over HA's whole viewport, and the parent's safe areas are handed to the
+  // stage (ui/stage.js) so the topbar and player keep clear of them while Ro's photo runs under them.
+  const frameStyle = (() => { try { return win.frameElement?.getAttribute("style"); } catch (_) { return null; } })();
+  let pinned = false;
+  function fitScreen() {
+    try {
+      const el = win.frameElement, pdoc = el?.ownerDocument, pwin = pdoc?.defaultView;
+      if (!el || !pwin || leaving) return;
+      if (!pinned && fullScreen() !== true) return;
+      if (!pinned) {
+        // A wall screen never scrolls or pull-to-refreshes: no rubber band on HA's page under PodView.
+        for (const node of [pdoc.documentElement, pdoc.body]) {
+          node.style.setProperty("overscroll-behavior", "none");
+          node.style.setProperty("overflow", "hidden");
+        }
+        el.style.setProperty("position", "fixed");
+        el.style.setProperty("inset", "0");
+        el.style.setProperty("width", "100%");
+        el.style.setProperty("height", "100%");
+        el.style.setProperty("max-height", "none");
+        el.style.setProperty("z-index", "2");
+        el.style.setProperty("border", "0");
+        pinned = true;
+      }
+      // env() resolves when a custom property is computed: read the parent's safe areas without a probe node.
+      const proot = pdoc.documentElement, root = win.document.documentElement;
+      for (const side of ["top", "right", "bottom", "left"])
+        proot.style.setProperty(`--pv-safe-${side}-probe`, `env(safe-area-inset-${side},0px)`);
+      const cs = pwin.getComputedStyle(proot);
+      for (const side of ["top", "right", "bottom", "left"])
+        root.style.setProperty(`--pv-safe-${side}`, `${parseFloat(cs.getPropertyValue(`--pv-safe-${side}-probe`)) || 0}px`);
+      win.dispatchEvent(new win.Event("pv-safe-area"));
+    } catch (_) { /* a frame we cannot reach keeps HA's layout */ }
+  }
+  function unpin() {
+    if (!pinned) return;
+    pinned = false;
+    try {
+      const el = win.frameElement;
+      if (frameStyle === null) el.removeAttribute("style"); else el.setAttribute("style", frameStyle);
+      for (const node of [el.ownerDocument.documentElement, el.ownerDocument.body]) {
+        node.style.removeProperty("overscroll-behavior");
+        node.style.removeProperty("overflow");
+      }
+    } catch (_) {}
   }
   // HA (e.g. the iPad Companion app after a locked screen or a Core restart) can rebuild its
   // panel and forget the kiosk request; it then ignores a repeated request (fejl 14, 13 Nov).
@@ -194,15 +261,17 @@ export function beginIngressKiosk(win) {
     subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
   }
   // A wall screen gets no tap after a Core restart: check every few seconds and on resize.
-  const watch = win.setInterval?.(reassert, 5000);
+  const watch = win.setInterval?.(() => { reassert(); fitScreen(); }, 5000);
   win.addEventListener("message", onProperties);
   win.addEventListener("pagehide", onPageHide);
   win.addEventListener("pageshow", onPageShow);
   win.addEventListener("focus", reassert);
   win.addEventListener("online", reassert);
   win.addEventListener("resize", reassert);
+  win.addEventListener("resize", fitScreen);
   win.document?.addEventListener?.("visibilitychange", reassert);
   subscribe();
+  fitScreen();
   return () => {
     leaving = true;
     session.active = false;
@@ -213,6 +282,8 @@ export function beginIngressKiosk(win) {
     win.removeEventListener("focus", reassert);
     win.removeEventListener("online", reassert);
     win.removeEventListener("resize", reassert);
+    win.removeEventListener("resize", fitScreen);
+    unpin();
     win.clearInterval?.(watch);
     win.document?.removeEventListener?.("visibilitychange", reassert);
     session.active = false; if (kioskSessions.get(win) === session) kioskSessions.delete(win);

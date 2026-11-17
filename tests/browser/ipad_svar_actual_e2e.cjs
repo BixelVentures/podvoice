@@ -1,7 +1,7 @@
 'use strict';
 // iPad Svar (issue 399, lærred v190 »A-SvarKort«, »SvarK-*«, »Kit-SvarKnap«). While Voice PE works, the status sits in
 // the Svar button itself (48 high, radius 24, five bars; »Lytter…« in #FBF3DE with a gold ring, »Svarer…« dark). An
-// answer is one 744-wide card in #F7F6F3 at y 88: the context line in 15/600, the answer in 44/800. A match result is a
+// answer is one 736-wide card in #F7F6F3 at y 88: the context line in 15/600, the answer in 44/800. A match result is a
 // dark block with the score in 168 mono and the scorers from the answer under each team. A follow-up is the top
 // section of the same card, above a line; the earlier answer stays below it in the same card.
 const {chromium}=require('playwright');
@@ -60,7 +60,7 @@ let server,browser,data;
  await sport.locator('.pv-sport-result').getByText('3–1',{exact:true}).waitFor({state:'visible',timeout:10000});
  await sleep(400);
  const card=await box(host);
- assert.deepEqual([card.x,card.y,card.w],[24,88,744],'answer card 744 wide at 24/88');
+ assert.deepEqual([card.x,card.y,card.w],[24,104,736],'answer card 736 wide at 24/88');
  assert.equal(card.bg,CARD,'card is #F7F6F3');assert.equal(card.radius,'24px','card radius 24');
  near(card.h,696,'card reaches the bottom of the player column',4);
  const kind=await box(sport.locator('h1'));
@@ -92,7 +92,7 @@ let server,browser,data;
  await sleep(500);
  const top=await box(current),below=await box(host.locator('pv-answer[data-thread=earlier]:visible'));
  assert(top.y<below.y,`follow-up above the earlier answer (${top.y} vs ${below.y})`);
- near(top.y,88,'follow-up starts the card');
+ near(top.y,104,'follow-up starts the card');
  assert.equal(top.bg,'rgba(0, 0, 0, 0)','follow-up shares the card surface');
  assert.equal(below.bg,'rgba(0, 0, 0, 0)','earlier answer shares the card surface');
  const line=await current.evaluate(n=>{const s=getComputedStyle(n,'::after');return {h:s.height,bg:s.backgroundColor};
@@ -110,12 +110,12 @@ let server,browser,data;
  await page.locator('#open-history').tap();
  await today.waitFor({state:'visible',timeout:10000});await sleep(600);
  const column=await box(today);
- assert.deepEqual([column.x,column.y,column.w],[800,88,356],'I dag in the 356 player column at 800/88');
+ assert.deepEqual([column.x,column.y,column.w],[784,104,372],'I dag in the 372 player column at 784/104');
  assert.equal(await page.locator('aside.player').isVisible(),false,'the player gives the column to I dag');
  assert.equal((await today.locator('header>h2').innerText()).trim(),'I dag');
  assert.equal((await today.locator('header>span').innerText()).trim(),'Nyeste øverst');
  const heading=await box(today.locator('header>h2'));assert.equal(heading.size,'22px');assert.equal(heading.weight,'800');
- const cardBox=await box(host);assert.deepEqual([cardBox.x,cardBox.y,cardBox.w],[24,88,744],'answer card beside it');
+ const cardBox=await box(host);assert.deepEqual([cardBox.x,cardBox.y,cardBox.w],[24,104,736],'answer card beside it');
  assert(await host.locator('pv-answer:visible').count()>0,'the newest answer is shown as the card');
  const row=today.locator('.svar-today-row').first();
  const rowBox=await box(row);

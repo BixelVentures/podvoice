@@ -37,9 +37,9 @@ let server,browser,data;
    tile:after.content==='none'?null:[after.right,after.top,after.width,after.height].join(' ')}];})),slots);
  const overview=await read();
  console.log('ipad overblik',JSON.stringify(overview));
- // Main board: 4 columns of 174 and 3 rows of 221 with 16 between, from x 24 / y 88.
- const expected={weather:[24,88,364,458],robot:[404,88,364,221],light:[404,325,174,221],tesla:[594,325,174,221],
-  music:[24,562,174,221],radio:[214,562,174,221],recipes:[404,562,174,221],timer:[594,562,174,221]};
+ // Main board: 4 columns of 172 and 3 rows of 220 with 16 between, from x 24 / y 104 (24 everywhere).
+ const expected={weather:[24,104,360,456],robot:[400,104,360,220],light:[400,340,172,220],tesla:[588,340,172,220],
+  music:[24,576,172,220],radio:[212,576,172,220],recipes:[400,576,172,220],timer:[588,576,172,220]};
  for(const [key,box] of Object.entries(expected))assert.deepEqual(overview[key]?.box,box,`${key} slot`);
  // Bottom row: music, radio and recipes are white entry widgets with one 64-px icon surface at right 20, top 66.
  for(const key of ['music','radio','recipes']){

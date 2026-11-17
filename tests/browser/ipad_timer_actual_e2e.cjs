@@ -1,5 +1,5 @@
 'use strict';
-// iPad Timer (lærred »A-Timer«, »Timer-pause«, »Timer-faerdig«, »Timer-Alarm«): the dark 744×458 hero carries the
+// iPad Timer (lærred »A-Timer«, »Timer-pause«, »Timer-faerdig«, »Timer-Alarm«): the dark 736×458 hero carries the
 // kicker »Timer · 10 min«, »af 10:00« under the time, »Færdig kl. HH.MM« under the state and the actions in one row
 // (+1 min, −1 min, Annuller for the native timer). Under the hero »Tidligere timere« fills the column to 784 with the
 // product's own timer history (time in 18 mono, »Seneste« for the newest, »Tidligere« for the rest). Without history
@@ -46,8 +46,8 @@ const shot=(page,name)=>page.screenshot({path:path.join(env.artifactDir(),name)}
  const count=await box(panel.locator('.timer-count'));assert(total.y>count.y+count.h-4,'total under the time');
  assert.match((await box(panel.locator('.timer-state'))).text,/^Færdig kl\. \d\d\.\d\d$/);
  const recent=await box(page.locator('#timers-view .timer-recent'));
- assert.deepEqual([recent.x,recent.y,recent.w],[24,88+458+16,744],'history card 16 under the hero');
- near(recent.y+recent.h,784,'history card fills the column');
+ assert.deepEqual([recent.x,recent.y,recent.w],[24,104+458+16,736],'history card 16 under the hero');
+ near(recent.y+recent.h,796,'history card fills the column');
  assert.equal(recent.radius,'24px');assert.equal(recent.bg,'rgb(247, 246, 243)');
  const title=await box(page.locator('#timers-view .timer-recent>h2'));
  assert.equal(title.text,'Tidligere timere');assert.equal(title.size,'24px');assert.equal(title.weight,'800');

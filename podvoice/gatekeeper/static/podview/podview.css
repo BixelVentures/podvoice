@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 45c6fa22d2fdc2ce9349229bdcb0ec99cfe3548bbd74dc8f4dba63d26b380893 */
+/* Source: ui-kit.css · SHA256 bc12f2ce356743d275468fad03fce462457299c9657322fc76faebd0984248f2 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -3001,7 +3001,7 @@ pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-preview>.reso
 pv-widget-host[data-view=active] #now-view:not([hidden]) .resource-visual>img{width:var(--pv-icon-m)!important;height:var(--pv-icon-m)!important;max-width:var(--pv-icon-m);max-height:var(--pv-icon-m);padding:0;object-fit:contain}
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>strong{
  display:block;grid-column:2;grid-row:1;align-self:center;min-width:0;
- margin:0;padding:0;font:var(--pv-t-label);line-height:26px;
+ margin:0;padding:0;font:var(--pv-t-label);line-height:26px;letter-spacing:-.015em;
 }
 pv-widget-host[data-view=active] #now-view:not([hidden]) :is(#home-music,#home-radio,#home-vehicle,#home-recipes,.resource-preview,.timer-shortcut)>:is(span,.resource-label)>small{
  display:block;grid-column:1/-1;grid-row:3;align-self:start;min-height:48px;max-height:48px;
@@ -5655,7 +5655,9 @@ body{font-family:var(--pv-font)}
 
  body pv-widget-host[data-topbar][data-view]>nav.view-nav,body pv-widget-host>nav.view-nav{position:relative;
   box-sizing:border-box;
-  width:var(--pv-stage-w,1180px);max-width:none;height:72px;min-height:72px;max-height:72px;margin-inline:calc(50% - calc(var(--pv-stage-w,1180px) * 0.5));padding:0 28px;
+  width:var(--pv-stage-w,1180px);max-width:none;height:72px;min-height:72px;max-height:72px;margin-inline:calc(50% - calc(var(--pv-stage-w,1180px) * 0.5));padding:0 var(--pv-edge);
+  --pv-top-air:calc(var(--pv-safe-top-s,0px) + var(--pv-edge) - 8px);
+  margin-block-start:var(--pv-top-air);box-shadow:0 calc(-1 * var(--pv-top-air)) 0 0 var(--pv-topbar);
   background:var(--pv-topbar);color:var(--pv-ink)}
  pv-widget-host>.view-nav .header-title{font:600 22px/26px var(--pv-font);letter-spacing:-.01em}
  pv-widget-host>.view-nav #open-history{position:absolute;left:50%;top:12px;translate:-50% 0;z-index:1;height:48px;
@@ -5792,17 +5794,21 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   animation-range:entry,exit}
 }
 
-/* iPad layout (lærred v190, issue 388; luft 17 Nov): 1180×820, 24 margin, left column 744 + 32 + player 356.
-   The 32 gap (twice the 16 between widgets) separates content from the player; spare stage width goes to the widgets.
+/* iPad layout (lærred v190, issue 388; luft 17 Nov): one air everywhere, --pv-edge 24: edge · grid · 24 · player 372 · edge.
+   Vertically 24 above the topbar's keys and 24 under the player and grid (--pv-content-h).
+   The widgets take whatever width is left (172 at 1180); the 16 inside the grid is unchanged.
    The player is as tall as the widget grid: L + gap + S (458 + 16 + 221 = 695), starting 16 under the topbar. */
 
  body pv-widget-host[data-view][data-view=active]:not(:has(#recipe-view:not([hidden])))>.frame{
   grid-template-columns:minmax(0,1fr) var(--pv-player-w);column-gap:var(--pv-player-gap)}
  body pv-widget-host[data-topbar=true][data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){
   align-self:start;box-sizing:border-box;margin-block-start:var(--pv-gap);width:var(--pv-player-w);
-  height:calc(var(--pv-hero-l) + var(--pv-gap) + var(--pv-hero-s));max-height:none}
+  height:var(--pv-content-h);max-height:none}
 
-:root{--pv-player-w:356px;--pv-player-gap:var(--pv-s4)}
+:root{--pv-player-w:372px;--pv-edge:24px;--pv-player-gap:var(--pv-edge);
+ /* 24 everywhere: the topbar's 56-px keys sit 24 under the top (8 inside the 72 bar), content starts 16 under
+    the bar and ends 24 above the bottom. 692 at 820. */
+ --pv-content-h:calc(var(--pv-stage-h,820px) - var(--pv-safe-top-s,0px) - var(--pv-safe-bottom-s,0px) - var(--pv-edge) + 8px - 72px - var(--pv-gap) - var(--pv-edge))}
 
 /* iPad Overblik (lærred v190 »Main«, issue 389): fixed slots in a 4×3 grid of 174×221 beside the player.
    Vejr L · Robot M · Lys S, Tesla S · Musik, Radio, Opskrifter, Timer S. State never moves a widget.
@@ -5812,7 +5818,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
   --pv-recipe-step-ahead:rgba(122,74,34,.18)}
 
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather){
-  grid-template-columns:repeat(4,minmax(var(--pv-widget-s),1fr));grid-template-rows:repeat(3,var(--pv-hero-s));
+  grid-template-columns:repeat(4,minmax(0,1fr));grid-template-rows:repeat(3,minmax(0,1fr));height:var(--pv-content-h);
   grid-auto-rows:0;gap:var(--pv-gap);align-content:start;margin:0;padding:0;overflow:visible}
  pv-widget-host[data-view=active] #now-view:not([hidden]):has(>#timer-card):has(>#home-weather)>.response-heading{
   display:none}
@@ -6297,11 +6303,12 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 
 
 /* iPad afspiller (lærred v190 »A-Player«, »Player-AndenEnhed«, »Player-AndetSted«, »Player-Radio«, »Player-Tom«,
-   »Player-Offline«, issue 391). One column in the 372×695 card: chip 44, cover 252 (196 away), title 24/800,
+   »Player-Offline«, issue 391). One column in the 372-wide card: chip 44 with 20 above and 20 below it, cover 252
+   (196 away), title 24/800, radio's »Direkte« centred over the transport,
    a 4-px progress line, transport 56/80/56, the volume row at the bottom; away adds a primary "Flyt til <rum>". */
 
  body pv-widget-host[data-view=active]>.frame>:is(.player.pv-card,#player-empty):not([hidden]){display:flex!important;
-  flex-direction:column;align-items:stretch;gap:0!important;padding:18px 24px 24px!important;
+  flex-direction:column;align-items:stretch;gap:0!important;padding:20px 24px 24px!important;
   border-radius:26px!important;
   background:#F7F6F3!important;box-shadow:inset 0 0 0 1px rgba(23,23,26,.06);overflow:hidden;
   --pv-volume-track-size:4px;--pv-volume-thumb-size:18px}
@@ -6334,7 +6341,7 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.track span{font:400 17px/24px var(--pv-font);
   color:#5F5E5A}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live:not([hidden]){order:3;display:flex;
-  align-items:center;gap:10px;height:44px;margin:22px 0 0;font:600 15px/20px var(--pv-font);letter-spacing:.12em;
+  align-items:center;justify-content:center;gap:10px;height:44px;margin:22px 0 0;font:600 15px/20px var(--pv-font);letter-spacing:.12em;
   text-transform:uppercase;color:#3F3E3B}
  body pv-widget-host[data-view=active]>.frame>.player.pv-card>.radio-live>i{width:10px;height:10px;border-radius:50%;
   background:#8C8A85}
@@ -8880,8 +8887,9 @@ pv-widget-host .voice-surface .voice-bars{display:none}
 
 /* One layout (lærredsmatch): the delivered stylesheet is resolved for the 1180×820 canvas
    (scripts/stage-css.mjs); ui/stage.js scales that stage uniformly and stretches it to fill any frame. */
-html[data-pv-stage]{width:100%;height:100%;min-height:0;overflow:hidden}
-html[data-pv-stage]>body{position:absolute;left:0;top:0;width:var(--pv-stage-w,1180px);height:var(--pv-stage-h,820px);min-height:0;margin:0;
+html[data-pv-stage]{width:100%;height:100%;min-height:0;overflow:hidden;overscroll-behavior:none}
+html[data-pv-stage]>body{position:absolute;left:0;top:0;width:var(--pv-stage-w,1180px);height:var(--pv-stage-h,820px);
+ padding-block:0;padding-inline:calc(var(--pv-edge) + var(--pv-safe-left-s,0px)) calc(var(--pv-edge) + var(--pv-safe-right-s,0px));min-height:0;margin:0;
  overflow:hidden;transform-origin:0 0;
  transform:translate(var(--pv-stage-x,0px),var(--pv-stage-y,0px)) scale(var(--pv-stage-scale,1))}
 html[data-pv-stage=flat]>body{left:var(--pv-stage-x,0px);top:var(--pv-stage-y,0px);transform:none}

@@ -1,5 +1,5 @@
 'use strict';
-// iPad Tesla (issue 397, lærred v190 »A-Tesla«, »Tesla-*«, »W-tesla-*«). A 744×221 hero in #D5EADD (#CDE8D8 while
+// iPad Tesla (issue 397, lærred v190 »A-Tesla«, »Tesla-*«, »W-tesla-*«). A 736×221 hero in #D5EADD (#CDE8D8 while
 // charging) with the status in 40/800, the range under it, the battery in 64 mono top right, charge facts at the bottom
 // and the canvas' dot car filled to the battery level. Under it Adgang and Klima side by side (364 each): Adgang as two
 // action surfaces (Døre, Bagagerum with a side-view trunk icon) that act on tap, Klima with the switch, temperature, both
@@ -42,7 +42,7 @@ async function open(stage,{overview=false}={}){
  // Tesla-Lader: the product's charging example.
  let page=await open('vehicle-charging');
  const hero=page.locator('#vehicle-view>.vehicle-hero'),heroBox=await box(hero);
- assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h],[24,88,744,221],'hero 744×221 at the top of the column');
+ assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h],[24,104,736,221],'hero 736×221 at the top of the column');
  assert.equal(heroBox.radius,'24px');assert.equal(heroBox.bg,'rgb(205, 232, 216)','charging hero #CDE8D8');
  const status=await box(hero.locator('.vehicle-status'));
  assert.equal(status.text,'Bilen lader');assert.equal(status.size,'40px');assert.equal(status.weight,'800');
@@ -115,7 +115,7 @@ async function open(stage,{overview=false}={}){
  // The page fits in 820: nothing under the cards, nothing to scroll.
  const fit=await page.locator('#vehicle-view').evaluate(n=>[n.scrollHeight,n.clientHeight]);
  assert(fit[0]<=fit[1],`the Tesla page does not scroll (${fit})`);
- near(access.y+access.h,784,'the cards end with the player',1);
+ near(access.y+access.h,796,'the cards end with the player',1);
  // An action surface acts on tap: »Lås op« asks first, as before.
  await tiles.first().tap();
  await page.locator('dialog.vehicle-confirmation').getByRole('heading',{name:'Lås bilen op?'}).waitFor({timeout:3000});

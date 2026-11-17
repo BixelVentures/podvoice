@@ -1,7 +1,7 @@
 'use strict';
 // iPad Musik-siden (issue 392, lærred v190 »A-MusikHjem«, »Musik-Starter«, »Musik-Spiller«, »Musik-Koe«):
 // one page without tabs. The collections are section headings in the canvas order (Til <ugedag> <tid> · Fortsæt ·
-// Vibe · Jeres playlister); the first mood card is the 744×252 »Lige nu« hero with an Afspil pill; the other cards
+// Vibe · Jeres playlister); the first mood card is the 736×252 »Lige nu« hero with an Afspil pill; the other cards
 // are a rail of 160 cards (Fortsæt: 72-px rows in three columns, Vibe 120). A tap shows »starter« (scrim and dots) at once and »spiller«
 // (equalizer mark) when the player has it. The queue is one card of 72-px rows; the current track is in the accent.
 const {chromium}=require('playwright');
@@ -52,11 +52,11 @@ async function open(stage){
  // The heading's note is the product's own: mood is chosen from the hour and the room.
  assert.equal(await page.locator('[data-collection=mood]').getAttribute('data-note'),'Ud fra tidspunkt og rum');
 
- // Lige nu: the first mood card is the 744×252 hero at the top of the column, no heading above it.
+ // Lige nu: the first mood card is the 736×252 hero at the top of the column, no heading above it.
  const hero=page.locator('#music-hero>.result');
  const heroBox=await box(hero);
- assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h,heroBox.radius],[24,88,744,252,'28px'],
-  'Lige nu hero 744×252 at 88, radius 28');
+ assert.deepEqual([heroBox.x,heroBox.y,heroBox.w,heroBox.h,heroBox.radius],[24,104,736,252,'28px'],
+  'Lige nu hero 736×252 at 88, radius 28');
  assert.equal(await hero.locator('.result-copy').getAttribute('data-eyebrow'),'Til eftermiddagen · valgt til jer');
  const heroArt=await box(hero.locator('.result-art'));assert.deepEqual([heroArt.w,heroArt.h],[212,212]);
  const heroName=await box(hero.locator('h2'));
@@ -161,7 +161,7 @@ async function open(stage){
  page=await open('now');
  await page.locator('.player .cover-button').click();await sleep(700);
  const queue=await box(page.locator('#queue'));
- assert.equal(queue.radius,'24px','the queue is one card');assert.equal(queue.x,24);assert.equal(queue.w,744);
+ assert.equal(queue.radius,'24px','the queue is one card');assert.equal(queue.x,24);assert.equal(queue.w,736);
  const first=page.locator('#queue>.queue-track').first(),second=page.locator('#queue>.queue-track').nth(1);
  assert.equal((await box(first)).h,72,'queue rows are 72 high');
  assert.equal(await first.getAttribute('data-current'),'true');
@@ -176,15 +176,15 @@ async function open(stage){
  assert.equal(queueMeta.size,'15px');assert.equal(queueMeta.color,'rgb(95, 94, 90)');
  near(queueMeta.x+queueMeta.w,768,'the count ends at the right edge of the queue card');
  near(queueMeta.y+queueMeta.h/2,queueTitle.y+queueTitle.h/2,'count and title share a line',6);
- // The column ends on the 784 baseline like every other page; »Kø« opens it at 88, the card from 136.
- assert.equal(queueTitle.y,88,'»Kø« at the top of the column');
+ // The column ends on the 796 baseline like every other page; »Kø« opens it at 88, the card from 136.
+ assert.equal(queueTitle.y,104,'»Kø« at the top of the column');
  assert.equal(queue.y,136,'the queue card 16 under »Kø«');
- assert.equal(queue.y+queue.h,784,'the queue card ends on the 784 baseline');
+ assert.equal(queue.y+queue.h,796,'the queue card ends on the 796 baseline');
  // »Spiller på …« is not drawn above »Kø«: the player at the right already names the speaker.
  await page.evaluate(()=>{document.getElementById('detail-status').textContent='Spiller på MacBook Pro';});
  assert.equal(await page.locator('#music-detail>.response-heading').evaluate(n=>n.getBoundingClientRect().height),1,
   'the status line is only for screen readers');
- assert.equal((await box(page.locator('#queue-title'))).y,88,'»Kø« keeps its place with a status line');
+ assert.equal((await box(page.locator('#queue-title'))).y,104,'»Kø« keeps its place with a status line');
  const eq=page.locator('#queue>.queue-track[data-current=true] .queue-eq');
  assert.equal(await eq.locator('i').count(),3,'three equaliser bars on the playing track');
  assert.equal(await eq.locator('i').first().evaluate(n=>getComputedStyle(n).backgroundColor),'rgb(180, 83, 42)');

@@ -1,5 +1,5 @@
 'use strict';
-// iPad Robot (issue 395, lærred v190 »A-Robot«, »Robot-*«, »Robot-Sticky*«, »W-robot-*«): a 744×221 hero in #F6D8E1
+// iPad Robot (issue 395, lærred v190 »A-Robot«, »Robot-*«, »Robot-Sticky*«, »W-robot-*«): a 736×221 hero in #F6D8E1
 // (#F6D3DE while a turn runs) with the title in 40/800, the product's line in 19/600, the corner arcs to the right and
 // the actions at the bottom right: the primary action as a dark 56 pill and »Mere ▾« beside it (the product's base
 // disclosure). Rum as 64-px tiles in four columns with a dot, Rengøringsvalg as segmented rows (Type 56, the rest 44),
@@ -45,15 +45,15 @@ async function open(stage,{overview=false}={}){
  // A-Robot »oplader« (docked).
  let page=await open('robot-detail-docked');
  const heroNode=page.locator(HERO),hero=await box(heroNode);
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,221],'hero 744×221 at the top of the column');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,104,736,221],'hero 736×221 at the top of the column');
  assert.equal(hero.radius,'24px');assert.equal(hero.bg,'rgb(246, 216, 225)','hero #F6D8E1');
  assert.equal((await box(heroNode.locator('.pv-instrument'))).display,'none','arcs, not an icon');
  // The eyebrow over the title (A-Robot »Ved basen«) in 15/600 #5F5E5A, 24 in.
  const eyebrow=await box(heroNode.locator('.robot-hero-eyebrow'));
  assert.equal(eyebrow.text,'Ved basen');assert.equal(eyebrow.size,'15px');assert.equal(eyebrow.weight,'600');
- assert.equal(eyebrow.color,'rgb(95, 94, 90)');near(eyebrow.y,88+24,'eyebrow 24 in');
+ assert.equal(eyebrow.color,'rgb(95, 94, 90)');near(eyebrow.y,104+24,'eyebrow 24 in');
  const title=await box(heroNode.locator('.pv-resource-value'));
- near(title.y,88+58,'title under the eyebrow (canvas y 146)');
+ near(title.y,104+58,'title under the eyebrow (canvas y 146)');
  assert.equal(title.size,'40px');assert.equal(title.weight,'800');near(title.x,24+24,'title 24 from the left');
  const line=await box(heroNode.locator('.pv-content>.pv-meta'));
  assert.equal(line.size,'19px');assert.equal(line.weight,'600');assert.equal(line.color,'rgb(63, 62, 59)');
@@ -62,7 +62,7 @@ async function open(stage,{overview=false}={}){
  near(mat.opacity,.55,'arcs at .55 at the base',.01);
  const start=await box(heroNode.locator('.transport>button.start'));
  assert.equal(start.h,56,'56 primary');assert.equal(start.bg,'rgb(23, 23, 26)','dark primary');
- near(start.x+start.w,768-24,'primary at the right edge');near(start.y+start.h,88+221-24,'actions at the bottom');
+ near(start.x+start.w,760-24,'primary at the right edge');near(start.y+start.h,104+221-24,'actions at the bottom');
  const more=await box(heroNode.locator('[id^=robot-base-][id$=-trigger]'));
  assert.equal(more.text,'Mere');assert.equal(more.h,56,'56 »Mere«');
  near(more.x+more.w,start.x-12,'»Mere« 12 left of the primary');
@@ -76,7 +76,7 @@ async function open(stage,{overview=false}={}){
  assert.equal(roomsTitle.text,'Rum');assert.equal(roomsTitle.size,'24px');assert.equal(roomsTitle.weight,'800');
  const tiles=page.locator('#device-view .robot-room-tile'),tile=await box(tiles.first());
  assert.equal(tile.h,64,'64-px room tiles');assert.equal(tile.radius,'20px');
- near(tile.w,(744-30)/4,'four room columns',1);
+ near(tile.w,(736-30)/4,'four room columns',1);
  assert.equal(tile.bg,'rgb(246, 216, 225)','chosen room in the robot tint');
  assert.match(tile.shadow,/rgb\(178, 58, 98\)/,'chosen room ring #B23A62');
  assert.equal((await box(tiles.first().locator('.robot-room-icon'))).display,'none','a dot instead of the room icon');
@@ -95,7 +95,7 @@ async function open(stage,{overview=false}={}){
  await page.locator('#device-view').evaluate(n=>{n.scrollTop=420;});await sleep(800);// the bar arrives on the smooth spring (661 ms)
  assert.equal(await sticky.getAttribute('data-shown'),'true','line once the hero is gone');
  const bar=await box(sticky);
- assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,72,744,72],'72-px line under the topbar');
+ assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,88,736,72],'72-px line under the topbar');
  assert.equal(bar.bg,'rgb(246, 216, 225)');
  assert.equal(await sticky.locator('.robot-sticky-title').getAttribute('data-text'),title.text,
   'same title as the hero');

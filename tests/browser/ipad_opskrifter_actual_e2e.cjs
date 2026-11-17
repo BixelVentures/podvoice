@@ -3,7 +3,7 @@
 // »Timer-Alarm«, »W-opskrift-*«, »W-timer-*«). Recipes fill the whole width (1132, no player): category tabs in one
 // track, recipes as 252-high cards in five columns and the active recipe as a 96-high band in #F2E4D3. A recipe opens
 // to a 221 hero in #F2E4D3 (photo 160, »Trin N af M · af <kilde>«, the name in 40/800), ingredients in a 400 card and
-// the steps beside it with the current step in #F2E4D3 and a 2-px ring. The timer page is a dark 744×458 hero with a
+// the steps beside it with the current step in #F2E4D3 and a 2-px ring. The timer page is a dark 736×458 hero with a
 // 340 coral ring, the time in 88 mono and the state in 48/800. A running timer is a chip in the topbar on other pages.
 // The finished timer is a full-screen alarm: the title in 88/800 coral, Stop (coral, 88 high) before +1 min.
 const {chromium}=require('playwright');
@@ -100,7 +100,7 @@ async function stagePage(stage){
  const toolbar=await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'));
  assert.deepEqual([toolbar.x,toolbar.w],[24,1132],'one toolbar row over the cards');
  assert(toolbar.y<first.y,'the toolbar sits over the cards');
- near(toolbar.y,88,'the toolbar starts 16 under the topbar');
+ near(toolbar.y,104,'the toolbar starts 16 under the topbar');
  const shown=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] [data-recipe-count]'));
  assert.equal(shown.text,`${await cards.count()} opskrifter`);assert.equal(shown.size,'16px');
  const explore=await box(page.getByRole('button',{name:'Udforsk',exact:true}));
@@ -143,7 +143,7 @@ async function stagePage(stage){
  const flow=page.locator('#recipe-view [data-recipe-layout=explore]');await flow.waitFor({state:'visible'});await sleep(800);
  const mode=await box(page.locator('#recipe-view [data-recipe-layout=toolbar] fieldset label:has(input:checked)'));
  assert.equal(mode.text,'Udforsk');assert.equal(mode.bg,INK);
- near((await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,88,'Udforsk toolbar 16 under the topbar');
+ near((await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,104,'Udforsk toolbar 16 under the topbar');
  const total=await cards.count()||9;
  const position=page.locator('#recipe-view [data-recipe-explore-position]');
  assert.match(await position.innerText(),/^1 af \d+$/);
@@ -174,7 +174,7 @@ async function stagePage(stage){
  await page.locator('#recipe-view [data-recipe="Burgerboller"]').tap();
  await page.locator('#recipe-ingredients-trigger').waitFor({state:'visible'});await sleep(300);
  const hero=await box(page.locator('#recipe-view [data-recipe-layout=intro]'));
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,1132,221],'recipe hero 1132×221 at the top');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,104,1132,221],'recipe hero 1132×221 at the top');
  assert.equal(hero.bg,RECIPE);assert.equal(hero.radius,'24px');
  const cover=await box(page.locator('#recipe-view [data-recipe-layout=gallery-trigger] img'));
  assert.deepEqual([cover.w,cover.h],[160,160],'photo 160');
@@ -202,7 +202,7 @@ async function stagePage(stage){
  const band=await box(page.locator('#recipe-view [data-recipe][data-kit-variant=resume]'));
  assert.equal(band.h,96,'active recipe band 96 high');assert.equal(band.bg,RECIPE);assert.equal(band.w,1132);
  // A-Opskrifter: the band comes first, over the toolbar, and names the current step.
- near(band.y,88,'the band is the first thing under the topbar');
+ near(band.y,104,'the band is the first thing under the topbar');
  assert(band.y+band.h<=(await box(page.locator('#recipe-view [data-recipe-layout=toolbar]'))).y,'band over the toolbar');
  assert.match(band.text,/I gang\s+Burgerboller · trin 1 af 5/);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-opskrifter-igang.png')});
@@ -217,11 +217,11 @@ async function stagePage(stage){
  assert(bar.y+bar.h<=value.y,'step bar over the title');
  assert.deepEqual(page.errors,[]);await page.close();
 
- // A-Timer: dark 744×458 hero with the coral ring.
+ // A-Timer: dark 736×458 hero with the coral ring.
  page=await stagePage('timer-detail-running');
  const panel=page.locator('#timers-view .timer-panel:not([hidden])');
  const timer=await box(panel);
- assert.deepEqual([timer.x,timer.y,timer.w,timer.h],[24,88,744,458],'timer hero 744×458');
+ assert.deepEqual([timer.x,timer.y,timer.w,timer.h],[24,104,736,458],'timer hero 736×458');
  assert.equal(timer.bg,INK);assert.equal(timer.radius,'24px');
  const ring=await box(panel.locator('.timer-instrument'));
  assert.deepEqual([ring.w,ring.h],[340,340],'ring 340');

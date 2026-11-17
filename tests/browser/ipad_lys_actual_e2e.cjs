@@ -45,7 +45,7 @@ async function open(stage,{overview=false}={}){
  // Lys-Taendt: the product's Hue example (Køkken lit with the scene »Morgen«).
  let page=await open('hue-kitchen');
  const bar=await box(page.locator('#device-view .light-room-toolbar'));
- assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,88,744,44],'the »Rum« line first, 744×44 at the top of the column');
+ assert.deepEqual([bar.x,bar.y,bar.w,bar.h],[24,104,736,44],'the »Rum« line first, 736×44 at the top of the column');
  const home=await box(page.locator('#device-view .light-home-power'));
  assert.equal(home.h,44,'»Sluk alt« 44');assert.equal(home.radius,'999px');near(home.x+home.w,768,'»Sluk alt« right');
  assert.equal(home.bg,'rgb(247, 246, 243)','»Sluk alt« #F7F6F3');
@@ -72,13 +72,13 @@ async function open(stage,{overview=false}={}){
  const track=await box(rows.first().locator('.light-room-power'),'::after');
  assert.equal(track.pw,'56px');assert.equal(track.ph,'34px');assert.equal(track.bg,'rgb(23, 23, 26)','switch on');
  const panel=await box(page.locator('#device-view #light-room-controls'));
- assert.deepEqual([panel.x,panel.y,panel.w],[24,308,744],'room card 32 under the rooms');
+ assert.deepEqual([panel.x,panel.y,panel.w],[24,308,736],'room card 32 under the rooms');
  assert.equal(panel.radius,'24px');assert.equal(panel.bg,'rgb(247, 246, 243)');
  const heading=await box(page.locator('#device-view #light-room-panel-title'));
  assert.equal(heading.size,'24px');assert.equal(heading.weight,'800');assert.equal(heading.text,'Køkken');
  const scenes=page.locator('#device-view .light-scene-choices>button:not([hidden])');
  const first=await box(scenes.first()),second=await box(scenes.nth(1));
- assert.equal(first.h,72,'72-px scenes');assert.equal(first.radius,'20px');near(first.w,(744-48-24)/3,'three columns',1);
+ assert.equal(first.h,72,'72-px scenes');assert.equal(first.radius,'20px');near(first.w,(736-48-24)/3,'three columns',1);
  assert.equal(first.bg,'rgb(23, 23, 26)','chosen scene dark');assert.equal(second.bg,'rgb(251, 235, 198)','scene #FBEBC6');
  assert.equal(first.size,'19px');assert.equal(first.weight,'800');
  const level=await box(page.locator('#device-view .light-scenes>.pv-kit-slider-field'));
@@ -87,16 +87,16 @@ async function open(stage,{overview=false}={}){
  near(label.y,level.y+(44-label.h)/2,'label beside the slider',3);assert.equal(label.size,'17px');
  const lamps=await box(page.locator('#light-lamps-trigger'));
  assert.equal(lamps.h,56,'»Lamper« 56 line');assert.equal(lamps.bg,'rgba(0, 0, 0, 0)','no lamp box');
- assert.equal((await box(page.locator('#device-view'))).mask,'none','no fold fade: the card ends at 784 as on the canvas');
- // A-Lys (PR lys/timer): topbar »Lys«, no room chips, the room card runs to the bottom of the column (784), the
+ assert.equal((await box(page.locator('#device-view'))).mask,'none','no fold fade: the card ends at 796 as on the canvas');
+ // A-Lys (PR lys/timer): topbar »Lys«, no room chips, the room card runs to the bottom of the column (796), the
  // header carries »N af M lamper tændt«, each scene its level in 15 mono, »Lamper« the count and opens itself for ≤2.
  assert.equal((await page.locator('#header-title').innerText()).trim(),'Lys','topbar heading »Lys«');
  assert.equal(await page.locator('#device-view .light-room-navigation:visible').count(),0,'no room chips');
- near(panel.y+panel.h,784,'room card fills the column to 784');
+ near(panel.y+panel.h,796,'room card fills the column to 796');
  const panelStatus=await box(page.locator('#device-view .light-room-panel-status'));
  assert.equal(panelStatus.text,'2 af 2 lamper tændt');assert.equal(panelStatus.size,'15px');
  assert(panelStatus.y>=heading.y&&panelStatus.y+panelStatus.h<=heading.y+heading.h,'status on the heading line');
- near(panelStatus.x+panelStatus.w,768-24,'status at the right');
+ near(panelStatus.x+panelStatus.w,760-24,'status at the right');
  const sceneLevel=await box(scenes.first().locator('.light-scene-level'));
  assert.equal(sceneLevel.text,'60 %');assert.equal(sceneLevel.size,'15px');assert.match(sceneLevel.family,/IBM Plex Mono/);
  assert.equal((await box(scenes.nth(1).locator('.light-scene-level'))).text,'100 %');
@@ -128,7 +128,7 @@ async function open(stage,{overview=false}={}){
  // Not connected: the card is the hero with the glow.
  page=await open('light-detail-empty');
  const hero=await box(page.locator('#device-view #light-room-controls'));
- assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,88,744,221],'744×221 hero');
+ assert.deepEqual([hero.x,hero.y,hero.w,hero.h],[24,104,736,221],'736×221 hero');
  assert.equal(hero.bg,'rgb(251, 235, 198)');
  assert.match((await box(page.locator('#device-view #light-room-controls'),'::after')).image,/light-glow-hero\.svg/);
  assert.equal((await box(page.locator('#light-room-panel-title'))).size,'40px');
@@ -138,12 +138,12 @@ async function open(stage,{overview=false}={}){
   'Forbind lys i Home Assistant for at se og styre dem her.');
  const refresh=await box(page.locator('#device-view .light-room-refresh'));
  assert.equal(refresh.text,'Opdater lys');assert.equal(refresh.h,56);assert.equal(refresh.bg,'rgb(23, 23, 26)');
- near(refresh.y+refresh.h,88+221-24,'»Opdater lys« at the bottom of the hero');near(refresh.x,48,'left in the hero');
- // The column runs from 88 to the 784 baseline and cannot scroll the hero up under the topbar.
+ near(refresh.y+refresh.h,104+221-24,'»Opdater lys« at the bottom of the hero');near(refresh.x,48,'left in the hero');
+ // The column runs from 88 to the 796 baseline and cannot scroll the hero up under the topbar.
  const column=await box(page.locator('#device-view'));
- assert.deepEqual([column.y,column.y+column.h],[88,784],'Lys column 88–784');
+ assert.deepEqual([column.y,column.y+column.h],[104,796],'Lys column 104–796');
  await page.locator('.responses').evaluate(n=>{n.scrollTop=40;});
- assert.equal((await box(page.locator('#device-view #light-room-controls'))).y,88,'the hero stays at 88');
+ assert.equal((await box(page.locator('#device-view #light-room-controls'))).y,104,'the hero stays at 104');
  // »<rum> · denne skærms rum« above the title when Home Assistant names the screen's light area.
  assert.equal(await page.locator('#light-room-controls .light-room-kicker').isVisible(),false,
   'no eyebrow without a known area');

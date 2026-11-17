@@ -1,6 +1,6 @@
 'use strict';
 // iPad Radio (issue 393, lærred v190 »A-Radio«, »Radio-Starter«, »Radio-Spiller«, »Radio-IkkeTilg«, »W-radio-*«):
-// a 744×458 hero with the station logo, status line, 56/800 title, description and a station scale with a needle;
+// a 736×458 hero with the station logo, status line, 56/800 title, description and a station scale with a needle;
 // under it »Radiostationer« with »Afspilles på <højttaler>« and five 56-px logo tiles in one row. Radio plays in the
 // right-hand media player. When radio is not available the hero says so, the scale fades and the tiles are grey;
 // the small Radio widget in the overview is dimmed and says »Ikke tilgængelig«.
@@ -43,7 +43,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  // A-Radio »vaelg«: no station chosen (stage radio-ready).
  let page=await open('radio-ready');
  const card=await box(hero(page));
- assert.deepEqual([card.x,card.y,card.w,card.h],[24,88,744,458],'hero 744×458 at the top of the column');
+ assert.deepEqual([card.x,card.y,card.w,card.h],[24,104,736,458],'hero 736×458 at the top of the column');
  assert.equal(card.radius,'24px','hero radius 24');
  assert.equal(card.bg,'rgb(247, 246, 243)','no station: plain #F7F6F3');
  assert.equal(await text(page,'.radio-hero-status'),'Ingen station valgt');
@@ -56,7 +56,7 @@ const text=(page,selector)=>page.locator(`#radio-view ${selector}`).innerText().
  assert.equal((await box(page.locator('#radio-view .radio-hero-art'))).display,'none','no logo without a station');
  const heading=await box(page.locator('#radio-view .radio-stations-title'));
  assert.equal(heading.text,'Radiostationer');assert.equal(heading.size,'24px');assert.equal(heading.weight,'800');
- near(heading.y,88+458+32,'the list starts 32 under the hero',4);
+ near(heading.y,104+458+32,'the list starts 32 under the hero',4);
  const tiles=page.locator('#radio-view .radio-station-tiles .pv-list>button');
  assert.equal(await tiles.count(),5);
  const boxes=await Promise.all([0,1,2,3,4].map(index=>box(tiles.nth(index))));
