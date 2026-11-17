@@ -146,3 +146,19 @@ test('expired maintenance interval is a named reminder, not a physical wear diag
  assert.equal(x.maintenance[0].title,'Filter');assert.match(x.maintenance[0].help,/intervallet er nået/);
  assert.equal(x.maintenance[0].severity,'reminder');
 });
+test('mop drying reads the HA 2026.11 dock switch and the older binary sensor alike, with real remaining time',()=>{
+ // HA core#178932 replaces binary_sensor mop_drying_status by switch mop_drying (same dry_status point).
+ for(const drying of [row('mop_drying',true,null,0,'switch'),row('mop_drying_status',true,null,0,'binary_sensor')]){
+  const observed=robotObservation(telemetry([drying,row('mop_drying_remaining_time',5400,'s')]),'vacuum.robot');
+  assert.equal(observed.status,'observed');
+  const d={status:'docked',telemetry:observed};
+  assert.equal(robotExperience(d).activity,'Tørrer moppe');
+  const details=robotFacts(d).details;
+  assert.equal(details.filter(x=>x.label==='Moppetørring').length,1);
+  assert.ok(details.find(x=>x.label==='Tørring tilbage'));
+ }
+ // Nothing invented: no drying entity at all means no drying activity or row.
+ const quiet={status:'docked',telemetry:robotObservation(telemetry([row('mop_drying_remaining_time',0,'s')]),'vacuum.robot')};
+ assert.equal(robotExperience(quiet).activity,null);
+ assert.equal(robotFacts(quiet).details.some(x=>x.label==='Moppetørring'),false);
+});
