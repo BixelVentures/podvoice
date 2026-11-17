@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "ff0e2bebb08e5e5e32c5926895ba9b5f134d0e095ea8e7af896ff38f476013bc"
+      "sha256": "a4456c4ff82df3c9daef42d849738f7d96b18bc5b5664e8d9271fd47fbe0be9a"
     },
     {
       "path": "library.css",
@@ -719,7 +719,7 @@
     },
     {
       "path": "live-home-view.js",
-      "sha256": "f10ddffa37bb64fc728cb589519812a817c06e04659a536c614b79fde37718d1"
+      "sha256": "b1179156fdd00adf24c21ae494a0d661752b12141a0805e408939e34b60f1d1c"
     },
     {
       "path": "live-media-view.js",
@@ -819,11 +819,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "b52f8c7a4e39545326e86445120010293b3b4b09daa8ab8c7483fd9175299824"
+      "sha256": "f79275d22f7798e1761f47d3be3495b6c9128fdb7fb25c990ea733bdf182e8e2"
     },
     {
       "path": "podview.css",
-      "sha256": "dab84dd24c277d85dd5ea4369e31d502f9f0b521a6b8d1a1dbd45b934b7f5f82"
+      "sha256": "11b97b999d2352700d1f2120629379dee24fd602fe21f3bc4d769f05efcbd8e4"
     },
     {
       "path": "podvoice-transport.js",
@@ -935,11 +935,11 @@
     },
     {
       "path": "timer-view.js",
-      "sha256": "c37665b6e704c95032fefb5a4d1654cf9324da301408f26b76ae5584b978e5d8"
+      "sha256": "80a1567a46c0f37f674b5c0a9190d4b6e2060a2f7175c55b46dbbece6104c688"
     },
     {
       "path": "ui-kit.css",
-      "sha256": "1917b6b96dba458dbf783ab30e51ff266d189c91aefd1467f97a58a7109d5050"
+      "sha256": "04d65296e3ccab41cc02fc779cada9eeed1fe4ab50d7f2fb21de177d1af56bcf"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -999,7 +999,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "915ecdbefe45d065e4cd47fce26400eb83c4b59d87940210373a56ff81462096"
+      "sha256": "379188931c191c3b12b3115d79f46a03e6dcb1c93996dadec4f378b8661474d3"
     },
     {
       "path": "ui/notification-queue.js",
@@ -1099,7 +1099,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "333a4efb03aa15e8ab9ed79030be104443f11569682f62d83d532e10b4163968"
+      "sha256": "4c7c8466a2709f4b375275158360c212271079bc7e10fa0376342b0ded087f92"
     },
     {
       "path": "workshop.css",

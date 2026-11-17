@@ -145,7 +145,45 @@ export class Spring{
  }
 }
 
-const SNAPPY=springCurve(SPRING.snappy),SMOOTH=springCurve(SPRING.smooth);
+const SNAPPY=springCurve(SPRING.snappy),SMOOTH=springCurve(SPRING.smooth),QUICK=springCurve(SPRING.quick);
+// P5 digits (docs/MOTION.md §3.6). A value whose text is figures with separators, signs and units rolls; anything
+// with words is plain text. The sign of the change comes from the figures: up rolls the old figure up and away and
+// brings the new one from below; down is the reverse.
+const DIGIT_TEXT=/^[\d\s.,:%°CF+\-\u2212]*\d[\d\s.,:%°CF+\-\u2212]*$/;
+const isDigit=char=>char>='0'&&char<='9';
+export function valueDirection(previous,next){
+ const read=text=>{const figures=String(text).replace(/\D/g,'');if(!figures)return NaN;
+  return (/^\s*[-\u2212]/.test(text)?-1:1)*Number(figures);};
+ const a=read(previous),b=read(next);
+ return Number.isFinite(a)&&Number.isFinite(b)&&a!==b?Math.sign(b-a):0;
+}
+// Which characters roll: digits that changed, right-aligned so 9:59 -> 10:00 keeps its columns, outside the last
+// `still` characters (seconds change without motion). Index into `next`.
+export function rollingDigits(previous,next,{still=0}={}){
+ const changed=[],shift=next.length-previous.length;
+ for(let index=0;index<next.length-still;index++){
+  const before=previous[index-shift];
+  if(isDigit(next[index])&&before!==next[index])changed.push(index);
+ }
+ return changed;
+}
+// Shared by views that may run without a SceneMotion (fixtures): roll when there is one, else plain text.
+export function showValue(motion,node,text,options){
+ if(!node)return;
+ if(typeof motion?.value==='function'){motion.value(node,text,options);return;}
+ if(node.textContent!==text)node.textContent=text;
+}
+// P5 progress: a tick runs linear over its interval so the ring never stops or jumps; a user change (or one from
+// another app) travels on the smooth spring; the first value is drawn in place. CSS reads data-pv-progress.
+export function showProgress(node,property,value,{source='none',interval=1000}={}){
+ if(!node?.style)return;
+ const text=String(value);if(node.style.getPropertyValue(property)===text)return;
+ if(node.dataset&&node.dataset.pvProgress!==source)node.dataset.pvProgress=source;
+ const ms=`${Math.max(0,Math.round(interval))}ms`;
+ if(source==='tick'&&node.style.getPropertyValue('--pv-progress-interval')!==ms)
+  node.style.setProperty('--pv-progress-interval',ms);
+ node.style.setProperty(property,text);
+}
 const TOAST_IN=[{opacity:0,transform:'translateY(8px)',offset:0},{opacity:1,offset:.75},
  {opacity:1,transform:'none',offset:1}];
 // Layout offsets exclude our active FLIP transform. Animation progress is not a new layout.
@@ -169,11 +207,51 @@ export class SceneMotion {
   if(!this.listening&&this.media?.addEventListener){this.media.addEventListener('change',this.onPreference);this.listening=true;}
   animation.finished.catch(()=>{}).finally(()=>{if(this.animations.get(node)===animation){this.animations.delete(node);}if(!this.animations.size)this.cancel();});return animation;
  }
- updateClock(node,value){
-  if(!node||typeof value!=='string')return;const previous=this.clocks.get(node);if(previous?.value===value)return;
-  let digits=previous?.digits;if(!digits||digits.length!==value.length){digits=[...value].map(char=>{const span=node.ownerDocument.createElement('span');span.textContent=char;return span;});node.replaceChildren(...digits);this.clocks.set(node,{value,digits});return;}
-  for(let index=0;index<digits.length;index++){if(previous.value[index]===value[index])continue;digits[index].textContent=value[index];this.animate(digits[index],[{opacity:.25},{opacity:1}],180,{fadeReduced:true});}
-  this.clocks.set(node,{value,digits});
+ // P5 value (docs/MOTION.md §3.6): one character per slot; only changed digits roll on the quick spring. The old
+ // figure leaves as the slot's ::before (data-pv-was), so the text stays the value and nothing is cloned.
+ // `direction` overrides the sign (a clock always moves on), `still` keeps the last characters still (seconds).
+ // Reduced: changed digits fade in over --pv-dur-tap. Text with words, the first value and a node someone else
+ // has written are drawn in place.
+ value(node,text,{direction,still=0}={}){
+  if(!node||typeof text!=='string')return;
+  const previous=this.clocks.get(node),doc=node.ownerDocument;
+  if(previous?.value===text&&node.textContent===text)return;
+  if(!DIGIT_TEXT.test(text)||!doc?.createElement){
+   this.clocks.delete(node);if(node.textContent!==text)node.textContent=text;return;}
+  const known=previous&&node.textContent===previous.value?previous:null;
+  let slots=known?.slots;
+  if(!slots||slots.length!==text.length){
+   slots=[...text].map(char=>{const slot=doc.createElement('span'),glyph=doc.createElement('span');
+    slot.dataset.pvDigit='';glyph.textContent=char;slot.append(glyph);return slot;});
+   node.replaceChildren(...slots);
+  }
+  this.clocks.set(node,{value:text,slots});
+  if(!known)return;
+  const changed=new Set(rollingDigits(known.value,text,{still})),sign=direction??valueDirection(known.value,text);
+  const reduced=this.reduced,shift=text.length-known.value.length;
+  for(let index=0;index<slots.length;index++){
+   const slot=slots[index],glyph=slot.firstChild;
+   if(glyph.textContent!==text[index])glyph.textContent=text[index];
+   if(changed.has(index))this.roll(slot,known.value[index-shift]??'',sign||1,reduced);
+  }
+ }
+ roll(slot,was,sign,reduced){
+  const glyph=slot.firstChild;this.rolls??=new WeakMap();
+  for(const animation of this.rolls.get(slot)||[])animation.cancel();
+  if(typeof glyph?.animate!=='function'||!slot.getClientRects?.().length){this.rolls.delete(slot);return;}
+  if(reduced){
+   this.rolls.set(slot,[glyph.animate([{opacity:0},{opacity:1}],{duration:DUR.tap,easing:EASE.out})]);return;}
+  const timing={duration:QUICK.ms,easing:QUICK.easing},animations=[glyph.animate(
+   [{opacity:0,transform:`translateY(${sign*30}%)`},{opacity:1,transform:'none'}],{...timing,fill:'backwards'})];
+  const effect=slot.ownerDocument?.defaultView?.KeyframeEffect,pseudo=!!effect&&'pseudoElement' in effect.prototype;
+  if(was&&pseudo){
+   slot.dataset.pvWas=was;
+   const out=slot.animate([{opacity:1,transform:'none'},{opacity:0,transform:`translateY(${-sign*30}%)`}],
+    {...timing,pseudoElement:'::before'});
+   out.finished.then(()=>{if(slot.dataset.pvWas===was)delete slot.dataset.pvWas;},()=>{});
+   animations.push(out);
+  }
+  this.rolls.set(slot,animations);
  }
  // P2 toast (§3.3): in from 8px on the snappy spring while the opacity reaches 1 at the quick duration
  // (eased progress .75 of the snappy curve is ~150 ms); out is a quick fade that accelerates away.

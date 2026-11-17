@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {NotificationQueue} from '../../podvoice/gatekeeper/static/podview/ui/notification-queue.js';
 import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {showValue} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
 test('first connection never claims retained data and denied access gives HA guidance',()=>{
  assert.match(connectionPresentation({status:'connecting'}).text,/Forbinder/);assert.equal(connectionPresentation({status:'connecting'}).retry,false);
  const first=connectionPresentation({status:'disconnected'});assert.match(first.text,/endnu/);assert.doesNotMatch(first.text,/seneste/);assert.equal(first.retry,true);
@@ -37,7 +38,7 @@ test('connection owner marks all seven retained first-connection cards busy and 
 
 test('conversation reconnecting and disconnected project distinct persistent labels through the actual topbar without restoring control',async()=>{
  const {previewScene}=await import('../../podvoice/gatekeeper/static/podview/preview-scenes.js'),source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderTopbarClock('),end=source.indexOf('\n renderTopbarScroll(',start),code=source.slice(start,end).trim(),nodes=new Map();
- const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,getAttribute:()=>null});return nodes.get(id);},nav={dataset:{}},render=new Function('$','connectionPresentation',`return function ${code}`)(node,connectionPresentation);
+ const node=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,getAttribute:()=>null});return nodes.get(id);},nav={dataset:{}},render=new Function('$','connectionPresentation','showValue',`return function ${code}`)(node,connectionPresentation,showValue);
  for(const [stage,label,state] of [['conversation-reconnecting','Genopretter forbindelse…','connecting'],['conversation-offline','Forbindelsen er afbrudt','offline']]){
   const scene=previewScene(stage),before=JSON.stringify(scene),host={state:scene,dataset:{},querySelector:()=>nav};render.call(host,new Date('2026-10-23T10:00:00Z'));
   assert.equal(node('header-date').textContent,label);assert.equal(node('photo-date').textContent,label);assert.equal(connectionPresentation(scene.connectionPreview).state,state);assert.equal(scene.connected,false);assert.equal(JSON.stringify(scene),before);assert.equal(scene.music.pending,null);assert.ok(scene.answers.length);assert.ok(scene.timer);
@@ -58,7 +59,7 @@ test('persistent connection uses existing status and retry without replacing an 
 
 test('identical connection clock renders never rewrite status or description attributes',()=>{
  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderTopbarClock('),end=source.indexOf('\n renderTopbarScroll(',start),nodes=new Map();let writes=0;
- const node=id=>{if(!nodes.has(id)){const attrs=new Map();nodes.set(id,{textContent:'',hidden:false,getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){writes++;attrs.set(key,value);},removeAttribute(key){writes++;attrs.delete(key);}});}return nodes.get(id);};const nav={dataset:{}},render=new Function('$','connectionPresentation',`return function ${source.slice(start,end).trim()}`)(node,connectionPresentation),host={live:true,liveStatus:'disconnected',liveSnapshot:{},state:{},dataset:{},querySelector:()=>nav},time=new Date('2026-10-23T10:00:00Z');
+ const node=id=>{if(!nodes.has(id)){const attrs=new Map();nodes.set(id,{textContent:'',hidden:false,getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){writes++;attrs.set(key,value);},removeAttribute(key){writes++;attrs.delete(key);}});}return nodes.get(id);};const nav={dataset:{}},render=new Function('$','connectionPresentation','showValue',`return function ${source.slice(start,end).trim()}`)(node,connectionPresentation,showValue),host={live:true,liveStatus:'disconnected',liveSnapshot:{},state:{},dataset:{},querySelector:()=>nav},time=new Date('2026-10-23T10:00:00Z');
  render.call(host,time);assert.ok(writes>0);writes=0;render.call(host,time);assert.equal(writes,0);host.liveStatus='connected';host.liveSnapshot={capabilities:{homeRead:['vacuum']}};render.call(host,time);writes=0;render.call(host,time);assert.equal(writes,0);
 });
 

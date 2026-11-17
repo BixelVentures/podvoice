@@ -228,10 +228,6 @@ test('new pointer and keyboard input work during entrance and next navigation in
  }
 });
 
-test('Ro minute update retains digit nodes and animates only changed figures, with no identical-update restart',()=>{
- const f=fixture(),calls=[];f.motion.animate=(node,frames,duration,options)=>calls.push({node,frames,duration,options});const clock={ownerDocument:{createElement:()=>({textContent:''})},replaceChildren(...children){this.children=children;}};
- f.motion.updateClock(clock,'18.09');const digits=[...clock.children];assert.equal(calls.length,0);f.motion.updateClock(clock,'18.09');assert.equal(calls.length,0);f.motion.updateClock(clock,'18.10');assert.equal(calls.length,2);assert.equal(calls[0].node,digits[3]);assert.equal(calls[1].node,digits[4]);assert.deepEqual(clock.children,digits);assert.equal(clock.children.map(n=>n.textContent).join(''),'18.10');assert(calls.every(c=>c.options.fadeReduced&&c.frames.every(frame=>Object.keys(frame).length===1)));f.motion.updateClock(clock,'18.10');assert.equal(calls.length,2);
-});
 test('interrupted toast exit cannot hide a replacement message and reduced feedback uses120ms opacity',async()=>{
  const f=fixture();f.motion.host.dataset.motion='reduced';const animations=[],node={hidden:false,getClientRects:()=>[box],animate(frames,options){let resolve,reject;const a={frames,options,finished:new Promise((yes,no)=>{resolve=yes;reject=no;}),cancel(){reject(new Error('cancel'));},finish(){resolve();}};animations.push(a);return a;}};
  f.motion.feedback(node,false);f.motion.feedback(node,true);animations[0].finish();await Promise.resolve();assert.equal(node.hidden,false);assert.equal(animations[1].options.duration,120);f.motion.feedback(node,false);animations.at(-1).finish();await Promise.resolve();assert.equal(node.hidden,true);f.motion.cancel();

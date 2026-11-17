@@ -1,4 +1,5 @@
 import {homeConnectionPresentation} from './podvoice-view.js';
+import {showValue} from './ui/motion.js';
 import {conditionLabel,weatherTemperature,weatherAdviceCapability,weatherPassiveAdvice,weatherAiAdvice} from './weather-observation.js';
 import {renderWeather,liveWeatherModel,weatherOverviewDetail,weatherHeaderVisible,renderOverviewForecast} from './weather-view.js';
 import {robotFacts,robotExperience,robotCare} from './robot-observation.js';
@@ -61,9 +62,9 @@ export function renderLiveWeather(host){
   const temperature=Number.isFinite(temp)?weatherTemperature(temp,w.unit):id==='home-weather'?'':hasWeather?'Vejr':'';
   if(id==='home-weather'){
    const value=button.querySelector('.home-temperature'),description=button.querySelector('.home-condition'),forecast=button.querySelector('.home-forecast'),range=model.current?.range||'';
-   if(value&&value.textContent!==temperature)value.textContent=temperature;const overviewCondition=weatherOverviewDetail(model,{role:'condition'});if(description&&description.textContent!==overviewCondition)description.textContent=overviewCondition;
+   showValue(host.motion,value,temperature);const overviewCondition=weatherOverviewDetail(model,{role:'condition'});if(description&&description.textContent!==overviewCondition)description.textContent=overviewCondition;
    renderOverviewForecast(button,model);
-  }else{const strong=button.querySelector('strong'),label=id==='header-weather'?(Number.isFinite(temp)?temperature.replace(/°[CF]$/,'°'):'—'):temperature;if(strong&&strong.textContent!==label)strong.textContent=label;}
+  }else{const strong=button.querySelector('strong'),label=id==='header-weather'?(Number.isFinite(temp)?temperature.replace(/°[CF]$/,'°'):'—'):temperature;showValue(host.motion,strong,label);}
   const description=button.querySelector(id==='photo-weather'?':scope > span':'small'),detail=!hasWeather?(id==='header-weather'?'Vejr ukendt':model.emptyDetail||model.overviewStatus||'Ingen vejrdata'):id==='home-weather'?weatherOverviewDetail(model):model.sourceStale?model.updated||'Ikke opdateret':condition||'Se vejrudsigten';if(description&&description.textContent!==detail)description.textContent=detail;
  }
  const refreshAt=model.refreshAt||model.adviceUntil||null;if(refreshAt!==host.weatherAdviceAt||refreshAt&&!host.weatherAdviceTimer){globalThis.clearTimeout(host.weatherAdviceTimer);host.weatherAdviceTimer=null;host.weatherAdviceAt=refreshAt;if(refreshAt){let handle;handle=globalThis.setTimeout(()=>{if(host.weatherAdviceTimer!==handle)return;host.weatherAdviceTimer=null;if(host.isConnected)renderLiveWeather(host);},Math.min(2147483647,refreshAt-Date.now()+1));host.weatherAdviceTimer=handle;}}

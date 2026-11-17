@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 1917b6b96dba458dbf783ab30e51ff266d189c91aefd1467f97a58a7109d5050 */
+/* Source: ui-kit.css · SHA256 04d65296e3ccab41cc02fc779cada9eeed1fe4ab50d7f2fb21de177d1af56bcf */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 :root{
  --pv-bg:#E9E7E2;--pv-surface:#F7F6F3;--pv-surface-2:#EFEDE8;--pv-line:#DCDAD4;--pv-ink:#17171A;--pv-ink-2:#3F3E3B;
@@ -5772,6 +5772,21 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]:not(.
  animation:pv-page-out var(--pv-dur-reduced) linear both}
 :root[data-pv-motion=reduced]::view-transition-new(pv-page),
 :root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
+
+/* P5 value (docs/MOTION.md §3.6). SceneMotion.value() puts each character of a figure in a slot; a changed digit
+   rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was), so the text is
+   always the value. Progress: data-pv-progress=tick runs linear over the tick, so a ring never stops or jumps;
+   user (+1 min, Start igen, another app) travels on the smooth spring. Reduced keeps progress continuous. */
+[data-pv-digit]{display:inline-block;position:relative}
+[data-pv-digit]>span{display:inline-block}
+[data-pv-digit]::before{content:attr(data-pv-was);position:absolute;left:0;top:0;opacity:0;pointer-events:none}
+[data-pv-progress=tick] .timer-progress{transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear}
+[data-pv-progress=user] .timer-progress{transition:stroke-dasharray var(--pv-spring-smooth)}
+/* Progress is information, not decoration: it stays continuous under the global reduced transition:none. */
+:root[data-pv-motion=reduced] [data-pv-progress=tick] .timer-progress{
+ transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear!important}
+:root[data-pv-motion=reduced] [data-pv-progress=user] .timer-progress{
+ transition:stroke-dasharray var(--pv-dur-reduced) linear!important}
 
 /* Horizontal scroll: the weather's fade toward the right edge, with snap. */
 .pv-hscroll{display:flex;gap:var(--pv-gap);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;

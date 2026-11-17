@@ -35,7 +35,9 @@ test('unchanged timer projection performs zero DOM writes and one-second ticks o
  const f=fixture(),prior=globalThis.document;globalThis.document=f.document;
  try{const state={connected:true,focus:'timers',timer,timerHistory:[]};f.view.render(state);const overview=f.view.nodes.get(`overview:${timer.id}`),detail=f.view.nodes.get(`detail:${timer.id}`),finish=detail.querySelector('.timer-finish');finish.focus();f.list.scrollTop=42;f.writes.length=0;
   f.view.render({...state,timer:{...timer}});assert.deepEqual(f.writes,[]);
-  f.view.render({...state,timer:{...timer,remaining:58}});assert.equal(f.writes.length,6);assert.ok(f.writes.every(write=>/\.style\.--progress$|\.timer-count\.textContent$|\.timer-open\.attr\.aria-label$/.test(write)),f.writes.join('\n'));assert.equal(f.view.nodes.get(`overview:${timer.id}`),overview);assert.equal(f.view.nodes.get(`detail:${timer.id}`),detail);assert.equal(finish.focused,true);assert.equal(f.list.scrollTop,42);
+  // P5 (docs/MOTION.md §3.6): the first tick marks the rings as ticking (data-pv-progress, its interval) once.
+  f.view.render({...state,timer:{...timer,remaining:58}});assert.deepEqual(f.writes.filter(write=>/\.data\.pvProgress$|\.style\.--pv-progress-interval$/.test(write)).length,4);f.writes.length=0;
+  f.view.render({...state,timer:{...timer,remaining:57}});assert.equal(f.writes.length,6);assert.ok(f.writes.every(write=>/\.style\.--progress$|\.timer-count\.textContent$|\.timer-open\.attr\.aria-label$/.test(write)),f.writes.join('\n'));assert.equal(f.view.nodes.get(`overview:${timer.id}`),overview);assert.equal(f.view.nodes.get(`detail:${timer.id}`),detail);assert.equal(finish.focused,true);assert.equal(f.list.scrollTop,42);
  }finally{globalThis.document=prior;}
 });
 

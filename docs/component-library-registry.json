@@ -1045,7 +1045,8 @@
         "dist/weather-observation.js",
         "dist/weather-view.js",
         "dist/robot-observation.js",
-        "dist/podvoice-view.js"
+        "dist/podvoice-view.js",
+        "dist/ui/motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2085,7 +2086,8 @@
         "dist/overview-activity-model.js",
         "dist/scene-model.js",
         "dist/ui/resource-tile.js",
-        "dist/ui/kit.js"
+        "dist/ui/kit.js",
+        "dist/ui/motion.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2109,7 +2111,8 @@
           "method:createHeaderTimer": 1,
           "method:renderHeaderTimer": 1,
           "method:renderRecent": 1,
-          "method:renderRestart": 1
+          "method:renderRestart": 1,
+          "method:progressSource": 1
         },
         "roots": [
           "html:button:timer-adjust",
@@ -2342,16 +2345,22 @@
           "method:syncRoot": 1,
           "method:target": 1,
           "method:tick": 1,
-          "method:updateClock": 1,
           "method:value": 1,
-          "method:velocity": 1
+          "method:velocity": 1,
+          "arrow:isDigit": 1,
+          "arrow:read": 1,
+          "function:rollingDigits": 1,
+          "function:showProgress": 1,
+          "function:showValue": 1,
+          "function:valueDirection": 1,
+          "method:roll": 1
         },
         "roots": [],
         "registrations": {},
         "customTags": [],
         "dom": true
       },
-      "domOwner": "SceneMotion.updateClock (retained character spans inside existing photo-clock only)",
+      "domOwner": "SceneMotion.value (P5: retained character slots inside existing clock, timer and temperature values only)",
       "compositionScope": "v31 explicit user motion refinement: existing Ro clock receives one retained inline span per displayed character so only changed minute figures crossfade. No new clock surface, wrapper, typography, controls or component family. SceneMotion owns cancellation and reduced-motion120ms opacity; WidgetHost keeps clock value and scheduling authority. V32: guardNavigation temporarily captures only pointer clicks on incoming existing content, with bounded timeout and cancellation cleanup; no DOM or new controls. Reviewed21Oct second release helper restores the existing persistent player paint marker only for its current animation owner; completion, cancellation, unavailable animation and reduced motion release it without changing player layout or content.",
       "responsiveNavigation": {
         "date": "2026-11-04",
