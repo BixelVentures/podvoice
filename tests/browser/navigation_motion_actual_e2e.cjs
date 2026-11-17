@@ -233,7 +233,10 @@ function checkRo({samples,mutations},point,{to,reduced}){
  const ro=mutations.map(m=>m.what);
  assert.deepEqual(ro,['BUTTON[hidden]'],`${name}: the Ro button's only change is the page change (${ro})`);
  const steady=samples.filter(s=>s.t<mutations[0].t&&!s.ro.hidden);
- for(const s of steady)assert.deepEqual(s.ro,steady[0].ro,`${name}: Ro button steady before navigating`);
+ // The press dims the button (opacity .84, ui/pressed-state.js) while the finger is on it; nothing else changes.
+ const look=({opacity,...rest})=>rest;
+ for(const s of steady){assert.deepEqual(look(s.ro),look(steady[0].ro),`${name}: Ro button steady before navigating`);
+  assert(Number(s.ro.opacity)>=.83,`${name}: Ro button only dims as press feedback (${s.ro.opacity})`);}
  return {start:Math.round(start.t),...report,...timing(samples)};
 }
 

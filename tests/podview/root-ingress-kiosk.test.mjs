@@ -156,3 +156,28 @@ test('a rebuilt HA panel without kiosk gets full screen back by itself; taps in 
  h.rect.top=56;const sent=f.sent.length;h.tick();assert.equal(f.sent.length,sent);
  end();
 });
+
+// Fitting the pinned frame reads layout in HA's document and writes style in both documents. It runs at start and
+// on geometry events, never on the 5 s kiosk watch, and writes PodView's safe areas only when they change.
+test('the kiosk watch never fits the frame; a resize does, once per frame, and unchanged insets write nothing',()=>{
+ const f=frame(panel+'/view','view/'),writes=[],reads={style:0},frames=[];
+ const style=name=>({setProperty(key){writes.push(`${name}.${key}`);},removeProperty(){},top:'',left:''});
+ const pdoc={documentElement:{style:style('proot'),clientWidth:1180,clientHeight:820},body:{style:style('pbody')},
+  defaultView:{innerWidth:1180,innerHeight:820,getComputedStyle:()=>{reads.style++;return {getPropertyValue:()=>'0px'};}}};
+ f.win.frameElement={ownerDocument:pdoc,style:style('frame'),getAttribute:()=>null,
+  getBoundingClientRect:()=>({top:0,left:0,width:1180,height:820})};
+ f.win.document={visibilityState:'visible',documentElement:{style:style('root')},addEventListener(){},
+  removeEventListener(){}};
+ f.win.Event=class {constructor(type){this.type=type;}};f.win.dispatchEvent=()=>{};
+ f.win.requestAnimationFrame=fn=>frames.push(fn);f.win.cancelAnimationFrame=()=>{};
+ const timers=[];f.win.setInterval=fn=>timers.push(fn);f.win.clearInterval=()=>{};
+ const end=beginIngressKiosk(f.win);
+ assert.ok(writes.includes('root.--pv-safe-top'),'start fits the frame and hands over the safe areas');
+ writes.length=0;reads.style=0;
+ for(let i=0;i<3;i++)timers[0]();
+ assert.deepEqual(writes,[],'the watch writes no style');assert.equal(reads.style,0,'and reads none');
+ f.emit('resize');f.emit('resize');assert.equal(frames.length,1,'resizes in one frame share one fit');
+ frames.shift()();
+ assert.equal(reads.style,1);assert.deepEqual(writes,[],'unchanged geometry and insets write nothing');
+ end();
+});

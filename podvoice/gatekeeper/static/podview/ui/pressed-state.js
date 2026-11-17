@@ -1,16 +1,19 @@
 // P3 press feedback (docs/MOTION.md). Native click and keyboard activation keep ownership; this only paints.
-// One delegated capture listener finds the control; the feedback is Web Animations on that control alone: scale
-// (tiles .97 and nothing else, buttons .98, icons none), a 12% overlay on buttons, a dim for quiet controls and a
-// circle under the finger for flat surfaces. Down follows the finger in --pv-dur-tap; release springs back on
-// Motion's quick spring (critically damped: no overshoot). Nothing writes a class, an attribute or an inline style,
-// so a press never invalidates selectors elsewhere on the page (the stylesheet has hundreds of :has() rules) and
-// never wakes a MutationObserver. Reduced: no scale, no growth; a tile dims instead.
+// One delegated capture listener finds the control; the feedback is Web Animations on that control alone, and only
+// on properties the compositor runs (Core Animation on the iPad, cc in Chromium): scale (tiles .97 and nothing else,
+// buttons .98, icons and flat surfaces none) and opacity (buttons and flat surfaces dim a little, quiet controls
+// more). No box-shadow overlay, no ripple circle (it animated left/top/width/height), no colour: those repaint on
+// the main thread every frame. Down follows the finger in --pv-dur-tap;
+// release springs back on Motion's quick spring (critically damped: no overshoot) as plain keyframes (springFrames),
+// because WebKit does not accelerate a linear() easing. Nothing writes a class, an attribute or an inline style, so a
+// press never invalidates selectors elsewhere on the page and never wakes a MutationObserver. Reduced: no scale; a
+// tile dims instead.
 // Inside a scroller a touch may be the start of a scroll, so the press waits, as UIScrollView's
 // delaysContentTouches does: it shows once the finger has rested HOLD (150) ms, or at once on a quick tap's release
 // (shown in full, then springing back). A scroll, a move past the slop or a pointercancel before that shows nothing;
 // one after it ends the press where it is, without a spring back, so nothing hops.
 import {DUR,EASE,SPRING} from './motion.js';
-import {springTiming} from './native-motion.js';
+import {springFrames} from './native-motion.js';
 
 const CONTROL='button,a[href],summary,[role="button"]';
 const FIELD='input,select,textarea,[role="slider"],[contenteditable]:not([contenteditable="false"])';
@@ -19,9 +22,9 @@ const ICON='.round:not(.main-control),.pv-dialog-close,.volume-mute,.pv-toggle:n
  '[data-pv-press=icon]';
 const TILE='.pv-tile,.pv-card,.pv-hero,.resource-preview,.result,.queue-track,.cover-button,.timer-shortcut,'+
  '.svar-today-row';
-const OVERLAY='inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)';
-// UIScrollView delays content touches 150 ms; UIKit's tap slop is ~10 pt. A reduced-motion tile dims to TILE_DIM.
-const HOLD=150,SLOP=10,TILE_DIM=.8;
+// UIScrollView delays content touches 150 ms; UIKit's tap slop is ~10 pt. A pressed button dims to BUTTON_DIM (as a
+// UIButton highlight), a quiet control to QUIET_DIM, a reduced-motion tile to TILE_DIM.
+const HOLD=150,SLOP=10,BUTTON_DIM=.84,QUIET_DIM=.64,TILE_DIM=.8;
 export function pressScale(node,reduced=false){
  if(reduced||node.matches(FLAT)||node.matches(ICON))return 1;
  return node.matches(TILE)?.97:.98;
@@ -59,29 +62,20 @@ export function attachPressedState(surface){
   for(const animation of [...state.hold,...state.release])animation.cancel();};
  const press=(target,event)=>{
   if(typeof target.animate!=='function')return;
-  // The circle is placed from one layout read, taken before anything is written.
-  const box=event.pointerId!=='keyboard'&&target.matches(FLAT)?target.getBoundingClientRect():null;
   const previous=live.get(target),still=reduced(),scale=pressScale(target,still);
   // A press that lands on a release still in flight starts from where the control is now.
   const from=previous?.release.some(a=>a.playState==='running')?win.getComputedStyle(target).scale:'1';
   stop(target);
   const tile=target.matches(TILE);
-  const state={hold:[],release:[],scale,circle:null,tile};live.set(target,state);
+  // dim: the opacity a button, flat surface or quiet control holds while pressed (null: none).
+  const dim=tile?null:target.matches(QUIET)?QUIET_DIM:BUTTON_DIM;
+  const state={hold:[],release:[],scale,tile,dim};live.set(target,state);
   const hold={duration:DUR.tap,easing:EASE.out,fill:'forwards'};
   if(scale<1)state.hold.push(target.animate([{scale:from==='none'?'1':from},{scale:String(scale)}],hold));
   // A card or tile (UICollectionViewCell, SwiftUI's press) only scales: no colour, shadow or brightness change.
-  // With reduced motion it dims instead, on the same curve. Both are compositor-only.
+  // With reduced motion it dims instead, on the same curve. A button dims at once, as a UIButton highlights.
   if(tile){if(still)state.hold.push(target.animate([{opacity:1},{opacity:TILE_DIM}],hold));}
-  else if(target.matches(QUIET))
-   state.hold.push(target.animate([{opacity:.64},{opacity:.64}],{duration:1,fill:'forwards'}));
-  else state.hold.push(target.animate([{boxShadow:OVERLAY},{boxShadow:OVERLAY}],{duration:1,fill:'forwards'}));
-  if(box){
-   const x=event.clientX-box.left,y=event.clientY-box.top;
-   const size=`${2*Math.hypot(Math.max(x,box.width-x),Math.max(y,box.height-y))}px`;
-   state.circle={left:`${x}px`,top:`${y}px`,width:size,height:size};
-   state.hold.push(target.animate([{...state.circle,opacity:1,scale:still?1:.2},{...state.circle,opacity:1,scale:1}],
-    {...hold,pseudoElement:'::after'}));
-  }
+  else if(dim!==null)state.hold.push(target.animate([{opacity:dim},{opacity:dim}],{duration:1,fill:'forwards'}));
  };
  // Release starts when the touch-down has finished (a delay, not a wait), so even the fastest tap shows the whole
  // press before it springs back, and the release exists from the moment of release. The press holds until the
@@ -92,13 +86,13 @@ export function attachPressedState(surface){
   const down=state.hold[0];
   const delay=down?.playState==='running'?Math.max(0,DUR.tap-(Number(down.currentTime)||0)):0;
   const fade={duration:reduced()?DUR.reduced:DUR.quick,easing:EASE.out,delay,fill:'forwards'};
-  if(state.scale<1)state.release.push(target.animate([{scale:String(state.scale)},{scale:'1'}],
-   {...springTiming(SPRING.quick),delay,fill:'forwards'}));
+  if(state.scale<1){
+   const {keyframes,duration}=springFrames(SPRING.quick,
+    progress=>({scale:String(state.scale+(1-state.scale)*progress)}));
+   state.release.push(target.animate(keyframes,{duration,delay,fill:'forwards'}));
+  }
   if(state.tile){if(reduced())state.release.push(target.animate([{opacity:TILE_DIM,offset:0}],fade));}
-  else if(target.matches(QUIET))state.release.push(target.animate([{opacity:.64,offset:0}],fade));
-  else state.release.push(target.animate([{boxShadow:OVERLAY,offset:0}],fade));
-  if(state.circle)state.release.push(target.animate([{...state.circle,opacity:1,scale:1},
-   {...state.circle,opacity:0,scale:1}],{...fade,pseudoElement:'::after'}));
+  else if(state.dim!==null)state.release.push(target.animate([{opacity:state.dim,offset:0}],fade));
   Promise.all(state.release.map(animation=>animation.finished)).then(()=>{
    if(live.get(target)===state)stop(target);},()=>{});
  };

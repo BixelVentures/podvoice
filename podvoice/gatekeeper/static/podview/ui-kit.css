@@ -2905,16 +2905,13 @@ body{font-family:var(--pv-font)}
 .pv-widget[data-size=m]{width:var(--pv-widget-m);height:var(--pv-hero-s)}
 .pv-widget[data-size=l]{width:var(--pv-widget-m);height:var(--pv-hero-l)}
 
-/* P3 press (docs/MOTION.md): ui/pressed-state.js animates the pressed control itself with Web Animations (scale,
-   12% overlay, quiet dim, flat circle) and writes no class or attribute, so no selector here depends on a press.
-   CSS keeps the resting transitions and the circle's shape; the animation places and grows it. */
+/* P3 press (docs/MOTION.md): ui/pressed-state.js animates the pressed control itself with Web Animations (scale
+   and opacity only, compositor-run) and writes no class or attribute, so no selector here depends on a press.
+   CSS keeps only the resting transitions; there is no press overlay or ripple pseudo-element. */
 body :is(button,a[href],summary,[role=button]){
  transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out)!important}
 body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:scale var(--pv-spring-quick),
  box-shadow var(--pv-dur-quick) var(--pv-ease-out),opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
-[data-pv-press=flat]{position:relative;overflow:hidden}
-:is(.pv-widget,[data-pv-press=flat])::after{content:"";position:absolute;z-index:0;pointer-events:none;
- border-radius:50%;left:50%;top:50%;width:0;height:0;translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0}
 
 /* P6 state (docs/MOTION.md §3.7), written by setKitButtonState in ui/kit.js. The chosen outcome shows at once;
    a request that runs longer than 400 ms fades its spinner in (and the icon it replaces out), so fast commands
@@ -3928,21 +3925,33 @@ pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-
  #music-response[data-discovery-preview]
    :is(#result-list,.music-shelf,#music-hero)
    >.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::after{
-   left:10px;top:114px;width:36px;height:36px;border-radius:50%;
+   left:10px;top:114px;width:36px;height:36px;border-radius:50%;background:rgba(23,23,26,.8);}
+ /* The equalizer bars are their own layer over the disc (::before, painted once) and move by scale on the
+    compositor; animating background-size repainted the mark every frame on the main thread. */
+ #music-response[data-discovery-preview]
+   :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::before{
+   content:'';position:absolute;z-index:1;pointer-events:none;--pv-enter-y:0;
+   left:10px;top:114px;width:36px;height:36px;
    background:
-  linear-gradient(#F7F6F3,#F7F6F3) 11px 100%/3px 14px no-repeat,
+  linear-gradient(#F7F6F3,#F7F6F3) 11px 100%/3px 9px no-repeat,
     linear-gradient(#F7F6F3,#F7F6F3) 16.5px 100%/3px 14px no-repeat,
-  linear-gradient(#F7F6F3,#F7F6F3) 22px 100%/3px 14px no-repeat,
-    rgba(23,23,26,.8);
-   background-origin:content-box;padding:11px 0;box-sizing:border-box;
+  linear-gradient(#F7F6F3,#F7F6F3) 22px 100%/3px 11px no-repeat;
+   background-origin:content-box;padding:11px 0;box-sizing:border-box;transform-origin:50% 25px;
    animation:pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards,pv-music-eq 1s ease-in-out infinite;}
  :is(#music-response[data-discovery-collection=recent] #result-list,
    #music-response .music-shelf[data-music-shelf=recent])
-   >.result.result.result[data-content-state][data-playing=true]::after{
+   >.result.result.result[data-content-state][data-playing=true]::after,
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])
+   >.result.result.result[data-content-state][data-playing=true]::before{
    top:26px!important;left:18px!important;}
  :is(#music-response[data-discovery-collection=feeling] #result-list,
    #music-response .music-shelf[data-music-shelf=feeling])
-   >.result.result.result[data-content-state][data-playing=true]::after{
+   >.result.result.result[data-content-state][data-playing=true]::after,
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])
+   >.result.result.result[data-content-state][data-playing=true]::before{
    top:10px!important;left:auto!important;right:10px;}
 }
 /* #389 leftover: in the small Musik slot the »Afspiller« context line sat on top of the »Musik« head while music
@@ -4118,9 +4127,10 @@ pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-
  :root[data-pv-motion=reduced] #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
    animation:none;height:12px;}
 
-@keyframes pv-music-eq{0%,100%{background-size:3px 5px,3px 14px,3px 9px,auto}50%{background-size:3px 14px,3px 6px,3px 14px,auto}}
+@keyframes pv-music-eq{0%,100%{scale:1 .45}50%{scale:1 1}}
 
- :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::after{
+ :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::after,
+ :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::before{
    animation:none!important;}
 
 
