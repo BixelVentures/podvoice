@@ -22,13 +22,32 @@ tryk (stylesheetet har flere hundrede `:has()`-regler, så en klasse-skrivning k
 | Hvad | Hvordan | Hvor |
 |---|---|---|
 | Fjedre | Motions `spring()` (npm `motion`, MIT, `motion.source.txt`) giver CSS `linear()` + varighed til Web Animations. Kun `ui/native-motion.js` importerer Motion, og kun bundlet kode må bruge den | `ui/native-motion.js` |
-| Tryk (P3) | Én delegeret capture-listener; Web Animations på den trykkede kontrol (skala .97/.98/1, 12 % overlay, dæmpning, cirkel). Ingen klasse, attribut eller inline-stil. Slip har en delay på resten af touch-down (100 ms) og fjedrer på `SPRING.quick` | `ui/pressed-state.js` |
+| Tryk (P3) | Én delegeret capture-listener; Web Animations på den trykkede kontrol (skala .97/.98/1, 12 % overlay, dæmpning, cirkel). Ingen klasse, attribut eller inline-stil. Slip har en delay på resten af touch-down (100 ms) og fjedrer på `SPRING.quick`. I en scroller venter trykket som UIScrollView (`delaysContentTouches`): vises når fingeren har hvilet 150 ms, eller ved slip for et hurtigt tap; scroll, slop (10 px) eller pointercancel før det viser intet; efter det slutter trykket med det samme uden fjeder tilbage | `ui/pressed-state.js` |
 | Geometri-lås | Et tryk beder kun om låsen; næste `render()` måler og fryser | `SceneMotion.deferHold` |
 | Udforsk (P9) | Native scroll-snap; hvert cover følger sin slots view timeline (`animation-range: cover 50% ± 3,5·430px`); keyframes = `exploreFrame` samplet (`exploreKeyframes`). JS kun ved skift af nærmeste cover og ved `scrollend`. Uden `animation-timeline`: flad snap-karrusel | `recipe-view.js`, `ui-kit.css` |
 | Lister (P4) | FLIP: alle mål før alle skrivninger, Web Animations på `translate` med Motions fjedre | `ui/list-motion.js` |
-| Sider (P1/P7) | View Transitions (uændret) | `SceneMotion.page/hero` |
+| Sider (P1/P7) | View Transitions. `data-pv-nav` er den eneste skrivning på roden; retningens custom properties ligger på `::view-transition`, ellers restyler sætning og fjernelse hele siden. Fokus på overskriften venter til opdateringen (`afterPage`) | `SceneMotion.page/hero` |
+| Ro ↔ aktiv | Krusning: `pv-widget-host` er én gruppe (`pv-ro`; roden fanges ikke). Den gamle skærm står stille og uigennemsigtig; den nye afsløres i en cirkel fra fingeren (`clip-path`, `SPRING.smooth`). Ingen fade, intet blink. Reduced: den nye toner ind over den gamle i `--pv-dur-reduced` | `SceneMotion.ripple` |
 | Reduced | `:root[data-pv-motion=reduced]`: kun fades. Udforsks covers står fladt (scrollen flytter dem, ikke en animation) | |
 | Global | `html{touch-action:manipulation}`; touch-intent læser kontrollens rect én gang pr. tryk | |
+
+iOS-reference pr. interaktion (2026-11-17). Hvor PodView afviger, står det i kolonnen.
+
+| Interaktion | iOS / afprøvet web-reference | PodView |
+|---|---|---|
+| Tryk i scroller | UIScrollView `delaysContentTouches` (~150 ms), `touchesShouldCancel` annullerer ved scroll | 150 ms hold, 10 px slop, annulleret tryk slutter uden fjeder |
+| Tryk ellers | UIButton highlight straks ved touch-down | Straks; skala .97/.98 på `SPRING.quick` ved slip |
+| Side push/pop | UINavigationController; Ionic `ios.transition.ts`: 540 ms, `cubic-bezier(.32,.72,0,1)`, ny side ind fra 99,5 %, gammel ud til −33 % med opacity .8 | Kortere vægskærmsudgave: ind 48 px på `SPRING.smooth`, ud 24 px i `--pv-dur-quick` (vægskærmen har chrome og player, som står stille) |
+| Ro ↔ aktiv | Ingen UIKit-pendant; krusning fra berøringspunktet (Material-ripple / iOS-kontrolcenterets »bloom« fra fingeren) | Cirkel-clip fra fingeren på `SPRING.smooth`, gammel skærm står stille |
+| Sheets | UISheetPresentationController; vaul/react-modal-sheet: fjeder uden bounce | P2 som §3.3 (`SPRING.smooth` ind, `--pv-dur-quick` ud) |
+| Listeændring | UICollectionView batch updates (fjeder, ingen bounce) | P4 FLIP på `SPRING.smooth` |
+| Fjedre | SwiftUI `spring(duration:bounce:)`; `.smooth` (bounce 0), `.snappy` (lille bounce), `.bouncy` | `SPRING.quick/smooth/snappy/flick` med samme duration/bounce-model |
+| Scroll | Native momentum og rubber-band | Browserens egen scroll; intet JS pr. frame |
+
+Kilder: [SwiftUI Animation](https://developer.apple.com/documentation/swiftui/animation),
+[WWDC23 Animate with springs](https://wwdcnotes.com/documentation/wwdc23-10158-animate-with-springs/),
+[Ionic ios.transition.ts](https://github.com/ionic-team/ionic-framework/blob/main/core/src/utils/transition/ios.transition.ts),
+[UIScrollView-forsinkelse](https://coderwall.com/p/ojlywq/fix-touch-delay-on-controls-in-scroll-views).
 
 Afløst og fjernet: `Spring`-klassen, `attachSwipeTrack`/`swipeTarget`/`swipeVelocity`, `rubberBand`/`project`,
 `.is-pressed`/`data-pv-pointer-focus`/`data-pv-circle`, `SceneMotion.list`. `springCurve` lever videre kun til at

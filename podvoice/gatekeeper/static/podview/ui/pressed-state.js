@@ -4,6 +4,10 @@
 // flat surfaces. Down follows the finger in --pv-dur-tap; release springs back on Motion's quick spring. Nothing
 // writes a class, an attribute or an inline style, so a press never invalidates selectors elsewhere on the page
 // (the stylesheet has hundreds of :has() rules) and never wakes a MutationObserver. Reduced: no scale, no growth.
+// Inside a scroller a touch may be the start of a scroll, so the press waits, as UIScrollView's
+// delaysContentTouches does: it shows once the finger has rested HOLD (150) ms, or at once on a quick tap's release
+// (shown in full, then springing back). A scroll, a move past the slop or a pointercancel before that shows nothing;
+// one after it ends the press where it is, without a spring back, so nothing hops.
 import {DUR,EASE,SPRING} from './motion.js';
 import {springTiming} from './native-motion.js';
 
@@ -15,6 +19,8 @@ const ICON='.round:not(.main-control),.pv-dialog-close,.volume-mute,.pv-toggle:n
 const TILE='.pv-tile,.pv-card,.pv-hero,.resource-preview,.result,.queue-track,.cover-button,.timer-shortcut,'+
  '.svar-today-row';
 const OVERLAY='inset 0 0 0 999px color-mix(in srgb,currentColor 12%,transparent)';
+// UIScrollView delays content touches 150 ms; UIKit's tap slop is ~10 pt.
+const HOLD=150,SLOP=10;
 export function pressScale(node,reduced=false){
  if(reduced||node.matches(FLAT)||node.matches(ICON))return 1;
  return node.matches(TILE)?.97:.98;
@@ -24,6 +30,16 @@ function controlIn(path){
  const index=path.findIndex(node=>node?.matches?.(CONTROL));
  if(index<0||path.slice(0,index+1).some(node=>node?.matches?.(FIELD)))return null;
  return path[index];
+}
+// Whether the control sits in something the finger can scroll (the path runs from the control outwards).
+function inScroller(path,win){
+ for(const node of path){
+  if(node?.nodeType!==1||node===node.ownerDocument?.documentElement)continue;
+  const style=win.getComputedStyle(node),overflow=`${style.overflowX} ${style.overflowY}`;
+  if(!/auto|scroll/.test(overflow))continue;
+  if(node.scrollHeight>node.clientHeight+1||node.scrollWidth>node.clientWidth+1)return true;
+ }
+ return false;
 }
 export function attachPressedState(surface){
  const doc=surface.ownerDocument||surface,root=doc.nodeType===9?doc:surface,win=doc.defaultView;
@@ -74,22 +90,37 @@ export function attachPressedState(surface){
   Promise.all(state.release.map(animation=>animation.finished)).then(()=>{
    if(live.get(target)===state)stop(target);},()=>{});
  };
- const clear=(animated=false)=>{if(pressed)release(pressed,animated);pressed=null;pointerId=null;origin=null;};
+ // waiting: a touch in a scroller whose press is not shown yet (timer and the down event to show it from).
+ let waiting=null;
+ const clear=(animated=false)=>{
+  if(waiting){win.clearTimeout(waiting.timer);waiting=null;}
+  else if(pressed)release(pressed,animated);
+  pressed=null;pointerId=null;origin=null;
+ };
  const down=event=>{
   if(event.isPrimary===false||event.button>0)return;
   clear();
-  const target=controlIn(event.composedPath?.()||[event.target]);
+  const path=event.composedPath?.()||[event.target],target=controlIn(path);
   if(!target||unavailable(target))return;
   pressed=target;pointerId=event.pointerId;origin={x:event.clientX,y:event.clientY};
+  if(event.pointerType==='touch'&&inScroller(path.slice(path.indexOf(target)+1),win)){
+   const from={pointerId:event.pointerId,clientX:event.clientX,clientY:event.clientY};
+   const show=()=>{if(!waiting||pressed!==target)return;waiting=null;press(target,from);};
+   waiting={from,timer:win.setTimeout(show,HOLD)};
+   return;
+  }
   press(target,event);
  };
  const up=event=>{
   if(event.pointerId!==pointerId)return;
+  // A quick tap in a scroller shows its press now, in full, and springs back with the rest.
+  if(waiting&&event.type==='pointerup'){const {from}=waiting;win.clearTimeout(waiting.timer);waiting=null;
+   press(pressed,from);}
   // Release springs back; cancellation and lost capture end the press at once.
   clear(event.type==='pointerup'||event.type===undefined);
  };
  const move=event=>{
-  if(event.pointerId===pointerId&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>10)clear();
+  if(event.pointerId===pointerId&&origin&&Math.hypot(event.clientX-origin.x,event.clientY-origin.y)>SLOP)clear();
  };
  const keydown=event=>{
   if(event.repeat||!['Enter',' '].includes(event.key))return;
