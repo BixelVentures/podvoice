@@ -2348,7 +2348,11 @@
           "method:roll": 1,
           "method:settleResources": 1,
           "method:skipPage": 1,
-          "method:syncRoot": 1
+          "method:syncRoot": 1,
+          "method:afterPage": 1,
+          "method:flushAfterPage": 1,
+          "method:rippleOrigin": 1,
+          "method:transitions": 1
         },
         "roots": [],
         "registrations": {},
