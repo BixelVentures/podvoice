@@ -1101,8 +1101,12 @@ class WidgetHost extends HTMLElement {
  for(const a of s.answers){
   const completed=this.liveSnapshot?.answers?.readOnlyCompleted===true;
   const groups=(completed||this.historyBrowse)?groupAnswerHistory(s.answers,this.liveAnswers):[];
-  // The round (owner-answers answerThread) is the same whether the answer is live or opened from the list.
-  const readingGroup=answerThread(s.answers,s.focus);
+  // The round (owner-answers answerThread) is the same whether the answer is live or opened from the list; opened
+  // from the list, the archived copies stand in for their answers.
+  const round=answerThread(s.answers,s.focus),browsed=this.historyBrowse
+   ?groups.find(group=>group.items.some(answer=>answer.id===s.focus)):null;
+  const readingGroup=browsed?{items:[...new Map([...(round?.items||[]),...browsed.items].map(item=>[item.id,item]))
+   .values()]}:round;
   if(!this.answerNodes.has(a.id)){const node=document.createElement('pv-answer');$('answer-host').append(node);this.answerNodes.set(a.id,node);const retained=document.createElement('article');retained.className='retained-answer';const open=document.createElement('button');open.className='history-open';applyKitComponent(open,'listrow');const icon=document.createElement('img');icon.className='history-domain-icon';icon.alt='';icon.width=32;icon.height=32;const copy=document.createElement('span');copy.className='history-copy';const format=document.createElement('small');const title=document.createElement('strong');const excerpt=document.createElement('span');excerpt.className='history-excerpt';copy.append(title,excerpt,format);const chevron=document.createElement('img');chevron.className='history-chevron';chevron.src='assets/icons/chevron-right.svg';chevron.alt='';open.append(icon,copy,chevron);open.addEventListener('click',()=>{this.historyBrowse={id:a.id,origin:this.historyOpenedFocus,scrollTop:$('retained').scrollTop,scope:JSON.stringify([this.liveSnapshot?.bootId,this.liveSnapshot?.roomId])};this.sceneNavigation=true;this.dispatch({type:'show',id:a.id});if($('history').open)$('history').close();this.focusHeading();});retained.append(open);$('retained').append(retained);this.retainedNodes.set(a.id,retained);}
   const node=this.answerNodes.get(a.id),b=this.retainedNodes.get(a.id),scene={...s,connected:this.live?!!this.liveTransport?.connected:s.connected,connectionNoticeVisible:this.live?this.liveStatus!=='connected':!s.connected},readingAnswer=readingGroup?.items.find(item=>item.id===a.id);
   const historySelection=this.historyBrowse?.id===a.id;
