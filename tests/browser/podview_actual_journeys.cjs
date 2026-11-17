@@ -92,6 +92,8 @@ for(const journey of only.length?only:journeys){
    runJourney(journey,{MUSIC_LIBRARY_BUSY_TEST:scenario,
     PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`library-busy-${scenario}`)});
   }
+  // Status = speaker (owner 17/11): Find musik starts on the player's speaker; one tap moves the music.
+  runJourney('music_speaker_target_actual_e2e.cjs');
   for(const scenario of ['cold-tail','unknown','unknown-unchanged']){
    console.log(`Queue recovery scenario: ${scenario}`);
    runJourney(journey,{MUSIC_QUEUE_INTENTS:scenario,

@@ -1791,7 +1791,8 @@ async function queuePersistenceJourney(){
  if(postAcceptRead){
   try{
    await postAcceptRead.wait();
-   await status('loading');
+   // Known rows stay as the ready queue while it is read again (owner 17/11: no reload flash).
+   await status('ready');
    await page.locator('#track-name').filter({hasText:'Isoleret sang 22'}).waitFor({state:'visible'});
    const second=rows.filter({hasText:'Køsang 23'});
    assert.equal(await second.isEnabled(),true,'an accepted command does not lock another row during refresh');
@@ -1870,7 +1871,10 @@ async function queuePersistenceJourney(){
   await close();
   await open();
   await failedRead.wait();
-  await status('loading');
+  // Known rows stay as the ready queue while it is read again (owner 17/11: no reload flash).
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveMedia?.queueControls?.pending===true
+   &&document.querySelector('#queue').getClientRects().length>0);
+  await status('ready');
   await assertNames([23,24]);
   await assertNoEmpty();
   assert.equal(await stableRow.evaluate(row=>row.isConnected&&row.getClientRects().length>0),true);
@@ -1879,7 +1883,8 @@ async function queuePersistenceJourney(){
  await status('stale');
  await assertNames([23,24]);
  await assertNoEmpty();
- assert.equal(await title.innerText(),'Køen er ikke opdateret');
+ // Musik-Koe: the title stays »Kø«; the line beside it says the queue is not updated.
+ assert.equal(await page.locator('#queue-meta').innerText(),'Køen er ikke opdateret');
  assert.equal(await stableRow.evaluate(row=>row.isConnected),true);
  await page.screenshot({path:path.join(env.artifactDir(),'podview-queue-refresh-failed.png')});
 
@@ -1890,10 +1895,14 @@ async function queuePersistenceJourney(){
   await close();
   await open();
   await emptyRead.wait();
-  await status('loading');
+  // Known rows stay as the ready queue while it is read again (owner 17/11: no reload flash).
+  await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveMedia?.queueControls?.pending===true
+   &&document.querySelector('#queue').getClientRects().length>0);
+  await status('ready');
   await assertNames([23,24]);
   await assertNoEmpty();
  }finally{emptyRead.release();}
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host').liveMedia?.queueControls?.pending===false);
  await status('ready');
  await assertNames([]);
  assert.equal(await queue.locator('.queue-empty').innerText(),'Ingen sange i køen.');

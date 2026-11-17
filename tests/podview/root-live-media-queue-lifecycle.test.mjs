@@ -315,3 +315,28 @@ test('accepted queue choice with pending preview recovers on one newer playback 
   assert.equal(effects,1);
  }finally{f.close();}
 });
+// Owner 17/11 »reload-flash af køen«: opening Kø re-reads a queue that is already known. The known rows and their
+// »N numre« line stay (status ready, no placeholders) while that read runs; the answer only patches them.
+test('opening Kø with a known queue keeps the rows as they are while the re-read runs',async()=>{
+ const f=rig(),rendered=[];
+ try{
+  f.host.playerView.renderQueue=(items,options)=>rendered.push({items,options});
+  const offer=f.host.liveTransport.queueOffer;
+  const withRows=async(...args)=>{const value=await offer(...args);
+   value.items=[1,2].map(n=>({id:String(n).padStart(24,'0'),title:`Queued ${n}`,artist:'Artist',
+    uri:`spotify:track:${String(n).padStart(22,'0')}`,artwork:null,order:n}));return value;};
+  f.host.liveTransport.queueOffer=withRows;
+  await f.refresh();
+  assert.deepEqual(rendered.at(-1).items.map(item=>item.title),['Queued 1','Queued 2']);
+  let release;
+  f.host.liveTransport.queueOffer=(...args)=>new Promise(resolve=>{release=()=>resolve(withRows(...args));});
+  const reading=f.media.loadQueue();await tick();
+  assert.equal(f.media.queueControls.pending,true,'the re-read runs');
+  f.media.renderQueue();
+  const shown=rendered.at(-1);
+  assert.deepEqual(shown.items.map(item=>item.title),['Queued 1','Queued 2']);
+  assert.equal(shown.options.status,'ready','no loading or »ikke opdateret« flash');
+  assert.equal(shown.options.placeholders,false);
+  release();await reading;
+ }finally{f.close();}
+});
