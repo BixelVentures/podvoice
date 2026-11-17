@@ -385,3 +385,103 @@ async def test_missing_granted_entity_hides_only_that_role_not_battery():
         observed = await owner._robot_observation(VAC, owner._generation)
         assert observed["status"] == "observed"
         assert commands.count("config/entity_registry/list") == 1
+
+
+DRYING_SENSOR = "binary_sensor.roborock_qrevo_dock_mop_drying"
+DRYING_SWITCH = "switch.roborock_qrevo_dock_mop_drying"
+
+
+def drying_registry(shape):
+    """HA before 2026.11 ("binary"), 2026.11 with the deprecated sensor ("both"), after."""
+    entries = registry()
+    dock = {**entries[WATER]}
+    if shape != "switch":
+        entries[DRYING_SENSOR] = {
+            **dock,
+            "entity_id": DRYING_SENSOR,
+            "unique_id": "dry_status_duid",
+            "translation_key": "mop_drying_status",
+        }
+    if shape != "binary":
+        entries[DRYING_SWITCH] = {
+            **dock,
+            "entity_id": DRYING_SWITCH,
+            "unique_id": "mop_drying_duid",
+            "translation_key": "mop_drying",
+        }
+    return entries
+
+
+def drying_policy():
+    return policy(
+        [
+            {"key": "clean_box_empty", "entityId": WATER},
+            {"key": "mop_drying_status", "entityId": DRYING_SENSOR},
+        ]
+    )
+
+
+@pytest.mark.parametrize(
+    "shape,expected",
+    [
+        ("binary", {"key": "mop_drying_status", "entityId": DRYING_SENSOR}),
+        ("both", {"key": "mop_drying", "entityId": DRYING_SWITCH}),
+        ("switch", {"key": "mop_drying", "entityId": DRYING_SWITCH}),
+    ],
+)
+def test_mop_drying_reads_ha_replacement_switch_and_falls_back_to_sensor(shape, expected):
+    """HA 2026.11 deprecates the drying binary sensor for the dock switch (core#178932)."""
+    binding = parse_policy(drying_policy())[0]
+    entries = drying_registry(shape)
+    granted = {eid: entries.get(eid) for eid in (VAC, WATER, DRYING_SENSOR)}
+    resolved = resolve_binding(binding, granted, list(entries.values()))
+    assert resolved["fields"] == [{"key": "clean_box_empty", "entityId": WATER}, expected]
+    registry_identity(resolved, {eid: entries[eid] for eid in (VAC, WATER, expected["entityId"])})
+    # Never twice: a grant that already names the switch drops the deprecated sensor.
+    switch_field = {"key": "mop_drying", "entityId": DRYING_SWITCH}
+    both = {**binding, "fields": [*binding["fields"], switch_field]}
+    if shape != "binary":
+        assert [f["key"] for f in resolve_binding(both, entries)["fields"]] == [
+            "clean_box_empty",
+            "mop_drying",
+        ]
+    # A switch on another device never stands in for the dock's sensor.
+    if shape == "both":
+        foreign = {**entries, DRYING_SWITCH: {**entries[DRYING_SWITCH], "device_id": "robot-one"}}
+        assert resolve_binding(binding, foreign)["fields"][-1]["key"] == "mop_drying_status"
+
+
+@pytest.mark.parametrize("shape", ["binary", "both", "switch"])
+async def test_drying_state_is_observed_from_whichever_entity_ha_has(shape):
+    entries = drying_registry(shape)
+    entity = DRYING_SENSOR if shape == "binary" else DRYING_SWITCH
+    key = "mop_drying_status" if shape == "binary" else "mop_drying"
+    commands = []
+
+    async def ws_read(command):
+        commands.append(command["type"])
+        if command["type"] == "config/entity_registry/list":
+            return list(entries.values())
+        return {eid: copy.deepcopy(entries.get(eid)) for eid in command["entity_ids"]}
+
+    async def respond(request):
+        if request.url.path.endswith("/robot_observation_snapshot"):
+            return httpx.Response(404)
+        template = json.loads(request.content)["template"]
+        assert entity in template
+        return httpx.Response(200, json=[raw(WATER, "off", None), raw(entity, "on", None)])
+
+    async with httpx.AsyncClient(transport=httpx.MockTransport(respond)) as client:
+        owner = DeviceControl(client, "secret")
+        owner.configure(True, [VAC])
+        owner.configure_robot_reads(drying_policy())
+        owner._ws_read = ws_read
+        observed = await owner._robot_observation(VAC, owner._generation)
+        assert observed["status"] == "observed"
+        assert {row["key"]: row["value"] for row in observed["items"]} == {
+            "clean_box_empty": False,
+            key: True,
+        }
+        # The replacement is looked up once per resolution, not on every read.
+        await owner._robot_observation(VAC, owner._generation)
+        assert commands.count("config/entity_registry/list") == 1

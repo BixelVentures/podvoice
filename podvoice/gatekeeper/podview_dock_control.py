@@ -154,10 +154,17 @@ class DockTransport:
 
     async def _observe_commands(self, vacuum, current):
         self._check(vacuum, current)
-        binding = self.owner._robot_binding(vacuum)
-        if binding is None or not binding["dockDeviceId"]:
+        policy = next((b for b in self.owner._robot_reads if b["vacuumEntityId"] == vacuum), None)
+        if policy is None or not policy["dockDeviceId"]:
             raise ValueError("missing admitted dock binding")
-        required = {"status", "dock_error", "mop_drying_status"}
+        # The roles as HA serves them now (e.g. the mop drying switch that replaced the sensor).
+        binding, _ = await self.owner._robot_binding_read(policy, self.binding[0])
+        self._check(vacuum, current)
+        # HA 2026.11 replaces the mop_drying_status binary sensor with the mop_drying dock
+        # switch (same dry_status data point); the binding carries whichever HA has.
+        keys = {row["key"] for row in binding["fields"]}
+        drying = "mop_drying" if "mop_drying" in keys else "mop_drying_status"
+        required = {"status", "dock_error", drying}
         fields = [row for row in binding["fields"] if row["key"] in required]
         if {row["key"] for row in fields} != required:
             raise ValueError("missing admitted dock observations")
@@ -221,7 +228,7 @@ class DockTransport:
             raise ValueError("changed dock observation identity")
         state, status = robot["state"], values["status"]
         activity = _OBSERVED_OPERATIONS.get(status)
-        if values["mop_drying_status"]:
+        if values[drying]:
             if activity not in {None, "mop_drying"}:
                 raise ValueError("conflicting dock activity")
             activity = "mop_drying"

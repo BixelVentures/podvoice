@@ -123,3 +123,12 @@ test('current task rooms never fall back to latest history or leak from a stoppe
 test('successful local Start and setting changes add no standalone prose while current task rooms and repeat remain intact',()=>{
  const {view,device}=fixture();view.openRobot({});const start=view.task.options.find(row=>row.action==='start'),areas=start.argsSchema.areas.slice(0,2).map(area=>({...area}));view.act({optionId:start.id,args:{areaIds:areas.map(area=>area.id),repeat:2}});assert.equal(view.receipt.hidden,true);assert.equal(view.receipt.textContent,'');view.openRobot({});assert.deepEqual(view.panel.data.currentSetup.areas,areas);assert.equal(view.panel.data.currentSetup.repeat,2);const suction=view.task.options.find(row=>row.settingKey==='suction');view.act({optionId:suction.id,args:{choiceId:suction.argsSchema.choices[2].id}});assert.equal(view.receipt.hidden,true);assert.equal(view.receipt.textContent,'');view.openRobot({});assert.equal(view.panel.data.settingValues[suction.id],suction.argsSchema.choices[2].id);assert.deepEqual(view.panel.data.currentSetup.areas,areas);assert.equal(view.panel.data.currentSetup.repeat,2);assert.equal(device.status,'cleaning');
 });
+test('local dry stop replaces the drying switch row as it did the deprecated drying sensor',()=>{
+ for(const key of ['mop_drying','mop_drying_status']){
+  const {view,device}=fixture();const at=Date.now()/1000;
+  device.telemetry={status:'observed',items:[{key,value:true,unit:null,entityId:`${key==='mop_drying'?'switch':'binary_sensor'}.dock_${key}`,updatedAt:at,retrievedAt:at,stale:false}]};
+  view.openRobot({});const start=view.task.options.find(row=>row.argsSchema?.operation==='dry_start');view.act({optionId:start.id,args:{}});
+  view.openRobot({});const stop=view.task.options.find(row=>row.argsSchema?.operation==='dry_stop');view.act({optionId:stop.id,args:{}});
+  assert.equal(device.telemetry.items.some(row=>row.key===key),false);
+ }
+});
