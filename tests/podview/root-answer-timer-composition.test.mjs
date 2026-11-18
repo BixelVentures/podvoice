@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {previewScene} from '../../podview/preview-scenes.js';
 import {sceneTransition} from '../../podview/scene-model.js';
-import {TimerView,timerPresentation} from '../../podview/timer-view.js';
+import {timerPresentation} from '../../podview/src/screens/timer/presentation.ts';
 import {timersFor,timerStateLabel,timerTime} from '../../podview/timer-model.js';
 import {robotExperience} from '../../podview/robot-observation.js';
 import {devicePresentation,lightSelection,robotRecentCompletion} from '../../podview/scene-model.js';
@@ -28,16 +28,8 @@ test('canonical answer composition omits inline timer through running, paused an
  }
 });
 
-test('Back from an answer sends the same running timer to the actual overview bar renderer and retains music',()=>{
- const state=previewScene('conversation-followup',100000);state.devices=[];const timer=state.timer,music=state.music,f=fixture(state);f.host.renderRail();
- const returned=sceneTransition(state,{type:'back'});assert.equal(returned.focus,'now');assert.equal(returned.timer,timer);assert.equal(returned.music,music);
- const cards=[],finish={disabled:false},view={overviewList:{hidden:true},shortcut:{hidden:false},overview:{dataset:{}},nodes:new Map(),canCancel:true,card(current,container,key){cards.push({current,container,key});return {querySelector:()=>finish};}};
- TimerView.prototype.renderOverviewActivities.call(view,returned);
- assert.equal(view.overviewList.hidden,false);assert.equal(view.overview.dataset.activityKind,'timer');assert.equal(cards.length,1);assert.equal(cards[0].current,timer);assert.equal(cards[0].key,`overview:${timer.id}`);assert.equal(cards[0].current.status,'running');assert.equal(cards[0].current.deadline,622000);assert.equal(cards[0].current.remaining,522);
- // Ro keeps its established supporting rail; hiding a visual answer never cancels its timer.
- f.host.state={...returned,focus:'photo'};f.host.renderRail();assert.equal(f.rail.hidden,false);assert.equal(f.tile.hidden,false);assert.equal(f.updates[0].id,timer.id);assert.deepEqual(f.actions,[]);
-});
-
+// »Back from an answer sends the same running timer to the actual overview bar renderer« moved to
+// podview/src/screens/timer/timer-overview.test.js (Vitest, real DOM) with the timer screen's move to React.
 test('Ro shows only running or finished timers and preserves paused timers outside its activity row',()=>{
  for(const status of ['running','done','paused']){
   const state=previewScene('conversation-followup',100000);state.focus='photo';state.devices=[];state.timer={...state.timer,status};const timer=state.timer,music=state.music,f=fixture(state);

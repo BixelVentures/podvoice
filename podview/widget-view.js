@@ -36,7 +36,7 @@ import {robotExperience} from './robot-observation.js';
 import {RobotMotion} from './ui/robot-motion.js';
 import {PodVoiceTransport} from './podvoice-transport.js';
 import {liveScene,liveLocalEvent,liveTimerRequest,unconfiguredLight,connectionPresentation,homeConnectionPresentation} from './podvoice-view.js';
-import {TimerView,timerPresentation} from './timer-view.js';
+import {TimerView,timerPresentation} from './src/screens/timer/TimerView.tsx';
 import {timersFor,timerTime,timerStateLabel} from './timer-model.js';
 import {cleanupWeather,localWeatherModel,liveWeatherModel,weatherHeaderVisible,WEATHER_CHANGE_EXAMPLE} from './weather-view.js';
 import {renderWeather,renderLocalWeather} from './src/screens/weather/render.tsx';

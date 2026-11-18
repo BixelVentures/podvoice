@@ -1,44 +1,61 @@
-import test from 'node:test';
+// Ported from tests/podview/root-timer-access.test.mjs (node:test + fake DOM; it was the superset of
+// canonical-packet-timer-access.test.mjs, which is deleted) to Vitest with a real DOM, when the timer screen moved
+// to React. Same assertions. Adaptations: the fake view (TimerView.prototype.renderAccess.call on a stub) became a
+// real TimerView on the shell (timer-fixture.js): `status` is #timers-live-note, `finish` the detail card's Cancel,
+// `form.elements[0]` the draft's first control; attributes are read with getAttribute; paths resolve from podview/.
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {initialScene,sceneTransition} from '../../podview/scene-model.js';
-import {liveScene} from '../../podview/podvoice-view.js';
-import {TimerView} from '../../podview/timer-view.js';
-import {cleanupWeather} from '../../podview/weather-view.js';
-function fixture(current=null){const attrs=new Map(),status={dataset:{},hidden:true,textContent:'',getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){attrs.set(key,String(value));}},finish={hidden:false,disabled:false},form={hidden:true,elements:[{}],setAttribute(){},append(node){node.parentNode=this;}};return {currentTimer:current,form,connected:false,canStart:false,detail:{querySelector:()=>status},nodes:new Map([['detail:actual',{querySelector:()=>finish,querySelectorAll:()=>[],append(node){node.parentNode=this;}}]]),updatePicker(){},status,finish};}
-test('TimerView retains an unavailable first-empty draft without granting Start',()=>{const v=fixture();TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false,feedback:'Timerstyring er ikke tilgængelig lige nu.'});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.status.hidden,false);assert.equal(v.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');});
-test('TimerView retains current timer and disables cancellation on lost authority',()=>{const timer={id:'actual',remaining:73},v=fixture(timer);TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false});assert.equal(v.currentTimer,timer);assert.equal(v.form.hidden,true,'an unresolved timer hides new-timer controls even after authority is lost');assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.finish.hidden,false);assert.equal(v.finish.disabled,true);assert.equal(v.canCancel,false);});
-test('pending and unknown preserve anatomy and block both actions; recovery only restores actual permissions',()=>{const v=fixture();for(const blocked of [{pending:true},{awaitingObservation:true,feedback:'Udfald ukendt · handlingen gentages ikke'}]){TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:true,...blocked});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.canCancel,false);}TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:false});assert.equal(v.canStart,true);assert.equal(v.canCancel,false);assert.equal(v.status.hidden,true);});
 import {readFileSync} from 'node:fs';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {initialScene,sceneTransition} from '../../../scene-model.js';
+import {liveScene,liveTimerRequest} from '../../../podvoice-view.js';
+import {TimerView} from './TimerView';
+import {cleanupWeather} from '../../../weather-view.js';
+import {mountTimer} from './timer-fixture.js';
+const podview=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
+// The view on a fresh shell; with a current timer, its detail card exists as the old fixture's 'detail:actual'.
+function fixture(current=null,{cards=current?[current]:[]}={}){
+ const view=mountTimer({live:false,dispatch(){},focusHeading(){}});
+ for(const timer of cards)view.card(timer,null,`detail:${timer.id}`);
+ view.currentTimer=current;
+ Object.defineProperty(view,'status',{get:()=>view.detail.querySelector('#timers-live-note')});
+ Object.defineProperty(view,'finish',{get:()=>view.nodes.get(`detail:${current?.id}`)?.querySelector('.timer-finish')});
+ return view;
+}
+test('TimerView retains an unavailable first-empty draft without granting Start',()=>{const v=fixture();v.renderAccess({connected:false,canStart:false,canCancel:false,feedback:'Timerstyring er ikke tilgængelig lige nu.'});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.status.hidden,false);assert.equal(v.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');});
+test('TimerView retains current timer and disables cancellation on lost authority',()=>{const timer={id:'actual',remaining:73},v=fixture(timer);v.renderAccess({connected:false,canStart:false,canCancel:false});assert.equal(v.currentTimer,timer);assert.equal(v.form.hidden,true,'an unresolved timer hides new-timer controls even after authority is lost');assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.finish.hidden,false);assert.equal(v.finish.disabled,true);assert.equal(v.canCancel,false);});
+test('pending and unknown preserve anatomy and block both actions; recovery only restores actual permissions',()=>{const v=fixture();for(const blocked of [{pending:true},{awaitingObservation:true,feedback:'Udfald ukendt · handlingen gentages ikke'}]){v.renderAccess({connected:true,canStart:true,canCancel:true,...blocked});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.canCancel,false);}v.renderAccess({connected:true,canStart:true,canCancel:false});assert.equal(v.canStart,true);assert.equal(v.canCancel,false);assert.equal(v.status.hidden,true);});
 test('actual live adapter keeps the empty form when no timer action is granted',()=>{
- const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start);
- assert.ok(start>=0&&end>start);const view=fixture();view.renderAccess=TimerView.prototype.renderAccess;
+ const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start);
+ assert.ok(start>=0&&end>start);const view=fixture();
  const host={timerView:view,liveActionPending:false,liveActionFeedback:''};
  new Function('connected','snapshot',source.slice(start,end)).call(host,false,{timers:{status:'unavailable'},capabilities:{timerActions:[]}});
  assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.canCancel,false);assert.equal(view.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');
 });
 test('actual adapter distinguishes active observation wait from unknown outcome in aria-busy',()=>{
- const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
+ const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
  // Blocking follows the timer state field, not the displayed text (T1).
  for(const [feedback,pending,busy,blocked,phase] of [['',true,true,true,'sending'],['Afventer opdateret timer',false,true,true,'awaiting'],['Udfald ukendt · handlingen gentages ikke',false,false,true,'unknown'],['',false,false,false,null]]){
-  const view=fixture();view.status.setAttribute=function(k,v){this[k]=v;};view.form.setAttribute=function(k,v){this[k]=v;};view.renderAccess=TimerView.prototype.renderAccess;
+  const view=fixture();
   render.call({timerView:view,liveActionPending:pending,liveActionFeedback:feedback,liveTimerPhase:phase},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel']}});
-  assert.equal(view.form['aria-busy'],String(busy),feedback);assert.equal(view.status['aria-busy'],String(busy),feedback);assert.equal(view.canStart,!blocked);assert.equal(view.canCancel,!pending);
+  assert.equal(view.form.getAttribute('aria-busy'),String(busy),feedback);assert.equal(view.status.getAttribute('aria-busy'),String(busy),feedback);assert.equal(view.canStart,!blocked);assert.equal(view.canCancel,!pending);
   if(busy){assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');}
  }
 });
 
-const timerOwnerSource=readFileSync(process.env.TIMER_OWNER_SOURCE||new URL('../../podview/widget-view.js',import.meta.url),'utf8');
+const timerOwnerSource=readFileSync(process.env.TIMER_OWNER_SOURCE||resolve(podview,'widget-view.js'),'utf8');
 function timerOwner({items=[{id:'exact',status:'finished',physicalStopped:false,physicalDrained:false}],result={ok:true,outcome:'accepted'},held=false,actualScene=false}={}){
- let now=1000,counter=0;const resolvers=[];const scheduled=new Map(),calls=[],messages=[];
+ let now=1000,counter=0;const resolvers=[];const scheduled=new Map(),calls=[],messages=[],journal=[];
  const snapshot=(overrides={})=>({bootId:'boot',roomId:'kitchen',revision:10,voice:{sessionId:'timer-session'},timers:{status:'observed',epoch:'epoch',items},capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel']},...overrides});
  const begin=timerOwnerSource.indexOf(' connectPodVoice(){'),end=timerOwnerSource.indexOf(' renderVoice(){',begin),send=timerOwnerSource.indexOf(' async sendLiveTimer(request){'),sendEnd=timerOwnerSource.indexOf(' async loadLiveHome(',send),reconcile=timerOwnerSource.indexOf(' suspendLiveTimer(){')>=0?timerOwnerSource.indexOf(' suspendLiveTimer(){'):timerOwnerSource.indexOf(' reconcileLiveTimer(snapshot){'),cleanup=timerOwnerSource.indexOf(' cleanup(){'),cleanupEnd=timerOwnerSource.indexOf(' dispatch(event){',cleanup);
  assert.ok(begin>=0&&end>begin&&send>=0&&sendEnd>send);
- class Transport{constructor(options){this.options=options;this.connected=true;}start(){return Promise.resolve();}close(){}action(request){calls.push(request);return held?new Promise(done=>{resolvers.push(done);}):Promise.resolve(result);}}
+ class Transport{constructor(options){this.options=options;this.connected=true;}start(){return Promise.resolve();}close(){}recordDiagnostic(stage,row){journal.push({stage,...row});}action(request){calls.push(request);return held?new Promise(done=>{resolvers.push(done);}):Promise.resolve(result);}}
  const lightCleanup=timerOwnerSource.indexOf(' closeLightDetail('),lightCleanupEnd=timerOwnerSource.indexOf(' toggleLightOption(',lightCleanup);assert.ok(lightCleanup>=0&&lightCleanupEnd>lightCleanup);
  const methods=timerOwnerSource.slice(cleanup,cleanupEnd)+timerOwnerSource.slice(lightCleanup,lightCleanupEnd)+timerOwnerSource.slice(begin,end)+(reconcile>=0?timerOwnerSource.slice(reconcile,send):'')+timerOwnerSource.slice(send,sendEnd);
- const Host=new Function('cleanupWeather','$','PodVoiceTransport','liveScene','location','setTimeout','clearTimeout','Date','crypto',`return class {${methods}}`)(cleanupWeather,()=>null,Transport,actualScene?liveScene:(state)=>state,{search:''},(fn,delay)=>{const id=++counter;scheduled.set(id,{fn,at:now+delay});return id;},id=>scheduled.delete(id),{now:()=>now},{randomUUID:()=>`inert-request-${calls.length+1}`});
+ const Host=new Function('cleanupWeather','$','PodVoiceTransport','liveScene','location','setTimeout','clearTimeout','Date','crypto','liveTimerRequest',`return class {${methods}}`)(cleanupWeather,()=>null,Transport,actualScene?liveScene:(state)=>state,{search:''},(fn,delay)=>{const id=++counter;scheduled.set(id,{fn,at:now+delay});return id;},id=>scheduled.delete(id),{now:()=>now},{randomUUID:()=>`inert-request-${calls.length+1}`},liveTimerRequest);
  const host=new Host();Object.assign(host,{isConnected:true,state:actualScene?{...initialScene(),focus:'timers'}:{devices:[],extraTimers:[],focus:'timers'},liveSnapshot:snapshot(),render(){},renderLive(){},showFeedback:text=>messages.push(text),invalidateLiveMusic(){}});if(actualScene){host.state=liveScene(host.state,host.liveSnapshot);host.live=true;host.dispatch=event=>{host.state=sceneTransition(host.state,event);};}host.connectPodVoice();host.liveStatus='connected';
- return {host,calls,messages,snapshot,settle:(value,index=0)=>resolvers[index](value),observe:value=>host.liveTransport.options.onSnapshot(value),advance:ms=>{now+=ms;for(const [id,timer]of [...scheduled])if(timer.at<=now){scheduled.delete(id);timer.fn();}},scheduled};
+ return {host,calls,messages,journal,snapshot,settle:(value,index=0)=>resolvers[index](value),observe:value=>host.liveTransport.options.onSnapshot(value),advance:ms=>{now+=ms;for(const [id,timer]of [...scheduled])if(timer.at<=now){scheduled.delete(id);timer.fn();}},scheduled};
 }
 const cancelExact={action:'timer.cancel',args:{timer_id:'exact'}},startOne={action:'timer.start',args:{seconds:10,name:'Exact'}};
 const unknownText='Udfald ukendt · handlingen gentages ikke';
@@ -143,8 +160,10 @@ test('UNKNOWN cancellation blocks same ID but permits distinct observed timer ca
  await t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'other'}});assert.equal(t.calls.length,2);await t.host.sendLiveTimer(cancelExact);assert.equal(t.calls.length,2);
 });
 test('TimerView exposes only independent Cancel buttons while Start is uncertain',()=>{
- const v=fixture({id:'other'}),blocked={hidden:false,disabled:false},other={hidden:false,disabled:true};v.nodes=new Map([['exact',{dataset:{timerId:'exact'},querySelector:()=>blocked,querySelectorAll:()=>[]}],['other',{dataset:{timerId:'other'},querySelector:()=>other,querySelectorAll:()=>[]}]]);
- TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:true,awaitingObservation:true,allowIndependentCancel:true,cancelBlockedIds:['exact'],feedback:unknownText});assert.equal(v.canStart,false);assert.equal(blocked.disabled,true);assert.equal(other.disabled,false);
+ // Two retained detail cards: Cancel starts enabled on 'exact' and disabled on 'other', as in the fake.
+ const v=fixture({id:'other',status:'running',remaining:60},{cards:[{id:'exact',status:'running',remaining:60},{id:'other',status:'running',remaining:60}]}),blocked=v.nodes.get('detail:exact').querySelector('.timer-finish'),other=v.nodes.get('detail:other').querySelector('.timer-finish');
+ v.renderAccess({connected:true,canStart:true,canCancel:true,cancelBlockedIds:['other']});assert.equal(blocked.disabled,false);assert.equal(other.disabled,true);
+ v.renderAccess({connected:true,canStart:true,canCancel:true,awaitingObservation:true,allowIndependentCancel:true,cancelBlockedIds:['exact'],feedback:unknownText});assert.equal(v.canStart,false);assert.equal(blocked.disabled,true);assert.equal(other.disabled,false);
 });
 
 test('unavailable epoch does not erase retained Start fence through actual access projection',async()=>{
@@ -158,7 +177,7 @@ test('unavailable epoch does not erase retained Start fence through actual acces
 test('retained UNKNOWN Start explains disabled empty form after independent observed cancellation',async()=>{
  const t=timerOwner({items:[],held:true}),start=t.host.sendLiveTimer(startOne);t.settle({ok:false,outcome:'unknown'});await start;
  t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'alarm',status:'finished'}]}}));const stop=t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'alarm'}});t.settle({ok:true,outcome:'accepted'},1);await stop;t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));
- const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end)),view=fixture();view.renderAccess=TimerView.prototype.renderAccess;t.host.timerView=view;
+ const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end)),view=fixture();t.host.timerView=view;
  render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.status.hidden,false);assert.equal(view.status.textContent,'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.');assert.equal(t.host.liveActionFeedback,'');assert.equal(t.host.liveTimerFences.length,1);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
  t.observe(t.snapshot({timers:{status:'observed',epoch:'new-authoritative-epoch',items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.canStart,true);assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');
 });
@@ -180,4 +199,82 @@ test('fresh scoped removal resolves parked UNKNOWN cancellation after independen
  t.observe(t.snapshot({revision:12,timers:{status:'observed',epoch:'epoch',items:[{id:'exact'},{id:'other'}]}}));assert.equal(t.host.liveTimerFences.length,1,'unrelated newer status does not clear cancellation');
  t.observe(t.snapshot({revision:13,timers:{status:'observed',epoch:'epoch',items:[]}}));assert.equal(t.host.liveTimerAction,null);assert.equal(t.host.liveTimerFences.length,0,'exact disappearance resolves both independent cancellation fences');assert.equal(t.calls.length,2,'no effect is replayed');
  await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,3,'a new explicit Start is permitted after exact cancellation removal');
+});
+
+
+test('timer journal binds requested seconds, actual receipt and snapshot observation to original wire request',async()=>{
+ const t=timerOwner({items:[],result:{ok:true,outcome:'accepted',timerId:'native-new'}});await t.host.sendLiveTimer(startOne);const requestId=t.calls[0].requestId;
+ assert.deepEqual(t.journal.map(row=>[row.stage,row.code]),[['control_intent','start'],['control_action','start'],['control_action','accepted']]);
+ assert(t.journal.every(row=>row.requestId===requestId&&row.domain==='timer'&&row.action==='timer.start'&&row.requestedValue===10));
+ t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'native-new',status:'running',secondsLeft:9}]}}));
+ const observed=t.journal.at(-1);assert.equal(observed.stage,'control_observation');assert.equal(observed.code,'observed');assert.equal(observed.requestId,requestId);assert.equal(observed.resourceId,'native-new');assert.equal(observed.observedValue,9);assert.equal(observed.source,'snapshot');assert.equal(observed.trust,'state_observation');assert(!JSON.stringify(t.journal).includes('Exact'));assert.equal(t.calls.length,1);
+});
+test('finished timer acknowledgement retains actual cancel action and sink failures cannot change cancellation',async()=>{
+ const t=timerOwner();await t.host.sendLiveTimer(cancelExact);t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));const observed=t.journal.find(row=>row.stage==='control_observation');assert.equal(observed.action,'timer.cancel');assert.equal(observed.requestedValue,false);assert.equal(observed.observedValue,false);assert.equal(observed.code,'observed');assert.equal(observed.requestId,t.calls[0].requestId);
+ const failed=timerOwner();failed.host.liveTransport.recordDiagnostic=()=>{throw Error('inert sink failure');};await failed.host.sendLiveTimer(cancelExact);failed.observe(failed.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));assert.equal(failed.calls.length,1);assert.equal(failed.host.liveTimerAction,null);assert.equal(failed.host.liveActionFeedback,'');
+});
+
+test('late same-scope timer receipt survives reconnect only as an action fact, without inventing observation',async()=>{
+ const t=timerOwner({held:true});t.host.liveTransport.generation=1;const pending=t.host.sendLiveTimer(cancelExact);t.host.liveTransport.generation=2;t.host.suspendLiveTimer();t.settle({ok:true,outcome:'accepted'});await pending;
+ const outcome=t.journal.find(row=>row.stage==='control_action'&&row.code==='accepted');assert.equal(outcome.requestId,t.calls[0].requestId);assert.equal(outcome.current,false);assert.equal(t.journal.some(row=>row.stage==='control_observation'&&row.code==='observed'),false);assert.equal(t.calls.length,1);
+ for(const boundary of ['boot','room','admission','grant']){const denied=timerOwner({held:true}),operation=denied.host.sendLiveTimer(cancelExact);if(boundary==='boot')denied.host.liveSnapshot={...denied.host.liveSnapshot,bootId:'other'};if(boundary==='room')denied.host.liveSnapshot={...denied.host.liveSnapshot,roomId:'other'};if(boundary==='admission')denied.host.liveSnapshot={...denied.host.liveSnapshot,admission:{kind:'ha_ingress',authenticated:true}};if(boundary==='grant')denied.host.liveSnapshot.capabilities.timerActions=[];denied.settle({ok:true,outcome:'accepted'});await operation;assert.equal(denied.journal.some(row=>row.stage==='control_action'&&row.code==='accepted'),false);assert.equal(denied.calls.length,1);}
+});
+
+const adjustRequest={action:'timer.adjust',args:{timer_id:'exact',delta_seconds:60,expected_revision:'9007199254740993'}};
+const adjustRow={id:'exact',name:'Test',status:'running',secondsLeft:30,durationSeconds:100,sourceRevision:'9007199254740993'};
+test('adjust waits for the correlated native revision and exact final tuple, with no replay',async()=>{
+ const receipt={ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740993',sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90,status:'running'};
+ const t=timerOwner({items:[adjustRow],result:receipt});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');await t.host.sendLiveTimer(adjustRequest);assert.equal(t.calls.length,1);
+ for(const row of [adjustRow,{...adjustRow,sourceRevision:receipt.sourceRevision,durationSeconds:159,secondsLeft:89},{...adjustRow,sourceRevision:receipt.sourceRevision,durationSeconds:160,secondsLeft:91}]){t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[row]}}));assert.ok(t.host.liveTimerAction);}
+ t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:receipt.sourceRevision,durationSeconds:160,secondsLeft:89}]}}));assert.equal(t.host.liveTimerAction,null);assert.equal(t.calls.length,1);
+});
+test('held adjustment permits only explicit exact cancel and late adjustment cannot replace it',async()=>{
+ const t=timerOwner({items:[adjustRow],held:true});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');const pending=t.host.sendLiveTimer(adjustRequest);const cancel=t.host.sendLiveTimer(cancelExact);assert.equal(t.calls.length,2);const current=t.host.liveTimerAction;t.settle({ok:true,outcome:'accepted',timerId:'exact',sourceRevision:'9007199254740994'},0);await pending;assert.equal(t.host.liveTimerAction,current);t.settle({ok:false,outcome:'unknown'},1);await cancel;assert.equal(t.host.liveTimerAction,current);
+});
+test('unknown adjustment needs a newer native revision or actual removal; paused proof matches exactly',async()=>{
+ const t=timerOwner({items:[adjustRow],result:{ok:false,outcome:'unknown'}});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');await t.host.sendLiveTimer(adjustRequest);t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[adjustRow]}}));assert.ok(t.host.liveTimerAction);assert.equal(t.calls.length,1);t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740994'}]}}));assert.equal(t.host.liveTimerAction,null,'newer native revision supersedes UNKNOWN without asserting success');assert.equal(t.calls.length,1);
+ const receipt={ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740993',sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90,status:'paused'},p=timerOwner({items:[{...adjustRow,status:'paused'}],result:receipt});p.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');await p.host.sendLiveTimer(adjustRequest);p.observe(p.snapshot({timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,status:'paused',sourceRevision:receipt.sourceRevision,durationSeconds:160,secondsLeft:89}]}}));assert.ok(p.host.liveTimerAction);p.observe(p.snapshot({timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,status:'paused',sourceRevision:receipt.sourceRevision,durationSeconds:160,secondsLeft:90}]}}));assert.equal(p.host.liveTimerAction,null);
+});
+
+test('actual adapter permits independent cancel during adjustment only',()=>{
+ const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
+ for(const action of ['timer.start','timer.cancel','timer.adjust']){const view=fixture();render.call({timerView:view,liveActionPending:true,liveActionFeedback:'',liveTimerAction:{action,timerId:'exact',deltaSeconds:60}},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel','timer.adjust']}});assert.equal(view.canCancel,action==='timer.adjust',action);}
+});
+
+
+test('accepted adjustment is superseded by a newer native revision without a read or effect claim',async()=>{
+ const receipt={ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740993',sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90,status:'running'},t=timerOwner({items:[adjustRow],result:receipt});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');await t.host.sendLiveTimer(adjustRequest);t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740995'}]}}));assert.equal(t.host.liveTimerAction,null);assert.equal(t.calls.length,1);
+});
+
+test('timer adjustment journal keeps the signed requested delta with its actual outcome',async()=>{
+ for(const outcome of ['accepted','unknown']){const t=timerOwner({items:[adjustRow],result:{ok:outcome==='accepted',outcome,timerId:'exact',deltaSeconds:-60,expectedSourceRevision:adjustRow.sourceRevision,sourceRevision:'9007199254740994',durationSeconds:40,secondsLeft:1,status:'running'}});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');await t.host.sendLiveTimer({...adjustRequest,args:{...adjustRequest.args,delta_seconds:-60}});assert.equal(t.calls.length,1);assert.ok(t.journal.some(row=>row.stage==='control_action'&&row.code===outcome));assert.ok(t.journal.every(row=>row.requestedValue===-60&&row.action==='timer.adjust'));}
+});
+
+test('timer journal follows the original granted action across unrelated capability changes',async()=>{
+ for(const change of ['added_adjust','removed_start','admission']){const t=timerOwner({items:[],result:{ok:true,outcome:'accepted',timerId:'native-new'}});await t.host.sendLiveTimer(startOne);const next=t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'native-new',status:'running',secondsLeft:9}]}});if(change==='added_adjust')next.capabilities.timerActions.push('timer.adjust');if(change==='removed_start')next.capabilities.timerActions=['timer.cancel','timer.adjust'];if(change==='admission')next.admission={kind:'ha_ingress',authenticated:true};t.observe(next);const observed=t.journal.filter(row=>row.stage==='control_observation'&&row.code==='observed');assert.equal(observed.length,change==='added_adjust'?1:0,change);if(observed.length)assert.equal(observed[0].requestId,t.calls[0].requestId);assert.equal(t.calls.length,1);}
+});
+// T1: +1/−1 tapped while an adjustment is in flight are queued in order and each sent once.
+test('adjust taps during an in-flight adjustment are queued in order and each sent once against the fresh revision',async()=>{
+ const t=timerOwner({items:[adjustRow],held:true});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');
+ const tap=(delta,row)=>liveTimerRequest(t.host.liveSnapshot,true,{type:'timer',action:'adjust',id:'exact',deltaSeconds:delta});
+ const first=t.host.sendLiveTimer(tap(60));void t.host.sendLiveTimer(tap(60));void t.host.sendLiveTimer(tap(-60));
+ assert.equal(t.calls.length,1,'only the first adjustment is sent while it is in flight');
+ assert.equal(t.host.liveTimerPhase,'sending','the blocking state is a state field');
+ t.settle({ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740993',sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90,status:'running'},0);await first;
+ assert.equal(t.calls.length,1,'the next tap waits for the observed result');
+ t.observe(t.snapshot({capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel','timer.adjust']},timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740994',durationSeconds:160,secondsLeft:90}]}}));
+ assert.equal(t.calls.length,2);assert.deepEqual(t.calls[1].args,{timer_id:'exact',delta_seconds:60,expected_revision:'9007199254740994'});
+ t.settle({ok:true,outcome:'accepted',timerId:'exact',deltaSeconds:60,expectedSourceRevision:'9007199254740994',sourceRevision:'9007199254740995',durationSeconds:220,secondsLeft:150,status:'running'},1);
+ await new Promise(resolve=>setImmediate(resolve));
+ t.observe(t.snapshot({capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel','timer.adjust']},timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740995',durationSeconds:220,secondsLeft:150}]}}));
+ assert.equal(t.calls.length,3);assert.deepEqual(t.calls[2].args,{timer_id:'exact',delta_seconds:-60,expected_revision:'9007199254740995'});
+});
+test('adjust taps queued behind an UNKNOWN adjustment are not sent and the user is told',async()=>{
+ const t=timerOwner({items:[adjustRow],held:true});t.host.liveSnapshot.capabilities.timerActions.push('timer.adjust');
+ const tap=delta=>liveTimerRequest(t.host.liveSnapshot,true,{type:'timer',action:'adjust',id:'exact',deltaSeconds:delta});
+ const first=t.host.sendLiveTimer(tap(60));void t.host.sendLiveTimer(tap(60));
+ t.settle({ok:false,outcome:'unknown'},0);await first;
+ t.observe(t.snapshot({capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel','timer.adjust']},timers:{status:'observed',epoch:'epoch',items:[{...adjustRow,sourceRevision:'9007199254740994'}]}}));
+ assert.equal(t.calls.length,1,'nothing is replayed after UNKNOWN');
+ assert.ok(t.messages.some(text=>/ikke sendt/.test(text)),'the dropped tap is explained');
 });

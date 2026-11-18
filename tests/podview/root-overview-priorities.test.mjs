@@ -84,17 +84,5 @@ test('device refresh retains direct overview cards and library selectors follow 
  }
 });
 
-test('automatic Radio M follows the actual broad timer projection and preserves authored library sizes',async()=>{
- const {readFileSync}=await import('node:fs'),{initialScene}=await import('../../podview/scene-model.js'),{timerPresentation}=await import('../../podview/timer-view.js'),{timersFor}=await import('../../podview/timer-model.js'),{localRadioTransition}=await import('../../podview/radio-model.js');
- const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),alignSource=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim(),timerSource=readFileSync(new URL('../../podview/timer-view.js',import.meta.url),'utf8');
- const timerEnd=timerSource.indexOf('\n render',timerSource.indexOf(' renderOverviewActivities(s){')+2),activityBody=timerSource.slice(timerSource.indexOf(' renderOverviewActivities(s){'),timerEnd>0?timerEnd:timerSource.length).trim();
- // Extract exactly one existing method without importing the custom element host.
- const methodStart=activityBody.indexOf('{');let depth=1,index=methodStart+1;for(;index<activityBody.length&&depth;index++){if(activityBody[index]==='{')depth++;if(activityBody[index]==='}')depth--;}
- const renderActivities=new Function('timerPresentation','timersFor',`return function ${activityBody.slice(0,index)}`)(timerPresentation,timersFor);
- const radio={dataset:{},style:{}},overview={dataset:{}},nodes={'home-radio':radio,'timer-card':overview},align=new Function('$','overviewPriorities','timersFor',`return function ${alignSource}`)(id=>nodes[id],overviewPriorities,timersFor),timer={overview,overviewList:{hidden:true},shortcut:{hidden:false},nodes:new Map(),card:()=>({querySelector:()=>({disabled:false})}),canCancel:true};
- let state=localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'});state={...state,focus:'radio'};const original={station:state.radioStationId,room:state.music.playback.room,track:state.music.playback.track},host={state,dataset:{},style:{getPropertyValue:()=>'',setProperty(){}}};
- const update=()=>{host.state=state;renderActivities.call(timer,state);align.call(host);assert.equal(state.radioStationId,original.station);assert.equal(state.music.playback.room,original.room);assert.equal(state.music.playback.track,original.track);};
- update();assert.equal(radio.dataset.overviewSize,'s');state=sceneTransition(state,{type:'timer-start',seconds:60,now:1000});update();assert.equal(radio.dataset.overviewSize,'m');state=sceneTransition(state,{type:'timer',id:state.timer.id,action:'pause',now:2000});update();assert.equal(radio.dataset.overviewSize,'m');state=sceneTransition(state,{type:'timer',id:state.timer.id,action:'resume',now:3000});state=sceneTransition(state,{type:'tick',now:100000});update();assert.equal(state.timer.status,'done');assert.equal(radio.dataset.overviewSize,'m');
- for(const size of ['s','m','l']){radio.dataset.kitSize=size;update();assert.equal(radio.dataset.kitSize,size);assert.equal(radio.dataset.overviewSize,'m');}delete radio.dataset.kitSize;
- state=sceneTransition(state,{type:'timer',id:state.timer.id,action:'cancel'});update();assert.equal(radio.dataset.overviewSize,'s');
-});
+// »automatic Radio M follows the actual broad timer projection« moved to
+// podview/src/screens/timer/timer-overview.test.js (Vitest, real DOM) with the timer screen's move to React.
