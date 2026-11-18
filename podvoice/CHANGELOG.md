@@ -4,7 +4,8 @@
 - Sideskift: intet arbejde i de første billeder. Geometri læses ved trykket, opdateringer fra Home Assistant venter til siden er landet, og sidelagene ligger klar på forhånd. Opskrifter, »Vælg musik«, »Ny opskrift« og tilbage fra afspilleren glider nu som de andre sider.
 - Ro: cirklen tegnes ikke længere forfra i hvert billede; billedet gøres klar, så snart fingeren rører månen.
 - Tryk: kortet trykkes ind og dæmpes kun (skala og gennemsigtighed); krusning og skyggeskift er fjernet.
-- Robot og Lys tilbage: hele siden glider ud i stedet for at forsvinde i første billede. Køen har ikke længere en ekstra indgangsanimation oven i sideskiftet.
+- Køen har ikke længere en ekstra indgangsanimation oven i sideskiftet. Opskrifternes første billeder hentes med det samme, så de er klar, når siden glider ind.
+- Data under et sideskift: en opdatering venter kun, til den nye side er på plads, ikke hele glidet igennem – en robot med forældede data mister sine knapper med det samme. Et sideskift eller Ro slutter altid, også hvis en animation afbrydes.
 - Kiosk: skærmtilpasningen kører kun, når skærmen ændrer sig, ikke hvert 5. sekund. Observatører holder pause under bevægelse.
 - Ny frame-måler på skærmen: PodView måler hvert billede under sideskift, Ro og tryk og sender tallene til `/view/api/frames`, så bevægelsen kan måles på selve iPad'en.
 

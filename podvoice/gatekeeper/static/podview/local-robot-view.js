@@ -25,7 +25,7 @@ export class LocalRobotView{
   if(this.host.live)return;
   this.seed();this.button.hidden=true;
   const d=this.host.state.devices.find(row=>row.id===this.host.state.focus&&row.kind==='vacuum'&&!row.live),card=d&&this.host.deviceNodes?.get(d.id);
-  if(!d){if(this.entry&&this.host.state.devices.some(row=>row.id===this.host.state.focus))this.entry.hidden=true;if(this.host.state.devices.some(row=>row.id===this.host.state.focus&&row.kind==='vacuum'))renderRobotHistory(this.host);return;}
+  if(!d){if(this.entry)this.entry.hidden=true;if(this.host.state.devices.some(row=>row.id===this.host.state.focus&&row.kind==='vacuum'))renderRobotHistory(this.host);return;}
   this.ensurePanel();if(card&&this.entry.parentNode!==card.parentNode.parentNode)card.parentNode.before(this.entry);this.entry.hidden=false;
   if(card){card.dataset.controlEntry='true';card.dataset.localRobot='true';}
   if(!this.allowed('vacuum')&&(this.deviceId!==d.id||!this.panel.value?.device&&!this.task)){clearTimeout(this.refreshTimer);this.task=null;this.deviceId=d.id;this.taskStatus=d.status;this.panel.data={task:null,device:d,connected:false,localOnly:true,readOnly:true};this.receipt.hidden=true;}

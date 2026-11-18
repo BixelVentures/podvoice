@@ -150,7 +150,8 @@ export class RoLayer {
    reveal=this.mask.animate(frames.mask,timing);
    run.animations.push(this.node.animate(show,timing),reveal,this.stage.animate(frames.content,timing));
   }
-  reveal.finished.then(()=>{if(this.run===run)this.commit(run,{fadeIn:true,reduced});},()=>{});
+  // Cancelled by something else, the reveal still lands on Ro (finish() presents and ends): a run never hangs.
+  reveal.finished.then(()=>{if(this.run===run)this.commit(run,{fadeIn:true,reduced});},()=>{if(this.run===run)this.finish();});
   return run;
  }
  // Ro -> Hjem: Ro's content fades, present() renders Hjem under the full cover, and one frame after that the circle
@@ -189,7 +190,7 @@ export class RoLayer {
     {visibility:'visible',opacity:0,offset:1}],timing));
   }
   run.animations.push(last);
-  last.finished.then(()=>{if(this.run===run)this.end(run);},()=>{});
+  last.finished.then(()=>{if(this.run===run)this.end(run);},()=>{if(this.run===run)this.end(run);});
  }
  // The cover at full size, held while the screen under it renders.
  still(x,y,to,size){

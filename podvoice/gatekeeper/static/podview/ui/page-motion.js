@@ -17,7 +17,7 @@
 import {begin as beginBusy} from './motion-busy.js';
 
 export const PAGE_MOTION=Object.freeze({ms:500,easing:'cubic-bezier(.32,.72,0,1)',under:-33,dim:.1});
-const REDUCED_MS=200,DECODE_WAIT=120;
+const REDUCED_MS=200,DECODE_WAIT=120,SAFETY_MS=400;
 // Inline properties the layer sets on a page while it moves; all are removed at the end.
 const HELD=['display','position','left','top','width','height','margin','z-index','pointer-events','background-color',
  'box-sizing'];
@@ -77,7 +77,9 @@ export class PageLayer {
   return run;
  }
  // Nothing renders while a run is moving, except the run's own render (the commit).
- holdRender(){return !!this.run&&!this.committing;}
+ // Until the new page is committed: a data render after that applies at once (a stale robot must lose its controls
+ // at once), on the new page; the leaving page keeps its look (keep()).
+ holdRender(){return !!this.run&&!this.run.committed&&!this.committing;}
  // The feed scrolls to the new page's position inside present() (SceneMotion.enter: 0 on push, the page's own on
  // pop). The nodes are placed for that position without reading it; the frame after corrects them if the browser
  // clamped it.
@@ -150,8 +152,11 @@ export class PageLayer {
    // The frame has been laid out, so this read is free; it differs only when the browser clamped the scroll.
    const scrollTop=feed.scrollTop;if(Math.abs(scrollTop-run.scrollTop)>.5)this.place(run,scrollTop);
    for(const animation of moves)if(animation.playState==='paused')animation.play();
-   Promise.all(run.animations.map(animation=>animation.finished)).then(()=>{if(this.run===run)this.end(run);},
-    ()=>{});
+   // The run always ends: when its motion finishes, when something else cancels one of its animations (finished
+   // rejects), and at the latest SAFETY_MS after its planned end. A run that never ended would hold every render.
+   const stop=()=>{if(this.run===run)this.end(run);};
+   Promise.all(run.animations.map(animation=>animation.finished)).then(stop,stop);
+   view.setTimeout(stop,(reduced?REDUCED_MS:PAGE_MOTION.ms)+SAFETY_MS);
   });
  }
  end(run){

@@ -480,6 +480,7 @@ export class RecipeView {
    if (activeRecipe) recipes.unshift(activeRecipe);
    entries.replaceChildren();
    groups.clear();
+   let shown = 0; // Rows built so far: the first screenful loads eagerly (see thumb.loading below).
    for (const recipe of recipes.sort((a,b)=>collator.compare(a.title,b.title))) {
     const initial = recipe.title[0].toLocaleUpperCase('da');
     const letter = recipe === activeRecipe ? 'I gang' : alphabet.includes(initial) ? initial : '#';
@@ -514,7 +515,9 @@ export class RecipeView {
     row.append(copy);
     const thumb = element('img');
     thumb.decoding = 'async'; // Full-size source photos: decode off the main thread, only near view.
-    thumb.loading = 'lazy';
+    // The first screenful loads at once: the page slides in from off-screen, where a lazy image would not start
+    // loading until the slide had begun and would pop in mid-motion. The rest stay lazy.
+    thumb.loading = shown++ < 12 ? 'eager' : 'lazy';
     thumb.alt = '';
     showPhoto(thumb,recipe.image);
     thumb.addEventListener('error',()=>{

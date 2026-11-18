@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "8d7e40104a8efdf30b4296cfa6e5837aa2ef319425ecb998ea6a20799b844547"
+      "sha256": "ebed9b21fd2820a9554d79ea36bb10ba3bbc055d3b5e4091fbdd109170cdd39d"
     },
     {
       "path": "library.css",
@@ -707,7 +707,7 @@
     },
     {
       "path": "light-room-view.js",
-      "sha256": "f84abb61341a52dc89a61ae16db29624178b671d65b50ed1fe95ffc245a52d61"
+      "sha256": "967940591de2b5198dcd9fa7672e5b7360d79b8aa196babe197dc3f9d472b152"
     },
     {
       "path": "live-answer-view.js",
@@ -715,7 +715,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "c62d168c94fc2e74942ebd71a58881671dba9d1b89d827ac71da6a0e2c04c09f"
+      "sha256": "94e61bdc451480c8bab3f6936603156e8fd2fbd80e3159cf12cc441036faecc1"
     },
     {
       "path": "live-home-view.js",
@@ -747,7 +747,7 @@
     },
     {
       "path": "local-robot-view.js",
-      "sha256": "172b8bdaff013ab04a2077ea55fa72110360fff5ba3a0ebe549658e7ea86ff82"
+      "sha256": "19142dcd45c2d22d81fe42bb46f69fb20105320432b4413d055f24d896afa125"
     },
     {
       "path": "media-observation.js",
@@ -823,7 +823,7 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "c8c6d564a766449d6fce06429e1c76fd617f02341c30fc0457c069a871228de8"
+      "sha256": "f7eb43ab7446a6ccbeddb80b548822e604319c1232199aab9361bd84652d5575"
     },
     {
       "path": "podview.css",
@@ -855,7 +855,7 @@
     },
     {
       "path": "recipe-view.js",
-      "sha256": "d3964426fcc0560b22f369bbd9198439126f25c2dfe6b16ef7ab38575534ab60"
+      "sha256": "7e08ce5cc0eba94fb56d65ecfe0f66de94b32bd40b755fa7b33d5ebed1a839bf"
     },
     {
       "path": "references.json",
@@ -1023,7 +1023,7 @@
     },
     {
       "path": "ui/page-motion.js",
-      "sha256": "290b3918ec5bbb68996a814f62c32093e1ae07d2360859ce6d1c164fed7bfef2"
+      "sha256": "536ccf9cdd500007898398cd4fd6bdbe9d3879b545a536bb45107138bcaf191b"
     },
     {
       "path": "ui/pressed-state.js",
@@ -1039,7 +1039,7 @@
     },
     {
       "path": "ui/ro-motion.js",
-      "sha256": "2af6d89d50b2bf9972bbb1f1f95303f0d9a2ee3f55db705baa4fb0784c1623b2"
+      "sha256": "24c88227de11fed5b94491637e254a72bf74aed0d3bbe8bbf44fc11fd4811c98"
     },
     {
       "path": "ui/robot-motion.js",
@@ -1119,7 +1119,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "0196d44efe5cfc2a00e3b688cc6ee40b42cf74d21c08299d75c74a27f78e5c39"
+      "sha256": "515fe44d7d6fe4d0f0807fbf206685aa1fd247821dc6c905bed21334717c9d7a"
     },
     {
       "path": "workshop.css",

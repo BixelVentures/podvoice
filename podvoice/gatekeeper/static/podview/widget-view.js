@@ -59,7 +59,7 @@ const queueTopbarScroll=host=>{
 const renderSoon=host=>{
  if(host.renderFrame||!host.isConnected)return;
  const next=()=>{const motion=host.motion;
-  if(host.isConnected&&(motion?.moving||motion?.ro?.holdRender?.())){host.renderFrame=requestAnimationFrame(next);return;}
+  if(host.isConnected&&(motion?.pages?.holdRender?.()||motion?.ro?.holdRender?.())){host.renderFrame=requestAnimationFrame(next);return;}
   host.renderFrame=0;if(host.isConnected)host.render();};
  host.renderFrame=requestAnimationFrame(next);
 };
@@ -1084,7 +1084,7 @@ class WidgetHost extends HTMLElement {
  }
 
  render(){const motion=this.motion;
-  if(motion?.ro?.holdRender?.()||motion?.moving&&!motion.inPageUpdate&&!this.userAction){renderSoon(this);return;}
+  if(motion?.ro?.holdRender?.()||motion?.pages?.holdRender?.()&&!motion.inPageUpdate&&!this.userAction){renderSoon(this);return;}
   if(this.renderFrame){cancelAnimationFrame(this.renderFrame);this.renderFrame=0;}
   // Once the screen is idle after a render, the page layer gets ready for the next tap (plate, dim, decoded images).
   // (WebKit has no requestIdleCallback: a timeout stands in.)
