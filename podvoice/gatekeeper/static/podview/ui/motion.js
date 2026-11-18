@@ -274,14 +274,14 @@ export class SceneMotion {
   this.skipPage();this.releaseGeometry(false);
   const feed=this.host.querySelector('.responses');this.scroll.set(focus,feed.scrollTop);
   this.nestedScroll.set(focus,[...(feed.querySelectorAll?.('[data-scroll-axis],#weather-view,#vehicle-view,#radio-view,#device-view,#timers-view,#music-response,.answer-scroll')||[])].map(node=>[node,node.scrollTop,node.scrollLeft]));
-  // Crossing Ro without the Ro layer (immediate navigations) carries the persistent player's geometry. The Ro layer
+  // Crossing Ro without the Ro layer (no Web Animations) carries the persistent player's geometry. The Ro layer
   // needs none (Ro's player fades), and ordinary details need no card, heading or page rectangle.
   const crossesRest=focus==='photo'||next==='photo';
   const player=crossesRest&&!this.layered()?
    this.host.querySelector('.player:not([hidden]),.player-empty:not([hidden])'):null;
   const box=player?.getBoundingClientRect();this.cancel();return box||null;
  }
- layered(){return !this.immediateDepth&&this.ro.available();}
+ layered(){return this.ro.available();}
  get moving(){return this.ro.moving||this.pages.moving||!!this.pageTransition;}
  // Called first in every render: a render while Ro <-> Hjem or a page moves waits for the layer's own render, or
  // (Ro -> Hjem) is drawn under the Ro layer.
@@ -289,7 +289,7 @@ export class SceneMotion {
  // P1 page (docs/MOTION.md §3.2). Push and pop run on live layers (ui/page-motion.js): the old page moves in the
  // next frame, the new one renders once off-screen and slides in, and the old stays painted until the end. Ro <->
  // active also runs on live layers (roPage()). Neither uses a view transition; hero() still does. Without Web
- // Animations, or for immediate navigations, the page renders at once and enter() moves the pane.
+ // Animations, the page renders at once and enter() moves the pane.
  page(previous,next,{back=false,present}){
   this.skipPage();
   if(previous===next){present();return null;}
@@ -328,7 +328,7 @@ export class SceneMotion {
  }
  transitions(){
   const doc=this.host.ownerDocument;
-  return !this.immediateDepth&&typeof doc?.startViewTransition==='function'&&this.host.isConnected!==false&&
+  return typeof doc?.startViewTransition==='function'&&this.host.isConnected!==false&&
    !!doc.documentElement?.dataset;
  }
  // P7 hero (docs/MOTION.md §3.8): a push or pop page transition in which one element (source) flies to its
@@ -377,7 +377,6 @@ export class SceneMotion {
  skipPage(){this.pageTransition?.skipTransition();this.ro?.finish();this.pages?.finish();}
  // Navigations whose caller works on the new page's DOM straight after dispatch (focus, scroll) render at once
  // and use the enter() motion instead of a view transition, whose update would run a frame later.
- immediate(navigate){this.immediateDepth=(this.immediateDepth||0)+1;try{return navigate();}finally{this.immediateDepth--;}}
  enter(previous,next,oldPlayer,back=false){
   if(previous===next||this.host.isConnected===false)return;
   const feed=this.host.querySelector('.responses');feed.scrollTop=back?this.scroll.get(next)||0:0;
