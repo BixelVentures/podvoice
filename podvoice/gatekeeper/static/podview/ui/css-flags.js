@@ -2,7 +2,10 @@
 // A :has() anchored on html, body, the host or the frame makes WebKit and Blink re-match the whole page each
 // time anything inside changes (a hidden page, a scroll fade, a toast). An attribute that only flips when the
 // condition flips invalidates just the elements the rule styles. Each flag is the exact former :has() argument.
+// What the observer sees is synced once per frame, and not at all while a page or Ro layer moves
+// (ui/motion-busy.js): one sync runs when it has landed. The host's own sync() after a render stays immediate.
 import {pressOnly} from './scroll-edges.js';
+import {isBusy,onIdle} from './motion-busy.js';
 
 // [anchor, attribute, the former :has() argument]
 export const CSS_FLAGS=[
@@ -28,14 +31,15 @@ export const CSS_FLAGS=[
   '#music-detail:not([hidden]) #queue[data-scroll-edge~="end"]'],
  ['frame','data-pv-weather-start','#weather-view:not([hidden])[data-scroll-edge~="start"]'],
 ];
+const RECIPES='#recipe-view:not([hidden])';
 // Every attribute a flag above reads; class covers .connection-note, .responses and friends.
 const WATCHED=['hidden','class','id','data-view','data-night','data-topbar','data-state','data-scroll-axis','data-scroll-edge'];
 
 export class CssFlags {
- constructor(host){this.host=host;}
+ constructor(host){this.host=host;this.frame=0;this.idle=null;}
  attach(){
   if(this.observer)return;const doc=this.host.ownerDocument;
-  this.observer=new MutationObserver(records=>{if(records.some(record=>!pressOnly(record)))this.sync();});
+  this.observer=new MutationObserver(records=>{if(records.some(record=>!pressOnly(record)))this.schedule();});
   this.observer.observe(doc.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:WATCHED,
    attributeOldValue:true});
   this.sync();
@@ -45,13 +49,24 @@ export class CssFlags {
   return name==='root'?doc.documentElement:name==='body'?doc.body:name==='host'?this.host:
    this.host.querySelector(':scope>.frame');
  }
+ schedule(){
+  if(this.frame||this.idle||!this.observer)return;
+  if(isBusy()){this.idle=onIdle(()=>{this.idle=null;this.schedule();});return;}
+  const win=this.host.ownerDocument?.defaultView||globalThis;
+  this.frame=win.requestAnimationFrame(()=>{this.frame=0;if(isBusy())this.schedule();else this.sync();});
+ }
  // Called by the host right after a render, so layout read in the same task already sees the new flags.
  sync(){
   for(const [where,attribute,selector] of CSS_FLAGS){
    const anchor=this.anchor(where);if(!anchor)continue;
-   const on=anchor.querySelector(selector)!==null;
+   // Opskrifter's full-width frame follows the page being shown, not the DOM: while Opskrifter slides out it is
+   // still painted (ui/page-motion.js), but Hjem under it already has its two columns and the player.
+   const on=selector===RECIPES&&this.host.state?this.host.state.focus==='recipes':anchor.querySelector(selector)!==null;
    if(anchor.hasAttribute(attribute)!==on)anchor.toggleAttribute(attribute,on);
   }
  }
- detach(){this.observer?.disconnect();this.observer=null;}
+ detach(){
+  this.observer?.disconnect();this.observer=null;this.idle?.();this.idle=null;
+  if(this.frame)(this.host.ownerDocument?.defaultView||globalThis).cancelAnimationFrame(this.frame);this.frame=0;
+ }
 }

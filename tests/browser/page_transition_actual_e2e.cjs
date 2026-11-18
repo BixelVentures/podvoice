@@ -71,7 +71,9 @@ const rest=page=>page.evaluate(()=>{
    host.querySelector('#home-radio').click();for(let i=0;i<4;i++)await frame();
    const wasMoving=host.motion.moving;host.render();await frame();
    const old=document.getElementById('now-view');
-   return {wasMoving,painted:getComputedStyle(old).display!=='none'&&!old.hidden};});
+   // The [hidden] attribute, not the property: during a run ui/page-motion.js keeps the leaving page's requested
+   // hidden state aside (the property reports it) and applies it only when the motion ends.
+   return {wasMoving,painted:getComputedStyle(old).display!=='none'&&!old.hasAttribute('hidden')};});
   assert.equal(during.wasMoving,true,'a page was moving');
   assert.equal(during.painted,true,'the leaving page stays painted through a render');
   await settled('render during the motion','radio-view');

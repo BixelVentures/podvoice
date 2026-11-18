@@ -5,11 +5,15 @@
 // stood (opacity and .98 scale in --pv-dur-quick) while their neighbours close the gap on the smooth spring. `track`
 // names one element (the playing indicator) that travels from its old box to its new one, even into another row.
 // A row still moving is measured where it is and continues from there. Reduced: rows fade in and out; a reorder is
-// immediate. Only bundled code imports this module (Motion).
+// immediate. Springs are sampled keyframes (springFrames), which WebKit runs on Core Animation; a linear() easing
+// would run on the main thread. Only bundled code imports this module (Motion).
 import {DUR,EASE,SPRING,isReduced} from './motion.js';
-import {springTiming} from './native-motion.js';
+import {springFrames} from './native-motion.js';
 
 const running=new WeakMap();
+const round=value=>Math.round(value*100)/100;
+// A FLIP slide from (dx, dy) to rest on the smooth spring.
+const slide=(dx,dy)=>springFrames(SPRING.smooth,p=>({translate:`${round(dx*(1-p))}px ${round(dy*(1-p))}px`}));
 const centreShift=(from,to)=>({dx:from.x+from.width/2-to.x-to.width/2,dy:from.y+from.height/2-to.y-to.height/2});
 function play(node,frames,options){
  running.get(node)?.cancel();
@@ -41,25 +45,28 @@ export function animateList(container,mutate,{items=':scope>*',stagger=30,track,
  const boxes=new Map(after.map(node=>[node,node.getBoundingClientRect()]));
  const trackNode=track?container.querySelector(track):null,trackAfter=trackNode?.getBoundingClientRect();
  const leaving=[...before].filter(([node])=>node.parentNode!==container);
- const snappy=springTiming(SPRING.snappy),smooth=springTiming(SPRING.smooth),shift=new Map();let entered=0;
+ // Entering rows rise 8px on the snappy spring; opacity follows the same progress (clamped where it bounces).
+ const enter=springFrames(SPRING.snappy,
+  p=>({opacity:Math.min(1,Math.max(0,round(p))),translate:`0 ${round(8*(1-p))}px`}));
+ const shift=new Map();let entered=0;
  for(const [node,box]of boxes){
   const old=before.get(node);
   if(!old){
    const delay=Math.min(entered++,5)*stagger;
-   play(node,reduced?[{opacity:0},{opacity:1}]:[{opacity:0,translate:'0 8px'},{opacity:1,translate:'0 0'}],
-    reduced?{duration:DUR.reduced,easing:EASE.out,delay,fill:'backwards'}:{...snappy,delay,fill:'backwards'});
+   if(reduced)play(node,[{opacity:0},{opacity:1}],{duration:DUR.reduced,easing:EASE.out,delay,fill:'backwards'});
+   else play(node,enter.keyframes,{duration:enter.duration,delay,fill:'backwards'});
    continue;
   }
   if(reduced)continue;
   const {dx,dy}=centreShift(old,box);
   if(Math.abs(dx)+Math.abs(dy)<=.5)continue;
   shift.set(node,{dx,dy});
-  play(node,[{translate:`${dx}px ${dy}px`},{translate:'0 0'}],smooth);
+  const {keyframes,duration}=slide(dx,dy);play(node,keyframes,{duration});
  }
  for(const [node,box]of leaving)leave(container,node,box,frame,reduced);
  if(trackNode&&trackBefore&&trackAfter&&!reduced){
   const owner=after.find(node=>node.contains?.(trackNode)),carried=shift.get(owner)||{dx:0,dy:0};
   const travel=centreShift(trackBefore,trackAfter),dx=travel.dx-carried.dx,dy=travel.dy-carried.dy;
-  if(Math.abs(dx)+Math.abs(dy)>.5)play(trackNode,[{translate:`${dx}px ${dy}px`},{translate:'0 0'}],smooth);
+  if(Math.abs(dx)+Math.abs(dy)>.5){const {keyframes,duration}=slide(dx,dy);play(trackNode,keyframes,{duration});}
  }
 }

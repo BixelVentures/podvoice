@@ -3,10 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {SceneMotion,DUR,valueDirection,rollingDigits,showValue,showProgress,springCurve,SPRING}
+import {SceneMotion,DUR,valueDirection,rollingDigits,showValue,showProgress,springBezier,SPRING}
  from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
 
-const QUICK=springCurve(SPRING.quick);
+const QUICK=springBezier(SPRING.quick);
 class KeyframeEffect{get pseudoElement(){return null;}}
 function dom(){
  const doc={defaultView:{KeyframeEffect},createElement:()=>new El(doc)};

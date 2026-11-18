@@ -1,6 +1,6 @@
 import {applyKitComponent, applyKitDialog, applyKitTextRole, createKitComponent, createKitChoiceGroup, createKitDisclosure} from './ui/kit.js';
 import {DUR,isReduced,SPRING} from './ui/motion.js';
-import {springTiming} from './ui/native-motion.js';
+import {springFrames} from './ui/native-motion.js';
 // Opskrifter-Bog cover flow as a pure function of the fractional index p (docs/MOTION.md, Udforsk). At whole p it
 // is the canvas: the chosen cover flat, neighbours ±(430+(a−1)·110) px, −260−(a−1)·60 px deep, turned 55° away
 // and shaded .18 (an overlay, not a filter). Between whole values every number is continuous; the turn eases in
@@ -480,6 +480,7 @@ export class RecipeView {
    if (activeRecipe) recipes.unshift(activeRecipe);
    entries.replaceChildren();
    groups.clear();
+   let shown = 0; // Rows built so far: the first screenful loads eagerly (see thumb.loading below).
    for (const recipe of recipes.sort((a,b)=>collator.compare(a.title,b.title))) {
     const initial = recipe.title[0].toLocaleUpperCase('da');
     const letter = recipe === activeRecipe ? 'I gang' : alphabet.includes(initial) ? initial : '#';
@@ -514,7 +515,9 @@ export class RecipeView {
     row.append(copy);
     const thumb = element('img');
     thumb.decoding = 'async'; // Full-size source photos: decode off the main thread, only near view.
-    thumb.loading = 'lazy';
+    // The first screenful loads at once: the page slides in from off-screen, where a lazy image would not start
+    // loading until the slide had begun and would pop in mid-motion. The rest stay lazy.
+    thumb.loading = shown++ < 12 ? 'eager' : 'lazy';
     thumb.alt = '';
     showPhoto(thumb,recipe.image);
     thumb.addEventListener('error',()=>{
@@ -1175,8 +1178,11 @@ export class RecipeView {
    if (frame.dots.start !== windowStart) {
     const step = windowStart < 0 ? 0 : frame.dots.start - windowStart;
     windowStart = frame.dots.start;
-    if (step && !reduced()) dots.animate?.([{transform:`translateX(${step*EXPLORE_DOT_PITCH}px)`},{transform:'none'}],
-     springTiming(SPRING.quick));
+    if (step && !reduced() && dots.animate) {
+     const {keyframes,duration} = springFrames(SPRING.quick,
+      p=>({transform:`translateX(${Math.round(step*EXPLORE_DOT_PITCH*(1-p)*100)/100}px)`}));
+     dots.animate(keyframes,{duration});
+    }
    }
    frame.dots.items.forEach((dot,o)=>{
     dotPool[o].style.transform = dot.transform;

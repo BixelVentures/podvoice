@@ -9,6 +9,9 @@ import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playb
 import './robot-control-panel.js';
 const robotRebindReasons=new Set(['robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
 const setupDiagnosticCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable','invalid_dto','stale_binding']);
+// Writes only a changed value, so a render with nothing new mutates nothing.
+const setHidden=(node,value)=>{if(node.hidden!==value)node.hidden=value;};
+const setText=(node,value)=>{if(node.textContent!==value)node.textContent=value;};
 const make=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;if(tag==='button')applyKitComponent(n,'button',{variant:cls?.split(/\s+/).includes('pv-primary')?'primary':'secondary'});return n;};
 // Restore focus only when one replacement has the same explicit accessible label.
 // This never identifies an action for execution or reuses an expired option.
@@ -60,7 +63,12 @@ export class LiveControlView{
   if(this.musicAuthority!==undefined&&(this.musicAuthority!==musicAuthority||this.musicPresentationAuthority!==presentationAuthority||this.musicPresentationTransport!==this.host.liveTransport))this.invalidateMusic('Musikken er ændret · hent betjeningen igen.',false,samePresentation);
   this.musicAuthority=musicAuthority;this.musicPresentationAuthority=presentationAuthority;this.musicPresentationTransport=this.host.liveTransport;
   if(this.task&&this.task.expiresAt*1000<=Date.now())this.expireTask();
-  const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');this.musicButton.hidden=!this.allowed('music')||!roomObservationCurrent(p,snapshot);this.musicButton.disabled=!!this.musicIntentPending;this.robotButton.hidden=!d?.live;this.robotButton.disabled=!!(this.pending||this.setupPending);const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
+  const p=this.host.liveMedia?.playback,d=this.host.state.devices.find(x=>x.id===this.host.state.focus&&x.kind==='vacuum');setHidden(this.musicButton,!this.allowed('music')||!roomObservationCurrent(p,snapshot));
+  if(this.musicButton.disabled!==!!this.musicIntentPending)this.musicButton.disabled=!!this.musicIntentPending;
+  setHidden(this.robotButton,!d?.live);
+  const robotBusy=!!(this.pending||this.setupPending);
+  if(this.robotButton.disabled!==robotBusy)this.robotButton.disabled=robotBusy;
+  const robotEntryLabel=this.allowed('vacuum')&&!d?.stale?'Betjen robot':'Se robot';if(this.robotButton.textContent!==robotEntryLabel)this.robotButton.textContent=robotEntryLabel;
   if(d&&!d.stale){const activity=robotExperience(d).activity,key=JSON.stringify([d.id,d.status,activity]);this.robotObservedId=d.id;this.robotObservedState=key;this.robotObservedStatus=d.status;}const robotCard=d&&this.host.deviceNodes?.get(d.id);if(robotCard&&this.robotInline&&this.domain==='vacuum'&&this.target?.entityId!==d.id){this.opening++;if(this.expiredRobot?.offline)this.clearRobotRefresh();this.robotDeferredDraft=null;this.task=null;this.robotSuggestion=null;this.target={entityId:d.id};this.buildOptions();}if(robotCard){if(!this.robotEntry){this.robotEntry=make('section',undefined,'device-history');this.robotEntry.dataset.robotRooms='true';this.robotEntry.dataset.detailZone='controls';this.robotEntry.append(this.robotButton);}if(this.robotEntry.parentNode!==robotCard.parentNode.parentNode)robotCard.parentNode.after(this.robotEntry);this.robotEntry.hidden=false;}else if(this.robotEntry)this.robotEntry.hidden=true;if(robotCard&&robotCard.dataset.controlEntry!=='true')robotCard.dataset.controlEntry='true';
   this.prefetchRobotOffer();if(this.robotPanel&&(this.dialog.open||this.robotInline)&&this.domain==='vacuum'){const device=this.robotDevice(),ready=!!(this.controlOpen()&&this.task&&this.task.draft?.status!=='awaiting_water'&&!this.pending&&!this.setupPending&&!this.spent.has(this.task.taskId)&&this.allowed('vacuum')&&device?.live===true&&!device.stale);this.robotPanel.observed?.(this.robotView(device),{currentSetup:this.currentRobotSetup(device),loading:this.setupPending,connected:!!this.host.liveTransport?.connected,pendingOptionId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.optionId:this.robotStartAwaiting(device)?.optionId??null,pendingChoiceId:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.choiceId??null:null,pendingValue:this.pending&&this.activeOperation?.domain==='vacuum'&&this.activeOperation.taskId===this.task?.taskId?this.activeOperation.value??null:null,directActions:this.robotDirectOffer(device)?.actions||[],directReadGap:this.robotTransientHomeRead(device),directBlocked:this.robotDirectBlocked(device),directPendingAction:this.robotDirectOffer(device)?.pending??null});this.robotPanel.disabled=!(ready||this.robotPanelHeld(device)||!!this.robotStartAwaiting(device));const candidates=ready?[this.robotSuggestion,...(Array.isArray(snapshot.robotSuggestions)&&snapshot.robotSuggestions.length<=12?snapshot.robotSuggestions:[])]:[];this.robotPanel.suggest?.(candidates.find(value=>this.robotPanel.validSuggestion?.(value)));}
   if(this.robotInline&&d){this.robotButton.hidden=!!(this.robotPanel||this.task||this.setupPending);if(robotCard&&this.robotPanel){robotCard.hidden=true;robotCard.inert=true;robotCard.parentNode.hidden=true;}}
@@ -76,7 +84,8 @@ export class LiveControlView{
  }
  renderReceipt(){
   const s=this.host.liveSnapshot,target=JSON.stringify(this.target),row=[...this.receipts.values()].reverse().find(r=>r.bootId===s?.bootId&&r.roomId===s?.roomId&&r.domain===this.domain&&JSON.stringify(r.target)===target);
-  const visible=!!(row&&row.outcome!=='pending'),text=visible?`${row.label}: ${this.receiptText(row)}`:'',inline=this.domain==='vacuum'&&this.robotInline&&typeof this.robotPanel?.observed==='function';this.receiptNote.hidden=!visible||inline;this.receiptNote.textContent=inline?'':text;this.note.hidden=inline||!!(row?.domain==='vacuum');if(inline){
+  const visible=!!(row&&row.outcome!=='pending'),text=visible?`${row.label}: ${this.receiptText(row)}`:'',inline=this.domain==='vacuum'&&this.robotInline&&typeof this.robotPanel?.observed==='function';setHidden(this.receiptNote,!visible||inline);setText(this.receiptNote,inline?'':text);
+  setHidden(this.note,inline||!!(row?.domain==='vacuum'));if(inline){
    const starting=row&&this.robotStartReceipt(row),active=robotExperience(this.robotDevice()||{}).jobActive===true;
    const controlFeedback=this.task?.draft?.status==='awaiting_water'
     ?{text:'Dine valg er bevaret. Start afventer en aktuel vandstatus.',state:'unknown'}
@@ -227,9 +236,11 @@ export class LiveControlView{
   }
   const {transport,canVolume}=this.player.render();
   const status=this.player.status;
-  for(const node of [this.musicStatus,this.musicDetailStatus]){node.hidden=!status;node.textContent=status;}
-  if(transport||canVolume)this.musicButton.hidden=true;
-  this.host.setAttribute('data-native-music-controls',transport||canVolume?'true':'false');
+  for(const node of [this.musicStatus,this.musicDetailStatus]){setHidden(node,!status);setText(node,status);}
+  if(transport||canVolume)setHidden(this.musicButton,true);
+  const native=transport||canVolume?'true':'false';
+  const attribute='data-native-music-controls';
+  if(this.host.getAttribute?.(attribute)!==native)this.host.setAttribute(attribute,native);
  }
  async moveSpeaker(speaker,catalogueCurrent=()=>false,choice=null){
   const transport=this.host.liveTransport,requestId=globalThis.crypto.randomUUID(),issuedAt=Date.now(),action='move_existing_session',diagnostic={domain:'music',action,requestId};

@@ -2,8 +2,9 @@
 // P3 press feedback (docs/MOTION.md) with a real touch: a card shrinks to .97 and a button to .98 within 100 ms, and
 // on release the scale springs back to 1 on Motion's critically damped quick spring: no jump, no overshoot. A card
 // only scales (as a UICollectionViewCell or a SwiftUI press): no overlay, shadow, colour or opacity change; a button
-// keeps its overlay. The press is Web Animations on the control: no class, attribute or inline style changes
-// anywhere. No filter. Reduced motion: a card dims to .8, a button keeps its overlay; nothing scales.
+// dims (opacity, as a UIButton highlight) and its shadow never changes: the press animates only compositor
+// properties. The press is Web Animations on the control: no class, attribute or inline style changes anywhere.
+// No filter. Reduced motion: a card dims to .8, a button keeps its dim; nothing scales.
 // Per-frame timing (rAF deltas) through press and release is reported. PODVIEW_TEST_ENGINE=webkit runs it in WebKit
 // with a mouse for the finger.
 const playwright=require('playwright');
@@ -72,7 +73,10 @@ function check(selector,expected,samples,{reduced=false,kind}={}){
    assert.equal(s.background,samples[0].background,`${selector}: the colour never changes`);}
   if(reduced)assert(Math.abs(held.at(-1).opacity-.8)<.01,`${selector}: reduced dims to .8 (${held.at(-1).opacity})`);
   else for(const s of samples)assert.equal(s.opacity,1,`${selector}: a card does not dim`);
- }else assert(held.some(s=>s.pressed&&s.overlay),`${selector}: the overlay shows while pressed`);
+ }else{
+  assert(held.some(s=>s.pressed&&s.opacity<.9),`${selector}: the button dims while pressed`);
+  for(const s of samples)assert.equal(s.shadow,samples[0].shadow,`${selector}: no box-shadow overlay`);
+ }
  const target=reduced?1:expected,last=held.at(-1).scale;
  assert(Math.abs(last-target)<.002,`${selector}: held scale ${last}, expected ${target}`);
  if(target<1){
@@ -87,7 +91,7 @@ function check(selector,expected,samples,{reduced=false,kind}={}){
  }else{
   for(const s of samples)assert.equal(s.scale,1,`${selector}: no scale`);
  }
- assert(after.filter(s=>s.sinceUp>300).every(s=>!s.overlay),`${selector}: overlay gone after release`);
+ assert(after.filter(s=>s.sinceUp>300).every(s=>!s.overlay&&s.opacity===1),`${selector}: dim gone after release`);
 }
 
 (async()=>{try{

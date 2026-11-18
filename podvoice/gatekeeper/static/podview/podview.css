@@ -904,8 +904,8 @@ pv-widget-host[data-topbar=true] #answer-host>pv-answer.answer-widget[data-threa
 #answer-host>pv-answer.answer-widget .answer-content:has(>:is(.sources,.answer-source-menu):not([hidden]):not([open]))>.answer-meta:not([hidden]){position:absolute;right:calc(var(--pv-s2) * 2 + var(--pv-icon-s));bottom:0;max-width:50%;min-height:var(--pv-hit);margin:0;display:flex;align-items:center;pointer-events:none}
 #open-history.header-history[data-device=offline]{color:var(--pv-ink-3)}
 
-/* Source: widget-view.css · SHA256 4b183d169af3a1014dba03081733cc82ff45285109bb375b74f431aa2207cb78 */
-:root{font-family:var(--pv-screen-font);color:var(--pv-ink);background:var(--pv-surface-2);--surface:var(--pv-surface);--muted:var(--pv-ink-3);--blue:var(--pv-ink);--soft-blue:var(--pv-surface-2);--duration:240ms}*{box-sizing:border-box}body{margin:0;padding:var(--pv-s4) var(--pv-s3) var(--pv-s2)}button,input{font:inherit}button{cursor:pointer;color:inherit;border:0;touch-action:manipulation}button:focus-visible,input:focus-visible{outline:3px solid var(--pv-ink);outline-offset:4px}button:disabled{cursor:wait;opacity:.6}button img{pointer-events:none}button img,.volume>img{width:26px;height:26px}.frame{max-width:1180px;margin:auto;display:grid;grid-template-columns:minmax(0,2.4fr) minmax(245px,1fr);gap:var(--pv-s2);align-items:start}.responses{min-width:0}.response-widget,.player{background:var(--surface);border-radius:var(--pv-r-l)}.response-widget{padding:var(--pv-s3) var(--pv-s2) var(--pv-s2)}.response-heading{display:flex;gap:var(--pv-s2);align-items:flex-start;justify-content:space-between;padding:var(--pv-s1) var(--pv-s1) var(--pv-s2)}h1{font-size:var(--pv-type-title);line-height:1.1;letter-spacing:-1.3px;margin:8px 0 8px;font-weight:var(--pv-weight-semibold)}.response-heading p{color:var(--muted);margin:0;font-size:var(--pv-type-body)}h2{font-size:var(--pv-type-label);margin:0;line-height:1.2;letter-spacing:-.4px}.round{width:56px;height:56px;flex:none;border-radius:var(--pv-r-pill);background:var(--pv-screen-control);display:inline-flex;justify-content:center;align-items:center;transition:background var(--duration) var(--pv-screen-ease),transform 120ms var(--pv-screen-ease)}.round:hover{background:var(--pv-line)}.response-heading .round{width:52px;height:52px}.response-heading .round img{width:var(--pv-icon-s);height:var(--pv-icon-s)}.result-list{display:grid;gap:var(--pv-s2)}.result{display:flex;gap:var(--pv-s2);align-items:center;padding:var(--pv-s2) var(--pv-s2);border-radius:var(--pv-r-l);min-height:105px}.result-art{width:84px;height:84px;object-fit:cover;border-radius:var(--pv-r-s);flex:none}.result-copy{min-width:0;flex:1}.result-copy h2{font-size:var(--pv-type-label);margin-bottom:8px}.result-copy p{font-size:var(--pv-type-caption);color:var(--muted);line-height:1.25;margin:0 0 8px}.result-copy small{font-size:var(--pv-type-caption);color:var(--muted)}.result-play img{}.result[data-pending=true]{outline:2px solid var(--blue);outline-offset:-2px}.refinements{display:grid;grid-template-columns:1fr 1fr;gap:var(--pv-s2);margin:12px 24px 0}.refinements button{background:var(--pv-surface);border-radius:var(--pv-r-pill);min-height:64px;display:flex;align-items:center;justify-content:center;gap:var(--pv-s2);font-size:var(--pv-type-body);transition:background var(--duration) var(--pv-screen-ease),transform 120ms var(--pv-screen-ease)}.refinements button:hover{background:var(--pv-surface)}.refinements button[aria-pressed=true]{background:var(--soft-blue);color:var(--pv-screen-action-ink)}.player{padding:var(--pv-s3) var(--pv-s3) var(--pv-s3)}.output{background:transparent;padding:0;display:flex;width:100%;min-height:48px;text-align:left;align-items:center;justify-content:space-between;gap:var(--pv-s1)}.output h2{font-size:var(--pv-type-section);line-height:var(--pv-leading-section)}.output>img{width:var(--pv-icon-s);height:var(--pv-icon-s);opacity:.6}.track{color:var(--muted);font-size:var(--pv-type-body);margin:8px 0 20px;line-height:1.35}.cover{width:100%;aspect-ratio:1;object-fit:cover;border-radius:var(--pv-r-l);display:block}.transport{display:flex;gap:var(--pv-s2);justify-content:space-between;align-items:center;margin:24px 0}.transport .round{width:48px;height:48px}.transport .main-control{width:58px;height:58px;background:var(--pv-on-dark)}.transport .main-control img{width:var(--pv-icon-m);height:var(--pv-icon-m)}.volume{display:flex;align-items:center;gap:var(--pv-s2)}.volume>img{width:24px;flex:none}.volume output{font-size:var(--pv-type-caption);min-width:40px;color:var(--muted);text-align:right}.volume input{width:100%;min-width:0;accent-color:var(--blue);height:48px;cursor:pointer}.playback-status{font-size:var(--pv-type-caption);line-height:1.3;min-height:17px;color:var(--pv-screen-action-ink);margin:8px 0 0}.demo-note{max-width:1180px;margin:16px auto 0;text-align:center;color:var(--pv-ink-3);font-size:var(--pv-type-caption)}.expandable{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows var(--duration) var(--pv-screen-ease),opacity var(--duration) var(--pv-screen-ease)}.expandable.collapsed{grid-template-rows:0fr;opacity:0}.result-inner{overflow:hidden;min-height:0}.response-widget:has(.collapsed) .response-heading{padding-bottom:var(--pv-s1)}dialog{width:min(420px,calc(var(--pv-stage-w,1180px) - 32px));border:0;background:var(--pv-surface);border-radius:var(--pv-r-l);padding:var(--pv-s3);color:var(--pv-ink)}dialog::backdrop{background:color-mix(in srgb,var(--pv-ink) 33.333%,transparent)}dialog header{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2)}dialog p{color:var(--muted);font-size:var(--pv-type-caption);line-height:1.4}.text-control{min-height:48px;background:transparent;padding:var(--pv-s1) var(--pv-s2)}#room-options{display:grid;gap:var(--pv-s2)}#room-options button{min-height:56px;text-align:left;background:var(--pv-screen-control);border-radius:var(--pv-r-s);padding:var(--pv-s2) var(--pv-s2)}#room-options button[aria-pressed=true]{background:var(--soft-blue);color:var(--pv-screen-action-ink)}.sr-only{font-size:var(--pv-type-body);position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}[hidden]{display:none!important}:root[data-pv-motion=reduced] *,:root[data-pv-motion=reduced] *::before,:root[data-pv-motion=reduced] *::after{
+/* Source: widget-view.css · SHA256 cdd00712b515e87035e7b519d005ffd08f118aa165a679207b854bc09492b4c2 */
+:root{font-family:var(--pv-screen-font);color:var(--pv-ink);background:var(--pv-surface-2);--surface:var(--pv-surface);--muted:var(--pv-ink-3);--blue:var(--pv-ink);--soft-blue:var(--pv-surface-2);--duration:240ms}*{box-sizing:border-box}body{margin:0;padding:var(--pv-s4) var(--pv-s3) var(--pv-s2)}button,input{font:inherit}button{cursor:pointer;color:inherit;border:0;touch-action:manipulation}button:focus-visible,input:focus-visible{outline:3px solid var(--pv-ink);outline-offset:4px}button:disabled{cursor:wait;opacity:.6}button img{pointer-events:none}button img,.volume>img{width:26px;height:26px}.frame{max-width:1180px;margin:auto;display:grid;grid-template-columns:minmax(0,2.4fr) minmax(245px,1fr);gap:var(--pv-s2);align-items:start}.responses{min-width:0}.response-widget,.player{background:var(--surface);border-radius:var(--pv-r-l)}.response-widget{padding:var(--pv-s3) var(--pv-s2) var(--pv-s2)}.response-heading{display:flex;gap:var(--pv-s2);align-items:flex-start;justify-content:space-between;padding:var(--pv-s1) var(--pv-s1) var(--pv-s2)}h1{font-size:var(--pv-type-title);line-height:1.1;letter-spacing:-1.3px;margin:8px 0 8px;font-weight:var(--pv-weight-semibold)}.response-heading p{color:var(--muted);margin:0;font-size:var(--pv-type-body)}h2{font-size:var(--pv-type-label);margin:0;line-height:1.2;letter-spacing:-.4px}.round{width:56px;height:56px;flex:none;border-radius:var(--pv-r-pill);background:var(--pv-screen-control);display:inline-flex;justify-content:center;align-items:center;transition:background var(--duration) var(--pv-screen-ease),transform 120ms var(--pv-screen-ease)}.round:hover{background:var(--pv-line)}.response-heading .round{width:52px;height:52px}.response-heading .round img{width:var(--pv-icon-s);height:var(--pv-icon-s)}.result-list{display:grid;gap:var(--pv-s2)}.result{display:flex;gap:var(--pv-s2);align-items:center;padding:var(--pv-s2) var(--pv-s2);border-radius:var(--pv-r-l);min-height:105px}.result-art{width:84px;height:84px;object-fit:cover;border-radius:var(--pv-r-s);flex:none}.result-copy{min-width:0;flex:1}.result-copy h2{font-size:var(--pv-type-label);margin-bottom:8px}.result-copy p{font-size:var(--pv-type-caption);color:var(--muted);line-height:1.25;margin:0 0 8px}.result-copy small{font-size:var(--pv-type-caption);color:var(--muted)}.result-play img{}.result[data-pending=true]{outline:2px solid var(--blue);outline-offset:-2px}.refinements{display:grid;grid-template-columns:1fr 1fr;gap:var(--pv-s2);margin:12px 24px 0}.refinements button{background:var(--pv-surface);border-radius:var(--pv-r-pill);min-height:64px;display:flex;align-items:center;justify-content:center;gap:var(--pv-s2);font-size:var(--pv-type-body);transition:background var(--duration) var(--pv-screen-ease),transform 120ms var(--pv-screen-ease)}.refinements button:hover{background:var(--pv-surface)}.refinements button[aria-pressed=true]{background:var(--soft-blue);color:var(--pv-screen-action-ink)}.player{padding:var(--pv-s3) var(--pv-s3) var(--pv-s3)}.output{background:transparent;padding:0;display:flex;width:100%;min-height:48px;text-align:left;align-items:center;justify-content:space-between;gap:var(--pv-s1)}.output h2{font-size:var(--pv-type-section);line-height:var(--pv-leading-section)}.output>img{width:var(--pv-icon-s);height:var(--pv-icon-s);opacity:.6}.track{color:var(--muted);font-size:var(--pv-type-body);margin:8px 0 20px;line-height:1.35}.cover{width:100%;aspect-ratio:1;object-fit:cover;border-radius:var(--pv-r-l);display:block}.transport{display:flex;gap:var(--pv-s2);justify-content:space-between;align-items:center;margin:24px 0}.transport .round{width:48px;height:48px}.transport .main-control{width:58px;height:58px;background:var(--pv-on-dark)}.transport .main-control img{width:var(--pv-icon-m);height:var(--pv-icon-m)}.volume{display:flex;align-items:center;gap:var(--pv-s2)}.volume>img{width:24px;flex:none}.volume output{font-size:var(--pv-type-caption);min-width:40px;color:var(--muted);text-align:right}.volume input{width:100%;min-width:0;accent-color:var(--blue);height:48px;cursor:pointer}.playback-status{font-size:var(--pv-type-caption);line-height:1.3;min-height:17px;color:var(--pv-screen-action-ink);margin:8px 0 0}.demo-note{max-width:1180px;margin:16px auto 0;text-align:center;color:var(--pv-ink-3);font-size:var(--pv-type-caption)}.expandable{display:grid;grid-template-rows:1fr;opacity:1;transition:opacity var(--duration) var(--pv-screen-ease)}.expandable.collapsed{grid-template-rows:0fr;opacity:0}.result-inner{overflow:hidden;min-height:0}.response-widget:has(.collapsed) .response-heading{padding-bottom:var(--pv-s1)}dialog{width:min(420px,calc(var(--pv-stage-w,1180px) - 32px));border:0;background:var(--pv-surface);border-radius:var(--pv-r-l);padding:var(--pv-s3);color:var(--pv-ink)}dialog::backdrop{background:color-mix(in srgb,var(--pv-ink) 33.333%,transparent)}dialog header{display:flex;align-items:center;justify-content:space-between;gap:var(--pv-s2)}dialog p{color:var(--muted);font-size:var(--pv-type-caption);line-height:1.4}.text-control{min-height:48px;background:transparent;padding:var(--pv-s1) var(--pv-s2)}#room-options{display:grid;gap:var(--pv-s2)}#room-options button{min-height:56px;text-align:left;background:var(--pv-screen-control);border-radius:var(--pv-r-s);padding:var(--pv-s2) var(--pv-s2)}#room-options button[aria-pressed=true]{background:var(--soft-blue);color:var(--pv-screen-action-ink)}.sr-only{font-size:var(--pv-type-body);position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}[hidden]{display:none!important}:root[data-pv-motion=reduced] *,:root[data-pv-motion=reduced] *::before,:root[data-pv-motion=reduced] *::after{
  transition:none!important;animation:none!important;scroll-behavior:auto!important}
 /* Scale typography with the horizontal content canvas, retaining 600px-height fit. */
 h1{font-size:var(--pv-type-title)}
@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 09403b22d6ebf6a02b4b57ee726730947732417cdecd1edd4f4af5166b12a65a */
+/* Source: ui-kit.css · SHA256 4303f0f45575bf40b2d2915c159c365e14c940a84e1efb453d3b41beb3a67af6 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 /* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
    Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
@@ -2894,12 +2894,8 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
 :root{
  --pv-dur-tap:100ms;--pv-dur-quick:160ms;--pv-dur-base:240ms;--pv-dur-ambient:1400ms;--pv-dur-reduced:150ms;
  --pv-ease-out:cubic-bezier(.2,0,0,1);--pv-ease-in:cubic-bezier(.4,0,1,1);--pv-ease-inout:cubic-bezier(.45,0,.55,1);
- --pv-spring-0:linear(0, 0.005 1.2%, 0.02 2.3%, 0.083 5.2%, 0.164 7.8%, 0.46 16.8%, 0.555 20.2%, 0.638 23.5%,
-  0.708 26.8%, 0.766 30.2%, 0.816 33.7%, 0.86 37.5%, 0.899 42%, 0.929 46.8%, 0.953 52.3%, 0.971 58.5%, 0.991 73.7%,
-  1);
- --pv-spring-15:linear(0, 0.006 1.3%, 0.024 2.7%, 0.054 4.2%, 0.097 5.8%, 0.187 8.7%, 0.516 18.2%, 0.612 21.3%,
-  0.695 24.5%, 0.766 27.7%, 0.824 30.8%, 0.873 34.2%, 0.913 37.7%, 0.946 41.5%, 0.971 45.8%, 0.989 50.5%, 1 55.8%,
-  1.006 68%, 1);
+ --pv-spring-0:cubic-bezier(.3,.52,.04,1);
+ --pv-spring-15:cubic-bezier(.26,.44,.08,1.16);
  --pv-spring-quick:441ms var(--pv-spring-0);
  --pv-spring-smooth:661ms var(--pv-spring-0);
  --pv-spring-snappy:557ms var(--pv-spring-15);
@@ -4084,7 +4080,7 @@ pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-
 
 /* Button state contract: only the exact owner's current attributes can paint
    a persistent state. Press/release remains owned by attachPressedState. */
-.pv-kit.pv-kit-button{transition:background-color var(--pv-d-fast) var(--pv-ease),color var(--pv-d-fast) var(--pv-ease),box-shadow var(--pv-d-fast) var(--pv-ease)}
+.pv-kit.pv-kit-button{transition:background-color var(--pv-d-fast) var(--pv-ease),color var(--pv-d-fast) var(--pv-ease)}
 .pv-kit.pv-kit-button:is([aria-pressed=true],[aria-checked=true],[data-selected=true]){background:var(--pv-button-tint)!important;color:var(--pv-tint-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-tint-ink)}
 .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play){position:relative;cursor:progress;opacity:1}
 /* The 24 px Icon-sized mark stays inside the Button's existing 32 px inset.
@@ -5680,16 +5676,13 @@ body{font-family:var(--pv-font)}
 .pv-widget[data-size=m]{width:var(--pv-widget-m);height:var(--pv-hero-s)}
 .pv-widget[data-size=l]{width:var(--pv-widget-m);height:var(--pv-hero-l)}
 
-/* P3 press (docs/MOTION.md): ui/pressed-state.js animates the pressed control itself with Web Animations (scale,
-   12% overlay, quiet dim, flat circle) and writes no class or attribute, so no selector here depends on a press.
-   CSS keeps the resting transitions and the circle's shape; the animation places and grows it. */
+/* P3 press (docs/MOTION.md): ui/pressed-state.js animates the pressed control itself with Web Animations (scale
+   and opacity only, compositor-run) and writes no class or attribute, so no selector here depends on a press.
+   CSS keeps only the resting transitions; there is no press overlay or ripple pseudo-element. */
 body :is(button,a[href],summary,[role=button]){
- transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out)!important}
+ transition:scale var(--pv-spring-quick)!important}
 body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:scale var(--pv-spring-quick),
- box-shadow var(--pv-dur-quick) var(--pv-ease-out),opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
-[data-pv-press=flat]{position:relative;overflow:hidden}
-:is(.pv-widget,[data-pv-press=flat])::after{content:"";position:absolute;z-index:0;pointer-events:none;
- border-radius:50%;left:50%;top:50%;width:0;height:0;translate:-50% -50%;background:rgba(23,23,26,.10);opacity:0}
+ opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
 
 /* P6 state (docs/MOTION.md §3.7), written by setKitButtonState in ui/kit.js. The chosen outcome shows at once;
    a request that runs longer than 400 ms fades its spinner in (and the icon it replaces out), so fast commands
@@ -5706,11 +5699,11 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:s
 :root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{
  animation:var(--pv-busy-spinner)!important}
 body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state]{
- transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
+ transition:scale var(--pv-spring-quick),
   background-color var(--pv-dur-quick) var(--pv-ease-out),color var(--pv-dur-quick) var(--pv-ease-out),
   border-color var(--pv-dur-quick) var(--pv-ease-out)!important}
 body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
- transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
+ transition:scale var(--pv-spring-quick),
   background-color var(--pv-dur-base) var(--pv-ease-out),color var(--pv-dur-base) var(--pv-ease-out),
   border-color var(--pv-dur-base) var(--pv-ease-out)!important}
 .pv-kit[data-pv-state=done]{animation:pv-tick var(--pv-spring-snappy)}
@@ -5752,14 +5745,34 @@ body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
 :root[data-pv-motion=reduced]::view-transition-new(pv-title){animation:pv-busy-in var(--pv-dur-reduced) linear both}
 /* Ro <-> Hjem (ui/ro-motion.js): no view transition. The Ro photo is a persistent cover over the live screen,
    hidden at rest; the Ro layer shows it with Web Animations only (visibility, opacity, and transform on the round
-   mask and the counter-scaled stage inside it). The photo box is .photo-view's own look (photo, scrim, night). */
+   mask and the counter-scaled stage inside it). The photo box is .photo-view's own look (photo, scrim, night).
+   No frame rasterizes: mask and stage are their own layers with one raster scale (will-change), and the touch-down
+   that will start the motion holds the cover at full size and opacity .001, so the photo is rasterized before the
+   release (RoLayer.arm). */
 .pv-ro-cover{position:fixed;inset:0;z-index:60;visibility:hidden;pointer-events:none;overflow:hidden;contain:strict}
-.pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0}
-.pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0}
+.pv-ro-mask{position:absolute;left:0;top:0;border-radius:50%;overflow:hidden;transform-origin:0 0;will-change:transform}
+.pv-ro-stage{position:absolute;left:0;top:0;transform-origin:0 0;will-change:transform}
 .pv-ro-stage>.pv-ro-photo{position:absolute;margin:0;min-height:0;flex:none}
+/* The cover is drawn as Ro draws its photo (iPad Foto-Ro below), whichever screen is under it, so it is not restyled
+   and rasterized again when Ro renders under it, and Ro's own photo replaces it without a change. */
+
+ .pv-ro-stage>.pv-ro-photo{padding:0}
+ .pv-ro-stage>.pv-ro-photo::before{background:linear-gradient(180deg,rgba(0,0,0,.42),transparent 280px),
+  linear-gradient(0deg,rgba(0,0,0,.35),transparent 260px)}
+ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo{background:#000}
+ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo>img,
+ pv-widget-host[data-night=true] .pv-ro-stage>.pv-ro-photo::before{display:none}
+
 /* Hjem's cards are pressed and leave with the page, so each is its own layer from the start (as a UIView): starting
    a press on a card that had none made WebKit re-layer and repaint the overview in the touch (a 78 ms frame). */
 pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-shortcut){will-change:transform}
+/* Page containers (ui/page-motion.js) are their own compositing layers for good, so a push or pop never creates a
+   layer in its first frame; a hidden page costs nothing (display:none). contain keeps a page's own layout and style
+   changes inside it. #device-view is left out: the robot's sticky bar is position:fixed against the screen, and a
+   layer or containment would pin it to the page instead. */
+pv-widget-host .responses>:is(#now-view,#radio-view,#timers-view,#weather-view,#vehicle-view,#music-detail,
+ #music-response,#recipe-view,#answer-host){will-change:transform;contain:layout style}
+pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;contain:strict}
 
 /* P7 hero (docs/MOTION.md §3.8): SceneMotion.hero names one element pv-hero on the old page and its counterpart on
    the new one. The group flies between the two boxes on the smooth spring (661 ms is its settle); the two
@@ -6703,21 +6716,33 @@ pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-
  #music-response[data-discovery-preview]
    :is(#result-list,.music-shelf,#music-hero)
    >.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::after{
-   left:10px;top:114px;width:36px;height:36px;border-radius:50%;
+   left:10px;top:114px;width:36px;height:36px;border-radius:50%;background:rgba(23,23,26,.8);}
+ /* The equalizer bars are their own layer over the disc (::before, painted once) and move by scale on the
+    compositor; animating background-size repainted the mark every frame on the main thread. */
+ #music-response[data-discovery-preview]
+   :is(#result-list,.music-shelf,#music-hero)
+   >.result.result.result[data-content-state]:not([data-kit=hero])[data-playing=true]::before{
+   content:'';position:absolute;z-index:1;pointer-events:none;--pv-enter-y:0;
+   left:10px;top:114px;width:36px;height:36px;
    background:
-  linear-gradient(#F7F6F3,#F7F6F3) 11px 100%/3px 14px no-repeat,
+  linear-gradient(#F7F6F3,#F7F6F3) 11px 100%/3px 9px no-repeat,
     linear-gradient(#F7F6F3,#F7F6F3) 16.5px 100%/3px 14px no-repeat,
-  linear-gradient(#F7F6F3,#F7F6F3) 22px 100%/3px 14px no-repeat,
-    rgba(23,23,26,.8);
-   background-origin:content-box;padding:11px 0;box-sizing:border-box;
+  linear-gradient(#F7F6F3,#F7F6F3) 22px 100%/3px 11px no-repeat;
+   background-origin:content-box;padding:11px 0;box-sizing:border-box;transform-origin:50% 25px;
    animation:pv-enter-up var(--pv-dur-base) var(--pv-ease-out) backwards,pv-music-eq 1s ease-in-out infinite;}
  :is(#music-response[data-discovery-collection=recent] #result-list,
    #music-response .music-shelf[data-music-shelf=recent])
-   >.result.result.result[data-content-state][data-playing=true]::after{
+   >.result.result.result[data-content-state][data-playing=true]::after,
+ :is(#music-response[data-discovery-collection=recent] #result-list,
+   #music-response .music-shelf[data-music-shelf=recent])
+   >.result.result.result[data-content-state][data-playing=true]::before{
    top:26px!important;left:18px!important;}
  :is(#music-response[data-discovery-collection=feeling] #result-list,
    #music-response .music-shelf[data-music-shelf=feeling])
-   >.result.result.result[data-content-state][data-playing=true]::after{
+   >.result.result.result[data-content-state][data-playing=true]::after,
+ :is(#music-response[data-discovery-collection=feeling] #result-list,
+   #music-response .music-shelf[data-music-shelf=feeling])
+   >.result.result.result[data-content-state][data-playing=true]::before{
    top:10px!important;left:auto!important;right:10px;}
 
 /* #389 leftover: in the small Musik slot the »Afspiller« context line sat on top of the »Musik« head while music
@@ -6735,8 +6760,7 @@ pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-
    width:var(--pv-column)!important;max-width:var(--pv-column)!important;}
  #music-detail .detail-queue{
    display:flex!important;flex-direction:column!important;gap:16px!important;margin:0!important;padding:0!important;
-   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;
-   --pv-enter-y:16px;animation:pv-enter-up var(--pv-spring-snappy) backwards;}
+   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;}
  #music-detail #queue-title{
    height:32px;margin:0!important;font:800 24px/32px var(--pv-font)!important;color:var(--pv-ink)!important;}
  #music-detail #queue{
@@ -6758,8 +6782,7 @@ pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-
  #music-detail #queue>.queue-track>.queue-order>img{
    width:20px!important;height:20px!important;}
  #music-detail #queue>.queue-track>.queue-cover{
-   width:56px!important;height:56px!important;border-radius:8px!important;object-fit:cover;
-   transition:box-shadow .25s ease;}
+   width:56px!important;height:56px!important;border-radius:8px!important;object-fit:cover;}
  #music-detail #queue>.queue-track>.queue-copy{
    min-width:0;}
  #music-detail #queue>.queue-track>.queue-copy>strong{
@@ -6893,9 +6916,10 @@ pv-widget-host[data-view=active] #now-view :is(.pv-kit-card,.pv-kit-tile,.timer-
  :root[data-pv-motion=reduced] #music-detail #queue>.queue-track>.queue-order>.queue-eq>i{
    animation:none;height:12px;}
 
-@keyframes pv-music-eq{0%,100%{background-size:3px 5px,3px 14px,3px 9px,auto}50%{background-size:3px 14px,3px 6px,3px 14px,auto}}
+@keyframes pv-music-eq{0%,100%{scale:1 .45}50%{scale:1 1}}
 
- :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::after{
+ :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::after,
+ :root[data-pv-motion=reduced] #music-response[data-discovery-preview] #result-list>.result::before{
    animation:none!important;}
 
 
