@@ -1,6 +1,7 @@
 // P4 list (docs/MOTION.md; ui/list-motion.js, Motion springs): rows enter from 8px on the snappy spring with a
 // 30 ms stagger (max five), leave where they stood while neighbours close the gap on the smooth spring, and the
 // playing indicator travels as one. All reads come before any write. Reduced: enter/leave fade, reorder is immediate.
+// Springs are sampled keyframes with linear easing between them (Core Animation does not accelerate linear()).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {SPRING,DUR} from '../../podview/ui/motion.js';
@@ -8,6 +9,11 @@ import {animateList} from '../../podview/ui/list-motion.js';
 import {springTiming} from '../../podview/ui/native-motion.js';
 
 const SNAPPY=springTiming(SPRING.snappy),SMOOTH=springTiming(SPRING.smooth),ROW=60;
+// The first and last keyframe of a spring animation, without offsets, and whether it is a sampled spring.
+const ends=animation=>[animation.frames[0],animation.frames.at(-1)].map(({offset,...frame})=>frame);
+const sampled=(animation,timing)=>animation.frames.length>8&&animation.options.easing===undefined&&
+ animation.options.duration===timing.duration&&animation.frames[0].offset===0&&animation.frames.at(-1).offset===1;
+const start=animation=>ends(animation)[0];
 function list(){
  const log=[];
  const container={isConnected:true,children:[],clientLeft:0,clientTop:0,scrollLeft:0,scrollTop:0,log,
@@ -38,8 +44,9 @@ test('new rows enter from 8px on the snappy spring, staggered 30 ms for the firs
  const delays=rows.map(row=>row.animations[0].options.delay);
  assert.deepEqual(delays,[0,30,60,90,120,150,150,150]);
  for(const row of rows){
-  assert.deepEqual(row.animations[0].frames,[{opacity:0,translate:'0 8px'},{opacity:1,translate:'0 0'}]);
-  assert.equal(row.animations[0].options.duration,SNAPPY.duration);assert.equal(row.animations[0].options.easing,SNAPPY.easing);
+  assert.deepEqual(ends(row.animations[0]),[{opacity:0,translate:'0 8px'},{opacity:1,translate:'0 0px'}]);
+  assert(sampled(row.animations[0],SNAPPY),'the snappy spring as keyframes');
+  assert(row.animations[0].frames.every(frame=>frame.opacity>=0&&frame.opacity<=1),'opacity never bounces');
   assert.equal(row.animations[0].options.fill,'backwards','a waiting row is held invisible');
  }
 });
@@ -50,8 +57,8 @@ test('a removed row leaves where it stood and the rows below close the gap on th
  const firstWrite=f.log.indexOf('write'),lastRead=f.log.lastIndexOf('read');
  assert(lastRead<firstWrite,'every box is read before the first write');
  assert.equal(a.animations.length,0,'a row that did not move is left alone');
- assert.deepEqual(c.animations[0].frames,[{translate:`0px ${ROW}px`},{translate:'0 0'}]);
- assert.equal(c.animations[0].options.duration,SMOOTH.duration);
+ assert.deepEqual(ends(c.animations[0]),[{translate:`0px ${ROW}px`},{translate:'0px 0px'}]);
+ assert(sampled(c.animations[0],SMOOTH),'the smooth spring as keyframes');
  assert.equal(b.parentNode,f.container,'the leaving row is shown again, out of the flow');
  assert.equal(b.dataset.pvLeave,'');assert.equal(b.inert,true);assert.equal(b['aria-hidden'],'true');
  assert.deepEqual([b.style.position,b.style.top,b.style.height,b.style.pointerEvents],['absolute','60px','60px','none']);
@@ -66,9 +73,9 @@ test('the playing indicator travels from its old row to the new one as one eleme
  next.getBoundingClientRect=()=>{const top=b.getBoundingClientRect().y;return {x:10,y:top+10,width:20,height:20};};
  m.list(f.container,()=>{a.remove();delete a.eq;b.eq=next;},{track:'.eq'});
  // b moved up one row (FLIP +60); the indicator's own offset is what is left of the travel: from row a to row b.
- assert.deepEqual(b.animations[0].frames[0],{translate:`0px ${ROW}px`});
- assert.deepEqual(next.animations[0].frames,[{translate:'0px -60px'},{translate:'0 0'}]);
- assert.equal(next.animations[0].options.easing,SMOOTH.easing);
+ assert.deepEqual(start(b.animations[0]),{translate:`0px ${ROW}px`});
+ assert.deepEqual(ends(next.animations[0]),[{translate:'0px -60px'},{translate:'0px 0px'}]);
+ assert(sampled(next.animations[0],SMOOTH));
 });
 
 test('reduced: rows fade in and out, and a reorder is immediate',()=>{
@@ -89,5 +96,5 @@ test('a pressed row (scaled about its centre) is measured by its centre, so it d
  const read=b.getBoundingClientRect;b.getBoundingClientRect=()=>{const box=read();
   return {x:box.x+4,y:box.y+1.2,width:box.width-8,height:box.height-2.4};};
  m.list(f.container,()=>{a.remove();b.getBoundingClientRect=read;});
- assert.deepEqual(b.animations[0].frames[0],{translate:`0px ${ROW}px`});
+ assert.deepEqual(start(b.animations[0]),{translate:`0px ${ROW}px`});
 });

@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {attachPressedState,pressScale} from '../../podview/ui/pressed-state.js';
 
-// P3 press (docs/MOTION.md): Web Animations on the pressed control only. The fake nodes have no classList,
+// P3 press (docs/MOTION.md): Web Animations on the pressed control only, on compositor properties only (scale,
+// opacity, translate): no box-shadow, left, top, width or height. Springs are plain keyframes, not a linear() easing,
+// because WebKit's Core Animation path does not accelerate linear(). The fake nodes have no classList,
 // setAttribute or style, so any class, attribute or inline-style write would throw.
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function fixture({documentRoot=false,reduced=false}={}){
@@ -35,6 +37,17 @@ function fixture({documentRoot=false,reduced=false}={}){
  return {win,doc,surface,root,button,node,cleanup,event,running,finishAll,computed};
 }
 const props=animation=>Object.keys(animation.frames[0]).filter(key=>key!=='offset');
+const COMPOSITOR=new Set(['scale','opacity','translate']);
+// A spring release: keyframes from `from` to 1 with offsets, linear easing between them, never past 1 when damped.
+function assertSpring(animation,from){
+ const values=animation.frames.map(frame=>Number(frame.scale)),offsets=animation.frames.map(frame=>frame.offset);
+ assert.equal(values[0],from);assert.equal(values.at(-1),1);
+ assert.deepEqual([offsets[0],offsets.at(-1)],[0,1]);
+ assert(offsets.every((offset,i)=>i===0||offset>offsets[i-1]),'offsets rise');
+ assert(animation.frames.length>8,'the spring is sampled, not a two-point tween');
+ assert.equal(animation.options.easing,undefined,'linear between keyframes, which Core Animation accelerates');
+ assert(animation.options.duration>300&&animation.options.duration<1000,String(animation.options.duration));
+}
 
 test('tiles .97, buttons .98, icons and flat surfaces none, reduced motion none',()=>{
  const f=fixture();
@@ -54,9 +67,8 @@ test('a card only scales (no overlay, shadow or colour) and springs back without
  assert.deepEqual([card.animations[0].options.duration,card.animations[0].options.easing],[100,'cubic-bezier(.2,0,0,1)']);
  f.finishAll(card);f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  const release=f.running(card);
- assert.deepEqual(release.map(props),[['scale']]);
- const points=release[0].options.easing.slice(7,-1).split(',').map(part=>Number.parseFloat(part));
- assert(points.every(value=>value<=1),'critically damped: the spring never passes 1');
+ assert.deepEqual(release.map(props),[['scale']]);assertSpring(release[0],.97);
+ assert(release[0].frames.every(frame=>Number(frame.scale)<=1),'critically damped: the spring never passes 1');
  f.finishAll(card);await flush();f.cleanup();
  const r=fixture({reduced:true}),still=r.node('button','.pv-card');
  r.root.handlers.get('pointerdown')(r.event({composedPath:()=>[still,r.surface]}));
@@ -65,20 +77,19 @@ test('a card only scales (no overlay, shadow or colour) and springs back without
  r.cleanup();
 });
 
-test('down scales in --pv-dur-tap with the overlay at once; release springs back on Motion\'s quick spring',async()=>{
+test('down scales in --pv-dur-tap and dims at once; release springs back on Motion\'s quick spring',async()=>{
  const f=fixture();f.root.handlers.get('pointerdown')(f.event());
- const [scale,overlay]=f.button.animations;
+ const [scale,dim]=f.button.animations;
  assert.deepEqual(scale.frames,[{scale:'1'},{scale:'0.98'}]);
  assert.deepEqual([scale.options.duration,scale.options.fill],[100,'forwards']);
- assert.match(overlay.frames[0].boxShadow,/inset 0 0 0 999px/);
+ assert.deepEqual(dim.frames,[{opacity:.84},{opacity:.84}]);
  f.finishAll(f.button);
  f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  const release=f.running(f.button);
- assert.deepEqual(release.map(props),[['scale'],['boxShadow']]);
- assert.deepEqual(release[0].frames,[{scale:'0.98'},{scale:'1'}]);
- assert.match(release[0].options.easing,/^linear\(0, /,'the spring is a CSS linear() easing from Motion');
- assert(release[0].options.duration>300&&release[0].options.duration<1000,String(release[0].options.duration));
- assert.equal(release[1].frames[0].offset,0,'the overlay fades to the control\'s own shadow');
+ assert.deepEqual(release.map(props),[['scale'],['opacity']]);
+ assertSpring(release[0],.98);
+ assert.deepEqual(release[1].frames,[{opacity:.84,offset:0}],'the dim fades to the control\'s own opacity');
+ for(const animation of f.button.animations)assert(props(animation).every(key=>COMPOSITOR.has(key)));
  assert.deepEqual([release[1].options.duration,release[1].options.delay],[160,0]);
  f.finishAll(f.button);await flush();
  assert.equal(f.running(f.button).length,0,'press and release end together');
@@ -90,9 +101,9 @@ test('a tap released before the touch-down finished shows the whole press first'
  const f=fixture();f.root.handlers.get('pointerdown')(f.event());
  f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  const release=f.button.animations.slice(2);
- assert.deepEqual(release.map(props),[['scale'],['boxShadow']],'the release exists at once');
+ assert.deepEqual(release.map(props),[['scale'],['opacity']],'the release exists at once');
  assert.deepEqual(release.map(a=>a.options.delay),[60,60],'and starts when the 100 ms touch-down ends');
- assert.deepEqual(release[0].frames[0],{scale:'0.98'});
+ assert.deepEqual(release[0].frames[0],{scale:'0.98',offset:0});
  f.cleanup();
 });
 
@@ -101,33 +112,33 @@ test('a new press on a releasing control starts from where it is',async()=>{
  f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
  f.root.handlers.get('pointerdown')(f.event());
  assert.deepEqual(f.computed,[f.button]);
- assert.deepEqual(f.running(f.button).map(a=>a.frames[0].scale??'overlay'),['0.985','overlay']);
+ assert.deepEqual(f.running(f.button).map(a=>a.frames[0].scale??'dim'),['0.985','dim']);
  f.cleanup();
 });
 
-test('quiet controls dim instead of the overlay; flat surfaces grow a circle under the finger',async()=>{
+test('quiet controls dim further; flat surfaces only dim, with no ripple and no layout read',async()=>{
  const f=fixture(),quiet=f.node('button','[data-pv-press=quiet]'),flat=f.node('button','[data-pv-press=flat]');
  f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[quiet,f.surface]}));
  assert.deepEqual(quiet.animations.map(props),[['scale'],['opacity']]);
  assert.equal(quiet.animations[1].frames[0].opacity,.64);
  f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
+ let measured=false;flat.getBoundingClientRect=()=>{measured=true;return {};};
  f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[flat,f.surface]}));
- const circle=flat.animations.find(a=>a.options.pseudoElement==='::after');
- assert.deepEqual([circle.frames[0].left,circle.frames[0].top,circle.frames[0].scale],['50px','10px',.2]);
- assert.equal(circle.frames[0].width,`${2*Math.hypot(150,90)}px`);
- assert.equal(flat.animations.some(a=>props(a).includes('scale')&&!a.options.pseudoElement),false,'flat never shrinks');
- f.finishAll(flat);f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));await flush();
- const out=f.running(flat).find(a=>a.options.pseudoElement==='::after');
- assert.deepEqual([out.frames[0].opacity,out.frames[1].opacity],[1,0]);
+ assert.deepEqual(flat.animations.map(props),[['opacity']],'flat never shrinks');
+ assert.equal(flat.animations.some(a=>a.options.pseudoElement),false,'no ripple pseudo-element');
+ assert.equal(measured,false);
+ f.finishAll(flat);f.win.handlers.get('pointerup')(f.event({type:'pointerup'}));
+ assert.deepEqual(f.running(flat).map(a=>a.frames),[[{opacity:.84,offset:0}]]);
+ for(const animation of flat.animations)assert(props(animation).every(key=>COMPOSITOR.has(key)));
  f.cleanup();
 });
 
-test('reduced motion keeps the overlay and the circle and drops scale and growth',()=>{
+test('reduced motion keeps the dim and drops scale',()=>{
  const f=fixture({reduced:true}),flat=f.node('button','[data-pv-press=flat]');
  f.root.handlers.get('pointerdown')(f.event());
- assert.deepEqual(f.button.animations.map(props),[['boxShadow']]);
+ assert.deepEqual(f.button.animations.map(props),[['opacity']]);
  f.root.handlers.get('pointerdown')(f.event({composedPath:()=>[flat,f.surface]}));
- assert.equal(flat.animations.find(a=>a.options.pseudoElement).frames[0].scale,1);
+ assert.deepEqual(flat.animations.map(props),[['opacity']]);
  f.cleanup();
 });
 
@@ -169,7 +180,7 @@ test('Enter and Space press and release like a pointer; a repeat is ignored',asy
  f.root.handlers.get('keydown')(f.event({type:'keydown',key:'Enter',repeat:true}));
  assert.equal(f.button.animations.length,2);
  f.win.handlers.get('keyup')(f.event({type:'keyup',key:'Enter'}));await flush();
- assert.deepEqual(f.running(f.button).map(props),[['scale'],['boxShadow']]);
+ assert.deepEqual(f.running(f.button).map(props),[['scale'],['opacity']]);
  f.cleanup();assert.equal(f.root.handlers.size,0);assert.equal(f.win.handlers.size,0);
 });
 

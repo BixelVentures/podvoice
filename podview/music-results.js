@@ -172,7 +172,8 @@ export class MusicResults{
   // Catalogue reads can omit cover metadata without replacing the item.
   const preserveSourceCover=this.host.live&&discovery;
   const response=this.list.closest?.('#music-response');
-  if(response){response.toggleAttribute('data-discovery-preview',!!discoveryLayout);if(discoveryLayout||accountLibrary)response.dataset.discoveryCollection=collection;else delete response.dataset.discoveryCollection;}
+  if(response){response.toggleAttribute('data-discovery-preview',!!discoveryLayout);if(discoveryLayout||accountLibrary){if(response.dataset.discoveryCollection!==collection)response.dataset.discoveryCollection=collection;}
+   else if('discoveryCollection' in response.dataset)delete response.dataset.discoveryCollection;}
   if(discoveryLayout&&response){
    if(!this.discoveryHeader){
     this.discoveryHeader=make(this.doc,'header');
@@ -187,12 +188,14 @@ export class MusicResults{
    }
    const day=collection==='mood';
    const suggestions=day||collection==='feeling';
-   this.discoveryHeader.hidden=!suggestions;
-   this.discoveryTitle.textContent=day?(DISCOVERY_PERIOD[this.host.state.music?.discoveryPeriod||discoveryPeriod(Date.now())]||'Tid på dagen'):'Vælg en stemning';
+   if(this.discoveryHeader.hidden!==!suggestions)this.discoveryHeader.hidden=!suggestions;
+   const period=this.host.state.music?.discoveryPeriod||discoveryPeriod(Date.now());
+   const title=day?DISCOVERY_PERIOD[period]||'Tid på dagen':'Vælg en stemning';
+   if(this.discoveryTitle.textContent!==title)this.discoveryTitle.textContent=title;
    const actionParent=suggestions?this.discoveryHeader:response;
    if(this.refresh.parentNode!==actionParent)actionParent.append(this.refresh);
   }
-  if(!discoveryLayout&&this.discoveryHeader){this.discoveryHeader.hidden=true;if(this.refresh.parentNode===this.discoveryHeader)response.append(this.refresh);}
+  if(!discoveryLayout&&this.discoveryHeader){if(!this.discoveryHeader.hidden)this.discoveryHeader.hidden=true;if(this.refresh.parentNode===this.discoveryHeader)response.append(this.refresh);}
   const diagnosticOwner=this.host.liveTransport;
   const refreshScope=JSON.stringify([collection,this.host.liveCatalogue?.account??null,this.host.liveSnapshot?.bootId??null,this.host.liveSnapshot?.roomId??null]),refreshCompleted=!busy&&this.refreshCollection===refreshScope;
   if(busy&&canRefresh&&cards.length&&!pendingId){if(this.refreshCollection!==refreshScope)for(const cancel of this.contentTransitions.values())cancel();this.refreshCollection=refreshScope;}else if(!busy||this.refreshCollection!==refreshScope)this.refreshCollection=null;

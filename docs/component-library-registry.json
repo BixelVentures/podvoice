@@ -605,7 +605,9 @@
     "dist/ui/stage.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/frame-meter.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -741,7 +743,8 @@
           "method:render": 1,
           "method:start": 2,
           "method:sync": 1,
-          "method:cancelForSelection": 1
+          "method:cancelForSelection": 1,
+          "arrow:text": 1
         },
         "roots": [],
         "registrations": {},
@@ -991,7 +994,9 @@
           "method:sendLightOperation": 1,
           "method:observePlayer": 1,
           "method:playerStatus": 1,
-          "method:player": 1
+          "method:player": 1,
+          "arrow:setHidden": 1,
+          "arrow:setText": 1
         },
         "roots": [
           "factory:button:'dialog-close'",
@@ -2333,6 +2338,7 @@
           "function:showProgress": 1,
           "function:showValue": 1,
           "function:simplify": 1,
+          "function:springBezier": 1,
           "function:springCurve": 1,
           "function:springParams": 1,
           "function:stepResponse": 1,
@@ -2381,26 +2387,35 @@
       "status": "active-support",
       "domOwner": "PageLayer (page push/pop: one hidden paper plate and one hidden dim inside the page area, made once)",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion-busy.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
         "definitions": {
           "arrow:add": 1,
+          "arrow:commit": 1,
           "arrow:frame": 1,
           "arrow:hold": 1,
           "arrow:make": 1,
+          "arrow:page": 1,
+          "arrow:stop": 1,
           "class:PageLayer": 1,
           "method:available": 1,
           "method:commit": 1,
           "method:constructor": 1,
           "method:doc": 1,
           "method:end": 1,
+          "method:expectedScroll": 1,
           "method:feed": 1,
           "method:finish": 1,
           "method:helpers": 1,
           "method:holdRender": 1,
+          "method:keep": 1,
           "method:moving": 1,
+          "method:place": 1,
+          "method:prepare": 1,
           "method:view": 1,
           "method:visiblePage": 1
         },
@@ -2415,7 +2430,9 @@
       "status": "active-support",
       "domOwner": "RoLayer (Ro <-> Hjem: one persistent, inert, aria-hidden cover of the existing Ro photo inside the host)",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion-busy.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2425,10 +2442,12 @@
           "class:RoLayer": 1,
           "function:circleFrames": 1,
           "function:cubicBezier": 1,
+          "method:arm": 1,
           "method:available": 1,
           "method:circle": 1,
           "method:constructor": 1,
           "method:cover": 1,
+          "method:disarm": 1,
           "method:doc": 1,
           "method:end": 1,
           "method:finish": 1,
@@ -2538,7 +2557,8 @@
       "status": "active-support",
       "factoryClassArgument": 1,
       "imports": [
-        "dist/ui/scroll-edges.js"
+        "dist/ui/scroll-edges.js",
+        "dist/ui/motion-busy.js"
       ],
       "surface": {
         "customElementAccesses": 0,
@@ -2549,6 +2569,7 @@
           "method:attach": 1,
           "method:constructor": 1,
           "method:detach": 1,
+          "method:schedule": 1,
           "method:sync": 1
         },
         "registrations": {},
@@ -2559,7 +2580,9 @@
     "dist/ui/scroll-edges.js": {
       "status": "active-support",
       "factoryClassArgument": 1,
-      "imports": [],
+      "imports": [
+        "dist/ui/motion-busy.js"
+      ],
       "surface": {
         "customElementAccesses": 0,
         "rendererCalls": {},
@@ -2577,6 +2600,25 @@
           "method:scan": 1
         },
         "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      }
+    },
+    "dist/ui/motion-busy.js": {
+      "status": "active-support",
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {
+          "arrow:finish": 1,
+          "function:begin": 1,
+          "function:end": 1,
+          "function:isBusy": 1,
+          "function:onIdle": 1,
+          "function:settle": 1
+        },
         "registrations": {},
         "customTags": [],
         "dom": false
@@ -3107,7 +3149,10 @@
           "method:suspendForAnswer": 1,
           "method:suspendLiveTimer": 1,
           "method:syncLightArea": 1,
-          "method:updateHomeRevision": 1
+          "method:updateHomeRevision": 1,
+          "arrow:next": 1,
+          "arrow:queueTopbarScroll": 1,
+          "arrow:renderSoon": 1
         },
         "roots": [
           "native:article:retained-answer",
@@ -3907,7 +3952,9 @@
         "rendererCalls": {},
         "definitions": {
           "arrow:centreShift": 1,
+          "arrow:round": 1,
           "arrow:rows": 1,
+          "arrow:slide": 1,
           "function:animateList": 1,
           "function:leave": 1,
           "function:play": 1
@@ -3918,6 +3965,21 @@
         "dom": true
       },
       "reviewedScope": "P4 list motion (queue rows come, go and reorder) as Web Animations timed by Motion springs; reads every box before any write. Reached only through the delivery bundle. No DOM construction."
+    },
+    "dist/ui/frame-meter.js": {
+      "status": "active-support",
+      "factoryClassArgument": 1,
+      "imports": [],
+      "surface": {
+        "customElementAccesses": 0,
+        "rendererCalls": {},
+        "definitions": {},
+        "roots": [],
+        "registrations": {},
+        "customTags": [],
+        "dom": false
+      },
+      "reviewedScope": "On-device frame meter: passive capture listeners, a rAF loop only during a touch session, batched POST to /view/api/frames. No DOM construction, no geometry reads."
     }
   },
   "externalModules": {

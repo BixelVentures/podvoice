@@ -202,7 +202,17 @@ export function beginIngressKiosk(win) {
   // screen the iframe is pinned over HA's whole viewport, and the parent's safe areas are handed to the
   // stage (ui/stage.js) so the topbar and player keep clear of them while Ro's photo runs under them.
   const frameStyle = (() => { try { return win.frameElement?.getAttribute("style"); } catch (_) { return null; } })();
-  let pinned = false;
+  let pinned = false, probed = false, safe = "";
+  // fitScreen reads layout in HA's document and writes style in both documents, so it runs only when geometry can
+  // have changed: once at start, on resize, orientation change, the parent's visual viewport resizing, the page
+  // becoming visible and after a kiosk request (never on a timer). Several triggers in a frame share one run.
+  let fitFrame = 0;
+  function scheduleFit() {
+    if (fitFrame || leaving) return;
+    const raf = win.requestAnimationFrame?.bind(win);
+    if (!raf) { fitScreen(); return; }
+    fitFrame = raf(() => { fitFrame = 0; fitScreen(); });
+  }
   function fitScreen() {
     try {
       const el = win.frameElement, pdoc = el?.ownerDocument, pwin = pdoc?.defaultView;
@@ -221,13 +231,13 @@ export function beginIngressKiosk(win) {
         el.style.setProperty("max-height", "none");
         el.style.setProperty("z-index", "2");
         el.style.setProperty("border", "0");
+        // HA's own page behind PodView takes PodView's background, so no light edge can show through.
+        for (const node of [pdoc.documentElement, pdoc.body])
+          node.style.setProperty("background", "var(--pv-bg-frame, #E9E7E2)");
         pinned = true;
       }
       // A transformed or contained HA ancestor turns »fixed« into »inside that box«, which left a light strip
-      // under PodView on the iPad. Measure where the frame really is and stretch it over HA's whole viewport;
-      // HA's own page behind it takes PodView's background, so no light edge can show through.
-      for (const node of [pdoc.documentElement, pdoc.body])
-        node.style.setProperty("background", "var(--pv-bg-frame, #E9E7E2)");
+      // under PodView on the iPad. Measure where the frame really is and stretch it over HA's whole viewport.
       const vw = Math.max(pwin.innerWidth, pdoc.documentElement.clientWidth || 0);
       const vh = Math.max(pwin.innerHeight, pwin.visualViewport?.height || 0, pdoc.documentElement.clientHeight || 0);
       const box = el.getBoundingClientRect();
@@ -240,18 +250,25 @@ export function beginIngressKiosk(win) {
         el.style.setProperty("height", `${vh}px`);
       }
       // env() resolves when a custom property is computed: read the parent's safe areas without a probe node.
+      // The probes are written once; PodView's own properties and the event only when an inset changed.
       const proot = pdoc.documentElement, root = win.document.documentElement;
-      for (const side of ["top", "right", "bottom", "left"])
-        proot.style.setProperty(`--pv-safe-${side}-probe`, `env(safe-area-inset-${side},0px)`);
+      const sides = ["top", "right", "bottom", "left"];
+      if (!probed) {
+        for (const side of sides)
+          proot.style.setProperty(`--pv-safe-${side}-probe`, `env(safe-area-inset-${side},0px)`);
+        probed = true;
+      }
       const cs = pwin.getComputedStyle(proot);
-      for (const side of ["top", "right", "bottom", "left"])
-        root.style.setProperty(`--pv-safe-${side}`, `${parseFloat(cs.getPropertyValue(`--pv-safe-${side}-probe`)) || 0}px`);
+      const insets = sides.map(side => `${parseFloat(cs.getPropertyValue(`--pv-safe-${side}-probe`)) || 0}px`);
+      if (insets.join(" ") === safe) return;
+      safe = insets.join(" ");
+      sides.forEach((side, index) => root.style.setProperty(`--pv-safe-${side}`, insets[index]));
       win.dispatchEvent(new win.Event("pv-safe-area"));
     } catch (_) { /* a frame we cannot reach keeps HA's layout */ }
   }
   function unpin() {
     if (!pinned) return;
-    pinned = false;
+    pinned = false; probed = false; safe = "";
     try {
       const el = win.frameElement;
       if (frameStyle === null) el.removeAttribute("style"); else el.setAttribute("style", frameStyle);
@@ -276,17 +293,25 @@ export function beginIngressKiosk(win) {
     renewedAt = Date.now();
     send("home-assistant/unsubscribe-properties");
     subscribed = send("home-assistant/subscribe-properties", {kioskMode: true});
+    scheduleFit();
   }
-  // A wall screen gets no tap after a Core restart: check every few seconds and on resize.
-  const watch = win.setInterval?.(() => { reassert(); fitScreen(); }, 5000);
+  // A wall screen gets no tap after a Core restart: check the kiosk every few seconds (one rect read, nothing
+  // written while full screen). Fitting the frame follows geometry events instead (scheduleFit).
+  const watch = win.setInterval?.(reassert, 5000);
+  const onVisibility = () => { reassert(); if (win.document?.visibilityState !== "hidden") scheduleFit(); };
+  const parentViewport = (() => {
+    try { return win.frameElement?.ownerDocument?.defaultView?.visualViewport || null; } catch (_) { return null; }
+  })();
   win.addEventListener("message", onProperties);
   win.addEventListener("pagehide", onPageHide);
   win.addEventListener("pageshow", onPageShow);
   win.addEventListener("focus", reassert);
   win.addEventListener("online", reassert);
   win.addEventListener("resize", reassert);
-  win.addEventListener("resize", fitScreen);
-  win.document?.addEventListener?.("visibilitychange", reassert);
+  win.addEventListener("resize", scheduleFit);
+  win.addEventListener("orientationchange", scheduleFit);
+  parentViewport?.addEventListener?.("resize", scheduleFit);
+  win.document?.addEventListener?.("visibilitychange", onVisibility);
   subscribe();
   fitScreen();
   return () => {
@@ -299,10 +324,14 @@ export function beginIngressKiosk(win) {
     win.removeEventListener("focus", reassert);
     win.removeEventListener("online", reassert);
     win.removeEventListener("resize", reassert);
-    win.removeEventListener("resize", fitScreen);
+    win.removeEventListener("resize", scheduleFit);
+    win.removeEventListener("orientationchange", scheduleFit);
+    parentViewport?.removeEventListener?.("resize", scheduleFit);
+    if (fitFrame) win.cancelAnimationFrame?.(fitFrame);
+    fitFrame = 0;
     unpin();
     win.clearInterval?.(watch);
-    win.document?.removeEventListener?.("visibilitychange", reassert);
+    win.document?.removeEventListener?.("visibilitychange", onVisibility);
     session.active = false; if (kioskSessions.get(win) === session) kioskSessions.delete(win);
   };
 }
