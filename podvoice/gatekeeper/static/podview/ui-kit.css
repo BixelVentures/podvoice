@@ -1260,7 +1260,7 @@ pv-widget-host[data-view=active] .player.pv-card>.output{border-radius:var(--pv-
 
 /* Button state contract: only the exact owner's current attributes can paint
    a persistent state. Press/release remains owned by attachPressedState. */
-.pv-kit.pv-kit-button{transition:background-color var(--pv-d-fast) var(--pv-ease),color var(--pv-d-fast) var(--pv-ease),box-shadow var(--pv-d-fast) var(--pv-ease)}
+.pv-kit.pv-kit-button{transition:background-color var(--pv-d-fast) var(--pv-ease),color var(--pv-d-fast) var(--pv-ease)}
 .pv-kit.pv-kit-button:is([aria-pressed=true],[aria-checked=true],[data-selected=true]){background:var(--pv-button-tint)!important;color:var(--pv-tint-ink)!important;box-shadow:inset 0 0 0 2px var(--pv-tint-ink)}
 .pv-kit.pv-kit-button[aria-busy=true]:not(.result-play){position:relative;cursor:progress;opacity:1}
 /* The 24 px Icon-sized mark stays inside the Button's existing 32 px inset.
@@ -2905,9 +2905,9 @@ body{font-family:var(--pv-font)}
    and opacity only, compositor-run) and writes no class or attribute, so no selector here depends on a press.
    CSS keeps only the resting transitions; there is no press overlay or ripple pseudo-element. */
 body :is(button,a[href],summary,[role=button]){
- transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out)!important}
+ transition:scale var(--pv-spring-quick)!important}
 body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:scale var(--pv-spring-quick),
- box-shadow var(--pv-dur-quick) var(--pv-ease-out),opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
+ opacity var(--pv-dur-quick) var(--pv-ease-out)!important}
 
 /* P6 state (docs/MOTION.md §3.7), written by setKitButtonState in ui/kit.js. The chosen outcome shows at once;
    a request that runs longer than 400 ms fades its spinner in (and the icon it replaces out), so fast commands
@@ -2924,11 +2924,11 @@ body :is(button,a[href],summary,[role=button])[data-pv-press=quiet]{transition:s
 :root[data-pv-motion=reduced] .pv-kit-choice-group[data-choice-variant=level][aria-busy=true]>legend::after{
  animation:var(--pv-busy-spinner)!important}
 body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state]{
- transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
+ transition:scale var(--pv-spring-quick),
   background-color var(--pv-dur-quick) var(--pv-ease-out),color var(--pv-dur-quick) var(--pv-ease-out),
   border-color var(--pv-dur-quick) var(--pv-ease-out)!important}
 body :is(button,a[href],summary,[role=button]).pv-kit[data-pv-state=error]{
- transition:scale var(--pv-spring-quick),box-shadow var(--pv-dur-quick) var(--pv-ease-out),
+ transition:scale var(--pv-spring-quick),
   background-color var(--pv-dur-base) var(--pv-ease-out),color var(--pv-dur-base) var(--pv-ease-out),
   border-color var(--pv-dur-base) var(--pv-ease-out)!important}
 .pv-kit[data-pv-state=done]{animation:pv-tick var(--pv-spring-snappy)}
@@ -4008,8 +4008,7 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
  #music-detail #queue>.queue-track>.queue-order>img{
    width:20px!important;height:20px!important;}
  #music-detail #queue>.queue-track>.queue-cover{
-   width:56px!important;height:56px!important;border-radius:8px!important;object-fit:cover;
-   transition:box-shadow .25s ease;}
+   width:56px!important;height:56px!important;border-radius:8px!important;object-fit:cover;}
  #music-detail #queue>.queue-track>.queue-copy{
    min-width:0;}
  #music-detail #queue>.queue-track>.queue-copy>strong{

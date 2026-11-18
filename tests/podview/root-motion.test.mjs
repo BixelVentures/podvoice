@@ -155,7 +155,7 @@ test('opening and returning move only the actual incoming pane at normal scale a
  const f=navigationFixture();f.photo.hidden=true;f.overview.hidden=false;
  const open=f.motion.capture('now','weather');f.overview.hidden=true;f.detail.hidden=false;f.motion.enter('now','weather',open);
  assert.equal(f.motion.animations.size,1);assert.equal(f.heading.animations.length,0);assert.equal(f.overview.hidden,true);assert.equal(f.player.animations.length,0);
- const animation=f.detail.animations[0];assert.equal(animation.options.duration,661);assert.equal(animation.options.delay,0);assert.match(animation.options.easing,/^linear\(/);assert.deepEqual(animation.frames,[{opacity:.65,transform:'translateX(48px)',offset:0},{opacity:1,offset:.85},{opacity:1,transform:'none',offset:1}]);
+ const animation=f.detail.animations[0];assert.equal(animation.options.duration,661);assert.equal(animation.options.delay,0);assert.match(animation.options.easing,/^cubic-bezier\(/);assert.deepEqual(animation.frames,[{opacity:.65,transform:'translateX(48px)',offset:0},{opacity:1,offset:.85},{opacity:1,transform:'none',offset:1}]);
  const back=f.motion.capture('weather','now');f.detail.hidden=true;f.overview.hidden=false;f.motion.enter('weather','now',back,true);
  assert.equal(f.feed.scrollTop,53);assert.equal(animation.cancelled,1);assert.equal(f.motion.animations.size,1);assert.deepEqual(f.overview.animations[0].frames,[{opacity:.65,transform:'translateX(-48px)',offset:0},{opacity:1,offset:.85},{opacity:1,transform:'none',offset:1}]);assert(f.cards.every(card=>card.animations.length===0));assert.equal(f.player.animations.length,0);f.motion.cancel();
 }));
@@ -271,7 +271,7 @@ test('reduced Ro crossings preserve both routes with120ms pane fades and no play
 
 test('one notification enters, changes once, ignores repeated copy and retains content until its exit finishes',async()=>{
  const f=fixture(),animations=[],node={dataset:{source:'connection'},textContent:'Forbinder',hidden:true,getClientRects(){return this.hidden?[]:[box];},animate(frames,options){let finish;const a={frames,options,cancelled:0,finished:new Promise(done=>finish=done),cancel(){this.cancelled++;},finish(){finish();}};animations.push(a);return a;}};
- f.motion.feedback(node,true);assert.equal(node.hidden,false);assert.equal(animations.length,1);assert.equal(animations[0].options.duration,557);assert.match(animations[0].options.easing,/^linear\(/);f.motion.feedback(node,true);assert.equal(animations.length,1,'unchanged queue observation never restarts feedback');
+ f.motion.feedback(node,true);assert.equal(node.hidden,false);assert.equal(animations.length,1);assert.equal(animations[0].options.duration,557);assert.match(animations[0].options.easing,/^cubic-bezier\(/);f.motion.feedback(node,true);assert.equal(animations.length,1,'unchanged queue observation never restarts feedback');
  node.textContent='Offline';f.motion.feedback(node,true);assert.equal(animations.length,2);assert.equal(animations[0].cancelled,1);assert.equal(animations[1].options.duration,120);assert(animations[1].frames.every(frame=>Object.keys(frame).length===1),'notice replacement settles quietly without moving');
  f.motion.feedback(node,false);assert.equal(node.hidden,false);assert.equal(node.textContent,'Offline');const exit=animations.at(-1);f.motion.feedback(node,false);assert.equal(animations.at(-1),exit);exit.finish();await Promise.resolve();assert.equal(node.hidden,true);f.motion.cancel();
 });

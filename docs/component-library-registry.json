@@ -2338,6 +2338,7 @@
           "function:showProgress": 1,
           "function:showValue": 1,
           "function:simplify": 1,
+          "function:springBezier": 1,
           "function:springCurve": 1,
           "function:springParams": 1,
           "function:stepResponse": 1,
