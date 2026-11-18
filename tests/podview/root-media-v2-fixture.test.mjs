@@ -4,13 +4,13 @@ import {Readable} from 'node:stream';
 import {EventEmitter} from 'node:events';
 import {fixtureRequest} from '../../scripts/live-fixture.mjs';
 import {mediaV2Room as room,mediaV2Boot as bootId,mediaV2Account as account,mediaV2Phases,mediaV2Fixture} from '../../scripts/media-v2-fixture.mjs';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {roomObservationCurrent,playbackBinding,playbackObservationCurrent,roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {roomObservationCurrent,playbackBinding,playbackObservationCurrent,roomPlayerObservation} from '../../podview/media-observation.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {livePlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {speakerCatalogue} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
+import {livePlayerModel} from '../../podview/player-view.js';
+import {speakerCatalogue} from '../../podview/speaker-output-view.js';
 const request=(endpoint,body,{method=body?'POST':'GET',headers={'content-type':'application/x-www-form-urlencoded'}}={})=>new Promise((resolve,reject)=>{
  const req=Readable.from(body?[body]:[]);Object.assign(req,{url:endpoint,method,headers});let status=200,raw='';fixtureRequest(req,{setHeader(){},writeHead(value){status=value;},end(value=''){raw+=value;resolve({status,body:raw.startsWith('{')?JSON.parse(raw):raw});}}).catch(reject);
 });
@@ -31,7 +31,7 @@ test('fixed980 viewport uses the same retained productiframe and native network 
 });
 
 test('library root preview and view ingress serve identical canonical product modules through the safe static fixture owner',async()=>{
- for(const file of ['index.html','library.html','podvoice-transport.js','ui/components.css']){
+ for(const file of ['index.html','library.html','setup.html']){
   const root=await request(file==='index.html'?'/?stage=music-paused':'/'+file),ingress=await request('/view/'+(file==='index.html'?'?stage=music-paused':file));assert.equal(root.status,200,file);assert.equal(ingress.status,200,file);assert.equal(root.body,ingress.body,file+' must use identical canonical bytes');
  }
  assert.equal((await request('/../package.json')).status,404);assert.equal((await request('/view/%2e%2e/package.json')).status,404);

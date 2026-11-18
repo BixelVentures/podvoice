@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
 test('a redraw waits while the finger is down and runs right after', async () => {
-  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+  const source = await readFile(new URL('../../podview/widget-view.js', import.meta.url),
     'utf8');
   const body = source.match(/function deferForGesture\(host,kind='render'\)\{([\s\S]*?)\n\}/)[1];
   const timers = [];
@@ -37,14 +37,14 @@ test('a redraw waits while the finger is down and runs right after', async () =>
 });
 
 test('live data redraws wait for the finger; navigation redraws do not', async () => {
-  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+  const source = await readFile(new URL('../../podview/widget-view.js', import.meta.url),
     'utf8');
   assert.match(source, /renderLive\(\)\{if\(this\.touching&&deferForGesture\(this,'renderLive'\)\)return;/);
   assert.doesNotMatch(source, /render\(\)\{if\([^)]*deferForGesture\(this\)\)return;/);
 });
 
 test('cached date formatting gives the same text as toLocaleTimeString', async () => {
-  const { formatDate } = await import('../../podvoice/gatekeeper/static/podview/ui/date-format.js');
+  const { formatDate } = await import('../../podview/ui/date-format.js');
   const at = new Date('2026-11-12T19:05:00Z');
   for (const options of [{ hour: '2-digit', minute: '2-digit' },
     { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }]) {
@@ -55,7 +55,7 @@ test('cached date formatting gives the same text as toLocaleTimeString', async (
 });
 
 test('an unchanged screen sync writes nothing on the root (each root write restyles the whole page)', async () => {
-  const { ScreenLifecycle } = await import('../../podvoice/gatekeeper/static/podview/ui/screen-lifecycle.js');
+  const { ScreenLifecycle } = await import('../../podview/ui/screen-lifecycle.js');
   const writes = [];
   const values = new Map();
   const dataset = new Proxy({}, {
@@ -82,7 +82,7 @@ test('an unchanged screen sync writes nothing on the root (each root write resty
 });
 
 test('edge-drag preview writes the root only on change', async () => {
-  const source = await readFile(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url),
+  const source = await readFile(new URL('../../podview/widget-view.js', import.meta.url),
     'utf8');
   const preview = source.match(/preview:progress=>\{([\s\S]*?)\n  \}/)[1];
   assert.match(preview, /if\(this\.dataset\.edgeDrag!==drag\)/);
@@ -90,7 +90,7 @@ test('edge-drag preview writes the root only on change', async () => {
 });
 
 test('the player refresh waits while a finger is down and runs right after', async () => {
-  const { LiveMediaView } = await import('../../podvoice/gatekeeper/static/podview/live-media-view.js');
+  const { LiveMediaView } = await import('../../podview/live-media-view.js');
   const source = LiveMediaView.prototype.render.toString();
   const waits = /if\(this\.host\.touching\)\{/;
   assert.match(source, waits);

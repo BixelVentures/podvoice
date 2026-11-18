@@ -4,12 +4,12 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {newConnection,connectionStep,connectionPhase,liveStatusOf,canAct}
- from '../../podvoice/gatekeeper/static/podview/connection-model.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
-import {AnswerAutoReturn,CANCELLED_LIMIT} from '../../podvoice/gatekeeper/static/podview/ui/answer-auto-return.js';
+ from '../../podview/connection-model.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {connectionPresentation} from '../../podview/podvoice-view.js';
+import {PlayerView} from '../../podview/player-view.js';
+import {LiveRadioView} from '../../podview/live-radio-view.js';
+import {AnswerAutoReturn,CANCELLED_LIMIT} from '../../podview/ui/answer-auto-return.js';
 
 const run=(...types)=>types.reduce((s,type)=>connectionStep(s,typeof type==='string'?{type}:type),newConnection());
 
@@ -59,7 +59,7 @@ test('bug: a 403 block survives restart(); only an explicit retry lifts it',asyn
 });
 
 function widgetMethods(){
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
  const start=source.indexOf(' deferConnecting(status){'),end=source.indexOf(' // The browser\'s network flag');
  return new Function(`return {${source.slice(start,end)}};`)();
 }

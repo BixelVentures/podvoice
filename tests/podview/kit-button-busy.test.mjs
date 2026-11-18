@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createKitComponent,runKitButtonAction} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import {createKitComponent,runKitButtonAction} from '../../podview/ui/kit.js';
 
 class Element extends EventTarget{
  constructor(tag){super();this.tagName=tag.toUpperCase();this.className='';this.attributes=new Map();this.dataset={};
@@ -50,14 +50,14 @@ test('owner-held feedback choice is kept and the kit styles busy and disabled on
  const button=createKitComponent('button',{document,text:'Afspil',feedback:'label'});
  void runKitButtonAction(button,()=>new Promise(()=>{}));
  assert.equal(button.dataset.feedback,'label');
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  assert.ok(css.includes('.pv-kit.pv-kit-button[aria-busy=true]:not(.result-play)::after{'),'one spinner for every busy Button');
  assert.ok(css.includes('.pv-kit.pv-kit-button[data-kit=button]:is(:disabled,[aria-disabled=true]):not([aria-busy=true]){'),
   'one disabled style for every Button');
 });
 
 test('async Buttons without an owner pending model use the kit busy contract',()=>{
- const root=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+ const root=new URL('../../podview/',import.meta.url);
  const read=name=>readFileSync(new URL(name,root),'utf8');
  assert.ok(read('live-music-selection-view.js').includes('runKitButtonAction(this.confirmButton,()=>this.send())'));
  assert.ok(read('speaker-output-view.js').includes('runKitButtonAction(this.refresh,()=>this.open())'));
@@ -65,7 +65,7 @@ test('async Buttons without an owner pending model use the kit busy contract',()
 });
 
 test('a control the user cannot use is disabled without a spinner and re-enables with its dependency',()=>{
- const root=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+ const root=new URL('../../podview/',import.meta.url);
  const read=name=>readFileSync(new URL(name,root),'utf8');
  assert.ok(read('room-player-controls.js').includes('const busy=!node?.disabled&&('),'transport spinner only on usable buttons');
  assert.ok(read('timer-view.js').includes('loading:!disabled&&!!(pending'),'timer ±1 min');

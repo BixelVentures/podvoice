@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Readable} from 'node:stream';
 import {fixtureRequest} from '../../scripts/live-fixture.mjs';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {roomObservationCurrent,roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {roomObservationCurrent,roomPlayerObservation} from '../../podview/media-observation.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {accountPlaylistsSample,collectionCurrent,collectionSelection,directTargets,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
+import {accountPlaylistsSample,collectionCurrent,collectionSelection,directTargets,selectionOffer,selectionCurrent} from '../../podview/music-selection-model.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
 const request=(endpoint,body,{method=body?'POST':'GET',headers={'content-type':'application/json','x-podview-request':'1'}}={})=>new Promise((resolve,reject)=>{
  const req=Readable.from(body?[JSON.stringify(body)]:[]);Object.assign(req,{url:endpoint,method,headers});let text='',status=200;
  fixtureRequest(req,{setHeader(){},writeHead(value){status=value;},end(value=''){text+=value;resolve({status,body:text.startsWith('{')?JSON.parse(text):text});}}).catch(reject);

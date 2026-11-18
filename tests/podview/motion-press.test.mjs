@@ -1,3 +1,4 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -5,11 +6,11 @@ import {readFileSync} from 'node:fs';
 // P3 press (docs/MOTION.md) in the delivered stylesheet. ui/pressed-state.js animates the pressed control with Web
 // Animations; tests/podview/root-pressed-state.test.mjs covers the timing and tests/browser/press_actual_e2e.cjs
 // measures it frame by frame.
-const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/podview.css',import.meta.url),'utf8')
+const css=deliveredStylesheet()
  .replace(/\/\*[\s\S]*?\*\//g,'');
 const rules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([,selector,body])=>({
  selector:selector.replace(/\s+/g,' ').trim(),body:body.replace(/\s+/g,' ').trim()}));
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui/pressed-state.js',import.meta.url),
+const source=readFileSync(new URL('../../podview/ui/pressed-state.js',import.meta.url),
  'utf8');
 
 test('no selector depends on a press: no class, attribute or custom property is written for it',()=>{

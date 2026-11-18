@@ -22,7 +22,7 @@ class Node extends EventTarget{
 }
 globalThis.HTMLElement=Node;
 globalThis.document={createElement:tag=>new Node(tag)};
-const {RobotControlPanel}=await import('../../podvoice/gatekeeper/static/podview/robot-control-panel.js');
+const {RobotControlPanel}=await import('../../podview/robot-control-panel.js');
 const task=()=>({domain:'vacuum',mapName:'Stueetagen',options:[{id:'start-option',label:'Start rengøring',action:'start',argsSchema:{kind:'cleaning',areas:[{id:'area-k',label:'Køkken'},{id:'area-s',label:'Stue'}],repeat:{min:1,max:3}}},{id:'fan-option',label:'Sugestyrke',action:'set_option',argsSchema:{kind:'choice',choices:[{id:'fan-quiet',label:'quiet'},{id:'fan-max',label:'max'}]}}]});
 const device={status:'docked',battery:null,observedAt:1770000000};
 const emit=(node,type)=>{if(type==='click'&&node.type==='radio'){if(node.disabled)return;for(const input of node.parentNode.parentNode.querySelectorAll('input'))input.checked=input===node;return node.dispatchEvent(new Event('change',{cancelable:true}));}return node.dispatchEvent(new Event(type,{cancelable:true}));};

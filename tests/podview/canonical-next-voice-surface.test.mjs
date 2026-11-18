@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {voiceStatus} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import { VoiceSurface, voicePresentation } from '../../podvoice/gatekeeper/static/podview/voice-surface.js';
+import {voiceStatus} from '../../podview/podvoice-view.js';
+import { VoiceSurface, voicePresentation } from '../../podview/voice-surface.js';
 
 const flush = async () => { await Promise.resolve(); await Promise.resolve(); };
 

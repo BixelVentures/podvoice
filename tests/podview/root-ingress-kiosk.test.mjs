@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {beginIngressKiosk,beginIngressRoot} from '../../podvoice/gatekeeper/static/podview/ingress-kiosk.js';
+import {beginIngressKiosk,beginIngressRoot} from '../../podview/ingress-kiosk.js';
 
 const origin='https://ha.example',panel='/23375871_podvoice';
 function frame(pathname=panel, ingressPage='') {

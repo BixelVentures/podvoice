@@ -1,9 +1,9 @@
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MusicResults,sourceMusicCards} from '../../podvoice/gatekeeper/static/podview/music-results.js';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {MUSIC_THEMES,moodPreview} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
+import {MusicResults,sourceMusicCards} from '../../podview/music-results.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+import {MUSIC_THEMES,moodPreview} from '../../podview/music-selection-model.js';
 
 const ai='theme-art/cooking/'+'a'.repeat(64)+'.webp';
 const cover={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/actual'};
@@ -101,7 +101,7 @@ test('static paths are admitted only for their exact canonical theme and only in
 test('failed mood cache survives reentry but actual visible retry recovers three cards without reload or artwork completion',()=>{
  const f=surface(),reads=[];f.host.liveSnapshot.capabilities={musicRead:['mood','targets'],musicSelection:true};f.host.liveSnapshot.voice={};f.host.liveTransport.connected=true;f.host.musicResults=f.view;f.host.isConnected=true;
  const catalogue=new LiveMusicCatalogueView(f.host,kind=>{f.host.liveMusicGeneration=(f.host.liveMusicGeneration||0)+1;reads.push([kind,catalogue.pendingRead.reason]);});f.host.liveCatalogue=catalogue;catalogue.account='one';catalogue.updateCapabilities(true,f.host.liveSnapshot.capabilities.musicRead);
- const code=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=code.indexOf(' music(event){'),end=code.indexOf("  if(event.type==='refresh'){this.musicRefresh",start);f.host.music=new Function('event',code.slice(start+' music(event){'.length,end));
+ const code=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=code.indexOf(' music(event){'),end=code.indexOf("  if(event.type==='refresh'){this.musicRefresh",start);f.host.music=new Function('event',code.slice(start+' music(event){'.length,end));
  const click=code.match(/refresh.addEventListener\('click',\(\)=>this.music\((\{type:'refresh'\})\)\)/);assert.ok(click);const retryClick=new Function('return ()=>this.music('+click[1]+')').call(f.host),label=f.host.ownerDocument.createElement('span');f.view.refresh.querySelector=()=>label;
  const body={ok:true,schema:'podview.mood-preview.v1',preview:{bootId:'boot',roomId:'room',configEntryId:'one',ownerEpoch:'epoch',source:'spotify_web_api',voiceSessionId:null,voiceTurnId:null,readOnly:true,expiresIn:60},data:{config_entry_id:'one',owner_epoch:'epoch',source:'spotify_web_api',tracks:['cooking','italian','calm'].map((themeId,index)=>({uri:'spotify:playlist:'+String(index).padStart(22,'0'),name:'Authored playlist '+index,artist:MUSIC_THEMES[themeId][0],themeTitle:MUSIC_THEMES[themeId][0],themeId,themeArt:MUSIC_THEMES[themeId][1]}))}};
  try{catalogue.select('mood');catalogue.failure('mood','authored503');catalogue.setBusy(false);const entry=catalogue.entries.get(catalogue.key());assert.equal(f.view.empty.textContent,'Kunne ikke hente forslag. Prøv igen.');assert.equal(label.textContent,'Prøv igen');assert.equal(f.view.refresh.disabled,false);

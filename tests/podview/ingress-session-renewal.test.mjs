@@ -2,9 +2,9 @@
 // PodView renews quietly and keeps recovering by itself (a wall screen never needs a tap), never a raw 401.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {replaceWhenAdmitted} from '../../podvoice/gatekeeper/static/podview/ingress-kiosk.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {connectionPresentation} from '../../podview/podvoice-view.js';
+import {replaceWhenAdmitted} from '../../podview/ingress-kiosk.js';
 
 const snap=()=>({schema:'podview.snapshot.v1',bootId:'boot',revision:1,roomId:'room',voice:{active:false},
  timers:{status:'observed',items:[],epoch:1},capabilities:{musicRead:[],timerActions:[],musicSelection:false,

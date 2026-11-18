@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {weatherAdvice} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';
+import {weatherAdvice} from '../../podview/weather-observation.js';
 const now=Date.parse('2026-10-15T08:45:00Z');
 const weather={source:'Home Assistant / Met.no',retrievedAt:'2026-10-15T08:44:00Z',forecastType:'hourly',units:{temperature:'°C',windSpeed:'km/h',precipitation:'mm'},forecast:[{datetime:'2026-10-15T09:00:00Z',temperature:12}]};
 const advice={id:'advice:'+'a'.repeat(32),ruleVersion:'next-hour-clothing-v1',source:weather.source,retrievedAt:weather.retrievedAt,periodTime:weather.forecast[0].datetime,evidence:[{field:'temperature',value:12,unit:'°C',normalizedValue:12,normalizedUnit:'°C'}],kind:'practical_guidance',scope:'next_hourly_period',summary:'En jakke kan være rar at have med.',children:'Tag en jakke med.',validUntil:Date.parse('2026-10-15T08:59:00Z')/1000};

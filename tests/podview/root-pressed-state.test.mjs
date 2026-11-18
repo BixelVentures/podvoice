@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {attachPressedState,pressScale} from '../../podvoice/gatekeeper/static/podview/ui/pressed-state.js';
+import {attachPressedState,pressScale} from '../../podview/ui/pressed-state.js';
 
 // P3 press (docs/MOTION.md): Web Animations on the pressed control only. The fake nodes have no classList,
 // setAttribute or style, so any class, attribute or inline-style write would throw.

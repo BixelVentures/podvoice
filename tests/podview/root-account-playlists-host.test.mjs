@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const code=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const code=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const start=code.indexOf(' async loadLiveMusic('),end=code.indexOf('\n connectGestures()',start);
 const load=new Function(`return ({${code.slice(start,end)}}).loadLiveMusic`)();
 function host(){

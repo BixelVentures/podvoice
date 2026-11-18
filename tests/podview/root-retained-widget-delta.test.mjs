@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {updateResourceTile,updateResourceFacts} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
+import {updateResourceTile,updateResourceFacts} from '../../podview/ui/resource-tile.js';
 
 // Deliberately counts even a redundant property/attribute write. This is a
 // deterministic DOM adapter test, not a browser MutationObserver or device QA.
@@ -69,7 +69,7 @@ test('resource tile repeats write nothing; one changed detail touches only its t
 test('canonical library keeps nodes/focus/disclosure on identical observations and updates authority without DOM churn',async()=>{
  const previous={HTMLElement:globalThis.HTMLElement,document:globalThis.document,customElements:globalThis.customElements,CustomEvent:globalThis.CustomEvent};const registry=new Map();globalThis.HTMLElement=RetainedNode;globalThis.document=documentFixture;globalThis.customElements={define:(name,ctor)=>registry.set(name,ctor)};globalThis.CustomEvent=class extends Event{constructor(type,options){super(type,options);this.detail=options.detail;}};
  try{
-  await import('../../podvoice/gatekeeper/static/podview/ui/library/components.js');
+  await import('../../podview/ui/library/components.js');
   const create=tag=>{const C=registry.get(tag),node=new C();node.localName=tag;return node;};
   const robot=create('pv-vacuum-widget');const first={connected:true,state:'ready',title:'Roborock',detail:'I basen',text:'72 %',context:{sessionId:'s1',taskId:'t1',revision:1,resourceId:'vacuum.qrevo'},actions:[{id:'resume',optionId:'option-old',label:'Fortsæt'}]};robot.data=clone(first);const action=robot.actions.children[0],icon=robot.visual.children[0];action.focus();robot.scrollTop=37;clean();
   for(let i=0;i<20;i++)robot.data={...clone(first),observedAt:i,context:{...first.context,revision:10+i}};
@@ -88,7 +88,7 @@ test('canonical library keeps nodes/focus/disclosure on identical observations a
 test('all four visual families preserve unchanged DOM and disclosure while source admission stays current',async()=>{
  const previous={HTMLElement:globalThis.HTMLElement,document:globalThis.document,customElements:globalThis.customElements,CustomEvent:globalThis.CustomEvent};const registry=new Map();globalThis.HTMLElement=RetainedNode;globalThis.document=documentFixture;globalThis.customElements={define:(name,ctor)=>registry.set(name,ctor)};globalThis.CustomEvent=class extends Event{constructor(type,options){super(type,options);this.detail=options.detail;}};
  try{
-  await import('../../podvoice/gatekeeper/static/podview/ui/library/visual-components.js?retained-delta');const {visualExamples}=await import('../../podvoice/gatekeeper/static/podview/visual-examples.js');
+  await import('../../podview/ui/library/visual-components.js?retained-delta');const {visualExamples}=await import('../../podview/visual-examples.js');
   for(const family of ['fact-card','sourced-image','answer-timeline','simple-diagram']){
    const C=registry.get(`pv-${family}`),view=new C();view.localName=`pv-${family}`;const input={state:'ready',content:clone(visualExamples[family].content)};view.data=input;const row=view.list?.children[0],image=view.image;view.sources.open=true;view.sources.children[0].focus();const focus=document.activeElement;clean();
    for(let i=0;i<20;i++)view.data={...clone(input),observedAt:i,context:{revision:i}};

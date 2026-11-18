@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {voicePresentation} from '../../podvoice/gatekeeper/static/podview/voice-surface.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {voicePresentation} from '../../podview/voice-surface.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 import {PodVoiceTransport as OldTransport} from './fixtures/podvoice31/podvoice-transport.js';
 const pending={roomId:'kitchen',sessionId:'session',turnId:'turn',taskId:'task',inputRevision:2,revision:7};
 const voice={active:true,phase:'AI_SPEAKING',sessionId:'session',turnId:'voice-turn'};

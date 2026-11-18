@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const admission={kind:'ha_ingress',authenticated:true};
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',revision:1,roomId:'room',voice:{active:false},timers:{status:'observed',items:[],epoch:'epoch'},capabilities:{musicRead:['targets'],timerActions:['timer.start'],controlSetup:['music'],musicSelection:true,queueSelection:true},controllerContinuity:{enabled:true,available:true},admission});
 function rig(value=snapshot(),status=200){const calls=[];let channels=0,locks=0;class Stream{addEventListener(name,fn){this[name]=fn;}close(){}}const transport=new PodVoiceTransport({url:'https://inert.invalid/view/',EventSource:Stream,BroadcastChannel:class{constructor(){channels++;}close(){}},locks:{request(){locks++;throw Error('unexpected coordination');}},crypto:{subtle:{digest:async()=>new Uint8Array(32)},randomUUID:()=> 'peer'},fetch:async(url,init)=>{calls.push({path:new URL(url).pathname,method:init.method||'GET'});if(init.method)throw Error('offline send');return {ok:status===200,status,json:async()=>value};}});return {transport,calls,channels:()=>channels,locks:()=>locks};}

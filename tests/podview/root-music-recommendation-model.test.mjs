@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {musicSourcePage} from '../../podvoice/gatekeeper/static/podview/music-recommendation-model.js';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {collectionCurrent,selectionOffer,selectionCurrent,renewCollectionSelection} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
+import {musicSourcePage} from '../../podview/music-recommendation-model.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+import {collectionCurrent,selectionOffer,selectionCurrent,renewCollectionSelection} from '../../podview/music-selection-model.js';
 const track=(index,artist)=>({uri:'spotify:track:'+String(index).padStart(22,'0'),name:'Source '+index,artist,artwork:{kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/cover'+index}});
 const rows=()=>[track(0,'A'),track(1,'A'),track(2,'A'),track(3,'B'),track(4,'B'),track(5,'C'),track(0,'A')];
 const snapshot=()=>({bootId:'boot',roomId:'room',capabilities:{musicRead:['top','recent','targets'],musicSelection:true},answers:{},voice:{}});

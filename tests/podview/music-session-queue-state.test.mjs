@@ -3,13 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
  MUSIC_SESSION_PHASES,newMusicSession,musicSession,controlsBlocked,musicSessionFromFeedback,playbackFreshness,
-} from '../../podvoice/gatekeeper/static/podview/music-session-model.js';
+} from '../../podview/music-session-model.js';
 import {
  QUEUE_PRESENTATION_PHASES,QUEUE_TROUBLE_MS,newQueuePresentation,queuePresentation,queueWaiting,
-} from '../../podvoice/gatekeeper/static/podview/queue-presentation-model.js';
-import {RoomPlayerControls} from '../../podvoice/gatekeeper/static/podview/room-player-controls.js';
-import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
-import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
+} from '../../podview/queue-presentation-model.js';
+import {RoomPlayerControls} from '../../podview/room-player-controls.js';
+import {LiveMediaView} from '../../podview/live-media-view.js';
+import {LiveMusicSelectionView} from '../../podview/live-music-selection-view.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -155,7 +155,7 @@ test('regression: selection hold follows the session, not the 30 s display wait'
 });
 
 test('regression: live media render no longer overwrites the controls after liveControls.render',()=>{
- const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/live-media-view.js',
+ const source=fs.readFileSync(new URL('../../podview/live-media-view.js',
   import.meta.url),'utf8');
  assert.doesNotMatch(source,/liveControls\?\.render\(\);if\(selected\)this\.host\.playerView\.renderControls/);
 });
@@ -301,7 +301,7 @@ test('regression: a pending queue choice is rendered as the choice, not as loadi
 });
 
 test('regression: player-view cleanup cancels the queue placeholders it owns',()=>{
- const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/player-view.js',
+ const source=fs.readFileSync(new URL('../../podview/player-view.js',
   import.meta.url),'utf8');
  assert.doesNotMatch(source,/queuePlaceholders/);
  assert.match(source,/\.\.\.\(this\.placeholders\|\|\[\]\)\]\.map\(row=>row\.children\[1\]\)/);

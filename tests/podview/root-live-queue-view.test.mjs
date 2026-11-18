@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveQueueView} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
-import {NotificationQueue} from '../../podvoice/gatekeeper/static/podview/ui/notification-queue.js';
+import {LiveQueueView} from '../../podview/live-queue-view.js';
+import {NotificationQueue} from '../../podview/ui/notification-queue.js';
 import {boundPlayback} from './room-fixture.mjs';
 
 function fixture(){

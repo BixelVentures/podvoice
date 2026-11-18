@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
-import {LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
+import {SpeakerOutputView} from '../../podview/speaker-output-view.js';
+import {LiveRadioView} from '../../podview/live-radio-view.js';
 class Node{
  constructor(doc){this.ownerDocument=doc;this.children=[];this.dataset={};this.attrs=new Map();this.listeners=new Map();this.classList={add(){}};this.textContent='';this.open=false;}
  append(...nodes){for(const n of nodes){n.parentNode=this;this.children.push(n);}}

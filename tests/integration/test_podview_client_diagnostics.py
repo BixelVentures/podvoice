@@ -422,7 +422,7 @@ t.recordDiagnostic('control_setup',{code:'start'});await t.flushDiagnosticUpload
 t.recordDiagnostic('control_intent',{code:'start',domain:'music',action:'resume'});offset+=11000;await t.flushDiagnosticUpload();assert.equal(requests[1].status,200);assert.notEqual(requests[0].body.batchId,requests[1].body.batchId);const action=requests[1].body.records.find(r=>r.stage==='control_intent');assert(action);assert(t.diagnosticUploadAcked.has(action.seq));t.close();console.log(JSON.stringify(requests.map(x=>({status:x.status,batchId:x.body.batchId}))));
 """
     source = (
-        Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/podvoice-transport.js"
+        Path(__file__).parents[2] / "podview/podvoice-transport.js"
     ).as_uri()
     process = await asyncio.create_subprocess_exec(
         "node",

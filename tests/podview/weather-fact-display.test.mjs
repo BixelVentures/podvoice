@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {weatherFactDisplay} from '../../podvoice/gatekeeper/static/podview/weather-fact-display.js';
+import {weatherFactDisplay} from '../../podview/weather-fact-display.js';
 const answer=()=>({live:true,kind:'fact-card',receiptId:'actual-receipt',ownerReceiptIds:['actual-receipt'],provenance:{kind:'ha_weather',source:'Met.no',validUntil:123},content:{summary:'Vejret i Mårslet',sources:[{id:'source:actual',kind:'owner_receipt',receiptId:'actual-receipt'}],facts:[{id:'temp',sourceId:'source:actual',label:'Temperatur',value:'15.1 °C',detail:'Aktuel måling'},{id:'condition',sourceId:'source:actual',label:'Vejrforhold',value:'partlycloudy',detail:'Aktuel måling'}]}});
 const freeze=value=>{if(value&&typeof value==='object'){Object.freeze(value);Object.values(value).forEach(freeze);}return value;};
 test('typed owned weather receives shared Danish display while canonical values and provenance stay immutable',()=>{
@@ -28,7 +28,7 @@ test('existing actual fact-widget renderer receives display copy and retains can
  const oldElement=globalThis.HTMLElement,oldRegistry=globalThis.customElements,registry=new Map();
  globalThis.HTMLElement=class{};globalThis.customElements={define:(name,type)=>registry.set(name,type),get:name=>registry.get(name)};
  try{
-  await import('../../podvoice/gatekeeper/static/podview/answer-widget.js');
+  await import('../../podview/answer-widget.js');
   const nodes=new Map(),q=key=>{if(!nodes.has(key))nodes.set(key,{hidden:false});return nodes.get(key);};
   const a=answer();a.status='ready';a.readConnected=true;
   const host={querySelector:q,dataset:{},visualNode:{localName:'pv-fact-card'}};

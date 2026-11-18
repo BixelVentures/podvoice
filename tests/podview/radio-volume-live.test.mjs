@@ -2,8 +2,8 @@
 // rejected value returns the slider to the observed volume with a short message.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
-import {stations,ownerStationIds,radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {LiveRadioView} from '../../podview/live-radio-view.js';
+import {stations,ownerStationIds,radioStation} from '../../podview/radio-model.js';
 
 const now=Date.now(),snapshot={bootId:'boot',roomId:'room'};
 const value=()=>({ok:true,schema:'podview.radio.v1',...snapshot,revision:1,enabled:true,blockedReasons:[],

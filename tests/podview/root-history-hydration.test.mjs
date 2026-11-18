@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LiveAnswerView,answerReadContext } from '../../podvoice/gatekeeper/static/podview/live-answer-view.js';
-import * as answerOwner from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
+import { LiveAnswerView,answerReadContext } from '../../podview/live-answer-view.js';
+import * as answerOwner from '../../podview/owner-answers.js';
 const historicalAnswers=(...args)=>answerOwner.historicalAnswers(...args);
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {visualExamples} from '../../podvoice/gatekeeper/static/podview/visual-examples.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {visualExamples} from '../../podview/visual-examples.js';
 
 class Node extends EventTarget {
   constructor(tag) {

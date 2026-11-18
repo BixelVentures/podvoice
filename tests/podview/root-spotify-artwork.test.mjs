@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {generatedMoodArtwork,spotifyArtwork,spotifyItemUrl,spotifyTrackUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
+import {generatedMoodArtwork,spotifyArtwork,spotifyItemUrl,spotifyTrackUrl,renderSpotifyArtwork,renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
 const art={kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/ab67616d0000b273abc'};
 const uri='spotify:track:0123456789ABCDEFGHIJKL';
 test('closed artwork allowlist rejects noncanonical ports, credentials, paths and executable extensions',()=>{

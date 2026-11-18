@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TimerNotice} from '../../podvoice/gatekeeper/static/podview/timer-notice.js';
-import {timerTransition} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
+import {TimerNotice} from '../../podview/timer-notice.js';
+import {timerTransition} from '../../podview/timer-model.js';
 class FakeElement {
  constructor(){this.className='';this.attributes=new Map();this.hidden=true;this.open=false;this.dataset={};this.listeners=new Map();this.textContent='';this.children=new Map();this.opens=0;this.closes=0;}
  setAttribute(key,value){this.attributes.set(key,String(value));if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}getAttribute(key){return this.attributes.get(key)??null;}

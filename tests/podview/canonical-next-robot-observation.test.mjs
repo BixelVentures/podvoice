@@ -1,6 +1,6 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {robotObservation,robotFacts,robotValue,robotActivity,robotExperience} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
-import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {robotObservation,robotFacts,robotValue,robotActivity,robotExperience} from '../../podview/robot-observation.js';
+import {validateHome,applyHome} from '../../podview/home-model.js';
 const now=()=>Date.now()/1000;
 const row=(key,value,unit=null,age=0,domain='sensor')=>({key,entityId:`${domain}.${key}`,value,unit,updatedAt:now()-age,retrievedAt:now(),stale:age>300});
 const telemetry=items=>({schema:'podview.robot.v1',status:'observed',source:'home_assistant_roborock',vacuumEntityId:'vacuum.robot',items});
@@ -27,7 +27,7 @@ test('freshness is recomputed; projections discard capabilities and commands',()
 });
 test('numeric source duration is converted only using admitted units',()=>{assert.equal(robotValue(row('cleaning_time',120,'s')),'2 min');assert.equal(robotValue(row('cleaning_time',2,'min')),'2 min');});
 
-import {robotRoom} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
+import {robotRoom} from '../../podview/robot-observation.js';
 test('cleaning room label is hidden at dock, after expiry and when room is not supplied',()=>{const device={status:'cleaning',telemetry:robotObservation(telemetry([row('current_room','Køkken')]),'vacuum.robot')};assert.equal(robotRoom(device),'Køkken');assert.equal(robotRoom({...device,status:'docked'}),null);assert.equal(robotRoom(device,now()+600),null);assert.equal(robotRoom({status:'cleaning',telemetry:{status:'observed',items:[]}}),null);});
 
 test('dock activity is shared, bounded and independent from control authority',()=>{

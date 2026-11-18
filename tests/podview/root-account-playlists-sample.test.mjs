@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {accountPlaylistsSample,collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
+import {accountPlaylistsSample,collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,selectionOffer,selectionCurrent} from '../../podview/music-selection-model.js';
 const uri=n=>'spotify:playlist:'+String(n).padStart(22,'0'),art={kind:'playlist_cover',provider:'spotify',url:'https://i.scdn.co/image/sourcecover'};
 const snapshot=()=>({bootId:'boot',roomId:'room',capabilities:{musicRead:['account_playlists'],musicSelection:true},voice:{sessionId:null},answers:{}});
 const body=(count=2)=>({ok:true,data:{ok:true,schema:'podconnect.user_playlists.v1',config_entry_id:'account',owner_epoch:'real-owner-epoch',source:'spotify_web_api',coverage:'first_page',limit:20,returned_count:count,source_has_more:true,playlists:Array.from({length:count},(_,index)=>({uri:uri(index),name:'Kildens playliste '+index,...(index===0?{artwork:art}:{})}))}});

@@ -1,7 +1,7 @@
-import {SceneMotion} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+import {SceneMotion} from '../../podview/ui/motion.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ScreenLifecycle,screenClock,safeScreenReload} from '../../podvoice/gatekeeper/static/podview/ui/screen-lifecycle.js';
+import {ScreenLifecycle,screenClock,safeScreenReload} from '../../podview/ui/screen-lifecycle.js';
 function setup(kiosk=false){
  let time=Date.parse('2026-10-20T12:00:00Z'),serial=0,reloads=0;const timers=new Map(),events=new Map(),style=new Map(),viewport={content:'width=device-width,initial-scale=1'},note={},storage=new Map();
  const doc={visibilityState:'visible',addEventListener(type,fn){events.set(type,fn);},removeEventListener(type){events.delete(type);},querySelector(selector){return selector.startsWith('meta')?viewport:null;},getElementById(){return note;}};

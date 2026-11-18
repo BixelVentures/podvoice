@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {liveScene} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {deviceActions} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {applyKitComponent} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
-import {resourceOverviewAction,applyResourceFactBudget} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
+import {liveScene} from '../../podview/podvoice-view.js';
+import {deviceActions} from '../../podview/scene-model.js';
+import {applyKitComponent} from '../../podview/ui/kit.js';
+import {resourceOverviewAction,applyResourceFactBudget} from '../../podview/ui/resource-tile.js';
 
 // Execute the actual WidgetHost method with native-DOM ports. The owner below is
 // inert: it records intent and closes its offered lane; it cannot call a service.
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.slice(source.indexOf(' renderOverviewAction('),source.indexOf('\n openOverviewRobot(')).trim();
 class Node{
  constructor(){this.children=[];this.dataset={};this.attrs={};this.handlers={};this.hidden=false;this.inert=false;}

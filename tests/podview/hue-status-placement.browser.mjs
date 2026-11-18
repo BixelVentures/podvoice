@@ -1,6 +1,6 @@
-import '../../podvoice/gatekeeper/static/podview/widget-view.js';
-import {LightRoomView} from '../../podvoice/gatekeeper/static/podview/light-room-view.js';
-import {scopedLightDevice,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import '../../podview/widget-view.js';
+import {LightRoomView} from '../../podview/light-room-view.js';
+import {scopedLightDevice,validateHome} from '../../podview/home-model.js';
 const proto=customElements.get('pv-widget-host').prototype;
 const assert=(ok,message)=>{if(!ok)throw Error(message);};
 export async function run(){

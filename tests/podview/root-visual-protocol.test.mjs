@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialVisualConnection,visualConnectionTransition as step,validateVisualSnapshot} from '../../podvoice/gatekeeper/static/podview/visual-protocol.js';
+import {initialVisualConnection,visualConnectionTransition as step,validateVisualSnapshot} from '../../podview/visual-protocol.js';
 const snapshot=()=>({protocol_version:1,room_id:'room',display_id:'screen',session_id:'session',scene_id:'scene',task_owner_id:'owner',revision:1,expires_at:10000,widgets:[{id:'answer',family:'choice-list',task_id:'task',revision:1,allowed_actions:['choose'],options:[{id:'paper-fold'}]}]});
 const connected=()=>step(initialVisualConnection(),{type:'snapshot',generation:0,snapshot:snapshot(),now:100});
 const action=()=>({request_id:'request-1',display_id:'screen',session_id:'session',scene_id:'scene',scene_revision:1,widget_id:'answer',task_id:'task',revision:1,action_id:'choose',option_id:'paper-fold'});

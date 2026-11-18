@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
+import {SpeakerOutputView} from '../../podview/speaker-output-view.js';
 // Status = speaker (owner 17/11, 2.1.17): radio on Frida's speaker, stopped; a start in Musik took Køkkenalrum.
 // The player's speaker resolves into the music start's destination; the configured room is only the fallback.
 const binding={accountId:'a',bindingId:'b'.repeat(64),nativeHomepodId:'42',nativeRoomId:'kitchen',roomId:'room',

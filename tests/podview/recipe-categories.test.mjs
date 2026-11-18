@@ -2,7 +2,7 @@
 // rest are under »Flere«. Derived from the catalogue itself; a recipe without categories counts as »Øvrige«.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RECIPE_FILTERS,rankCategories} from '../../podvoice/gatekeeper/static/podview/recipe-view.js';
+import {RECIPE_FILTERS,rankCategories} from '../../podview/recipe-view.js';
 
 const recipe=(...categories)=>({title:categories.join('+'),categories});
 

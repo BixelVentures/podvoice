@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const source=readFileSync(new URL('../../dist/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const code=source.slice(source.indexOf(' updateHomeRevision(snapshot){'),source.indexOf(' invalidateLiveMusic('));
 const Host=new Function('validateHome','applyHome',`return class {${code}}`)((body,room,boot)=>{assert.equal(body.roomId,room);assert.equal(body.bootId,boot);return body;},(state,home)=>({...state,value:home.value}));
 const deferred=()=>{let resolve,reject;const promise=new Promise((r,j)=>{resolve=r;reject=j;});return {promise,resolve,reject}};
@@ -25,7 +25,7 @@ test('older-than-applied result is not shown and triggers one needed follow-up',
  f.calls[1].resolve(body(scope,3,'latest'));await tick();assert.equal(f.host.state.value,'latest');assert.equal(f.calls.length,2);
 });
 test('transport rejects malformed and regressing home revision fields',async()=>{
- const {PodVoiceTransport}=await import('../../dist/podvoice-transport.js');const t=new PodVoiceTransport({url:'https://ha.example/view/',diagnosticStorage:null});t.closed=false;const scope='a'.repeat(64),snapshot={schema:'podview.snapshot.v1',bootId:'boot',roomId:'room',revision:1,voice:{},timers:{status:'observed',items:[]},capabilities:{musicRead:[],timerActions:[],homeRead:['vacuum']},homeRevision:revision(scope,2)};
+ const {PodVoiceTransport}=await import('../../podview/podvoice-transport.js');const t=new PodVoiceTransport({url:'https://ha.example/view/',diagnosticStorage:null});t.closed=false;const scope='a'.repeat(64),snapshot={schema:'podview.snapshot.v1',bootId:'boot',roomId:'room',revision:1,voice:{},timers:{status:'observed',items:[]},capabilities:{musicRead:[],timerActions:[],homeRead:['vacuum']},homeRevision:revision(scope,2)};
  try{assert.equal(t.accept(snapshot),true);for(const value of [{scope:'invalid',revision:3},{scope,revision:-1},{scope,revision:2,extra:true},{scope,revision:1}])assert.equal(t.accept({...snapshot,revision:2,homeRevision:value}),false);assert.equal(t.accept({...snapshot,revision:2,homeRevision:revision(scope,3)}),true);}finally{t.close();}
 });
 

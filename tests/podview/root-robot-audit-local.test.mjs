@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LocalRobotView} from '../../podvoice/gatekeeper/static/podview/local-robot-view.js';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {LocalRobotView} from '../../podview/local-robot-view.js';
+import {previewScene} from '../../podview/preview-scenes.js';
 const fixture=()=>{const device={id:'demo-vacuum',kind:'vacuum',status:'cleaning',timeline:[]},host={live:false,previewStage:'now',state:{connected:true,focus:device.id,devices:[device]},renders:0,render(){this.renders++;}},view=Object.assign(Object.create(LocalRobotView.prototype),{host,serial:0,panel:{suggest(value){this.suggestion=value;return true;}},note:{},receipt:{},entry:{hidden:true}});host.localRobot=view;view.seed();return {view,host,device};};
 test('one active local cleaning has no future setup channel and historical selection cannot create another task',()=>{
  const {view,device,host}=fixture();view.openRobot({});const recipe=device.history.items[0],start=view.task.options.find(row=>row.action==='start');view.act({optionId:start.id,args:{areaIds:[start.argsSchema.areas[0].id],repeat:2}});view.openRobot({});const task=view.task;assert.equal(view.panel.data.nextSetup,undefined);assert.equal(view.panel.data.nextDraft,undefined);assert.equal(view.saveNextDraft,undefined);view.openRobot({},recipe.id);assert.equal(view.task,task);assert.equal(device.status,'cleaning');assert.equal(host.renders,1);const wash=view.task.options.find(row=>row.argsSchema.operation==='wash_start');view.act({optionId:wash.id,args:{}});view.openRobot({});const washingTask=view.task;view.openRobot({},recipe.id);assert.equal(view.task,washingTask,'active job during dock washing remains the only cleaning');assert.equal(view.panel.data.currentSetup.repeat,2);

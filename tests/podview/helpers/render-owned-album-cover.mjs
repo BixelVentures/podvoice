@@ -1,7 +1,7 @@
 // Shipped owner admission and image renderer; no media fetch or browser-pixel claim.
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
-import {ownedAnswers,ownedSource} from '../../../podvoice/gatekeeper/static/podview/owner-answers.js';
+import {ownedAnswers,ownedSource} from '../../../podview/owner-answers.js';
 class Element extends EventTarget {
  constructor(){super();this.children=[];this.dataset={};this.attributes=new Map();this.style={};this.classList={add(){}};this.isConnected=false;this.hidden=false;this.textContent='';}
  append(...nodes){for(const n of nodes){n.remove?.();n.parentNode=this;this.children.push(n);}}
@@ -13,7 +13,7 @@ class Element extends EventTarget {
 }
 const registry=new Map();globalThis.HTMLElement=Element;globalThis.customElements={define:(tag,type)=>registry.set(tag,type)};
 globalThis.document={createElement(tag){const n=new (registry.get(tag)||Element)();n.localName=tag;n.tagName=tag.toUpperCase();return n;}};
-await import('../../../podvoice/gatekeeper/static/podview/ui/library/visual-components.js');
+await import('../../../podview/ui/library/visual-components.js');
 export function renderAlbumCover(content,receiptId){
  const visual=document.createElement('pv-sourced-image');visual.data={state:'ready',content,ownerReceiptIds:[receiptId]};visual.isConnected=true;visual.connectedCallback();
  return visual;

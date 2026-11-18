@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {ownedAnswers,ownedSource,transcriptHistory} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';import {validateVisualContent} from '../../podvoice/gatekeeper/static/podview/visual-content.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {ownedAnswers,ownedSource,transcriptHistory} from '../../podview/owner-answers.js';import {validateVisualContent} from '../../podview/visual-content.js';
 const id='a'.repeat(32),snapshot={roomId:'room',voice:{sessionId:'session'},answers:{revision:2,sessionId:'session',turnId:'turn',taskId:'task',inputRevision:1}},now=Date.now();
 const envelope=()=>({schema:'podview.answers.v1',roomId:'room',revision:2,items:[{receiptId:id,sessionId:'session',turnId:'turn',taskId:'task',inputRevision:1,observedAt:now/1000,provenance:{kind:'tool_result'},family:'fact-card',displaySuggested:true,content:{summary:'Observeret temperatur',facts:[{id:'f',label:'Temperatur',value:'12°C',detail:'Aktuel måling',sourceId:'s'}],sources:[{id:'s',kind:'owner_receipt',receiptId:id,label:'Værktøjsresultat',scope:'tool_result',url:'https://invented.invalid'}]}}]});
 test('completed-tool facts remain session-bound and owner sources gain no invented URL',()=>{const v=envelope(),a=ownedAnswers(v,snapshot,1,now).items[0];assert.equal(a.content.sources[0].url,undefined);assert.equal(a.content.sources[0].receiptId,id);assert.throws(()=>validateVisualContent('fact-card',v.items[0].content));for(const mutate of [v=>v.roomId='other',v=>v.items[0].sessionId='old',v=>v.items[0].turnId='oldturn',v=>v.items[0].taskId='other-task',v=>v.items[0].inputRevision=0,v=>v.items[0].content.sources[0].receiptId='b'.repeat(32),v=>v.items[0].observedAt-=121,v=>v.items.push(v.items[0])]){const bad=envelope();mutate(bad);assert.throws(()=>ownedAnswers(bad,snapshot,1,now));}assert.throws(()=>ownedAnswers(v,snapshot,3,now));});
@@ -34,7 +34,7 @@ test('transcript accepts explicit role and finality without inventing turn ident
 });
 
 test('history groups completed visual answers by explicit session and excludes transcripts and unfinished or unbound items',async()=>{
- const {groupAnswerHistory}=await import('../../podvoice/gatekeeper/static/podview/owner-answers.js');
+ const {groupAnswerHistory}=await import('../../podview/owner-answers.js');
  const v={historical:true,presentation:true,status:'ready',kind:'fact-card'};
  const a={...v,id:'a',sessionId:'one'},b={...v,id:'b',sessionId:'two'},c={...v,id:'c',sessionId:'one'},d={...v,id:'d'},t={...v,id:'t',sessionId:'one',transcriptSegment:{sessionId:'one'}},u={...v,id:'u',sessionId:'one',status:'pending'},n={...v,id:'n',sessionId:'one',presentation:false};
  assert.deepEqual(groupAnswerHistory([a,b,c,d,t,u,n]).map(g=>g.items.map(x=>x.id)),[['a','c'],['b']]);

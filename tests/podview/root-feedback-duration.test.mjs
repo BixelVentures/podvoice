@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {NotificationQueue} from '../../podvoice/gatekeeper/static/podview/ui/notification-queue.js';
-import {SceneMotion} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {NotificationQueue} from '../../podview/ui/notification-queue.js';
+import {SceneMotion} from '../../podview/ui/motion.js';
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 test('one feedback notice expires after six seconds including pending; unchanged rendering never restarts it',()=>{
  const method=source.split('\n').find(line=>line.startsWith(' showFeedback(')).trim(),node={dataset:{},hidden:true,getClientRects(){return this.hidden?[]:[{}];},replaceChildren(copy){this.textContent=copy.nodeValue;}},timers=[],cleared=[];
  const show=new Function('$','NotificationQueue','applyKitComponent','document','setTimeout','clearTimeout',`return function ${method}`)(()=>node, class extends NotificationQueue {constructor(render){super(render,{setTimer:(callback,delay)=>{timers.push({callback,delay});return timers.length;},clearTimer:id=>cleared.push(id)});}},()=>{}, {createTextNode:()=>({nodeValue:''})},(callback,delay)=>{timers.push({callback,delay});return timers.length;},id=>cleared.push(id)),host={dataset:{},isConnected:true};

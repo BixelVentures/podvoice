@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {initialWidgetState,widgetTransition,resultsFor} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+import {initialWidgetState,widgetTransition,resultsFor} from '../../podview/widget-model.js';
+import {previewScene} from '../../podview/preview-scenes.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
 const body=(prefix='Actual',account='account')=>({ok:true,data:{config_entry_id:account,tracks:Array.from({length:9},(_,index)=>({name:`${prefix} ${index}`,artist:'Source artist',uri:`spotify:track:${String(index).padStart(22,'0')}`,artwork:{kind:'album_cover',provider:'spotify',url:`https://i.scdn.co/image/${prefix}${index}`}}))}});
 const content=cards=>cards.map(({id,name,description,artwork})=>({id,name,description,artwork}));
 function fixture(){const reads=[],renders=[],host={state:{focus:'music'},liveStatus:'connected',liveSnapshot:{bootId:'boot',roomId:'room'},liveTransport:{connected:true},musicResults:{render:vm=>renders.push(vm)}};const view=new LiveMusicCatalogueView(host,kind=>reads.push(kind));view.updateCapabilities(true,['top','recent','recent']);view.resetAccount('account');return {view,host,reads,renders};}
 function overviewMusicClick(host){
- const binding=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8').split('\n').find(line=>line.includes("$('home-music').addEventListener('click'"));
+ const binding=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8').split('\n').find(line=>line.includes("$('home-music').addEventListener('click'"));
  assert.ok(binding,'exercise the actual WidgetHost overview entry binding');let click;
  new Function('$',binding).call(host,id=>{assert.equal(id,'home-music');return {addEventListener(type,handler){assert.equal(type,'click');click=handler;}};});
  return ()=>click();

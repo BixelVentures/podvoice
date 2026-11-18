@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {renderRobotHistory} from '../../podvoice/gatekeeper/static/podview/live-home-view.js';
-import {LocalRobotView} from '../../podvoice/gatekeeper/static/podview/local-robot-view.js';
+import {renderRobotHistory} from '../../podview/live-home-view.js';
+import {LocalRobotView} from '../../podview/local-robot-view.js';
 
 class Node {
  constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.hidden=false;this.attributes={};this.listeners={};}
@@ -105,7 +105,7 @@ test('live robot history follows transport connectivity rather than unrelated sc
 }));
 
 test('owner-confirmed complete recipe survives projection and exposes choose again without running it',async()=>{
- const {validateHome,applyHome}=await import('../../podvoice/gatekeeper/static/podview/home-model.js');const previous=globalThis.document;try{
+ const {validateHome,applyHome}=await import('../../podview/home-model.js');const previous=globalThis.document;try{
  const record={id:'a'.repeat(32),recordedAt:now()-1,outcome:'accepted_by_ha',physicalResultVerified:false,recipe:{areaIds:['area'],mapName:'Stueplan',repeat:2,completeSetup:true}},wire={schema:'podview.home.v1',bootId:'boot',roomId:'room',revision:1,observedAt:now(),vacuum:{status:'observed',items:[{entityId:'vacuum.actual',name:'Robot',state:'docked',battery:50,observedAt:now(),source:'home_assistant_state',history:{status:'observed',source:'device_control_start_journal',items:[record]}}]}};
  const scene=applyHome({devices:[],focus:'vacuum.actual'},validateHome(wire,'room','boot'),['vacuum']),f=fixture(scene.devices[0],true);f.host.live=true;f.host.liveTransport={connected:true};f.host.isConnected=true;renderRobotHistory(f.host);assert.equal(f.timeline.data.items[0].actionLabel,'Vælg igen');assert.deepEqual(f.calls,[]);f.timeline.listeners['pv-action']({detail:{action_id:'choose-history',option_id:`robot-request:${record.id}`},target:f.timeline});assert.deepEqual(f.calls,[record.id]);
  }finally{globalThis.document=previous;}

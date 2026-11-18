@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {scrollEdgeState,ScrollEdges} from '../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js';
+import {scrollEdgeState,ScrollEdges} from '../../podview/ui/scroll-edges.js';
 test('scroll fades show remaining content and clear at each real endpoint',()=>{
  assert.equal(scrollEdgeState({position:0,viewport:300,content:300}),'');
  assert.equal(scrollEdgeState({position:0,viewport:300,content:900}),'end');
@@ -14,7 +14,7 @@ test('scroll fades show remaining content and clear at each real endpoint',()=>{
 });
 
 test('ScrollEdges tracks visibility and content changes, and removes its own effects on detach',async()=>{
- const {ScrollEdges}=await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js');
+ const {ScrollEdges}=await import('../../podview/ui/scroll-edges.js');
  const original={ResizeObserver:globalThis.ResizeObserver,MutationObserver:globalThis.MutationObserver,requestAnimationFrame:globalThis.requestAnimationFrame,cancelAnimationFrame:globalThis.cancelAnimationFrame,getComputedStyle:globalThis.getComputedStyle};
  const rafs=new Map();let nextFrame=1;
  class Observer {constructor(callback){this.callback=callback;this.targets=new Set();this.disconnected=false;Observer.instances.push(this);}observe(target){this.targets.add(target);}unobserve(target){this.targets.delete(target);}disconnect(){this.disconnected=true;this.targets.clear();}}
@@ -67,7 +67,7 @@ test('ScrollEdges tracks visibility and content changes, and removes its own eff
 });
 
 test('scroll edge observation writes only a changed axis/edge and never deletes absent attributes',async()=>{
- const {ScrollEdges}=await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js'),previous=globalThis.getComputedStyle,writes=[];const dataset=new Proxy({}, {set:(target,key,value)=>{writes.push(['set',key,value]);target[key]=value;return true;},deleteProperty:(target,key)=>{writes.push(['delete',key]);delete target[key];return true;}});const node={dataset,classList:{contains:()=>false},clientHeight:100,scrollHeight:300,scrollTop:0,getClientRects:()=>[{}],overflow:'auto'};globalThis.getComputedStyle=node=>({scrollSnapType:'none',overflowY:node.overflow});
+ const {ScrollEdges}=await import('../../podview/ui/scroll-edges.js'),previous=globalThis.getComputedStyle,writes=[];const dataset=new Proxy({}, {set:(target,key,value)=>{writes.push(['set',key,value]);target[key]=value;return true;},deleteProperty:(target,key)=>{writes.push(['delete',key]);delete target[key];return true;}});const node={dataset,classList:{contains:()=>false},clientHeight:100,scrollHeight:300,scrollTop:0,getClientRects:()=>[{}],overflow:'auto'};globalThis.getComputedStyle=node=>({scrollSnapType:'none',overflowY:node.overflow});
  try{const edges=new ScrollEdges({});edges.measure(node);assert.deepEqual(writes,[['set','scrollAxis','y'],['set','scrollEdge','end']]);writes.length=0;for(let i=0;i<20;i++)edges.measure(node);assert.equal(writes.length,0);node.scrollTop=200;edges.measure(node);assert.deepEqual(writes,[['set','scrollEdge','start']]);writes.length=0;node.overflow='visible';edges.measure(node);assert.deepEqual(writes,[['delete','scrollAxis'],['delete','scrollEdge']]);writes.length=0;for(let i=0;i<20;i++)edges.measure(node);assert.equal(writes.length,0);}finally{globalThis.getComputedStyle=previous;}
 });
 
@@ -79,7 +79,7 @@ test('main response edges use eight pixels while horizontal/default edges retain
 });
 
 test('navigation scan reads every scroll container before writing any fade attributes',async()=>{
- const {ScrollEdges}=await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js'),previous=globalThis.getComputedStyle,events=[];
+ const {ScrollEdges}=await import('../../podview/ui/scroll-edges.js'),previous=globalThis.getComputedStyle,events=[];
  const makeNode=()=>({dataset:new Proxy({}, {set(target,key,value){events.push('write');target[key]=value;return true;}}),classList:{contains:()=>false},clientHeight:100,scrollHeight:300,scrollTop:0,getClientRects(){events.push('read');return [{}];},addEventListener(){},removeEventListener(){}});
  const nodes=Array.from({length:8},makeNode),edges=new ScrollEdges({querySelectorAll:()=>nodes});edges.resize={observe(){},unobserve(){}};
  globalThis.getComputedStyle=()=>{events.push('read');return {scrollSnapType:'none',overflowY:'auto'};};
@@ -87,7 +87,7 @@ test('navigation scan reads every scroll container before writing any fade attri
 });
 
 test('resize and image load reuse discovered containers while DOM changes rediscover them',async()=>{
- const {ScrollEdges}=await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js'),previous={getComputedStyle:globalThis.getComputedStyle,requestAnimationFrame:globalThis.requestAnimationFrame};let queries=0,frame;const node={dataset:{},classList:{contains:()=>false},clientHeight:100,scrollHeight:300,scrollTop:0,getClientRects:()=>[{}],addEventListener(){},removeEventListener(){}};
+ const {ScrollEdges}=await import('../../podview/ui/scroll-edges.js'),previous={getComputedStyle:globalThis.getComputedStyle,requestAnimationFrame:globalThis.requestAnimationFrame};let queries=0,frame;const node={dataset:{},classList:{contains:()=>false},clientHeight:100,scrollHeight:300,scrollTop:0,getClientRects:()=>[{}],addEventListener(){},removeEventListener(){}};
  const edges=new ScrollEdges({querySelectorAll(){queries++;return [node];}});edges.resize={observe(){},unobserve(){}};globalThis.getComputedStyle=()=>({scrollSnapType:'none',overflowY:'auto'});globalThis.requestAnimationFrame=fn=>{frame=fn;return 1;};const flush=()=>{const fn=frame;frame=null;fn();};
  try{edges.refresh();flush();assert.equal(queries,1);node.scrollHeight=100;edges.onChange();flush();assert.equal(queries,1);assert.equal(node.dataset.scrollEdge,'');node.scrollHeight=300;edges.onChange();edges.refresh(true);flush();assert.equal(queries,2,'structural invalidation must survive an already queued resize');assert.equal(node.dataset.scrollEdge,'end');}finally{Object.assign(globalThis,previous);}
 });
@@ -98,7 +98,7 @@ test('nested detail scrolling reveals the shared top fade only after eight pixel
 });
 
 test('press feedback class changes never rescan scroll containers', async () => {
- const { pressOnly } = await import('../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js');
+ const { pressOnly } = await import('../../podview/ui/scroll-edges.js');
  const record = (oldValue, now, attributeName = 'class') => ({ type: 'attributes', attributeName, oldValue, target: { getAttribute: () => now } });
  assert.equal(pressOnly(record('pv-card pv-kit', 'pv-card pv-kit is-pressed')), true);
  assert.equal(pressOnly(record('pv-card is-pressed pv-kit', 'pv-card pv-kit')), true);

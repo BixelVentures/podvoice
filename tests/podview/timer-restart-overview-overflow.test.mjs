@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialScene,sceneTransition as step} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {liveTimerRequest} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {overviewGroupOverflow} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {initialScene,sceneTransition as step} from '../../podview/scene-model.js';
+import {liveTimerRequest} from '../../podview/podvoice-view.js';
+import {overviewGroupOverflow} from '../../podview/home-model.js';
 
 const snapshot=(items,actions=['timer.start','timer.cancel'])=>({
  timers:{status:'observed',items},capabilities:{timerActions:actions}

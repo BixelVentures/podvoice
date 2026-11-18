@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {configuredSpeakerLabel,SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
-import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
-import {livePlayerModel,placeOutputHeader} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {configuredSpeakerLabel,SpeakerOutputView} from '../../podview/speaker-output-view.js';
+import {LiveMediaView} from '../../podview/live-media-view.js';
+import {livePlayerModel,placeOutputHeader} from '../../podview/player-view.js';
+import {roomPlayerObservation} from '../../podview/media-observation.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');
+const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8');
 test('changing weather readings name themselves rather than being masked by a static action label',()=>{
  for(const id of ['header-weather','photo-weather']){const tag=html.match(new RegExp(`<button\\b[^>]*id="${id}"[^>]*>`))?.[0];assert.ok(tag);assert.doesNotMatch(tag,/aria-label=/);}
 });

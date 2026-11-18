@@ -23,7 +23,7 @@ from gatekeeper.recipe_submissions import (
 
 ROOT = Path(__file__).resolve().parents[2]
 TEMPLATE = ROOT / "podvoice/shortcuts/opskrifter-til-podview.plist"
-SIGNED = ROOT / "podvoice/gatekeeper/static/podview/assets/opskrifter-til-podview.shortcut"
+SIGNED = ROOT / "podview/public/assets/opskrifter-til-podview.shortcut"
 URL = "https://example.com/opskrift/boller"
 TOKEN = "s3cret-upload-code-" + "x" * 20
 CURRENT = RECIPE_SHORTCUT_VERSION

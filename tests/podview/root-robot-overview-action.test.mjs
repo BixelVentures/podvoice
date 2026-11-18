@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {applyKitComponent} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
-import {resourceOverviewAction,applyResourceFactBudget} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
-import {devicePresentation} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {applyKitComponent} from '../../podview/ui/kit.js';
+import {resourceOverviewAction,applyResourceFactBudget} from '../../podview/ui/resource-tile.js';
+import {devicePresentation} from '../../podview/scene-model.js';
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.slice(source.indexOf(' openOverviewRobot('),source.indexOf('\n focusHeading(){')).trim();
 const open=new Function(`return function ${method}`)();
 const device={id:'robot-stable-id',kind:'vacuum',status:'docked',revision:4};
@@ -14,7 +14,7 @@ test('explicit detail navigation helper rejects stale, busy, missing permission,
 test('overview battery reports actual bounded readings and never invents missing telemetry',()=>{assert.equal(devicePresentation({...device,battery:76}).value,'76 %');assert.equal(devicePresentation({...device,battery:0}).value,'0 %');for(const battery of [null,undefined,NaN,101,-1])assert.equal(devicePresentation({...device,battery}).value,'');});
 
 test('S Light keeps whole-card detail navigation while M Robot alone retains capability-bound commands',async()=>{
- const {deviceActions}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),body=source.slice(source.indexOf(' renderOverviewAction('),source.indexOf('\n openOverviewRobot(')).trim();
+ const {deviceActions}=await import('../../podview/scene-model.js'),body=source.slice(source.indexOf(' renderOverviewAction('),source.indexOf('\n openOverviewRobot(')).trim();
  class Node{constructor(){this.children=[];this.dataset={};this.attrs={};this.handlers={};this.hidden=false;this.inert=false;}append(n){n.parentNode?.children.splice(n.parentNode.children.indexOf(n),1);this.children.push(n);n.parentNode=this;}insertBefore(n,b){this.children.splice(this.children.indexOf(b),0,n);n.parentNode=this;}addEventListener(k,f){this.handlers[k]=f;}getAttribute(k){return this.attrs[k];}setAttribute(k,v){this.attrs[k]=v;}}
  const draw=new Function('document','deviceActions','resourceOverviewAction','applyKitComponent','applyResourceFactBudget',`return function ${body}`)({createElement:()=>new Node()},deviceActions,resourceOverviewAction,applyKitComponent,applyResourceFactBudget),parent=new Node(),row=new Node();parent.append(row);row.dataset={target:'light',status:'off',resourceStatus:'off'};
  const d={id:'light',kind:'light',status:'off',revision:7},events=[],host={live:false,state:{connected:true,sessionId:'session',devices:[d]},dispatch:e=>events.push(e)};draw.call(host,row,d);const shell=row.overviewShell,action=row.overviewAction;

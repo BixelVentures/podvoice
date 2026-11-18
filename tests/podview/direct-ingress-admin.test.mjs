@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {beginIngressKiosk,requestIngressAdmin} from '../../dist/ingress-kiosk.js';
+import {beginIngressKiosk,requestIngressAdmin} from '../../podview/ingress-kiosk.js';
 const origin='https://ha.example',panel='/23375871_podvoice';
 function fixture(){const sent=[],listeners=new Map(),parent={location:{origin,pathname:panel+'/view'},postMessage(message,target){sent.push({message,target});}},win={parent,location:{origin,href:origin+'/opaque/view/',replace(){}},document:{visibilityState:'visible'},addEventListener(type,fn){listeners.set(type,fn)},removeEventListener(type,fn){if(listeners.get(type)===fn)listeners.delete(type)}};const stop=beginIngressKiosk(win);sent.length=0;return {win,parent,sent,listeners,stop};}
 test('admin link moves only the currently owned HA parent to its existing root',()=>{

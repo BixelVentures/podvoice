@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {webcrypto} from 'node:crypto';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const snapshot=(allowed=true)=>({schema:'podview.snapshot.v1',bootId:'boot',revision:1,roomId:'room',voice:{active:false},timers:{status:'observed',items:[]},capabilities:{musicRead:['targets'],timerActions:allowed?['timer.start']:[],controlSetup:allowed?['vacuum']:[],musicSelection:allowed,queueSelection:allowed},controllerContinuity:{enabled:true,available:true}});
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 function rig({locked=true}={}){const channels=[],streams=[],calls=[],tails=new Map();let active=0,maxActive=0,allowed=true;

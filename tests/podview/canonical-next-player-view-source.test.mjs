@@ -1,13 +1,13 @@
-import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {connectionPresentation} from '../../podview/podvoice-view.js';
 import {boundPlayback} from './canonical-room-fixture.mjs';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
 import assert from 'node:assert/strict';
-import {PlayerView,localPlayerModel,localControlModel,localQueueModel,livePlayerModel,liveQueueModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {previewScene,playerPreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {TRACKS} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
-import {PageLifecycle} from '../../podvoice/gatekeeper/static/podview/ui/page-lifecycle.js';
+import {PlayerView,localPlayerModel,localControlModel,localQueueModel,livePlayerModel,liveQueueModel} from '../../podview/player-view.js';
+import {previewScene,playerPreviewStates} from '../../podview/preview-scenes.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
+import {TRACKS} from '../../podview/widget-model.js';
+import {PageLifecycle} from '../../podview/ui/page-lifecycle.js';
 class Node extends EventTarget{
  constructor(tag='div'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.style={getPropertyValue(key){return this[key]||'';},setProperty(key,value){this[key]=value;}};this.attributes=new Map();this.hidden=false;this.disabled=false;this.textContent='';this.className='';this.classList={add:x=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),x])].join(' ');},remove:x=>{this.className=this.className.split(' ').filter(c=>c!==x).join(' ');},contains:x=>this.className.split(' ').includes(x)};}
  append(...nodes){for(const n of nodes){n.remove();n.parentNode=this;this.children.push(n);}}
@@ -82,7 +82,7 @@ test('discovery denies absent, malformed, metadata-only or revoked catalogue per
 
 test('actual live host and final player agree on home and empty discovery through playback error, revoke and disconnect',()=>{
  const f=surface({live:true});f.host.state={focus:'now'};f.doc.getElementById('home-music').append(new Node('small'));
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),code=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n suspendLiveTimer(')).trim();
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),code=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n suspendLiveTimer(')).trim();
  const render=new Function('$','renderLiveWeather','renderRobotHistory','connectionPresentation',`return function ${code}`)(id=>f.doc.getElementById(id),()=>{},()=>{},connectionPresentation);
  Object.assign(f.host,{renderConnectionNotice(){},liveStatus:'connected',liveSnapshot:{capabilities:{musicRead:['targets'],timerActions:[]},timers:{status:'unavailable'}},renderVoice(){},timerView:{renderAccess(){}},liveCatalogue:{updateCapabilities(){},open(){},render(){}},liveSelection:{setAccount(){},onSnapshot(){}},liveMedia:{render(){f.view.renderPlayer(livePlayerModel(null,f.host.liveStatus==='connected','error',f.host.liveSnapshot));}}});
  for(const [read,connected,allowed]of [[['targets'],true,false],[['playback','queue'],true,false],[['mood'],true,true],[['search'],true,true],[['account_playlists'],true,true],[[],true,false],[['mood'],false,false]]){
@@ -105,7 +105,7 @@ test('account selection keeps its existing CTA actionable in music focus without
 test('player journey retains one operation status in overview and detail and does not call stale output current',()=>{const f=surface({live:true});const vm={active:true,playing:true,fresh:true,title:'A song',artist:'An artist',target:'Kitchen',canOutput:true,feedback:{pending:true,message:'Afventer svar fra højttaleren'}};f.view.renderPlayer(vm);assert.equal(f.nodes.get('player-state').textContent,vm.feedback.message);assert.equal(f.nodes.get('detail-status').textContent,vm.feedback.message);assert.equal(f.nodes.get('music-detail').getAttribute('aria-busy'),'true');f.view.renderPlayer({...vm,feedback:null,fresh:false});assert.equal(f.nodes.get('music-detail').getAttribute('aria-busy'),'false');assert.equal(f.nodes.get('detail-status').textContent,'Afspilningen er ikke opdateret');for(const id of ['output','detail-output'])assert.match(f.nodes.get(id).getAttribute('aria-label'),/seneste output/i);});
 
 test('empty local journey selects output then reveals actual receipt playback and its controls',async()=>{
- const {sceneTransition}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');let state=previewScene('player-active-empty');const send=event=>{state=sceneTransition(state,{type:'music',event});};
+ const {sceneTransition}=await import('../../podview/scene-model.js');let state=previewScene('player-active-empty');const send=event=>{state=sceneTransition(state,{type:'music',event});};
  assert.equal(state.music.playback.active,false);assert.equal(localPlayerModel(state).canOutput,true);assert.equal(localControlModel(state).blocked,true);
  send({type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:state.music.revision});assert.equal(state.music.pending,null);assert.equal(localPlayerModel(state).target,'Køkkenet');assert.equal(localPlayerModel(state).active,false);
  send({type:'select',id:'smooth-jazz',revision:0});assert.equal(localPlayerModel(state).active,false);
@@ -205,7 +205,7 @@ test('local and live queue rows expose no drag/reorder UI and leave native verti
   row.click();assert.equal(f.selected.length,1);assert.equal(f.selected[0].id,'track3');assert.equal(f.selected[0].revision,8);
   f.view.renderQueue(original.map(node=>({...node.queueItem,revision:9})));assert.deepEqual(f.view.queue.children,original);assert.equal(f.view.queue.scrollTop,72);row.click();assert.equal(f.selected[1].revision,9);assert.deepEqual(events,[]);
  }
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),components=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui/components.css',import.meta.url),'utf8');assert.doesNotMatch(css+components,/grip-vertical|queue-track\[data-reorderable|queue-track\[data-dragging/);assert.match(css,/#music-detail #queue \.queue-track>\.queue-order\{[^}]*touch-action:pan-y/);
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8'),components=readFileSync(new URL('../../podview/ui/components.css',import.meta.url),'utf8');assert.doesNotMatch(css+components,/grip-vertical|queue-track\[data-reorderable|queue-track\[data-dragging/);assert.match(css,/#music-detail #queue \.queue-track>\.queue-order\{[^}]*touch-action:pan-y/);
 });
 test('cover tone uses decoded dominant pixels once, stays neutral for unreadable artwork and cleans listeners',()=>{
  const f=surface(),cover=f.doc.getElementById('cover'),style=f.host.querySelector('.player').style;f.view.progressVM={active:true};cover.src='https://source/cover';cover.complete=true;cover.naturalWidth=300;let reads=0;const create=f.doc.createElement;f.doc.createElement=tag=>tag==='canvas'?{getContext:()=>({drawImage(){},getImageData(){reads++;return {data:new Uint8ClampedArray([20,40,60,255,21,41,61,255,240,240,240,255])};}})}:create(tag);
@@ -231,7 +231,7 @@ test('Spotify palette uses anonymous CORS before request without mutating visibl
 
 test('first empty, loading, error and offline player keeps a precise state in the existing shell without fake controls',()=>{
  const f=surface({live:true}),snapshot={capabilities:{musicRead:['mood']}},states=[['loading',true,'Henter afspilningsstatus'],['error',true,'Afspilningen kunne ikke hentes.'],['unavailable',false,'Afspilningen kan ikke hentes offline.']];for(const [state,connected,message]of states){const vm=livePlayerModel(null,connected,state,snapshot,'Køkkenalrum');f.view.renderPlayer(vm);assert.equal(f.nodes.get('player-empty').hidden,false);assert.equal(f.view.emptyCopy.hidden,false);assert.equal(f.view.emptyCopy.textContent,message);assert.equal(f.nodes.get('player-room').textContent,'Køkkenalrum');assert.equal(f.nodes.get('play-pause').disabled,true);assert.equal(f.nodes.get('volume').disabled,true);assert.equal(f.nodes.get('player-progress').hidden,true);assert.equal(f.nodes.get('track-name').textContent,'');assert.equal(f.nodes.get('empty-find-music').disabled,!vm.canDiscover);}
- const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');assert.match(html,/<div class="player-empty-art" aria-hidden="true"><img id="empty-cover" class="live-art-fallback" src="assets\/icons\/music-note-beamed.svg" alt=""><\/div>/);
+ const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8');assert.match(html,/<div class="player-empty-art" aria-hidden="true"><img id="empty-cover" class="live-art-fallback" src="assets\/icons\/music-note-beamed.svg" alt=""><\/div>/);
 });
 
 
@@ -254,7 +254,7 @@ test('current and upcoming queue rows retain identical ListRow slots with long r
  f.view.renderQueue([{...current,playing:false},upcoming]);
  assert.equal(f.view.rows.get(current.id),first);assert.equal(f.view.rows.get(upcoming.id),next);
  assert.equal(first.children[0].children[0].src,'assets/icons/pause-fill.svg');
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  assert.match(css,/#music-detail #queue \.queue-track\{[^}]*grid-template-columns:var\(--pv-hit\) var\(--pv-hit\) minmax\(0,1fr\) var\(--pv-hit\)/);
  assert.match(css,/#music-detail #queue \.queue-track>\.queue-order\{[^}]*place-items:center;justify-content:center;padding:0/);
  assert.match(css,/#music-detail #queue \.queue-track>span :is\(strong,small\)\{[^}]*white-space:nowrap;overflow:hidden;text-overflow:ellipsis/);
@@ -274,7 +274,7 @@ test('volume icon mutes and restores only observed same-owner volume with no opt
 test('play and pause retain destination and player structure with one fixed destination CSS slot',()=>{
  const f=surface(),vm=localPlayerModel(previewScene('now'));f.view.renderPlayer(vm);const player=f.host.querySelector('.player'),children=[...player.children],output=f.nodes.get('output');
  for(const playing of [false,true,false]){f.view.renderPlayer({...vm,playing});assert.equal(f.nodes.get('player-room').textContent,vm.target);assert.equal(f.nodes.get('output'),output);assert.deepEqual(player.children,children);assert.notEqual(f.nodes.get('player-state').textContent,'På pause');}
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');assert.match(css,/\.player\.pv-card>\.output h2\{[^}]*height:100%;position:relative;display:block/);assert.match(css,/\.player\.pv-card>\.output #player-state\{position:absolute;bottom:calc\(50% \+ 18px\);left:0;width:100%;[^}]*overflow:hidden;white-space:nowrap;text-overflow:ellipsis/);assert.match(css,/\.player\.pv-card>\.output \.output-room\{position:absolute;top:50%;left:50%;transform:translate\(-50%,-50%\);[^}]*max-width:100%/);
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');assert.match(css,/\.player\.pv-card>\.output h2\{[^}]*height:100%;position:relative;display:block/);assert.match(css,/\.player\.pv-card>\.output #player-state\{position:absolute;bottom:calc\(50% \+ 18px\);left:0;width:100%;[^}]*overflow:hidden;white-space:nowrap;text-overflow:ellipsis/);assert.match(css,/\.player\.pv-card>\.output \.output-room\{position:absolute;top:50%;left:50%;transform:translate\(-50%,-50%\);[^}]*max-width:100%/);
 });
 
 

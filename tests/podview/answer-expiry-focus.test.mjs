@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveAnswerView} from '../../podvoice/gatekeeper/static/podview/live-answer-view.js';
+import {LiveAnswerView} from '../../podview/live-answer-view.js';
 function fixture({focus='answer',sourceOpen=false,otherDialog=false,renderMoves=false}={}){
  const body={isConnected:true},answer={isConnected:true},player={isConnected:true},close={isConnected:true},other={isConnected:true},heading={isConnected:true};
  const doc={body,activeElement:{answer,player,close,other}[focus],querySelector:()=>otherDialog?other:null};globalThis.document=doc;

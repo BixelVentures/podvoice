@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const text=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const text=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const code=text.slice(text.indexOf(' feedbackGeometry(){'),text.indexOf('\n scheduleFeedbackGeometry()',text.indexOf(' feedbackGeometry(){'))).trim();
 function fixture(navigation=false){
  const retry={name:'Prøv igen'},style={removeProperty(name){delete this[name];}},rect={left:0,right:200,top:100,bottom:160,width:200,height:60};

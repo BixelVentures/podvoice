@@ -2,7 +2,7 @@
 // empty state instead of showing loading rows for ten seconds first.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
+import {LiveMediaView} from '../../podview/live-media-view.js';
 
 function fixture(playback){
  const shown=[];

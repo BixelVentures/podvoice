@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,readdirSync} from 'node:fs';
-import {isReduced,SceneMotion,REDUCED_MOTION_QUERY} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+import {isReduced,SceneMotion,REDUCED_MOTION_QUERY} from '../../podview/ui/motion.js';
 
 const media=matches=>({matches});
 
@@ -58,7 +58,7 @@ test('SceneMotion follows the system preference it captured',()=>{
 });
 
 test('no other screen module asks for reduced motion on its own',()=>{
- const dir=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+ const dir=new URL('../../podview/',import.meta.url);
  const files=[...readdirSync(dir).filter(name=>name.endsWith('.js')),
   ...readdirSync(new URL('ui/',dir)).filter(name=>name.endsWith('.js')).map(name=>'ui/'+name)]
   .filter(name=>!name.endsWith('.bundle.js')&&name!=='ui/motion.js');

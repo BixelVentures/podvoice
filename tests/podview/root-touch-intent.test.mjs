@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {attachTouchIntent} from '../../podvoice/gatekeeper/static/podview/ui/touch-intent.js';
+import {attachTouchIntent} from '../../podview/ui/touch-intent.js';
 
 class Target {
  constructor(){this.listeners=new Map();}
@@ -74,7 +74,7 @@ test('cleanup removes listeners, owned timeout and cancellation feedback',()=>{
 });
 
 test('press correlation belongs to the nearest nested control, never the compound card',async()=>{
- const {nearestPressControl}=await import('../../podvoice/gatekeeper/static/podview/ui/touch-intent.js');
+ const {nearestPressControl}=await import('../../podview/ui/touch-intent.js');
  const outer={matches:selector=>selector.includes('[role="button"]')};
  const inner={matches:selector=>selector.startsWith('button,')};
  const icon={matches:()=>false};
@@ -84,7 +84,7 @@ test('press correlation belongs to the nearest nested control, never the compoun
 });
 
 test('nested slider and editable fields own their gesture without arming an ancestor card',async()=>{
- const {nearestPressControl}=await import('../../podvoice/gatekeeper/static/podview/ui/touch-intent.js');
+ const {nearestPressControl}=await import('../../podview/ui/touch-intent.js');
  const outer={matches:selector=>selector.includes('[role="button"]')};
  for(const field of ['input','select','textarea','[role="slider"]','[contenteditable="true"]']){
   const inner={matches:selector=>selector.split(',').includes(field)};

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {ownedAnswers,ownedSource} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
-import {weatherFactDisplay} from '../../podvoice/gatekeeper/static/podview/weather-fact-display.js';
+import {ownedAnswers,ownedSource} from '../../podview/owner-answers.js';
+import {weatherFactDisplay} from '../../podview/weather-fact-display.js';
 const now=Date.parse('2026-10-16T12:00:00Z'),id='a'.repeat(32),sourceId='b'.repeat(32);
 const fact=(receiptId,label,value,i=0)=>({id:`fact:${i}`,label,value,detail:'Aktuel måling',sourceId:`source:${receiptId}`});
 const sources=receiptId=>[{id:`source:${receiptId}`,kind:'owner_receipt',receiptId,label:'Kilde',scope:'tool_result'}];

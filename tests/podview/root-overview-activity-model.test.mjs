@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {overviewActivities,selectOverviewActivity} from '../../podvoice/gatekeeper/static/podview/overview-activity-model.js';
+import {overviewActivities,selectOverviewActivity} from '../../podview/overview-activity-model.js';
 test('activity slot includes real active timers and robot tasks, never idle or unavailable devices',()=>{
  const timer={id:'t',status:'running'},robot={id:'r',kind:'vacuum',status:'cleaning'};
  const rows=overviewActivities([timer,{id:'cancelled',status:'cancelled'}],[robot,{id:'idle',kind:'vacuum',status:'docked'},{id:'fake',kind:'vacuum',status:'cleaning',presentationOnly:true},{id:'light',kind:'light',status:'on'}]);

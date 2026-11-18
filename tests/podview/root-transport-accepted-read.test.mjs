@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'room',revision:2,voice:{active:false},timers:{status:'observed',items:[]},capabilities:{musicRead:['mood'],homeRead:['weather'],timerActions:['timer.start'],controlSetup:['music','light'],musicSelection:true},controllerContinuity:{enabled:true,available:true}});
 const make=()=>{const transport=new PodVoiceTransport({url:'https://inert.invalid/view/',locks:null,BroadcastChannel:null,crypto:null});transport.closed=false;return transport;};

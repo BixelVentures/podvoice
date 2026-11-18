@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {previewScene,conversationPreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {previewScene,conversationPreviewStates} from '../../podview/preview-scenes.js';
+import {sceneTransition} from '../../podview/scene-model.js';
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.slice(source.indexOf(' applyConversationPreview('),source.indexOf('\n disconnectedCallback(')).trim();
 const apply=new Function('previewScene','conversationPreviewStates','sceneTransition',`return ({${method}}).applyConversationPreview;`)(previewScene,conversationPreviewStates,sceneTransition);
 function host(stage='conversation-overview'){

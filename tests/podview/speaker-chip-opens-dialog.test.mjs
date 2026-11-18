@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-const source = readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../podview/widget-view.js', import.meta.url), 'utf8');
 const slice = (start, end) => {
   const from = source.indexOf(start);
   assert.ok(from > 0, start);

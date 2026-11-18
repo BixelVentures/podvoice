@@ -1,6 +1,6 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {PageLifecycle} from '../../podvoice/gatekeeper/static/podview/ui/page-lifecycle.js';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {LocalMusicRefresh} from '../../podvoice/gatekeeper/static/podview/flow-controller.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {PageLifecycle} from '../../podview/ui/page-lifecycle.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
+import {LocalMusicRefresh} from '../../podview/flow-controller.js';
 test('removed host cannot reconnect or schedule on pageshow, reattachment registers once',()=>{const target=new EventTarget();let requests=0,schedules=0,cleanups=0;const host={isConnected:true,live:true,liveTransport:{closed:true},connectPodVoice(){requests++;},schedule(){schedules++;},cleanup(){cleanups++;}};const life=new PageLifecycle(host,target);life.attach();target.dispatchEvent(new Event('pagehide'));assert.equal(cleanups,1);host.isConnected=false;life.detach();target.dispatchEvent(new Event('pageshow'));assert.equal(requests,0);assert.equal(schedules,0);host.isConnected=true;life.attach();life.attach();target.dispatchEvent(new Event('pageshow'));assert.equal(requests,1);assert.equal(schedules,1);life.detach();});
 test('page restore renders the cancelled refresh before restarting work and ignores its late completion',()=>{
  const target=new EventTarget(),timers=new Map();let late;

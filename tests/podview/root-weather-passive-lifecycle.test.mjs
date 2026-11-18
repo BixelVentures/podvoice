@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveWeatherAdvice} from '../../podvoice/gatekeeper/static/podview/live-home-view.js';
-import {weatherObservation} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';
-import {liveWeatherModel} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
+import {LiveWeatherAdvice} from '../../podview/live-home-view.js';
+import {weatherObservation} from '../../podview/weather-observation.js';
+import {liveWeatherModel} from '../../podview/weather-view.js';
 const origin=Date.parse('2026-10-23T10:00:00Z'),scope={bootId:'boot',roomId:'room'};
 function rig(){
  let time=origin,next=0,visible=true;const timers=new Map(),calls=[],deferred=[];

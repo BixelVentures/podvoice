@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SetupFlow} from '../../podvoice/gatekeeper/static/podview/setup.js';
+import {SetupFlow} from '../../podview/setup.js';
 
 test('default browser timers retain their global receiver through polling and failure cleanup',async()=>{
  const original={setTimeout:globalThis.setTimeout,clearTimeout:globalThis.clearTimeout};

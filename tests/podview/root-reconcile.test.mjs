@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {reconcile} from '../../podvoice/gatekeeper/static/podview/ui/reconcile.js';
+import {reconcile} from '../../podview/ui/reconcile.js';
 // Minimal tree harness: these assertions concern reconciliation identity, not rendering.
 class TreeNode{
  constructor(name,attrs={},children=[]){this.nodeType=name==='#text'?3:1;this.nodeName=name;this.nodeValue=null;this.attrs={...attrs};this.childNodes=[];for(const c of children)this.insertBefore(c,null);}

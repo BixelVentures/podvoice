@@ -1,14 +1,15 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 // docs/MOTION.md PR 5: P2 sheet/dialog in and out (§3.3) and P6 button state (§3.7).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createKitComponent,runKitButtonAction,setKitButtonState}
- from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
-import {SceneMotion,springCurve,SPRING,DUR} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+ from '../../podview/ui/kit.js';
+import {SceneMotion,springCurve,SPRING,DUR} from '../../podview/ui/motion.js';
 
-const dir=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+const dir=new URL('../../podview/',import.meta.url);
 const read=name=>readFileSync(new URL(name,dir),'utf8');
-const css=read('podview.css');
+const css=deliveredStylesheet();
 // Every fragment appears in order in the text, whitespace-insensitive.
 const inOrder=(text,fragments,label)=>{
  const flat=text.replace(/\s+/g,' ');let at=0;

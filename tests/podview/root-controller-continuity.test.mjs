@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen',revision:1,voice:{active:false,sessionId:null,turnId:null},timers:{status:'unavailable',items:[]},capabilities:{musicRead:[],timerActions:['timer.start'],musicSelection:true,controlSetup:['music']},controllerContinuity:{enabled:true,available:true,maxDays:30}});
 class Events{addEventListener(){}close(){this.closed=true;}}

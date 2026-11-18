@@ -1,13 +1,14 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {
  DUR,EASE,SPRING,springParams,springCurve,
-} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+} from '../../podview/ui/motion.js';
 import {KIT_CSS,motionTokenBlock,replaceBlock} from '../../scripts/gen-motion-tokens.mjs';
 
 const kit=readFileSync(KIT_CSS,'utf8');
-const delivered=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/podview.css',import.meta.url),'utf8');
+const delivered=deliveredStylesheet();
 // Generated values are wrapped after a comma; joining the lines gives the exact single-line value back.
 const token=(css,name)=>{
  const match=css.match(new RegExp(`${name}:([^;]+);`));

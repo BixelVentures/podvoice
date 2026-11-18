@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {SetupFlow} from '../../podvoice/gatekeeper/static/podview/setup.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {SetupFlow} from '../../podview/setup.js';
 
 const ROOT='https://ha.test/api/hassio_ingress/opaque/view/';
 const REQUEST='a'.repeat(32);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {renderRobotHistory} from '../../podvoice/gatekeeper/static/podview/live-home-view.js';
-import {LocalRobotView} from '../../podvoice/gatekeeper/static/podview/local-robot-view.js';
+import {renderRobotHistory} from '../../podview/live-home-view.js';
+import {LocalRobotView} from '../../podview/local-robot-view.js';
 
 class Node {
  constructor(tag='div'){this.tagName=tag;this.children=[];this.dataset={};this.hidden=false;this.attributes={};this.listeners={};}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {researchAnswer} from '../../podvoice/gatekeeper/static/podview/research-answers.js';
+import {researchAnswer} from '../../podview/research-answers.js';
 const now=1_800_000_000_000;
 const context={roomId:'r0',sessionId:'s',sessionEpoch:1,turnId:'t',taskId:'answer:t',inputRevision:1,answerRevision:1,providerGeneration:1};
 function row(){return {...context,schema:'podview.research.v1',receiptId:'a'.repeat(32),observedAt:now/1000,validUntil:now/1000+120,family:'fact-card',displaySuggested:true,allowedActions:[],provenance:{kind:'tool_result',retrievedAt:now/1000,externalSourcesProvided:false,textTruncated:false},content:{summary:'Resultat fra webopslaget',facts:[{id:'f',label:'Kildeuddrag',value:'Source excerpt',detail:'Kildelink ikke leveret',sourceId:'s'}],sources:[{id:'s',kind:'owner_receipt',receiptId:'a'.repeat(32),label:'HA-værktøjets resultat',scope:'tool_result'}]}};}

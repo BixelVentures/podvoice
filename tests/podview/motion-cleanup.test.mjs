@@ -1,16 +1,17 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 // docs/MOTION.md PR 4: one reduced-motion source in CSS, shared keyframes, loops that last as long as their state,
 // one alarm pulse and no layout-property animation.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {mirrorReducedMotion,writeMotionAttribute} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
-import * as gestures from '../../podvoice/gatekeeper/static/podview/ui/gestures.js';
-import {stylesheetSources} from '../../scripts/build-assets.mjs';
+import {mirrorReducedMotion,writeMotionAttribute} from '../../podview/ui/motion.js';
+import * as gestures from '../../podview/ui/gestures.js';
+import {stylesheetSources} from '../../podview/build/legacy-styles.mjs';
 
-const dir=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+const dir=new URL('../../podview/',import.meta.url);
 const read=name=>readFileSync(new URL(name,dir),'utf8');
 const sources=stylesheetSources.map(name=>[name,read(name)]);
-const bundled=read('podview.css');
+const bundled=deliveredStylesheet();
 // Every declaration of a property in the bundled stylesheet.
 const declarations=(css,property)=>[...css.matchAll(new RegExp(`(?:^|[;{\\s])${property}\\s*:([^;}]*)`,'g'))]
  .map(m=>m[1].trim());

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const make=(options={})=>new PodVoiceTransport({url:'https://ha.example/secret-ingress/view/',diagnosticStorage:null,...options});
 const storage=()=>{let value=null,writes=0;return {getItem:()=>value,setItem:(key,text)=>{assert.equal(key,'podview.client-diagnostics.v1');value=text;writes++;},get value(){return value;},get writes(){return writes;}};};
 const microtask=()=>new Promise(resolve=>queueMicrotask(resolve));

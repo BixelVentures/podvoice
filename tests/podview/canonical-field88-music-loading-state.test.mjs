@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {MusicResults,sourceMusicCards} from '../../podvoice/gatekeeper/static/podview/music-results.js';
+import {MusicResults,sourceMusicCards} from '../../podview/music-results.js';
 
 // Native DOM port: the actual shared renderer owns these retained nodes, states,
 // source requests and handlers. Layout acceptance remains a browser check.

@@ -1,18 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
-import {LiveQueueView} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
-import {LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
-import {roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {LiveMediaView} from '../../podview/live-media-view.js';
+import {LiveQueueView} from '../../podview/live-queue-view.js';
+import {LiveRadioView} from '../../podview/live-radio-view.js';
+import {roomPlayerObservation} from '../../podview/media-observation.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {renderPlayerControls} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {stations,ownerStationIds,radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {renderPlayerControls} from '../../podview/player-view.js';
+import {stations,ownerStationIds,radioStation} from '../../podview/radio-model.js';
 globalThis.HTMLElement??=class {};
 globalThis.customElements??={define(){},get(){return null;}};
-const {LiveControlView}=await import('../../podvoice/gatekeeper/static/podview/live-control-view.js');
+const {LiveControlView}=await import('../../podview/live-control-view.js');
 class Node{
  constructor(){this.attrs=new Map();this.dataset={};this.style={setProperty(){},getPropertyValue(){return '';}};this.hidden=false;this.disabled=false;}
  getAttribute(k){return this.attrs.get(k)??null;}
@@ -32,7 +32,7 @@ function setup(){
  const controls=host.liveControls=Object.create(LiveControlView.prototype);Object.assign(controls,{host,generation:0,spent:new Map(),receipts:new Map(),musicStatus:new Node(),musicDetailStatus:new Node(),musicButton:new Node(),renderReceipt(){},musicIntent(action){effects.push(['spotify-action',action]);},render(){this.renderMusicControls();}});
  host.liveSelection={pendingPlayer:()=>null,observePlayback(){},settlementReceipt:()=>null};
  const radio=host.liveRadio=new LiveRadioView(host);host.render=()=>media.render();
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' music(event){')+' music(event){'.length,source.indexOf('\n build(){',source.indexOf(' music(event){')));
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' music(event){')+' music(event){'.length,source.indexOf('\n build(){',source.indexOf(' music(event){')));
  host.music=new Function('event',method.slice(0,method.lastIndexOf('\n }')));
  return {restoreDocument(){globalThis.document=previousDocument;},host,media,controls,radio,nodes,effects,reads,history,provider,setRadio:next=>{nativeRadio={...nativeRadio,...next};},setEnabled:value=>enabled=value,setSpotify:value=>spotifyState=value};
 }

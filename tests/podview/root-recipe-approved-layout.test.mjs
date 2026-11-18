@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
-const root = new URL('../../podvoice/gatekeeper/static/podview/', import.meta.url);
+const root = new URL('../../podview/', import.meta.url);
 const css = readFileSync(new URL('ui-kit.css', root), 'utf8');
 const recipe = readFileSync(new URL('recipe-view.js', root), 'utf8');
 

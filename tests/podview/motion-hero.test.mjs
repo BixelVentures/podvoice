@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {SceneMotion} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+import {SceneMotion} from '../../podview/ui/motion.js';
 
 function fixture({reduced=false,transitions=true}={}){
  const log=[],root={dataset:{}},listeners=new Map();let finish;
@@ -47,7 +47,7 @@ test('reduced names nothing; without view transitions it renders at once',async(
 });
 
 test('CSS: the hero group flies on the smooth spring',()=>{
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  assert(css.includes('::view-transition-group(pv-hero){animation-duration:661ms;'+
   'animation-timing-function:var(--pv-spring-0)}'));
 });

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialWidgetState,widgetTransition as step,resultsFor,musicRefreshFeedback} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {LocalMusicRefresh} from '../../podvoice/gatekeeper/static/podview/flow-controller.js';
+import {initialWidgetState,widgetTransition as step,resultsFor,musicRefreshFeedback} from '../../podview/widget-model.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
+import {LocalMusicRefresh} from '../../podview/flow-controller.js';
 
 test('refresh preserves cards and playback until a matching completion and admits one request',()=>{
  const initial=initialWidgetState(),loading=step(initial,{type:'refresh',revision:initial.revision});

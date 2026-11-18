@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import * as kit from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import test from 'node:test';import assert from 'node:assert/strict';import * as kit from '../../podview/ui/kit.js';
 class Element extends EventTarget{
  constructor(tag,doc){super();this.ownerDocument=doc;this.tagName=tag.toUpperCase();this.className='';this.attributes=new Map();this.dataset={};this.children=[];this._text='';this.disabled=false;}
  set textContent(value){this._text=String(value);this.children=[];}get textContent(){return this._text;}

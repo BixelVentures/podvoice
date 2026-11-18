@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomBytes} from 'node:crypto';
-const root=path.resolve(fileURLToPath(new URL('../podvoice/gatekeeper/static/podview/',import.meta.url)));
+const root=path.resolve(fileURLToPath(new URL('../podview/',import.meta.url)));
 const types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.woff2':'font/woff2'};
 export const enrollmentRoom='enrollment',enrollmentBoot='fixture-enrollment-boot';
 const exact=(v,keys)=>v&&typeof v==='object'&&!Array.isArray(v)&&Object.keys(v).sort().join(',')===keys.slice().sort().join(',');

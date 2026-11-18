@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {robotCare} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
+import {robotCare} from '../../podview/robot-observation.js';
 
 // Lærred »A-Robot« Vedligehold: only the robot's own care counters, in the product's order, due at or below 0.
 const now = 1_800_000_000;

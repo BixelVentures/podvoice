@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 
-const recipe = readFileSync(new URL('../../podvoice/gatekeeper/static/podview/recipe-view.js', import.meta.url), 'utf8');
+const recipe = readFileSync(new URL('../../podview/recipe-view.js', import.meta.url), 'utf8');
 
 function recipeView(fetch) {
  const RecipeView = vm.runInNewContext(recipe.replace(/^import .*\n/gm,'').replace(/^export (const|function) /gm,'$1 ')

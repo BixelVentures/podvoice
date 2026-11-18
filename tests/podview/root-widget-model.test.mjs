@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialWidgetState,widgetTransition as step,resultsFor,TRACKS} from '../../podvoice/gatekeeper/static/podview/widget-model.js';
+import {initialWidgetState,widgetTransition as step,resultsFor,TRACKS} from '../../podview/widget-model.js';
 test('a choice changes playback only after its correlated simulated receipt',()=>{const s=initialWidgetState();const pending=step(s,{type:'select',id:'italian-favorites',revision:1});assert.deepEqual(pending.playback,s.playback);const done=step(pending,{type:'receipt',operation:pending.operation});assert.equal(done.playback.room,'Stuen');assert.equal(done.playback.track,8);assert.equal(done.pending,null);});
 test('old receipt cannot overrule a newer room choice',()=>{let s=step(initialWidgetState(),{type:'select',id:'smooth-jazz',revision:1});const old=s.operation;s=step(s,{type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:s.revision});assert.equal(step(s,{type:'receipt',operation:old}),s);s=step(s,{type:'receipt',operation:s.operation});assert.equal(s.playback.room,'Køkkenet');});
 test('pause supersedes pending playback and its late receipt',()=>{let s=step(initialWidgetState(),{type:'select',id:'smooth-jazz',revision:1});const old=s.operation;s=step(s,{type:'toggle'});assert.equal(s.playback.playing,false);assert.equal(step(s,{type:'receipt',operation:old}),s);});

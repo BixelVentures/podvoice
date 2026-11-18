@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
-import {vehicleModel,vehicleChargeUpdate,vehicleRailPresentation} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {validateHome,applyHome} from '../../podview/home-model.js';
+import {vehicleModel,vehicleChargeUpdate,vehicleRailPresentation} from '../../podview/vehicle-model.js';
 
 test('a fresh page displays an explicitly stale vehicle as last known, without commands or a charging cue',()=>{
  const stamp=1700000000,vehicle={status:'stale',source:'home_assistant_state',observedAt:stamp,entityIds:['sensor.car_battery','sensor.car_charging'],data:{batteryPercent:27,charging:{status:'charging',powerKw:3,endsAt:1700007200}}};

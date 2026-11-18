@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-const {LiveControlView}=await import(process.env.LIVE_CONTROL_SOURCE?new URL(process.env.LIVE_CONTROL_SOURCE,'file://'):new URL('../../podvoice/gatekeeper/static/podview/live-control-view.js',import.meta.url));
+const {LiveControlView}=await import(process.env.LIVE_CONTROL_SOURCE?new URL(process.env.LIVE_CONTROL_SOURCE,'file://'):new URL('../../podview/live-control-view.js',import.meta.url));
 
 // Minimal DOM port: exercise the shipped view's constructor, render and async
 // handlers. Real browser focus/layout remains a separate QA gate.

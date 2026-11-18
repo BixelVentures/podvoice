@@ -2,7 +2,7 @@
 // This small DOM adapter inspects shipped properties, not browser pixel appearance.
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
-import {ownedAnswers} from '../../../podvoice/gatekeeper/static/podview/owner-answers.js';
+import {ownedAnswers} from '../../../podview/owner-answers.js';
 class Element extends EventTarget {
  constructor(){super();this.children=[];this.dataset={};this.attributes=new Map();this.classList={add(){}};this.isConnected=false;this.hidden=false;this.textContent='';}
  get childNodes(){return this.children;}
@@ -16,7 +16,7 @@ class Element extends EventTarget {
 }
 const registry=new Map();globalThis.HTMLElement=Element;globalThis.customElements={define:(tag,type)=>registry.set(tag,type)};
 globalThis.document={createElement(tag){const n=new (registry.get(tag)||Element)();n.localName=tag;n.tagName=tag.toUpperCase();return n;},activeElement:null};
-await import('../../../podvoice/gatekeeper/static/podview/answer-widget.js');
+await import('../../../podview/answer-widget.js');
 export function renderActualChart(answer){
  const chart=document.createElement('pv-data-chart');chart.isConnected=true;chart.connectedCallback();
  const nodes=new Map([['.chart',chart]]),q=selector=>{if(!nodes.has(selector))nodes.set(selector,new Element());return nodes.get(selector);};

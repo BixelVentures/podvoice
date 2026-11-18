@@ -4,7 +4,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {exploreFrame,exploreKeyframes} from '../../podvoice/gatekeeper/static/podview/recipe-view.js';
+import {exploreFrame,exploreKeyframes} from '../../podview/recipe-view.js';
 
 const parse=transform=>{
  const m=/translate3d\((-?[\d.e-]+)px,0,(-?[\d.e-]+)px\) rotateY\((-?[\d.e-]+)deg\)/.exec(transform);
@@ -55,7 +55,7 @@ test('seven dots weigh 1−|k−p| and push each other, the window starts at rou
 });
 
 test('the stylesheet carries exactly the sampled keyframes, and covers move only with the scroll',()=>{
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  const rule=(name,frames,body)=>`@keyframes ${name}{\n`+frames.map(f=>` ${f.offset}%{${body(f)}}`).join('\n')+'}';
  const cover=f=>`transform:${f.transform};z-index:${f.z}`+(Math.abs(f.d)===3.5?';visibility:visible':'');
  const full=exploreKeyframes(),flat=exploreKeyframes({reduced:true});
@@ -69,7 +69,7 @@ test('the stylesheet carries exactly the sampled keyframes, and covers move only
  assert.match(css,/@supports not \(animation-timeline:view\(\)\)/,'a flat snap carousel without scroll timelines');
  const cover0=css.slice(css.indexOf('#recipe-view#recipe-view#recipe-view [data-recipe-cover]{'));
  assert.doesNotMatch(cover0.slice(0,cover0.indexOf('}')),/transition|filter|will-change/);
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/recipe-view.js',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../../podview/recipe-view.js',import.meta.url),'utf8');
  assert.doesNotMatch(source,/attachSwipeTrack|requestAnimationFrame\(draw|pvMoving|brightness\(/);
  assert.match(source,/flow\.addEventListener\('scroll',scrolled,\{passive:true\}\)/);
  assert.match(source,/flow\.dataset\.pvGestureOwner = ''/);

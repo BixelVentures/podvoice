@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {projectMusicTracks} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
+import {projectMusicTracks} from '../../podview/live-music-view.js';
 
 test('music catalogue preserves the admitted source sample with validated artwork and navigation only',()=>{
  const tracks=projectMusicTracks({ok:true,data:{tracks:[

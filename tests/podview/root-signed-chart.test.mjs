@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateTypedAnswerContent as validate} from '../../podvoice/gatekeeper/static/podview/visual-content.js';
+import {validateTypedAnswerContent as validate} from '../../podview/visual-content.js';
 import {renderActualChart} from './helpers/render-owned-chart.mjs';
 const receipt='a'.repeat(32),source={id:'source',kind:'owner_receipt',receiptId:receipt,label:'Måling',scope:'tool_result'};
 function answer(values){return {kind:'chart',live:true,presentation:true,ownerReceiptIds:[receipt],provenance:{kind:'owner_sources'},status:'ready',readConnected:true,content:{summary:'Faktiske temperaturer',sources:[source],unit:'°C',unitSingular:'°C',items:values.map((value,i)=>({id:`value:${i}`,label:`Måling ${i}`,value,sourceId:source.id}))}};}
