@@ -31,6 +31,7 @@ export const CSS_FLAGS=[
   '#music-detail:not([hidden]) #queue[data-scroll-edge~="end"]'],
  ['frame','data-pv-weather-start','#weather-view:not([hidden])[data-scroll-edge~="start"]'],
 ];
+const RECIPES='#recipe-view:not([hidden])';
 // Every attribute a flag above reads; class covers .connection-note, .responses and friends.
 const WATCHED=['hidden','class','id','data-view','data-night','data-topbar','data-state','data-scroll-axis','data-scroll-edge'];
 
@@ -58,7 +59,9 @@ export class CssFlags {
  sync(){
   for(const [where,attribute,selector] of CSS_FLAGS){
    const anchor=this.anchor(where);if(!anchor)continue;
-   const on=anchor.querySelector(selector)!==null;
+   // Opskrifter's full-width frame follows the page being shown, not the DOM: while Opskrifter slides out it is
+   // still painted (ui/page-motion.js), but Hjem under it already has its two columns and the player.
+   const on=selector===RECIPES&&this.host.state?this.host.state.focus==='recipes':anchor.querySelector(selector)!==null;
    if(anchor.hasAttribute(attribute)!==on)anchor.toggleAttribute(attribute,on);
   }
  }

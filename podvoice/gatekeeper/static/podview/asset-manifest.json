@@ -687,7 +687,7 @@
     },
     {
       "path": "library.bundle.js",
-      "sha256": "bb2260b25281b4a87f24d9f047aeceb0b876165890d11b008929d9a34c35116a"
+      "sha256": "ccb8638ae724ee39d441ecf619070f3545ab51d5f3e05843db69203c5a54b607"
     },
     {
       "path": "library.css",
@@ -707,7 +707,7 @@
     },
     {
       "path": "light-room-view.js",
-      "sha256": "967940591de2b5198dcd9fa7672e5b7360d79b8aa196babe197dc3f9d472b152"
+      "sha256": "f84abb61341a52dc89a61ae16db29624178b671d65b50ed1fe95ffc245a52d61"
     },
     {
       "path": "live-answer-view.js",
@@ -715,7 +715,7 @@
     },
     {
       "path": "live-control-view.js",
-      "sha256": "94e61bdc451480c8bab3f6936603156e8fd2fbd80e3159cf12cc441036faecc1"
+      "sha256": "c62d168c94fc2e74942ebd71a58881671dba9d1b89d827ac71da6a0e2c04c09f"
     },
     {
       "path": "live-home-view.js",
@@ -747,7 +747,7 @@
     },
     {
       "path": "local-robot-view.js",
-      "sha256": "19142dcd45c2d22d81fe42bb46f69fb20105320432b4413d055f24d896afa125"
+      "sha256": "172b8bdaff013ab04a2077ea55fa72110360fff5ba3a0ebe549658e7ea86ff82"
     },
     {
       "path": "media-observation.js",
@@ -823,11 +823,11 @@
     },
     {
       "path": "podview.bundle.js",
-      "sha256": "958b4bc36db54245f170eb553a9db0955b3752ce0a76f9166352df991f9efd3e"
+      "sha256": "51196b555ad79269bb5ccef9369eb22ad5311228dcf7bc9f1bbc09c7e1c70943"
     },
     {
       "path": "podview.css",
-      "sha256": "a7c2049773d0a89b9e2cff36e74f7049e0adbfb9770d536639591abd383bf5a1"
+      "sha256": "07ea29944e836abf53a03b80d508c7b76c23e33f200667ffee6f21ea772fb9a5"
     },
     {
       "path": "podvoice-transport.js",
@@ -943,7 +943,7 @@
     },
     {
       "path": "ui-kit.css",
-      "sha256": "c9905a92231dc0f95344e708381455d2d418a33dd4e14557972ff7ad37383511"
+      "sha256": "956a7f228e8291617b867be48253e294e9eab59125296e49b037c806c8dca1d8"
     },
     {
       "path": "ui/answer-auto-return.js",
@@ -1007,7 +1007,7 @@
     },
     {
       "path": "ui/motion.js",
-      "sha256": "f56e79bc4813f70361da0b37adbab0421e3b67d8af91a426e2a1714678b209ef"
+      "sha256": "8293da54c8ead8fb6e2d9b4eb2108e24e9a1ac7c9227ca732cfd083ae0e3ce23"
     },
     {
       "path": "ui/native-motion.js",
@@ -1119,7 +1119,7 @@
     },
     {
       "path": "widget-view.js",
-      "sha256": "308f3b5d97f3c66761c931deb7850e24775466cfd2644c8ab262bfdaa40c0149"
+      "sha256": "0196d44efe5cfc2a00e3b688cc6ee40b42cf74d21c08299d75c74a27f78e5c39"
     },
     {
       "path": "workshop.css",
@@ -1131,7 +1131,7 @@
     },
     {
       "path": "ui/css-flags.js",
-      "sha256": "d1632e2284010463da155be2bc509996cba39d0557b7971d6c228f47337d9a9c"
+      "sha256": "4c6013d3f218896941cd28d23e7a28f18f5ed59a4ee4943f67aa7a29c55b2543"
     },
     {
       "path": "ui/frame-meter.js",

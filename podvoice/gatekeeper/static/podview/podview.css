@@ -2855,7 +2855,7 @@ pv-widget-host #music-response #result-list>.result:is(:disabled,[aria-disabled=
  :root[data-pv-motion=reduced] #queue>.queue-track[data-placeholder=true]::before{animation:none}
 
 
-/* Source: ui-kit.css · SHA256 c9905a92231dc0f95344e708381455d2d418a33dd4e14557972ff7ad37383511 */
+/* Source: ui-kit.css · SHA256 956a7f228e8291617b867be48253e294e9eab59125296e49b037c806c8dca1d8 */
 /* User-supplied PodView kit: canonical values and compatibility aliases. */
 /* [data-pv-*] page flags come from ui/css-flags.js (they replace :has() on html, body, host and frame).
    Repeated [data-pv-*] and :not(#pv-z)/:not(pv-z) keep the specificity the former :has() argument had. */
@@ -6760,8 +6760,7 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
    width:var(--pv-column)!important;max-width:var(--pv-column)!important;}
  #music-detail .detail-queue{
    display:flex!important;flex-direction:column!important;gap:16px!important;margin:0!important;padding:0!important;
-   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;
-   --pv-enter-y:16px;animation:pv-enter-up var(--pv-spring-snappy) backwards;}
+   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;}
  #music-detail #queue-title{
    height:32px;margin:0!important;font:800 24px/32px var(--pv-font)!important;color:var(--pv-ink)!important;}
  #music-detail #queue{

@@ -3985,8 +3985,7 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
    width:var(--pv-column)!important;max-width:var(--pv-column)!important;}
  #music-detail .detail-queue{
    display:flex!important;flex-direction:column!important;gap:16px!important;margin:0!important;padding:0!important;
-   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;
-   --pv-enter-y:16px;animation:pv-enter-up var(--pv-spring-snappy) backwards;}
+   width:var(--pv-column)!important;background:transparent!important;box-shadow:none!important;}
  #music-detail #queue-title{
    height:32px;margin:0!important;font:800 24px/32px var(--pv-font)!important;color:var(--pv-ink)!important;}
  #music-detail #queue{

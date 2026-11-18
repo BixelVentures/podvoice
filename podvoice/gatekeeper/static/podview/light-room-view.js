@@ -85,7 +85,9 @@ export class LightRoomView{
 
  render(light){
   this.deviceId=light?.id;const model=this.model(light);
-  if(!light||light.kind!=='light'){if(!this.node.hidden)this.node.hidden=true;return this.node;}
+  // Leaving for a non-device page keeps the rooms as they are while the light page slides out (ui/page-motion.js).
+  const state=this.host.state,elsewhere=state?.devices?state.devices.some(d=>d.id===state.focus):true;
+  if(!light||light.kind!=='light'){if(!this.node.hidden&&elsewhere)this.node.hidden=true;return this.node;}
   if(!this.node.parentNode)this.host.lightRooms?.after(this.node);if(this.node.hidden)this.node.hidden=false;
   const empty=!model?.rows?.length;this.list.hidden=empty;const notice=!empty&&model.stale===true;if(this.notice.hidden!==!notice)this.notice.hidden=!notice;this.toolbar.hidden=empty;this.empty.hidden=!empty;
   if(empty){
