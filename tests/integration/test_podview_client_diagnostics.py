@@ -421,9 +421,7 @@ t.closed=false;assert.equal(t.accept({schema:'podview.snapshot.v1',bootId:boot,r
 t.recordDiagnostic('control_setup',{code:'start'});await t.flushDiagnosticUpload();assert.equal(requests[0].status,429);assert.equal(requests[0].payload.error,'diagnostics_background_pressure');assert.equal(createHash('sha256').update(readFileSync(process.argv[4])).digest('hex'),process.argv[5],'429 persists neither rows nor batch ACK');assert.equal(t.diagnosticUploadBatch,null);assert.equal(t.diagnosticUploadAcked.size,0);assert(t.diagnostics().dropped>0);
 t.recordDiagnostic('control_intent',{code:'start',domain:'music',action:'resume'});offset+=11000;await t.flushDiagnosticUpload();assert.equal(requests[1].status,200);assert.notEqual(requests[0].body.batchId,requests[1].body.batchId);const action=requests[1].body.records.find(r=>r.stage==='control_intent');assert(action);assert(t.diagnosticUploadAcked.has(action.seq));t.close();console.log(JSON.stringify(requests.map(x=>({status:x.status,batchId:x.body.batchId}))));
 """
-    source = (
-        Path(__file__).parents[2] / "podview/podvoice-transport.js"
-    ).as_uri()
+    source = (Path(__file__).parents[2] / "podview/podvoice-transport.js").as_uri()
     process = await asyncio.create_subprocess_exec(
         "node",
         "--input-type=module",

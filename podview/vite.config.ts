@@ -7,7 +7,11 @@ import {defineConfig} from 'vitest/config';
 import {stageStylesPlugin} from './build/legacy-styles.mjs';
 
 const root = fileURLToPath(new URL('.', import.meta.url));
-const ENTRY_NAMES: Record<string, string> = {index: 'podview.bundle.js', library: 'library.bundle.js'};
+const ENTRY_NAMES: Record<string, string> = {
+  index: 'podview.bundle.js',
+  library: 'library.bundle.js',
+  setup: 'setup.js',
+};
 
 // Pages reference their files as plain relative names (`podview.bundle.js`), as before.
 const plainRelativeUrls = {

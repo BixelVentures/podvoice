@@ -23,7 +23,7 @@ def test_built_view_contains_only_the_vite_output():
     names = {p.name for p in ASSETS.iterdir()}
     assert {"index.html", "setup.html", "library.html", "build", "assets"} <= names
     # The source modules live in podview/; nothing unbundled is shipped next to the pages.
-    assert sorted(p.name for p in ASSETS.glob("*.js")) == ["library.bundle.js", "podview.bundle.js"]
+    assert sorted(p.name for p in ASSETS.glob("*.js")) == ["library.bundle.js", "podview.bundle.js", "setup.js"]
     assert not (ASSETS / "asset-manifest.json").exists()
 
 
@@ -39,7 +39,9 @@ async def test_actual_served_entry_and_canonical_module_asset_closure():
         assert scripts == [b"podview.bundle.js"]
         styles = re.findall(rb'<link\b[^>]*\bhref=["\']([^"\']+\.css)["\']', html)
         assert styles == [b"podview.css"]
-        chunks = re.findall(rb'<link\b[^>]*\brel="modulepreload"[^>]*\bhref=["\']([^"\']+)["\']', html)
+        chunks = re.findall(
+            rb'<link\b[^>]*\brel="modulepreload"[^>]*\bhref=["\']([^"\']+)["\']', html
+        )
         for path in [*scripts, *styles, *chunks]:
             name = path.decode()
             served = await client.get("/view/" + name)
@@ -58,7 +60,9 @@ async def test_actual_served_entry_and_canonical_module_asset_closure():
         imports = set()
         for module in [*ASSETS.glob("*.js"), *(ASSETS / "build").glob("*.js")]:
             source = module.read_text()
-            for relative in re.findall(r'(?:\bfrom\s*|\bimport\s*\(?)["\'](\.[^"\']+)["\']', source):
+            for relative in re.findall(
+                r'(?:\bfrom\s*|\bimport\s*\(?)["\'](\.[^"\']+)["\']', source
+            ):
                 target = (module.parent / relative).resolve()
                 assert target.is_relative_to(ASSETS.resolve())
                 assert target.is_file(), str(target)
@@ -81,7 +85,7 @@ async def test_actual_served_entry_and_canonical_module_asset_closure():
             "p6-beat",
             "p8-jazz",
         ]
-        transport = await client.get("/view/podvoice-transport.js")
-        body = await transport.text()
+        # The radio endpoints are part of the transport module bundled into the page.
+        body = (SOURCE / "podvoice-transport.js").read_text()
         assert "new URL('radio/offer',this.base)" in body
         assert "new URL('radio/actions',this.base)" in body
