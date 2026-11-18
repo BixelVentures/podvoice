@@ -23,7 +23,11 @@ def test_built_view_contains_only_the_vite_output():
     names = {p.name for p in ASSETS.iterdir()}
     assert {"index.html", "setup.html", "library.html", "build", "assets"} <= names
     # The source modules live in podview/; nothing unbundled is shipped next to the pages.
-    assert sorted(p.name for p in ASSETS.glob("*.js")) == ["library.bundle.js", "podview.bundle.js", "setup.js"]
+    assert sorted(p.name for p in ASSETS.glob("*.js")) == [
+        "library.bundle.js",
+        "podview.bundle.js",
+        "setup.js",
+    ]
     assert not (ASSETS / "asset-manifest.json").exists()
 
 
