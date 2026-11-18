@@ -11,6 +11,8 @@ const ENTRY_NAMES: Record<string, string> = {
   index: 'podview.bundle.js',
   library: 'library.bundle.js',
   setup: 'setup.js',
+  // The add-on panel (podvoice/gatekeeper/static/index.html) loads it as view/ingress-kiosk.js.
+  'ingress-kiosk': 'ingress-kiosk.js',
 };
 
 // Pages reference their files as plain relative names (`podview.bundle.js`), as before.
@@ -54,6 +56,7 @@ export default defineConfig({
         index: page('index.html'),
         setup: page('setup.html'),
         library: page('library.html'),
+        'ingress-kiosk': page('ingress-kiosk.js'),
       },
       output: {
         // Stable names for the two page entries: journeys and diagnostics fingerprint what was
