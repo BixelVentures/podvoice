@@ -118,6 +118,28 @@ async function findMusik(){
  await page.screenshot({path:path.join(env.artifactDir(),'podview-ipad-find-musik.png')});
  assert.deepEqual(errors,[]);await page.close();
 }
+// The owner's Green check (scripts/green-check.mjs) runs its silent Find musik steps on this page as on the Green:
+// F1/F11 first frame from the last-known page, nothing locked, covers decoded before shown; F5 the page scrolls and
+// a shelf swipes sideways without loading, flashes or rebuilt tiles. Its own verdicts must all be »ok« here.
+async function greenCheckFindMusik(){
+ const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route(/^https:\/\//,route=>/^https:\/\/(i\.scdn\.co|image-cdn-(fa|ak)\.spotifycdn\.com)\//
+  .test(route.request().url())?route.fulfill({contentType:'image/svg+xml',
+   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="teal"/></svg>'})
+  :route.abort());
+ await page.goto(live+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await page.waitForFunction(()=>{const p=document.querySelector('pv-widget-host')?.liveCatalogue?.page;
+  return !!p&&!p.refreshing&&p.shelves.some(shelf=>shelf.ai);},undefined,{timeout:30000});
+ const green=await import(path.join(env.runtimeRoot,'scripts/green-check.mjs'));
+ await page.evaluate(green.installProbe);
+ const check=new green.Check(page,page.mainFrame(),await fs.mkdtemp(path.join(os.tmpdir(),'podview-green-find-')));
+ await green.findMusicChecks(check);
+ assert.deepEqual(check.results.map(r=>[r.id,r.stories]),[['Find musik','F1 F11'],['Find musik rul','F5']]);
+ for(const result of check.results)assert.equal(result.status,'ok',`green-check ${result.id}: ${result.detail}`);
+ assert.deepEqual(errors,[]);await page.close();
+}
 (async()=>{try{
  const root=path.join(env.runtimeRoot,'podvoice/gatekeeper/static/podview');
  server=spawn(env.python,['-m','http.server',String(port),'--bind','127.0.0.1','--directory',root],{stdio:'ignore'});
@@ -133,6 +155,7 @@ async function findMusik(){
   try{if((await fetch(live+'/view/')).ok)break}catch{}if(n>150)throw Error('live server startup');await sleep(100)}
  browser=await chromium.launch({...env.browserOptions(),args:['--mute-audio']});
  await findMusik();
+ await greenCheckFindMusik();
 
  let page;
  // Musik-Koe: one card of 72-px rows; the current track is in the accent with a ring round the cover.
