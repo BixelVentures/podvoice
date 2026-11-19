@@ -837,7 +837,7 @@ export class RobotControlPanel extends HTMLBase {
         (actionId === 'pause' && value.device?.status !== 'cleaning') ||
         (actionId === 'resume' && value.device?.status !== 'paused')
       );
-      setDisabled(target, disabled);
+      this.setControlDisabled(el, target, disabled);
       const radio = attr(target, 'type') === 'radio';
       if (el.tagName !== 'BUTTON' && !radio) continue;
       const option = options.find(row => row.id === pendingId),
@@ -878,7 +878,7 @@ export class RobotControlPanel extends HTMLBase {
           value.connected === false ||
           !!value.device?.stale ||
           !value.directActions?.includes(action);
-      setDisabled(target, blocked);
+      this.setControlDisabled(el, target, blocked);
       const busy = !blocked && value.directPendingAction === action;
       setAttr(target, 'aria-busy', String(busy));
       kit(target, 'button', {
@@ -936,6 +936,14 @@ export class RobotControlPanel extends HTMLBase {
       hero.transport = [primary, ...hero.transport.filter(item => item !== primary)];
       touch();
     }
+  }
+
+  // The live host disables every control in its detail natively while it sends (live-control-view.js); as before,
+  // the panel's own state wins again at its next sync, so the element is corrected too, not only its face.
+  private setControlDisabled(el: Element, target: Face, disabled: boolean): void {
+    setDisabled(target, disabled);
+    const control = el as HTMLButtonElement;
+    if (control.disabled !== disabled) control.disabled = disabled;
   }
 
   private itemFace(item: TransportItem): Face | null {
@@ -2944,6 +2952,8 @@ export class RobotControlPanel extends HTMLBase {
           disabled = value;
           if (disabled) setExpanded(false);
           setDisabled(trigger, disabled);
+          const node = this.elements.get(trigger.id) as HTMLButtonElement | undefined;
+          if (node && node.disabled !== disabled) node.disabled = disabled;
           setAttr(trigger, 'aria-disabled', disabled);
         });
       },

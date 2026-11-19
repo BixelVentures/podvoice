@@ -113,3 +113,15 @@ test('the live host marks only its pending option busy through the panel', () =>
  assert.equal(wash.getAttribute('aria-busy'), 'false');
  for (const room of panel.querySelectorAll('[name=areaIds]')) assert.equal(room.getAttribute('aria-busy'), 'false');
 });
+
+test('a control the live host disabled while sending is live again when the panel holds the draft', () => {
+ const panel = mount();
+ panel.data = {task: task([start, dock]), device: {id: 'vacuum.robot', status: 'docked'}, connected: true};
+ panel.querySelector('[name=areaIds]').click();
+ for (const el of panel.querySelectorAll('button,input,select')) el.disabled = true;
+ panel.disabled = true;
+ panel.observed({id: 'vacuum.robot', status: 'docked'}, {pendingOptionId: start.id});
+ assert.equal(panel.cleaningSubmit.disabled, false);
+ for (const room of panel.querySelectorAll('[name=areaIds]')) assert.equal(room.disabled, false);
+ assert.equal(panel.querySelector('[data-dock-operation=wash_start]').disabled, true);
+});
