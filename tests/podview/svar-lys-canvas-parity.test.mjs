@@ -1,4 +1,5 @@
 // Lærred »PodView Retninger«: »SvarK-Historik« (↑ 1 nyt svar) and »Lys-Ukendt« (Status ukendt + compact info line).
+// The »Lys-Ukendt« room page test moved to podview/src/screens/light/room-view.test.js (Vitest) with the Lys screens.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -29,8 +30,6 @@ globalThis.HTMLElement??=class {};
 globalThis.customElements??={define(){},get(){}};
 
 const {SvarTodayView,svarUnseenCount,svarNewLabel}=await import('../../podview/svar-today-view.js');
-const {LightRoomView}=await import('../../podview/light-room-view.js');
-const {lightSelection}=await import('../../podview/scene-model.js');
 
 function svar(){const root=doc.createElement('aside'),header=doc.createElement('header'),h=doc.createElement('h2'),list=doc.createElement('div');
  list.className='svar-today-rows';header.append(h);root.append(header,list);const opened=[];const view=new SvarTodayView(root,id=>opened.push(id));return {root,list,view,opened};}
@@ -166,24 +165,4 @@ test('v193 kit and page rules: icon slot sizes, alarm variant, +N pill, queue co
  assert.match(css,/#music-detail #queue>\.queue-track\{grid-template-columns:32px 56px 1fr!important\}/);
  assert.match(css,/#music-detail #queue>\.queue-track>\.queue-play\{display:none!important\}/);
  assert.match(css,/\.light-lamp-level\[data-lamp-live=false\]\{opacity:\.4;pointer-events:none\}/);
-});
-
-function lightHost(connected){
- const lights=[{id:'k1',name:'Pendler',roomId:'kok',roomName:'Køkkenalrum',on:true,state:'on'},{id:'s1',name:'Gulvlampe',roomId:'stue',roomName:'Stue',on:false,state:'off'}];
- const light={id:'lys',kind:'light',status:'mixed',stale:!connected,lights,ownRoomId:'kok',scope:'room',exampleOnly:true,lightSelectionId:'room:kok'};
- const host={state:{connected:true,focus:'lys',devices:[light]},lightRooms:doc.createElement('div'),dispatch(){}};
- doc.createElement('section').append(host.lightRooms);return {host,light};
-}
-test('Lys-Ukendt says »Status ukendt« and shows the compact info line, never »Ikke opdateret«',()=>{
- const {host,light}=lightHost(false);
- assert.ok(lightSelection(light),'fixture must be a valid light selection');
- const view=new LightRoomView(host);view.render(light);
- assert.deepEqual([...view.rows.values()].map(e=>e.status.textContent),['Status ukendt','Status ukendt']);
- assert.equal(view.panelStatus.textContent,'Status ukendt');
- assert.equal(view.notice.hidden,false);assert.equal(view.notice.getAttribute('role'),'status');
- assert.equal(view.notice.textContent,'iLysoplysninger kunne ikke hentes. Prøv igen.');
- for(const e of view.rows.values())assert.equal(e.power.disabled,true);
- const fresh=lightHost(true);const freshView=new LightRoomView(fresh.host);freshView.render(fresh.light);
- assert.equal(freshView.notice.hidden,true);
- assert.doesNotMatch(readFileSync(new URL('../../podview/light-room-view.js',import.meta.url),'utf8'),/Ikke opdateret/);
 });
