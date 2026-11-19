@@ -89,7 +89,8 @@ pv-widget-host[data-view=active] .responses > #music-response:has(> #find-musik)
   align-items: baseline;
   gap: 10px;
 }
-.find-shelf-title h2 {
+/* Above the detail pages' shared label font for headings (ui-kit.css). */
+pv-widget-host #music-response .find-shelf-title h2 {
   margin: 0;
   font-size: 22px;
   font-weight: 800;
