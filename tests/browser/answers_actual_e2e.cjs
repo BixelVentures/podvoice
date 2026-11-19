@@ -38,6 +38,9 @@ let server,browser,data;
   const followup='Pedri, til 1-0 i 12. minut';
   await answerHost.getByText(followup,{exact:true}).waitFor({state:'visible',timeout:10000});
   await sport.waitFor({state:'visible'});
+  // Focus moves to the follow-up in the render after its text appears; wait for that settled role (was a flake).
+  await answerHost.locator('pv-answer[data-thread=earlier]:visible',{has:page.locator('pv-sport-result')})
+   .waitFor({state:'visible',timeout:5000}).catch(()=>{});
   assert.equal(await sport.getAttribute('data-thread'),'earlier');
   const current=answerHost.locator('pv-answer[data-thread=current]:visible');
   assert.equal(await current.count(),1);assert.match(await current.textContent(),/Assist/);assert.doesNotMatch(await answerHost.textContent(),/lavede assisten/,'no transcript on any card');
