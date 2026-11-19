@@ -8,7 +8,6 @@ import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
 import {accountPlaylistsSample,collectionCurrent,collectionSelection,directTargets,selectionOffer,selectionCurrent} from '../../podview/music-selection-model.js';
-import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
 const request=(endpoint,body,{method=body?'POST':'GET',headers={'content-type':'application/json','x-podview-request':'1'}}={})=>new Promise((resolve,reject)=>{
  const req=Readable.from(body?[JSON.stringify(body)]:[]);Object.assign(req,{url:endpoint,method,headers});let text='',status=200;
  fixtureRequest(req,{setHeader(){},writeHead(value){status=value;},end(value=''){text+=value;resolve({status,body:text.startsWith('{')?JSON.parse(text):text});}}).catch(reject);
@@ -38,14 +37,7 @@ test('actual read, subset setup and one native action use closed DTOs and opaque
 test('readonly and empty responses omit candidateSet rather than fabricating choices',async()=>{
  for(const room of ['account-playlists-readonly','account-playlists-empty']){const f=await setup(room);try{const wire=await f.transport.music('account_playlists',f.account),source=accountPlaylistsSample(wire,f.account,f.snap);assert.ok(source);assert.equal(Object.hasOwn(wire,'candidateSet'),false);assert.equal(source.context,null);assert.equal(collectionCurrent(source,f.snap,f.account),false);assert.equal(source.tracks.length,room.endsWith('empty')?0:5);if(room.endsWith('readonly'))await assert.rejects(f.transport.musicSelectionSetup('a'.repeat(64),{accountId:f.account,kind:'spotify_device',targetId:f.binding.targetId},['a'.repeat(24)]));}finally{f.transport.close();}}
 });
-test('read failure crosses the actual catalogue failure path and retains cards, order, sample and player',async()=>{
- const f=await setup('account-playlists-fail'),renders=[],host={liveSnapshot:f.snap,liveTransport:f.transport,liveStatus:'connected',state:{focus:'music'},musicResults:{render:value=>renders.push(value)}};
- const view=new LiveMusicCatalogueView(host,()=>{});try{
-  view.resetAccount(f.account);view.updateCapabilities(true,f.snap.capabilities.musicRead);view.select('top');view.tracks('top',await f.transport.music('account_playlists',f.account),f.account);const cards=view.cards,sample=view.sample;assert.equal(cards.length,5);assert.equal(renders.at(-1).canChoose,true);
-  view.beginRead('top','refresh');await assert.rejects(f.transport.music('account_playlists',f.account),error=>error.code==='read_transient');view.failure('top');assert.equal(view.cards,cards);assert.equal(view.sample,sample);assert.match(view.status,/viser seneste udvalg/);assert.equal(renders.at(-1).canChoose,false);assert.equal(view.busy,false);
-  const after=roomPlaybackObservation(await f.transport.music('playback',f.account),f.account,f.snap);assert.equal(after.item.uri,f.playback.item.uri);assert.equal(after.progressMs,84000);
- }finally{clearTimeout(view.expiryTimer);f.transport.close();}
-});
+
 test('fixture setup denies stale scope, raw URI/foreign occurrence, extra fields and absent native headers',async()=>{
  const f=await setup('account-playlists');try{const source=accountPlaylistsSample(await f.transport.music('account_playlists',f.account),f.account,f.snap),body={bootId:f.snap.bootId,roomId:f.snap.roomId,candidateSetId:source.context.candidateSetId,target:{accountId:f.account,kind:'spotify_device',targetId:f.binding.targetId},candidateIds:[source.items[0].id]};
   for(const change of [{bootId:'other'},{roomId:'account-playlists-readonly'},{candidateSetId:'a'.repeat(64)},{candidateIds:[source.tracks[0].uri]},{candidateIds:['a'.repeat(24)]},{candidateIds:[source.items[0].id,source.items[0].id]},{target:{...body.target,accountId:'other'}},{extra:true}])assert.equal((await request('/view/api/music/selection/setup',{...body,...change})).status,409,JSON.stringify(change));

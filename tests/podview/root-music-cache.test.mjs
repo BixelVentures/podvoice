@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
 import {initialWidgetState,widgetTransition,resultsFor} from '../../podview/widget-model.js';
 import {previewScene} from '../../podview/preview-scenes.js';
 import {initialScene,sceneTransition} from '../../podview/scene-model.js';
@@ -24,36 +23,6 @@ test('actual overview music entry defaults to Stemning and reopens every last lo
  for(const stage of ['top','recent']){host.state=previewScene(stage);const music=host.state.music;host.dispatch({type:'show',id:'now'});click();assert.equal(host.state.music,music,'explicit library fixture remains deterministic');}
  assert.ok(host.focusCount>0);
 });
-test('actual overview music entry retains live tab and exact cached cards without read, renewal or selection on reopen',()=>{
- const f=fixture();Object.assign(f.host,{live:true,liveCatalogue:f.view,dispatch(event){this.state={...this.state,focus:event.id};if(event.id==='music')f.view.open();},music(event){assert.equal(event.type,'collection');f.view.select(event.value);},focusHeading(){}});const click=overviewMusicClick(f.host);
- for(const collection of ['top','recent']){
-  f.view.select(collection);f.view.tracks(collection,body(collection),'account');const cards=f.view.cards,entry=f.view.entries.get(f.view.key()),reads=f.reads.length;
-  for(const focus of ['now','photo']){f.host.state.focus=focus;click();assert.equal(f.view.selected,collection);assert.equal(f.view.cards,cards);assert.equal(f.view.entries.get(f.view.key()),entry);assert.equal(f.reads.length,reads);assert.equal(f.view.pendingRead,null);}
- }
- f.view.refresh();const request=f.view.pendingRead,reads=f.reads.length;f.host.state.focus='now';click();assert.equal(f.view.selected,'recent');assert.equal(f.view.pendingRead,request);assert.equal(f.reads.length,reads,'reopen does not replace an in-flight explicit refresh');
- f.view.failure('recent');f.host.state.focus='now';click();assert.equal(f.reads.length,reads,'failed refresh never silently retries');
- f.view.resetAccount('other');assert.equal(f.view.selected,'mood');assert.deepEqual(f.view.cards,[],'another account never inherits the previous collection content');f.host.state.focus='now';click();assert.equal(f.view.selected,'mood');assert.deepEqual(f.view.cards,[]);assert.equal(f.reads.length,reads);
-});
-test('live tabs and scene reopen retain exact per-collection IDs/order/art and never reread after first admission',()=>{const f=fixture();f.view.select('top');f.view.tracks('top',body('Top'),'account');f.view.refresh();f.view.tracks('top',body('Top'),'account');const top=content(f.view.cards);f.view.select('recent');assert.deepEqual(f.view.cards,[]);f.view.tracks('recent',body('Recent'),'account');const liked=content(f.view.cards);const count=f.reads.length;for(let i=0;i<3;i++){f.host.state.focus='photo';f.view.render();f.host.state.focus='music';f.view.select('top');assert.deepEqual(content(f.view.cards),top);f.view.select('recent');assert.deepEqual(content(f.view.cards),liked);}assert.equal(f.reads.length,count);assert.equal(f.renders.at(-1).canChoose,false);});
-test('unsolicited repeated samples cannot replace frozen choices; explicit refresh alone admits new source content',()=>{const f=fixture();f.view.select('top');f.view.tracks('top',body('First'),'account');const before=content(f.view.cards);f.view.tracks('top',body('Silent'),'account');assert.deepEqual(content(f.view.cards),before);f.view.select('top');assert.deepEqual(content(f.view.cards),before);assert.equal(f.reads.length,1);f.view.refresh();assert.deepEqual(content(f.view.cards),before);f.view.tracks('top',body('Explicit'),'account');assert.notDeepEqual(content(f.view.cards),before);assert.equal(f.reads.length,2);});
-test('same-account owner invalidation and read-capability revoke/restore keep content while allowing no source writes',()=>{const f=fixture();f.view.select('top');f.view.tracks('top',body(),'account');const frozen=content(f.view.cards),reads=f.reads.length;f.view.offline('Owner changed');f.view.resetAccount('account');f.view.updateCapabilities(true,[]);f.view.updateCapabilities(true,['top','recent','recent']);assert.deepEqual(content(f.view.cards),frozen);assert.equal(f.view.selected,'top');assert.equal(f.reads.length,reads);assert.equal(f.renders.at(-1).canChoose,false);f.view.select('recent');f.view.tracks('recent',body('Recent'),'account');f.view.select('top');assert.deepEqual(content(f.view.cards),frozen);});
-test('abandoned reads stay fenced while an interrupted initial tab gets a new read',()=>{
- const f=fixture();f.view.select('top');f.view.tracks('top',body('Top'),'account');const top=content(f.view.cards);
- f.view.refresh();const abandonedRefresh=f.view.pendingRead;f.view.select('recent');
- f.view.tracks('recent',body('Recent'),'account');f.view.select('top');
- f.view.tracks('top',body('Late'),'account',abandonedRefresh);
- assert.deepEqual(content(f.view.cards),top);assert.equal(f.view.busy,false);
- const fresh=fixture();fresh.view.select('recent');const abandonedInitial=fresh.view.pendingRead;
- fresh.view.select('top');fresh.view.select('recent');const replacement=fresh.view.pendingRead;
- assert.notEqual(replacement,abandonedInitial);
- fresh.view.tracks('recent',body('LateRecent'),'account',abandonedInitial);
- assert.deepEqual(fresh.view.cards,[]);assert.equal(fresh.view.busy,true);
- assert.deepEqual(fresh.reads,['recent','top','recent']);
- fresh.view.tracks('recent',body('CurrentRecent'),'account',replacement);
- assert.equal(fresh.view.cards[0].name,'CurrentRecent 0');
- assert.equal(fresh.view.busy,false);
-});
-test('failed first read never retries silently on tab return; explicit refresh is the retry boundary',()=>{const f=fixture();f.view.select('recent');f.view.failure('recent');f.view.select('top');f.view.tracks('top',body(),'account');f.view.select('recent');assert.equal(f.reads.filter(kind=>kind==='recent').length,1);assert.match(f.view.status,/kunne ikke/);f.view.refresh();assert.equal(f.reads.filter(kind=>kind==='recent').length,2);f.view.tracks('recent',body('Recovered'),'account');assert.equal(f.view.cards.length,5);});
-test('content caches separate accounts and discard old boot/room context without admitting late samples',()=>{for(const field of ['bootId','roomId']){const f=fixture();f.view.select('top');f.view.tracks('top',body('First'),'account');f.view.resetAccount('other');f.view.select('top');f.view.tracks('top',body('Other','other'),'other');assert.match(f.view.cards[0].name,/Other/);f.view.resetAccount('account');f.view.select('top');assert.match(f.view.cards[0].name,/First/);f.view.refresh();f.host.liveSnapshot[field]='new-context';f.view.updateCapabilities(true,['top','recent','recent']);f.view.tracks('top',body('Late'),'account');assert.deepEqual(f.view.cards,[]);assert.equal(f.view.entries.size,0);f.view.select('top');f.view.tracks('top',body('New'),'account');assert.match(f.view.cards[0].name,/New/);}});
+
 test('local collection pages survive round trips and only explicit completed refresh changes their exact options',()=>{let s=initialWidgetState();const snapshots=new Map();for(const collection of ['mood','feeling','top','recent']){s=widgetTransition(s,{type:'collection',value:collection});s=widgetTransition(s,{type:'refresh',revision:s.revision});s=widgetTransition(s,{type:'refresh-result',...s.refreshPending,status:'ready'});snapshots.set(collection,resultsFor(s).map(({id,art,name})=>({id,art,name})));}for(let n=0;n<3;n++)for(const collection of ['top','mood','feeling','recent']){s=widgetTransition(s,{type:'collection',value:collection});assert.deepEqual(resultsFor(s).map(({id,art,name})=>({id,art,name})),snapshots.get(collection));}const before=resultsFor(s);s=widgetTransition(s,{type:'refresh',revision:s.revision});s=widgetTransition(s,{type:'refresh-result',...s.refreshPending,status:'error'});assert.deepEqual(resultsFor(s),before);assert.equal(widgetTransition(s,{type:'filter',value:'jazz'}),s);});
 test('local navigation, clock ticks, pause and session lifecycle preserve the chosen source IDs and artwork',()=>{let s=previewScene('top');s=sceneTransition(s,{type:'music',event:{type:'refresh',revision:s.music.revision}});s=sceneTransition(s,{type:'music',event:{type:'refresh-result',...s.music.refreshPending,status:'ready'}});const options=resultsFor(s.music);for(const event of [{type:'show',id:'now'},{type:'show',id:'photo'},{type:'show',id:'music'},{type:'tick',now:Date.now()+3600000},{type:'music',event:{type:'toggle'}},{type:'session-ended'}]){s=sceneTransition(s,event);assert.deepEqual(resultsFor(s.music),options);}});

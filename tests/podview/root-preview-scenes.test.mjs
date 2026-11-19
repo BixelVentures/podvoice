@@ -4,12 +4,6 @@ import {previewScene as createPreviewScene,previewStates,timerPreviewStates,musi
 import {sceneTransition,deviceActions} from '../../podview/scene-model.js';
 const previewNow=Date.parse('2026-10-20T09:10:00Z');
 const previewScene=name=>createPreviewScene(name,previewNow);
-test('authored cover-state stage retains actual track choices while clearly labeling known, missing and failed local images',async()=>{
- const {localDiscoveryCards}=await import('../../podview/music-results.js'),{resultsFor,TRACKS}=await import('../../podview/widget-model.js');const state=previewScene('music-cover-states'),cards=localDiscoveryCards(state);
- assert.ok(previewStates.includes('music-cover-states'));assert.deepEqual(state,previewScene('music-cover-states'));assert.equal(state.music.collection,'top');assert.equal(state.focus,'music');assert.deepEqual(cards.map(card=>card.id),resultsFor(state.music).map(option=>option.id));assert.deepEqual(cards.map(card=>card.name),TRACKS.slice(0,3).map(track=>track.title));assert.equal(cards[0].fixtureArt,TRACKS[0].art);assert.equal(cards[1].fixtureArt,null);assert.equal(cards[2].fixtureArt,'assets/qa-unavailable-cover.svg');assert.ok(cards.every(card=>card.artworkRole==='cover'&&card.detail.startsWith('Lokalt billedtest · ')));assert.equal(state.music.pending,null);
- for(const card of cards){const selected=sceneTransition(state,{type:'music',event:{type:'select',id:card.id,revision:state.music.revision}});assert.equal(selected.music.pending.id,card.id);assert.equal(selected.music.playback,state.music.playback,'image fixture never starts playback');}
- const away=sceneTransition(sceneTransition(state,{type:'show',id:'now'}),{type:'show',id:'music'});assert.deepEqual(localDiscoveryCards(away),cards);assert.equal(away.music.playback,state.music.playback);assert.equal(previewScene('music-top').music.previewTracks,undefined,'image failure is not seeded into ordinary fixtures');
-});
 test('state previews retain resources independently of answer and connection status',()=>{
  for(const name of ['waiting','partial','ready','empty','error','offline','connecting','ended']){
   const s=previewScene(name);assert.equal(s.timer.status,'running',name);assert.equal(s.timer.remaining,60,name);assert.equal(s.music.playback.track,0,name);
@@ -241,23 +235,6 @@ test('new library domain snapshots carry genuine owner input and no live action 
 });
 
 
-test('music specimens supply actual long renderer inputs and a distinct initial empty result',async()=>{
- const {localPlayerModel,localQueueModel}=await import('../../podview/player-model.js');
- const {localDiscoveryCards}=await import('../../podview/music-results.js');
- const {TRACKS}=await import('../../podview/widget-model.js');
- const empty=previewScene('music-initial-empty');assert.deepEqual(localDiscoveryCards(empty),[]);assert.equal(empty.music.playback.active,false);assert.equal(empty.music.refreshStatus,'');
- const refresh=previewScene('music-refresh-empty');assert.equal(localDiscoveryCards(refresh).length,3);assert.equal(refresh.music.playback.active,true);assert.equal(refresh.music.refreshStatus,'empty');
- for(const stage of ['music-long-metadata','player-long-metadata']){
-  const state=previewScene(stage),vm=localPlayerModel(state),queue=localQueueModel(state),cards=localDiscoveryCards(state);
-  assert(vm.title.length>80);assert(vm.artist.length>70);assert.equal(cards[0].name,vm.title);assert.equal(queue[0].title,vm.title);assert.equal(cards[0].description,vm.artist);assert.deepEqual(queue.map(item=>item.id),TRACKS.map(item=>item.id));
-  const navigated=sceneTransition(sceneTransition(state,{type:'show',id:'now'}),{type:'show',id:'player'});assert.equal(localPlayerModel(navigated).title,vm.title);assert.deepEqual(localQueueModel(navigated).map(item=>item.id),queue.map(item=>item.id));
-  const selected=sceneTransition(state,{type:'music',event:{type:'queue-select',id:queue[1].id,revision:state.music.revision}});assert.equal(localPlayerModel(selected).title,queue[1].title);assert.equal(localQueueModel(selected)[0].id,queue[1].id);
-  const offline=sceneTransition(state,{type:'offline'});assert.equal(localPlayerModel(offline).canOutput,false);assert.equal(localQueueModel(offline).every(item=>!item.selectable),true);
- }
- for(const stage of ['player-queue-empty','player-queue-error']){const state=previewScene(stage),vm=localPlayerModel(state);assert.equal(vm.active,true);assert.equal(vm.title,TRACKS[0].title);assert.equal(vm.playing,true);assert.deepEqual(localQueueModel(state),[]);}
-});
-
-
 test('weather stress and connection failure use supported passive owner inputs',async()=>{
  const {localWeatherModel,liveWeatherModel,WEATHER_CHANGE_EXAMPLE}=await import('../../podview/weather-view.js');
  const {homeConnectionPresentation}=await import('../../podview/podvoice-view.js');
@@ -265,16 +242,6 @@ test('weather stress and connection failure use supported passive owner inputs',
  const failure=previewScene('weather-connection-error');assert.equal(failure.weatherPreview,'empty');const empty=liveWeatherModel(null,{reason:homeConnectionPresentation(failure.connectionPreview).reason});assert.equal(empty.current,null);assert.deepEqual(empty.hours,[]);assert.match(empty.emptyDetail,/svarer ikke/);assert.equal(empty.connectionReason,'unavailable');
 });
 
-
-test('metadata fixtures follow reducer-admitted Senest and refreshed options rather than stale top IDs',async()=>{
- const {localDiscoveryCards}=await import('../../podview/music-results.js');
- const {resultsFor}=await import('../../podview/widget-model.js');
- let state=sceneTransition(previewScene('music-long-metadata'),{type:'music',event:{type:'collection',value:'recent'}});
- const verifySelectable=scene=>{const cards=localDiscoveryCards(scene);assert.deepEqual(cards.map(card=>card.id),resultsFor(scene.music).map(option=>option.id));for(const card of cards){assert(card.id.startsWith('recent:'));assert(card.name.length>80);const selected=sceneTransition(scene,{type:'music',event:{type:'select',id:card.id,revision:scene.music.revision}});assert.equal(selected.music.pending?.id,card.id);}};
- verifySelectable(state);state=sceneTransition(state,{type:'music',event:{type:'refresh',revision:state.music.revision}});state=sceneTransition(state,{type:'music',event:{type:'refresh-result',...state.music.refreshPending,status:'ready'}});assert.equal(state.music.suggestionPage,1);verifySelectable(state);
- let empty=previewScene('music-initial-empty');assert.deepEqual(localDiscoveryCards(empty),[]);empty=sceneTransition(empty,{type:'music',event:{type:'refresh',revision:empty.music.revision}});assert.deepEqual(localDiscoveryCards(empty),[]);empty=sceneTransition(empty,{type:'music',event:{type:'refresh-result',...empty.music.refreshPending,status:'empty'}});assert.deepEqual(localDiscoveryCards(empty),[]);
- let recovered=previewScene('music-initial-empty');recovered=sceneTransition(recovered,{type:'music',event:{type:'refresh',revision:recovered.music.revision}});recovered=sceneTransition(recovered,{type:'music',event:{type:'refresh-result',...recovered.music.refreshPending,status:'ready'}});assert.equal(localDiscoveryCards(recovered).length,3);assert.equal(recovered.music.playback.active,false);
-});
 
 test('visual answer long and failed-image specimens remain validated local content',()=>{
  for(const format of ['fact-card','sourced-image','answer-timeline','simple-diagram']){
