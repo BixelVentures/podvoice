@@ -1035,7 +1035,7 @@ class MusicControlFacade:
             if (
                 not isinstance(uri, str)
                 or re.fullmatch(
-                    r"spotify:playlist:[A-Za-z0-9]{22}"
+                    r"spotify:(playlist|album|artist|show):[A-Za-z0-9]{22}"
                     if context
                     else r"spotify:track:[A-Za-z0-9]{22}",
                     uri,

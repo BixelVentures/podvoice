@@ -42,6 +42,8 @@ from . import (
 from .history import MAX_TURNS, TALK_ROOM, History
 from .podview_continuity import ControllerRegistry, log_screen_enrollment
 from .podview_music_selection import MusicSelection, trace_event
+from .podview_music_shelves import SCHEMA as MUSIC_SHELVES_SCHEMA
+from .podview_music_shelves import MusicShelves, candidate_rows
 from .podview_vacuum_control import transport_actions
 from .recipe_import import REPLY_SECONDS, import_link
 from .recipe_submissions import (
@@ -404,6 +406,7 @@ class PodViewBridge:
             move_policy_revision=_REVIEWED_MOVE_POLICY_REVISION,
         )
         self.music_selection = MusicSelection()
+        self.music_shelves = MusicShelves()
         self._touch_music_contexts: dict[tuple, tuple[float, dict]] = {}
         self._revisions: dict[str, tuple[str, int]] = {}
         # Legacy one-use code retains its room slot. Durable profiles have
@@ -3541,7 +3544,7 @@ def _selection_source_current(
             room,
             token,
             "play_context"
-            if source.get("kind") in {"mood", "feeling", "account_playlists"}
+            if source.get("kind") in {"mood", "feeling", "account_playlists", "shelves"}
             else "play_track",
         )
         or context.get("roomId") != room
@@ -4224,6 +4227,118 @@ async def _music(request: web.Request) -> web.Response:
                 completion.set_result(None)
             if bridge._targets_inflight is not None and bridge._targets_inflight[1] is completion:
                 bridge._targets_inflight = None
+
+
+async def _shelves_weather(bridge: PodViewBridge, tools) -> dict | None:
+    """The current weather observation PodView already shows; never a new weather source."""
+    cached = bridge._weather_source_cache
+    value = cached[2] if cached and time.time() < cached[3] else None
+    if value is None:
+        read = getattr(tools, "podview_weather_read", None)
+        available = getattr(tools, "podview_weather_available", lambda: False)()
+        value = await asyncio.wait_for(read(), timeout=4) if read and available else None
+    if not podview_weather.observation_is_current(value):
+        return None
+    current = (value.get("data") or {}).get("current") if isinstance(value, dict) else None
+    return current if isinstance(current, dict) else None
+
+
+async def _music_shelves(request: web.Request) -> web.Response:
+    """Find musik: ordered library and AI shelves from last-known data, plus one choice set."""
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    bridge: PodViewBridge = request.app[BRIDGE]
+    account = request.query.get("account")
+    if (
+        set(request.query) - {"room", "account"}
+        or any(len(request.query.getall(key)) != 1 for key in request.query)
+        or not isinstance(account, str)
+        or not 1 <= len(account) <= 1024
+    ):
+        return _error("invalid_account", 400)
+    room = _room(request, bridge)
+    if room is None:
+        return _error("room_required")
+    tools = bridge.tools
+    if (
+        not all(
+            hasattr(tools, method)
+            for method in ("podview_music_reads", "podview_music_binding", "podview_library_read")
+        )
+        or "shelves" not in tools.podview_music_reads()
+    ):
+        return _error("music_unavailable", 503)
+    try:
+        document = _music_document(request)
+    except ValueError:
+        return _error("invalid_music_document", 400)
+    binding = _music_binding(bridge, room)
+
+    def current() -> bool:
+        return bool(
+            request.app.get(BRIDGE) is bridge
+            and bridge.tools is tools
+            and room in bridge.sessions
+            and _music_binding(bridge, room) == binding
+        )
+
+    services = set(getattr(getattr(tools, "_discovery", None), "podconnect_services", ()))
+    try:
+        shelves = await bridge.music_shelves.read(
+            account,
+            reader=tools.podview_library_read,
+            available=services,
+            selector=getattr(tools, "podview_mood_selector", None),
+            weather=lambda: _shelves_weather(bridge, tools),
+            current=current,
+        )
+    except Exception as error:
+        _log_terminal_failure("music_read", error)
+        return _error("music_unavailable", 503)
+    denied = await _guard(request)
+    if denied is not None:
+        return denied
+    if not current():
+        return _error("music_unavailable", 503)
+    result: dict = {
+        "ok": True,
+        "schema": MUSIC_SHELVES_SCHEMA,
+        "bootId": bridge.boot_id,
+        "roomId": room,
+        "configEntryId": account,
+        **shelves,
+    }
+    token = _request_token(request, room)
+    if (
+        shelves["items"]
+        and bridge._grant_current(room, token)
+        and bridge.controls.selection_allowed(room, token, "play_context")
+        and not bridge.music_selection.busy(room)
+    ):
+        generation = bridge._advance_music_source(token, document)
+        if generation is not None:
+            # A newer shelves read replaces this document's earlier choice set (last tap wins).
+            bridge._retire_music_source(token, document)
+            context = _music_search_context(
+                bridge,
+                room,
+                account,
+                "shelves:collection",
+                token,
+                mint_touch=True,
+                document=document,
+            )
+            identifier = bridge.music_selection.register(
+                context,
+                {"tracks": candidate_rows(shelves["items"])},
+                binding,
+                kind="shelves",
+                scope=bridge._music_scope(token, document),
+            )
+            if identifier is not None:
+                result["candidateSet"] = bridge.music_selection.candidate_set(identifier)
+    return web.json_response(result, headers={"Cache-Control": "no-store"})
 
 
 async def _mood_music(request, bridge, room, *, kind="mood"):
@@ -4944,7 +5059,7 @@ async def _music_selection_impl(request: web.Request) -> web.Response:
             return _error("invalid_candidate_ids", 400)
         selection_action = (
             "play_context"
-            if source.get("kind") in {"mood", "feeling", "account_playlists"}
+            if source.get("kind") in {"mood", "feeling", "account_playlists", "shelves"}
             else "play_track"
         )
         scope = podview_room_media.binding(bridge, room, target["accountId"])
@@ -5836,6 +5951,7 @@ def mount(
     app.on_startup.append(retain_client_diagnostics)
 
     async def close_receipts(_app):
+        await bridge.music_shelves.aclose()
         await bridge.stop_home_events(closing=True)
         if recipe_recovery_task is not None:
             recipe_recovery_task.cancel()
@@ -5901,6 +6017,7 @@ def mount(
             web.get("/view/api/music/player/artwork", podview_room_player.artwork_http),
             web.post("/view/api/music/queue/offer", _observed_queue_offer),
             web.post("/view/api/music/queue/actions", queue_http),
+            web.get("/view/api/music/shelves", _music_shelves),
             web.post("/view/api/music/selection/setup", _music_selection),
             web.post("/view/api/music/selection/actions", _music_selection),
             web.get("/view/api/home", _home),

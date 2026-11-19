@@ -123,10 +123,21 @@ class MusicSelection:
         if not _closed_context(context) or not isinstance(data, dict):
             return None
         tracks = data.get("playlists" if kind == "account_playlists" else "tracks")
-        if kind not in {"search", "recent", "top", "liked", "mood", "feeling", "account_playlists"}:
+        if kind not in {
+            "search",
+            "recent",
+            "top",
+            "liked",
+            "mood",
+            "feeling",
+            "account_playlists",
+            "shelves",
+        }:
             return None
         maximum = (
-            20
+            120
+            if kind == "shelves"
+            else 20
             if kind == "account_playlists"
             else 3
             if kind in {"search", "mood", "feeling"}
@@ -153,7 +164,9 @@ class MusicSelection:
             not isinstance(row, dict)
             or not isinstance(row.get("uri"), str)
             or re.fullmatch(
-                r"spotify:playlist:[A-Za-z0-9]{22}"
+                r"spotify:(playlist|album|artist|show):[A-Za-z0-9]{22}"
+                if kind == "shelves"
+                else r"spotify:playlist:[A-Za-z0-9]{22}"
                 if kind in {"mood", "feeling", "account_playlists"}
                 else r"spotify:track:[A-Za-z0-9]{22}",
                 row.get("uri", ""),
@@ -266,7 +279,7 @@ class MusicSelection:
             return None
         action = (
             "play_context"
-            if source["kind"] in {"mood", "feeling", "account_playlists"}
+            if source["kind"] in {"mood", "feeling", "account_playlists", "shelves"}
             else "play_track"
         )
         start = controls.get("start_offer")
