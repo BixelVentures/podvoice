@@ -135,3 +135,31 @@ test('actual idle speaker choice updates selected description without changing I
     TARGETS.map(row => row.targetId),
   );
 });
+
+// docs/MOTION.md §0: render() without changes writes nothing to the DOM (render_idempotent_actual_e2e.cjs in a real
+// browser); here on Hjem, Ro, a busy Hjem and »Tidligere svar«'s examples, with the shell's React tree in the page.
+test('an identical render of Hjem writes nothing to the DOM', async () => {
+  for (const stage of ['now', 'rest', 'activities-combined', 'visual-history']) {
+    const f = await mountPage(`/?stage=${stage}`);
+    f.host.render();
+    const records = [];
+    const observer = new MutationObserver(found => records.push(...found));
+    observer.observe(document.body, {subtree: true, attributes: true, childList: true, characterData: true});
+    f.host.render();
+    f.host.render();
+    records.push(...observer.takeRecords());
+    observer.disconnect();
+    // Two writers outside the shell re-apply an unchanged value, which happy-dom reports and Chromium does not
+    // (render_idempotent_actual_e2e.cjs): the voice surface's [hidden] under reduced motion and the car card's
+    // --pv-car-level. Everything else, the shell's React tree included, must stay untouched.
+    const known = record =>
+      record.attributeName === 'hidden' && record.target.classList.contains('voice-surface') ||
+      record.attributeName === 'style' && record.target.id === 'home-vehicle';
+    assert.deepEqual(
+      records.filter(record => !known(record)).map(record => `${record.type}:${record.target.id || record.target.className}:${record.attributeName || ''}`),
+      [],
+      stage,
+    );
+    unmountPage();
+  }
+});
