@@ -4519,7 +4519,7 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
    160 wide, so Pause ↔ Fortsæt keeps »Mere« in place) and »Mere ▾« (the product's base disclosure) to its left; the disclosure opens as a #F7F6F3 card under them. Rum is a
    section of 64-px tiles in four columns with a dot; Rengøringsvalg is one card of segmented rows (Type 56, the
    rest 44). The page fades out at the fold. When the hero has scrolled away, the 72-px line under the topbar
-   (robot-control-panel.js buildStickyLine) repeats the title, line, primary and »Mere ▾«. The M widget has the arcs,
+   (src/screens/robot/RobotControlPanel.tsx buildStickyLine) repeats the title, line, primary and »Mere ▾«. The M widget has the arcs,
    20/800 + 15 and a dark 56 pill. The view starts at the topbar (16 padding) so the line can sit under it; the line is
    fixed to the column
    (an ancestor is its containing block, so left/top 0 is the column under the topbar). */

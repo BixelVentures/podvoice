@@ -1,6 +1,6 @@
 import {groupAnswerHistory,answerThread} from '../../podview/owner-answers.js';
 import {applyKitComponent,applyKitDialog,applyKitTextRole,createKitSliderField,createKitDisclosure} from '../../podview/ui/kit.js';
-import {LightRoomView} from '../../podview/light-room-view.js';
+import {LightRoomView} from '../../podview/src/screens/light/LightRoomView.tsx';
 import {scopedLightsObservation} from '../../podview/ha-home-observation.js';
 import {renderOverviewMediaValues,fixtureArtwork} from '../../podview/music-results.js';
 import {updateResourceFacts} from '../../podview/ui/resource-tile.js';

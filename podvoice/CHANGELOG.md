@@ -1,3 +1,9 @@
+## 2.1.26
+
+- Lys og Robot er nu React: rumsiden, lamperækkerne og robotpanelet tegnes af React-komponenter og ser ud og opfører sig som før. Ingen lamper eller robot er styret under afprøvningen.
+- Lys: en lampes tænd/sluk-knap kunne blive stående låst, efter lampen igen var opdateret (fx efter en forsinket læsning eller tabt forbindelse), hvis der ikke havde været en kommando til den. Den låses nu op, så snart lampen er aktuel.
+- Robot: panelet skriver ikke længere uændret tekst om ved hver opdatering, så intet blinker, når robotten melder samme tilstand igen. Startknappen og rumvalget låses stadig kun, mens en start faktisk sendes.
+
 ## 2.1.25
 
 - Bil og Opskrifter er nu React: bilsiden og opskriftssiden (Katalog, opskrift, Udforsk) tegnes af React-komponenter og ser ud og opfører sig som før. Bilen kan stadig ikke få kommandoer fra forhåndsvisningen.

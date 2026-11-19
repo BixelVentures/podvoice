@@ -20,14 +20,13 @@ const PODVIEW_FEATURES = [
   [/^(music-|live-music|live-queue-view|player-view|room-player|speaker-output-view|spotify-artwork|library)/,
     MUSIC],
   [/^(radio-|live-radio-view)/, MUSIC],
-  [/^light-/, ['light']],
   [/^timer-/, ['timer']],
   [/^(answer-widget|live-answer-view|owner-answers|research-answers)/, ['answers']],
   [/^setup\./, ['panel']],
 ];
 // React screens: podview/src/screens/<screen>/.
 const PODVIEW_SCREENS = {weather: ['home_events'], timer: ['timer'], radio: MUSIC, vehicle: ['vehicle'],
-  recipe: ['recipe']};
+  recipe: ['recipe'], light: ['light'], robot: ['robot', 'robot_ux']};
 // Server modules named after one feature. Shared modules (podview.py, web.py, tools.py, ...) run all.
 const SERVER_FEATURES = [
   [/^(podview_robot|podview_vacuum_|podview_dock_control|robot_settings|cleaning_journal)/,

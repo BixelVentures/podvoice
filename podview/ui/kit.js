@@ -183,14 +183,27 @@ export function createKitChoiceGroup({document=globalThis.document,id,label,choi
 
 /** Label/value composition of the existing Slider. Observation is presentation;
  * only an explicit native change reaches the owner's captured command context. */
-export function createKitSliderField({document=globalThis.document,id,label,identity='neutral',onCommit,getContext,min,max,step,unit='%',formatValue}={}){
- if(!id)throw new TypeError('Slider field needs a stable id');
+// Source bounds of a slider field: the default 0..100 % scale, or the caller's own min/max/step.
+const sliderFieldBounds=({min,max,step,unit='%',formatValue})=>{
  const sourceBounds=min!==undefined||max!==undefined||step!==undefined;if(!sourceBounds){min=0;max=100;step=1;}
  if(!Number.isFinite(min)||!Number.isFinite(max)||max<=min||!Number.isFinite(step)||step<=0||step>max-min||typeof unit!=='string'||unit.length>32||formatValue!==undefined&&typeof formatValue!=='function')throw new TypeError('Slider field needs valid source min/max/step and presentation');
- const gridEnd=Math.floor((max-min)/step+1e-9),format=value=>{const text=formatValue?formatValue(value):`${value}${unit?' '+unit:''}`;if(typeof text!=='string'||text.length>160)throw new TypeError('Slider formatter must return bounded text');return text;};
+ return {sourceBounds,min,max,step,unit,formatValue};
+};
+export function createKitSliderField({document=globalThis.document,id,label,identity='neutral',onCommit,getContext,min,max,step,unit='%',formatValue}={}){
+ if(!id)throw new TypeError('Slider field needs a stable id');
+ const bounds=sliderFieldBounds({min,max,step,unit,formatValue});
  const node=document.createElement('div'),heading=document.createElement('label'),description=document.createElement('p'),input=createKitComponent('slider',{document,identity}),output=document.createElement('output');
- input.min=String(min);input.max=String(max);input.step=String(step);
+ input.min=String(bounds.min);input.max=String(bounds.max);input.step=String(bounds.step);
  node.className='pv-kit-slider-field';heading.id=id+'-label';heading.htmlFor=id;heading.textContent=label;applyKitTextRole(heading,'field-label');applyKitTextRole(output,'control-value');applyKitTextRole(description,'meta');description.id=id+'-scope';input.id=id;output.htmlFor=id;input.setAttribute('aria-labelledby',heading.id);input.setAttribute('aria-describedby',description.id);node.append(heading,output,description,input);
+ return bindKitSliderField({node,label:heading,description,input,output},{onCommit,getContext,min,max,step,unit,formatValue});
+}
+/** The gesture, draft and paint of a slider field whose elements already exist (createKitSliderField's
+ * elements, or the same elements drawn by React). The owner keeps the model; a gesture keeps its captured
+ * context until release, and only an explicit native change commits. */
+export function bindKitSliderField({node,label:heading,description,input,output},{onCommit,getContext,min,max,step,unit='%',formatValue}={}){
+ const bounds=sliderFieldBounds({min,max,step,unit,formatValue}),sourceBounds=bounds.sourceBounds;min=bounds.min;max=bounds.max;step=bounds.step;
+ applyKitComponent(input,'slider');
+ const gridEnd=Math.floor((max-min)/step+1e-9),format=value=>{const text=formatValue?formatValue(value):`${value}${unit?' '+unit:''}`;if(typeof text!=='string'||text.length>160)throw new TypeError('Slider formatter must return bounded text');return text;};
  let model={value:null,scope:'',disabled:false,pending:false,mixed:false},draft=null,context,editing=false,aborted=false;
  const blocked=()=>model.disabled||model.pending&&!model.editableWhilePending;
  const text=(element,value)=>{if(element.textContent!==value)element.textContent=value;};
