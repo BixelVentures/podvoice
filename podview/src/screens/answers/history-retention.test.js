@@ -1,7 +1,14 @@
-import test from 'node:test';
+// Ported from tests/podview/root-history-retention.test.mjs (node:test with a fake DOM) to Vitest with a real DOM
+// (happy-dom) when live-answer-view.js moved to LiveAnswerView.tsx; no near-duplicate copies. Same tests (12) and
+// assertions; first run against the old live-answer-view.js in the same DOM. Adaptations: the tests' fake document
+// (activeElement, querySelector, hidden, visibilityState) is defined as writable own properties on the real happy-dom
+// document and restored afterwards (nesting-safe), document.createElement stays real (a nested fixture restores the
+// outer one's fake values, as the old priorDocument did); the view's source dialog, note and body are real elements
+// (the fake createElement made fake Nodes); the fake host and opener Nodes stay as they were.
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import { LiveAnswerView,answerReadContext } from '../../podview/live-answer-view.js';
-import { liveScene } from '../../podview/podvoice-view.js';
+import { LiveAnswerView,answerReadContext } from './LiveAnswerView';
+import { liveScene } from '../../../podvoice-view.js';
 
 class Node extends EventTarget {
   constructor(tag) {
@@ -21,6 +28,17 @@ class Node extends EventTarget {
   close() { this.open = false; this.dispatchEvent(new Event('close')); }
 }
 
+// The tests' fake document becomes own properties on the real one (restored afterwards, nesting-safe).
+function fakeDocument(values){
+ const faked={hidden:false,visibilityState:'visible',...values},prior=new Map();
+ for(const [name,value] of Object.entries(faked)){
+  prior.set(name,Object.getOwnPropertyDescriptor(document,name));
+  Object.defineProperty(document,name,{configurable:true,enumerable:true,writable:true,value});
+ }
+ return ()=>{for(const [name,descriptor] of prior){if(descriptor)Object.defineProperty(document,name,descriptor);
+  else delete document[name];}};
+}
+
 const deferred = () => {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
@@ -29,13 +47,11 @@ const deferred = () => {
 
 const receiptId = 'a'.repeat(32);
 function fixture({ focus = 'photo', modal = false } = {}) {
-  const priorDocument = globalThis.document;
   const active = new Node('button');
-  globalThis.document = {
+  const restoreDocument = fakeDocument({
     activeElement: active,
-    createElement: tag => new Node(tag),
     querySelector: selector => selector === 'dialog[open]' && modal ? {} : null,
-  };
+  });
   const host = new Node('host');
   host.dataset.edgeDrag = 'false';
   host.state = { focus, connected:false,answers: [] };
@@ -71,7 +87,7 @@ function fixture({ focus = 'photo', modal = false } = {}) {
   }] });
   return {
     host, view, request, answer, active, answerContainer,
-    restore() { view.invalidate(); globalThis.document = priorDocument; },
+    restore() { view.invalidate(); restoreDocument(); },
     async read(result = answer()) { const pending = view.refresh(); request.resolve(result); await pending; },
   };
 }
@@ -85,7 +101,7 @@ test('historical source and retry cannot issue reads after expiry',async()=>{con
 
 test('liveScene keeps admitted historical focus across ordinary empty session snapshots',async()=>{const f=fixture();try{await f.read();const old=f.host.liveSnapshot,next={...old,voice:{active:false,sessionId:'next'},answers:{revision:0},capabilities:{answerRead:false},timers:{status:'observed',items:[]}};f.view.onSnapshot(old,next);const state=liveScene({...f.host.state,devices:[],extraTimers:[],music:{playback:{}},timerHistory:[]},next);assert.equal(state.answers.length,1);assert.equal(state.answers[0].historical,true);assert.equal(state.focus,f.host.state.focus);}finally{f.restore();}});
 test('history starts empty on new page instance and does not silently persist',async()=>{const f=fixture();try{await f.read();const other=fixture();try{assert.equal(other.host.state.answers.length,0);assert.equal(other.view.history.size,0);}finally{other.restore();}}finally{f.restore();}});
-test('answer/source HTTP read denial has a distinct code, not transient or not-found errors',async()=>{const {PodVoiceTransport}=await import('../../podview/podvoice-transport.js');for(const [kind,mode]of [['answers',false],['answers',true],['answers','segments'],['source',receiptId]])for(const status of [401,403,404,500]){let reads=0;const t=Object.create(PodVoiceTransport.prototype);Object.assign(t,{connected:true,snapshot:{capabilities:{answerRead:true}},base:'http://localhost/view/api/',room:'room',endpoint:()=>new URL('answers','http://localhost/view/api/'),request:async()=>{reads++;return {ok:false,status};}});await assert.rejects(()=>t[kind](mode),error=>error.message===(kind==='answers'?'answers_unavailable':'source_unavailable')&&(status===401||status===403?error.code==='read_access_denied':error.code===undefined));assert.equal(reads,1,'valid read mode reaches the HTTP owner exactly once');}});
+test('answer/source HTTP read denial has a distinct code, not transient or not-found errors',async()=>{const {PodVoiceTransport}=await import('../../../podvoice-transport.js');for(const [kind,mode]of [['answers',false],['answers',true],['answers','segments'],['source',receiptId]])for(const status of [401,403,404,500]){let reads=0;const t=Object.create(PodVoiceTransport.prototype);Object.assign(t,{connected:true,snapshot:{capabilities:{answerRead:true}},base:'http://localhost/view/api/',room:'room',endpoint:()=>new URL('answers','http://localhost/view/api/'),request:async()=>{reads++;return {ok:false,status};}});await assert.rejects(()=>t[kind](mode),error=>error.message===(kind==='answers'?'answers_unavailable':'source_unavailable')&&(status===401||status===403?error.code==='read_access_denied':error.code===undefined));assert.equal(reads,1,'valid read mode reaches the HTTP owner exactly once');}});
 
 test('same-room authenticated source denial clears archive after user closes pending dialog',async()=>{const f=fixture();try{await f.read();let reject;f.host.liveTransport.source=()=>new Promise((_,fail)=>{reject=fail;});const pending=f.view.showSource(receiptId,f.active);assert.equal(f.view.dialog.open,true);f.view.dialog.close();reject(Object.assign(Error('denied'),{code:'read_access_denied'}));await pending;assert.equal(f.view.history.size,0);assert.equal(f.host.state.answers.length,0);}finally{f.restore();}});
 test('old source denial cannot clear a replacement room archive',async()=>{const f=fixture();try{await f.read();let reject;f.host.liveTransport.source=()=>new Promise((_,fail)=>{reject=fail;});const pending=f.view.showSource(receiptId,f.active);const old=f.host.liveSnapshot,next={...old,roomId:'other'};f.view.onSnapshot(old,next);f.host.liveSnapshot=next;f.view.history.set('new-room',{id:'new-room'});reject(Object.assign(Error('denied'),{code:'read_access_denied'}));await pending;assert.equal(f.view.history.has('new-room'),true);}finally{f.restore();}});

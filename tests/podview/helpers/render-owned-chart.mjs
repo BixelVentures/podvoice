@@ -1,5 +1,7 @@
 // Execute the existing admission, answer routing and canonical chart renderer.
 // This small DOM adapter inspects shipped properties, not browser pixel appearance.
+// The answer card's typed branch is the plain-JS model podview/typed-answer.js (the card itself is React): it
+// decides that the chart is the shown component, what data it is given and whether a status note shows.
 import assert from 'node:assert/strict';
 import {fileURLToPath} from 'node:url';
 import {ownedAnswers} from '../../../podview/owner-answers.js';
@@ -16,13 +18,12 @@ class Element extends EventTarget {
 }
 const registry=new Map();globalThis.HTMLElement=Element;globalThis.customElements={define:(tag,type)=>registry.set(tag,type)};
 globalThis.document={createElement(tag){const n=new (registry.get(tag)||Element)();n.localName=tag;n.tagName=tag.toUpperCase();return n;},activeElement:null};
-await import('../../../podview/answer-widget.js');
+await import('../../../podview/ui/library/components.js');
+const {typedAnswerView}=await import('../../../podview/typed-answer.js');
 export function renderActualChart(answer){
  const chart=document.createElement('pv-data-chart');chart.isConnected=true;chart.connectedCallback();
- const nodes=new Map([['.chart',chart]]),q=selector=>{if(!nodes.has(selector))nodes.set(selector,new Element());return nodes.get(selector);};
- const host=new (registry.get('pv-answer'))();host.querySelector=q;
- host.renderTypedAnswer({},answer);
- assert.equal(chart.hidden,false);assert.equal(q('.answer-status').hidden,true);
+ const view=typedAnswerView(answer,{});assert.equal(view.component.part,'chart');chart.data=view.component.data;
+ assert.equal(view.status.hidden,true);
  assert.equal(chart.data.readOnly,true);assert.equal(chart.data.connected,false);
  return chart;
 }

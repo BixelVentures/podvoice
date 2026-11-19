@@ -1,38 +1,23 @@
-// Lærred »PodView Retninger«: »SvarK-Historik« (↑ 1 nyt svar) and »Lys-Ukendt« (Status ukendt + compact info line).
-// The »Lys-Ukendt« room page test moved to podview/src/screens/light/room-view.test.js (Vitest) with the Lys screens.
-import test from 'node:test';
+// Ported from tests/podview/svar-lys-canvas-parity.test.mjs (node:test + fake DOM) to Vitest with a real DOM when the
+// Svar column (#svar-today) moved to React. Same assertions. Adaptations: svar() builds the column's real markup from
+// index.html in the document (the fake had a bare header and list); the fake's children arrays are spread from the
+// real HTMLCollections; the fake list.dispatch('scroll') is a real scroll event; stylesheets are read by path; the
+// module is ./SvarToday (old svar-today-view.js) and owner-answers.js keeps its path.
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {dirname, resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {afterEach, test} from 'vitest';
+import {SvarTodayView,svarUnseenCount,svarNewLabel} from './SvarToday';
 
-class El{
- constructor(tag,doc){this.tagName=tag.toUpperCase();this.ownerDocument=doc;this.children=[];this.parentNode=null;this.attrs={};this.dataset={};
-  this.hidden=false;this.disabled=false;this._text='';this.listeners={};this.className='';this.scrollTop=0;this.style={setProperty(){}};
-  this.classList={add:(...c)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...c])].join(' ');},contains:c=>this.className.split(' ').includes(c)};}
- get textContent(){return this._text||this.children.map(c=>c.textContent).join('');}
- set textContent(v){this._text=String(v);this.children=[];}
- get isConnected(){return true;}
- setAttribute(n,v){this.attrs[n]=String(v);} getAttribute(n){return n in this.attrs?this.attrs[n]:null;} removeAttribute(n){delete this.attrs[n];}
- addEventListener(t,f){(this.listeners[t]||=[]).push(f);} click(){for(const f of this.listeners.click||[])f({});}
- dispatch(t){for(const f of this.listeners[t]||[])f({});}
- append(...n){for(const c of n){c.remove();c.parentNode=this;this.children.push(c);}} prepend(...n){for(const c of n.reverse()){c.remove();c.parentNode=this;this.children.unshift(c);}}
- remove(){if(this.parentNode){this.parentNode.children=this.parentNode.children.filter(c=>c!==this);this.parentNode=null;}}
- before(n){const p=this.parentNode;n.remove();n.parentNode=p;p.children.splice(p.children.indexOf(this),0,n);}
- after(n){const p=this.parentNode;n.remove();n.parentNode=p;p.children.splice(p.children.indexOf(this)+1,0,n);}
- insertBefore(n,ref){n.remove();n.parentNode=this;const i=ref?this.children.indexOf(ref):-1;if(i<0)this.children.push(n);else this.children.splice(i,0,n);}
- replaceChildren(...n){for(const c of this.children)c.parentNode=null;this.children=[];this.append(...n);}
- querySelector(sel){const match=c=>sel.startsWith('.')?c.className.split(' ').includes(sel.slice(1)):c.tagName===sel.toUpperCase();
-  for(const c of this.children){if(match(c))return c;const f=c.querySelector(sel);if(f)return f;}return null;}
- closest(){return null;} getClientRects(){return [];} getBoundingClientRect(){return {left:0,right:0,width:0};}
-}
-const doc={createElement:t=>new El(t,doc)};
-globalThis.document=doc;
-globalThis.HTMLElement??=class {};
-globalThis.customElements??={define(){},get(){}};
-
-const {SvarTodayView,svarUnseenCount,svarNewLabel}=await import('../../podview/svar-today-view.js');
-
-function svar(){const root=doc.createElement('aside'),header=doc.createElement('header'),h=doc.createElement('h2'),list=doc.createElement('div');
- list.className='svar-today-rows';header.append(h);root.append(header,list);const opened=[];const view=new SvarTodayView(root,id=>opened.push(id));return {root,list,view,opened};}
+const podview=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
+afterEach(()=>{document.body.replaceChildren();});
+function svar(){const root=document.createElement('aside');root.id='svar-today';root.className='svar-today';root.hidden=true;
+ root.setAttribute('aria-labelledby','svar-today-title');
+ root.innerHTML='<header><h2 id="svar-today-title">I dag</h2><span>Nyeste øverst</span></header>'+
+  '<div class="svar-today-rows" role="group" aria-labelledby="svar-today-title"></div>';
+ document.body.append(root);const opened=[];const view=new SvarTodayView(root,id=>opened.push(id));
+ return {root,list:view.list,view,opened};}
 const row=(id,current=false)=>({id,title:id,kindLabel:'Fakta',time:'11.32',today:true,current});
 
 test('»↑ 1 nyt svar« counts only answers that arrived while an older answer is read',()=>{
@@ -52,7 +37,7 @@ test('a new answer while the list is scrolled away shows the pill; at the top on
  view.render([row('a',true)],true);
  view.render([row('b',true),row('a')],true);
  assert.equal(view.newer.hidden,true,'the new answer is the one on screen and the list is at the top');
- list.scrollTop=200;list.dispatch('scroll');
+ list.scrollTop=200;list.dispatchEvent(new Event('scroll'));
  view.render([row('c'),row('b',true),row('a')],true);
  assert.equal(view.newer.textContent,'1 nyt svar');
  view.newer.click();assert.equal(list.scrollTop,0);assert.deepEqual(opened,['c']);
@@ -67,22 +52,22 @@ test('the count starts over when the Svar page is left',()=>{
  assert.equal(svarUnseenCount([row('x')],null),0);assert.equal(svarNewLabel(1),'1 nyt svar');assert.equal(svarNewLabel(3),'3 nye svar');
 });
 
-const kitCss=()=>readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
+const kitCss=()=>readFileSync(resolve(podview,'ui-kit.css'),'utf8');
 test('the pill is the canvas K-Btn 44: primary, up icon 18, floating 8 under the list top without pushing it',()=>{
  const css=kitCss();
  assert.match(css,/#svar-today>\.svar-today-new\.svar-today-new\{position:absolute;z-index:3;left:50%;top:56px;transform:translateX\(-50%\);\s*height:44px;[^}]*border-radius:999px;background:#17171A;\s*color:#F7F6F3;[^}]*box-shadow:0 10px 24px -10px rgba\(23,23,26,\.55\)/);
  const {view}=svar();view.render([row('b'),row('a',true)],true);view.render([row('c'),row('b'),row('a',true)],true);
  assert.equal(view.newer.getAttribute('data-kit-size'),'44');assert.equal(view.newer.getAttribute('data-kit-variant'),'primary');
- const icon=view.newer.children.find(child=>child.getAttribute('aria-hidden')==='true');
+ const icon=[...view.newer.children].find(child=>child.getAttribute('aria-hidden')==='true');
  assert.match(icon.getAttribute('style'),/chevron-up\.svg/);assert.equal(icon.hidden,false);
 });
 
 test('»Tidligere svar« rows are one line: category chip with the kind icon, the title, the time',()=>{
  const {view,list}=svar();
  view.render([{...row('a',true),icon:'cloud-sun',domain:'weather'},{...row('b'),icon:'music-note-beamed',domain:'music'},row('c')],true);
- const [first,second,third]=list.children;
+ const [first,second,third]=[...list.children];
  assert.equal(first.dataset.domain,'weather');assert.equal(second.dataset.domain,'music');assert.equal(third.dataset.domain,'answer');
- const [chip,title,time]=first.children;assert.equal(chip.className,'svar-today-chip');
+ const [chip,title,time]=[...first.children];assert.equal(chip.className,'svar-today-chip');
  assert.equal(chip.children[0].getAttribute('src'),'assets/icons/cloud-sun.svg');
  assert.equal(title.textContent,'a');assert.equal(time.tagName,'TIME');assert.equal(time.textContent,'11.32');
  assert.equal(first.getAttribute('aria-label'),'Fakta · a · 11.32','the kind stays in the spoken label');
@@ -91,12 +76,12 @@ test('»Tidligere svar« rows are one line: category chip with the kind icon, th
  // A row is kept per answer: a new answer is added in front of the same nodes; selection moves without rebuilding.
  view.render([row('d'),{...row('a'),icon:'cloud-sun',domain:'weather'},{...row('b',true),icon:'music-note-beamed',
   domain:'music'},row('c')],true);
- assert.deepEqual(list.children.slice(1),[first,second,third]);
+ assert.deepEqual([...list.children].slice(1),[first,second,third]);
  assert.equal(first.getAttribute('aria-current'),null);assert.equal(second.getAttribute('aria-current'),'true');
 });
 
 test('row time: »19.04« today, »i går 19.04« yesterday, otherwise »12. nov. 19.04«',async()=>{
- const {svarTime}=await import('../../podview/svar-today-view.js');
+ const {svarTime}=await import('./SvarToday');
  const now=new Date(2026,10,17,21,0),at=(d,h,m)=>new Date(2026,10,d,h,m).getTime()/1000;
  assert.equal(svarTime(at(17,19,4),now),'19.04');
  assert.equal(svarTime(at(16,19,4),now),'i går 19.04');
@@ -105,7 +90,7 @@ test('row time: »19.04« today, »i går 19.04« yesterday, otherwise »12. nov
 
 test('every saved answer is its own row, newest first; the live copy of the answer being read is not doubled',
  async()=>{
- const {svarTodayRows}=await import('../../podview/svar-today-view.js');
+ const {svarTodayRows}=await import('./SvarToday');
  const now=new Date(2026,10,17,21,0),t=(h,m)=>new Date(2026,10,17,h,m).getTime()/1000;
  const answer=(id,observedAt,extra={})=>({id:'receipt:'+id,receiptId:id,title:id,kind:'key-points',observedAt,
   ...extra});
@@ -119,7 +104,7 @@ test('every saved answer is its own row, newest first; the live copy of the answ
 });
 
 test('a round is every answer of one voice session, whatever its topic; another session never joins',async()=>{
- const {answerThread}=await import('../../podview/owner-answers.js');
+ const {answerThread}=await import('../../../owner-answers.js');
  const answer=(id,sessionId,observedAt,extra={})=>({id,receiptId:id,sessionId,observedAt,presentation:true,
   status:'ready',kind:'key-points',...extra});
  const answers=[answer('sport','s1',10),answer('weather','s1',20,{kind:'fact-card',provenance:{kind:'ha_weather'}}),
@@ -131,7 +116,7 @@ test('a round is every answer of one voice session, whatever its topic; another 
 });
 
 test('svarDomain reads the tone from the answer\'s own data only',async()=>{
- const {svarDomain}=await import('../../podview/svar-today-view.js');
+ const {svarDomain}=await import('./SvarToday');
  assert.equal(svarDomain({provenance:{kind:'ha_weather'}}),'weather');
  assert.equal(svarDomain({kind:'sourced-image',content:{image:{kind:'album_cover'}}}),'music');
  assert.equal(svarDomain({kind:'sourced-image',content:{image:{kind:'photo'}}}),'answer');

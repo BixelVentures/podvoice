@@ -1,10 +1,17 @@
-import test from 'node:test';
+// Ported from tests/podview/root-history-hydration.test.mjs (node:test with a fake DOM) to Vitest with a real DOM
+// (happy-dom) when live-answer-view.js moved to LiveAnswerView.tsx; no near-duplicate copies. Same tests (18) and
+// assertions; first run against the old live-answer-view.js in the same DOM. Adaptations: the tests' fake document
+// (activeElement, querySelector, hidden, visibilityState) is defined as writable own properties on the real happy-dom
+// document and restored afterwards (nesting-safe), document.createElement stays real; the view's source dialog, note
+// and body are real elements (the fake createElement made fake Nodes); the fake host and opener Nodes stay as they
+// were; import paths point at podview/ from here.
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import { LiveAnswerView,answerReadContext } from '../../podview/live-answer-view.js';
-import * as answerOwner from '../../podview/owner-answers.js';
+import { LiveAnswerView,answerReadContext } from './LiveAnswerView';
+import * as answerOwner from '../../../owner-answers.js';
 const historicalAnswers=(...args)=>answerOwner.historicalAnswers(...args);
-import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
-import {visualExamples} from '../../podview/visual-examples.js';
+import {PodVoiceTransport} from '../../../podvoice-transport.js';
+import {visualExamples} from '../../../visual-examples.js';
 
 class Node extends EventTarget {
   constructor(tag) {
@@ -24,6 +31,17 @@ class Node extends EventTarget {
   close() { this.open = false; this.dispatchEvent(new Event('close')); }
 }
 
+// The tests' fake document becomes own properties on the real one (restored afterwards, nesting-safe).
+function fakeDocument(values){
+ const faked={hidden:false,visibilityState:'visible',...values},prior=new Map();
+ for(const [name,value] of Object.entries(faked)){
+  prior.set(name,Object.getOwnPropertyDescriptor(document,name));
+  Object.defineProperty(document,name,{configurable:true,enumerable:true,writable:true,value});
+ }
+ return ()=>{for(const [name,descriptor] of prior){if(descriptor)Object.defineProperty(document,name,descriptor);
+  else delete document[name];}};
+}
+
 const deferred = () => {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
@@ -32,13 +50,11 @@ const deferred = () => {
 
 const receiptId = 'a'.repeat(32);
 function fixture({ focus = 'photo', modal = false } = {}) {
-  const priorDocument = globalThis.document;
   const active = new Node('button');
-  globalThis.document = {
+  const restoreDocument = fakeDocument({
     activeElement: active,
-    createElement: tag => new Node(tag),
     querySelector: selector => selector === 'dialog[open]' && modal ? {} : null,
-  };
+  });
   const host = new Node('host');
   host.dataset.edgeDrag = 'false';
   host.state = { focus, connected:false,answers: [] };
@@ -74,7 +90,7 @@ function fixture({ focus = 'photo', modal = false } = {}) {
   }] });
   return {
     host, view, request, answer, active, answerContainer,
-    restore() { view.invalidate(); globalThis.document = priorDocument; },
+    restore() { view.invalidate(); restoreDocument(); },
     async read(result = answer()) { const pending = view.refresh(); request.resolve(result); await pending; },
   };
 }

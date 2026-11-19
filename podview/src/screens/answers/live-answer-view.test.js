@@ -1,7 +1,21 @@
-import test from 'node:test';
+// Ported from tests/podview/answer-history-integration-live-answer-view.test.mjs (node:test with a fake DOM) to Vitest
+// with a real DOM (happy-dom) when live-answer-view.js moved to LiveAnswerView.tsx. tests/podview/root-live-answer-view
+// .test.mjs and canonical-next-live-answer-view.test.mjs were near-duplicates; this file is the superset of all three:
+// the answer-history-integration copy (27 tests: its fixture's dispatch also follows 'show'; it alone has 'a new answer
+// takes over a detail after its dialog owner suspends presentation' and the last three tests), plus root's 'a detail
+// view admits the answer while an unsupported open modal defers it' (replaced in that copy, kept here before it) and
+// canonical-next's 'new receipt stays available without auto-presenting over historical reading' (at the end). Same
+// assertions; every test was first run against the old live-answer-view.js in the same DOM. Adaptations: the tests'
+// fake document (activeElement, querySelector, hidden, visibilityState) is defined as writable own properties on the
+// real happy-dom document and restored afterwards (nesting-safe), document.createElement stays real; the view's source
+// dialog, note and body are real elements (the fake document's createElement made fake Nodes), so body.children is a
+// real HTMLCollection and the dialog only fires close when open; the fake host and opener Nodes stay as they were.
+// canonical-next's installDOMAttributes (it reflected data-/class attributes of the fake Nodes the view built) is not
+// needed: those nodes are real now and the remaining fake Nodes never get attributes written.
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import { LiveAnswerView,answerReadContext } from '../../podview/live-answer-view.js';
-import { liveScene } from '../../podview/podvoice-view.js';
+import { LiveAnswerView,answerReadContext } from './LiveAnswerView';
+import { liveScene } from '../../../podvoice-view.js';
 
 class Node extends EventTarget {
   constructor(tag) {
@@ -21,6 +35,17 @@ class Node extends EventTarget {
   close() { this.open = false; this.dispatchEvent(new Event('close')); }
 }
 
+// The tests' fake document becomes own properties on the real one (restored afterwards, nesting-safe).
+function fakeDocument(values){
+ const faked={hidden:false,visibilityState:'visible',...values},prior=new Map();
+ for(const [name,value] of Object.entries(faked)){
+  prior.set(name,Object.getOwnPropertyDescriptor(document,name));
+  Object.defineProperty(document,name,{configurable:true,enumerable:true,writable:true,value});
+ }
+ return ()=>{for(const [name,descriptor] of prior){if(descriptor)Object.defineProperty(document,name,descriptor);
+  else delete document[name];}};
+}
+
 const deferred = () => {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
@@ -29,13 +54,11 @@ const deferred = () => {
 
 const receiptId = 'a'.repeat(32);
 function fixture({ focus = 'photo', modal = false } = {}) {
-  const priorDocument = globalThis.document;
   const active = new Node('button');
-  globalThis.document = {
+  const restoreDocument = fakeDocument({
     activeElement: active,
-    createElement: tag => new Node(tag),
     querySelector: selector => selector === 'dialog[open]' && modal ? {} : null,
-  };
+  });
   const host = new Node('host');
   host.dataset.edgeDrag = 'false';
   host.state = { focus, connected:false,answers: [] };
@@ -44,7 +67,7 @@ function fixture({ focus = 'photo', modal = false } = {}) {
   host.focusHeading = () => { host.headingFocused = true; };
   host.dispatch = event => {
     host.events.push(event);
-    if (event.type === 'present-answer') host.state = { ...host.state, focus: event.id };
+    if (event.type === 'show' || event.type === 'present-answer') host.state = { ...host.state, focus: event.id };
   };
   host.events = [];
   const answerContainer=new Node('section');answerContainer.hidden=true;host.querySelector=selector=>selector==='#answer-host'?answerContainer:null;
@@ -71,7 +94,7 @@ function fixture({ focus = 'photo', modal = false } = {}) {
   }] });
   return {
     host, view, request, answer, active, answerContainer,
-    restore() { view.invalidate(); globalThis.document = priorDocument; },
+    restore() { view.invalidate(); restoreDocument(); },
     async read(result = answer()) { const pending = view.refresh(); request.resolve(result); await pending; },
   };
 }
@@ -122,6 +145,13 @@ test('a detail view admits the answer while an unsupported open modal defers it'
       assert.equal(f.host.state.answers.length, 1);
     } finally { f.restore(); }
   }
+});
+
+test('a new answer takes over a detail after its dialog owner suspends presentation', async () => {
+ const f=fixture({focus:'weather',modal:true});try{
+  let suspended=0;f.host.suspendForAnswer=()=>{suspended++;return true;};
+  await f.read();assert.equal(suspended,1);assert.equal(f.host.state.focus,'receipt:'+receiptId);
+ }finally{f.restore();}
 });
 
 test('same-boot task replacement, boot change, and permission revoke fence pending results', async () => {
@@ -397,4 +427,47 @@ test('hidden deferred receipts remain hidden through fresh reads and historical 
   assert.equal(f.host.events.length,0);assert.equal(f.host.state.answers[0].hidden,true);assert.equal(f.view.presented.size,0);
   f.view.lastRead=0;f.host.liveTransport.answers=async()=>({...f.answer(),items:[]});await f.view.refresh();assert.equal(f.host.events.length,0);assert.equal(f.host.state.focus,'now');assert.equal(f.host.state.answers.length,1);assert.equal(f.host.state.answers[0].historical,true);assert.equal(f.host.state.answers[0].hidden,true);
  }finally{f.restore();}
+});
+
+test('current answer read does not wait for an independent history request', async () => {
+ const f=fixture();try{
+  const history=deferred(),current=deferred();
+  f.host.liveSnapshot={...f.host.liveSnapshot,answerHistoryRevision:1,answerHistoryRemovalRevision:0,answerHistoryReceiptIds:[receiptId]};
+  f.host.liveTransport.answers=which=>which===true?history.promise:current.promise;
+  const reading=f.view.refresh();current.resolve(f.answer());await reading;
+  assert.equal(f.host.state.answers[0]?.receiptId,receiptId);
+  f.view.invalidate(true,true);
+  history.resolve({});
+ }finally{f.restore();}
+});
+
+test('history refresh keeps known content without a loading message', async () => {
+ const f=fixture();try{
+  f.host.state.answers=[{id:'known',hidden:false,historical:true,presentation:true,status:'ready',sessionId:'session-a',kind:'concise'}];
+  f.host.liveSnapshot={...f.host.liveSnapshot,answerHistoryRevision:1,answerHistoryRemovalRevision:0,answerHistoryReceiptIds:[]};
+  f.view.historyPending=true;
+  assert.equal(f.view.historyPresentation().hidden,true);
+  f.view.transcriptStatus='loading';
+  assert.equal(f.view.historyPresentation().hidden,true);
+ }finally{f.restore();}
+});
+
+test('initial snapshot history never resurfaces as a new answer',async()=>{
+ const f=fixture();try{const snapshot={...f.host.liveSnapshot,answerHistoryReceiptIds:[receiptId]};f.host.liveSnapshot=snapshot;f.view.onSnapshot(null,snapshot);await f.read();assert.equal(f.host.events.length,0);assert.equal(f.host.state.answers[0].receiptId,receiptId);}finally{f.restore();}
+});
+
+test('new receipt stays available without auto-presenting over historical reading', async () => {
+  const f = fixture({ focus: 'historical-answer' });
+  try {
+    f.host.historyBrowse = { id: 'historical-answer' };
+    await f.read();
+    assert.equal(f.host.state.focus, 'historical-answer');
+    assert.deepEqual(f.host.events, []);
+    assert.equal(f.host.state.answers[0].receiptId, receiptId);
+    assert.equal(f.view.presented.has(`receipt:${receiptId}`), false);
+    f.host.historyBrowse = null;
+    f.view.lastRead = 0;
+    await f.view.refresh();
+    assert.deepEqual(f.host.events, [{ type: 'present-answer', id: `receipt:${receiptId}` }]);
+  } finally { f.restore(); }
 });

@@ -1,7 +1,7 @@
 import {requestIngressAdmin} from './ingress-kiosk.js';
 import {LiveRadioView} from './live-radio-view.js';
 import {groupAnswerHistory,answerThread} from './owner-answers.js';
-import {SvarTodayView,svarTodayRows} from './svar-today-view.js';
+import {SvarTodayView,svarTodayRows} from './src/screens/answers/SvarToday.tsx';
 import {LightLampView} from './src/screens/light/LightLampView.tsx';
 import {LightRoomView} from './src/screens/light/LightRoomView.tsx';
 import {syncKitButtonContent,applyKitTextRole,applyKitComponent,applyKitTemplate,applyKitDialog,createKitDisclosure,createKitSliderField} from './ui/kit.js';
@@ -23,7 +23,7 @@ import {CssFlags} from './ui/css-flags.js';
 import {VoiceSurface,voicePresentation} from './voice-surface.js';
 import {AnswerAutoReturn} from './ui/answer-auto-return.js';
 import {LiveControlView} from './live-control-view.js';
-import {LiveAnswerView} from './live-answer-view.js';
+import {LiveAnswerView} from './src/screens/answers/LiveAnswerView.tsx';
 import {PageLifecycle} from './ui/page-lifecycle.js';
 import {LiveMediaView} from './live-media-view.js';
 import {LiveMusicCatalogueView} from './live-music-view.js';
@@ -48,7 +48,7 @@ import {MusicResults,localMusicCards,localDiscoveryCards,renderOverviewMediaValu
 import {PLAYLISTS,TRACKS,MUSIC_OPTIONS,COLLECTIONS,TARGETS,resultsFor,musicArtwork} from './widget-model.js';
 import {LocalRobotView} from './local-robot-view.js';
 import {initialScene,sceneTransition,focusedAnswer,deviceLabel,devicePresentation,deviceOverviewFacts,robotDetailMetadata,deviceActions,lightChoices,lightSelection,overviewPriorities,robotRecentCompletion} from './scene-model.js';
-import {answerCatalog} from './answer-widget.js';
+import {answerCatalog} from './src/screens/answers/AnswerWidget.tsx';
 // The topbar's scroll state: one layout read per frame, at its start (the layout is clean there), not per scroll
 // event and not inside a moving page's render.
 const queueTopbarScroll=host=>{

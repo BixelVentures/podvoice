@@ -1,6 +1,12 @@
-import test from 'node:test';
+// Ported from tests/podview/root-weather-fact-display.test.mjs (node:test) to Vitest when the answer card moved to
+// React; tests/podview/weather-fact-display.test.mjs was an identical copy; both are replaced by this file. Same
+// assertions. Adaptation: the last test called the old element's renderVisualAnswer on a fake host with a hand-made
+// pv-fact-card stand-in; it now updates a real <pv-answer> in the document (and asserts the card made the
+// pv-fact-card the old test set up by hand).
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {weatherFactDisplay} from '../../podview/weather-fact-display.js';
+import {weatherFactDisplay} from '../../../weather-fact-display.js';
+import './AnswerWidget';
 const answer=()=>({live:true,kind:'fact-card',receiptId:'actual-receipt',ownerReceiptIds:['actual-receipt'],provenance:{kind:'ha_weather',source:'Met.no',validUntil:123},content:{summary:'Vejret i Mårslet',sources:[{id:'source:actual',kind:'owner_receipt',receiptId:'actual-receipt'}],facts:[{id:'temp',sourceId:'source:actual',label:'Temperatur',value:'15.1 °C',detail:'Aktuel måling'},{id:'condition',sourceId:'source:actual',label:'Vejrforhold',value:'partlycloudy',detail:'Aktuel måling'}]}});
 const freeze=value=>{if(value&&typeof value==='object'){Object.freeze(value);Object.values(value).forEach(freeze);}return value;};
 test('typed owned weather receives shared Danish display while canonical values and provenance stay immutable',()=>{
@@ -24,17 +30,12 @@ test('unknown condition prose and inherited object keys remain exact source stri
  }
 });
 
-test('existing actual fact-widget renderer receives display copy and retains canonical source answer',async()=>{
- const oldElement=globalThis.HTMLElement,oldRegistry=globalThis.customElements,registry=new Map();
- globalThis.HTMLElement=class{};globalThis.customElements={define:(name,type)=>registry.set(name,type),get:name=>registry.get(name)};
- try{
-  await import('../../podview/answer-widget.js');
-  const nodes=new Map(),q=key=>{if(!nodes.has(key))nodes.set(key,{hidden:false});return nodes.get(key);};
-  const a=answer();a.status='ready';a.readConnected=true;
-  const host={querySelector:q,dataset:{},visualNode:{localName:'pv-fact-card'}};
-  registry.get('pv-answer').prototype.renderVisualAnswer.call(host,{connected:true},a);
-  assert.deepEqual(host.visualNode.data.content.facts.map(f=>f.value),['15°','Let skyet']);
-  assert.equal(a.content.facts[0].value,'15.1 °C');assert.equal(a.content.facts[1].value,'partlycloudy');
-  a.status='waiting';registry.get('pv-answer').prototype.renderVisualAnswer.call(host,{connected:true},a);assert.equal(host.visualNode.data.content,undefined);
- }finally{globalThis.HTMLElement=oldElement;globalThis.customElements=oldRegistry;}
+test('existing actual fact-widget renderer receives display copy and retains canonical source answer',()=>{
+ const view=document.body.appendChild(document.createElement('pv-answer'));
+ const a=answer();a.status='ready';a.readConnected=true;
+ view.update({connected:true},a);assert.equal(view.visualNode.localName,'pv-fact-card');
+ assert.deepEqual(view.visualNode.data.content.facts.map(f=>f.value),['15°','Let skyet']);
+ assert.equal(a.content.facts[0].value,'15.1 °C');assert.equal(a.content.facts[1].value,'partlycloudy');
+ a.status='waiting';view.update({connected:true},a);assert.equal(view.visualNode.data.content,undefined);
+ view.remove();
 });
