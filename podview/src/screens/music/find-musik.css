@@ -1,0 +1,202 @@
+/* Find musik (concept B »Hylder«), drawn for the 744 px content column beside the player. Tokens from ui-kit.css;
+   the AI badge colours are the design's own. Motion is compositor-only: covers fade in by opacity once decoded,
+   shelves are native scroll-snap scrollers, and nothing animates layout. */
+pv-widget-host #music-response:has(> #find-musik) {
+  --find-ai-tint: #E1E6EE;
+  --find-ai-ink: #26364A;
+}
+/* The page is the whole content column (x 24, 744 wide): the old catalogue's two-column grid and inset are gone. */
+pv-widget-host[data-view=active] .responses > #music-response:has(> #find-musik):not([hidden]) {
+  display: block;
+  padding-inline: 0;
+}
+#find-musik {
+  display: block;
+  min-width: 0;
+}
+.find-musik {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  padding-bottom: var(--pv-s3);
+  color: var(--pv-ink);
+}
+.find-quick {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.find-slot {
+  display: block;
+  min-width: 0;
+}
+.find-quick-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 64px;
+  padding: 0 12px 0 0;
+  border: 0;
+  border-radius: var(--pv-r-s);
+  background: var(--pv-surface);
+  color: var(--pv-ink);
+  text-align: left;
+  overflow: hidden;
+  font: inherit;
+}
+.find-quick-tile .find-art {
+  width: 64px;
+  height: 64px;
+  border-radius: 0;
+}
+.find-quick-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.find-quick-copy strong,
+.find-tile strong {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.find-ai-line {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--find-ai-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.find-shelf {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+.find-shelf-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.find-shelf-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+/* Above the detail pages' shared label font for headings (ui-kit.css). */
+pv-widget-host #music-response .find-shelf-title h2 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--pv-ink);
+}
+.find-ai-badge {
+  flex: none;
+  padding: 3px 9px;
+  border-radius: 11px;
+  background: var(--find-ai-tint);
+  color: var(--find-ai-ink);
+  font-size: 14px;
+  font-weight: 700;
+}
+.find-why {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.35;
+  color: var(--pv-ink-2);
+}
+/* A native horizontal scroller: momentum, rubber band and snapping belong to the system. */
+.find-shelf-row {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.find-shelf-row::-webkit-scrollbar {
+  display: none;
+}
+.find-shelf-row > .find-slot {
+  flex: none;
+  scroll-snap-align: start;
+}
+.find-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 136px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pv-ink);
+  text-align: left;
+  font: inherit;
+}
+.find-tile > span:not(.find-art) {
+  margin-top: -4px;
+  font-size: 14px;
+  color: var(--pv-ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.find-art {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 136px;
+  height: 136px;
+  border-radius: 16px;
+  background: var(--pv-surface-2);
+  overflow: hidden;
+}
+.find-tile[data-shape=round] .find-art {
+  border-radius: 68px;
+}
+.find-art > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 160ms cubic-bezier(.2, 0, 0, 1);
+}
+.find-art > img[data-ready] {
+  opacity: 1;
+}
+.find-empty {
+  margin: 0;
+  font-size: var(--pv-type-body);
+  color: var(--pv-ink-2);
+}
+.find-toast {
+  position: sticky;
+  bottom: var(--pv-s3);
+  align-self: center;
+  margin: 0;
+  padding: 12px 20px;
+  border-radius: var(--pv-r-pill);
+  background: var(--pv-ink);
+  color: var(--pv-surface);
+  font-size: 16px;
+  font-weight: 600;
+  pointer-events: none;
+}
+.find-toast[hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .find-art > img {
+    transition: none;
+  }
+}

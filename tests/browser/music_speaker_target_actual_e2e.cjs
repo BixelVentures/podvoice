@@ -16,7 +16,7 @@ let server,browser;
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-speaker-target-'));
  server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],{cwd:env.runtimeRoot,
   env:env.pythonEnv({MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:'1',
-   MUSIC_DISCOVERY_LOADING_TEST:'cover',MUSIC_START_ANY_SPEAKER:'1',
+   MUSIC_START_ANY_SPEAKER:'1',
    PODVIEW_TEST_NONCE:require('node:crypto').randomUUID()}),
   stdio:['ignore','ignore','pipe']});
  let log='';server.stderr.on('data',chunk=>{log+=chunk;});
@@ -25,6 +25,10 @@ let server,browser;
  browser=await chromium.launch({...env.browserOptions(),args:['--mute-audio']});
  const page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}}),errors=[],setups=[],moves=[];
  page.on('pageerror',error=>errors.push(error.message));
+ // Covers get an inert image; nothing outside PodVoice is reached.
+ await page.route(/^https:\/\//,route=>/^https:\/\/i\.scdn\.co\//.test(route.request().url())
+  ?route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"/>'})
+  :route.abort());
  page.on('request',request=>{
   if(request.method()!=='POST')return;const url=new URL(request.url()).pathname,body=request.postDataJSON?.();
   if(url.endsWith('/music/selection/setup'))setups.push(body);
@@ -33,9 +37,10 @@ let server,browser;
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
  await env.openOverview(page);
  await page.locator('#home-music').tap();
- await page.locator('[data-collection="top"]').tap();
- const song=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});
+ // A Find musik tile (an album on its shelf) starts that album on the player's speaker.
+ const song=page.locator('section.find-shelf[data-shelf=albums] button.find-tile').filter({hasText:'Kind of Blue'});
  await song.waitFor({state:'visible',timeout:15000});
+ await song.scrollIntoViewIfNeeded();
  const catalogue=await page.evaluate(async()=>{const h=document.querySelector('pv-widget-host');
   return (await h.liveTransport.music('speakers',h.liveMedia.account)).speakers;});
  const kitchen=catalogue.find(row=>row.default),bedroom=catalogue.find(row=>!row.default&&row.startSelectable);

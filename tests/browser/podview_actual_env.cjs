@@ -94,4 +94,5 @@ async function touchScroll(page,locator,{dy=400}={}){
   stable=Math.abs(current-previous)<0.5?stable+1:0;previous=current;
  }
 }
-module.exports={root,runtimeRoot,python,pythonEnv,browserOptions,artifactDir,openOverview,touchRange,touchScroll};
+module.exports={root,runtimeRoot,python,pythonEnv,browserOptions,artifactDir,openOverview,touchDrag,touchRange,
+ touchScroll};

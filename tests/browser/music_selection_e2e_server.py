@@ -1,24 +1,22 @@
 """Extend the existing inert native service with actual catalogue/content/queue contracts."""
 
 import asyncio
-import base64
 import copy
 import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import time
 from dataclasses import replace
-from pathlib import Path
-from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+import music_shelves_fixture as shelves
 from aiohttp import web
 from integration.test_podview_music_control import Rig, content_owner
 from integration.test_podview_queue_occurrence import accepted, bound_source, staged
-from unit.test_podview_theme_art import webp
 
 # Reuse the existing app, authentication, playback observation and shutdown.
 # Suppress only its CLI launcher: this file owns the isolated test server port.
@@ -26,12 +24,9 @@ with patch("aiohttp.web.run_app"):
     import music_e2e_server as base
 
 from gatekeeper.podview import BRIDGE
-from gatekeeper.podview_mood import THEMES
-from gatekeeper.podview_theme_art import _LEGACY_STYLE, ThemeArtOwner, ThemeArtPolicy, ThemeArtStore
 
 cold = os.environ.get("MUSIC_COLD_CONTEXT") == "1"
 reject_setup = os.environ.get("MUSIC_COLD_REJECT") == "1"
-repeat_mood = os.environ.get("MUSIC_REPEAT_MOOD") == "1"
 voice_journey = base.voice_journey
 # K2/K4: three fast skips through a queue that advances with the song, then an autoplay context.
 queue_skip = os.environ.get("MUSIC_QUEUE_SKIP_TEST") == "1"
@@ -39,12 +34,6 @@ queue_journey = os.environ.get("MUSIC_QUEUE_JOURNEY") == "1" or voice_journey or
 queue_identity = os.environ.get("MUSIC_QUEUE_IDENTITY_TEST") == "1"
 account_rollover = os.environ.get("MUSIC_ACCOUNT_ROLLOVER_TEST") == "1"
 queue_cold_tail = os.environ.get("MUSIC_QUEUE_COLD_TAIL") == "1"
-discovery_loading = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") in {"1", "revisit", "cover"}
-discovery_cover = os.environ.get("MUSIC_DISCOVERY_LOADING_TEST") == "cover"
-personal_playlist_cover = os.environ.get("MUSIC_PERSONAL_PLAYLIST_COVER") == "1"
-library_race = os.environ.get("MUSIC_LIBRARY_BUSY_TEST")
-library_race_release = asyncio.Event()
-library_race_arrivals = 0
 recent_session = os.environ.get("MUSIC_RECENT_SESSION_TEST") == "1"
 # Green timing: the speaker confirms the start natively at 2.7 s, while the Spotify
 # Web API observation (and PodConnect's playback event) only shows the new item later.
@@ -53,20 +42,22 @@ SPEAKER_CONFIRMS_S = 2.7
 SPOTIFY_OBSERVES_S = 4.5
 latency_tasks: list[asyncio.Task] = []
 logging.getLogger("podvoice.music_start").setLevel(logging.INFO)
-if os.environ.get("MUSIC_PREVIEW_RENEW") == "1":
-    logging.getLogger("podvoice.mood").setLevel(logging.INFO)
-    logging.getLogger("podvoice.podview").setLevel(logging.INFO)
 
+# Find musik starts the tapped tile's context (play_context); voice starts a song (play_track).
 content = Rig()
-content_owner(content, action="play_context" if cold else "play_track")
-if cold and repeat_mood:
+content_owner(content, action="play_context")
+if not cold:
     content.value["actions"].append("play_track")
+# The voice journey's song source (recently_played / top_tracks); Find musik shows shelves only.
 tracks = [
     {"name": f"Katalogsang {i}", "artist": "Inert kunstner", "uri": f"spotify:track:{i:022d}"}
-    for i in (
-        range(11, 23) if recent_session else range(11, 18) if discovery_loading else (11, 12, 13)
-    )
+    for i in (11, 12, 13)
 ]
+# Each started context plays one inert song: the first distinct context song 11, the next 12, ...
+CONTEXT = re.compile(r"^spotify:(playlist|album|artist|show):[A-Za-z0-9]{22}$")
+context_songs: dict[str, int] = {}
+# Find musik's library and AI shelves (tests/music_shelves_fixture.py): inert PodConnect replies.
+SHELF_SERVICES = shelves.NEW_SERVICES | {"get_user_playlists", "search_playlists"}
 base.state.update(
     state="playing" if base.output_transfer else "paused",
     song=1,
@@ -83,27 +74,8 @@ if account_rollover:
 if queue_skip:
     base.state.update(state="playing", song=20, queue=list(range(21, 29)))
 if recent_session:
-    tracks[0].update(
-        name="Coming Home",
-        artwork={
-            "provider": "spotify",
-            "kind": "album_cover",
-            "url": "https://i.scdn.co/image/InertComingHome",
-        },
-    )
-    original_recent_observation = base.observation
-    base.TRACK_TITLES[11] = tracks[0]["name"]
+    # The first started context's song has a room-player cover (HA's proxy image through PodVoice).
     base.TRACK_COVERS.add(11)
-
-    def recent_observation(args):
-        observed = original_recent_observation(args)
-        if base.state["song"] == 11:
-            observed["playback"]["item"].update(
-                name=tracks[0]["name"], artwork=tracks[0]["artwork"]
-            )
-        return observed
-
-    base.observation = recent_observation
 if cold:
     # Both existing inerts describe one native owner; alias/content incarnation
     # must agree exactly, just as the real setup route requires.
@@ -141,51 +113,11 @@ if cold:
         return value
 
     base.observation = cold_observation
-    base.music.tools.podview_mood_selector = SimpleNamespace(available=False, room_kind="kitchen")
 
-    async def mood_context(current):
-        return {"hour": 20, "roomKind": "kitchen"} if current() else None
-
-    base.music.tools.podview_mood_context = mood_context
-
-if discovery_cover:
-    base.music.tools.podview_mood_selector = SimpleNamespace(available=False)
-
-    async def no_mood_context(_current):
-        return None
-
-    base.music.tools.podview_mood_context = no_mood_context
-    directory = Path(os.environ["MUSIC_TEST_DATA"]) / "theme-art"
-    policy = ThemeArtPolicy("inert-browser-cover-proof", max_images=2)
-    store = ThemeArtStore(directory, policy)
-    assert store.reserve("italian")
-    store.publish("italian", webp())
-    base.state["retiredThemeArt"] = store.url("italian")
-    ledger = json.loads(store.ledger.read_bytes())
-    ledger["policy_sha256"] = policy._fingerprint(_LEGACY_STYLE)
-    store.ledger.write_text(json.dumps(ledger))
-    store = ThemeArtStore(directory, policy)
-    assert store.retired("italian")
-    assert store.reserve("cooking")
-    # A synthetic lossless 1024x1024 illustration with actual image data.
-    # Keep the header-only helper above for the intentionally retired entry.
-    cooking_image = base64.b64decode(
-        "UklGRlwAAABXRUJQVlA4TFAAAAAv/8P/AA9wT9ProD+jaf7jAWTCEPqX9hNgEf2fg"
-        "PI///M///M///M//8/mnv/4j//4j//4j//4j//4j//4j//4j/84j//5n//5n//5n/+ZHw=="
-    )
-    store.publish("cooking", cooking_image)
-    if personal_playlist_cover:
-        base.state["personalPlaylistCache"] = store.url("cooking")
-    assert not store.reserve("calm")
-
-    base.state["imageProviderCalls"] = []
-
-    def image_provider(request):
-        base.state["imageProviderCalls"].append(str(request.url))
-        return httpx.Response(503)
-
-    image_client = httpx.AsyncClient(transport=httpx.MockTransport(image_provider))
-    base.music.tools.podview_theme_art = ThemeArtOwner(image_client, "inert-key", store)
+# PodVoice's AI shelves (badge and reason) from an inert selector that never calls a provider.
+shelf_selector = shelves.FakeShelfSelector()
+base.music.tools.podview_mood_selector = shelf_selector
+base.state["failNextSetups"] = 0
 
 original_transport = base.music.client
 
@@ -254,80 +186,16 @@ async def native(request):
                 if row["kind"] == "spotify_device" and row["target_id"] == "device":
                     row["name"] = "Køkkenalrum HomePod"
         return httpx.Response(200, json={"service_response": value})
-    if personal_playlist_cover and service == "get_user_playlists":
-        assert args == {"config_entry_id": "account", "limit": 20}
-        first = {
-            "uri": "spotify:playlist:" + "A" * 22,
-            "name": "Personlig testplayliste A",
-            "artwork": {
-                "provider": "spotify",
-                "kind": "playlist_cover",
-                "url": "https://i.scdn.co/image/InertFailedPersonalCover",
-            },
-        }
-        second = {
-            "uri": "spotify:playlist:" + "A" * 21 + "B",
-            "name": "Personlig testplayliste B",
-        }
-        return httpx.Response(
-            200,
-            json={
-                "service_response": {
-                    "ok": True,
-                    "schema": "podconnect.user_playlists.v1",
-                    "config_entry_id": "account",
-                    "owner_epoch": "a" * 32,
-                    "source": "spotify_web_api",
-                    "coverage": "first_page",
-                    "limit": 20,
-                    "returned_count": 2,
-                    "source_has_more": False,
-                    "playlists": [first, second],
-                }
-            },
-        )
-    if (cold or discovery_cover) and service == "search_playlists":
-        if library_race:
-            await library_race_release.wait()
-        suffix = hashlib.sha256(args["query"].encode()).hexdigest()[:22]
-        playlist = {"uri": "spotify:playlist:" + suffix, "name": "Kold jazz " + suffix[:4]}
-        if discovery_cover and args["query"] == THEMES["cooking"]["query"]:
-            playlist["artwork"] = {
-                "provider": "spotify",
-                "kind": "playlist_cover",
-                "url": "https://i.scdn.co/image/InertFailedMoodCover",
-            }
-        return httpx.Response(
-            200,
-            json={
-                "service_response": {
-                    "ok": True,
-                    "schema": "podconnect.search_playlists.v1",
-                    "config_entry_id": "account",
-                    "owner_epoch": "a" * 32,
-                    "source": "spotify_web_api",
-                    "query": args["query"],
-                    "limit": 3,
-                    "returned_count": 1,
-                    "playlists": [playlist],
-                }
-            },
-        )
-    if cold and reject_setup and service == "get_room_content_controls":
+    if service in SHELF_SERVICES:
+        return httpx.Response(200, json={"service_response": shelves.reply(service, args)})
+    if service == "get_room_content_controls" and (
+        (cold and reject_setup) or base.state["failNextSetups"] > 0
+    ):
+        # The room's speaker cannot be used for this start (one-shot when set by a journey).
+        base.state["failNextSetups"] = max(0, base.state["failNextSetups"] - 1)
         return httpx.Response(503, json={"error": "inert_setup_unavailable"})
     if service in {"top_tracks", "recently_played"}:
         rows = copy.deepcopy(tracks)
-        if discovery_cover and service == "recently_played":
-            calls = sum(row["service"] == service for row in base.state["nativeCalls"])
-            rows[0]["artwork"] = {
-                "provider": "spotify",
-                "kind": "album_cover",
-                "url": (
-                    "https://i.scdn.co/image/InertRecentCover"
-                    if calls == 1
-                    else "https://invalid.example/not-a-cover"
-                ),
-            }
         return httpx.Response(
             200,
             json={"service_response": {"config_entry_id": "account", "tracks": rows}},
@@ -348,17 +216,11 @@ async def native(request):
             context_start = args["action"] == "play_context"
             uri = args["args"]["context_uri" if context_start else "track_uri"]
             if context_start:
-                assert uri.startswith("spotify:playlist:")
+                assert CONTEXT.match(uri), uri
             else:
                 assert uri in {row["uri"] for row in tracks}
             observation = dict(
-                song=(
-                    12
-                    if repeat_mood
-                    and base.state["selections"]
-                    and uri != base.state["selections"][0]["uri"]
-                    else 11
-                )
+                song=context_songs.setdefault(uri, 11 + len(context_songs))
                 if context_start
                 else int(uri.rsplit(":", 1)[-1]),
                 state="playing",
@@ -534,8 +396,7 @@ base.music.tools._discovery = replace(
     | {
         "get_queue",
         "top_tracks",
-        *({"get_user_playlists"} if personal_playlist_cover else set()),
-        *({"search_playlists"} if cold or discovery_cover else set()),
+        *SHELF_SERVICES,
         "recently_played",
         "get_room_content_controls",
         "prepare_room_selected_content",
@@ -547,9 +408,7 @@ base.music.tools._discovery = replace(
     },
 )
 base.app[BRIDGE].controls.policy["music"][0]["actions"].extend(
-    (["play_context", "play_track"] if repeat_mood else ["play_context"])
-    if cold
-    else ["play_track", "play_queue_occurrence"]
+    ["play_context"] if cold else ["play_context", "play_track", "play_queue_occurrence"]
 )
 if base.output_transfer:
     base.app[BRIDGE].controls.policy["music"][1]["actions"].append("play_queue_occurrence")
@@ -662,8 +521,6 @@ async def cleanup(_):
         await base.session.aclose()
     await original_transport.aclose()
     await content.client.aclose()
-    if discovery_cover:
-        await image_client.aclose()
 
 
 if queue_journey:
@@ -708,33 +565,19 @@ if queue_journey:
 
     base.app.router.add_post("/lab/queue", queue_state)
 
-if library_race:
 
-    @web.middleware
-    async def observe_library_race(request, handler):
-        global library_race_arrivals
-        if request.path == "/view/api/music" and request.query.get("kind") == "account_playlists":
-            library_race_arrivals += 1
-        return await handler(request)
+async def find_musik_lab(request):
+    """Find musik's journey switches: the next N setups find the room's speaker unusable."""
+    if request.method == "POST":
+        args = await request.json()
+        base.state["failNextSetups"] = int(args.get("failNextSetups", 0))
+    return web.json_response(
+        {"failNextSetups": base.state["failNextSetups"], "contextSongs": context_songs}
+    )
 
-    async def library_race_gate(request):
-        if request.method == "POST":
-            if library_race == "owner-change":
-                base.session._epoch = getattr(base.session, "_epoch", 0) + 1
-            library_race_release.set()
-        calls = base.state["nativeCalls"]
-        return web.json_response(
-            {
-                "moodReads": sum(row["service"] == "search_playlists" for row in calls),
-                "libraryReads": sum(row["service"] == "get_user_playlists" for row in calls),
-                "libraryArrivals": library_race_arrivals,
-            }
-        )
 
-    base.app.middlewares.append(observe_library_race)
-    base.app.router.add_get("/lab/library-race", library_race_gate)
-    base.app.router.add_post("/lab/library-race", library_race_gate)
-
+base.app.router.add_get("/lab/find-musik", find_musik_lab)
+base.app.router.add_post("/lab/find-musik", find_musik_lab)
 base.app.on_cleanup.append(cleanup)
 web.run_app(
     base.app, host="127.0.0.1", port=int(os.environ.get("MUSIC_TEST_PORT", "18979")), print=None

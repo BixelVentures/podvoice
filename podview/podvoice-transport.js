@@ -28,7 +28,10 @@ const diagnosticTrust=new Set(['state_observation','owner_settlement']);
 const diagnosticAction=row=>['control_intent','control_action','control_observation','queue_action','playback_confirmation'].includes(row.stage)||row.stage==='control_setup'&&typeof row.diagnosticRef==='string'&&/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(row.diagnosticRef)&&Object.hasOwn(diagnosticDomainActions,row.domain)&&diagnosticDomainActions[row.domain].includes(row.action)||row.stage==='request'&&['actions','control/actions','radio/actions','music/queue/actions','music/selection/setup','music/selection/actions'].includes(row.endpoint);
 const diagnosticStages=new Set(['control_observation','home_read','control_intent','request','observer','sse','freshness','connection','control_setup','volume_setup','control_action','music_read','playback_confirmation','queue_read','queue_action','browser','lifecycle','control_state','volume_state','artwork','robot_renewal']);
 const diagnosticCodes=new Set([...controlSetupFailureCodes,'observed','recovered','start','ok','accepted','unknown','rejected','http_denied','http_transient','http_error','invalid_json','timeout','cancelled','network','failure','invalid_dto','stale_binding','superseded','empty','unavailable','matched','unconfirmed','expiry','error','cleanup','disconnected','connecting','connected','unhandled_rejection','read_inflight','intent_pending','spent','unknown_fence','capability_missing','unknown_value','resource_error','decode_error','other','confirmed','scope_changed','unsupported','robot_rebind_same','robot_rebind_context','robot_rebind_denied','robot_rebind_absent','robot_rebind_invalid','robot_rebind_draft','robot_rebind_dialog','robot_rebind_restored','robot_authority_changed','robot_offer_invalid','robot_open_reset','robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other','renewal_readonly','renewal_invalid_dto','renewal_owner_changed','renewal_candidate_reused','renewal_card_nonunique','renewal_card_mismatch','renewal_focus_changed','renewal_cancelled','renewal_other']);
-const diagnosticEndpoints=new Set(['radio','radio/offer','radio/actions','snapshot','events','home','answers','actions','pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup','control/actions','music/queue/offer','music/queue/actions','music/player/actions','music/selection/setup','music/selection/actions','other']);
+const diagnosticEndpoints=new Set(['radio','radio/offer','radio/actions','snapshot','events','home','answers','actions',
+ 'pair','controller/renew','controller/request','controller/claim','music','source','weather-advice','control/setup',
+ 'control/actions','music/queue/offer','music/queue/actions','music/player/actions','music/selection/setup',
+ 'music/selection/actions','music/shelves','other']);
 const diagnosticKinds=new Set(['targets','playback','speakers','mood','feeling','top','recent','search','account_playlists','queue','other']);
 const diagnosticQuiet=new Set(['start','ok','connected','connecting','matched','empty','accepted','cleanup','superseded','cancelled']);
 // Values are boolean or finite numbers within±24h; no text/object payloads.
@@ -503,6 +506,21 @@ export class PodVoiceTransport {
   }),{credentials:'same-origin',cache:'no-store',signal:this.controller.signal,...(headers?{headers}:{})},
   undefined,undefined,traceId,readDiagnostic);
   const body = await response.json(); if (!response.ok || !body.ok){const error=new Error(body.error || 'music_unavailable');if([401,403].includes(response.status))error.code='read_access_denied';else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';throw error;}
+  return body;
+ }
+ // Find musik's shelves (podview.music_shelves.v1): content plus, on a paired screen, one choice set.
+ async musicShelves(account){
+  if(!this.connected||!this.snapshot.capabilities.musicRead?.includes('shelves')||typeof account!=='string'||!account
+   ||account.length>1024)throw new Error('music_unavailable');
+  const url=new URL('music/shelves',this.base);if(this.room)url.searchParams.set('room',this.room);
+  url.searchParams.set('account',account);
+  const response=await this.request(url,{credentials:'same-origin',cache:'no-store',signal:this.controller.signal,
+   headers:{...this.musicDocumentHeaders}});
+  const body=await response.json();
+  if(!response.ok||!body.ok){const error=new Error(body.error||'music_unavailable');
+   if([401,403].includes(response.status))error.code='read_access_denied';
+   else if([408,429].includes(response.status)||response.status>=500&&response.status<=599)error.code='read_transient';
+   throw error;}
   return body;
  }
  async queueOffer(accountId,targetId,expectedBindingId,{readDiagnostic}={}){

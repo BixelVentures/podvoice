@@ -1,11 +1,13 @@
 'use strict';
-// Packaged UI → real Python selection/queue brokers → stateful inert native service.
+// Packaged UI → real Python shelves/selection/queue brokers → stateful inert native service. No audio, no Spotify:
+// cover requests are answered by an inert image and every other outside request is refused.
+// Find musik (concept B): quick picks and cover shelves read from GET music/shelves (tests/music_shelves_fixture.py);
+// a tile tap starts that tile's context (play_context) on the player's speaker through setup → offer → one action.
 const {chromium}=require('playwright');
 const env=require('./podview_actual_env.cjs');
 const {spawn}=require('node:child_process');
 const {createHash}=require('node:crypto');
 const path=require('node:path'),fs=require('node:fs/promises'),os=require('node:os'),assert=require('node:assert/strict');
-const holdPlayback=process.env.MUSIC_HOLD_PLAYBACK==='1';
 const loseSelectionReceipt = process.env.MUSIC_UNKNOWN_AFTER_COMMIT === '1';
 const queueColdTail = process.env.MUSIC_QUEUE_INTENTS === 'cold-tail';
 const queueIntentDuringRefresh = process.env.MUSIC_QUEUE_INTENTS === 'refresh' || queueColdTail;
@@ -18,30 +20,247 @@ const accountRollover=process.env.MUSIC_ACCOUNT_ROLLOVER_TEST==='1';
 const queueJourney = queueIdentity || process.env.MUSIC_QUEUE_JOURNEY === '1' || queueIntents
  || process.env.MUSIC_QUEUE_SKIP_TEST === '1';
 const defaultSpeakerProof=process.env.MUSIC_DEFAULT_SPEAKER_PROOF==='1';
-const discoveryLoading=process.env.MUSIC_DISCOVERY_LOADING_TEST==='1';
-const discoveryRevisit=process.env.MUSIC_DISCOVERY_LOADING_TEST==='revisit';
-const discoveryCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='cover';
-const discoveryPersonalCover=process.env.MUSIC_DISCOVERY_LOADING_TEST==='personal-cover';
-const libraryBusy=process.env.MUSIC_LIBRARY_BUSY_TEST;
 const recentSession=process.env.MUSIC_RECENT_SESSION_TEST==='1';
 const startLatency=process.env.MUSIC_START_LATENCY_TEST==='1';
-const startLatencyMood=process.env.MUSIC_START_LATENCY_TEST==='mood';
 const queueSkip=process.env.MUSIC_QUEUE_SKIP_TEST==='1';
 const coldPlayer=process.env.MUSIC_COLD_PLAYER_TEST==='1';
 const documentScope=process.env.MUSIC_DOCUMENT_SCOPE_TEST==='1';
 const voiceJourney=process.env.MUSIC_VOICE_JOURNEY_TEST==='1';
 const voiceLongSession=voiceJourney&&process.env.MUSIC_LONG_SESSION==='1';
-const cold=defaultSpeakerProof||startLatencyMood||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1',repeatMood=process.env.MUSIC_REPEAT_MOOD==='1',previewRenew=process.env.MUSIC_PREVIEW_RENEW==='1',holdMood=process.env.MUSIC_HOLD_MOOD==='1';
+const cold=defaultSpeakerProof||process.env.MUSIC_COLD_CONTEXT==='1',rejectSetup=process.env.MUSIC_COLD_REJECT==='1';
 const port=Number(process.env.MUSIC_TEST_PORT||18979),base=`http://127.0.0.1:${port}`,sleep=ms=>new Promise(r=>setTimeout(r,ms));
-let server,browser,page,serverLog='';const errors=[],actions=[],responses=[],moodRenewals=[];let bundleSHA,cssSHA;
+let server,browser,page,serverLog='';const errors=[],actions=[],responses=[];let bundleSHA,cssSHA;
 const state=()=>fetch(base+'/lab/state').then(r=>r.json());
+const findLab=body=>fetch(base+'/lab/find-musik',{method:'POST',headers:{'Content-Type':'application/json'},
+ body:JSON.stringify(body)}).then(r=>r.json());
+const starts=value=>value.nativeCalls.filter(row=>row.service==='start_room_selected_content');
+const SPEAKER_REFUSED='Højttaleren i rummet kan ikke bruges lige nu.';
+// Spotify's cover hosts get an inert image (a colour per URL); nothing else outside PodVoice is reached.
+async function inertCovers(surface){
+ await surface.route(/^https:\/\//,route=>{
+  const url=new URL(route.request().url());
+  if(!/^(i\.scdn\.co|image-cdn-(fa|ak)\.spotifycdn\.com)$/.test(url.hostname))return route.abort();
+  const hue=parseInt(createHash('sha256').update(url.href).digest('hex').slice(0,4),16)%360;
+  return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" '
+   +`height="64"><rect width="64" height="64" fill="hsl(${hue} 45% 45%)"/></svg>`});
+ });
+}
+// PodView reads Find musik in the background as soon as it connects; wait for that page (with its AI shelves).
+async function shelvesRead(surface){
+ await surface.waitForFunction(()=>{const page=document.querySelector('pv-widget-host')?.liveCatalogue?.page;
+  return !!page&&!page.refreshing&&page.shelves.some(shelf=>shelf.ai);},undefined,{timeout:30000});
+}
+const tile=(surface,shelf,name)=>surface.locator(`section.find-shelf[data-shelf="${shelf}"] button.find-tile`)
+ .filter({has:surface.locator('strong',{hasText:new RegExp(`^${name}$`)})});
+// Find musik opened from the overview, measured in its first visible frame (docs/MOTION.md §3.2: the scene renders
+// inside the page transition's update, so the reading is taken the moment it is shown).
+async function openFindMusik(surface){
+ await surface.evaluate(()=>window.addEventListener('click',event=>{if(!event.target.closest?.('#home-music'))return;
+  const view=document.getElementById('music-response');
+  const measure=()=>{const buttons=[...view.querySelectorAll('button')];
+   window.firstMusicFrame={quick:view.querySelectorAll('.find-quick-tile').length,
+    tiles:view.querySelectorAll('.find-tile').length,shelves:view.querySelectorAll('.find-shelf').length,
+    empty:!!view.querySelector('.find-empty'),locked:buttons.filter(b=>b.disabled||b.ariaDisabled==='true').length,
+    loading:/Henter|Indlæser/.test(view.innerText||'')};};
+  if(!view.hidden){measure();return;}
+  const watch=new MutationObserver(()=>{if(view.hidden)return;watch.disconnect();measure();});
+  watch.observe(view,{attributes:true,attributeFilter:['hidden']});},{once:true}));
+ await surface.locator('#home-music').tap();
+ await surface.waitForFunction(()=>window.firstMusicFrame!==undefined,null,{timeout:2000});
+ return surface.evaluate(()=>window.firstMusicFrame);
+}
+// Every disabled/aria-disabled write on Find musik's buttons (a start never locks a tile).
+async function watchLocks(surface){
+ await surface.locator('#find-musik').evaluate(node=>{window.findLocks=[];new MutationObserver(records=>{
+  for(const record of records)if(record.target.closest?.('button')&&(record.target.disabled
+   ||record.target.getAttribute('aria-disabled')==='true'))window.findLocks.push(record.target.textContent.trim());
+ }).observe(node,{subtree:true,attributes:true,attributeFilter:['disabled','aria-disabled']});});
+}
+const observedSong=(surface,song,phase='playing')=>surface.waitForFunction(({song,phase})=>{
+ const h=document.querySelector('pv-widget-host'),p=h?.liveMedia?.playback;
+ return p?.state===phase&&p.item?.uri===`spotify:track:${String(song).padStart(22,'0')}`
+  &&document.querySelector('#track-name')?.textContent?.trim()===`Isoleret sang ${song}`
+  &&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&!h.liveSelection?.pending;
+},{song,phase},{timeout:20000});
+// Find musik on the packaged page: content in its first frame, one vertical page with sideways shelves, a tile tap
+// starts that tile's context on the player's room and the player shows it, taps never lock (the last one wins), a
+// refused start is a short toast that clears itself, then the queue still works.
+async function findMusikJourney(){
+ await shelvesRead(page);
+ const first=await openFindMusik(page);
+ assert.equal(first.quick,6,'six quick picks in the first frame: '+JSON.stringify(first));
+ assert(first.shelves>=6&&first.tiles>=20,'the shelves are drawn in the first frame: '+JSON.stringify(first));
+ assert.deepEqual([first.empty,first.locked,first.loading],[false,0,false],'no empty, locked or loading frame');
+ assert.equal(await page.locator('#header-title').innerText(),'Find musik');
+ const ai=page.locator('section.find-shelf[data-shelf=ai_moment]');
+ assert.equal(await ai.locator('.find-ai-badge').innerText(),'AI-valgt');
+ assert.match(await ai.locator('.find-why').innerText(),/^Fordi /,'an AI shelf says why');
+ // One page scrolls vertically; the player stays where it is.
+ const feed=page.locator('#music-response'),player=page.locator('.player');
+ const playerBox=await player.boundingBox();
+ await env.touchScroll(page,feed,{dy:360});
+ const scrolled=await feed.evaluate(node=>node.scrollTop);
+ assert(scrolled>40,`a vertical swipe scrolls Find musik (${scrolled})`);
+ assert.deepEqual(await player.boundingBox(),playerBox,'the player stays while the page scrolls');
+ // A shelf wider than the column scrolls sideways under the finger; nothing navigates.
+ const row=page.locator('section.find-shelf[data-shelf=recent] .find-shelf-row');
+ await row.evaluate(node=>node.scrollIntoView({block:'center'}));await sleep(300);
+ const wide=await row.evaluate(node=>({scroll:node.scrollWidth,client:node.clientWidth,left:node.scrollLeft}));
+ assert(wide.scroll>wide.client+100,'the recent shelf is wider than the column: '+JSON.stringify(wide));
+ const before={url:page.url(),history:await page.evaluate(()=>history.length),top:await feed.evaluate(n=>n.scrollTop),
+  focus:await page.locator('pv-widget-host').evaluate(h=>h.state.focus)};
+ const rowBox=await row.boundingBox(),y=rowBox.y+rowBox.height/3;
+ await env.touchDrag(page,{x:rowBox.x+rowBox.width-60,y},{x:rowBox.x+120,y});
+ await page.waitForFunction(()=>document.querySelector('[data-shelf=recent] .find-shelf-row').scrollLeft>100,
+  undefined,{timeout:3000});
+ await sleep(500);
+ const after={url:page.url(),history:await page.evaluate(()=>history.length),top:await feed.evaluate(n=>n.scrollTop),
+  focus:await page.locator('pv-widget-host').evaluate(h=>h.state.focus)};
+ assert.deepEqual(after,before,'a sideways swipe moves the shelf, not the page');
+ const swiped=await row.evaluate(node=>node.scrollLeft);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-find-musik-swiped.png')});
+
+ // A tile tap starts that tile's context on the player's room; the player shows the wish at once.
+ await watchLocks(page);
+ const blue=tile(page,'albums','Blue'),blueUri=await blue.getAttribute('data-uri');
+ assert.match(blueUri,/^spotify:album:/);
+ await blue.scrollIntoViewIfNeeded();
+ await blue.evaluate(node=>node.addEventListener('click',event=>{if(!event.isTrusted)return;
+  const start=performance.now(),probe=window.wishShown={ms:null};
+  const sample=()=>{
+   if(document.querySelector('#track-name')?.textContent?.trim()==='Blue')probe.ms=performance.now()-start;
+   else if(performance.now()-start<3000)requestAnimationFrame(sample);};
+  requestAnimationFrame(sample);},{once:true}));
+ await blue.tap();
+ await page.waitForFunction(()=>Number.isFinite(window.wishShown?.ms),undefined,{timeout:4000});
+ const wishMs=Math.round(await page.evaluate(()=>window.wishShown.ms));
+ assert(wishMs<300,`the tapped tile shows in the player within 300 ms (${wishMs})`);
+ await observedSong(page,11);
+ let value=await state();
+ const [blueStart]=starts(value);
+ assert.equal(blueStart.args.action,'play_context');
+ assert.equal(blueStart.args.args.context_uri,blueUri,'the tapped tile\'s context starts');
+ assert.deepEqual([blueStart.args.room_id,blueStart.args.homepod_id,blueStart.args.target_id],
+  ['native-room','42','device'],'on the player\'s room');
+ assert.equal(await page.locator('#player-room').innerText(),'Køkkenalrum HomePod');
+ assert.equal(await row.evaluate(node=>node.scrollLeft),swiped,'a start keeps the shelf where it was');
+
+ // Taps during a start wait and the newest one follows (last wins); nothing is ever disabled.
+ const held=page.waitForRequest(r=>new URL(r.url()).pathname==='/view/api/music/selection/actions');
+ let release;const gate=new Promise(resolve=>{release=resolve;});
+ await page.route('**/view/api/music/selection/actions',async route=>{await gate;await route.continue();},{times:1});
+ const kind=tile(page,'albums','Kind of Blue'),phil=tile(page,'albums','Philharmonics');
+ const show=tile(page,'podcasts','Det Røde Rum');
+ await kind.tap();
+ await held;
+ await phil.tap();
+ await show.scrollIntoViewIfNeeded();
+ await show.tap();
+ assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('#find-musik button')]
+  .filter(b=>b.disabled||b.ariaDisabled==='true').length),0,'no tile is disabled during a start');
+ release();
+ await page.waitForFunction(()=>document.querySelector('#track-name')?.textContent?.trim()==='Det Røde Rum'
+  ||/Isoleret sang 13/.test(document.querySelector('#track-name')?.textContent||''),undefined,{timeout:20000});
+ await observedSong(page,13);
+ value=await state();
+ const showUri=await show.getAttribute('data-uri'),kindUri=await kind.getAttribute('data-uri');
+ assert.deepEqual(starts(value).map(row=>row.args.args.context_uri),[blueUri,kindUri,showUri],
+  'the first and the newest waiting tap are sent; the tap in between is replaced');
+ assert.deepEqual(await page.evaluate(()=>window.findLocks),[],'no tile was ever locked');
+
+ // A refused start is a short toast that clears itself; the player keeps what plays and the next tap starts.
+ await findLab({failNextSetups:1});
+ const toast=page.locator('#find-musik .find-toast');
+ const nina=tile(page,'artists','Nina Simone');
+ await nina.scrollIntoViewIfNeeded();
+ const refusedAt=Date.now();
+ await nina.tap();
+ await toast.filter({hasText:SPEAKER_REFUSED}).waitFor({state:'visible',timeout:10000});
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-find-musik-toast.png')});
+ await toast.waitFor({state:'hidden',timeout:6000});
+ const toastMs=Date.now()-refusedAt;
+ assert(toastMs<6000,`the toast clears itself (${toastMs} ms)`);
+ assert.doesNotMatch(await page.locator('.player').innerText(),/kan ikke bruges|fejlede|afvist/,
+  'no error text stays on the player');
+ assert.equal(starts(await state()).length,3,'a refused setup starts nothing');
+ await nina.tap();
+ await observedSong(page,14);
+ value=await state();
+ assert.equal(starts(value).at(-1).args.args.context_uri,await nina.getAttribute('data-uri'));
+ assert.deepEqual(await page.evaluate(()=>window.findLocks),[],'no tile was ever locked');
+
+ // The queue still works after Find musik starts (A12/K7: an unrelated voice answer keeps it).
+ await page.locator('#track').tap();
+ const queueRow=page.locator('#queue button.queue-track:not([data-pv-leave])').filter({hasText:'Køsang 22'});
+ await queueRow.waitFor({state:'visible',timeout:15000});
+ await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])')]
+  .some(b=>b.textContent.includes('Køsang 22')&&!b.disabled),undefined,{timeout:15000});
+ const queueBeforeVoice=await page.locator('#queue').innerText();
+ await page.request.post(base+'/lab/state',{data:{unrelatedVoiceTurn:'s1:unrelated-answer'}});
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.turnId
+  ==='s1:unrelated-answer',undefined,{timeout:10000});
+ assert.equal(await page.locator('#queue').innerText(),queueBeforeVoice,'unrelated voice keeps queue content');
+ assert.equal(await queueRow.isEnabled(),true,'unrelated voice keeps queue selectable');
+ await queueRow.tap();
+ for(let n=0;(await state()).song!==22;n++){if(n>100)throw Error('queue occurrence effect missing');await sleep(100);}
+ await page.waitForFunction(()=>document.querySelector('#track-name')?.textContent?.trim()==='Isoleret sang 22',
+  undefined,{timeout:15000});
+ const queued=await state();
+ assert.equal(queued.queueSelections.length,1);
+ assert.deepEqual(queued.writes.map(r=>r.action),['play_context','play_context','play_context','play_context',
+  'play_queue_occurrence']);
+ assert.equal(queued.nativeCalls.filter(r=>r.service==='prepare_room_selected_content').length,4);
+ assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/setup')).length,5,'every tap was sent');
+ assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,4);
+ for(const r of actions.filter(r=>r.url.endsWith('/actions'))){assert(!Object.hasOwn(r.body,'uri'));
+  assert(!Object.hasOwn(r.body,'index'));}
+ assert.match(bundleSHA,/^[a-f0-9]{64}$/);
+ assert.deepEqual(errors,[]);
+ await fs.writeFile(path.join(env.artifactDir(),'podview-music-selection-trace.json'),
+  JSON.stringify({bundleSHA,service:queued,actions,responses},null,2));
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-music-selection.png')});
+ console.log(JSON.stringify({outcome:'PASS',packagedUI:true,bundleSHA,inertNativeService:true,firstFrame:first,
+  verticalScroll:scrolled,shelfSwipe:swiped,wishMs,contexts:starts(queued).map(row=>row.args.args.context_uri),
+  lastTapWins:true,locks:0,toastMs,queueProof:'Køsang 22 → play_queue_occurrence',pageErrors:errors}));
+}
+// An unknown outcome after the owner acted stays honest on the player and is never resent; the next tap starts.
+async function unknownAfterCommitJourney(){
+ await shelvesRead(page);
+ await openFindMusik(page);
+ await page.route('**/view/api/music/selection/actions',async route=>{
+  const committed=await route.fetch();
+  assert.equal((await committed.json()).outcome,'accepted');
+  assert.equal(starts(await state()).length,1,'the inert owner acted before the receipt was lost');
+  await route.fulfill({status:502,json:{error:'fixture_receipt_lost'}});
+ },{times:1});
+ const blue=tile(page,'albums','Blue');
+ await blue.scrollIntoViewIfNeeded();
+ await blue.tap();
+ await page.waitForFunction(()=>{const s=document.querySelector('pv-widget-host')?.liveSelection;
+  return s?.feedback?.outcome==='unknown'&&!s.pending;},undefined,{timeout:12000});
+ await observedSong(page,11);
+ assert.equal(await page.locator('#find-musik .find-toast').isVisible(),false,'an unknown outcome is not a toast');
+ await sleep(3000);
+ assert.equal(starts(await state()).length,1,'passive observation does not repeat the unknown command');
+ assert.equal(actions.filter(action=>action.url.endsWith('/selection/actions')).length,1);
+ const kind=tile(page,'albums','Kind of Blue');
+ await kind.tap();
+ await observedSong(page,12);
+ const sent=actions.filter(action=>action.url.endsWith('/selection/actions'));
+ assert.equal(sent.length,2);
+ assert.notEqual(sent[0].body.requestId,sent[1].body.requestId);
+ assert.deepEqual(starts(await state()).map(row=>row.args.args.context_uri),
+  [await blue.getAttribute('data-uri'),await kind.getAttribute('data-uri')]);
+ assert.deepEqual(errors,[]);
+ console.log(JSON.stringify({outcome:'PASS',bundleSHA,unknownAfterCommit:true,explicitChoiceEffects:2}));
+}
 // Green timing: the speaker confirms at 2.7 s, Spotify's observation and HA event follow at 4.5 s.
-// The tapped track shows at once, and the player turns to playing at the first confirmation.
+// The tapped tile shows at once, and the player turns to playing at the first confirmation.
 async function startLatencyJourney(){
- await page.locator('#home-music').tap();
- await page.locator('[data-collection="top"]').tap();
- const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});
- await row.waitFor({state:'visible',timeout:15000});
+ await shelvesRead(page);
+ await openFindMusik(page);
+ const row=tile(page,'albums','Blue');
+ await row.scrollIntoViewIfNeeded();
  await page.waitForFunction(()=>{
   const button=document.querySelector('#play-pause');
   return button&&!button.disabled&&button.getAttribute('aria-label')==='Fortsæt musikken';
@@ -54,8 +273,8 @@ async function startLatencyJourney(){
    const sample=()=>{
     const now=performance.now()-start,title=document.querySelector('#track-name')?.textContent;
     const label=document.querySelector('#play-pause')?.getAttribute('aria-label');
-    if(probe.pendingMs===null&&title==='Katalogsang 11')probe.pendingMs=now;
-    if(probe.playingMs===null&&label==='Sæt musik på pause'&&['Katalogsang 11','Isoleret sang 11'].includes(title)){
+    if(probe.pendingMs===null&&title==='Blue')probe.pendingMs=now;
+    if(probe.playingMs===null&&label==='Sæt musik på pause'&&['Blue','Isoleret sang 11'].includes(title)){
      probe.playingMs=now;probe.playingTitle=title;
     }
     if(now<12000&&probe.playingMs===null)requestAnimationFrame(sample);
@@ -71,47 +290,244 @@ async function startLatencyJourney(){
  const result={pendingMs:Math.round(probe.pendingMs),speakerMs,playingMs:Math.round(probe.playingMs),
   playingTitle:probe.playingTitle,bundleSHA};
  console.log('startLatency',JSON.stringify(result));
- assert(probe.pendingMs<300,`chosen track visible within 300 ms: ${JSON.stringify(result)}`);
+ assert(probe.pendingMs<300,`chosen tile visible within 300 ms: ${JSON.stringify(result)}`);
  assert(probe.playingMs>=speakerMs,`never playing before the speaker confirms: ${JSON.stringify(result)}`);
  assert(probe.playingMs<speakerMs+500,`playing within 500 ms of the speaker confirmation: ${JSON.stringify(result)}`);
- assert.equal(fixture.writes.filter(row=>row.action==='play_track').length,1);
+ assert.equal(fixture.writes.filter(row=>row.action==='play_context').length,1);
  assert.deepEqual(errors,[]);
  console.log(JSON.stringify({outcome:'PASS',mode:'start-latency',...result}));
 }
-// F2: a Find musik suggestion (a mood playlist) shows its title at once and turns to playing at
-// the speaker's first native confirmation, not at Spotify's later observation (Green: 4.3 s).
-async function moodLatencyJourney(){
- const row=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:'Kold jazz'}).first();
- await row.waitFor({state:'visible',timeout:20000});
- await row.evaluate(node=>{
+// Two documents share one HA ingress session: each page keeps its own Find musik choice set, a tap uses its own,
+// and a newer read in the same document replaces the earlier set.
+async function documentScopeJourney(){
+ const peer=await page.context().newPage();
+ const localOnly=surface=>surface.route('**/*',route=>
+  new URL(route.request().url()).origin===base?route.continue():route.abort());
+ const shelfReads=surface=>{const reads=[];surface.on('response',response=>{
+  if(new URL(response.url()).pathname==='/view/api/music/shelves'&&response.ok())reads.push(response);});return reads;};
+ const latest=async reads=>{for(let n=0;n<100&&!reads.length;n++)await sleep(50);
+  const response=reads.at(-1),body=await response.json();
+  return {set:body.candidateSet?.candidateSetId,document:response.request().headers()['x-podview-music-document']};};
+ const pageReads=page.shelfReads,peerReads=shelfReads(peer);
+ await localOnly(peer);await inertCovers(peer);
+ peer.on('pageerror',error=>errors.push(error.message));
+ try{
+  await peer.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+  await env.openOverview(peer);
+  const snapshots=await Promise.all([page,peer].map(async surface=>
+   (await surface.request.get(base+'/view/api/snapshot?room=kitchen')).json()));
+  assert.deepEqual(snapshots.map(s=>[s.bootId,s.roomId,s.admission.kind]),[
+   [snapshots[0].bootId,'kitchen','ha_ingress'],[snapshots[0].bootId,'kitchen','ha_ingress'],
+  ]);
+  await shelvesRead(page);
+  await openFindMusik(page);
+  const first=await latest(pageReads);
+  await shelvesRead(peer);
+  await openFindMusik(peer);
+  const other=await latest(peerReads);
+  assert.match(first.set,/^[a-f0-9]{64}$/);assert.match(other.set,/^[a-f0-9]{64}$/);
+  assert.notEqual(first.set,other.set);
+  assert.match(first.document,/^[a-f0-9]{32}$/);assert.match(other.document,/^[a-f0-9]{32}$/);
+  assert.notEqual(first.document,other.document);
+  assert.deepEqual((await state()).writes,[],'both reads leave the inert owner untouched');
+
+  const setupReply=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/music/selection/setup');
+  const actionReply=page.waitForResponse(r=>
+   new URL(r.url()).pathname==='/view/api/music/selection/actions').catch(error=>error);
+  await page.bringToFront();
+  const blue=tile(page,'albums','Blue');
+  await blue.scrollIntoViewIfNeeded();
+  await blue.tap();
+  const setup=await setupReply,own=await latest(pageReads);
+  assert.equal(setup.request().postDataJSON().candidateSetId,own.set,'A uses its own choice set after B reads');
+  assert.notEqual(setup.request().postDataJSON().candidateSetId,other.set);
+  assert.equal(setup.request().headers()['x-podview-music-document'],first.document);
+  assert.equal(setup.status(),200,await setup.text());
+  const action=await actionReply;
+  if(action instanceof Error)throw action;
+  assert.equal(action.request().headers()['x-podview-music-document'],first.document);
+  assert.equal((await action.json()).outcome,'accepted');
+  await observedSong(page,11);
+  assert.deepEqual((await state()).writes.map(({action,uri})=>[action,uri]),[
+   ['play_context',await blue.getAttribute('data-uri')],
+  ]);
+
+  // A newer read in the same document replaces the earlier choice set: the old setup is refused.
+  const count=pageReads.length;
+  await page.locator('pv-widget-host').evaluate(h=>h.liveCatalogue.refresh());
+  for(let n=0;n<100&&pageReads.length===count;n++)await sleep(50);
+  const replacement=await latest(pageReads);
+  assert.equal(replacement.document,first.document);
+  assert.notEqual(replacement.set,own.set);
+  const stale=await page.request.post(setup.url(),{
+   headers:{'X-PodView-Request':'1','X-PodView-Music-Document':first.document},
+   data:setup.request().postDataJSON(),
+  });
+  assert.equal(stale.status(),409);
+  assert.equal((await stale.json()).error,'stale_music_selection');
+  assert.equal(actions.filter(action=>action.url.endsWith('/music/selection/actions')).length,1);
+  assert.deepEqual((await state()).writes.map(row=>row.action),['play_context']);
+  assert.deepEqual(errors,[]);
+  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+  assert.match(cssSHA,/^[a-f0-9]{64}$/);
+  const proof={outcome:'PASS',bundleSHA,cssSHA,sharedHAIngress:true,documents:2,
+   ownChoiceSetSurvivesSecondRead:true,sameDocumentReplacementRejectsOldSetup:true,
+   inertPlaybackEffects:1,inertNativeService:true,pageErrors:errors};
+  await fs.writeFile(path.join(env.artifactDir(),'podview-music-document-scope.json'),JSON.stringify(proof,null,2));
+  console.log(JSON.stringify(proof));
+ }finally{await peer.close();}
+}
+// F10/F11/A9/A10: a tile's title and cover show in the player at once while the start is under way, the page
+// stays usable, a lease renewal or a reopen never replays the start, player taps keep working, and a later tile
+// choice after an expired target read refreshes that read once.
+async function recentSessionJourney(){
+ const uri='spotify:track:'+String(11).padStart(22,'0'),title='Isoleret sang 11';
+ await shelvesRead(page);
+ await openFindMusik(page);
+ const chosen=tile(page,'albums','Kind of Blue');
+ await chosen.scrollIntoViewIfNeeded();
+ const art=chosen.locator('.find-art img');
+ await page.waitForFunction(node=>node.hasAttribute('data-ready'),await art.elementHandle(),{timeout:10000});
+ const coverUrl=await art.getAttribute('src'),name='Kind of Blue';
+ await watchLocks(page);
+ const tilesBefore=await page.locator('#find-musik button').count();
+ let release,markHeld;
+ const gate=new Promise(resolve=>{release=resolve;});
+ const held=new Promise(resolve=>{markHeld=resolve;});
+ await page.route('**/view/api/music/selection/actions',async route=>{
+  markHeld();
+  await gate;
+  await route.continue();
+ },{times:1});
+ await chosen.evaluate((node,{name,coverUrl})=>{
   node.addEventListener('click',event=>{
    if(!event.isTrusted)return;
-   const start=performance.now(),probe=window.startLatency={clickAt:Date.now(),pendingMs:null,playingMs:null,title:null};
-   const sample=()=>{
-    const now=performance.now()-start,title=document.querySelector('#track-name')?.textContent||'';
-    const label=document.querySelector('#play-pause')?.getAttribute('aria-label');
-    if(probe.pendingMs===null&&title&&document.querySelector('.player')?.hidden===false){probe.pendingMs=now;probe.title=title;}
-    if(probe.playingMs===null&&label==='Sæt musik på pause')probe.playingMs=now;
-    if(now<12000&&probe.playingMs===null)requestAnimationFrame(sample);
+   const start=performance.now(),probe=window.recentPaint={titleMs:null,coverMs:null};
+   const measure=()=>{
+    const now=performance.now()-start,cover=document.querySelector('#cover');
+    if(probe.titleMs===null&&document.querySelector('#track-name')?.textContent===name)probe.titleMs=now;
+    if(probe.coverMs===null&&cover?.getAttribute('src')===coverUrl&&cover.naturalWidth>0)probe.coverMs=now;
+    if(now<3000&&(probe.titleMs===null||probe.coverMs===null))requestAnimationFrame(measure);
    };
-   requestAnimationFrame(sample);
+   requestAnimationFrame(measure);
   },{once:true});
+ },{name,coverUrl});
+ let firstPaint;
+ try{
+  await chosen.tap();
+  await Promise.race([held,sleep(8000).then(()=>{throw Error('selection action was not held');})]);
+  await page.waitForFunction(()=>Number.isFinite(window.recentPaint?.titleMs)
+   &&Number.isFinite(window.recentPaint?.coverMs),undefined,{timeout:5000}).catch(async error=>{
+   throw Error(error.message+' '+JSON.stringify(await page.evaluate(()=>({probe:window.recentPaint,
+    title:document.querySelector('#track-name')?.textContent,
+    cover:document.querySelector('#cover')?.getAttribute('src'),
+    width:document.querySelector('#cover')?.naturalWidth}))));
+  });
+  firstPaint=await page.evaluate(()=>window.recentPaint);
+  assert(firstPaint.titleMs<300&&firstPaint.coverMs<300,JSON.stringify(firstPaint));
+  const oldRead=await page.waitForResponse(response=>{
+   const url=new URL(response.url());
+   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
+  },{timeout:10000});
+  assert.notEqual((await oldRead.json()).uri,uri);
+  assert.deepEqual((await state()).writes,[]);
+  assert.equal(await page.locator('#track-name').textContent(),name,'an older playback read keeps the wish');
+  assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
+  assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
+  // A start is calm (13/11): the chosen item shows at once, no text over the speaker picker.
+  assert.equal(await page.locator('#player-state').textContent(),'');
+  assert.equal(await page.locator('#find-musik button').count(),tilesBefore,'the page keeps every tile');
+  assert.deepEqual(await page.evaluate(()=>window.findLocks),[],'no tile is locked during the start');
+  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-pending-player.png')});
+ }finally{release();}
+ const observed=(surface,phase,after=0)=>surface.waitForFunction(({uri,title,phase,after})=>{
+  const host=document.querySelector('pv-widget-host'),playback=host?.liveMedia?.playback;
+  const b=document.querySelector('#play-pause');
+  return Date.now()>=after&&playback?.roomBinding?.validUntil*1000>Date.now()
+   &&playback.roomBinding.nativeRoomId==='native-room'&&playback.roomBinding.nativeHomepodId==='42'
+   &&playback.item?.uri===uri&&playback.state===phase&&b&&!b.disabled
+   &&!(host.liveControls.musicIntentPending||host.liveControls?.player?.busy())
+   &&!host.liveSelection.pending&&document.querySelector('#track-name')?.textContent===title;
+ },{uri,title,phase,after},{timeout:15000});
+ await observed(page,'playing');
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')
+  ?.liveSelection?.feedback?.settlementStatus==='confirmed');
+ const initialDeadline=await page.locator('pv-widget-host').evaluate(host=>
+  host.liveMedia.playback.roomBinding.validUntil*1000);
+ const baseline=await state();
+ assert.deepEqual(baseline.writes.map(row=>row.action),['play_context']);
+ assert.equal(baseline.selections[0].uri,await chosen.getAttribute('data-uri'));
+ await observed(page,'playing',initialDeadline);
+ assert.deepEqual((await state()).writes,baseline.writes,'passive renewal does not replay the selection');
+ await page.request.post(base+'/lab/state',{data:{delayMs:600}});
+ const toggle=page.locator('#play-pause'),labels=[];
+ for(let index=0;index<3;index++){
+  await toggle.tap();
+  labels.push(await toggle.getAttribute('aria-label'));
+  assert.equal(await toggle.isEnabled(),true);
+ }
+ assert.deepEqual(labels,['Fortsæt musikken','Sæt musik på pause','Fortsæt musikken']);
+ await observed(page,'paused');
+ const afterBurst=await state();
+ assert.deepEqual(afterBurst.writes.map(row=>row.action),['play_context','pause','resume','pause']);
+ await page.request.post(base+'/lab/state',{data:{delayMs:0}});
+ const storageState=await page.context().storageState();
+ await page.close();
+ page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820},storageState});
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+ await inertCovers(page);
+ // The reopened page shows the last-known Find musik in its first frame, before its own read answers.
+ let releaseShelves;const shelvesGate=new Promise(resolve=>{releaseShelves=resolve;});
+ await page.route('**/view/api/music/shelves?**',async route=>{await shelvesGate;await route.continue();});
+ await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
+ await env.openOverview(page);
+ await observed(page,'paused');
+ // After the start, the room player's own cover (HA's proxy image through PodVoice) is shown.
+ const reopenedCover=page.locator('#cover[src*="/view/api/music/player/artwork"]');
+ await reopenedCover.waitFor({state:'visible'});
+ await reopenedCover.evaluate(image=>image.decode());
+ assert.deepEqual((await state()).writes,afterBurst.writes,'reopening does not replay the selection or controls');
+ const reopenedFrame=await openFindMusik(page);
+ assert(reopenedFrame.quick===6&&reopenedFrame.tiles>=20&&!reopenedFrame.empty&&!reopenedFrame.loading,
+  'the last-known Find musik is shown at once after a reload: '+JSON.stringify(reopenedFrame));
+ releaseShelves();
+ await page.unroute('**/view/api/music/shelves?**');
+ await page.locator('#play-pause').tap();
+ await observed(page,'playing');
+ const volume=page.locator('#volume');
+ await env.touchRange(page,volume,55);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.volume===55);
+ const final=await state();
+ assert.equal(final.selections.length,1);
+ assert.deepEqual(final.writes.map(row=>row.action),['play_context','pause','resume','pause','resume','volume']);
+ assert.equal(final.volume,55);
+ await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
+ // A later tile choice after the reopen: one effect, at most one choice-set renewal read (served from cache).
+ let choicePressed=false,choiceShelfReads=0;
+ page.on('response',response=>{
+  if(new URL(response.url()).pathname==='/view/api/music/shelves'&&choicePressed)choiceShelfReads++;
  });
- await row.tap();
- await page.waitForFunction(()=>Number.isFinite(window.startLatency?.playingMs),undefined,{timeout:15000});
- const probe=await page.evaluate(()=>window.startLatency),fixture=await state();
- const speakerMs=Math.round(fixture.speakerConfirmedAtMs-probe.clickAt);
- const result={pendingMs:Math.round(probe.pendingMs),pendingTitle:probe.title,speakerMs,
-  playingMs:Math.round(probe.playingMs),bundleSHA};
- console.log('moodLatency',JSON.stringify(result));
- assert(probe.pendingMs<300,`chosen suggestion visible within 300 ms: ${JSON.stringify(result)}`);
- assert(probe.playingMs>=speakerMs,`never playing before the speaker confirms: ${JSON.stringify(result)}`);
- // Measurement only: from an empty player the native confirmation cannot reach the screen before
- // Spotify's own observation, because the room read is "idle" until then (needs Control, see PR).
+ const later=tile(page,'albums','Blue');
+ await later.scrollIntoViewIfNeeded();
+ choicePressed=true;
+ await later.tap();
+ await observedSong(page,12);
+ await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSelection?.feedback?.settlementStatus
+  ==='confirmed');
+ const laterChoice=await state();
+ assert.deepEqual(laterChoice.writes.slice(final.writes.length).map(row=>row.action),['play_context']);
+ assert.equal(laterChoice.selections.at(-1).uri,await later.getAttribute('data-uri'));
+ assert(choiceShelfReads<=1,'at most one choice-set renewal read');
  assert.deepEqual(errors,[]);
- console.log(JSON.stringify({outcome:'PASS',mode:'mood-start-latency',...result}));
+ if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
+ const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,reopenedFrame,
+  tilesEnabledDuringStart:true,laterChoiceEffects:1,choiceShelfReads,
+  previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
+  touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
+ await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
+ console.log(JSON.stringify(proof));
 }
-
 // Test 13/11 12:05: a start from an empty player is calm. Every frame of the player is recorded:
 // no text over the speaker picker, the title changes once to the chosen song, no layout jump.
 async function recordPlayer(){
@@ -132,12 +548,10 @@ async function coldPlayerJourney(){
  assert((await page.request.post(base+'/lab/state',{data:{externalPlaybackState:'idle'}})).ok());
  await page.waitForFunction(()=>!['playing','paused'].includes(document.querySelector('pv-widget-host')?.liveMedia?.playback?.state),
   undefined,{timeout:15000});
- await page.locator('#home-music').tap();
- await page.locator('[data-collection="top"]').tap();
- const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 12'});
- await row.waitFor({state:'visible',timeout:15000});
- await page.waitForFunction(()=>[...document.querySelectorAll('#result-list button.result')]
-  .some(r=>r.textContent.includes('Katalogsang 12')&&!r.disabled),undefined,{timeout:15000});
+ await shelvesRead(page);
+ await openFindMusik(page);
+ const row=tile(page,'albums','Blue');
+ await row.scrollIntoViewIfNeeded();
  await sleep(500);
  await recordPlayer();
  await row.tap();
@@ -147,9 +561,9 @@ async function coldPlayerJourney(){
  const changes=await playerChanges();
  console.log('coldPlayer',JSON.stringify(changes));
  assert.deepEqual(changes.state.filter(text=>text&&!['Spiller på'].includes(text)),[],'no text over the speaker picker');
- // The fixture's catalogue names a song differently from the room ("Katalogsang"/"Isoleret sang"):
- // the chosen title shows at once, then only the room's own title; never back to empty or between.
- assert.deepEqual(changes.track,['','Katalogsang 12','Isoleret sang 12'],'one calm title change');
+ // The tile's name shows at once, then only the room's own title (the context's first song);
+ // never back to empty or between.
+ assert.deepEqual(changes.track,['','Blue','Isoleret sang 11'],'one calm title change');
  assert.deepEqual(changes.output.length,1,'the speaker picker never flips');
  assert(changes.toggle.length<=2,'play/pause changes once: '+JSON.stringify(changes.toggle));
  assert(changes.height.length<=2,'no layout jumps: '+JSON.stringify(changes.height));
@@ -220,71 +634,6 @@ async function queueSkipJourney(){
  console.log(JSON.stringify({outcome:'PASS',mode:'queue-skip-autoplay',frames:probe.frames.length,
   placeholderFrames:probe.frames.filter(frame=>frame.placeholders>0).length,texts:probe.texts.filter(Boolean),bundleSHA}));
 }
-async function libraryBusyJourney(){
- const gate=base+'/lab/library-race';
- const observe=()=>fetch(gate).then(response=>response.json());
- const wait=async predicate=>{
-  for(let attempt=0;attempt<100;attempt++){
-   const observation=await observe();
-   if(predicate(observation))return observation;
-   await sleep(20);
-  }
-  throw Error('fixture did not observe the expected real request');
- };
- const musicKind=(response,kind)=>{
-  const url=new URL(response.url());
-  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')===kind;
- };
- const list=page.locator('#result-list');
- const mood=page.waitForResponse(response=>musicKind(response,'mood'));
- await env.openOverview(page);
- await page.locator('#home-music').tap();
- await wait(value=>value.moodReads>0);
- const library=page.waitForResponse(response=>musicKind(response,'account_playlists'));
- await page.locator('[data-collection=top]').tap();
- const before=await wait(value=>value.libraryArrivals===1);
- assert.equal(before.libraryReads,0);
- assert.equal(await list.getAttribute('aria-busy'),'true','library remains pending behind the real mood read');
- assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0);
- if(libraryBusy==='rapid-switch'){
-  const recentReads=[];
-  page.on('request',request=>{if(musicKind(request,'recent'))recentReads.push(request);});
-  const recent=page.waitForResponse(response=>musicKind(response,'recent'));
-  await page.locator('[data-collection=recent]').tap();
-  const first=await Promise.race([recent.then(response=>response.status()),sleep(300).then(()=>null)]);
-  await fetch(gate,{method:'POST'});
-  await Promise.all([mood,library]);
-  assert.equal(first,null,'the latest tab waits while the previous reads still own the catalogue');
-  assert.equal((await recent).status(),200);
-  await list.locator('img').first().waitFor({state:'visible'});
-  assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0);
-  assert.equal(recentReads.length,1,'one read for the selected tab');
-  assert.deepEqual((await state()).writes,[]);
-  assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({outcome:'PASS',mode:'rapid-catalogue-switch',bundleSHA}));
-  return;
- }
- await fetch(gate,{method:'POST'});
- const result=await library,body=await result.json();
- await mood;
- const final=await observe();
- assert.equal(final.libraryArrivals,1,'no automatic library retry');
- if(libraryBusy==='owner-change'){
-  assert.equal(result.status(),409);
-  assert.equal(body.error,'music_unavailable');
-  assert.equal(final.libraryReads,0,'changed owner cannot spend a library provider call');
- }else{
-  assert.equal(result.status(),200);
-  assert.equal(body.ok,true);
-  assert.equal(final.libraryReads,1);
-  await list.getByText('Personlig testplayliste A',{exact:true}).waitFor({state:'visible'});
- }
- assert.deepEqual((await state()).writes,[]);
- assert.deepEqual(actions.filter(action=>!action.url.endsWith('/music/queue/offer')),[]);
- assert.deepEqual(errors,[]);
- console.log(JSON.stringify({outcome:'PASS',mode:'library-after-mood',libraryBusy,bundleSHA,
-  status:result.status(),providerReads:final.libraryReads,oneBrowserRequest:true,effects:0}));
-}
 async function defaultSpeakerJourney(){
  const viewport={width:1180,height:820},controls=[];
  const record=surface=>surface.on('request',request=>{
@@ -320,6 +669,8 @@ async function defaultSpeakerJourney(){
   body:JSON.stringify({externalOutput:'bedroom',externalPlaybackState:'playing'}),
  })).json()).room,'bedroom');
  page=await browser.newPage({hasTouch:true,viewport});
+ await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+ await inertCovers(page);
  record(page);
  page.on('pageerror',error=>errors.push(error.message));
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
@@ -348,322 +699,6 @@ async function defaultSpeakerJourney(){
   controlPosts:controls.length,inertOwnerWrites:after.writes.length,inertNativeService:true,pageErrors:errors};
  await fs.writeFile(path.join(env.artifactDir(),'podview-speaker-default-proof.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(env.artifactDir(),'podview-speaker-existing-output.png')});
- console.log(JSON.stringify(proof));
-}
-async function documentScopeJourney(){
- const peer=await page.context().newPage();
- const localOnly=surface=>surface.route('**/*',route=>
-  new URL(route.request().url()).origin===base?route.continue():route.abort());
- // Tabs are read in the background before they open (Green 13/11); the page uses its latest read of the tab.
- const discovery=async(surface,kind)=>{
-  await surface.locator('[data-collection="'+kind+'"]').tap();
-  let response;for(let n=0;n<300&&!(response=surface.musicReads?.get(kind));n++)await sleep(50);
-  assert(response,'the tab was read');await sleep(300);response=surface.musicReads.get(kind);
-  const body=await response.json();
-  assert.equal(body.candidateSet.sourceKind,kind);
-  return {source:body.candidateSet,document:response.request().headers()['x-podview-music-document']};
- };
- peer.musicReads=new Map();peer.on('response',response=>{const url=new URL(response.url());
-  if(url.pathname==='/view/api/music'&&response.ok()&&url.searchParams.get('kind'))peer.musicReads.set(url.searchParams.get('kind'),response);});
- await localOnly(peer);
- peer.on('pageerror',error=>errors.push(error.message));
- try{
-  await peer.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
-  await env.openOverview(peer);
-  const snapshots=await Promise.all([page,peer].map(async surface=>
-   (await surface.request.get(base+'/view/api/snapshot?room=kitchen')).json()));
-  assert.deepEqual(snapshots.map(s=>[s.bootId,s.roomId,s.admission.kind]),[
-   [snapshots[0].bootId,'kitchen','ha_ingress'],[snapshots[0].bootId,'kitchen','ha_ingress'],
-  ]);
-  await page.locator('#home-music').tap();
-  const first=await discovery(page,'recent');
-  const row=page.locator('#result-list button.result').filter({hasText:'Katalogsang 11'});
-  await row.waitFor({state:'visible'});
-  await peer.locator('#home-music').tap();
-  const other=await discovery(peer,'recent');
-  assert.notEqual(first.source.candidateSetId,other.source.candidateSetId);
-  assert.deepEqual((await state()).writes,[],'both reads leave the inert owner untouched');
-
-  const setupReply=page.waitForResponse(r=>new URL(r.url()).pathname==='/view/api/music/selection/setup');
-  const actionReply=page.waitForResponse(r=>
-   new URL(r.url()).pathname==='/view/api/music/selection/actions').catch(error=>error);
-  await page.bringToFront();
-  await row.tap();
-  const setup=await setupReply;
-  assert.equal(setup.request().postDataJSON().candidateSetId,first.source.candidateSetId,
-   'A uses its original candidate after B reads');
-  assert.equal(setup.request().headers()['x-podview-music-document'],first.document);
-  assert.equal(setup.status(),200,await setup.text());
-  assert.match(first.document,/^[a-f0-9]{32}$/);
-  assert.match(other.document,/^[a-f0-9]{32}$/);
-  assert.notEqual(first.document,other.document);
-  const action=await actionReply;
-  if(action instanceof Error)throw action;
-  assert.equal(action.request().headers()['x-podview-music-document'],first.document);
-  assert.equal((await action.json()).outcome,'accepted');
-  await page.locator('#track-name').filter({hasText:'Isoleret sang 11'}).waitFor({state:'visible'});
-  assert.deepEqual((await state()).writes.map(({action,uri})=>[action,uri]),[
-   ['play_track','spotify:track:0000000000000000000011'],
-  ]);
-
-  const replacement=await discovery(page,'top');
-  assert.equal(replacement.document,first.document);
-  assert.notEqual(replacement.source.candidateSetId,first.source.candidateSetId);
-  const stale=await page.request.post(setup.url(),{
-   headers:{'X-PodView-Request':'1','X-PodView-Music-Document':first.document},
-   data:setup.request().postDataJSON(),
-  });
-  assert.equal(stale.status(),409);
-  assert.equal((await stale.json()).error,'stale_music_selection');
-  assert.equal(actions.filter(action=>action.url.endsWith('/music/selection/actions')).length,1);
-  assert.deepEqual((await state()).writes.map(row=>row.action),['play_track']);
-  assert.deepEqual(errors,[]);
-  if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
-  assert.match(cssSHA,/^[a-f0-9]{64}$/);
-  const proof={outcome:'PASS',bundleSHA,cssSHA,sharedHAIngress:true,documents:2,
-   firstCandidateSurvivesSecondRead:true,sameDocumentReplacementRejectsOldSetup:true,
-   inertPlaybackEffects:1,inertNativeService:true,pageErrors:errors};
-  await fs.writeFile(path.join(env.artifactDir(),'podview-music-document-scope.json'),JSON.stringify(proof,null,2));
-  console.log(JSON.stringify(proof));
- }finally{await peer.close();}
-}
-async function recentSessionJourney(){
- const title='Coming Home',coverUrl='https://i.scdn.co/image/InertComingHome';
- const uri='spotify:track:'+String(11).padStart(22,'0');
- const coverRoutes=surface=>surface.route('https://**/*',route=>{
-  if(route.request().url()!==coverUrl)return route.abort();
-  return route.fulfill({contentType:'image/svg+xml',
-   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'});
- });
- await coverRoutes(page);
- let recentReads=0;
- page.on('request',request=>{
-  const url=new URL(request.url());
-  if(url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='recent')recentReads++;
- });
- await page.locator('#home-music').tap();
- await page.locator('[data-collection="recent"]').tap();
- const row=page.locator('#result-list button.result').filter({hasText:title});
- const rowArt=row.locator('img.result-art[src="'+coverUrl+'"]:not([data-content-transition])');
- await rowArt.waitFor({state:'visible',timeout:15000});
- await rowArt.evaluate(image=>image.decode());
- const list=page.locator('#result-list'),feed=page.locator('#music-response');
- const visibleRows=()=>list.locator('button[data-content-state=ready] h2').allTextContents();
- const scrollTop=()=>feed.evaluate(node=>node.scrollTop);
- const initialRows=await visibleRows();
- assert.equal(initialRows.length,5);
- const priorButtons=list.locator('button[data-content-state=ready]');
- assert.ok(await priorButtons.evaluateAll(buttons=>buttons.every(button=>!button.disabled)));
- await list.evaluate(node=>{
-  const prior=new Set(node.querySelectorAll('button[data-content-state=ready]'));
-  node.expansionDisabledWrites=0;
-  new MutationObserver(changes=>{
-   node.expansionDisabledWrites+=changes.filter(change=>prior.has(change.target)).length;
-  }).observe(node,{subtree:true,attributes:true,attributeFilter:['disabled']});
- });
- let releasePlayback,markPlaybackHeld;
- const playbackGate=new Promise(resolve=>{releasePlayback=resolve;});
- const playbackHeld=new Promise(resolve=>{markPlaybackHeld=resolve;});
- const playbackRoute=async route=>{
-  if(new URL(route.request().url()).searchParams.get('kind')!=='playback')return route.fallback();
-  markPlaybackHeld();await playbackGate;await route.continue();
- };
- await page.route('**/view/api/music?**',playbackRoute);
- try{
-  await page.locator('pv-widget-host').evaluate(host=>{void host.liveMedia.refresh({immediate:true});});
-  await Promise.race([playbackHeld,sleep(10000).then(()=>{throw Error('background playback read was not held');})]);
-  // The tab may already be read in the background (Green 13/11); expansion itself never reads again.
-  const readsBeforeExpansion=recentReads;assert(readsBeforeExpansion<=1,'the recent tab is read at most once');
-  await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
-  await list.getByText('Katalogsang 20',{exact:true}).waitFor();
-  assert.equal(recentReads,readsBeforeExpansion,'expansion reuses the admitted source');
-  assert.equal(await list.evaluate(node=>node.expansionDisabledWrites),0,'the existing five rows stay enabled throughout expansion');
-  assert.ok(await priorButtons.evaluateAll(buttons=>buttons.every(button=>!button.disabled)));
- }finally{releasePlayback();await page.unroute('**/view/api/music?**',playbackRoute);}
- const expandedRows=await visibleRows();
- assert.equal(expandedRows.length,10);
- assert.deepEqual(expandedRows.slice(0,5),initialRows);
- // On the iPad page (#392) Fortsæt wraps in three columns, so ten rows can fit without scrolling; then every
- // expanded row must be inside the visible page instead.
- const feedOverflows=await feed.evaluate(node=>node.scrollHeight>node.clientHeight+30);
- if(feedOverflows){
-  await env.touchScroll(page,feed,{dy:320});
-  assert.ok(await scrollTop()>30,`touch scroll must move the expanded list (${await scrollTop()})`);
- }else{
-  const outside=await list.locator('button[data-content-state=ready]').evaluateAll(buttons=>{
-   const view=buttons[0].closest('#music-response').getBoundingClientRect();
-   return buttons.filter(b=>{const r=b.getBoundingClientRect();return r.bottom>view.bottom||r.top<view.top;}).length;
-  });
-  assert.equal(outside,0,'every expanded row is visible without scrolling');
- }
- const retainedScroll=await scrollTop();
- await page.waitForResponse(response=>{
-  const url=new URL(response.url());
-  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
- },{timeout:10000});
- await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveMedia?.pending);
- assert.equal(await scrollTop(),retainedScroll,'passive playback read preserves the expanded scroll position');
- assert.deepEqual(await visibleRows(),expandedRows);
- // The one-page Musik (#448) has one scroll for every section: a heading never moves the page by itself (Green-tjek
- // F5). It only follows when the content above gets shorter than the scroll position.
- for(const [tab,title] of [['top','Coming Home'],['recent','Katalogsang 20']]){
-  const before=await scrollTop();
-  await page.locator('[data-collection='+tab+']').evaluate(button=>button.focus({preventScroll:true}));
-  await page.keyboard.press('Enter');
-  await list.getByText(title,{exact:true}).waitFor();
-  const room=await feed.evaluate(node=>Math.max(0,node.scrollHeight-node.clientHeight));
-  assert.equal(await scrollTop(),Math.min(before,room),`a tap on ${tab} does not move the page`);
- }
- await page.waitForFunction(()=>!document.querySelector('pv-widget-host')?.liveCatalogue?.pendingRead);
- assert.deepEqual(await visibleRows(),expandedRows,'returning to Hør igen retains the expanded list');
- await row.scrollIntoViewIfNeeded();
- let release,markHeld;
- const gate=new Promise(resolve=>{release=resolve;});
- const held=new Promise(resolve=>{markHeld=resolve;});
- await page.route('**/view/api/music/selection/actions',async route=>{
-  markHeld();
-  await gate;
-  await route.continue();
- },{times:1});
- await row.evaluate((node,{title,coverUrl})=>{
-  node.addEventListener('click',event=>{
-   if(!event.isTrusted)return;
-   const start=performance.now(),probe=window.recentPaint={titleMs:null,coverMs:null};
-   const measure=()=>{
-    const now=performance.now()-start,cover=document.querySelector('#cover');
-    if(probe.titleMs===null&&document.querySelector('#track-name')?.textContent===title)probe.titleMs=now;
-    if(probe.coverMs===null&&cover?.getAttribute('src')===coverUrl&&cover.naturalWidth>0)probe.coverMs=now;
-    if(now<3000&&(probe.titleMs===null||probe.coverMs===null))requestAnimationFrame(measure);
-   };
-   requestAnimationFrame(measure);
-  },{once:true});
- },{title,coverUrl});
- let firstPaint;
- try{
-  await row.tap();
-  await Promise.race([held,sleep(8000).then(()=>{throw Error('selection action was not held');})]);
-  await page.waitForFunction(()=>Number.isFinite(window.recentPaint?.titleMs)
-   &&Number.isFinite(window.recentPaint?.coverMs),undefined,{timeout:5000});
-  firstPaint=await page.evaluate(()=>window.recentPaint);
-  assert(firstPaint.titleMs<300&&firstPaint.coverMs<300,JSON.stringify(firstPaint));
-  const oldRead=await page.waitForResponse(response=>{
-   const url=new URL(response.url());
-   return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='playback'&&response.ok();
-  },{timeout:10000});
-  assert.notEqual((await oldRead.json()).uri,uri);
-  assert.deepEqual((await state()).writes,[]);
-  assert.equal(await page.locator('#track-name').textContent(),title);
-  assert.equal(await page.locator('#cover').getAttribute('src'),coverUrl);
-  assert.equal(await page.locator('#player-room').textContent(),'Køkkenalrum HomePod');
-  // A start is calm (13/11): the chosen song shows at once, no text over the speaker picker.
-  assert.equal(await page.locator('#player-state').textContent(),'');
-  assert.equal(await row.getAttribute('aria-busy'),'true');
-  assert.equal(await list.locator('button[aria-busy="true"]').count(),1,'only the selected row shows pending');
-  assert.equal(await list.getAttribute('aria-busy'),'false','selection does not make the catalogue busy');
-  assert.deepEqual(await list.locator('button .result-play').evaluateAll(plays=>plays.flatMap(play=>
-   getComputedStyle(play,'::before').content==='none'?[]:[play.closest('button').querySelector('h2').textContent])),[title]);
-  assert.deepEqual(await visibleRows(),expandedRows,'held selection preserves every displayed row');
-  await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-pending-player.png')});
- }finally{release();}
- const observed=(surface,phase,after=0)=>surface.waitForFunction(({uri,title,phase,after})=>{
-  const host=document.querySelector('pv-widget-host'),playback=host?.liveMedia?.playback;
-  const b=document.querySelector('#play-pause');
-  return Date.now()>=after&&playback?.roomBinding?.validUntil*1000>Date.now()
-   &&playback.roomBinding.nativeRoomId==='native-room'&&playback.roomBinding.nativeHomepodId==='42'
-   &&playback.item?.uri===uri&&playback.state===phase&&b&&!b.disabled&&!(host.liveControls.musicIntentPending||host.liveControls?.player?.busy())
-   &&!host.liveSelection.pending&&document.querySelector('#track-name')?.textContent===title;
- },{uri,title,phase,after},{timeout:15000});
- await observed(page,'playing');
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')
-  ?.liveSelection?.feedback?.settlementStatus==='confirmed');
- const initialDeadline=await page.locator('pv-widget-host').evaluate(host=>
-  host.liveMedia.playback.roomBinding.validUntil*1000);
- const baseline=await state();
- assert.deepEqual(baseline.writes.map(row=>row.action),['play_track']);
- assert.equal(baseline.selections[0].uri,uri);
- await observed(page,'playing',initialDeadline);
- assert.deepEqual((await state()).writes,baseline.writes,'passive renewal does not replay the selection');
- await page.request.post(base+'/lab/state',{data:{delayMs:600}});
- const toggle=page.locator('#play-pause'),labels=[];
- for(let index=0;index<3;index++){
-  await toggle.tap();
-  labels.push(await toggle.getAttribute('aria-label'));
-  assert.equal(await toggle.isEnabled(),true);
- }
- assert.deepEqual(labels,['Fortsæt musikken','Sæt musik på pause','Fortsæt musikken']);
- await observed(page,'paused');
- const afterBurst=await state();
- assert.deepEqual(afterBurst.writes.map(row=>row.action),['play_track','pause','resume','pause']);
- await page.request.post(base+'/lab/state',{data:{delayMs:0}});
- const storageState=await page.context().storageState();
- await page.close();
- page=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820},storageState});
- page.on('pageerror',error=>errors.push(error.message));
- await coverRoutes(page);
- await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- await env.openOverview(page);
- await observed(page,'paused');
- // After the start, the room player's own cover (HA's proxy image through PodVoice) is shown.
- const reopenedCover=page.locator('#cover[src*="/view/api/music/player/artwork"]');
- await reopenedCover.waitFor({state:'visible'});
- await reopenedCover.evaluate(image=>image.decode());
- assert.deepEqual((await state()).writes,afterBurst.writes,'reopening does not replay the selection or controls');
- await page.locator('#play-pause').tap();
- await observed(page,'playing');
- const volume=page.locator('#volume');
- await env.touchRange(page,volume,55);
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveMedia?.playback?.volume===55);
- const final=await state();
- assert.equal(final.selections.length,1);
- assert.deepEqual(final.writes.map(row=>row.action),['play_track','pause','resume','pause','resume','volume']);
- assert.equal(final.volume,55);
- await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-reopened-controls.png')});
- const expandedReadAges=[];
- let expandedRecentReads=0,expandedChoiceRenewals=0,explicitTargetReads=0,expandedChoicePressed=false;
- await page.route('**/view/api/music?**',async route=>{
-  const url=new URL(route.request().url());
-  if(!expandedChoicePressed||url.searchParams.get('kind')!=='targets'||!url.searchParams.has('account'))return route.fallback();
-  if(++explicitTargetReads!==1)return route.continue();
-  const response=await route.fetch(),body=await response.json();
-  assert.ok(response.ok()&&body.ok&&body.roomBinding);
-  // Only this fixture response crosses the boundary in transit.
-  const observedAtMs=Date.now()-9950;
-  body.observedAt=observedAtMs/1000;
-  await sleep(100);
-  assert.ok(Date.now()-observedAtMs>=10000);
-  await route.fulfill({response,json:body});
- });
- page.on('response',async response=>{
-  const url=new URL(response.url()),kind=url.searchParams.get('kind');
-  if(url.pathname!=='/view/api/music'||!['targets','recent'].includes(kind)||!response.ok())return;
-  const body=await response.json();
-  if(kind==='targets'&&body.coverage==='account_targets'&&Number.isFinite(body.observedAt)){
-   expandedReadAges.push(Date.now()-body.observedAt*1000);
-  }
-  if(kind==='recent'&&body.candidateSet){if(expandedChoicePressed)expandedChoiceRenewals++;else expandedRecentReads++;}
- });
- await page.locator('#home-music').tap();
- await page.locator('[data-collection="recent"]').tap();
- await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
- expandedChoicePressed=true;
- await page.locator('#result-list button.result').filter({hasText:'Katalogsang 20'}).tap();
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSelection?.feedback?.settlementStatus==='confirmed');
- const expandedChoice=await state();
- assert.deepEqual(expandedChoice.writes.slice(final.writes.length).map(row=>row.action),['play_track']);
- assert.equal(expandedChoice.selections.at(-1).uri,'spotify:track:'+String(20).padStart(22,'0'));
- // The initial sample may already be read in the background before this listener (Green 13/11).
- assert(expandedRecentReads<=1,'at most one initial sample');assert.equal(expandedChoiceRenewals,1,'one exact choice renewal');
- assert.equal(explicitTargetReads,2,'exactly one read-only refresh after the expired response');
- assert.equal(expandedReadAges.filter(age=>age>=10000).length,1);
- assert.ok(expandedReadAges.at(-1)>=0&&expandedReadAges.at(-1)<10000,
-  `last target read must carry a usable original observation: ${expandedReadAges}`);
- assert.deepEqual(errors,[]);
- if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',stories:['F10','F11','A9','A10-renewal-reopen'],bundleSHA,firstPaint,
-  expandedRecentRows:expandedRows.length,retainedScroll,singlePendingRow:true,rowsEnabledDuringExpansion:true,expandedChoiceEffects:1,expandedRecentReads,expandedReadAges,explicitTargetReads,
-  previousItemReadWithSelectedTitleAndCover:true,selectionEffects:1,realLeaseRenewal:true,rapidLabels:labels,
-  touchEffectsAfterReopen:['resume','volume'],inertNativeService:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-recent-session-proof.json'),JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 async function voiceQueueJourney(){
@@ -763,597 +798,6 @@ async function voiceQueueJourney(){
  const name=renewal?'podview-voice-queue-long-session-proof':'podview-voice-queue-proof';
  await fs.writeFile(path.join(env.artifactDir(),name+'.json'),JSON.stringify(proof,null,2));
  await page.screenshot({path:path.join(env.artifactDir(),name+'.png')});
- console.log(JSON.stringify(proof));
-}
-// Find musik is read in the background as soon as PodView connects (Green 13/11). Journeys about the cold
-// read itself wait for that to finish and then empty the catalogue, as after an account change.
-async function coldCatalogue(surface){
- await surface.waitForFunction(()=>{const c=document.querySelector('pv-widget-host')?.liveCatalogue;
-  return !!c&&!c.pendingRead&&!c.prefetchHome&&['mood','feeling','top','recent'].filter(kind=>c.supported(kind)).every(kind=>c.prefetchTried?.has(c.key(kind)));},undefined,{timeout:20000});
- await surface.evaluate(()=>{const c=document.querySelector('pv-widget-host').liveCatalogue;c.entries.clear();c.selected='mood';c.restore(null);c.render();});
-}
-async function discoveryLoadingJourney(){
- const endpoint='**/view/api/music?**';
- const tabs=[
-  {kind:'mood',entry:'#home-music',kits:['hero','listrow','listrow']},
-  {kind:'feeling',kits:['card','card','card']},
-  {kind:'top',kits:['listrow','listrow','listrow'],title:'Katalogsang 11'},
-  {kind:'recent',kits:Array(5).fill('listrow'),title:'Katalogsang 15'}
- ];
- const results=[];
- for(const {kind,entry,kits,title} of tabs){
-  const button=page.locator(entry||`[data-collection=${kind}]`);
-  let release,markHeld;
-  const gate=new Promise(resolve=>{release=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
-  let reads=0;
-  const hold=async route=>{
-   const url=new URL(route.request().url());
-   if(url.searchParams.get('kind')!==kind||++reads!==1)return route.continue();
-   try{
-    const response=await route.fetch();
-    markHeld({status:response.status(),body:await response.json()});
-    await gate;
-    await route.fulfill({response});
-   }catch(error){markHeld({error});throw error;}
-  };
-  await page.route(endpoint,hold);
-  // Suggestions are read in the background as soon as PodView connects (Green 13/11). Open Find musik
-  // while that first read is still held to measure the cold layout a very early tap sees.
-  if(kind==='mood'){await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);}
-  try{
-   await button.evaluate((target,kind)=>{
-    target.addEventListener('click',event=>{
-     if(!event.isTrusted)return;
-     const started=performance.now(),frames=[];
-     window.f5Frames=frames;
-     const visible=node=>node?.checkVisibility({visibilityProperty:true,opacityProperty:true})===true;
-     const geometry=(node,origin)=>{
-      const {x,y,width,height}=node.getBoundingClientRect(),parent=origin.getBoundingClientRect();
-      return [x-parent.x,y-parent.y,width,height].map(Math.round);
-     };
-     let readyFrames=0;
-     function sample(){
-      const scene=document.getElementById('music-response'),list=document.getElementById('result-list');
-      if(visible(scene)&&document.querySelector('#music-refinements [aria-pressed=true]')?.dataset.collection===kind){
-       // iPad Musik (lærred »A-Musik«): the first mood card is the hero above the sections.
-       const hero=kind==='mood'?[...document.querySelectorAll('#music-hero > button.result')]:[];
-       const rows=[...hero,...list.querySelectorAll(':scope > button.result')].filter(visible).map(row=>({
-        state:row.dataset.contentState,kit:row.dataset.kit,rect:geometry(row,list),
-        cover:geometry(row.querySelector('.result-art'),row),title:row.querySelector('h2').textContent,
-        hidden:row.getAttribute('aria-hidden')==='true',disabled:row.disabled,
-        fallback:row.querySelector('.result-art').classList.contains('live-art-fallback'),
-        titleLines:Math.round(row.querySelector('h2').getBoundingClientRect().height
-         /parseFloat(getComputedStyle(row.querySelector('h2')).lineHeight))
-       }));
-       const busy=list.getAttribute('aria-busy')==='true';
-       frames.push({ms:performance.now()-started,busy,empty:visible(document.getElementById('empty')),
-        list:geometry(list,scene),rows});
-       if(!busy&&rows.length&&rows.every(row=>row.state==='ready'))readyFrames++;
-      }
-      if(readyFrames<4&&performance.now()-started<10000)requestAnimationFrame(sample);
-     }
-     requestAnimationFrame(sample);
-    },{capture:true,once:true});
-   },kind);
-   await button.tap();
-   const source=await Promise.race([held,sleep(10000).then(()=>{throw Error(`${kind} read not held`);})]);
-   if(source.error)throw source.error;
-   assert.equal(source.status,200,kind);
-   assert.equal(source.body.ok,true,kind);
-   assert.ok(source.body.data.tracks.length>=kits.length,kind);
-   if(kind==='recent')assert.equal(source.body.data.tracks.length,7);
-   await page.waitForFunction(()=>window.f5Frames?.length>=3,undefined,{timeout:3500});
-   const before=await page.evaluate(()=>window.f5Frames.length);
-   release();
-   await page.waitForFunction(()=>window.f5Frames?.filter(frame=>!frame.busy&&frame.rows.length
-    &&frame.rows.every(row=>row.state==='ready')).length>=4,undefined,{timeout:5000});
-   const frames=await page.evaluate(()=>window.f5Frames);
-   const loading=frames[0],ready=frames.find(frame=>!frame.busy);
-   assert(loading.busy,`${kind}: first visible frame is the cold loading layout`);
-   assert(ready,`${kind}: never rendered the actual response`);
-   const shape=frame=>({list:frame.list,rows:frame.rows.map(({kit,rect,cover})=>({kit,rect,cover}))});
-   assert.deepEqual(loading.rows.map(row=>row.kit),kits,kind);
-   assert(ready.rows.every(row=>row.title.trim()),`${kind}: ready rows show actual titles`);
-   if(title)assert(ready.rows.some(row=>row.title===title),kind);
-   const titles=ready.rows.map(row=>row.title);
-   assert.deepEqual(titles,source.body.data.tracks.slice(0,kits.length)
-    .map(track=>track.themeTitle||track.name),kind);
-   if(kind==='mood'){
-    // The iPad Lige nu hero (#392) is 744 wide with a 36-px title: the fixture title fits on one line there.
-    assert([1,2].includes(ready.rows[0].titleLines),'the Hero title is clamped to at most two lines');
-    assert(ready.rows.slice(1).some(row=>row.fallback),'exercise a real alternative without a decoded cover');
-   }
-   let completed=false;
-   for(const [index,frame] of frames.entries()){
-    assert(!frame.empty,`${kind}: empty state flashed in frame ${index}`);
-    assert.deepEqual(shape(frame),shape(ready),`${kind}: geometry changed in frame ${index}`);
-    if(frame.busy){
-     assert(!completed,`${kind}: loading returned after ready`);
-     assert(frame.rows.every(row=>row.state==='pending'&&row.hidden&&row.disabled&&!row.title),
-      `${kind}: loading rows must be neutral, inaccessible and inert`);
-    }else{
-     assert(index>=before,`${kind}: ready before source release`);
-     completed=true;
-     assert(frame.rows.every(row=>row.state==='ready'&&!row.hidden),`${kind}: loading row survived ready`);
-     assert.deepEqual(frame.rows.map(row=>row.title),titles,kind);
-    }
-   }
-   assert.equal(reads,1,`${kind}: exactly one cold catalogue read`);
-   results.push({kind,reads,frameCount:frames.length,heldFrames:before,loading,ready});
-  }finally{
-   release();
-   await page.unroute(endpoint,hold);
-  }
- }
- assert.deepEqual((await state()).writes,[]);
- assert.deepEqual(actions.filter(action=>!action.url.endsWith('/queue/offer')),[]);
- assert.deepEqual(errors,[]);
- if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- assert(cssSHA,'hash the stylesheet actually served during the cold journey');
- if(process.env.MUSIC_EXPECTED_CSS)assert.equal(cssSHA,process.env.MUSIC_EXPECTED_CSS);
- const proof={outcome:'PASS',story:'F5',bundleSHA,cssSHA,results,inertNativeService:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-loading-proof.json'),JSON.stringify(proof,null,2));
- console.log(JSON.stringify(proof));
-}
-async function discoveryRevisitJourney(){
- const recent=page.locator('[data-collection=recent]'),top=page.locator('[data-collection=top]');
- const ready=page.locator('#result-list > button.result[data-option-id]');
- const entry=page.locator('#home-music');
- const cardIdentity=nodes=>nodes.map(row=>({id:row.dataset.optionId,title:row.querySelector('h2').textContent}));
- let warmHomeEntry;
- let reads=0,releaseFirst,markHeld;
- const gate=new Promise(resolve=>{releaseFirst=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
- await page.route('**/view/api/music?**',async route=>{
-  const url=new URL(route.request().url());
-  if(url.searchParams.get('kind')!=='recent'||++reads!==1)return route.continue();
-  const response=await route.fetch();
-  assert.equal((await response.json()).ok,true);
-  markHeld();
-  await gate;
-  await route.fulfill({response}).catch(()=>{}); // An abandoned browser fetch may already be cancelled.
- });
- await coldCatalogue(page);
- await entry.tap();
- await recent.tap();
- try{
-  await Promise.race([held,sleep(10000).then(()=>{throw Error('first recent read not held');})]);
-  await top.tap();
-  // The server admits one catalogue read at a time. The new tab waits behind the abandoned
-  // read instead of sending a parallel read that the server would reject as busy.
-  await sleep(500);
-  assert.equal(await ready.filter({hasText:'Katalogsang 11'}).count(),0,'the other tab waits behind the held read');
-  assert.equal(await page.getByText('Kunne ikke hente forslag. Prøv igen.',{exact:true}).count(),0,
-   'waiting behind the held read shows no failure');
-  releaseFirst();
-  await ready.filter({hasText:'Katalogsang 11'}).waitFor({timeout:10000});
-  assert.equal(await ready.count(),3,'the other tab completes once the abandoned read settles');
-  await recent.tap();
-  await page.waitForFunction(()=>document.querySelector('#result-list')?.getAttribute('aria-busy')==='true'
-   ||document.querySelectorAll('#result-list > button[data-option-id]').length===5,undefined,{timeout:3000});
-  await ready.filter({hasText:'Katalogsang 15'}).waitFor({timeout:10000});
-  assert.equal(reads,2,'returning to an interrupted initial tab starts exactly one new read');
-  assert.equal(await ready.count(),5);
-  await top.tap();
-  assert.equal(await ready.count(),3,'returning to a populated tab retains its rows');
-  assert.equal(await page.locator('#result-list [data-empty=true]').count(),0);
-
-  const known=await ready.evaluateAll(cardIdentity);
-  await page.locator('#header-title-action').tap();
-  await entry.waitFor({state:'visible'});
-  await entry.evaluate(button=>button.addEventListener('click',event=>{
-   if(!event.isTrusted)return;
-   const started=performance.now();
-   const visible=node=>node?.checkVisibility({visibilityProperty:true,opacityProperty:true})===true;
-   const sample=()=>{
-    const scene=document.getElementById('music-response');
-    const elapsedMs=performance.now()-started;
-    if(visible(scene)){
-     const list=document.getElementById('result-list');
-     const rows=[...list.querySelectorAll('button.result[data-option-id]')].filter(visible)
-      .map(row=>({id:row.dataset.optionId,title:row.querySelector('h2').textContent}));
-     window.f1HomeEntry={elapsedMs,rows,
-      tab:document.querySelector('#music-refinements [aria-pressed=true]')?.dataset.collection,
-      loading:list.getAttribute('aria-busy')==='true'
-       ||[...list.querySelectorAll('[data-empty=true],[data-content-state=pending]')].some(visible),
-      spinner:visible(document.querySelector('#music-refresh[data-refresh-state=pending]'))
-       ||[...list.querySelectorAll('button[aria-busy=true]')].some(visible),
-      empty:visible(document.getElementById('empty'))};
-    }else if(elapsedMs<2000)requestAnimationFrame(sample);
-   };
-   requestAnimationFrame(sample);
-  },{capture:true,once:true}));
-  await entry.tap();
-  await page.waitForFunction(()=>window.f1HomeEntry,undefined,{timeout:2500});
-  warmHomeEntry=await page.evaluate(()=>window.f1HomeEntry);
-  assert(warmHomeEntry.elapsedMs<300,`known Find musik entry took ${warmHomeEntry.elapsedMs} ms`);
-  assert.deepEqual(warmHomeEntry.rows,known,'first visible frame must contain the same known suggestions');
-  assert.equal(warmHomeEntry.tab,'top');
-  assert.equal(warmHomeEntry.loading||warmHomeEntry.spinner||warmHomeEntry.empty,false);
-  assert.equal(reads,2,'reopening the known tab does not restart the abandoned recent read');
- }finally{releaseFirst();}
- assert.deepEqual((await state()).writes,[]);
- assert.deepEqual(actions.filter(action=>!action.url.endsWith('/queue/offer')),[]);
- assert.deepEqual(errors,[]);
- if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',story:'F5',bundleSHA,revisitedAbandonedFirstRead:true,reads,inertNativeService:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-revisit-proof.json'),JSON.stringify(proof,null,2));
- console.log(JSON.stringify(proof));
- const entryProof={outcome:'PASS',story:'F1',bundleSHA,warmHomeEntry,inertNativeService:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-home-entry-proof.json'),
-  JSON.stringify(entryProof,null,2));
- console.log(JSON.stringify(entryProof));
-}
-async function discoveryCardHeight(){
- const sizes=[{width:1180,height:820},{width:1180,height:820}];
- const layout=()=>page.locator('#result-list').evaluate(list=>{
-  const group=list.getBoundingClientRect();
-  // iPad Musik (lærred »A-Musik«): the first mood card is the hero above the sections; only the mood list
-  // owns it here (with Vibe chosen the hero slot shows the mood shelf, which is not this list).
-  const hero=list.closest('#music-response')?.dataset.discoveryCollection==='mood'
-   ?[...document.querySelectorAll('#music-hero > button[data-content-state=ready]')]:[];
-  const cards=[...hero,...list.querySelectorAll('button[data-content-state=ready]')].map(card=>{
-   const {left,top,right,bottom,height}=card.getBoundingClientRect();
-   return {left,top,right,bottom,height};
-  });
-  return {height:group.height,bottom:group.bottom,cards};
- });
- await page.emulateMedia({reducedMotion:'reduce'});
- const mood=[];
- for(const size of sizes){await page.setViewportSize(size);mood.push(await layout());}
- await page.locator('[data-collection=feeling]').tap();
- await page.locator('#result-list button[data-kit=card][data-content-state=ready]').first().waitFor();
- for(const [index,size] of sizes.entries()){
-  await page.setViewportSize(size);
-  const {cards:[hero,first,second],bottom}=mood[index],vibe=await layout();
-  const near=(a,b,label)=>assert.ok(Math.abs(a-b)<1,`${size.width}×${size.height}: ${label} (${a} vs ${b})`);
-  // iPad Musik-siden (#392): Lige nu is a 744×252 card over a rail of equal alternatives; Vibe tiles are 120.
-  near(hero.height,252,'the day Hero is the 252-high Lige nu card');
-  near(hero.right-hero.left,744,'the day Hero spans the 744 column');
-  near(first.height,second.height,'the two alternatives have equal height');
-  near(first.top,second.top,'the two alternatives start together');
-  assert.ok(hero.bottom<first.top,'the alternatives sit under the Hero');
-  assert.ok(bottom>=second.bottom-1,'the alternatives fit the day result area');
-  assert.ok(vibe.cards.every(card=>Math.abs(card.height-vibe.cards[0].height)<1),'Vibe tiles have equal height');
- }
-}
-async function discoveryVibeJourney(){
- const expected=[['Jazz & lounge','Hiphop & R&B','Pop & dance'],['Afslappet pop','Deep house','Jazzklassikere'],['Lounge','90’er-techno','Festmusik']];
- const rows=page.locator('#result-list button[data-kit=card][data-content-state=ready]');
- const refresh=page.getByRole('button',{name:'Flere vibes',exact:true});
- const track=await page.locator('#track-name').textContent();
- const snapshot=()=>rows.evaluateAll(cards=>cards.map(card=>({
-  direction:card.querySelector('h2').textContent,playlist:card.querySelector('p').textContent,
-  uri:card.musicCard.uri,height:card.getBoundingClientRect().height,
- })));
- const seen=new Set();
- for(const [index,directions] of expected.entries()){
-  await rows.locator('h2').filter({hasText:directions[0]}).waitFor();
-  const current=await snapshot();
-  assert.deepEqual(current.map(card=>card.direction),directions);
-  for(const card of current){
-   assert.match(card.playlist,/^Kold jazz [a-f0-9]{4}$/,'card names the actual inert source playlist');
-   assert.match(card.uri,/^spotify:playlist:[a-f0-9]{22}$/);
-   assert.ok(!seen.has(card.uri),'an earlier Vibe page cannot repeat a playlist');
-   seen.add(card.uri);
-  }
-  if(index===expected.length-1)break;
-  let markHeld,releaseRead;
-  const held=new Promise(resolve=>{markHeld=resolve;}),gate=new Promise(resolve=>{releaseRead=resolve;});
-  const isRefresh=url=>url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='feeling'&&url.searchParams.get('refresh')==='1';
-  await page.route(isRefresh,async route=>{
-   const response=await route.fetch();
-   markHeld();
-   await gate;
-   await route.fulfill({response}).catch(error=>{if(index!==1)throw error;});
-  },{times:1});
-  try{
-   await refresh.tap();
-   await Promise.race([held,sleep(10000).then(()=>{throw Error('Vibe refresh not held');})]);
-   assert.deepEqual(await snapshot(),current,'current Vibe cards and height survive a held refresh');
-   assert.equal(await page.locator('#result-list [data-content-transition]').count(),0,'reduced motion has no content overlay');
-   if(index===1)await page.locator('[data-collection=top]').tap();
-  }finally{releaseRead();}
-  if(index===1){
-   await page.locator('#result-list button[data-content-state=ready]').filter({hasText:'Katalogsang 11'}).waitFor();
-   await page.locator('[data-collection=feeling]').tap();
-  }
- }
- assert.equal(seen.size,9);
- assert.equal(await refresh.isDisabled(),true,'three pages exhaust the existing refresh control');
- assert.equal(await page.locator('#track-name').textContent(),track,'the player is retained while browsing Vibe');
- await page.screenshot({path:path.join(env.artifactDir(),'podview-vibe-third-set.png')});
- console.log('PASS Vibe: three ordered sets, nine unique playlists, stable pending cards, interrupted final page recovery and exhausted refresh');
-}
-async function discoveryCoverJourney(){
- const coverUrl='https://i.scdn.co/image/InertRecentCover';
- const failedCoverUrl='https://i.scdn.co/image/InertFailedMoodCover';
- const externalRequests=[],themeArtRequests=[],themeArtResponses=[];
- await page.route('https://**/*',route=>{
-  const url=route.request().url();
-  externalRequests.push(url);
-  if(url===failedCoverUrl)return route.fulfill({status:503});
-  if(url!==coverUrl)return route.abort();
-  return route.fulfill({contentType:'image/svg+xml',
-   body:'<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="blue"/></svg>'});
- });
- await page.route('**/view/theme-art/**',route=>{
-  themeArtRequests.push(new URL(route.request().url()).pathname);
-  return route.fulfill({status:503});
- });
- page.on('response',response=>{
-  const {pathname}=new URL(response.url());
-  if(pathname.startsWith('/view/theme-art/'))themeArtResponses.push({pathname,status:response.status()});
- });
- // Covers are routed from here; reload so the background read loads them through these routes.
- await page.reload({waitUntil:'domcontentloaded'});await env.openOverview(page);await coldCatalogue(page);
- await fetch(base+'/lab/state',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({forgetNativeCalls:true})});
- const moodResponse=page.waitForResponse(response=>{
-  const url=new URL(response.url());
-  return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='mood';
- });
- let reads=0,releaseRefresh,markHeld;
- const gate=new Promise(resolve=>{releaseRefresh=resolve;}),held=new Promise(resolve=>{markHeld=resolve;});
- await page.route('**/view/api/music?**',async route=>{
-  if(new URL(route.request().url()).searchParams.get('kind')!=='recent'||++reads!==2)return route.continue();
-  const response=await route.fetch(),body=await response.json();
-  assert.equal(body.ok,true);
-  assert.equal(body.data.tracks[0].artwork,undefined,'the actual refresh returns no cover for the same item');
-  markHeld();
-  await gate;
-  await route.fulfill({response});
- });
- await page.locator('#home-music').tap();
- const mood=await (await moodResponse).json();
- assert.equal(mood.ok,true);
- const themes=Object.fromEntries(mood.data.tracks.map(track=>[track.themeId,track]));
- assert.equal(themes.cooking.artwork?.url,failedCoverUrl);
- assert.match(themes.cooking.themeArt,/^theme-art\/cooking\/[a-f0-9]{64}\.webp$/);
- assert.equal(themes.italian.themeArt,'assets/italian.png','legacy-policy art is excluded');
- assert.equal(themes.calm.themeArt,'assets/lake.png','exhausted budget leaves the canonical local asset');
- const localIllustrations={
-  'Musik til madlavningen':'assets/kitchen.webp',
-  'En italiensk aften':'assets/italian.webp',
-  'En rolig stund':'assets/lake.webp',
- };
- for(const [title,src] of Object.entries(localIllustrations)){
-  const art=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:title})
-   .locator(`img.result-art[src="${src}"]:not([data-content-transition])`);
-  await art.waitFor({state:'visible',timeout:15000});
-  await art.evaluate(img=>img.decode());
-  assert.ok(await art.evaluate(img=>img.naturalWidth>0));
- }
- await page.screenshot({path:path.join(env.artifactDir(),'podview-discovery-local-illustrations.png')});
- await discoveryCardHeight();
- await discoveryVibeJourney();
- await page.locator('[data-collection=recent]').tap();
- const list=page.locator('#result-list'),row=list.locator('button.result').filter({hasText:'Katalogsang 11'});
- const image=row.locator('img.result-art:not([data-content-transition])');
- await page.waitForFunction(url=>[...document.querySelectorAll('#result-list img.result-art')]
-  .some(image=>image.getAttribute('src')===url&&image.naturalWidth>0),coverUrl,{timeout:15000});
- const fallback=list.locator('button.result').filter({hasText:'Katalogsang 12'}).locator('img.result-art.live-art-fallback');
- await fallback.waitFor({state:'visible'});
- assert.deepEqual(await fallback.evaluate(image=>{
-  const style=getComputedStyle(image), rect=image.getBoundingClientRect();
-  return [rect.width,rect.height,style.paddingTop,style.paddingLeft];
- }),[72,72,'24px','24px'],'a missing Fortsæt cover (72, #392) reserves the approved 24px music icon');
- const initial=await row.elementHandle();
- await row.evaluate(element=>{
-  element.coverTransitions=0;
-  new MutationObserver(records=>{
-   for(const record of records)for(const node of record.addedNodes){
-    if(node.nodeType===Node.ELEMENT_NODE&&node.matches('img[data-content-transition]'))element.coverTransitions++;
-   }
-  }).observe(element,{childList:true});
- });
- assert.equal(await image.getAttribute('src'),coverUrl);
- await page.getByRole('button',{name:'Se tidligere',exact:true}).tap();
- await list.locator('button.result').filter({hasText:'Katalogsang 17'}).waitFor({timeout:15000});
- assert.equal(reads,1,'expanded cards already belong to the admitted sample');
- // Exercise the existing explicit source read separately from local expansion.
- await page.locator('pv-widget-host').evaluate(host=>host.liveCatalogue.beginRead('recent','refresh'));
- try{
-  await Promise.race([held,sleep(10000).then(()=>{throw Error('cover refresh not held');})]);
-  assert.equal(await image.getAttribute('src'),coverUrl);
- }finally{releaseRefresh();}
- await page.waitForFunction(()=>document.querySelector('#result-list')?.getAttribute('aria-busy')==='false');
- assert.equal(await row.evaluate((current,original)=>current===original,initial),true);
- assert.equal(await image.getAttribute('src'),coverUrl,'missing metadata never resets the accepted cover');
- assert.equal(await image.evaluate(img=>img.naturalWidth),64);
- assert.equal(await row.evaluate(element=>element.coverTransitions),0,'unchanged visible cover never crossfades to itself');
- assert.equal(reads,2);
- assert.deepEqual((await state()).writes,[]);
- assert.deepEqual(actions.filter(action=>!action.url.endsWith('/queue/offer')),[]);
- assert.deepEqual(errors,[]);
- if(process.env.MUSIC_EXPECTED_BUNDLE)assert.equal(bundleSHA,process.env.MUSIC_EXPECTED_BUNDLE);
- const proof={outcome:'PASS',story:'F9',bundleSHA,retainedCover:true,retainedWithoutCrossfade:true,recentExpanded:7,inertNativeService:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-proof.json'),JSON.stringify(proof,null,2));
- console.log(JSON.stringify(proof));
- const service=await state();
- // Recipe photos warm in the background and a failed cover may be retried after the reload; the music
- // covers requested are exactly these two.
- assert.deepEqual([...new Set(externalRequests.filter(url=>url.startsWith('https://i.scdn.co/')))],[failedCoverUrl,coverUrl]);
- assert.deepEqual([...new Set(themeArtRequests)],['/view/'+themes.cooking.themeArt]);
- assert.deepEqual([...new Set(themeArtResponses.map(row=>JSON.stringify(row)))].map(row=>JSON.parse(row)),[{pathname:'/view/'+themes.cooking.themeArt,status:503}]);
- assert.ok(service.retiredThemeArt);
- assert(!themeArtRequests.includes('/view/'+service.retiredThemeArt));
- assert.deepEqual(service.imageProviderCalls,[]);
- const fallbackProof={outcome:'PASS',story:'F12',bundleSHA,localIllustrations,
-  spotifyFailureRequests:1,cachedGraphicRetrievalFailures:themeArtRequests.length,
-  retiredPolicyRequests:0,imageProviderDispatches:service.imageProviderCalls.length,
-  retainedCover:proof.retainedCover,inertCatalogue:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-cover-fallback-proof.json'),
-  JSON.stringify(fallbackProof,null,2));
- console.log(JSON.stringify(fallbackProof));
- await discoveryGeneratedCover(failedCoverUrl,themes.cooking.themeArt);
-}
-async function discoveryGeneratedCover(failedCoverUrl,asset){
- const surface=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}});
- const assetUrl=new URL('/view/'+asset,base).href;
- const requests=[],receipts=[],actionPosts=[],pageErrors=[];
- let releaseSpotify;
- const spotifyGate=new Promise(resolve=>{releaseSpotify=resolve;});
- try{
-  await surface.route('**/*',async route=>{
-   const url=route.request().url();
-   if(url===failedCoverUrl){
-    await spotifyGate;
-    return route.fulfill({status:503});
-   }
-   return new URL(url).origin===base?route.continue():route.abort();
-  });
-  surface.on('pageerror',error=>pageErrors.push(error.message));
-  // Changed 13 Nov: the recipe page now warms its catalogue photos at startup on purpose, so only
-  // those exact catalogue photos are left out; every other foreign image (all music art) still counts.
-  const recipePhotos=new Set(((await (await surface.request.get(base+'/view/api/recipes')).json()).recipes||[])
-   .map(recipe=>recipe?.image).filter(Boolean));
-  assert(recipePhotos.size>0&&!recipePhotos.has(failedCoverUrl),'only recipe photos are left out, never music art');
-  surface.on('request',request=>{
-   const url=request.url(),pathname=new URL(url).pathname;
-   if(new URL(url).origin!==base&&!recipePhotos.has(url)||pathname.startsWith('/view/theme-art/'))requests.push(url);
-   // Client diagnostics uploads are telemetry, never a music action.
-   if(request.method()==='POST'&&pathname.startsWith('/view/api/')
-    &&pathname!=='/view/api/music/queue/offer'&&pathname!=='/view/api/client-diagnostics')actionPosts.push(pathname);
-  });
-  surface.on('response',response=>{
-   if(response.url()===failedCoverUrl||response.url()===assetUrl){
-    receipts.push({url:response.url(),status:response.status()});
-   }
-  });
-  // Suggestions load in the background from connect (Green 13/11), so watch from the first request.
-  const spotifyRequest=surface.waitForRequest(request=>request.url()===failedCoverUrl);
-  const graphicResponse=surface.waitForResponse(response=>response.url()===assetUrl);graphicResponse.catch(()=>{});spotifyRequest.catch(()=>{});
-  await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
-  const snapshot=await (await surface.request.get(base+'/view/api/snapshot')).json();
-  assert.equal(snapshot.admission.kind,'ha_ingress');
-  await env.openOverview(surface);
-  await surface.locator('#home-music').tap();
-  await spotifyRequest;
-  const row=surface.locator(':is(#result-list,#music-hero) button.result').filter({hasText:'Musik til madlavningen'});
-  const image=row.locator('img.result-art:not([data-content-transition])');
-  await image.waitFor();
-  const originalRow=await row.elementHandle(),originalImage=await image.elementHandle();
-  assert.deepEqual([...new Set(requests)],[failedCoverUrl],'generated art must wait for Spotify failure');
-  releaseSpotify();
-  const response=await graphicResponse;
-  assert.equal(response.status(),200);
-  assert.equal(response.headers()['content-type'],'image/webp');
-  assert.equal(response.headers()['x-podview-art-provenance'],'generated-theme-illustration');
-  const digest=createHash('sha256').update(await response.body()).digest('hex');
-  assert.equal(path.basename(asset,'.webp'),digest);
-  assert.equal(response.headers().etag,`"${digest}"`);
-  await surface.waitForFunction(url=>[...document.querySelectorAll(':is(#result-list,#music-hero) img.result-art')]
-    .some(image=>image.currentSrc===url&&image.naturalWidth>0
-    &&getComputedStyle(image).opacity==='1'
-    &&image.checkVisibility({opacityProperty:true,visibilityProperty:true})),assetUrl);
-  const decoded=await image.evaluate(async image=>{
-   await image.decode();
-   return {src:image.currentSrc,width:image.naturalWidth,height:image.naturalHeight,
-    visible:image.checkVisibility({opacityProperty:true,visibilityProperty:true})};
-  });
-  assert.deepEqual(decoded,{src:assetUrl,width:1024,height:1024,visible:true});
-  assert(await row.evaluate((current,previous)=>current===previous,originalRow));
-  assert(await image.evaluate((current,previous)=>current===previous,originalImage));
-  // The background read and the shown card may each ask for the same failed cover; order and kinds are what count.
-  assert.deepEqual([...new Set(requests)],[failedCoverUrl,assetUrl]);
-  assert.deepEqual([...new Set(receipts.map(row=>JSON.stringify(row)))].map(row=>JSON.parse(row)),[{url:failedCoverUrl,status:503},{url:assetUrl,status:200}]);
-  assert.deepEqual(actionPosts,[]);
-  assert.deepEqual(pageErrors,[]);
-  const service=await state();
-  assert.deepEqual(service.writes,[]);
-  assert.deepEqual(service.imageProviderCalls,[]);
-  const proof={outcome:'PASS',story:'F9',bundleSHA,artworkSHA:digest,
-   spotifyStatus:503,generatedAssetStatus:200,decoded:{width:decoded.width,height:decoded.height},
-   sameRowAndImage:true,imageProviderDispatches:0,actionPosts:0,inertCatalogue:true};
-  await fs.writeFile(path.join(env.artifactDir(),'podview-discovery-generated-cover-proof.json'),
-   JSON.stringify(proof,null,2));
-  console.log(JSON.stringify(proof));
- }finally{
-  releaseSpotify();
-  await surface.close();
- }
-}
-async function personalPlaylistCoverJourney(asset){
- const spotify='https://i.scdn.co/image/InertFailedPersonalCover';
- const decoded={};
- for(const cachedFailure of [false,true]){
-  const surface=await browser.newPage({hasTouch:true,viewport:{width:1180,height:820}});
-  const spotifyRequests=[],cachedResponses=[],effects=[];
-  try{
-   await surface.route('**/*',route=>{
-    const url=new URL(route.request().url());
-    if(url.href===spotify){
-     spotifyRequests.push(url.href);
-     return route.fulfill({status:503});
-    }
-    if(url.origin!==base)return route.abort();
-    if(cachedFailure&&url.pathname.startsWith('/view/theme-art/'))return route.fulfill({status:503});
-    return route.continue();
-   });
-   surface.on('response',response=>{
-    if(new URL(response.url()).pathname==='/view/'+asset)cachedResponses.push(response.status());
-   });
-   surface.on('request',request=>{
-    const pathname=new URL(request.url()).pathname;
-    if(request.method()==='POST'&&pathname.startsWith('/view/api/')
-     &&pathname!=='/view/api/music/queue/offer'
-     &&pathname!=='/view/api/client-diagnostics')effects.push(pathname);
-   });
-   await surface.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
-   await env.openOverview(surface);await coldCatalogue(surface);
-   await surface.locator('#home-music').tap();
-   const libraryRead=surface.waitForResponse(response=>{
-    const url=new URL(response.url());
-    return url.pathname==='/view/api/music'&&url.searchParams.get('kind')==='account_playlists';
-   });
-   await surface.locator('[data-collection=top]').tap();
-   const library=await (await libraryRead).json();
-   assert.deepEqual(library.playlistArtwork,[asset],'retired legacy art never enters the library pool');
-   const prefix=cachedFailure?'assets/music-editorial-':asset;
-   const art=surface.locator('#result-list img.result-art[src^="'+prefix+'"]:not([data-content-transition])');
-   await surface.waitForFunction(expected=>[...document.querySelectorAll('#result-list img.result-art')]
-    .filter(image=>image.getAttribute('src')?.startsWith(expected)&&image.naturalWidth>0).length===2,prefix);
-   const images=await art.evaluateAll(images=>Promise.all(images.map(async image=>{
-    await image.decode();
-    return {src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight};
-   })));
-   assert.equal(images.length,2);
-   assert.deepEqual([...new Set(spotifyRequests)],[spotify],'only the one failed Spotify cover is requested');
-   assert.ok(cachedResponses.length>=1&&cachedResponses.every(status=>status===(cachedFailure?503:200)));
-   assert.deepEqual(effects,[]);
-   if(cachedFailure)assert.equal(new Set(images.map(image=>image.src)).size,2);
-   else assert.ok(images.every(image=>image.width===1024&&image.height===1024));
-   decoded[cachedFailure?'local':'cached']=images;
-   if(!cachedFailure){
-    const covered=surface.locator('#result-list button.result[data-option-id]').first();
-    const artwork=covered.locator('img.result-art');
-    const cached=await artwork.evaluate(image=>{
-     window.f9DisplayedArtwork=image;
-     return {src:image.getAttribute('src'),width:image.naturalWidth,height:image.naturalHeight};
-    });
-    assert.equal(cached.src,asset);
-    await artwork.dispatchEvent('error');
-    await surface.waitForFunction(()=>window.f9DisplayedArtwork?.getAttribute('src')?.startsWith(
-     'assets/music-editorial-')&&window.f9DisplayedArtwork.naturalWidth===150);
-    const local=await artwork.evaluate(async image=>{
-     await image.decode();
-     return {sameNode:image===window.f9DisplayedArtwork,src:image.getAttribute('src'),
-      width:image.naturalWidth,height:image.naturalHeight};
-    });
-    assert.equal(local.sameNode,true);
-    assert.match(local.src,/^assets\/music-editorial-[123]\.svg$/);
-    assert.deepEqual([local.width,local.height],[150,150]);
-    assert.deepEqual(effects,[]);
-    decoded.sameRow={spotifyStatus:503,cached,displayedImageError:'synthetic event',local};
-   }
-  }finally{await surface.close();}
- }
- const service=await state();
- assert.deepEqual(service.writes,[]);
- assert.deepEqual(service.imageProviderCalls,[]);
- const proof={outcome:'PASS',stories:['F9','F12'],bundleSHA,decoded,imageProviderDispatches:0,
-  actionPosts:0,inertCatalogue:true};
- await fs.writeFile(path.join(env.artifactDir(),'podview-personal-playlist-cover-proof.json'),
-  JSON.stringify(proof,null,2));
  console.log(JSON.stringify(proof));
 }
 async function accountRolloverJourney(){
@@ -1921,53 +1365,47 @@ async function queuePersistenceJourney(){
  const data=await fs.mkdtemp(path.join(os.tmpdir(),'podview-selection-'));
  const fixtureEnv=env.pythonEnv({
   MUSIC_TEST_PORT:String(port),MUSIC_TEST_DATA:data,MUSIC_EXTENDED:'1',
-  MUSIC_COLD_CONTEXT:cold?'1':'0',MUSIC_COLD_REJECT:rejectSetup?'1':'0',
-  MUSIC_REPEAT_MOOD:repeatMood?'1':'0',MUSIC_QUEUE_JOURNEY:queueJourney?'1':'0',
+  MUSIC_COLD_CONTEXT:cold?'1':'0',MUSIC_COLD_REJECT:rejectSetup?'1':'0',MUSIC_QUEUE_JOURNEY:queueJourney?'1':'0',
   MUSIC_QUEUE_COLD_TAIL:queueColdTail?'1':'0',PODVIEW_TEST_NONCE:nonce,
   ...(queueIdentity?{MUSIC_OUTPUT_TRANSFER_TEST:'1',MUSIC_QUEUE_IDENTITY_TEST:'1'}:{}),
-  // Reuse the existing isolated catalogue search and cover fixtures for all four reads.
-  ...(discoveryLoading||discoveryPersonalCover||libraryBusy?{MUSIC_DISCOVERY_LOADING_TEST:'cover'}:{}),
-  ...(discoveryPersonalCover||libraryBusy?{MUSIC_PERSONAL_PLAYLIST_COVER:'1'}:{})
  });
  server=spawn(env.python,[path.join(__dirname,'music_selection_e2e_server.py')],
   {cwd:env.runtimeRoot,env:fixtureEnv,stdio:['ignore','pipe','pipe']});
  server.stderr.on('data',b=>{serverLog+=b.toString();process.stderr.write(b)});
- for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');try{if((await fetch(base+'/view/')).ok)break}catch{}if(n>100)throw Error('startup');await sleep(100)}
+ for(let n=0;;n++){if(server.exitCode!==null)throw Error('server exited');
+  try{if((await fetch(base+'/view/')).ok)break}catch{}
+  if(n>100)throw Error('startup');await sleep(100)}
  assert.equal((await (await fetch(base+'/lab/identity')).json()).nonce,nonce,'own inert runtime');
  const options=env.browserOptions();
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
-  ||discoveryCover||discoveryPersonalCover||libraryBusy||voiceLongSession||documentScope){
-  options.args=['--mute-audio'];
- }
+ options.args=['--mute-audio'];
  browser=await chromium.launch(options);
  const surfaceOptions={hasTouch:true,viewport:{width:1180,height:820}};
  page=documentScope?await (await browser.newContext(surfaceOptions)).newPage():await browser.newPage(surfaceOptions);
- if(queueIdentity||accountRollover||discoveryLoading||discoveryRevisit
-  ||discoveryPersonalCover||libraryBusy||voiceLongSession||documentScope){
-  await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
-  page.on('request',request=>{
-   if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
-    actions.push({url:request.url(),body:request.postDataJSON()});
-   }
-  });
- }
+ await page.route('**/*',route=>new URL(route.request().url()).origin===base?route.continue():route.abort());
+ await inertCovers(page);
+ page.on('request',request=>{
+  if(request.method()==='POST'&&new URL(request.url()).pathname==='/view/api/control/actions'){
+   actions.push({url:request.url(),body:request.postDataJSON()});
+  }
+ });
  page.on('pageerror',e=>errors.push(e.message));
- page.musicReads=new Map();page.on('response',response=>{const url=new URL(response.url());
-  if(url.pathname==='/view/api/music'&&response.ok()&&url.searchParams.get('kind'))page.musicReads.set(url.searchParams.get('kind'),response);});
+ // Every Find musik read this page makes (its background prefetch included).
+ page.shelfReads=[];
+ page.on('response',response=>{if(new URL(response.url()).pathname==='/view/api/music/shelves'&&response.ok())
+  page.shelfReads.push(response);});
  page.on('response',async r=>{
   const url=r.url();
   if(url.endsWith('/podview.bundle.js'))bundleSHA=createHash('sha256').update(await r.body()).digest('hex');
-  if((discoveryLoading||voiceLongSession||documentScope)&&new URL(url).pathname.endsWith('/podview.css')){
+  if((voiceLongSession||documentScope)&&new URL(url).pathname.endsWith('/podview.css')){
    cssSHA=createHash('sha256').update(await r.body()).digest('hex');
   }
-  if(!accountRollover&&(url.includes('/music/selection/')||url.includes('/music/queue/')
-    ||cold&&url.includes('/music?')&&new URL(url).searchParams.get('kind')==='mood')){
+  if(!accountRollover&&(url.includes('/music/selection/')||url.includes('/music/queue/'))){
    responses.push({url,status:r.status(),body:await r.text()});
   }
  });
- page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/music/'))actions.push({url:r.url(),body:r.postDataJSON(),traceHeader:r.headers()['x-podview-trace']});if(previewRenew&&r.method()==='GET'&&r.url().includes('/music?')){const url=new URL(r.url());if(url.searchParams.get('kind')==='mood'&&url.searchParams.get('renew')==='1')moodRenewals.push(r.headers()['x-podview-trace']);}});
+ page.on('request',r=>{if(r.method()==='POST'&&r.url().includes('/music/'))actions.push({url:r.url(),
+  body:r.postDataJSON(),traceHeader:r.headers()['x-podview-trace']});});
  await page.goto(base+'/view/?room=kitchen',{waitUntil:'domcontentloaded'});
- if(libraryBusy){await libraryBusyJourney();return;}
  if(defaultSpeakerProof){await defaultSpeakerJourney();return;}
  if(cold){
   // The room's own player: nothing plays in the room yet.
@@ -1976,9 +1414,6 @@ async function queuePersistenceJourney(){
   assert.equal(initial.title,null);assert.equal(initial.uri,null);assert.equal(initial.session,null);
   const snapshot=await (await page.request.get(base+'/view/api/snapshot')).json();assert.equal(snapshot.voice.active,false);assert.equal(snapshot.voice.phase,'IDLE');assert.equal(snapshot.voice.sessionId,null);assert.equal(snapshot.admission.kind,'ha_ingress');assert.equal(snapshot.voice.turnId,null);for(const key of ['taskId','inputRevision','providerGeneration'])assert.equal(Object.hasOwn(snapshot.voice,key),false);for(const key of ['sessionId','turnId','taskId','inputRevision'])assert.equal(snapshot.answers[key],null);assert.deepEqual(snapshot.capabilities.musicActions,[]);assert.equal(snapshot.mediaRoomBindings.length,1);
   const targets=await (await page.request.get(base+'/view/api/music?kind=targets&account=account')).json();assert.deepEqual(targets.data.targets,[]);
-  let previewArmed=false,initialMood=true,holdArmed=false,releaseMood,markHeld;const heldMood=new Promise(resolve=>{markHeld=resolve;}),moodGate=new Promise(resolve=>{releaseMood=resolve;});
-  if(holdMood)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(!holdArmed||url.searchParams.get('kind')!=='mood'||url.searchParams.get('renew')!=='1')return route.continue();holdArmed=false;const response=await route.fetch();markHeld();await moodGate;await route.fulfill({response});});
-  if(previewRenew)await page.route('**/view/api/music?**',async route=>{const url=new URL(route.request().url());if(url.searchParams.get('kind')!=='mood'||!initialMood&&!previewArmed)return route.continue();const response=await route.fetch(),body=await response.json();assert.equal(body.ok,true);assert.ok(body.candidateSet,'actual owner supplied playlist source');const tracks=body.data.tracks.map(({uri,name,artist,themeId,themeTitle,themeArt,artwork})=>({uri,name,artist,themeId,themeTitle,themeArt,...(artwork?{artwork}:{})}));const preview={ok:true,schema:'podview.mood-preview.v1',preview:{readOnly:true,bootId:snapshot.bootId,roomId:snapshot.roomId,configEntryId:'account',ownerEpoch:body.data.owner_epoch,source:'spotify_web_api',expiresIn:60,voiceSessionId:snapshot.voice.sessionId,voiceTurnId:snapshot.voice.turnId},data:{config_entry_id:'account',owner_epoch:body.data.owner_epoch,source:'spotify_web_api',tracks}};initialMood=false;previewArmed=false;await route.fulfill({response,json:preview});});
   await env.openOverview(page);
   // CI 13/11: a background playback read greyed the speaker button for a frame, so the tap that
   // landed then was lost and the picker never opened. Once usable, it stays usable in the empty room.
@@ -1991,47 +1426,42 @@ async function queuePersistenceJourney(){
    }).observe(document.getElementById(id),{subtree:true,childList:true,characterData:true,attributes:true});});
   // Rest on the overview past the next background playback read (8 s) while suggestions load behind it.
   await sleep(9000);assert.deepEqual(await page.evaluate(()=>window.homeFlash),[],'the overview stays calm across background reads');
-  // Green 13/11: Find musik opens with its suggestions ready and usable in the first frame. Measured in the
-  // tap itself, after the scene renders and before any network reply could arrive (Green takes 2.5 s).
-  // The scene renders inside the page transition's update (docs/MOTION.md §3.2), a frame after the tap, so the
-  // reading is taken the moment Find musik is rendered visible.
-  await page.evaluate(()=>window.addEventListener('click',event=>{if(!event.target.closest?.('#home-music'))return;
-   const view=document.getElementById('music-response');
-   const measure=()=>{const rows=[...document.querySelectorAll(':is(#result-list,#music-hero) button.result')];
-    window.firstMusicFrame={rows:rows.length,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,
-     busy:document.getElementById('result-list')?.getAttribute('aria-busy'),loading:/Henter/.test(view?.innerText||'')};};
-   if(!view.hidden){measure();return;}
-   const watch=new MutationObserver(()=>{if(view.hidden)return;watch.disconnect();measure();});
-   watch.observe(view,{attributes:true,attributeFilter:['hidden']});},{once:true}));
-  await page.locator('#home-music').tap();
-  await page.waitForFunction(()=>window.firstMusicFrame!==undefined,null,{timeout:2000});
-  const firstFrame=await page.evaluate(()=>window.firstMusicFrame);
-  assert.deepEqual(firstFrame,{rows:3,locked:0,busy:'false',loading:false},'suggestions are ready when Find musik opens');
-  // Green 13/11: every tab is ready when chosen; nothing says "Henter" and the refresh button never shows work.
-  await sleep(2500);
-  for(const tab of ['feeling','top','recent','mood']){
-   await page.evaluate(()=>window.addEventListener('click',()=>{const rows=[...document.querySelectorAll('#result-list button.result')],refresh=document.getElementById('music-refresh');
-    window.tabFrame={rows:rows.length>0,locked:rows.filter(row=>row.disabled||row.getAttribute('aria-disabled')==='true').length,busy:document.getElementById('result-list')?.getAttribute('aria-busy'),
-     loading:/Henter/.test(document.getElementById('music-response')?.innerText||''),refreshWorking:refresh?.getAttribute('aria-busy')==='true'||/Henter/.test(refresh?.textContent||'')};},{once:true}));
-   await page.locator(`[data-collection="${tab}"]`).tap();
-   assert.deepEqual({tab,...await page.evaluate(()=>window.tabFrame)},{tab,rows:true,locked:0,busy:'false',loading:false,refreshWorking:false},'a Find musik tab is ready when chosen');
-  }
-  await page.locator('#output').tap();await page.locator('#room-options button').filter({hasText:'Køkkenalrum HomePod'}).tap();
+  // Green 13/11: Find musik opens with its shelves ready and usable in the first frame (read in the background).
+  await shelvesRead(page);
+  const firstFrame=await openFindMusik(page);
+  assert(firstFrame.quick===6&&firstFrame.tiles>=20&&!firstFrame.empty&&!firstFrame.loading&&firstFrame.locked===0,
+   'Find musik is ready when it opens: '+JSON.stringify(firstFrame));
+  await page.locator('#output').tap();
+  await page.locator('#room-options button').filter({hasText:'Køkkenalrum HomePod'}).tap();
   await page.waitForFunction(()=>!document.getElementById('rooms').open,undefined,{timeout:5000});await sleep(600);
   assert.deepEqual(await page.evaluate(()=>window.outputGreyed),[],'the speaker button never greys during background reads');
-  if(startLatencyMood){await moodLatencyJourney();return;}
-  const row=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:'Kold jazz'}).first();await row.waitFor({state:'visible',timeout:20000});await row.tap();
+  const chosen=tile(page,'albums','Blue'),chosenUri=await chosen.getAttribute('data-uri');
+  await chosen.scrollIntoViewIfNeeded();await chosen.tap();
   if(rejectSetup){
-   await page.locator('#player-empty').getByText('Højttaleren i rummet kan ikke bruges lige nu.',{exact:true}).waitFor({state:'visible',timeout:15000});
-   await sleep(1700);assert(await page.locator('#player-empty').getByText('Højttaleren i rummet kan ikke bruges lige nu.',{exact:true}).isVisible(),'setup failure survives normal snapshot');
+   // The refusal belongs to the tap: a toast that clears itself; nothing stays on the empty player.
+   const toast=page.locator('#find-musik .find-toast');
+   await toast.filter({hasText:SPEAKER_REFUSED}).waitFor({state:'visible',timeout:15000});
+   await page.screenshot({path:path.join(env.artifactDir(),'podview-cold-context-rejected-toast.png')});
+   await toast.waitFor({state:'hidden',timeout:6000});
+   await sleep(1700);
+   assert.doesNotMatch(await page.locator('#player-empty').innerText(),/kan ikke bruges/,
+    'no refusal text stays on the player');
+   assert.equal(await chosen.isEnabled(),true,'the tile stays usable after a refusal');
   }else{
    await page.locator('#track-name').filter({hasText:'Isoleret sang 11'}).waitFor({state:'visible',timeout:15000});
    await page.waitForFunction(()=>document.querySelector('#play-pause')?.disabled===false,undefined,{timeout:15000});
   }
+
   const value=await state(),commits=value.nativeCalls.filter(r=>r.service==='start_room_selected_content'),prepares=value.nativeCalls.filter(r=>r.service==='prepare_room_selected_content');
   assert.equal(commits.length,rejectSetup?0:1);assert.equal(prepares.length,rejectSetup?0:1);assert.equal(value.selections.length,rejectSetup?0:1);
-  const mood=responses.map(r=>{try{return JSON.parse(r.body)}catch{return null}}).find(r=>r?.candidateSet?.sourceKind==='mood');assert(mood,'real Python mood source');
-  if(!rejectSetup){const args=commits[0].args;assert.equal(args.args.context_uri,mood.data.tracks[0].uri);assert.equal(args.action,'play_context');assert(actions.find(r=>r.url.endsWith('/music/selection/setup'))?.body.target.speakerId,'actual selected alias forwarded to owner');assert.match(args.args.context_uri,/^spotify:playlist:[a-z0-9]{22}$/);assert.equal(args.room_id,'native-room');assert.equal(args.homepod_id,'42');assert.equal(args.target_id,'device');assert.deepEqual(args.args,{context_uri:args.args.context_uri,max_volume:100});assert.equal(value.state,'playing');assert.equal(value.volume,35);assert.equal(args.start_offer.start_volume_percent,35);assert.equal(value.writes.length,1);}
+  if(!rejectSetup){const args=commits[0].args;assert.equal(args.args.context_uri,chosenUri);
+   assert.equal(args.action,'play_context');
+   assert(actions.find(r=>r.url.endsWith('/music/selection/setup'))?.body.target.speakerId,
+    'actual selected alias forwarded to owner');
+   assert.equal(args.room_id,'native-room');assert.equal(args.homepod_id,'42');assert.equal(args.target_id,'device');
+   assert.deepEqual(args.args,{context_uri:chosenUri,max_volume:100});assert.equal(value.state,'playing');
+   assert.equal(value.volume,35);
+   assert.equal(args.start_offer.start_volume_percent,35);assert.equal(value.writes.length,1);}
   if(rejectSetup){assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/setup')).length,1);assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,0);assert.equal(value.writes.length,0);}
   // Read existing diagnostics only; never inject product state or force upload.
   const setupRequests=actions.filter(r=>r.url.endsWith('/music/selection/setup'));
@@ -2079,62 +1509,8 @@ async function queuePersistenceJourney(){
   const terminalSnapshot=await (await page.request.get(base+'/view/api/snapshot')).json();assert.deepEqual(terminalSnapshot.voice,snapshot.voice);assert.deepEqual(terminalSnapshot.mediaRoomBindings,snapshot.mediaRoomBindings);
   assert.deepEqual(errors,[]);await page.screenshot({path:path.join(env.artifactDir(),'podview-cold-context-'+(rejectSetup?'rejected':'observed')+'.png')});
   await fs.writeFile(path.join(env.artifactDir(),'cold-context-'+(rejectSetup?'rejected':'observed')+'.json'),JSON.stringify({runtimeNonceVerified:true,bundleSHA,initialStatus:initial.status,voice:snapshot.voice,terminalVoice:terminalSnapshot.voice,trace:traceWitness,service:{state:value.state,prepareCount:prepares.length,commitCount:commits.length,effectCount:value.writes.length},visible:await page.locator('body').innerText()},null,2));
-  if((repeatMood||previewRenew)&&!rejectSetup){
-   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.state==='playing'&&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&!h.liveSelection.pending;},undefined,{timeout:15000});
-   await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-before-pause.png')});
-   await page.locator('#play-pause').tap();
-   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveMedia?.playback?.state==='paused'&&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&document.querySelector('#play-pause')?.getAttribute('aria-label')==='Fortsæt musikken';},undefined,{timeout:15000});
-   assert.equal((await state()).state,'paused');await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-after-pause.png')});const firstUri=value.selections[0].uri,second=mood.data.tracks.find(track=>track.uri!==firstUri);assert(second?.themeTitle,'a genuinely different displayed mood playlist exists');
-   const holdOldItem=async expected=>{
-    let staleShown,release;
-    const stale=new Promise(resolve=>{staleShown=resolve;}),gate=new Promise(resolve=>{release=resolve;});
-    const old=(await (await page.request.get(base+'/view/api/music?kind=playback&account=account&include_controls=1')).json()).data.playback;
-    let usedOld=false;
-    const handler=async route=>{
-     const url=new URL(route.request().url());
-     if(url.searchParams.get('kind')!=='playback')return route.continue();
-     const response=await route.fetch(),body=await response.json();
-     if(body.data?.playback?.item?.name!==expected)return route.fulfill({response,json:body});
-     if(!usedOld){usedOld=true;body.data.playback=old;await route.fulfill({response,json:body});staleShown();return;}
-     await gate;return route.fulfill({response,json:body});
-    };
-    await page.route('**/view/api/music?**',handler);
-    return {stale,release,remove:()=>page.unroute('**/view/api/music?**',handler)};
-   };
-   const playlistHold=holdPlayback?await holdOldItem('Isoleret sang 12'):null;
-   const secondRow=page.locator(':is(#result-list,#music-hero) button.result').filter({hasText:second.themeTitle});await secondRow.waitFor({state:'visible',timeout:15000});if(previewRenew)previewArmed=true;if(holdMood)holdArmed=true;await secondRow.tap();
-   if(holdMood){await Promise.race([heldMood,sleep(10000).then(()=>{throw Error('actual second mood response not held');})]);const before=await page.locator('pv-widget-host').evaluate(h=>({readAt:h.liveTransport.acceptedReadAt,boot:h.liveSnapshot.bootId,room:h.liveSnapshot.roomId,voice:JSON.stringify(h.liveSnapshot.voice),binding:JSON.stringify(h.liveSnapshot.mediaRoomBindings),focus:h.state.focus}));await page.waitForFunction(readAt=>document.querySelector('pv-widget-host')?.liveTransport?.acceptedReadAt>readAt,before.readAt,{timeout:5000});const after=await page.locator('pv-widget-host').evaluate(h=>({readAt:h.liveTransport.acceptedReadAt,boot:h.liveSnapshot.bootId,room:h.liveSnapshot.roomId,voice:JSON.stringify(h.liveSnapshot.voice),binding:JSON.stringify(h.liveSnapshot.mediaRoomBindings),focus:h.state.focus}));assert.deepEqual({...after,readAt:0},{...before,readAt:0},'same-owner natural SSE arrived while actual renewal response held');const held=await page.locator('pv-widget-host').evaluate(h=>({pending:!!h.liveSelection.recovery,metadata:h.liveSelection.pendingPlayer()?.title??null}));assert.equal(held.pending,true,'explicit choice remains pending after normal SSE');assert(held.metadata,'selected metadata remains visible during renewal');assert.deepEqual((await state()).writes.map(row=>row.action),['play_context','pause'],'no second effect before renewal response');assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/setup')).length,1,'no second setup before renewal response');console.log('HELD_MOOD_SNAPSHOT',JSON.stringify({received:true,sameOwner:true,focus:after.focus,pending:true,metadataRetained:true,noSecondEffect:true}));releaseMood();}
-   if(previewRenew){const feedback=page.locator('#player-state');await feedback.waitFor({state:'visible',timeout:15000});await page.waitForFunction(()=>document.querySelector('#player-state')?.textContent==='Musikvalget fejlede · prøv igen.',undefined,{timeout:15000});const readAt=await page.locator('pv-widget-host').evaluate(h=>h.liveTransport.acceptedReadAt);await page.waitForFunction(at=>document.querySelector('pv-widget-host')?.liveTransport?.acceptedReadAt>at,readAt,{timeout:5000});assert.equal(await feedback.textContent(),'Musikvalget fejlede · prøv igen.','preview feedback survives normal SSE');const denied=await state();assert.equal(denied.state,'paused');assert.equal(denied.selections.length,1);assert.deepEqual(denied.writes.map(row=>row.action),['play_context','pause']);assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,1);const terminal=await page.locator('pv-widget-host').evaluate(h=>h.liveTransport.diagnostics().records.filter(row=>row.stage==='control_intent'&&row.code==='renewal_readonly').at(-1));assert(terminal?.requestId,'explicit readonly branch emits its actual intent reason');assert.equal(moodRenewals.at(-1),terminal.requestId,'same touch UUID correlates the explicit renewal read');const renewalRef=createHash('sha256').update(terminal.requestId).digest('hex').slice(0,16);await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-preview-feedback.png')});const feedbackGeometry=[];const feedbackState=async stage=>console.log('FEEDBACK_STATE',stage,JSON.stringify(await page.locator('pv-widget-host').evaluate(h=>{const v=h.liveSelection,t=v?.resultTicket,d=document;return {message:v?.feedback?.message??null,scopeCurrent:v?.resultCurrent?.(t)??null,ticket:!!t,scopeEqual:t?.scope===v?.feedbackScope?.(),focusTicket:d.activeElement===t?.focus,focusBody:d.activeElement===d.body,activeTag:d.activeElement?.tagName,visible:d.visibilityState,view:h.state?.focus,playerText:d.querySelector('#player-state')?.textContent,sourcePresent:!!v?.source,connected:h.liveTransport?.connected};})));for(const [width,height]of [[980,800],[768,1024]]){await feedbackState('before-'+width);await page.setViewportSize({width,height});await feedbackState('after-resize-'+width);await page.evaluate(async()=>{await Promise.all(document.getAnimations().filter(a=>Number.isFinite(a.effect?.getTiming().iterations)).map(a=>a.finished.catch(()=>{})));});await feedbackState('after-animation-'+width);const geometry=await feedback.evaluate(node=>{const r=document.createRange();r.selectNodeContents(node);const text=r.getBoundingClientRect(),box=node.getBoundingClientRect(),player=node.closest('.player').getBoundingClientRect(),style=getComputedStyle(node);return {text:{left:text.left,right:text.right,top:text.top,bottom:text.bottom},box:{left:box.left,right:box.right,top:box.top,bottom:box.bottom},player:{left:player.left,right:player.right,top:player.top,bottom:player.bottom},scrollWidth:node.scrollWidth,clientWidth:node.clientWidth,whiteSpace:style.whiteSpace};});feedbackGeometry.push({width,height,...geometry});console.log('FEEDBACK_GEOMETRY',JSON.stringify({width,height,...geometry}));await page.screenshot({path:path.join(env.artifactDir(),`podview-mood-preview-feedback-${width}.png`)});assert(geometry.text.left>=geometry.player.left-1&&geometry.text.right<=geometry.player.right+1&&geometry.text.top>=geometry.player.top-1&&geometry.text.bottom<=geometry.player.bottom+1,`feedback text stays in player at ${width}`);assert(geometry.scrollWidth<=geometry.clientWidth+1,`feedback is not horizontally clipped at ${width}`);}let persisted=null,mirrored=false,moodLogged=false;for(let attempt=0;attempt<21;attempt++){let after=0;for(let pageIndex=0;pageIndex<8;pageIndex++){const response=await page.request.get(base+'/view/api/client-diagnostics?room=kitchen&after='+after);if(response.status()===429)break;assert.equal(response.status(),200);const body=await response.json();persisted=body.records.find(item=>item.row.stage==='control_intent'&&item.row.code==='renewal_readonly'&&item.row.requestRef===renewalRef)||persisted;if(!body.hasMore)break;after=body.nextAfter;}const lines=serverLog.split('\n');moodLogged=lines.some(line=>line.includes('mood_result ')&&line.includes('response=full')&&line.includes('trace_ref='+renewalRef));mirrored=!!persisted&&lines.some(line=>line.includes('client_diagnostics source=client ')&&line.includes('seq='+persisted.row.seq+' ')&&line.includes('requestRef='+renewalRef+' ')&&line.includes('code=renewal_readonly'));if(persisted&&moodLogged&&mirrored)break;if(attempt<20)await sleep(3000);}assert(persisted,'readonly terminal durably stored');assert(moodLogged,'original owner full response correlated before local preview fixture');assert(mirrored,'stored terminal mirrored once to owner log');const previewProof={outcome:'PASS',bundleSHA,explicitPreviewFeedback:true,visible:true,noNewAction:true,paused:true,readTraceRef:renewalRef,ownerResponse:'full',fixtureResponse:'preview',durableTerminal:true,serverMirror:true,feedbackGeometry,pageErrors:errors};await fs.writeFile(path.join(env.artifactDir(),'podview-mood-preview-feedback.json'),JSON.stringify(previewProof,null,2));console.log(JSON.stringify(previewProof));return;}
-   if(holdPlayback){
-    try{
-     await Promise.race([playlistHold.stale,sleep(10000).then(()=>{throw Error('No held playback transition');})]);
-     await page.waitForFunction(title=>document.querySelector('#track-name')?.textContent===title,second.name,{timeout:8000});
-     await page.waitForFunction(()=>document.querySelector('#cover')?.getAttribute('src')?.includes('kitchen'),undefined,{timeout:4000});
-     await page.screenshot({path:path.join(env.artifactDir(),'podview-playlist-during-old-read.png')});
-    }finally{playlistHold.release();}
-   }
-   for(let n=0;(await state()).selections.length<2;n++){if(n>150)throw Error('second explicit mood selection has no native effect');await sleep(100);}
-   await page.waitForFunction(()=>{const h=document.querySelector('pv-widget-host');return h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.state==='playing'&&h.liveMedia.playback.item?.name==='Isoleret sang 12'&&!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy())&&!h.liveSelection.pending;},undefined,{timeout:15000});
-   const repeated=await state();if(holdPlayback)await page.locator('#track-name').filter({hasText:'Isoleret sang 12'}).waitFor({state:'visible',timeout:15000});assert.equal(repeated.selections.length,2);assert.equal(repeated.selections[1].uri,second.uri);assert.notEqual(repeated.selections[1].requestId,repeated.selections[0].requestId);assert.deepEqual(repeated.writes.map(row=>row.action),['play_context','pause','play_context']);assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,2);assert.deepEqual(errors,[]);
-   await page.screenshot({path:path.join(env.artifactDir(),'podview-mood-after-second-selection.png')});const repeatProof={outcome:'PASS',bundleSHA,repeatMood:true,firstObserved:true,pauseObserved:true,secondDistinctPlaylistObserved:true,effects:repeated.writes.map(row=>row.action),oneEffectPerInput:true,pageErrors:errors};await fs.writeFile(path.join(env.artifactDir(),'podview-mood-repeat.json'),JSON.stringify(repeatProof,null,2));console.log(JSON.stringify(repeatProof));
-   if(holdPlayback){
-    await playlistHold.remove();
-    await page.locator('[data-collection="recent"]').tap();
-    const recent=page.locator('#result-list button.result').filter({hasText:'Katalogsang 13'});
-    await recent.waitFor({state:'visible',timeout:15000});
-    const recentHold=await holdOldItem('Isoleret sang 13');
-    try{
-     await recent.tap();
-     await Promise.race([recentHold.stale,sleep(10000).then(()=>{throw Error('No held Hør igen playback transition');})]);
-     await page.waitForFunction(()=>document.querySelector('#track-name')?.textContent==='Katalogsang 13',undefined,{timeout:8000});
-     await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-during-old-read.png')});
-    }finally{recentHold.release();}
-    await page.locator('#track-name').filter({hasText:'Isoleret sang 13'}).waitFor({state:'visible',timeout:15000});
-    assert.deepEqual((await state()).writes.map(row=>row.action),['play_context','pause','play_context','play_track']);
-    await page.screenshot({path:path.join(env.artifactDir(),'podview-recent-after-switch.png')});
-   }
-  }
-  console.log(JSON.stringify({outcome:'PASS',coldContext:true,rejectSetup,prepares:prepares.length,commits:commits.length,pageErrors:errors}));return;
+  console.log(JSON.stringify({outcome:'PASS',coldContext:true,rejectSetup,prepares:prepares.length,
+   commits:commits.length,pageErrors:errors}));return;
  }
  await env.openOverview(page);
  if(voiceJourney){await voiceQueueJourney();return;}
@@ -2143,89 +1519,11 @@ async function queuePersistenceJourney(){
  if(queueSkip){await queueSkipJourney();return;}
  if(coldPlayer){await coldPlayerJourney();console.log(JSON.stringify({outcome:'PASS',mode:'cold-player'}));return;}
  if(queueJourney){await queuePersistenceJourney();return;}
- if(discoveryLoading){await discoveryLoadingJourney();return;}
- if(discoveryRevisit){await discoveryRevisitJourney();return;}
- if(discoveryCover){await discoveryCoverJourney();return;}
- if(discoveryPersonalCover){await personalPlaylistCoverJourney((await state()).personalPlaylistCache);return;}
  if(recentSession){await recentSessionJourney();return;}
  if(startLatency){await startLatencyJourney();return;}
  if(documentScope){await documentScopeJourney();return;}
- await page.locator('#home-music').tap();
- await page.locator('[data-collection="top"]').tap();
- const rows=page.locator('#result-list button.result');
- await rows.filter({hasText:'Katalogsang 11'}).waitFor({state:'visible',timeout:15000});
- if (loseSelectionReceipt) {
-  const endpoint = '**/view/api/music/selection/actions';
-  await page.route(endpoint, async route => {
-   const committed = await route.fetch();
-   assert.equal((await committed.json()).outcome, 'accepted');
-   assert.equal((await state()).song, 11, 'the inert owner acted before the receipt was lost');
-   await route.fulfill({status: 502, json: {error: 'fixture_receipt_lost'}});
-  }, {times: 1});
-
-  await rows.filter({hasText: 'Katalogsang 11'}).tap();
-  await page.waitForFunction(() => {
-   const selection = document.querySelector('pv-widget-host')?.liveSelection;
-   return selection?.feedback?.outcome === 'unknown' && !selection.pending && !selection.pendingPlayer();
-  }, undefined, {timeout: 12000});
-  await page.locator('#track-name').filter({hasText: 'Isoleret sang 11'}).waitFor({state: 'visible', timeout: 15000});
-  assert.equal((await state()).selections.length, 1, 'passive observation does not repeat the unknown command');
-  assert.equal(actions.filter(action => action.url.endsWith('/selection/actions')).length, 1);
-
-  await rows.filter({hasText: 'Katalogsang 12'}).tap();
-  await page.locator('#track-name').filter({hasText: 'Isoleret sang 12'}).waitFor({state: 'visible', timeout: 15000});
-  const observed = await state();
-  assert.deepEqual(observed.selections.map(row => Number(row.uri.split(':').pop())), [11, 12]);
-  const setups = actions.filter(action => action.url.endsWith('/selection/setup'));
-  const sent = actions.filter(action => action.url.endsWith('/selection/actions'));
-  assert.equal(setups.length, 2);
-  assert.equal(sent.length, 2);
-  assert.notEqual(setups[0].body.candidateSetId, setups[1].body.candidateSetId);
-  assert.notEqual(sent[0].body.taskId, sent[1].body.taskId);
-  assert.notEqual(sent[0].body.requestId, sent[1].body.requestId);
-  assert.deepEqual(errors, []);
-  console.log(JSON.stringify({outcome: 'PASS', bundleSHA, unknownAfterCommit: true, explicitChoiceEffects: [11, 12]}));
-  return;
- }
- // Passive bounded CI evidence only: no method wrapping, synthetic events or upload.
- await page.evaluate(()=>{const ids=new WeakMap(),scopes=new Map(),events=[],mutations=[];let serial=0;const id=node=>{if(!node)return null;if(!ids.has(node))ids.set(node,++serial);return ids.get(node);},scope=h=>{const s=h?.liveSnapshot,key=JSON.stringify([s?.bootId,s?.roomId,s?.capabilities?.musicRead,s?.capabilities?.musicSelection,s?.mediaRoomBindings]);if(!scopes.has(key))scopes.set(key,scopes.size+1);return scopes.get(key);},save=(list,row)=>{list.push(row);if(list.length>100)list.shift();};for(const type of ['pointerdown','pointerup','pointercancel','touchstart','touchend','click'])document.addEventListener(type,event=>{const h=document.querySelector('pv-widget-host'),v=h?.liveSelection,c=h?.liveCatalogue,e=c?.entries?.get(c.key()),point=event.changedTouches?.[0]||event,b=event.target.closest?.(':is(#result-list,#music-hero) button.result');save(events,{type,at:performance.now(),target:id(event.target),button:id(b),x:point.clientX??null,y:point.clientY??null,disabled:b?.disabled??null,connected:b?.isConnected??null,scope:scope(h),focus:h?.state?.focus,pending:v?.pending,used:v?.used,musicPending:!!(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy()),settlement:v?.feedback?.settlementStatus,selectionSpent:e?.selectionSpent,selectionConfirmed:e?.selectionConfirmed});},true);new MutationObserver(records=>{for(const record of records)if(record.type==='childList')save(mutations,{at:performance.now(),parent:id(record.target),added:[...record.addedNodes].map(id),removed:[...record.removedNodes].map(id)});else if(record.type==='attributes')save(mutations,{at:performance.now(),target:id(record.target),attribute:record.attributeName,oldValue:record.oldValue,value:record.target.getAttribute(record.attributeName)});}).observe(document.querySelector('#result-list'),{childList:true,subtree:true,attributes:true,attributeOldValue:true,attributeFilter:['disabled','hidden','inert','aria-disabled']});window.selectionCiEvidence={events,mutations};});
- for(const song of [11,12,11]){
-  const row=rows.filter({hasText:`Katalogsang ${song}`});
-  await row.tap();
-  for(let n=0;(await state()).song!==song;n++){if(n>100)throw Error('selection effect missing '+song);await sleep(100)}
-  await page.waitForFunction(s=>document.querySelector('#track-name')?.textContent?.trim()===`Isoleret sang ${s}`,song,{timeout:15000});
-  await page.waitForFunction(s=>{const h=document.querySelector('pv-widget-host');return !(h?.liveControls?.musicIntentPending||h?.liveControls?.player?.busy())&&!h?.liveSelection?.pending&&h?.liveSelection?.feedback?.displayObserved===true&&h.liveMedia?.playback?.item?.uri===`spotify:track:${String(s).padStart(22,'0')}`},song,{timeout:15000});
- }
- const result=await state();
- assert.deepEqual(result.selections.map(r=>Number(r.uri.split(':').pop())),[11,12,11]);
- assert.equal(new Set(result.selections.map(r=>r.requestId)).size,3);
- assert.equal(actions.filter(r=>r.url.endsWith('/music/selection/actions')).length,3);
- await page.locator('#track').tap();
- const queueRow=page.locator('#queue button.queue-track:not([data-pv-leave])').filter({hasText:'Køsang 22'});
- await queueRow.waitFor({state:'visible',timeout:15000});
- await page.waitForFunction(()=>[...document.querySelectorAll('#queue button.queue-track:not([data-pv-leave])')].some(b=>b.textContent.includes('Køsang 22')&&!b.disabled),undefined,{timeout:15000});
- // A voice answer must not revoke an unchanged music queue (A12/K7).
- const queueBeforeVoice=await page.locator('#queue').innerText();
- await page.request.post(base+'/lab/state',{data:{unrelatedVoiceTurn:'s1:unrelated-answer'}});
- await page.waitForFunction(()=>document.querySelector('pv-widget-host')?.liveSnapshot?.voice?.turnId==='s1:unrelated-answer',undefined,{timeout:10000});
- assert.equal(await page.locator('#queue').innerText(),queueBeforeVoice,'unrelated voice keeps queue content');
- assert.equal(await queueRow.isEnabled(),true,'unrelated voice keeps queue selectable');
- await queueRow.tap();
- for(let n=0;(await state()).song!==22;n++){if(n>100)throw Error('queue occurrence effect missing');await sleep(100)}
- await page.waitForFunction(()=>document.querySelector('#track-name')?.textContent?.trim()==='Isoleret sang 22',undefined,{timeout:15000});
- const queued=await state();assert.equal(queued.queueSelections.length,1);assert.equal(queued.queueSelections[0].index,1);
- assert.equal(actions.filter(r=>r.url.endsWith('/music/queue/actions')).length,1);
- assert.deepEqual(queued.writes.map(r=>r.action),['play_track','play_track','play_track','play_queue_occurrence']);
- assert.equal(queued.nativeCalls.filter(r=>r.service==='prepare_room_selected_content').length,3);
- assert.equal(queued.nativeCalls.filter(r=>r.service==='start_room_selected_content').length,3);
- assert.equal(queued.nativeCalls.filter(r=>r.service==='prepare_room_queue').length,1);
- assert.equal(queued.nativeCalls.filter(r=>r.service==='control_room_queue').length,1);
- for(const r of actions.filter(r=>r.url.endsWith('/actions'))){assert(!Object.hasOwn(r.body,'uri'));assert(!Object.hasOwn(r.body,'index'));}
- assert.match(bundleSHA,/^[a-f0-9]{64}$/);
- assert.deepEqual(errors,[]);
- await fs.writeFile(path.join(env.artifactDir(),'podview-music-selection-trace.json'),JSON.stringify({bundleSHA,service:queued,actions,responses},null,2));
- await page.screenshot({path:path.join(env.artifactDir(),'podview-music-selection.png')});
- console.log(JSON.stringify({outcome:'PASS',packagedUI:true,bundleSHA,inertNativeService:true,catalogueSelections:[11,12,11],oneEffectPerExplicitChoice:true,queueProof:'opaque second occurrence → existing prepare/commit → observed song22',pageErrors:errors}));
+ if(loseSelectionReceipt){await unknownAfterCommitJourney();return;}
+ await findMusikJourney();
  }catch(error){if(page){try{const evidence=await page.locator('pv-widget-host').evaluate(async h=>{const t=h.liveTransport,records=[];for(const row of t?.diagnostics?.().records||[]){let requestRef;if(row.requestId){const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(row.requestId));requestRef=[...new Uint8Array(bytes)].map(n=>n.toString(16).padStart(2,'0')).join('').slice(0,16);}records.push({seq:row.seq,atMs:row.atMs,generation:row.generation,stage:row.stage,code:row.code,domain:row.domain,endpoint:row.endpoint,current:row.current,...(requestRef?{requestRef}:{})});}const v=h.liveSelection,c=h.liveCatalogue,e=c?.entries?.get(c.key());return {events:window.selectionCiEvidence?.events||[],mutations:window.selectionCiEvidence?.mutations||[],records,dropped:t?.diagnosticDropped,scope:{focus:h.state?.focus,connected:t?.connected,generation:t?.generation,feedback:v?.feedback?.settlementStatus,pending:v?.pending,used:v?.used,musicPending:!!(h.liveControls?.musicIntentPending||h.liveControls?.player?.busy()),entry:e?{selectionSpent:e.selectionSpent,selectionExpired:e.selectionExpired,selectionUnavailable:e.selectionUnavailable,actionDispatched:e.actionDispatched,selectionConfirmed:e.selectionConfirmed,selectionSettlementStatus:e.selectionSettlementStatus}:null}};});await fs.writeFile(path.join(env.artifactDir(),'podview-music-selection-failure-evidence.json'),JSON.stringify(evidence,null,2));}catch(evidenceError){console.error('selection evidence unavailable',evidenceError.message);}console.log('failureState',JSON.stringify({service:await state(),responses,actions,ui:await page.locator('body').innerText(),selection:await page.locator('pv-widget-host').evaluate(h=>({focus:h.state.focus,account:h.liveMedia?.account,capabilities:h.liveSnapshot?.capabilities,feedback:h.liveSelection?.feedback&&{message:h.liveSelection.feedback.message,outcome:h.liveSelection.feedback.outcome},queueStatus:h.liveMedia?.queueControls?.status,note:h.liveSelection?.note?.textContent,offer:h.liveSelection?.offer}))}));await page.screenshot({path:path.join(env.artifactDir(),'podview-music-selection-failure.png')})}throw error;
  }finally{if(browser)await browser.close();if(server&&server.exitCode===null){const done=new Promise(r=>server.once('exit',r));server.kill('SIGTERM');await done;}}
 })().catch(e=>{console.error(e);process.exitCode=1});
