@@ -40,7 +40,7 @@ def state(**changes):
 
 
 class Rig:
-    def __init__(self):
+    def __init__(self, data=None):
         self.calls = []
         self.state = state()
         self.service_status = 200
@@ -56,7 +56,12 @@ class Rig:
         self.router._refresh_podconnect_services = AsyncMock(side_effect=AssertionError)
         self.router._device_control._ws_read = self.ws_read
         self.session, _ = owner()
-        self.app = create_app(StatusHub(), {"kitchen": self.session}, tools=self.router)
+        self.app = create_app(
+            StatusHub(),
+            {"kitchen": self.session},
+            tools=self.router,
+            podview_client_diagnostics_store=data / "diagnostics.json" if data else None,
+        )
         self.bridge = self.app[BRIDGE]
         self.bridge.controls.policy = {
             "roomId": "kitchen",
@@ -165,6 +170,63 @@ async def test_player_read_maps_room_state_without_output_proof(rig):
     assert body["session"] is None
     # The room entity wakes PodView on HA's own state_changed.
     assert ENTITY in rig.bridge.home_event_interests()["music"]
+
+
+async def test_last_reported_player_survives_an_addon_restart(tmp_path):
+    """Green 2.1.25 to 2.1.27: right after a restart Home said »Henter afspilningsstatus« until PodConnect answered.
+    The room as its speaker last reported it is kept in /data and is in a fresh screen's first snapshot."""
+    before = Rig(tmp_path)
+    try:
+        assert "roomPlayer" not in before.bridge.snapshot("kitchen", before.token)
+        await podview_room_player.read(before.bridge, "kitchen", "account-alpha", before.token)
+        first = before.bridge.snapshot("kitchen", before.token)
+        # A refused read (HA says the player is off) is no new report: the last one stays.
+        before.state = state(state="off")
+        await podview_room_player.read(before.bridge, "kitchen", "account-alpha", before.token)
+        assert before.bridge.snapshot("kitchen", before.token)["roomPlayer"] == first["roomPlayer"]
+    finally:
+        await before.client.aclose()
+    assert first["roomPlayer"]["title"] == "Hey Jude" and first["roomPlayer"]["lastKnown"] is True
+
+    after = Rig(tmp_path)  # the add-on restarted: a new boot, nothing read yet
+    try:
+        snapshot = after.bridge.snapshot("kitchen", after.token)
+        last = snapshot["roomPlayer"]
+        assert snapshot["bootId"] != first["bootId"] and last["bootId"] == snapshot["bootId"]
+        assert last["roomId"] == "kitchen" and last["configEntryId"] == "account-alpha"
+        assert last["observedAt"] == first["roomPlayer"]["observedAt"], (
+            "when HA reported it, not now"
+        )
+        assert {key: last[key] for key in ("state", "title", "artist", "uri", "volumePercent")} == {
+            "state": "playing",
+            "title": "Hey Jude",
+            "artist": "The Beatles",
+            "uri": "spotify:track:" + "a" * 22,
+            "volumePercent": 27,
+        }
+        # What the speaker said, never what this screen may do now.
+        assert (last["actions"], last["maxVolume"], last["session"], last["elsewhere"]) == (
+            [],
+            None,
+            None,
+            None,
+        )
+        assert after.calls == [], "the snapshot reads nothing from HA or PodConnect"
+        # Outside the room revision: the last-known player never bumps or splits it.
+        assert snapshot["revision"] == after.bridge.snapshot("kitchen", after.token)["revision"]
+        # A room no longer bound to that account has no last-known player.
+        after.bridge.controls.policy = {**after.bridge.controls.policy, "music": []}
+        assert "roomPlayer" not in after.bridge.snapshot("kitchen", after.token)
+    finally:
+        await after.client.aclose()
+
+
+def test_damaged_last_known_file_is_not_known(tmp_path):
+    path = tmp_path / "room-player.json"
+    for text in ("{", "[]", json.dumps({"kitchen": {"configEntryId": "a", "state": "on"}})):
+        path.write_text(text)
+        assert podview_room_player.load_last_known(path) == {}
+    assert podview_room_player.load_last_known(tmp_path / "missing.json") == {}
 
 
 async def test_entity_lookup_is_cached(rig):

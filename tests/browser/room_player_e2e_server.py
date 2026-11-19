@@ -5,6 +5,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from dataclasses import replace
+from pathlib import Path
 
 import httpx
 from aiohttp import ClientSession, WSMsgType, web
@@ -26,6 +27,10 @@ TRACKS = [
 ]
 # As left by HA's media_player.play_media (or the Spotify app): PodView never started it.
 room = {"state": "playing", "track": 0, "position": 12.0, "volume": 0.27}
+# A restarted add-on: the room as the speaker left it, and PodConnect's session read slow after the restart.
+room.update(json.loads(os.environ.get("ROOM_PLAYER_ROOM", "{}")))
+SLOW_SESSION_S = float(os.environ.get("ROOM_PLAYER_SLOW_SESSION_S", "0"))
+DATA = Path(os.environ["ROOM_PLAYER_DATA"]) if os.environ.get("ROOM_PLAYER_DATA") else None
 writes = []
 lab = {"hold": False, "reject": False}
 held = asyncio.Event()
@@ -68,6 +73,7 @@ async def ha(request):
         accounts = [{"config_entry_id": "account", "title": "Testkonto"}]
         return httpx.Response(200, json={"service_response": {"accounts": accounts}})
     if path.endswith("/services/podconnect/get_playback_snapshot"):
+        await asyncio.sleep(SLOW_SESSION_S)
         # No PodConnect output proof at all: the player must not need it.
         return httpx.Response(200, json={"service_response": {"ok": False, "error_kind": "stale"}})
     if path == "/core/api/template":
@@ -157,6 +163,8 @@ app = create_app(
         }
     ),
     locked=True,
+    # The add-on's data folder (/data on the Green), kept across a restart of this server.
+    podview_client_diagnostics_store=DATA / "diagnostics.json" if DATA else None,
 )
 
 

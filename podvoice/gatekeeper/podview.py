@@ -450,6 +450,14 @@ class PodViewBridge:
         self._room_player_entities: dict[str, str] = {}
         self._room_player_targets: dict[tuple[str, str], dict] = {}
         self._room_player_devices: dict[tuple[str, str], str] = {}
+        # The rooms' last reported players, kept beside the client diagnostics in /data across a restart.
+        self._room_player_last_path = (
+            Path(client_diagnostics_store).with_name("room-player.json")
+            if client_diagnostics_store is not None
+            else None
+        )
+        self._room_player_last = podview_room_player.load_last_known(self._room_player_last_path)
+        self._room_player_last_written = 0.0
         robot_owner = getattr(tools, "_device_control", None)
         if robot_owner is not None:
             # A fresh robot map can reveal its room; wake readers like an HA vacuum event.
@@ -2216,6 +2224,10 @@ class PodViewBridge:
             result["homeRevision"] = self.home_source_revision(room, token)
             # Separate from homeRevision: a music change refreshes only the player.
             result["musicRevision"] = self._home_event_revisions["music"]
+        # Outside the room revision: the player's first frame on a fresh screen, until its own read lands.
+        last_player = podview_room_player.last_known(self, room)
+        if last_player is not None:
+            result["roomPlayer"] = last_player
         recipes = getattr(self, "recipe_submissions", None)
         if recipes is not None:
             # A count only, outside the room revision; the catalogue itself needs HA access.
