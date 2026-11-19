@@ -2,12 +2,12 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {Readable} from 'node:stream';
 import {fixtureRequest} from '../../scripts/live-fixture.mjs';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {roomObservationCurrent,roomPlayerObservation} from '../../podvoice/gatekeeper/static/podview/media-observation.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {roomObservationCurrent,roomPlayerObservation} from '../../podview/media-observation.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {queueOffer} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
+import {queueOffer} from '../../podview/live-queue-view.js';
 const request=(endpoint,body,{method=body?'POST':'GET',headers={'content-type':'application/json','x-podview-request':'1'}}={})=>new Promise((resolve,reject)=>{
  const req=Readable.from(body?[JSON.stringify(body)]:[]);req.url=endpoint;req.method=method;req.headers=headers;
  let text='',status=200;const res={setHeader(){},writeHead(value){status=value;},end(value=''){text+=value;resolve({status,body:text.startsWith('{')?JSON.parse(text):text});}};

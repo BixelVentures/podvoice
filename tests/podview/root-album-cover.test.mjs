@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validateVisualContent as validate} from '../../podvoice/gatekeeper/static/podview/visual-content.js';
-import {presentationAnswer} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
+import {validateVisualContent as validate} from '../../podview/visual-content.js';
+import {presentationAnswer} from '../../podview/owner-answers.js';
 import {renderAlbumCover} from './helpers/render-owned-album-cover.mjs';
 const receipt='a'.repeat(32),url='https://i.scdn.co/image/ab67616d0000b2730123456789abcdef';
 const content=()=>({summary:'Omslaget til nummeret',sources:[{id:'source',kind:'owner_receipt',receiptId:receipt,label:'Spotify via PodConnect',scope:'tool_result'}],image:{url,alt:'Albumomslag til Source song',caption:'Source song',credit:'Spotify',kind:'album_cover',sourceId:'source'}});

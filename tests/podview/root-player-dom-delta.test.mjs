@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PlayerView,livePlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
+import {PlayerView,livePlayerModel} from '../../podview/player-view.js';
+import {SpeakerOutputView} from '../../podview/speaker-output-view.js';
 
 function fixture(){
  const writes=[],nodes=new Map(),groups=new Map();
@@ -88,7 +88,7 @@ test('paused player has no redundant visual caption and retains its position, re
 });
 
 test('stopped radio keeps a truthful subtitle and accessible state without duplicate visual status copy',async()=>{
- const {localRadioPlayerModel,localRadioControlModel}=await import('../../podvoice/gatekeeper/static/podview/radio-model.js');const {initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');const f=fixture(),scene={...initialScene(),radioStationId:'p3',radioPlaying:false},vm=localRadioPlayerModel('p3',active,{playing:false,connected:true});f.view.renderPlayer(vm);f.view.renderControls(localRadioControlModel(scene));
+ const {localRadioPlayerModel,localRadioControlModel}=await import('../../podview/radio-model.js');const {initialScene}=await import('../../podview/scene-model.js');const f=fixture(),scene={...initialScene(),radioStationId:'p3',radioPlaying:false},vm=localRadioPlayerModel('p3',active,{playing:false,connected:true});f.view.renderPlayer(vm);f.view.renderControls(localRadioControlModel(scene));
  assert.equal(f.nodes.get('track-name').textContent,'P3');assert.equal(f.nodes.get('track-artist').textContent,'Direkte radio · ingen lyd');assert.equal(f.nodes.get('player-state').textContent,'');assert.equal(f.nodes.get('detail-status').textContent,'');assert.equal(f.nodes.get('play-icon').src,'assets/icons/play-fill.svg');assert.equal(f.nodes.get('play-pause').getAttribute('aria-label'),'Start radio ved livepunkt');assert.match(f.nodes.get('output').getAttribute('aria-label'),/Radio stoppet · ingen lyd/);assert.equal(f.nodes.get('previous').hidden,true);assert.equal(f.nodes.get('next').hidden,true);assert.equal(vm.exampleOnly,true);assert.equal(vm.fresh,false);assert.equal('stream' in vm,false);
  for(const feedback of [{message:'Afventer radio',pending:true},{message:'Radio kunne ikke startes',pending:false}]){f.view.renderPlayer({...vm,feedback});assert.equal(f.nodes.get('player-state').textContent,'');assert.equal(f.nodes.get('detail-status').textContent,'');assert.equal(f.nodes.get('player-state').hidden,true);assert.equal(f.nodes.get('detail-status').hidden,true);}
  f.view.renderPlayer({...active,sourceKind:'radio',playing:false,fresh:false,artist:'Direkte radio'});assert.equal(f.nodes.get('player-state').textContent,'Ikke opdateret');f.view.renderPlayer({...active,sourceKind:'radio',artist:''});assert.equal(f.nodes.get('track-artist').textContent,'Direkte radio');f.view.renderPlayer({...active,sourceKind:'radio',artist:'Faktisk kildebeskrivelse'});assert.equal(f.nodes.get('track-artist').textContent,'Faktisk kildebeskrivelse');

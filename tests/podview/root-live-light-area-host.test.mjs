@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {applyHome,validateHome,scopedLightDevice} from '../../podvoice/gatekeeper/static/podview/home-model.js';
-import {lightAreasObservation,scopedLightsObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),body=source.slice(source.indexOf(' onLightActionStatus(state,operation){'),source.indexOf(' renderLightAdjustments(light){'));
+import {applyHome,validateHome,scopedLightDevice} from '../../podview/home-model.js';
+import {lightAreasObservation,scopedLightsObservation} from '../../podview/ha-home-observation.js';
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),body=source.slice(source.indexOf(' onLightActionStatus(state,operation){'),source.indexOf(' renderLightAdjustments(light){'));
 const Host=new Function('validateHome','scopedLightDevice','lightAreasObservation','scopedLightsObservation',`return class{${body}}`)(validateHome,scopedLightDevice,lightAreasObservation,scopedLightsObservation);
 function fixture(){
  const now=Math.floor(Date.now()/1000),epoch='a'.repeat(64),bindingId='b'.repeat(64),items=[{areaId:'own',areaName:'Køkken'},{areaId:'other',areaName:'Stue'}];

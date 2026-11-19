@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-const {PodVoiceTransport}=await import(process.env.TRANSPORT_MODULE||'../../podvoice/gatekeeper/static/podview/podvoice-transport.js');
+const {PodVoiceTransport}=await import(process.env.TRANSPORT_MODULE||'../../podview/podvoice-transport.js');
 const snap=()=>({schema:'podview.snapshot.v1',bootId:'boot',revision:1,roomId:'room',voice:{active:false},timers:{status:'observed',items:[],epoch:1},capabilities:{musicRead:['targets'],timerActions:['start'],musicSelection:true,queueSelection:true,controlSetup:['vacuum']},controllerContinuity:{enabled:true,available:true}});
 // Keep the wall clock fixed while this fixture manually fires scheduled timers.
 async function run(fn){const dateNow=Date.now,clockNow=dateNow();Date.now=()=>clockNow;const st=globalThis.setTimeout,ct=globalThis.clearTimeout;let id=0,jobs=new Map(),calls=[],streams=[],mode='ok',deferred,enterHeld;const heldSnapshot=new Promise(resolve=>enterHeld=resolve);globalThis.setTimeout=(fn,ms)=>{jobs.set(++id,{fn,ms});return id};globalThis.clearTimeout=id=>jobs.delete(id);class Stream{constructor(){this.handlers={};this.closed=false;streams.push(this)}addEventListener(k,fn){this.handlers[k]=fn}close(){this.closed=true}emit(value=snap()){this.handlers.snapshot({data:JSON.stringify(value)})}}

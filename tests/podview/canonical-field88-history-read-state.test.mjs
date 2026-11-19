@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveAnswerView} from '../../podvoice/gatekeeper/static/podview/live-answer-view.js';
+import {LiveAnswerView} from '../../podview/live-answer-view.js';
 function rig(){
  const host={isConnected:true,state:{answers:[],focus:'now'},liveSnapshot:{bootId:'boot',roomId:'room',answerHistoryRevision:1,answerHistoryRemovalRevision:0,answerHistoryReceiptIds:[],capabilities:{answerRead:true},answers:{},voice:{}},liveTransport:{connected:true,generation:1},render(){this.renders.push(view.historyPresentation());},renders:[],focusHeading(){}};
  const view=Object.create(LiveAnswerView.prototype);Object.assign(view,{host,history:new Map(),generation:0,presented:new Set(),body:{setAttribute(){},replaceChildren(){}},dialog:{close(){}}});

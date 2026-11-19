@@ -1,23 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {liveScene,liveTimerRequest} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
-import {cleanupWeather} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
+import {liveScene,liveTimerRequest} from '../../podview/podvoice-view.js';
+import {TimerView} from '../../podview/timer-view.js';
+import {cleanupWeather} from '../../podview/weather-view.js';
 function fixture(current=null){const attrs=new Map(),status={dataset:{},hidden:true,textContent:'',getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){attrs.set(key,String(value));}},finish={hidden:false,disabled:false},form={hidden:true,elements:[{}],setAttribute(){},append(node){node.parentNode=this;}};return {currentTimer:current,form,connected:false,canStart:false,detail:{querySelector:()=>status},nodes:new Map([['detail:actual',{querySelector:()=>finish,querySelectorAll:()=>[],append(node){node.parentNode=this;}}]]),updatePicker(){},status,finish};}
 test('TimerView retains an unavailable first-empty draft without granting Start',()=>{const v=fixture();TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false,feedback:'Timerstyring er ikke tilgængelig lige nu.'});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.status.hidden,false);assert.equal(v.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');});
 test('TimerView retains current timer and disables cancellation on lost authority',()=>{const timer={id:'actual',remaining:73},v=fixture(timer);TimerView.prototype.renderAccess.call(v,{connected:false,canStart:false,canCancel:false});assert.equal(v.currentTimer,timer);assert.equal(v.form.hidden,true,'an unresolved timer hides new-timer controls even after authority is lost');assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.finish.hidden,false);assert.equal(v.finish.disabled,true);assert.equal(v.canCancel,false);});
 test('pending and unknown preserve anatomy and block both actions; recovery only restores actual permissions',()=>{const v=fixture();for(const blocked of [{pending:true},{awaitingObservation:true,feedback:'Udfald ukendt · handlingen gentages ikke'}]){TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:true,...blocked});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.canCancel,false);}TimerView.prototype.renderAccess.call(v,{connected:true,canStart:true,canCancel:false});assert.equal(v.canStart,true);assert.equal(v.canCancel,false);assert.equal(v.status.hidden,true);});
 import {readFileSync} from 'node:fs';
 test('actual live adapter keeps the empty form when no timer action is granted',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start);
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start);
  assert.ok(start>=0&&end>start);const view=fixture();view.renderAccess=TimerView.prototype.renderAccess;
  const host={timerView:view,liveActionPending:false,liveActionFeedback:''};
  new Function('connected','snapshot',source.slice(start,end)).call(host,false,{timers:{status:'unavailable'},capabilities:{timerActions:[]}});
  assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.canCancel,false);assert.equal(view.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');
 });
 test('actual adapter distinguishes active observation wait from unknown outcome in aria-busy',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
  // Blocking follows the timer state field, not the displayed text (T1).
  for(const [feedback,pending,busy,blocked,phase] of [['',true,true,true,'sending'],['Afventer opdateret timer',false,true,true,'awaiting'],['Udfald ukendt · handlingen gentages ikke',false,false,true,'unknown'],['',false,false,false,null]]){
   const view=fixture();view.status.setAttribute=function(k,v){this[k]=v;};view.form.setAttribute=function(k,v){this[k]=v;};view.renderAccess=TimerView.prototype.renderAccess;
@@ -27,7 +27,7 @@ test('actual adapter distinguishes active observation wait from unknown outcome 
  }
 });
 
-const timerOwnerSource=readFileSync(process.env.TIMER_OWNER_SOURCE||new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const timerOwnerSource=readFileSync(process.env.TIMER_OWNER_SOURCE||new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 function timerOwner({items=[{id:'exact',status:'finished',physicalStopped:false,physicalDrained:false}],result={ok:true,outcome:'accepted'},held=false,actualScene=false}={}){
  let now=1000,counter=0;const resolvers=[];const scheduled=new Map(),calls=[],messages=[],journal=[];
  const snapshot=(overrides={})=>({bootId:'boot',roomId:'kitchen',revision:10,voice:{sessionId:'timer-session'},timers:{status:'observed',epoch:'epoch',items},capabilities:{homeRead:[],timerActions:['timer.start','timer.cancel']},...overrides});
@@ -218,7 +218,7 @@ test('unknown adjustment needs a newer native revision or actual removal; paused
 });
 
 test('actual adapter permits independent cancel during adjustment only',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
  for(const action of ['timer.start','timer.cancel','timer.adjust']){const view=fixture();view.renderAccess=TimerView.prototype.renderAccess;render.call({timerView:view,liveActionPending:true,liveActionFeedback:'',liveTimerAction:{action,timerId:'exact',deltaSeconds:60}},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel','timer.adjust']}});assert.equal(view.canCancel,action==='timer.adjust',action);}
 });
 

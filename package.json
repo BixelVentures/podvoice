@@ -1,22 +1,46 @@
 {
-  "name": "podview-poc",
+  "name": "podview",
   "private": true,
   "type": "module",
-  "scripts": {
-    "test": "npm run check:components && node --test tests/podview/*.test.mjs",
-    "dev": "node scripts/dev.mjs",
-    "check:components": "node scripts/check-component-library.mjs",
-    "visual": "node scripts/visual-sweep.mjs",
-    "prebuild:assets": "node scripts/prepare-podview-checkout.mjs",
-    "build:assets": "node scripts/build-assets.mjs && node scripts/build-scripts.mjs",
-    "predev": "npm run build:assets",
-    "pretest": "npm run build:assets"
+  "engines": {
+    "node": ">=24.19"
   },
-  "devDependencies": {
-    "axe-core": "4.14.0",
-    "esbuild": "0.28.2"
+  "scripts": {
+    "dev": "vite --config podview/vite.config.ts",
+    "build": "vite build --config podview/vite.config.ts",
+    "preview": "vite preview --config podview/vite.config.ts",
+    "typecheck": "tsc -p podview/tsconfig.json --noEmit",
+    "lint": "eslint podview/src",
+    "test": "npm run build && npm run test:unit && npm run test:legacy",
+    "test:unit": "vitest run --config podview/vite.config.ts",
+    "test:legacy": "node --import ./tests/podview/support/register-tsx.mjs --test tests/podview/*.test.mjs",
+    "visual": "node scripts/visual-sweep.mjs"
   },
   "dependencies": {
-    "motion": "14.9.0"
+    "motion": "14.9.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.13",
+    "@rolldown/plugin-babel": "0.3.0",
+    "@tailwindcss/vite": "4.3.4",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.8",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.2.1",
+    "axe-core": "4.14.0",
+    "babel-plugin-react-compiler": "1.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "10.14.0",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "happy-dom": "21.0.4",
+    "tailwindcss": "4.3.4",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.72.1",
+    "vite": "8.3.5",
+    "vitest": "5.1.0"
   }
 }

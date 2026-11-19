@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderRobotHistory} from '../../podvoice/gatekeeper/static/podview/live-home-view.js';
+import {renderRobotHistory} from '../../podview/live-home-view.js';
 
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const begin=source.indexOf(' renderLightScenes(light){'),end=source.indexOf('\n renderLightAdjustments(',begin);
 assert.ok(begin>=0&&end>begin);
 const renderLightScenes=new Function('lightSelection',`return ({${source.slice(begin,end)}}).renderLightScenes`)(()=>null);

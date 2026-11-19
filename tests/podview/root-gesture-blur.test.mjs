@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {attachGestures} from '../../podvoice/gatekeeper/static/podview/ui/gestures.js';
+import {attachGestures} from '../../podview/ui/gestures.js';
 class Events {
  constructor(){this.listeners=new Map();}
  addEventListener(type,fn){this.listeners.set(type,fn);}

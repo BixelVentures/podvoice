@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {windStrength,windFrom,weatherObservation} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';
+import {windStrength,windFrom,weatherObservation} from '../../podview/weather-observation.js';
 const levels=[[0,'Stille'],[.3,'Næsten stille'],[1.6,'Svag vind'],[3.4,'Let vind'],[5.5,'Jævn vind'],[8,'Frisk vind'],[10.8,'Hård vind'],[13.9,'Stiv kuling'],[17.2,'Hård kuling'],[20.8,'Stormende kuling'],[24.5,'Storm'],[28.5,'Stærk storm']];
 test('DMI names use unrounded SI thresholds on either side of every boundary',()=>{
  for(let i=0;i<levels.length;i++){const [minimum,label]=levels[i];assert.equal(windStrength(minimum,'m/s'),label);if(i)assert.equal(windStrength(minimum-.000001,'m/s'),levels[i-1][1]);assert.equal(windStrength(minimum+.000001,'m/s'),label);}

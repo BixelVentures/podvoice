@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const snapshot=(room='kitchen',boot='a'.repeat(32))=>({schema:'podview.snapshot.v1',bootId:boot,revision:1,roomId:room,admission:{kind:'ha_ingress',authenticated:true},voice:{phase:'IDLE'},timers:{status:'observed',items:[]},capabilities:{musicRead:[],timerActions:[]}});
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
 const ack=(body,changes={})=>({ok:true,status:200,json:async()=>({schema:'podview.client-diagnostics-ack.v1',ok:true,batchId:body.batchId,acceptedCount:body.records.length,duplicate:false,stored:true,...changes})});

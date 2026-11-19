@@ -442,9 +442,7 @@ async def test_owned_bicycle_receipt_reaches_actual_live_and_history_consumers(f
             **store.history(session.room, session),
         }
         # Execute the shipped consumers against actual backend receipts, not JS fixtures.
-        module = (
-            Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/owner-answers.js"
-        ).as_uri()
+        module = (Path(__file__).parents[2] / "podview/owner-answers.js").as_uri()
         script = """
 import assert from 'node:assert/strict';
 const {ownedAnswers,historicalAnswers}=await import(process.argv[1]);

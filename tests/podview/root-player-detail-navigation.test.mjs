@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
 
 test('player detail returns to overview from every origin without altering music or timers',()=>{
  for(const origin of ['now','music','weather','timers','photo']){
@@ -14,7 +14,7 @@ test('player detail returns to overview from every origin without altering music
 });
 
 test('actual player opener navigates once, keeps opener and only reads live queue',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim();
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim();
  const open=new Function('$','document',`return function ${method}`)(()=>{throw Error('Player must not open a modal');},{}),calls=[],opener={};
  const host={state:{focus:'now'},live:true,openers:new Map(),dispatch(event){calls.push(event);this.state.focus=event.id;},focusHeading(){calls.push('focus');},liveMedia:{loadQueue(){calls.push('queue-read');}}};
  open.call(host,'music-detail',opener);open.call(host,'music-detail',opener);
@@ -22,14 +22,14 @@ test('actual player opener navigates once, keeps opener and only reads live queu
 });
 
 test('one canonical player detail lives inside responses and keeps queue, seek, volume and output IDs',()=>{
- const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8'),detail=html.indexOf('<section id="music-detail"'),responses=html.indexOf('<section class="responses"'),player=html.indexOf('<aside class="player"');
+ const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8'),detail=html.indexOf('<section id="music-detail"'),responses=html.indexOf('<section class="responses"'),player=html.indexOf('<aside class="player"');
  assert(detail>responses&&detail<player);assert.equal(html.match(/id="music-detail"/g).length,1);assert.doesNotMatch(html,/<dialog id="music-detail"/);assert.match(html,/<h1 id="detail-title" tabindex="-1">Afspiller<\/h1>/);
  for(const id of ['detail-track','queue-title'])assert.match(html,new RegExp(`<h2 id="${id}"`));
  for(const id of ['queue','player-back','detail-progress','detail-volume','detail-output'])assert.equal(html.match(new RegExp(`id="${id}"`,'g')).length,1);
 });
 
 test('Ro player cover/title open details, but pause and its bubbling click never navigate',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),nodes=new Map();
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),nodes=new Map();
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,handlers:{},addEventListener(type,fn){this.handlers[type]=fn;}});return nodes.get(id);};
  const registration=start=>{const begin=source.indexOf(start);return source.slice(begin,source.indexOf('\n',begin));};
  const title=registration("$('track').addEventListener"),cover=registration("$('player-detail').addEventListener"),pause=registration("$('play-pause').addEventListener").split(';')[0]+';';
@@ -44,12 +44,12 @@ test('Ro player cover/title open details, but pause and its bubbling click never
 });
 
 test('radio cover detail uses the existing station view and never opens an empty music queue',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim(),open=new Function('$','document',`return function ${method}`)(()=>{throw Error('Radio must not open a dialog');},{});
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' open(id,opener){'),source.indexOf('\n renderScreenSettings(){')).trim(),open=new Function('$','document',`return function ${method}`)(()=>{throw Error('Radio must not open a dialog');},{});
  for(const origin of ['photo','now','music'])for(const playing of [true,false]){const timer={id:'retained',status:'running'},base={...initialScene(),focus:origin,navStack:[],radioStationId:'p1',radioPlaying:playing,timer},calls=[],host={live:false,state:base,openers:new Map(),playerView:{progressVM:{sourceKind:'radio'}},dispatch(event){calls.push(event);this.state=sceneTransition(this.state,event);},focusHeading(){},liveMedia:{loadQueue(){throw Error('Radio has no music queue');}}};open.call(host,'music-detail',{});assert.equal(host.state.focus,'radio');assert.equal(host.state.radioStationId,'p1');assert.equal(host.state.radioPlaying,playing);assert.equal(host.state.timer,timer);assert.equal(host.state.music,base.music);open.call(host,'music-detail',{});assert.equal(calls.length,1);const back=sceneTransition(host.state,{type:'back'});assert.equal(back.focus,'now');assert.equal(back.radioStationId,'p1');}
 });
 
 test('retired Radio player shortcut cannot navigate to an empty queue or issue playback',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),callback=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0];
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),callback=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0];
  const calls=[],run=new Function('$',`return function(){${callback}}`)(id=>{assert.equal(id,'play-pause');return {focus:options=>calls.push(options)};});
  for(const connected of [true,false]){
   const timer={id:'retained-timer',remaining:48},state={...initialScene(),focus:'radio',radioStationId:'p3',radioPlaying:false,connected,timer};

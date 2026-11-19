@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LocalRobotView} from '../../podvoice/gatekeeper/static/podview/local-robot-view.js';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {LocalRobotView} from '../../podview/local-robot-view.js';
+import {previewScene} from '../../podview/preview-scenes.js';
 const fixture=()=>{const device={id:'demo-vacuum',kind:'vacuum',status:'cleaning',timeline:[]},host={live:false,previewStage:'now',state:{connected:true,focus:device.id,devices:[device]},renders:0,render(){this.renders++;}},view=Object.assign(Object.create(LocalRobotView.prototype),{host,serial:0,panel:{suggest(value){this.suggestion=value;return true;}},note:{},receipt:{},entry:{hidden:true}});host.localRobot=view;view.seed();return {view,host,device};};
 test('opt-in many-room adapter applies explicit local choices by replacing task offers, never starting automatically',()=>{
  const {view,host}=fixture();host.previewStage='robot-detail-many-rooms';host.state=previewScene(host.previewStage);const device=host.state.devices.find(row=>row.kind==='vacuum');view.seed();view.openRobot({});const initial=view.task,start=initial.options[0],map=initial.options.find(row=>row.label==='Kort'),mode=initial.options.find(row=>row.label==='Rengøringstype');assert.equal(start.argsSchema.areas.length,9);assert.equal(initial.mapName,'Stueplan');assert.equal(view.panel.data.localOnly,true);assert.equal(device.history.items[0].recipe.mapName,'Stueplan');assert.equal(device.history.items[0].recipe.areaIds[0],start.argsSchema.areas[0].id);assert.equal(map.argsSchema.choices.length,2);assert.equal(host.renders,0);

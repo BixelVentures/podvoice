@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {vehicleFixture,vehicleRailPresentation} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
-import {vehicleObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
+import {vehicleFixture,vehicleRailPresentation} from '../../podview/vehicle-model.js';
+import {vehicleObservation} from '../../podview/ha-home-observation.js';
 
 const context={live:true,connected:true,readGranted:true,scope:'boot/room',sourceScope:'boot/room'};
 const sample=(charging='charging')=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:100,entityIds:['sensor.car_charge'],data:{batteryPercent:72,charging:{status:charging,powerKw:11,endsAt:200},climate:{}}});

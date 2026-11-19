@@ -1,22 +1,22 @@
-import {groupAnswerHistory,answerThread} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
-import {applyKitComponent,applyKitDialog,applyKitTextRole,createKitSliderField,createKitDisclosure} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
-import {LightRoomView} from '../../podvoice/gatekeeper/static/podview/light-room-view.js';
-import {scopedLightsObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
-import {renderOverviewMediaValues,fixtureArtwork} from '../../podvoice/gatekeeper/static/podview/music-results.js';
-import {updateResourceFacts} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
-import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
-import {radioStation} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
-import {vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleOverviewFacts} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
-import {VehicleView} from '../../podvoice/gatekeeper/static/podview/vehicle-view.js';
+import {groupAnswerHistory,answerThread} from '../../podview/owner-answers.js';
+import {applyKitComponent,applyKitDialog,applyKitTextRole,createKitSliderField,createKitDisclosure} from '../../podview/ui/kit.js';
+import {LightRoomView} from '../../podview/light-room-view.js';
+import {scopedLightsObservation} from '../../podview/ha-home-observation.js';
+import {renderOverviewMediaValues,fixtureArtwork} from '../../podview/music-results.js';
+import {updateResourceFacts} from '../../podview/ui/resource-tile.js';
+import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
+import {radioStation} from '../../podview/radio-model.js';
+import {vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
+import {VehicleView} from '../../podview/vehicle-view.js';
 import test from 'node:test';
-import {connectionPresentation,homeConnectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {weatherHeaderVisible} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
+import {connectionPresentation,homeConnectionPresentation} from '../../podview/podvoice-view.js';
+import {weatherHeaderVisible} from '../../podview/weather-view.js';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {previewScene,previewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {visualFamilies,validateVisualContent} from '../../podvoice/gatekeeper/static/podview/visual-content.js';
-import {FORMATS,sceneTransition,focusedAnswer,initialScene,lightSelection,lightChoices,devicePresentation,robotRecentCompletion} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {ownedAnswers} from '../../podvoice/gatekeeper/static/podview/owner-answers.js';
+import {previewScene,previewStates} from '../../podview/preview-scenes.js';
+import {visualFamilies,validateVisualContent} from '../../podview/visual-content.js';
+import {FORMATS,sceneTransition,focusedAnswer,initialScene,lightSelection,lightChoices,devicePresentation,robotRecentCompletion} from '../../podview/scene-model.js';
+import {ownedAnswers} from '../../podview/owner-answers.js';
 
 test('explicit QA history has one coherent saved household example for each canonical visual family',()=>{
  const state=previewScene('visual-history');assert(previewStates.includes('visual-history'));assert.equal(state.pendingAnswer,null);assert.equal(state.focus,'now');assert.deepEqual(state.answers.slice(0,10).map(a=>a.kind),FORMATS);assert.equal(new Set(state.answers.map(a=>a.id)).size,11);
@@ -36,14 +36,14 @@ test('an ordinary local answer remains an explicit example through completion an
  assert.equal(state.answers[0].exampleOnly,true);assert.equal(state.answers[0].status,'ready');assert.equal(state.answers[0].live,undefined);
 });
 test('header reuses one history dialog/control and reserves far-right clock after weather',()=>{
- const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8'),nav=html.slice(html.indexOf('<nav'),html.indexOf('</nav>'));assert.equal((html.match(/id="history"/g)||[]).length,1);assert.equal((nav.match(/id="open-history"/g)||[]).length,1);assert(nav.indexOf('header-activity')<nav.indexOf('header-context'));assert(nav.indexOf('header-context')<nav.indexOf('open-history'));assert(nav.indexOf('open-history')<nav.indexOf('header-weather'));assert(nav.indexOf('header-weather')<nav.indexOf('header-clock'));assert(!nav.includes('disabled'));
+ const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8'),nav=html.slice(html.indexOf('<nav'),html.indexOf('</nav>'));assert.equal((html.match(/id="history"/g)||[]).length,1);assert.equal((nav.match(/id="open-history"/g)||[]).length,1);assert(nav.indexOf('header-activity')<nav.indexOf('header-context'));assert(nav.indexOf('header-context')<nav.indexOf('open-history'));assert(nav.indexOf('open-history')<nav.indexOf('header-weather'));assert(nav.indexOf('header-weather')<nav.indexOf('header-clock'));assert(!nav.includes('disabled'));
 });
 test('header phase previews are explicit local stages, never normal scene activity',()=>{for(const [stage,phase] of Object.entries({listening:'LISTENING',thinking:'THINKING',speaking:'AI_SPEAKING',ready:'LOUNGE_WINDOW',waiting:'UNKNOWN'})){const state=previewScene(`header-${stage}`);assert.equal(state.voicePreviewPhase,phase);assert.equal(state.pendingAnswer,null);assert.equal(state.answers.length,0);}assert.equal(previewScene('quiet').voicePreviewPhase,undefined);assert.equal(initialScene().voicePreviewPhase,undefined);});
 
 test('explicit top and now QA entries expose ten examples without changing their intended focus',()=>{for(const [stage,focus]of [['top','music'],['now','now']]){const state=previewScene(stage);assert.equal(state.focus,focus);assert.equal(state.answers.length,10);assert.equal(state.pendingAnswer,null);assert(state.answers.every(answer=>answer.exampleOnly&&!answer.live));}});
 
-test('history uses compact canonical ListRows and opens the original same-ID answer without a miniature renderer',()=>{const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');assert(source.includes("const retained=document.createElement('article')"));assert(source.includes("applyKitComponent(open,'listrow')"));assert(!source.includes("const preview=document.createElement('pv-answer')"));assert(!source.includes("viewport.className='history-preview'"));assert(source.includes("this.dispatch({type:'show',id:a.id})"));assert(source.includes("const formatText=(a.transcriptSegment?'Registreret tale':answerCatalog[a.kind]"));assert(!source.includes("b.textContent=(a.exampleOnly?'Eksempel"));});
-test('history retains the existing bounded dialog and keyboard focus treatment',()=>{const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/frame-layout.css',import.meta.url),'utf8');assert(css.includes('max-height:calc(100dvh - 32px)'));assert(css.includes('#history .history-open:focus-visible'));});
+test('history uses compact canonical ListRows and opens the original same-ID answer without a miniature renderer',()=>{const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');assert(source.includes("const retained=document.createElement('article')"));assert(source.includes("applyKitComponent(open,'listrow')"));assert(!source.includes("const preview=document.createElement('pv-answer')"));assert(!source.includes("viewport.className='history-preview'"));assert(source.includes("this.dispatch({type:'show',id:a.id})"));assert(source.includes("const formatText=(a.transcriptSegment?'Registreret tale':answerCatalog[a.kind]"));assert(!source.includes("b.textContent=(a.exampleOnly?'Eksempel"));});
+test('history retains the existing bounded dialog and keyboard focus treatment',()=>{const css=readFileSync(new URL('../../podview/frame-layout.css',import.meta.url),'utf8');assert(css.includes('max-height:calc(100dvh - 32px)'));assert(css.includes('#history .history-open:focus-visible'));});
 
 // Run the actual host projection with a mutation-counting DOM: source-only rendering
 // tests do not claim browser layout, but catch rebuilding on irrelevant snapshots.
@@ -58,7 +58,7 @@ class HistoryNode extends EventTarget {
  update(scene,answer){this.updates++;this.scene=scene;this.answer=answer;}
  getClientRects(){return [{}];}
 }
-const hostSource=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const hostSource=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const projectHistoryRaw=new Function('s','$','document','answerCatalog','applyKitComponent','groupAnswerHistory','answerThread',hostSource.slice(hostSource.indexOf(' for(const a of s.answers){'),hostSource.indexOf('\n const retainedRoot=')));const projectHistory=function(...args){return projectHistoryRaw.call(this,...args,applyKitComponent,groupAnswerHistory,answerThread);};
 const openHistory=new Function('$','document',`return function ${hostSource.slice(hostSource.indexOf('open(id,opener){'),hostSource.indexOf('\n renderScreenSettings(){'))}`);
 const historyCloseSource=hostSource.slice(hostSource.indexOf("$(id).addEventListener('close',()=>{")+"$(id).addEventListener('close',()=>{".length,hostSource.indexOf('});}',hostSource.indexOf("$(id).addEventListener('close',()=>{")));
@@ -86,7 +86,7 @@ test('history opens nonmodally and closes to overview while restoring inert flag
 });
 
 test('history markup uses the response pane and explains how real answers become available',()=>{
- const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8'),history=html.indexOf('<dialog id="history"');assert(history>html.indexOf('class="responses"'));assert(history<html.indexOf('</pv-widget-host>'));assert.match(html.slice(history,history+150),/aria-modal="false"/);assert(hostSource.includes('Når PodVoice viser et visuelt svar, kan du finde det her igen.'));assert(!hostSource.includes(":'Ingen gemte'"));assert(hostSource.includes('this.musicResults?.cleanup?.()'));
+ const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8'),history=html.indexOf('<dialog id="history"');assert(history>html.indexOf('class="responses"'));assert(history<html.indexOf('</pv-widget-host>'));assert.match(html.slice(history,history+150),/aria-modal="false"/);assert(hostSource.includes('Når PodVoice viser et visuelt svar, kan du finde det her igen.'));assert(!hostSource.includes(":'Ingen gemte'"));assert(hostSource.includes('this.musicResults?.cleanup?.()'));
 });
 
 class HostLeaf extends HistoryNode {
@@ -154,7 +154,7 @@ for(const detail of ['weather','timers','robot'])test(`history child ${detail} B
  }finally{f.restore();}
 });
 
-test('history accessible name starts with all visible format/date/title copy',()=>{const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),expression=source.match(/const label=(`\$\{formatText\}[^;]+`);/)[1],formatText='Fakta · 20. okt. 17.41',a={title:'Hvorfor er himlen blå?'},label=new Function('formatText','historyTitle','return '+expression)(formatText,a.title);assert.equal(label,formatText+' · '+a.title+' · Åbn svar');});
+test('history accessible name starts with all visible format/date/title copy',()=>{const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),expression=source.match(/const label=(`\$\{formatText\}[^;]+`);/)[1],formatText='Fakta · 20. okt. 17.41',a={title:'Hvorfor er himlen blå?'},label=new Function('formatText','historyTitle','return '+expression)(formatText,a.title);assert.equal(label,formatText+' · '+a.title+' · Åbn svar');});
 
 test('library history appends one authored whole transcript using the existing concise role without receipt or command authority',()=>{const state=previewScene('visual-history'),transcripts=state.answers.filter(a=>a.transcriptSegment);assert.equal(transcripts.length,1);const a=transcripts[0];assert.equal(state.answers.at(-1),a);assert.equal(a.kind,'concise');assert.equal(a.title,'Samtaleudskrift');assert.equal(a.exampleOnly,true);assert.equal(a.historical,true);assert.equal(a.live,undefined);assert.equal(a.content.summary,a.transcriptSegment.text);assert(a.content.summary.length>650);assert(a.content.summary.includes('\n\n'));assert.deepEqual(a.allowedActions,[]);for(const key of ['receiptId','ownerReceiptIds','provenance','taskId','presentation'])assert.equal(a[key],undefined);assert.equal(a.content.sources,undefined);const opened=sceneTransition(state,{type:'show',id:a.id});assert.equal(focusedAnswer(opened).transcriptSegment.text,a.transcriptSegment.text);const back=sceneTransition(opened,{type:'show',id:'now'});assert.deepEqual(back.answers,state.answers);});
 

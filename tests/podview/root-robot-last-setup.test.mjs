@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const base=new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url);
+const base=new URL('../../podview/',import.meta.url);
 let source=readFileSync(new URL('live-control-view.js',base),'utf8');
 // Actual view and actual args/task validator; inert presentation ports, no transport.
 source=source.replace("from './home-model.js'",`from '${new URL('home-model.js',base).href}'`).replace("from './robot-observation.js'",`from '${new URL('robot-observation.js',base).href}'`).replace("from './ha-home-observation.js'",`from '${new URL('ha-home-observation.js',base).href}'`).replace("import {RoomPlayerControls} from './room-player-controls.js';",'const RoomPlayerControls=class{status="";invalidate(){}render(){return {transport:false,canVolume:false};}optimisticPlaying(v){return v;}seekState(){return null;}observe(){}};').replace("from './ui/kit.js'",`from '${new URL('ui/kit.js',base).href}'`).replace("from './control-model.js'",`from '${new URL('control-model.js',base).href}'`).replace("from './media-observation.js'",`from '${new URL('media-observation.js',base).href}'`).replace("import './robot-control-panel.js';",'');

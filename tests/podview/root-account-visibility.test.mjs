@@ -1,8 +1,8 @@
 import test from 'node:test';
-import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {connectionPresentation} from '../../podview/podvoice-view.js';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.slice(source.indexOf(' renderLive(){'),source.indexOf('\n suspendLiveTimer('));
 const node=()=>({hidden:false,textContent:'',classList:{remove(){},contains(){return false;}},querySelector:()=>node(),setAttribute(){}});
 const elements=new Map();

@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const snap=()=>({schema:'podview.snapshot.v1',bootId:'test',revision:1,roomId:'kitchen',voice:{phase:'IDLE'},timers:{status:'observed',items:[]},capabilities:{musicRead:[],timerActions:[]}});
 class Stream{addEventListener(){}close(){}}
 test('nested malformed snapshots cannot mark the display connected',()=>{const t=new PodVoiceTransport({url:'https://ha.example/view/'});t.closed=false;for(const mutate of [s=>s.timers.items=null,s=>s.timers.status='invented',s=>s.capabilities.musicRead=null,s=>s.capabilities.timerActions=null]){const s=snap();mutate(s);assert.equal(t.accept(s),false);assert.equal(t.connected,false);}assert.equal(t.accept(snap()),true);t.close();});

@@ -5,7 +5,7 @@ import {readFileSync} from 'node:fs';
 // A recipe shared from a phone (Del → Home Assistant) appears on the wall screen without a
 // reload: the snapshot's recipeRevision grows, the catalogue refreshes in place, and the calm
 // status toast says "Ny opskrift: <navn>"; tapping it opens that recipe.
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const begin=source.indexOf(' recipeArrivals(snapshot){'),end=source.indexOf(' showFeedback(message,pending,options={})',begin);
 assert.ok(begin>0&&end>begin,'recipe arrival methods precede showFeedback');
 const methods=new Function('$',`return class {${source.slice(begin,end)}}`);

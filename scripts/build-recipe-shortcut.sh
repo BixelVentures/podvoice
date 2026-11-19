@@ -6,7 +6,7 @@ set -eu
 
 root=$(cd "$(dirname "$0")/.." && pwd)
 template="$root/podvoice/shortcuts/opskrifter-til-podview.plist"
-target="$root/podvoice/gatekeeper/static/podview/assets/opskrifter-til-podview.shortcut"
+target="$root/podview/public/assets/opskrifter-til-podview.shortcut"
 
 if [ "$(uname -s)" != "Darwin" ] || ! command -v shortcuts >/dev/null 2>&1; then
   echo "build-recipe-shortcut: kræver macOS med kommandoen 'shortcuts'" >&2

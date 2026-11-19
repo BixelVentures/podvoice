@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {VehiclePreviewCommand} from '../../podvoice/gatekeeper/static/podview/vehicle-preview-command.js';
-import {vehicleFixture,vehiclePreviewAction} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {VehiclePreviewCommand} from '../../podview/vehicle-preview-command.js';
+import {vehicleFixture,vehiclePreviewAction} from '../../podview/vehicle-model.js';
 function setup(options={}){
  let now=0,nextId=0;const timers=new Map(),events=[],progress=[];
  const host={live:false,state:{connected:true,focus:'vehicle',sessionId:'session-a',vehicle:vehicleFixture({controls:true}),music:{track:'keep'},timer:{id:'keep'}}};

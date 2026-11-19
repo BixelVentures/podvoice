@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {inferKind,installFrameMeter,shortUserAgent,summarizeFrames}
- from '../../podvoice/gatekeeper/static/podview/ui/frame-meter.js';
+ from '../../podview/ui/frame-meter.js';
 
 test('frame summary counts slow frames, max and p95', () => {
  const deltas=[...Array(18).fill(16.7),21,40];

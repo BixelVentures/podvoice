@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
-import {liveWeatherModel,weatherOverviewDetail} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
-const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {applyHome,validateHome} from '../../podview/home-model.js';
+import {liveWeatherModel,weatherOverviewDetail} from '../../podview/weather-view.js';
+const source=fs.readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.split(' async loadLiveHome({followup=false}={}){')[1].split('\n invalidateLiveMusic(')[0].replace(/\n }\s*$/,'');
 const load=new Function('applyHome','validateHome',`return async function({followup=false}={}){${method}}`)(applyHome,validateHome);
 const now=Date.now(),stamp=new Date(now-1000).toISOString();
@@ -28,8 +28,8 @@ test('weather detail stays closed after explicit owner denial', async t => {
  globalThis.HTMLElement = class {};
  globalThis.customElements = {define: (name, type) => registry.set(name, type), get: name => registry.get(name)};
  try {
-  await import('../../podvoice/gatekeeper/static/podview/widget-view.js');
-  const {initialScene} = await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+  await import('../../podview/widget-view.js');
+  const {initialScene} = await import('../../podview/scene-model.js');
   const {dispatch} = registry.get('pv-widget-host').prototype;
   for (const denial of ['home read denied', 'transport recovery blocked']) {
    await t.test(denial, async () => {
@@ -56,5 +56,5 @@ test('old transport/boot/room/generation failures cannot attach read-error statu
  for(const boundary of ['transport','boot','room','generation']){const h=host();let reject;h.liveTransport.home=()=>new Promise((yes,no)=>{reject=no;});const pending=load.call(h);if(boundary==='transport')h.liveTransport={connected:true};else if(boundary==='generation')h.liveHomeGeneration++;else h.liveSnapshot={...h.liveSnapshot,[boundary==='boot'?'bootId':'roomId']:'replacement'};reject(Error('old failure'));await pending;assert.equal(h.state.homeReadStatus,undefined);assert.equal(h.renders,0);}
 });
 test('canonical settings modal uses content-sized tracks and keeps existing full-viewport520/32 dialog ownership',()=>{
- const css=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');const rule=css.match(/dialog\.pv-kit-dialog:modal:not\(\[data-kit-variant=toast\]\)\{([^}]+)\}/)?.[1];assert.ok(rule);for(const declaration of ['height:fit-content','min-height:0','align-content:start','grid-auto-rows:max-content'])assert.ok(rule.includes(declaration));assert.match(css,/dialog\.pv-kit-dialog:modal\{[^}]*width:min\(520px,calc\(100vw - 2 \* var\(--pv-s4\)\)\);inset:0;margin:auto;transform:none/);assert.match(css,/\.pv-kit-dialog\{padding:var\(--pv-s4\)/);assert.match(css,/#quick-sheet\.pv-kit-dialog>\.pv-dialog-header\{margin:0;padding:0;border:0\}/);assert.match(css,/dialog\.pv-kit-dialog:modal::backdrop\{inset:0;background:var\(--pv-scrim\)\}/);assert.match(source,/brightness\.disabled!==!model/);assert.match(source,/automatic\.disabled!==!model/);
+ const css=fs.readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');const rule=css.match(/dialog\.pv-kit-dialog:modal:not\(\[data-kit-variant=toast\]\)\{([^}]+)\}/)?.[1];assert.ok(rule);for(const declaration of ['height:fit-content','min-height:0','align-content:start','grid-auto-rows:max-content'])assert.ok(rule.includes(declaration));assert.match(css,/dialog\.pv-kit-dialog:modal\{[^}]*width:min\(520px,calc\(100vw - 2 \* var\(--pv-s4\)\)\);inset:0;margin:auto;transform:none/);assert.match(css,/\.pv-kit-dialog\{padding:var\(--pv-s4\)/);assert.match(css,/#quick-sheet\.pv-kit-dialog>\.pv-dialog-header\{margin:0;padding:0;border:0\}/);assert.match(css,/dialog\.pv-kit-dialog:modal::backdrop\{inset:0;background:var\(--pv-scrim\)\}/);assert.match(source,/brightness\.disabled!==!model/);assert.match(source,/automatic\.disabled!==!model/);
 });

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {vehicleObservation} from '../../podvoice/gatekeeper/static/podview/ha-home-observation.js';
-import {vehicleModel,vehicleStatus,vehicleUpdatedLabel} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {vehicleObservation} from '../../podview/ha-home-observation.js';
+import {vehicleModel,vehicleStatus,vehicleUpdatedLabel} from '../../podview/vehicle-model.js';
 
 // B3: Tesla's own state beside the lock, like the Tesla app ("Låst · I dvale siden 17.40").
 const now=new Date(2026,10,11,21,40),at=(h,m,dayOffset=0)=>new Date(2026,10,11+dayOffset,h,m).getTime()/1000;

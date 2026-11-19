@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialScene,sceneTransition as step,binding,focusedAnswer,deviceActions,deviceLabel} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {initialScene,sceneTransition as step,binding,focusedAnswer,deviceActions,deviceLabel} from '../../podview/scene-model.js';
 const ready=(s=initialScene(),kind='comparison')=>{s=step(s,{type:'request',kind});return step(s,{type:'answer-result',...s.pendingAnswer,status:'ready'});};
 const act=(s,action,optionId,extra={})=>step(s,{type:'answer-action',...binding(s,focusedAnswer(s)),action,optionId,...extra});
 test('whole-house light fixture keeps stable action IDs and waits for the matching observed result',()=>{let s=step(initialScene(),{type:'device-demo',kind:'light',time:'12:00'});const d=s.devices[0];assert.equal(d.name,'Lys');assert.equal(d.scope,'home');assert.equal(deviceLabel(d),'2 af 4 tændt');assert.deepEqual(deviceActions(d),[{id:'turn_off',label:'Sluk alt lys'}]);s=step(s,{type:'device-action',...binding(s,d),action:'turn_off'});assert.equal(s.devices[0].status,'mixed');const pending=s.devices[0].pending;s=step(s,{type:'device-result',id:d.id,...pending,time:'12:01'});assert.equal(deviceLabel(s.devices[0]),'0 af 4 tændt');assert.deepEqual(deviceActions(s.devices[0]),[{id:'turn_on',label:'Tænd alt lys'}]);});
@@ -29,7 +29,7 @@ test('Back always follows detail → overview → Ro, irrespective origin, onlin
 test('Back from overview never resurrects removed content or an old task',()=>{let s=ready();const id=s.focus;s=step(s,{type:'show',id:'now'});s=step(s,{type:'hide',id});assert.equal(step(s,{type:'back'}).focus,'photo');s=step(s,{type:'show',id:'photo'});assert.deepEqual(s.navStack,[]);});
 
 test('shared device presentation preserves selected room, observed state and battery validity',async()=>{
- const {devicePresentation}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+ const {devicePresentation}=await import('../../podview/scene-model.js');
  const scene=step(initialScene(),{type:'device-demo',kind:'light',time:'12:00'}),device=scene.devices.find(d=>d.kind==='light');
  const room=device.lights[0].roomId;
  const p=devicePresentation({...device,lightSelectionId:`room:${room}`,pending:{operation:1}});
@@ -48,7 +48,7 @@ test('recovery clears obsolete connectivity copy without discarding an UNKNOWN a
 });
 
 test('scoped live lights present the observed room and an honest known-empty state',async()=>{
- const {devicePresentation,lightChoices}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),now=Date.now()/1000;
+ const {devicePresentation,lightChoices}=await import('../../podview/scene-model.js'),now=Date.now()/1000;
  const d={id:'podview-ha-lights',kind:'light',live:true,source:'home_assistant_state',scope:'ha_area',name:'Lys',status:'empty',lightScope:{areaId:'kitchen',areaName:'Køkkenalrum',bindingId:'a'.repeat(64),placementRevision:2,isOwnArea:true},lightSourceEpoch:'b'.repeat(64),lightObservation:{status:'observed',complete:true},observedLights:[]};
  const p=devicePresentation(d);assert.equal(p.title,'Lys · Køkkenalrum');assert.equal(p.scope,'Køkkenalrum');assert.equal(p.detail,'Ingen lys i rummet');assert.deepEqual(p.facts,[]);assert.deepEqual(deviceActions(d),[]);
  const unavailable=devicePresentation({...d,status:'unavailable',lightObservation:{status:'unavailable',complete:false}});assert.equal(unavailable.scope,'Køkkenalrum');assert.equal(unavailable.detail,'Ikke forbundet');
@@ -58,7 +58,7 @@ test('scoped live lights present the observed room and an honest known-empty sta
 });
 
 test('scoped live partial-unknown counts stay qualified and never grant local actions',async()=>{
- const {devicePresentation,lightChoices}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+ const {devicePresentation,lightChoices}=await import('../../podview/scene-model.js');
  const rows=[{entityId:'light.ceiling',areaId:'kitchen',name:'Loft',state:'on',brightness:128,supportsBrightness:true},{entityId:'light.table',areaId:'kitchen',name:'Bord',state:'off',brightness:null,supportsBrightness:false},{entityId:'light.corner',areaId:'kitchen',name:'Hjørne',state:'unknown',brightness:255,supportsBrightness:true}];
  const d={id:'podview-ha-lights',kind:'light',live:true,source:'home_assistant_state',scope:'ha_area',status:'unknown',lightScope:{areaId:'kitchen',areaName:'Køkkenalrum'},lightObservation:{status:'observed',complete:true},observedLights:rows};
  const p=devicePresentation(d);assert.equal(p.detail,'1 af 3 bekræftet tændt · 1 ukendt');assert.equal(deviceLabel(d),p.detail);assert.equal(p.stale,false);assert.deepEqual(p.facts.find(row=>row.id==='on-count'),{id:'on-count',label:'Bekræftet tændt',value:'1 af 3',stale:false});assert.deepEqual(p.facts.filter(row=>row.id.startsWith('brightness:')).map(row=>row.value),['50 %']);assert.deepEqual(deviceActions(d),[]);
@@ -70,7 +70,7 @@ test('scoped live partial-unknown counts stay qualified and never grant local ac
 });
 
 test('scoped light room catalogue expiry or identity mismatch retains names but disables navigation',async()=>{
- const {lightChoices}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),now=Date.now()/1000;
+ const {lightChoices}=await import('../../podview/scene-model.js'),now=Date.now()/1000;
  const d={kind:'light',live:true,scope:'ha_area',lightSourceEpoch:'b'.repeat(64),lightScope:{areaId:'kitchen',areaName:'Køkkenalrum',bindingId:'a'.repeat(64),placementRevision:2},observedLights:[]};
  const catalogue={status:'observed',source:'home_assistant_area_registry',sourceEpoch:d.lightSourceEpoch,observedAt:now,validUntil:now+15,bindingId:d.lightScope.bindingId,placementRevision:2,ownAreaId:'kitchen',selectedAreaId:'kitchen',items:[{areaId:'kitchen',areaName:'Køkkenalrum'},{areaId:'hall',areaName:'Gang'}]};
  const before=structuredClone(catalogue);

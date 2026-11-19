@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
 const snapshot=()=>({bootId:'boot',roomId:'room',voice:{},capabilities:{musicRead:['mood','targets','top'],musicSelection:false}});
 const themes=[['cooking','Musik til madlavningen','assets/kitchen.png'],['italian','En italiensk aften','assets/italian.png'],['calm','En rolig stund','assets/lake.png']];
 function body(){return {ok:true,schema:'podview.mood-preview.v1',preview:{readOnly:true,bootId:'boot',roomId:'room',configEntryId:'account',ownerEpoch:'epoch',source:'spotify_web_api',expiresIn:60,voiceSessionId:null,voiceTurnId:null},data:{config_entry_id:'account',owner_epoch:'epoch',source:'spotify_web_api',tracks:themes.map(([themeId,themeTitle,themeArt],i)=>({uri:'spotify:playlist:'+String(i).padStart(22,'0'),name:'Actual '+i,artist:themeTitle,themeId,themeTitle,themeArt}))}};}

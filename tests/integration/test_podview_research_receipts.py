@@ -105,7 +105,7 @@ async def test_real_source_to_actual_ingress_native_union_and_source_view(family
         else:
             assert source["sourceText"] == result["data"]["result"]["output"]
             assert source["externalSourcesProvided"] is False
-        module = Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/owner-answers.js"
+        module = Path(__file__).parents[2] / "podview/owner-answers.js"
         script = f"""import {{ownedAnswers,ownedSource}} from {json.dumps(module.as_uri())};
 let input='';for await(const chunk of process.stdin) input+=chunk;
 const {{answers,snapshot,source,now}}=JSON.parse(input);

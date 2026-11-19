@@ -28,9 +28,9 @@ globalThis.document=doc;
 globalThis.HTMLElement??=class {};
 globalThis.customElements??={define(){},get(){}};
 
-const {SvarTodayView,svarUnseenCount,svarNewLabel}=await import('../../podvoice/gatekeeper/static/podview/svar-today-view.js');
-const {LightRoomView}=await import('../../podvoice/gatekeeper/static/podview/light-room-view.js');
-const {lightSelection}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
+const {SvarTodayView,svarUnseenCount,svarNewLabel}=await import('../../podview/svar-today-view.js');
+const {LightRoomView}=await import('../../podview/light-room-view.js');
+const {lightSelection}=await import('../../podview/scene-model.js');
 
 function svar(){const root=doc.createElement('aside'),header=doc.createElement('header'),h=doc.createElement('h2'),list=doc.createElement('div');
  list.className='svar-today-rows';header.append(h);root.append(header,list);const opened=[];const view=new SvarTodayView(root,id=>opened.push(id));return {root,list,view,opened};}
@@ -68,7 +68,7 @@ test('the count starts over when the Svar page is left',()=>{
  assert.equal(svarUnseenCount([row('x')],null),0);assert.equal(svarNewLabel(1),'1 nyt svar');assert.equal(svarNewLabel(3),'3 nye svar');
 });
 
-const kitCss=()=>readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+const kitCss=()=>readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
 test('the pill is the canvas K-Btn 44: primary, up icon 18, floating 8 under the list top without pushing it',()=>{
  const css=kitCss();
  assert.match(css,/#svar-today>\.svar-today-new\.svar-today-new\{position:absolute;z-index:3;left:50%;top:56px;transform:translateX\(-50%\);\s*height:44px;[^}]*border-radius:999px;background:#17171A;\s*color:#F7F6F3;[^}]*box-shadow:0 10px 24px -10px rgba\(23,23,26,\.55\)/);
@@ -97,7 +97,7 @@ test('»Tidligere svar« rows are one line: category chip with the kind icon, th
 });
 
 test('row time: »19.04« today, »i går 19.04« yesterday, otherwise »12. nov. 19.04«',async()=>{
- const {svarTime}=await import('../../podvoice/gatekeeper/static/podview/svar-today-view.js');
+ const {svarTime}=await import('../../podview/svar-today-view.js');
  const now=new Date(2026,10,17,21,0),at=(d,h,m)=>new Date(2026,10,d,h,m).getTime()/1000;
  assert.equal(svarTime(at(17,19,4),now),'19.04');
  assert.equal(svarTime(at(16,19,4),now),'i går 19.04');
@@ -106,7 +106,7 @@ test('row time: »19.04« today, »i går 19.04« yesterday, otherwise »12. nov
 
 test('every saved answer is its own row, newest first; the live copy of the answer being read is not doubled',
  async()=>{
- const {svarTodayRows}=await import('../../podvoice/gatekeeper/static/podview/svar-today-view.js');
+ const {svarTodayRows}=await import('../../podview/svar-today-view.js');
  const now=new Date(2026,10,17,21,0),t=(h,m)=>new Date(2026,10,17,h,m).getTime()/1000;
  const answer=(id,observedAt,extra={})=>({id:'receipt:'+id,receiptId:id,title:id,kind:'key-points',observedAt,
   ...extra});
@@ -120,7 +120,7 @@ test('every saved answer is its own row, newest first; the live copy of the answ
 });
 
 test('a round is every answer of one voice session, whatever its topic; another session never joins',async()=>{
- const {answerThread}=await import('../../podvoice/gatekeeper/static/podview/owner-answers.js');
+ const {answerThread}=await import('../../podview/owner-answers.js');
  const answer=(id,sessionId,observedAt,extra={})=>({id,receiptId:id,sessionId,observedAt,presentation:true,
   status:'ready',kind:'key-points',...extra});
  const answers=[answer('sport','s1',10),answer('weather','s1',20,{kind:'fact-card',provenance:{kind:'ha_weather'}}),
@@ -132,7 +132,7 @@ test('a round is every answer of one voice session, whatever its topic; another 
 });
 
 test('svarDomain reads the tone from the answer\'s own data only',async()=>{
- const {svarDomain}=await import('../../podvoice/gatekeeper/static/podview/svar-today-view.js');
+ const {svarDomain}=await import('../../podview/svar-today-view.js');
  assert.equal(svarDomain({provenance:{kind:'ha_weather'}}),'weather');
  assert.equal(svarDomain({kind:'sourced-image',content:{image:{kind:'album_cover'}}}),'music');
  assert.equal(svarDomain({kind:'sourced-image',content:{image:{kind:'photo'}}}),'answer');
@@ -185,5 +185,5 @@ test('Lys-Ukendt says »Status ukendt« and shows the compact info line, never �
  for(const e of view.rows.values())assert.equal(e.power.disabled,true);
  const fresh=lightHost(true);const freshView=new LightRoomView(fresh.host);freshView.render(fresh.light);
  assert.equal(freshView.notice.hidden,true);
- assert.doesNotMatch(readFileSync(new URL('../../podvoice/gatekeeper/static/podview/light-room-view.js',import.meta.url),'utf8'),/Ikke opdateret/);
+ assert.doesNotMatch(readFileSync(new URL('../../podview/light-room-view.js',import.meta.url),'utf8'),/Ikke opdateret/);
 });

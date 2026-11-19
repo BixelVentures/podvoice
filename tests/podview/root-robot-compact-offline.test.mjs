@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LocalRobotView} from '../../podvoice/gatekeeper/static/podview/local-robot-view.js';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {LocalRobotView} from '../../podview/local-robot-view.js';
+import {previewScene} from '../../podview/preview-scenes.js';
 const fixture=()=>{const device={id:'demo-vacuum',kind:'vacuum',status:'cleaning',timeline:[]},host={live:false,previewStage:'now',state:{connected:true,focus:device.id,devices:[device]},renders:0,render(){this.renders++;}},view=Object.assign(Object.create(LocalRobotView.prototype),{host,serial:0,panel:{suggest(value){this.suggestion=value;return true;}},note:{},receipt:{},entry:{hidden:true}});host.localRobot=view;view.seed();return {view,host,device};};
 test('initial offline render mounts the canonical read-only robot panel and reconnect creates offers without effects',t=>{
  const nodes=new Map(),makeNode=()=>({hidden:false,dataset:{},children:[],setAttribute(){},addEventListener(){},append(...items){this.children.push(...items);},insertBefore(item,before){const old=this.children.indexOf(item);if(old!==-1)this.children.splice(old,1);const at=this.children.indexOf(before);this.children.splice(at<0?this.children.length:at,0,item);},remove(){},closest(){return this.historySection;}});const timeline=makeNode();timeline.historySection=makeNode();nodes.set('device-timeline',timeline);nodes.set('device-view',makeNode());nodes.set('robot-recent',makeNode());t.mock.method(globalThis,'setTimeout',()=>({unref(){}}));t.mock.method(globalThis,'clearTimeout',()=>{});const prior=globalThis.document;globalThis.document={getElementById:id=>nodes.get(id),createElement:()=>makeNode()};t.after(()=>{globalThis.document=prior;});

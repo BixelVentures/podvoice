@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const snap = (revision=1) => ({schema:'podview.snapshot.v1',bootId:'b1',roomId:'kitchen',revision,voice:{phase:'LISTENING'},timers:{status:'observed',epoch:'e1',items:[]},capabilities:{musicRead:['liked'],timerActions:[]}});
 class Stream {constructor(url){this.url=url;this.events={};Stream.last=this;}addEventListener(name,callback){this.events[name]=callback;}close(){this.closed=true;}send(value){this.events.snapshot({data:JSON.stringify(value)});}}
 test('requires ingress, preserves prefix, handles snapshots and disconnect without replay',async()=>{

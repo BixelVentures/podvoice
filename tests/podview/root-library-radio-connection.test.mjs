@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8');
 const start=source.indexOf('function radioPreviewConnection('),end=source.indexOf('\nradioConnectionPreview.addEventListener',start);
 const forward=new Function('location',`${source.slice(start,end)};return radioPreviewConnection;`)({origin:'http://localhost:53882'});
 function fixture(){const events=[],host={live:false,dataset:{mode:'demo'},state:{connected:true,generation:7},dispatch(event){events.push(event);this.state.connected=event.type==='snapshot';}},doc={location:{origin:'http://localhost:53882',pathname:'/'},querySelector:()=>host};return{host,doc,frame:{contentDocument:doc},events,calls:()=>events.length};}

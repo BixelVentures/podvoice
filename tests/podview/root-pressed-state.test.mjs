@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {attachPressedState,pressScale} from '../../podvoice/gatekeeper/static/podview/ui/pressed-state.js';
+import {attachPressedState,pressScale} from '../../podview/ui/pressed-state.js';
 
 // P3 press (docs/MOTION.md): Web Animations on the pressed control only, on compositor properties only (scale,
 // opacity, translate): no box-shadow, left, top, width or height. Springs are plain keyframes, not a linear() easing,

@@ -1,10 +1,10 @@
 import {boundPlayback,targetEnvelope} from './room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,selectionOffer} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {collectionSample,collectionCurrent,collectionSelection,renewCollectionSelection,selectionOffer} from '../../podview/music-selection-model.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+import {LiveMusicSelectionView} from '../../podview/live-music-selection-view.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const snapshot=()=>({bootId:'boot',roomId:'room',capabilities:{musicRead:['top','recent','liked','targets'],musicSelection:true},answers:{},voice:{}});
 const art=index=>({kind:'album_cover',provider:'spotify',url:`https://i.scdn.co/image/cover${index}`});
 function body(kind='top',count=6){return {ok:true,data:{config_entry_id:'account',tracks:Array.from({length:count},(_,index)=>({name:`Actual ${index}`,artist:'Actual artist',uri:`spotify:track:${String(index).padStart(22,'0')}`,artwork:art(index)}))},selection:{requested_limit:20,source_sample_count:count,returned_count:count,more_in_sample:false,size_limited:false},candidateSet:{schema:'podview.music-search-context.v1',bootId:'boot',roomId:'room',configEntryId:'account',source:'spotify_web_api',query:`${kind}:collection`,sourceKind:kind,candidateSetId:'a'.repeat(64),revisionScope:'music_selection',sessionId:'touch:session',turnId:'touch:turn',taskId:'touch:task',inputRevision:1,revision:1,items:Array.from({length:count},(_,index)=>({id:String(index).padStart(24,'a'),index}))}};}

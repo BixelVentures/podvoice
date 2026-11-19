@@ -2,9 +2,9 @@
 // (or not updated) radio does not take the player, so the music card and the player agree.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveRadioView} from '../../podvoice/gatekeeper/static/podview/live-radio-view.js';
-import {stations} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
-import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
+import {LiveRadioView} from '../../podview/live-radio-view.js';
+import {stations} from '../../podview/radio-model.js';
+import {PlayerView} from '../../podview/player-view.js';
 
 const now = Date.now(), snapshot = {bootId: 'boot', roomId: 'room'};
 const stopped = (overrides = {}) => ({

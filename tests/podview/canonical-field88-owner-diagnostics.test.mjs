@@ -1,17 +1,17 @@
-import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
+import {PlayerView} from '../../podview/player-view.js';
+import {SpeakerOutputView} from '../../podview/speaker-output-view.js';
 import {bindRoom,boundPlayback} from './room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-control-view.js';
+import {LiveControlView} from '../../podview/live-control-view.js';
 class Node extends EventTarget{constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.isConnected=true;this.open=false;this.dataset={};this.textContent='';}append(...nodes){this.children.push(...nodes);}after(node){this.sibling=node;}setAttribute(name,value){this.attributes??={};this.attributes[name]=String(value);if(name.startsWith('data-'))this.dataset[name.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}getAttribute(name){return this.attributes?.[name]??null;}replaceChildren(...nodes){this.children=nodes;}querySelector(){return null;}querySelectorAll(){return [];}focus(){}showModal(){this.open=true;}close(){this.open=false;this.dispatchEvent(new Event('close'));}}
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve};};
 const observed=()=>({config_entry_id:'account',owner_epoch:'epoch',poll_sequence:1,expiresAt:Date.now()+15000,state:'playing',item:{uri:'spotify:track:0123456789ABCDEFGHIJKL'},target:{id:'device'}});
 function fixture(){const previous=globalThis.document,nodes=new Map(),selectors=new Map();const node=id=>{if(!nodes.has(id))nodes.set(id,new Node('div'));return nodes.get(id);};globalThis.document={createElement:tag=>new Node(tag),getElementById:node,querySelector:selector=>selectors.get(selector)||null};const host=new Node('host');host.state={devices:[{id:'vacuum.actual',kind:'vacuum',live:true,stale:false,status:'cleaning'}]};host.liveMedia={playback:observed()};host.liveSnapshot={bootId:'boot',roomId:'room',capabilities:{controlSetup:['music']}};host.liveMedia.playback=boundPlayback(host.liveSnapshot,host.liveMedia.playback);host.querySelector=selector=>{if(!selectors.has(selector))selectors.set(selector,new Node('div'));return selectors.get(selector);};let reads=0;const writes=[];const offer=(options=['pause','resume','next','previous','volume'],volume=20)=>({ok:true,schema:'podview.control.v1',roomId:'room',bootId:'boot',domain:'music',taskId:'offer-'+(++reads),revision:1,expiresAt:Date.now()/1000+30,options:options.map(action=>({id:`opaque-${reads}-${action}`,action,label:action,argsSchema:action==='volume'?{kind:'percent',min:0,max:50}:{kind:'none'}})),expectedBindingId:host.liveMedia.playback.roomBinding.bindingId,setup:{volume}});host.liveTransport={connected:true,controlSetup:async()=>offer(),controlAction:async(task,id,args)=>{writes.push({task,id,args});return {ok:true,outcome:'accepted',requestId:'receipt'};}};const view=new LiveControlView(host);return {host,view,nodes,selectors,offer,writes,reads:()=>reads,restore(){view.cleanup();globalThis.document=previous;}};}
 
 
-import {LiveQueueView} from '../../podvoice/gatekeeper/static/podview/live-queue-view.js';
-import {NotificationQueue} from '../../podvoice/gatekeeper/static/podview/ui/notification-queue.js';
+import {LiveQueueView} from '../../podview/live-queue-view.js';
+import {NotificationQueue} from '../../podview/ui/notification-queue.js';
 function queueFixture(){
  let serial=0,clock=0;const timers=new Map(),renders=[],actions=[],reads=[];
  const notifications=new NotificationQueue(item=>renders.push(item),{setTimer(callback){const id=++clock;timers.set(id,callback);return id;},clearTimer:id=>timers.delete(id)});
@@ -31,8 +31,8 @@ test('queue valid-empty is distinct from invalid DTO and unknown action keeps ex
  }finally{f.close();}
 });
 
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+import {LiveMusicSelectionView} from '../../podview/live-music-selection-view.js';
 const snapshot=()=>({bootId:'boot',roomId:'room',capabilities:{musicRead:['top','recent','liked','targets'],musicSelection:true},answers:{},voice:{}});
 const art=index=>({kind:'album_cover',provider:'spotify',url:`https://i.scdn.co/image/cover${index}`});
 function body(kind='top',count=6){return {ok:true,data:{config_entry_id:'account',tracks:Array.from({length:count},(_,index)=>({name:`Actual ${index}`,artist:'Actual artist',uri:`spotify:track:${String(index).padStart(22,'0')}`,artwork:art(index)}))},selection:{requested_limit:20,source_sample_count:count,returned_count:count,more_in_sample:false,size_limited:false},candidateSet:{schema:'podview.music-search-context.v1',bootId:'boot',roomId:'room',configEntryId:'account',source:'spotify_web_api',query:`${kind}:collection`,sourceKind:kind,candidateSetId:'a'.repeat(64),revisionScope:'music_selection',sessionId:'touch:session',turnId:'touch:turn',taskId:'touch:task',inputRevision:1,revision:1,items:Array.from({length:count},(_,index)=>({id:String(index).padStart(24,'a'),index}))}};}

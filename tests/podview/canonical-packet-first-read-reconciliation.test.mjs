@@ -1,8 +1,8 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-import {homeConnectionPresentation,liveScene} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {applyHome,validateHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
-import {initialScene,deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts,robotDetailMetadata} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {homeConnectionPresentation,liveScene} from '../../podview/podvoice-view.js';
+import {applyHome,validateHome} from '../../podview/home-model.js';
+import {initialScene,deviceLabel,lightSelection,devicePresentation,deviceOverviewFacts,robotDetailMetadata} from '../../podview/scene-model.js';
+const source=fs.readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const suspendCode=source.slice(source.indexOf(' suspendLiveTimer(){'),source.indexOf('\n reconcileLiveTimer('));
 const suspendLiveTimer=new Function(`return ({${suspendCode}}).suspendLiveTimer`)();
 const start=Math.min(source.indexOf(' for(const [id,node] of this.deviceNodes)'),source.indexOf(" const activities=$('device-activities')")),end=source.indexOf(' for(const[id,node]of this.answerNodes)',start);

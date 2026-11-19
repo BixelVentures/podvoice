@@ -13,8 +13,8 @@ const BASE_ALONE = new Set(['robot', 'music']);
 const MUSIC = ['room_player', 'music', 'music_push', 'music_selection', 'radio'];
 const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty', 'setup_flow'];
 
-// PodView sources that only one feature's screens load. The built bundles are checked against
-// their sources by the `ui` job, so the sources decide.
+// PodView sources (podview/) that only one feature's screens load. The built output in
+// podvoice/gatekeeper/static/podview is checked against its sources by the `ui` job, so the sources decide.
 const PODVIEW_FEATURES = [
   [/^(robot-|local-robot-view\.js)/, ['robot', 'robot_ux']],
   [/^(music-|live-music|live-queue-view|player-view|room-player|speaker-output-view|spotify-artwork|library)/,
@@ -26,8 +26,8 @@ const PODVIEW_FEATURES = [
   [/^(answer-widget|live-answer-view|owner-answers|research-answers)/, ['answers']],
   [/^setup\./, ['panel']],
 ];
-const PODVIEW_BUILT = new Set(['podview.bundle.js', 'library.bundle.js', 'podview.css',
-  'asset-manifest.json']);
+// React screens: podview/src/screens/<screen>/.
+const PODVIEW_SCREENS = {weather: ['home_events']};
 // Server modules named after one feature. Shared modules (podview.py, web.py, tools.py, ...) run all.
 const SERVER_FEATURES = [
   [/^(podview_robot|podview_vacuum_|podview_dock_control|robot_settings|cleaning_journal)/,
@@ -64,9 +64,11 @@ function onlyVersionChanged(base, head, file) {
 function journeysFor(file, base, head) {
   if (NEUTRAL.some(pattern => pattern.test(file))) return [];
   if (VERSION_FILES.has(file) && onlyVersionChanged(base, head, file)) return [];
-  const podview = file.match(/^podvoice\/gatekeeper\/static\/podview\/([^/]+)$/);
+  if (file.startsWith('podvoice/gatekeeper/static/podview/')) return [];
+  const screen = file.match(/^podview\/src\/screens\/([a-z-]+)\//);
+  if (screen) return PODVIEW_SCREENS[screen[1]] ?? ALL;
+  const podview = file.match(/^podview\/([^/]+)$/);
   if (podview) {
-    if (PODVIEW_BUILT.has(podview[1])) return [];
     const feature = PODVIEW_FEATURES.find(([pattern]) => pattern.test(podview[1]));
     return feature ? feature[1] : ALL;
   }

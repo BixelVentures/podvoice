@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {AnswerAutoReturn,autoReturnCandidate} from '../../podvoice/gatekeeper/static/podview/ui/answer-auto-return.js';
-import {ScreenLifecycle} from '../../podvoice/gatekeeper/static/podview/ui/screen-lifecycle.js';
-import {previewScene,conversationPreviewStates} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {AnswerAutoReturn,autoReturnCandidate} from '../../podview/ui/answer-auto-return.js';
+import {ScreenLifecycle} from '../../podview/ui/screen-lifecycle.js';
+import {previewScene,conversationPreviewStates} from '../../podview/preview-scenes.js';
+import {sceneTransition} from '../../podview/scene-model.js';
 function setup(stage='conversation-complete'){
  let now=0,serial=0;const timers=new Map(),listeners=new Map();
  const doc={visibilityState:'visible',blocked:false,querySelector(){return this.blocked?{}:null;},addEventListener(type,fn){listeners.set(type,fn);},removeEventListener(type){listeners.delete(type);}};
@@ -68,7 +68,7 @@ test('completed typed fixtures use a bound owner completion; stage names and rea
  for(const stage of ['answer-concise-waiting','answer-concise-partial','answer-concise-error','answer-concise-empty','answer-concise-offline','answer-concise-interrupted','answer-steps-ready','answer-checklist-ready','conversation-visual','conversation-followup'])assert.equal(autoReturnCandidate(setup(stage).host)?.eligible||false,false,stage);
  const f=setup('answer-concise-ready'),completion=f.host.state.localAnswerCompletion;for(const bad of [null,{...completion,answerId:'other'},{...completion,revision:completion.revision+1},{...completion,voice:'speaking'},{...completion,visual:'partial'}]){f.host.state.localAnswerCompletion=bad;f.host.previewStage='conversation-complete';assert.equal(autoReturnCandidate(f.host).eligible,false);}
 });
-const widgetSource=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),applySource=widgetSource.slice(widgetSource.indexOf(' applyConversationPreview('),widgetSource.indexOf('\n disconnectedCallback(')).trim(),scheduleSource=widgetSource.slice(widgetSource.indexOf(' scheduleAnswer(){'),widgetSource.indexOf('\n scheduleTick(){')).trim();
+const widgetSource=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),applySource=widgetSource.slice(widgetSource.indexOf(' applyConversationPreview('),widgetSource.indexOf('\n disconnectedCallback(')).trim(),scheduleSource=widgetSource.slice(widgetSource.indexOf(' scheduleAnswer(){'),widgetSource.indexOf('\n scheduleTick(){')).trim();
 function finiteVoiceFlow(){const f=setup('conversation-visual'),{host,controller,clock}=f;host.frozenPreview=true;host.render=()=>controller.sync();host.scheduleTick=()=>{};host.scheduleAnswer=new Function('setTimeout','clearTimeout',`return function ${scheduleSource}`)(clock.setTimeout,clock.clearTimeout);host.applyConversationPreview=new Function('previewScene','conversationPreviewStates','sceneTransition',`return function ${applySource}`)(previewScene,conversationPreviewStates,sceneTransition);return f;}
 test('authored speaking phase finishes through the existing answer flow, then starts the full 30s quiet period',()=>{
  const {host,controller,timers,advance}=finiteVoiceFlow(),before=host.state;controller.sync();assert.equal(timers.size,0);host.scheduleAnswer();advance(3999);assert.equal(host.state.voicePreviewPhase,'AI_SPEAKING');assert.equal(host.state.localAnswerCompletion,undefined);advance(1);assert.equal(host.state.voicePreviewPhase,'IDLE');assert.deepEqual(host.state.localAnswerCompletion,{answerId:before.focus,revision:before.answers[0].revision,voice:'completed',visual:'completed'});advance(29999);assert.equal(host.state.focus,before.focus);advance(1);assert.equal(host.state.focus,'now');for(const key of ['answers','music','timer','extraTimers'])assert.strictEqual(host.state[key],before[key]);controller.cleanup();

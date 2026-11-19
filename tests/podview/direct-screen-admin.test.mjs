@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const source=readFileSync(new URL('../../dist/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 function fixture(handled=true){
  const calls=[],nodes=new Map(),doc={defaultView:{navigator:{onLine:true},location:{origin:'https://ha.example'}}};
  class Node extends EventTarget{constructor(tag){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attrs=new Map();this.style={getPropertyValue:()=>'',setProperty(){}};this.value='';this.textContent='';this.className='';}append(...items){this.children.push(...items);}getAttribute(k){return this.attrs.get(k)??null;}setAttribute(k,v){this.attrs.set(k,String(v));}removeAttribute(k){this.attrs.delete(k);}}

@@ -12,11 +12,11 @@ serverer PodView og taler med HA. Musik og højttalere ejes af PodConnect (separ
 
 | Lag | Hvor |
 |---|---|
-| Skærm (browser) | `podvoice/gatekeeper/static/podview/*.js` |
+| Skærm (browser) | `podview/`: React-skærme i `podview/src/screens/<skærm>/` (TSX); endnu ikke flyttede skærme som `podview/*.js`. `podvoice/gatekeeper/static/podview/` er det byggede output (rør det aldrig i hånden) |
 | PodVoice-server, PodView-API | `podvoice/gatekeeper/podview*.py`, `web.py`, `tools.py` |
 | HA-integration (PodVoice) | `custom_components/podvoice/` |
 | Musik/højttaler-kommandoer | PodConnect: `custom_components/podconnect/` og `podconnect/manager/` (Go) |
-| Tests: skærm | `tests/podview/*.test.mjs` (node), `tests/browser/*_actual_e2e.cjs` (rigtig browser) |
+| Tests: skærm | `podview/src/**/*.test.{ts,tsx}` (Vitest + Testing Library), `tests/podview/*.test.mjs` (gamle skærme, node), `tests/browser/*_actual_e2e.cjs` (rigtig browser) |
 | Tests: server | `tests/unit`, `tests/integration` (pytest), `tests/ha_framework` (rigtig HA) |
 
 ## Arbejdsgang for et issue
@@ -55,9 +55,10 @@ samme undersøgelse; skift tilgang eller skriv præcist, hvad du mangler.
 - Ny og ændret kode skal kunne læses: almindelig formatering, ingen linjer over 120 tegn.
 - Én tilstandsmodel pr. feature på skærmen; ingen nye vagt-tjek-lag ovenpå eksisterende.
 - Hemmeligheder, tokens og persondata må aldrig logges.
-- PodView-assets: efter ændring i `static/podview/*.js|css` kør `npm run build:assets`,
-  kopiér ændrede `podview.bundle.js`, `library.bundle.js`, `podview.css` fra `dist/`
-  tilbage og opdatér `asset-manifest.json` (sha256). `npm test` fortæller, hvis du glemmer det.
+- PodView er React 19 + TypeScript (strict) på Vite. Ny skærmkode er TSX i `podview/src/`; bevægelse med
+  `motion/react` efter `docs/MOTION.md`. En gammel skærm flyttes til React i sin helhed, med sine tests i Vitest.
+- Efter enhver ændring i `podview/`: `npm run build` og commit output i `podvoice/gatekeeper/static/podview/`
+  (add-on-imaget har ingen Node). CI fejler, hvis output ikke matcher kilden.
 
 ## Det gør du ikke
 
@@ -71,13 +72,14 @@ samme undersøgelse; skift tilgang eller skriv præcist, hvad du mangler.
 
 ```sh
 python3.12 -m venv .venv && .venv/bin/pip install -r podvoice/requirements.txt -r podvoice/requirements-dev.txt
-npm ci
+npm ci                                                             # Node 24 (.nvmrc)
 
 .venv/bin/python -m pytest -n auto tests/unit tests/integration   # server
 .venv/bin/ruff check . && .venv/bin/ruff format --check . && .venv/bin/mypy podvoice/gatekeeper
-npm test                                                           # PodView (bygger først)
+npm test                                     # PodView: build + Vitest + gamle node-tests
+npm run typecheck && npm run lint            # TypeScript og ESLint for podview/src
 node tests/browser/podview_actual_journeys.cjs                     # brugerrejser i rigtig browser
-npm run dev -- --host 127.0.0.1 --port 4173                        # PodView-preview med testdata
+npm run dev                                  # Vite-preview med testdata på 127.0.0.1:4173
 ```
 
 ### Visuelt overblik

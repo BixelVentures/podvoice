@@ -1,16 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
-import {localPlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {timerTime,timerStateLabel} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
-import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
+import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podview/scene-model.js';
+import {previewScene} from '../../podview/preview-scenes.js';
+import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
+import {localPlayerModel} from '../../podview/player-view.js';
+import {timerTime,timerStateLabel} from '../../podview/timer-model.js';
+import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/weather-view.js';
 
 // Actual host projection with an inert port at the canonical retained renderer.
 // This proves data survives the adapter; browser evidence owns density/layout.
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const method=source.slice(source.indexOf(' renderOverviewFacts('),source.indexOf(' renderResourceRail(){')).trim();
 function projection({live=false,vm=localPlayerModel(initialScene()),vehicle=vehicleFixture({charging:true}),timer=null,state=initialScene()}={}){
  const calls=new Map(),nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{id});return nodes.get(id);};
@@ -41,7 +41,7 @@ test('radio and empty/stale variants omit unsupported program/album/future-time 
 
 
 test('Robot Hero metadata puts actual battery first and qualifies inactive cleaning measurements',async()=>{
- const {robotDetailMetadata}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),at=Date.now()/1000,telemetry={status:'observed',items:[{key:'cleaning_area',value:12.5,unit:'m²',updatedAt:at,stale:false},{key:'cleaning_time',value:600,unit:'s',updatedAt:at,stale:false}]};
+ const {robotDetailMetadata}=await import('../../podview/scene-model.js'),at=Date.now()/1000,telemetry={status:'observed',items:[{key:'cleaning_area',value:12.5,unit:'m²',updatedAt:at,stale:false},{key:'cleaning_time',value:600,unit:'s',updatedAt:at,stale:false}]};
  assert.equal(robotDetailMetadata({kind:'vacuum',status:'docked',battery:76,telemetry},at),'Batteri 76 % · Senest: 12,5 m² · 10 min');
  assert.equal(robotDetailMetadata({kind:'vacuum',status:'cleaning',battery:76,telemetry},at),'Batteri 76 % · 12,5 m² · 10 min');
  assert.equal(robotDetailMetadata({kind:'vacuum',status:'paused',battery:0,telemetry},at),'Batteri 0 % · 12,5 m² · 10 min');
@@ -50,7 +50,7 @@ test('Robot Hero metadata puts actual battery first and qualifies inactive clean
 });
 
 test('music position meter requires current admitted position; synthetic timing is scoped to explicit local QA',async()=>{
- const {livePlayerModel}=await import('../../podvoice/gatekeeper/static/podview/player-view.js'),{boundPlayback}=await import('./room-fixture.mjs');
+ const {livePlayerModel}=await import('../../podview/player-view.js'),{boundPlayback}=await import('./room-fixture.mjs');
  const snapshot={roomId:'room',bootId:'boot'},playback=boundPlayback(snapshot,{state:'playing',status:'observed',observedAt:Date.now()/1000,expiresAt:Date.now()+30000,progressMs:84000,item:{name:'Observed song',artists:['Observed artist'],duration_ms:180000,uri:'spotify:track:0123456789ABCDEFGHIJKL'},target:{name:'Observed room'}});
  const vm=livePlayerModel(playback,true,'ready',snapshot);assert.equal(vm.positionFresh,true);
  const facts=projection({live:true,vm}).calls.get('home-music').facts,position=facts.find(row=>row.id==='position');assert.deepEqual(position,{id:'position',label:'1:24',value:'3:00',stale:false,meter:{value:84000,max:180000}});assert(facts.some(row=>row.id==='remaining'));assert(facts.some(row=>row.id==='duration'));
@@ -61,7 +61,7 @@ test('music position meter requires current admitted position; synthetic timing 
 });
 
 test('Robot progress meter preserves validated observed percent and disappears when stale or absent',async()=>{
- const {robotObservation}=await import('../../podvoice/gatekeeper/static/podview/robot-observation.js'),now=Date.now()/1000;
+ const {robotObservation}=await import('../../podview/robot-observation.js'),now=Date.now()/1000;
  const telemetry={schema:'podview.robot.v1',status:'observed',source:'home_assistant_roborock',vacuumEntityId:'vacuum.robot',items:[{entityId:'sensor.clean_percent',key:'clean_percent',value:38,unit:'%',updatedAt:now,retrievedAt:now,stale:false}]};
  const observed=robotObservation(telemetry,'vacuum.robot');assert.equal(observed.status,'observed');
  const robot={kind:'vacuum',status:'cleaning',telemetry:observed};assert.deepEqual(deviceOverviewFacts(robot,now).facts.find(row=>row.id==='progress').meter,{value:38,max:100});

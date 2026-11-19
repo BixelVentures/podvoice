@@ -1,0 +1,142 @@
+[
+  {
+    "title": "Apple HomeView — produkt",
+    "url": "https://www.apple.com/apple-homeview/",
+    "note": "Ét visuelt hovedemne; artwork får en reel plads i musikvisning."
+  },
+  {
+    "title": "Apple HomeView — annoncering",
+    "url": "https://www.apple.com/newsroom/2026/10/meet-apple-homeview-a-new-way-to-enjoy-entertainment-and-manage-the-home/",
+    "note": "To tætheder: ro på afstand, aktivt svar ved berøring eller PodVoice-hændelse."
+  },
+  {
+    "title": "Apple StandBy",
+    "url": "https://support.apple.com/en-ph/guide/iphone/iph878d77632/ios",
+    "note": "Et fotofremadrettet hvilested med ur; entydig retning for navigation versus indhold."
+  },
+  {
+    "title": "Apple Watch Smart Stack",
+    "url": "https://support.apple.com/en-nz/guide/watch/apdecf142fb9/watchos",
+    "note": "Kompakt aktivitetsoversigt med samme objekt i detaljevisning."
+  },
+  {
+    "title": "Apple Home — oversigt",
+    "url": "https://support.apple.com/en-ie/guide/iphone/iph22d98bbca/ios",
+    "note": "Rum ved musik og lys; samme navngivne intention kan vælges via tale og touch."
+  },
+  {
+    "title": "Echo Show 8/11 og Alexa+",
+    "url": "https://www.aboutamazon.com/news/devices/getting-started-echo-show-8-11-alexa-plus-features",
+    "note": "Vis opfølgning i relation til det aktive svar; adskil musikvalg fra afspilning."
+  },
+  {
+    "title": "Alexa+ funktioner og widgets",
+    "url": "https://www.aboutamazon.com/news/devices/new-alexa-plus-amazon-devices",
+    "note": "PodVoice må opdatere den aktuelle flade; compact/detail er to størrelser af samme widget."
+  },
+  {
+    "title": "Echo Show Adaptive Content og Echo Hub",
+    "url": "https://press.aboutamazon.com/2023/9/amazon-unveils-next-generation-echo-show-8-all-new-echo-hub-and-new-echo-frames",
+    "note": "Ur/foto er et færdigt produktstadie, ikke “intet indhold”. Aktiv tilstand viser handlingsmuligheder."
+  },
+  {
+    "title": "Alexa widget-introduktion",
+    "url": "https://developer.amazon.com/en-US/alexa/alexa-haus/widget-introduction",
+    "note": "Ressourcepreview → afgrænset detalje; hver størrelse komponeres bevidst."
+  },
+  {
+    "title": "Google Nest — skærmkontrol",
+    "url": "https://support.google.com/googlehome/answer/9137285?hl=en-AU",
+    "note": "Foto→Lige nu, synlig Tilbage, synlige hurtigkontroller og tilsvarende gestus."
+  },
+  {
+    "title": "Google Nest — Photo Frame",
+    "url": "https://support.google.com/googlehome/answer/9136992?hl=en-EN",
+    "note": "Ur + dato + kompakt vejr; prioriter billedet; vis kun relevant aktivitet."
+  },
+  {
+    "title": "Google Home — nyt design",
+    "url": "https://home.google.com/get-inspired/the-new-google-home-built-around-you/",
+    "note": "“Lige nu” viser aktuel tilstand; en lille detaljetidslinje forklarer en igangværende handling."
+  },
+  {
+    "title": "Sonos — appens kontroller",
+    "url": "https://www.sonos.com/en-us/guides/sonosapp",
+    "note": "Afspiller bliver højre under spørgsmål; kompakt afspiller i ro; tryk åbner detaljer."
+  },
+  {
+    "title": "Sonos — rum og grupper",
+    "url": "https://support.sonos.com/en-gb/article/group-and-ungroup-rooms",
+    "note": "Vis det valgte rum ved afspilleren; outputvalg har klar bekræftelse og resultat."
+  },
+  {
+    "title": "Home Assistant — Tile card",
+    "url": "https://www.home-assistant.io/dashboards/tile/",
+    "note": "Adskil åbning af detaljer fra en navngiven enhedshandling."
+  },
+  {
+    "title": "Home Assistant — Timer",
+    "url": "https://www.home-assistant.io/integrations/timer/",
+    "note": "Nedtælling fra ejerens deadline; særskilt færdig/annulleret tekst med hændelsesgrundlag."
+  },
+  {
+    "title": "Home Assistant — Vacuum",
+    "url": "https://www.home-assistant.io/integrations/vacuum/",
+    "note": "Kompakt status og pause/fortsæt; returning kaldes “På vej til dock”."
+  },
+  {
+    "title": "Home Assistant — Light",
+    "url": "https://www.home-assistant.io/integrations/light/",
+    "note": "On/off først; understøttet lysstyrke oversættes korrekt til en tydelig procentkontrol."
+  },
+  {
+    "title": "W3C — Target Size",
+    "url": "https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html",
+    "note": "Vores strengere produktmål: mindst 48×48 px for primære touchmål, hele valgrækker trykbare."
+  },
+  {
+    "title": "W3C — Dragging Movements",
+    "url": "https://www.w3.org/WAI/WCAG22/Understanding/dragging-movements.html",
+    "note": "Synlige knapper til navigation; range kan også ændres ved tryk på spor eller ±."
+  },
+  {
+    "title": "W3C — Status Messages",
+    "url": "https://www.w3.org/WAI/WCAG22/Understanding/status-messages.html",
+    "note": "Kort lokal status ved den berørte handling, stabil fokus og passende live-region."
+  },
+  {
+    "title": "W3C — Animation from Interactions",
+    "url": "https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html",
+    "note": "Finite tilstandsovergange og reduced motion; billede/ur står roligt."
+  },
+  {
+    "title": "W3C APG — Modal Dialog",
+    "url": "https://www.w3.org/WAI/ARIA/apg/patterns/dialog-modal/",
+    "note": "Native detailsheet til output/timer/quick settings med fuldt synlig lukning."
+  },
+  {
+    "title": "assistant-ui — Generative UI",
+    "url": "https://www.assistant-ui.com/docs/tools/generative-ui",
+    "note": "PodVoice kan vælge kendte svar-/valgfamilier og stabile actions i vores eget bibliotek."
+  },
+  {
+    "title": "json-render — katalog og actions",
+    "url": "https://json-render.dev/docs",
+    "note": "Et begrænset visuelt kontraktformat med egne native komponenter og validering."
+  },
+  {
+    "title": "AI SDK — Generative User Interfaces",
+    "url": "https://ai-sdk.dev/docs/ai-sdk-ui/generative-user-interfaces",
+    "note": "Hurtigt brugbart svar først; rigere resultat bagefter; fejl lokalt ved operationen."
+  },
+  {
+    "title": "Carbon — Empty states",
+    "url": "https://www.carbondesignsystem.com/building-blocks/core/patterns/empty-states",
+    "note": "Ingen aktivitet → ro; ingen musikresultater → ændr søgning; ukendt data → forklar datamanglen."
+  },
+  {
+    "title": "Carbon — Loading",
+    "url": "https://www.carbondesignsystem.com/building-blocks/core/patterns/loading",
+    "note": "Behold kontekst og layout mens ét indholdsfelt venter; tekst som “Finder musik…” lokalt."
+  }
+]

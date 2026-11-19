@@ -19,7 +19,7 @@ from gatekeeper import podview_locality as L
 from gatekeeper import podview_weather as W
 from gatekeeper.tools import ToolRouter
 
-UI_ROOT = Path(__file__).resolve().parents[2] / "podvoice/gatekeeper/static/podview"
+UI_ROOT = Path(__file__).resolve().parents[2] / "podview"
 
 
 @pytest.fixture

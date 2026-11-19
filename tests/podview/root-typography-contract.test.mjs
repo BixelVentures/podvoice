@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
 const sources=['ui/components.css','widget-view.css','ui/library/library.css','frame-layout.css','widget-redesign.css','timer-notice.css','live-music.css'];
-const read=name=>readFileSync(new URL(`../../podvoice/gatekeeper/static/podview/${name}`,import.meta.url),'utf8');
+const read=name=>readFileSync(new URL(`../../podview/${name}`,import.meta.url),'utf8');
 
 test('all seven shipped CSS owners use named font-size roles, never literal sizes',()=>{
  for(const name of sources){

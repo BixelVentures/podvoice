@@ -1,6 +1,6 @@
-import {weatherFactObservation,weatherAdviceCapability} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';
-import {liveWeatherModel} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
-import test from 'node:test';import assert from 'node:assert/strict';import {validateHome,applyHome} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import {weatherFactObservation,weatherAdviceCapability} from '../../podview/weather-observation.js';
+import {liveWeatherModel} from '../../podview/weather-view.js';
+import test from 'node:test';import assert from 'node:assert/strict';import {validateHome,applyHome} from '../../podview/home-model.js';
 const home=()=>({schema:'podview.home.v1',roomId:'kitchen',revision:2,observedAt:1700000000,vacuum:{status:'observed',items:[{entityId:'vacuum.actual',name:'Robot',state:'cleaning',battery:65,observedAt:1700000000,source:'home_assistant_state',actions:['start'],settings:{invented:true}}]}});
 test('passive robot reads retain exact entity and observed state but never admit commands',()=>{const h=validateHome(home(),'kitchen');assert.equal(h.vacuum.items[0].entityId,'vacuum.actual');assert.equal(h.vacuum.items[0].state,'cleaning');assert.equal(h.vacuum.items[0].actions,undefined);assert.equal(h.vacuum.items[0].settings,undefined);const s=applyHome({devices:[{kind:'light',status:'unavailable'}]},h);assert.equal(s.devices[0].status,'cleaning');assert.equal(s.devices[0].pending,null);});
 test('wrong room, duplicate entity and unrecognized source cannot replace real resources',()=>{for(const mutate of [h=>h.roomId='elsewhere',h=>h.vacuum.items.push({...h.vacuum.items[0]}),h=>h.vacuum.items[0].source='model',h=>h.vacuum.items[0].state='done']){const h=home();mutate(h);assert.throws(()=>validateHome(h,'kitchen'));}});

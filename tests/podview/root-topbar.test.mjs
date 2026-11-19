@@ -1,8 +1,8 @@
-import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {showValue} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+import {connectionPresentation} from '../../podview/podvoice-view.js';
+import {sceneTransition} from '../../podview/scene-model.js';
+import {showValue} from '../../podview/ui/motion.js';
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=fs.readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 function fixture(){const nodes=new Map(),animations=[];const $=id=>{if(!nodes.has(id))nodes.set(id,{textContent:'',hidden:false,dataset:{},attrs:{},querySelector(){return null;},getAttribute(k){return this.attrs[k]??null;},removeAttribute(k){delete this.attrs[k];},setAttribute(k,v){this.attrs[k]=v;},animate(frames,options){const item={frames,options,cancelled:false,cancel(){this.cancelled=true;}};animations.push(item);return item;}});return nodes.get(id);};const host={state:{focus:'now',connected:true,devices:[],answers:[]},dataset:{},querySelector:selector=>selector==='.responses'?$('responses'):$('nav')};
  for(const [name,next]of [['currentLightDevice','syncLightArea'],['renderTopbarClock','renderTopbarScroll'],['renderTopbarScroll','renderTopbar'],['renderTopbar','alignOverview']]){const start=source.indexOf(' '+name+'('),end=name==='renderTopbar'?source.indexOf('\n\n',start):source.indexOf('\n '+next+'(',start);const code=source.slice(start,end);host[name]=Function('$','focusedAnswer','devicePresentation','connectionPresentation','showValue',`return ({${code}}).${name}`)($,s=>s.answers.find(a=>a.id===s.focus),d=>({title:d.name}),connectionPresentation,showValue);}
  return {host,$,animations};}
@@ -46,7 +46,7 @@ test('answer history is a detail destination even when opened over home or Ro',(
 });
 
 test('desktop header keeps its divider at80 and gives the scroll viewport the initial16px inset',()=>{
- const css=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),frame=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/frame-layout.css',import.meta.url),'utf8'),effects=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-redesign.css',import.meta.url),'utf8');
+ const css=fs.readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8'),frame=fs.readFileSync(new URL('../../podview/frame-layout.css',import.meta.url),'utf8'),effects=fs.readFileSync(new URL('../../podview/widget-redesign.css',import.meta.url),'utf8');
  const start=css.indexOf('/* The header ends at 80px.'),end=css.indexOf('/* Hero facts',start),boundary=css.slice(start,end);
  assert.match(boundary,/@media\(min-width:760px\)/,'mobile retains its existing document flow');
  assert.match(frame,/\[data-topbar=true\]\[data-view=active\] \.view-nav\{[^}]*height:80px;min-height:80px;max-height:80px/);
@@ -76,7 +76,7 @@ test('only overview exposes the distinct Ro shortcut; detail uses its one arrow-
 test('home titles remain plain while detail and history titles keep Back, independently of the separate Ro shortcut',()=>{const f=fixture(),roles=[],music={playback:{active:true}},timer={id:'kept',remaining:41};f.host.state.music=music;f.host.state.timer=timer;f.host.renderHeaderTitle=(title,back)=>roles.push({title,back});for(const [focus,title,back]of [['now','Lige nu',false],['photo','Ro',false],['music','Musik',true],['weather','Vejr',true]]){f.host.state.focus=focus;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title,back});assert.equal(f.host.state.music,music);assert.equal(f.host.state.timer,timer);}f.host.state.focus='now';f.$('history').open=true;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title:'Svar',back:true});f.$('history').open=false;f.host.renderTopbar();assert.deepEqual(roles.at(-1),{title:'Lige nu',back:false});assert.equal(f.$('show-photo').getAttribute('aria-label'),'Gå til Ro');assert.equal(f.$('show-photo').hidden,false);});
 
 
-test('initial markup preserves the focusable heading and only the separate Ro shortcut',()=>{const html=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/index.html',import.meta.url),'utf8');assert.match(html,/<h1 id="header-title" class="header-title" tabindex="-1">Lige nu<\/h1>/);assert.match(html,/<button id="show-photo" type="button" aria-label="Gå til Ro" data-navigation="rest"><img src="assets\/icons\/moon.svg" alt=""><span class="rest-label">Ro<\/span><\/button>/);assert.equal((source.match(/addEventListener\('click',this.headerBackAction\)/g)||[]).length,1);assert.doesNotMatch(source,/back\.click\(\)/,'detail Back invokes the shared owner directly, never a second hidden target');});
+test('initial markup preserves the focusable heading and only the separate Ro shortcut',()=>{const html=fs.readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8');assert.match(html,/<h1 id="header-title" class="header-title" tabindex="-1">Lige nu<\/h1>/);assert.match(html,/<button id="show-photo" type="button" aria-label="Gå til Ro" data-navigation="rest"><img src="assets\/icons\/moon.svg" alt=""><span class="rest-label">Ro<\/span><\/button>/);assert.equal((source.match(/addEventListener\('click',this.headerBackAction\)/g)||[]).length,1);assert.doesNotMatch(source,/back\.click\(\)/,'detail Back invokes the shared owner directly, never a second hidden target');});
 
 test('tapping the overview Ro shortcut opens Foto-Ro and keeps music and timer', () => {
   const backCode = source.split('this.headerBackAction=()=>{')[1].split("};$('show-photo')")[0];

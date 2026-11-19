@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {TimerView,timerPresentation} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
-import {timersFor,timerStateLabel,timerTime} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
-import {robotExperience} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
-import {devicePresentation,lightSelection,robotRecentCompletion} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {vehicleRailPresentation} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
+import {previewScene} from '../../podview/preview-scenes.js';
+import {sceneTransition} from '../../podview/scene-model.js';
+import {TimerView,timerPresentation} from '../../podview/timer-view.js';
+import {timersFor,timerStateLabel,timerTime} from '../../podview/timer-model.js';
+import {robotExperience} from '../../podview/robot-observation.js';
+import {devicePresentation,lightSelection,robotRecentCompletion} from '../../podview/scene-model.js';
+import {vehicleRailPresentation} from '../../podview/vehicle-model.js';
 
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const start=source.indexOf(' renderResourceRail(){'),end=source.indexOf('\n render(){',start);
 const railMethod=new Function('$','timerPresentation','timersFor','timerStateLabel','timerTime','devicePresentation','lightSelection','createResourceTile','updateResourceTile','robotExperience','robotRecentCompletion','vehicleRailPresentation',`return ({${source.slice(start,end)}}).renderResourceRail;`);
 function fixture(state){

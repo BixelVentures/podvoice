@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {KIT_COMPONENTS,createKitComponent,applyKitComponent,createKitTemplate,applyKitTemplate,applyKitDialog,createKitDialog,syncKitSlider} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import {KIT_COMPONENTS,createKitComponent,applyKitComponent,createKitTemplate,applyKitTemplate,applyKitDialog,createKitDialog,syncKitSlider} from '../../podview/ui/kit.js';
 class Element extends EventTarget{
  constructor(tag){super();this.tagName=tag.toUpperCase();this.className='';this.attributes=new Map();this.dataset={};this.children=[];if(['BUTTON','INPUT'].includes(this.tagName))this.disabled=false;}
  setAttribute(name,value){this.attributes.set(name,String(value));if(name.startsWith('data-'))this.dataset[name.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}
@@ -10,7 +10,7 @@ class Element extends EventTarget{
 }
 const document={createElement:tag=>new Element(tag)};
 test('discovery Chips and overview Timer cancellation retain the canonical64px target and body text',()=>{
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  assert.match(css,/--pv-hit:64px/);
  assert.ok(css.includes('pv-widget-host #music-refinements>button[data-kit=chip]{height:var(--pv-hit);min-height:var(--pv-hit);padding-block:0;font:var(--pv-t-body)}'));
  assert.ok(css.includes('pv-widget-host #now-view #timer-card .timer-active-list .timer-panel .timer-finish{height:var(--pv-hit);min-height:var(--pv-hit);padding:0 var(--pv-s3);font:var(--pv-t-body)}'));
@@ -65,7 +65,7 @@ test('dialog and toast recipes expose shared retained parts without inventing co
 });
 
 test('WidgetHost binds retained collections, actions and dialog parts without changing native history or owner state',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('// Retained kit bindings:'),end=source.indexOf("this.addEventListener('wheel'",start),run=new Function('$','document','applyKitComponent','applyKitDialog',source.slice(start,end));
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf('// Retained kit bindings:'),end=source.indexOf("this.addEventListener('wheel'",start),run=new Function('$','document','applyKitComponent','applyKitDialog',source.slice(start,end));
  const ids=['music-refresh','collapse','empty-find-music','screen-settings-content','pin-widget','hide-widget','continue-task','replace-task','room-options','retained','rooms','history','quick-sheet','customize-sheet','conflict'],nodes=new Map(ids.map(id=>[id,document.createElement(['rooms','history','quick-sheet','customize-sheet','conflict'].includes(id)?'dialog':'button')]));
  const chips=['mood','feeling','top','recent'].map(value=>{const node=document.createElement('button');node.dataset.collection=value;node.setAttribute('aria-pressed',String(value==='mood'));return node;});
  const all=[...nodes.values(),...chips],originals=new Map();let effects=0;
@@ -93,9 +93,9 @@ test('native Slider fill follows its actual bounded value on owner refresh and i
 
 
 test('canonical native control dialog keeps 520px frame and 32px kit padding including narrow viewport rule',()=>{
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui/library/library.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui/library/library.css',import.meta.url),'utf8');
  const rule=css.match(/dialog\.pv-component\{([^}]+)\}/)[1];
  assert.match(rule,/width:min\(520px,calc\(100vw - 32px\)\)/);assert.match(rule,/padding:var\(--pv-s4\)/);assert.match(rule,/margin:auto/);assert.match(rule,/overflow:auto/);
  const narrow=css.match(/@media\(max-width:520px\)\{dialog\.pv-component\{([^}]+)\}/)[1];assert.match(narrow,/padding:var\(--pv-s4\)/);assert.doesNotMatch(narrow,/--pv-s3/);
- const kit=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');assert.match(kit,/--pv-s4:32px/);
+ const kit=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');assert.match(kit,/--pv-s4:32px/);
 });

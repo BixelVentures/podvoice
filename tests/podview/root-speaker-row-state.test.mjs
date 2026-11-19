@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {musicBusy,speakerCatalogue,speakerRowState} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
+import {musicBusy,speakerCatalogue,speakerRowState} from '../../podview/speaker-output-view.js';
 
 const row=(extra={})=>({availability:'available',homepodId:'42',selectable:true,startSelectable:true,...extra});
 const idle={busy:false,music:false,selection:true,moveAvailable:false,fenced:null,actualOutput:false};

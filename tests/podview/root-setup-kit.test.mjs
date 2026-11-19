@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/setup.html',import.meta.url),'utf8');
-const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/setup.css',import.meta.url),'utf8');
-const fields=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui/library/library.css',import.meta.url),'utf8');
+const html=readFileSync(new URL('../../podview/setup.html',import.meta.url),'utf8');
+const css=readFileSync(new URL('../../podview/setup.css',import.meta.url),'utf8');
+const fields=readFileSync(new URL('../../podview/ui/library/library.css',import.meta.url),'utf8');
 test('setup loads canonical foundations and retains native form/status owners',()=>{
  assert.ok(html.indexOf('ui/components.css')<html.indexOf('ui-kit.css'));
  assert.ok(html.indexOf('ui-kit.css')<html.indexOf('setup.css'));
@@ -21,7 +21,7 @@ test('native field primary size is opt-in and existing dialog size remains uncha
 });
 
 test('screen information gives labels their own column and separates the shared Button link',()=>{
- const kit=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const kit=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  assert.match(kit,/\.screen-device-network>\.pv-kit-listrow\{grid-template-columns:max-content minmax\(0,1fr\);align-items:start/);
  assert.match(kit,/\.screen-device-network>\.pv-kit-listrow>span:last-child\{min-width:0;overflow-wrap:anywhere/);
  assert.match(kit,/#screen-device-more>\.pv-kit-button\{margin-top:var\(--pv-s2\)\}/);

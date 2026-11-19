@@ -2,9 +2,9 @@ import {installDOMAttributes} from './helpers/dom-attributes.mjs';
 import {bindRoom,targetEnvelope} from './canonical-room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {searchSample,directTargets,selectionOffer,selectionCurrent} from '../../podvoice/gatekeeper/static/podview/music-selection-model.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {LiveMusicSelectionView} from '../../podvoice/gatekeeper/static/podview/live-music-selection-view.js';
+import {searchSample,directTargets,selectionOffer,selectionCurrent} from '../../podview/music-selection-model.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {LiveMusicSelectionView} from '../../podview/live-music-selection-view.js';
 
 const track={name:'Faktisk sang',artist:'Faktisk kunstner',uri:'spotify:track:0123456789ABCDEFGHIJKL'};
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen',revision:2,voice:{sessionId:null},answers:{},timers:{status:'observed',items:[]},capabilities:{musicRead:['search','targets'],musicSelection:true,timerActions:[]}});

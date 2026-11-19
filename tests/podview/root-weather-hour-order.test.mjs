@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {weatherObservation} from '../../podvoice/gatekeeper/static/podview/weather-observation.js';
-import {liveWeatherModel} from '../../podvoice/gatekeeper/static/podview/weather-view.js';
+import {weatherObservation} from '../../podview/weather-observation.js';
+import {liveWeatherModel} from '../../podview/weather-view.js';
 test('next twelve hours sort by instant before limiting across offsets and midnight, without mutating facts',()=>{
  const now=Date.parse('2026-10-18T20:30:00Z');
  const timestamps=['2026-10-18T23:00:00+02:00','2026-10-18T22:00:00Z','2026-10-19T01:00:00+02:00',...Array.from({length:10},(_,i)=>new Date(Date.parse('2026-10-19T00:00:00Z')+i*3600000).toISOString())];

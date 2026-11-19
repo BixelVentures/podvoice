@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {robotObservation,robotFacts,robotValue} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
+import {robotObservation,robotFacts,robotValue} from '../../podview/robot-observation.js';
 const cases={cleaning_mode:{vacuum:'Støvsugning',vac_and_mop:'Støvsugning og gulvvask',mop:'Gulvvask',custom:'Tilpasset'},mop_intensity:{off:'Fra',low:'Lav',medium:'Mellem',high:'Høj',custom_water_flow:'Tilpasset vandmængde',custom:'Tilpasset'},mop_mode:{standard:'Standard',deep:'Grundig',deep_plus:'Ekstra grundig',fast:'Hurtig',custom:'Tilpasset'},dust_collection_mode:{smart:'Smart',light:'Let',balanced:'Balanceret',max:'Maksimal'}};
 for(const [key,values] of Object.entries(cases))test(`known ${key} values use the existing Danish setting vocabulary`,()=>{for(const [value,expected] of Object.entries(values))assert.equal(robotValue({key,value}),expected);});
 test('unknown and prototype-like values remain literal within each setting role',()=>{for(const key of Object.keys(cases))for(const value of ['future_mode','constructor','toString','__proto__','Kitchen custom_map'])assert.equal(robotValue({key,value}),value);});

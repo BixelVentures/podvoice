@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {stations,orderStations,radioStation,localRadioPlayerModel,localRadioTransition,localRadioControlModel} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
+import {stations,orderStations,radioStation,localRadioPlayerModel,localRadioTransition,localRadioControlModel} from '../../podview/radio-model.js';
 
 test('five named channels have stable, unique identifiers and no invented stream or artwork',()=>{
  assert.deepEqual(stations.map(({id,label})=>[id,label]),[
@@ -49,7 +49,7 @@ test('local selection changes only source content of the shared player model',()
 
 
 test('local radio selection, stop, volume and output share one retained source without music playback side effects',async()=>{
- const {initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');let state=initialScene();
+ const {initialScene}=await import('../../podview/scene-model.js');let state=initialScene();
  state=localRadioTransition(state,{type:'radio-select',stationId:'p3'});assert.equal(state.radioPlaying,true);assert.equal(state.music.playback.active,false);
  state=localRadioTransition(state,{type:'volume',value:42});state=localRadioTransition(state,{type:'target',accountId:'household',kind:'configured_alias',targetId:'kitchen',revision:state.music.revision});
  assert.equal(state.music.playback.volume,42);assert.equal(state.music.playback.room,'Køkkenet');assert.equal(state.music.pending,null);
@@ -60,7 +60,7 @@ test('local radio selection, stop, volume and output share one retained source w
 });
 
 test('actual host routes local radio controls and valid music selection returns to music without affecting live',async()=>{
- const {readFileSync}=await import('node:fs');const {initialScene,sceneTransition}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),code=source.slice(source.indexOf(' music(event){'),source.indexOf('\n build(){')).trim();
+ const {readFileSync}=await import('node:fs');const {initialScene,sceneTransition}=await import('../../podview/scene-model.js');const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),code=source.slice(source.indexOf(' music(event){'),source.indexOf('\n build(){')).trim();
  const music=new Function('localRadioTransition',`return ({${code}}).music;`)(localRadioTransition);
  const host={live:false,state:localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'}),render(){},dispatch(event){this.state=sceneTransition(this.state,event);}};
  music.call(host,{type:'toggle'});assert.equal(host.state.radioPlaying,false);music.call(host,{type:'volume',value:38});assert.equal(host.state.music.playback.volume,38);
@@ -70,8 +70,8 @@ test('actual host routes local radio controls and valid music selection returns 
 });
 
 test('retained Radio transport focus callback cannot navigate or dispatch playback',async()=>{
- const {readFileSync}=await import('node:fs');const {initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),code=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0];
+ const {readFileSync}=await import('node:fs');const {initialScene}=await import('../../podview/scene-model.js');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),code=source.split('onOpenPlayer:()=>{')[1].split('},onSelect:')[0];
  for(const connected of [true,false]){
   const timer={id:'timer-kept',remaining:41},answers=[{id:'answer-kept',status:'ready'}],state={...localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'}),focus:'radio',connected,timer,answers},calls=[];
   const run=new Function('$',`return function(){${code}}`)(id=>{assert.equal(id,'play-pause');return {focus:options=>calls.push(options)};});
@@ -81,9 +81,9 @@ test('retained Radio transport focus callback cannot navigate or dispatch playba
 });
 
 test('radio Stop and Start retain station identity but offer no time shift or song queue position',async()=>{
- const {initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js');let state=localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'});
+ const {initialScene}=await import('../../podview/scene-model.js');let state=localRadioTransition(initialScene(),{type:'radio-select',stationId:'p3'});
  state=localRadioTransition(state,{type:'toggle'});let model=localRadioPlayerModel(state.radioStationId,{}, {playing:state.radioPlaying});assert.equal(model.playing,false);assert.match(model.previewLabel,/stoppet/);
  state=localRadioTransition(state,{type:'toggle'});model=localRadioPlayerModel(state.radioStationId,{}, {playing:state.radioPlaying});assert.equal(model.playing,true);assert.equal(model.title,'P3');assert.equal(model.artist,'Direkte radio');for(const key of ['progressMs','durationMs','queue','seekOperation'])assert.equal(Object.hasOwn(model,key),false);
 });
 
-test('library requested radio fixture shares honest pending player projection without changing underlying music or observation',async()=>{const {pendingRadioPlayerModel}=await import('../../podvoice/gatekeeper/static/podview/radio-model.js'),{previewScene}=await import('../../podvoice/gatekeeper/static/podview/preview-scenes.js'),scene=previewScene('radio-request-pending'),music=scene.music,vm=pendingRadioPlayerModel(scene.radioPendingStationId,scene.music.playback.volume);assert.equal(scene.radioStationId,'p3');assert.equal(vm.title,'P4 Østjylland');assert.equal(vm.loading,true);assert.equal(vm.playing,false);assert.equal(vm.fresh,false);assert.equal(vm.canSeek,false);assert.equal(vm.canOutput,false);assert.equal(vm.feedback.message,'Starter P4 Østjylland…');assert.equal(scene.music,music);assert.equal(scene.radioStationId,'p3');});
+test('library requested radio fixture shares honest pending player projection without changing underlying music or observation',async()=>{const {pendingRadioPlayerModel}=await import('../../podview/radio-model.js'),{previewScene}=await import('../../podview/preview-scenes.js'),scene=previewScene('radio-request-pending'),music=scene.music,vm=pendingRadioPlayerModel(scene.radioPendingStationId,scene.music.playback.volume);assert.equal(scene.radioStationId,'p3');assert.equal(vm.title,'P4 Østjylland');assert.equal(vm.loading,true);assert.equal(vm.playing,false);assert.equal(vm.fresh,false);assert.equal(vm.canSeek,false);assert.equal(vm.canOutput,false);assert.equal(vm.feedback.message,'Starter P4 Østjylland…');assert.equal(scene.music,music);assert.equal(scene.radioStationId,'p3');});

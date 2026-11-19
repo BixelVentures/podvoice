@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 const renewalOwner={},renewal=generation=>({owner:renewalOwner,generation});
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen',revision:1,voice:{active:false,sessionId:null,turnId:null},answers:{},timers:{status:'unavailable',items:[]},capabilities:{musicRead:['top','targets'],timerActions:[],musicSelection:true},controllerContinuity:{enabled:true,available:true,maxDays:30}});
 function body(){return {ok:true,data:{config_entry_id:'account',tracks:[0,1,2].map(i=>({name:'Actual '+i,artist:'Artist',uri:'spotify:track:'+String(i).padStart(22,'0')}))},selection:{requested_limit:20,source_sample_count:3,returned_count:3,more_in_sample:false,size_limited:false},candidateSet:{schema:'podview.music-search-context.v1',bootId:'boot',roomId:'kitchen',configEntryId:'account',source:'spotify_web_api',query:'top:collection',sourceKind:'top',candidateSetId:'a'.repeat(64),revisionScope:'music_selection',sessionId:'touch:session',turnId:'touch:turn',taskId:'touch:task',inputRevision:1,revision:1,items:[0,1,2].map(index=>({id:String(index).padStart(24,'a'),index}))}};}

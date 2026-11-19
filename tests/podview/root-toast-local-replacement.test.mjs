@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-const path=new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url);
+const path=new URL('../../podview/widget-view.js',import.meta.url);
 const source=readFileSync(path,'utf8');
 const method=source.slice(source.indexOf(' showFeedback(message,pending,options={})'),source.indexOf('\n open(id,opener)',source.indexOf(' showFeedback(message,pending,options={})'))).trim();
 assert.ok(method.startsWith('showFeedback('));

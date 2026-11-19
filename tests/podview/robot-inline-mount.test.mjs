@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const source=readFileSync(new URL('../../dist/live-control-view.js',import.meta.url),'utf8');
+const source=readFileSync(new URL('../../podview/live-control-view.js',import.meta.url),'utf8');
 const code=source.slice(source.indexOf(' mountRobotInline(){'),source.indexOf('\n allowed(domain)'));
 const Mount=new Function('make',`return class {${code}}`)(()=>{throw Error('existing entry expected');});
 function fixture(){

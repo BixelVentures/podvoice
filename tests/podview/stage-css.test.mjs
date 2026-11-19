@@ -1,8 +1,9 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {resolveStage} from '../../scripts/stage-css.mjs';
-import {stageGeometry} from '../../podvoice/gatekeeper/static/podview/ui/stage.js';
+import {resolveStage} from '../../podview/build/stage-css.mjs';
+import {stageGeometry} from '../../podview/ui/stage.js';
 
 test('size queries resolve for the 1180×820 stage; other queries survive', () => {
   const css = '@media(max-width:759px){.a{x:1}}@media (min-width:1000px){.b{x:2}}'
@@ -14,7 +15,7 @@ test('size queries resolve for the 1180×820 stage; other queries survive', () =
 });
 
 test('the delivered stylesheet has no frame-dependent layout', async () => {
-  const css = await readFile(new URL('../../podvoice/gatekeeper/static/podview/podview.css', import.meta.url), 'utf8');
+  const css = deliveredStylesheet();
   assert.doesNotMatch(css, /@media[^{]*(width|height)/);
   assert.doesNotMatch(css, /\d(d|s|l)?v(h|w)\b/);
 });

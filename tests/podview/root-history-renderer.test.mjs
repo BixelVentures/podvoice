@@ -1,8 +1,8 @@
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
+import {previewScene} from '../../podview/preview-scenes.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {visualExamples} from '../../podvoice/gatekeeper/static/podview/visual-examples.js';
-import {initialScene,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {visualExamples} from '../../podview/visual-examples.js';
+import {initialScene,sceneTransition} from '../../podview/scene-model.js';
 class Node extends EventTarget{
  constructor(tag='div'){super();this.tagName=tag.toUpperCase();this.localName=tag;this.children=[];this.dataset={};this.style={};this.attrs=new Map();this.hidden=false;this.disabled=false;this.textContent='';this.className='';this.isConnected=true;this.classList={add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');},remove:name=>{this.className=this.className.split(' ').filter(n=>n!==name).join(' ');},contains:name=>this.className.split(' ').includes(name),toggle:(name,on)=>on?this.classList.add(name):this.classList.remove(name)};}
  get childNodes(){return this.children;}
@@ -20,8 +20,8 @@ class Node extends EventTarget{
  click(){if(!this.disabled)this.dispatchEvent(new Event('click'));}
 }
 const registry=new Map();globalThis.HTMLElement=Node;globalThis.customElements={define:(name,ctor)=>registry.set(name,ctor)};globalThis.document={createElement(tag){const el=new(registry.get(tag)||Node)(tag);el.localName=tag;el.tagName=tag.toUpperCase();return el;}};globalThis.CustomEvent=class extends Event{constructor(type,options){super(type,options);this.detail=options.detail;}};
-await import('../../podvoice/gatekeeper/static/podview/answer-widget.js');
-await import('../../podvoice/gatekeeper/static/podview/ui/library/visual-components.js');
+await import('../../podview/answer-widget.js');
+await import('../../podview/ui/library/visual-components.js');
 const receiptId='a'.repeat(32);
 function imageContent(){const content=structuredClone(visualExamples['sourced-image'].content);content.image.url='https://images.unsplash.com/photo-123';return content;}
 test('historical first preview and expanded renderer never assign remote src, preserve caption, ignore late load',()=>{
@@ -229,7 +229,7 @@ test('typed and visual source disclosures share flow capture and a detached old 
 
 
 test('explicit source disclosure releases a real pointer geometry hold before native open and close',async()=>{
- const {SceneMotion}=await import('../../podvoice/gatekeeper/static/podview/ui/motion.js');
+ const {SceneMotion}=await import('../../podview/ui/motion.js');
  const view=widget(),scene=previewScene('conversation-complete');view.update(scene,scene.answers[0]);const sources=view.visualNode.sources,summary=sources.children[0],properties=new Map();
  view.offsetHeight=656;view.getClientRects=()=>[{}];view.getBoundingClientRect=()=>({height:656,x:0,y:0});
  view.style={getPropertyValue:key=>properties.get(key)?.value||'',getPropertyPriority:key=>properties.get(key)?.priority||'',setProperty:(key,value,priority='')=>properties.set(key,{value,priority}),removeProperty:key=>properties.delete(key)};
@@ -257,7 +257,7 @@ test('late image events cannot replace pending content or resurrect a failed cur
 });
 
 test('every catalogue answer specimen renders through its retained canonical family',async()=>{
- const {productLibrary}=await import('../../podvoice/gatekeeper/static/podview/library-catalog.js');let count=0;
+ const {productLibrary}=await import('../../podview/library-catalog.js');let count=0;
  for(const family of productLibrary.filter(item=>item.id.startsWith('answer-'))){
   for(const sample of family.states){
    const scene=previewScene(sample.stage),answer=scene.answers.find(item=>item.id===scene.focus),view=widget();

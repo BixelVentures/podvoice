@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {RadioView} from '../../podvoice/gatekeeper/static/podview/radio-view.js';
-import {NotificationQueue} from '../../podvoice/gatekeeper/static/podview/ui/notification-queue.js';
-import {connectionPresentation} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {RadioView} from '../../podview/radio-view.js';
+import {NotificationQueue} from '../../podview/ui/notification-queue.js';
+import {connectionPresentation} from '../../podview/podvoice-view.js';
 class Node {
  constructor(doc,tag){this.ownerDocument=doc;this.tagName=tag.toUpperCase();this.localName=tag;this.children=[];this.parentNode=null;this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.dataset={};this.attributes=new Map();this._text='';this.data=null;}
  append(...nodes){for(const node of nodes){node.parentNode=this;this.children.push(node);}}
@@ -20,7 +20,7 @@ function fixture(){const doc={createElement:tag=>new Node(doc,tag)},root=doc.cre
 
 
 test('host connection notice and real queue notify once while Radio keeps offline explanation across reopen',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderConnectionNotice('),end=source.indexOf('\n renderLive(){',start);
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderConnectionNotice('),end=source.indexOf('\n renderLive(){',start);
  const {root,view,calls}=fixture(),rendered=[],timers=new Map();let serial=0;
  const queue=new NotificationQueue(item=>rendered.push(item),{setTimer:callback=>{const id=++serial;timers.set(id,callback);return id;},clearTimer:id=>timers.delete(id)});
  const render=new Function('$','document','applyKitComponent',`return function ${source.slice(start,end).trim()}`)(()=>null,root.ownerDocument,()=>{});
@@ -38,7 +38,7 @@ test('host connection notice and real queue notify once while Radio keeps offlin
 });
 
 test('actual local host branch preserves connection identity when navigation clears transient notice',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
  const start=source.indexOf('const connection=connectionPresentation({...s.connectionPreview'),end=source.indexOf('if($(\'home-music\').disabled)',start);
  assert.ok(start>0&&end>start);
  const render=new Function('s','connectionPresentation',source.slice(start,end));

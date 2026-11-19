@@ -891,9 +891,9 @@ async def test_podconnect_142_radio_state_crosses_bridge_and_canonical_parser(ri
         assert value["state"]["stationId"] == "p3" and value["state"]["targetId"] == "r1"
     assert not effects(rig)
     canonical = os.environ.get("PODVIEW_CANONICAL_ROOT") or str(Path(__file__).parents[2])
-    bundle = Path(canonical) / "dist/live-radio-view.js"
+    bundle = Path(canonical) / "podview/live-radio-view.js"
     if not bundle.is_file():
-        pytest.skip("PodView radio parser needs npm run build:assets")
+        pytest.skip("PodView radio parser source is missing")
     script = """
 import assert from 'node:assert/strict';
 const {radioObservation}=await import(process.argv[1]);let text='';for await(const c of process.stdin)text+=c;

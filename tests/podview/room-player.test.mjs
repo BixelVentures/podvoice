@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {roomPlayerObservation,roomObservationDisplay,playbackBinding}
- from '../../podvoice/gatekeeper/static/podview/media-observation.js';
-import {RoomPlayerControls} from '../../podvoice/gatekeeper/static/podview/room-player-controls.js';
-import {livePlayerModel,OTHER_ACCOUNT} from '../../podvoice/gatekeeper/static/podview/player-view.js';
+ from '../../podview/media-observation.js';
+import {RoomPlayerControls} from '../../podview/room-player-controls.js';
+import {livePlayerModel,OTHER_ACCOUNT} from '../../podview/player-view.js';
 
 globalThis.document??={getElementById:()=>null};
 const snapshot={bootId:'boot',roomId:'kitchen',capabilities:{musicRead:['targets','playback']}};

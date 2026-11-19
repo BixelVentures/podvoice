@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
 
 const fixture=JSON.parse(readFileSync(new URL('./fixtures/feeling-route.json',import.meta.url)));
 

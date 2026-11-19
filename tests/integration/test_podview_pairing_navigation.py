@@ -57,7 +57,7 @@ async def test_visible_navigation_opens_podview_and_legacy_setup_stays_directly_
             "/view/podview.bundle.js", headers={"Sec-Fetch-Site": "same-origin"}
         )
         assert bundle.status == 200
-        assert "dist/widget-view.js" in await bundle.text()
+        assert "pv-widget-host" in await bundle.text()
         setup = await client.get("/view/setup.html", headers={"Sec-Fetch-Site": "same-origin"})
         assert setup.status == 200
         body = await setup.text()

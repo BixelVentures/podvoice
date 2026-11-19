@@ -1,3 +1,4 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 // Every animation PodView ships can run on the compositor in WebKit (the wall iPad's engine; docs/MOTION.md §0).
 // WebKit's Core Animation path accelerates only transform (and translate/scale/rotate), opacity and filter, and only
 // with a keyword or cubic-bezier easing: an easing with linear() points is never accelerated
@@ -14,7 +15,7 @@ import {readFileSync,readdirSync,statSync} from 'node:fs';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 
-const ROOT=fileURLToPath(new URL('../../podvoice/gatekeeper/static/podview/',import.meta.url));
+const ROOT=fileURLToPath(new URL('../../podview/',import.meta.url));
 const walk=dir=>readdirSync(dir).flatMap(name=>{const file=path.join(dir,name);
  return statSync(file).isDirectory()?walk(file):[file];});
 const files=walk(ROOT).map(file=>path.relative(ROOT,file).split(path.sep).join('/'));
@@ -22,8 +23,10 @@ const files=walk(ROOT).map(file=>path.relative(ROOT,file).split(path.sep).join('
 // are scanned instead.
 const BUNDLES=new Set(['podview.bundle.js','library.bundle.js']);
 const cssFiles=files.filter(file=>file.endsWith('.css'));
-const jsFiles=files.filter(file=>file.endsWith('.js')&&!BUNDLES.has(file)&&!file.startsWith('assets/'));
-const read=file=>readFileSync(path.join(ROOT,file),'utf8');
+const jsFiles=files.filter(file=>file.endsWith('.js')&&!BUNDLES.has(file)
+ &&!file.startsWith('public/')&&!file.startsWith('build/'));
+// The delivered stylesheet is composed from the stage sources at build time.
+const read=file=>file==='podview.css'?deliveredStylesheet():readFileSync(path.join(ROOT,file),'utf8');
 const stripComments=(text,js=false)=>text.replace(/\/\*[\s\S]*?\*\//g,'')
  .replace(js?/(^|[^:\\'"`])\/\/.*$/gm:/$^/,'$1');
 

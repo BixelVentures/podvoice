@@ -1,3 +1,4 @@
+import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 // P9 track A (docs/MOTION.md §3.10.2): scrolling stays native. The recipe category row does not scroll at all (the
 // least used categories are under »Flere«); vertical lists never snap; music shelf cards
 // scale only on a scroll-driven timeline behind a feature query; no -webkit-overflow-scrolling anywhere.
@@ -5,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 
-const read=file=>readFileSync(new URL(`../../podvoice/gatekeeper/static/podview/${file}`,import.meta.url),'utf8');
+const read=file=>readFileSync(new URL(`../../podview/${file}`,import.meta.url),'utf8');
 const css=read('ui-kit.css'),flat=css.replace(/\s+/g,' ');
 
 test('the category row never scrolls: it is clipped, not a scroller, and nothing in it snaps',()=>{
@@ -24,7 +25,7 @@ test('shelf cards scale on a scroll-driven timeline only where the engine has on
 });
 
 test('no vertical list snaps and nothing uses -webkit-overflow-scrolling',()=>{
- const bundled=read('podview.css');
+ const bundled=deliveredStylesheet();
  assert.doesNotMatch(bundled,/-webkit-overflow-scrolling/);
  assert.doesNotMatch(bundled,/\[data-recipe-layout=catalog\][^{]*\{[^}]*scroll-snap-type/);
 });

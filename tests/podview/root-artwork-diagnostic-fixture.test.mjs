@@ -13,7 +13,7 @@ test('normal fixture route serves the canonical renderer diagnostic and closed b
 test('actual delayed image response retains original approved bytes and stays incomplete during the pending window',async()=>{
  const req=new EventEmitter(),res=response(),url=new URL('http://localhost/view/assets/diagnostic/shared-slow.webp');req.method='GET';const at=Date.now(),done=new Promise(resolve=>res.resolve=resolve);
  assert.equal(await artworkDiagnosticFixture(req,res,url),true);assert.equal(res.finished,undefined);await new Promise(resolve=>setTimeout(resolve,30));assert.equal(res.finished,undefined,'no early load/decode completion is fabricated');await done;
- assert.ok(Date.now()-at>=3900);assert.equal(res.headers['Content-Type'],'image/webp');assert.equal(res.headers['Cache-Control'],'no-store');assert.deepEqual(res.value,await readFile('podvoice/gatekeeper/static/podview/assets/editorial-vinyl.webp'));
+ assert.ok(Date.now()-at>=3900);assert.equal(res.headers['Content-Type'],'image/webp');assert.equal(res.headers['Cache-Control'],'no-store');assert.deepEqual(res.value,await readFile('podview/public/assets/editorial-vinyl.webp'));
 });
 test('client disconnect cancels a pending diagnostic response without sending late image bytes',async()=>{
  const req=new EventEmitter(),res=response();req.method='GET';assert.equal(await artworkDiagnosticFixture(req,res,new URL('http://localhost/view/assets/diagnostic/account-next.webp')),true);res.emit('close');await new Promise(resolve=>setTimeout(resolve,20));assert.equal(res.finished,undefined);

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {RobotMotion,robotIsCleaning} from '../../podvoice/gatekeeper/static/podview/ui/robot-motion.js';
+import {RobotMotion,robotIsCleaning} from '../../podview/ui/robot-motion.js';
 const observed=(state='cleaning')=>({id:'vacuum.real',live:true,source:'home_assistant_state',status:state,observedAt:Date.now()/1000});
 function fixture(){
  const doc=new EventTarget();doc.hidden=false;doc.documentElement={dataset:{}};const media=new EventTarget();media.matches=false;

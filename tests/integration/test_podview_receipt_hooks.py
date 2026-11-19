@@ -640,9 +640,7 @@ async def test_actual_completed_visual_survives_history_restart_and_authorized_j
                 )
             ).status == 403
             snapshot = await (await client.get("/view/api/snapshot?room=kitchen")).json()
-            consumer = (
-                Path(__file__).parents[2] / "podvoice/gatekeeper/static/podview/owner-answers.js"
-            )
+            consumer = Path(__file__).parents[2] / "podview/owner-answers.js"
             program = """
 import assert from 'node:assert/strict';
 let raw='';for await(const part of process.stdin)raw+=part;

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition as step,binding,lightSelection} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {previewScene} from '../../podview/preview-scenes.js';
+import {sceneTransition as step,binding,lightSelection} from '../../podview/scene-model.js';
 const now=1793088000000;
 const light=s=>s.devices.find(device=>device.kind==='light');
 

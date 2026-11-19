@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-const source=readFileSync(process.env.MUSIC_QUERY_OWNER_SOURCE||new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+const source=readFileSync(process.env.MUSIC_QUERY_OWNER_SOURCE||new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const start=source.indexOf(' async loadLiveMusic(kind){')+' async loadLiveMusic(kind){'.length,end=source.indexOf('\n connectGestures(){',start);
 assert.ok(start>0&&end>start);
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor,load=new AsyncFunction('kind',source.slice(start,end).replace(/\n \}\s*$/,''));

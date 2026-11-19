@@ -24,7 +24,7 @@ class Node extends EventTarget{
 }
 globalThis.HTMLElement=Node;
 globalThis.document={createElement:tag=>new Node(tag)};
-const {RobotControlPanel}=await import('../../podvoice/gatekeeper/static/podview/robot-control-panel.js');
+const {RobotControlPanel}=await import('../../podview/robot-control-panel.js');
 
 // Green 16 Nov (2.1.11): no room was preselected, and the main robot button stood as a black,
 // locked »Start rengøring«. The offer has no whole-home start, so the button never starts anything

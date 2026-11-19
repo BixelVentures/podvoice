@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {basicSnapshot,basicSpeakers,basicRobotTask,basicFlowFixture} from '../../scripts/basic-flow-diagnostic.mjs';
-import {speakerCatalogue} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
-import {controlTask} from '../../podvoice/gatekeeper/static/podview/control-model.js';
+import {speakerCatalogue} from '../../podview/speaker-output-view.js';
+import {controlTask} from '../../podview/control-model.js';
 test('authored speaker DTO preserves availability vs start authority and actual30second TTL',()=>{const s=basicSnapshot('basic-speakers'),v=basicSpeakers(s.roomId);const rows=speakerCatalogue(v,{...s,accountId:'basic-account'});assert.equal(rows.length,3);assert.deepEqual(rows.map(r=>[r.speakerId,r.availability,r.startSelectable]).sort((a,b)=>a[0].localeCompare(b[0])),v.speakers.map(r=>[r.speakerId,r.availability,r.startSelectable]).sort((a,b)=>a[0].localeCompare(b[0])));assert.equal(speakerCatalogue(v,{...s,accountId:'basic-account'},(v.retrievedAt+31)*1000),null);});
 test('delayed robot setup uses real admitted cleaning schema and eight actual offered rooms',()=>{const s=basicSnapshot('basic-speakers'),task=controlTask(basicRobotTask(s.roomId),s,'vacuum');assert.equal(task.options[0].argsSchema.areas.length,8);assert.deepEqual(task.options[0].argsSchema.repeat,{min:1,max:3});});
 test('fixture denies all action endpoints and does not intercept other rooms',async()=>{let status,body;const res={setHeader(){},writeHead(x){status=x;},end(x){body=x;}};assert.equal(await basicFlowFixture({},res,new URL('http://local/view/api/actions?room=basic-speakers')),true);assert.equal(status,403);assert.equal(JSON.parse(body).error,'authored_read_only_fixture');assert.equal(await basicFlowFixture({},res,new URL('http://local/view/api/actions?room=other')),false);});

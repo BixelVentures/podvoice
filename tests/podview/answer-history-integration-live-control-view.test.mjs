@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveControlView} from '../../podvoice/gatekeeper/static/podview/live-control-view.js';
+import {LiveControlView} from '../../podview/live-control-view.js';
 
 // Minimal DOM port: exercise the shipped view's constructor, render and async
 // handlers. Real browser focus/layout remains a separate QA gate.

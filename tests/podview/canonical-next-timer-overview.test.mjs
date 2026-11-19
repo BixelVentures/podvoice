@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TimerView,timerPresentation} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
+import {TimerView,timerPresentation} from '../../podview/timer-view.js';
 
 test('timer UI exposes one current record while preserving every native ID internally',()=>{
  const timers=[
@@ -43,7 +43,7 @@ test('timer start becomes available only after the current record is resolved',(
 });
 
 test('successful timer start renders its countdown without a spurious start validation warning',async()=>{
- const {timerTransition}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
+ const {timerTransition}=await import('../../podview/timer-model.js');
  const attrs=new Map(),blocked={dataset:{},hidden:true,getAttribute:key=>attrs.get(key)??null,setAttribute(key,value){attrs.set(key,String(value));}},running={},list={children:[]},recent={hidden:true,querySelector:()=>({replaceChildren(){}})};
  const detail={querySelector:selector=>({'.timer-active-list':list,'.timer-running':running,'.timer-blocked':blocked,'#timers-live-note':blocked,'.timer-recent':recent})[selector]};
  const form={elements:[],setAttribute(){},append(node){node.parentNode=this;}},view={host:{live:false},renderAccess:TimerView.prototype.renderAccess,renderRecent:TimerView.prototype.renderRecent,nodes:new Map(),overviewList:{children:[]},shortcut:{},detail,form,history:'[]',updatePicker(){},card(){return undefined;}};

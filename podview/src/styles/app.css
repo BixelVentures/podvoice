@@ -1,0 +1,6 @@
+/* Tailwind for the React screens. No preflight: the pre-React stylesheets still own the base
+   styles, and resetting them would change every legacy screen. The PodView tokens (--pv-*)
+   stay the single source of colour, type and spacing; @theme maps them for utilities. */
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@source '../';

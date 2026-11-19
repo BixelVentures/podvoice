@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PlayerView} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {MusicResults,sourceMusicCards} from '../../podvoice/gatekeeper/static/podview/music-results.js';
-import {renderRetainedArtwork,cancelArtwork} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
+import {PlayerView} from '../../podview/player-view.js';
+import {MusicResults,sourceMusicCards} from '../../podview/music-results.js';
+import {renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
 
 const flush=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
 function fixture(){

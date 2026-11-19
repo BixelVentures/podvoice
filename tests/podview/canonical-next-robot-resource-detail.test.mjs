@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {robotFacts,robotValue,robotObservation} from '../../podvoice/gatekeeper/static/podview/robot-observation.js';
+import {robotFacts,robotValue,robotObservation} from '../../podview/robot-observation.js';
 const now=Date.now()/1000;
 const row=(key,value,unit=null,stale=false)=>({key,value,unit,entityId:`${['dnd_start_time','dnd_end_time'].includes(key)?'time':'sensor'}.${key}`,updatedAt:now-(stale?600:0),retrievedAt:now,stale});
 test('only known remaining-care counters show interval meaning with admitted source units',()=>{for(const [unit,value,expected] of [['h',-120.9,'120,9 timer over interval'],['h',1,'1 time tilbage'],['min',-80.1,'80,1 min over interval'],['s',-120,'2 min over interval'],['h',0,'0 timer tilbage']])assert.equal(robotValue(row('side_brush_time_left',value,unit)),expected);assert.equal(robotValue(row('cleaning_time',-120,'s')),'-2 min');assert.equal(robotValue(row('total_cleaning_time',10,'h')),'10 timer');assert.equal(robotValue(row('future_time_left',-12,'h')),'-12 timer');});

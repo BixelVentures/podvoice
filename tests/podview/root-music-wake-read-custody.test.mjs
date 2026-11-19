@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {ScreenLifecycle,screenBusy} from '../../podvoice/gatekeeper/static/podview/ui/screen-lifecycle.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {LiveMusicCatalogueView} from '../../podvoice/gatekeeper/static/podview/live-music-view.js';
-const code=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+import {ScreenLifecycle,screenBusy} from '../../podview/ui/screen-lifecycle.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+const code=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const start=code.indexOf(' async loadLiveMusic('),end=code.indexOf('\n connectGestures()',start);
 const load=new Function(`return ({${code.slice(start,end)}}).loadLiveMusic`)();
 const callbackStart=code.indexOf('onConnection:status=>{')+'onConnection:status=>{'.length,callbackEnd=code.indexOf('},onSnapshot:',callbackStart);

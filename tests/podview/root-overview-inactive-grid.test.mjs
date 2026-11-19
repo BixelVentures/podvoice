@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-const kit=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
-const legacy=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-redesign.css',import.meta.url),'utf8');
+const kit=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
+const legacy=readFileSync(new URL('../../podview/widget-redesign.css',import.meta.url),'utf8');
 const base='pv-widget-host[data-view=active] #now-view:has(>#timer-card>.timer-shortcut:not([hidden]))';
 const rules=css=>[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([,selector,body])=>({selector:selector.replace(/\/\*[\s\S]*?\*\//g,'').trim(),body:Object.fromEntries(body.split(';').filter(s=>s.includes(':')).map(s=>{const i=s.indexOf(':');return [s.slice(0,i).trim(),s.slice(i+1).trim()];}))}));
 const find=(css,selector)=>{const rule=rules(css).find(r=>r.selector===selector);assert(rule,`Missing grid owner ${selector}`);return rule.body;};

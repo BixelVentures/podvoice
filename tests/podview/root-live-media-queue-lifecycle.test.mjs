@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LiveMediaView} from '../../podvoice/gatekeeper/static/podview/live-media-view.js';
+import {LiveMediaView} from '../../podview/live-media-view.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 function rig(){

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createEnrollmentFixture,enrollmentRoom as room,enrollmentBoot as bootId} from '../../scripts/enrollment-fixture.mjs';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
-import {SetupFlow} from '../../podvoice/gatekeeper/static/podview/setup.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
+import {SetupFlow} from '../../podview/setup.js';
 const headers={'Content-Type':'application/json','X-PodView-Request':'1'};
 async function rig(){
  const clock=Date.now(),fixture=createEnrollmentFixture({now:()=>clock});await new Promise(resolve=>fixture.server.listen(0,'127.0.0.1',resolve));const base=`http://127.0.0.1:${fixture.server.address().port}`,jar=new Map();

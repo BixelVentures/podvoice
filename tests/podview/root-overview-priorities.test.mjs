@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {overviewPriorities,sceneTransition} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {overviewPriorities,sceneTransition} from '../../podview/scene-model.js';
 test('overview fixes timer/weather/robot/light/vehicle/music/radio/recipes order regardless of state',()=>{
  const rows=overviewPriorities({timers:[{status:'running'}],mediaActive:true,devices:[{id:'robot',kind:'vacuum',status:'cleaning'},{id:'light',kind:'light',status:'unavailable'}]});
  assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);
@@ -11,8 +11,8 @@ test('calm overview retains useful access, no hidden device resurrected and no f
  const rows=overviewPriorities(data);assert.deepEqual(rows.map(row=>row.id),['timer-card','home-weather','robot','light','home-vehicle','home-music','home-radio','home-recipes']);assert.deepEqual(overviewPriorities(data),rows);assert.equal(rows.find(row=>row.id==='home-vehicle').priority,'unavailable');
 });
 test('actual host slots stay fixed while state appearance updates and preserve scroll/player state',async()=>{
- const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim();
+ const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podview/timer-model.js');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim();
  const nodes=new Map(),node=id=>{if(!nodes.has(id))nodes.set(id,{dataset:{},style:{},scrollTop:53});return nodes.get(id);};
  const align=new Function('$','overviewPriorities','timersFor','getComputedStyle',`return function ${method}`)(node,overviewPriorities,timersFor,()=>({getPropertyValue:()=>0}));
  const style={getPropertyValue:()=>'',setProperty(){}},host={state:{focus:'now',devices:[{id:'robot',kind:'vacuum',status:'docked'}],timer:null,extraTimers:[]},dataset:{playback:'active'},style,deviceRows:new Map([['robot',node('robot')]])};
@@ -21,8 +21,8 @@ test('actual host slots stay fixed while state appearance updates and preserve s
 });
 
 test('ranked overview uses actual retained DOM order, keeps focus/scroll, and does not move cards on ticks',async()=>{
- const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js');
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim();
+ const {readFileSync}=await import('node:fs'),{timersFor}=await import('../../podview/timer-model.js');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),method=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim();
  const doc={activeElement:null},feed={scrollTop:53};let moves=0;
  class Node{
   constructor(id){this.id=id;this.dataset={};this.style={};this.children=[];this.parentNode=null;this.isConnected=true;}
@@ -74,9 +74,9 @@ test('ranked overview uses actual retained DOM order, keeps focus/scroll, and do
 
 test('device refresh retains direct overview cards and library selectors follow the same canonical nodes',async()=>{
  const {readFileSync}=await import('node:fs');
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
  assert.match(source,/row\.parentNode!==\$\('now-view'\)&&activities\.children\[index\]!==row/);
- const {productLibrary}=await import('../../podvoice/gatekeeper/static/podview/library-catalog.js');
+ const {productLibrary}=await import('../../podview/library-catalog.js');
  for(const [familyId,kind] of [['robot','vacuum'],['lights','light']]){
   const family=productLibrary.find(item=>item.id===familyId);
   for(const sample of family.states.filter(item=>item.stage.includes('-overview-')))assert.equal(sample.selector,`#now-view > [data-kind="${kind}"]`,'isolate the complete direct-child shell, never its nested preview button');
@@ -85,8 +85,8 @@ test('device refresh retains direct overview cards and library selectors follow 
 });
 
 test('automatic Radio M follows the actual broad timer projection and preserves authored library sizes',async()=>{
- const {readFileSync}=await import('node:fs'),{initialScene}=await import('../../podvoice/gatekeeper/static/podview/scene-model.js'),{timerPresentation}=await import('../../podvoice/gatekeeper/static/podview/timer-view.js'),{timersFor}=await import('../../podvoice/gatekeeper/static/podview/timer-model.js'),{localRadioTransition}=await import('../../podvoice/gatekeeper/static/podview/radio-model.js');
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),alignSource=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim(),timerSource=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/timer-view.js',import.meta.url),'utf8');
+ const {readFileSync}=await import('node:fs'),{initialScene}=await import('../../podview/scene-model.js'),{timerPresentation}=await import('../../podview/timer-view.js'),{timersFor}=await import('../../podview/timer-model.js'),{localRadioTransition}=await import('../../podview/radio-model.js');
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),alignSource=source.slice(source.indexOf(' alignOverview(){'),source.indexOf('\n renderOverviewMediaCards(')).trim(),timerSource=readFileSync(new URL('../../podview/timer-view.js',import.meta.url),'utf8');
  const timerEnd=timerSource.indexOf('\n render',timerSource.indexOf(' renderOverviewActivities(s){')+2),activityBody=timerSource.slice(timerSource.indexOf(' renderOverviewActivities(s){'),timerEnd>0?timerEnd:timerSource.length).trim();
  // Extract exactly one existing method without importing the custom element host.
  const methodStart=activityBody.indexOf('{');let depth=1,index=methodStart+1;for(;index<activityBody.length&&depth;index++){if(activityBody[index]==='{')depth++;if(activityBody[index]==='}')depth--;}

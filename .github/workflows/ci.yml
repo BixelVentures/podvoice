@@ -90,12 +90,19 @@ jobs:
         run: |
           for attempt in 1 2 3; do npm ci --ignore-scripts && exit 0; sleep $((attempt * 15)); done
           exit 1
-      - name: Committed PodView assets match their sources
+      - name: Typecheck and lint
         run: |
-          node scripts/prepare-podview-checkout.mjs
-          npm run check:components
-      - name: PodView unit and component tests
-        run: node --test tests/podview/*.test.mjs
+          npm run typecheck
+          npm run lint
+      - name: Committed PodView build matches its sources
+        run: |
+          npm run build
+          git diff --exit-code --stat -- podvoice/gatekeeper/static/podview
+          test -z "$(git status --porcelain -- podvoice/gatekeeper/static/podview)"
+      - name: PodView component tests (Vitest)
+        run: npm run test:unit
+      - name: PodView pre-React tests
+        run: npm run test:legacy
 
   radio-contract:
     # PodConnect's /api/radio/* shape (main after podconnect#142, transcribed in the test)
@@ -120,7 +127,6 @@ jobs:
         run: |
           for attempt in 1 2 3; do npm ci --ignore-scripts && exit 0; sleep $((attempt * 15)); done
           exit 1
-      - run: npm run build:assets
       - name: PodConnect, Python and PodView radio contract without skips
         env:
           PODVIEW_CANONICAL_ROOT: ${{ github.workspace }}

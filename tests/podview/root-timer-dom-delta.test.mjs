@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {timerTransition} from '../../podvoice/gatekeeper/static/podview/timer-model.js';
-import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
-import {TimerNotice} from '../../podvoice/gatekeeper/static/podview/timer-notice.js';
+import {timerTransition} from '../../podview/timer-model.js';
+import {TimerView} from '../../podview/timer-view.js';
+import {TimerNotice} from '../../podview/timer-notice.js';
 import {readFileSync} from 'node:fs';
 
 test('overview Timer icon Button centers its grid track as well as its24px icon',()=>{
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),legacy=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-redesign.css',import.meta.url),'utf8'),selector='pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open',rule=css.slice(css.indexOf(selector+'{'),css.indexOf('}',css.indexOf(selector+'{'))+1);
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8'),legacy=readFileSync(new URL('../../podview/widget-redesign.css',import.meta.url),'utf8'),selector='pv-widget-host[data-view=active] #now-view:not([hidden])>#timer-card .timer-panel.pv-hero>.timer-open',rule=css.slice(css.indexOf(selector+'{'),css.indexOf('}',css.indexOf(selector+'{'))+1);
  assert.match(legacy,/\.timer-open\{[^}]*justify-content:flex-start/,'the retained legacy content alignment would otherwise pack the implicit track left');
  assert.match(rule,/display:grid;place-items:center;place-content:center/);assert.match(rule,/width:var\(--pv-hit\)/);assert.match(rule,/height:var\(--pv-hit\)/);assert.equal((64-24)/2,20,'the24px Icon has equal20px space inside its64px Button');
 });
@@ -190,7 +190,7 @@ test('actual recent duration quick-fills a draft without persistent selection, a
   f.view.host.live=false;const state={connected:true,focus:'timers',timer:null,timerSerial:0,timerHistory:[{seconds:600},{seconds:180},{seconds:NaN},{seconds:-1},{seconds:86401},{seconds:'60'},{seconds:600}]};f.view.host.state=state;f.view.host.dispatch=event=>{f.dispatched.push(event);f.view.host.state=event.type==='show'?{...f.view.host.state,focus:event.id}:timerTransition(f.view.host.state,event);};f.view.inputs={hours:{value:'0'},minutes:{value:'5'},seconds:{value:'0'}};const list=recentList(f);f.view.render(state);assert.deepEqual(list.children.map(button=>Number(button.dataset.recentSeconds)),[600,180]);
   const choose=key=>list.children.find(button=>button.dataset.recentSeconds===key).listeners.get('click')();choose('600');assert.equal(f.view.duration,600);assert.equal(f.view.inputs.minutes.value,10);assert.equal(f.form.querySelector('output').textContent,'10:00');assert(f.form.querySelectorAll('[data-minutes]').every(button=>button.getAttribute('aria-pressed')==='false'));assert.deepEqual(f.dispatched,[]);assert.equal(f.view.host.state.timer,null);
   f.view.fill({seconds:660});assert.equal(f.view.duration,660);assert.deepEqual(f.dispatched,[]);
-  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/timer-view.js',import.meta.url),'utf8'),start=source.indexOf("this.form.addEventListener('submit',"),body=source.slice(start,source.indexOf("\n  for(const b",start)),register=new Function('host',body.replace('this.form.addEventListener','this.form.addEventListener'));register.call(f.view,f.view.host);f.form.listeners.get('submit')({preventDefault(){}});assert.equal(f.dispatched.length,2);assert.deepEqual(f.dispatched[1],{type:'show',id:'now'});assert.equal(f.view.host.state.focus,'now');assert.equal(f.dispatched[0].type,'timer-start');assert.equal(f.dispatched[0].seconds,660);f.view.render(f.view.host.state);assert.equal(f.form.hidden,true);assert.equal(f.view.detail.querySelector('.timer-recent').hidden,false);const duration=f.view.duration;choose('180');assert.equal(f.view.duration,duration);assert.equal(f.dispatched.length,2);
+  const source=readFileSync(new URL('../../podview/timer-view.js',import.meta.url),'utf8'),start=source.indexOf("this.form.addEventListener('submit',"),body=source.slice(start,source.indexOf("\n  for(const b",start)),register=new Function('host',body.replace('this.form.addEventListener','this.form.addEventListener'));register.call(f.view,f.view.host);f.form.listeners.get('submit')({preventDefault(){}});assert.equal(f.dispatched.length,2);assert.deepEqual(f.dispatched[1],{type:'show',id:'now'});assert.equal(f.view.host.state.focus,'now');assert.equal(f.dispatched[0].type,'timer-start');assert.equal(f.dispatched[0].seconds,660);f.view.render(f.view.host.state);assert.equal(f.form.hidden,true);assert.equal(f.view.detail.querySelector('.timer-recent').hidden,false);const duration=f.view.duration;choose('180');assert.equal(f.view.duration,duration);assert.equal(f.dispatched.length,2);
  }finally{globalThis.document=previous;}
 });
 
@@ -218,7 +218,7 @@ test('dismissed finished timer retains exact activity and actions without a floa
   const done={...base,timer:{...base.timer,status:'done',remaining:0,noticeDismissed:true,physicalDrained:true}};f.view.host.state=done;f.view.render(done);f.view.renderOverviewActivities(done);assert.equal(f.view.nodes.get(`overview:${timer.id}`),overview);assert.equal(title.hidden,true);assert.equal(title.textContent,'');assert.equal(overview.querySelector('.timer-count').textContent,'Tiden er gået');assert.equal(overview.hidden,false);assert.equal(overview.dataset.timerId,timer.id);assert.equal(overview.querySelector('.timer-finish').textContent,'Færdig');assert.doesNotMatch(overview.querySelector('.timer-open').getAttribute('aria-label'),/Pasta/);assert.equal(f.view.shortcut.hidden,true);assert.deepEqual(f.dispatched,[],'dismissed alarm does not remove the finished activity');
   overview.querySelector('.timer-finish').listeners.get('click')();assert.deepEqual(f.dispatched,[{type:'timer',id:timer.id,action:'cancel'}]);
   f.view.render(base);assert.equal(title.textContent,'Timer');assert.equal(title.hidden,false);assert.equal(f.view.nodes.get(`detail:${timer.id}`),detail);
-  const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/timer-view.js',import.meta.url),'utf8');assert.match(source,/<form class="timer-create pv-card" data-kit-tone="dark"/);assert.match(source,/seconds:this\.duration,name:''/);assert.doesNotMatch(source,/<input[^>]*name="name"/);
+  const source=readFileSync(new URL('../../podview/timer-view.js',import.meta.url),'utf8');assert.match(source,/<form class="timer-create pv-card" data-kit-tone="dark"/);assert.match(source,/seconds:this\.duration,name:''/);assert.doesNotMatch(source,/<input[^>]*name="name"/);
  }finally{globalThis.document=prior;}
 });
 
@@ -285,7 +285,7 @@ test('long-hour overview retains full time and stable actions while its narrow l
   f.view.host.state=state;f.view.render(state);const card=f.view.nodes.get(`overview:${timer.id}`),open=card.querySelector('.timer-open'),finish=card.querySelector('.timer-finish');
   assert.equal(card.querySelector('.timer-count').textContent,'1:42:18');assert.equal(card.querySelector('.timer-instrument').dataset.long,'true');assert.equal(card.querySelector('.timer-state').textContent,'Tæller ned');assert.match(open.getAttribute('aria-label'),/1:42:18 · Tæller ned/);
   f.view.render({...state,timer:{...long,remaining:6137}});assert.equal(card.querySelector('.timer-finish'),finish);assert.equal(card.querySelector('.timer-open'),open);assert.deepEqual(f.dispatched,[]);
-  const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),start=css.indexOf('/* Long-hour overview keeps both metadata rows readable at the narrower product width. */'),rule=css.slice(start,css.indexOf('/* Native controls',start));
+  const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8'),start=css.indexOf('/* Long-hour overview keeps both metadata rows readable at the narrower product width. */'),rule=css.slice(start,css.indexOf('/* Native controls',start));
   assert.notEqual(start,-1);assert.match(rule,/@media\(min-width:760px\) and \(max-width:1100px\)/);assert.match(rule,/:has\(>\.timer-instrument\[data-long=true\]\)>\.timer-copy>\.timer-count\{font:var\(--pv-t-value\);line-height:44px;white-space:nowrap\}/);
   const copyRule=css.slice(css.indexOf('.timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){'),css.indexOf('}',css.indexOf('.timer-panel.pv-hero>.timer-copy>:is(strong,.timer-state){')));
   assert.match(copyRule,/min-width:0/);assert.match(copyRule,/white-space:nowrap/);assert.match(copyRule,/overflow:hidden;text-overflow:ellipsis/);

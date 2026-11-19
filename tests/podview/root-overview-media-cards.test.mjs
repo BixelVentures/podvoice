@@ -1,14 +1,14 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {renderRetainedArtwork,cancelArtwork,spotifyArtwork,spotifyItemUrl} from '../../podvoice/gatekeeper/static/podview/spotify-artwork.js';
-import {fixtureArtwork,renderOverviewMediaValues} from '../../podvoice/gatekeeper/static/podview/music-results.js';
-import {radioStation,localRadioPlayerModel} from '../../podvoice/gatekeeper/static/podview/radio-model.js';
-import {localPlayerModel} from '../../podvoice/gatekeeper/static/podview/player-view.js';
-import {initialScene} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {liveScene,liveLocalEvent,liveTimerRequest} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {vehicleFixture,vehicleModel,vehicleChargeUpdate} from '../../podvoice/gatekeeper/static/podview/vehicle-model.js';
-const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderOverviewMediaCards('),end=source.indexOf('\n renderOverviewFacts(',start);
+import {renderRetainedArtwork,cancelArtwork,spotifyArtwork,spotifyItemUrl} from '../../podview/spotify-artwork.js';
+import {fixtureArtwork,renderOverviewMediaValues} from '../../podview/music-results.js';
+import {radioStation,localRadioPlayerModel} from '../../podview/radio-model.js';
+import {localPlayerModel} from '../../podview/player-view.js';
+import {initialScene} from '../../podview/scene-model.js';
+import {liveScene,liveLocalEvent,liveTimerRequest} from '../../podview/podvoice-view.js';
+import {vehicleFixture,vehicleModel,vehicleChargeUpdate} from '../../podview/vehicle-model.js';
+const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' renderOverviewMediaCards('),end=source.indexOf('\n renderOverviewFacts(',start);
 const method=source.slice(start,end).trim();
 function fixture({live=false,vm=localPlayerModel(initialScene()),state=initialScene(),radioSize='m'}={}){
  const probes=[],writes=[];class Probe{constructor(){probes.push(this);}decode(){return Promise.resolve();}removeAttribute(){this.src=null;}}
@@ -79,7 +79,7 @@ test('Tesla Card unavailable state reflects the actual model mode and identical 
 });
 
 test('actual overview charge cue shares source gating, preserves value node and cancels on hidden or foreign owners',async()=>{
- const {vehicleObservation}=await import('../../podvoice/gatekeeper/static/podview/ha-home-observation.js'),f=fixture({live:true}),calls=[],context={connected:true,readGranted:true,scope:'current',sourceScope:'current'},sample=(at,percent=71)=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:at,entityIds:['sensor.car_charge'],data:{batteryPercent:percent,charging:{status:'charging'},climate:{}}});
+ const {vehicleObservation}=await import('../../podview/ha-home-observation.js'),f=fixture({live:true}),calls=[],context={connected:true,readGranted:true,scope:'current',sourceScope:'current'},sample=(at,percent=71)=>vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:at,entityIds:['sensor.car_charge'],data:{batteryPercent:percent,charging:{status:'charging'},climate:{}}});
  f.host.state={...f.host.state,focus:'now'};f.host.vehicleChargeContext=context;f.host.motion={animate(node,frames,duration){const animation={cancelled:false,cancel(){this.cancelled=true;}};calls.push({node,frames,duration,animation,text:node.textContent});return animation;}};
  f.render(sample(100));const value=f.cards.get('home-vehicle').label.value;assert.equal(calls.length,0);f.render(sample(101,72));assert.equal(calls.length,1);assert.equal(calls[0].node,value);assert.equal(calls[0].text,'72 %');assert.equal(calls[0].duration,120);assert.deepEqual(calls[0].frames,[{opacity:.65},{opacity:1}]);f.render(sample(101,72));f.render(sample(102,72));assert.equal(calls.length,1);assert.equal(calls[0].animation.cancelled,false);
  f.host.state.focus='vehicle';f.render(sample(103,73));assert.equal(calls[0].animation.cancelled,true);assert.equal(calls.length,1);f.host.state.focus='now';f.host.vehicleChargeContext={...context,suppress:true};f.render(sample(103,73));assert.equal(calls.length,1);f.host.vehicleChargeContext=context;f.render(sample(104,74));assert.equal(calls.length,2);f.host.vehicleChargeContext={...context,sourceScope:'foreign'};f.render(sample(105,75));assert.equal(calls[1].animation.cancelled,true);assert.equal(calls.length,2);assert.equal(f.cards.get('home-vehicle').label.value,value);assert.equal(value.textContent,'75 %');

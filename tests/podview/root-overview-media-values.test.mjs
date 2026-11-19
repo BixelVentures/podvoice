@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {renderOverviewMediaValues} from '../../podvoice/gatekeeper/static/podview/music-results.js';
+import {renderOverviewMediaValues} from '../../podview/music-results.js';
 class Node {
  constructor(){this.dataset={};this.children=[];this.attrs=new Map();this.textContent='';this.hidden=false;}
  querySelector(selector){return this.children.find(node=>'.'+node.className===selector)||null;}

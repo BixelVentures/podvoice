@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SetupFlow} from '../../podvoice/gatekeeper/static/podview/setup.js';
-import {PodVoiceTransport} from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import {SetupFlow} from '../../podview/setup.js';
+import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 
 const id='a'.repeat(32);
 const snapshot=()=>({schema:'podview.snapshot.v1',bootId:'boot',roomId:'kitchen',revision:1,voice:{active:false},timers:{status:'observed',items:[]},capabilities:{musicRead:[],timerActions:[]},controllerContinuity:{enabled:true,available:true}});

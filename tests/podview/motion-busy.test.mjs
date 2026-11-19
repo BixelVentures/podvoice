@@ -3,11 +3,11 @@
 // springs are sampled keyframes, because WebKit's Core Animation path does not accelerate a linear() easing.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {begin,end,isBusy,onIdle} from '../../podvoice/gatekeeper/static/podview/ui/motion-busy.js';
-import {linearPoints,springFrames,springTiming} from '../../podvoice/gatekeeper/static/podview/ui/native-motion.js';
-import {SPRING} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
-import {ScrollEdges} from '../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js';
-import {CssFlags} from '../../podvoice/gatekeeper/static/podview/ui/css-flags.js';
+import {begin,end,isBusy,onIdle} from '../../podview/ui/motion-busy.js';
+import {linearPoints,springFrames,springTiming} from '../../podview/ui/native-motion.js';
+import {SPRING} from '../../podview/ui/motion.js';
+import {ScrollEdges} from '../../podview/ui/scroll-edges.js';
+import {CssFlags} from '../../podview/ui/css-flags.js';
 
 test('onIdle runs at once when nothing moves, and once after the last of several movements',()=>{
  let runs=0;const count=()=>runs++;

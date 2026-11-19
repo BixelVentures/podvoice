@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {TimerView} from '../../podvoice/gatekeeper/static/podview/timer-view.js';
+import {TimerView} from '../../podview/timer-view.js';
 
 test('timer-only overview installs no activity carousel or horizontal gesture owner',()=>{
  const node=()=>({hidden:false,dataset:{}}),overview=node(),shortcut=node(),overviewList=node(),view=Object.assign(Object.create(TimerView.prototype),{overview,shortcut,overviewList,nodes:new Map(),host:{live:true}});

@@ -1,9 +1,9 @@
-import {liveScene} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
+import {liveScene} from '../../podview/podvoice-view.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {LightLampView} from '../../podvoice/gatekeeper/static/podview/light-lamp-view.js';
-import {previewScene} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {sceneTransition,binding} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
+import {LightLampView} from '../../podview/light-lamp-view.js';
+import {previewScene} from '../../podview/preview-scenes.js';
+import {sceneTransition,binding} from '../../podview/scene-model.js';
 
 class Node extends EventTarget{
  constructor(tag){super();this.tagName=tag.toUpperCase();this.attributes=new Map();this.dataset={};this.children=[];this.className='';this.style={values:new Map(),getPropertyValue(key){return this.values.get(key)||'';},setProperty(key,value){this.values.set(key,value);}};this.classList={add:(...names)=>{this.className=[this.className,...names].filter(Boolean).join(' ');}};if(['input','button'].includes(tag))this.disabled=false;}

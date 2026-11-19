@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {createKitComponent,applyKitComponent} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
-import {productLibrary,libraryCategories,libraryStateCount} from '../../podvoice/gatekeeper/static/podview/library-catalog.js';
-import {previewStates,previewScene,answerPreviewStatuses} from '../../podvoice/gatekeeper/static/podview/preview-scenes.js';
-import {FORMATS} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {scrollEdgeState} from '../../podvoice/gatekeeper/static/podview/ui/scroll-edges.js';
+import {createKitComponent,applyKitComponent} from '../../podview/ui/kit.js';
+import {productLibrary,libraryCategories,libraryStateCount} from '../../podview/library-catalog.js';
+import {previewStates,previewScene,answerPreviewStatuses} from '../../podview/preview-scenes.js';
+import {FORMATS} from '../../podview/scene-model.js';
+import {scrollEdgeState} from '../../podview/ui/scroll-edges.js';
 
 function scrollStyle(value='',priority=''){return {getPropertyValue:()=>value,getPropertyPriority:()=>priority,setProperty(name,next,nextPriority=''){assert.equal(name,'overflow-y');value=next;priority=nextPriority;}};}
 
@@ -79,8 +79,8 @@ test('component isolation targets the displayed anatomy and respects intentional
 
 test('published component library omits surveys while the original decisions remain archived',async()=>{
  const {readFile}=await import('node:fs/promises');
- const html=await readFile(new URL('../../podvoice/gatekeeper/static/podview/library.html',import.meta.url),'utf8');
- const source=await readFile(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8');
+ const html=await readFile(new URL('../../podview/library.html',import.meta.url),'utf8');
+ const source=await readFile(new URL('../../podview/library.js',import.meta.url),'utf8');
  for(const id of ['design-comparison','review-panel','design-questions','question-list','export-reviews'])assert(!html.includes(`id="${id}"`),id);
  assert.doesNotMatch(source,/localStorage|recordedReviews|applyVariant|data-vote/);
  const supplied=JSON.parse(await readFile(new URL('../../docs/USER-DESIGN-ANSWERS-2026-10-20.json',import.meta.url),'utf8'));
@@ -90,7 +90,7 @@ test('published component library omits surveys while the original decisions rem
 
 test('stale survey URLs preserve canonical component navigation and drop question and variant',async()=>{
  const {readFile}=await import('node:fs/promises');
- const source=await readFile(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8');
+ const source=await readFile(new URL('../../podview/library.js',import.meta.url),'utf8');
  const body=source.slice(source.indexOf('const readHash='),source.indexOf('function frameSetup'));
  const family=productLibrary.find(item=>item.id==='weather'),sample=family.states.find(item=>item.stage==='weather-ready');
  const location={hash:`#component=weather&state=${encodeURIComponent(sample.id)}&part=1&question=question-2&variant=alternative`};
@@ -104,15 +104,15 @@ test('stale survey URLs preserve canonical component navigation and drop questio
 
 
 test('library Touchområder paints only opted-in documents and repeated application is quiet',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function applyTouchInspection('),end=source.indexOf('function renderTouchInspection(',start);
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function applyTouchInspection('),end=source.indexOf('function renderTouchInspection(',start);
  const apply=new Function(`return (${source.slice(start,end).trim()});`)(),writes=[],dataset=new Proxy({}, {set(target,key,value){writes.push([key,value]);target[key]=value;return true;},deleteProperty(target,key){writes.push(['delete',key]);delete target[key];return true;}}),doc={documentElement:{dataset}};
  apply(doc,false);assert.deepEqual(writes,[]);apply(doc,true);assert.equal(dataset.libraryTouchAreas,'true');writes.length=0;apply(doc,true);assert.deepEqual(writes,[]);apply(doc,false);assert.equal(dataset.libraryTouchAreas,undefined);assert.deepEqual(writes,[['delete','libraryTouchAreas']]);apply(null,true);
- const html=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.html',import.meta.url),'utf8'),css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui/library/library.css',import.meta.url),'utf8');assert.match(html,/id="touch-areas"[^>]*aria-pressed="false"/);assert.match(html,/id="touch-area-legend"[^>]*hidden/);assert.match(html,/href="ui\/library\/library.css"/);assert.match(source,/applyTouchInspection\(doc\)/);assert.match(source,/applyTouchInspection\(frame.contentDocument\)/);assert.match(css,/html\[data-library-touch-areas=true\].*\[role=slider\]/);assert.match(css,/:focus-visible/);assert.match(css,/:active/);
+ const html=readFileSync(new URL('../../podview/library.html',import.meta.url),'utf8'),css=readFileSync(new URL('../../podview/ui/library/library.css',import.meta.url),'utf8');assert.match(html,/id="touch-areas"[^>]*aria-pressed="false"/);assert.match(html,/id="touch-area-legend"[^>]*hidden/);assert.match(html,/href="ui\/library\/library.css"/);assert.match(source,/applyTouchInspection\(doc\)/);assert.match(source,/applyTouchInspection\(frame.contentDocument\)/);assert.match(css,/html\[data-library-touch-areas=true\].*\[role=slider\]/);assert.match(css,/:focus-visible/);assert.match(css,/:active/);
 });
 
 
 test('library reduced motion binds the actual preview owner, cancels geometry and quietly restores normal without a scene action',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function applyMotion('),end=source.indexOf('\n',start),body=source.slice(start,end).trim();let reducedMotion=true;const events=[],state={focus:'answer-steps',music:{track:'retained'}};
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function applyMotion('),end=source.indexOf('\n',start),body=source.slice(start,end).trim();let reducedMotion=true;const events=[],state={focus:'answer-steps',music:{track:'retained'}};
  const host={dataset:new Proxy({}, {set(target,key,value){events.push([key,value]);target[key]=value;return true;}}),state,motion:{cancel(){events.push('cancel');},releaseGeometry(animate){events.push(['release',animate]);}},dispatch(){assert.fail('motion preference must not dispatch a scene action');},render(){assert.fail('motion preference must not rerender content');}},frame={contentDocument:{querySelector(selector){assert.equal(selector,'pv-widget-host');return host;}}};
  const apply=()=>new Function('reducedMotion',`return (${body});`)(reducedMotion);
  apply()(frame);assert.equal(host.dataset.motion,'reduced');assert.deepEqual(events,[['motion','reduced'],'cancel',['release',false]]);assert.equal(host.state,state);
@@ -124,7 +124,7 @@ test('library reduced motion binds the actual preview owner, cancels geometry an
 
 test('Button specimens use actual retained selected, owned pending and explicit error attributes without a command timer',()=>{
  class NativeButton extends EventTarget{constructor(tag){super();this.tagName=tag.toUpperCase();this.className='';this.attributes=new Map();this.dataset={};this.children=[];this.disabled=false;}setAttribute(key,value){this.attributes.set(key,String(value));}getAttribute(key){return this.attributes.get(key)??null;}append(...nodes){this.children.push(...nodes);}}
- const doc={createElement:tag=>new NativeButton(tag)},source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function specimenNode('),end=source.indexOf('function renderSpecimens(',start),make=new Function('createKitComponent','applyKitComponent','document','entry',`return (${source.slice(start,end).trim()});`)((type,options)=>createKitComponent(type,{...options,document:doc}),applyKitComponent,doc,{name:'Button'});
+ const doc={createElement:tag=>new NativeButton(tag)},source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function specimenNode('),end=source.indexOf('function renderSpecimens(',start),make=new Function('createKitComponent','applyKitComponent','document','entry',`return (${source.slice(start,end).trim()});`)((type,options)=>createKitComponent(type,{...options,document:doc}),applyKitComponent,doc,{name:'Button'});
  const selected=make('button','selected','tesla');assert.equal(selected.getAttribute('data-kit'),'button');assert.equal(selected.getAttribute('data-kit-identity'),'tesla');assert.equal(selected.getAttribute('aria-pressed'),'true');selected.dispatchEvent(new Event('click'));assert.equal(selected.getAttribute('aria-pressed'),'false');assert.equal(selected.textContent,'Valg fra');selected.dispatchEvent(new Event('click'));assert.equal(selected.getAttribute('aria-pressed'),'true');
  const pending=make('button','loading');assert.equal(pending.getAttribute('aria-busy'),'true');assert.equal(pending.disabled,true);assert.equal(pending.textContent,'Afventer');assert.equal(pending.dataset.state,undefined);
  const error=make('button','error');assert.equal(error.dataset.state,'error');assert.equal(error.getAttribute('aria-busy'),'false');assert.equal(error.textContent,'Prøv igen');assert.equal(make('button').dataset.state,undefined);
@@ -132,7 +132,7 @@ test('Button specimens use actual retained selected, owned pending and explicit 
 
 
 test('seven widget size boards load actual product frames at S/M/L footprints and retain the wide active-timer exception',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),configStart=source.indexOf('const widgetSizeTargets='),configEnd=source.indexOf('let level=',configStart),config=new Function(`${source.slice(configStart,configEnd)};return {widgetSizeTargets,widgetSizes};`)();
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),configStart=source.indexOf('const widgetSizeTargets='),configEnd=source.indexOf('let level=',configStart),config=new Function(`${source.slice(configStart,configEnd)};return {widgetSizeTargets,widgetSizes};`)();
  assert.deepEqual(Object.keys(config.widgetSizeTargets),['weather','music','robot','lights','vehicle','radio','timer']);assert.deepEqual(config.widgetSizes.map(({id,width,height})=>({id,width,height})),[{id:'s',width:199,height:177},{id:'m',width:414,height:177},{id:'l',width:414,height:370}]);
  const start=source.indexOf('function renderWidgetSizePreviews('),end=source.indexOf('function navigation(',start),renderSource=source.slice(start,end).trim();
  const node=tag=>({tagName:tag.toUpperCase(),children:[],dataset:{},append(...children){this.children.push(...children);}}),doc={createElement:node};
@@ -145,13 +145,13 @@ test('seven widget size boards load actual product frames at S/M/L footprints an
 });
 
 test('widget frame crop keeps the actual rectangle and a proportional scale instead of resizing its renderer',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function fit('),end=source.indexOf('const resize=',start),framing=new WeakMap(),fit=new Function('framing',`return (${source.slice(start,end).trim()});`)(framing),frame={style:{}},viewport={clientWidth:207,style:{},querySelector:()=>frame};
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function fit('),end=source.indexOf('const resize=',start),framing=new WeakMap(),fit=new Function('framing',`return (${source.slice(start,end).trim()});`)(framing),frame={style:{}},viewport={clientWidth:207,style:{},querySelector:()=>frame};
  framing.set(frame,{x:24,y:108,width:414,height:370});fit(viewport);assert.equal(frame.style.transform,'scale(0.5) translate(-24px,-108px)');assert.equal(viewport.style.aspectRatio,'414/370');assert.equal(frame.style.width,undefined);assert.equal(viewport.style.overflow,'clip','an isolated crop is not itself a scroll container');assert.equal(frame.style.position,'absolute','the full renderer layout height cannot enlarge its measured crop');assert.equal(frame.style.inset,'0 auto auto 0');
  framing.delete(frame);fit(viewport);assert.equal(viewport.style.aspectRatio,'1280/800');assert.equal(viewport.style.overflow,'','full product preview restores its normal overflow rule');assert.equal(frame.style.position,'');assert.equal(frame.style.inset,'');
 });
 
 test('initial widget staging records settled geometry and restores real navigation motion; Back waits for its actual owner',async()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function renderWidgetSizePreviews('),end=source.indexOf('function navigation(',start),renderSource=source.slice(start,end).trim(),raf=new Map(),observers=[],events=[],framing=new WeakMap(),cleanup=new WeakMap();let serial=0,transform=64,boxReads=0;
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function renderWidgetSizePreviews('),end=source.indexOf('function navigation(',start),renderSource=source.slice(start,end).trim(),raf=new Map(),observers=[],events=[],framing=new WeakMap(),cleanup=new WeakMap();let serial=0,transform=64,boxReads=0;
  const node=tag=>({tagName:tag.toUpperCase(),children:[],dataset:{},style:{},isConnected:true,append(...children){for(const child of children){child.parentElement=this;this.children.push(child);}}});
  const widget=node('button');widget.getBoundingClientRect=()=>{boxReads++;events.push('measure:'+transform);return {x:24+transform,y:108,width:414,height:177};};
  const host={dataset:{motion:'system'},state:{focus:'robot-detail'},motion:{animations:new Map(),cancel(){events.push('cancel');transform=0;this.animations.clear();},releaseGeometry(animate){assert.equal(animate,false);events.push('release');}},dispatch(event){events.push('dispatch:'+this.dataset.motion);if(this.dataset.motion!=='reduced')transform=16;this.state.focus=event.id;},render(){events.push('render:'+this.dataset.motion);if(this.dataset.motion!=='reduced')transform=16;}};
@@ -163,7 +163,7 @@ test('initial widget staging records settled geometry and restores real navigati
 
 
 test('size framing exposes the actual widget inside its product scroll owner before crop and clears its real end fade',()=>{
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function renderWidgetSizePreviews('),end=source.indexOf('function navigation(',start),renderSource=source.slice(start,end).trim();
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8'),start=source.indexOf('function renderWidgetSizePreviews('),end=source.indexOf('function navigation(',start),renderSource=source.slice(start,end).trim();
  for(const family of ['radio','robot','weather','vehicle'])for(const [size,height]of [['s',177],['m',177],['l',370]]){
   const events=[],raf=[],framing=new WeakMap(),cleanups=new WeakMap(),node=tag=>({tagName:tag.toUpperCase(),children:[],dataset:{},isConnected:true,append(...children){for(const child of children){child.parentElement=this;this.children.push(child);}}});
   const feed={style:scrollStyle(),scrollTop:0,clientTop:0,clientHeight:704,scrollHeight:916,getBoundingClientRect:()=>({top:80,bottom:784})},widget=node('button');widget.getBoundingClientRect=()=>{events.push('measure');return {x:40,y:626-feed.scrollTop,top:626-feed.scrollTop,bottom:626-feed.scrollTop+height,width:size==='s'?199:414,height};};
@@ -182,7 +182,7 @@ test('conversation navigation exposes ten actual answer owners and preserves the
   assert.equal(sample.stage,`answer-${format}-ready`);assert.equal(sample.selector,'#answer-host');
   assert(productLibrary.find(item=>item.id===`answer-${format}`).states.some(item=>item.stage===sample.stage));
  }
- const source=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/library.js',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../../podview/library.js',import.meta.url),'utf8');
  assert.match(source,/families:item.id==='conversation'\?\[item.id,\.\.\.productLibrary.filter/);
 });
 

@@ -3,7 +3,7 @@
 // The heartbeat must keep the connection fresh without redrawing unchanged content.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { PodVoiceTransport } from '../../podvoice/gatekeeper/static/podview/podvoice-transport.js';
+import { PodVoiceTransport } from '../../podview/podvoice-transport.js';
 
 const snapshot = (patch = {}) => ({
   schema: 'podview.snapshot.v1',

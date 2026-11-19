@@ -9,7 +9,7 @@ from integration.test_podview_ha_ingress60 import HEADERS, ingress  # noqa: F401
 from gatekeeper.recipe_submissions import RECIPE_SHORTCUT_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
-SIGNED = ROOT / "podvoice/gatekeeper/static/podview/assets/opskrifter-til-podview.shortcut"
+SIGNED = ROOT / "podview/public/assets/opskrifter-til-podview.shortcut"
 TOKEN = "u" * 40
 
 

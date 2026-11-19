@@ -19,7 +19,7 @@ from unit.test_robot_extended_settings import ROLES, ExtendedRig
 from gatekeeper.podview import PodViewBridge
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL = ROOT / "podvoice/gatekeeper/static/podview/control-model.js"
+MODEL = ROOT / "podview/control-model.js"
 NODE_ADMISSION = """
 import {readFileSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';

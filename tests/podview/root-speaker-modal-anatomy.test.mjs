@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {SpeakerOutputView} from '../../podvoice/gatekeeper/static/podview/speaker-output-view.js';
-import {applyKitDialog} from '../../podvoice/gatekeeper/static/podview/ui/kit.js';
+import {SpeakerOutputView} from '../../podview/speaker-output-view.js';
+import {applyKitDialog} from '../../podview/ui/kit.js';
 
 // Native-like document order and parent ownership matter here: a direct child
 // of a grid Dialog is a separate track. Layout remains a browser QA gate.
@@ -35,6 +35,6 @@ test('relocated refresh retains one explicit passive catalogue read and no playb
  const f=fixture();t.after(()=>f.view.cleanup());assert.deepEqual(f.calls,[]);f.view.refresh.click();f.view.refresh.click();assert.deepEqual(f.calls,[['speakers','account']],'pending repeated activation cannot duplicate the read');assert.equal(f.view.refresh.disabled,true);await new Promise(resolve=>setImmediate(resolve));assert.equal(f.view.refresh.disabled,false);assert.equal(f.rows.children.length,1);assert.equal(f.rows.children[0].disabled,true);assert.equal(f.rows.children[0].dataset.speakerId,'a'.repeat(64));assert.deepEqual(f.effects,[]);assert.equal(f.host.liveSnapshot.roomId,'room');
 });
 test('shared non-toast Dialog and its immediate form use intrinsic content tracks',async()=>{
- const css=await readFile(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8'),rules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([,selector,body])=>({selector:selector.trim(),body})),intrinsic=rule=>/height\s*:\s*fit-content/.test(rule.body)&&/min-height\s*:\s*0/.test(rule.body)&&/grid-auto-rows\s*:\s*max-content/.test(rule.body)&&/align-content\s*:\s*start/.test(rule.body);
+ const css=await readFile(new URL('../../podview/ui-kit.css',import.meta.url),'utf8'),rules=[...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)].map(([,selector,body])=>({selector:selector.trim(),body})),intrinsic=rule=>/height\s*:\s*fit-content/.test(rule.body)&&/min-height\s*:\s*0/.test(rule.body)&&/grid-auto-rows\s*:\s*max-content/.test(rule.body)&&/align-content\s*:\s*start/.test(rule.body);
  assert.ok(rules.some(rule=>rule.selector.includes('.pv-kit-dialog')&&rule.selector.includes('toast')&&!rule.selector.includes('#quick-sheet')&&intrinsic(rule)),'content sizing belongs to the canonical non-toast Dialog, not only the settings sheet');assert.ok(rules.some(rule=>/\.pv-kit-dialog\s*>\s*form/.test(rule.selector)&&/grid-auto-rows\s*:\s*max-content/.test(rule.body)&&/align-content\s*:\s*start/.test(rule.body)),'the retained method=dialog form also uses content tracks');
 });

@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {SceneMotion,DUR,valueDirection,rollingDigits,showValue,showProgress,springBezier,SPRING}
- from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
+ from '../../podview/ui/motion.js';
 
 const QUICK=springBezier(SPRING.quick);
 class KeyframeEffect{get pseudoElement(){return null;}}
@@ -121,7 +121,7 @@ test('progress: ticks set linear over the interval, a user change marks the spri
 });
 
 test('CSS: tick is linear over the tick, user is the smooth spring, reduced user is short and linear',()=>{
- const css=readFileSync(new URL('../../podvoice/gatekeeper/static/podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
  const rule=(selector,body)=>assert(css.replace(/\s+/g,' ').includes(`${selector}{ ${body}}`)||
   css.replace(/\s+/g,' ').includes(`${selector}{${body}}`),`${selector}{${body}}`);
  const tick='transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear';

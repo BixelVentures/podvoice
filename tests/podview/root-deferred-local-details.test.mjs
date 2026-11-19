@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';
-const source=fs.readFileSync(new URL('../../podvoice/gatekeeper/static/podview/widget-view.js',import.meta.url),'utf8');
+const source=fs.readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 test('actual local music render gate defers hidden first construction, mounts on entry and keeps later updates',()=>{
  const block=source.match(/if\(\(s\.focus==='music'\|\|this\.localMusicSignature!==undefined\).*?this\.localMusicSignature=musicSignature;\}/)?.[0];assert.ok(block);const run=Function('s','musicSignature','musicProjection',block),calls=[],host={musicResults:{render:model=>calls.push(model)}};
  run.call(host,{focus:'photo'},'first',{id:1});assert.equal(calls.length,0);assert.equal(host.localMusicSignature,undefined);

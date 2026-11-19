@@ -4,9 +4,9 @@
 // Springs are sampled keyframes with linear easing between them (Core Animation does not accelerate linear()).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {SPRING,DUR} from '../../podvoice/gatekeeper/static/podview/ui/motion.js';
-import {animateList} from '../../podvoice/gatekeeper/static/podview/ui/list-motion.js';
-import {springTiming} from '../../podvoice/gatekeeper/static/podview/ui/native-motion.js';
+import {SPRING,DUR} from '../../podview/ui/motion.js';
+import {animateList} from '../../podview/ui/list-motion.js';
+import {springTiming} from '../../podview/ui/native-motion.js';
 
 const SNAPPY=springTiming(SPRING.snappy),SMOOTH=springTiming(SPRING.smooth),ROW=60;
 // The first and last keyframe of a spring animation, without offsets, and whether it is a sampled spring.

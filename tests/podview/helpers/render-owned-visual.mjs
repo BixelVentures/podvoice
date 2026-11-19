@@ -1,7 +1,7 @@
 // Tiny DOM adapter: execute the shipped admission + Web Component renderer with
 // the actual Python owner's serialized payload. This is not browser/pixel QA.
 import assert from 'node:assert/strict';
-import {ownedAnswers} from '../../../podvoice/gatekeeper/static/podview/owner-answers.js';
+import {ownedAnswers} from '../../../podview/owner-answers.js';
 class Element extends EventTarget {
  constructor(){super();this.children=[];this.dataset={};this.attributes=new Map();this.classList={add(){}};this.isConnected=false;this.hidden=false;this.textContent='';}
  append(...nodes){for(const n of nodes){n.remove?.();n.parentNode=this;this.children.push(n);}}
@@ -12,7 +12,7 @@ class Element extends EventTarget {
 }
 const registry=new Map();globalThis.HTMLElement=Element;globalThis.customElements={define:(tag,type)=>registry.set(tag,type)};
 globalThis.document={createElement(tag){const n=new (registry.get(tag)||Element)();n.localName=tag;n.tagName=tag.toUpperCase();return n;}};
-await import('../../../podvoice/gatekeeper/static/podview/ui/library/visual-components.js');
+await import('../../../podview/ui/library/visual-components.js');
 let raw='';for await(const chunk of process.stdin)raw+=chunk;
 const payload=JSON.parse(raw),answer=ownedAnswers(payload.answers,payload.snapshot,0,payload.now).items[0];
 assert.equal(answer.kind,'fact-card');

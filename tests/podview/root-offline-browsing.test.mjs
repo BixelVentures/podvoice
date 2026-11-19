@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {initialScene,sceneTransition,deviceActions} from '../../podvoice/gatekeeper/static/podview/scene-model.js';
-import {liveLocalEvent} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {updateResourceTile} from '../../podvoice/gatekeeper/static/podview/ui/resource-tile.js';
+import {initialScene,sceneTransition,deviceActions} from '../../podview/scene-model.js';
+import {liveLocalEvent} from '../../podview/podvoice-view.js';
+import {updateResourceTile} from '../../podview/ui/resource-tile.js';
 test('offline collection navigation preserves playback while every music effect remains rejected',()=>{
  let state=sceneTransition(initialScene(),{type:'offline'});const playback=state.music.playback;
  state=sceneTransition(state,{type:'show',id:'music'});state=sceneTransition(state,{type:'music',event:{type:'collection',value:'recent'}});assert.equal(state.focus,'music');assert.equal(state.music.collection,'recent');assert.equal(state.music.playback,playback);assert.equal(state.music.pending,null);

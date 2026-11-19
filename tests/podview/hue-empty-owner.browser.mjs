@@ -1,8 +1,8 @@
-import '../../podvoice/gatekeeper/static/podview/widget-view.js';
-import {LightRoomView} from '../../podvoice/gatekeeper/static/podview/light-room-view.js';
-import {LightLampView} from '../../podvoice/gatekeeper/static/podview/light-lamp-view.js';
-import {unconfiguredLight} from '../../podvoice/gatekeeper/static/podview/podvoice-view.js';
-import {validateHome,scopedLightDevice} from '../../podvoice/gatekeeper/static/podview/home-model.js';
+import '../../podview/widget-view.js';
+import {LightRoomView} from '../../podview/light-room-view.js';
+import {LightLampView} from '../../podview/light-lamp-view.js';
+import {unconfiguredLight} from '../../podview/podvoice-view.js';
+import {validateHome,scopedLightDevice} from '../../podview/home-model.js';
 const prototype=customElements.get('pv-widget-host').prototype;
 const assert=(ok,message)=>{if(!ok)throw Error(message);};
 const visible=node=>!!node?.isConnected&&!node.closest('[hidden]')&&node.getClientRects().length>0;
