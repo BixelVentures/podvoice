@@ -233,7 +233,7 @@ JS-ejere:
 - `src/screens/vehicle/VehicleView.tsx` (Bil)
 - `widget-view.js` (header-ur)
 - `ui/components.js` (`animateChange`, kun workshop)
-- `recipe-view.js` (cover flow, via CSS-transition)
+- `src/screens/recipe/Explore.tsx` (Udforsk-tekst og prikker, P9)
 
 **Tokens i dag** (`ui-kit.css`):
 - `--pv-d-press:120ms`
@@ -1115,7 +1115,7 @@ Hver PR følger `AGENTS.md`:
   - Rubber-band ved p<0.
   - Catch giver ikke tap.
   - Pointercancel giver snap til nærmeste.
-- `explore-render.test.mjs`: `render(p)` ved heltal er **identisk** med canvassets formler (x, z,
+- `src/screens/recipe/explore.test.js`: `render(p)` ved heltal er **identisk** med canvassets formler (x, z,
   rotateY, shade), kontinuerlig ved d=±1, og tekst-opacity er 0 ved .5.
 - Udvid `root-motion.test.mjs` og `root-pressed-state.test.mjs` til de nye primitiver.
 

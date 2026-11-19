@@ -4,7 +4,7 @@ import {deliveredStylesheet} from '../../podview/build/legacy-styles.mjs';
 // scale only on a scroll-driven timeline behind a feature query; no -webkit-overflow-scrolling anywhere.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
+import {readdirSync,readFileSync} from 'node:fs';
 
 const read=file=>readFileSync(new URL(`../../podview/${file}`,import.meta.url),'utf8');
 const css=read('ui-kit.css'),flat=css.replace(/\s+/g,' ');
@@ -14,7 +14,9 @@ test('the category row never scrolls: it is clipped, not a scroller, and nothing
  const rule=track.slice(0,track.indexOf('}'));
  assert.match(rule,/overflow:hidden!important$/);
  assert.doesNotMatch(rule,/scroll-snap|overflow-x:auto/);
- assert.doesNotMatch(read('recipe-view.js'),/scrollIntoView/);
+ const screen=new URL('../../podview/src/screens/recipe/',import.meta.url);
+ for(const file of readdirSync(screen).filter(name=>/\.tsx?$/.test(name)))
+  assert.doesNotMatch(readFileSync(new URL(file,screen),'utf8'),/scrollIntoView/,file);
 });
 
 test('shelf cards scale on a scroll-driven timeline only where the engine has one, in entry and exit only',()=>{

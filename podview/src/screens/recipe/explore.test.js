@@ -1,11 +1,18 @@
+// Ported from tests/podview/explore-render.test.mjs (node:test) to Vitest when the recipe screen moved to React. Same
+// assertions. Adaptations: exploreFrame/exploreKeyframes come from model.ts; the source scan reads the new Udforsk
+// source (Explore.tsx), with its own formatting of the same listener and gesture-owner attribute.
+//
 // Udforsk (docs/MOTION.md): the cover flow is a pure function of the fractional index p. At whole p it
 // is the canvas (Opskrifter-Bog); between whole values it is continuous, the title fades through 0 at .5 and the
 // dots weigh 1−|k−p|. Reduced stands flat.
-import test from 'node:test';
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {exploreFrame,exploreKeyframes} from '../../podview/recipe-view.js';
+import {dirname,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {exploreFrame,exploreKeyframes} from './model';
 
+const here=dirname(fileURLToPath(import.meta.url)),podview=resolve(here,'../../..');
 const parse=transform=>{
  const m=/translate3d\((-?[\d.e-]+)px,0,(-?[\d.e-]+)px\) rotateY\((-?[\d.e-]+)deg\)/.exec(transform);
  return {x:Number(m[1])+0,z:Number(m[2])+0,ry:Number(m[3])+0};
@@ -55,7 +62,7 @@ test('seven dots weigh 1−|k−p| and push each other, the window starts at rou
 });
 
 test('the stylesheet carries exactly the sampled keyframes, and covers move only with the scroll',()=>{
- const css=readFileSync(new URL('../../podview/ui-kit.css',import.meta.url),'utf8');
+ const css=readFileSync(resolve(podview,'ui-kit.css'),'utf8');
  const rule=(name,frames,body)=>`@keyframes ${name}{\n`+frames.map(f=>` ${f.offset}%{${body(f)}}`).join('\n')+'}';
  const cover=f=>`transform:${f.transform};z-index:${f.z}`+(Math.abs(f.d)===3.5?';visibility:visible':'');
  const full=exploreKeyframes(),flat=exploreKeyframes({reduced:true});
@@ -69,10 +76,10 @@ test('the stylesheet carries exactly the sampled keyframes, and covers move only
  assert.match(css,/@supports not \(animation-timeline:view\(\)\)/,'a flat snap carousel without scroll timelines');
  const cover0=css.slice(css.indexOf('#recipe-view#recipe-view#recipe-view [data-recipe-cover]{'));
  assert.doesNotMatch(cover0.slice(0,cover0.indexOf('}')),/transition|filter|will-change/);
- const source=readFileSync(new URL('../../podview/recipe-view.js',import.meta.url),'utf8');
+ const source=readFileSync(resolve(here,'Explore.tsx'),'utf8');
  assert.doesNotMatch(source,/attachSwipeTrack|requestAnimationFrame\(draw|pvMoving|brightness\(/);
- assert.match(source,/flow\.addEventListener\('scroll',scrolled,\{passive:true\}\)/);
- assert.match(source,/flow\.dataset\.pvGestureOwner = ''/);
+ assert.match(source,/flow\.addEventListener\('scroll', scrolled, \{passive: true\}\)/);
+ assert.match(source,/data-pv-gesture-owner=""/);
 });
 
 test('at whole d the keyframes are the canvas, measured from the flow centre',()=>{

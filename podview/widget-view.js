@@ -9,7 +9,7 @@ import {NotificationQueue} from './ui/notification-queue.js';
 import {attachPressedState} from './ui/pressed-state.js';
 import {pendingRadioPlayerModel,localRadioPlayerModel,localRadioTransition,localRadioControlModel,radioStation} from './radio-model.js';
 import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
-import {RecipeView} from './recipe-view.js';
+import {RecipeView} from './src/screens/recipe/RecipeView.tsx';
 import {RadioView} from './src/screens/radio/RadioView.tsx';
 import {VehicleView} from './src/screens/vehicle/VehicleView.tsx';
 import {VehiclePreviewCommand} from './vehicle-preview-command.js';
