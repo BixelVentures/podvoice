@@ -1,3 +1,13 @@
+## 2.1.28
+
+- Ny Find musik: én lang side, du scroller igennem, med hylder du swiper sidelæns – ingen faner. Øverst seks hurtige valg, derefter jeres kunstnere, »Fortsæt med at lytte«, gemte album og podcasts fra jeres egen Spotify-konto.
+- AI-valg drysset ind imellem: en hylde til lige nu, »Fordi I hører …«, en til aftensmaden og en til årstiden (fx »Op mod jul«). Hver er mærket »AI-valgt« med én linje om hvorfor, bygget kun af ting, der er sande lige nu (tid, ugedag, årstid, vejret og jeres mest spillede kunstnere). Uden AI vises ingen AI-hylder – intet opdigtes. Playlisterne er rigtige Spotify-playlister fundet ved søgning.
+- Siden viser det sidst kendte med det samme og opdaterer stille i baggrunden. Hvis Spotify begrænser os, bliver hylderne stående, og PodVoice venter med at spørge igen.
+- Album, kunstnere og podcasts kan nu startes direkte på afspillerens rum. Kræver PodConnect Control 0.10.48 for kunstnere, album, podcasts og »Fortsæt«; uden den vises færre hylder.
+- De gamle faner (Stemning, Humør, For dig, Senest) og »Andre forslag« er væk.
+- Efter en genstart af PodVoice viste afspilleren på Hjem »Henter afspilningsstatus« i op til et par minutter. Nu vises det seneste, rummet faktisk spillede, med det samme (mærket »Seneste output«, uden knapper), indtil den friske læsning er der.
+- Green-tjekket følger den nye Find musik.
+
 ## 2.1.27
 
 - Svar og afspilleren er nu React: svarkortene, dagens svar, kildedialogen, afspilleren på Hjem og i fuld visning, køen og højttalervælgeren tegnes af React-komponenter og ser ud og opfører sig som før.
