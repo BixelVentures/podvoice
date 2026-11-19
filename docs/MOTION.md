@@ -230,10 +230,10 @@ JS-ejere:
 - `flow-controller.js` (`flyArtwork`)
 - `music-results.js`
 - `spotify-artwork.js`
-- `vehicle-view.js`
+- `src/screens/vehicle/VehicleView.tsx` (Bil)
 - `widget-view.js` (header-ur)
 - `ui/components.js` (`animateChange`, kun workshop)
-- `recipe-view.js` (cover flow, via CSS-transition)
+- `src/screens/recipe/Explore.tsx` (Udforsk-tekst og prikker, P9)
 
 **Tokens i dag** (`ui-kit.css`):
 - `--pv-d-press:120ms`
@@ -325,7 +325,7 @@ Dom: **B** = behold (evt. med token); **P** = flet ind i primitiv (navngivet); *
 | `flyArtwork` (flow-controller) | Omslag-klon flyver fra resultat til `#cover` | – | **P** hero |
 | `music-results.js` | Rækkeindhold cross-fader: .65→1 200 ms, kunst-lag | 200 | **P** value/content-swap |
 | `spotify-artwork.js` | Billede ind opacity 0→1 | 120 | **P** media-load |
-| `vehicle-view.js` | Ladekvittering på meter: opacity .65→1 | 120 | **P** value |
+| `src/screens/vehicle/VehicleView.tsx` | Ladekvittering på meter: opacity .65→1 | 120 | **P** value |
 | `widget-view.js` header-ur | Hele uret opacity 0→1 | 200 ease-out | **P** value. Det er inkonsistent med Foto-Ro-uret, som animerer pr. ciffer. Begge skal bruge `motion.value()`. |
 | `recipe-view.js explore()` | Cover flow: pointerdown/up, ±1 ved \|dx\|≥40 px, ingen sporing, klik-suppression via 600 ms timestamp | CSS .6s | **erstattes** af P9 |
 
@@ -1115,7 +1115,7 @@ Hver PR følger `AGENTS.md`:
   - Rubber-band ved p<0.
   - Catch giver ikke tap.
   - Pointercancel giver snap til nærmeste.
-- `explore-render.test.mjs`: `render(p)` ved heltal er **identisk** med canvassets formler (x, z,
+- `src/screens/recipe/explore.test.js`: `render(p)` ved heltal er **identisk** med canvassets formler (x, z,
   rotateY, shade), kontinuerlig ved d=±1, og tekst-opacity er 0 ved .5.
 - Udvid `root-motion.test.mjs` og `root-pressed-state.test.mjs` til de nye primitiver.
 

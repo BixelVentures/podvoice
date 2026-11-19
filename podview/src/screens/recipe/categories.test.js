@@ -1,8 +1,11 @@
+// Ported from tests/podview/recipe-categories.test.mjs (node:test) to Vitest when the recipe screen moved to React.
+// Same assertions; rankCategories and RECIPE_FILTERS come from model.ts.
+//
 // Opskrifter: the filter row holds »Alle« and the six categories with the most recipes (ties alphabetically); the
 // rest are under »Flere«. Derived from the catalogue itself; a recipe without categories counts as »Øvrige«.
-import test from 'node:test';
+import {test} from 'vitest';
 import assert from 'node:assert/strict';
-import {RECIPE_FILTERS,rankCategories} from '../../podview/recipe-view.js';
+import {RECIPE_FILTERS,rankCategories} from './model';
 
 const recipe=(...categories)=>({title:categories.join('+'),categories});
 

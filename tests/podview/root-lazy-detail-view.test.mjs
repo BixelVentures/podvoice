@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 import {liveScene,homeConnectionPresentation} from '../../podview/podvoice-view.js';
 import {vehicleChargeUpdate} from '../../podview/vehicle-model.js';
-import {VehicleView} from '../../podview/vehicle-view.js';
+import {VehicleView} from '../../podview/src/screens/vehicle/VehicleView.tsx';
 import {vehicleObservation} from '../../podview/ha-home-observation.js';
 const begin=source.indexOf('const homeConnection='),end=source.indexOf("if($('home-vehicle-status')",begin);
 const counts={radio:0,vehicle:0};

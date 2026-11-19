@@ -1,3 +1,9 @@
+## 2.1.25
+
+- Bil og Opskrifter er nu React: bilsiden og opskriftssiden (Katalog, opskrift, Udforsk) tegnes af React-komponenter og ser ud og opfører sig som før. Bilen kan stadig ikke få kommandoer fra forhåndsvisningen.
+- Udforsk glider som før: forsiderne følger fingeren på grafikchippen uden JavaScript i hvert billede.
+- Opskriftskataloget opdateres nu på stedet, når det henter nyt i baggrunden, i stedet for at blive bygget om – et åbent »Flere«-ark bliver stående, og intet blinker, når intet er ændret.
+
 ## 2.1.24
 
 - Timer og Radio er nu også React: timersiden, timerkortet på Hjem, timerchippen i topbaren og radiosiden tegnes af React-komponenter. De ser ud og opfører sig som før – ringen tikker stadig lineært hvert sekund og fjedrer, når du selv ændrer tiden, og radionålen glider som før.

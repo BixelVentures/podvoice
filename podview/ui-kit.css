@@ -5588,7 +5588,8 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset .pv-kit-choice-options{
   display:inline-flex!important;flex-wrap:nowrap!important;gap:6px!important;padding:4px!important;border-radius:999px!important;
   background:var(--pv-recipe-track)!important;width:auto!important;max-width:100%;box-sizing:border-box;
-  /* The row never scrolls: »Alle«, at most six categories and »Flere« (recipe-view.js fits them to the width). */
+  /* The row never scrolls: »Alle«, at most six categories and »Flere« (src/screens/recipe/Catalog.tsx fits them
+     to the width). */
   overflow:hidden!important}
  pv-widget-host #recipe-view#recipe-view#recipe-view [data-recipe-layout=toolbar] fieldset
   :is(label,[data-recipe-more]){height:44px!important;min-height:44px!important;
@@ -5773,8 +5774,9 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
   pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-layout=explore]::after{
    width:calc(50% - var(--pv-column) / 2)}
  }
- /* The same flat carousel where the engine claims scroll timelines but does not run them (recipe-view.js checks the
-    covers at rest): no cover animation at all, the native scroll alone moves them. */
+ /* The same flat carousel where the engine claims scroll timelines but does not run them
+    (src/screens/recipe/Explore.tsx checks the covers at rest): no cover animation at all, the native scroll alone
+    moves them. */
  :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat] [data-recipe-explore-slot]{
   width:744px}
  :root pv-widget-host #recipe-view#recipe-view#recipe-view>[data-recipe-explore-flat]::before,
@@ -6644,8 +6646,8 @@ body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-hi
 body pv-widget-host[data-topbar][data-view]>nav.view-nav #open-history.header-history[data-device=offline] .pv-svar-grille>i{
  background:#8C8A85}
 
-/* Udforsk cover flow (recipe-view.js exploreKeyframes, sampled from exploreFrame; explore-render.test.mjs keeps them
-   identical). Offset 0 is a cover 3.5 to the right of the centre, 100% is 3.5 to the left. */
+/* Udforsk cover flow (src/screens/recipe/model.ts exploreKeyframes, sampled from exploreFrame; explore.test.js keeps
+   them identical). Offset 0 is a cover 3.5 to the right of the centre, 100% is 3.5 to the left. */
 @keyframes pv-explore-cover{
  0%{transform:translateX(-1505px) perspective(1600px) translate3d(705px,0,-410px) rotateY(-55deg);z-index:16;visibility:visible}
  35.714%{transform:translateX(-430px) perspective(1600px) translate3d(430px,0,-260px) rotateY(-55deg);z-index:19}

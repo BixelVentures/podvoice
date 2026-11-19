@@ -7,7 +7,7 @@ import {updateResourceFacts} from '../../podview/ui/resource-tile.js';
 import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
 import {radioStation} from '../../podview/radio-model.js';
 import {vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
-import {VehicleView} from '../../podview/vehicle-view.js';
+import {VehicleView} from '../../podview/src/screens/vehicle/VehicleView.tsx';
 import test from 'node:test';
 import {connectionPresentation,homeConnectionPresentation} from '../../podview/podvoice-view.js';
 import {weatherHeaderVisible} from '../../podview/weather-view.js';

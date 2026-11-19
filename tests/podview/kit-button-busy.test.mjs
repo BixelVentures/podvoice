@@ -75,5 +75,5 @@ test('a control the user cannot use is disabled without a spinner and re-enables
  assert.ok(read('robot-control-panel.js').includes('const busy=!blocked&&value.directPendingAction===action'),'robot');
  assert.ok(!read('speaker-output-view.js').includes('this.refresh.disabled=false'),'Opdater liste needs a list to read');
  assert.ok(read('live-media-view.js').includes('const canOutput=model.canOutput===true&&!!this.account;'),'chip');
- assert.ok(read('vehicle-view.js').includes("this.lockConfirm.disabled=this.connected===false||this.model?.mode!=='observed';"));
+ assert.ok(read('src/screens/vehicle/VehicleView.tsx').includes("ui.lockConfirm.disabled = this.connected === false || this.model.mode !== 'observed';"));
 });
