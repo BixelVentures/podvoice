@@ -1,10 +1,11 @@
-// Mounts the shell into the page's body, synchronously, before the host and the HA kiosk integration start: both
-// look for the shell's nodes when they load. The host (pv-widget-host) starts only once the whole shell is in the
-// document; the custom element can be defined before or after this mount (see shellReady).
+// Mounts the shell into the page's body, synchronously, and then starts the HA kiosk integration, which looks for
+// the shell's nodes. The host (pv-widget-host) starts only once the whole shell is in the document; the custom
+// element can be defined before or after this mount (widget-view.js connectedCallback and startShell).
 import {createRoot} from 'react-dom/client';
 import type {Root} from 'react-dom/client';
 import {flushSync} from 'react-dom';
 import '../../ui/library/components.js';
+import {startIngress} from '../../ingress-kiosk.js';
 import {Shell} from './Shell';
 import {ShellStore} from './store';
 
@@ -33,6 +34,8 @@ export function mountShell(doc: Document = document): ShellStore {
   roots.set(doc, root);
   // A host defined before the mount was connected while the shell was still being inserted: it starts now.
   for (const host of doc.querySelectorAll<StartableHost>('pv-widget-host')) host.startShell?.();
+  // HA's panel frame: kiosk mode and admin navigation need the host in the page (ingress-kiosk.js).
+  startIngress(doc.defaultView);
   return store;
 }
 

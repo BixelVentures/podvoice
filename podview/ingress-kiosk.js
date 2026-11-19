@@ -336,7 +336,13 @@ export function beginIngressKiosk(win) {
   };
 }
 
-if (typeof window !== "undefined") {
-  if (window.document?.querySelector(".podview-link")) beginIngressRoot(window);
-  else if (window.document?.querySelector("pv-widget-host")) beginIngressKiosk(window);
+// The panel's root page has its link in the markup; PodView's page gets its pv-widget-host when the shell mounts
+// (src/shell/mount.tsx calls this again then), so a page is started once, by whichever call finds it first.
+const startedWindows = new WeakSet();
+export function startIngress(win) {
+  if (!win || startedWindows.has(win)) return;
+  if (win.document?.querySelector(".podview-link")) { startedWindows.add(win); beginIngressRoot(win); }
+  else if (win.document?.querySelector("pv-widget-host")) { startedWindows.add(win); beginIngressKiosk(win); }
 }
+
+if (typeof window !== "undefined") startIngress(window);
