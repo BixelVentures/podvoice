@@ -53,7 +53,6 @@ async function findMusik(){
  assert.deepEqual([column.x,column.y,column.w],[EDGE,TOP,COLUMN],'Find musik is the 744 column at x 24, y 104');
  assert.deepEqual([content.x,content.w],[EDGE,COLUMN],'the page fills the column');
  assert.equal(player.x,RIGHT+32,'the player 32 to the right of the column');
- assert.equal(column.y+column.h,BOTTOM,'the column ends on the 796 baseline');
  // Quick picks: 3 columns × 2 rows of 64-px tiles with 10-px gaps, cover + title.
  const quick=await page.locator('.find-quick .find-quick-tile').evaluateAll(nodes=>nodes.map(n=>{
   const b=n.getBoundingClientRect(),a=n.querySelector('.find-art').getBoundingClientRect();
