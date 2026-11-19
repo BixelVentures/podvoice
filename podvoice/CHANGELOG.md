@@ -1,3 +1,9 @@
+## 2.1.24
+
+- Timer og Radio er nu også React: timersiden, timerkortet på Hjem, timerchippen i topbaren og radiosiden tegnes af React-komponenter. De ser ud og opfører sig som før – ringen tikker stadig lineært hvert sekund og fjedrer, når du selv ændrer tiden, og radionålen glider som før.
+- Kortene holder fast i de samme elementer, så intet bygges om eller blinker, når timeren tæller ned eller radioen skifter station.
+- Alarmen (når en timer er færdig) og radioens styring af afspilning er uændrede.
+
 ## 2.1.23
 
 - PodView er bygget om til React: skærmen er nu et React 19- og TypeScript-projekt, bygget med Vite. Før var hver skærm håndskrevet JavaScript, der selv rettede i siden ved hver opdatering – det var den største kilde til blink, kort der blev bygget om, og knapper der hang. React holder styr på det selv.

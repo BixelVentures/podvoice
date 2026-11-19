@@ -4,3 +4,6 @@
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @source '../';
+/* Test files and fixtures are not screens: their prose must not become utilities. */
+@source not '../**/*.test.*';
+@source not '../**/*-fixture.*';

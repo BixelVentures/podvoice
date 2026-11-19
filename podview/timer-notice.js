@@ -37,7 +37,9 @@ export class TimerNotice {
   const nativeActive=live&&typeof timer.ownerBootId==='string'&&!timer.physicalStopped&&!timer.physicalDrained;
   this.allowed=access.canCancel===true&&!access.cancelBlockedIds?.includes(id);
   this.canAdd=!live&&!timer.ownerBootId&&this.allowed&&access.connected!==false;
-  if(this.add){this.add.hidden=live||!!timer.ownerBootId;this.add.disabled=!this.canAdd;}
+  // Unchanged values are not written again (no redraw of an open alarm).
+  if(this.add){const hidden=live||!!timer.ownerBootId;if(this.add.hidden!==hidden)this.add.hidden=hidden;
+   if(this.add.disabled!==!this.canAdd)this.add.disabled=!this.canAdd;}
   const label=nativeActive?'Stop alarm':live?'Færdig':'Stop',busy=access.pending===true||access.waiting===true;
   syncKitButtonContent(this.stop,{label,icon:label==='Færdig'?null:'assets/icons/stop-fill.svg',size:'88'});if(this.stop.disabled!==!this.allowed)this.stop.disabled=!this.allowed;applyKitComponent(this.stop,'button',{feedback:'progress',loading:busy&&this.allowed});
   const message=access.feedback||this.audioFeedback||(busy?'Afventer timerens svar':!this.allowed?(nativeActive?'Alarmen kan ikke stoppes herfra lige nu. Luk visning stopper ikke alarmen.':'Timeren kan ikke afsluttes herfra lige nu.'):'');
