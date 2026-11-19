@@ -5,6 +5,11 @@ pv-widget-host #music-response:has(> #find-musik) {
   --find-ai-tint: #E1E6EE;
   --find-ai-ink: #26364A;
 }
+/* The page is the whole content column (x 24, 744 wide): the old catalogue's two-column grid and inset are gone. */
+pv-widget-host[data-view=active] .responses > #music-response:has(> #find-musik):not([hidden]) {
+  display: block;
+  padding-inline: 0;
+}
 #find-musik {
   display: block;
   min-width: 0;
