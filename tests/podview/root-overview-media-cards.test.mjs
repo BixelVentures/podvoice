@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {renderRetainedArtwork,cancelArtwork,spotifyArtwork,spotifyItemUrl} from '../../podview/spotify-artwork.js';
 import {fixtureArtwork,renderOverviewMediaValues} from '../../podview/music-results.js';
 import {radioStation,localRadioPlayerModel} from '../../podview/radio-model.js';
-import {localPlayerModel} from '../../podview/player-view.js';
+import {localPlayerModel} from '../../podview/player-model.js';
 import {initialScene} from '../../podview/scene-model.js';
 import {liveScene,liveLocalEvent,liveTimerRequest} from '../../podview/podvoice-view.js';
 import {vehicleFixture,vehicleModel,vehicleChargeUpdate} from '../../podview/vehicle-model.js';

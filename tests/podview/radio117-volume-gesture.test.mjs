@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {PlayerView,renderPlayerControls} from '../../podview/player-view.js';
+import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
+import {renderPlayerControls} from '../../podview/player-controls.js';
 const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');
 const music=new Function('localRadioTransition',`return ({${source.slice(source.indexOf(' music(event){'),source.indexOf('\n build(){')).trim()}}).music;`)(()=>{throw Error('unexpected local dispatch');});
 function fixture(kind='radio'){

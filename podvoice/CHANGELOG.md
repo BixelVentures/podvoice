@@ -1,3 +1,10 @@
+## 2.1.27
+
+- Svar og afspilleren er nu React: svarkortene, dagens svar, kildedialogen, afspilleren på Hjem og i fuld visning, køen og højttalervælgeren tegnes af React-komponenter og ser ud og opfører sig som før.
+- Afspillerens regler er uændrede: status er det, højttaleren melder; hvert tryk sendes, det sidste vinder, og intet låses; en fejl rammer kun det ene tryk.
+- Køen og radioens højttalerliste blev tømt af gammel kode direkte i siden; det ryddes nu af komponenten selv, så et tryk på Næste ikke længere kan gå tabt, mens køen skifter.
+- En gentaget opdatering med samme indhold skriver ikke længere noget i siden, så intet blinker.
+
 ## 2.1.26
 
 - Lys og Robot er nu React: rumsiden, lamperækkerne og robotpanelet tegnes af React-komponenter og ser ud og opfører sig som før. Ingen lamper eller robot er styret under afprøvningen.

@@ -299,10 +299,3 @@ test('regression: a pending queue choice is rendered as the choice, not as loadi
   assert.equal(f.queues.at(-1).status,'accepted');
  }finally{f.close();}
 });
-
-test('regression: player-view cleanup cancels the queue placeholders it owns',()=>{
- const source=fs.readFileSync(new URL('../../podview/player-view.js',
-  import.meta.url),'utf8');
- assert.doesNotMatch(source,/queuePlaceholders/);
- assert.match(source,/\.\.\.\(this\.placeholders\|\|\[\]\)\]\.map\(row=>row\.children\[1\]\)/);
-});

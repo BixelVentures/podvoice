@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podview/scene-model.js';
 import {previewScene} from '../../podview/preview-scenes.js';
 import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
-import {localPlayerModel} from '../../podview/player-view.js';
+import {localPlayerModel} from '../../podview/player-model.js';
 import {timerTime,timerStateLabel} from '../../podview/timer-model.js';
 import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/weather-view.js';
 
@@ -50,7 +50,7 @@ test('Robot Hero metadata puts actual battery first and qualifies inactive clean
 });
 
 test('music position meter requires current admitted position; synthetic timing is scoped to explicit local QA',async()=>{
- const {livePlayerModel}=await import('../../podview/player-view.js'),{boundPlayback}=await import('./room-fixture.mjs');
+ const {livePlayerModel}=await import('../../podview/player-model.js'),{boundPlayback}=await import('./room-fixture.mjs');
  const snapshot={roomId:'room',bootId:'boot'},playback=boundPlayback(snapshot,{state:'playing',status:'observed',observedAt:Date.now()/1000,expiresAt:Date.now()+30000,progressMs:84000,item:{name:'Observed song',artists:['Observed artist'],duration_ms:180000,uri:'spotify:track:0123456789ABCDEFGHIJKL'},target:{name:'Observed room'}});
  const vm=livePlayerModel(playback,true,'ready',snapshot);assert.equal(vm.positionFresh,true);
  const facts=projection({live:true,vm}).calls.get('home-music').facts,position=facts.find(row=>row.id==='position');assert.deepEqual(position,{id:'position',label:'1:24',value:'3:00',stale:false,meter:{value:84000,max:180000}});assert(facts.some(row=>row.id==='remaining'));assert(facts.some(row=>row.id==='duration'));

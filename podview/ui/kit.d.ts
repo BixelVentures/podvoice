@@ -41,3 +41,14 @@ export function bindKitSliderField<C>(
   parts: KitSliderParts,
   options: {getContext?: () => C; onCommit?: (value: number, context: C | undefined) => void},
 ): KitSliderField<C>;
+
+export function applyKitDialog<T extends Element>(
+  node: T,
+  parts?: {header?: Element | null; content?: Element | null; description?: Element | null;
+    actions?: Element | null; close?: Element | null; variant?: string},
+): T;
+export function runKitButtonAction<R>(
+  node: HTMLElement,
+  action: () => R | Promise<R>,
+  options?: {confirmed?: (result: R) => boolean},
+): Promise<R | undefined>;

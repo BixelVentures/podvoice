@@ -8,7 +8,7 @@ import {roomPlayerObservation} from '../../podview/media-observation.js';
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {renderPlayerControls} from '../../podview/player-view.js';
+import {renderPlayerControls} from '../../podview/player-controls.js';
 import {stations,ownerStationIds,radioStation} from '../../podview/radio-model.js';
 globalThis.HTMLElement??=class {};
 globalThis.customElements??={define(){},get(){return null;}};

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {PlayerView} from '../../podview/player-view.js';
+import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
 import {MusicResults,sourceMusicCards} from '../../podview/music-results.js';
 import {renderRetainedArtwork,cancelArtwork} from '../../podview/spotify-artwork.js';
 

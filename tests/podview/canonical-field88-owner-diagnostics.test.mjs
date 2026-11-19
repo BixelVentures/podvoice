@@ -1,5 +1,3 @@
-import {PlayerView} from '../../podview/player-view.js';
-import {SpeakerOutputView} from '../../podview/speaker-output-view.js';
 import {bindRoom,boundPlayback} from './room-fixture.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';

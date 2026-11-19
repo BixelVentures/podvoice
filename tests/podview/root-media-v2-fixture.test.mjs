@@ -9,8 +9,8 @@ import {roomObservationCurrent,playbackBinding,playbackObservationCurrent,roomPl
 import {roomPlayerWire} from '../../scripts/room-player-wire.mjs';
 // Authored scenes in the room player's wire shape (podview.room-player.v1).
 const roomPlaybackObservation=(body,account,snapshot)=>roomPlayerObservation(roomPlayerWire(body),account,snapshot);
-import {livePlayerModel} from '../../podview/player-view.js';
-import {speakerCatalogue} from '../../podview/speaker-output-view.js';
+import {livePlayerModel} from '../../podview/player-model.js';
+import {speakerCatalogue} from '../../podview/speaker-catalogue.js';
 const request=(endpoint,body,{method=body?'POST':'GET',headers={'content-type':'application/x-www-form-urlencoded'}}={})=>new Promise((resolve,reject)=>{
  const req=Readable.from(body?[body]:[]);Object.assign(req,{url:endpoint,method,headers});let status=200,raw='';fixtureRequest(req,{setHeader(){},writeHead(value){status=value;},end(value=''){raw+=value;resolve({status,body:raw.startsWith('{')?JSON.parse(raw):raw});}}).catch(reject);
 });

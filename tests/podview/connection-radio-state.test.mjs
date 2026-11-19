@@ -7,7 +7,7 @@ import {newConnection,connectionStep,connectionPhase,liveStatusOf,canAct}
  from '../../podview/connection-model.js';
 import {PodVoiceTransport} from '../../podview/podvoice-transport.js';
 import {connectionPresentation} from '../../podview/podvoice-view.js';
-import {PlayerView} from '../../podview/player-view.js';
+import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
 import {LiveRadioView} from '../../podview/live-radio-view.js';
 import {AnswerAutoReturn,CANCELLED_LIMIT} from '../../podview/ui/answer-auto-return.js';
 

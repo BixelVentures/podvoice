@@ -1,7 +1,7 @@
 import {requestIngressAdmin} from './ingress-kiosk.js';
 import {LiveRadioView} from './live-radio-view.js';
 import {groupAnswerHistory,answerThread} from './owner-answers.js';
-import {SvarTodayView,svarTodayRows} from './svar-today-view.js';
+import {SvarTodayView,svarTodayRows} from './src/screens/answers/SvarToday.tsx';
 import {LightLampView} from './src/screens/light/LightLampView.tsx';
 import {LightRoomView} from './src/screens/light/LightRoomView.tsx';
 import {syncKitButtonContent,applyKitTextRole,applyKitComponent,applyKitTemplate,applyKitDialog,createKitDisclosure,createKitSliderField} from './ui/kit.js';
@@ -14,8 +14,9 @@ import {RadioView} from './src/screens/radio/RadioView.tsx';
 import {VehicleView} from './src/screens/vehicle/VehicleView.tsx';
 import {VehiclePreviewCommand} from './vehicle-preview-command.js';
 import {vehicleFixture,unconnectedVehicleModel,vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleUpdatedLabel,vehicleOverviewFacts} from './vehicle-model.js';
-import {SpeakerOutputView} from './speaker-output-view.js';
-import {PlayerView,localPlayerModel,localQueueModel,localControlModel} from './player-view.js';
+import {SpeakerOutputView} from './src/screens/player/SpeakerOutputView.tsx';
+import {PlayerView,mountPlayerScreen} from './src/screens/player/PlayerView.tsx';
+import {localPlayerModel,localQueueModel,localControlModel} from './player-model.js';
 import {attachTouchIntent} from './ui/touch-intent.js';
 import {ScreenLifecycle} from './ui/screen-lifecycle.js';
 import {ScrollEdges} from './ui/scroll-edges.js';
@@ -23,7 +24,7 @@ import {CssFlags} from './ui/css-flags.js';
 import {VoiceSurface,voicePresentation} from './voice-surface.js';
 import {AnswerAutoReturn} from './ui/answer-auto-return.js';
 import {LiveControlView} from './live-control-view.js';
-import {LiveAnswerView} from './live-answer-view.js';
+import {LiveAnswerView} from './src/screens/answers/LiveAnswerView.tsx';
 import {PageLifecycle} from './ui/page-lifecycle.js';
 import {LiveMediaView} from './live-media-view.js';
 import {LiveMusicCatalogueView} from './live-music-view.js';
@@ -48,7 +49,7 @@ import {MusicResults,localMusicCards,localDiscoveryCards,renderOverviewMediaValu
 import {PLAYLISTS,TRACKS,MUSIC_OPTIONS,COLLECTIONS,TARGETS,resultsFor,musicArtwork} from './widget-model.js';
 import {LocalRobotView} from './local-robot-view.js';
 import {initialScene,sceneTransition,focusedAnswer,deviceLabel,devicePresentation,deviceOverviewFacts,robotDetailMetadata,deviceActions,lightChoices,lightSelection,overviewPriorities,robotRecentCompletion} from './scene-model.js';
-import {answerCatalog} from './answer-widget.js';
+import {answerCatalog} from './src/screens/answers/AnswerWidget.tsx';
 // The topbar's scroll state: one layout read per frame, at its start (the layout is clean there), not per scroll
 // event and not inside a moving page's render.
 const queueTopbarScroll=host=>{
@@ -227,7 +228,7 @@ class WidgetHost extends HTMLElement {
   this.dispatch({type:'music',event});
   if(this.state.radioStationId&&['select','queue-select'].includes(event.type)&&this.state.music!==previousMusic){this.state={...this.state,radioStationId:null,radioPlaying:false};this.render();}
  }
- build(){$('now-view').querySelector('.response-heading').hidden=true;for(const id of ['weather-view','device-view','timers-view','vehicle-view','radio-view','recipe-view','music-response','music-detail'])applyKitTemplate($(id),'detail');applyKitComponent(this.querySelector('.view-nav'),'topbar');for(const id of ['home-weather','home-music','home-radio','home-vehicle','home-recipes'])applyKitComponent($(id),'card',{identity:({'home-weather':'weather','home-vehicle':'tesla'})[id]});// Retained kit bindings: the native owners keep visibility, listeners and authority.
+ build(){mountPlayerScreen(document);$('now-view').querySelector('.response-heading').hidden=true;for(const id of ['weather-view','device-view','timers-view','vehicle-view','radio-view','recipe-view','music-response','music-detail'])applyKitTemplate($(id),'detail');applyKitComponent(this.querySelector('.view-nav'),'topbar');for(const id of ['home-weather','home-music','home-radio','home-vehicle','home-recipes'])applyKitComponent($(id),'card',{identity:({'home-weather':'weather','home-vehicle':'tesla'})[id]});// Retained kit bindings: the native owners keep visibility, listeners and authority.
   for(const button of document.querySelectorAll('[data-collection]'))applyKitComponent(button,'chip');
   for(const [id,variant]of [['music-refresh','secondary'],['collapse','icon'],['empty-find-music','secondary'],['pin-widget','secondary'],['hide-widget','destructive'],['continue-task','secondary'],['replace-task','primary']])applyKitComponent($(id),'button',{variant});
   for(const id of ['rooms','history','quick-sheet','customize-sheet','conflict']){
