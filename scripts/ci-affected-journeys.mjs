@@ -26,7 +26,7 @@ const PODVIEW_FEATURES = [
 ];
 // React screens: podview/src/screens/<screen>/.
 const PODVIEW_SCREENS = {weather: ['home_events'], timer: ['timer'], radio: MUSIC, vehicle: ['vehicle'],
-  recipe: ['recipe'], light: ['light']};
+  recipe: ['recipe'], light: ['light'], robot: ['robot', 'robot_ux']};
 // Server modules named after one feature. Shared modules (podview.py, web.py, tools.py, ...) run all.
 const SERVER_FEATURES = [
   [/^(podview_robot|podview_vacuum_|podview_dock_control|robot_settings|cleaning_journal)/,

@@ -1,4 +1,4 @@
-import './robot-control-panel.js';
+import './src/screens/robot/RobotControlPanel.tsx';
 import {renderRobotHistory} from './live-home-view.js';
 import {controlArgs} from './control-model.js';
 const make=(tag,text,cls)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(cls)node.className=cls;return node;};

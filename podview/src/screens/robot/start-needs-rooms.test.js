@@ -1,30 +1,27 @@
-import test from 'node:test';
+// Ported from tests/podview/robot-start-needs-rooms.test.mjs (node:test with a minimal fake DOM) to Vitest with a real
+// DOM (happy-dom) when the robot control panel moved to React. Same assertions; each port was first run against the old
+// robot-control-panel.js in the same real DOM. Adaptations for the real DOM: the fake's querySelectorAll and children
+// were arrays, so NodeList and HTMLCollection get the array methods the assertions use (this file only), and a
+// collection compared with an array is spread; `new Node(tag)` is document.createElement(tag); panels, the live host
+// and a control that takes focus are placed in the document (the fake ones were always connected and focusable), each
+// panel in its own form; the fake isConnected=false is a defined property; panels and stored drafts are removed after
+// each test (the fake had no storage); a fixture file is read from tests/podview/fixtures. Where they occur: a missing
+// shadow root or parent is null (the fake left it undefined); aria-pressed is read with getAttribute (the fake
+// setAttribute also set a property); an img src is read with getAttribute (a real src is an absolute URL), the masked
+// Stop icon's from its own src property; the fake remove() did nothing, so a Til basen moved into Mere stayed listed in
+// the transport row and the busy test lists the commands in offer order.
+import {afterEach, test} from 'vitest';
+import {RobotControlPanel} from './RobotControlPanel';
 import assert from 'node:assert/strict';
-// Minimal DOM port for actual form events and emitted arguments. Browser layout
-// and native focus behavior remain a separate QA gate.
-class Node extends EventTarget{
- constructor(tag='host'){super();this.tagName=tag.toUpperCase();this.children=[];this.dataset={};this.attributes=new Map();this.className='';this.classList={contains:name=>this.className.split(' ').includes(name),add:(...names)=>{this.className=[...new Set([...this.className.split(' ').filter(Boolean),...names])].join(' ');}};this.textContent='';this.value='';this.checked=false;this.isConnected=true;this.open=false;if(tag!=='host')this.disabled=false;}
- append(...nodes){for(const node of nodes){if(node.parentNode)node.parentNode.children=node.parentNode.children.filter(child=>child!==node);node.parentNode=this;}this.children.push(...nodes);}
- contains(node){for(let n=node;n;n=n.parentNode)if(n===this)return true;return false;}
- prepend(...nodes){for(const node of nodes)node.parentNode=this;this.children=this.children.filter(node=>!nodes.includes(node));this.children.unshift(...nodes);}
- replaceChildren(...nodes){for(const node of this.children)node.parentNode=undefined;this.children=[];this.append(...nodes);}
- setAttribute(key,value){this.attributes.set(key,String(value));this[key]=String(value);if(key.startsWith('data-'))this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]=String(value);}
- removeAttribute(key){this.attributes.delete(key);delete this[key];if(key.startsWith('data-'))delete this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())];}
- getAttribute(key){if(key.startsWith('data-'))return this.dataset[key.slice(5).replace(/-([a-z])/g,(_,letter)=>letter.toUpperCase())]??null;return this.attributes.get(key)??null;}
- attachShadow(){this.shadowRoot=new Node('shadow');return this.shadowRoot;}
- querySelectorAll(selector){const matches=node=>selector.split(',').some(part=>{
-  const attr=part.match(/\[([^=\]]+)=([^\]]+)\]/),tag=part.match(/^[a-z][a-z0-9-]*/i);
-  return (!tag||node.tagName===tag[0].toUpperCase())&&(!attr||(node[attr[1]]??node.getAttribute(attr[1]))===attr[2])&&(!part.includes(':checked')||node.checked);
- });return this.children.flatMap(node=>[...(matches(node)?[node]:[]),...node.querySelectorAll(selector)]);}
- querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
- focus(){document.activeElement=this;}
- showModal(){this.open=true;}
- close(){this.open=false;this.dispatchEvent(new Event('close'));}
- remove(){}
-}
-globalThis.HTMLElement=Node;
-globalThis.document={createElement:tag=>new Node(tag)};
-const {RobotControlPanel}=await import('../../podview/robot-control-panel.js');
+const ARRAY_METHODS=['find','filter','map','some','every','includes','flatMap','at','indexOf','findIndex','reduce',
+ 'slice','findLast'];
+for(const type of [NodeList,HTMLCollection])for(const method of ARRAY_METHODS)if(!(method in type.prototype))
+ Object.defineProperty(type.prototype,method,
+  {configurable:true,value(...args){return Array.prototype[method].apply([...this],args);}});
+const mount=panel=>{
+ const form=document.createElement('form');form.append(panel);document.body.append(form);return panel;
+};
+afterEach(()=>{document.body.replaceChildren();localStorage.clear();sessionStorage.clear();});
 
 // Green 16 Nov (2.1.11): no room was preselected, and the main robot button stood as a black,
 // locked »Start rengøring«. The offer has no whole-home start, so the button never starts anything
@@ -43,12 +40,12 @@ const roomPicker=form=>form.querySelectorAll('fieldset').find(node=>node.classNa
  .includes('choices'));
 
 test('without a chosen room the main button is a live »Vælg rum« that only leads to the rooms',()=>{
- const panel=new RobotControlPanel(),actions=[];
+ const panel=mount(new RobotControlPanel()),actions=[];
  panel.addEventListener('robot-control-action',event=>actions.push(event.detail));
  panel.data={task:task(),device:dockFull(),connected:true};
  const start=panel.cleaningSubmit,form=cleaningForm(panel),picker=roomPicker(form);
  assert.equal(start.querySelector('span').textContent,'Vælg rum');
- assert.equal(start.querySelector('img').src,'assets/icons/check2.svg');
+ assert.equal(start.querySelector('img').getAttribute('src'),'assets/icons/check2.svg');
  assert.equal(start.disabled,false,'the main button is never a dead, locked button');
  assert.equal(start.dataset.unready,'false');
  assert.equal(start.dataset.needsRooms,'true');
@@ -60,13 +57,13 @@ test('without a chosen room the main button is a live »Vælg rum« that only le
 });
 
 test('a full dirty-water tank on the dock does not lock Start; HA decides',()=>{
- const panel=new RobotControlPanel(),actions=[];
+ const panel=mount(new RobotControlPanel()),actions=[];
  panel.addEventListener('robot-control-action',event=>actions.push(event.detail));
  panel.data={task:task(),device:dockFull(),connected:true};
  const start=panel.cleaningSubmit,form=cleaningForm(panel);
  emit(roomPicker(form).querySelectorAll('button')[0],'click');
  assert.equal(start.querySelector('span').textContent,'Start i Køkken');
- assert.equal(start.querySelector('img').src,'assets/icons/play-fill.svg');
+ assert.equal(start.querySelector('img').getAttribute('src'),'assets/icons/play-fill.svg');
  assert.equal(start.disabled,false);
  assert.equal(start.dataset.needsRooms,'false');
  emit(form,'submit');
@@ -74,19 +71,19 @@ test('a full dirty-water tank on the dock does not lock Start; HA decides',()=>{
 });
 
 test('deselecting every room returns to »Vælg rum« instead of locking',()=>{
- const panel=new RobotControlPanel();
+ const panel=mount(new RobotControlPanel());
  panel.data={task:task(),device:dockFull(),connected:true};
  const start=panel.cleaningSubmit,room=roomPicker(cleaningForm(panel)).querySelectorAll('button')[1];
  emit(room,'click');
  assert.equal(start.querySelector('span').textContent,'Start i Stue');
  emit(room,'click');
  assert.equal(start.querySelector('span').textContent,'Vælg rum');
- assert.equal(start.querySelector('img').src,'assets/icons/check2.svg');
+ assert.equal(start.querySelector('img').getAttribute('src'),'assets/icons/check2.svg');
  assert.equal(start.disabled,false);
 });
 
 test('offline still locks the main button, also without rooms',()=>{
- const panel=new RobotControlPanel();
+ const panel=mount(new RobotControlPanel());
  panel.data={task:task(),device:dockFull(),connected:false};
  assert.equal(panel.cleaningSubmit.querySelector('span').textContent,'Vælg rum');
  assert.equal(panel.cleaningSubmit.disabled,true);

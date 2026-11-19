@@ -6,7 +6,7 @@ import {RoomPlayerControls} from './room-player-controls.js';
 import {controlTask,controlArgs} from './control-model.js';
 import {roomObservationCurrent,roomObservationDisplay,roomObservationBound,playbackBinding,
  waitForMusicLane,releaseMusicLane} from './media-observation.js';
-import './robot-control-panel.js';
+import './src/screens/robot/RobotControlPanel.tsx';
 const robotRebindReasons=new Set(['robot_deny_source_missing','robot_deny_source_domain','robot_deny_source_registered','robot_deny_source_consumed','robot_deny_source_token','robot_deny_source_deadline','robot_deny_source_setup','robot_deny_source_domain_access','robot_deny_source_binding','robot_deny_source_current_other','robot_deny_fresh_current','robot_deny_room','robot_deny_target','robot_deny_binding','robot_deny_rule','robot_deny_mutation','robot_deny_boot','robot_deny_device','robot_deny_authority','robot_deny_draft_identity','robot_deny_draft_scope','robot_deny_offer_presence_vacuum_transport_offer','robot_deny_offer_presence_dock_offer','robot_deny_offer_presence_settings_offer','robot_deny_offer_changed_vacuum_transport_offer','robot_deny_offer_changed_dock_offer','robot_deny_offer_changed_settings_offer','robot_deny_public_options','robot_deny_mapping_exception','robot_deny_other']);
 const setupDiagnosticCodes=new Set(['invalid_setup','scope_not_paired','busy','invalid_target','target_not_granted','setup_capacity','stale_setup','setup_unavailable','invalid_dto','stale_binding']);
 // Writes only a changed value, so a render with nothing new mutates nothing.
@@ -92,7 +92,11 @@ export class LiveControlView{
     :starting&&active?null:starting?{text:'Starter …',state:'accepted'}
     :visible?{text,state:row.outcome==='rejected'?'error':row.outcome}:null;
    this.robotPanel.observed(this.robotView(this.robotDevice()),{controlFeedback});
-  }if(this.domain==='vacuum')for(const button of this.robotPanel?.querySelectorAll?.('button')||[]){const busy=!!(row?.outcome==='pending'&&this.pending&&this.activeOperation?.key===row.key&&button.dataset.controlOptionId===row.optionId);const family=button.dataset.kit;if(button.dataset.controlOptionId&&button.dataset.directRobot!=='true'&&['button','chip','tile','toggle'].includes(family))applyKitComponent(button,family,{feedback:'progress',loading:busy});}
+  }if(this.domain==='vacuum'){
+   // The panel draws its own buttons (React): it marks the pending option's command buttons busy.
+   const busyOption=row?.outcome==='pending'&&this.pending&&this.activeOperation?.key===row.key?row.optionId??null:null;
+   this.robotPanel?.showOptionBusy?.(busyOption);
+  }
  }
  invalidateMusic(message='Musikken er ændret · hent betjeningen igen.',render=true,preservePresentation=false){
   if(!preservePresentation){clearTimeout(this.musicSettlementTimer);this.musicSettlementTimer=null;}

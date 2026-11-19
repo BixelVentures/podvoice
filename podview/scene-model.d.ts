@@ -13,3 +13,5 @@ export interface LightSelection {
 }
 export function lightSelection(device: unknown): LightSelection | null;
 export function lightHomeRestoreAvailable(state: unknown, device: unknown): boolean;
+export function deviceLabel(device: object): string;
+export function robotDetailMetadata(device: unknown): string;

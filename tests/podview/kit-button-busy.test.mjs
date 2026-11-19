@@ -73,7 +73,8 @@ test('a control the user cannot use is disabled without a spinner and re-enables
  assert.ok(read('src/screens/light/LightRoomView.tsx').includes("['turn_on', 'turn_off'].includes(command.action ?? '') && row.enabled,"),
   'room power tile');
  assert.ok(read('src/screens/radio/model.ts').includes('loading: available && pendingStationId === id'),'radio tile');
- assert.ok(read('robot-control-panel.js').includes('const busy=!blocked&&value.directPendingAction===action'),'robot');
+ assert.ok(read('src/screens/robot/RobotControlPanel.tsx').includes('const busy = !blocked && value.directPendingAction === action;'),
+  'robot');
  assert.ok(!read('speaker-output-view.js').includes('this.refresh.disabled=false'),'Opdater liste needs a list to read');
  assert.ok(read('live-media-view.js').includes('const canOutput=model.canOutput===true&&!!this.account;'),'chip');
  assert.ok(read('src/screens/vehicle/VehicleView.tsx').includes("ui.lockConfirm.disabled = this.connected === false || this.model.mode !== 'observed';"));
