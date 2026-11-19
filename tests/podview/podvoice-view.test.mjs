@@ -48,10 +48,12 @@ test('paused native timer stays paused without inventing a countdown or pause ca
  assert.equal(scene.timer.status,'paused');assert.equal(scene.timer.remaining,42);assert.equal(scene.timer.deadline,null);
 });
 
+// The shell's markup is React's now (podview/src/shell); index.html's body is empty until JavaScript mounts it.
 test('packaged live HTML fails closed before JavaScript starts',()=>{
- const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8');
- for(const id of ['music-response','header-weather'])assert.match(html,new RegExp('id="'+id+'" hidden'));
- assert.match(html,/<aside class="player" hidden/);
+ const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8'),shell=['Shell','Topbar'].map(name=>readFileSync(new URL(`../../podview/src/shell/${name}.tsx`,import.meta.url),'utf8')).join('\n');
+ assert.match(html,/<body><\/body>/);
+ assert.match(shell,/id="music-response"\s+hidden/);assert.match(shell,/id="header-weather"\s+hidden/);
+ assert.match(shell,/<aside className="player"\s+hidden/);
  assert.doesNotMatch(html,/id="connection-note"/,'Connection feedback must not reserve an inline panel before its owner runs');
  const host=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8');assert.match(host,/new NotificationQueue/,'Connection feedback uses the existing canonical notification owner');
 });

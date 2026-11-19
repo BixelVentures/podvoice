@@ -21,13 +21,6 @@ test('actual player opener navigates once, keeps opener and only reads live queu
  assert.deepEqual(calls,[{type:'show',id:'player'},'focus','queue-read']);assert.equal(host.openers.get('music-detail'),opener);
 });
 
-test('one canonical player detail lives inside responses and keeps queue, seek, volume and output IDs',()=>{
- const html=readFileSync(new URL('../../podview/index.html',import.meta.url),'utf8'),detail=html.indexOf('<section id="music-detail"'),responses=html.indexOf('<section class="responses"'),player=html.indexOf('<aside class="player"');
- assert(detail>responses&&detail<player);assert.equal(html.match(/id="music-detail"/g).length,1);assert.doesNotMatch(html,/<dialog id="music-detail"/);
- // The detail's own elements (heading, queue, seek, volume, output) are drawn by React now:
- // podview/src/screens/player/player-render.test.js checks them in the rendered DOM.
-});
-
 test('Ro player cover/title open details, but pause and its bubbling click never navigate',()=>{
  const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),nodes=new Map();
  const node=id=>{if(!nodes.has(id))nodes.set(id,{id,handlers:{},addEventListener(type,fn){this.handlers[type]=fn;}});return nodes.get(id);};

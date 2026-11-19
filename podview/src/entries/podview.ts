@@ -11,5 +11,7 @@ import '../../ui-kit.css?stage';
 import '../styles/app.css';
 
 import '../../ui/stage.js';
+// The shell (React) first: the HA kiosk integration and the host look for its nodes when they load.
+import '../shell/boot';
 import '../../ingress-kiosk.js';
 import '../../widget-view.js';

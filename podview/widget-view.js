@@ -1,10 +1,11 @@
 import {requestIngressAdmin} from './ingress-kiosk.js';
+import {shellStore} from './src/shell/mount.tsx';
 import {LiveRadioView} from './live-radio-view.js';
 import {groupAnswerHistory,answerThread} from './owner-answers.js';
 import {SvarTodayView,svarTodayRows} from './src/screens/answers/SvarToday.tsx';
 import {LightLampView} from './src/screens/light/LightLampView.tsx';
 import {LightRoomView} from './src/screens/light/LightRoomView.tsx';
-import {syncKitButtonContent,applyKitTextRole,applyKitComponent,applyKitTemplate,applyKitDialog,createKitDisclosure,createKitSliderField} from './ui/kit.js';
+import {syncKitButtonContent,applyKitTextRole,applyKitComponent,createKitDisclosure,createKitSliderField} from './ui/kit.js';
 import {NotificationQueue} from './ui/notification-queue.js';
 import {attachPressedState} from './ui/pressed-state.js';
 import {pendingRadioPlayerModel,localRadioPlayerModel,localRadioTransition,localRadioControlModel,radioStation} from './radio-model.js';
@@ -66,8 +67,7 @@ const renderSoon=host=>{
   host.renderFrame=0;if(host.isConnected)host.render();};
  host.renderFrame=requestAnimationFrame(next);
 };
-const detachedDemoNodes=new Map();
-const $=id=>document.getElementById(id)||detachedDemoNodes.get(id);
+const $=id=>document.getElementById(id);
 // A redraw while a finger is down waits until ~160 ms after, so scrolling is not starved. A tap's own
 // redraw runs after pointerup and is never delayed by this. Only live data redraws (clock, outputs) wait,
 // because they are not caused by the touch. The waiting kind is kept: a deferred live redraw stays light.
@@ -80,33 +80,11 @@ function deferForGesture(host,kind='render'){
  },160);
  return true;
 }
-// One segment per recipe step: done, current, ahead. Empty and hidden when no recipe is in progress.
-function renderRecipeStepBar(card,steps,current){
- let bar=card.querySelector(':scope>.pv-step-bar');
- if(!steps){if(bar&&!bar.hidden)bar.hidden=true;return;}
- if(!bar){
-  bar=document.createElement('span');bar.className='pv-step-bar';bar.setAttribute('role','img');card.append(bar);
- }
- const label=current<0?'Alle trin færdige':`Trin ${current+1} af ${steps}`;
- if(bar.getAttribute('aria-label')!==label)bar.setAttribute('aria-label',label);
- if(bar.hidden)bar.hidden=false;
- while(bar.children.length<steps)bar.append(document.createElement('i'));
- while(bar.children.length>steps)bar.lastChild.remove();
- for(const [i,segment]of [...bar.children].entries()){
-  const state=current<0||i<current?'done':i===current?'current':'ahead';
-  if(segment.dataset.step!==state)segment.dataset.step=state;
- }
-}
 class WidgetHost extends HTMLElement {
- renderHeaderTitle(title,canGoBack){
-  const heading=$('header-title');this.headerTitleCopy??=document.createTextNode(heading.textContent||'');
-  if(!this.headerTitleAction){const button=document.createElement('button');button.id='header-title-action';button.type='button';button.className='topbar-title-action';button.dataset.pvPress='quiet';const icon=document.createElement('img');icon.className='topbar-back-icon';icon.src='assets/icons/arrow-left-long.svg';icon.alt='';icon.setAttribute('aria-hidden','true');const copy=document.createElement('span');copy.className='topbar-title-copy';button.append(icon,copy);button.addEventListener('click',()=>{if(this.dataset.level==='detail')this.headerBackAction?.();});this.headerTitleText=copy;this.headerTitleAction=button;}
-  const parent=canGoBack?this.headerTitleText:heading;if(this.headerTitleCopy.parentNode!==parent){parent.replaceChildren(this.headerTitleCopy);if(canGoBack)heading.replaceChildren(this.headerTitleAction);}
-  if(this.headerTitleCopy.nodeValue!==title)this.headerTitleCopy.nodeValue=title;
-  const label=`${title} · Tilbage`;if(this.headerTitleAction.getAttribute('aria-label')!==label)this.headerTitleAction.setAttribute('aria-label',label);
- }
- connectedCallback(){this.detachPressedState??=attachPressedState(this);this.motionMirror??=mirrorReducedMotion(this);
-  this.live=/\/view\//.test(location.pathname);this.dataset.mode=this.live?'live':'demo';if(!this.state){this.previewStage=this.live?null:new URLSearchParams(location.search).get('stage');this.frozenPreview=previewStates.includes(this.previewStage);this.state=previewScene(this.live?'quiet':this.previewStage||'rest');if(this.live)this.state={...this.state,connected:false,devices:[unconfiguredLight()],answers:[],timer:null,extraTimers:[]};this.build();if(this.live)for(const id of ['demo','open-demo']){const node=$(id);if(node){for(const child of [node,...node.querySelectorAll('[id]')])detachedDemoNodes.set(child.id,child);node.inert=true;node.remove();}}}if(!this.journey)this.journey=this.live?{cancel(){},dispose(){},render(){},choose(){},start(){},receipt(){}}:new MusicJourney(this);if(!this.live)this.musicRefresh??=new LocalMusicRefresh(this);this.motion??=new SceneMotion(this);this.scrollEdges??=new ScrollEdges(this);this.scrollEdges.attach();this.cssFlags??=new CssFlags(this);this.cssFlags.attach();this.robotMotion??=new RobotMotion(this);if(this.live&&!this.liveMedia)this.liveMedia=new LiveMediaView(this);if(this.live&&!this.liveRadio)this.liveRadio=new LiveRadioView(this);if(this.live&&!this.liveAnswers)this.liveAnswers=new LiveAnswerView(this);if(this.live&&!this.liveControls)this.liveControls=new LiveControlView(this);if(!this.live&&!this.localRobot)this.localRobot=new LocalRobotView(this);if(this.live&&!this.liveStatus)this.liveStatus='connecting';this.render();if(!this.live&&this.previewStage==='visual-history')this.open('history',$('open-history'));if(!this.live&&this.previewStage==='screen-device-ready')this.openScreenSettings($('header-ro'));this.schedule();this.connectGestures();this.pageLifecycle??=new PageLifecycle(this);this.pageLifecycle.attach();if(this.live)this.connectPodVoice();}
+ // The shell (src/shell) draws this element and its page; the host starts once all of it is in the document.
+ connectedCallback(){if(shellStore(this.ownerDocument))this.startShell();}
+ startShell(){if(!this.isConnected)return;this.shell=shellStore(this.ownerDocument);this.shell.host=this;this.detachPressedState??=attachPressedState(this);this.motionMirror??=mirrorReducedMotion(this);
+  this.live=/\/view\//.test(location.pathname);this.dataset.mode=this.live?'live':'demo';if(!this.state){this.previewStage=this.live?null:new URLSearchParams(location.search).get('stage');this.frozenPreview=previewStates.includes(this.previewStage);this.state=previewScene(this.live?'quiet':this.previewStage||'rest');if(this.live)this.state={...this.state,connected:false,devices:[unconfiguredLight()],answers:[],timer:null,extraTimers:[]};this.build();}if(!this.journey)this.journey=this.live?{cancel(){},dispose(){},render(){},choose(){},start(){},receipt(){}}:new MusicJourney(this);if(!this.live)this.musicRefresh??=new LocalMusicRefresh(this);this.motion??=new SceneMotion(this);this.scrollEdges??=new ScrollEdges(this);this.scrollEdges.attach();this.cssFlags??=new CssFlags(this);this.cssFlags.attach();this.robotMotion??=new RobotMotion(this);if(this.live&&!this.liveMedia)this.liveMedia=new LiveMediaView(this);if(this.live&&!this.liveRadio)this.liveRadio=new LiveRadioView(this);if(this.live&&!this.liveAnswers)this.liveAnswers=new LiveAnswerView(this);if(this.live&&!this.liveControls)this.liveControls=new LiveControlView(this);if(!this.live&&!this.localRobot)this.localRobot=new LocalRobotView(this);if(this.live&&!this.liveStatus)this.liveStatus='connecting';this.render();if(!this.live&&this.previewStage==='visual-history')this.open('history',$('open-history'));if(!this.live&&this.previewStage==='screen-device-ready')this.openScreenSettings($('header-ro'));this.schedule();this.connectGestures();this.pageLifecycle??=new PageLifecycle(this);this.pageLifecycle.attach();if(this.live)this.connectPodVoice();}
  applyConversationPreview(stage){
   if(this.live!==false||!this.state||this.isConnected===false||!conversationPreviewStates.includes(stage)||this.ownerDocument.querySelector('dialog[open]'))return false;
   const previous=this.state,example=previewScene(stage,previous.conversationPreviewAt??Date.now()),mode=stage.slice('conversation-'.length);
@@ -146,7 +124,7 @@ class WidgetHost extends HTMLElement {
   this.scheduleAnswer();this.scheduleTick();return true;
  }
  disconnectedCallback(){this.motionMirror?.dispose();this.motionMirror=null;this.recipeView?.dispose();this.liveRadio?.invalidate();this.lightRoomView?.cleanup();this.inlineLamps?.cleanup();for(const id of ['home-music','home-radio']){const image=$(id)?.querySelector(':scope>img:first-child');if(image)cancelArtwork(image);}for(const entry of this.lightSliders?.values()||[])entry.cancel();this.detachPressedState?.();this.detachPressedState=null;this.detachTouchIntent?.();this.detachTouchIntent=null;this.scrollEdges?.detach();this.cssFlags?.detach();this.pageLifecycle?.detach();this.liveTransport?.close();this.journey?.dispose();this.journey=null;this.cleanup();this.motion?.cancel();this.detachGestures?.();this.viewAnimation?.cancel();this.playerAnimation?.cancel();for(const a of this.sceneAnimations||[])a.cancel();}
- cleanup(){clearTimeout(this.diagnosticDownloadTimer);this.diagnosticDownloadTimer=null;if(this.diagnosticDownloadUrl){this.diagnosticDownloadRevoke?.(this.diagnosticDownloadUrl);this.diagnosticDownloadUrl=null;}clearTimeout(this.lightAreaExpiry);this.lightAreaGeneration=(this.lightAreaGeneration||0)+1;this.lightAreaPending=false;this.detachNotificationPointer?.();this.detachFeedbackGeometry?.();this.closeLightDetail(false);cleanupWeather($('weather-view'));this.liveWeatherAdvice?.cleanup();this.headerClockAnimation?.cancel();this.headerTitleAnimation?.cancel();this.localMusicSignature=null;this.screenLifecycle?.cleanup();this.answerAutoReturn?.cleanup();this.suspendLiveTimer();this.historyBrowse=null;this.musicResults?.cleanup?.();this.radioView?.destroy();this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;this.vehicleChargePresentation=null;this.vehicleChargeContext=null;this.vehicleCommands?.dispose();this.vehicleCommands=null;if(this.vehicleView){this.vehicleView.cleanup();this.vehicleView.unmount();this.vehicleView=null;}this.vehicleSignature=null;this.liveOutputs?.cleanup();this.detachTouchIntent?.();this.detachTouchIntent=null;this.musicRefresh?.dispose();clearTimeout(this.weatherAdviceTimer);this.weatherAdviceTimer=null;this.robotMotion?.cleanup();this.voiceSurface?.cleanup();this.liveControls?.cleanup();this.localRobot?.cleanup();this.localRobot=null;this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveSelection?.cleanup();this.liveTransport?.close();this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;clearTimeout(this.receiptTimer);clearTimeout(this.partialTimer);clearTimeout(this.answerTimer);clearTimeout(this.previewVoiceTimer);this.previewVoiceTimer=null;for(const timer of this.deviceTimers?.values()||[])clearTimeout(timer);this.deviceTimers?.clear();clearInterval(this.tickTimer);this.tickTimer=null;clearTimeout(this.clockTimer);clearTimeout(this.feedbackTimer);this.notifications?.cleanup();clearTimeout(this.liveSlowTimer);clearTimeout(this.musicSlowTimer);this.timerView?.cleanup();this.timerNoticeSignature=null;if(this.live)this.invalidateLiveMusic('Viser seneste udvalg');this.clockResize?.disconnect();this.layoutResize?.disconnect();this.playerView?.cleanup?.();}
+ cleanup(){clearTimeout(this.diagnosticDownloadTimer);this.diagnosticDownloadTimer=null;if(this.diagnosticDownloadUrl){this.diagnosticDownloadRevoke?.(this.diagnosticDownloadUrl);this.diagnosticDownloadUrl=null;}clearTimeout(this.lightAreaExpiry);this.lightAreaGeneration=(this.lightAreaGeneration||0)+1;this.lightAreaPending=false;this.detachNotificationPointer?.();this.detachFeedbackGeometry?.();this.closeLightDetail(false);cleanupWeather($('weather-view'));this.liveWeatherAdvice?.cleanup();this.localMusicSignature=null;this.screenLifecycle?.cleanup();this.answerAutoReturn?.cleanup();this.suspendLiveTimer();this.historyBrowse=null;this.musicResults?.cleanup?.();this.radioView?.destroy();this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;this.vehicleChargePresentation=null;this.vehicleChargeContext=null;this.vehicleCommands?.dispose();this.vehicleCommands=null;if(this.vehicleView){this.vehicleView.cleanup();this.vehicleView.unmount();this.vehicleView=null;}this.vehicleSignature=null;this.liveOutputs?.cleanup();this.detachTouchIntent?.();this.detachTouchIntent=null;this.musicRefresh?.dispose();clearTimeout(this.weatherAdviceTimer);this.weatherAdviceTimer=null;this.robotMotion?.cleanup();this.voiceSurface?.cleanup();this.liveControls?.cleanup();this.localRobot?.cleanup();this.localRobot=null;this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveSelection?.cleanup();this.liveTransport?.close();this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;clearTimeout(this.receiptTimer);clearTimeout(this.partialTimer);clearTimeout(this.answerTimer);clearTimeout(this.previewVoiceTimer);this.previewVoiceTimer=null;for(const timer of this.deviceTimers?.values()||[])clearTimeout(timer);this.deviceTimers?.clear();clearInterval(this.tickTimer);this.tickTimer=null;clearTimeout(this.clockTimer);clearTimeout(this.feedbackTimer);this.notifications?.cleanup();clearTimeout(this.liveSlowTimer);clearTimeout(this.musicSlowTimer);this.timerView?.cleanup();this.timerNoticeSignature=null;if(this.live)this.invalidateLiveMusic('Viser seneste udvalg');this.clockResize?.disconnect();this.layoutResize?.disconnect();this.playerView?.cleanup?.();}
  suspendForAnswer(){
   const dialogs=[...document.querySelectorAll('dialog[open]')];
   const allowed=new Set(['rooms','demo','conflict','quick-sheet','customize-sheet','history','light-detail']);
@@ -227,32 +205,52 @@ class WidgetHost extends HTMLElement {
   this.dispatch({type:'music',event});
   if(this.state.radioStationId&&['select','queue-select'].includes(event.type)&&this.state.music!==previousMusic){this.state={...this.state,radioStationId:null,radioPlaying:false};this.render();}
  }
- build(){mountPlayerScreen(document);$('now-view').querySelector('.response-heading').hidden=true;for(const id of ['weather-view','device-view','timers-view','vehicle-view','radio-view','recipe-view','music-response','music-detail'])applyKitTemplate($(id),'detail');applyKitComponent(this.querySelector('.view-nav'),'topbar');for(const id of ['home-weather','home-music','home-radio','home-vehicle','home-recipes'])applyKitComponent($(id),'card',{identity:({'home-weather':'weather','home-vehicle':'tesla'})[id]});// Retained kit bindings: the native owners keep visibility, listeners and authority.
-  for(const [id,variant]of [['empty-find-music','secondary'],['pin-widget','secondary'],['hide-widget','destructive'],['continue-task','secondary'],['replace-task','primary']])applyKitComponent($(id),'button',{variant});
-  for(const id of ['rooms','history','quick-sheet','customize-sheet','conflict']){
-   const dialog=$(id),actions=dialog.querySelector('.demo-scenarios');
-   applyKitDialog(dialog,{header:dialog.querySelector('header')||dialog.querySelector('h2'),description:dialog.querySelector('p'),content:id==='rooms'?$('room-options'):id==='history'?$('retained'):id==='quick-sheet'?$('screen-settings-content'):actions,actions,close:dialog.querySelector('.dialog-close')});
-  }
+ build(){mountPlayerScreen(document);applyKitComponent($('empty-find-music'),'button',{variant:'secondary'});
   this.addEventListener('wheel',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();},{passive:true});this.addEventListener('scroll',()=>{this.lastInteractionAt=Date.now();
    queueTopbarScroll(this);},true);
   this.addEventListener('pointerdown',()=>{this.touching=true;},true);
-  for(const name of ['pointerup','pointercancel'])globalThis.addEventListener?.(name,()=>{this.touching=false;},true);this.addEventListener('pointerdown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.addEventListener('keydown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.voiceSurface=new VoiceSurface(this);const historyNote=document.createElement('p');historyNote.id='history-example-note';historyNote.className='history-example-note';historyNote.hidden=true;historyNote.textContent='Forhåndsvisning · påvirker ikke hjemmet';$('history').append(historyNote);const historyEmpty=document.createElement('pv-inline-status');historyEmpty.id='history-empty';historyEmpty.data={state:'empty',quietStatus:true,text:'Ingen visuelle svar endnu',detail:this.live?'Når PodVoice viser et visuelt svar, kan du finde det her igen.':'Her samles dine visuelle svar.'};$('history').insertBefore(historyEmpty,$('retained'));this.resourceButtons=new Map();this.deviceNodes=new Map();this.deviceRows=new Map();this.pins=new Set();this.answerNodes=new Map();this.retainedNodes=new Map();this.openers=new Map();$('open-history').setAttribute('aria-label','Svar · Se tidligere svar');$('open-history').setAttribute('aria-controls','history');$('open-history').setAttribute('aria-expanded','false');
+  for(const name of ['pointerup','pointercancel'])globalThis.addEventListener?.(name,()=>{this.touching=false;},true);this.addEventListener('pointerdown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.addEventListener('keydown',()=>{this.lastInteractionAt=Date.now();this.overviewHintAnimation?.cancel();});this.voiceSurface=new VoiceSurface(this);
+  const history=this.shell.view.history;
+  if(this.live)this.shell.set('history',{...history,
+   empty:{...history.empty,detail:'Når PodVoice viser et visuelt svar, kan du finde det her igen.'}});
+  this.resourceButtons=new Map();this.deviceNodes=new Map();this.deviceRows=new Map();this.pins=new Set();this.answerNodes=new Map();this.openers=new Map();
  this.addEventListener('pv-action',e=>{if(e.target.closest('pv-answer'))return;e.stopPropagation();const {action_id:action,session_id:sessionId,task_id:taskId,revision}=e.detail;if(e.target===this.lightRooms||e.target===this.lightLamps){if(action==='choose'){if(e.target===this.lightLamps)this.toggleLightOption({sessionId,taskId,revision,optionId:e.detail.option_id});else if(this.live){const light=this.currentLightDevice();if(sessionId===this.state.sessionId&&taskId===light?.id&&revision===light.revision)void this.readLightArea(e.detail.option_id);}else this.dispatch({type:'light-select',sessionId,taskId,revision,optionId:e.detail.option_id});}return;}if(timersFor(this.state).some(t=>t.id===taskId)){this.dispatch({type:'timer',id:taskId,action,now:Date.now()});if(action==='hide')$('restore-timer').focus();return;}if(action==='open')this.dispatch({type:'show',id:taskId});else this.dispatch({type:'device-action',action,sessionId,taskId,revision});});
- $('restore-resources').addEventListener('click',()=>this.dispatch({type:'restore-resources'}));$('device-back').addEventListener('click',()=>{this.dispatch({type:'device-back'});this.focusHeading();});for(const b of document.querySelectorAll('[data-device]'))b.addEventListener('click',()=>{this.dispatch({type:'device-demo',kind:b.dataset.device,time:new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})});this.sceneNavigation=true;$('demo').close();});for(const b of document.querySelectorAll('[data-device-observe]'))b.addEventListener('click',()=>{this.dispatch({type:'device-observation',id:'demo-vacuum',status:b.dataset.deviceObserve,time:new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'})});$('demo').close();});
  this.addEventListener('widget-action',e=>this.dispatch(e.detail));this.addEventListener('keydown',e=>{if(e.key==='Escape'&&$('history').open&&!document.querySelector('dialog[open]:not(#history)')){e.preventDefault();$('history').close();return;}if(e.key==='Escape'&&!this.querySelector('dialog[open]')&&!e.target.closest('input,textarea,select')){this.journey.cancel();this.dispatch({type:'back'});this.focusHeading();}});
  if(this.live)this.liveOutputs=new SpeakerOutputView(this);
  this.playerView=new PlayerView(this,{seek:event=>{
   if(this.live){void this.liveControls?.musicIntent('seek',event);return;}
   if(!this.state.radioStationId)this.music({type:'seek',...event});
  },chooseQueue:item=>{if(this.live){this.liveMedia?.queueControls.choose(item);return;}this.music({type:'queue-select',id:item.id,revision:item.revision});$('detail-title').focus({preventScroll:true});}});
- if(!this.live)for(const t of TARGETS){const b=document.createElement('button');applyKitComponent(b,'listrow');b.type='button';b.dataset.targetId=t.targetId;b.innerHTML=`<img src="assets/icons/speaker-output.svg" alt=""><span><strong>${t.name}</strong><small>${t.detail}</small></span><span class="target-status"></span>`;b.addEventListener('click',()=>{this.music({type:'target',accountId:t.accountId,kind:t.kind,targetId:t.targetId,revision:Number(b.dataset.revision)});$('rooms').close();});$('room-options').append(b);}
- for(const id of ['header-weather','photo-weather','home-weather'])$(id).addEventListener('click',()=>{this.dispatch({type:'show',id:'weather'});this.focusHeading();});
  $('empty-find-music').addEventListener('click',()=>{const account=$('empty-find-music').dataset.action==='account';if(account&&!this.liveMedia?.canChooseAccount)return;this.dispatch({type:'show',id:'music'});
   (this.motion?.afterPage?.bind(this.motion)||(work=>work()))(()=>{if(account)this.liveMedia.focusAccountChoice();else this.focusHeading();});});
- $('now-rest').addEventListener('click',()=>{this.journey.cancel();this.dispatch({type:'show',id:'photo'});this.focusHeading();});
+ this.lightRooms=document.createElement('pv-choice-list');this.lightRooms.dataset.contextPicker='rooms';this.lightRooms.setAttribute('aria-label','Vælg rum');this.lightLamps=document.createElement('pv-choice-list');this.lightLamps.dataset.contextPicker='lamps';this.lightLamps.setAttribute('aria-label','Vælg lampe');$('device-detail').after(this.lightRooms);this.lightRooms.after(this.lightLamps);this.lightRoomView=new LightRoomView(this);this.inlineLamps=new LightLampView(this);
+ this.timerView=new TimerView(this,$('timers-view'),$('timer-card'));
+ this.localWeatherBuilt=false;if(!this.live)renderLocalWeather(document,this.state.weatherPreview==='empty'?liveWeatherModel(null,{reason:homeConnectionPresentation(this.state.connectionPreview||{}).reason}):this.state.weatherPreview==='stale'?{...localWeatherModel(this.state.weatherFixture||WEATHER_CHANGE_EXAMPLE),sourceStale:true,subtitle:'Ikke opdateret',summary:''}:localWeatherModel(this.state.weatherFixture||WEATHER_CHANGE_EXAMPLE),{detail:false});
 
- $('home-music').addEventListener('click',()=>{this.dispatch({type:'show',id:'music'});this.focusHeading();});
- $('home-recipes').addEventListener('click',()=>{
+ $('play-pause').addEventListener('click',()=>this.music(this.liveRadio?.ownsPlayer()?{type:'toggle',controlId:'play-pause'}:{type:'toggle'}));$('previous').addEventListener('click',()=>this.music({type:'skip',delta:-1}));$('next').addEventListener('click',()=>this.music({type:'skip',delta:1}));$('volume').addEventListener('input',e=>{if(!this.live)this.music({type:'volume',value:e.target.value});});
+ for(const [id,event] of [['detail-previous',{type:'skip',delta:-1}],['detail-next',{type:'skip',delta:1}],['detail-toggle',{type:'toggle'}]])$(id).addEventListener('click',()=>this.music(this.liveRadio?.ownsPlayer()&&event.type==='toggle'?{...event,controlId:id}:event));
+ $('player-back').addEventListener('click',()=>{this.dispatch({type:'back'});
+  (this.motion?.afterPage?.bind(this.motion)||(work=>work()))(()=>{const opener=this.openers.get('music-detail');
+   if(opener?.getClientRects().length)opener.focus({preventScroll:true});else this.focusHeading();});});
+ $('detail-volume').addEventListener('input',e=>{if(!this.live)this.music({type:'volume',value:e.target.value});});$('detail-output').addEventListener('click',()=>this.open('rooms',$('detail-output')));$('move-here')?.addEventListener('click',()=>{if($('move-here').dataset.action==='music')this.dispatch({type:'show',id:'music'});else this.moveHere();});$('track').addEventListener('click',()=>this.open('music-detail',$('track')));
+ this.svarToday=new SvarTodayView($('svar-today'),id=>{this.historyOpenedFocus=this.historyBrowse?.origin??this.state.focus;
+  this.openHistoryAnswer(id);});
+ $('output').addEventListener('click',()=>this.open('rooms',$('output')));$('player-detail').addEventListener('click',()=>this.open('music-detail',$('player-detail')));this.querySelector('.player').addEventListener('click',e=>{if(!e.target.closest('button,input,label'))this.open('music-detail',$('player-detail'));});
+ this.headerBackAction=()=>{if($('history').open){$('history').close();return;}if(this.state.focus==='photo')return;if(this.state.focus==='recipes'&&this.recipeView?.goBack){this.recipeView.goBack();return;}this.journey.cancel();this.dispatch({type:'back'});this.focusHeading();};
+ }
+ // The shell's controls (src/shell): each tap is the host's own action, as the listeners in build() were.
+ headerTitleBack(){if(this.dataset.level==='detail')this.headerBackAction?.();}
+ showFocus(id,focus=true){this.dispatch({type:'show',id});if(focus)this.focusHeading();}
+ showMusicFromTopbar(){
+  if(this.state.music.collapsed)this.music({type:'collapse'});
+  this.dispatch({type:'show',id:'music'});
+ }
+ focusPlayPause(){$('play-pause').focus();}
+ restoreResources(){this.dispatch({type:'restore-resources'});}
+ restoreTimer(){this.dispatch({type:'timer',id:this.state.timer?.id,action:'show',now:Date.now()});}
+ openRest(){this.journey.cancel();this.dispatch({type:'show',id:'photo'});this.focusHeading();}
+ deviceBack(){this.dispatch({type:'device-back'});this.focusHeading();}
+ openRecipes(){
   const existing=this.recipeView;
   // An ordinary push (ui/page-motion.js); the recipe owner is set up inside the motion's render.
   this.dispatch({type:'show',id:'recipes'});
@@ -262,42 +260,85 @@ class WidgetHost extends HTMLElement {
    else if(existing)existing.catalog();
    owner?.title.focus({preventScroll:true});
   });
- });
- for(const [id,focus]of [['home-radio','radio'],['home-vehicle','vehicle']])$(id).addEventListener('click',()=>{this.dispatch({type:'show',id:focus});this.focusHeading();});
- this.lightRooms=document.createElement('pv-choice-list');this.lightRooms.dataset.contextPicker='rooms';this.lightRooms.setAttribute('aria-label','Vælg rum');this.lightLamps=document.createElement('pv-choice-list');this.lightLamps.dataset.contextPicker='lamps';this.lightLamps.setAttribute('aria-label','Vælg lampe');$('device-detail').after(this.lightRooms);this.lightRooms.after(this.lightLamps);this.lightRoomView=new LightRoomView(this);this.inlineLamps=new LightLampView(this);
- this.timerView=new TimerView(this,$('timers-view'),$('timer-card'));$('open-timers').addEventListener('click',()=>{this.dispatch({type:'show',id:'timers'});this.focusHeading();});
- this.localWeatherBuilt=false;if(!this.live)renderLocalWeather(document,this.state.weatherPreview==='empty'?liveWeatherModel(null,{reason:homeConnectionPresentation(this.state.connectionPreview||{}).reason}):this.state.weatherPreview==='stale'?{...localWeatherModel(this.state.weatherFixture||WEATHER_CHANGE_EXAMPLE),sourceStale:true,subtitle:'Ikke opdateret',summary:''}:localWeatherModel(this.state.weatherFixture||WEATHER_CHANGE_EXAMPLE),{detail:false});
-
- $('play-pause').addEventListener('click',()=>this.music(this.liveRadio?.ownsPlayer()?{type:'toggle',controlId:'play-pause'}:{type:'toggle'}));$('previous').addEventListener('click',()=>this.music({type:'skip',delta:-1}));$('next').addEventListener('click',()=>this.music({type:'skip',delta:1}));$('volume').addEventListener('input',e=>{if(!this.live)this.music({type:'volume',value:e.target.value});});
- for(const [id,event] of [['detail-previous',{type:'skip',delta:-1}],['detail-next',{type:'skip',delta:1}],['detail-toggle',{type:'toggle'}]])$(id).addEventListener('click',()=>this.music(this.liveRadio?.ownsPlayer()&&event.type==='toggle'?{...event,controlId:id}:event));
- $('player-back').addEventListener('click',()=>{this.dispatch({type:'back'});
-  (this.motion?.afterPage?.bind(this.motion)||(work=>work()))(()=>{const opener=this.openers.get('music-detail');
-   if(opener?.getClientRects().length)opener.focus({preventScroll:true});else this.focusHeading();});});
- $('detail-volume').addEventListener('input',e=>{if(!this.live)this.music({type:'volume',value:e.target.value});});$('detail-output').addEventListener('click',()=>this.open('rooms',$('detail-output')));$('move-here')?.addEventListener('click',()=>{if($('move-here').dataset.action==='music')this.dispatch({type:'show',id:'music'});else this.moveHere();});$('track').addEventListener('click',()=>this.open('music-detail',$('track')));
-
- $('open-history').addEventListener('click',()=>{if($('history').open){$('history').close();return;}
-  // Svar opens the Svar page on the newest answer; with nothing saved it opens »Tidligere svar« (empty state).
-  const newest=this.dataset.svarPage!=='true'&&this.svarTodayRows?.[0];
-  if(newest&&!newest.live){this.historyOpenedFocus=this.state.focus;
-   this.retainedNodes.get(newest.id)?.querySelector('.history-open')?.click();return;}
-  this.open('history',$('open-history'));});
- this.svarToday=new SvarTodayView($('svar-today'),id=>{this.historyOpenedFocus=this.historyBrowse?.origin??this.state.focus;
-  this.retainedNodes.get(id)?.querySelector('.history-open')?.click();});
- $('output').addEventListener('click',()=>this.open('rooms',$('output')));$('open-demo').addEventListener('click',()=>this.open('demo',$('open-demo')));$('player-detail').addEventListener('click',()=>this.open('music-detail',$('player-detail')));this.querySelector('.player').addEventListener('click',e=>{if(!e.target.closest('button,input,label'))this.open('music-detail',$('player-detail'));});
- for(const id of ['rooms','demo','conflict','quick-sheet','customize-sheet','history']){$(id).addEventListener('close',()=>{if($(id).dataset?.presentationClose==='true'){delete $(id).dataset.presentationClose;if(id==='history'){for(const [node,inert] of this.historySiblings||[])node.inert=inert;this.historySiblings=null;$('open-history').setAttribute('aria-expanded','false');}return;}if(id==='history'){for(const [node,inert] of this.historySiblings||[])if(node.inert!==inert)node.inert=inert;this.historySiblings=null;const responses=$('history').parentElement;if(responses.scrollTop!==this.historyScrollTop)responses.scrollTop=this.historyScrollTop||0;$('open-history').setAttribute('aria-expanded','false');this.renderTopbar?.();if(!this.sceneNavigation){this.historyBrowse=null;this.journey?.cancel();this.dispatch({type:'show',id:'now'});this.focusHeading();return;}}if(['demo','history'].includes(id)&&this.sceneNavigation){this.sceneNavigation=false;this.focusHeading();return;}if(id==='conflict'&&this.state.conflict)this.dispatch({type:'conflict',choice:'continue'});this.openers.get(id)?.focus();});}
- for(const b of document.querySelectorAll('[data-close]'))b.addEventListener('click',()=>$(b.dataset.close).close());
- for(const b of document.querySelectorAll('[data-scenario]'))b.addEventListener('click',()=>{this.fault=null;this.dispatch({type:'request',kind:b.dataset.scenario});this.sceneNavigation=true;$('demo').close();this.focusHeading();});
- for(const b of document.querySelectorAll('[data-fault]'))b.addEventListener('click',()=>{this.fault=b.dataset.fault;this.dispatch({type:'request',kind:'comparison'});this.sceneNavigation=true;$('demo').close();this.focusHeading();});
- $('quick-controls').addEventListener('click',()=>this.openScreenSettings($('quick-controls')));$('pin-widget').addEventListener('click',()=>{if(this.pins.has(this.customized))this.pins.delete(this.customized);else this.pins.add(this.customized);$('pin-widget').setAttribute('aria-pressed',String(this.pins.has(this.customized)));$('pin-widget').textContent=this.pins.has(this.customized)?'Frigør widget':'Fastgør widget';this.render();});$('hide-widget').addEventListener('click',()=>{if(this.customized.startsWith('demo-answer'))this.dispatch({type:'hide',id:this.customized});else if(this.state.devices.some(d=>d.id===this.customized))this.dispatch({type:'hide-resource',id:this.customized});else this.dispatch({type:'show',id:'now'});$('customize-sheet').close();});
- $('demo-music').addEventListener('click',()=>{this.journey.start();this.sceneNavigation=true;$('demo').close();});$('demo-now').addEventListener('click',()=>{this.dispatch({type:'show',id:'now'});this.sceneNavigation=true;$('demo').close();});
- $('header-ro').addEventListener('click',()=>this.openScreenSettings($('header-ro')));this.headerBackAction=()=>{if($('history').open){$('history').close();return;}if(this.state.focus==='photo')return;if(this.state.focus==='recipes'&&this.recipeView?.goBack){this.recipeView.goBack();return;}this.journey.cancel();this.dispatch({type:'back'});this.focusHeading();};$('show-photo').addEventListener('click',this.headerBackAction);$('photo-view').addEventListener('click',()=>{this.dispatch({type:'show',id:'now'});this.focusHeading();});
- $('show-now').addEventListener('click',()=>this.dispatch({type:'show',id:'now'}));$('show-music').addEventListener('click',()=>{if(this.state.music.collapsed)this.music({type:'collapse'});this.dispatch({type:'show',id:'music'});});$('now-music').addEventListener('click',()=>$('play-pause').focus());
- $('start-timer').addEventListener('click',()=>{this.dispatch({type:'timer-start',now:Date.now()});this.dispatch({type:'show',id:'now'});this.sceneNavigation=true;$('demo').close();});
- $('restore-timer').addEventListener('click',()=>this.dispatch({type:'timer',id:this.state.timer?.id,action:'show',now:Date.now()}));
- $('demo-offline').addEventListener('click',()=>{if(this.state.connected)this.dispatch({type:'offline'});else this.dispatch({type:'snapshot',generation:this.state.generation});});$('demo-end').addEventListener('click',()=>{this.dispatch({type:'session-ended'});$('demo').close();});
- for(const [id,choice] of [['continue-task','continue'],['replace-task','replace']])$(id).addEventListener('click',()=>{this.dispatch({type:'conflict',choice});$('conflict').close();this.focusHeading();});
-
  }
+ // Svar opens the Svar page on the newest answer; with nothing saved it opens »Tidligere svar« (empty state).
+ openSvar(){
+  if($('history').open){$('history').close();return;}
+  const newest=this.dataset.svarPage!=='true'&&this.svarTodayRows?.[0];
+  if(newest&&!newest.live){this.historyOpenedFocus=this.state.focus;this.openHistoryAnswer(newest.id);return;}
+  this.open('history',$('open-history'));
+ }
+ // A row of »Tidligere svar« (or of the Svar page's »I dag«) opens its answer.
+ openHistoryAnswer(id){
+  if(!this.state.answers.some(answer=>answer.id===id))return;
+  this.historyBrowse={id,origin:this.historyOpenedFocus,scrollTop:$('retained').scrollTop,
+   scope:JSON.stringify([this.liveSnapshot?.bootId,this.liveSnapshot?.roomId])};
+  this.sceneNavigation=true;this.dispatch({type:'show',id});
+  if($('history').open)$('history').close();
+  this.focusHeading();
+ }
+ closeDialog(id){$(id).close();}
+ // Every shell dialog's native close lands here (rooms, demo, conflict, quick-sheet, customize-sheet, history).
+ dialogClosed(id){
+  const dialog=$(id),history=id==='history';
+  if(dialog.dataset?.presentationClose==='true'){
+   delete dialog.dataset.presentationClose;
+   if(history){
+    for(const [node,inert] of this.historySiblings||[])node.inert=inert;
+    this.historySiblings=null;$('open-history').setAttribute('aria-expanded','false');
+   }
+   return;
+  }
+  if(history){
+   for(const [node,inert] of this.historySiblings||[])if(node.inert!==inert)node.inert=inert;
+   this.historySiblings=null;
+   const responses=dialog.parentElement;
+   if(responses.scrollTop!==this.historyScrollTop)responses.scrollTop=this.historyScrollTop||0;
+   $('open-history').setAttribute('aria-expanded','false');this.renderTopbar?.();
+   if(!this.sceneNavigation){
+    this.historyBrowse=null;this.journey?.cancel();this.dispatch({type:'show',id:'now'});this.focusHeading();return;
+   }
+  }
+  if(['demo','history'].includes(id)&&this.sceneNavigation){this.sceneNavigation=false;this.focusHeading();return;}
+  if(id==='conflict'&&this.state.conflict)this.dispatch({type:'conflict',choice:'continue'});
+  this.openers.get(id)?.focus();
+ }
+ togglePin(){
+  if(this.pins.has(this.customized))this.pins.delete(this.customized);else this.pins.add(this.customized);
+  this.renderCustomize();this.render();
+ }
+ hideWidget(){
+  const id=this.customized;
+  if(id.startsWith('demo-answer'))this.dispatch({type:'hide',id});
+  else if(this.state.devices.some(d=>d.id===id))this.dispatch({type:'hide-resource',id});
+  else this.dispatch({type:'show',id:'now'});
+  $('customize-sheet').close();
+ }
+ resolveConflict(choice){this.dispatch({type:'conflict',choice});$('conflict').close();this.focusHeading();}
+ chooseDemoTarget(t,revision){
+  this.music({type:'target',accountId:t.accountId,kind:t.kind,targetId:t.targetId,revision});$('rooms').close();
+ }
+ // The local preview's demo sheet: each choice closes it.
+ demoClose(navigates){if(navigates)this.sceneNavigation=true;$('demo').close();}
+ demoTime(){return new Date().toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'});}
+ demoScenario(kind){this.fault=null;this.dispatch({type:'request',kind});this.demoClose(true);this.focusHeading();}
+ demoFault(fault){
+  this.fault=fault;this.dispatch({type:'request',kind:'comparison'});this.demoClose(true);this.focusHeading();
+ }
+ demoDevice(kind){this.dispatch({type:'device-demo',kind,time:this.demoTime()});this.demoClose(true);}
+ demoObserve(status){
+  this.dispatch({type:'device-observation',id:'demo-vacuum',status,time:this.demoTime()});this.demoClose(false);
+ }
+ demoMusic(){this.journey.start();this.demoClose(true);}
+ demoNow(){this.dispatch({type:'show',id:'now'});this.demoClose(true);}
+ demoTimer(){
+  this.dispatch({type:'timer-start',now:Date.now()});this.dispatch({type:'show',id:'now'});this.demoClose(true);
+ }
+ demoOffline(){
+  if(this.state.connected)this.dispatch({type:'offline'});
+  else this.dispatch({type:'snapshot',generation:this.state.generation});
+ }
+ demoEnd(){this.dispatch({type:'session-ended'});this.demoClose(false);}
  connectPodVoice(){
   this.suspendLiveTimer();this.liveTransport?.close();this.liveStatus='connecting';
   this.liveTransport=new PodVoiceTransport({onControllerRenewed:renewal=>this.liveCatalogue?.renewRetained(renewal),room:new URLSearchParams(location.search).get('room')||undefined,onConnection:status=>{if(this.deferConnecting?.(status))return;this.liveStatus=this.liveTransport?.liveStatus??status;if(status!=='connected'){this.suspendLiveTimer();this.liveControls?.connectionLost();this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveRadio?.invalidate();this.liveSelection?.invalidate('Forbindelsen mangler · søg igen.');this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeAt=0;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;this.invalidateLiveMusic('Forbindelsen mangler.');this.state={...this.state,timer:this.state.timer?{...this.state.timer,stale:true}:null,extraTimers:this.state.extraTimers.map(t=>({...t,stale:true})),vehicle:this.liveTransport?.recoveryBlocked===true?null:this.state.vehicle?{...this.state.vehicle,stale:true}:null,liveWeather:this.liveTransport?.recoveryBlocked===true?null:this.state.liveWeather?{...this.state.liveWeather,stale:true}:null,devices:this.liveTransport?.recoveryBlocked===true?this.state.devices.filter(d=>d.source!=='home_assistant_state'):this.state.devices.map(d=>d.live?{...d,stale:true}:d),...(this.liveTransport?.recoveryBlocked===true?{homeScope:null,homeRevision:null,focus:this.state.focus==='weather'||this.state.devices.some(d=>d.id===this.state.focus&&d.source==='home_assistant_state')?'now':this.state.focus}:{})};this.render();}else this.renderLive();},onSnapshot:snapshot=>{this.recipeArrivals?.(snapshot);this.liveAnswers?.onSnapshot(this.liveSnapshot,snapshot);if(this.liveSnapshot&&JSON.stringify(this.liveSnapshot.capabilities.homeRead||[])!==JSON.stringify(snapshot.capabilities.homeRead||[])){this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeAt=0;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;}if(this.liveSnapshot&&(this.liveSnapshot.bootId!==snapshot.bootId||this.liveSnapshot.roomId!==snapshot.roomId)){this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeAt=0;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;this.liveControls?.invalidate();this.liveAnswers?.invalidate(true,true);this.liveMedia?.invalidate(true);this.liveRadio?.invalidate(true);this.liveSelection?.invalidate('PodVoice er genstartet · søg igen.');this.state={...this.state,vehicle:null,liveWeather:null,devices:this.state.devices.filter(d=>d.source!=='home_assistant_state'),homeScope:null,homeRevision:null,focus:this.state.focus==='weather'||this.state.devices.some(d=>d.id===this.state.focus&&d.source==='home_assistant_state')?'now':this.state.focus};this.invalidateLiveMusic('Forbindelsen er ændret · vælg musik igen');}const musicChanged=Number.isSafeInteger(snapshot.musicRevision)&&Number.isSafeInteger(this.liveSnapshot?.musicRevision)&&snapshot.musicRevision!==this.liveSnapshot.musicRevision&&this.liveSnapshot.bootId===snapshot.bootId;this.liveSnapshot=snapshot;this.updateHomeRevision(snapshot);if(musicChanged)void this.liveMedia?.refresh?.({immediate:true})?.catch?.(()=>{});this.state=liveScene(this.state,snapshot);this.reconcileLiveTimer(snapshot);this.render();this.liveSelection?.onSnapshot();if(snapshot.capabilities.homeRead?.length&&Date.now()-(this.liveHomeAt||0)>15000)this.loadLiveHome();this.liveMedia?.refresh();this.liveRadio?.refresh();this.liveAnswers?.refresh();}});
@@ -315,14 +356,29 @@ class WidgetHost extends HTMLElement {
  }
  renderConnectionNotice(connection){
   this.connectionNotice=connection;
-  if(!this.connectionRetry){this.connectionRetry=document.createElement('button');applyKitComponent(this.connectionRetry,'button',{variant:'secondary'});this.connectionRetry.type='button';this.connectionRetry.textContent='Prøv igen';this.connectionRetry.addEventListener('click',()=>{if(this.state?.connectionPreview){this.state={...this.state,connectionPreview:{status:'connecting'}};this.render();return;}if(!this.live||this.liveStatus==='connecting'||this.liveStatus==='connected'||this.connectionRetryPending||!this.liveTransport)return;this.connectionRetryPending=true;for(const key of ['aria-disabled','aria-busy'])if(this.connectionRetry.getAttribute?.(key)!=='true')this.connectionRetry.setAttribute?.(key,'true');(this.liveTransport.retry?.()??this.liveTransport.restart(false,false)).catch(()=>{}).finally(()=>{this.connectionRetryPending=false;if(this.isConnected)this.renderLive();});});}
   const busy=connection.state==='connecting',cards=['timer-card','home-weather','home-music','home-radio','home-vehicle'].map(id=>$(id));for(const row of this.deviceRows?.values()||[])cards.push(row.overviewShell||row);for(const card of cards){if(card?.setAttribute&&card.getAttribute('aria-busy')!==String(busy))card.setAttribute('aria-busy',String(busy));}
-  const network=$('screen-device-network');if(network?.append&&this.connectionRetry.parentNode!==network)network.append(this.connectionRetry);
-  const showRetry=!!(connection.retry||this.connectionRetryPending);if(!showRetry&&(this.ownerDocument||document).activeElement===this.connectionRetry&&$('quick-sheet')?.open)$('screen-device-more-summary')?.focus?.();
-  if(this.connectionRetry.hidden!==!showRetry)this.connectionRetry.hidden=!showRetry;
-  if(this.connectionRetry.disabled)this.connectionRetry.disabled=false;const retryBusy=String(!!this.connectionRetryPending);for(const key of ['aria-disabled','aria-busy'])if(this.connectionRetry.getAttribute?.(key)!==retryBusy)this.connectionRetry.setAttribute?.(key,retryBusy);
+  // »Prøv igen« lives in »Om skærmen«; the toast borrows it while it shows the connection notice.
+  const retry=this.connectionRetry,network=$('screen-device-network');
+  if(retry&&network?.append&&retry.parentNode!==network)network.append(retry);
+  const showRetry=!!(connection.retry||this.connectionRetryPending);
+  if(!showRetry&&(this.ownerDocument||document).activeElement===retry&&$('quick-sheet')?.open){
+   $('screen-device-more-summary')?.focus?.();
+  }
+  this.shell.set('retry',{hidden:!showRetry,busy:!!this.connectionRetryPending});
   this.showFeedback(connection.headerLabel?'':connection.text,false,{source:'connection',retry:false,priority:['offline','denied'].includes(connection.state)});
   this.renderTopbarClock?.();
+ }
+ get connectionRetry(){return this.shell?.retryButton||null;}
+ retryConnection(){
+  if(this.state?.connectionPreview){
+   this.state={...this.state,connectionPreview:{status:'connecting'}};this.render();return;
+  }
+  const status=this.liveStatus;
+  if(!this.live||status==='connecting'||status==='connected'||this.connectionRetryPending||!this.liveTransport)return;
+  this.connectionRetryPending=true;this.shell.set('retry',{...this.shell.view.retry,busy:true});
+  (this.liveTransport.retry?.()??this.liveTransport.restart(false,false)).catch(()=>{}).finally(()=>{
+   this.connectionRetryPending=false;if(this.isConnected)this.renderLive();
+  });
  }
 
  renderLive(){if(this.touching&&deferForGesture(this,'renderLive'))return;this.renderTopbarClock?.();this.liveOutputs?.sync();
@@ -330,7 +386,6 @@ class WidgetHost extends HTMLElement {
   this.renderVoice();
   this.renderConnectionNotice(connectionPresentation({status:this.liveStatus,snapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true,browserOffline:this.browserOffline===true}));
 
-  if($('open-demo').hidden!==!!(true))$('open-demo').hidden=true;
   const canDiscover=connected&&Array.isArray(snapshot?.capabilities.musicRead)&&snapshot.capabilities.musicRead.some(kind=>['shelves','mood','feeling','top','recent','search','account_playlists'].includes(kind));const canOpenMusic=canDiscover||this.liveMedia?.canChooseAccount===true||(this.liveCatalogue?.entries?.size||0)>0;if($('empty-find-music').disabled!==!canOpenMusic)$('empty-find-music').disabled=!canOpenMusic;
   if($('home-music').disabled!==!!($('empty-find-music').disabled))$('home-music').disabled=$('empty-find-music').disabled;
   const canStart=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.start'),canCancel=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.cancel'),canAdjust=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.adjust');
@@ -546,7 +601,13 @@ class WidgetHost extends HTMLElement {
   if(this.dataset.svarPage!==String(svarPage))this.dataset.svarPage=String(svarPage);
   this.svarToday?.render(this.svarTodayRows,svarPage);
  }
- customize(id){this.customized=id==='device'?this.state.focus:id;$('hide-widget').disabled=this.customized==='now';$('pin-widget').setAttribute('aria-pressed',String(this.pins.has(this.customized)));$('pin-widget').textContent=this.pins.has(this.customized)?'Frigør widget':'Fastgør widget';this.open('customize-sheet',$('quick-controls'));}
+ customize(id){
+  this.customized=id==='device'?this.state.focus:id;this.renderCustomize();
+  this.open('customize-sheet',$('quick-controls'));
+ }
+ renderCustomize(){
+  this.shell.set('customize',{pinned:this.pins.has(this.customized),hideDisabled:this.customized==='now'});
+ }
  alignClock(){const clock=$('photo-clock'),style=getComputedStyle(clock);if(!clock.offsetWidth)return;const ctx=document.createElement('canvas').getContext('2d');ctx.font=`${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;const value=`${ctx.measureText(clock.textContent).actualBoundingBoxLeft}px`;if(clock.style.getPropertyValue('--clock-optical-offset')!==value)clock.style.setProperty('--clock-optical-offset',value);}
  feedbackGeometry(){
   const toast=$('playback-status'),item=this.notifications?.current,doc=this.ownerDocument||document,view=doc.defaultView;if(!toast||!item||!view||toast.hidden)return;
@@ -612,40 +673,49 @@ class WidgetHost extends HTMLElement {
  }
  showFeedback(message,pending,options={}){if(this.isConnected===false)return;const source=options.source||'action';if(source==='action'&&/^Afspilningen er ikke opdateret$/i.test(message||''))message='';if(source==='action'){this.feedbackMessage=message;this.feedbackPending=!!pending;}this.notifications??=new NotificationQueue(item=>{const node=$('playback-status');if(!item){if(this.feedbackLocal!==this.connectionRetryLocal)this.feedbackLocal?.remove();this.feedbackLocal=null;this.motion?.feedback(node,false);return;}if(this.feedbackLocal&&this.feedbackLocal!==this.connectionRetryLocal&&this.feedbackLocal.__pvItem!==item){this.feedbackLocal.remove();this.feedbackLocal=null;}if(item.retry&&this.connectionRetryLocal){const previous=this.connectionRetryLocal;previous.remove();if(this.feedbackLocal===previous)this.feedbackLocal=null;this.connectionRetryLocal=null;}applyKitComponent(node,'dialog',{variant:'toast'});if(!this.notificationCopy)this.notificationCopy=document.createTextNode('');this.notificationCopy.nodeValue=item?.message||'';const children=[this.notificationCopy];if(item?.retry&&this.connectionRetry)children.push(this.connectionRetry);node.replaceChildren(...children);node.dataset.source=item?.source||'';this.motion?.feedback(node,true);this.scheduleFeedbackGeometry?.();});if(source==='connection'&&!message){this.connectionRetryLocal?.remove();if(this.feedbackLocal===this.connectionRetryLocal)this.feedbackLocal=null;this.connectionRetryLocal=null;}this.notifications.update(source,message,{pending:!!pending,...options});if(!this.detachNotificationPointer&&this.isConnected!==false){const owner=this.ownerDocument||document;if(owner.addEventListener){const outside=event=>{const item=this.notifications?.current,node=$('playback-status');if(!item||event.composedPath?.().includes(node)||node?.contains?.(event.target)||event.composedPath?.().includes(this.feedbackLocal)||this.feedbackLocal?.contains?.(event.target)||event.composedPath?.().includes(this.connectionRetryLocal)||this.connectionRetryLocal?.contains?.(event.target))return;this.notifications.dismiss(item);};owner.addEventListener('pointerdown',outside,{capture:true,passive:true});this.detachNotificationPointer=()=>{owner.removeEventListener('pointerdown',outside,true);this.detachNotificationPointer=null;};}}}
  open(id,opener){if(id==='music-detail'){const destination=this.playerView?.progressVM?.sourceKind==='radio'||!this.live&&this.state.radioStationId?'radio':'player';if(this.state.focus===destination)return;this.openers.set(id,opener||document.activeElement);this.dispatch({type:'show',id:destination});this.focusHeading();if(this.live&&destination==='player')this.liveMedia?.loadQueue();return;}if($(id).open)return;this.openers.set(id,opener?.getClientRects().length?opener:document.activeElement);if(id==='history'){const responses=$('history').parentElement;this.historyOpenedFocus=this.state.focus;this.historyScrollTop=responses.scrollTop;this.historySiblings=[...responses.children].filter(node=>node!==$('history')).map(node=>[node,node.inert]);for(const [node] of this.historySiblings)if(!node.inert)node.inert=true;if(responses.scrollTop!==0)responses.scrollTop=0;$('history').show();$('open-history').setAttribute('aria-expanded','true');this.renderTopbar?.();if(this.live)void this.liveAnswers?.refreshTranscripts();}else {$(id).showModal();}if(id==='rooms'&&this.live){if(this.liveRadio?.ownsPlayer())this.liveRadio.openOutputs();else {if(this.liveRadio)this.liveRadio.outputOpen=false;this.liveOutputs?.open();}}}
+ // »Skærm og enhed«: the authored local specimen has controls; no browser or global object grants device authority.
  renderScreenSettings(){
-  this.buildScreenSettings();const doc=this.ownerDocument||document,fixture=!this.live&&this.previewStage==='screen-device-ready';
+  const doc=this.ownerDocument||document,fixture=!this.live&&this.previewStage==='screen-device-ready';
   if(fixture&&!this.screenDeviceFixture)this.screenDeviceFixture={brightness:60,autoDim:true,idleMinutes:5};
   const model=fixture?this.screenDeviceFixture:null,network=doc.defaultView?.navigator?.onLine,offline=this.browserOffline===true||network===false,connection=this.live?connectionPresentation({status:this.liveStatus,snapshot:this.liveSnapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true,browserOffline:this.browserOffline===true}):null;
-  const brightness=$('screen-device-brightness'),automatic=$('screen-device-auto-dim'),value=model?`${model.brightness} %`:'Ikke oplyst',auto=model?(model.autoDim?'Til':'Fra'):'Ikke oplyst',browser=offline?'Offline':network===true?'Online':'Ikke oplyst',home=this.live?(connection.headerLabel||(connection.state==='ready'?'Forbundet':connection.text)):'Ikke tilsluttet';
-  if(brightness.disabled!==!model)brightness.disabled=!model;if(automatic.disabled!==!model)automatic.disabled=!model;
-  const draft=String(model?.brightness??0);if(brightness.value!==draft)brightness.value=draft;if(brightness.getAttribute('aria-valuetext')!==value)brightness.setAttribute('aria-valuetext',value);if(automatic.getAttribute('aria-checked')!==String(model?.autoDim===true))automatic.setAttribute('aria-checked',String(model?.autoDim===true));
-  // Reapply the retained native Slider recipe only to synchronize its current fill.
-  applyKitComponent(brightness,'slider',{identity:'neutral'});
-  const values=[['screen-device-note',model?'Eksempelvisning · ændrer ikke enheden':'Enhedsstyring er ikke tilsluttet.'],['screen-device-brightness-value',value],['screen-device-auto-state',auto],['screen-device-dim-rule',model?`Efter ${model.idleMinutes} minutters inaktivitet`:'Indstilles på den fysiske skærm.'],['screen-device-wifi',model?'Forbundet · eksempel':'Ikke oplyst'],['screen-device-browser',browser],['screen-device-home',home],['screen-device-info',typeof __PODVIEW_BUILD__==='string'?__PODVIEW_BUILD__:'Ikke oplyst']];
-  for(const [id,text]of values)if($(id).textContent!==text)$(id).textContent=text;const homeStatus=$('screen-device-home'),homeDescription=this.live?(connection.text||home):home;if(homeStatus.getAttribute('aria-label')!==homeDescription)homeStatus.setAttribute('aria-label',homeDescription);
-  const room=this.live&&this.liveSnapshot?.roomId;const link=this.screenEnrollmentLink;if(link){link.hidden=!(typeof room==='string'&&room.length>0);if(!link.hidden){const href='./setup.html?'+new URLSearchParams({room,enrollment:'1'});if(link.getAttribute('href')!==href)link.setAttribute('href',href);}}
+  const value=model?`${model.brightness} %`:'Ikke oplyst';
+  const home=this.live?(connection.headerLabel||(connection.state==='ready'?'Forbundet':connection.text))
+   :'Ikke tilsluttet';
+  const room=this.live&&this.liveSnapshot?.roomId;
+  const enrollmentHref=typeof room==='string'&&room.length>0
+   ?'./setup.html?'+new URLSearchParams({room,enrollment:'1'}):null;
   // The current validated ingress owns navigation. A same-scope passive snapshot
   // is not a revocation while the UI is adopting its new payload object.
-  const admin=this.screenAdminLink,transport=this.liveTransport,current=transport?.snapshot,admission=current?.admission;let adminHref=null;
+  const transport=this.liveTransport,current=transport?.snapshot,admission=current?.admission;let adminHref=null;
   if(this.live&&transport?.connected&&typeof current?.bootId==='string'&&current.bootId.length>0&&typeof current?.roomId==='string'&&current.roomId.length>0&&this.liveSnapshot?.bootId===current.bootId&&this.liveSnapshot?.roomId===current.roomId&&admission?.kind==='ha_ingress'&&admission.authenticated===true&&Object.keys(admission).sort().join(',')==='authenticated,kind')try{const base=new URL(transport.base),origin=doc.defaultView?.location?.origin??globalThis.location?.origin;if(base.origin===origin&&/\/view\/api\/$/.test(base.pathname))adminHref=new URL('../../',base).href;}catch{}
-  if(admin){admin.hidden=!adminHref;if(adminHref){if(admin.getAttribute('href')!==adminHref)admin.setAttribute('href',adminHref);}else admin.removeAttribute('href');}
-  if($('quick-sheet').dataset.deviceState!==(model?'example':'unbound'))$('quick-sheet').dataset.deviceState=model?'example':'unbound';
+  this.shell.set('screen',{
+   deviceState:model?'example':'unbound',
+   note:model?'Eksempelvisning · ændrer ikke enheden':'Enhedsstyring er ikke tilsluttet.',
+   brightness:model?.brightness??0,brightnessText:value,enabled:!!model,
+   autoDim:model?.autoDim===true,autoText:model?(model.autoDim?'Til':'Fra'):'Ikke oplyst',
+   dimRule:model?`Efter ${model.idleMinutes} minutters inaktivitet`:'Indstilles på den fysiske skærm.',
+   wifi:model?'Forbundet · eksempel':'Ikke oplyst',browser:offline?'Offline':network===true?'Online':'Ikke oplyst',
+   home,homeLabel:this.live?(connection.text||home):home,
+   info:typeof __PODVIEW_BUILD__==='string'?__PODVIEW_BUILD__:'Ikke oplyst',enrollmentHref,adminHref,
+  });
  }
- buildScreenSettings(){
-  if(this.screenSettingsBuilt)return;this.screenSettingsBuilt=true;
-  const brightness=$('screen-device-brightness'),automatic=$('screen-device-auto-dim');
-  applyKitComponent(brightness,'slider',{identity:'neutral'});applyKitComponent(automatic,'toggle',{variant:'settings',identity:'neutral'});applyKitComponent($('screen-device-dimming'),'listrow',{variant:'settings',identity:'neutral'});
-  $('screen-device-home').setAttribute('role','status');for(const id of ['screen-device-wifi-row','screen-device-browser-row','screen-device-home-row'])applyKitComponent($(id),'listrow',{variant:'read-only',identity:'neutral'});$('screen-device-wifi-row').hidden=true;$('screen-device-browser-row').hidden=true;const homeLabel=$('screen-device-home-row').firstElementChild;if(homeLabel)homeLabel.textContent='Home Assistant';
-  applyKitComponent($('screen-device-more-summary'),'listrow',{variant:'disclosure',identity:'neutral'});
-  // Lærred »A-Skaerm«: »Om skærmen« is a label over open rows; the native disclosure stays open.
-  $('screen-device-more').open=true;
-  $('screen-device-more-summary').addEventListener('click',event=>event.preventDefault());
-  const doc=this.ownerDocument||document,info=$('screen-device-info'),version=doc.createElement('div'),versionLabel=doc.createElement('span');versionLabel.textContent='PodView-version';applyKitComponent(version,'listrow',{variant:'read-only',identity:'neutral'});version.className+=' screen-build-row';info.parentNode?.insertBefore(version,info);version.append(versionLabel,info);  // Only the authored local specimen has controls. No browser/global object grants device authority.
-  const recovery=doc.createElement('a');recovery.textContent='Gendan skærmens adgang';applyKitComponent(recovery,'button',{variant:'secondary'});recovery.hidden=true;$('screen-device-more').append(recovery);this.screenEnrollmentLink=recovery;
-  const admin=doc.createElement('a');admin.textContent='Administration';applyKitComponent(admin,'button',{variant:'secondary'});admin.hidden=true;admin.addEventListener('click',event=>{this.renderScreenSettings();if(admin.hidden){event.preventDefault();return;}if(!event.defaultPrevented&&!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&(event.button==null||event.button===0)&&requestIngressAdmin(doc.defaultView))event.preventDefault();});$('screen-device-more').append(admin);this.screenAdminLink=admin;
-  const fixture=()=>!this.live&&this.previewStage==='screen-device-ready';
-  brightness.addEventListener('change',()=>{if(!fixture()||brightness.disabled)return;const value=Number(brightness.value);if(!Number.isInteger(value)||value<0||value>100)return;this.screenDeviceFixture={...this.screenDeviceFixture,brightness:value};this.renderScreenSettings();});
-  automatic.addEventListener('click',()=>{if(!fixture()||automatic.disabled)return;this.screenDeviceFixture={...this.screenDeviceFixture,autoDim:!this.screenDeviceFixture.autoDim};this.renderScreenSettings();});
+ screenSpecimen(control){return !this.live&&this.previewStage==='screen-device-ready'&&!$(control).disabled;}
+ screenBrightness(value){
+  if(!this.screenSpecimen('screen-device-brightness')||!Number.isInteger(value)||value<0||value>100)return;
+  this.screenDeviceFixture={...this.screenDeviceFixture,brightness:value};this.renderScreenSettings();
+ }
+ screenAutoDim(){
+  if(!this.screenSpecimen('screen-device-auto-dim'))return;
+  this.screenDeviceFixture={...this.screenDeviceFixture,autoDim:!this.screenDeviceFixture.autoDim};
+  this.renderScreenSettings();
+ }
+ // »Administration« navigates the HA panel (ingress-kiosk.js) when it can; otherwise the link is followed.
+ screenAdmin(event,admin){
+  this.renderScreenSettings();
+  if(admin.hidden){event.preventDefault();return;}
+  const plain=!event.metaKey&&!event.ctrlKey&&!event.shiftKey&&!event.altKey&&(event.button==null||event.button===0);
+  const view=(this.ownerDocument||document).defaultView;
+  if(!event.defaultPrevented&&plain&&requestIngressAdmin(view))event.preventDefault();
  }
  openScreenSettings(opener){this.renderScreenSettings();this.open('quick-sheet',opener);}
  scheduleClock(){clearTimeout(this.clockTimer);if(!this.isConnected)return;this.renderTopbarClock(new Date());this.alignClock();const now=Date.now();this.clockTimer=setTimeout(()=>this.scheduleClock(),60000-now%60000);}
@@ -659,12 +729,19 @@ class WidgetHost extends HTMLElement {
  renderTopbarClock(now=new Date()){
   const time=now.toLocaleTimeString('da-DK',{hour:'2-digit',minute:'2-digit'}),rawDate=now.toLocaleDateString('da-DK',{weekday:'short',day:'numeric',month:'short'}),date=rawDate.charAt(0).toLocaleUpperCase('da-DK')+rawDate.slice(1);
   const connection=connectionPresentation({...this.live?{status:this.liveStatus,snapshot:this.liveSnapshot,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true}:this.state.connectionPreview||{status:this.state.connected?'connected':'disconnected',snapshot:this.state.connected?undefined:{}},browserOffline:this.browserOffline===true}),offline=['offline','denied'].includes(connection.state);
-  for(const [id,value] of [['photo-date',connection.headerLabel||now.toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'})],['header-date',connection.headerLabel||date]]){const node=$(id);if(node.textContent!==value)node.textContent=value;for(const [key,value] of [['role','status'],['aria-live','polite'],['aria-atomic','true']])if(node.getAttribute?.(key)!==value)node.setAttribute?.(key,value);if(connection.headerLabel&&connection.text){if(node.getAttribute?.('aria-label')!==connection.text)node.setAttribute?.('aria-label',connection.text);}else if(node.getAttribute?.('aria-label')!==null)node.removeAttribute?.('aria-label');}
+  const longDate=now.toLocaleDateString('da-DK',{weekday:'long',day:'numeric',month:'long'});
+  this.shell.set('clock',{
+   headerDate:connection.headerLabel||date,photoDate:connection.headerLabel||longDate,
+   label:connection.headerLabel&&connection.text?connection.text:null,
+   connectionState:connection.state,offline,night:this.dataset.night==='true',
+   connectionMark:offline||connection.state==='connecting',
+   roDescription:connection.retry?'Åbn Skærm og enhed, vælg Om skærmen for at prøve forbindelsen igen'
+    :'Åbn Skærm og enhed',
+  });
+  // P5: the clocks roll only their changed minute/hour digits.
   showValue(this.motion,$('photo-clock'),time,{direction:1});
-  const ro=$('header-ro');if(ro.getAttribute('aria-label')!==null)ro.removeAttribute('aria-label');const description=connection.retry?'Åbn Skærm og enhed, vælg Om skærmen for at prøve forbindelsen igen':'Åbn Skærm og enhed';if(ro.getAttribute('aria-description')!==description)ro.setAttribute?.('aria-description',description);
-  // P5: the header clock rolls only its changed minute/hour digits, like the Ro clock.
   showValue(this.motion,$('header-clock'),time,{direction:1});
-  const nav=this.querySelector('.view-nav');if(nav){for(const [key,value] of [['connectionState',connection.state],['offline',String(offline)],['night',String(this.dataset.night==='true')]])if(nav.dataset[key]!==value)nav.dataset[key]=value;}const dot=$('header-offline-dot'),showConnectionMark=offline||connection.state==='connecting';if(dot.hidden!==!showConnectionMark)dot.hidden=!showConnectionMark;if($('quick-sheet')?.open)this.renderScreenSettings?.();
+  if($('quick-sheet')?.open)this.renderScreenSettings?.();
  }
  renderTopbarScroll(){const nav=this.querySelector('.view-nav'),responses=this.querySelector('.responses');if(!nav||!responses)return;const recipe=responses.querySelector('#recipe-view:not([hidden])');const catalog=recipe?.querySelector('[data-recipe-layout=catalog]>div');const scrolled=String(responses.scrollTop>8||(catalog?.scrollTop??recipe?.scrollTop??0)>8);if(nav.dataset.scrolled!==scrolled)nav.dataset.scrolled=scrolled;}
  renderTopbar({scroll=true}={}){
@@ -673,29 +750,18 @@ class WidgetHost extends HTMLElement {
   const s=this.state,historyOpen=$('history').open===true,answer=focusedAnswer(s),device=this.currentLightDevice()||s.devices.find(item=>item.id===s.focus),title=historyOpen||answer?'Svar':(device?.kind==='light'?'Lys':device?devicePresentation(device,{connected:this.live?!!this.liveTransport?.connected:s.connected}).title:({photo:'Ro',now:'Lige nu',music:'Find musik',player:'Afspiller',timers:'Timer',weather:'Vejr',radio:'Radio',recipes:this.recipeView?.title?.textContent||'Opskrifter',vehicle:'Tesla'})[s.focus]||'PodView');const shellView=historyOpen||s.focus!=='photo'?'active':'rest';if(this.dataset.view!==shellView)this.dataset.view=shellView;const level=historyOpen||!['photo','now'].includes(s.focus)?'detail':'home';if(this.dataset.level!==level)this.dataset.level=level;
   const overviewHeading=String(s.focus==='now'&&!historyOpen&&!answer);if(this.dataset.overviewHeading!==overviewHeading)this.dataset.overviewHeading=overviewHeading;
   const weather=$('header-weather'),pending=String(!this.browserOffline&&(this.live?this.liveStatus==='connecting':s.connectionPreview?.status==='connecting')&&weather.disabled===true);if(weather.getAttribute('aria-busy')!==pending)weather.setAttribute('aria-busy',pending);
-  const history=$('open-history'),active=String(historyOpen||!!answer&&!answer.hidden);if(history.dataset.active!==active)history.dataset.active=active;this.renderSvarDevice?.(history);if(history.getAttribute('aria-current')!==(active==='true'?'page':'false'))history.setAttribute('aria-current',active==='true'?'page':'false');if(scroll){if(this.motion?.moving)queueTopbarScroll(this);else this.renderTopbarScroll();}if(this.dataset.topbar!=='true')this.dataset.topbar='true';const node=$('header-title');if(this.renderHeaderTitle)this.renderHeaderTitle(title,historyOpen||!['photo','now'].includes(s.focus));else if(node.textContent!==title){this.headerTitleAnimation?.cancel();node.textContent=title;}
-  const back=$('show-photo'),rest=s.focus==='now'&&!historyOpen,hidden=!rest;if(back.hidden!==hidden)back.hidden=hidden;const icon=back.querySelector?.('img'),restLabel=back.querySelector?.('.rest-label');if(back.dataset.navigation!=='rest')back.dataset.navigation='rest';
-  // Kit-Topbar: the overview's left key is the Ro shortcut (moon + »Ro«); a tap opens Foto-Ro.
-  const ro={icon:'assets/icons/moon.svg',label:'Ro',aria:'Gå til Ro'};
-  if(icon&&icon.getAttribute('src')!==ro.icon)icon.setAttribute('src',ro.icon);
-  if(restLabel&&restLabel.hidden)restLabel.hidden=false;
-  if(restLabel&&restLabel.textContent!==ro.label)restLabel.textContent=ro.label;
-  if(back.getAttribute('aria-label')!==ro.aria)back.setAttribute('aria-label',ro.aria);
-  if(!$('header-history-count').hidden)$('header-history-count').hidden=true;this.renderTopbarClock();
+  if(scroll){if(this.motion?.moving)queueTopbarScroll(this);else this.renderTopbarScroll();}if(this.dataset.topbar!=='true')this.dataset.topbar='true';
+  // Kit-Topbar: a detail's title is its Back button; the overview's left key is the Ro shortcut (moon + »Ro«).
+  // Svar button: U1 has no unread mark; U2 reads »Offline« on grey when the room's Voice PE has no link to PodVoice
+  // (tapping still opens the saved answers).
+  this.shell.set('topbar',{
+   title,back:historyOpen||!['photo','now'].includes(s.focus),rest:s.focus==='now'&&!historyOpen,
+   nowPressed:s.focus==='now',musicPressed:s.focus==='music',svarActive:historyOpen||!!answer&&!answer.hidden,
+   svarOffline:this.live===true&&this.liveSnapshot?.voice?.device==='offline',historyCount:this.historyCount||'',
+  });
+  this.renderTopbarClock();
  }
 
- // Svar button: U1 (user's choice c) has no unread mark; U2 shows »Offline« in grey when Voice PE is offline.
- renderSvarDevice(button){
-  // U2: the room's Voice PE has no link to PodVoice. Tapping still opens the saved answers.
-  const offline=this.live===true&&this.liveSnapshot?.voice?.device==='offline',label=button.querySelector?.('strong');
-  const device=offline?'offline':'';if((button.dataset.device||'')!==device){if(offline)button.dataset.device='offline';else delete button.dataset.device;}
-  // Kit-SvarKnap: the offline pill reads »Offline« on grey; the reason stays in the accessible description.
-  const text=offline?'Offline':'Svar';if(label&&label.textContent!==text)label.textContent=text;
-  const description=offline?'Voice PE er offline. Dagens svar kan stadig læses.':null;
-  if(button.getAttribute?.('aria-description')!==description){
-   if(description)button.setAttribute('aria-description',description);else button.removeAttribute?.('aria-description');
-  }
- }
  onLightActionStatus(state,operation){
   const context=this.lightAreaContext(),light=this.currentLightDevice();
   if(this.isConnected===false||!context||state?.late||!operation||operation.revoked||this.liveControls?.lightActions?.get(operation.identity)?.feedback!==operation||!operation.context.current()||light?.lightScope?.areaId!==operation.target.areaId)return;
@@ -1064,20 +1130,14 @@ class WidgetHost extends HTMLElement {
    this.pagePrepare=0;this.motion?.pages?.prepare?.();},{timeout:1000});/* A touch asked to hold the layout (ScreenLifecycle): freeze it now, before this render can move it. */this.motion?.applyDeferredHold();/* Commit navigation before domain projection: a renderer failure must not strand the current scene. */this.renderTopbar({scroll:false});this.syncLightArea();if($('history').open&&this.historyOpenedFocus!==this.state.focus){this.sceneNavigation=true;$('history').close();}const resourceSignature=JSON.stringify([this.state.focus,timersFor(this.state).map(t=>[t.id,t.status,t.hidden]),this.state.devices.map(d=>[d.id,d.kind,d.hidden]),this.state.connected,this.state.vehicle?.charging?.status]),resourceBoxes=resourceSignature!==this.resourceLayoutSignature?this.motion?.resources():null,viewChanged=this.lastRenderedFocus!==this.state.focus;this.resourceLayoutSignature=resourceSignature;this.lastRenderedFocus=this.state.focus;const s=this.state,m=s.music;if(this.dataset.view!==String(s.focus==='photo'&&!$('history').open?'rest':'active'))this.dataset.view=s.focus==='photo'&&!$('history').open?'rest':'active';if(this.dataset.level!==String($('history').open||!['photo','now'].includes(s.focus)?'detail':'home'))this.dataset.level=$('history').open||!['photo','now'].includes(s.focus)?'detail':'home';if(!this.live)this.renderVoice();const results=resultsFor(m);
  if(!this.live&&s.focus==='weather'&&!this.localWeatherBuilt){renderLocalWeather(document,s.weatherPreview==='empty'?liveWeatherModel(null,{reason:homeConnectionPresentation(s.connectionPreview||{}).reason}):s.weatherPreview==='stale'?{...localWeatherModel(s.weatherFixture||WEATHER_CHANGE_EXAMPLE),sourceStale:true,subtitle:'Ikke opdateret',summary:''}:localWeatherModel(s.weatherFixture||WEATHER_CHANGE_EXAMPLE));this.localWeatherBuilt=true;}
  if($('photo-view').hidden!==!!(s.focus!=='photo'))$('photo-view').hidden=s.focus!=='photo';if(!this.live)if($('header-weather').hidden!==!weatherHeaderVisible(s.focus,s.weatherPreview!=='empty'))$('header-weather').hidden=!weatherHeaderVisible(s.focus,s.weatherPreview!=='empty');if(!this.live){if($('photo-weather').hidden!==!!(s.focus!=='photo'))$('photo-weather').hidden=s.focus!=='photo';if($('weather-view').hidden!==!!(s.focus!=='weather'))$('weather-view').hidden=s.focus!=='weather';}if($('music-detail').hidden!==(s.focus!=='player'))$('music-detail').hidden=s.focus!=='player';if($('recipe-view').hidden!==(s.focus!=='recipes'))$('recipe-view').hidden=s.focus!=='recipes';if(!this.recipeView){const background=s.focus!=='recipes';this.recipeView=new RecipeView($('recipe-view'),()=>{this.dispatch({type:'back'});(this.motion?.afterPage?.bind(this.motion)||(work=>work()))(()=>$('home-recipes').focus({preventScroll:true}));},()=>{
-  const status = $('home-recipes').querySelector('small');
-  const name = status.parentElement.querySelector('.resource-value');
   const candidate=this.recipeView?.active,active=candidate&&this.recipeView.saved.includes(candidate)&&this.recipeView.sessions.has(candidate)?candidate:null;
   const activeTitle = active?.title || '';
   // Recipe in progress (K-Widget »igang«): step bar over the title, »Trin N af M« as context.
   const steps=active?.steps?.length||0,done=activeTitle?this.recipeView.sessions.get(active).steps:null;
   const current=steps?active.steps.findIndex((_,i)=>!done.has(String(i))):-1;
   const progress=!steps?'':current<0?'Alle trin færdige':`Trin ${current+1} af ${steps}`;
-  const label=$('home-recipes').querySelector('strong'),heading=activeTitle?'Opskrift':'Opskrifter';
-  if(label.textContent!==heading)label.textContent=heading;
-  status.textContent = activeTitle ? progress || 'I gang' : 'Se katalog';
-  name.hidden = !activeTitle;
-  name.textContent = activeTitle;
-  renderRecipeStepBar($('home-recipes'),steps,current);
+  this.shell.set('recipe',{heading:activeTitle?'Opskrift':'Opskrifter',
+   status:activeTitle?progress||'I gang':'Se katalog',name:activeTitle,steps,current});
   this.screenLifecycle?.sync();
   this.renderTopbar();
  },{background});if(background&&this.recipeView.pendingSession){const owner=this.recipeView;owner.refreshPublishedCatalog().then(()=>{if(this.isConnected&&this.recipeView===owner)owner.onCookingChange();}).catch(()=>{});}}if($('radio-view').hidden!==!!(s.focus!=='radio'))$('radio-view').hidden=s.focus!=='radio';if($('vehicle-view').hidden!==!!(s.focus!=='vehicle'))$('vehicle-view').hidden=s.focus!=='vehicle';const homeConnection=homeConnectionPresentation(this.live?{status:this.liveStatus,blocked:this.liveTransport?.recoveryBlocked===true,sessionExpired:this.liveTransport?.sessionExpired===true,browserOffline:this.browserOffline===true}:s.connectionPreview||{});const radioModel={live:this.live,connected:this.live?this.liveTransport?.connected===true&&!this.liveTransport?.recoveryBlocked&&!this.browserOffline:s.connected,blocked:homeConnection.reason==='denied',stationId:this.live?this.liveRadio?.observedStationId():s.radioStationId,playing:this.live?(['playing','stopped'].includes(this.liveRadio?.value?.state.status)?this.liveRadio.value.state.status==='playing':null):s.radioPlaying===true,enabled:this.liveRadio?.current()===true,canStart:this.liveRadio?.canChooseStation()===true,pending:this.live?this.liveRadio?.pending===true||this.liveRadio?.unknown===true:!!s.radioPendingStationId,pendingStationId:this.live?this.liveRadio?.pendingStationChoice():s.radioPendingStationId,feedback:null,setupIssue:this.live?this.liveRadio?.setupIssue?.():null,status:this.liveRadio?.value?.state.status,speaker:this.live?this.liveRadio?.targetName?.()??null:s.music?.playback?.room??null},radioSignature=JSON.stringify(radioModel);if(s.focus==='radio'&&this.radioSignature!==radioSignature){this.radioView??=new RadioView($('radio-view'),{onOpenPlayer:()=>{$('play-pause').focus({preventScroll:true});},onSelect:stationId=>{if(this.live){void this.liveRadio?.choose(stationId);return;}this.state=localRadioTransition(this.state,{type:'radio-select',stationId});this.render();}});this.radioSignature=radioSignature;this.radioView.render(radioModel);}this.vehicleCommands?.sync();const vehicleModel=projectVehicle(s.vehicle),vehicleChargeContext={connected:this.live?this.liveTransport?.connected===true&&!this.liveTransport?.recoveryBlocked&&!this.browserOffline:s.connected===true,scope:this.live?JSON.stringify([this.liveSnapshot?.bootId,this.liveSnapshot?.roomId]):'local',sourceScope:this.live?s.homeScope:'local',readGranted:!this.live||this.liveSnapshot?.capabilities?.homeRead?.includes('vehicle')===true,suppress:viewChanged},vehicleSignature=JSON.stringify([vehicleModel,s.connected,homeConnection.detail,{...vehicleChargeContext,suppress:undefined},this.liveSnapshot?.capabilities?.vehicleActions,this.liveSnapshot?.capabilities?.controlSetup,this.vehicleView?.feedbackScopeFor(this.liveSnapshot)]);this.vehicleChargeContext=vehicleChargeContext;if(this.live&&viewChanged&&s.focus==='vehicle'){this.vehicleFreshWanted=true;if(!this.liveHomePending)queueMicrotask(()=>void this.loadLiveHome?.());}/* Native feel (13 Nov): a known car's page is built hidden in the background, images loaded, so it opens complete. */if((s.focus==='vehicle'||this.vehicleView||this.live&&vehicleModel.mode==='observed')&&((viewChanged&&s.focus==='vehicle')||this.vehicleSignature!==vehicleSignature)){this.vehicleView??=new VehicleView($('vehicle-view'),{onAction:(event,options)=>{if(this.live)return;this.vehicleCommands??=new VehiclePreviewCommand(this,this.vehiclePreviewOptions);return this.vehicleCommands.send(event,options);},onVehicleSetup:(action,args)=>{if(!this.live&&this.state.vehicle?.exampleOnly===true&&this.state.vehiclePreviewActions?.includes(action)){const labels={unlock:'Lås op',climateOff:'Sluk klima',temperature:'Indstil temperatur',defrostOff:'Stop afrimning',driverSeatHeat:'Førersæde',passengerSeatHeat:'Passagersæde',rearTrunkToggle:args?.direction==='open'?'Åbn bagagerum':'Luk bagagerum'};return {confirmation:{action,label:labels[action],args,effects:action==='rearTrunkToggle'?[['trunk','actuate']]:[],requiresConfirmation:true,nativeWakePossible:action==='rearTrunkToggle',priorUnresolved:{access:[],climate:[]},riskRevision:0,requiresOverride:false},operation:{exampleOnly:true}};}return this.liveControls?.prepareVehicle(action,this.vehicleView,args);},onVehicleSend:operation=>!this.live&&operation?.exampleOnly===true?{status:'example'}:this.liveControls?.sendVehicle(operation),onVehicleCancel:operation=>{if(!operation?.exampleOnly)this.liveControls?.cancelVehicle(operation);}});this.vehicleSignature=vehicleSignature;this.vehicleView.render(vehicleModel,{connected:vehicleChargeContext.connected,connectionDetail:homeConnection.detail,chargeContext:vehicleChargeContext,vehicleActions:this.live&&this.liveTransport?.connected&&this.liveSnapshot?.capabilities?.controlSetup?.includes('vehicle')?this.liveSnapshot?.capabilities?.vehicleActions||[]:(!this.live&&s.vehicle?.exampleOnly===true&&Array.isArray(s.vehiclePreviewActions)?s.vehiclePreviewActions:[]),feedbackScope:this.live?this.vehicleView.feedbackScopeFor(this.liveSnapshot):null});}if(s.focus!=='vehicle'&&this.vehicleView){this.liveControls?.cancelVehicle(this.liveControls.vehicleOperation);this.vehicleView.dismissConfirmation?.({restoreFocus:false});this.vehicleView.chargeAnimation?.cancel();this.vehicleView.chargeAnimation=null;this.vehicleView.chargePresentation=null;}// K-Widget tesla: a car that is offline keeps its last-known battery and access (»sidstkendt«: »81 % ·
@@ -1086,15 +1146,21 @@ class WidgetHost extends HTMLElement {
    lock=typeof vehicleModel.locked==='boolean'?(vehicleModel.locked?'Låst':'Ulåst'):'',
    trunkOpen=vehicleModel.access?.rearTrunk==='open',
    lastKnownAccess=lastKnown&&lock?[lock,trunkOpen?'bagagerum åbent':''].filter(Boolean).join(' · '):'';
-  const vehicleOverviewStatus=lastKnownAccess||(trunkOpen?'Bagagerum åbent':vehicleModel.status);if($('home-vehicle-status').textContent!==vehicleOverviewStatus)$('home-vehicle-status').textContent=vehicleOverviewStatus;if(!this.live)if(this.dataset.playback!==String((m.playback.active||s.radioStationId)?'active':'empty'))this.dataset.playback=(m.playback.active||s.radioStationId)?'active':'empty';if(!this.live){const active=!!(m.playback.active||s.radioStationId);if(this.querySelector('.player').hidden!==!active)this.querySelector('.player').hidden=!active;if($('player-empty').hidden!==active)$('player-empty').hidden=active;}if($('music-response').hidden!==!!(s.focus!=='music'))$('music-response').hidden=s.focus!=='music';if($('device-view').hidden!==!!(!s.devices.some(d=>d.id===s.focus)))$('device-view').hidden=!s.devices.some(d=>d.id===s.focus);const stacked=s.focus!=='now';const hasResources=timerPresentation(timersFor(s)).visible.length>0||s.devices.some(d=>!d.hidden&&d.id!==s.focus);if($('now-view').hidden!==!!(stacked))$('now-view').hidden=stacked;if($('now-view').classList.contains('stacked')!==stacked)$('now-view').classList.toggle('stacked',stacked);if($('now-rest').textContent!==String('Lige nu'))$('now-rest').textContent='Lige nu';if($('now-music').hidden!==!!(true))$('now-music').hidden=true;if($('now-summary').hidden!==!!(true))$('now-summary').hidden=true;if($('answer-host').hidden!==!!(!focusedAnswer(s)))$('answer-host').hidden=!focusedAnswer(s);
- for(const [id,pressed] of [['show-now',s.focus==='now'],['show-music',s.focus==='music']])if($(id).getAttribute('aria-pressed')!==String(pressed))$(id).setAttribute('aria-pressed',String(pressed));
+  const vehicleOverviewStatus=lastKnownAccess||(trunkOpen?'Bagagerum åbent':vehicleModel.status);if(!this.live)if(this.dataset.playback!==String((m.playback.active||s.radioStationId)?'active':'empty'))this.dataset.playback=(m.playback.active||s.radioStationId)?'active':'empty';if(!this.live){const active=!!(m.playback.active||s.radioStationId);if(this.querySelector('.player').hidden!==!active)this.querySelector('.player').hidden=!active;if($('player-empty').hidden!==active)$('player-empty').hidden=active;}if($('music-response').hidden!==!!(s.focus!=='music'))$('music-response').hidden=s.focus!=='music';if($('device-view').hidden!==!!(!s.devices.some(d=>d.id===s.focus)))$('device-view').hidden=!s.devices.some(d=>d.id===s.focus);const stacked=s.focus!=='now';const hasResources=timerPresentation(timersFor(s)).visible.length>0||s.devices.some(d=>!d.hidden&&d.id!==s.focus);if($('now-view').hidden!==!!(stacked))$('now-view').hidden=stacked;if($('now-view').classList.contains('stacked')!==stacked)$('now-view').classList.toggle('stacked',stacked);if($('answer-host').hidden!==!!(!focusedAnswer(s)))$('answer-host').hidden=!focusedAnswer(s);
  if(!this.live){const musicProjection=demoShelvesPage(resultsFor(m),fixtureArtwork),musicSignature=JSON.stringify(musicProjection.page);
   if((s.focus==='music'||this.localMusicSignature!==undefined)&&this.localMusicSignature!==musicSignature){this.renderLocalMusic(musicProjection);this.localMusicSignature=musicSignature;}}
  const track=(m.previewTracks||TRACKS)[m.playback.track];if(!this.live){const basePlayer=localPlayerModel(s),radioPreview=s.radioPendingStationId?pendingRadioPlayerModel(s.radioPendingStationId,basePlayer.volume,basePlayer.target):localRadioPlayerModel(s.radioStationId,basePlayer,{playing:s.radioPlaying,connected:s.connected});this.playerView.renderPlayer(radioPreview||basePlayer);this.playerView.renderControls(s.radioPendingStationId?{sourceKind:'radio',playing:false,blocked:true,toggle:false,volume:basePlayer.volume,canVolume:false,loadingControlId:'play-pause',pendingLabel:radioPreview.feedback.message}:radioPreview?localRadioControlModel(s):localControlModel(s));if(s.focus==='player'||this.localQueueMounted){this.playerView.renderQueue(radioPreview?[]:localQueueModel(s),radioPreview?{sourceKind:'radio',empty:'Ingen nummerkø ved direkte radio.'}:s.queuePreview==='error'?{status:'error',empty:'Køen kunne ikke hentes. Den kendte sang bevares.'}:['loading','refresh'].includes(s.queuePreview)?{status:'loading'}:{});this.localQueueMounted=true;}this.showFeedback(m.message,!!m.pending);}
- if(!this.live)for(const b of $('room-options').children){const t=TARGETS.find(t=>t.targetId===b.dataset.targetId);const selected=t.targetId===m.playback.targetId,detail=selected&&t.available?t.detail.replace(/Klar$/,'Valgt'):t.detail,description=b.querySelector('small');if(description.textContent!==detail)description.textContent=detail;if(b.getAttribute('aria-pressed')!==String(selected))b.setAttribute('aria-pressed',String(selected));if(b.querySelector('.target-status').textContent)b.querySelector('.target-status').textContent='';if(b.dataset.revision!==String(m.revision))b.dataset.revision=m.revision;if(b.disabled!==!!(!s.connected||!t.available||!!m.pending))b.disabled=!s.connected||!t.available||!!m.pending;}
- if($('now-track').textContent!==String(`${track.title} · ${m.playback.room}`))$('now-track').textContent=`${track.title} · ${m.playback.room}`;if($('now-music').querySelector('span').textContent!==String(m.playback.playing?'Musik spiller':'Musik på pause'))$('now-music').querySelector('span').textContent=m.playback.playing?'Musik spiller':'Musik på pause';
- if($('now-view').dataset.activities!==String(String(hasResources)))$('now-view').dataset.activities=String(hasResources);if($('now-rest').textContent!==String('Lige nu'))$('now-rest').textContent='Lige nu';if($('now-summary').textContent!==String(hasResources?'Det, der er i gang':'Ingen aktive aktiviteter'))$('now-summary').textContent=hasResources?'Det, der er i gang':'Ingen aktive aktiviteter';
- if($('restore-timer').hidden!==!!(true))$('restore-timer').hidden=true;if($('now-empty').hidden!==!!(true))$('now-empty').hidden=true;const timerProjection=timerPresentation(timersFor(s)),currentTimer=timerProjection.current;this.timerView.currentTimer=currentTimer;const timerSignature=JSON.stringify([s.focus,s.connected,currentTimer&&[currentTimer.id,currentTimer.name,currentTimer.status,currentTimer.remaining,currentTimer.duration,currentTimer.stale,currentTimer.displayState,currentTimer.deadline===null?null:Number.isFinite(currentTimer.deadline)?Math.floor(currentTimer.deadline/60000):undefined],s.timerHistory||[]]);if(this.timerSignature!==timerSignature){this.timerSignature=timerSignature;this.timerAccessSignature=null;this.timerView.render(s);}
+ // The local preview's »Afspil på« rows and demo sheet.
+ if(!this.live)this.shell.set('demo',{connected:!!s.connected,hasVacuum:s.devices.some(d=>d.kind==='vacuum'),
+  targets:TARGETS.map(t=>{const selected=t.targetId===m.playback.targetId;
+   return {target:{accountId:t.accountId,kind:t.kind,targetId:t.targetId,name:t.name,detail:t.detail},
+    detail:selected&&t.available?t.detail.replace(/Klar$/,'Valgt'):t.detail,selected,
+    disabled:!s.connected||!t.available||!!m.pending,revision:String(m.revision)};})});
+ this.shell.set('home',{activities:String(hasResources),
+  summary:hasResources?'Det, der er i gang':'Ingen aktive aktiviteter',
+  musicLabel:m.playback.playing?'Musik spiller':'Musik på pause',track:`${track.title} · ${m.playback.room}`,
+  restoreResources:s.devices.some(d=>d.hidden),vehicleStatus:vehicleOverviewStatus});
+ const timerProjection=timerPresentation(timersFor(s)),currentTimer=timerProjection.current;this.timerView.currentTimer=currentTimer;const timerSignature=JSON.stringify([s.focus,s.connected,currentTimer&&[currentTimer.id,currentTimer.name,currentTimer.status,currentTimer.remaining,currentTimer.duration,currentTimer.stale,currentTimer.displayState,currentTimer.deadline===null?null:Number.isFinite(currentTimer.deadline)?Math.floor(currentTimer.deadline/60000):undefined],s.timerHistory||[]]);if(this.timerSignature!==timerSignature){this.timerSignature=timerSignature;this.timerAccessSignature=null;this.timerView.render(s);}
 
  const light=this.currentLightDevice(),choices=lightChoices(light,s.lightAreas);const hideLightHero=!!light&&!!this.lightRoomView;if($('device-detail').hidden!==hideLightHero)$('device-detail').hidden=hideLightHero;this.renderLiveLightControl(light);this.renderLightScenes(light);if(this.inlineLamps){this.inlineLamps.render(light);if(this.lightLampDisclosurePanel&&this.lightRoomView){if(this.inlineLamps.node.parentNode!==this.lightLampDisclosurePanel)this.lightLampDisclosurePanel.append(this.inlineLamps.node);}else if(this.inlineLamps.node.parentNode!==this.lightLamps.parentNode)this.lightLamps.after(this.inlineLamps.node);if(this.lightAdjustments&&!this.lightAdjustments.hidden)this.lightAdjustments.hidden=true;this.closeLightDetail(false);}else this.renderLightAdjustments(light);this.lightRoomView?.render(light);for(const [list,group] of [[this.lightRooms,choices?.rooms],[this.lightLamps,choices?.lamps]]){const hidden=list===this.lightRooms&&!!this.lightRoomView||!group?.items?.length||(list===this.lightLamps&&((!this.live&&light?.exampleOnly===true&&!light.live)||Array.isArray(light?.observedLights)));if(list.hidden!==hidden)list.hidden=hidden;if(!hidden){const data={...group,...(list===this.lightLamps?{items:group.items.map(item=>({...item,detail:'',switch:true}))}:{items:group.items}),context:{sessionId:s.sessionId,taskId:light.id,revision:light.revision},connected:(this.live?!!this.liveTransport?.connected&&group.connected!==false&&!this.lightAreaPending:list===this.lightRooms||s.connected)&&!light.pending,state:light.pending?'pending':'ready',quietStatus:true};const signature=JSON.stringify(data);if(list.dataset.projection!==signature){list.dataset.projection=signature;list.data=data;}}}
  const activities=$('device-activities'),deviceRows=[...s.devices];for(const kind of ['vacuum','light'])if(!deviceRows.some(device=>device.kind===kind))deviceRows.push({id:`podview-${kind}-empty`,kind,status:'unavailable',live:true,presentationOnly:true,hidden:false,timeline:[]});
@@ -1111,7 +1177,9 @@ class WidgetHost extends HTMLElement {
 // slides out (ui/page-motion.js) it must keep its look. Only a device's own page decides which detail shows.
 const hideDetail=!s.devices.some(other=>other.id===s.focus)?node.hidden:
  s.focus!==detailDevice.id||detailDevice.kind==='light'&&!!detailDevice.lightScenes?.length;if(node.hidden!==hideDetail)node.hidden=hideDetail;if(node.inert!==!!(node.hidden))node.inert=node.hidden;if(detailDevice.kind==='light'){const current=String(s.connected&&!detailDevice.stale&&['on','off','mixed'].includes(detailPresentation.resourceStatus));if(node.dataset.lightCurrent!==current)node.dataset.lightCurrent=current;}node.data={context,power:detailPresentation.power,resourceStatus:detailPresentation.resourceStatus,quietStatus:true,connected:this.live?!!this.liveTransport?.connected:s.connected,title:detailDevice.kind==='light'?(homeConnection.detail&&detailPresentation.resourceStatus==='unavailable'?'Lys':detailPresentation.scope||'Lys'):'',source:'',detail:homeConnection.detail&&(detailDevice.presentationOnly||detailPresentation.resourceStatus==='unavailable')?homeConnection.detail:detailDevice.kind==='vacuum'?(detailDevice.presentationOnly?'Tilføj i Home Assistant':robotDetailMetadata(d)):'',text:detailDevice===d&&lightCount&&s.connected&&!detailDevice.stale?(lightSelection(detailDevice)?.kind==='light'?(detailPresentation.power?'Tændt':'Slukket'):`${lightCount.value} tændt`):detailDevice.kind==='light'&&detailDevice.stale&&!/ikke opdateret$/i.test(detailPresentation.detail)?`${detailPresentation.detail} · ikke opdateret`:detailPresentation.detail,value:undefined,state:detailDevice.pending?'pending':'ready',actions:deviceActions(detailDevice).map(action=>detailDevice.kind==='vacuum'?{...action,label:({pause:'Pause',dock:'Til basen',stop:'Stop'})[action.id]||action.label}:detailDevice.kind==='light'?{...action,label:lightSelection(detailDevice)?.kind==='home'?(action.id==='turn_off'?'Sluk alt':'Tænd alt'):action.id==='turn_off'?`Sluk alle i ${detailPresentation.scope||'rummet'}`:`Tænd alle i ${detailPresentation.scope||'rummet'}`} :action)};if(row.hidden!==!!(d.hidden||s.focus===d.id))row.hidden=d.hidden||s.focus===d.id;if(row.inert!==!!(d.hidden||s.focus===d.id))row.inert=d.hidden||s.focus===d.id;updateResourceTile(row,{...presentation,target:d.id,hidden:!!d.hidden||s.focus===d.id});if(row.hidden!==!!(d.hidden||s.focus===d.id))row.hidden=d.hidden||s.focus===d.id;if(row.disabled!==false)row.disabled=false;this.renderOverviewAction(row,d);if(s.focus===d.id){const status=$('device-status'),statusText=detailDevice.kind==='light'?detailPresentation.detail:'';if(status.textContent!==statusText)status.textContent=statusText;status.hidden=!statusText;const history=$('device-timeline').closest('.device-history');if(detailDevice.kind==='light'){history.hidden=!detailDevice.timeline?.some(item=>!['initial','light-initial'].includes(item.id));const title=$('device-history-title');if(title&&title.textContent!=='Seneste hændelser')title.textContent='Seneste hændelser';}else history.hidden=false;if($('device-title').textContent!==String(detailPresentation.title))$('device-title').textContent=detailPresentation.title;if(!(detailDevice.kind==='vacuum'&&(d.live||this.localRobot))){const timeline=$('device-timeline'),presentation={items:detailDevice.timeline.filter(item=>detailDevice.kind!=='light'||!['initial','light-initial'].includes(item.id)).slice().reverse()};if(JSON.stringify(timeline.data)!==JSON.stringify(presentation))timeline.data=presentation;}}}
- for(const[id,node]of this.answerNodes)if(!s.answers.some(a=>a.id===id)){node.remove();this.answerNodes.delete(id);this.retainedNodes.get(id)?.remove();this.retainedNodes.delete(id);}
+ for(const[id,node]of this.answerNodes)if(!s.answers.some(a=>a.id===id)){node.remove();this.answerNodes.delete(id);}
+ // »Tidligere svar« has one row per answer (src/shell/Dialogs.tsx); the rows are ordered below.
+ const historyRows=new Map();
  for(const a of s.answers){
   const completed=this.liveSnapshot?.answers?.readOnlyCompleted===true;
   const groups=(completed||this.historyBrowse)?groupAnswerHistory(s.answers,this.liveAnswers):[];
@@ -1121,11 +1189,11 @@ const hideDetail=!s.devices.some(other=>other.id===s.focus)?node.hidden:
    ?groups.find(group=>group.items.some(answer=>answer.id===s.focus)):null;
   const readingGroup=browsed?{items:[...new Map([...(round?.items||[]),...browsed.items].map(item=>[item.id,item]))
    .values()]}:round;
-  if(!this.answerNodes.has(a.id)){const node=document.createElement('pv-answer');$('answer-host').append(node);this.answerNodes.set(a.id,node);const retained=document.createElement('article');retained.className='retained-answer';const open=document.createElement('button');open.className='history-open';applyKitComponent(open,'listrow');const icon=document.createElement('img');icon.className='history-domain-icon';icon.alt='';icon.width=32;icon.height=32;const copy=document.createElement('span');copy.className='history-copy';const format=document.createElement('small');const title=document.createElement('strong');const excerpt=document.createElement('span');excerpt.className='history-excerpt';copy.append(title,excerpt,format);const chevron=document.createElement('img');chevron.className='history-chevron';chevron.src='assets/icons/chevron-right.svg';chevron.alt='';open.append(icon,copy,chevron);open.addEventListener('click',()=>{this.historyBrowse={id:a.id,origin:this.historyOpenedFocus,scrollTop:$('retained').scrollTop,scope:JSON.stringify([this.liveSnapshot?.bootId,this.liveSnapshot?.roomId])};this.sceneNavigation=true;this.dispatch({type:'show',id:a.id});if($('history').open)$('history').close();this.focusHeading();});retained.append(open);$('retained').append(retained);this.retainedNodes.set(a.id,retained);}
-  const node=this.answerNodes.get(a.id),b=this.retainedNodes.get(a.id),scene={...s,connected:this.live?!!this.liveTransport?.connected:s.connected,connectionNoticeVisible:this.live?this.liveStatus!=='connected':!s.connected},readingAnswer=readingGroup?.items.find(item=>item.id===a.id);
+  if(!this.answerNodes.has(a.id)){const node=document.createElement('pv-answer');$('answer-host').append(node);this.answerNodes.set(a.id,node);}
+  const node=this.answerNodes.get(a.id),scene={...s,connected:this.live?!!this.liveTransport?.connected:s.connected,connectionNoticeVisible:this.live?this.liveStatus!=='connected':!s.connected},readingAnswer=readingGroup?.items.find(item=>item.id===a.id);
   const historySelection=this.historyBrowse?.id===a.id;
   const hidden=!!a.hidden||(!readingAnswer&&(s.focus!==a.id||historySelection&&!a.historical));
-  if(node.hidden!==hidden)node.hidden=hidden;if(node.inert!==hidden)node.inert=hidden;if(b.hidden!==!!a.hidden)b.hidden=!!a.hidden;
+  if(node.hidden!==hidden)node.hidden=hidden;if(node.inert!==hidden)node.inert=hidden;
   // Admission, expiry and authority changes are included; unchanged replies keep their DOM and focus.
   const displayedAnswer=readingAnswer||a;node.scene=scene;node.answer=displayedAnswer;
   const observedAt=displayedAnswer.historical&&Number.isFinite(displayedAnswer.observedAt)
@@ -1135,7 +1203,9 @@ const hideDetail=!s.devices.some(other=>other.id===s.focus)?node.hidden:
   if(node.renderSignature!==signature){node.update(scene,displayedAnswer);node.renderSignature=signature;}
   const threadRole=readingAnswer&&readingGroup.items.length>1?(a.id===s.focus?'current':'earlier'):'';
   const nodeData=node.dataset;if(nodeData&&(nodeData.thread||'')!==threadRole){if(threadRole)nodeData.thread=threadRole;else delete nodeData.thread;}
-  const open=b.querySelector('.history-open'),format=open.querySelector('small'),title=open.querySelector('strong'),excerpt=open.querySelector('.history-excerpt'),icon=open.querySelector('.history-domain-icon');const historyAnswer=(completed?groups.flatMap(group=>group.items).find(item=>item.id===a.id):null)||a;const excerptText=historyAnswer.historical?'':typeof a.content?.summary==='string'?a.content.summary:'';if(excerpt.textContent!==excerptText)excerpt.textContent=excerptText;if(excerpt.hidden!==!excerptText)excerpt.hidden=!excerptText;const iconSource=`assets/icons/${node.dataset?.answerIcon||'chat-circle'}.svg`;if(icon.getAttribute('src')!==iconSource)icon.setAttribute('src',iconSource);const formatText=(a.transcriptSegment?'Registreret tale':answerCatalog[a.kind]||'Visuelt svar')+(historyAnswer.historical&&Number.isFinite(historyAnswer.observedAt)?` · ${new Date(historyAnswer.observedAt*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'');if(format.textContent!==formatText)format.textContent=formatText;const historyTitle=a.title;if(title.textContent!==historyTitle)title.textContent=historyTitle;const label=`${formatText} · ${historyTitle} · Åbn svar`;if(open.getAttribute('aria-label')!==label)open.setAttribute('aria-label',label);
+  const historyAnswer=(completed?groups.flatMap(group=>group.items).find(item=>item.id===a.id):null)||a;const excerptText=historyAnswer.historical?'':typeof a.content?.summary==='string'?a.content.summary:'';const formatText=(a.transcriptSegment?'Registreret tale':answerCatalog[a.kind]||'Visuelt svar')+(historyAnswer.historical&&Number.isFinite(historyAnswer.observedAt)?` · ${new Date(historyAnswer.observedAt*1000).toLocaleString('da-DK',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}`:'');
+  historyRows.set(a.id,{id:a.id,icon:`assets/icons/${node.dataset?.answerIcon||'chat-circle'}.svg`,title:a.title,
+   excerpt:excerptText,format:formatText,label:`${formatText} · ${a.title} · Åbn svar`});
  }
  // Svar page: every answer of the round is its own card, newest on top; the one being read is »current«.
  const thread=answerThread(s.answers,s.focus);
@@ -1152,12 +1222,16 @@ const hideDetail=!s.devices.some(other=>other.id===s.focus)?node.hidden:
    const box=column.getBoundingClientRect(),scale=box.height&&column.offsetHeight?box.height/column.offsetHeight:1;
    const top=node===first?0:Math.round(column.scrollTop+(node.getBoundingClientRect().top-box.top)/scale);
    if(column.scrollTop!==top)column.scrollTop=top;});}
- const retainedRoot=$('retained'),ordered=groupAnswerHistory(s.answers,this.liveAnswers).map(group=>group.items.reduce((first,item)=>item.observedAt<first.observedAt?item:first));const historyGroupValue=String(!!this.historyBrowse),answerHost=$('answer-host');if(answerHost.dataset.historyGroup!==historyGroupValue)answerHost.dataset.historyGroup=historyGroupValue;
- for(const answer of s.answers){const retained=this.retainedNodes.get(answer.id);if(retained)retained.hidden=!ordered.some(row=>row.id===answer.id);}
- for(const [index,answer]of ordered.entries()){const retained=this.retainedNodes.get(answer.id);retained.querySelector('.history-session-heading')?.remove();if(retainedRoot.children[index]!==retained)retainedRoot.insertBefore(retained,retainedRoot.children[index]||null);}
+ const ordered=groupAnswerHistory(s.answers,this.liveAnswers).map(group=>group.items.reduce((first,item)=>item.observedAt<first.observedAt?item:first));const historyGroupValue=String(!!this.historyBrowse),answerHost=$('answer-host');if(answerHost.dataset.historyGroup!==historyGroupValue)answerHost.dataset.historyGroup=historyGroupValue;
+ // The first answer of each round, in first-shown order; the other answers' rows follow, hidden.
+ const shown=new Set(ordered.map(answer=>answer.id));
+ const rows=[...ordered.map(answer=>historyRows.get(answer.id)).filter(Boolean),
+  ...[...historyRows.values()].filter(row=>!shown.has(row.id))].map(row=>({...row,hidden:!shown.has(row.id)}));
  this.renderSvarToday?.(s);
- this.timerView.renderOverviewActivities(s);this.renderResourceRail();const noticeTimer=this.timerView.currentTimer,noticeSignature=JSON.stringify([s.focus,this.live,$('playback-status').hidden===false,timersFor(s).map(timer=>[timer.id,timer.name,timer.status,timer.stale,timer.noticeDismissed])]);if(this.timerNoticeSignature!==noticeSignature){this.timerNoticeSignature=noticeSignature;this.timerView.renderNotice(s.focus,this.live,$('playback-status').hidden===false);}this.alignOverview();const historyAnswers=ordered,historyPresentation=this.live?this.liveAnswers?.historyPresentation?.():null;if(historyPresentation)$('history-empty').data=historyPresentation.data;const historyCount=historyAnswers.length?`${historyAnswers.length} svar`:'';if($('header-history-count').textContent!==historyCount)$('header-history-count').textContent=historyCount;for(const [id,hidden] of [['header-history-count',true],['history-empty',historyPresentation?historyPresentation.hidden:historyAnswers.length>0],['history-example-note',!historyAnswers.some(a=>a.exampleOnly)],['retained',!historyAnswers.length]])if($(id).hidden!==hidden)$(id).hidden=hidden;
- if($('restore-resources').hidden!==!!(!s.devices.some(d=>d.hidden)))$('restore-resources').hidden=!s.devices.some(d=>d.hidden);for(const b of document.querySelectorAll('[data-device-observe]'))if(b.disabled!==!!(!s.devices.some(d=>d.kind==='vacuum')))b.disabled=!s.devices.some(d=>d.kind==='vacuum');if($('demo-offline').textContent!==String(s.connected?'Afbryd forbindelsen':'Genopret forbindelsen'))$('demo-offline').textContent=s.connected?'Afbryd forbindelsen':'Genopret forbindelsen';for(const b of document.querySelectorAll('[data-scenario],[data-fault]'))if(b.disabled!==!!(!s.connected))b.disabled=!s.connected;
+ this.timerView.renderOverviewActivities(s);this.renderResourceRail();const noticeTimer=this.timerView.currentTimer,noticeSignature=JSON.stringify([s.focus,this.live,$('playback-status').hidden===false,timersFor(s).map(timer=>[timer.id,timer.name,timer.status,timer.stale,timer.noticeDismissed])]);if(this.timerNoticeSignature!==noticeSignature){this.timerNoticeSignature=noticeSignature;this.timerView.renderNotice(s.focus,this.live,$('playback-status').hidden===false);}this.alignOverview();const historyAnswers=ordered,historyPresentation=this.live?this.liveAnswers?.historyPresentation?.():null;this.historyCount=historyAnswers.length?`${historyAnswers.length} svar`:'';
+ this.shell.set('history',{rows,empty:historyPresentation?historyPresentation.data:this.shell.view.history.empty,
+  emptyHidden:historyPresentation?historyPresentation.hidden:historyAnswers.length>0,
+  exampleNoteHidden:!historyAnswers.some(a=>a.exampleOnly),listHidden:!historyAnswers.length});
  this.journey?.render();this.localRobot?.render();if(this.live)this.renderLive();else {const connection=connectionPresentation({...s.connectionPreview||{status:s.connected?'connected':'disconnected',snapshot:s.connected?undefined:{}},browserOffline:this.browserOffline===true});if(!s.connectionPreview)connection.retry=false;this.renderConnectionNotice(connection);if($('home-music').disabled)$('home-music').disabled=false;if($('empty-find-music').disabled)$('empty-find-music').disabled=false;}const lightHistory=$('device-timeline').parentElement;if(light){const meaningful=light.timeline.some(item=>item.id!=='initial'&&item.id!=='light-initial');if(lightHistory.hidden!==!meaningful)lightHistory.hidden=!meaningful;}this.cssFlags?.sync();if(resourceBoxes)this.motion?.settleResources(resourceBoxes,viewChanged);if(s.conflict&&!this.presentationSuspended)this.open('conflict',$('open-demo'));this.robotMotion?.sync();this.scrollEdges?.refresh(false);this.screenLifecycle?.sync();this.renderOverviewFacts(vehicleModel);this.renderTopbar();
  }
 

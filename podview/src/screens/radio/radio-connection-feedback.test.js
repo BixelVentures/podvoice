@@ -16,11 +16,11 @@ const podview=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 const read=name=>readFileSync(resolve(podview,name),'utf8');
 
 test('host connection notice and real queue notify once while Radio keeps offline explanation across reopen',()=>{
- const source=read('widget-view.js'),start=source.indexOf(' renderConnectionNotice('),end=source.indexOf('\n renderLive(){',start);
+ const source=read('widget-view.js'),start=source.indexOf(' renderConnectionNotice('),end=source.indexOf('\n get connectionRetry(){',start);
  const {root,view,calls}=fixture(),rendered=[],timers=new Map();let serial=0;
  const queue=new NotificationQueue(item=>rendered.push(item),{setTimer:callback=>{const id=++serial;timers.set(id,callback);return id;},clearTimer:id=>timers.delete(id)});
  const render=new Function('$','document','applyKitComponent',`return function ${source.slice(start,end).trim()}`)(()=>null,document,()=>{});
- const host={state:{},showFeedback:(message,pending,options)=>queue.update(options.source,message,{pending,...options})};
+ const host={state:{},shell:{set(){}},showFeedback:(message,pending,options)=>queue.update(options.source,message,{pending,...options})};
  const update=connected=>{render.call(host,connectionPresentation({status:connected?'connected':'disconnected',snapshot:{}}));view.render({live:false,connected,stationId:'p3'});};
  update(true);const list=view.list,hero=view.hero;update(false);
  assert.equal(queue.current,null);assert.equal(host.connectionNotice.headerLabel,'Forbindelsen er afbrudt');assert.match(view.stationStatus.textContent,/Ikke forbundet/);assert.equal(view.list.data.connected,false);

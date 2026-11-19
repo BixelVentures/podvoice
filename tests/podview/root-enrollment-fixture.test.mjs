@@ -50,7 +50,7 @@ test('QA frame loads the unchanged canonical product at an exact native viewport
  const r=await rig();try{
   const response=await r.request('/fixture-frame');assert.equal(response.status,200);assert.match(response.headers.get('content-type'),/^text\/html/);const html=await response.text();
   assert.match(html,/<iframe[^>]*src="\/view\/\?room=enrollment"[^>]*width="1280" height="800"/);assert.match(html,/width:1280px;height:800px/);assert.equal(/<script/i.test(html),false);assert.deepEqual(r.fixture.journal,[]);
-  const product=await r.request('/view/?room='+room);assert.equal(product.status,200);assert.match(await product.text(),/widget-host/);assert.deepEqual(r.fixture.journal,[]);
+  const product=await r.request('/view/?room='+room);assert.equal(product.status,200);assert.match(await product.text(),/<title>PodView · Hjemme<\/title>/);assert.deepEqual(r.fixture.journal,[]);
   assert.equal((await r.request('/fixture-frame',{method:'POST',body:'{}'})).status,403);
  }finally{await r.fixture.close();}
 });

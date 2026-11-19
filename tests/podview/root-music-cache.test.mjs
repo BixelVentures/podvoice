@@ -7,11 +7,11 @@ import {initialScene,sceneTransition} from '../../podview/scene-model.js';
 const body=(prefix='Actual',account='account')=>({ok:true,data:{config_entry_id:account,tracks:Array.from({length:9},(_,index)=>({name:`${prefix} ${index}`,artist:'Source artist',uri:`spotify:track:${String(index).padStart(22,'0')}`,artwork:{kind:'album_cover',provider:'spotify',url:`https://i.scdn.co/image/${prefix}${index}`}}))}});
 const content=cards=>cards.map(({id,name,description,artwork})=>({id,name,description,artwork}));
 function fixture(){const reads=[],renders=[],host={state:{focus:'music'},liveStatus:'connected',liveSnapshot:{bootId:'boot',roomId:'room'},liveTransport:{connected:true},musicResults:{render:vm=>renders.push(vm)}};const view=new LiveMusicCatalogueView(host,kind=>reads.push(kind));view.updateCapabilities(true,['top','recent','recent']);view.resetAccount('account');return {view,host,reads,renders};}
+// The overview's Musik card (src/shell/Overview.tsx) calls the host's showFocus('music').
 function overviewMusicClick(host){
- const binding=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8').split('\n').find(line=>line.includes("$('home-music').addEventListener('click'"));
- assert.ok(binding,'exercise the actual WidgetHost overview entry binding');let click;
- new Function('$',binding).call(host,id=>{assert.equal(id,'home-music');return {addEventListener(type,handler){assert.equal(type,'click');click=handler;}};});
- return ()=>click();
+ const source=readFileSync(new URL('../../podview/widget-view.js',import.meta.url),'utf8'),start=source.indexOf(' showFocus(id,focus=true){'),end=source.indexOf('\n',start);
+ assert.ok(start>0,'exercise the actual WidgetHost overview entry binding');const showFocus=new Function(`return ({${source.slice(start,end)}}).showFocus`)();
+ return ()=>showFocus.call(host,'music');
 }
 test('actual overview music entry defaults to Stemning and reopens every last local tab without changing playback or fixtures',()=>{
  const host={live:false,state:initialScene(),focusCount:0,dispatch(event){this.state=sceneTransition(this.state,event);},music(event){this.dispatch({type:'music',event});},focusHeading(){this.focusCount++;}},click=overviewMusicClick(host);

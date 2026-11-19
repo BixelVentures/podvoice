@@ -10,6 +10,7 @@ export interface KitComponentOptions {
   loading?: boolean;
 }
 export function applyKitComponent<T extends Element>(node: T, type: string, options?: KitComponentOptions): T;
+export function syncKitSlider(node: HTMLInputElement): number;
 export function applyKitTextRole<T extends Element>(node: T, role: string): T;
 export function createKitComponent(
   type: string,
