@@ -7,3 +7,4 @@ export interface ProgressSource {
   interval?: number;
 }
 export function showProgress(node: HTMLElement | null, property: string, value: string, source?: ProgressSource): void;
+export function isReduced(node?: Element | null): boolean;

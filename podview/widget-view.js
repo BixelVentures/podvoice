@@ -10,7 +10,7 @@ import {attachPressedState} from './ui/pressed-state.js';
 import {pendingRadioPlayerModel,localRadioPlayerModel,localRadioTransition,localRadioControlModel,radioStation} from './radio-model.js';
 import {spotifyArtwork,spotifyItemUrl,renderRetainedArtwork,cancelArtwork} from './spotify-artwork.js';
 import {RecipeView} from './recipe-view.js';
-import {RadioView} from './radio-view.js';
+import {RadioView} from './src/screens/radio/RadioView.tsx';
 import {VehicleView} from './vehicle-view.js';
 import {VehiclePreviewCommand} from './vehicle-preview-command.js';
 import {vehicleFixture,unconnectedVehicleModel,vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentation,vehicleUpdatedLabel,vehicleOverviewFacts} from './vehicle-model.js';
