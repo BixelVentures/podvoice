@@ -1,3 +1,14 @@
+## 2.1.22
+
+- Bevægelse på iPad'en: alle fjedre og overgange kører nu på grafikchippen. Safari/WebKit accelererer aldrig CSS `linear()`-kurver, så før kørte hver animation på hovedtråden og hakkede, når den havde travlt. Kurverne er nu cubic-bezier eller keyframes med samme fornemmelse.
+- Sideskift: intet arbejde i de første billeder. Geometri læses ved trykket, opdateringer fra Home Assistant venter til siden er landet, og sidelagene ligger klar på forhånd. Opskrifter, »Vælg musik«, »Ny opskrift« og tilbage fra afspilleren glider nu som de andre sider.
+- Ro: cirklen tegnes ikke længere forfra i hvert billede; billedet gøres klar, så snart fingeren rører månen.
+- Tryk: kortet trykkes ind og dæmpes kun (skala og gennemsigtighed); krusning og skyggeskift er fjernet.
+- Køen har ikke længere en ekstra indgangsanimation oven i sideskiftet. Opskrifternes første billeder hentes med det samme, så de er klar, når siden glider ind.
+- Data under et sideskift: en opdatering venter kun, til den nye side er på plads, ikke hele glidet igennem – en robot med forældede data mister sine knapper med det samme. Et sideskift eller Ro slutter altid, også hvis en animation afbrydes.
+- Kiosk: skærmtilpasningen kører kun, når skærmen ændrer sig, ikke hvert 5. sekund. Observatører holder pause under bevægelse.
+- Ny frame-måler på skærmen: PodView måler hvert billede under sideskift, Ro og tryk og sender tallene til `/view/api/frames`, så bevægelsen kan måles på selve iPad'en.
+
 ## 2.1.21
 
 - Forsiden: robotkortet bliver opdateret på stedet, når robotten melder sig første gang (før blev det bygget om, så kortet blinkede – især mens robotten gjorde rent).

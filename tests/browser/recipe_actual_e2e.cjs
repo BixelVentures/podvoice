@@ -61,8 +61,9 @@ async function observeColdCatalog(page,widget,bundleSHA,startupRead){
      if(box.top<Math.max(clip.top,0)||box.bottom>Math.min(clip.bottom,innerHeight))return [];
      const image=row.querySelector('img');
      const rect=image?.getBoundingClientRect();
-     const onScreen=visible(image)&&Math.min(rect.bottom,clip.bottom,innerHeight)>Math.max(rect.top,clip.top,0)
-      &&Math.min(rect.right,clip.right,innerWidth)>Math.max(rect.left,clip.left,0);
+     // Vertically inside the list (the first screenful). Not horizontally: since 2.1.22 the page slides in from the
+     // right (iOS push), so its photos are off-screen for the first frames while already loaded and decoded.
+     const onScreen=visible(image)&&Math.min(rect.bottom,clip.bottom,innerHeight)>Math.max(rect.top,clip.top,0);
      return [{title:row.dataset.recipe,loaded:onScreen&&image.complete&&image.naturalWidth>0,
       fallback:image?.hasAttribute('data-recipe-fallback')??false,src:image?.currentSrc??null}];
     });

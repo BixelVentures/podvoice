@@ -25,10 +25,16 @@ test('native :active cannot hold the scale the press animates',()=>{
  assert.ok(!rules.some(rule=>/:active/.test(rule.selector)&&/(^|[;\s])scale:[^;]*!important/.test(rule.body)));
 });
 
-test('the flat circle is a resting ::after the animation places, grows and fades',()=>{
- const circle=rules.find(rule=>rule.selector===':is(.pv-widget,[data-pv-press=flat])::after');
- assert.match(circle.body,/border-radius:50%/);assert.match(circle.body,/translate:-50% -50%/);
- assert.match(circle.body,/opacity:0/);assert.doesNotMatch(circle.body,/var\(--pv-press/);
+test('the press is compositor-only: no ripple pseudo-element, no box-shadow or box geometry animated',()=>{
+ assert.equal(rules.some(rule=>rule.selector.includes('[data-pv-press=flat])::after')),false);
+ assert.doesNotMatch(source,/pseudoElement|boxShadow|getBoundingClientRect/);
+ for(const property of ['left','top','width','height'])
+  assert.doesNotMatch(source,new RegExp(`\\{\\s*${property}:`),property);
+});
+
+test('the playing equalizer moves by scale, not by repainting background-size',()=>{
+ const frames=css.match(/@keyframes pv-music-eq\{(.*?\}.*?\})\}/)?.[1]||'';
+ assert.match(frames,/scale:/);assert.doesNotMatch(frames,/background/);
 });
 
 test('pointer focus hides its ring through :focus-visible, not a marker',()=>{

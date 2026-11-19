@@ -15,8 +15,9 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  const node=document.querySelector(selector);
  node.addEventListener('pointerdown',()=>{const start=performance.now();
   const frame=()=>{const css=getComputedStyle(node);
-   const done=check==='scale'?!['none','1'].includes(css.scale)&&css.boxShadow.includes('999px')
-    :getComputedStyle(node,'::after').opacity==='1';
+   // P3 (docs/MOTION.md): a button shrinks and dims (opacity, no box-shadow overlay); a flat surface only dims.
+   const dimmed=Number(css.opacity)<.9;
+   const done=check==='scale'?!['none','1'].includes(css.scale)&&dimmed:dimmed;
    if(done)resolve(performance.now()-start);else if(performance.now()-start>500)resolve(Infinity);
     else requestAnimationFrame(frame);};
   requestAnimationFrame(frame);},{once:true});
@@ -62,17 +63,17 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  assert(Math.abs(bar.middle-36)<=1,`Svar is vertically centred: ${bar.middle}`);
 
  await shot('topbar',{x:0,y:0,width:1180,height:72});
- // Svar press (P3, docs/MOTION.md §3.4): shrink + overlay within 100 ms of the finger landing; no filter.
+ // Svar press (P3, docs/MOTION.md): shrink + dim within 100 ms of the finger landing; no filter, no overlay.
  const svar=await page.locator('#open-history').boundingBox();
  const svarPress=pressLatency(page,'#open-history','scale');
  await page.mouse.move(svar.x+svar.width/2,svar.y+svar.height/2);await page.mouse.down();
  const svarMs=await svarPress;assert(svarMs<100,`Svar press visible in ${svarMs} ms`);await sleep(200);
  assert.deepEqual(await page.locator('#open-history').evaluate(n=>[getComputedStyle(n).scale,getComputedStyle(n).filter]),
-  ['0.98','none'],'held button press settles at .98 with the overlay, without a filter');
+  ['0.98','none'],'held button press settles at .98, dimmed, without a filter');
  await shot('svar-pressed',{x:390,y:0,width:400,height:72});
  await page.mouse.move(5,400);await page.mouse.up();
 
- // Widget sizes and flat press: a circle at the finger.
+ // Widget sizes and flat press: the surface dims in place, no ripple circle and no scale.
  const sizes=await page.evaluate(()=>{const row=document.createElement('div');row.className='pv-hscroll';row.id='kit-row';
   row.style.width='600px';
   for(const size of ['s','m','l']){const w=document.createElement('button');w.className='pv-widget';w.dataset.size=size;
@@ -93,15 +94,14 @@ const pressLatency=(page,selector,check)=>page.evaluate(({selector,check})=>new 
  const flatPress=pressLatency(page,'#kit-m','circle');
  await page.mouse.move(widget.x+40,widget.y+60);await page.mouse.down();
  const flatMs=await flatPress;assert(flatMs<100,`widget press visible in ${flatMs} ms`);
- const circle=await page.evaluate(()=>{const w=document.querySelector('#kit-m'),after=getComputedStyle(w,'::after');
-  return {
-   left:after.left,top:after.top,radius:after.borderRadius,shrinks:!['none','1'].includes(getComputedStyle(w).scale)};
-   });
- assert.deepEqual(circle,{left:'40px',top:'60px',radius:'50%',shrinks:false},'flat press is a circle at the finger');
+ const flat=await page.evaluate(()=>{const w=document.querySelector('#kit-m'),css=getComputedStyle(w);
+  return {ripple:getComputedStyle(w,'::after').content,shrinks:!['none','1'].includes(css.scale),
+   dimmed:Number(css.opacity)<.9};});
+ assert.deepEqual(flat,{ripple:'none',shrinks:false,dimmed:true},'flat press dims in place, without a ripple');
  await shot('widget-pressed',{x:widget.x,y:widget.y,width:widget.width,height:widget.height});
  await page.mouse.up();await sleep(400);
- assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#kit-m'),'::after').opacity),'0',
-  'circle fades after release');
+ assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('#kit-m')).opacity),'1',
+  'dim fades after release');
 
  await page.locator('#kit-row').evaluate(row=>{row.scrollLeft=row.scrollWidth;});await sleep(300);
  await shot('widgets-scrolled',{x:rowBox.x,y:rowBox.y,width:rowBox.width,height:rowBox.height});

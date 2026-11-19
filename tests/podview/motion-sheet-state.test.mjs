@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createKitComponent,runKitButtonAction,setKitButtonState}
  from '../../podview/ui/kit.js';
-import {SceneMotion,springCurve,SPRING,DUR} from '../../podview/ui/motion.js';
+import {SceneMotion,springBezier,SPRING,DUR} from '../../podview/ui/motion.js';
 
 const dir=new URL('../../podview/',import.meta.url);
 const read=name=>readFileSync(new URL(name,dir),'utf8');
@@ -122,7 +122,7 @@ test('P2 toast: the feedback line enters from 8px on the snappy spring and leave
   const node={hidden:true,dataset:{},textContent:'Sendt',getClientRects(){return this.hidden?[]:[{}];},
    animate(frames,options){const a={frames,options,finished:new Promise(()=>{}),cancel(){}};calls.push(a);return a;}};
   motion.feedback(node,true);
-  const snappy=springCurve(SPRING.snappy);
+  const snappy=springBezier(SPRING.snappy);
   assert.equal(calls[0].options.duration,snappy.ms);assert.equal(calls[0].options.easing,snappy.easing);
   assert.deepEqual(calls[0].frames[0],{opacity:0,transform:'translateY(8px)',offset:0});
   assert.deepEqual(calls[0].frames[1],{opacity:1,offset:.75});

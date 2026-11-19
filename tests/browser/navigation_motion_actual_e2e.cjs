@@ -42,7 +42,9 @@ const startSampling=page=>page.evaluate(()=>{
   const m=/^matrix\(([^)]+)\)$/.exec(mask.transform),v=m?m[1].split(',').map(Number):[1,0,0,1,0,0];
   const [a,e,f]=[v[0],v[4],v[5]];
   const size=cover.querySelector('.pv-ro-mask').offsetWidth/2;
-  return {visible:style.visibility==='visible',opacity:Number(style.opacity),radius:a*size,x:e+a*size,y:f+a*size,
+  // Armed in the touch-down (drawn at opacity .001 so its photo is rasterized before the release) is not shown.
+  const opacity=Number(style.opacity);
+  return {visible:style.visibility==='visible'&&opacity>=.01,opacity,radius:a*size,x:e+a*size,y:f+a*size,
    clip:mask.clipPath};
  };
  // A page's horizontal offset as a percentage of its width, whether it is painted, and its opacity.
@@ -233,7 +235,10 @@ function checkRo({samples,mutations},point,{to,reduced}){
  const ro=mutations.map(m=>m.what);
  assert.deepEqual(ro,['BUTTON[hidden]'],`${name}: the Ro button's only change is the page change (${ro})`);
  const steady=samples.filter(s=>s.t<mutations[0].t&&!s.ro.hidden);
- for(const s of steady)assert.deepEqual(s.ro,steady[0].ro,`${name}: Ro button steady before navigating`);
+ // The press dims the button (opacity .84, ui/pressed-state.js) while the finger is on it; nothing else changes.
+ const look=({opacity,...rest})=>rest;
+ for(const s of steady){assert.deepEqual(look(s.ro),look(steady[0].ro),`${name}: Ro button steady before navigating`);
+  assert(Number(s.ro.opacity)>=.83,`${name}: Ro button only dims as press feedback (${s.ro.opacity})`);}
  return {start:Math.round(start.t),...report,...timing(samples)};
 }
 

@@ -5,7 +5,8 @@ const path = require('node:path');
 const {chromium} = require('playwright');
 
 const root = process.env.PODVOICE_UI_ROOT || path.resolve(__dirname, '../..');
-const staticRoot = path.join(root, 'podvoice/gatekeeper/static/podview');
+// SetupFlow is unit-tested as raw source modules (the delivered setup.js is a Vite bundle).
+const staticRoot = path.join(root, 'podview');
 const modules = new Set(['setup.js', 'podvoice-transport.js', 'request-deadline.js', 'connection-model.js']);
 
 (async () => {
