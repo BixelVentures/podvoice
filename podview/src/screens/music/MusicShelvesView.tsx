@@ -419,13 +419,10 @@ export class MusicShelvesView {
     const feedback = selection.feedback;
     if (feedback && feedback.pending !== true && !['accepted', 'unknown'].includes(feedback.outcome ?? '')
       && feedback.message) {
-      this.say(feedback.message, () => {
-        // The error was this tap's; it does not stay on the player.
-        if (selection.feedback === feedback) {
-          selection.feedback = null;
-          this.host.liveMedia?.render?.();
-        }
-      });
+      // The error was this tap's: it is the toast alone, never also a lasting line on the player.
+      selection.feedback = null;
+      this.host.liveMedia?.render?.();
+      this.say(feedback.message);
     }
   }
 

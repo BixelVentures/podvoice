@@ -98,6 +98,7 @@ test('an error belongs to its tap: a short toast that clears itself and leaves n
   const toast = f.root.querySelector('.find-toast');
   assert.equal(toast.textContent, 'Højttaleren i rummet kan ikke bruges lige nu.');
   assert.equal(f.sent.length, 0);
+  assert.equal(f.view.feedback, null);
   for (const button of f.root.querySelectorAll('button')) assert.equal(button.disabled, false);
   vi.advanceTimersByTime(3600);
   assert.equal(f.root.querySelector('.find-toast').hidden, true);
