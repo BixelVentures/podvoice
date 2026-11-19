@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {LiveRadioView} from '../../podview/live-radio-view.js';
 import {stations} from '../../podview/radio-model.js';
-import {PlayerView} from '../../podview/player-view.js';
+import {PlayerView} from '../../podview/src/screens/player/PlayerView.tsx';
 
 const now = Date.now(), snapshot = {bootId: 'boot', roomId: 'room'};
 const stopped = (overrides = {}) => ({

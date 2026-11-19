@@ -1,5 +1,5 @@
 import {roomObservationDisplay} from './media-observation.js';
-import {renderPlayerControls} from './player-view.js';
+import {renderPlayerControls} from './player-controls.js';
 import {playbackFreshness} from './music-session-model.js';
 const RUNNING_RING_MS=800;
 

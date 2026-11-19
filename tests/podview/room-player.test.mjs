@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {roomPlayerObservation,roomObservationDisplay,playbackBinding}
  from '../../podview/media-observation.js';
 import {RoomPlayerControls} from '../../podview/room-player-controls.js';
-import {livePlayerModel,OTHER_ACCOUNT} from '../../podview/player-view.js';
+import {livePlayerModel,OTHER_ACCOUNT} from '../../podview/player-model.js';
 
 globalThis.document??={getElementById:()=>null};
 const snapshot={bootId:'boot',roomId:'kitchen',capabilities:{musicRead:['targets','playback']}};

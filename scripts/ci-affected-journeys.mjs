@@ -17,7 +17,7 @@ const PANEL_TESTS = ['live_status', 'daily_ui', 'wake_words', 'settings_dirty', 
 // podvoice/gatekeeper/static/podview is checked against its sources by the `ui` job, so the sources decide.
 const PODVIEW_FEATURES = [
   [/^(robot-|local-robot-view\.js)/, ['robot', 'robot_ux']],
-  [/^(music-|live-music|live-queue-view|player-view|room-player|speaker-output-view|spotify-artwork|library)/,
+  [/^(music-|live-music|live-queue-view|player-(model|controls)\.|room-player|speaker-catalogue|spotify-artwork|library)/,
     MUSIC],
   [/^(radio-|live-radio-view)/, MUSIC],
   [/^timer-/, ['timer']],
@@ -26,7 +26,7 @@ const PODVIEW_FEATURES = [
 ];
 // React screens: podview/src/screens/<screen>/.
 const PODVIEW_SCREENS = {weather: ['home_events'], timer: ['timer'], radio: MUSIC, vehicle: ['vehicle'],
-  recipe: ['recipe'], light: ['light'], robot: ['robot', 'robot_ux'], answers: ['answers']};
+  recipe: ['recipe'], light: ['light'], robot: ['robot', 'robot_ux'], answers: ['answers'], player: MUSIC};
 // Server modules named after one feature. Shared modules (podview.py, web.py, tools.py, ...) run all.
 const SERVER_FEATURES = [
   [/^(podview_robot|podview_vacuum_|podview_dock_control|robot_settings|cleaning_journal)/,

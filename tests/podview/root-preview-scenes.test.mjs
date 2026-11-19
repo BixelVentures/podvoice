@@ -242,7 +242,7 @@ test('new library domain snapshots carry genuine owner input and no live action 
 
 
 test('music specimens supply actual long renderer inputs and a distinct initial empty result',async()=>{
- const {localPlayerModel,localQueueModel}=await import('../../podview/player-view.js');
+ const {localPlayerModel,localQueueModel}=await import('../../podview/player-model.js');
  const {localDiscoveryCards}=await import('../../podview/music-results.js');
  const {TRACKS}=await import('../../podview/widget-model.js');
  const empty=previewScene('music-initial-empty');assert.deepEqual(localDiscoveryCards(empty),[]);assert.equal(empty.music.playback.active,false);assert.equal(empty.music.refreshStatus,'');
