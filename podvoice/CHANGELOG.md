@@ -1,3 +1,9 @@
+## 2.1.23
+
+- PodView er bygget om til React: skærmen er nu et React 19- og TypeScript-projekt, bygget med Vite. Før var hver skærm håndskrevet JavaScript, der selv rettede i siden ved hver opdatering – det var den største kilde til blink, kort der blev bygget om, og knapper der hang. React holder styr på det selv.
+- Vejr er den første skærm i React. Den ser ud og opfører sig som før; resten af skærmene flyttes én ad gangen i de næste versioner.
+- Intet nyt at se på væggen i denne version. Alle browserrejser, iPad-målinger og serverens tests er grønne mod den nye opbygning.
+
 ## 2.1.22
 
 - Bevægelse på iPad'en: alle fjedre og overgange kører nu på grafikchippen. Safari/WebKit accelererer aldrig CSS `linear()`-kurver, så før kørte hver animation på hovedtråden og hakkede, når den havde travlt. Kurverne er nu cubic-bezier eller keyframes med samme fornemmelse.
