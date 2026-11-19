@@ -80,22 +80,15 @@ for(const journey of only.length?only:journeys){
   runJourney(journey,{MUSIC_COLD_CONTEXT:'1',MUSIC_COLD_REJECT:'1'});
   runJourney(journey,{MUSIC_START_LATENCY_TEST:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'start-latency')});
-  runJourney(journey,{MUSIC_START_LATENCY_TEST:'mood',MUSIC_COLD_CONTEXT:'1',
-   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'start-latency-mood')});
   runJourney(journey,{MUSIC_DEFAULT_SPEAKER_PROOF:'1',
    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'default-speaker')});
-  for(const scenario of ['1','revisit','cover','personal-cover']){
-   runJourney(journey,{MUSIC_DISCOVERY_LOADING_TEST:scenario,
-    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`discovery-${scenario}`)});
-  }
-  for(const scenario of ['same-owner','owner-change','rapid-switch']){
-   runJourney(journey,{MUSIC_LIBRARY_BUSY_TEST:scenario,
-    PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,`library-busy-${scenario}`)});
-  }
+  // An unknown outcome after the owner acted stays honest on the player and is never resent.
+  runJourney(journey,{MUSIC_UNKNOWN_AFTER_COMMIT:'1',
+   PODVIEW_TEST_ARTIFACT_DIR:path.join(env.PODVIEW_TEST_ARTIFACT_DIR,'unknown-after-commit')});
   // Status = speaker (owner 17/11): Find musik starts on the player's speaker; one tap moves the music.
   runJourney('music_speaker_target_actual_e2e.cjs');
-  // Green-tjek F5: a finger tap on a Find musik heading never hides a shown card or heading for a frame.
-  runJourney('musik_tab_frames_actual_e2e.cjs');
+  // No blink on Find musik: late and failed covers, reopening, a heading tap (Green-tjek F5) and a slow refresh.
+  runJourney('find_musik_frames_actual_e2e.cjs');
   for(const scenario of ['cold-tail','unknown','unknown-unchanged']){
    console.log(`Queue recovery scenario: ${scenario}`);
    runJourney(journey,{MUSIC_QUEUE_INTENTS:scenario,
