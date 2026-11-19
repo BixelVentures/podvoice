@@ -727,15 +727,28 @@ function recordMutations(root){
  return ()=>{const records=observer.takeRecords();observer.disconnect();return records;};
 }
 test('an identical vehicle render writes nothing to the DOM',()=>{
- const now=Date.now()/1000,actions=['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat','passengerSeatHeat','rearTrunkToggle'];
- const observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:now-60,fieldObservedAt:{locked:now-60},entityIds:['lock.car','climate.car','cover.trunk','sensor.car'],data:{locked:true,trunk:'closed',batteryPercent:64,rangeKm:280,charging:{status:'charging',powerKw:11,endsAt:now+1800},climate:{status:'heat_cool',temperatureC:20.5,targetTemperatureC:21.5,minTemperatureC:15,maxTemperatureC:28,temperatureStepC:0.5,defrost:false,driverSeatHeat:'low',passengerSeatHeat:'off'}}});
- for(const [value,options] of [[vehicleFixture({charging:true})],[observed,{vehicleActions:actions,feedbackScope:'car'}],[null,{connectionDetail:'Home Assistant svarer ikke lige nu'}]]){
+ const now=Date.now()/1000;
+ const actions=['lock','unlock','climateOn','climateOff','temperature','defrostOn','defrostOff','driverSeatHeat',
+  'passengerSeatHeat','rearTrunkToggle'];
+ const observed=vehicleObservation({status:'observed',source:'home_assistant_state',observedAt:now-60,
+  fieldObservedAt:{locked:now-60},entityIds:['lock.car','climate.car','cover.trunk','sensor.car'],
+  data:{locked:true,trunk:'closed',batteryPercent:64,rangeKm:280,
+   charging:{status:'charging',powerKw:11,endsAt:now+1800},
+   climate:{status:'heat_cool',temperatureC:20.5,targetTemperatureC:21.5,minTemperatureC:15,maxTemperatureC:28,
+    temperatureStepC:0.5,defrost:false,driverSeatHeat:'low',passengerSeatHeat:'off'}}});
+ const records=done=>done().map(record=>[record.type,record.attributeName,record.target.nodeName]);
+ for(const [value,options] of [[vehicleFixture({charging:true})],
+  [observed,{vehicleActions:actions,feedbackScope:'car'}],
+  [null,{connectionDetail:'Home Assistant svarer ikke lige nu'}]]){
   const {root}=fixture(),view=new VehicleView(root);view.render(value,options);view.seatControls.trigger.click();
   const done=recordMutations(root);view.render(value,options);view.render(value,options);view.renderControls();
-  assert.deepEqual(done().map(record=>[record.type,record.attributeName,record.target.nodeName]),[]);view.cleanup();
+  assert.deepEqual(records(done),[]);view.cleanup();
  }
- const {root}=fixture(),view=new VehicleView(root,{onAction:()=>new Promise(()=>{})}),model={...vehicleFixture({controls:true}),climate:{status:'heat',targetTemperatureC:21,defrost:false,seats:{driver:0,passenger:0}}};
- view.render(model);view.seatControls.trigger.click();view.temperatureUp.click();assert.equal(view.temperatureUp.getAttribute('aria-busy'),'true');
+ const {root}=fixture(),view=new VehicleView(root,{onAction:()=>new Promise(()=>{})});
+ const model={...vehicleFixture({controls:true}),climate:{status:'heat',targetTemperatureC:21,defrost:false,
+  seats:{driver:0,passenger:0}}};
+ view.render(model);view.seatControls.trigger.click();view.temperatureUp.click();
+ assert.equal(view.temperatureUp.getAttribute('aria-busy'),'true');
  const done=recordMutations(root);view.render(model);view.renderControls();
- assert.deepEqual(done().map(record=>[record.type,record.attributeName,record.target.nodeName]),[]);view.cleanup();
+ assert.deepEqual(records(done),[]);view.cleanup();
 });

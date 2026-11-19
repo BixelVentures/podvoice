@@ -122,7 +122,9 @@ export function kit(target: Face, type: string, options: KitOptions = {}): Face 
   if (options.variant !== undefined) setAttr(target, 'data-kit-variant', options.variant);
   if (options.identity !== undefined) setAttr(target, 'data-kit-identity', options.identity);
   if (options.label !== undefined) setAttr(target, 'aria-label', options.label);
-  if (options.selected !== undefined) setAttr(target, type === 'toggle' ? 'aria-checked' : 'aria-pressed', options.selected);
+  if (options.selected !== undefined) {
+    setAttr(target, type === 'toggle' ? 'aria-checked' : 'aria-pressed', options.selected);
+  }
   if (options.feedback !== undefined) setAttr(target, 'data-feedback', options.feedback);
   if (options.tone !== undefined) setAttr(target, 'data-tone', options.tone);
   if (options.loading !== undefined) setAttr(target, 'aria-busy', options.loading);
