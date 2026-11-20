@@ -45,10 +45,7 @@ export function liveTimerHistory(value,now=Date.now()){
 // the household owns devices. Retry below rereads the existing HA session.
 // Only explicit setup or a known connection failure chooses recovery copy.
 // An empty successful read does not imply missing permissions or configuration.
-export function homeConnectionPresentation({status,blocked=false,sessionExpired=false,browserOffline=false,reason=null}={}){
- const known=['setup','unavailable','denied'].includes(reason)?reason:blocked&&!sessionExpired?'denied':blocked?'unavailable':browserOffline||status==='disconnected'||status==='offline'?'unavailable':null;
- return {reason:known,detail:({setup:'Tilføj i Home Assistant',unavailable:'Home Assistant svarer ikke lige nu',denied:'PodView har ikke adgang – log ind i Home Assistant'})[known]||''};
-}
+export {homeConnectionPresentation} from './src/lib/api/connection.ts';
 export function connectionPresentation({status,snapshot,blocked=false,sessionExpired=false,browserOffline=false}={}){
  // The grace period (reconnecting) keeps the last snapshot on screen exactly as it was.
  if(status==='reconnecting'&&!blocked)status='connected';

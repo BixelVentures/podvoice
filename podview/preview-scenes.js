@@ -6,7 +6,7 @@ import {FORMATS,initialScene,sceneTransition as step} from './scene-model.js';
 import {vehicleFixture} from './vehicle-model.js';
 import {vehicleObservation} from './ha-home-observation.js';
 import {scopedLightDevice} from './home-model.js';
-import {WEATHER_CHANGE_EXAMPLE} from './weather-view.js';
+import {WEATHER_CHANGE_EXAMPLE} from './src/screens/weather/view-model.ts';
 import {TRACKS} from './widget-model.js';
 import {localRadioTransition} from './radio-model.js';
 // Deterministic, explicitly documented prototype states; no integrations or requests.

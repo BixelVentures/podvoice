@@ -3,7 +3,7 @@
 // React keys keep each hour, day and metadata row as the same element across updates
 // (no rebuild, no blink); an unchanged model writes nothing to the DOM.
 import type {CSSProperties} from 'react';
-import {weatherAppearance, windFrom} from '../../../weather-observation.js';
+import {weatherAppearance, windFrom} from './observation.ts';
 import {hasWeatherFacts} from './model';
 import type {WeatherDay, WeatherDetailModel, WeatherHour} from './model';
 

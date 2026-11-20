@@ -10,7 +10,7 @@ import {vehicleModel as projectVehicle,vehicleChargeUpdate,vehicleRailPresentati
 import {VehicleView} from '../../podview/src/screens/vehicle/VehicleView.tsx';
 import test from 'node:test';
 import {connectionPresentation,homeConnectionPresentation} from '../../podview/podvoice-view.js';
-import {weatherHeaderVisible} from '../../podview/weather-view.js';
+import {weatherHeaderVisible} from '../../podview/src/screens/weather/view-model.ts';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {previewScene,previewStates} from '../../podview/preview-scenes.js';

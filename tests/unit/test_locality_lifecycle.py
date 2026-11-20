@@ -155,14 +155,15 @@ async def test_real_home_and_frontend_continuity_through_120(clock, monkeypatch,
             release.set()
             await r.podview_locality._task
             release.clear()
-    root = UI_ROOT
-    js = f"""import assert from 'node:assert/strict';import {{weatherObservation}} from '{root}/weather-observation.js';import {{liveWeatherModel}} from '{root}/weather-view.js';
+    # The weather model is TypeScript; Node runs it with its built-in type stripping.
+    root = UI_ROOT / "src" / "screens" / "weather"
+    js = f"""import assert from 'node:assert/strict';import {{weatherObservation}} from '{root}/observation.ts';import {{liveWeatherModel}} from '{root}/view-model.ts';
     let input='';for await(const x of process.stdin)input+=x;const {{base,trace}}=JSON.parse(input);let current=null,index=0;
     for(let sec=0;sec<=120;sec++){{Date.now=()=>1000*(base+sec);if(index<trace.length&&trace[index].seconds===sec)current=weatherObservation(trace[index++].weather);assert.equal(liveWeatherModel(current).title,'Ved Testby','gap at '+sec);}}
     Date.now=()=>1000*(base+181);assert.equal(liveWeatherModel(current).title,'fallback');console.log('121 continuous samples; outage expires');"""
     result = await asyncio.to_thread(
         subprocess.run,
-        ["node", "--input-type=module", "-e", js],
+        ["node", "--experimental-strip-types", "--no-warnings", "--input-type=module", "-e", js],
         input=json.dumps({"base": base, "trace": trace}),
         text=True,
         capture_output=True,

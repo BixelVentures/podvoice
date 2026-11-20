@@ -1,5 +1,5 @@
 import {scopedLightsObservation,scopedLightSummary,lightAreasObservation,lightPlacementObservation,vehicleObservation} from './ha-home-observation.js';
-import {weatherObservation,weatherFactObservation,hourlyWeather,weatherAdviceCapability} from './weather-observation.js';
+import {weatherObservation,weatherFactObservation,hourlyWeather,weatherAdviceCapability} from './src/screens/weather/observation.ts';
 import {robotObservation} from './robot-observation.js';
 // Closed passive projection. It never issues capabilities, stores HA keys,
 // infers a cleaning area, or treats an accepted command as observed cleaning.

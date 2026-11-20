@@ -44,7 +44,7 @@ test('live data redraws wait for the finger; navigation redraws do not', async (
 });
 
 test('cached date formatting gives the same text as toLocaleTimeString', async () => {
-  const { formatDate } = await import('../../podview/ui/date-format.js');
+  const { formatDate } = await import('../../podview/src/lib/format/date-format.ts');
   const at = new Date('2026-11-12T19:05:00Z');
   for (const options of [{ hour: '2-digit', minute: '2-digit' },
     { timeZone: 'Europe/Copenhagen', hour: '2-digit', minute: '2-digit' }]) {

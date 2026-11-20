@@ -1,9 +1,127 @@
 /* Tailwind for the React screens. No preflight: the pre-React stylesheets still own the base
-   styles, and resetting them would change every legacy screen. The PodView tokens (--pv-*)
-   stay the single source of colour, type and spacing; @theme maps them for utilities. */
+   styles, and resetting them would change every legacy screen. The PodView tokens (--pv-*, ui-kit.css)
+   stay the single source of colour, type, spacing and motion; @theme inline maps them to utilities
+   (bg-pv-surface, text-pv-ink, rounded-pv-l, p-pv-s3, font-pv-mono, duration-pv-tap, ease-pv-out …),
+   so a utility always follows the token, including the stage's dark and identity overrides. */
 @import 'tailwindcss/theme.css' layer(theme);
 @import 'tailwindcss/utilities.css' layer(utilities);
 @source '../';
 /* Test files and fixtures are not screens: their prose must not become utilities. */
 @source not '../**/*.test.*';
 @source not '../**/*-fixture.*';
+
+@theme inline {
+  --color-pv-action-primary-bg: var(--pv-action-primary-bg);
+  --color-pv-action-primary-ink: var(--pv-action-primary-ink);
+  --color-pv-action-secondary-bg: var(--pv-action-secondary-bg);
+  --color-pv-action-secondary-edge: var(--pv-action-secondary-edge);
+  --color-pv-action-secondary-ink: var(--pv-action-secondary-ink);
+  --color-pv-answer: var(--pv-answer);
+  --color-pv-answer-accent: var(--pv-answer-accent);
+  --color-pv-answer-tint: var(--pv-answer-tint);
+  --color-pv-bg: var(--pv-bg);
+  --color-pv-danger: var(--pv-danger);
+  --color-pv-danger-tint: var(--pv-danger-tint);
+  --color-pv-dark: var(--pv-dark);
+  --color-pv-edge: var(--pv-edge);
+  --color-pv-history-surface: var(--pv-history-surface);
+  --color-pv-ink: var(--pv-ink);
+  --color-pv-ink-2: var(--pv-ink-2);
+  --color-pv-ink-3: var(--pv-ink-3);
+  --color-pv-instrument: var(--pv-instrument);
+  --color-pv-instrument-line: var(--pv-instrument-line);
+  --color-pv-instrument-muted: var(--pv-instrument-muted);
+  --color-pv-light: var(--pv-light);
+  --color-pv-light-ink: var(--pv-light-ink);
+  --color-pv-light-muted: var(--pv-light-muted);
+  --color-pv-light-strong: var(--pv-light-strong);
+  --color-pv-light-surface: var(--pv-light-surface);
+  --color-pv-line: var(--pv-line);
+  --color-pv-lys: var(--pv-lys);
+  --color-pv-lys-ink: var(--pv-lys-ink);
+  --color-pv-lys-strong: var(--pv-lys-strong);
+  --color-pv-music: var(--pv-music);
+  --color-pv-music-ink-2: var(--pv-music-ink-2);
+  --color-pv-ok: var(--pv-ok);
+  --color-pv-on-danger: var(--pv-on-danger);
+  --color-pv-on-dark: var(--pv-on-dark);
+  --color-pv-on-dark-2: var(--pv-on-dark-2);
+  --color-pv-on-warning: var(--pv-on-warning);
+  --color-pv-overview-radio: var(--pv-overview-radio);
+  --color-pv-overview-timer: var(--pv-overview-timer);
+  --color-pv-overview-timer-hover: var(--pv-overview-timer-hover);
+  --color-pv-overview-timer-ink: var(--pv-overview-timer-ink);
+  --color-pv-overview-timer-muted: var(--pv-overview-timer-muted);
+  --color-pv-overview-vehicle: var(--pv-overview-vehicle);
+  --color-pv-overview-weather: var(--pv-overview-weather);
+  --color-pv-quiet-surface: var(--pv-quiet-surface);
+  --color-pv-radio: var(--pv-radio);
+  --color-pv-radio-ink-2: var(--pv-radio-ink-2);
+  --color-pv-radio-station: var(--pv-radio-station);
+  --color-pv-recipe: var(--pv-recipe);
+  --color-pv-recipe-icon: var(--pv-recipe-icon);
+  --color-pv-recipe-ink: var(--pv-recipe-ink);
+  --color-pv-recipe-meta: var(--pv-recipe-meta);
+  --color-pv-recipe-ring: var(--pv-recipe-ring);
+  --color-pv-recipe-step: var(--pv-recipe-step);
+  --color-pv-recipe-step-ahead: var(--pv-recipe-step-ahead);
+  --color-pv-recipe-step-now: var(--pv-recipe-step-now);
+  --color-pv-recipe-track: var(--pv-recipe-track);
+  --color-pv-robot: var(--pv-robot);
+  --color-pv-robot-ink: var(--pv-robot-ink);
+  --color-pv-robot-strong: var(--pv-robot-strong);
+  --color-pv-scrim: var(--pv-scrim);
+  --color-pv-surface: var(--pv-surface);
+  --color-pv-surface-2: var(--pv-surface-2);
+  --color-pv-surface-shadow: var(--pv-surface-shadow);
+  --color-pv-surface-shadow-hover: var(--pv-surface-shadow-hover);
+  --color-pv-tesla: var(--pv-tesla);
+  --color-pv-tesla-ink: var(--pv-tesla-ink);
+  --color-pv-tesla-strong: var(--pv-tesla-strong);
+  --color-pv-timer-accent: var(--pv-timer-accent);
+  --color-pv-timer-control: var(--pv-timer-control);
+  --color-pv-timer-control-hover: var(--pv-timer-control-hover);
+  --color-pv-timer-coral: var(--pv-timer-coral);
+  --color-pv-timer-dark-2: var(--pv-timer-dark-2);
+  --color-pv-timer-idle-surface: var(--pv-timer-idle-surface);
+  --color-pv-timer-track: var(--pv-timer-track);
+  --color-pv-tint: var(--pv-tint);
+  --color-pv-tint-ink: var(--pv-tint-ink);
+  --color-pv-tint-strong: var(--pv-tint-strong);
+  --color-pv-vacuum-hover: var(--pv-vacuum-hover);
+  --color-pv-vacuum-ink: var(--pv-vacuum-ink);
+  --color-pv-vacuum-muted: var(--pv-vacuum-muted);
+  --color-pv-vacuum-surface: var(--pv-vacuum-surface);
+  --color-pv-vehicle-surface: var(--pv-vehicle-surface);
+  --color-pv-vejr: var(--pv-vejr);
+  --color-pv-vejr-ink: var(--pv-vejr-ink);
+  --color-pv-vejr-strong: var(--pv-vejr-strong);
+  --color-pv-warning: var(--pv-warning);
+  --color-pv-warning-tint: var(--pv-warning-tint);
+  --color-pv-weather: var(--pv-weather);
+  --color-pv-weather-ink: var(--pv-weather-ink);
+  --color-pv-weather-strong: var(--pv-weather-strong);
+  --color-pv-weather-surface: var(--pv-weather-surface);
+  --radius-pv-dialog: var(--pv-r-dialog);
+  --radius-pv-hero: var(--pv-r-hero);
+  --radius-pv-l: var(--pv-r-l);
+  --radius-pv-pill: var(--pv-r-pill);
+  --radius-pv-s: var(--pv-r-s);
+  --spacing-pv-s1: var(--pv-s1);
+  --spacing-pv-s2: var(--pv-s2);
+  --spacing-pv-s3: var(--pv-s3);
+  --spacing-pv-s4: var(--pv-s4);
+  --spacing-pv-s5: var(--pv-s5);
+  --font-pv: var(--pv-font);
+  --font-pv-mono: var(--pv-font-mono);
+  --font-weight-pv-regular: var(--pv-weight-regular);
+  --font-weight-pv-medium: var(--pv-weight-medium);
+  --font-weight-pv-semibold: var(--pv-weight-semibold);
+  --font-weight-pv-bold: var(--pv-weight-bold);
+  --ease-pv-out: var(--pv-ease-out);
+  --ease-pv-in: var(--pv-ease-in);
+  --ease-pv-inout: var(--pv-ease-inout);
+  --ease-pv-enter: var(--pv-ease-enter);
+  --ease-pv-press: var(--pv-ease-press);
+}
+

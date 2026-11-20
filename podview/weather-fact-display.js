@@ -1,4 +1,4 @@
-import {conditionLabel,weatherTemperature} from './weather-observation.js';
+import {conditionLabel,weatherTemperature} from './src/screens/weather/observation.ts';
 
 const knownConditions=new Set(['clear','sunny','partlycloudy','cloudy','rainy','pouring','snowy','fog','windy','clear-night','lightning','lightning-rainy','snowy-rainy','exceptional']);
 

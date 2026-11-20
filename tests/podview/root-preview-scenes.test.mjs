@@ -236,7 +236,7 @@ test('new library domain snapshots carry genuine owner input and no live action 
 
 
 test('weather stress and connection failure use supported passive owner inputs',async()=>{
- const {localWeatherModel,liveWeatherModel,WEATHER_CHANGE_EXAMPLE}=await import('../../podview/weather-view.js');
+ const {localWeatherModel,liveWeatherModel,WEATHER_CHANGE_EXAMPLE}=await import('../../podview/src/screens/weather/view-model.ts');
  const {homeConnectionPresentation}=await import('../../podview/podvoice-view.js');
  const long=previewScene('weather-long'),model=localWeatherModel(long.weatherFixture);assert(model.title.length>60);assert(model.current.condition.length>60);assert.equal(model.source,'Eksempeldata');assert.deepEqual(long.weatherFixture.hours,WEATHER_CHANGE_EXAMPLE.hours);assert.deepEqual(long.weatherFixture.days,WEATHER_CHANGE_EXAMPLE.days);
  const failure=previewScene('weather-connection-error');assert.equal(failure.weatherPreview,'empty');const empty=liveWeatherModel(null,{reason:homeConnectionPresentation(failure.connectionPreview).reason});assert.equal(empty.current,null);assert.deepEqual(empty.hours,[]);assert.match(empty.emptyDetail,/svarer ikke/);assert.equal(empty.connectionReason,'unavailable');

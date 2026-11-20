@@ -1,59 +1,22 @@
 import {homeConnectionPresentation} from './podvoice-view.js';
 import {showValue} from './ui/motion.js';
-import {conditionLabel,weatherTemperature,weatherAdviceCapability,weatherPassiveAdvice,weatherAiAdvice} from './weather-observation.js';
-import {liveWeatherModel,weatherOverviewDetail,weatherHeaderVisible,renderOverviewForecast} from './weather-view.js';
-import {renderWeather} from './src/screens/weather/render.tsx';
+import {conditionLabel,weatherTemperature} from './src/screens/weather/observation.ts';
+import {liveWeatherModel,weatherOverviewDetail,weatherHeaderVisible} from './src/screens/weather/view-model.ts';
+import {renderOverviewForecast} from './weather-surfaces.js';
+import {ingestWeather} from './src/lib/query/live.ts';
 import {robotFacts,robotExperience,robotCare} from './robot-observation.js';
 const $=id=>document.getElementById(id),make=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
-// One lazy request per server-admitted source binding. Completion is read only
-// through the existing home projection; navigation never replays a paid POST.
-export class LiveWeatherAdvice {
- constructor(host,{now=()=>Date.now(),setTimer=globalThis.setTimeout.bind(globalThis),clearTimer=globalThis.clearTimeout.bind(globalThis),visible=()=>globalThis.document?.hidden!==true}={}){this.host=host;this.now=now;this.setTimer=setTimer;this.clearTimer=clearTimer;this.visible=visible;this.attempts=new Map();this.generation=0;}
- context(){
-  const h=this.host,s=h.liveSnapshot,w=h.state.liveWeather;
-  if(!h.live||!h.isConnected||h.state.focus!=='weather'||!this.visible()||!h.liveTransport?.connected||h.liveTransport.recoveryBlocked||!s?.capabilities?.homeRead?.includes('weather')||h.state.homeScope!==JSON.stringify([s.bootId,s.roomId]))return null;
-  const cap=weatherAdviceCapability(h.state.weatherAdvice,w,s,this.now());
-  if(!cap)return null;
-  const {aiAdvice,passiveAdvice,displayLocation,advice,...source}=w||{},voice=weatherAiAdvice(aiAdvice,w,this.now()),voiceCurrent=!!voice&&['roomId','sessionId','turnId','taskId','inputRevision','providerGeneration'].every(key=>voice[key]===(key==='roomId'?s.roomId:s.answers?.[key]));
-  return {cap,key:JSON.stringify([cap.bootId,cap.roomId,cap.weatherKey]),source:JSON.stringify(source),weather:w,transport:h.liveTransport,voiceCurrent};
- }
- current(context,generation){const latest=this.context();return generation===this.generation&&latest?.cap.availability==='available'&&latest.key===context.key&&latest.source===context.source&&latest.transport===context.transport;}
- sync(){
-  const context=this.context();if(!context){this.invalidate();return null;}if(context.cap.availability!=='available'){this.invalidate();return {context:context.cap,status:'unavailable'};}
-  if(this.active?.key!==context.key||this.active.source!==context.source||this.active.transport!==context.transport){this.invalidate();this.active=context;}
-  for(const [key,entry]of this.attempts)if(entry.until<=this.now())this.attempts.delete(key);
-  const cap=context.cap,projected=weatherPassiveAdvice(context.weather.passiveAdvice,context.weather,this.now(),cap);
-  let entry=this.attempts.get(context.key);
-  if(!entry&&!context.voiceCurrent&&cap.status==='idle'&&this.attempts.size<32){entry={until:cap.validUntil*1000,source:context.source,deadline:this.now()+10000,polls:0,status:'sending',advice:null};this.attempts.set(context.key,entry);this.start(context,entry);}
-  if(entry&&entry.source!==context.source)return {context:cap,status:'unavailable'};
-  if(projected&&entry?.advice?.requestId&&projected.requestId!==entry.advice.requestId)return {context:cap,status:'unavailable'};
-  const advice=['error','unavailable'].includes(cap.status)?null:projected||entry?.advice,status=['error','unavailable'].includes(cap.status)?cap.status:cap.status==='ready'&&advice?.status!=='ready'?'unavailable':advice?.status||(cap.status==='pending'?cap.status:entry?.status==='sending'?'requesting':entry?.status||null);
-  if(status!=='pending'){this.clearTimer(this.timer);this.timer=null;}
-  if(entry?.refreshNeeded){entry.refreshNeeded=false;this.poll(context,entry);}
-  if(status==='pending'){
-   if(!entry){entry={until:cap.validUntil*1000,source:context.source,deadline:this.now()+10000,polls:0,status:'pending',advice:null};this.attempts.set(context.key,entry);}
-   if(this.now()>=entry.deadline||entry.polls>=8)return {context:cap,status:'unavailable'};
-   this.poll(context,entry);
-  }
-  return {context:cap,advice,status};
- }
- async start(context,entry){
-  const generation=this.generation,controller=new AbortController();this.controller=controller;
-  try{const value=await context.transport.weatherAdvice(context.cap,{signal:controller.signal});if(!this.current(context,generation))return;const advice=weatherPassiveAdvice(value,context.weather,this.now(),context.cap,{allowUnadmitted:true});entry.advice=advice;entry.status=advice?.status||'unavailable';}
-  catch(error){if(!this.current(context,generation))return;entry.status='unavailable';if(['stale_weather_binding','read_access_denied'].includes(error?.code))this.host.loadLiveHome();}
-  finally{if(this.controller===controller)this.controller=null;if(this.current(context,generation))this.host.render();}
- }
- poll(context,entry){
-  if(this.timer)return;const generation=this.generation;
-  this.timer=this.setTimer(async()=>{this.timer=null;if(!this.current(context,generation))return;entry.polls++;await this.host.loadLiveHome();if(this.current(context,generation))this.host.render();},1000);
- }
- invalidate(){if(!this.active&&!this.controller&&!this.timer)return;const entry=this.active&&this.attempts.get(this.active.key);if(entry&&entry.status==='sending'){entry.status='unavailable';entry.refreshNeeded=true;}this.generation++;this.controller?.abort();this.controller=null;this.clearTimer(this.timer);this.timer=null;this.active=null;}
- cleanup(){this.invalidate();}
+// The weather surfaces still painted here (topbar chip, photo chip, Home card) and the weather page's data. The
+// page itself (src/screens/weather/WeatherScreen.tsx) reads the home read's weather from the query cache and adds
+// the passive AI advice; these surfaces never show advice.
+export function liveWeatherSource(host){
+ const s=host.state,read=s.homeReadStatus;
+ return {kind:'live',weather:s.liveWeather??null,readStatus:read?.weather??null,readScope:read?.scope??null,
+  scope:s.homeScope??null,adviceCapability:s.weatherAdvice??null};
 }
 export function renderLiveWeather(host){
- const passive=host.live?(host.liveWeatherAdvice||(host.liveWeatherAdvice=new LiveWeatherAdvice(host))).sync():null;
- const w=host.state.liveWeather,view=$('weather-view'),connected=host.live?host.liveTransport?.connected===true:host.state.connected!==false,reason=homeConnectionPresentation({status:host.liveStatus,blocked:host.liveTransport?.recoveryBlocked===true,sessionExpired:host.liveTransport?.sessionExpired===true,browserOffline:host.browserOffline===true}).reason,model=liveWeatherModel(w,{connected,reason,readStatus:host.state.homeReadStatus?.scope===JSON.stringify([host.liveSnapshot?.bootId,host.liveSnapshot?.roomId])&&host.liveSnapshot?.capabilities?.homeRead?.includes('weather')?host.state.homeReadStatus.weather:null,passiveContext:passive?.context,passiveAdvice:passive?.advice,passiveStatus:passive?.status,aiContext:host.liveSnapshot?{...host.liveSnapshot.answers,roomId:host.liveSnapshot.roomId}:null});
- if(host.state.focus==='weather'||host.weatherNodes)host.weatherNodes=renderWeather(view,model);if(view.hidden!==(host.state.focus!=='weather'))view.hidden=host.state.focus!=='weather';
+ const w=host.state.liveWeather,view=$('weather-view'),connected=host.live?host.liveTransport?.connected===true:host.state.connected!==false,reason=homeConnectionPresentation({status:host.liveStatus,blocked:host.liveTransport?.recoveryBlocked===true,sessionExpired:host.liveTransport?.sessionExpired===true,browserOffline:host.browserOffline===true}).reason,model=liveWeatherModel(w,{connected,reason,readStatus:host.state.homeReadStatus?.scope===JSON.stringify([host.liveSnapshot?.bootId,host.liveSnapshot?.roomId])&&host.liveSnapshot?.capabilities?.homeRead?.includes('weather')?host.state.homeReadStatus.weather:null,aiContext:host.liveSnapshot?{...host.liveSnapshot.answers,roomId:host.liveSnapshot.roomId}:null});
+ if(host.live)ingestWeather(liveWeatherSource(host));if(view.hidden!==(host.state.focus!=='weather'))view.hidden=host.state.focus!=='weather';
  const temp=model.current?w?.current?.temperature:null,condition=model.current?conditionLabel(w?.current?.condition):'',hasWeather=!!model.current||model.hours.length>0||model.days.length>0;
  for(const id of ['header-weather','photo-weather','home-weather']){
   const button=$(id),visible=id==='header-weather'?weatherHeaderVisible(host.state.focus,hasWeather):hasWeather?(id==='home-weather'?host.state.focus==='now':host.state.focus==='photo'?id==='photo-weather':id!=='photo-weather'):id==='home-weather'&&host.state.focus==='now'&&(!!model.connectionReason||host.liveSnapshot?.capabilities?.homeRead?.includes('weather')===true);

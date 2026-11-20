@@ -11,7 +11,7 @@ import {fileURLToPath} from 'node:url';
 import {initialScene,sceneTransition} from '../../../scene-model.js';
 import {liveScene,liveTimerRequest} from '../../../podvoice-view.js';
 import {TimerView} from './TimerView';
-import {cleanupWeather} from '../../../weather-view.js';
+import {cleanupWeather} from '../../../weather-surfaces.js';
 import {mountTimer} from './timer-fixture.js';
 const podview=resolve(dirname(fileURLToPath(import.meta.url)),'../../..');
 // The view on a fresh shell; with a current timer, its detail card exists as the old fixture's 'detail:actual'.

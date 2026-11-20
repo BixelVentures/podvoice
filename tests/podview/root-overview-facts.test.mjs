@@ -6,7 +6,7 @@ import {previewScene} from '../../podview/preview-scenes.js';
 import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
 import {localPlayerModel} from '../../podview/player-model.js';
 import {timerTime,timerStateLabel} from '../../podview/timer-model.js';
-import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/weather-view.js';
+import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/src/screens/weather/view-model.ts';
 
 // Actual host projection with an inert port at the canonical retained renderer.
 // This proves data survives the adapter; browser evidence owns density/layout.
