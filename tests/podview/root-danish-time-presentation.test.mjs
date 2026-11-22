@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {updateResourceTile} from '../../podview/ui/resource-tile.js';
-import {timerTime} from '../../podview/timer-model.js';
+import {timerTime} from '../../podview/src/screens/timer/timer-model.ts';
 test('resource end time uses Danish clock punctuation while countdown stays colon-delimited',()=>{
  const node=()=>({hidden:false,textContent:'',style:{},getAttribute:()=>'',setAttribute(){}}),parts=new Map(['strong','small','.resource-value','.resource-visual img','svg'].map(key=>[key,node()]));
  const attrs=new Map([['aria-label','obsolete']]);

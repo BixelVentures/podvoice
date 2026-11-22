@@ -5,7 +5,7 @@ import {deviceOverviewFacts,devicePresentation,initialScene} from '../../podview
 import {previewScene} from '../../podview/preview-scenes.js';
 import {vehicleFixture,vehicleModel,vehicleUpdatedLabel,vehicleOverviewFacts} from '../../podview/vehicle-model.js';
 import {localPlayerModel} from '../../podview/player-model.js';
-import {timerTime,timerStateLabel} from '../../podview/timer-model.js';
+import {timerTime,timerStateLabel} from '../../podview/src/screens/timer/timer-model.ts';
 import {liveWeatherModel,localWeatherModel,WEATHER_CHANGE_EXAMPLE} from '../../podview/src/screens/weather/view-model.ts';
 
 // Actual host projection with an inert port at the canonical retained renderer.

@@ -68,7 +68,7 @@ test('a control the user cannot use is disabled without a spinner and re-enables
  const root=new URL('../../podview/',import.meta.url);
  const read=name=>readFileSync(new URL(name,root),'utf8');
  assert.ok(read('room-player-controls.js').includes('const busy=!node?.disabled&&('),'transport spinner only on usable buttons');
- assert.ok(read('src/screens/timer/TimerView.tsx').includes('loading: !disabled && !!(pending'),'timer ±1 min');
+ assert.ok(read('src/screens/timer/presentation.ts').includes('loading: !disabled && pending?.deltaSeconds === delta'),'timer ±1 min');
  assert.ok(read('src/screens/light/LightLampView.tsx').includes('busy: busy && !!binding'),'lamp toggle');
  assert.ok(read('src/screens/light/LightRoomView.tsx').includes("['turn_on', 'turn_off'].includes(command.action ?? '') && row.enabled,"),
   'room power tile');

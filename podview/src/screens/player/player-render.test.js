@@ -4,7 +4,7 @@
 // music-session-queue-state (cleanup cancels the artwork of the queue's placeholder rows) as behaviour; and the
 // detail's own markup that root-player-detail-navigation read from index.html, now in the rendered DOM.
 import {expect, test} from 'vitest';
-import {recordWrites} from '../timer/timer-fixture.js';
+import {recordWrites} from '../../test/record-writes.js';
 import {mountPlayer, mountSpeakers} from './player-fixture.js';
 
 const vm = {active: true, playing: true, fresh: true, title: 'Soft Light', artist: 'North', target: 'Køkken',

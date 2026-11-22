@@ -1,11 +1,15 @@
 import {orderHomeDevices} from './home-model.js';
+import {readTimers} from './src/lib/api/schemas.ts';
+import {liveTimerHistory,liveTimers} from './src/screens/timer/live-timers.ts';
 // PodVoice owns resources and authorizes controls. Unconfigured lights remain a visible placeholder.
 export const unconfiguredLight=()=>({id:"podvoice-light-unconfigured",kind:"light",name:"Lys",scope:"home",revision:1,status:"unavailable",pending:null,hidden:false,timeline:[]});
 export function liveScene(base, snapshot) {
- const observed=snapshot.timers.status==='observed',timerHistory=liveTimerHistory(snapshot.timerHistory);const durationFor=t=>{if(Object.hasOwn(t,'durationSeconds')||Object.hasOwn(t,'sourceRevision'))return Number.isInteger(t.durationSeconds)&&t.durationSeconds>=1&&t.durationSeconds<=86400&&typeof t.sourceRevision==='string'&&/^(0|[1-9][0-9]{0,23})$/.test(t.sourceRevision)?t.durationSeconds:null;const entry=timerHistory.find(row=>row.id===t.id);return entry&&entry.seconds>=t.secondsLeft?entry.seconds:null;};
- const items=snapshot.timers.status==='observed'?snapshot.timers.items:[];
+ // The native timers are projected by the timer screen's model (src/screens/timer/live-timers.ts); the scene adds
+ // what only it keeps: a dismissed alarm stays dismissed for the same owner.
+ const observed=snapshot.timers.status==='observed',timerHistory=liveTimerHistory(snapshot.timerHistory);
  const previousTimer=t=>{const previous=base.timer?.id===t.id?base.timer:base.extraTimers.find(x=>x.id===t.id);return previous?.ownerBootId===snapshot.bootId?previous:null;};
- const timers=items.filter(t=>t&&typeof t.id==='string'&&typeof t.name==='string'&&Number.isFinite(t.secondsLeft)&&['running','paused','finished'].includes(t.status)).slice(0,32).map(t=>({id:t.id,name:t.name.slice(0,120),remaining:t.status==='finished'?0:Math.max(0,t.secondsLeft),duration:durationFor(t),sourceRevision:t.sourceRevision,status:t.status==='finished'?'done':t.status,deadline:null,hidden:false,ownerBootId:snapshot.bootId,alertState:['pending','requested','started','drained','stopped','unknown'].includes(t.alertState)?t.alertState:null,physicalStopped:typeof t.physicalStopped==='boolean'?t.physicalStopped:null,physicalDrained:typeof t.physicalDrained==='boolean'?t.physicalDrained:null,noticeDismissed:previousTimer(t)?.noticeDismissed}));
+ const timers=liveTimers({bootId:snapshot.bootId,timers:readTimers(snapshot.timers),timerHistory:snapshot.timerHistory})
+  .map(t=>({...t,noticeDismissed:previousTimer(t)?.noticeDismissed}));
  const homeAllowed=snapshot.capabilities?.homeRead||[],observedDevices=base.devices.filter(d=>d.source==='home_assistant_state'&&homeAllowed.includes(d.kind==='light'?'light':'vacuum')),devices=orderHomeDevices([...(observedDevices.some(d=>d.kind==='light')?[]:[unconfiguredLight()]),...observedDevices]);
  const revokedWeather=base.focus==='weather'&&!snapshot.capabilities?.homeRead?.includes('weather');
  const revokedAnswer=base.answers.some(a=>a.live&&!a.historical&&a.id===base.focus)&&(snapshot.capabilities?.answerRead!==true||!base.answers.some(a=>a.id===base.focus&&a.sessionId===snapshot.answers?.sessionId&&a.turnId===snapshot.answers?.turnId&&a.taskId===snapshot.answers?.taskId&&a.inputRevision===snapshot.answers?.inputRevision&&a.revision===snapshot.answers?.revision));
@@ -27,19 +31,10 @@ export function liveLocalEvent(event, scene, snapshot, recoveryBlocked) {
   || scene?.answers.some(answer => answer.id === id && !answer.hidden));
 }
 export const voiceStatus=phase=>({LISTENING:'Lytter…',THINKING:'Tænker…',RESPONDING:'Svarer…',SPEAKING:'Svarer…',AI_SPEAKING:'Svarer…',LOUNGE_WINDOW:'Spørg videre',CLOSING:'Afslutter…',IDLE:'Ingen aktiv samtale'}[phase]||'Forbundet');
-export function liveTimerRequest(snapshot,connected,event){
- if(!connected||!snapshot||snapshot.timers?.status!=='observed'||!Array.isArray(snapshot.capabilities?.timerActions))return null;
- if(event.type==='timer-start'&&snapshot.timers.items.length===0&&snapshot.capabilities.timerActions.includes('timer.start')&&Number.isInteger(event.seconds)&&event.seconds>=1&&event.seconds<=86400&&typeof event.name==='string'&&event.name.length<=120)return {action:'timer.start',args:{seconds:event.seconds,name:event.name}};
- if(event.type==='timer'&&event.action==='adjust'&&snapshot.capabilities.timerActions.includes('timer.adjust')&&[-60,60].includes(event.deltaSeconds)){const t=snapshot.timers.items.find(row=>row.id===event.id);if(t&&['running','paused'].includes(t.status)&&Number.isInteger(t.durationSeconds)&&t.durationSeconds>=1&&t.durationSeconds<=86400&&typeof t.sourceRevision==='string'&&/^(0|[1-9][0-9]{0,23})$/.test(t.sourceRevision))return {action:'timer.adjust',args:{timer_id:t.id,delta_seconds:event.deltaSeconds,expected_revision:t.sourceRevision}};}
- // »Start igen«: the gatekeeper reads duration and label from its own finished row.
- if(event.type==='timer'&&event.action==='restart'&&snapshot.capabilities.timerActions.includes('timer.start')&&snapshot.capabilities.timerActions.includes('timer.cancel')&&snapshot.timers.items.every(t=>t.status==='finished')){const t=snapshot.timers.items.find(row=>row.id===event.id);if(t&&Number.isInteger(t.durationSeconds)&&t.durationSeconds>=1&&t.durationSeconds<=86400&&typeof t.name==='string'&&t.name.length<=120)return {action:'timer.restart',args:{timer_id:t.id}};}
- if(event.type==='timer'&&event.action==='cancel'&&snapshot.capabilities.timerActions.includes('timer.cancel')&&snapshot.timers.items.some(t=>t.id===event.id))return {action:'timer.cancel',args:{timer_id:event.id}};
- return null;
-}
+// The request a timer tap makes on the observed timers (typed: src/lib/api/timer-actions.ts).
+export {timerRequest as liveTimerRequest} from './src/lib/api/timer-actions.ts';
 
-export function liveTimerHistory(value,now=Date.now()){
- if(value?.status!=='observed'||value.scope!=='core_lifetime'||!Array.isArray(value.items)||value.items.length>12)return [];const seen=new Set(),rows=[];for(const r of value.items){if(typeof r?.id!=='string'||!r.id||r.id.length>200||seen.has(r.id)||typeof r.name!=='string'||r.name.length>120||!Number.isInteger(r.seconds)||r.seconds<1||r.seconds>86400||!Number.isFinite(r.acceptedAt)||r.acceptedAt<=0||r.acceptedAt*1000>now+5000)return [];seen.add(r.id);rows.push({id:r.id,name:r.name||'Timer',seconds:r.seconds,acceptedAt:r.acceptedAt});}return rows.sort((a,b)=>b.acceptedAt-a.acceptedAt);
-}
+export {liveTimerHistory};
 
 // Connection copy describes only admitted screen capabilities, never whether
 // the household owns devices. Retry below rereads the existing HA session.

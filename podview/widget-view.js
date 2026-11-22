@@ -37,13 +37,16 @@ import {robotExperience} from './robot-observation.js';
 import {RobotMotion} from './ui/robot-motion.js';
 import {PodVoiceTransport} from './podvoice-transport.js';
 import {liveScene,liveLocalEvent,liveTimerRequest,unconfiguredLight,connectionPresentation,homeConnectionPresentation} from './podvoice-view.js';
-import {TimerView,timerPresentation} from './src/screens/timer/TimerView.tsx';
-import {timersFor,timerTime,timerStateLabel} from './timer-model.js';
+import {mountTimer} from './src/screens/timer/TimerScreen.tsx';
+import {canStartTimer,cancelAllowed,timerPresentation} from './src/screens/timer/presentation.ts';
+import {currentTimerAccess,publishTimerScene,syncTimerDisplay,timerCommands,timerDisplay} from './src/screens/timer/state.ts';
+import {TimerNotice} from './timer-notice.js';
+import {timersFor,timerTime,timerStateLabel} from './src/screens/timer/timer-model.ts';
 import {cleanupWeather} from './weather-surfaces.js';
 import {localWeatherModel,liveWeatherModel,weatherHeaderVisible,WEATHER_CHANGE_EXAMPLE} from './src/screens/weather/view-model.ts';
 import {mountWeather} from './src/screens/weather/WeatherScreen.tsx';
 import {renderLocalWeatherSurfaces} from './weather-surfaces.js';
-import {ingestConnection,ingestSnapshot,ingestWeather} from './src/lib/query/live.ts';
+import {ingestConnection,ingestSnapshot,ingestWeather,readSnapshot} from './src/lib/query/live.ts';
 import {connectShell,setFocus} from './src/lib/store/shell.ts';
 import {connectApi} from './src/lib/api/client.ts';
 import {createResourceTile,updateResourceTile,updateResourceFacts,resourceOverviewAction,applyResourceFactBudget} from './ui/resource-tile.js';
@@ -106,10 +109,42 @@ function renderRecipeStepBar(card,steps,current){
 // render the focused page and the connection; each snapshot as it arrives; the transport as their API; the local
 // stage's weather. Equal values notify nobody.
 const reactContract={
- syncReact(){this.publishConnection();setFocus(this.state.focus,this.motion);},
+ presentTimer(timer){return timerDisplay.present(timer);},
+ resetTimerDisplay(){timerDisplay.reset();},
+ currentTimerOf(s){return timerPresentation(timersFor(s)).current;},
+ syncReact(){
+  this.publishConnection();setFocus(this.state.focus,this.motion);const s=this.state;
+  publishTimerScene({live:this.live===true,focus:s.focus,connected:s.connected===true,timers:timersFor(s),
+   timerHistory:s.timerHistory??[],sessionId:s.sessionId??null,generation:s.generation??null});
+  syncTimerDisplay();
+ },
+ // What the shell still paints around the timer surfaces it owns: the page container, the Home bar or its
+ // shortcut, and the local demo's start button. The surfaces themselves are React (TimerScreen.tsx).
+ renderTimerShell(s){
+  const visible=timerPresentation(timersFor(s).filter(t=>!t.hidden)).current,card=$('timer-card');
+  const page=$('timers-view'),list=card.querySelector('.timer-active-list'),shortcut=$('open-timers');
+  if(page.hidden!==(s.focus!=='timers'))page.hidden=s.focus!=='timers';
+  if(list.hidden!==!visible)list.hidden=!visible;if(shortcut.hidden!==!!visible)shortcut.hidden=!!visible;
+  const kind=visible?'timer':'empty',id=visible?`timer:${visible.id}`:'empty';
+  if(card.dataset.activityKind!==kind)card.dataset.activityKind=kind;if(card.dataset.activityId!==id)card.dataset.activityId=id;
+  const demoStart=$('start-timer'),canStart=canStartTimer(timerPresentation(timersFor(s)).current,currentTimerAccess());
+  if(demoStart&&demoStart.disabled!==!canStart)demoStart.disabled=!canStart;
+ },
+ // The finished-timer alarm (timer-notice.js) follows the scene and the timer access; unchanged, nothing is drawn.
+ renderTimerNotice(s=this.state){
+  if(!this.timerNotice||!s)return;
+  const access=currentTimerAccess(),feedbackVisible=$('playback-status')?.hidden===false;
+  const signature=JSON.stringify([s.focus,this.live,feedbackVisible,access,timersFor(s).map(timer=>[timer.id,timer.name,
+   timer.status,timer.stale,timer.noticeDismissed])]);
+  if(this.timerNoticeSignature===signature)return;this.timerNoticeSignature=signature;
+  const timer=timersFor(s).find(t=>t.status==='done'&&!t.stale&&!t.noticeDismissed)??timerPresentation(timersFor(s)).current;
+  this.timerNotice.render(timer,s.focus,this.live,feedbackVisible,null,{...access,canCancel:cancelAllowed(access)});
+ },
  publishSnapshot(snapshot){ingestSnapshot(snapshot);},
  connectReactApi(transport){connectApi({timerAction:request=>transport.action(request),
-  weatherAdvice:(binding,options)=>transport.weatherAdvice(binding,options)});},
+  weatherAdvice:(binding,options)=>transport.weatherAdvice(binding,options),
+  diagnostics:{generation:()=>transport.generation,blocked:()=>transport.recoveryBlocked===true
+   ||transport.controllerRenewalDenied===true,record:(stage,fields)=>transport.recordDiagnostic?.(stage,fields)}});},
  publishConnection(){
   const t=this.liveTransport;
   ingestConnection(this.live?{mode:'live',status:this.liveStatus||'connecting',connected:t?.connected===true,
@@ -126,7 +161,12 @@ const reactContract={
    :localWeatherModel(fixture);
  },
 };
-const withReactContract=Host=>{Object.assign(Host.prototype,reactContract);return Host;};
+const withReactContract=Host=>{Object.assign(Host.prototype,reactContract);
+ // Read-only views of the live timer command for inspection (journeys wait until it is idle).
+ Object.defineProperties(Host.prototype,{timerCommands:{get:()=>timerCommands},
+  liveActionPending:{get:()=>timerCommands.getState().pending},
+  liveTimerAction:{get:()=>timerCommands.getState().action}});
+ return Host;};
 class WidgetHost extends HTMLElement {
  renderHeaderTitle(title,canGoBack){
   const heading=$('header-title');this.headerTitleCopy??=document.createTextNode(heading.textContent||'');
@@ -176,7 +216,7 @@ class WidgetHost extends HTMLElement {
   this.scheduleAnswer();this.scheduleTick();return true;
  }
  disconnectedCallback(){this.motionMirror?.dispose();this.motionMirror=null;this.recipeView?.dispose();this.liveRadio?.invalidate();this.lightRoomView?.cleanup();this.inlineLamps?.cleanup();for(const id of ['home-music','home-radio']){const image=$(id)?.querySelector(':scope>img:first-child');if(image)cancelArtwork(image);}for(const entry of this.lightSliders?.values()||[])entry.cancel();this.detachPressedState?.();this.detachPressedState=null;this.detachTouchIntent?.();this.detachTouchIntent=null;this.scrollEdges?.detach();this.cssFlags?.detach();this.pageLifecycle?.detach();this.liveTransport?.close();this.journey?.dispose();this.journey=null;this.cleanup();this.motion?.cancel();this.detachGestures?.();this.viewAnimation?.cancel();this.playerAnimation?.cancel();for(const a of this.sceneAnimations||[])a.cancel();}
- cleanup(){clearTimeout(this.diagnosticDownloadTimer);this.diagnosticDownloadTimer=null;if(this.diagnosticDownloadUrl){this.diagnosticDownloadRevoke?.(this.diagnosticDownloadUrl);this.diagnosticDownloadUrl=null;}clearTimeout(this.lightAreaExpiry);this.lightAreaGeneration=(this.lightAreaGeneration||0)+1;this.lightAreaPending=false;this.detachNotificationPointer?.();this.detachFeedbackGeometry?.();this.closeLightDetail(false);cleanupWeather($('weather-view'));this.headerClockAnimation?.cancel();this.headerTitleAnimation?.cancel();this.localMusicSignature=null;this.screenLifecycle?.cleanup();this.answerAutoReturn?.cleanup();this.suspendLiveTimer();this.historyBrowse=null;this.musicResults?.cleanup?.();this.radioView?.destroy();this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;this.vehicleChargePresentation=null;this.vehicleChargeContext=null;this.vehicleCommands?.dispose();this.vehicleCommands=null;if(this.vehicleView){this.vehicleView.cleanup();this.vehicleView.unmount();this.vehicleView=null;}this.vehicleSignature=null;this.liveOutputs?.cleanup();this.detachTouchIntent?.();this.detachTouchIntent=null;this.musicRefresh?.dispose();clearTimeout(this.weatherAdviceTimer);this.weatherAdviceTimer=null;this.robotMotion?.cleanup();this.voiceSurface?.cleanup();this.liveControls?.cleanup();this.localRobot?.cleanup();this.localRobot=null;this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveSelection?.cleanup();this.liveTransport?.close();this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;clearTimeout(this.receiptTimer);clearTimeout(this.partialTimer);clearTimeout(this.answerTimer);clearTimeout(this.previewVoiceTimer);this.previewVoiceTimer=null;for(const timer of this.deviceTimers?.values()||[])clearTimeout(timer);this.deviceTimers?.clear();clearInterval(this.tickTimer);this.tickTimer=null;clearTimeout(this.clockTimer);clearTimeout(this.feedbackTimer);this.notifications?.cleanup();clearTimeout(this.liveSlowTimer);clearTimeout(this.musicSlowTimer);this.timerView?.cleanup();this.timerNoticeSignature=null;if(this.live)this.invalidateLiveMusic('Viser seneste udvalg');this.clockResize?.disconnect();this.layoutResize?.disconnect();this.playerView?.cleanup?.();}
+ cleanup(){clearTimeout(this.diagnosticDownloadTimer);this.diagnosticDownloadTimer=null;if(this.diagnosticDownloadUrl){this.diagnosticDownloadRevoke?.(this.diagnosticDownloadUrl);this.diagnosticDownloadUrl=null;}clearTimeout(this.lightAreaExpiry);this.lightAreaGeneration=(this.lightAreaGeneration||0)+1;this.lightAreaPending=false;this.detachNotificationPointer?.();this.detachFeedbackGeometry?.();this.closeLightDetail(false);cleanupWeather($('weather-view'));this.headerClockAnimation?.cancel();this.headerTitleAnimation?.cancel();this.localMusicSignature=null;this.screenLifecycle?.cleanup();this.answerAutoReturn?.cleanup();this.suspendLiveTimer();this.historyBrowse=null;this.musicResults?.cleanup?.();this.radioView?.destroy();this.vehicleChargeAnimation?.cancel();this.vehicleChargeAnimation=null;this.vehicleChargePresentation=null;this.vehicleChargeContext=null;this.vehicleCommands?.dispose();this.vehicleCommands=null;if(this.vehicleView){this.vehicleView.cleanup();this.vehicleView.unmount();this.vehicleView=null;}this.vehicleSignature=null;this.liveOutputs?.cleanup();this.detachTouchIntent?.();this.detachTouchIntent=null;this.musicRefresh?.dispose();clearTimeout(this.weatherAdviceTimer);this.weatherAdviceTimer=null;this.robotMotion?.cleanup();this.voiceSurface?.cleanup();this.liveControls?.cleanup();this.localRobot?.cleanup();this.localRobot=null;this.liveAnswers?.invalidate(this.liveTransport?.recoveryBlocked===true,this.liveTransport?.recoveryBlocked===true);this.liveMedia?.invalidate();this.liveSelection?.cleanup();this.liveTransport?.close();this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;clearTimeout(this.receiptTimer);clearTimeout(this.partialTimer);clearTimeout(this.answerTimer);clearTimeout(this.previewVoiceTimer);this.previewVoiceTimer=null;for(const timer of this.deviceTimers?.values()||[])clearTimeout(timer);this.deviceTimers?.clear();clearInterval(this.tickTimer);this.tickTimer=null;clearTimeout(this.clockTimer);clearTimeout(this.feedbackTimer);this.notifications?.cleanup();clearTimeout(this.liveSlowTimer);clearTimeout(this.musicSlowTimer);this.timerNotice?.cleanup();this.resetTimerDisplay?.();this.detachTimerDisplay?.();this.detachTimerDisplay=null;this.detachTimerCommands?.();this.detachTimerCommands=null;this.timerNoticeSignature=null;if(this.live)this.invalidateLiveMusic('Viser seneste udvalg');this.clockResize?.disconnect();this.layoutResize?.disconnect();this.playerView?.cleanup?.();}
  suspendForAnswer(){
   const dialogs=[...document.querySelectorAll('dialog[open]')];
   const allowed=new Set(['rooms','demo','conflict','quick-sheet','customize-sheet','history','light-detail']);
@@ -295,10 +335,22 @@ class WidgetHost extends HTMLElement {
  });
  for(const [id,focus]of [['home-radio','radio'],['home-vehicle','vehicle']])$(id).addEventListener('click',()=>{this.dispatch({type:'show',id:focus});this.focusHeading();});
  this.lightRooms=document.createElement('pv-choice-list');this.lightRooms.dataset.contextPicker='rooms';this.lightRooms.setAttribute('aria-label','Vælg rum');this.lightLamps=document.createElement('pv-choice-list');this.lightLamps.dataset.contextPicker='lamps';this.lightLamps.setAttribute('aria-label','Vælg lampe');$('device-detail').after(this.lightRooms);this.lightRooms.after(this.lightLamps);this.lightRoomView=new LightRoomView(this);this.inlineLamps=new LightLampView(this);
- this.timerView=new TimerView(this,$('timers-view'),$('timer-card'));$('open-timers').addEventListener('click',()=>{this.dispatch({type:'show',id:'timers'});this.focusHeading();});
+ $('open-timers').addEventListener('click',()=>{this.dispatch({type:'show',id:'timers'});this.focusHeading();});
+ // Lærred »A-Topbar«: the timer chip's slot in the topbar, before the weather (TimerScreen renders the chip).
+ const context=this.querySelector('.view-nav .header-context'),chipSlot=document.createElement('span');
+ chipSlot.id='header-timer-slot';chipSlot.className='header-timer-slot';
+ context?.insertBefore(chipSlot,context.querySelector('#header-weather')??context.firstChild);
+ if($('timer-card').dataset.kitTone!=='dark')$('timer-card').dataset.kitTone='dark';
+ this.timerNotice=new TimerNotice(this,$('timer-alert'),{onElapsed:()=>{this.dispatch({type:'show',id:'now'});this.render();}});
  // React screens: mounted once; they read the query cache and the shell store (src/README.md).
- connectShell({dispatch:event=>this.dispatch(event),focusHeading:()=>this.focusHeading(),loadHome:()=>{void this.loadLiveHome();}});
- this.publishConnection?.();mountWeather($('weather-view'));
+ connectShell({dispatch:event=>this.dispatch(event),focusHeading:()=>this.focusHeading(),loadHome:()=>{void this.loadLiveHome();},
+  showFeedback:text=>this.showFeedback?.(text,false)});
+ this.syncReact?.();mountWeather($('weather-view'));
+ mountTimer({page:$('timers-view'),overview:$('timer-card').querySelector('.timer-active-list'),header:chipSlot});
+ // The live countdown also moves the resource rail's timer tile.
+ this.detachTimerDisplay=timerDisplay.subscribe(()=>{if(this.isConnected)this.renderResourceRail();});
+ // A command's progress changes the alarm's Stop (busy, allowed) without a scene change.
+ this.detachTimerCommands=timerCommands.subscribe(()=>{if(this.isConnected)this.renderTimerNotice();});
  this.localWeatherBuilt=false;if(!this.live)renderLocalWeatherSurfaces(document,this.localWeather(this.state));
 
  $('play-pause').addEventListener('click',()=>this.music(this.liveRadio?.ownsPlayer()?{type:'toggle',controlId:'play-pause'}:{type:'toggle'}));$('previous').addEventListener('click',()=>this.music({type:'skip',delta:-1}));$('next').addEventListener('click',()=>this.music({type:'skip',delta:1}));$('volume').addEventListener('input',e=>{if(!this.live)this.music({type:'volume',value:e.target.value});});
@@ -367,112 +419,12 @@ class WidgetHost extends HTMLElement {
   if($('open-demo').hidden!==!!(true))$('open-demo').hidden=true;
   const canDiscover=connected&&Array.isArray(snapshot?.capabilities.musicRead)&&snapshot.capabilities.musicRead.some(kind=>['shelves','mood','feeling','top','recent','search','account_playlists'].includes(kind));const canOpenMusic=canDiscover||this.liveMedia?.canChooseAccount===true||(this.liveCatalogue?.entries?.size||0)>0;if($('empty-find-music').disabled!==!canOpenMusic)$('empty-find-music').disabled=!canOpenMusic;
   if($('home-music').disabled!==!!($('empty-find-music').disabled))$('home-music').disabled=$('empty-find-music').disabled;
-  const canStart=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.start'),canCancel=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.cancel'),canAdjust=connected&&snapshot?.timers.status==='observed'&&snapshot?.capabilities.timerActions.includes('timer.adjust');
-  const timerFences=(this.liveTimerFences||[]).filter(operation=>operation.bootId===snapshot?.bootId&&operation.roomId===snapshot?.roomId&&(snapshot?.timers?.status!=='observed'||operation.epoch===snapshot.timers.epoch));this.liveTimerFences=timerFences;
-  const cancelBlockedIds=[...timerFences,...(this.liveTimerAction?[this.liveTimerAction]:[])].filter(operation=>operation.action==='timer.cancel').map(operation=>operation.timerId);
-  // An adjustment in flight keeps +1/−1 of the same timer tappable: taps are queued (T1).
-  const timerAwaiting=this.liveTimerPhase==='awaiting';
-  const adjustOperation=this.liveTimerAction?.action==='timer.adjust'&&(this.liveActionPending||timerAwaiting)
-   ?this.liveTimerAction:null;
-  const adjustPending=adjustOperation?{timerId:adjustOperation.timerId,deltaSeconds:adjustOperation.deltaSeconds}:null;
-  const adjustBlockedIds=[...timerFences,...(this.liveTimerAction&&!adjustOperation?[this.liveTimerAction]:[])]
-   .filter(operation=>operation.action==='timer.adjust').map(operation=>operation.timerId);
-  const awaitingTimerObservation=timerFences.length>0||this.liveActionPending||timerAwaiting
-   ||this.liveTimerPhase==='unknown';
-  const waiting=this.liveActionPending||timerAwaiting,feedback=waiting?'':this.liveActionFeedback||(timerFences.length?'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.':!canStart&&!canCancel?'Timerstyring er ikke tilgængelig lige nu.':'');
-  const timerAccess={connected,canStart,canCancel,restartIds:(snapshot?.timers?.items||[]).filter(t=>liveTimerRequest(snapshot,connected,{type:'timer',action:'restart',id:t.id})).map(t=>t.id),canAdjust,adjustBlockedIds,adjustPending,allowIndependentCancel:!this.liveActionPending||!!adjustOperation,cancelBlockedIds,pending:!!this.liveActionPending,waiting:!!waiting,awaitingObservation:awaitingTimerObservation,feedback},timerAccessSignature=JSON.stringify(timerAccess);if(this.timerAccessSignature!==timerAccessSignature){this.timerAccessSignature=timerAccessSignature;this.timerView.renderAccess(timerAccess);}
-
   // LiveMediaView owns account-picker visibility from validated choices.
   this.liveCatalogue??=new MusicShelvesView(this);this.liveCatalogue.updateCapabilities(connected,snapshot?.capabilities.musicRead||[]);this.liveCatalogue.open();this.liveSelection??=new LiveMusicSelectionView(this);this.liveSelection.setAccount(this.liveMedia?.account||null);this.liveSelection.onSnapshot();this.liveCatalogue.render();this.liveMedia?.render();this.liveControls?.render();renderLiveWeather(this);renderRobotHistory(this);
  }
- suspendLiveTimer(){
-  this.liveTimerGeneration=(this.liveTimerGeneration||0)+1;clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;
-  if(this.liveTimerAction){
-   this.liveTimerAction.unknownObservation?.();this.liveActionPending=false;this.liveTimerAction.outcome??='unknown';
-   this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';
-   this.liveTimerPhase='unknown';this.liveTimerAction.dropQueued?.();
-  }
- }
- reconcileLiveTimer(snapshot){
-  const connected=this.liveStatus==='connected'&&this.liveTransport?.connected;
-  // Independent cancellations can leave older UNKNOWN operations parked. The
-  // same exact scoped removal proof resolves those too; never infer a Start.
-  if(connected&&snapshot?.timers?.status==='observed')this.liveTimerFences=(this.liveTimerFences||[]).filter(operation=>{const row=snapshot.timers.items.find(timer=>timer.id===operation.timerId),newer=(a,b)=>typeof a==='string'&&typeof b==='string'&&/^(0|[1-9][0-9]{0,23})$/.test(a)&&/^(0|[1-9][0-9]{0,23})$/.test(b)&&(a.length>b.length||a.length===b.length&&a>b);const removed=snapshot!==operation.snapshot&&snapshot.bootId===operation.bootId&&snapshot.roomId===operation.roomId&&snapshot.timers.epoch===operation.epoch&&(operation.action==='timer.cancel'&&!row||operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.expectedRevision)));if(removed)operation.journal?.('control_observation',{code:operation.action==='timer.adjust'?'superseded':'observed',source:'snapshot',trust:'state_observation',...(operation.action==='timer.cancel'?{observedValue:false}:{})});return !removed;});
-  const operation=this.liveTimerAction;if(!operation)return;
-  // New authoritative owners retire the old scope, without claiming completion.
-  if(connected&&snapshot!==operation.snapshot&&(snapshot?.bootId!==operation.bootId||snapshot?.roomId!==operation.roomId||snapshot?.timers?.status==='observed'&&snapshot.timers.epoch!==operation.epoch)){
-   clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;
-   this.liveActionPending=false;this.liveActionFeedback='';this.liveTimerPhase=null;operation.dropQueued?.();return;
-  }
-  if(this.liveActionPending)return;
-  if(operation.waitUntil&&Date.now()>=operation.waitUntil&&this.liveTimerPhase==='awaiting'){
-   operation.unknownObservation?.();this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';
-   this.liveTimerPhase='unknown';operation.dropQueued?.();
-  }
-  if(this.liveStatus!=='connected'||!this.liveTransport?.connected||snapshot===operation.snapshot||snapshot?.bootId!==operation.bootId||snapshot?.roomId!==operation.roomId||snapshot?.timers?.status!=='observed'||snapshot.timers.epoch!==operation.epoch)return;
-  // Removal is the only completion proof for cancellation/finished acknowledgement.
-  // Audio drained/stopped alone must still leave the real finished timer visible.
-  const row=snapshot.timers.items.find(timer=>timer.id===operation.timerId),newer=(a,b)=>typeof a==='string'&&typeof b==='string'&&/^(0|[1-9][0-9]{0,23})$/.test(a)&&/^(0|[1-9][0-9]{0,23})$/.test(b)&&(a.length>b.length||a.length===b.length&&a>b);
-  const adjusted=operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.receipt?.sourceRevision||operation.expectedRevision)||operation.outcome==='accepted'&&row.sourceRevision===operation.receipt?.sourceRevision&&row.durationSeconds===operation.receipt.durationSeconds&&row.status===operation.receipt.status&&Number.isInteger(row.secondsLeft)&&row.secondsLeft>=0&&(row.status==='paused'?row.secondsLeft===operation.receipt.secondsLeft:row.secondsLeft<=operation.receipt.secondsLeft));
-  const observed=operation.action==='timer.cancel'?!row:operation.action==='timer.adjust'?adjusted:operation.outcome==='accepted'&&typeof operation.timerId==='string'&&operation.timerId.length>0&&!!row;
-  if(!observed)return;
-  const actual=['timer.start','timer.restart'].includes(operation.action)?snapshot.timers.items.find(timer=>timer.id===operation.timerId)?.secondsLeft:false;operation.journal?.('control_observation',{code:operation.action==='timer.adjust'&&(!row||row.status==='finished'||newer(row.sourceRevision,operation.receipt?.sourceRevision||operation.expectedRevision))?'superseded':'observed',source:'snapshot',trust:'state_observation',...(operation.action!=='timer.adjust'&&(typeof actual==='boolean'||typeof actual==='number'&&Number.isFinite(actual)&&actual>=0&&actual<=86400)?{observedValue:actual}:{})});
-  const phase=this.liveTimerPhase;
-  clearTimeout(this.liveSlowTimer);this.liveSlowTimer=null;this.liveTimerAction=null;this.liveActionFeedback='';
-  this.liveTimerPhase=null;
-  if(['timer.start','timer.restart'].includes(operation.action)&&operation.outcome==='accepted'){
-   this.timerView?.completeStartNavigation(operation.uiReturnToken,operation.timerId);
-  }
-  // The next queued +1/−1 is sent now against the fresh revision; never after UNKNOWN (T1).
-  const queued=this.liveTimerAdjusts;
-  if(queued?.operation===operation){
-   const delta=operation.outcome==='accepted'&&phase==='awaiting'?queued.deltas.shift():undefined;
-   const event={type:'timer',action:'adjust',id:operation.timerId,deltaSeconds:delta};
-   const next=delta!==undefined&&liveTimerRequest(snapshot,connected,event);
-   if(next)void this.sendLiveTimer(next);
-   if(next&&this.liveTimerAction&&queued.deltas.length)queued.operation=this.liveTimerAction;
-   else if(next&&this.liveTimerAction)this.liveTimerAdjusts=null;
-   else operation.dropQueued();
-  }
- }
- async sendLiveTimer(request){
-  const scope=this.liveSnapshot,fences=(this.liveTimerFences||[]).filter(operation=>operation.bootId===scope?.bootId&&operation.roomId===scope?.roomId&&(scope?.timers?.status!=='observed'||operation.epoch===scope.timers.epoch));this.liveTimerFences=fences;
-  const exactCancel=request.action==='timer.cancel'&&this.liveStatus==='connected'&&this.liveTransport?.connected&&scope?.timers?.status==='observed'&&scope.capabilities.timerActions.includes('timer.cancel')&&scope.timers.items.some(timer=>timer.id===request.args?.timer_id);
-  const adjustRequest=request.action==='timer.adjust'?liveTimerRequest(scope,this.liveStatus==='connected'&&this.liveTransport?.connected,{type:'timer',action:'adjust',id:request.args?.timer_id,deltaSeconds:request.args?.delta_seconds}):null;
-  if(request.action==='timer.adjust'&&(!adjustRequest||adjustRequest.args.expected_revision!==request.args?.expected_revision))return;
-  // +1/−1 during an adjustment of the same timer is queued in order and each is sent once (T1).
-  const running=this.liveTimerAction;
-  if(request.action==='timer.adjust'&&running?.action==='timer.adjust'&&running.timerId===request.args.timer_id
-   &&(this.liveActionPending||this.liveTimerPhase==='awaiting')){
-   const queued=this.liveTimerAdjusts?.operation===running?this.liveTimerAdjusts:{operation:running,deltas:[]};
-   queued.deltas.push(request.args.delta_seconds);this.liveTimerAdjusts=queued;this.renderLive();return;
-  }
-  if(this.liveActionPending&&!(exactCancel&&this.liveTimerAction?.action==='timer.adjust')||fences.some(operation=>['timer.start','timer.restart'].includes(request.action)||operation.action==='timer.cancel'&&operation.timerId===request.args?.timer_id||request.action==='timer.adjust'&&operation.timerId===request.args?.timer_id))return;
-  if(this.liveTimerAction){if(!exactCancel||this.liveTimerAction.action==='timer.cancel'&&this.liveTimerAction.timerId===request.args?.timer_id)return;fences.push(this.liveTimerAction);this.liveTimerAction=null;}
-  else if(!exactCancel&&['awaiting','unknown'].includes(this.liveTimerPhase))return;
-  const snapshot=this.liveSnapshot,transport=this.liveTransport,generation=this.liveTimerGeneration||0,operation={snapshot,bootId:snapshot.bootId,roomId:snapshot.roomId,epoch:snapshot.timers.epoch,action:request.action,timerId:request.action==='timer.restart'?null:request.args?.timer_id,deltaSeconds:request.args?.delta_seconds,expectedRevision:request.args?.expected_revision,outcome:null,waitUntil:null,uiReturnToken:['timer.start','timer.restart'].includes(request.action)?this.timerView?.startNavigation:null};
-  const diagnosticGeneration=transport.generation,diagnosticAuthority=JSON.stringify(snapshot.admission??null),diagnosticPermitted=snapshot.capabilities?.timerActions?.includes(operation.action)===true,requestedValue=request.action==='timer.cancel'?false:request.action==='timer.adjust'&&Number.isInteger(request.args?.delta_seconds)&&request.args.delta_seconds!==0&&Math.abs(request.args.delta_seconds)<=86400?request.args.delta_seconds:Number.isInteger(request.args?.seconds)&&request.args.seconds>=1&&request.args.seconds<=86400?request.args.seconds:undefined;
-  operation.journal=(stage,fields={})=>{if(transport!==this.liveTransport||stage!=='control_action'&&transport.generation!==diagnosticGeneration||this.liveSnapshot?.bootId!==operation.bootId||this.liveSnapshot?.roomId!==operation.roomId||JSON.stringify(this.liveSnapshot.admission??null)!==diagnosticAuthority||!diagnosticPermitted||!this.liveSnapshot.capabilities?.timerActions?.includes(operation.action)||transport.recoveryBlocked===true||transport.controllerRenewalDenied===true)return;try{transport.recordDiagnostic?.(stage,{domain:'timer',action:operation.action,requestId:operation.requestId,resourceId:operation.timerId,...(requestedValue!==undefined?{requestedValue}:{}),...fields});}catch{/* Journal failure cannot alter timer control. */}};
-  operation.dropQueued=()=>{
-   if(this.liveTimerAdjusts?.operation!==operation)return;
-   this.liveTimerAdjusts=null;
-   this.showFeedback?.('Timeren blev ikke bekræftet · dine næste justeringer blev ikke sendt.',false);
-  };
-  operation.unknownObservation=()=>{if(operation.uncertaintyLogged)return;operation.uncertaintyLogged=true;operation.journal('control_observation',{code:'unknown',source:'snapshot',trust:'state_observation'});};
-  const current=()=>this.isConnected&&this.liveTimerAction===operation&&transport===this.liveTransport&&generation===(this.liveTimerGeneration||0);
-  this.liveTimerAction=operation;this.liveActionPending=true;this.liveActionFeedback='';this.liveTimerPhase='sending';
-  this.renderLive();clearTimeout(this.liveSlowTimer);
-  try{operation.requestId=crypto.randomUUID();operation.journal('control_intent',{code:'start'});operation.journal('control_action',{code:'start'});const result=await transport.action({...request,requestId:operation.requestId});operation.journal('control_action',{code:result?.ok?'accepted':result?.outcome==='unknown'?'unknown':'rejected',current:current()&&transport.generation===diagnosticGeneration,...(typeof result?.timerId==='string'?{resourceId:result.timerId}:{})});if(!current())return;operation.outcome=result.ok?'accepted':result.outcome==='unknown'?'unknown':'rejected';if(operation.action==='timer.adjust'&&operation.outcome==='accepted')operation.receipt=result;if(['timer.start','timer.restart'].includes(operation.action)&&operation.outcome==='accepted')operation.timerId=typeof result.timerId==='string'&&result.timerId.length>0&&result.timerId.length<=200?result.timerId:null;this.liveActionFeedback=operation.outcome==='accepted'?'Afventer opdateret timer':operation.outcome==='unknown'?'Udfald ukendt · handlingen gentages ikke':'Handlingen blev afvist · hent aktuel status';if(operation.outcome==='accepted'){operation.waitUntil=Date.now()+12000;this.showFeedback('Timeranmodningen er modtaget',false);}}catch{if(!current())return;operation.journal('control_action',{code:operation.requestId?'unknown':'failure'});operation.outcome='unknown';this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';}finally{
-   if(!current())return;clearTimeout(this.liveSlowTimer);this.liveActionPending=false;
-   this.liveTimerPhase=operation.outcome==='accepted'?'awaiting':operation.outcome==='unknown'?'unknown':'rejected';
-   if(operation.outcome!=='accepted')operation.dropQueued();
-   if(operation.outcome==='rejected')this.liveTimerAction=null;this.reconcileLiveTimer(this.liveSnapshot);
-   if(this.liveTimerAction===operation&&operation.outcome==='accepted')this.liveSlowTimer=setTimeout(()=>{if(!current())return;this.liveSlowTimer=null;operation.unknownObservation?.();this.liveActionFeedback='Udfald ukendt · handlingen gentages ikke';
-    this.liveTimerPhase='unknown';operation.dropQueued();
-    if(this.isConnected)this.renderLive();},Math.max(0,operation.waitUntil-Date.now()));
-   if(this.isConnected)this.renderLive();
-  }
- }
+ suspendLiveTimer(){/* The commands are src/screens/timer/commands.ts. */this.timerCommands?.suspend();}
+ reconcileLiveTimer(){this.timerCommands?.reconcile(readSnapshot());}
+ async sendLiveTimer(request){return this.timerCommands?.send(request);}
  updateHomeRevision(snapshot){
   const next=snapshot?.homeRevision,previous=this.liveHomeDesired;
   if(!next){if(previous){this.liveHomeGeneration=(this.liveHomeGeneration||0)+1;this.liveHomeRead=null;this.liveHomePending=false;this.liveHomeDesired=null;this.liveHomeApplied=null;}return;}
@@ -1060,14 +1012,14 @@ class WidgetHost extends HTMLElement {
   updateResourceFacts($('home-radio'),{facts:radioFacts,context:''});
   const car=vehicleOverviewFacts(vehicle);
   updateResourceFacts($('home-vehicle'),{facts:car,context:vehicle?.mode==='unconnected'?'':[vehicle?.shortStatus||vehicle?.status,vehicleUpdatedLabel(vehicle)].filter(Boolean).join(' · ')});
-  const current=this.timerView?.currentTimer,timer=[];if(!current){const seen=new Set();for(const previous of s.timerHistory||[])if(Number.isFinite(previous.seconds)&&previous.seconds>0&&!seen.has(previous.seconds)){seen.add(previous.seconds);timer.push({id:`recent:${previous.seconds}`,label:timer.length?'Tidligere tid':'Senest brugt',value:timerTime(previous.seconds)});if(timer.length===3)break;}}
+  const current=this.currentTimerOf?.(s),timer=[];if(!current){const seen=new Set();for(const previous of s.timerHistory||[])if(Number.isFinite(previous.seconds)&&previous.seconds>0&&!seen.has(previous.seconds)){seen.add(previous.seconds);timer.push({id:`recent:${previous.seconds}`,label:timer.length?'Tidligere tid':'Senest brugt',value:timerTime(previous.seconds)});if(timer.length===3)break;}}
   // Active Timer and weather retain their own richer dial/deadline/forecast
   // anatomy. The optional fact role belongs only to the idle timer shortcut.
   updateResourceFacts($('open-timers'),{facts:timer,context:!current&&!timer.length?'Vælg en fast tid, eller indstil din egen.':''});
  }
  renderResourceRail(){
   const s=this.state, resources=[],answerFocused=s.answers?.some(answer=>answer.id===s.focus&&!answer.hidden);
-  if(!answerFocused)for(const source of timerPresentation(timersFor(s)).visible.filter(timer=>['running','done'].includes(timer.status))){const t=this.timerView?.presentationTimer?.(source)||source;resources.push({id:t.id,kind:'timer',status:t.status,remaining:t.remaining,duration:t.duration,deadline:t.deadline,stale:t.stale,displayState:t.displayState,target:'timers',title:'Timer',detail:timerStateLabel(t),value:timerTime(t.remaining)});}
+  if(!answerFocused)for(const source of timerPresentation(timersFor(s)).visible.filter(timer=>['running','done'].includes(timer.status))){const t=this.presentTimer?.(source)??source;resources.push({id:t.id,kind:'timer',status:t.status,remaining:t.remaining,duration:t.duration,deadline:t.deadline,stale:t.stale,displayState:t.displayState,target:'timers',title:'Timer',detail:timerStateLabel(t),value:timerTime(t.remaining)});}
   for(const d of s.devices){
    if(d.hidden)continue;const presentation=devicePresentation(d,{connected:this.live?!!this.liveTransport?.connected:s.connected});
    // Only the admitted own-area observation may reach the passive rail.
@@ -1128,7 +1080,7 @@ class WidgetHost extends HTMLElement {
  if(!this.live)for(const b of $('room-options').children){const t=TARGETS.find(t=>t.targetId===b.dataset.targetId);const selected=t.targetId===m.playback.targetId,detail=selected&&t.available?t.detail.replace(/Klar$/,'Valgt'):t.detail,description=b.querySelector('small');if(description.textContent!==detail)description.textContent=detail;if(b.getAttribute('aria-pressed')!==String(selected))b.setAttribute('aria-pressed',String(selected));if(b.querySelector('.target-status').textContent)b.querySelector('.target-status').textContent='';if(b.dataset.revision!==String(m.revision))b.dataset.revision=m.revision;if(b.disabled!==!!(!s.connected||!t.available||!!m.pending))b.disabled=!s.connected||!t.available||!!m.pending;}
  if($('now-track').textContent!==String(`${track.title} · ${m.playback.room}`))$('now-track').textContent=`${track.title} · ${m.playback.room}`;if($('now-music').querySelector('span').textContent!==String(m.playback.playing?'Musik spiller':'Musik på pause'))$('now-music').querySelector('span').textContent=m.playback.playing?'Musik spiller':'Musik på pause';
  if($('now-view').dataset.activities!==String(String(hasResources)))$('now-view').dataset.activities=String(hasResources);if($('now-rest').textContent!==String('Lige nu'))$('now-rest').textContent='Lige nu';if($('now-summary').textContent!==String(hasResources?'Det, der er i gang':'Ingen aktive aktiviteter'))$('now-summary').textContent=hasResources?'Det, der er i gang':'Ingen aktive aktiviteter';
- if($('restore-timer').hidden!==!!(true))$('restore-timer').hidden=true;if($('now-empty').hidden!==!!(true))$('now-empty').hidden=true;const timerProjection=timerPresentation(timersFor(s)),currentTimer=timerProjection.current;this.timerView.currentTimer=currentTimer;const timerSignature=JSON.stringify([s.focus,s.connected,currentTimer&&[currentTimer.id,currentTimer.name,currentTimer.status,currentTimer.remaining,currentTimer.duration,currentTimer.stale,currentTimer.displayState,currentTimer.deadline===null?null:Number.isFinite(currentTimer.deadline)?Math.floor(currentTimer.deadline/60000):undefined],s.timerHistory||[]]);if(this.timerSignature!==timerSignature){this.timerSignature=timerSignature;this.timerAccessSignature=null;this.timerView.render(s);}
+ if($('restore-timer').hidden!==!!(true))$('restore-timer').hidden=true;if($('now-empty').hidden!==!!(true))$('now-empty').hidden=true;this.renderTimerShell?.(s);
 
  const light=this.currentLightDevice(),choices=lightChoices(light,s.lightAreas);const hideLightHero=!!light&&!!this.lightRoomView;if($('device-detail').hidden!==hideLightHero)$('device-detail').hidden=hideLightHero;this.renderLiveLightControl(light);this.renderLightScenes(light);if(this.inlineLamps){this.inlineLamps.render(light);if(this.lightLampDisclosurePanel&&this.lightRoomView){if(this.inlineLamps.node.parentNode!==this.lightLampDisclosurePanel)this.lightLampDisclosurePanel.append(this.inlineLamps.node);}else if(this.inlineLamps.node.parentNode!==this.lightLamps.parentNode)this.lightLamps.after(this.inlineLamps.node);if(this.lightAdjustments&&!this.lightAdjustments.hidden)this.lightAdjustments.hidden=true;this.closeLightDetail(false);}else this.renderLightAdjustments(light);this.lightRoomView?.render(light);for(const [list,group] of [[this.lightRooms,choices?.rooms],[this.lightLamps,choices?.lamps]]){const hidden=list===this.lightRooms&&!!this.lightRoomView||!group?.items?.length||(list===this.lightLamps&&((!this.live&&light?.exampleOnly===true&&!light.live)||Array.isArray(light?.observedLights)));if(list.hidden!==hidden)list.hidden=hidden;if(!hidden){const data={...group,...(list===this.lightLamps?{items:group.items.map(item=>({...item,detail:'',switch:true}))}:{items:group.items}),context:{sessionId:s.sessionId,taskId:light.id,revision:light.revision},connected:(this.live?!!this.liveTransport?.connected&&group.connected!==false&&!this.lightAreaPending:list===this.lightRooms||s.connected)&&!light.pending,state:light.pending?'pending':'ready',quietStatus:true};const signature=JSON.stringify(data);if(list.dataset.projection!==signature){list.dataset.projection=signature;list.data=data;}}}
  const activities=$('device-activities'),deviceRows=[...s.devices];for(const kind of ['vacuum','light'])if(!deviceRows.some(device=>device.kind===kind))deviceRows.push({id:`podview-${kind}-empty`,kind,status:'unavailable',live:true,presentationOnly:true,hidden:false,timeline:[]});
@@ -1190,7 +1142,7 @@ const hideDetail=!s.devices.some(other=>other.id===s.focus)?node.hidden:
  for(const answer of s.answers){const retained=this.retainedNodes.get(answer.id);if(retained)retained.hidden=!ordered.some(row=>row.id===answer.id);}
  for(const [index,answer]of ordered.entries()){const retained=this.retainedNodes.get(answer.id);retained.querySelector('.history-session-heading')?.remove();if(retainedRoot.children[index]!==retained)retainedRoot.insertBefore(retained,retainedRoot.children[index]||null);}
  this.renderSvarToday?.(s);
- this.timerView.renderOverviewActivities(s);this.renderResourceRail();const noticeTimer=this.timerView.currentTimer,noticeSignature=JSON.stringify([s.focus,this.live,$('playback-status').hidden===false,timersFor(s).map(timer=>[timer.id,timer.name,timer.status,timer.stale,timer.noticeDismissed])]);if(this.timerNoticeSignature!==noticeSignature){this.timerNoticeSignature=noticeSignature;this.timerView.renderNotice(s.focus,this.live,$('playback-status').hidden===false);}this.alignOverview();const historyAnswers=ordered,historyPresentation=this.live?this.liveAnswers?.historyPresentation?.():null;if(historyPresentation)$('history-empty').data=historyPresentation.data;const historyCount=historyAnswers.length?`${historyAnswers.length} svar`:'';if($('header-history-count').textContent!==historyCount)$('header-history-count').textContent=historyCount;for(const [id,hidden] of [['header-history-count',true],['history-empty',historyPresentation?historyPresentation.hidden:historyAnswers.length>0],['history-example-note',!historyAnswers.some(a=>a.exampleOnly)],['retained',!historyAnswers.length]])if($(id).hidden!==hidden)$(id).hidden=hidden;
+ this.renderResourceRail();this.renderTimerNotice?.(s);this.alignOverview();const historyAnswers=ordered,historyPresentation=this.live?this.liveAnswers?.historyPresentation?.():null;if(historyPresentation)$('history-empty').data=historyPresentation.data;const historyCount=historyAnswers.length?`${historyAnswers.length} svar`:'';if($('header-history-count').textContent!==historyCount)$('header-history-count').textContent=historyCount;for(const [id,hidden] of [['header-history-count',true],['history-empty',historyPresentation?historyPresentation.hidden:historyAnswers.length>0],['history-example-note',!historyAnswers.some(a=>a.exampleOnly)],['retained',!historyAnswers.length]])if($(id).hidden!==hidden)$(id).hidden=hidden;
  if($('restore-resources').hidden!==!!(!s.devices.some(d=>d.hidden)))$('restore-resources').hidden=!s.devices.some(d=>d.hidden);for(const b of document.querySelectorAll('[data-device-observe]'))if(b.disabled!==!!(!s.devices.some(d=>d.kind==='vacuum')))b.disabled=!s.devices.some(d=>d.kind==='vacuum');if($('demo-offline').textContent!==String(s.connected?'Afbryd forbindelsen':'Genopret forbindelsen'))$('demo-offline').textContent=s.connected?'Afbryd forbindelsen':'Genopret forbindelsen';for(const b of document.querySelectorAll('[data-scenario],[data-fault]'))if(b.disabled!==!!(!s.connected))b.disabled=!s.connected;
  this.journey?.render();this.localRobot?.render();if(this.live)this.renderLive();else {const connection=connectionPresentation({...s.connectionPreview||{status:s.connected?'connected':'disconnected',snapshot:s.connected?undefined:{}},browserOffline:this.browserOffline===true});if(!s.connectionPreview)connection.retry=false;this.renderConnectionNotice(connection);if($('home-music').disabled)$('home-music').disabled=false;if($('empty-find-music').disabled)$('empty-find-music').disabled=false;}const lightHistory=$('device-timeline').parentElement;if(light){const meaningful=light.timeline.some(item=>item.id!=='initial'&&item.id!=='light-initial');if(lightHistory.hidden!==!meaningful)lightHistory.hidden=!meaningful;}this.cssFlags?.sync();if(resourceBoxes)this.motion?.settleResources(resourceBoxes,viewChanged);if(s.conflict&&!this.presentationSuspended)this.open('conflict',$('open-demo'));this.robotMotion?.sync();this.scrollEdges?.refresh(false);this.screenLifecycle?.sync();this.renderOverviewFacts(vehicleModel);this.renderTopbar();
  }

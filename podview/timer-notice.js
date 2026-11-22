@@ -1,6 +1,7 @@
 import {applyKitComponent,applyKitDialog,syncKitButtonContent} from './ui/kit.js';
-import {timerDurationLabel} from './timer-model.js';
+import {timerDurationLabel} from './src/screens/timer/timer-model.ts';
 import {isReduced,reducedMotionQuery} from './ui/motion.js';
+import {publishTimerCompletions} from './src/screens/timer/state.ts';
 // One canonical completion surface. Closing this view never claims to stop a
 // native alarm: only the existing, authority-checked timer action can do that.
 export class TimerNotice {
@@ -11,18 +12,20 @@ export class TimerNotice {
   applyKitDialog(element,{header:this.name,content:element.querySelector('.notice-copy'),description:this.status});
   for(const [button,variant]of [[this.stop,'primary'],[this.add,'secondary'],[this.closeButton,'secondary']])if(button)applyKitComponent(button,'button',{variant});
   this.onStop=()=>{if(!this.id||!this.allowed||this.disposed)return;this.stopAudio();this.host.dispatch({type:'timer',id:this.id,action:'cancel'});};
-  this.onAdd=()=>{if(!this.id||!this.canAdd||this.disposed)return;const id=this.id;this.pulsedIds.delete(id);this.stopAudio();this.completions.delete(id);this.host.dispatch({type:'timer',id,action:'add',seconds:60,now:Date.now()});};
+  this.onAdd=()=>{if(!this.id||!this.canAdd||this.disposed)return;const id=this.id;this.pulsedIds.delete(id);this.stopAudio();this.completions.delete(id);this.publish();this.host.dispatch({type:'timer',id,action:'add',seconds:60,now:Date.now()});};
   this.onDismiss=()=>this.dismiss(this.id);
   this.onCancel=event=>{event.preventDefault();this.dismiss(this.id);};
   this.onMotion=()=>{if(this.motion?.matches){this.clearExpiry();this.setPulse(false);}};
   this.attach();
  }
  attach(){if(this.attached)return;this.disposed=false;this.attached=true;this.stop.addEventListener('click',this.onStop);this.add?.addEventListener('click',this.onAdd);this.closeButton.addEventListener('click',this.onDismiss);this.element.addEventListener('cancel',this.onCancel);this.motion=reducedMotionQuery();this.motion?.addEventListener?.('change',this.onMotion);}
+ // The timer cards read the completion records (React: src/screens/timer/state.ts).
+ publish(){publishTimerCompletions(this.completions);}
  setPulse(active){const value=String(active);if(this.element.dataset.pulse!==value)this.element.dataset.pulse=value;}
  render(timer,focus,live,feedbackVisible=false,visibleTimerId=null,access={}){
   if(this.disposed)this.attach();
   const show=!!timer&&timer.status==='done'&&!timer.stale&&!timer.noticeDismissed,id=show?String(timer.id):null;
-  if(!show){if(timer?.status==='running')this.completions.delete(String(timer.id));this.hide();return;}
+  if(!show){if(timer?.status==='running'&&this.completions.delete(String(timer.id)))this.publish();this.hide();return;}
   const changed=this.id!==id;
   if(changed){this.clearExpiry();this.id=id;const pulse=!this.pulsedIds.has(id)&&!isReduced(this.host,this.motion??null);this.pulsedIds.add(id);this.setPulse(pulse);if(pulse)this.schedule(id,60000,()=>this.setPulse(false));}
   if(changed&&!live&&!timer.ownerBootId)this.startAudio(timer);
@@ -49,10 +52,10 @@ export class TimerNotice {
  }
  startAudio(timer){
   this.stopAudio();const id=String(timer.id),retained=this.completions.get(id);
-  const record=retained||{at:Number.isFinite(timer.deadline)?timer.deadline:this.now(),started:this.now(),played:false,exhausted:false};this.completions.set(id,record);this.audioFeedback='';
+  const record=retained||{at:Number.isFinite(timer.deadline)?timer.deadline:this.now(),started:this.now(),played:false,exhausted:false};this.completions.set(id,record);this.publish();this.audioFeedback='';
   try{this.audio=this.createAudio();}catch{this.audio=null;}if(!this.audio)this.audioFeedback='Lyd kunne ikke afspilles. Timeren er stadig færdig.';const generation=++this.audioGeneration;
-  const tick=()=>{if(this.disposed||this.id!==id||generation!==this.audioGeneration)return;const remaining=300000-(this.now()-record.started);if(remaining<=0){record.exhausted=true;this.stopAudio();this.dismiss(id);this.onElapsed();return;}
-   if(this.audio&&!this.audioFeedback){try{this.audio.currentTime=0;Promise.resolve(this.audio.play()).then(()=>{if(generation===this.audioGeneration)record.played=true;},()=>{if(generation!==this.audioGeneration)return;this.audioFeedback='Lyd kunne ikke afspilles. Timeren er stadig færdig.';if(this.status){this.status.textContent=this.audioFeedback;this.status.hidden=false;}});}catch{this.audioFeedback='Lyd kunne ikke afspilles. Timeren er stadig færdig.';if(this.status){this.status.textContent=this.audioFeedback;this.status.hidden=false;}}}
+  const tick=()=>{if(this.disposed||this.id!==id||generation!==this.audioGeneration)return;const remaining=300000-(this.now()-record.started);if(remaining<=0){record.exhausted=true;this.publish();this.stopAudio();this.dismiss(id);this.onElapsed();return;}
+   if(this.audio&&!this.audioFeedback){try{this.audio.currentTime=0;Promise.resolve(this.audio.play()).then(()=>{if(generation===this.audioGeneration){record.played=true;this.publish();}},()=>{if(generation!==this.audioGeneration)return;this.audioFeedback='Lyd kunne ikke afspilles. Timeren er stadig færdig.';if(this.status){this.status.textContent=this.audioFeedback;this.status.hidden=false;}});}catch{this.audioFeedback='Lyd kunne ikke afspilles. Timeren er stadig færdig.';if(this.status){this.status.textContent=this.audioFeedback;this.status.hidden=false;}}}
    this.audioTimer=this.setTimer(tick,Math.min(4000,remaining));
   };if(retained)this.audioTimer=this.setTimer(tick,0);else tick();
  }

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {validateVisualContent as validate,visualFamilies} from '../../podview/visual-content.js';
 import {visualExamples} from '../../podview/visual-examples.js';
-import {adjustTimerDuration,readTimerDuration} from '../../podview/timer-model.js';
+import {adjustTimerDuration,readTimerDuration} from '../../podview/src/screens/timer/timer-model.ts';
 test('four visual families accept bounded sourced content and discard executable extensions',()=>{
  for(const family of visualFamilies){const raw=structuredClone(visualExamples[family].content);raw.html='<script>evil()</script>';raw.actions=['turn_on'];const result=validate(family,raw);assert.equal(result.html,undefined);assert.equal(result.actions,undefined);assert.deepEqual(result,visualExamples[family].content);}
 });

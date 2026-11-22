@@ -2,7 +2,7 @@ import {vehiclePreviewAction} from './vehicle-model.js';
 import {robotRoom,robotValue,robotActivity,robotExperience} from './robot-observation.js';
 import {visualExamples} from './visual-examples.js';
 import {visualFamilies,validateVisualContent} from './visual-content.js';
-import {timerTransition} from './timer-model.js';
+import {timerTransition} from './src/screens/timer/timer-model.ts';
 import {initialWidgetState, widgetTransition} from './widget-model.js';
 
 // Stable fixture IDs are shared by touch and visual actions. These are local examples.

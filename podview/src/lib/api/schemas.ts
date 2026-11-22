@@ -5,26 +5,28 @@ import {z} from 'zod';
 
 // Native timer revisions are decimal strings of at most 24 digits.
 export const sourceRevision = z.string().regex(/^(0|[1-9][0-9]{0,23})$/);
-const durationSeconds = z.number().int().min(1).max(86400);
 
+// A native timer row. Only its identity is required here: a row with an id is the owner's timer, also when the
+// screen cannot draw it (live-timers.ts admits what it shows). Proof of an action's effect looks at every row.
 export const timerRowSchema = z.looseObject({
   id: z.string(),
-  name: z.string(),
-  secondsLeft: z.number().refine(Number.isFinite),
-  status: z.enum(['running', 'paused', 'finished']),
-  durationSeconds: durationSeconds.optional(),
-  sourceRevision: sourceRevision.optional(),
-  alertState: z.string().nullish(),
-  physicalStopped: z.boolean().nullish(),
-  physicalDrained: z.boolean().nullish(),
+  name: z.unknown().optional(),
+  secondsLeft: z.unknown().optional(),
+  status: z.unknown().optional(),
+  // The owner's facts, checked where they are used.
+  durationSeconds: z.unknown().optional(),
+  sourceRevision: z.unknown().optional(),
+  alertState: z.unknown().optional(),
+  physicalStopped: z.unknown().optional(),
+  physicalDrained: z.unknown().optional(),
 });
 export type TimerRow = z.infer<typeof timerRowSchema>;
 
 export const timersSchema = z.looseObject({
   status: z.enum(['observed', 'unavailable']),
-  epoch: z.unknown(),
-  // Rows the screen cannot show are dropped, as before (liveScene filtered them).
-  items: z.array(z.unknown()).transform(items =>
+  epoch: z.unknown().optional(),
+  // Rows without an identity are not timers.
+  items: z.array(z.unknown()).default([]).transform(items =>
     items.flatMap(item => {
       const row = timerRowSchema.safeParse(item);
       return row.success ? [row.data] : [];
@@ -32,6 +34,10 @@ export const timersSchema = z.looseObject({
   ),
 });
 export type TimersBlock = z.infer<typeof timersSchema>;
+
+// The timers block, or none observed when it cannot be read.
+export const readTimers = (value: unknown): TimersBlock =>
+  timersSchema.safeParse(value).data ?? {status: 'unavailable', epoch: undefined, items: []};
 
 export const timerHistorySchema = z.looseObject({
   status: z.string(),

@@ -11,6 +11,8 @@ export interface ShellPorts {
   focusHeading: () => void;
   // Re-read the home projection (weather advice completion is read through it).
   loadHome: () => void;
+  // The shell's toast (»Timeranmodningen er modtaget«).
+  showFeedback: (text: string) => void;
 }
 
 export interface ShellState extends ShellPorts {
@@ -20,7 +22,12 @@ export interface ShellState extends ShellPorts {
   motion: unknown;
 }
 
-const NOOP: ShellPorts = {dispatch: () => undefined, focusHeading: () => undefined, loadHome: () => undefined};
+const NOOP: ShellPorts = {
+  dispatch: () => undefined,
+  focusHeading: () => undefined,
+  loadHome: () => undefined,
+  showFeedback: () => undefined,
+};
 
 export const useShell = create<ShellState>(() => ({...NOOP, focus: 'now', motion: null}));
 

@@ -3005,20 +3005,18 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
 ::view-transition-group(pv-hero){animation-duration:661ms;animation-timing-function:var(--pv-spring-0)}
 ::view-transition-old(pv-hero),::view-transition-new(pv-hero){mix-blend-mode:normal;height:100%;object-fit:cover}
 
-/* P5 value (docs/MOTION.md §3.6). SceneMotion.value() puts each character of a figure in a slot; a changed digit
-   rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was), so the text is
-   always the value. Progress: data-pv-progress=tick runs linear over the tick, so a ring never stops or jumps;
-   user (+1 min, Start igen, another app) travels on the smooth spring. Reduced keeps progress continuous. */
+/* P5 value (docs/MOTION.md §3.6). SceneMotion.value() and React's RollingDigits put each character of a figure in a
+   slot; a changed digit rolls in on the quick spring while the old one leaves as the slot's ::before (data-pv-was),
+   so the text is always the value. The timer ring's --progress is animated by motion/react (useProgress): linear
+   over a tick, the smooth spring for a user change; data-pv-progress names the last source. */
 [data-pv-digit]{display:inline-block;position:relative}
 [data-pv-digit]>span{display:inline-block}
 [data-pv-digit]::before{content:attr(data-pv-was);position:absolute;left:0;top:0;opacity:0;pointer-events:none}
-[data-pv-progress=tick] .timer-progress{transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear}
-[data-pv-progress=user] .timer-progress{transition:stroke-dasharray var(--pv-spring-smooth)}
-/* Progress is information, not decoration: it stays continuous under the global reduced transition:none. */
-:root[data-pv-motion=reduced] [data-pv-progress=tick] .timer-progress{
- transition:stroke-dasharray var(--pv-progress-interval,1000ms) linear!important}
-:root[data-pv-motion=reduced] [data-pv-progress=user] .timer-progress{
- transition:stroke-dasharray var(--pv-dur-reduced) linear!important}
+
+
+/* The timer ring's progress moves with motion/react (src/lib/motion/value.tsx), continuous also when reduced. */
+
+
 
 /* Horizontal scroll: the weather's fade toward the right edge, with snap. */
 .pv-hscroll{display:flex;gap:var(--pv-gap);overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;
@@ -6082,20 +6080,20 @@ pv-widget-host .responses>[data-pv-page-layer]{will-change:transform,opacity;con
  #timer-alert#timer-alert[open] button:disabled{opacity:.5}
 
  /* Topbar timer chip (»A-Topbar«): 44 high, dark, ring 24 in coral, the time in 18 mono. */
- pv-widget-host .view-nav .header-context>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
+ pv-widget-host .view-nav .header-context>.header-timer-slot{display:contents}  pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer:not([hidden]){display:flex;align-items:center;gap:10px;
   height:44px;min-height:44px;padding:0 14px 0 10px;border-radius:22px;border:0;background:var(--pv-ink);color:#F7F6F3;
   box-shadow:none;flex:none;--pv-enter-y:8px;
   animation:pv-enter-up var(--pv-spring-snappy) backwards;cursor:pointer}
- pv-widget-host .view-nav .header-context>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
- pv-widget-host .view-nav .header-context>#header-timer circle{fill:none;stroke-width:3px}
- pv-widget-host .view-nav .header-context>#header-timer .timer-track{stroke:var(--pv-timer-track)}
- pv-widget-host .view-nav .header-context>#header-timer
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer>svg{width:24px;height:24px;transform:rotate(-90deg)}
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer circle{fill:none;stroke-width:3px}
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer .timer-track{stroke:var(--pv-timer-track)}
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer
   .timer-progress{stroke:var(--pv-timer-coral);stroke-linecap:round;
   stroke-dasharray:var(--progress,100) 100}
- pv-widget-host .view-nav .header-context>#header-timer>span{font:500 18px/1 'IBM Plex Mono',ui-monospace,monospace;
+ pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer>span{font:500 18px/1 'IBM Plex Mono',ui-monospace,monospace;
   letter-spacing:-.03em}
 }
-pv-widget-host .view-nav .header-context>#header-timer[hidden]{display:none}
+pv-widget-host .view-nav .header-context>#header-timer-slot>#header-timer[hidden]{display:none}
 
  :root[data-pv-motion=reduced] pv-widget-host #timers-view .timer-panel::before,
  :root[data-pv-motion=reduced] #timer-alert[open]::before,

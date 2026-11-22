@@ -14,7 +14,16 @@ export interface WeatherAdviceBinding {
   weatherKey: unknown;
 }
 
+// The connection owner's client diagnostics (podvoice-transport.js): rows are recorded only while the read
+// generation they began in is current and access is not blocked.
+export interface ApiDiagnostics {
+  generation: () => number;
+  blocked: () => boolean;
+  record: (stage: string, fields: Record<string, unknown>) => void;
+}
+
 export interface PodVoiceApi {
+  diagnostics?: ApiDiagnostics;
   timerAction: (request: TimerRequest & {requestId: string}) => Promise<TimerReceipt>;
   // Throws an Error whose `code` is 'stale_weather_binding' or 'read_access_denied' when the binding is gone.
   weatherAdvice: (binding: WeatherAdviceBinding, options: {signal?: AbortSignal}) => Promise<unknown>;

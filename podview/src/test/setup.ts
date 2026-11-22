@@ -9,7 +9,8 @@ afterEach(() => {
   // Every test starts from an empty cache and the default stores.
   queryClient.clear();
   connectApi(null);
-  connectShell({dispatch: () => undefined, focusHeading: () => undefined, loadHome: () => undefined});
+  connectShell({dispatch: () => undefined, focusHeading: () => undefined, loadHome: () => undefined,
+    showFeedback: () => undefined});
   useShell.setState({focus: 'now', motion: null});
 });
 

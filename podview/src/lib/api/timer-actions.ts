@@ -12,7 +12,9 @@ export interface TimerRequest {
 export type TimerEvent =
   | {type: 'timer-start'; seconds: number; name: string}
   | {type: 'timer'; action: 'adjust'; id: string; deltaSeconds: number}
-  | {type: 'timer'; action: 'restart' | 'cancel'; id: string};
+  | {type: 'timer'; action: 'restart' | 'cancel'; id: string}
+  // Local preview operations (pause, resume, hide, add): never a request to the native owner.
+  | {type: 'timer'; action: 'pause' | 'resume' | 'hide' | 'show' | 'add'; id: string};
 
 export type TimerOutcome = 'accepted' | 'unknown' | 'rejected';
 export interface TimerReceipt extends Partial<Omit<TimerReceiptBody, 'requestId' | 'ok' | 'outcome'>> {
@@ -25,6 +27,7 @@ export interface TimerReceipt extends Partial<Omit<TimerReceiptBody, 'requestId'
 
 const REVISION = /^(0|[1-9][0-9]{0,23})$/;
 const revision = (value: unknown): value is string => typeof value === 'string' && REVISION.test(value);
+const active = (status: unknown) => status === 'running' || status === 'paused';
 const duration = (value: unknown): value is number =>
   Number.isInteger(value) && (value as number) >= 1 && (value as number) <= 86400;
 // Decimal revisions compare by length, then lexically.
@@ -38,19 +41,22 @@ export function timerRequest(
   connected: boolean | undefined,
   event: TimerEvent,
 ): TimerRequest | null {
-  if (!connected || snapshot?.timers.status !== 'observed') return null;
+  // Legacy callers pass the transport's raw snapshot: a missing block is no permission.
+  const facts = snapshot as Partial<SnapshotTimers> | null | undefined;
+  if (!connected || facts?.timers?.status !== 'observed' || !Array.isArray(facts.capabilities?.timerActions)) return null;
+  if (!snapshot) return null;
   const actions = snapshot.capabilities.timerActions;
   const items = snapshot.timers.items;
   if (event.type === 'timer-start') {
     const ok = items.length === 0 && actions.includes('timer.start') && duration(event.seconds);
-    return ok && event.name.length <= 120
+    return ok && typeof event.name === 'string' && event.name.length <= 120
       ? {action: 'timer.start', args: {seconds: event.seconds, name: event.name}}
       : null;
   }
   const row = items.find(t => t.id === event.id);
   if (event.action === 'adjust') {
     if (!actions.includes('timer.adjust') || ![-60, 60].includes(event.deltaSeconds)) return null;
-    if (!row || !['running', 'paused'].includes(row.status) || !duration(row.durationSeconds)) return null;
+    if (!row || !active(row.status) || !duration(row.durationSeconds)) return null;
     if (!revision(row.sourceRevision)) return null;
     return {
       action: 'timer.adjust',
@@ -61,10 +67,11 @@ export function timerRequest(
   if (event.action === 'restart') {
     const allowed = actions.includes('timer.start') && actions.includes('timer.cancel');
     if (!allowed || !items.every(t => t.status === 'finished')) return null;
-    return row && duration(row.durationSeconds) && row.name.length <= 120
+    return row && duration(row.durationSeconds) && typeof row.name === 'string' && row.name.length <= 120
       ? {action: 'timer.restart', args: {timer_id: row.id}}
       : null;
   }
+  if (event.action !== 'cancel') return null;
   return actions.includes('timer.cancel') && row ? {action: 'timer.cancel', args: {timer_id: event.id}} : null;
 }
 
@@ -85,7 +92,7 @@ export function timerActionBody(
     const row = snapshot.timers.status === 'observed' ? snapshot.timers.items.find(t => t.id === args.timer_id) : null;
     const current =
       !!row &&
-      ['running', 'paused'].includes(row.status) &&
+      active(row.status) &&
       duration(row.durationSeconds) &&
       revision(row.sourceRevision) &&
       [-60, 60].includes(Number(args.delta_seconds)) &&

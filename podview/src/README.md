@@ -39,3 +39,12 @@ is UNKNOWN and never resent.
 4. The shell may still show/hide a screen's container and paint its own surfaces outside it (e.g. the Home weather
    card in `weather-surfaces.js`) until those move too.
 5. No `.d.ts` shims for old JS from a rewritten screen: what it needs is ported to TypeScript first.
+
+## Commands (wish → sent → confirmed | unknown)
+
+A screen's explicit actions are a Zustand store of their own (`screens/timer/commands.ts`): one tap is one send
+through `currentApi()`, the proof is the next snapshot (the shell calls `reconcile` on each), an accepted action
+without proof turns into an honest unknown after its wait, and taps during a command queue instead of locking. The
+access a control follows is a pure function of that store and the snapshot (`access.ts`); components re-render from
+it. Motion: `lib/motion/value.tsx` (`RollingDigits`, `useProgress`) on the kit's tokens (`lib/motion/tokens.ts`).
+Buttons: `lib/ui/KitButton.tsx` (React Aria `useButton` on the kit's native button).
