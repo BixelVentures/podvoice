@@ -175,16 +175,3 @@ test('actual Spotify playlist CDN cover passes while near-miss hosts and unsafe 
   for(const bad of [url+'?x=1',url+'#x',url.replace(host,host+'.evil.invalid'),url.replace(host,'user@'+host),url.replace(host,host+':443'),url.replace('/image/','/other/')])assert.equal(spotifyArtwork({...cover,url:bad},playlist),null);
  }
 });
-test('a Find musik album, artist or show start shows its own cover while the room starts it',()=>{
- const cover={kind:'album_cover',provider:'spotify',url:'https://i.scdn.co/image/album0'};
- for(const [kind,label] of [['album','Albumomslag til'],['artist','Billede af'],['show','Podcastomslag til']]){
-  const node=image(),item={uri:`spotify:${kind}:${'A'.repeat(22)}`,name:'Kind of Blue',artwork:cover};
-  assert.equal(renderSpotifyArtwork(node,item),true,kind);
-  assert.equal(node.src,cover.url,kind);
-  assert.equal(node.alt,`${label} Kind of Blue`,kind);
- }
- // Never an arbitrary or playlist-only cover for a context.
- const node=image();
- assert.equal(renderSpotifyArtwork(node,{uri:`spotify:album:${'A'.repeat(22)}`,name:'X',
-  artwork:{...cover,kind:'playlist_cover'}}),false);
-});

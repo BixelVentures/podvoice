@@ -161,7 +161,7 @@ export class LiveMusicSelectionView{
   }
   // A retained mood row may sit outside the fresh source for a previous explicit choice.
   const sourceIndex=()=>entry.sourceKind==='mood'?collectionCardIndex(entry.source,card)
-   :['account_playlists','recent','shelves'].includes(entry.sourceKind)?entry.source?.tracks.findIndex(track=>track.uri===card.uri)??-1:index;
+   :['account_playlists','recent'].includes(entry.sourceKind)?entry.source?.tracks.findIndex(track=>track.uri===card.uri)??-1:index;
   if(!collectionCurrent(entry.source,this.host.liveSnapshot,this.account)||entry.selectionExpired||entry.actionDispatched||sourceIndex()<0){
    if(!catalogue.canRenewEntry?.(entry,card))return;
    const context=JSON.stringify(this.context()),binding=JSON.stringify(this.host.liveSnapshot?.mediaRoomBindings),focus=globalThis.document?.activeElement,key=catalogue.key();
@@ -285,7 +285,7 @@ export class LiveMusicSelectionView{
  pendingPlayer(feedback=this.playerFeedback()){
   if(!feedback||!this.context()||this.pendingFeedbackScope!==this.feedbackScope())return null;
   if(this.resultTicket&&!this.resultCurrent(this.resultTicket))return null;
-  const source=this.pendingCardSource;if(source!==this.source)return null;const track=source?.tracks?.[this.pendingCardIndex];if(!track||!/^spotify:(track|episode|playlist|album|artist|show):[A-Za-z0-9]{22}$/.test(track.uri||''))return null;
+  const source=this.pendingCardSource;if(source!==this.source)return null;const track=source?.tracks?.[this.pendingCardIndex];if(!track||!/^spotify:(track|episode|playlist):[A-Za-z0-9]{22}$/.test(track.uri||''))return null;
   if(feedback.outcome==='accepted'){
    if(feedback.displayObserved||!Number.isFinite(feedback.requestedAt)||feedback.displayExpired||['rejected','superseded'].includes(feedback.settlementStatus)||this.selectionItemObserved(this.host.liveMedia?.playback,feedback,track.uri))return null;
   }else if(!(feedback.pending||feedback.awaitingObservation))return null;
@@ -310,9 +310,9 @@ export class LiveMusicSelectionView{
   const observedAt=Date.parse(playback.observedAt);
   if(!Number.isFinite(observedAt)||!Number.isFinite(feedback.requestedAt)||observedAt<feedback.requestedAt)return false;
   if(/^spotify:(track|episode):/.test(uri||''))return playback.item?.uri===uri;
-  // Route confirmation alone says nothing about a context's first item. A playlist, album, artist or show is
-  // observed when the room plays a song or episode that started after the request.
-  return /^spotify:(playlist|album|artist|show):/.test(uri||'')&&/^spotify:(track|episode):/.test(playback.item?.uri||'')
+  // Route confirmation alone says nothing about the playlist's first item.
+  // A playlist is observed when the room plays a song that started after the request.
+  return /^spotify:playlist:/.test(uri||'')&&/^spotify:(track|episode):/.test(playback.item?.uri||'')
    &&Number.isSafeInteger(playback.progressMs)&&playback.progressMs<=observedAt-feedback.requestedAt+2000;
  }
  destinationObserved(playback,destination){const binding=playbackBinding(playback,this.host.liveSnapshot,destination.accountId);return !!binding&&binding.accountId===destination.accountId&&binding.nativeRoomId===destination.nativeRoomId&&binding.nativeHomepodId===destination.nativeHomepodId;}
@@ -349,7 +349,7 @@ export class LiveMusicSelectionView{
   if(this.form&&this.form.hidden!==formHidden)this.form.hidden=formHidden;if(this.panel.getAttribute?.('aria-label')!==panelLabel)this.panel.setAttribute?.('aria-label',panelLabel);if(this.panel.hidden!==!searchAllowed)this.panel.hidden=!searchAllowed;for(const node of [this.submit,this.input])if(node.disabled!==inputDisabled)node.disabled=inputDisabled;if(this.back.hidden!==backHidden)this.back.hidden=backHidden;if(!this.targetLabel.hidden)this.targetLabel.hidden=true;if(this.targetSelect.disabled!==targetDisabled)this.targetSelect.disabled=targetDisabled;
   if(this.collectionMode){this.host.liveCatalogue?.render();return;}if(!this.active)return;
   const pendingCurrent=(this.pending||this.feedback?.pending===true)&&connected&&typeof this.pendingCardId==='string'&&this.pendingCardSource===this.source&&this.pendingFeedbackScope===this.feedbackScope(),valid=!this.pending&&!this.used&&selectionCurrent(this.offer,this.host.liveSnapshot,this.account,this.source),cards=sourceMusicCards(this.source?.tracks||this.retainedTracks||[]).map((card,index)=>({...card,id:valid?this.offer.options[index].id:pendingCurrent&&index===this.pendingCardIndex?this.pendingCardId:card.id,optionIndex:index}));
-  this.host.musicResults?.render?.({cards:this.source||this.retainedTracks?cards:this.host.liveCatalogue?.cards||[],collection:this.host.liveCatalogue?.selected||'mood',heading:this.source?'Søgeresultater':'Din musik',status:this.intent?'':this.note.textContent,connected,pendingId:pendingCurrent?this.pendingCardId:null,busy:this.pending&&!this.intent,canRefresh:false,canChoose:!this.used&&!!this.source?.context&&(valid||this.targets.length>0)});
+  this.host.musicResults.render({cards:this.source||this.retainedTracks?cards:this.host.liveCatalogue?.cards||[],collection:this.host.liveCatalogue?.selected||'mood',heading:this.source?'Søgeresultater':'Din musik',status:this.intent?'':this.note.textContent,connected,pendingId:pendingCurrent?this.pendingCardId:null,busy:this.pending&&!this.intent,canRefresh:false,canChoose:!this.used&&!!this.source?.context&&(valid||this.targets.length>0)});
  }
  cleanup(){this.targetPrefetchPaused=this.targetReadScope();this.targetRead=null;this.invalidate('Forbindelsen mangler.');if(this.searchDialog?.open)this.searchDialog.close();clearTimeout(this.expiryTimer);}
 }

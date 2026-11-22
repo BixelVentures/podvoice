@@ -27,14 +27,14 @@ test('TimerView retains an unavailable first-empty draft without granting Start'
 test('TimerView retains current timer and disables cancellation on lost authority',()=>{const timer={id:'actual',remaining:73},v=fixture(timer);v.renderAccess({connected:false,canStart:false,canCancel:false});assert.equal(v.currentTimer,timer);assert.equal(v.form.hidden,true,'an unresolved timer hides new-timer controls even after authority is lost');assert.equal(v.canStart,false);assert.equal(v.form.elements[0].disabled,true);assert.equal(v.finish.hidden,false);assert.equal(v.finish.disabled,true);assert.equal(v.canCancel,false);});
 test('pending and unknown preserve anatomy and block both actions; recovery only restores actual permissions',()=>{const v=fixture();for(const blocked of [{pending:true},{awaitingObservation:true,feedback:'Udfald ukendt · handlingen gentages ikke'}]){v.renderAccess({connected:true,canStart:true,canCancel:true,...blocked});assert.equal(v.form.hidden,false);assert.equal(v.canStart,false);assert.equal(v.canCancel,false);}v.renderAccess({connected:true,canStart:true,canCancel:false});assert.equal(v.canStart,true);assert.equal(v.canCancel,false);assert.equal(v.status.hidden,true);});
 test('actual live adapter keeps the empty form when no timer action is granted',()=>{
- const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  this.liveCatalogue??=",start);
+ const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start);
  assert.ok(start>=0&&end>start);const view=fixture();
  const host={timerView:view,liveActionPending:false,liveActionFeedback:''};
  new Function('connected','snapshot',source.slice(start,end)).call(host,false,{timers:{status:'unavailable'},capabilities:{timerActions:[]}});
  assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.canCancel,false);assert.equal(view.status.textContent,'Timerstyring er ikke tilgængelig lige nu.');
 });
 test('actual adapter distinguishes active observation wait from unknown outcome in aria-busy',()=>{
- const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  this.liveCatalogue??=",start),render=new Function('connected','snapshot',source.slice(start,end));
+ const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
  // Blocking follows the timer state field, not the displayed text (T1).
  for(const [feedback,pending,busy,blocked,phase] of [['',true,true,true,'sending'],['Afventer opdateret timer',false,true,true,'awaiting'],['Udfald ukendt · handlingen gentages ikke',false,false,true,'unknown'],['',false,false,false,null]]){
   const view=fixture();
@@ -169,7 +169,7 @@ test('TimerView exposes only independent Cancel buttons while Start is uncertain
 test('unavailable epoch does not erase retained Start fence through actual access projection',async()=>{
  const t=timerOwner({items:[],held:true}),start=t.host.sendLiveTimer(startOne);t.settle({ok:false,outcome:'unknown'});await start;
  t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'alarm',status:'finished'}]}}));const cancel=t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'alarm'}});t.settle({ok:true,outcome:'accepted'},1);await cancel;t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));
- const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  this.liveCatalogue??=",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end));t.host.timerView={renderAccess(value){this.access=value;}};
+ const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end));t.host.timerView={renderAccess(value){this.access=value;}};
  t.observe(t.snapshot({timers:{status:'unavailable',epoch:null,items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(t.host.liveTimerFences.length,1);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
  t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(t.host.timerView.access.awaitingObservation,true);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
 });
@@ -177,7 +177,7 @@ test('unavailable epoch does not erase retained Start fence through actual acces
 test('retained UNKNOWN Start explains disabled empty form after independent observed cancellation',async()=>{
  const t=timerOwner({items:[],held:true}),start=t.host.sendLiveTimer(startOne);t.settle({ok:false,outcome:'unknown'});await start;
  t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[{id:'alarm',status:'finished'}]}}));const stop=t.host.sendLiveTimer({action:'timer.cancel',args:{timer_id:'alarm'}});t.settle({ok:true,outcome:'accepted'},1);await stop;t.observe(t.snapshot({timers:{status:'observed',epoch:'epoch',items:[]}}));
- const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  this.liveCatalogue??=",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end)),view=fixture();t.host.timerView=view;
+ const begin=timerOwnerSource.indexOf('  const canStart=connected&&snapshot?.timers'),end=timerOwnerSource.indexOf("  if($('results').hidden",begin),render=new Function('connected','snapshot',timerOwnerSource.slice(begin,end)),view=fixture();t.host.timerView=view;
  render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.form.hidden,false);assert.equal(view.canStart,false);assert.equal(view.status.hidden,false);assert.equal(view.status.textContent,'En tidligere timerhandling har ukendt udfald. Ny timerstart er derfor blokeret.');assert.equal(t.host.liveActionFeedback,'');assert.equal(t.host.liveTimerFences.length,1);await t.host.sendLiveTimer(startOne);assert.equal(t.calls.length,2);
  t.observe(t.snapshot({timers:{status:'observed',epoch:'new-authoritative-epoch',items:[]}}));render.call(t.host,true,t.host.liveSnapshot);assert.equal(view.canStart,true);assert.equal(view.status.hidden,true);assert.equal(view.status.textContent,'');
 });
@@ -237,7 +237,7 @@ test('unknown adjustment needs a newer native revision or actual removal; paused
 });
 
 test('actual adapter permits independent cancel during adjustment only',()=>{
- const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  this.liveCatalogue??=",start),render=new Function('connected','snapshot',source.slice(start,end));
+ const source=readFileSync(resolve(podview,'widget-view.js'),'utf8'),start=source.indexOf('  const canStart=connected&&snapshot?.timers'),end=source.indexOf("  if($('results').hidden",start),render=new Function('connected','snapshot',source.slice(start,end));
  for(const action of ['timer.start','timer.cancel','timer.adjust']){const view=fixture();render.call({timerView:view,liveActionPending:true,liveActionFeedback:'',liveTimerAction:{action,timerId:'exact',deltaSeconds:60}},true,{timers:{status:'observed'},capabilities:{timerActions:['timer.start','timer.cancel','timer.adjust']}});assert.equal(view.canCancel,action==='timer.adjust',action);}
 });
 

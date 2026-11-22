@@ -99,18 +99,3 @@ test('picker check accepts the away player and verifies »Flyt til« instead', (
   assert.match(picker, /et tryk på højttalerchippen flyttede musikken/, 'the away chip must not move the music');
   assert.match(picker, /#rooms/, 'the away chip opens the speaker list');
 });
-
-test('Find musik is checked on the shelves page, not the removed tabs', async () => {
-  const source = readFileSync(new URL('../../scripts/green-check.mjs', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /#result-list|data-collection|Andre forslag/, 'no selector of the removed catalogue');
-  assert.match(source, /'Find musik', 'F1 F11', '#home-music'/, 'F1 F11: the page opens from Home');
-  assert.match(source, /'Find musik rul', 'F5'/, 'F5: the page and a shelf scroll');
-  // Importing the check runs nothing: the browser journey borrows its page checks.
-  const {findMusicProblems} = await import('../../scripts/green-check.mjs');
-  const fine = {tiles: 30, locked: [], undecoded: 0, empty: null};
-  assert.deepEqual(findMusicProblems(fine), []);
-  assert.deepEqual(findMusicProblems({...fine, tiles: 0, empty: 'Musikken kan ikke hentes lige nu.'}),
-    ['Find musik viser ingen musik (»Musikken kan ikke hentes lige nu.«)']);
-  assert.deepEqual(findMusicProblems({...fine, locked: ['a', 'b']}), ['Find musik-fliser låst: 2 af 30']);
-  assert.deepEqual(findMusicProblems({...fine, undecoded: 3}), ['3 covers vist, før de var afkodet']);
-});

@@ -98,8 +98,7 @@ async def test_actual_read_is_bounded_account_owned_and_rechecks_binding(revoke)
         router._discovery = replace(
             router._discovery, podconnect_services=frozenset({"get_user_playlists"})
         )
-        # Own playlists also feed Find musik's fallback shelf (older Control without recent contexts).
-        assert router.podview_music_reads() == ["account_playlists", "shelves"]
+        assert router.podview_music_reads() == ["account_playlists"]
         assert not (await router.podview_read("account_playlists"))["ok"]
         assert not (await router.podview_read("account_playlists", ACCOUNT, "query"))["ok"]
         assert calls == []

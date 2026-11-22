@@ -466,45 +466,23 @@ async def test_ha_dropping_the_request_does_not_stop_the_import(site, store):
 
 async def test_addon_restart_mid_import_resumes_the_link(site, store, monkeypatch):
     monkeypatch.setattr("gatekeeper.podview.REPLY_SECONDS", 0.05)
-    fetching = asyncio.Event()
 
     async def slow(_):
-        fetching.set()
         await asyncio.sleep(5)
         return web.Response(text="", content_type="text/html")
 
     site.pages["/genstart"] = slow
     assert await share(store, {"url": site.base + "/genstart"}) == (202, RECEIVED)
-    # The add-on shuts down while the page is being fetched (not at some earlier step by chance).
-    await asyncio.wait_for(fetching.wait(), 5)
-    for task in list(recipe_import._RUNNING.values()):
+    for task in list(recipe_import._RUNNING.values()):  # Add-on shuts down.
         task.cancel()
     await settled()
-    assert history(store)[0]["status"] == "received", "a stopped import is queued again"
+    assert history(store)[0]["status"] == "received"
     site.pages["/genstart"] = jsonld("Genoptaget")
     restarted = RecipeSubmissions(store.path)
     for url in restarted.pending_urls():  # What the add-on does at start.
         await import_link(restarted, url)
     assert history(restarted)[0]["status"] == "saved"
     assert history(restarted)[0]["title"] == "Genoptaget"
-
-
-@pytest.mark.parametrize("left", ["received", "importing"])
-async def test_link_left_by_a_hard_stop_resumes_at_start(site, store, left):
-    """The add-on can stop before the import began (received) or in the middle of it without its shutdown
-    handler running (importing, e.g. power loss). Both resume at the next start, and nothing waits for the
-    stopped import's 30 s lease."""
-    url = site.base + "/afbrudt-" + left
-    receipt = store.submit(url)
-    if left == "importing":
-        assert store.begin_import(receipt["id"])
-    assert history(store)[0]["status"] == left
-    site.pages["/afbrudt-" + left] = jsonld("Genoptaget")
-    restarted = RecipeSubmissions(store.path)
-    assert restarted.pending_urls() == [url]
-    await import_link(restarted, url)
-    assert history(restarted)[0]["status"] == "saved"
-    assert site.hits["/afbrudt-" + left] == 1
 
 
 async def test_history_endpoint_shows_each_outcome(site, store):

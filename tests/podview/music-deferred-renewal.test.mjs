@@ -1,0 +1,96 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {LiveMusicCatalogueView} from '../../podview/live-music-view.js';
+const snapshot=()=>({bootId:'boot',roomId:'room',voice:{},capabilities:{musicRead:['mood','targets','top'],musicSelection:false}});
+const themes=[['cooking','Musik til madlavningen','assets/kitchen.png'],['italian','En italiensk aften','assets/italian.png'],['calm','En rolig stund','assets/lake.png']];
+function body(){return {ok:true,schema:'podview.mood-preview.v1',preview:{readOnly:true,bootId:'boot',roomId:'room',configEntryId:'account',ownerEpoch:'epoch',source:'spotify_web_api',expiresIn:60,voiceSessionId:null,voiceTurnId:null},data:{config_entry_id:'account',owner_epoch:'epoch',source:'spotify_web_api',tracks:themes.map(([themeId,themeTitle,themeArt],i)=>({uri:'spotify:playlist:'+String(i).padStart(22,'0'),name:'Actual '+i,artist:themeTitle,themeId,themeTitle,themeArt}))}};}
+
+
+function writable(){const b=body();return {ok:true,data:b.data,selection:{requested_limit:3,source_sample_count:3,returned_count:3,more_in_sample:false,size_limited:false},candidateSet:{schema:'podview.music-search-context.v1',bootId:'boot',roomId:'room',configEntryId:'account',source:'spotify_web_api',query:'mood:collection',sourceKind:'mood',candidateSetId:'a'.repeat(64),revisionScope:'music_selection',sessionId:'session',turnId:'turn',taskId:'task',inputRevision:1,revision:1,items:[0,1,2].map(index=>({id:String(index).padStart(24,'a'),index}))}};}
+function setup(){const calls=[],renders=[],host={isConnected:true,state:{focus:'music'},liveSnapshot:snapshot(),musicResults:{render:v=>renders.push(v)},liveSelection:{invalidate(){},leave(){}},liveTransport:{connected:true},liveMusicGeneration:0};const view=new LiveMusicCatalogueView(host,kind=>{host.liveMusicGeneration++;calls.push([kind,view.pendingRead.reason]);});view.account='account';view.updateCapabilities(true,host.liveSnapshot.capabilities.musicRead);view.select('mood');host.liveSnapshot.capabilities.musicSelection=true;const token={owner:{},generation:1};view.renewRetained(token);return {host,view,calls,renders,token};}
+test('held initial preview drains one renewal, preserves exact cards, then enables only validated source',()=>{const f=setup();try{f.view.tracks('mood',body(),'account');assert.deepEqual(f.calls,[['mood','initial'],['mood','renew']]);const cards=f.view.cards;assert.equal(f.renders.at(-1).canChoose,false);f.view.renewRetained(f.token);f.view.render();assert.equal(f.calls.length,2);f.view.tracks('mood',writable(),'account');assert.equal(f.view.cards,cards);assert.equal(f.renders.at(-1).canChoose,true);f.view.open();f.view.render();assert.equal(f.calls.length,2);}finally{clearTimeout(f.view.expiryTimer);}});
+for(const outcome of ['preview','failure','changed-name','changed-uri'])test(`one-shot renewal ${outcome} cannot loop or enable invalid source`,()=>{const f=setup();try{f.view.tracks('mood',body(),'account');assert.equal(f.calls.length,2);const cards=f.view.cards;if(outcome==='failure')f.view.failure('mood');else{const b=outcome==='preview'?body():writable();if(outcome==='changed-name')b.data.tracks[0].name='Other';if(outcome==='changed-uri')b.data.tracks[0].uri='spotify:playlist:'+'z'.repeat(22);f.view.tracks('mood',b,'account');}f.view.renewRetained(f.token);f.view.render();f.view.open();assert.equal(f.calls.length,2);assert.equal(f.view.cards,cards);assert.equal(f.renders.at(-1).canChoose,false);}finally{clearTimeout(f.view.expiryTimer);}});
+test('already actionable initial response consumes notification without extra read',()=>{const f=setup();try{f.view.tracks('mood',writable(),'account');assert.equal(f.calls.length,1);assert.equal(f.renders.at(-1).canChoose,true);}finally{clearTimeout(f.view.expiryTimer);}});
+for(const change of ['boot','room','account','transport','offline','focus','capability','voice','generation','selection','failure','interrupt'])test(`deferred renewal drops after ${change}`,()=>{const f=setup();try{if(change==='boot')f.host.liveSnapshot.bootId='new';if(change==='room')f.host.liveSnapshot.roomId='new';if(change==='account')f.view.resetAccount('other');if(change==='transport')f.host.liveTransport={connected:true};if(change==='offline')f.view.offline();if(change==='focus')f.host.state.focus='photo';if(change==='capability')f.host.liveSnapshot.capabilities.musicSelection=false;if(change==='voice')f.host.liveSnapshot.voice={sessionId:'new'};if(change==='generation')f.host.liveMusicGeneration++;if(change==='selection')f.host.liveSelection.active=true;if(change==='failure')f.view.failure('mood');if(change==='interrupt')f.view.interrupt();f.view.render();f.view.tracks('mood',body(),'account');assert.equal(f.calls.length,1);assert.equal(f.view.deferredRenewal??null,null);}finally{clearTimeout(f.view.expiryTimer);}});
+
+test('newer same-owner notification replaces deferred token and still drains only once',()=>{const f=setup();try{f.view.renewRetained({...f.token,generation:2});f.view.renewRetained(f.token);f.view.tracks('mood',body(),'account');assert.equal(f.calls.length,2);assert.equal(f.view.pendingRead.reason,'renew');}finally{clearTimeout(f.view.expiryTimer);}});
+test('away and back after rendering invalid focus cannot revive deferred notification',()=>{const f=setup();try{f.host.state.focus='photo';f.view.render();f.host.state.focus='music';f.view.tracks('mood',body(),'account');assert.equal(f.calls.length,1);}finally{clearTimeout(f.view.expiryTimer);}});
+function expiredFixture(){const f=setup();f.view.tracks('mood',writable(),'account');const entry=f.view.entries.get(f.view.key());entry.source.expiresAt=Date.now()-1;f.view.render();return {...f,entry};}
+test('explicit expired card renew resolves true only after exact validated source, preserves nodes and no action dispatch',async()=>{const f=expiredFixture();try{const card=f.view.cards[0],cards=f.view.cards;assert.equal(f.view.canRenewEntry(f.entry),true);const done=f.view.renewForCard(card);assert.equal(f.view.pendingRead.reason,'renew');assert.equal(await f.view.renewForCard(card),false);f.view.tracks('mood',writable(),'account');assert.equal(await done,true);assert.equal(f.view.cards,cards);assert.equal(f.entry.actionDispatched,undefined);assert.equal(f.calls.length,2);}finally{clearTimeout(f.view.expiryTimer);}});
+for(const change of ['dispatch','transport','provider','voice','interrupt','failure','preview'])test(`explicit renewal cannot complete after ${change}`,async()=>{const f=expiredFixture();try{const done=f.view.renewForCard(f.view.cards[0]);if(change==='dispatch')f.entry.actionDispatched=true;if(change==='transport')f.host.liveTransport={connected:true};if(change==='provider')f.host.liveSnapshot.providerGeneration=42;if(change==='voice')f.host.liveSnapshot.voice={sessionId:'next'};if(change==='interrupt')f.view.interrupt();if(change==='failure')f.view.failure('mood');f.view.render();f.view.tracks('mood',change==='preview'?body():writable(),'account');assert.equal(await done,false);assert.equal(f.calls.length,2);}finally{clearTimeout(f.view.expiryTimer);}});
+test('dispatched entry survives tab and controller renewal without authority resurrection',async()=>{const f=expiredFixture();try{f.entry.actionDispatched=true;f.entry.selectionSpent=true;f.entry.selectionExpired=true;assert.equal(f.view.canRenewEntry(f.entry),false);assert.equal(await f.view.renewForCard(f.view.cards[0]),false);f.view.select('mood');f.view.renewRetained({...f.token,generation:2});assert.equal(f.calls.length,1);assert.equal(f.entry.actionDispatched,true);assert.equal(f.entry.selectionSpent,true);assert.equal(f.renders.at(-1).canChoose,false);assert.equal(f.renders.at(-1).canRenew,false);}finally{clearTimeout(f.view.expiryTimer);}});
+
+test('legitimate later voice session does not permanently poison retained exact-card renewal',async()=>{const f=expiredFixture();try{const cards=f.view.cards;f.host.liveSnapshot.voice={active:true,phase:'listening',sessionId:'next-session',turnId:'next-turn'};f.host.liveSnapshot.sessionId='next-session';f.host.liveSnapshot.taskId='next-task';f.host.liveSnapshot.inputRevision=2;assert.equal(f.view.canRenewEntry(f.entry),true);const done=f.view.renewForCard(cards[0]);f.view.tracks('mood',writable(),'account');assert.equal(await done,true);assert.equal(f.view.cards,cards);assert.equal(f.calls.length,2);}finally{clearTimeout(f.view.expiryTimer);}});
+
+for(const route of ['controller','tab','explicit'])for(const change of ['voice','transport','generation','focus','capability','selection','invalidate'])test(`${route} renewal cannot publish source after ${change}`,async()=>{const f=expiredFixture();let done;try{if(route==='controller')f.view.renewRetained({...f.token,generation:2});else if(route==='tab')f.view.select('mood');else done=f.view.renewForCard(f.view.cards[0]);assert.equal(f.view.pendingRead.reason,'renew');if(change==='voice')f.host.liveSnapshot.voice={sessionId:'next'};if(change==='transport')f.host.liveTransport={connected:true};if(change==='generation')f.host.liveMusicGeneration++;if(change==='focus')f.host.state.focus='photo';if(change==='capability')f.host.liveSnapshot.capabilities.musicRead=['mood','targets'];if(change==='selection')f.host.liveSelection.active=true;if(change==='invalidate')f.view.invalidateAuthority(false);f.view.tracks('mood',writable(),'account');if(done)assert.equal(await done,false);assert.equal(f.entry.source,null);if(!f.host.liveSelection.active)assert.equal(f.renders.at(-1).canChoose,false);assert.equal(f.calls.length,2);}finally{clearTimeout(f.view.expiryTimer);}});
+
+test('passive renewal preserves card readiness and joins the existing read before using fresh authority',async()=>{const f=expiredFixture();try{const originalSelect=f.view.onSelect;f.view.onSelect=kind=>{originalSelect(kind);f.view.loading(kind);};const before=f.renders.length;f.view.renewRetained({owner:{},generation:1});const entry=f.entry,card=entry.cards[0],reads=f.calls.length;assert.equal(f.view.pendingRead.reason,'renew');for(const frame of f.renders.slice(before)){assert.equal(frame.busy,false);assert.equal(frame.canRenew,true,'each synchronous render retains card affordance');}const done=f.view.renewForCard(card);assert.equal(f.calls.length,reads,'a touch joins the pending read');assert.equal(entry.source,null,'old authority remains invalid');f.view.tracks('mood',writable(),'account');assert.equal(await done,true);assert.equal(f.calls.length,reads);assert.equal(entry.actionDispatched,undefined);}finally{clearTimeout(f.view.expiryTimer);}});
+for(const change of ['transport','failure','changed-uri'])test(`passive renewal joined by touch fails closed after ${change}`,async()=>{const f=expiredFixture();try{f.view.renewRetained({owner:{},generation:1});const done=f.view.renewForCard(f.entry.cards[0]);if(change==='transport')f.host.liveTransport={connected:true};if(change==='failure')f.view.failure('mood');else{const value=writable();if(change==='changed-uri')value.data.tracks[0].uri='spotify:playlist:'+'z'.repeat(22);f.view.tracks('mood',value,'account');}assert.equal(await done,false);assert.equal(f.entry.source,null);assert.equal(f.entry.actionDispatched,undefined);}finally{clearTimeout(f.view.expiryTimer);}});
+
+test('passive renewal presentation closes when its generation changes after initialization',()=>{const f=expiredFixture();try{f.view.renewRetained({owner:{},generation:1});assert.equal(f.renders.at(-1).canRenew,true);f.host.liveMusicGeneration++;f.view.render();assert.equal(f.renders.at(-1).canRenew,false);assert.equal(f.entry.source,null);}finally{clearTimeout(f.view.expiryTimer);}});
+test('reentrant touch while renewal initializes never uses unbound authority',async()=>{const f=expiredFixture();try{let reentrant;const originalSelect=f.view.onSelect;f.view.onSelect=kind=>{reentrant=f.view.renewForCard(f.entry.cards[0]);originalSelect(kind);};f.view.renewRetained({owner:{},generation:1});assert.equal(await reentrant,false);assert.equal(f.entry.source,null);assert.equal(f.entry.actionDispatched,undefined);}finally{clearTimeout(f.view.expiryTimer);}});
+
+test('confirmed first choice followed by another explicit card and read-only renewal shows honest feedback without an action',async()=>{const f=setup();f.view.tracks('mood',body(),'account');f.view.tracks('mood',writable(),'account');f.entry=f.view.entries.get(f.view.key());try{const cards=f.view.cards,player={state:'paused',name:'Bevaret sang'},effects=[];f.host.liveMedia={playback:player};f.host.liveTransport.musicSelectionSetup=()=>effects.push('setup');f.host.liveTransport.musicSelectionAction=()=>effects.push('action');Object.assign(f.entry,{actionDispatched:true,selectionConfirmed:true,selectionSpent:true,dispatchedCardId:cards[0].id});const done=f.view.renewForCard(cards[1]);assert.equal(f.view.pendingRead.reason,'choice');assert.equal(f.view.busy,true);f.view.tracks('mood',body(),'account');assert.equal(await done,false);assert.equal(f.view.pendingRead,null);assert.equal(f.view.busy,false);assert.equal(f.view.cards,cards);assert.equal(f.host.liveMedia.playback,player);assert.deepEqual(effects,[]);assert.equal(f.entry.source,null);assert.equal(f.view.canRenewEntry(f.entry,cards[1]),true,'explicit retry remains available');assert.equal(f.renders.at(-1).status,'Musikvalget fejlede · prøv igen.');}finally{clearTimeout(f.view.expiryTimer);}});
+test('passive read-only renewal remains a quiet retained preview',()=>{const f=setup();try{f.view.tracks('mood',body(),'account');f.view.tracks('mood',body(),'account');assert.equal(f.view.pendingRead,null);assert.equal(f.renders.at(-1).status,'3 stemninger');}finally{clearTimeout(f.view.expiryTimer);}});
+
+for(const outcome of ['readonly','invalid_dto','owner_changed','candidate_reused','card_mismatch','focus_changed','cancelled'])test(`explicit renewal records its actual ${outcome} branch on the original touch trace`,async()=>{const f=setup(),trace={requestId:'11111111-1111-4111-8111-111111111111'};try{f.view.tracks('mood',body(),'account');f.view.tracks('mood',writable(),'account');const entry=f.view.entries.get(f.view.key()),cards=f.view.cards;Object.assign(entry,{actionDispatched:true,selectionConfirmed:true,selectionSpent:true,dispatchedCardId:cards[0].id,dispatchedCandidateId:'a'.repeat(64)});const done=f.view.renewForCard(cards[1],trace);assert.equal(f.view.pendingRead.diagnosticTrace,trace);if(outcome==='owner_changed')f.view.invalidateAuthority(false);else if(outcome==='focus_changed'){f.host.state.focus='now';f.view.render();}else if(outcome==='cancelled')f.view.interrupt();else{let next=outcome==='readonly'?body():writable();if(outcome==='invalid_dto')next={ok:false};if(outcome==='card_mismatch')next.data.tracks[1].name='Changed';f.view.tracks('mood',next,'account');}assert.equal(await done,false);assert.equal(trace.outcome,'renewal_'+outcome);}finally{clearTimeout(f.view.expiryTimer);}});
+test('joining an existing passive renewal does not assign it an invented wire trace',async()=>{const f=expiredFixture(),trace={requestId:'11111111-1111-4111-8111-111111111111'};try{f.view.renewRetained({owner:{},generation:2});const read=f.view.pendingRead;assert.equal(read.reason,'renew');const done=f.view.renewForCard(f.view.cards[0],trace);assert.equal(f.view.pendingRead,read);assert.equal(read.diagnosticTrace,undefined);f.view.tracks('mood',body(),'account');assert.equal(await done,false);assert.equal(trace.outcome,'renewal_other');}finally{clearTimeout(f.view.expiryTimer);}});
+test('unwritable diagnostic metadata cannot block a failed renewal',async()=>{const f=setup(),trace=Object.freeze({requestId:'11111111-1111-4111-8111-111111111111'});try{f.view.tracks('mood',body(),'account');f.view.tracks('mood',writable(),'account');const entry=f.view.entries.get(f.view.key());entry.source.expiresAt=Date.now()-1;const done=f.view.renewForCard(f.view.cards[0],trace);f.view.tracks('mood',body(),'account');assert.equal(await done,false);}finally{clearTimeout(f.view.expiryTimer);}});
+
+for (const change of ['sibling', 'selected']) {
+ test(`explicit mood choice keeps exact clicked identity when renewal changes the ${change} card`,async()=>{
+  const f=setup(),trace={requestId:'11111111-1111-4111-8111-111111111111'};
+  try {
+   f.view.tracks('mood',writable(),'account');
+   const entry=f.view.entries.get(f.view.key()),cards=f.view.cards;
+   assert.equal(cards.length,3);
+   Object.assign(entry,{actionDispatched:true,selectionConfirmed:true,selectionSpent:true,
+    dispatchedCardId:cards[0].id,dispatchedCandidateId:entry.source.context.candidateSetId});
+   const selected=cards[1],changedIndex=change==='sibling'?2:1;
+   assert.equal(f.view.canRenewEntry(entry,cards[0]),false,'previous confirmed card is still consumed');
+   assert.equal(f.view.canRenewEntry(entry,selected),true,'different explicit card is available');
+   const choice=f.view.renewForCard(selected,trace);
+   assert.equal(f.view.pendingRead.reason,'choice');
+   const fresh=writable();
+   fresh.candidateSet.candidateSetId='b'.repeat(64);
+   fresh.candidateSet.items=fresh.candidateSet.items.map(item=>({...item,id:item.id.replace(/a/g,'b')}));
+   fresh.data.tracks[changedIndex].uri='spotify:playlist:'+'z'.repeat(22);
+   f.view.tracks('mood',fresh,'account');
+   const renewed=await choice;
+   if(change==='sibling') {
+    assert.equal(renewed,true,`unchanged clicked card was rejected as ${trace.outcome}`);
+    assert.equal(entry.source.context.candidateSetId,fresh.candidateSet.candidateSetId);
+    const selectedIndex=entry.source.tracks.findIndex(track=>track.uri===selected.uri);
+    assert.notEqual(selectedIndex,-1);
+    assert.equal(entry.source.candidateIds[selectedIndex],fresh.candidateSet.items[1].id);
+    assert.equal(entry.source.tracks.some(track=>track.uri===cards[2].uri),false);
+   } else {
+    assert.equal(renewed,false);
+    assert.equal(trace.outcome,'renewal_card_mismatch');
+    assert.equal(entry.source,null);
+    assert.equal(entry.actionDispatched,true);
+   }
+   assert.equal(f.view.cards,cards);
+   assert.deepEqual(f.calls,[['mood','initial'],['mood','choice']]);
+  } finally {
+   clearTimeout(f.view.expiryTimer);
+  }
+ });
+}
+
+
+test('passive mood renewal still needs every retained card to match',()=>{
+ const f=expiredFixture();
+ try {
+  const cards=f.view.cards;
+  f.view.renewRetained({owner:{},generation:2});
+  assert.equal(f.view.pendingRead.reason,'renew');
+  const fresh=writable();
+  fresh.data.tracks[2].uri='spotify:playlist:'+'z'.repeat(22);
+  f.view.tracks('mood',fresh,'account');
+  assert.equal(f.entry.source,null);
+  assert.equal(f.view.cards,cards);
+  assert.equal(f.renders.at(-1).canChoose,false);
+ } finally {
+  clearTimeout(f.view.expiryTimer);
+ }
+});

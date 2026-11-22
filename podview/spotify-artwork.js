@@ -65,13 +65,7 @@ export function renderRetainedArtwork(image,{url,identity,contentIdentity=identi
  }).catch(()=>probe.onerror?.('decode_error'));};
  probe.src=url;return true;
 }
-// A Find musik album, artist or show start shows its tile's cover while the room starts it (its source-bound art).
-const CONTEXT_URI=/^spotify:(album|artist|show):[A-Za-z0-9]{22}$/;
-const CONTEXT_LABEL={album:'Albumomslag til',artist:'Billede af',show:'Podcastomslag til'};
 export function renderSpotifyArtwork(image,item,contentIdentity=item?.uri,quiet=false,diagnosticOwner,retryKey){
- const playlist=PLAYLIST_URI.test(item?.uri),context=CONTEXT_URI.exec(item?.uri||'')?.[1];
- const art=spotifyItemUrl(item?.uri)||playlist||context?spotifyArtwork(item?.artwork,item?.uri):null,owned=playlist?(generatedMoodArtwork(item?.fallbackArt,item?.themeId)||(/^assets\/(?:(morning-acoustic|kitchen|italian|lake)\.(?:png|webp)|editorial-(forest|vinyl|ocean)\.(?:jpg|webp))$/.test(item?.fallbackArt||'')?item.fallbackArt.replace(/\.png$/,'.webp'):null)):null;
- return renderRetainedArtwork(image,{url:art?.url,identity:art?`${item.uri}|${art.url}`:'',contentIdentity,quiet,diagnosticOwner,retryKey,label:playlist?`Playlisteomslag til ${item?.name||item?.title||'afspilningslisten'}`
-  :context?`${CONTEXT_LABEL[context]} ${item?.name||item?.title||''}`.trim()
-  :`Albumomslag til ${item?.name||item?.title||'sangen'}`,provider:true,backup:art&&owned?{url:owned,identity:`fixture|${owned}`,label:typeof item.fallbackLabel==='string'?item.fallbackLabel:'Illustration til afspilningslisten'}:null});
+ const playlist=PLAYLIST_URI.test(item?.uri),art=spotifyItemUrl(item?.uri)||playlist?spotifyArtwork(item?.artwork,item?.uri):null,owned=playlist?(generatedMoodArtwork(item?.fallbackArt,item?.themeId)||(/^assets\/(?:(morning-acoustic|kitchen|italian|lake)\.(?:png|webp)|editorial-(forest|vinyl|ocean)\.(?:jpg|webp))$/.test(item?.fallbackArt||'')?item.fallbackArt.replace(/\.png$/,'.webp'):null)):null;
+ return renderRetainedArtwork(image,{url:art?.url,identity:art?`${item.uri}|${art.url}`:'',contentIdentity,quiet,diagnosticOwner,retryKey,label:playlist?`Playlisteomslag til ${item?.name||item?.title||'afspilningslisten'}`:`Albumomslag til ${item?.name||item?.title||'sangen'}`,provider:true,backup:art&&owned?{url:owned,identity:`fixture|${owned}`,label:typeof item.fallbackLabel==='string'?item.fallbackLabel:'Illustration til afspilningslisten'}:null});
 }
